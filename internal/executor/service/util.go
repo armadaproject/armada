@@ -3,9 +3,9 @@ package service
 import (
 	v1 "k8s.io/api/core/v1"
 
-	commonUtil "github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/executor/job"
-	"github.com/G-Research/armada/internal/executor/util"
+	commonUtil "github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/util"
 )
 
 func extractJobIds(jobs []*job.RunningJob) []string {

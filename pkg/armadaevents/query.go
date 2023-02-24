@@ -3,7 +3,7 @@ package armadaevents
 import (
 	"context"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 // PulsarQueryServer responds to queue info queries based on the log messages.

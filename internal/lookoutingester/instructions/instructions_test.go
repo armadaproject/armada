@@ -13,14 +13,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/lookout/repository"
-	"github.com/G-Research/armada/internal/lookoutingester/metrics"
-	"github.com/G-Research/armada/internal/lookoutingester/model"
-	"github.com/G-Research/armada/internal/pulsarutils"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/lookout/repository"
+	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
+	"github.com/armadaproject/armada/internal/lookoutingester/model"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // Mock Pulsar Message with implementations only for the functions we care about
@@ -569,13 +569,14 @@ func TestHandleJobLeaseReturned(t *testing.T) {
 			Error:            pointer.String(leaseReturnedMsg),
 			UnableToSchedule: pointer.Bool(true),
 		}},
-		JobsToUpdate: []*model.UpdateJobInstruction{
-			{
-				JobId:   jobIdString,
-				Updated: baseTime,
-				State:   pointer.Int32(repository.JobQueuedOrdinal),
-			},
-		},
+		// TODO: re-enable this once the executor is fixed to no longer send spurious lease returned messages
+		//JobsToUpdate: []*model.UpdateJobInstruction{
+		//	{
+		//		JobId:   jobIdString,
+		//		Updated: baseTime,
+		//		State:   pointer.Int32(repository.JobQueuedOrdinal),
+		//	},
+		//},
 		MessageIds: msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
@@ -620,6 +621,33 @@ func TestHandlePodUnschedulable(t *testing.T) {
 			UnableToSchedule: pointer.Bool(true),
 			Error:            pointer.String(unschedulableMsg),
 		}},
+		MessageIds: msg.MessageIds,
+	}
+	assert.Equal(t, expected, instructions)
+}
+
+func TestHandleDuplicate(t *testing.T) {
+	duplicate := &armadaevents.EventSequence_Event{
+		Created: &baseTime,
+		Event: &armadaevents.EventSequence_Event_JobDuplicateDetected{
+			JobDuplicateDetected: &armadaevents.JobDuplicateDetected{
+				NewJobId: jobIdProto,
+			},
+		},
+	}
+
+	svc := SimpleInstructionConverter()
+	msg := NewMsg(duplicate)
+	instructions := svc.Convert(context.Background(), msg)
+	expected := &model.InstructionSet{
+		JobsToUpdate: []*model.UpdateJobInstruction{
+			{
+				JobId:     jobIdString,
+				State:     pointer.Int32(repository.JobDuplicateOrdinal),
+				Updated:   baseTime,
+				Duplicate: pointer.Bool(true),
+			},
+		},
 		MessageIds: msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)

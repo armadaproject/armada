@@ -9,11 +9,11 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/common/logging"
-	"github.com/G-Research/armada/internal/common/requestid"
-	"github.com/G-Research/armada/internal/pulsarutils/pulsarrequestid"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/pulsarutils/pulsarrequestid"
+	"github.com/armadaproject/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // EventsPrinter is a service that prints all events passing through pulsar to a logger.
@@ -43,7 +43,11 @@ func (srv *EventsPrinter) Run(ctx context.Context) error {
 		if err := recover(); err != nil {
 			log.WithField("error", err).Error("unexpected panic; restarting")
 			time.Sleep(time.Second)
-			go srv.Run(ctx)
+			go func() {
+				if err := srv.Run(ctx); err != nil {
+					logging.WithStacktrace(log, err).Error("eventsprinter failure")
+				}
+			}()
 		} else {
 			// An expected shutdown.
 			log.Info("service stopped")
@@ -81,8 +85,7 @@ func (srv *EventsPrinter) Run(ctx context.Context) error {
 			consumer.Ack(msg)
 
 			sequence := &armadaevents.EventSequence{}
-			err = proto.Unmarshal(msg.Payload(), sequence)
-			if err != nil {
+			if err := proto.Unmarshal(msg.Payload(), sequence); err != nil {
 				logging.WithStacktrace(log, err).Warnf("unmarshalling Pulsar message failed")
 				break
 			}

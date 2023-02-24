@@ -4,11 +4,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/armada/scheduling"
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/armada/scheduling"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 const MetricPrefix = "armada_"
@@ -274,7 +274,7 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 			queueDurations := m.Durations
 			if queueDurations.GetCount() > 0 {
 				metrics <- prometheus.MustNewConstHistogram(queueDurationDesc, m.Durations.GetCount(),
-					queueDurations.GetSum(), queueDurations.GetBuckets(), m.Pool, q.Name, m.PriorityClass)
+					queueDurations.GetSum(), queueDurations.GetBuckets(), m.Pool, m.PriorityClass, q.Name)
 				metrics <- prometheus.MustNewConstMetric(minQueueDurationDesc, prometheus.GaugeValue, queueDurations.GetMin(), m.Pool, m.PriorityClass, q.Name)
 				metrics <- prometheus.MustNewConstMetric(maxQueueDurationDesc, prometheus.GaugeValue, queueDurations.GetMax(), m.Pool, m.PriorityClass, q.Name)
 				metrics <- prometheus.MustNewConstMetric(medianQueueDurationDesc, prometheus.GaugeValue, queueDurations.GetMedian(), m.Pool, m.PriorityClass, q.Name)
@@ -324,7 +324,7 @@ func (c *QueueInfoCollector) recordQueueUsageMetrics(metrics chan<- prometheus.M
 						metrics <- prometheus.MustNewConstMetric(
 							queueAllocatedDesc,
 							prometheus.GaugeValue,
-							common.QuantityAsFloat64(value),
+							armadaresource.QuantityAsFloat64(value),
 							cluster,
 							report.Pool,
 							queueReport.Name,
@@ -335,7 +335,7 @@ func (c *QueueInfoCollector) recordQueueUsageMetrics(metrics chan<- prometheus.M
 						metrics <- prometheus.MustNewConstMetric(
 							queueUsedDesc,
 							prometheus.GaugeValue,
-							common.QuantityAsFloat64(value),
+							armadaresource.QuantityAsFloat64(value),
 							cluster,
 							report.Pool,
 							queueReport.Name,
@@ -361,7 +361,7 @@ func (c *QueueInfoCollector) recordQueueUsageMetrics(metrics chan<- prometheus.M
 					metrics <- prometheus.MustNewConstMetric(
 						queueAllocatedDesc,
 						prometheus.GaugeValue,
-						common.QuantityAsFloat64(value),
+						armadaresource.QuantityAsFloat64(value),
 						cluster,
 						report.Pool,
 						queueReport.Name,
@@ -372,7 +372,7 @@ func (c *QueueInfoCollector) recordQueueUsageMetrics(metrics chan<- prometheus.M
 					metrics <- prometheus.MustNewConstMetric(
 						queueUsedDesc,
 						prometheus.GaugeValue,
-						common.QuantityAsFloat64(value),
+						armadaresource.QuantityAsFloat64(value),
 						cluster,
 						report.Pool,
 						queueReport.Name,
@@ -392,7 +392,7 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 					metrics <- prometheus.MustNewConstMetric(
 						clusterCapacityDesc,
 						prometheus.GaugeValue,
-						common.QuantityAsFloat64(value),
+						armadaresource.QuantityAsFloat64(value),
 						cluster,
 						report.Pool,
 						resourceType,
@@ -402,7 +402,7 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 					metrics <- prometheus.MustNewConstMetric(
 						clusterAvailableCapacity,
 						prometheus.GaugeValue,
-						common.QuantityAsFloat64(value),
+						armadaresource.QuantityAsFloat64(value),
 						cluster,
 						report.Pool,
 						resourceType,
@@ -433,7 +433,7 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 				metrics <- prometheus.MustNewConstMetric(
 					clusterCapacityDesc,
 					prometheus.GaugeValue,
-					common.QuantityAsFloat64(value),
+					armadaresource.QuantityAsFloat64(value),
 					cluster,
 					report.Pool,
 					resourceType,
@@ -444,7 +444,7 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 				metrics <- prometheus.MustNewConstMetric(
 					clusterAvailableCapacity,
 					prometheus.GaugeValue,
-					common.QuantityAsFloat64(value),
+					armadaresource.QuantityAsFloat64(value),
 					cluster,
 					report.Pool,
 					resourceType,

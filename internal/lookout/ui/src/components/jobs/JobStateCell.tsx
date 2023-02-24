@@ -5,7 +5,7 @@ import { TableCellProps } from "react-virtualized"
 
 import "./JobStateCell.css"
 
-function colorForState(state: string): string {
+function colorForState(state: string): string | undefined {
   switch (state) {
     case "Queued":
       return yellow["A100"]
@@ -14,7 +14,7 @@ function colorForState(state: string): string {
     case "Running":
       return green["A100"]
     case "Succeeded":
-      return "white"
+      return undefined
     case "Failed":
       return red["A100"]
     case "Cancelled":
@@ -24,7 +24,7 @@ function colorForState(state: string): string {
   }
 }
 
-export default function JobStateCell(props: TableCellProps) {
+export default function JobStateCell(props: Pick<TableCellProps, "cellData">) {
   return (
     <div
       className="job-state-cell"

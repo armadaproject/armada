@@ -1,16 +1,16 @@
 syntax = 'proto3';
 
 package api;
+option go_package = "github.com/armadaproject/armada/pkg/api";
 option csharp_namespace = "ArmadaProject.Io.Api";
 
 import "google/protobuf/timestamp.proto";
 import "k8s.io/api/core/v1/generated.proto";
+import "k8s.io/api/networking/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "pkg/api/submit.proto";
-
-import "k8s.io/api/networking/v1/generated.proto";
 
 option (gogoproto.goproto_stringer_all) = false;
 option (gogoproto.stringer_all) = true;
@@ -41,15 +41,6 @@ message Job {
     // Indicates which scheduler should manage this job.
     // If empty, the default scheduler is used.
     string scheduler = 20;
-}
-
-message LeaseRequest {
-    string cluster_id = 1;
-    string pool = 8;
-    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 2 [(gogoproto.nullable) = false];
-    ClusterLeasedReport cluster_leased_report  = 4 [(gogoproto.nullable) = false];
-    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 6 [(gogoproto.nullable) = false];
-    repeated NodeInfo nodes = 7 [(gogoproto.nullable) = false];
 }
 
 // For the bidirectional streaming job lease request service.
@@ -94,6 +85,12 @@ message NodeInfo {
     // In particular, jobs may be sent to an executor even if all resources are allocated
     // if the sent jobs are of higher priority.
     map<int32, ComputeResource> allocated_resources = 7 [(gogoproto.nullable) = false];
+    // All run ids of jobs on the node, mapped to their current state
+    // this should be of type armadaevents.uuid, but this creates a circular loop
+    // once the old scheduler has gone, we can correct this
+    map<string, JobState>  run_ids_by_state = 8 [(gogoproto.nullable) = false];
+    // The amount of resource allocated to non-armada pods by priority
+    map<int32, ComputeResource> non_armada_allocated_resources = 9 [(gogoproto.nullable) = false];
 }
 
 // The Armada scheduler must account for taints, labels, and available resources.
@@ -167,10 +164,10 @@ message ReturnLeaseRequest {
     OrderedStringMap avoid_node_labels = 4;
     string reason = 5;
     string kubernetes_id = 6;
+    bool job_run_attempted = 7;
 }
 
 service AggregatedQueue {
-    rpc LeaseJobs (LeaseRequest) returns (JobLease);
     rpc StreamingLeaseJobs (stream StreamingLeaseRequest) returns (stream StreamingJobLease);
     rpc RenewLease (RenewLeaseRequest) returns (IdList);
     rpc ReturnLease (ReturnLeaseRequest) returns (google.protobuf.Empty);

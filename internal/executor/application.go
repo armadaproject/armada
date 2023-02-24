@@ -2,6 +2,7 @@ package executor
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -11,22 +12,23 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 
-	"github.com/G-Research/armada/internal/common/cluster"
-	"github.com/G-Research/armada/internal/common/task"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/executor/configuration"
-	executor_context "github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/healthmonitor"
-	"github.com/G-Research/armada/internal/executor/job"
-	"github.com/G-Research/armada/internal/executor/metrics"
-	"github.com/G-Research/armada/internal/executor/metrics/pod_metrics"
-	"github.com/G-Research/armada/internal/executor/node"
-	"github.com/G-Research/armada/internal/executor/podchecks"
-	"github.com/G-Research/armada/internal/executor/reporter"
-	"github.com/G-Research/armada/internal/executor/service"
-	"github.com/G-Research/armada/internal/executor/utilisation"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/internal/common/cluster"
+	"github.com/armadaproject/armada/internal/common/task"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	executor_context "github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/healthmonitor"
+	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/metrics"
+	"github.com/armadaproject/armada/internal/executor/metrics/pod_metrics"
+	"github.com/armadaproject/armada/internal/executor/node"
+	"github.com/armadaproject/armada/internal/executor/podchecks"
+	"github.com/armadaproject/armada/internal/executor/reporter"
+	"github.com/armadaproject/armada/internal/executor/service"
+	"github.com/armadaproject/armada/internal/executor/utilisation"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
+	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
@@ -88,20 +90,27 @@ func StartUpWithContext(
 		os.Exit(-1)
 	}
 
-	queueClient := api.NewAggregatedQueueClient(conn)
-	usageClient := api.NewUsageClient(conn)
-	eventClient := api.NewEventClient(conn)
+	var executorApiClient executorapi.ExecutorApiClient
+	var jobRunState *job.JobRunStateStore
+	var usageClient api.UsageClient
+	var eventSender reporter.EventSender
+	var queueClient api.AggregatedQueueClient
+
+	if config.Application.UseExecutorApi {
+		executorApiClient = executorapi.NewExecutorApiClient(conn)
+		eventSender = reporter.NewExecutorApiEventSender(executorApiClient, 4*1024*1024)
+		jobRunState = job.NewJobRunStateStore(clusterContext)
+	} else {
+		usageClient = api.NewUsageClient(conn)
+		queueClient = api.NewAggregatedQueueClient(conn)
+		eventClient := api.NewEventClient(conn)
+		eventSender = reporter.NewLegacyApiEventSender(eventClient)
+	}
 
 	eventReporter, stopReporter := reporter.NewJobEventReporter(
 		clusterContext,
-		eventClient)
-
-	jobLeaseService := service.NewJobLeaseService(
-		clusterContext,
-		queueClient,
-		config.Kubernetes.MinimumJobSize,
-		config.Kubernetes.AvoidNodeLabelsOnRetry,
-	)
+		jobRunState,
+		eventSender)
 
 	if config.Kubernetes.PendingPodChecks == nil {
 		log.Error("Config error: Missing pending pod checks")
@@ -126,50 +135,83 @@ func StartUpWithContext(
 	)
 
 	nodeInfoService := node.NewKubernetesNodeInfoService(clusterContext, config.Kubernetes.ToleratedTaints)
-	queueUtilisationService := utilisation.NewMetricsServerQueueUtilisationService(
-		clusterContext, nodeInfoService)
+	podUtilisationService := utilisation.NewPodUtilisationService(
+		clusterContext,
+		nodeInfoService,
+		config.Metric.CustomUsageMetrics,
+		&http.Client{Timeout: 15 * time.Second},
+	)
 	clusterUtilisationService := utilisation.NewClusterUtilisationService(
 		clusterContext,
-		queueUtilisationService,
+		podUtilisationService,
 		nodeInfoService,
 		usageClient,
 		config.Kubernetes.TrackedNodeLabels,
+		config.Kubernetes.NodeIdLabel,
 		config.Kubernetes.NodeReservedResources,
+		config.Kubernetes.NodeReservedResourcesPriority,
 	)
 
-	clusterAllocationService := service.NewClusterAllocationService(
-		clusterContext,
-		eventReporter,
-		jobLeaseService,
-		clusterUtilisationService,
-		submitter,
-		etcdHealthMonitor,
-		config.Kubernetes.NodeReservedResources,
-	)
+	var clusterAllocationService service.ClusterAllocator
 
-	jobManager := service.NewJobManager(
-		clusterContext,
-		jobContext,
-		eventReporter,
-		jobLeaseService)
+	if config.Application.UseExecutorApi {
+		leaseRequester := service.NewJobLeaseRequester(
+			executorApiClient, clusterContext, config.Kubernetes.MinimumJobSize)
+		clusterAllocationService = service.NewClusterAllocationService(
+			clusterContext,
+			eventReporter,
+			leaseRequester,
+			jobRunState,
+			clusterUtilisationService,
+			submitter,
+			config.Kubernetes.PodDefaults,
+			etcdHealthMonitor)
+		podIssueService := service.NewPodIssueService(
+			clusterContext,
+			eventReporter,
+			pendingPodChecker,
+			config.Kubernetes.StuckTerminatingPodExpiry)
+		taskManager.Register(podIssueService.HandlePodIssues, config.Task.PodIssueHandlingInterval, "pod_issue_handling")
+	} else {
+		jobLeaseService := service.NewJobLeaseService(
+			clusterContext,
+			queueClient,
+			config.Kubernetes.MinimumJobSize,
+			config.Kubernetes.AvoidNodeLabelsOnRetry,
+		)
+		clusterAllocationService = service.NewLegacyClusterAllocationService(
+			clusterContext,
+			eventReporter,
+			jobLeaseService,
+			clusterUtilisationService,
+			submitter,
+			etcdHealthMonitor,
+			config.Kubernetes.NodeReservedResources,
+		)
+		jobManager := service.NewJobManager(
+			clusterContext,
+			jobContext,
+			eventReporter,
+			jobLeaseService)
+		taskManager.Register(jobManager.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_management")
+		taskManager.Register(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, "utilisation_reporting")
+	}
 
 	resourceCleanupService := service.NewResourceCleanupService(clusterContext, config.Kubernetes)
 
-	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, queueUtilisationService, nodeInfoService)
+	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, podUtilisationService, nodeInfoService)
 
-	taskManager.Register(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, "utilisation_reporting")
 	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
 	taskManager.Register(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "job_lease_request")
-	taskManager.Register(jobManager.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_management")
 	taskManager.Register(resourceCleanupService.CleanupResources, config.Task.ResourceCleanupInterval, "resource_cleanup")
 
 	if config.Metric.ExposeQueueUsageMetrics {
-		taskManager.Register(queueUtilisationService.RefreshUtilisationData, config.Task.QueueUsageDataRefreshInterval, "pod_usage_data_refresh")
+		taskManager.Register(podUtilisationService.RefreshUtilisationData, config.Task.QueueUsageDataRefreshInterval, "pod_usage_data_refresh")
 
 		if config.Task.UtilisationEventReportingInterval > 0 {
 			podUtilisationReporter := utilisation.NewUtilisationEventReporter(
 				clusterContext,
-				queueUtilisationService,
+				podUtilisationService,
 				eventReporter,
 				config.Task.UtilisationEventReportingInterval)
 			taskManager.Register(

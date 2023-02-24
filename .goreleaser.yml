@@ -1,0 +1,512 @@
+project_name: armada
+
+dist: "dist"
+
+gomod:
+  proxy: true
+  env:
+    - GOPROXY={{ if index .Env "GOPROXY"  }}{{ .Env.GOPROXY }}{{ else }}https://proxy.golang.org,direct{{ end }}
+    - GOSUMDB={{ if index .Env "GOSUMDB"  }}{{ .Env.GOSUMDB }}{{ else }}sum.golang.org{{ end }}
+  gobinary: go
+
+builds:
+  - env: [CGO_ENABLED=0]
+    id: server
+    binary: server
+    main: ./cmd/armada/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: executor
+    binary: executor
+    main: ./cmd/executor/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: binoculars
+    binary: binoculars
+    main: ./cmd/binoculars/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: lookout
+    binary: lookout
+    main: ./cmd/lookout/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: lookoutv2
+    binary: lookoutv2
+    main: ./cmd/lookoutv2/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: lookoutingester
+    binary: lookoutingester
+    main: ./cmd/lookoutingester/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: lookoutingesterv2
+    binary: lookoutingesterv2
+    main: ./cmd/lookoutingesterv2/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: eventingester
+    binary: eventingester
+    main: ./cmd/eventingester/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: jobservice
+    binary: jobservice
+    main: ./cmd/jobservice/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: armadactl
+    binary: armadactl
+    main: ./cmd/armadactl/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - windows
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: armadactl
+    builds:
+      - armadactl
+    allow_different_binary_count: true
+    name_template: "armadactl_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+# macOS Universal Binaries-*
+universal_binaries:
+  - replace: true
+    id: armadactl
+    name_template: 'armadactl'
+
+# TODO: Enable once we have CI setup for it. See https://goreleaser.com/customization/sign/
+# signs:
+#   - artifacts: checksum
+
+sboms:
+  - artifacts: archive
+
+env:
+  # If set, BASE_IMAGE determines the base image used for all containers.
+  - BASE_IMAGE_ARG={{ if index .Env "BASE_IMAGE"  }}BASE_IMAGE={{ .Env.BASE_IMAGE }}{{ else }}{{ end }}
+  - DOCKER_REPO={{ if index .Env "DOCKER_REPO"  }}{{ .Env.DOCKER_REPO }}/{{ else }}gresearch/{{ end }}
+  # Goreleaser always uses the docker buildx builder with name "default"; see
+  # https://github.com/goreleaser/goreleaser/pull/3199
+  # To use a builder other than "default", set this variable.
+  # Necessary for, e.g., Github actions cache integration.
+  - DOCKER_BUILDX_BUILDER={{ if index .Env "DOCKER_BUILDX_BUILDER"  }}{{ .Env.DOCKER_BUILDX_BUILDER }}{{ else }}default{{ end }}
+  # Setup to enable Docker to use, e.g., the Github actions cache; see
+  # https://docs.docker.com/build/building/cache/backends/
+  # https://github.com/moby/buildkit#export-cache
+  - DOCKER_BUILDX_CACHE_FROM={{ if index .Env "DOCKER_BUILDX_CACHE_FROM"  }}{{ .Env.DOCKER_BUILDX_CACHE_FROM }}{{ else }}type=registry{{ end }}
+  - DOCKER_BUILDX_CACHE_TO={{ if index .Env "DOCKER_BUILDX_CACHE_TO"  }}{{ .Env.DOCKER_BUILDX_CACHE_TO }}{{ else }}type=inline{{ end }}
+
+dockers:
+  - id: bundle
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada:latest"
+    build_flag_templates:
+      - --build-arg={{ .Env.BASE_IMAGE_ARG }}
+      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
+      - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
+      - --label=org.opencontainers.image.title=armada
+      - --label=org.opencontainers.image.description="Armada Bundle"
+      - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.base.name=alpine:3.17.0
+      - --label=org.opencontainers.image.base.digest=c0d488a800e4
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+      - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - server
+      - executor
+      - binoculars
+      - lookoutingester
+      - eventingester
+    extra_files:
+      - config/armada/config.yaml
+      - config/executor/config.yaml
+      - config/binoculars/config.yaml
+      - config/lookoutingester/config.yaml
+      - config/eventingester/config.yaml
+    dockerfile: ./build_goreleaser/armada/Dockerfile
+  - id: server
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-server:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-server:latest"
+    build_flag_templates:
+      - --build-arg={{ .Env.BASE_IMAGE_ARG }}
+      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
+      - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
+      - --label=org.opencontainers.image.title=armada-server
+      - --label=org.opencontainers.image.description="Armada Server"
+      - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-server
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.base.name=alpine:3.17.0
+      - --label=org.opencontainers.image.base.digest=c0d488a800e4
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+      - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - server
+    extra_files:
+      - config/armada/config.yaml
+    dockerfile: ./build_goreleaser/server/Dockerfile
+  - id: executor
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-executor:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-executor:latest"
+    build_flag_templates:
+      - --build-arg={{ .Env.BASE_IMAGE_ARG }}
+      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
+      - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
+      - --label=org.opencontainers.image.title=armada-executor
+      - --label=org.opencontainers.image.description="Armada Executor"
+      - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-executor
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.base.name=alpine:3.17.0
+      - --label=org.opencontainers.image.base.digest=c0d488a800e4
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+      - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - executor
+    extra_files:
+      - config/executor/config.yaml
+    dockerfile: ./build_goreleaser/executor/Dockerfile
+  - id: lookoutingester
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-lookoutingester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookoutingester:latest"
+    build_flag_templates:
+      - --build-arg={{ .Env.BASE_IMAGE_ARG }}
+      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
+      - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
+      - --label=org.opencontainers.image.title=armada-lookoutingester
+      - --label=org.opencontainers.image.description="Armada Lookout Ingester"
+      - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-lookoutingester
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.base.name=alpine:3.17.0
+      - --label=org.opencontainers.image.base.digest=c0d488a800e4
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+      - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - lookoutingester
+    extra_files:
+      - config/lookoutingester/config.yaml
+    dockerfile: ./build_goreleaser/lookoutingester/Dockerfile
+  - id: lookoutingesterv2
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:latest"
+    build_flag_templates:
+      - --build-arg={{ .Env.BASE_IMAGE_ARG }}
+      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
+      - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
+      - --label=org.opencontainers.image.title=armada-lookoutingesterv2
+      - --label=org.opencontainers.image.description="Armada Lookout Ingester v2"
+      - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-lookoutingesterv2
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.base.name=alpine:3.17.0
+      - --label=org.opencontainers.image.base.digest=c0d488a800e4
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+      - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - lookoutingesterv2
+    extra_files:
+      - config/lookoutingesterv2/config.yaml
+    dockerfile: ./build_goreleaser/lookoutingesterv2/Dockerfile
+  - id: lookout
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-lookout:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookout:latest"
+    build_flag_templates:
+      - --build-arg={{ .Env.BASE_IMAGE_ARG }}
+      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
+      - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
+      - --label=org.opencontainers.image.title=armada-lookout
+      - --label=org.opencontainers.image.description="Armada Lookout
+      - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-lookout
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.base.name=alpine:3.17.0
+      - --label=org.opencontainers.image.base.digest=c0d488a800e4
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+      - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - lookout
+      - lookoutingester
+    extra_files:
+      - internal\lookout\ui
+      - pkg/api/api.swagger.json
+      - pkg/api/lookout/api.swagger.json
+      - pkg/api/binoculars/api.swagger.json
+      - config/lookout/config.yaml
+      - config/lookoutingester/config.yaml
+    dockerfile: ./build_goreleaser/lookout/Dockerfile
+  - id: lookoutv2
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-lookoutv2:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookoutv2:latest"
+    build_flag_templates:
+      - --build-arg={{ .Env.BASE_IMAGE_ARG }}
+      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
+      - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
+      - --label=org.opencontainers.image.title=armada-lookoutv2
+      - --label=org.opencontainers.image.description="Armada Lookout v2"
+      - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-lookoutv2
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.base.name=alpine:3.17.0
+      - --label=org.opencontainers.image.base.digest=c0d488a800e4
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+      - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - lookoutv2
+      - lookoutingesterv2
+    extra_files:
+      - config/lookoutv2/config.yaml
+      - config/lookoutingesterv2/config.yaml
+    dockerfile: ./build_goreleaser/lookoutv2/Dockerfile
+  - id: eventingester
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-eventingester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-eventingester:latest"
+    build_flag_templates:
+      - --build-arg={{ .Env.BASE_IMAGE_ARG }}
+      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
+      - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
+      - --label=org.opencontainers.image.title=armada-eventingester
+      - --label=org.opencontainers.image.description="Armada Event Ingester"
+      - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-eventingester
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.base.name=alpine:3.17.0
+      - --label=org.opencontainers.image.base.digest=c0d488a800e4
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+      - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - eventingester
+    extra_files:
+      - config/eventingester/config.yaml
+    dockerfile: ./build_goreleaser/eventingester/Dockerfile
+  - id: binoculars
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-binoculars:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-binoculars:latest"
+    build_flag_templates:
+      - --build-arg={{ .Env.BASE_IMAGE_ARG }}
+      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
+      - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
+      - --label=org.opencontainers.image.title=armada-binoculars
+      - --label=org.opencontainers.image.description="Armada Binoculars"
+      - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-binoculars
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.base.name=alpine:3.17.0
+      - --label=org.opencontainers.image.base.digest=c0d488a800e4
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+      - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - binoculars
+    extra_files:
+      - config/binoculars/config.yaml
+    dockerfile: ./build_goreleaser/binoculars/Dockerfile
+  - id: jobservice
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-jobservice:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-jobservice:latest"
+    build_flag_templates:
+      - --build-arg={{ .Env.BASE_IMAGE_ARG }}
+      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
+      - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
+      - --label=org.opencontainers.image.title=armada-jobservice
+      - --label=org.opencontainers.image.description="Armada Job Service"
+      - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-jobservice
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.base.name=alpine:3.17.0
+      - --label=org.opencontainers.image.base.digest=c0d488a800e4
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+      - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - jobservice
+    extra_files:
+      - config/jobservice/config.yaml
+    dockerfile: ./build_goreleaser/jobservice/Dockerfile
+  - id: armadactl
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armadactl:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armadactl:latest"
+    build_flag_templates:
+      - --build-arg={{ .Env.BASE_IMAGE_ARG }}
+      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
+      - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
+      - --label=org.opencontainers.image.title=armadactl
+      - --label=org.opencontainers.image.description="Armada CLI"
+      - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armadactl
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.base.name=alpine:3.17.0
+      - --label=org.opencontainers.image.base.digest=c0d488a800e4
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+      - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - armadactl
+    dockerfile: ./build_goreleaser/armadactl/Dockerfile
+
+changelog:
+  use: "github"
+
+checksum:
+  name_template: "checksums.txt"
+
+release:
+  draft: false
+  header: |
+    ## Armada {{ .Version }} - ({{ .Date }})
+    See https://github.com/armadaproject/armada for more info and documentation.
+    ## Docker images
+    ### Armada Bundle
+    - `docker pull {{ .Env.DOCKER_REPO }}armada:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada:latest`
+    ### Armada Server
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-server:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-server:latest`
+    ### Armada Executor
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-executor:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-executor:latest`
+    ### Armada Lookout Ingester
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutingester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutingester:latest`
+    ### Armada Event Ingester
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-eventingester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-eventingester:latest`
+    ### Armada Binoculars
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-binoculars:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-binoculars:latest`
+    ### Armada Job Service
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-jobservice:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-jobservice:latest`
+    ### Armada CLI
+    - `docker pull {{ .Env.DOCKER_REPO }}armadactl:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armadactl:latest`
+
+snapshot:
+  name_template: "{{ .Tag }}"
+
+source:
+  enabled: true
+  name_template: "{{ .ProjectName }}_{{ .Version }}_source"
+  format: "zip"

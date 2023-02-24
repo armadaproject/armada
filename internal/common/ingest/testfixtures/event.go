@@ -8,24 +8,31 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // Standard Set of events for common tests
 const (
-	JobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
-	RunIdString = "123e4567-e89b-12d3-a456-426614174000"
+	JobIdString                  = "01f3j0g1md4qx7z5qb148qnh4r"
+	RunIdString                  = "123e4567-e89b-12d3-a456-426614174000"
+	PartitionMarkerGroupIdString = "223e4567-e89b-12d3-a456-426614174000"
 )
 
 var (
-	JobIdProto, _ = armadaevents.ProtoUuidFromUlidString(JobIdString)
-	RunIdProto    = armadaevents.ProtoUuidFromUuid(uuid.MustParse(RunIdString))
-	JobIdUuid     = armadaevents.UuidFromProtoUuid(JobIdProto)
-	RunIdUuid     = armadaevents.UuidFromProtoUuid(RunIdProto)
-	Groups        = []string{"group1", "group2"}
-	NodeSelector  = map[string]string{"foo": "bar"}
-	Tolerations   = []v1.Toleration{{
+	JobIdProto, _               = armadaevents.ProtoUuidFromUlidString(JobIdString)
+	RunIdProto                  = armadaevents.ProtoUuidFromUuid(uuid.MustParse(RunIdString))
+	PartitionMarkerGroupIdProto = armadaevents.ProtoUuidFromUuid(uuid.MustParse(PartitionMarkerGroupIdString))
+	JobIdUuid                   = armadaevents.UuidFromProtoUuid(JobIdProto)
+	RunIdUuid                   = armadaevents.UuidFromProtoUuid(RunIdProto)
+	PartitionMarkerGroupIdUuid  = armadaevents.UuidFromProtoUuid(PartitionMarkerGroupIdProto)
+	PriorityClassName           = "test-priority"
+	PriorityClassValue          = int32(100)
+	PriorityClasses             = map[string]configuration.PriorityClass{PriorityClassName: {Priority: PriorityClassValue}}
+	Groups                      = []string{"group1", "group2"}
+	NodeSelector                = map[string]string{"foo": "bar"}
+	Tolerations                 = []v1.Toleration{{
 		Key:      "fish",
 		Operator: "exists",
 	}}
@@ -33,21 +40,22 @@ var (
 )
 
 const (
-	JobSetName       = "testJobset"
-	ExecutorId       = "testCluster"
-	NodeName         = "testNode"
-	PodName          = "test-pod"
-	Queue            = "test-Queue"
-	UserId           = "testUser"
-	Namespace        = "test-ns"
-	Priority         = 3
-	NewPriority      = 4
-	PodNumber        = 6
-	ExitCode         = 322
-	ErrMsg           = "sample error message"
-	LeaseReturnedMsg = "lease returned error message"
-	TerminatedMsg    = "test pod terminated message"
-	UnschedulableMsg = "test pod is unschedulable"
+	JobSetName                 = "testJobset"
+	ExecutorId                 = "testCluster"
+	NodeName                   = "testNode"
+	PodName                    = "test-pod"
+	Queue                      = "test-Queue"
+	UserId                     = "testUser"
+	Namespace                  = "test-ns"
+	Priority                   = 3
+	NewPriority                = 4
+	PodNumber                  = 6
+	ExitCode                   = 322
+	ErrMsg                     = "sample error message"
+	LeaseReturnedMsg           = "lease returned error message"
+	TerminatedMsg              = "test pod terminated message"
+	UnschedulableMsg           = "test pod is unschedulable"
+	PartitionMarkerPartitionId = 456
 )
 
 var Submit = &armadaevents.EventSequence_Event{
@@ -67,8 +75,9 @@ var Submit = &armadaevents.EventSequence_Event{
 				Object: &armadaevents.KubernetesMainObject_PodSpec{
 					PodSpec: &armadaevents.PodSpecWithAvoidList{
 						PodSpec: &v1.PodSpec{
-							NodeSelector: NodeSelector,
-							Tolerations:  Tolerations,
+							NodeSelector:      NodeSelector,
+							Tolerations:       Tolerations,
+							PriorityClassName: PriorityClassName,
 							Containers: []v1.Container{
 								{
 									Name:    "container1",
@@ -202,6 +211,16 @@ var JobCancelled = &armadaevents.EventSequence_Event{
 	Event: &armadaevents.EventSequence_Event_CancelledJob{
 		CancelledJob: &armadaevents.CancelledJob{
 			JobId: JobIdProto,
+		},
+	},
+}
+
+var PartitionMarker = &armadaevents.EventSequence_Event{
+	Created: &BaseTime,
+	Event: &armadaevents.EventSequence_Event_PartitionMarker{
+		PartitionMarker: &armadaevents.PartitionMarker{
+			GroupId:   PartitionMarkerGroupIdProto,
+			Partition: PartitionMarkerPartitionId,
 		},
 	},
 }

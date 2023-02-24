@@ -71,3 +71,23 @@ func (c *ZlibCompressor) Compress(b []byte) ([]byte, error) {
 	copy(compressed, c.buffer.Bytes())
 	return compressed, nil
 }
+
+// ThreadSafeZlibCompressor provides a thread safe compressor, at the cost of instantiating a new ZlibCompressor
+// for each Compress call
+type ThreadSafeZlibCompressor struct {
+	minCompressSize int
+}
+
+func NewThreadSafeZlibCompressor(minCompressSize int) *ThreadSafeZlibCompressor {
+	return &ThreadSafeZlibCompressor{
+		minCompressSize: minCompressSize,
+	}
+}
+
+func (c *ThreadSafeZlibCompressor) Compress(b []byte) ([]byte, error) {
+	compressor, err := NewZlibCompressor(c.minCompressSize)
+	if err != nil {
+		return nil, err
+	}
+	return compressor.Compress(b)
+}

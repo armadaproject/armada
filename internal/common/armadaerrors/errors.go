@@ -18,13 +18,12 @@ import (
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
-	"github.com/nats-io/nats.go"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/internal/common/requestid"
 )
 
 // ErrUnauthorized represents an error that occurs when a client tries to perform some action
@@ -282,17 +281,6 @@ func CodeFromError(err error) codes.Code {
 	return codes.Unknown
 }
 
-var NATS_CONNECTION_ERRORS = []error{
-	nats.ErrConnectionClosed,
-	nats.ErrConnectionDraining,
-	nats.ErrDrainTimeout,
-	nats.ErrConnectionReconnecting,
-	nats.ErrTimeout,
-	nats.ErrBadTimeout,
-	nats.ErrNoServers,
-	nats.ErrDisconnected,
-}
-
 var PULSAR_CONNECTION_ERRORS = []pulsar.Result{
 	pulsar.TimeoutError,
 	pulsar.LookupError,
@@ -354,18 +342,10 @@ func IsNetworkError(err error) bool {
 		}
 	}
 
-	// Errors associated with connection problems with Nats.
-	for _, e := range NATS_CONNECTION_ERRORS {
-		if ok := errors.Is(err, e); ok {
-			return true
-		}
-	}
-
 	// Errors associated with connection problems with Pulsar.
 	{
 		var e *pulsar.Error
 		if ok := errors.As(err, &e); ok {
-			fmt.Println("Got Pulsar error", e)
 			for _, result := range PULSAR_CONNECTION_ERRORS {
 				if e.Result() == result {
 					return true

@@ -58,3 +58,13 @@ func FilterKeys(a map[string]string, keys []string) map[string]string {
 
 	return result
 }
+
+// InverseMap creates a new map where each key: value pair is swapped
+// If the same value is present multiple times, a random one will be selected (depending on map key-value iteration)
+func InverseMap[K comparable, V comparable](a map[K]V) map[V]K {
+	result := make(map[V]K)
+	for key, value := range a {
+		result[value] = key
+	}
+	return result
+}

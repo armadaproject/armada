@@ -10,9 +10,9 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/G-Research/armada/internal/common/auth/authorization"
-	"github.com/G-Research/armada/internal/common/cluster"
-	"github.com/G-Research/armada/pkg/api/binoculars"
+	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/cluster"
+	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
 
 type LogService interface {

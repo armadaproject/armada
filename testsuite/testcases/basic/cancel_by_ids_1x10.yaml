@@ -1,0 +1,29 @@
+numBatches: 1
+batchSize: 10
+queue: e2e-test-queue
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: cancel-by-id
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.10            
+          args:
+            - "sleep"
+            - "100s"
+          resources:
+            limits:
+              memory: 10Mi
+              cpu: 100m
+            requests:
+              memory: 10Mi
+              cpu: 100m
+---
+cancel: BY_IDS
+timeout: "100s"
+expectedEvents:
+  - submitted:
+  - cancelled:

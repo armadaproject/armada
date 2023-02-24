@@ -1,14 +1,14 @@
 package util
 
 import (
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/pkg/api"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 // GetClusterCapacity returns the total capacity on all nodes on a cluster,
 // even if they are unschedulable.
-func GetClusterCapacity(report *api.ClusterUsageReport) common.ComputeResources {
-	result := common.ComputeResources{}
+func GetClusterCapacity(report *api.ClusterUsageReport) armadaresource.ComputeResources {
+	result := armadaresource.ComputeResources{}
 	if len(report.NodeTypeUsageReports) > 0 {
 		for _, nodeTypeReport := range report.NodeTypeUsageReports {
 			result.Add(nodeTypeReport.Capacity)
@@ -22,8 +22,8 @@ func GetClusterCapacity(report *api.ClusterUsageReport) common.ComputeResources 
 // GetClusterAvailableCapacity returns the total resource to be shared amongst queues.
 // This is the total capacity available to armada on schedulable nodes + the capacity currently
 // in use on unschedulable nodes.
-func GetClusterAvailableCapacity(report *api.ClusterUsageReport) common.ComputeResources {
-	result := common.ComputeResources{}
+func GetClusterAvailableCapacity(report *api.ClusterUsageReport) armadaresource.ComputeResources {
+	result := armadaresource.ComputeResources{}
 	if len(report.NodeTypeUsageReports) > 0 {
 		for _, nodeTypeReport := range report.NodeTypeUsageReports {
 			result.Add(nodeTypeReport.AvailableCapacity)
@@ -35,8 +35,8 @@ func GetClusterAvailableCapacity(report *api.ClusterUsageReport) common.ComputeR
 	return result
 }
 
-func SumReportClusterCapacity(reports map[string]*api.ClusterUsageReport) common.ComputeResources {
-	result := common.ComputeResources{}
+func SumReportClusterCapacity(reports map[string]*api.ClusterUsageReport) armadaresource.ComputeResources {
+	result := armadaresource.ComputeResources{}
 	for _, report := range reports {
 		result.Add(GetClusterCapacity(report))
 	}

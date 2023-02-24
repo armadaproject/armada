@@ -16,13 +16,13 @@ module.exports = {
   plugins: ["prettier", "eslint-plugin-import"],
   rules: {
     "prettier/prettier": [
-      "error",
+      "warn",
       {
         endOfLine: "auto",
       },
     ],
     "import/order": [
-      "error",
+      "warn",
       {
         groups: ["builtin", "external", "internal"],
         pathGroups: [
@@ -40,8 +40,18 @@ module.exports = {
         },
       },
     ],
+    "@typescript-eslint/no-unused-vars": [
+      "warn",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "caughtErrorsIgnorePattern": "^_"
+      }
+    ],
+    "@typescript-eslint/no-empty-function": "warn",
     "@typescript-eslint/no-explicit-any": "off",
     "@typescript-eslint/explicit-module-boundary-types": "off",
     "react/display-name": "off",
+    "react/react-in-jsx-scope": "off"
   },
 }

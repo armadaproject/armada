@@ -7,8 +7,9 @@ on:
 
 jobs:
   test-and-build-images:
-    if: github.repository_owner == 'G-Research'
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    if: github.repository_owner == 'armadaproject'
+    runs-on: ubuntu-22.04
+    # runs-on: buildjet-4vcpu-ubuntu-2204
     strategy:
       fail-fast: true
       matrix:
@@ -32,12 +33,14 @@ jobs:
       - name: Save docker images to artifact
         run: |
           mkdir -p docker-images
-          docker save armada | gzip > docker-images/armada-server.tar.gz
+          docker save armada | gzip > docker-images/armada.tar.gz
           docker save armada-executor | gzip > docker-images/armada-executor.tar.gz
-          docker save armadactl | gzip > docker-images/armada-armadactl.tar.gz
-          docker save testsuite | gzip > docker-images/armada-testsuite.tar.gz
+          docker save armadactl | gzip > docker-images/armadactl.tar.gz
+          docker save testsuite | gzip > docker-images/testsuite.tar.gz
           docker save armada-lookout | gzip > docker-images/armada-lookout.tar.gz
           docker save armada-lookout-ingester | gzip > docker-images/armada-lookout-ingester.tar.gz
+          docker save armada-lookout-v2 | gzip > docker-images/armada-lookout-v2.tar.gz
+          docker save armada-lookout-ingester-v2 | gzip > docker-images/armada-lookout-ingester-v2.tar.gz
           docker save armada-event-ingester | gzip > docker-images/armada-event-ingester.tar.gz
           docker save armada-binoculars | gzip > docker-images/armada-binoculars.tar.gz
           docker save armada-jobservice | gzip > docker-images/armada-jobservice.tar.gz
@@ -50,7 +53,8 @@ jobs:
           name: docker-images
           path: docker-images.tar.gz
           if-no-files-found: error
-# invoke-image-push:
-#   name: Push Docker Image artifacts to Docker Hub
-#   needs: test-and-build-images
-#   uses: ./.github/workflows/upload-docker-images.yml
+  invoke-image-push:
+    name: Push Docker Image artifacts to Docker Hub
+    needs: test-and-build-images
+    uses: ./.github/workflows/upload-docker-images.yml
+    secrets: inherit

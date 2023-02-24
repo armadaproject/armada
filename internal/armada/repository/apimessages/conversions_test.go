@@ -4,28 +4,29 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
+	v11 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	v11 "k8s.io/api/networking/v1"
-
-	"github.com/G-Research/armada/pkg/api"
-
-	"github.com/stretchr/testify/assert"
-
-	"github.com/google/uuid"
-	v1 "k8s.io/api/core/v1"
-
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const (
-	jobIdString = "01f3j0g1md4qx7z5qb148qnh4r"
-	runIdString = "123e4567-e89b-12d3-a456-426614174000"
+	jobIdString           = "01f3j0g1md4qx7z5qb148qnh4r"
+	preemptiveJobIdString = "02f3j0g1md4qx7z5qb148qnh4r"
+	runIdString           = "123e4567-e89b-12d3-a456-426614174000"
+	preemptiveRunIdString = "123e4567-e89b-12d3-a456-426614174001"
 )
 
 var (
-	jobIdProto, _ = armadaevents.ProtoUuidFromUlidString(jobIdString)
-	runIdProto    = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
+	jobIdProto, _             = armadaevents.ProtoUuidFromUlidString(jobIdString)
+	runIdProto                = armadaevents.ProtoUuidFromUuid(uuid.MustParse(runIdString))
+	preemptiveJobIdProto, _   = armadaevents.ProtoUuidFromUlidString(preemptiveJobIdString)
+	preemptiveRunIdRunIdProto = armadaevents.ProtoUuidFromUuid(uuid.MustParse(preemptiveRunIdString))
 )
 
 const (
@@ -405,8 +406,9 @@ func TestConvertPodLeaseReturned(t *testing.T) {
 									Name:         podName,
 									KubernetesId: runIdString,
 								},
-								Message:   "couldn't schedule pod",
-								PodNumber: podNumber,
+								Message:      "couldn't schedule pod",
+								PodNumber:    podNumber,
+								RunAttempted: true,
 							},
 						},
 					},
@@ -427,6 +429,7 @@ func TestConvertPodLeaseReturned(t *testing.T) {
 					JobSetId:     jobSetName,
 					Queue:        queue,
 					Created:      baseTime,
+					RunAttempted: true,
 				},
 			},
 		},
@@ -507,9 +510,10 @@ func TestConvertJobError(t *testing.T) {
 									Name:         podName,
 									KubernetesId: runIdString,
 								},
-								Message:   "The pod was terminated",
-								NodeName:  nodeName,
-								PodNumber: podNumber,
+								Message:          "The pod was terminated",
+								NodeName:         nodeName,
+								PodNumber:        podNumber,
+								KubernetesReason: armadaevents.KubernetesReason_DeadlineExceeded,
 								ContainerErrors: []*armadaevents.ContainerError{
 									{
 										ObjectMeta: &armadaevents.ObjectMeta{
@@ -518,7 +522,7 @@ func TestConvertJobError(t *testing.T) {
 										ExitCode:         -1,
 										Message:          "container1 Error",
 										Reason:           "container1 Reason",
-										KubernetesReason: &armadaevents.ContainerError_OutOfMemory_{},
+										KubernetesReason: armadaevents.KubernetesReason_OOM,
 									},
 								},
 							},
@@ -544,6 +548,7 @@ func TestConvertJobError(t *testing.T) {
 					JobSetId:     jobSetName,
 					Queue:        queue,
 					Created:      baseTime,
+					Cause:        api.Cause_DeadlineExceeded,
 					ContainerStatuses: []*api.ContainerStatus{
 						{
 							Name:     "container1",
@@ -872,6 +877,61 @@ func TestConvertIngressInfo(t *testing.T) {
 	apiEvents, err := FromEventSequence(toEventSeq(utilisation))
 	assert.NoError(t, err)
 	assert.Equal(t, expected, apiEvents)
+}
+
+func TestConvertJobRunPreempted(t *testing.T) {
+	preempted := &armadaevents.EventSequence_Event{
+		Created: &baseTime,
+		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+			JobRunPreempted: &armadaevents.JobRunPreempted{
+				PreemptedJobId:  jobIdProto,
+				PreemptedRunId:  runIdProto,
+				PreemptiveJobId: preemptiveJobIdProto,
+				PreemptiveRunId: preemptiveRunIdRunIdProto,
+			},
+		},
+	}
+
+	expected := []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Preempted{
+				Preempted: &api.JobPreemptedEvent{
+					JobId:           jobIdString,
+					JobSetId:        jobSetName,
+					Queue:           queue,
+					Created:         baseTime,
+					RunId:           runIdString,
+					PreemptiveJobId: preemptiveJobIdString,
+					PreemptiveRunId: preemptiveRunIdString,
+				},
+			},
+		},
+	}
+
+	// both PreemptiveJobId and PreemptiveRunId not nil
+	apiEvents, err := FromEventSequence(toEventSeq(preempted))
+	assert.NoError(t, err)
+	assert.Equal(t, expected, apiEvents)
+
+	// PreemptiveJobId is nil
+	preemptiveJobIdNil := proto.Clone(preempted).(*armadaevents.EventSequence_Event)
+	preemptiveJobIdNil.GetJobRunPreempted().PreemptiveJobId = nil
+
+	expectedPreemptiveJobIdNil := proto.Clone(expected[0]).(*api.EventMessage)
+	expectedPreemptiveJobIdNil.GetPreempted().PreemptiveJobId = ""
+	apiEvents, err = FromEventSequence(toEventSeq(preemptiveJobIdNil))
+	assert.NoError(t, err)
+	assert.Equal(t, []*api.EventMessage{expectedPreemptiveJobIdNil}, apiEvents)
+
+	// PreemptiveRunId is nil
+	preemptiveRunIdNil := proto.Clone(preempted).(*armadaevents.EventSequence_Event)
+	preemptiveRunIdNil.GetJobRunPreempted().PreemptiveRunId = nil
+
+	expectedPreemptiveRunIdNil := proto.Clone(expected[0]).(*api.EventMessage)
+	expectedPreemptiveRunIdNil.GetPreempted().PreemptiveRunId = ""
+	apiEvents, err = FromEventSequence(toEventSeq(preemptiveRunIdNil))
+	assert.NoError(t, err)
+	assert.Equal(t, []*api.EventMessage{expectedPreemptiveRunIdNil}, apiEvents)
 }
 
 func toEventSeq(event ...*armadaevents.EventSequence_Event) *armadaevents.EventSequence {

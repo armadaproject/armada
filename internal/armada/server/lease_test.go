@@ -8,13 +8,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/armada/cache"
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 func TestAggregatedQueueServer_ReturnLeaseCallsRepositoryMethod(t *testing.T) {
@@ -87,8 +85,9 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesDeletesJob(t *tes
 
 	for i := 0; i < maxRetries; i++ {
 		_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
-			ClusterId: clusterId,
-			JobId:     jobId,
+			ClusterId:       clusterId,
+			JobId:           jobId,
+			JobRunAttempted: true,
 		})
 		assert.Nil(t, err)
 
@@ -127,8 +126,9 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesSendsJobFailedEve
 
 	for i := 0; i < maxRetries; i++ {
 		_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
-			ClusterId: clusterId,
-			JobId:     jobId,
+			ClusterId:       clusterId,
+			JobId:           jobId,
+			JobRunAttempted: true,
 		})
 		assert.Nil(t, err)
 		assert.Equal(t, 1, len(fakeEventStore.events))
@@ -152,6 +152,45 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesSendsJobFailedEve
 	assert.Equal(t, fmt.Sprintf("Exceeded maximum number of retries: %d", maxRetries), failedEvent.Reason)
 }
 
+func TestAggregatedQueueServer_ReturningLease_IncrementsRetries(t *testing.T) {
+	mockJobRepository, _, aggregatedQueueClient := makeAggregatedQueueServerWithTestDoubles(uint(5))
+
+	clusterId := "cluster-1"
+	jobId := "job-id-1"
+	jobSetId := "job-set-id-1"
+	queueName := "queue-1"
+	job := &api.Job{
+		Id:       jobId,
+		JobSetId: jobSetId,
+		Queue:    queueName,
+	}
+
+	_, addJobsErr := mockJobRepository.AddJobs([]*api.Job{job})
+	assert.Nil(t, addJobsErr)
+
+	// Does not count towards retries if JobRunAttempted is false
+	_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
+		ClusterId:       clusterId,
+		JobId:           jobId,
+		JobRunAttempted: false,
+	})
+	assert.Nil(t, err)
+	numberOfRetries, err := mockJobRepository.GetNumberOfRetryAttempts(jobId)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, numberOfRetries)
+
+	// Does count towards reties if JobRunAttempted is true
+	_, err = aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
+		ClusterId:       clusterId,
+		JobId:           jobId,
+		JobRunAttempted: true,
+	})
+	assert.NoError(t, err)
+	numberOfRetries, err = mockJobRepository.GetNumberOfRetryAttempts(jobId)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, numberOfRetries)
+}
+
 func makeAggregatedQueueServerWithTestDoubles(maxRetries uint) (*mockJobRepository, *fakeEventStore, *AggregatedQueueServer) {
 	mockJobRepository := newMockJobRepository()
 	fakeEventStore := &fakeEventStore{}
@@ -163,11 +202,14 @@ func makeAggregatedQueueServerWithTestDoubles(maxRetries uint) (*mockJobReposito
 			MaxRetries: maxRetries,
 		},
 		mockJobRepository,
-		cache.NewQueueCache(&util.DefaultClock{}, fakeQueueRepository, mockJobRepository, fakeSchedulingInfoRepository),
 		fakeQueueRepository,
 		&fakeUsageRepository{},
 		fakeEventStore,
-		fakeSchedulingInfoRepository)
+		fakeSchedulingInfoRepository,
+		nil,
+		0,
+		fakeExecutorRepository{},
+	)
 }
 
 type mockJobRepository struct {
@@ -180,17 +222,34 @@ type mockJobRepository struct {
 	returnLeaseArg1 string
 	returnLeaseArg2 string
 	deleteJobsArg   []*api.Job
+
+	jobStartTimeInfos       map[string]*repository.JobStartInfo
+	updateJobStartTimeError error
+	redisError              error
+}
+
+func (repo *mockJobRepository) StorePulsarSchedulerJobDetails(jobDetails []*schedulerobjects.PulsarSchedulerJobDetails) error {
+	return nil
+}
+
+func (repo *mockJobRepository) GetPulsarSchedulerJobDetails(jobIds string) (*schedulerobjects.PulsarSchedulerJobDetails, error) {
+	return nil, nil
+}
+
+func (repo *mockJobRepository) DeletePulsarSchedulerJobDetails(jobId []string) error {
+	return nil
 }
 
 func newMockJobRepository() *mockJobRepository {
 	return &mockJobRepository{
-		jobs:             make(map[string]*api.Job),
-		jobRetries:       make(map[string]int),
-		returnLeaseCalls: 0,
-		deleteJobsCalls:  0,
-		returnLeaseArg1:  "",
-		returnLeaseArg2:  "",
-		deleteJobsArg:    nil,
+		jobs:              make(map[string]*api.Job),
+		jobRetries:        make(map[string]int),
+		returnLeaseCalls:  0,
+		deleteJobsCalls:   0,
+		returnLeaseArg1:   "",
+		returnLeaseArg2:   "",
+		deleteJobsArg:     nil,
+		jobStartTimeInfos: map[string]*repository.JobStartInfo{},
 	}
 }
 
@@ -300,8 +359,8 @@ func (repo *mockJobRepository) PeekQueue(queue string, limit int64) ([]*api.Job,
 	return []*api.Job{}, nil
 }
 
-func (repo *mockJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
-	return []*api.Job{}, nil
+func (repo *mockJobRepository) TryLeaseJobs(clusterId string, jobIdsByQueue map[string][]string) (map[string][]string, error) {
+	return make(map[string][]string), nil
 }
 
 func (repo *mockJobRepository) GetLeasedJobIds(queue string) ([]string, error) {
@@ -309,7 +368,20 @@ func (repo *mockJobRepository) GetLeasedJobIds(queue string) ([]string, error) {
 }
 
 func (repo *mockJobRepository) UpdateStartTime(jobStartInfos []*repository.JobStartInfo) ([]error, error) {
-	return nil, nil
+	if repo.redisError != nil {
+		return nil, repo.redisError
+	}
+	if repo.updateJobStartTimeError != nil {
+		errors := make([]error, 0, len(jobStartInfos))
+		errors = append(errors, repo.updateJobStartTimeError)
+		return errors, nil
+	}
+	errors := make([]error, 0, len(jobStartInfos))
+	for _, startInfo := range jobStartInfos {
+		repo.jobStartTimeInfos[startInfo.JobId] = startInfo
+		errors = append(errors, nil)
+	}
+	return errors, nil
 }
 
 func (repo *mockJobRepository) UpdateJobs(ids []string, mutator func([]*api.Job)) ([]repository.UpdateJobResult, error) {
@@ -392,5 +464,19 @@ func (repo *fakeSchedulingInfoRepository) GetClusterSchedulingInfo() (map[string
 }
 
 func (repo *fakeSchedulingInfoRepository) UpdateClusterSchedulingInfo(report *api.ClusterSchedulingInfoReport) error {
+	return nil
+}
+
+type fakeExecutorRepository struct{}
+
+func (f fakeExecutorRepository) GetExecutors(ctx context.Context) ([]*schedulerobjects.Executor, error) {
+	return nil, nil
+}
+
+func (f fakeExecutorRepository) GetLastUpdateTimes(ctx context.Context) (map[string]time.Time, error) {
+	return nil, nil
+}
+
+func (f fakeExecutorRepository) StoreExecutor(ctx context.Context, executor *schedulerobjects.Executor) error {
 	return nil
 }

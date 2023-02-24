@@ -18,24 +18,24 @@ type Decompressor interface {
 // NoOpDecompressor is a DeCompressor that does nothing.  Useful for tests.
 type NoOpDecompressor struct{}
 
-func (c *NoOpDecompressor) DeCompress(b []byte) ([]byte, error) {
+func (c *NoOpDecompressor) Decompress(b []byte) ([]byte, error) {
 	return b, nil
 }
 
-// ZlibDecompressor decompresses Zlib,
+// ZlibDecompressor decompresses Zlib
 type ZlibDecompressor struct {
 	outputBuffer *bytes.Buffer
 	inputBuffer  *bytes.Buffer
 	reader       io.ReadCloser
 }
 
-func NewZlibDecompressor() (*ZlibDecompressor, error) {
+func NewZlibDecompressor() *ZlibDecompressor {
 	var ib bytes.Buffer
 	var ob bytes.Buffer
 	return &ZlibDecompressor{
 		inputBuffer:  &ib,
 		outputBuffer: &ob,
-	}, nil
+	}
 }
 
 func (d *ZlibDecompressor) Decompress(b []byte) ([]byte, error) {
@@ -60,5 +60,22 @@ func (d *ZlibDecompressor) Decompress(b []byte) ([]byte, error) {
 		return nil, errors.WithStack(err)
 	}
 	decompressed := d.outputBuffer.Bytes()
+	return decompressed, nil
+}
+
+// ThreadSafeZlibDecompressor provides a thread safe decompressor, at the cost of instantiating a new ZlibDecompressor
+// for each Decompress call
+type ThreadSafeZlibDecompressor struct{}
+
+func NewThreadSafeZlibDecompressor() *ThreadSafeZlibDecompressor {
+	return &ThreadSafeZlibDecompressor{}
+}
+
+func (d *ThreadSafeZlibDecompressor) Decompress(b []byte) ([]byte, error) {
+	decompressor := NewZlibDecompressor()
+	decompressed, err := decompressor.Decompress(b)
+	if err != nil {
+		return nil, err
+	}
 	return decompressed, nil
 }

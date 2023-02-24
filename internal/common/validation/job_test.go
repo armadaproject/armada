@@ -5,13 +5,11 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-
-	"github.com/stretchr/testify/assert"
-
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func Test_ValidateJobSubmitRequestItem(t *testing.T) {

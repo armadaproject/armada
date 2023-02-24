@@ -6,16 +6,18 @@ import (
 	"fmt"
 
 	v1 "k8s.io/api/core/v1"
+	discovery "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
-	"github.com/G-Research/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/domain"
 )
 
 type SyncFakeClusterContext struct {
-	Pods     map[string]*v1.Pod
-	handlers []*cache.ResourceEventHandlerFuncs
+	Pods                 map[string]*v1.Pod
+	podEventHandlers     []*cache.ResourceEventHandlerFuncs
+	clusterEventHandlers []*cache.ResourceEventHandlerFuncs
 }
 
 func NewSyncFakeClusterContext() *SyncFakeClusterContext {
@@ -26,11 +28,11 @@ func NewSyncFakeClusterContext() *SyncFakeClusterContext {
 func (*SyncFakeClusterContext) Stop() {}
 
 func (c *SyncFakeClusterContext) AddPodEventHandler(handler cache.ResourceEventHandlerFuncs) {
-	c.handlers = append(c.handlers, &handler)
+	c.podEventHandlers = append(c.podEventHandlers, &handler)
 }
 
 func (c *SyncFakeClusterContext) AddClusterEventEventHandler(handler cache.ResourceEventHandlerFuncs) {
-	c.handlers = append(c.handlers, &handler)
+	c.clusterEventHandlers = append(c.clusterEventHandlers, &handler)
 }
 
 func (c *SyncFakeClusterContext) GetBatchPods() ([]*v1.Pod, error) {
@@ -81,6 +83,10 @@ func (c *SyncFakeClusterContext) GetIngresses(pod *v1.Pod) ([]*networking.Ingres
 	return nil, fmt.Errorf("Ingresses not implemented in SyncFakeClusterContext")
 }
 
+func (c *SyncFakeClusterContext) GetEndpointSlices(namespace string, labelName string, labelValue string) ([]*discovery.EndpointSlice, error) {
+	return nil, fmt.Errorf("EndpointSlices not implemented in SyncFakeClusterContext")
+}
+
 func (c *SyncFakeClusterContext) DeleteIngress(ingress *networking.Ingress) error {
 	return fmt.Errorf("Ingresses not implemented in SyncFakeClusterContext")
 }
@@ -95,6 +101,13 @@ func (c *SyncFakeClusterContext) AddAnnotation(pod *v1.Pod, annotations map[stri
 }
 
 func (c *SyncFakeClusterContext) AddClusterEventAnnotation(event *v1.Event, annotations map[string]string) error {
+	return nil
+}
+
+func (c *SyncFakeClusterContext) DeletePodWithCondition(pod *v1.Pod, condition func(pod *v1.Pod) bool, pessimistic bool) error {
+	if condition(pod) {
+		c.DeletePods([]*v1.Pod{pod})
+	}
 	return nil
 }
 
@@ -117,9 +130,25 @@ func (c *SyncFakeClusterContext) GetNodeStatsSummary(ctx context.Context, node *
 }
 
 func (c *SyncFakeClusterContext) SimulateDeletionEvent(pod *v1.Pod) {
-	for _, h := range c.handlers {
+	for _, h := range c.podEventHandlers {
 		if h.DeleteFunc != nil {
 			h.DeleteFunc(pod)
+		}
+	}
+}
+
+func (c *SyncFakeClusterContext) SimulatePodAddEvent(pod *v1.Pod) {
+	for _, h := range c.podEventHandlers {
+		if h.AddFunc != nil {
+			h.AddFunc(pod)
+		}
+	}
+}
+
+func (c *SyncFakeClusterContext) SimulateClusterAddEvent(clusterEvent *v1.Event) {
+	for _, h := range c.clusterEventHandlers {
+		if h.AddFunc != nil {
+			h.AddFunc(clusterEvent)
 		}
 	}
 }

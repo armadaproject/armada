@@ -1,0 +1,17 @@
+image:
+  repository: gresearchdev/armada-lookout-v2
+  tag: LATEST
+resources:
+  limits:
+    memory: 256Mi
+    cpu: 200m
+  requests:
+    memory: 128Mi
+    cpu: 100m
+additionalLabels: {}
+additionalVolumeMounts: []
+additionalVolumes: []
+customServiceAccount: null
+serviceAccount: null
+
+applicationConfig: {}

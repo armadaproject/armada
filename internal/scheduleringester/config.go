@@ -3,7 +3,7 @@ package scheduleringester
 import (
 	"time"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/configuration"
 )
 
 type Configuration struct {
@@ -13,6 +13,8 @@ type Configuration struct {
 	Metrics configuration.MetricsConfig
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig
+	// Map of allowed priority classes by name
+	PriorityClasses map[string]configuration.PriorityClass
 	// Pulsar subscription name
 	SubscriptionName string
 	// Number of messages that will be batched together before being inserted into the database

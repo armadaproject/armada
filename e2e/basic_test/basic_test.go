@@ -14,10 +14,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
-	"github.com/G-Research/armada/pkg/client/domain"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
+	"github.com/armadaproject/armada/pkg/client/domain"
 )
 
 const integrationEnabledEnvVar = "INTEGRATION_ENABLED"
@@ -96,6 +96,7 @@ func TestCanNotSubmitJobToDeletedQueue(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// TODO: Should be an armadactl test.
 func TestCanSubmitJob_ArmdactlWatchExitOnInactive(t *testing.T) {
 	skipIfIntegrationEnvNotPresent(t)
 	connDetails := connectionDetails()

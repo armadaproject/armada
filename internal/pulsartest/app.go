@@ -7,8 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/pulsarutils"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
 )
 
 type App struct {
@@ -32,21 +32,10 @@ func New(params Params, cmdType string) (*App, error) {
 	var reader pulsar.Reader
 
 	if cmdType == "submit" {
-		compressionType, err := pulsarutils.ParsePulsarCompressionType(params.Pulsar.CompressionType)
-		if err != nil {
-			return nil, err
-		}
-		compressionLevel, err := pulsarutils.ParsePulsarCompressionLevel(params.Pulsar.CompressionLevel)
-		if err != nil {
-			return nil, err
-		}
-
 		producerName := fmt.Sprintf("pulsartest-%s", serverId)
 		producer, err = pulsarClient.CreateProducer(pulsar.ProducerOptions{
-			Name:             producerName,
-			CompressionType:  compressionType,
-			CompressionLevel: compressionLevel,
-			Topic:            params.Pulsar.JobsetEventsTopic,
+			Name:  producerName,
+			Topic: params.Pulsar.JobsetEventsTopic,
 		})
 
 		if err != nil {

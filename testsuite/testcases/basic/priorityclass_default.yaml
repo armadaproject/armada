@@ -1,6 +1,6 @@
 numBatches: 1
 batchSize: 1
-queue: queue-b
+queue: e2e-test-queue
 jobs:
   - priority: 0
     namespace: personal-anonymous
@@ -14,14 +14,14 @@ jobs:
           image: alpine:3.10
           args:
             - "sleep"
-            - "120"
+            - "1"
           resources:
             limits:
               memory: 10Mi
-              cpu: 30
+              cpu: 100m
             requests:
               memory: 10Mi
-              cpu: 30
+              cpu: 100m
 ---
 timeout: "130s"
 expectedEvents:

@@ -1,5 +1,7 @@
 package lookout
 
+import "github.com/armadaproject/armada/internal/common/util"
+
 type JobState string
 
 type JobRunState string
@@ -40,4 +42,30 @@ const (
 	JobRunLeaseReturnedOrdinal    = 8
 	JobRunLeaseExpiredOrdinal     = 9
 	JobRunMaxRunsExceededOrdinal  = 10
+)
+
+var (
+	JobStateMap = map[int]JobState{
+		JobQueuedOrdinal:    JobQueued,
+		JobPendingOrdinal:   JobPending,
+		JobRunningOrdinal:   JobRunning,
+		JobSucceededOrdinal: JobSucceeded,
+		JobFailedOrdinal:    JobFailed,
+		JobCancelledOrdinal: JobCancelled,
+	}
+
+	JobStateOrdinalMap = util.InverseMap(JobStateMap)
+
+	JobRunStateMap = map[int]JobRunState{
+		JobRunPendingOrdinal:          JobRunPending,
+		JobRunRunningOrdinal:          JobRunRunning,
+		JobRunSucceededOrdinal:        JobRunSucceeded,
+		JobRunFailedOrdinal:           JobRunFailed,
+		JobRunTerminatedOrdinal:       JobRunTerminated,
+		JobRunPreemptedOrdinal:        JobRunPreempted,
+		JobRunUnableToScheduleOrdinal: JobRunUnableToSchedule,
+		JobRunLeaseReturnedOrdinal:    JobRunLeaseReturned,
+		JobRunLeaseExpiredOrdinal:     JobRunLeaseExpired,
+		JobRunMaxRunsExceededOrdinal:  JobRunMaxRunsExceeded,
+	}
 )

@@ -89,11 +89,16 @@ commands:
           helm package deployment/executor -d charts/armada/
           helm package deployment/executor-cluster-monitoring/ -d charts/armada/
           helm package deployment/lookout/ -d charts/armada/
+          helm package deployment/lookout-v2/ -d charts/armada/
           helm package deployment/lookout-migration/ -d charts/armada/
+          helm package deployment/lookout-migration-v2/ -d charts/armada/
           helm package deployment/binoculars/ -d charts/armada/
           helm package deployment/jobservice/ -d charts/armada/
           helm package deployment/lookout-ingester/ -d charts/armada/
+          helm package deployment/lookout-ingester-v2/ -d charts/armada/
           helm package deployment/event-ingester/ -d charts/armada/
+          helm package deployment/scheduler/ -d charts/armada/
+          helm package deployment/scheduler-migration/ -d charts/armada/
           helm repo index charts/
 
     - run:
@@ -113,12 +118,13 @@ jobs:
     machine:
       docker_layer_caching: true
       image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      resource_class: large
+      # resource_class: xlarge
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
 
@@ -202,9 +208,15 @@ jobs:
             docker tag armada-lookout gresearchdev/armada-lookout-dev:${TAG}
             docker push gresearchdev/armada-lookout-dev:${TAG}
 
+            docker tag armada-lookout-v2 gresearchdev/armada-lookout-v2-dev:${TAG}
+            docker push gresearchdev/armada-lookout-v2-dev:${TAG}
+
             docker tag armada-lookout-ingester gresearchdev/armada-lookout-ingester-dev:${TAG}
             docker push gresearchdev/armada-lookout-ingester-dev:${TAG}
-            
+
+            docker tag armada-lookout-ingester-v2 gresearchdev/armada-lookout-ingester-v2-dev:${TAG}
+            docker push gresearchdev/armada-lookout-ingester-v2-dev:${TAG}
+
             docker tag armada-event-ingester gresearchdev/armada-event-ingester-dev:${TAG}
             docker push gresearchdev/armada-event-ingester-dev:${TAG}
 
@@ -216,18 +228,25 @@ jobs:
 
             docker tag armada-jobservice gresearchdev/armada-jobservice-dev:${TAG}
             docker push gresearchdev/armada-jobservice-dev:${TAG}
+            
+            docker tag armada-scheduler gresearchdev/armada-scheduler-dev:${TAG}
+            docker push gresearchdev/armada-scheduler-dev:${TAG}
+            
+            docker tag armada-scheduler-ingester gresearchdev/armada-scheduler-ingester-dev:${TAG}
+            docker push gresearchdev/armada-scheduler-ingester-dev:${TAG}
 
 
   release-armadactl:
     machine:
       docker_layer_caching: true
       image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      resource_class: large
+      # resource_class: xlarge
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
 
@@ -268,7 +287,7 @@ jobs:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
       - run:
@@ -299,6 +318,10 @@ jobs:
             docker tag gresearchdev/armada-lookout-dev:${TAG} gresearchdev/armada-lookout:${RELEASE_TAG}
             docker push gresearchdev/armada-lookout:${RELEASE_TAG}
 
+            docker pull gresearchdev/armada-lookout-v2-dev:${TAG}
+            docker tag gresearchdev/armada-lookout-v2-dev:${TAG} gresearchdev/armada-lookout-v2:${RELEASE_TAG}
+            docker push gresearchdev/armada-lookout-v2:${RELEASE_TAG}
+
             docker pull gresearchdev/armada-binoculars-dev:${TAG}
             docker tag gresearchdev/armada-binoculars-dev:${TAG} gresearchdev/armada-binoculars:${RELEASE_TAG}
             docker push gresearchdev/armada-binoculars:${RELEASE_TAG}
@@ -306,14 +329,26 @@ jobs:
             docker pull gresearchdev/armada-jobservice-dev:${TAG}
             docker tag gresearchdev/armada-jobservice-dev:${TAG} gresearchdev/armada-jobservice:${RELEASE_TAG}
             docker push gresearchdev/armada-jobservice:${RELEASE_TAG}
-            
+
             docker pull gresearchdev/armada-lookout-ingester-dev:${TAG}
             docker tag gresearchdev/armada-lookout-ingester-dev:${TAG} gresearchdev/armada-lookout-ingester:${RELEASE_TAG}
             docker push gresearchdev/armada-lookout-ingester:${RELEASE_TAG}
-            
+
+            docker pull gresearchdev/armada-lookout-ingester-v2-dev:${TAG}
+            docker tag gresearchdev/armada-lookout-ingester-v2-dev:${TAG} gresearchdev/armada-lookout-ingester-v2:${RELEASE_TAG}
+            docker push gresearchdev/armada-lookout-ingester-v2:${RELEASE_TAG}
+
             docker pull gresearchdev/armada-event-ingester-dev:${TAG}
             docker tag gresearchdev/armada-event-ingester-dev:${TAG} gresearchdev/armada-event-ingester:${RELEASE_TAG}
             docker push gresearchdev/armada-event-ingester:${RELEASE_TAG}
+            
+            docker pull gresearchdev/armada-scheduler-dev:${TAG}
+            docker tag gresearchdev/armada-scheduler-dev:${TAG} gresearchdev/armada-scheduler:${RELEASE_TAG}
+            docker push gresearchdev/armada-scheduler:${RELEASE_TAG}
+            
+            docker pull gresearchdev/armada-scheduler-ingester-dev:${TAG}
+            docker tag gresearchdev/armada-scheduler-ingester-dev:${TAG} gresearchdev/armada-scheduler-ingester:${RELEASE_TAG}
+            docker push gresearchdev/armada-scheduler-ingester:${RELEASE_TAG}
 
   release-charts:
     machine:
@@ -324,7 +359,7 @@ jobs:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
 
@@ -338,12 +373,13 @@ jobs:
     machine:
       docker_layer_caching: true
       image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      resource_class: large
+      # resource_class: xlarge
     environment:
       GO111MODULE: "on"
       GOPATH: "/home/circleci/go"
       GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/G-Research/armada
+    working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
 

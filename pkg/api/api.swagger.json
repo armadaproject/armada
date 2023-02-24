@@ -724,6 +724,12 @@
         "jobId": {
           "type": "string"
         },
+        "jobIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "jobSetId": {
           "type": "string"
         },
@@ -950,6 +956,9 @@
         },
         "reason": {
           "type": "string"
+        },
+        "runAttempted": {
+          "type": "boolean"
         }
       }
     },
@@ -1254,7 +1263,10 @@
       "enum": [
         "QUEUED",
         "PENDING",
-        "RUNNING"
+        "RUNNING",
+        "SUCCEEDED",
+        "FAILED",
+        "UNKNOWN"
       ]
     },
     "apiJobSubmitRequest": {

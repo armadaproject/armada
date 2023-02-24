@@ -9,8 +9,8 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/requestid"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // Submit a job, represented by a file, to the Pulsar server.
@@ -42,8 +42,7 @@ func (a *App) Submit(path string) error {
 		&pulsar.ProducerMessage{
 			Payload: payload,
 			Properties: map[string]string{
-				requestid.MetadataKey:                     requestId,
-				armadaevents.PULSAR_MESSAGE_TYPE_PROPERTY: armadaevents.PULSAR_CONTROL_MESSAGE,
+				requestid.MetadataKey: requestId,
 			},
 			Key: es.JobSetName,
 		},

@@ -10,10 +10,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
-	"github.com/G-Research/armada/internal/pulsarutils"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const (
@@ -190,7 +190,7 @@ func newSimpleConverter(t *testing.T) InstructionConverter[*simpleMessages] {
 	return &simpleConverter{t}
 }
 
-func (s *simpleConverter) Convert(ctx context.Context, msg *EventSequencesWithIds) *simpleMessages {
+func (s *simpleConverter) Convert(_ context.Context, msg *EventSequencesWithIds) *simpleMessages {
 	s.t.Helper()
 	assert.Len(s.t, msg.EventSequences, len(msg.MessageIds))
 	var converted []*simpleMessage
@@ -217,7 +217,7 @@ func newSimpleSink(t *testing.T) *simpleSink {
 	}
 }
 
-func (s *simpleSink) Store(ctx context.Context, msg *simpleMessages) error {
+func (s *simpleSink) Store(_ context.Context, msg *simpleMessages) error {
 	for _, simpleMessage := range msg.msgs {
 		s.simpleMessages[simpleMessage.id] = simpleMessage
 	}
@@ -292,11 +292,12 @@ func testPipeline(consumer pulsar.Consumer, converter InstructionConverter[*simp
 		metricsConfig:          configuration.MetricsConfig{},
 		metrics:                testMetrics,
 		consumer:               consumer,
+		msgFilter:              func(msg pulsar.Message) bool { return true },
 	}
 }
 
-func marshal(t *testing.T, eventSequence *armadaevents.EventSequence) []byte {
-	payload, err := proto.Marshal(succeeded)
+func marshal(t *testing.T, es *armadaevents.EventSequence) []byte {
+	payload, err := proto.Marshal(es)
 	assert.NoError(t, err)
 	return payload
 }

@@ -1,100 +1,145 @@
 grpcPort: 50051
 httpPort: 8080
 metricsPort: 9000
-corsAllowedOrigins: []
-priorityHalfTime: 20m
+corsAllowedOrigins:
+  - http://localhost:3000
+  - http://localhost:8089
+  - http://localhost:10000
 cancelJobsBatchSize: 1000
+pulsarSchedulerEnabled: false
+probabilityOfUsingPulsarScheduler: 0
+ignoreJobSubmitChecks: false
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m
-    time: 2h
+    time: 120s
     timeout: 20s
   keepaliveEnforcementPolicy:
     minTime: 10s
-    permitWithoutStream: false
+    permitWithoutStream: true
 redis:
   addrs:
-    - "localhost:6379"
-  password: ""
-  db: 0
-  poolSize: 1000
-eventsRedis:
-  addrs:
-    - "localhost:6379"
+    - redis:6379
   password: ""
   db: 0
   poolSize: 1000
 eventsApiRedis:
   addrs:
-    - "localhost:6379"
+    - redis:6379
   password: ""
   db: 1
   poolSize: 1000
-defaultToLegacyEvents: true
 scheduling:
   preemption:
-    # if enabled, Armada will accept submitted jobs which have a priorityClassName field
-    # otherwise it will refuse the jobs on submit
-    enabled: false
-    # priorityClasses field is a map of priority class names to priority values
-    # defined priority classes should exist with the same priority in all executor clusters
-    priorityClasses: {}
-    # if preemption is enabled, Armada server will set the priorityClassName in the job's podSpec
-    # with the value of defaultPriorityClass, if the podSpec does not already reference a priority class
-    defaultPriorityClass: ""
-  useProbabilisticSchedulingForAllResources: true
-  queueLeaseBatchSize: 200
-  maximumLeasePayloadSizeBytes: 7340032 # 1024 * 1024 * 7
+    enabled: true
+    preemptToFairShare: true
+    nodeEvictionProbability: 1.0
+    nodeOversubscriptionEvictionProbability: 0.0
+    setNodeIdSelector: true
+    nodeIdLabel: kubernetes.io/hostname
+    setNodeName: false
+    priorityClasses:
+      armada-default:
+        priority: 1000
+        preemptible: false
+        maximalResourceFractionPerQueue:
+          memory: 0.99
+          cpu: 0.99
+      armada-preemptible:
+        priority: 900
+        preemptible: true
+        maximalResourceFractionPerQueue:
+          memory: 0.99
+          cpu: 0.99
+    defaultPriorityClass: armada-default
+  queueLeaseBatchSize: 1000
+  maxExtraNodesToConsider: 1
   minimumResourceToSchedule:
-    memory: 100000000 # 100Mb
-    cpu: 0.25
+    memory: 1000000 # 1Mb
+    cpu: 0.1
+  maximalResourceFractionToSchedulePerQueue:
+    memory: 1.0
+    cpu: 1.0
+  maximalResourceFractionPerQueue:
+    memory: 1.0
+    cpu: 1.0
   maximalClusterFractionToSchedule:
-    memory: 0.25
-    cpu: 0.25
+    memory: 1.0
+    cpu: 1.0
   maximumJobsToSchedule: 5000
   maxQueueReportsToStore: 1000
-  MaxJobReportsToStore: 100000
-  resourceScarcity:
-    cpu: 1.0
+  MaxJobReportsToStore: 10000
   lease:
     expireAfter: 15m
     expiryLoopInterval: 5s
+  defaultJobLimits:
+    cpu: 1
+    memory: 1Gi
+    ephemeral-storage: 8Gi
+  defaultJobTolerations:
+    - key: "armadaproject.io/armada"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  defaultJobTolerationsByPriorityClass:
+    "":
+      - key: "armadaproject.io/pc-armada-default"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+    armada-default:
+      - key: "armadaproject.io/pc-armada-default"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+    armada-preemptible:
+      - key: "armadaproject.io/pc-armada-preemptible"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
   maxRetries: 5
+  resourceScarcity:
+    cpu: 1.0
   maxPodSpecSizeBytes: 65535
   minJobResources:
     memory: 1Mi
-  minTerminationGracePeriod: 1s
-  maxTerminationGracePeriod: 300s
   indexedResources:
     - cpu
     - memory
-  gangIdAnnotation: armadaproject.io/gangId
-  gangCardinalityAnnotation: armadaproject.io/gangCardinality
+  minTerminationGracePeriod: 1s
+  maxTerminationGracePeriod: 300s
 queueManagement:
   defaultPriorityFactor: 1000
   defaultQueuedJobsLimit: 0  # No Limit
-events:
-  storeQueue: "ArmadaEventRedisProcessor"
-  jobStatusQueue: "ArmadaEventJobStatusProcessor"
-  processorBatchSize: 100
-  processorMaxTimeBetweenBatches: 1s
-  processorTimeout: 10s
-eventsNats:
-  timeout: 10s
+  autoCreateQueues: true
 databaseRetention:
-  jobRetentionDuration: 168h # Specified as a Go duration
+  jobRetentionDuration: 168h
 eventRetention:
   expiryEnabled: true
-  retentionDuration: 336h # Specified as a Go duration
+  retentionDuration: 336h
 metrics:
-  refreshInterval: 30s
+  refreshInterval: 5m
 pulsar:
-  enabled: true
-  URL: "pulsar://localhost:6650"
-  maxAllowedMessageSize: 4194304 # 4MB
-  jobsetEventsTopic: "persistent://armada/armada/events"
+  URL: "pulsar://pulsar:6650"
+  jobsetEventsTopic: "events"
   redisFromPulsarSubscription: "RedisFromPulsar"
   hostnameSuffix: "svc"
   certNameSuffix: "ingress-tls-certificate"
+  dedupTable: pulsar_submit_dedup
+  maxConnectionsPerBroker: 1
+  compressionType: zlib
+  compressionLevel: faster
   eventsPrinter: false
   eventsPrinterSubscription: "EventsPrinter"
+  maxAllowedMessageSize: 4194304 # 4MB
+postgres:
+  maxOpenConns: 100
+  maxIdleConns: 25
+  connMaxLifetime: 30m
+  connection:
+    host: postgres
+    port: 5432
+    user: postgres
+    password: psw
+    dbname: postgres
+    sslmode: disable

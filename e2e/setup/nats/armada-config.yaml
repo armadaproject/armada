@@ -1,7 +1,0 @@
-corsAllowedOrigins: ["http://localhost:3000", "http://localhost:8089"]
-eventsNats:
-  Servers:
-    - "nats://localhost:4223"
-    - "nats://nats:4222"
-  ClusterID: "test-cluster"
-  Subject: "ArmadaTest"

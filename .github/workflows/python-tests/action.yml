@@ -10,6 +10,14 @@ inputs:
     description: "Version of python to setup and run tests against"
     required: true
     type: string
+  tox-env:
+    description: "Tox environment to use for running the tests"
+    required: true
+    type: string
+  github-token:
+    description: "Token for authenticated github requests"
+    required: true
+    type: string
 
 runs:
   using: "composite"
@@ -18,8 +26,13 @@ runs:
       with:
         python-version: ${{ inputs.python-version }}
     # Tox to run tests; build to build the wheel after tests pass
-    - run: pip install tox build twine
+    - run: pip install tox==3.27.1 build twine
       shell: bash
+    - name: Install Protoc
+      uses: arduino/setup-protoc@v1
+      with:
+        version: '3.17.3'
+        repo-token: ${{ inputs.github-token }}
     # Generate the proto files for python, required for later steps
     - run: make python
       shell: bash
@@ -31,8 +44,8 @@ runs:
       run: tox -e docs-check
       shell: bash
       working-directory: ${{ inputs.path }}
-    - name: Run tox python 3.8 unit tests
-      run: tox -e py38
+    - name: Run tox python ${{ inputs.python-version }} unit tests
+      run: tox -e ${{ inputs.tox-env }}
       shell: bash
       working-directory: ${{ inputs.path }}
     - name: Build and verify wheel

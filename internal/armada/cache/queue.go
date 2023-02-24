@@ -6,13 +6,12 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/armada/metrics"
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/armada/scheduling"
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/internal/armada/metrics"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/armada/scheduling"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 const objectsToLoadBatchSize = 10000
@@ -104,7 +103,7 @@ func (c *QueueCache) calculateQueuedJobMetrics(
 		}
 
 		for _, job := range queuedJobs {
-			jobResources := common.TotalJobResourceRequest(job)
+			jobResources := job.TotalResourceRequest()
 			nonMatchingClusters := stringSet{}
 			queuedTime := currentTime.Sub(job.Created)
 
@@ -168,7 +167,7 @@ func (c *QueueCache) calculateRunningJobMetrics(queue queue.Queue, activeCluster
 			if !present {
 				continue
 			}
-			jobResources := common.TotalJobResourceRequest(job)
+			jobResources := job.TotalResourceRequest()
 			runTime := now.Sub(runInfo.StartTime)
 			priorityClass := getPriorityClass(job)
 			metricsRecorder.RecordJobRuntime(pool, priorityClass, runTime)
@@ -198,44 +197,6 @@ func (c *QueueCache) GetRunningJobMetrics(queueName string) []*metrics.QueueMetr
 	c.refreshMutex.Lock()
 	defer c.refreshMutex.Unlock()
 	return c.runningJobMetrics[queueName]
-}
-
-func (c *QueueCache) getNonSchedulableJobIds(queueName string) map[string]stringSet {
-	c.refreshMutex.Lock()
-	defer c.refreshMutex.Unlock()
-	return c.queueNonMatchingJobIds[queueName]
-}
-
-func (c *QueueCache) PeekClusterQueue(clusterId, queue string, limit int64) ([]*api.Job, error) {
-	ids, e := c.jobRepository.GetQueueJobIds(queue)
-	if e != nil {
-		return nil, e
-	}
-	nonMatchingJobs := c.getNonSchedulableJobIds(queue)
-
-	filtered := []string{}
-	for _, id := range ids {
-		if matches(nonMatchingJobs, clusterId, id) {
-			filtered = append(filtered, id)
-		}
-		if len(filtered) == int(limit) {
-			break
-		}
-	}
-	return c.jobRepository.GetExistingJobsByIds(filtered)
-}
-
-func matches(nonMatchingJobs map[string]stringSet, clusterId, jobId string) bool {
-	nonMatchingClusters, ok := nonMatchingJobs[jobId]
-	if !ok {
-		return true
-	}
-	_, exists := nonMatchingClusters[clusterId]
-	return !exists
-}
-
-func (c *QueueCache) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
-	return c.jobRepository.TryLeaseJobs(clusterId, queue, jobs)
 }
 
 func getPriorityClass(job *api.Job) string {

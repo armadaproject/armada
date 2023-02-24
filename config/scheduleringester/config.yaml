@@ -1,6 +1,6 @@
 postgres:
-  maxOpenConns: 100
-  maxIdleConns: 25
+  maxOpenConns: 10
+  maxIdleConns: 1
   connMaxLifetime: 30m
   connection:
     host: localhost
@@ -15,10 +15,17 @@ metrics:
 
 pulsar:
   URL: "pulsar://localhost:6650"
-  jobsetEventsTopic: "persistent://armada/armada/events"
+  jobsetEventsTopic: "events"
+  receiveTimeout: 5s
+  backoffTime: 1s
 
 subscriptionName: "scheduler-ingester"
 batchSize: 10000
 batchDuration: 500ms
-pulsarReceiveTimeout: 5s
-pulsarBackoffTime: 1s
+priorityClasses:
+  armada-default:
+    priority: 1000
+  armada-preemptible:
+    priority: 900
+
+

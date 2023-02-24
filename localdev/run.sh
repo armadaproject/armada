@@ -1,10 +1,27 @@
-#! /bin/bash
+#!/bin/bash
 
-INFRA_SVCS="redis postgres pulsar stan"
-ARMADA_SVCS="armada-server lookout lookout-ingester executor binoculars jobservice event-ingester"
+INFRA_SVCS="redis postgres pulsar"
+ARMADA_SVCS="server lookout lookout-ingester executor binoculars jobservice event-ingester"
+COMPOSE_FILE=""
 
 # make the dir containing this file the CWD
 cd "$(dirname "${0}")" || exit
+# get the first command-line argument, or 'default' if not available
+command=${1:-default}
+
+# Switch compose files if requested by command-line arg
+case "$command" in
+  "debug")
+    echo "starting debug compose environment"
+    COMPOSE_FILE="-f docker-compose.yaml -f docker-compose.debug.yaml"
+    # make golang image with delve
+    docker build -t golang:1.18-delve .
+    ;;
+  *)
+    echo "starting compose environment"
+    # default action
+    ;;
+esac
 
 # start the kubernetes cluster if needed
 kind get clusters | grep armada-test &> /dev/null
@@ -29,6 +46,6 @@ then
     SLEEP_TIME=50
 fi
 
-docker-compose up -d $INFRA_SVCS
+docker-compose $COMPOSE_FILE up -d $INFRA_SVCS
 sleep $SLEEP_TIME
-docker-compose up -d $ARMADA_SVCS
+docker-compose $COMPOSE_FILE up -d $ARMADA_SVCS

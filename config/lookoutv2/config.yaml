@@ -1,11 +1,20 @@
+apiPort: 10000
+corsAllowedOrigins:
+  - "http://localhost:3000"
+  - "http://localhost:8089"
+  - "http://localhost:10000"
 postgres:
   maxOpenConns: 100
   maxIdleConns: 25
   connMaxLifetime: 30m
   connection:
-    host: localhost
+    host: postgres
     port: 5433
     user: postgres
     password: psw
     dbname: postgres
     sslmode: disable
+prunerConfig:
+  expireAfter: 1008h  # 42 days, 6 weeks
+  timeout: 1h
+  batchSize: 1000

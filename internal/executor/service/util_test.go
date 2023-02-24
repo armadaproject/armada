@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/job"
 )
 
 func TestChunkPods(t *testing.T) {

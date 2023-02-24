@@ -5,10 +5,10 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/lookoutingesterv2"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/benchmark"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/configuration"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/benchmark"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/configuration"
 )
 
 const (

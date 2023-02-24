@@ -1,8 +1,8 @@
 [project]
 name = "armada_airflow"
-version = "0.2.5"
+version = "0.2.6"
 description = "Armada Airflow Operator"
-requires-python = ">=3.7,<3.9"
+requires-python = ">=3.7"
 # Note(JayF): This dependency value is not suitable for release. Whatever
 # release automation we create will have to change this to a dep on a pypi
 # package, but we can't do that now because it would make development
@@ -19,8 +19,8 @@ license = { text = "Apache Software License" }
 readme = "README.md"
 
 [project.optional-dependencies]
-format = ["black>=22.3.0", "flake8>=4.0.1", "mypy>=0.971"]
-test = ["pytest>=7.1.2", "mypy>=0.971"]
+format = ["black==23.1.0", "flake8==6.0.0", "pylint==2.16.1"]
+test = ["pytest==7.2.1", "coverage>=6.5.0"]
 docs = ["sphinx", "sphinx-jekyll-builder"]
 
 [build-system]

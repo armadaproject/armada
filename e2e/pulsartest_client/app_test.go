@@ -5,15 +5,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	cfg "github.com/G-Research/armada/internal/armada/configuration"
-	pt "github.com/G-Research/armada/internal/pulsartest"
+	cfg "github.com/armadaproject/armada/internal/armada/configuration"
+	pt "github.com/armadaproject/armada/internal/pulsartest"
 )
 
 func TestNew(t *testing.T) {
 	// Basic success path
 	pc := cfg.PulsarConfig{
 		URL:               "pulsar://localhost:6650",
-		JobsetEventsTopic: "persistent://armada/armada/events",
+		JobsetEventsTopic: "events",
 	}
 	app, err := pt.New(pt.Params{Pulsar: pc}, "submit")
 	assert.NoError(t, err)
@@ -33,30 +33,10 @@ func TestNew(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, app)
 
-	// Invalid compression type
-	pc = cfg.PulsarConfig{
-		URL:               "pulsar://localhost:6650",
-		CompressionType:   "nocompression",
-		JobsetEventsTopic: "persistent://armada/armada/events",
-	}
-	app, err = pt.New(pt.Params{Pulsar: pc}, "submit")
-	assert.Error(t, err)
-	assert.Nil(t, app)
-
-	// Invalid compression level
-	pc = cfg.PulsarConfig{
-		URL:               "pulsar://localhost:6650",
-		CompressionLevel:  "veryCompressed",
-		JobsetEventsTopic: "persistent://armada/armada/events",
-	}
-	app, err = pt.New(pt.Params{Pulsar: pc}, "submit")
-	assert.Error(t, err)
-	assert.Nil(t, app)
-
 	// Invalid command type
 	pc = cfg.PulsarConfig{
 		URL:               "pulsar://localhost:6650",
-		JobsetEventsTopic: "persistent://armada/armada/events",
+		JobsetEventsTopic: "events",
 	}
 	app, err = pt.New(pt.Params{Pulsar: pc}, "observe")
 	assert.Error(t, err)

@@ -36,7 +36,7 @@ import (
 //
 // )
 // I.e., it should omit everything before and after the "(" and ")", respectively.
-func Upsert(ctx context.Context, db *pgxpool.Pool, tableName string, schema string, records []interface{}) error {
+func Upsert[T any](ctx context.Context, db *pgxpool.Pool, tableName string, records []T) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -45,20 +45,20 @@ func Upsert(ctx context.Context, db *pgxpool.Pool, tableName string, schema stri
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-		return CopyProtocolUpsert(ctx, tx, tableName, schema, records)
+		return CopyProtocolUpsert(ctx, tx, tableName, records)
 	})
 }
 
-func CopyProtocolUpsert(ctx context.Context, tx pgx.Tx, tableName string, schema string, records []interface{}) error {
+func CopyProtocolUpsert[T any](ctx context.Context, tx pgx.Tx, tableName string, records []T) error {
 	if len(records) < 1 {
 		return nil
 	}
 
 	// Write records into postgres.
 	// First, create a temporary table for loading data in bulk using the copy protocol.
-	// The table is created with the provided schema.
+	// TODO: don't use select * here but rather just select the cols we care about
 	tempTableName := uniqueTableName(tableName)
-	_, err := tx.Exec(ctx, fmt.Sprintf("CREATE TEMPORARY TABLE %s %s ON COMMIT DROP;", tempTableName, schema))
+	_, err := tx.Exec(ctx, fmt.Sprintf("CREATE TEMPORARY TABLE %s ON COMMIT DROP AS SELECT * FROM %s LIMIT 0;", tempTableName, tableName))
 	if err != nil {
 		return errors.WithStack(err)
 	}

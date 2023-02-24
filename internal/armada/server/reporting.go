@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func reportQueued(repository repository.EventStore, jobs []*api.Job) error {
@@ -57,22 +56,6 @@ func reportDuplicateDetected(repository repository.EventStore, results []*reposi
 		return fmt.Errorf("[reportDuplicateDetected] error reporting events: %w", err)
 	}
 
-	return nil
-}
-
-func reportDuplicateFoundEvents(repository repository.EventStore, events []*api.JobDuplicateFoundEvent) error {
-	apiEvents := make([]*api.EventMessage, len(events))
-	for i, event := range events {
-		event, err := api.Wrap(event)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		apiEvents[i] = event
-	}
-	err := repository.ReportEvents(apiEvents)
-	if err != nil {
-		return errors.WithStack(err)
-	}
 	return nil
 }
 
@@ -138,6 +121,7 @@ func reportJobLeaseReturned(repository repository.EventStore, job *api.Job, leas
 		ClusterId:    leaseReturnRequest.ClusterId,
 		Reason:       leaseReturnRequest.Reason,
 		KubernetesId: leaseReturnRequest.KubernetesId,
+		RunAttempted: leaseReturnRequest.JobRunAttempted,
 	})
 	if err != nil {
 		return fmt.Errorf("error wrapping event: %w", err)

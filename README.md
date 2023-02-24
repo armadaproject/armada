@@ -1,7 +1,7 @@
 <img src="./logo.svg" width="200"/>
 
-[![CircleCI](https://circleci.com/gh/helm/helm.svg?style=shield)](https://circleci.com/gh/G-Research/armada)
-[![Go Report Card](https://goreportcard.com/badge/github.com/G-Research/armada)](https://goreportcard.com/report/github.com/G-Research/armada)
+[![CircleCI](https://circleci.com/gh/armadaproject/armada.svg?style=shield)](https://circleci.com/gh/armadaproject/armada)
+[![Go Report Card](https://goreportcard.com/badge/github.com/armadaproject/armada)](https://goreportcard.com/report/github.com/armadaproject/armada)
 
 # Armada
 
@@ -23,7 +23,12 @@ Armada is designed primarily for machine learning, AI, and data analytics worklo
 
 Armada is a [CNCF](https://www.cncf.io/) Sandbox project used in production at [G-Research](https://www.gresearch.co.uk/).
 
-For an overview of Armada, see [this video](https://www.youtube.com/watch?v=FT8pXYciD9A).
+For an overview of Armada, see these videos:
+
+- [Armada - high-throughput batch scheduling](https://www.youtube.com/watch?v=FT8pXYciD9A)
+- [Building Armada - Running Batch Jobs at Massive Scale on Kubernetes](https://www.youtube.com/watch?v=B3WPxw3OUl4)
+
+Armada adheres to the CNCF [Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md).
 
 ## Documentation
 
@@ -33,8 +38,9 @@ For an overview of the architecture and design of Armada, and instructions for s
 - [User guide](./docs/user.md)
 - [Quickstart](./docs/quickstart/index.md)
 
-For instructions of how to setup and develop Armada, see:
-- [Development guide](./docs/developer.md)
+To set up Armada for local development, see:
+
+- [Development guide](./docs/development_guide.md)
 
 For API reference, see:
 - [API Documentation](./docs/api.md)
@@ -44,4 +50,8 @@ We expect readers of the documentation to have a basic understanding of Docker a
 - [Docker overiew](https://docs.docker.com/get-started/overview/)
 - [Kubernetes overview](https://kubernetes.io/docs/concepts/overview/)
 
-Armada follows the CNCF [Code of Conduct](https://github.com/cncf/foundation/blob/master/code-of-conduct.md)
+## Discussion
+
+If you are interested in discussing Armada you can find us on  [![slack](https://img.shields.io/badge/slack-armada-brightgreen.svg?logo=slack)](https://cloud-native.slack.com/?redir=%2Farchives%2FC03T9CBCEMC)
+
+

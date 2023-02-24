@@ -14,13 +14,16 @@ postgres:
 pulsar:
   enabled: true
   URL: "pulsar://pulsar:6650"
-  jobsetEventsTopic: "persistent://armada/armada/events"
+  jobsetEventsTopic: "events"
+  receiveTimeout: 5s
+  backoffTime: 1s 
 
 paralellism: 1
 subscriptionName: "lookout-ingester"
 batchSize: 10000
-batchDuration: 500ms
-pulsarReceiveTimeout: 5s
-pulsarBackoffTime: 1s
+batchDuration: 500ms  
 minJobSpecCompressionSize: 1024
 userAnnotationPrefix: "armadaproject.io/"
+
+debug:
+  disableConflateDBUpdates: true

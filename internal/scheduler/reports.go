@@ -15,10 +15,9 @@ import (
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // SchedulingReportsRepository stores reports on the most recent scheduling attempts.
@@ -66,7 +65,11 @@ type SchedulingRoundReport struct {
 	mu sync.Mutex
 }
 
-func NewSchedulingRoundReport(totalResources schedulerobjects.ResourceList, priorityFactorByQueue map[string]float64, initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType) *SchedulingRoundReport {
+func NewSchedulingRoundReport(
+	totalResources schedulerobjects.ResourceList,
+	priorityFactorByQueue map[string]float64,
+	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
+) *SchedulingRoundReport {
 	queueSchedulingRoundReports := make(map[string]*QueueSchedulingRoundReport)
 	for queue := range priorityFactorByQueue {
 		queueSchedulingRoundReports[queue] = NewQueueSchedulingRoundReport(
@@ -99,19 +102,19 @@ func (report *SchedulingRoundReport) String() string {
 }
 
 // AddJobSchedulingReport adds a job scheduling report to the report for this invocation of the scheduler.
-// Automatically updates scheduled resources by calling AddScheduledResources. Is thread-safe.
-func (report *SchedulingRoundReport) AddJobSchedulingReport(r *JobSchedulingReport) {
+// If updateTotals is true, automatically updates scheduled resources
+func (report *SchedulingRoundReport) AddJobSchedulingReport(r *JobSchedulingReport, isEvictedJob bool) {
 	report.mu.Lock()
 	defer report.mu.Unlock()
-	if r.UnschedulableReason == "" {
-		report.ScheduledResourcesByPriority.AddResouceList(
+	if !isEvictedJob && r.UnschedulableReason == "" {
+		report.ScheduledResourcesByPriority.AddResourceList(
 			r.Req.Priority,
 			schedulerobjects.ResourceListFromV1ResourceList(r.Req.ResourceRequirements.Requests),
 		)
 		report.NumScheduledJobs++
 	}
-	if queueReport := report.QueueSchedulingRoundReports[r.Job.Queue]; queueReport != nil {
-		queueReport.AddJobSchedulingReport(r)
+	if queueReport := report.QueueSchedulingRoundReports[r.Job.GetQueue()]; queueReport != nil {
+		queueReport.AddJobSchedulingReport(r, isEvictedJob)
 	}
 }
 
@@ -124,13 +127,25 @@ func (report *SchedulingRoundReport) ClearJobSpecs() {
 	}
 }
 
+func (report *SchedulingRoundReport) SuccessfulJobSchedulingReports() []*JobSchedulingReport {
+	report.mu.Lock()
+	defer report.mu.Unlock()
+	reports := make([]*JobSchedulingReport, 0)
+	for _, queueSchedulingRoundReport := range report.QueueSchedulingRoundReports {
+		for _, jobReport := range queueSchedulingRoundReport.SuccessfulJobSchedulingReports {
+			reports = append(reports, jobReport)
+		}
+	}
+	return reports
+}
+
 // QueueSchedulingRoundReport captures the decisions made by the scheduler during one invocation
 // for a particular queue.
 type QueueSchedulingRoundReport struct {
 	// These factors influence the fraction of resources assigned to each queue.
 	PriorityFactor float64
 	// Resources assigned to the queue across all clusters at the start of the scheduling cycle.
-	InitialResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
+	ResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
 	// Resources assigned to this queue during this scheduling cycle.
 	ScheduledResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
 	// Reports for all successful job scheduling attempts.
@@ -151,31 +166,37 @@ func NewQueueSchedulingRoundReport(priorityFactor float64, initialResourcesByPri
 	}
 	return &QueueSchedulingRoundReport{
 		PriorityFactor:                   priorityFactor,
-		InitialResourcesByPriority:       initialResourcesByPriority,
+		ResourcesByPriority:              initialResourcesByPriority,
 		ScheduledResourcesByPriority:     make(schedulerobjects.QuantityByPriorityAndResourceType),
 		SuccessfulJobSchedulingReports:   make(map[uuid.UUID]*JobSchedulingReport),
 		UnsuccessfulJobSchedulingReports: make(map[uuid.UUID]*JobSchedulingReport),
 	}
 }
 
-// Add a job scheduling report to the report for this invocation of the scheduler.
+// AddJobSchedulingReport adds a job scheduling report to the report for this invocation of the scheduler.
 // Automatically updates scheduled resources by calling AddScheduledResources. Is thread-safe.
-func (report *QueueSchedulingRoundReport) AddJobSchedulingReport(r *JobSchedulingReport) {
+func (report *QueueSchedulingRoundReport) AddJobSchedulingReport(r *JobSchedulingReport, isEvictedJob bool) {
 	report.mu.Lock()
 	defer report.mu.Unlock()
 	if r.UnschedulableReason == "" {
-		report.SuccessfulJobSchedulingReports[r.JobId] = r
-		report.addScheduledResources(r.Req)
-		report.NumScheduledJobs++
+		// Always update ResourcesByPriority.
+		// Since ResourcesByPriority is used to order queues by fraction of fair share.
+		rl := report.ResourcesByPriority[r.Req.Priority]
+		rl.Add(schedulerobjects.ResourceListFromV1ResourceList(r.Req.ResourceRequirements.Requests))
+		report.ResourcesByPriority[r.Req.Priority] = rl
+
+		// Only if the job is not evicted, update ScheduledResourcesByPriority.
+		// Since ScheduledResourcesByPriority is used to control per-round scheduling constraints.
+		if !isEvictedJob {
+			report.SuccessfulJobSchedulingReports[r.JobId] = r
+			report.NumScheduledJobs++
+			rl := report.ScheduledResourcesByPriority[r.Req.Priority]
+			rl.Add(schedulerobjects.ResourceListFromV1ResourceList(r.Req.ResourceRequirements.Requests))
+			report.ScheduledResourcesByPriority[r.Req.Priority] = rl
+		}
 	} else {
 		report.UnsuccessfulJobSchedulingReports[r.JobId] = r
 	}
-}
-
-func (report *QueueSchedulingRoundReport) addScheduledResources(req *schedulerobjects.PodRequirements) {
-	rl := report.ScheduledResourcesByPriority[req.Priority]
-	rl.Add(schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests))
-	report.ScheduledResourcesByPriority[req.Priority] = rl
 }
 
 // ClearJobSpecs zeroes out job specs to reduce memory usage.
@@ -312,7 +333,7 @@ type JobSchedulingReport struct {
 	// Id of the job this pod corresponds to.
 	JobId uuid.UUID
 	// Job spec.
-	Job *api.Job
+	Job LegacySchedulerJob
 	// Scheduling requirements of this job.
 	// We currently require that each job contains exactly one pod spec.
 	Req *schedulerobjects.PodRequirements
@@ -369,16 +390,18 @@ type PodSchedulingReport struct {
 	// the scheduling requirements for.
 	DominantResourceType string
 	// Node the pod was assigned to.
-	// If nil, the pod could not be assigned to any node.
+	// If nil, the pod could not be assigned to any Node.
 	Node *schedulerobjects.Node
-	// Score indicates how well the pod fits on the selected node.
+	// Score indicates how well the pod fits on the selected Node.
 	Score int
-	// Number of node types that
+	// Number of Node types that
 	NumMatchedNodeTypes int
-	// Number of node types excluded by reason.
+	// Number of Node types excluded by reason.
 	NumExcludedNodeTypesByReason map[string]int
 	// Number of nodes excluded by reason.
 	NumExcludedNodesByReason map[string]int
+	// Set if an error occurred while attempting to schedule this pod.
+	Err error
 }
 
 func (report *PodSchedulingReport) String() string {
@@ -391,11 +414,11 @@ func (report *PodSchedulingReport) String() string {
 		fmt.Fprint(w, "Node:\tnone\n")
 	}
 	fmt.Fprintf(w, "Score:\t%d\n", report.Score)
-	fmt.Fprintf(w, "Number of matched node types:\t%d\n", report.NumMatchedNodeTypes)
+	fmt.Fprintf(w, "Number of matched Node types:\t%d\n", report.NumMatchedNodeTypes)
 	if len(report.NumExcludedNodeTypesByReason) == 0 {
-		fmt.Fprint(w, "Excluded node types:\tnone\n")
+		fmt.Fprint(w, "Excluded Node types:\tnone\n")
 	} else {
-		fmt.Fprint(w, "Excluded node types:\n")
+		fmt.Fprint(w, "Excluded Node types:\n")
 		for reason, count := range report.NumExcludedNodeTypesByReason {
 			fmt.Fprintf(w, "\t%d:\t%s\n", count, reason)
 		}
@@ -416,6 +439,7 @@ func (report *PodSchedulingReport) String() string {
 			report.Req.Priority,
 		)
 	}
+	fmt.Fprintf(w, "Error:\t%s\n", report.Err)
 	w.Flush()
 	return sb.String()
 }

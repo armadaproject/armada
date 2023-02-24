@@ -12,12 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
 
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
-	"github.com/G-Research/armada/internal/lookoutv2/schema/statik"
-	"github.com/G-Research/armada/internal/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
 )
 
 const (
@@ -215,7 +213,7 @@ var expectedUserAnnotation = UserAnnotationRow{
 }
 
 func TestCreateJobsBatch(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Insert
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -244,7 +242,7 @@ func TestCreateJobsBatch(t *testing.T) {
 }
 
 func TestUpdateJobsBatch(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Insert
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -279,7 +277,7 @@ func TestUpdateJobsBatch(t *testing.T) {
 }
 
 func TestUpdateJobsScalar(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Insert
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -311,36 +309,100 @@ func TestUpdateJobsScalar(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestUpdateJobsWithCancelled(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
-		initial := []*model.CreateJobInstruction{{
-			JobId:                     jobIdString,
-			Queue:                     queue,
-			Owner:                     userId,
-			JobSet:                    jobSetName,
-			Cpu:                       cpu,
-			Memory:                    memory,
-			EphemeralStorage:          ephemeralStorage,
-			Gpu:                       gpu,
-			Priority:                  priority,
-			Submitted:                 baseTime,
-			State:                     lookout.JobQueuedOrdinal,
-			LastTransitionTime:        baseTime,
-			LastTransitionTimeSeconds: baseTime.Unix(),
-			JobProto:                  []byte(jobProto),
-			PriorityClass:             pointer.String(priorityClass),
-		}}
+func TestUpdateJobsWithTerminal(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		initial := []*model.CreateJobInstruction{
+			{
+				JobId:                     jobIdString,
+				Queue:                     queue,
+				Owner:                     userId,
+				JobSet:                    jobSetName,
+				Cpu:                       cpu,
+				Memory:                    memory,
+				EphemeralStorage:          ephemeralStorage,
+				Gpu:                       gpu,
+				Priority:                  priority,
+				Submitted:                 baseTime,
+				State:                     lookout.JobQueuedOrdinal,
+				LastTransitionTime:        baseTime,
+				LastTransitionTimeSeconds: baseTime.Unix(),
+				JobProto:                  []byte(jobProto),
+				PriorityClass:             pointer.String(priorityClass),
+			},
+			{
+				JobId:                     "job2",
+				Queue:                     queue,
+				Owner:                     userId,
+				JobSet:                    jobSetName,
+				Cpu:                       cpu,
+				Memory:                    memory,
+				EphemeralStorage:          ephemeralStorage,
+				Gpu:                       gpu,
+				Priority:                  priority,
+				Submitted:                 baseTime,
+				State:                     lookout.JobQueuedOrdinal,
+				LastTransitionTime:        baseTime,
+				LastTransitionTimeSeconds: baseTime.Unix(),
+				JobProto:                  []byte(jobProto),
+				PriorityClass:             pointer.String(priorityClass),
+			},
+			{
+				JobId:                     "job3",
+				Queue:                     queue,
+				Owner:                     userId,
+				JobSet:                    jobSetName,
+				Cpu:                       cpu,
+				Memory:                    memory,
+				EphemeralStorage:          ephemeralStorage,
+				Gpu:                       gpu,
+				Priority:                  priority,
+				Submitted:                 baseTime,
+				State:                     lookout.JobQueuedOrdinal,
+				LastTransitionTime:        baseTime,
+				LastTransitionTimeSeconds: baseTime.Unix(),
+				JobProto:                  []byte(jobProto),
+				PriorityClass:             pointer.String(priorityClass),
+			},
+		}
 
-		update1 := []*model.UpdateJobInstruction{{
-			JobId:                     jobIdString,
-			State:                     pointer.Int32(lookout.JobCancelledOrdinal),
-			Cancelled:                 &baseTime,
-			LastTransitionTime:        &baseTime,
-			LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
-		}}
+		update1 := []*model.UpdateJobInstruction{
+			{
+				JobId:                     jobIdString,
+				State:                     pointer.Int32(lookout.JobCancelledOrdinal),
+				Cancelled:                 &baseTime,
+				LastTransitionTime:        &baseTime,
+				LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
+			},
+			{
+				JobId:                     "job2",
+				State:                     pointer.Int32(lookout.JobSucceededOrdinal),
+				Cancelled:                 &baseTime,
+				LastTransitionTime:        &baseTime,
+				LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
+			},
+			{
+				JobId:                     "job3",
+				State:                     pointer.Int32(lookout.JobFailedOrdinal),
+				Cancelled:                 &baseTime,
+				LastTransitionTime:        &baseTime,
+				LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
+			},
+		}
 
 		update2 := []*model.UpdateJobInstruction{{
 			JobId:                     jobIdString,
+			State:                     pointer.Int32(lookout.JobRunningOrdinal),
+			LastTransitionTime:        &baseTime,
+			LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
+			LatestRunId:               pointer.String(runIdString),
+		}, {
+			JobId:                     "job2",
+			State:                     pointer.Int32(lookout.JobRunningOrdinal),
+			LastTransitionTime:        &baseTime,
+			LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
+			LatestRunId:               pointer.String(runIdString),
+		}, {
+			JobId:                     "job3",
 			State:                     pointer.Int32(lookout.JobRunningOrdinal),
 			LastTransitionTime:        &baseTime,
 			LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
@@ -352,15 +414,21 @@ func TestUpdateJobsWithCancelled(t *testing.T) {
 		// Insert
 		ldb.CreateJobs(ctx.Background(), initial)
 
-		// Cancel the job
+		// Mark the jobs terminal
 		ldb.UpdateJobs(ctx.Background(), update1)
 
-		// Update the job - this should be discarded
+		// Update the jobs - these should be discarded
 		ldb.UpdateJobs(ctx.Background(), update2)
 
-		// Assert the state is still cancelled
+		// Assert the states are still terminal
 		job := getJob(t, db, jobIdString)
 		assert.Equal(t, lookout.JobCancelledOrdinal, int(job.State))
+
+		job2 := getJob(t, db, "job2")
+		assert.Equal(t, lookout.JobSucceededOrdinal, int(job2.State))
+
+		job3 := getJob(t, db, "job3")
+		assert.Equal(t, lookout.JobFailedOrdinal, int(job3.State))
 
 		return nil
 	})
@@ -368,7 +436,7 @@ func TestUpdateJobsWithCancelled(t *testing.T) {
 }
 
 func TestCreateJobsScalar(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Simple create
 		ldb.CreateJobsScalar(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -395,7 +463,7 @@ func TestCreateJobsScalar(t *testing.T) {
 }
 
 func TestCreateJobRunsBatch(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Need to make sure we have a job, so we can satisfy PK
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -428,7 +496,7 @@ func TestCreateJobRunsBatch(t *testing.T) {
 }
 
 func TestCreateJobRunsScalar(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Need to make sure we have a job, so we can satisfy PK
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -459,7 +527,7 @@ func TestCreateJobRunsScalar(t *testing.T) {
 }
 
 func TestUpdateJobRunsBatch(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Need to make sure we have a job and run
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -498,7 +566,7 @@ func TestUpdateJobRunsBatch(t *testing.T) {
 }
 
 func TestUpdateJobRunsScalar(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Need to make sure we have a job and run
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -536,7 +604,7 @@ func TestUpdateJobRunsScalar(t *testing.T) {
 }
 
 func TestCreateUserAnnotationsBatch(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Need to make sure we have a job
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -569,7 +637,7 @@ func TestCreateUserAnnotationsBatch(t *testing.T) {
 }
 
 func TestStoreWithEmptyInstructionSet(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		err := ldb.Store(ctx.Background(), &model.InstructionSet{})
 		assert.NoError(t, err)
@@ -582,7 +650,7 @@ func TestStoreWithEmptyInstructionSet(t *testing.T) {
 }
 
 func TestCreateUserAnnotationsScalar(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Need to make sure we have a job
 		err := ldb.CreateJobsBatch(ctx.Background(), defaultInstructionSet().JobsToCreate)
@@ -613,7 +681,7 @@ func TestCreateUserAnnotationsScalar(t *testing.T) {
 }
 
 func TestStore(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
 		// Do the update
 		err := ldb.Store(ctx.Background(), defaultInstructionSet())
@@ -657,16 +725,30 @@ func TestConflateJobUpdates(t *testing.T) {
 	assert.Equal(t, expected, updates)
 }
 
-func TestConflateJobUpdatesWithCancelled(t *testing.T) {
+func TestConflateJobUpdatesWithTerminal(t *testing.T) {
 	// Updates after the cancelled shouldn't be processed
 	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
 		{JobId: jobIdString, State: pointer.Int32(lookout.JobCancelledOrdinal)},
 		{JobId: jobIdString, State: pointer.Int32(lookout.JobRunningOrdinal)},
+		{JobId: "someSucceededJob", State: pointer.Int32(lookout.JobSucceededOrdinal)},
+		{JobId: "someSucceededJob", State: pointer.Int32(lookout.JobRunningOrdinal)},
+		{JobId: "someFailedJob", State: pointer.Int32(lookout.JobFailedOrdinal)},
+		{JobId: "someFailedJob", State: pointer.Int32(lookout.JobRunningOrdinal)},
 	})
 
 	expected := []*model.UpdateJobInstruction{
 		{JobId: jobIdString, State: pointer.Int32(lookout.JobCancelledOrdinal)},
+		{JobId: "someSucceededJob", State: pointer.Int32(lookout.JobSucceededOrdinal)},
+		{JobId: "someFailedJob", State: pointer.Int32(lookout.JobFailedOrdinal)},
 	}
+
+	sort.Slice(updates, func(i, j int) bool {
+		return updates[i].JobId < updates[j].JobId
+	})
+
+	sort.Slice(expected, func(i, j int) bool {
+		return expected[i].JobId < expected[j].JobId
+	})
 	assert.Equal(t, expected, updates)
 }
 
@@ -695,10 +777,22 @@ func TestConflateJobRunUpdates(t *testing.T) {
 		return expected[i].RunId < expected[j].RunId
 	})
 	assert.Equal(t, expected, updates)
+
+	// Latest job run state is used
+	updates = conflateJobRunUpdates([]*model.UpdateJobRunInstruction{
+		{RunId: runIdString, Started: &baseTime, JobRunState: pointer.Int32(lookout.JobRunRunningOrdinal)},
+		{RunId: runIdString, Node: pointer.String(nodeName), JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal)},
+	})
+
+	expected = []*model.UpdateJobRunInstruction{
+		{RunId: runIdString, Started: &baseTime, Node: pointer.String(nodeName), JobRunState: pointer.Int32(lookout.JobRunSucceededOrdinal)},
+	}
+
+	assert.Equal(t, expected, updates)
 }
 
 func TestStoreNullValue(t *testing.T) {
-	err := withLookoutDb(func(db *pgxpool.Pool) error {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		jobProto := []byte("hello \000 world \000")
 		errorMsg := []byte("some \000 error \000")
 		instructions := defaultInstructionSet()
@@ -821,12 +915,4 @@ func assertNoRows(t *testing.T, db *pgxpool.Pool, table string) {
 	err := r.Scan(&count)
 	assert.NoError(t, err)
 	assert.Equal(t, 0, count)
-}
-
-func withLookoutDb(action func(db *pgxpool.Pool) error) error {
-	migrations, err := database.GetMigrations(statik.Lookoutv2Sql)
-	if err != nil {
-		return err
-	}
-	return database.WithTestDb(migrations, action)
 }

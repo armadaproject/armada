@@ -13,9 +13,9 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/jobservice"
-	"github.com/G-Research/armada/internal/jobservice/configuration"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/jobservice"
+	"github.com/armadaproject/armada/internal/jobservice/configuration"
 )
 
 func runCmd(app *jobservice.App) *cobra.Command {
@@ -36,7 +36,7 @@ func runCmdE(app *jobservice.App) func(cmd *cobra.Command, args []string) error 
 
 		configValue, configErr := cmd.Flags().GetString("config")
 		if configErr != nil {
-			log.Warnf("Error Parsing Config in Startup %v", configErr)
+			log.Warnf("error parsing config in startup %v", configErr)
 		}
 		configArray := strings.Split(configValue, " ")
 		common.LoadConfig(&config, "./config/jobservice", configArray)
@@ -55,11 +55,12 @@ func runCmdE(app *jobservice.App) func(cmd *cobra.Command, args []string) error 
 			case <-ctx.Done():
 				return ctx.Err()
 			case sig := <-stopSignal:
-				ctx.Err()
+				if err := ctx.Err(); err != nil {
+					log.Warnf("error from stopping %v", err)
+				}
 				return fmt.Errorf("received signal %v", sig)
 			}
 		})
-		g.Wait()
-		return nil
+		return g.Wait()
 	}
 }

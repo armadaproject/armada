@@ -10,17 +10,6 @@ services:
       - "POSTGRES_PASSWORD=psw"
     ports:
       - "5432:5432"
-  jetstream:
-    image: nats:2.6.1-alpine
-    ports:
-      - "4222:4222"
-      - "6222:6222"
-      - "8222:8222"
-    volumes:
-      - ./config/jetstream:/app
-    command:
-      - "-c"
-      - "/app/jetstream.conf"
   stan:
     image: nats-streaming
     command: "-p 4223 -m 8223"

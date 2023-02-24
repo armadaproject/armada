@@ -4,9 +4,9 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/G-Research/armada/internal/scheduleringester"
+	"github.com/armadaproject/armada/internal/scheduleringester"
 
-	"github.com/G-Research/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common"
 )
 
 const CustomConfigLocation string = "config"
@@ -29,5 +29,5 @@ func main() {
 
 	common.LoadConfig(&config, "./config/scheduleringester", userSpecifiedConfigs)
 
-	scheduleringester.Run(&config)
+	scheduleringester.Run(config)
 }

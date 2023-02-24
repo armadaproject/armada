@@ -1,4 +1,7 @@
+import os
 import uuid
+import pytest
+
 from armada_client.armada import (
     submit_pb2,
 )
@@ -12,10 +15,23 @@ import grpc
 from armada.operators.jobservice import JobServiceClient
 from armada.operators.utils import JobState, search_for_job_complete
 
-no_auth_client = ArmadaClient(channel=grpc.insecure_channel(target="127.0.0.1:50051"))
-job_service_client = JobServiceClient(
-    channel=grpc.insecure_channel(target="127.0.0.1:60003")
-)
+
+@pytest.fixture(scope="session", name="jobservice")
+def job_service_client() -> ArmadaClient:
+    server_name = os.environ.get("JOB_SERVICE_HOST", "localhost")
+    server_port = os.environ.get("JOB_SERVICE_PORT", "60003")
+
+    return JobServiceClient(
+        channel=grpc.insecure_channel(f"{server_name}:{server_port}")
+    )
+
+
+@pytest.fixture(scope="session", name="client")
+def no_auth_client() -> ArmadaClient:
+    server_name = os.environ.get("ARMADA_SERVER", "localhost")
+    server_port = os.environ.get("ARMADA_PORT", "50051")
+
+    return ArmadaClient(channel=grpc.insecure_channel(f"{server_name}:{server_port}"))
 
 
 def sleep_pod(image: str):
@@ -28,12 +44,12 @@ def sleep_pod(image: str):
                 securityContext=core_v1.SecurityContext(runAsUser=1000),
                 resources=core_v1.ResourceRequirements(
                     requests={
-                        "cpu": api_resource.Quantity(string="120m"),
-                        "memory": api_resource.Quantity(string="510Mi"),
+                        "cpu": api_resource.Quantity(string="0.2"),
+                        "memory": api_resource.Quantity(string="64Mi"),
                     },
                     limits={
-                        "cpu": api_resource.Quantity(string="120m"),
-                        "memory": api_resource.Quantity(string="510Mi"),
+                        "cpu": api_resource.Quantity(string="0.2"),
+                        "memory": api_resource.Quantity(string="64Mi"),
                     },
                 ),
             )
@@ -41,24 +57,23 @@ def sleep_pod(image: str):
     )
     return [
         submit_pb2.JobSubmitRequestItem(
-            priority=0, pod_spec=pod, namespace="personal-anonymous"
+            priority=1, pod_spec=pod, namespace="personal-anonymous"
         )
     ]
 
 
-def test_success_job():
+def test_success_job(client: ArmadaClient, jobservice: JobServiceClient):
     job_set_name = f"test-{uuid.uuid1()}"
-
-    job = no_auth_client.submit_jobs(
-        queue="test",
+    job = client.submit_jobs(
+        queue="queue-a",
         job_set_id=job_set_name,
         job_request_items=sleep_pod(image="busybox"),
     )
     job_id = job.job_response_items[0].job_id
 
     job_state, job_message = search_for_job_complete(
-        job_service_client=job_service_client,
-        armada_queue="test",
+        job_service_client=jobservice,
+        armada_queue="queue-a",
         job_set_id=job_set_name,
         airflow_task_name="test",
         job_id=job_id,
@@ -67,19 +82,19 @@ def test_success_job():
     assert job_message == f"Armada test:{job_id} succeeded"
 
 
-def test_bad_job():
+def test_bad_job(client: ArmadaClient, jobservice: JobServiceClient):
     job_set_name = f"test-{uuid.uuid1()}"
 
-    job = no_auth_client.submit_jobs(
-        queue="test",
+    job = client.submit_jobs(
+        queue="queue-a",
         job_set_id=job_set_name,
         job_request_items=sleep_pod(image="NOTACONTAINER"),
     )
     job_id = job.job_response_items[0].job_id
 
     job_state, job_message = search_for_job_complete(
-        job_service_client=job_service_client,
-        armada_queue="test",
+        job_service_client=jobservice,
+        armada_queue="queue-a",
         job_set_id=job_set_name,
         airflow_task_name="test",
         job_id=job_id,
@@ -88,19 +103,19 @@ def test_bad_job():
     assert job_message.startswith(f"Armada test:{job_id} failed")
 
 
-def test_two_jobs():
+def test_two_jobs(client: ArmadaClient, jobservice: JobServiceClient):
     job_set_name = f"test-{uuid.uuid1()}"
 
-    first_job = no_auth_client.submit_jobs(
-        queue="test",
+    first_job = client.submit_jobs(
+        queue="queue-a",
         job_set_id=job_set_name,
         job_request_items=sleep_pod(image="busybox"),
     )
     first_job_id = first_job.job_response_items[0].job_id
 
     job_state, job_message = search_for_job_complete(
-        job_service_client=job_service_client,
-        armada_queue="test",
+        job_service_client=jobservice,
+        armada_queue="queue-a",
         job_set_id=job_set_name,
         airflow_task_name="test",
         job_id=first_job_id,
@@ -108,16 +123,16 @@ def test_two_jobs():
     assert job_state == JobState.SUCCEEDED
     assert job_message == f"Armada test:{first_job_id} succeeded"
 
-    second_job = no_auth_client.submit_jobs(
-        queue="test",
+    second_job = client.submit_jobs(
+        queue="queue-a",
         job_set_id=job_set_name,
         job_request_items=sleep_pod(image="busybox"),
     )
     second_job_id = second_job.job_response_items[0].job_id
 
     job_state, job_message = search_for_job_complete(
-        job_service_client=job_service_client,
-        armada_queue="test",
+        job_service_client=jobservice,
+        armada_queue="queue-a",
         job_set_id=job_set_name,
         airflow_task_name="test",
         job_id=second_job_id,
@@ -126,19 +141,19 @@ def test_two_jobs():
     assert job_message == f"Armada test:{second_job_id} succeeded"
 
 
-def test_two_jobs_good_bad():
+def test_two_jobs_good_bad(client: ArmadaClient, jobservice: JobServiceClient):
     job_set_name = f"test-{uuid.uuid1()}"
 
-    first_job = no_auth_client.submit_jobs(
-        queue="test",
+    first_job = client.submit_jobs(
+        queue="queue-a",
         job_set_id=job_set_name,
         job_request_items=sleep_pod(image="busybox"),
     )
     first_job_id = first_job.job_response_items[0].job_id
 
     job_state, job_message = search_for_job_complete(
-        job_service_client=job_service_client,
-        armada_queue="test",
+        job_service_client=jobservice,
+        armada_queue="queue-a",
         job_set_id=job_set_name,
         airflow_task_name="test",
         job_id=first_job_id,
@@ -146,16 +161,16 @@ def test_two_jobs_good_bad():
     assert job_state == JobState.SUCCEEDED
     assert job_message == f"Armada test:{first_job_id} succeeded"
 
-    second_job = no_auth_client.submit_jobs(
-        queue="test",
+    second_job = client.submit_jobs(
+        queue="queue-a",
         job_set_id=job_set_name,
-        job_request_items=sleep_pod(image="nonexistant"),
+        job_request_items=sleep_pod(image="NOTACONTAINER"),
     )
     second_job_id = second_job.job_response_items[0].job_id
 
     job_state, job_message = search_for_job_complete(
-        job_service_client=job_service_client,
-        armada_queue="test",
+        job_service_client=jobservice,
+        armada_queue="queue-a",
         job_set_id=job_set_name,
         airflow_task_name="test",
         job_id=second_job_id,

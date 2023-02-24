@@ -1,4 +1,4 @@
-name: Go End to End (buildjet)
+name: Go End to End
 
 on:
   push:
@@ -10,8 +10,7 @@ on:
 
 jobs:
   go-integration-tests:
-    if: github.repository_owner == 'G-Research'
-    runs-on: buildjet-4vcpu-ubuntu-2204
+    if: github.repository_owner == 'armadaproject'
     strategy:
       fail-fast: false
       matrix:
@@ -20,18 +19,42 @@ jobs:
         # both versions in the matrix -- this will lead to them overwriting
         # each other.
         go: [ '1.18' ]
+    # As of December 2022, using 8vcpu runners is slower overall,
+    # due to longer queue times.
+    runs-on: ubuntu-22.04
+    env:
+      ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
+      ARMADA_EXECUTOR_INGRESS_PORT: 5001
+      # Cache Docker layers in the Github actions cache.
+      # These variables are picked up by the goreleaser config.
+      DOCKER_BUILDX_CACHE_FROM: "type=gha"
+      DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
+      DOCKER_BUILDX_BUILDER: "builder"
     steps:
-      - uses: actions/checkout@v3.1.0
-      - uses: ./.github/workflows/go-setup
-      - run: make build-ci
-      - run: make tests-e2e-setup
-      - run: make tests-e2e-no-setup
-        env:
-          INTEGRATION_ENABLED: true
-      - run: make junit-report
-      - name: Upload junit report
+      - uses: actions/checkout@v3
+      - run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
+      - run: docker buildx install
+      - uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Setup and integration tests
+        run: |
+          # Manually create folders to ensure perms are correct.
+          mkdir -p .kube/internal
+          mkdir -p .kube/external
+          go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
+      - name: Upload JUnit report artifact
         uses: actions/upload-artifact@v3.1.1
         with:
           name: junit.xml
-          path: test_reports/junit.xml
+          path: junit.xml
           if-no-files-found: error
+      - name: Publish JUnit report
+        uses: mikepenz/action-junit-report@v3.6.1
+        if: always()
+        with:
+          report_paths: junit.xml
+          fail_on_failure: true
+          require_tests: true
+          detailed_summary: true

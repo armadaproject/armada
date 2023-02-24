@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
@@ -14,14 +14,14 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/utils/pointer"
 
-	"github.com/G-Research/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookout/repository"
-	"github.com/G-Research/armada/internal/lookoutingester/model"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookout/repository"
+	"github.com/armadaproject/armada/internal/lookoutingester/model"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type HasNodeName interface {
@@ -87,6 +87,7 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence, u
 			*armadaevents.EventSequence_Event_ReprioritiseJobSet,
 			*armadaevents.EventSequence_Event_CancelJobSet,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
+			*armadaevents.EventSequence_Event_PartitionMarker,
 			*armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			log.Debugf("Ignoring event type %T", event)
 		default:
@@ -203,10 +204,10 @@ func (c *InstructionConverter) handleJobDuplicateDetected(ts time.Time, event *a
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
 	}
-
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:     jobId,
 		Duplicate: pointer.Bool(true),
+		State:     pointer.Int32(int32(repository.JobDuplicateOrdinal)),
 		Updated:   ts,
 	}
 	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
@@ -413,9 +414,11 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 				jobRunUpdate.Started = &ts
 			}
 
-			// Both Error_PodLeaseReturned and Error_LeaseExpired have an implied reset of the job state to queued
+			// Error_LeaseExpired has an implied reset of the job state to queued
 			// Ideally we would send an explicit queued message here, but until this change is made we correct the job
 			// state here
+			// Note that this should also apply to PodLeaseReturned messages, but right now the executor can send
+			// phantom messages, which leads to the job being shown as queued in lookout forever.
 			resetStateToQueued := false
 
 			switch reason := e.Reason.(type) {
@@ -443,7 +446,8 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodLeaseReturned.GetMessage()), util.MaxMessageLength)
 				jobRunUpdate.Error = pointer.String(truncatedMsg)
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
-				resetStateToQueued = true
+				// TODO: re-enable this once the executor stops sending phantom PodLeaseReturned messages
+				// resetStateToQueued = true
 			case *armadaevents.Error_LeaseExpired:
 				jobRunUpdate.Error = pointer.String("Lease Expired")
 				jobRunUpdate.UnableToSchedule = pointer.Bool(true)

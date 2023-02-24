@@ -45,11 +45,25 @@ jobs:
     strategy:
       matrix:
         go: [ '1.18' ]
+        python: [ '3.8', '3.9', '3.10' ]
+        include:
+          - tox-env: 'py38'
+          - tox-env: 'py39'
+            python: '3.9'
+          - tox-env: 'py310'
+            python: '3.10'
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/workflows/go-setup
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.17.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - run: make airflow-operator
       - uses: ./.github/workflows/python-tests
         with:
-          python-version: '3.8'
+          python-version: ${{ matrix.python }}
+          tox-env: ${{ matrix.tox-env }}
           path: third_party/airflow
+          github-token: ${{secrets.GITHUB_TOKEN}}

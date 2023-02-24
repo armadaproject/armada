@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/lookout/testutil"
+	"github.com/armadaproject/armada/internal/lookout/testutil"
 )
 
 var startDate, _ = time.Parse(time.RFC3339, "2020-01-01T00:00:00Z")

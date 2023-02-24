@@ -7,8 +7,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/pkg/api"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func Test_MatchSchedulingRequirements_labels(t *testing.T) {
@@ -68,7 +68,7 @@ func Test_MatchSchedulingRequirements_isAbleToFitOnAvailableNodes(t *testing.T) 
 		job,
 		&api.ClusterSchedulingInfoReport{
 			NodeTypes: []*api.NodeType{
-				{AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
+				{AllocatableResources: armadaresource.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
 			},
 		},
 	)
@@ -80,8 +80,8 @@ func Test_MatchSchedulingRequirements_isAbleToFitOnAvailableNodes(t *testing.T) 
 		job,
 		&api.ClusterSchedulingInfoReport{
 			NodeTypes: []*api.NodeType{
-				{AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
-				{AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("3"), "memory": resource.MustParse("3Gi")}},
+				{AllocatableResources: armadaresource.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
+				{AllocatableResources: armadaresource.ComputeResources{"cpu": resource.MustParse("3"), "memory": resource.MustParse("3Gi")}},
 			},
 		},
 	)
@@ -93,9 +93,9 @@ func Test_AggregateNodeTypesAllocations(t *testing.T) {
 	nodes := []api.NodeInfo{
 		{
 			Name:                 "n1",
-			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
-			AvailableResources:   common.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1Gi")},
-			TotalResources:       common.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1Gi")},
+			AllocatableResources: armadaresource.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
+			AvailableResources:   armadaresource.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1Gi")},
+			TotalResources:       armadaresource.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1Gi")},
 			AllocatedResources: map[int32]api.ComputeResource{
 				0: {
 					Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1.2"), "memory": resource.MustParse("2.5Gi")},
@@ -104,9 +104,9 @@ func Test_AggregateNodeTypesAllocations(t *testing.T) {
 		},
 		{
 			Name:                 "n2",
-			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
-			AvailableResources:   common.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("3Gi")},
-			TotalResources:       common.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("3Gi")},
+			AllocatableResources: armadaresource.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
+			AvailableResources:   armadaresource.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("3Gi")},
+			TotalResources:       armadaresource.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("3Gi")},
 			AllocatedResources: map[int32]api.ComputeResource{
 				0: {
 					Resources: map[string]resource.Quantity{"cpu": resource.MustParse("0.8"), "memory": resource.MustParse("3.5Gi")},
@@ -115,9 +115,9 @@ func Test_AggregateNodeTypesAllocations(t *testing.T) {
 		},
 		{
 			Name:                 "n3-special",
-			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
-			AvailableResources:   common.ComputeResources{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")},
-			TotalResources:       common.ComputeResources{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")},
+			AllocatableResources: armadaresource.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
+			AvailableResources:   armadaresource.ComputeResources{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")},
+			TotalResources:       armadaresource.ComputeResources{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")},
 			AllocatedResources: map[int32]api.ComputeResource{
 				0: {
 					Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
@@ -132,11 +132,11 @@ func Test_AggregateNodeTypesAllocations(t *testing.T) {
 			nodeType: api.NodeType{
 				Taints:               nil,
 				Labels:               nil,
-				AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
+				AllocatableResources: armadaresource.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
 			},
-			availableResources: common.ComputeResourcesFloat{"cpu": 4, "memory": 4 * 1024 * 1024 * 1024},
-			totalResources:     common.ComputeResourcesFloat{"cpu": 4, "memory": 4 * 1024 * 1024 * 1024},
-			allocatedResources: map[int32]common.ComputeResourcesFloat{
+			availableResources: armadaresource.ComputeResourcesFloat{"cpu": 4, "memory": 4 * 1024 * 1024 * 1024},
+			totalResources:     armadaresource.ComputeResourcesFloat{"cpu": 4, "memory": 4 * 1024 * 1024 * 1024},
+			allocatedResources: map[int32]armadaresource.ComputeResourcesFloat{
 				0: {"cpu": 2, "memory": 6 * 1024 * 1024 * 1024},
 			},
 		},
@@ -144,11 +144,11 @@ func Test_AggregateNodeTypesAllocations(t *testing.T) {
 			nodeType: api.NodeType{
 				Taints:               nil,
 				Labels:               nil,
-				AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
+				AllocatableResources: armadaresource.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
 			},
-			availableResources: common.ComputeResourcesFloat{"cpu": 6, "memory": 6 * 1024 * 1024 * 1024},
-			totalResources:     common.ComputeResourcesFloat{"cpu": 6, "memory": 6 * 1024 * 1024 * 1024},
-			allocatedResources: map[int32]common.ComputeResourcesFloat{
+			availableResources: armadaresource.ComputeResourcesFloat{"cpu": 6, "memory": 6 * 1024 * 1024 * 1024},
+			totalResources:     armadaresource.ComputeResourcesFloat{"cpu": 6, "memory": 6 * 1024 * 1024 * 1024},
+			allocatedResources: map[int32]armadaresource.ComputeResourcesFloat{
 				0: {"cpu": 1, "memory": 3 * 1024 * 1024 * 1024},
 			},
 		},
@@ -163,9 +163,9 @@ func Test_AggregateNodeTypesAllocations_NodesWithMoreTaintsGoFirst(t *testing.T)
 		{
 			Name:                 "n1",
 			Taints:               []v1.Taint{{Key: "one", Value: "1", Effect: "NoSchedule"}},
-			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
-			AvailableResources:   common.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1Gi")},
-			TotalResources:       common.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1Gi")},
+			AllocatableResources: armadaresource.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
+			AvailableResources:   armadaresource.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1Gi")},
+			TotalResources:       armadaresource.ComputeResources{"cpu": resource.MustParse("2"), "memory": resource.MustParse("1Gi")},
 			AllocatedResources: map[int32]api.ComputeResource{
 				0: {
 					Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("2.5Gi")},
@@ -175,9 +175,9 @@ func Test_AggregateNodeTypesAllocations_NodesWithMoreTaintsGoFirst(t *testing.T)
 		{
 			Name:                 "n2",
 			Taints:               []v1.Taint{{Key: "one", Value: "1", Effect: "NoSchedule"}, {Key: "two", Value: "2", Effect: "NoSchedule"}},
-			AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
-			AvailableResources:   common.ComputeResources{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")},
-			TotalResources:       common.ComputeResources{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")},
+			AllocatableResources: armadaresource.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
+			AvailableResources:   armadaresource.ComputeResources{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")},
+			TotalResources:       armadaresource.ComputeResources{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")},
 			AllocatedResources: map[int32]api.ComputeResource{
 				0: {
 					Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3.5Gi")},
@@ -192,11 +192,11 @@ func Test_AggregateNodeTypesAllocations_NodesWithMoreTaintsGoFirst(t *testing.T)
 			nodeType: api.NodeType{
 				Taints:               []v1.Taint{{Key: "one", Value: "1", Effect: "NoSchedule"}, {Key: "two", Value: "2", Effect: "NoSchedule"}},
 				Labels:               nil,
-				AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
+				AllocatableResources: armadaresource.ComputeResources{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")},
 			},
-			availableResources: common.ComputeResourcesFloat{"cpu": 6, "memory": 6 * 1024 * 1024 * 1024},
-			totalResources:     common.ComputeResourcesFloat{"cpu": 6, "memory": 6 * 1024 * 1024 * 1024},
-			allocatedResources: map[int32]common.ComputeResourcesFloat{
+			availableResources: armadaresource.ComputeResourcesFloat{"cpu": 6, "memory": 6 * 1024 * 1024 * 1024},
+			totalResources:     armadaresource.ComputeResourcesFloat{"cpu": 6, "memory": 6 * 1024 * 1024 * 1024},
+			allocatedResources: map[int32]armadaresource.ComputeResourcesFloat{
 				0: {"cpu": 1, "memory": 3.5 * 1024 * 1024 * 1024},
 			},
 		},
@@ -204,11 +204,11 @@ func Test_AggregateNodeTypesAllocations_NodesWithMoreTaintsGoFirst(t *testing.T)
 			nodeType: api.NodeType{
 				Taints:               []v1.Taint{{Key: "one", Value: "1", Effect: "NoSchedule"}},
 				Labels:               nil,
-				AllocatableResources: common.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
+				AllocatableResources: armadaresource.ComputeResources{"cpu": resource.MustParse("1"), "memory": resource.MustParse("3Gi")},
 			},
-			availableResources: common.ComputeResourcesFloat{"cpu": 2, "memory": 1 * 1024 * 1024 * 1024},
-			totalResources:     common.ComputeResourcesFloat{"cpu": 2, "memory": 1 * 1024 * 1024 * 1024},
-			allocatedResources: map[int32]common.ComputeResourcesFloat{
+			availableResources: armadaresource.ComputeResourcesFloat{"cpu": 2, "memory": 1 * 1024 * 1024 * 1024},
+			totalResources:     armadaresource.ComputeResourcesFloat{"cpu": 2, "memory": 1 * 1024 * 1024 * 1024},
+			allocatedResources: map[int32]armadaresource.ComputeResourcesFloat{
 				0: {"cpu": 1, "memory": 2.5 * 1024 * 1024 * 1024},
 			},
 		},

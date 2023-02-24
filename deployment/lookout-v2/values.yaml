@@ -1,0 +1,32 @@
+image:
+  repository: gresearchdev/armada-lookout-v2-dev
+  tag: LATEST
+resources:
+  limits:
+    memory: 1Gi
+    cpu: 300m
+  requests:
+    memory: 512Mi
+    cpu: 200m
+additionalLabels: {}
+additionalVolumeMounts: []
+additionalVolumes: []
+dbPruningEnabled: true
+terminationGracePeriodSeconds: 5
+replicas: 1
+strategy:
+  rollingUpdate:
+    maxUnavailable: 1
+  type: RollingUpdate
+ingress:
+  annotations: {}
+  labels: {}
+prometheus:
+  enabled: false
+  labels: {}
+  scrapeInterval: 10s
+customServiceAccount: null
+serviceAccount: null
+
+applicationConfig:
+  apiPort: 10000

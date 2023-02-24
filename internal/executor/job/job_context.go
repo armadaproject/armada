@@ -1,25 +1,26 @@
 package job
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/G-Research/armada/pkg/api"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/podchecks"
-	"github.com/G-Research/armada/internal/executor/util"
+	executorContext "github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/podchecks"
+	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type IssueType int
 
 const (
 	UnableToSchedule  IssueType = iota
+	StuckStartingUp   IssueType = iota
 	StuckTerminating  IssueType = iota
 	ExternallyDeleted IssueType = iota
 )
@@ -49,12 +50,13 @@ type JobContext interface {
 	GetJobs() ([]*RunningJob, error)
 	MarkIssueReported(issue *PodIssue)
 	MarkIssuesResolved(job *RunningJob)
+	DeleteJobWithCondition(job *RunningJob, condition func(pod *v1.Pod) bool) error
 	DeleteJobs(jobs []*RunningJob)
 	AddAnnotation(jobs []*RunningJob, annotations map[string]string)
 }
 
 type ClusterJobContext struct {
-	clusterContext            context.ClusterContext
+	clusterContext            executorContext.ClusterContext
 	stuckTerminatingPodExpiry time.Duration
 	pendingPodChecker         podchecks.PodChecker
 	updateThreadCount         int
@@ -64,7 +66,7 @@ type ClusterJobContext struct {
 }
 
 func NewClusterJobContext(
-	clusterContext context.ClusterContext,
+	clusterContext executorContext.ClusterContext,
 	pendingPodChecker podchecks.PodChecker,
 	stuckTerminatingPodExpiry time.Duration,
 	updateThreadCount int,
@@ -116,6 +118,16 @@ func (c *ClusterJobContext) MarkIssueReported(issue *PodIssue) {
 	issue.Reported = true
 }
 
+func (c *ClusterJobContext) DeleteJobWithCondition(job *RunningJob, condition func(pod *v1.Pod) bool) error {
+	for _, pod := range job.ActivePods {
+		err := c.clusterContext.DeletePodWithCondition(pod, condition, true)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (c *ClusterJobContext) DeleteJobs(jobs []*RunningJob) {
 	c.activeJobIdsMutex.Lock()
 	defer c.activeJobIdsMutex.Unlock()
@@ -133,7 +145,7 @@ func (c *ClusterJobContext) AddAnnotation(jobs []*RunningJob, annotations map[st
 		}
 	}
 
-	util.ProcessPodsWithThreadPool(podsToAnnotate, c.updateThreadCount,
+	util.ProcessItemsWithThreadPool(context.Background(), c.updateThreadCount, podsToAnnotate,
 		func(pod *v1.Pod) {
 			err := c.clusterContext.AddAnnotation(pod, annotations)
 			if err != nil {
@@ -242,11 +254,15 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 				continue
 			}
 
-			action, podCheckMessage := c.pendingPodChecker.GetAction(pod, podEvents, time.Now().Sub(lastStateChange))
+			action, cause, podCheckMessage := c.pendingPodChecker.GetAction(pod, podEvents, time.Now().Sub(lastStateChange))
 
 			if action != podchecks.ActionWait {
 				retryable := action == podchecks.ActionRetry
 				message := createStuckPodMessage(retryable, podCheckMessage)
+				podIssueType := StuckStartingUp
+				if cause == podchecks.NoNodeAssigned {
+					podIssueType = UnableToSchedule
+				}
 
 				log.Warnf("Found issue with pod %s in namespace %s: %s", pod.Name, pod.Namespace, message)
 
@@ -255,7 +271,7 @@ func (c *ClusterJobContext) detectStuckPods(runningJob *RunningJob) {
 					Pods:           runningJob.ActivePods,
 					Message:        message,
 					Retryable:      retryable,
-					Type:           UnableToSchedule,
+					Type:           podIssueType,
 				}
 				runningJob.Issue = issue
 				c.registerIssue(runningJob.JobId, issue)

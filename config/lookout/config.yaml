@@ -1,7 +1,6 @@
 grpcPort: 50059
-httpPort: 8089
-metricsPort: 9009
-
+httpPort: 8080
+metricsPort: 9000
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m
@@ -10,34 +9,26 @@ grpc:
   keepaliveEnforcementPolicy:
     minTime: 5m
     permitWithoutStream: false
-
 uiConfig:
-  armadaApiBaseUrl: "http://localhost:8080"
+  armadaApiBaseUrl: "http://armada-server:8080"
   userAnnotationPrefix: "armadaproject.io/"
   binocularsEnabled: true
-  binocularsBaseUrlPattern: "http://localhost:8082" # {CLUSTER_ID} gets replaced by appropriate cluster id
+  binocularsBaseUrlPattern: "http://armada-binoculars:8080"
   overviewAutoRefreshMs: 15000
   jobSetsAutoRefreshMs: 15000
   jobsAutoRefreshMs: 30000
-
+  lookoutV2ApiBaseUrl: "http://armada-lookout-v2:10000"
 postgres:
   maxOpenConns: 100
   maxIdleConns: 25
   connMaxLifetime: 30m
   connection:
-    host: localhost
+    host: postgres
     port: 5432
     user: postgres
     password: psw
     dbname: postgres
     sslmode: disable
-
-eventQueue: "ArmadaLookoutEventProcessor"
-nats:
-  Servers:
-    - "nats://localhost:4223"
-  ClusterID: "test-cluster"
-  Subject: "ArmadaTest"
 
 prunerConfig:
   daysToKeep: 42

@@ -8,8 +8,8 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/eventingester/configuration"
-	"github.com/G-Research/armada/internal/eventingester/model"
+	"github.com/armadaproject/armada/internal/eventingester/configuration"
+	"github.com/armadaproject/armada/internal/eventingester/model"
 )
 
 func TestReportEvents(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/flowcontrol"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 )
 
 type KubernetesClientProvider interface {

@@ -1,7 +1,6 @@
 package util
 
 import (
-	"sync"
 	"testing"
 	"time"
 
@@ -9,8 +8,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/domain"
 )
 
 func TestIsInTerminalState_ShouldReturnTrueWhenPodInSucceededPhase(t *testing.T) {
@@ -306,6 +305,76 @@ func makePodsWithJobIds(jobIds []string) []*v1.Pod {
 	}
 
 	return pods
+}
+
+func TestExtractJobRunIds(t *testing.T) {
+	runIds := []string{"1", "2", "3", "4"}
+	pods := makePodsWithJobRunIds(runIds)
+
+	result := ExtractJobRunIds(pods)
+	assert.Equal(t, result, runIds)
+}
+
+func TestExtractJobRunIds_HandlesEmptyList(t *testing.T) {
+	expected := []string{}
+	pods := []*v1.Pod{}
+
+	result := ExtractJobRunIds(pods)
+	assert.Equal(t, result, expected)
+}
+
+func TestExtractJobRunIds_SkipsWhenJobIdNotPresent(t *testing.T) {
+	expected := []string{}
+	podWithNoJobRunId := v1.Pod{}
+	pods := []*v1.Pod{&podWithNoJobRunId}
+
+	result := ExtractJobRunIds(pods)
+	assert.Equal(t, result, expected)
+}
+
+func TestExtractJobRunId(t *testing.T) {
+	pod := makePodsWithJobRunIds([]string{"1"})[0]
+
+	result := ExtractJobRunId(pod)
+	assert.Equal(t, result, "1")
+}
+
+func TestExtractRunJobId_ReturnsEmpty_WhenJobIdNotPresent(t *testing.T) {
+	pod := v1.Pod{}
+
+	result := ExtractJobRunId(&pod)
+	assert.Equal(t, result, "")
+}
+
+func makePodsWithJobRunIds(runIds []string) []*v1.Pod {
+	pods := make([]*v1.Pod, 0, len(runIds))
+
+	for _, runId := range runIds {
+		pod := v1.Pod{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{domain.JobRunId: runId},
+			},
+		}
+		pods = append(pods, &pod)
+	}
+
+	return pods
+}
+
+func TestExtractQueue(t *testing.T) {
+	podWithQueue := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{domain.Queue: "queue-1"}}}
+	podWithoutQueue := &v1.Pod{}
+
+	assert.Equal(t, ExtractQueue(podWithQueue), "queue-1")
+	assert.Equal(t, ExtractQueue(podWithoutQueue), "")
+}
+
+func TestExtractJobSet(t *testing.T) {
+	podWithJobSet := &v1.Pod{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{domain.JobSetId: "job-set-1"}}}
+	podWithoutJobSet := &v1.Pod{}
+
+	assert.Equal(t, ExtractJobSet(podWithJobSet), "job-set-1")
+	assert.Equal(t, ExtractJobSet(podWithoutJobSet), "")
 }
 
 func TestIsReportingPhaseRequired(t *testing.T) {
@@ -656,34 +725,6 @@ func TestHasPodBeenInStateForLongerThanGivenDuration_ReturnsFalse_WhenNoPodState
 	result := HasPodBeenInStateForLongerThanGivenDuration(&pod, 5*time.Second)
 
 	assert.False(t, result)
-}
-
-func TestProcessPodsWithThreadPool(t *testing.T) {
-	pod1 := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: "pod1"},
-	}
-	pod2 := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: "pod2"},
-	}
-	pod3 := &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: "pod3"},
-	}
-	resultMutex := &sync.Mutex{}
-	result := map[string]bool{
-		pod1.Name: false,
-		pod2.Name: false,
-		pod3.Name: false,
-	}
-
-	ProcessPodsWithThreadPool([]*v1.Pod{pod1, pod2, pod3}, 3, func(pod *v1.Pod) {
-		defer resultMutex.Unlock()
-		resultMutex.Lock()
-		result[pod.Name] = true
-	})
-
-	assert.True(t, result[pod1.Name])
-	assert.True(t, result[pod2.Name])
-	assert.True(t, result[pod3.Name])
 }
 
 func TestRemovePodsFromQueue(t *testing.T) {

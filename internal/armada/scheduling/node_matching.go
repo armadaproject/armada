@@ -10,12 +10,12 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
-func CreateClusterSchedulingInfoReport(leaseRequest *api.LeaseRequest, nodeAllocations []*nodeTypeAllocation) *api.ClusterSchedulingInfoReport {
+func CreateClusterSchedulingInfoReport(leaseRequest *api.StreamingLeaseRequest, nodeAllocations []*nodeTypeAllocation) *api.ClusterSchedulingInfoReport {
 	return &api.ClusterSchedulingInfoReport{
 		ClusterId:      leaseRequest.ClusterId,
 		Pool:           leaseRequest.Pool,
@@ -79,8 +79,8 @@ func MatchSchedulingRequirements(
 	return true, nil
 }
 
-func isLargeEnough(job *api.Job, minimumJobSize common.ComputeResources) bool {
-	resourceRequest := common.TotalJobResourceRequest(job)
+func isLargeEnough(job *api.Job, minimumJobSize armadaresource.ComputeResources) bool {
+	resourceRequest := job.TotalResourceRequest().DeepCopy()
 	resourceRequest.Sub(minimumJobSize)
 	return resourceRequest.IsValid()
 }
@@ -96,7 +96,7 @@ func matchAnyNodeType(podSpec *v1.PodSpec, nodeTypes []*api.NodeType) (bool, err
 	var result *armadaerrors.ErrPodUnschedulable
 	podMatchingContext := NewPodMatchingContext(podSpec)
 	for _, nodeType := range nodeTypes {
-		nodeResources := common.ComputeResources(nodeType.AllocatableResources).AsFloat().DeepCopy()
+		nodeResources := armadaresource.ComputeResources(nodeType.AllocatableResources).AsFloat().DeepCopy()
 		ok, err := podMatchingContext.Matches(nodeType, nodeResources)
 		switch {
 		case ok:
@@ -108,27 +108,6 @@ func matchAnyNodeType(podSpec *v1.PodSpec, nodeTypes []*api.NodeType) (bool, err
 		}
 	}
 	return false, result
-}
-
-func matchAnyNodeTypeAllocation(
-	job *api.Job,
-	nodeAllocations []*nodeTypeAllocation,
-	alreadyConsumed nodeTypeUsedResources,
-) (nodeTypeUsedResources, bool, error) {
-	newlyConsumed := nodeTypeUsedResources{}
-
-	for _, podSpec := range job.GetAllPodSpecs() {
-
-		nodeType, ok, err := matchAnyNodeTypePodAllocation(podSpec, nodeAllocations, alreadyConsumed, newlyConsumed)
-
-		if !ok {
-			return nodeTypeUsedResources{}, false, err
-		}
-		resourceRequest := common.TotalPodResourceRequest(podSpec).AsFloat()
-		resourceRequest.Add(newlyConsumed[nodeType])
-		newlyConsumed[nodeType] = resourceRequest
-	}
-	return newlyConsumed, true, nil
 }
 
 func matchAnyNodeTypePodAllocation(
@@ -147,7 +126,7 @@ func matchAnyNodeTypePodAllocation(
 		available := node.availableResources.DeepCopy()
 		available.Sub(alreadyConsumed[node])
 		available.Sub(newlyConsumed[node])
-		available.LimitWith(common.ComputeResources(node.nodeType.AllocatableResources).AsFloat())
+		available.LimitWith(armadaresource.ComputeResources(node.nodeType.AllocatableResources).AsFloat())
 
 		resources := available
 		ok, err := podMatchingContext.Matches(&node.nodeType, resources)
@@ -171,11 +150,11 @@ func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
 		description := createNodeDescription(&nodes[i])
 		typeDescription, exists := nodeTypesIndex[description]
 
-		nodeAvailableResources := common.ComputeResources(n.AvailableResources).AsFloat()
-		nodeTotalResources := common.ComputeResources(n.TotalResources).AsFloat()
-		nodeAllocatedResources := make(map[int32]common.ComputeResourcesFloat)
+		nodeAvailableResources := armadaresource.ComputeResources(n.AvailableResources).AsFloat()
+		nodeTotalResources := armadaresource.ComputeResources(n.TotalResources).AsFloat()
+		nodeAllocatedResources := make(map[int32]armadaresource.ComputeResourcesFloat)
 		for k, v := range n.AllocatedResources {
-			nodeAllocatedResources[k] = common.ComputeResources(v.Resources).AsFloat()
+			nodeAllocatedResources[k] = armadaresource.ComputeResources(v.Resources).AsFloat()
 		}
 
 		if !exists {
@@ -221,7 +200,7 @@ func AggregateNodeTypeAllocations(nodes []api.NodeInfo) []*nodeTypeAllocation {
 }
 
 func dominates(a map[string]resource.Quantity, b map[string]resource.Quantity) bool {
-	return (common.ComputeResources(a)).Dominates(common.ComputeResources(b))
+	return (armadaresource.ComputeResources(a)).Dominates(armadaresource.ComputeResources(b))
 }
 
 // createNodeDescription maps the labels, taints, and allocatable resources of a node to a unique string.

@@ -108,7 +108,7 @@ func TestDeserializeJobStateInt(t *testing.T) {
 
 func TestDeserializeJobState_WhenInputInvalid(t *testing.T) {
 	assert.Error(t, testDeserializeJobStateString(t, "INVALID"))
-	assert.Error(t, testDeserializeJobStateInt(t, 3))
+	assert.Error(t, testDeserializeJobStateInt(t, 99))
 }
 
 func testDeserializeJobStateString(t *testing.T, input string) error {

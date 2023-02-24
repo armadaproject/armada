@@ -12,11 +12,11 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/armada/repository/apimessages"
-	"github.com/G-Research/armada/internal/armada/repository/sequence"
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/armada/repository/apimessages"
+	"github.com/armadaproject/armada/internal/armada/repository/sequence"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const (
@@ -50,14 +50,14 @@ func NewEventRepository(db redis.UniversalClient) *RedisEventRepository {
 
 	decompressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
 		func(context.Context) (interface{}, error) {
-			return compress.NewZlibDecompressor()
+			return compress.NewZlibDecompressor(), nil
 		}), &poolConfig)
 
 	return &RedisEventRepository{db: db, decompressorPool: decompressorPool}
 }
 
 func (repo *RedisEventRepository) CheckStreamExists(queue string, jobSetId string) (bool, error) {
-	result, err := repo.db.Exists(repo.getJobSetEventsKey(queue, jobSetId)).Result()
+	result, err := repo.db.Exists(getJobSetEventsKey(queue, jobSetId)).Result()
 	if err != nil {
 		return false, err
 	}
@@ -72,7 +72,7 @@ func (repo *RedisEventRepository) ReadEvents(queue string, jobSetId string, last
 	}
 	seqId := from.PrevRedisId()
 	cmd, err := repo.db.XRead(&redis.XReadArgs{
-		Streams: []string{repo.getJobSetEventsKey(queue, jobSetId), seqId},
+		Streams: []string{getJobSetEventsKey(queue, jobSetId), seqId},
 		Count:   limit,
 		Block:   block,
 	}).Result()
@@ -152,6 +152,6 @@ func (repo *RedisEventRepository) extractEvents(msg redis.XMessage, queue, jobSe
 	return apimessages.FromEventSequence(es)
 }
 
-func (repo *RedisEventRepository) getJobSetEventsKey(queue, jobSetId string) string {
+func getJobSetEventsKey(queue, jobSetId string) string {
 	return eventStreamPrefix + queue + ":" + jobSetId
 }

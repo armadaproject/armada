@@ -3,7 +3,7 @@ package armadaevents
 import (
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 )
 
 func JobIdFromEvent(event *EventSequence_Event) (*Uuid, error) {
@@ -36,6 +36,8 @@ func JobIdFromEvent(event *EventSequence_Event) (*Uuid, error) {
 		return e.JobDuplicateDetected.NewJobId, nil
 	case *EventSequence_Event_StandaloneIngressInfo:
 		return e.StandaloneIngressInfo.JobId, nil
+	case *EventSequence_Event_JobRunPreempted:
+		return e.JobRunPreempted.PreemptedJobId, nil
 	default:
 		err := errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "event.Event",

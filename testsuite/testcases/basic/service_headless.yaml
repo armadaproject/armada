@@ -1,0 +1,47 @@
+numBatches: 1
+batchSize: 1
+queue: e2e-test-queue
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    services:
+      - ports:
+          - 1000
+        type: Headless
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: client
+          imagePullPolicy: IfNotPresent
+          image: bitnami/kubectl:1.24.8
+          command: ["bash", "-c"]
+          args:
+            - |
+              SERVICEACCOUNT=/var/run/secrets/kubernetes.io/serviceaccount
+              NAMESPACE=$(cat ${SERVICEACCOUNT}/namespace)
+              echo "job id: ${JOB_ID}"
+              echo "namespace: ${NAMESPACE}"
+              sleep 5 # give 5 seconds for services to be created
+              kubectl get service -n ${NAMESPACE} armada-${JOB_ID}-0-headless
+          env:
+            - name: JOB_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['armada_job_id']
+          resources:
+            limits:
+              memory: 20Mi
+              cpu: 100m
+            requests:
+              memory: 20Mi
+              cpu: 100m
+          ports:
+            - containerPort: 1000
+              protocol: TCP
+              name: port1000
+---
+timeout: "100s"
+expectedEvents:
+  - submitted:
+  - succeeded:

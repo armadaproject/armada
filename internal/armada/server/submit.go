@@ -16,17 +16,17 @@ import (
 	"google.golang.org/grpc/status"
 	"k8s.io/utils/strings/slices"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/armada/permissions"
-	"github.com/G-Research/armada/internal/armada/repository"
-	servervalidation "github.com/G-Research/armada/internal/armada/validation"
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/auth/authorization"
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/common/validation"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/permissions"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	servervalidation "github.com/armadaproject/armada/internal/armada/validation"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/common/validation"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 type SubmitServer struct {

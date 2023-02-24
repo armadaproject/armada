@@ -11,10 +11,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/pulsarutils"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const (
@@ -107,10 +107,7 @@ func simpleEventConverter() *EventConverter {
 }
 
 func extractEventSeq(b []byte) (*armadaevents.EventSequence, error) {
-	decompressor, err := compress.NewZlibDecompressor()
-	if err != nil {
-		return nil, err
-	}
+	decompressor := compress.NewZlibDecompressor()
 	decompressed, err := decompressor.Decompress(b)
 	if err != nil {
 		return nil, err

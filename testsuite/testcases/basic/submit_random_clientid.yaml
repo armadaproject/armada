@@ -1,0 +1,28 @@
+numBatches: 1
+batchSize: 10
+queue: e2e-test-queue
+randomClientId: true
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: ls
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.10
+          args:
+            - "ls"
+          resources:
+            limits:
+              memory: 10Mi
+              cpu: 100m
+            requests:
+              memory: 10Mi
+              cpu: 100m
+---
+timeout: "180s"
+expectedEvents:
+  - submitted:
+  - succeeded:

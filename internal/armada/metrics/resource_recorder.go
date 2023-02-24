@@ -1,8 +1,6 @@
 package metrics
 
-import (
-	"github.com/G-Research/armada/internal/common"
-)
+import armadaresource "github.com/armadaproject/armada/internal/common/resource"
 
 type ResourceMetricsRecorder struct {
 	metrics map[string]*FloatMetricsRecorder
@@ -14,7 +12,7 @@ func NewResourceMetricsRecorder() *ResourceMetricsRecorder {
 	}
 }
 
-func (d *ResourceMetricsRecorder) Record(value common.ComputeResourcesFloat) {
+func (d *ResourceMetricsRecorder) Record(value armadaresource.ComputeResourcesFloat) {
 	for resourceType, value := range value {
 		resourceMetricRecorder, ok := d.metrics[resourceType]
 		if !ok {
