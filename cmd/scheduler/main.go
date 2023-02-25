@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/armadaproject/armada/cmd/scheduler/cmd"
 	"github.com/armadaproject/armada/internal/common"
 )
@@ -8,5 +10,8 @@ import (
 func main() {
 	common.ConfigureLogging()
 	common.BindCommandlineArguments()
-	_ = cmd.RootCmd().Execute()
+	err := cmd.RootCmd().Execute()
+	if err != nil {
+		os.Exit(1)
+	}
 }
