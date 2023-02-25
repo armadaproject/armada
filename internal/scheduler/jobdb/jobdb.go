@@ -15,7 +15,8 @@ type JobDb struct {
 	jobsById    map[string]*Job
 	jobsByRunId map[uuid.UUID]string
 	jobsByQueue map[string]immutable.SortedSet[*Job]
-	mutex       sync.Mutex
+	copyMutex   sync.Mutex
+	writerMutex sync.Mutex
 }
 
 func NewJobDb() *JobDb {
@@ -23,7 +24,7 @@ func NewJobDb() *JobDb {
 		jobsById:    map[string]*Job{},
 		jobsByRunId: map[uuid.UUID]string{},
 		jobsByQueue: map[string]immutable.SortedSet[*Job]{},
-		mutex:       sync.Mutex{},
+		copyMutex:   sync.Mutex{},
 	}
 }
 
@@ -121,8 +122,8 @@ func (jobDb *JobDb) BatchDelete(txn *Txn, ids []string) error {
 // ReadTxn returns a read-only transaction.
 // Multiple read-only transactions can access the db concurrently
 func (jobDb *JobDb) ReadTxn() *Txn {
-	jobDb.mutex.Lock()
-	defer jobDb.mutex.Unlock()
+	jobDb.copyMutex.Lock()
+	defer jobDb.copyMutex.Unlock()
 	return &Txn{
 		readOnly:    true,
 		jobsById:    jobDb.jobsById,
@@ -135,8 +136,9 @@ func (jobDb *JobDb) ReadTxn() *Txn {
 // WriteTxn returns a writeable transaction.
 // Only a single write transaction may access the db at any given time
 func (jobDb *JobDb) WriteTxn() *Txn {
-	jobDb.mutex.Lock()
-	defer jobDb.mutex.Unlock()
+	jobDb.writerMutex.Lock()
+	jobDb.copyMutex.Lock()
+	defer jobDb.copyMutex.Unlock()
 	return &Txn{
 		readOnly:    false,
 		jobsById:    maps.Clone(jobDb.jobsById),
@@ -155,11 +157,15 @@ type Txn struct {
 }
 
 func (txn *Txn) Commit() {
-	txn.jobDb.mutex.Lock()
-	defer txn.jobDb.mutex.Unlock()
+	txn.jobDb.writerMutex.Lock()
+	txn.jobDb.copyMutex.Lock()
+	defer txn.jobDb.copyMutex.Unlock()
+	defer txn.jobDb.writerMutex.Unlock()
 	txn.jobDb.jobsById = txn.jobsById
 	txn.jobDb.jobsByRunId = txn.jobsByRunId
 	txn.jobDb.jobsByQueue = txn.jobsByQueue
 }
 
-func (txn *Txn) Abort() {}
+func (txn *Txn) Abort() {
+	txn.jobDb.writerMutex.Unlock()
+}
