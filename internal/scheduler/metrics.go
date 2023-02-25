@@ -141,12 +141,7 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 	}
 
 	currentTime := c.clock.Now()
-	iter, err := jobdb.NewAllJobsIterator(c.jobDb.ReadTxn())
-	if err != nil {
-		return err
-	}
-	job := iter.NextJobItem()
-	for job != nil {
+	for _, job := range c.jobDb.GetAll(c.jobDb.ReadTxn()) {
 		// Don't calculate metrics for dead jobs
 		if job.InTerminalState() {
 			continue
@@ -184,7 +179,6 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 		}
 		recorder.RecordJobRuntime(pool, priorityClass, timeInState)
 		recorder.RecordResources(pool, priorityClass, jobResources)
-		job = iter.NextJobItem()
 	}
 	c.state.Store(metricsState)
 	log.Debugf("Refreshed prometheus metrics in %s", time.Since(start))

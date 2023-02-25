@@ -132,13 +132,7 @@ func (job *Job) WithPriority(priority uint32) *Job {
 	return j
 }
 
-// WithCreated returns a copy of the job with the created time updated.
-func (job *Job) WithCreated(created int64) *Job {
-	j := copyJob(*job)
-	j.created = created
-	return j
-}
-
+// WithRequestedPriority returns a copy of the job with the priority updated.
 func (job *Job) WithRequestedPriority(priority uint32) *Job {
 	j := copyJob(*job)
 	j.requestedPriority = priority

@@ -86,10 +86,9 @@ func TestMetricsCollector_TestCollect(t *testing.T) {
 			defer cancel()
 
 			// set up job db with initial jobs
-			jobDb, err := jobdb.NewJobDb()
-			require.NoError(t, err)
+			jobDb := jobdb.NewJobDb()
 			txn := jobDb.WriteTxn()
-			err = jobDb.Upsert(txn, tc.initialJobs)
+			err := jobDb.Upsert(txn, tc.initialJobs)
 			require.NoError(t, err)
 			txn.Commit()
 
