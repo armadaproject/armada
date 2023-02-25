@@ -12,6 +12,7 @@ pulsar:
   maxConnectionsPerBroker: 1
   compressionType: zlib
   compressionLevel: faster
+  maxAllowedMessageSize: 4194304 #4Mi
 redis:
   addrs:
     - redis:6379

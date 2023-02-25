@@ -166,12 +166,6 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 		return err
 	}
 
-	// Return no jobs if we don't have enough work.
-	var res armadaresource.ComputeResources = req.Resources
-	if res.AsFloat().IsLessThan(q.schedulingConfig.MinimumResourceToSchedule) {
-		return nil
-	}
-
 	// Get jobs to be leased.
 	jobs, err := q.getJobs(stream.Context(), req)
 	if err != nil {
@@ -397,6 +391,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	}
 	nodeDb, err := scheduler.NewNodeDb(
 		q.schedulingConfig.Preemption.PriorityClasses,
+		q.schedulingConfig.MaxExtraNodesToConsider,
 		indexedResources,
 		q.schedulingConfig.IndexedTaints,
 		q.schedulingConfig.IndexedNodeLabels,
@@ -475,6 +470,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			aggregatedUsageByQueue,
 			q.schedulingConfig.Preemption.NodeEvictionProbability,
 			q.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
+			q.SchedulingReportsRepository,
 		)
 		if err != nil {
 			return nil, err
@@ -521,6 +517,13 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		scheduledJobs, err = sched.Schedule()
 		if err != nil {
 			return nil, err
+		}
+
+		// Log and store scheduling reports.
+		if q.SchedulingReportsRepository != nil && sched.SchedulingRoundReport != nil {
+			log.Infof("Scheduling report:\n%s", sched.SchedulingRoundReport)
+			sched.SchedulingRoundReport.ClearJobSpecs()
+			q.SchedulingReportsRepository.AddSchedulingRoundReport(sched.SchedulingRoundReport)
 		}
 	}
 
@@ -657,14 +660,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			util.Map(preemptedApiJobs, func(job *api.Job) string { return job.GetId() }),
 		)
 	}
-
-	// TODO: Re-enable if we need to be able to report successful scheduling attempts.
-	// // Log and store scheduling reports.
-	// if q.SchedulingReportsRepository != nil && sched.SchedulingRoundReport != nil {
-	// 	log.Infof("Scheduling report:\n%s", sched.SchedulingRoundReport)
-	// 	sched.SchedulingRoundReport.ClearJobSpecs()
-	// 	q.SchedulingReportsRepository.AddSchedulingRoundReport(sched.SchedulingRoundReport)
-	// }
 
 	// Update the usage report for this executor in-place to account for preempted/leased jobs and write it back into Redis.
 	// This ensures rpeempted/leased jobs are accounted for without needing to wait for feedback from the executor.

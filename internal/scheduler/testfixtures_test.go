@@ -18,12 +18,10 @@ import (
 )
 
 const (
-	testJobset                    = "testJobset"
-	testQueue                     = "testQueue"
-	testPool                      = "testPool"
-	testGangIdAnnotation          = "armada.io/gangId"
-	testGangCardinalityAnnotation = "armada.io/gangCardinality"
-	testHostnameLabel             = "kubernetes.io/hostname"
+	testJobset        = "testJobset"
+	testQueue         = "testQueue"
+	testPool          = "testPool"
+	testHostnameLabel = "kubernetes.io/hostname"
 )
 
 var (
@@ -34,11 +32,12 @@ var (
 		"priority-2": {2, true, nil},
 		"priority-3": {3, false, nil},
 	}
-	testDefaultPriorityClass = "priority-3"
-	testPriorities           = []int32{0, 1, 2, 3}
-	testResources            = []string{"cpu", "memory", "gpu"}
-	testIndexedTaints        = []string{"largeJobsOnly", "gpu"}
-	testIndexedNodeLabels    = []string{"largeJobsOnly", "gpu"}
+	testDefaultPriorityClass         = "priority-3"
+	testPriorities                   = []int32{0, 1, 2, 3}
+	testMaxExtraNodesToConsider uint = 1
+	testResources                    = []string{"cpu", "memory", "gpu"}
+	testIndexedTaints                = []string{"largeJobsOnly", "gpu"}
+	testIndexedNodeLabels            = []string{"largeJobsOnly", "gpu"}
 )
 
 func intRange(a, b int) []int {
@@ -64,10 +63,8 @@ func testSchedulingConfig() configuration.SchedulingConfig {
 			PriorityClasses:      maps.Clone(testPriorityClasses),
 			DefaultPriorityClass: testDefaultPriorityClass,
 		},
-		IndexedResources:          []string{"cpu", "memory"},
-		GangIdAnnotation:          testGangIdAnnotation,
-		GangCardinalityAnnotation: testGangCardinalityAnnotation,
-		ExecutorTimeout:           15 * time.Minute,
+		IndexedResources: []string{"cpu", "memory"},
+		ExecutorTimeout:  15 * time.Minute,
 	}
 }
 
@@ -183,7 +180,7 @@ func withGangAnnotationsPodReqs(reqs []*schedulerobjects.PodRequirements) []*sch
 	gangId := uuid.NewString()
 	gangCardinality := fmt.Sprintf("%d", len(reqs))
 	return withAnnotationsPodReqs(
-		map[string]string{testGangIdAnnotation: gangId, testGangCardinalityAnnotation: gangCardinality},
+		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinality},
 		reqs,
 	)
 }
@@ -494,6 +491,7 @@ func testDbQueue() *database.Queue {
 func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	db, err := NewNodeDb(
 		testPriorityClasses,
+		testMaxExtraNodesToConsider,
 		testResources,
 		testIndexedTaints,
 		testIndexedNodeLabels,

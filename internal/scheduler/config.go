@@ -22,6 +22,13 @@ const (
 	QueueAnnotation = "armadaproject.io/queue"
 )
 
+var ArmadaSchedulerManagedAnnotations = []string{
+	TargetNodeIdAnnotation,
+	IsEvictedAnnotation,
+	JobIdAnnotation,
+	QueueAnnotation,
+}
+
 type Configuration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
