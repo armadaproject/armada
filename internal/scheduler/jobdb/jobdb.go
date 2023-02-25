@@ -107,8 +107,11 @@ func (jobDb *JobDb) BatchDelete(txn *Txn, ids []string) error {
 			for _, run := range job.runsById {
 				delete(txn.jobsByRunId, run.id)
 			}
-			newQueue := txn.jobsByQueue[job.queue].Delete(job)
-			txn.jobsByQueue[job.queue] = newQueue
+			queue, ok := txn.jobsByQueue[job.queue]
+			if ok {
+				newQueue := queue.Delete(job)
+				txn.jobsByQueue[job.queue] = newQueue
+			}
 		}
 	}
 	return nil
