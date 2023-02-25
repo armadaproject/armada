@@ -163,6 +163,7 @@ require (
 	github.com/aws/smithy-go v1.11.2 // indirect
 	github.com/aymanbagabas/go-osc52 v1.0.3 // indirect
 	github.com/benbjohnson/clock v1.1.0 // indirect
+	github.com/benbjohnson/immutable v0.4.3 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blakesmith/ar v0.0.0-20190502131153-809d4375e1fb // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect

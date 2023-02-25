@@ -296,3 +296,41 @@ func (job *Job) RunById(id uuid.UUID) *JobRun {
 func copyJob(j Job) *Job {
 	return &j
 }
+
+type JobPriorityComparer struct{}
+
+func (j JobPriorityComparer) Compare(a, b *Job) int {
+	if a == b {
+		return 0
+	}
+
+	// Compare the jobs by priority
+	if a.priority != b.priority {
+		if a.priority < b.priority {
+			return -1
+		} else {
+			return 1
+		}
+	}
+
+	// If the jobs have the same priority, compare them by created timestamp
+	if a.created != b.created {
+		if a.created < b.created {
+			return -1
+		} else {
+			return 1
+		}
+	}
+
+	// If the jobs have the same priority and created timestamp, compare them by ID
+	if a.id != b.id {
+		if a.id < b.id {
+			return -1
+		} else {
+			return 1
+		}
+	}
+
+	// If the jobs have the same ID, return 0
+	return 0
+}
