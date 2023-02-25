@@ -3,11 +3,12 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"math/rand"
 	"sync"
 	"testing"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"

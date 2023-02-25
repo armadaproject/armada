@@ -1,11 +1,12 @@
 package jobdb
 
 import (
+	"sync"
+
 	"github.com/benbjohnson/immutable"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
-	"sync"
 )
 
 var emptyList = immutable.NewSortedSet[*Job](JobPriorityComparer{})

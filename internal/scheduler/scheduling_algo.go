@@ -3,10 +3,10 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/benbjohnson/immutable"
 	"math/rand"
 	"time"
 
+	"github.com/benbjohnson/immutable"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"

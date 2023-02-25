@@ -1,13 +1,15 @@
 package jobdb
 
 import (
-	"github.com/armadaproject/armada/internal/common/util"
+	"math/rand"
+	"testing"
+
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
-	"math/rand"
-	"testing"
+
+	"github.com/armadaproject/armada/internal/common/util"
 )
 
 func TestJobDb_TestUpsert(t *testing.T) {
@@ -89,7 +91,7 @@ func TestJobDb_TestQueuedJobs(t *testing.T) {
 	jobs := make([]*Job, 10)
 	for i := 0; i < len(jobs); i++ {
 		jobs[i] = newJob().WithQueued(true)
-		jobs[i].created = int64(i) //forces an order
+		jobs[i].created = int64(i) // forces an order
 	}
 	shuffledJobs := slices.Clone(jobs)
 	rand.Shuffle(len(shuffledJobs), func(i, j int) { shuffledJobs[i], shuffledJobs[j] = shuffledJobs[j], jobs[i] })
