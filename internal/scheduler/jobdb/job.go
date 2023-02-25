@@ -132,6 +132,13 @@ func (job *Job) WithPriority(priority uint32) *Job {
 	return j
 }
 
+// WithCreated returns a copy of the job with the created time updated.
+func (job *Job) WithCreated(created int64) *Job {
+	j := copyJob(*job)
+	j.created = created
+	return j
+}
+
 func (job *Job) WithRequestedPriority(priority uint32) *Job {
 	j := copyJob(*job)
 	j.requestedPriority = priority
@@ -327,4 +334,44 @@ func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSch
 // copyJob makes a copy of the job
 func copyJob(j Job) *Job {
 	return &j
+}
+
+type JobPriorityComparer struct{}
+
+// Compare jobs first by priority then by created and finally by id.
+// returns -1 if a should come before b, 1 if a should come after b and 0 if the two jobs are equal
+func (j JobPriorityComparer) Compare(a, b *Job) int {
+	if a == b {
+		return 0
+	}
+
+	// Compare the jobs by priority
+	if a.priority != b.priority {
+		if a.priority > b.priority {
+			return -1
+		} else {
+			return 1
+		}
+	}
+
+	// If the jobs have the same priority, compare them by created timestamp
+	if a.created != b.created {
+		if a.created < b.created {
+			return -1
+		} else {
+			return 1
+		}
+	}
+
+	// If the jobs have the same priority and created timestamp, compare them by ID
+	if a.id != b.id {
+		if a.id < b.id {
+			return -1
+		} else {
+			return 1
+		}
+	}
+
+	// If the jobs have the same ID, return 0
+	return 0
 }

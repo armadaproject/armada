@@ -264,3 +264,19 @@ func TestJob_TestWithJobSchedulingInfo(t *testing.T) {
 	assert.Equal(t, schedulingInfo, baseJob.Queue())
 	assert.Equal(t, newSchedInfo, newJob.JobSchedulingInfo())
 }
+
+func TestJobPriorityComparer(t *testing.T) {
+	job1 := &Job{
+		id:       "a",
+		priority: 10,
+		created:  5,
+	}
+
+	comparer := JobPriorityComparer{}
+
+	assert.Equal(t, 0, comparer.Compare(job1, job1))
+	assert.Equal(t, -1, comparer.Compare(job1, job1.WithPriority(9)))
+	assert.Equal(t, -1, comparer.Compare(job1, job1.WithCreated(6)))
+	assert.Equal(t, 1, comparer.Compare(job1, job1.WithPriority(11)))
+	assert.Equal(t, 1, comparer.Compare(job1, job1.WithCreated(4)))
+}

@@ -150,10 +150,10 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			algo.clock = clock.NewFakeClock(baseTime)
 
 			// Set up JobDb
-			jobDb, err := jobdb.NewJobDb()
-			require.NoError(t, err)
+			jobDb := jobdb.NewJobDb()
+
 			txn := jobDb.WriteTxn()
-			err = jobDb.Upsert(txn, append(tc.queuedJobs, tc.runningJobs...))
+			err := jobDb.Upsert(txn, append(tc.queuedJobs, tc.runningJobs...))
 			require.NoError(t, err)
 
 			scheduledJobs, err := algo.Schedule(ctx, txn, jobDb)
@@ -173,7 +173,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 
 			// check all scheduled queuedJobs are up-to-date in db
 			for _, job := range scheduledJobs {
-				dbJob, err := jobDb.GetById(txn, job.Id())
+				dbJob := jobDb.GetById(txn, job.Id())
 				require.NoError(t, err)
 				assert.Equal(t, job, dbJob)
 			}
