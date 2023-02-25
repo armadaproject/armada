@@ -604,8 +604,8 @@ func TestScheduler_TestSyncStatePerf(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
 	defer cancel()
 
-	const numQueues = 10
-	const numNewJobs = 100000
+	const numQueues = 100
+	const numNewJobs = 1000000
 
 	queues := make([]string, numQueues)
 	for i := 0; i < numQueues; i++ {

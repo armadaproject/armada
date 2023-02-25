@@ -8,30 +8,14 @@ import (
 	"sync"
 )
 
+var emptyList = immutable.NewSortedSet[*Job](JobPriorityComparer{})
+
 type JobDb struct {
 	jobsById    map[string]*Job
 	jobsByRunId map[uuid.UUID]string
 	jobsByQueue map[string]immutable.SortedSet[*Job]
 	mutex       sync.Mutex
 }
-
-type Txn struct {
-	readOnly    bool
-	jobsById    map[string]*Job
-	jobsByRunId map[uuid.UUID]string
-	jobsByQueue map[string]immutable.SortedSet[*Job]
-	jobDb       *JobDb
-}
-
-func (txn *Txn) Commit() {
-	txn.jobDb.mutex.Lock()
-	defer txn.jobDb.mutex.Unlock()
-	txn.jobDb.jobsById = txn.jobsById
-	txn.jobDb.jobsByRunId = txn.jobsByRunId
-	txn.jobDb.jobsByQueue = txn.jobsByQueue
-}
-
-func (txn *Txn) Abort() {}
 
 func NewJobDb() *JobDb {
 	return &JobDb{
@@ -48,21 +32,26 @@ func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 		return errors.New("Cannot upsert using a read only transaction")
 	}
 	for _, job := range jobs {
-		existing := txn.jobsById[job.id]
-		if existing != nil {
-			txn.jobsByQueue[existing.queue].Delete(existing)
+		existingJob := txn.jobsById[job.id]
+		if existingJob != nil {
+			existingQueue, ok := txn.jobsByQueue[existingJob.queue]
+			if ok {
+				txn.jobsByQueue[existingJob.queue] = existingQueue.Delete(existingJob)
+			}
 		}
 		txn.jobsById[job.id] = job
 		for _, run := range job.runsById {
 			txn.jobsByRunId[run.id] = job.id
 		}
-		queue, ok := txn.jobsByQueue[job.queue]
-		if !ok {
-			newQueue := immutable.NewSortedSet[*Job](JobPriorityComparer{})
-			queue = newQueue
+		if job.Queued() {
+			newQueue, ok := txn.jobsByQueue[job.queue]
+			if !ok {
+				q := emptyList
+				newQueue = q
+			}
+			newQueue = newQueue.Add(job)
+			txn.jobsByQueue[job.queue] = newQueue
 		}
-		queue = queue.Add(job)
-		txn.jobsByQueue[job.queue] = queue
 	}
 	return nil
 }
@@ -82,8 +71,11 @@ func (jobDb *JobDb) GetByRunId(txn *Txn, runId uuid.UUID) *Job {
 
 // HasQueuedJobs returns true if the queue has any jobs in the running state or false otherwise
 func (jobDb *JobDb) HasQueuedJobs(txn *Txn, queue string) bool {
-	_, ok := txn.jobsByQueue[queue]
-	return ok
+	queuedJobs, ok := txn.jobsByQueue[queue]
+	if !ok {
+		return false
+	}
+	return queuedJobs.Len() > 0
 }
 
 // QueuedJobs returns true if the queue has any jobs in the running state or false otherwise
@@ -92,14 +84,14 @@ func (jobDb *JobDb) QueuedJobs(txn *Txn, queue string) *immutable.SortedSetItera
 	if ok {
 		return jobQueue.Iterator()
 	} else {
-		return immutable.NewSortedSet[*Job](JobPriorityComparer{}).Iterator()
+		return emptyList.Iterator()
 	}
 }
 
 // GetAll returns all jobs in the database.
 // The Jobs returned by this function *must not* be subsequently modified
 func (jobDb *JobDb) GetAll(txn *Txn) []*Job {
-	return maps.Values(txn.jobDb.jobsById)
+	return maps.Values(txn.jobsById)
 }
 
 // BatchDelete removes the jobs with the given ids from the database.  Any ids that are not in the database will be
@@ -149,3 +141,21 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 		jobDb:       jobDb,
 	}
 }
+
+type Txn struct {
+	readOnly    bool
+	jobsById    map[string]*Job
+	jobsByRunId map[uuid.UUID]string
+	jobsByQueue map[string]immutable.SortedSet[*Job]
+	jobDb       *JobDb
+}
+
+func (txn *Txn) Commit() {
+	txn.jobDb.mutex.Lock()
+	defer txn.jobDb.mutex.Unlock()
+	txn.jobDb.jobsById = txn.jobsById
+	txn.jobDb.jobsByRunId = txn.jobsByRunId
+	txn.jobDb.jobsByQueue = txn.jobsByQueue
+}
+
+func (txn *Txn) Abort() {}

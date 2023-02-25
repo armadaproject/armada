@@ -306,7 +306,7 @@ func (j JobPriorityComparer) Compare(a, b *Job) int {
 
 	// Compare the jobs by priority
 	if a.priority != b.priority {
-		if a.priority < b.priority {
+		if a.priority > b.priority {
 			return -1
 		} else {
 			return 1
