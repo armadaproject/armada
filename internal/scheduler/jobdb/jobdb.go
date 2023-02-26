@@ -30,8 +30,8 @@ func NewJobDb() *JobDb {
 
 // Upsert will insert the given jobs if they don't already exist or update the if they do
 func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
-	if txn.readOnly {
-		return errors.New("Cannot upsert using a read only transaction")
+	if err := jobDb.checkWritableTransaction(txn); err != nil {
+		return err
 	}
 	for _, job := range jobs {
 		existingJob := txn.jobsById[job.id]
@@ -99,8 +99,8 @@ func (jobDb *JobDb) GetAll(txn *Txn) []*Job {
 // BatchDelete removes the jobs with the given ids from the database.  Any ids that are not in the database will be
 // ignored
 func (jobDb *JobDb) BatchDelete(txn *Txn, ids []string) error {
-	if txn.readOnly {
-		return errors.New("Cannot delete using a read only transaction")
+	if err := jobDb.checkWritableTransaction(txn); err != nil {
+		return err
 	}
 	for _, id := range ids {
 		job, present := txn.jobsById[id]
@@ -119,6 +119,16 @@ func (jobDb *JobDb) BatchDelete(txn *Txn, ids []string) error {
 	return nil
 }
 
+func (jobDb *JobDb) checkWritableTransaction(txn *Txn) error {
+	if txn.readOnly {
+		return errors.New("Cannot write using a read only transaction")
+	}
+	if !txn.active {
+		return errors.New("Cannot write using an inactive transaction")
+	}
+	return nil
+}
+
 // ReadTxn returns a read-only transaction.
 // Multiple read-only transactions can access the db concurrently
 func (jobDb *JobDb) ReadTxn() *Txn {
@@ -129,12 +139,14 @@ func (jobDb *JobDb) ReadTxn() *Txn {
 		jobsById:    jobDb.jobsById,
 		jobsByRunId: jobDb.jobsByRunId,
 		jobsByQueue: jobDb.jobsByQueue,
+		active:      true,
 		jobDb:       jobDb,
 	}
 }
 
 // WriteTxn returns a writeable transaction.
-// Only a single write transaction may access the db at any given time
+// Only a single write transaction may access the db at any given time so note that this function will block until
+// any outstanding write transactions  have been comitted or aborted
 func (jobDb *JobDb) WriteTxn() *Txn {
 	jobDb.writerMutex.Lock()
 	jobDb.copyMutex.Lock()
@@ -144,20 +156,26 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 		jobsById:    maps.Clone(jobDb.jobsById),
 		jobsByRunId: maps.Clone(jobDb.jobsByRunId),
 		jobsByQueue: maps.Clone(jobDb.jobsByQueue),
+		active:      true,
 		jobDb:       jobDb,
 	}
 }
 
+// Txn is a JobDb Transaction. Transactions provide a consistent view of the database, allowing readers to
+// perform multiple actions without the database changing from underneath them.
+// Write transactions also allow callers to perform write operations that will not be visible to other users
+// until the transaction is committed.
 type Txn struct {
 	readOnly    bool
 	jobsById    map[string]*Job
 	jobsByRunId map[uuid.UUID]string
 	jobsByQueue map[string]immutable.SortedSet[*Job]
 	jobDb       *JobDb
+	active      bool
 }
 
 func (txn *Txn) Commit() {
-	if txn.readOnly {
+	if txn.readOnly || !txn.active {
 		return
 	}
 	txn.jobDb.copyMutex.Lock()
@@ -166,11 +184,13 @@ func (txn *Txn) Commit() {
 	txn.jobDb.jobsById = txn.jobsById
 	txn.jobDb.jobsByRunId = txn.jobsByRunId
 	txn.jobDb.jobsByQueue = txn.jobsByQueue
+	txn.active = false
 }
 
 func (txn *Txn) Abort() {
-	if txn.readOnly {
+	if txn.readOnly || !txn.active {
 		return
 	}
+	txn.active = false
 	txn.jobDb.writerMutex.Unlock()
 }
