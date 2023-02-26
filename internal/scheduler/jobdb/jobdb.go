@@ -157,7 +157,9 @@ type Txn struct {
 }
 
 func (txn *Txn) Commit() {
-	txn.jobDb.writerMutex.Lock()
+	if txn.readOnly {
+		return
+	}
 	txn.jobDb.copyMutex.Lock()
 	defer txn.jobDb.copyMutex.Unlock()
 	defer txn.jobDb.writerMutex.Unlock()
@@ -167,5 +169,8 @@ func (txn *Txn) Commit() {
 }
 
 func (txn *Txn) Abort() {
+	if txn.readOnly {
+		return
+	}
 	txn.jobDb.writerMutex.Unlock()
 }
