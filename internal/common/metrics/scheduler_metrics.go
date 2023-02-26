@@ -261,10 +261,6 @@ func NewQueueSizeMetric(value int, queue string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(QueueSizeDesc, prometheus.GaugeValue, float64(value), queue)
 }
 
-func NewQueuePriorityMetric(value float64, pool string, queue string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(QueuePriorityDesc, prometheus.GaugeValue, value, pool, queue)
-}
-
 func NewQueueDuration(count uint64, sum float64, buckets map[float64]uint64, pool string, priorityClass string, queue string) prometheus.Metric {
 	return prometheus.MustNewConstHistogram(QueueDurationDesc, count, sum, buckets, pool, priorityClass, queue)
 }

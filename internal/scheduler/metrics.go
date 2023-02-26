@@ -129,12 +129,12 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 		return err
 	}
 
-	metricsState := metricsState{
+	ms := metricsState{
 		queues:      queues,
 		queueStates: map[string]*queueState{},
 	}
 	for _, queue := range queues {
-		metricsState.queueStates[queue.Name] = &queueState{
+		ms.queueStates[queue.Name] = &queueState{
 			queuedJobRecorder:  commonmetrics.NewJobMetricsRecorder(),
 			runningJobRecorder: commonmetrics.NewJobMetricsRecorder(),
 		}
@@ -146,7 +146,7 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 		if job.InTerminalState() {
 			continue
 		}
-		queueState, ok := metricsState.queueStates[job.Queue()]
+		qs, ok := ms.queueStates[job.Queue()]
 		if !ok {
 			log.Warnf("Job %s is in queue %s, but this queue does not exist.  Skipping", job.Id(), job.Queue())
 			continue
@@ -167,20 +167,20 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 		var recorder *commonmetrics.JobMetricsRecorder
 		var timeInState time.Duration
 		if job.Queued() {
-			recorder = queueState.queuedJobRecorder
+			recorder = qs.queuedJobRecorder
 			timeInState = currentTime.Sub(time.Unix(0, job.Created()))
-			queueState.numQueuedJobs++
+			qs.numQueuedJobs++
 		} else if job.HasRuns() {
 			run := job.LatestRun()
 			timeInState = currentTime.Sub(time.Unix(0, run.Created()))
-			recorder = queueState.runningJobRecorder
+			recorder = qs.runningJobRecorder
 		} else {
 			log.Warnf("Job %s is marked as leased but has no runs", job.Id())
 		}
 		recorder.RecordJobRuntime(pool, priorityClass, timeInState)
 		recorder.RecordResources(pool, priorityClass, jobResources)
 	}
-	c.state.Store(metricsState)
+	c.state.Store(ms)
 	log.Debugf("Refreshed prometheus metrics in %s", time.Since(start))
 	return nil
 }

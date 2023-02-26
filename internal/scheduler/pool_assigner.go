@@ -2,6 +2,9 @@ package scheduler
 
 import (
 	"context"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/gogo/protobuf/proto"
+	lru "github.com/hashicorp/golang-lru"
 	"time"
 
 	"github.com/pkg/errors"
@@ -35,13 +38,18 @@ type DefaultPoolAssigner struct {
 	poolByExecutorId   map[string]string
 	executorsByPool    map[string][]*executor
 	executorRepository database.ExecutorRepository
+	poolCache          *lru.Cache
 	clock              clock.Clock
 }
 
 func NewPoolAssigner(executorTimeout time.Duration,
 	schedulingConfig configuration.SchedulingConfig,
 	executorRepository database.ExecutorRepository,
-) *DefaultPoolAssigner {
+) (*DefaultPoolAssigner, error) {
+	poolCache, err := lru.New(maxJobSchedulingResults)
+	if err != nil {
+		return nil, errors.Wrap(err, "error  creating PoolAssigner pool cache")
+	}
 	return &DefaultPoolAssigner{
 		executorTimeout:    executorTimeout,
 		priorityClasses:    schedulingConfig.Preemption.PriorityClasses,
@@ -52,8 +60,9 @@ func NewPoolAssigner(executorTimeout time.Duration,
 		indexedTaints:      schedulingConfig.IndexedTaints,
 		indexedNodeLabels:  schedulingConfig.IndexedNodeLabels,
 		executorRepository: executorRepository,
+		poolCache:          poolCache,
 		clock:              clock.RealClock{},
-	}
+	}, nil
 }
 
 // Refresh updates executor state
@@ -79,6 +88,7 @@ func (p *DefaultPoolAssigner) Refresh(ctx context.Context) error {
 	}
 	p.executorsByPool = executorsByPool
 	p.poolByExecutorId = poolByExecutorId
+	p.poolCache.Purge()
 	return nil
 }
 
@@ -89,8 +99,20 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 		return p.poolByExecutorId[j.LatestRun().Executor()], nil
 	}
 
-	// Otherwise iterate through each pool and detect the first one the job is potentially schedulable on
 	req := PodRequirementFromJobSchedulingInfo(j.JobSchedulingInfo())
+	req = p.clearAnnotations(req)
+
+	// See if we have this set of reqs cached
+	reqsHash, err := protoutil.Hash(req)
+	if err != nil {
+		return "", err
+	}
+	cachedPool, ok := p.poolCache.Get(reqsHash)
+	if ok {
+		return cachedPool.(string), nil
+	}
+
+	// Otherwise iterate through each pool and detect the first one the job is potentially schedulable on
 	for pool, executors := range p.executorsByPool {
 		for _, e := range executors {
 			minReqsMet, _ := jobIsLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(
@@ -105,6 +127,7 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 					return "", errors.WithMessagef(err, "error selecting node for job %s", j.Id())
 				}
 				if report.Node != nil {
+					p.poolCache.Add(reqsHash, pool)
 					return pool, nil
 				}
 			}
@@ -117,6 +140,7 @@ func (p *DefaultPoolAssigner) constructNodeDb(nodes []*schedulerobjects.Node) (*
 	// Nodes to be considered by the scheduler.
 	nodeDb, err := NewNodeDb(
 		p.priorityClasses,
+		0,
 		p.indexedResources,
 		p.indexedTaints,
 		p.indexedNodeLabels,
@@ -133,4 +157,13 @@ func (p *DefaultPoolAssigner) constructNodeDb(nodes []*schedulerobjects.Node) (*
 		return nil, err
 	}
 	return nodeDb, nil
+}
+
+// clearAnnotations
+func (p *DefaultPoolAssigner) clearAnnotations(reqs *schedulerobjects.PodRequirements) *schedulerobjects.PodRequirements {
+	reqsCopy := proto.Clone(reqs).(*schedulerobjects.PodRequirements)
+	for key := range reqsCopy.GetAnnotations() {
+		reqsCopy.Annotations[key] = ""
+	}
+	return reqsCopy
 }

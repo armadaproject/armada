@@ -158,7 +158,10 @@ func Run(config Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	// Metrics
 	//////////////////////////////////////////////////////////////////////////
-	poolAssigner := NewPoolAssigner(config.Scheduling.ExecutorTimeout, config.Scheduling, executorRepository)
+	poolAssigner, err := NewPoolAssigner(config.Scheduling.ExecutorTimeout, config.Scheduling, executorRepository)
+	if err != nil {
+		return errors.WithMessage(err, "error creating pool assigner")
+	}
 	metricsCollector := NewMetricsCollector(
 		scheduler.jobDb,
 		queueRepository,

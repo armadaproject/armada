@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"strings"
 	"sync"
 	"time"
@@ -14,7 +15,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
@@ -150,7 +150,7 @@ func GroupJobsByAnnotation(annotation string, jobs []*api.Job) map[string][]*api
 
 func (srv *SubmitChecker) getSchedulingResult(reqs []*schedulerobjects.PodRequirements) schedulingResult {
 	overwriteAnnotations(reqs)
-	reqsHash, err := util.Hash(reqs, util.FormatV2, nil)
+	reqsHash, err := protoutil.HashMany(reqs)
 	if err != nil {
 		return schedulingResult{isSchedulable: false, reason: err.Error()}
 	}

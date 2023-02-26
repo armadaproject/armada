@@ -62,7 +62,12 @@ type NodeDb struct {
 	mu sync.Mutex
 }
 
-func NewNodeDb(priorityClasses map[string]configuration.PriorityClass, maxExtraNodesToConsider uint, indexedResources, indexedTaints, indexedNodeLabels []string) (*NodeDb, error) {
+func NewNodeDb(
+	priorityClasses map[string]configuration.PriorityClass,
+	maxExtraNodesToConsider uint,
+	indexedResources,
+	indexedTaints,
+	indexedNodeLabels []string) (*NodeDb, error) {
 	db, err := memdb.NewMemDB(nodeDbSchema(
 		configuration.AllowedPriorities(priorityClasses),
 		indexedResources,

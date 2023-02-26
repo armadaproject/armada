@@ -2,13 +2,21 @@ package scheduler
 
 import (
 	"context"
-	"testing"
-	"time"
-
+	"crypto/sha1"
+	"encoding/json"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
 	"github.com/prometheus/client_golang/prometheus"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/pointer"
+	"testing"
+	"time"
 
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -120,6 +128,128 @@ func TestMetricsCollector_TestCollect(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHashing(t *testing.T) {
+	job := schedulerobjects.JobSchedulingInfo{
+		Lifetime:          1,
+		AtMostOnce:        true,
+		Preemptible:       true,
+		ConcurrencySafe:   true,
+		PriorityClassName: "armada-default",
+		SubmitTime:        time.Now(),
+		Priority:          10,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						NodeSelector: map[string]string{
+							"property1": "value1",
+							"property3": "value3",
+						},
+						Affinity: &v1.Affinity{
+							NodeAffinity: &v1.NodeAffinity{
+								RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+									NodeSelectorTerms: []v1.NodeSelectorTerm{
+										{
+											MatchExpressions: []v1.NodeSelectorRequirement{
+												{
+													Key:      "k1",
+													Operator: "o1",
+													Values:   []string{"v1", "v2"},
+												},
+											},
+											MatchFields: []v1.NodeSelectorRequirement{
+												{
+													Key:      "k2",
+													Operator: "o2",
+													Values:   []string{"v10", "v20"},
+												},
+											},
+										},
+									},
+								},
+							},
+							PodAffinity: &v1.PodAffinity{
+								RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
+									{
+										LabelSelector: &metav1.LabelSelector{
+											MatchLabels: map[string]string{
+												"label1": "labelval1",
+												"label2": "labelval2",
+												"label3": "labelval3",
+											},
+											MatchExpressions: []metav1.LabelSelectorRequirement{
+												{
+													Key:      "k1",
+													Operator: "o1",
+													Values:   []string{"v1", "v2", "v3"},
+												},
+											},
+										},
+										Namespaces:  []string{"n1, n2, n3"},
+										TopologyKey: "topkey1",
+										NamespaceSelector: &metav1.LabelSelector{
+											MatchLabels: map[string]string{
+												"label10": "labelval1",
+												"label20": "labelval2",
+												"label30": "labelval3",
+											},
+											MatchExpressions: []metav1.LabelSelectorRequirement{
+												{
+													Key:      "k10",
+													Operator: "o10",
+													Values:   []string{"v10", "v20", "v30"},
+												},
+											},
+										},
+									},
+								},
+							},
+							PodAntiAffinity: nil,
+						},
+						Tolerations: []v1.Toleration{{
+							Key:               "a",
+							Operator:          "b",
+							Value:             "b",
+							Effect:            "d",
+							TolerationSeconds: pointer.Int64(1),
+						}},
+						Annotations: map[string]string{
+							"foo":  "bar",
+							"fish": "chips",
+							"salt": "pepper",
+						},
+						Priority:         1,
+						PreemptionPolicy: "abc",
+						ResourceRequirements: v1.ResourceRequirements{
+							Limits: map[v1.ResourceName]resource.Quantity{
+								"cpu":    resource.MustParse("1"),
+								"memory": resource.MustParse("2"),
+								"gpu":    resource.MustParse("3"),
+							},
+							Requests: map[v1.ResourceName]resource.Quantity{
+								"cpu":    resource.MustParse("2"),
+								"memory": resource.MustParse("2"),
+								"gpu":    resource.MustParse("2"),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	b, _ := json.Marshal(&job)
+	hash := sha1.Sum(b)
+	const numIterations = 100
+	start := time.Now()
+	for i := 0; i < numIterations; i++ {
+		b, _ = proto.Marshal(&job)
+		hash2 := sha1.Sum(b)
+		require.Equal(t, hash, hash2)
+	}
+	taken := time.Since(start)
+	log.Infof("marshalled %d in %s", numIterations, taken)
 }
 
 type MockPoolAssigner struct {
