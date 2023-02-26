@@ -139,7 +139,7 @@ func (r *JobRequester) createSubmitJobs(newJobRuns []*executorapi.JobRunLease) (
 
 func (r *JobRequester) markJobRunsAsLeased(jobs []*job.SubmitJob) {
 	for _, j := range jobs {
-		r.jobRunStateStore.ReportRunLeased(j.Meta.RunMeta)
+		r.jobRunStateStore.ReportRunLeased(j.Meta.RunMeta, j)
 	}
 }
 
@@ -150,6 +150,7 @@ func (r *JobRequester) markJobRunsAsCancelled(runsToRemove []*armadaevents.Uuid)
 			log.Errorf("Skipping removing run because %s", err)
 			continue
 		}
+		fmt.Println(runIdStr)
 		// TODO mark job run as cancelled
 	}
 }

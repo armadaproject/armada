@@ -152,3 +152,23 @@ func (c *SyncFakeClusterContext) SimulateClusterAddEvent(clusterEvent *v1.Event)
 		}
 	}
 }
+
+type FakeClusterIdentity struct {
+	clusterId   string
+	clusterPool string
+}
+
+func NewFakeClusterIdentity(clusterId string, clusterPool string) *FakeClusterIdentity {
+	return &FakeClusterIdentity{
+		clusterId:   clusterId,
+		clusterPool: clusterPool,
+	}
+}
+
+func (f *FakeClusterIdentity) GetClusterId() string {
+	return f.clusterId
+}
+
+func (f *FakeClusterIdentity) GetClusterPool() string {
+	return f.clusterPool
+}
