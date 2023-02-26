@@ -2,12 +2,13 @@ package protoutil
 
 import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"testing"
+	"time"
+
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
-	"testing"
-	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"

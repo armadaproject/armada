@@ -5,14 +5,15 @@ import (
 	"testing"
 	"time"
 
-	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
-	"github.com/armadaproject/armada/internal/scheduler/database"
-	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/golang/mock/gomock"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
+
+	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
+	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 )
 
 func TestMetricsCollector_TestCollect(t *testing.T) {
