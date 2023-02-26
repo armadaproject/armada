@@ -541,5 +541,6 @@ func WithJobDbJobPodRequirements(job *jobdb.Job, reqs *schedulerobjects.PodRequi
 
 func testRunningJobDbJob(startTime int64) *jobdb.Job {
 	return testQueuedJobDbJob().
+		WithQueued(false).
 		WithUpdatedRun(jobdb.MinimalRun(uuid.New(), startTime))
 }
