@@ -242,8 +242,8 @@ func TestJob_TestWithQueue(t *testing.T) {
 
 func TestJob_TestWithCreated(t *testing.T) {
 	newJob := baseJob.WithCreated(456)
-	assert.Equal(t, 3, baseJob.Queue())
-	assert.Equal(t, 456, newJob.Queue())
+	assert.Equal(t, int64(3), baseJob.Created())
+	assert.Equal(t, int64(456), newJob.Created())
 }
 
 func TestJob_TestWithJobSchedulingInfo(t *testing.T) {
@@ -261,7 +261,7 @@ func TestJob_TestWithJobSchedulingInfo(t *testing.T) {
 		},
 	}
 	newJob := baseJob.WithJobSchedulingInfo(newSchedInfo)
-	assert.Equal(t, schedulingInfo, baseJob.Queue())
+	assert.Equal(t, schedulingInfo, baseJob.JobSchedulingInfo())
 	assert.Equal(t, newSchedInfo, newJob.JobSchedulingInfo())
 }
 
