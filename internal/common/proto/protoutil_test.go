@@ -65,5 +65,4 @@ func TestMustMarshallAndCompress(t *testing.T) {
 }
 
 func TestHash(t *testing.T) {
-
 }
