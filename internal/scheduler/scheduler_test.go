@@ -3,12 +3,9 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"sync"
 	"testing"
 	"time"
-
-	log "github.com/sirupsen/logrus"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -598,100 +595,6 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				assert.True(t, ok)
 			}
 		})
-	}
-}
-
-func TestScheduler_TestSyncStatePerf(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
-	defer cancel()
-
-	const numQueues = 100
-	const numNewJobs = 1000000
-
-	queues := make([]string, numQueues)
-	for i := 0; i < numQueues; i++ {
-		queues[i] = fmt.Sprintf("batch-%s", util.NewULID())
-	}
-
-	jobs := make([]database.Job, numNewJobs)
-	for i := 0; i < numNewJobs; i++ {
-		jobs[i] = database.Job{
-			JobID:          util.NewULID(),
-			JobSet:         "foo",
-			Queue:          queues[rand.Intn(numQueues)],
-			Submitted:      int64(i),
-			Priority:       0,
-			SchedulingInfo: protoutil.MustMarshall(schedulingInfo),
-		}
-	}
-
-	rand.Shuffle(len(jobs), func(i, j int) { jobs[i], jobs[j] = jobs[j], jobs[i] })
-
-	runs := make([]database.Run, 0, numNewJobs/10)
-	for i := 0; i < numNewJobs; i++ {
-		if rand.Float64() < 0.1 {
-			run := database.Run{
-				RunID:        uuid.New(),
-				JobID:        jobs[i].JobID,
-				Created:      time.Now().UnixNano(),
-				JobSet:       "foo",
-				Executor:     "foo",
-				Node:         "bar",
-				Cancelled:    false,
-				Running:      true,
-				Succeeded:    true,
-				Failed:       false,
-				Returned:     false,
-				Serial:       0,
-				LastModified: time.Time{},
-			}
-			runs = append(runs, run)
-		}
-	}
-
-	rand.Shuffle(len(runs), func(i, j int) { runs[i], runs[j] = runs[j], runs[i] })
-
-	for i := 0; i < 1; i++ {
-
-		// Test objects
-		// Test objects
-		jobRepo := &testJobRepository{
-			updatedJobs: jobs,
-			updatedRuns: nil,
-		}
-		schedulingAlgo := &testSchedulingAlgo{}
-		publisher := &testPublisher{}
-		clusterRepo := &testExecutorRepository{}
-		leaderController := NewStandaloneLeaderController()
-		stringInterner, err := util.NewStringInterner(100)
-		require.NoError(t, err)
-
-		sched, err := NewScheduler(
-			jobRepo,
-			clusterRepo,
-			schedulingAlgo,
-			leaderController,
-			publisher,
-			stringInterner,
-			1*time.Second,
-			1*time.Hour,
-			maxLeaseReturns)
-		require.NoError(t, err)
-
-		start := time.Now()
-		err = sched.cycle(ctx, false, leaderController.GetToken())
-		require.NoError(t, err)
-		taken := time.Since(start)
-		log.Infof("Synced in %s", taken)
-
-		jobRepo.updatedJobs = nil
-		jobRepo.updatedRuns = runs
-
-		start = time.Now()
-		err = sched.cycle(ctx, false, leaderController.GetToken())
-		require.NoError(t, err)
-		taken = time.Since(start)
-		log.Infof("Synced in %s", taken)
 	}
 }
 
