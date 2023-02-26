@@ -56,21 +56,23 @@ const (
 )
 
 type RunState struct {
-	Meta               *RunMeta
-	Job                *SubmitJob
-	CancelRequested    bool
-	KubernetesId       string
-	Phase              RunPhase
-	LastTransitionTime time.Time
+	Meta                    *RunMeta
+	Job                     *SubmitJob
+	KubernetesId            string
+	Phase                   RunPhase
+	CancelRequested         bool
+	PreemptionRequested     bool
+	LastPhaseTransitionTime time.Time
 }
 
 func (r *RunState) DeepCopy() *RunState {
 	return &RunState{
-		Meta:               r.Meta.DeepCopy(),
-		Job:                r.Job, // This isn't deep copied right now - as it would be expensive to do so
-		KubernetesId:       r.KubernetesId,
-		Phase:              r.Phase,
-		CancelRequested:    r.CancelRequested,
-		LastTransitionTime: r.LastTransitionTime,
+		Meta:                    r.Meta.DeepCopy(),
+		Job:                     r.Job, // This isn't deep copied right now - as it would be expensive to do so
+		KubernetesId:            r.KubernetesId,
+		Phase:                   r.Phase,
+		CancelRequested:         r.CancelRequested,
+		PreemptionRequested:     r.PreemptionRequested,
+		LastPhaseTransitionTime: r.LastPhaseTransitionTime,
 	}
 }

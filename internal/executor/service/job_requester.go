@@ -46,18 +46,23 @@ func NewJobRequester(
 	}
 }
 
-func (r *JobRequester) RequestJobs() {
+func (r *JobRequester) RequestJobsRuns() {
 	leaseRequest, err := r.createLeaseRequest()
+	if err != nil {
+		log.Errorf("Failed to create lease request because %s", err)
+		return
+	}
+	leaseResponse, err := r.leaseRequester.LeaseJobRuns(leaseRequest)
 	if err != nil {
 		log.Errorf("Failed to request new jobs leases as because %s", err)
 		return
 	}
-	newJobRuns, runsToCancel, err := r.leaseRequester.LeaseJobRuns(leaseRequest)
-	logAvailableResources(leaseRequest.AvailableResource, len(newJobRuns))
+	logAvailableResources(leaseRequest.AvailableResource, len(leaseResponse.LeasedRuns))
 
-	jobs, failedJobCreations := r.createSubmitJobs(newJobRuns)
+	jobs, failedJobCreations := r.createSubmitJobs(leaseResponse.LeasedRuns)
 	r.markJobRunsAsLeased(jobs)
-	r.markJobRunsAsCancelled(runsToCancel)
+	r.markJobRunsAsCancelled(leaseResponse.RunsIdsToCancel)
+	r.markJobRunsToPreempt(leaseResponse.RunIdsToPreempt)
 	r.handleFailedJobCreation(failedJobCreations)
 }
 
@@ -143,15 +148,25 @@ func (r *JobRequester) markJobRunsAsLeased(jobs []*job.SubmitJob) {
 	}
 }
 
-func (r *JobRequester) markJobRunsAsCancelled(runsToRemove []*armadaevents.Uuid) {
-	for _, runToCancelId := range runsToRemove {
+func (r *JobRequester) markJobRunsAsCancelled(runIdsToCancel []*armadaevents.Uuid) {
+	for _, runToCancelId := range runIdsToCancel {
 		runIdStr, err := armadaevents.UuidStringFromProtoUuid(runToCancelId)
 		if err != nil {
 			log.Errorf("Skipping removing run because %s", err)
 			continue
 		}
-		fmt.Println(runIdStr)
-		// TODO mark job run as cancelled
+		r.jobRunStateStore.RequestRunCancellation(runIdStr)
+	}
+}
+
+func (r *JobRequester) markJobRunsToPreempt(runIdsToPreempt []*armadaevents.Uuid) {
+	for _, runToCancelId := range runIdsToPreempt {
+		runIdStr, err := armadaevents.UuidStringFromProtoUuid(runToCancelId)
+		if err != nil {
+			log.Errorf("Skipping removing run because %s", err)
+			continue
+		}
+		r.jobRunStateStore.RequestRunPreemption(runIdStr)
 	}
 }
 
@@ -170,8 +185,7 @@ func (r *JobRequester) handleFailedJobCreation(failedJobCreationDetails []*faile
 		}
 		err := r.eventReporter.Report([]reporter.EventMessage{{Event: failedEvent, JobRunId: failedCreateDetails.JobRunMeta.RunId}})
 		if err == nil {
-			// TODO Report submission invalid
-			r.jobRunStateStore.ReportFailedSubmission(failedCreateDetails.JobRunMeta)
+			r.jobRunStateStore.ReportRunInvalid(failedCreateDetails.JobRunMeta)
 		} else {
 			log.Errorf("Failed to report job creation failed for job %s (run id %s) because %s",
 				failedCreateDetails.JobRunMeta.JobId, failedCreateDetails.JobRunMeta.RunId, err)

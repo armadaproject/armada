@@ -23,8 +23,14 @@ type LeaseRequest struct {
 	UnassignedJobRunIds []armadaevents.Uuid
 }
 
+type LeaseResponse struct {
+	LeasedRuns      []*executorapi.JobRunLease
+	RunsIdsToCancel []*armadaevents.Uuid
+	RunIdsToPreempt []*armadaevents.Uuid
+}
+
 type LeaseRequester interface {
-	LeaseJobRuns(request *LeaseRequest) ([]*executorapi.JobRunLease, []*armadaevents.Uuid, error)
+	LeaseJobRuns(request *LeaseRequest) (*LeaseResponse, error)
 }
 
 type JobLeaseRequester struct {
@@ -45,12 +51,12 @@ func NewJobLeaseRequester(
 	}
 }
 
-func (requester *JobLeaseRequester) LeaseJobRuns(request *LeaseRequest) ([]*executorapi.JobRunLease, []*armadaevents.Uuid, error) {
+func (requester *JobLeaseRequester) LeaseJobRuns(request *LeaseRequest) (*LeaseResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	stream, err := requester.executorApiClient.LeaseJobRuns(ctx, grpcretry.Disable(), grpc.UseCompressor(gzip.Name))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	leaseRequest := &executorapi.LeaseRequest{
 		ExecutorId:          requester.clusterIdentity.GetClusterId(),
@@ -61,11 +67,12 @@ func (requester *JobLeaseRequester) LeaseJobRuns(request *LeaseRequest) ([]*exec
 		UnassignedJobRunIds: request.UnassignedJobRunIds,
 	}
 	if err := stream.Send(leaseRequest); err != nil {
-		return nil, nil, errors.WithStack(err)
+		return nil, errors.WithStack(err)
 	}
 
-	jobRuns := make([]*executorapi.JobRunLease, 0, 10)
-	jobsToCancel := make([]*armadaevents.Uuid, 0, 10)
+	leaseRuns := make([]*executorapi.JobRunLease, 0, 10)
+	runIdsToCancel := make([]*armadaevents.Uuid, 0, 10)
+	runIdsToPreempt := make([]*armadaevents.Uuid, 0, 10)
 	for {
 		shouldEndStreamCall := false
 		select {
@@ -73,21 +80,23 @@ func (requester *JobLeaseRequester) LeaseJobRuns(request *LeaseRequest) ([]*exec
 			if ctx.Err() == context.DeadlineExceeded {
 				shouldEndStreamCall = true
 			} else {
-				return nil, nil, ctx.Err()
+				return nil, ctx.Err()
 			}
 		default:
 			res, err := stream.Recv()
 			if err == io.EOF {
 				shouldEndStreamCall = true
 			} else if err != nil {
-				return nil, nil, err
+				return nil, err
 			}
 
 			switch typed := res.GetEvent().(type) {
 			case *executorapi.LeaseStreamMessage_Lease:
-				jobRuns = append(jobRuns, typed.Lease)
+				leaseRuns = append(leaseRuns, typed.Lease)
+			case *executorapi.LeaseStreamMessage_PreemptRuns:
+				runIdsToPreempt = append(runIdsToPreempt, typed.PreemptRuns.JobRunIdsToPreempt...)
 			case *executorapi.LeaseStreamMessage_CancelRuns:
-				jobsToCancel = append(jobsToCancel, typed.CancelRuns.JobRunIdsToCancel...)
+				runIdsToCancel = append(runIdsToCancel, typed.CancelRuns.JobRunIdsToCancel...)
 			case *executorapi.LeaseStreamMessage_End:
 				shouldEndStreamCall = true
 			}
@@ -98,5 +107,9 @@ func (requester *JobLeaseRequester) LeaseJobRuns(request *LeaseRequest) ([]*exec
 		}
 	}
 
-	return jobRuns, jobsToCancel, nil
+	return &LeaseResponse{
+		LeasedRuns:      leaseRuns,
+		RunsIdsToCancel: runIdsToCancel,
+		RunIdsToPreempt: runIdsToPreempt,
+	}, nil
 }

@@ -53,8 +53,16 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 		log.Warnf("Skipping allocating spare cluster capacity as etcd is at its soft health limit")
 		return
 	}
-	// TODO leased get runs from state
-	jobs := []*job.SubmitJob{}
+
+	jobRuns := allocationService.jobRunStateStore.GetByPhase(job.Leased)
+	jobs := make([]*job.SubmitJob, 0, len(jobRuns))
+	for _, run := range jobRuns {
+		if run.Job == nil {
+			log.Warnf("Job for job %s run %s unexpectedly nil", run.Meta.JobId, run.Meta.RunId)
+			continue
+		}
+		jobs  = append(jobs, run.Job)
+	}
 
 	failedJobSubmissions := allocationService.submitter.SubmitJobs(jobs)
 	allocationService.processFailedJobSubmissions(failedJobSubmissions)
