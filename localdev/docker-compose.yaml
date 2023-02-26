@@ -71,9 +71,6 @@ services:
     working_dir: /app
     entrypoint: go
     command: run cmd/armada/main.go --config /config/armada/config.yaml
-    environment:
-      - LOOKOUTV2_HOST=https://10000--main--testing--sharpz7.coder.mcaq.me/
-      - LOOKOUT_HOST=https://8089--main--testing--sharpz7.coder.mcaq.me/
 
   lookout:
     container_name: lookout
@@ -112,8 +109,6 @@ services:
       - lookout-ingesterv2
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/lookoutv2-start.sh"
-    environment:
-      - LOOKOUTV2_HOST=https://10000--main--testing--sharpz7.coder.mcaq.me/
 
   executor:
     container_name: executor
