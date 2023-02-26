@@ -11,11 +11,7 @@ grpc:
   keepaliveEnforcementPolicy:
     minTime: 10s
     permitWithoutStream: false
-corsAllowedOrigins: [
-  "${REACT_UI_HOST:http://localhost:3000}",
-  "${LOOKOUT_UI_HOST:http://localhost:8089}",
-  "${LOOKOUTV2_UI_HOST:http://localhost:10000}"
-]
+corsAllowedOrigins: ["http://localhost:3000", "http://localhost:8089", "http://localhost:10000"]
 auth:
   basicAuth:
     enableAuthentication: false

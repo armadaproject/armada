@@ -1,1 +1,1 @@
-corsAllowedOrigins: ["${REACT_UI_HOST:http://localhost:3000}", "${LOOKOUT_UI_HOST:http://localhost:8089}"]
+corsAllowedOrigins: ["http://localhost:3000", "http://localhost:8089", "http://localhost:10000"]

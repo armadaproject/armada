@@ -1,15 +1,12 @@
 apiPort: 10000
 
-corsAllowedOrigins:
-  - "${REACT_UI_HOST:http://localhost:3000}"
-  - "${LOOKOUT_UI_HOST:http://localhost:8089}"
-  - "${LOOKOUTV2_HOST:http://localhost:10000}"
+corsAllowedOrigins: ["http://localhost:3000", "http://localhost:8089", "http://localhost:10000"]
 
 uiConfig:
-  armadaApiBaseUrl: "${ARMADA_SERVER_HOST:http://localhost:8080}"
+  armadaApiBaseUrl: "http://localhost:8080"
   userAnnotationPrefix: "armadaproject.io/"
   binocularsEnabled: true
-  binocularsBaseUrlPattern: "${BINOCULARS_HOST:http://localhost:8082}" # {CLUSTER_ID} gets replaced by appropriate cluster id
+  binocularsBaseUrlPattern: "http://localhost:8082" # {CLUSTER_ID} gets replaced by appropriate cluster id
 
 postgres:
   maxOpenConns: 100
