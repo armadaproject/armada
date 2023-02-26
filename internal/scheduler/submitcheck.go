@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"

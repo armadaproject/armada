@@ -3,9 +3,11 @@ package protoutil
 import (
 	"crypto/sha1"
 	"encoding/json"
-	"github.com/armadaproject/armada/internal/common/compress"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
+
+	"github.com/armadaproject/armada/internal/common/compress"
 )
 
 // Unmarshall unmarshalls a proto message in a type-safe way.

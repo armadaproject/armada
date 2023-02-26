@@ -2,15 +2,15 @@ package scheduler
 
 import (
 	"context"
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"github.com/gogo/protobuf/proto"
-	lru "github.com/hashicorp/golang-lru"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"

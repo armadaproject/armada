@@ -67,7 +67,8 @@ func NewNodeDb(
 	maxExtraNodesToConsider uint,
 	indexedResources,
 	indexedTaints,
-	indexedNodeLabels []string) (*NodeDb, error) {
+	indexedNodeLabels []string,
+) (*NodeDb, error) {
 	db, err := memdb.NewMemDB(nodeDbSchema(
 		configuration.AllowedPriorities(priorityClasses),
 		indexedResources,
