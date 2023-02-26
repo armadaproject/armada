@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"time"
 
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -116,7 +117,10 @@ func (s *Scheduler) Run(ctx context.Context) error {
 				syncContext, cancel := context.WithTimeout(ctx, 5*time.Minute)
 				err := s.ensureDbUpToDate(syncContext, 1*time.Second)
 				if err != nil {
-					log.WithError(err).Error("Could not become master")
+					log.
+						WithError(err).
+						WithField(logging.Stacktrace, logging.ExtractStack(err)).
+						Error("Could not become leader")
 					leaderToken = InvalidLeaderToken()
 				} else {
 					fullUpdate = true
@@ -130,7 +134,9 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			// a partial publish and consequently an inconsistent state.  Once the Pulsar client supports transactions
 			// we should be able to remove this limitation
 			if err != nil {
-				log.WithError(err).Error("Error in scheduling cycle")
+				log.WithError(err).
+					WithField(logging.Stacktrace, logging.ExtractStack(err)).
+					Error("Error in scheduling cycle")
 				leaderToken = InvalidLeaderToken()
 			}
 			taken := s.clock.Now().Sub(start)
@@ -573,7 +579,9 @@ func (s *Scheduler) initialise(ctx context.Context) error {
 			if err == nil {
 				return nil
 			}
-			log.WithError(err).Error("Error initialising. Sleeping for 1 second before trying again")
+			log.WithError(err).
+				WithField(logging.Stacktrace, logging.ExtractStack(err)).
+				Error("Error initialising. Sleeping for 1 second before trying again")
 			time.Sleep(1 * time.Second)
 		}
 	}
@@ -596,7 +604,9 @@ func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Dura
 		default:
 			numSent, err = s.publisher.PublishMarkers(ctx, groupId)
 			if err != nil {
-				log.WithError(err).Error("Error sending marker messages to pulsar")
+				log.WithError(err).
+					WithField(logging.Stacktrace, logging.ExtractStack(err)).
+					Error("Error sending marker messages to pulsar")
 				s.clock.Sleep(pollInterval)
 			} else {
 				messagesSent = true
@@ -612,7 +622,9 @@ func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Dura
 		default:
 			numReceived, err := s.jobRepository.CountReceivedPartitions(ctx, groupId)
 			if err != nil {
-				log.WithError(err).Error("Error querying the database  or marker messages")
+				log.WithError(err).
+					WithField(logging.Stacktrace, logging.ExtractStack(err)).
+					Error("Error querying the database  or marker messages")
 			}
 			if numSent == numReceived {
 				log.Infof("Successfully ensured that database state is up to date")
@@ -629,8 +641,7 @@ func (s *Scheduler) createSchedulerJob(dbJob *database.Job) (*jobdb.Job, error) 
 	schedulingInfo := &schedulerobjects.JobSchedulingInfo{}
 	err := proto.Unmarshal(dbJob.SchedulingInfo, schedulingInfo)
 	if err != nil {
-		return nil, errors.Wrapf(
-			errors.WithStack(err), "error unmarshalling scheduling info for job %s", dbJob.JobID)
+		return nil, errors.Wrapf(err, "error unmarshalling scheduling info for job %s", dbJob.JobID)
 	}
 	s.internJobSchedulingInfoStrings(schedulingInfo)
 	return jobdb.NewJob(
