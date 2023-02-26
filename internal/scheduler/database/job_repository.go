@@ -3,15 +3,17 @@ package database
 import (
 	"context"
 	"fmt"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/pkg/errors"
+
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/pkg/armadaevents"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/pkg/errors"
 )
 
 // hasSerial is an Interface for db objects that have serial numbers
