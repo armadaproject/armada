@@ -485,6 +485,31 @@ func (q *Queries) SelectNewRunsForJobs(ctx context.Context, arg SelectNewRunsFor
 	return items, nil
 }
 
+const selectRunErrorsById = `-- name: SelectRunErrorsById :many
+SELECT run_id, job_id, error FROM job_run_errors WHERE run_id = ANY($1::UUID[])
+`
+
+// Run errors
+func (q *Queries) SelectRunErrorsById(ctx context.Context, runIds []uuid.UUID) ([]JobRunError, error) {
+	rows, err := q.db.Query(ctx, selectRunErrorsById, runIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []JobRunError
+	for rows.Next() {
+		var i JobRunError
+		if err := rows.Scan(&i.RunID, &i.JobID, &i.Error); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const selectUpdatedJobs = `-- name: SelectUpdatedJobs :many
 SELECT job_id, job_set, queue, priority, submitted, cancel_requested, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, serial FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2
 `

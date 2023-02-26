@@ -74,6 +74,10 @@ SELECT * FROM markers;
 -- name: InsertMarker :exec
 INSERT INTO markers (group_id, partition_id, created) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING;
 
+-- Run errors
+-- name: SelectRunErrorsById :many
+SELECT * FROM job_run_errors WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
+
 -- name: SelectAllRunErrors :many
 SELECT * FROM job_run_errors;
 
