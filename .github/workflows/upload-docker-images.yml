@@ -43,6 +43,8 @@ jobs:
           uploads['armada-jobservice']='armada-jobservice'
           uploads['armada-lookout']='armada-lookout'
           uploads['armada-lookout-ingester']='armada-lookout-ingester'
+          uploads['armada-lookout-v2']='armada-lookout-v2'
+          uploads['armada-lookout-ingester-v2']='armada-lookout-ingester-v2'
           uploads['armadactl']='armada-armadactl'
           uploads['testsuite']='armada-testsuite'
 

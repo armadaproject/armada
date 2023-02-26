@@ -172,9 +172,9 @@ func (a InsertJobRunErrors) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
 
-func (a InsertPartitionMarker) Merge(b DbOperation) bool {
+func (a *InsertPartitionMarker) Merge(b DbOperation) bool {
 	switch op := b.(type) {
-	case InsertPartitionMarker:
+	case *InsertPartitionMarker:
 		a.markers = append(a.markers, op.markers...)
 		return true
 	}
@@ -271,7 +271,7 @@ func (a MarkRunsRunning) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesRun(a, b)
 }
 
-func (a InsertPartitionMarker) CanBeAppliedBefore(b DbOperation) bool {
+func (a *InsertPartitionMarker) CanBeAppliedBefore(b DbOperation) bool {
 	// Partition markers can never be brought forward
 	return false
 }

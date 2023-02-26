@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/armadaproject/armada/internal/common/slices"
+	util2 "github.com/armadaproject/armada/internal/common/util"
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
@@ -70,7 +71,7 @@ func (j *JobRunRemover) processRunsToCancel() {
 		},
 	)
 	// For all runs that don't have a corresponding pod, delete the run from the state
-	runsWithPods := slices.Map(podsToRemove, func(pod *v1.Pod) string {
+	runsWithPods := util2.Map(podsToRemove, func(pod *v1.Pod) string {
 		return util.ExtractJobRunId(pod)
 	})
 

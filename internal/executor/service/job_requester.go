@@ -96,7 +96,7 @@ func (r *JobRequester) getUnassignedRunIds(capacityReport *utilisation.ClusterAv
 	// We make the assumption here that JobRunStateStore knows about all job runs and don't reconcile again against kubernetes
 	// This should be a safe assumption - and would be a bug if it was ever not true
 	allJobRuns := r.jobRunStateStore.GetAll()
-	allJobRunIds = append(allJobRunIds, slices.Map(allJobRuns, func(val *job.RunState) string {
+	allJobRunIds = append(allJobRunIds, util2.Map(allJobRuns, func(val *job.RunState) string {
 		return val.Meta.RunId
 	})...)
 

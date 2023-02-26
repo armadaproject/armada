@@ -1,0 +1,19 @@
+{{- if .Values.scheduler.prometheus.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "armada-scheduler.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "armada-scheduler.labels.all" . | nindent 4 -}}
+    {{- if .Values.scheduler.prometheus.labels }}
+    {{- toYaml .Values.scheduler.prometheus.labels | nindent 4 -}}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "armada-scheduler.labels.identity" . | nindent 6 }}
+  endpoints:
+    - port: metrics
+      interval: {{ .Values.scheduler.prometheus.scrapeInterval }}
+{{- end }}

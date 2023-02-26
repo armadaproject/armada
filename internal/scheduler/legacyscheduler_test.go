@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -200,8 +202,8 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 				ctx,
 				queuedJobsIterator,
 				tc.SchedulingConstraints.MaxLookbackPerQueue,
-				testGangIdAnnotation,
-				testGangCardinalityAnnotation,
+				configuration.GangIdAnnotation,
+				configuration.GangCardinalityAnnotation,
 			)
 			it := &QueueCandidateGangIterator{
 				ctx:                        ctx,
@@ -218,7 +220,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 				}
 				for _, report := range reports {
 					if tc.LeaseJobs {
-						it.QueueSchedulingRoundReport.AddJobSchedulingReport(report)
+						it.QueueSchedulingRoundReport.AddJobSchedulingReport(report, false)
 					}
 					actual = append(actual, report.Job.(*api.Job))
 					actualIndices = append(actualIndices, indexByJobId[report.Job.GetId()])
@@ -914,9 +916,9 @@ func TestSchedule(t *testing.T) {
 			Nodes: testNCpuNode(1, testPriorities),
 			ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
 				"A": append(append(
-					withAnnotationsPodReqs(map[string]string{testGangIdAnnotation: "my-gang", testGangCardinalityAnnotation: "2"}, testNSmallCpuJob("A", 0, 1)),
+					withAnnotationsPodReqs(map[string]string{configuration.GangIdAnnotation: "my-gang", configuration.GangCardinalityAnnotation: "2"}, testNSmallCpuJob("A", 0, 1)),
 					testNSmallCpuJob("A", 0, 1)...),
-					withAnnotationsPodReqs(map[string]string{testGangIdAnnotation: "my-gang", testGangCardinalityAnnotation: "2"}, testNSmallCpuJob("A", 0, 1))...,
+					withAnnotationsPodReqs(map[string]string{configuration.GangIdAnnotation: "my-gang", configuration.GangCardinalityAnnotation: "2"}, testNSmallCpuJob("A", 0, 1))...,
 				),
 			},
 			PriorityFactorByQueue: map[string]float64{
@@ -1020,15 +1022,6 @@ func TestSchedule(t *testing.T) {
 				// Check that started and finished it set.
 				assert.NotEqual(t, time.Time{}, schedulingRoundReport.Started)
 				assert.NotEqual(t, time.Time{}, schedulingRoundReport.Finished)
-
-				// Check that initial usage is correct.
-				assert.Equal(t, len(tc.PriorityFactorByQueue), len(schedulingRoundReport.QueueSchedulingRoundReports))
-				for queue, usage := range tc.InitialUsageByQueue {
-					queueSchedulingRoundReport := sched.SchedulingRoundReport.QueueSchedulingRoundReports[queue]
-					if assert.NotNil(t, queueSchedulingRoundReport) {
-						assert.True(t, usage.Equal(queueSchedulingRoundReport.InitialResourcesByPriority))
-					}
-				}
 
 				// Check that scheduling round report scheduled resources is set correctly.
 				for queue, expected := range usageByQueueAndPriority(jobs, tc.SchedulingConfig.Preemption.PriorityClasses) {
@@ -1213,6 +1206,39 @@ func TestReschedule(t *testing.T) {
 				"B": 1,
 			},
 		},
+		"balancing two queues weighted with inactive queues": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 31),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"B": testNSmallCpuJob("A", 0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": intRange(0, 20),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: intRange(11, 31),
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 2,
+				"B": 1,
+				"C": 1,
+				"D": 100,
+			},
+		},
 		"reschedule onto same node": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(2, testPriorities),
@@ -1231,6 +1257,45 @@ func TestReschedule(t *testing.T) {
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": intRange(0, 31),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+		},
+		"reschedule onto same node with PC preemption": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(2, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 31),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 1, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 31),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: intRange(0, 31),
+						},
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 31),
 					},
 				},
 			},
@@ -1487,6 +1552,206 @@ func TestReschedule(t *testing.T) {
 				"A": 1,
 			},
 		},
+		"per-priority class limits": {
+			SchedulingConfig: withPerPriorityLimitsConfig(
+				map[int32]map[string]float64{
+					0: {"cpu": 60.0 / 64.0},
+					1: {"cpu": 20.0 / 64.0},
+				},
+				testSchedulingConfig(),
+			),
+			Nodes: testNCpuNode(2, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": append(
+							testNSmallCpuJob("A", 1, 64),
+							testNSmallCpuJob("A", 0, 64)...,
+						),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": append(intRange(0, 19), intRange(64, 103)...),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 1),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
+		"per-priority class limits multiple rounds": {
+			SchedulingConfig: withPerPriorityLimitsConfig(
+				map[int32]map[string]float64{
+					0: {"cpu": 30.0 / 32.0},
+					1: {"cpu": 10.0 / 32.0},
+				},
+				testSchedulingConfig(),
+			),
+			Nodes: testNCpuNode(1, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": append(
+							testNSmallCpuJob("A", 1, 5),
+							testNSmallCpuJob("A", 0, 10)...,
+						),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 14),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": append(
+							testNSmallCpuJob("A", 1, 32),
+							testNSmallCpuJob("A", 0, 32)...,
+						),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": append(intRange(0, 4), intRange(32, 41)...),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": append(
+							testNSmallCpuJob("A", 1, 32),
+							testNSmallCpuJob("A", 0, 32)...,
+						),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
+		"MaximalClusterFractionToSchedule": {
+			SchedulingConfig: withRoundLimitsConfig(
+				map[string]float64{"cpu": 0.25},
+				testSchedulingConfig(),
+			),
+			Nodes: testNCpuNode(2, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"B": testNSmallCpuJob("B", 0, 64),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": intRange(0, 15),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 64),
+						"B": testNSmallCpuJob("B", 0, 64),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 15),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 64),
+						"B": testNSmallCpuJob("B", 0, 64),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 7),
+						"B": intRange(0, 7),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 64),
+						"B": testNSmallCpuJob("B", 0, 64),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 7),
+						"B": intRange(0, 7),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+		},
+		"MaximalResourceFractionToSchedulePerQueue": {
+			SchedulingConfig: withPerQueueRoundLimitsConfig(
+				map[string]float64{"cpu": 0.25},
+				testSchedulingConfig(),
+			),
+			Nodes: testNCpuNode(2, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 64),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 15),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 64),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 15),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 64),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 15),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 64),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 15),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 64),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
+		"MaximalResourceFractionPerQueue": {
+			SchedulingConfig: withPerQueueLimitsConfig(
+				map[string]float64{"cpu": 0.5},
+				testSchedulingConfig(),
+			),
+			Nodes: testNCpuNode(1, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 15),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 32),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -1496,6 +1761,8 @@ func TestReschedule(t *testing.T) {
 			roundByJobId := make(map[string]int)
 			indexByJobId := make(map[string]int)
 			initialUsageByQueue := armadamaps.DeepCopy(tc.InitialUsageByQueue)
+			expectedNodeIdByJobId := make(map[string]string)
+			log := logrus.NewEntry(logrus.New())
 			for i, round := range tc.Rounds {
 				jobs := make([]LegacySchedulerJob, 0)
 				for queue, reqs := range round.ReqsByQueue {
@@ -1527,7 +1794,7 @@ func TestReschedule(t *testing.T) {
 					tc.TotalResources,
 				)
 				preemptedJobs, scheduledJobs, nodesByJobId, updatedUsageByQueue, err := Reschedule(
-					context.Background(),
+					ctxlogrus.ToContext(context.Background(), log),
 					repo,
 					*constraints,
 					tc.SchedulingConfig,
@@ -1535,6 +1802,7 @@ func TestReschedule(t *testing.T) {
 					tc.PriorityFactorByQueue,
 					initialUsageByQueue,
 					1, 1,
+					nil,
 				)
 				require.NoError(t, err)
 
@@ -1562,21 +1830,43 @@ func TestReschedule(t *testing.T) {
 				}
 				assert.Equal(t, initialUsageByQueue, updatedUsageByQueue)
 
-				// Test that all jobs are mapped to a node.
+				// Test that jobs are mapped to nodes correctly.
 				for _, job := range preemptedJobs {
 					node, ok := nodesByJobId[job.GetId()]
 					assert.True(t, ok)
 					assert.NotNil(t, node)
+
+					// Check that preempted jobs are preempted from the node they were previously scheduled onto.
+					nodeId, ok := expectedNodeIdByJobId[job.GetId()]
+					assert.True(t, ok)
+					assert.Equal(t, nodeId, node.Id, "job %s preempted from unexpected node", job.GetId())
 				}
 				for _, job := range scheduledJobs {
 					node, ok := nodesByJobId[job.GetId()]
 					assert.True(t, ok)
 					assert.NotNil(t, node)
+
+					// Check that scheduled jobs are consistently assigned to the same node.
+					// (We don't allow moving jobs between nodes.)
+					if nodeId, ok := expectedNodeIdByJobId[job.GetId()]; ok {
+						assert.Equal(t, nodeId, node.Id, "job %s scheduled onto unexpected node", job.GetId())
+					} else {
+						expectedNodeIdByJobId[job.GetId()] = node.Id
+					}
+				}
+				for jobId, node := range nodesByJobId {
+					if nodeId, ok := expectedNodeIdByJobId[jobId]; ok {
+						assert.Equal(t, nodeId, node.Id, "job %s preempted from/scheduled onto unexpected node", jobId)
+					}
 				}
 
 				// Expected scheduled jobs.
-				for queue, jobIds := range jobIdsByQueueFromJobs(scheduledJobs) {
+				jobIdsByQueue := jobIdsByQueueFromJobs(scheduledJobs)
+				scheduledQueues := armadamaps.MapValues(round.ExpectedScheduledIndices, func(v []int) bool { return true })
+				maps.Copy(scheduledQueues, armadamaps.MapValues(jobIdsByQueue, func(v []string) bool { return true }))
+				for queue := range scheduledQueues {
 					expected := round.ExpectedScheduledIndices[queue]
+					jobIds := jobIdsByQueue[queue]
 					actual := make([]int, 0)
 					for _, jobId := range jobIds {
 						actual = append(actual, indexByJobId[jobId])
@@ -1587,8 +1877,12 @@ func TestReschedule(t *testing.T) {
 				}
 
 				// Expected preempted jobs.
-				for queue, jobIds := range jobIdsByQueueFromJobs(preemptedJobs) {
+				jobIdsByQueue = jobIdsByQueueFromJobs(preemptedJobs)
+				preemptedQueues := armadamaps.MapValues(round.ExpectedPreemptedIndices, func(v map[int][]int) bool { return true })
+				maps.Copy(preemptedQueues, armadamaps.MapValues(jobIdsByQueue, func(v []string) bool { return true }))
+				for queue := range preemptedQueues {
 					expected := round.ExpectedPreemptedIndices[queue]
+					jobIds := jobIdsByQueue[queue]
 					actual := make(map[int][]int)
 					for _, jobId := range jobIds {
 						i := roundByJobId[jobId]
@@ -1729,6 +2023,7 @@ func BenchmarkReschedule(b *testing.B) {
 				usageByQueue,
 				tc.NodePreemptibleEvictionProbability,
 				tc.NodeOversubscribedEvictionProbability,
+				nil,
 			)
 			require.NoError(b, err)
 			require.Equal(b, 0, len(preemptedJobs))
@@ -1759,6 +2054,7 @@ func BenchmarkReschedule(b *testing.B) {
 					usageByQueue,
 					tc.NodePreemptibleEvictionProbability,
 					tc.NodeOversubscribedEvictionProbability,
+					nil,
 				)
 				require.NoError(b, err)
 
@@ -1788,6 +2084,56 @@ func (it *InMemoryNodeIterator) NextNode() *schedulerobjects.Node {
 	v := it.nodes[it.i]
 	it.i++
 	return v
+}
+
+func TestPodRequirementFromLegacySchedulerJob(t *testing.T) {
+	resourceLimit := v1.ResourceList{
+		"cpu":               resource.MustParse("1"),
+		"memory":            resource.MustParse("128Mi"),
+		"ephemeral-storage": resource.MustParse("8Gi"),
+	}
+	requirements := v1.ResourceRequirements{
+		Limits:   resourceLimit,
+		Requests: resourceLimit,
+	}
+
+	j := &api.Job{
+		Id:       util.NewULID(),
+		Queue:    "test",
+		JobSetId: "set1",
+		Priority: 1,
+		Annotations: map[string]string{
+			"something":                             "test",
+			configuration.GangIdAnnotation:          "gang-id",
+			configuration.GangCardinalityAnnotation: "1",
+		},
+		PodSpecs: []*v1.PodSpec{
+			{
+				Containers: []v1.Container{
+					{
+						Resources: requirements,
+					},
+				},
+				PriorityClassName: "armada-default",
+			},
+		},
+	}
+
+	expected := &schedulerobjects.PodRequirements{
+		Priority:             1,
+		PreemptionPolicy:     string(v1.PreemptLowerPriority),
+		ResourceRequirements: requirements,
+		Annotations: map[string]string{
+			configuration.GangIdAnnotation:          "gang-id",
+			configuration.GangCardinalityAnnotation: "1",
+			JobIdAnnotation:                         j.Id,
+			QueueAnnotation:                         j.Queue,
+		},
+	}
+
+	result := PodRequirementFromLegacySchedulerJob(j, map[string]configuration.PriorityClass{"armada-default": {Priority: int32(1)}})
+
+	assert.Equal(t, expected, result)
 }
 
 func TestEvictOversubscribed(t *testing.T) {
