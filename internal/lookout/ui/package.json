@@ -71,7 +71,7 @@
       "last 1 safari version"
     ]
   },
-  "proxy": "https://8089--main--testing--sharpz7.coder.mcaq.me",
+  "proxy": "http://localhost:8089",
   "devDependencies": {
     "@types/react-truncate": "^2.3.4",
     "@types/validator": "^13.7.3"
