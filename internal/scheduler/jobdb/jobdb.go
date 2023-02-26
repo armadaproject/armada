@@ -146,7 +146,7 @@ func (jobDb *JobDb) ReadTxn() *Txn {
 
 // WriteTxn returns a writeable transaction.
 // Only a single write transaction may access the db at any given time so note that this function will block until
-// any outstanding write transactions  have been comitted or aborted
+// any outstanding write transactions  have been committed or aborted
 func (jobDb *JobDb) WriteTxn() *Txn {
 	jobDb.writerMutex.Lock()
 	jobDb.copyMutex.Lock()
