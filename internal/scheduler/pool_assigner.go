@@ -107,7 +107,7 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	cachedPool, ok := p.poolCache.Get(reqsHash)
+	cachedPool, ok := p.poolCache.Get(string(reqsHash))
 	if ok {
 		return cachedPool.(string), nil
 	}
@@ -127,7 +127,7 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 					return "", errors.WithMessagef(err, "error selecting node for job %s", j.Id())
 				}
 				if report.Node != nil {
-					p.poolCache.Add(reqsHash, pool)
+					p.poolCache.Add(string(reqsHash), pool)
 					return pool, nil
 				}
 			}
@@ -163,7 +163,7 @@ func (p *DefaultPoolAssigner) constructNodeDb(nodes []*schedulerobjects.Node) (*
 func (p *DefaultPoolAssigner) clearAnnotations(reqs *schedulerobjects.PodRequirements) *schedulerobjects.PodRequirements {
 	reqsCopy := proto.Clone(reqs).(*schedulerobjects.PodRequirements)
 	for key := range reqsCopy.GetAnnotations() {
-		reqsCopy.Annotations[key] = ""
+		reqsCopy.Annotations[key] = "poolassigner"
 	}
 	return reqsCopy
 }

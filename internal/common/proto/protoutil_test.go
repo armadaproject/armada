@@ -63,3 +63,7 @@ func TestMustMarshallAndCompress(t *testing.T) {
 	bytes := MustMarshallAndCompress(msg, compressor)
 	assert.Equal(t, compressedMsg, bytes)
 }
+
+func TestHash(t *testing.T) {
+
+}

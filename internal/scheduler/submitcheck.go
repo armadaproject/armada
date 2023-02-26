@@ -154,12 +154,12 @@ func (srv *SubmitChecker) getSchedulingResult(reqs []*schedulerobjects.PodRequir
 	if err != nil {
 		return schedulingResult{isSchedulable: false, reason: err.Error()}
 	}
-	cachedResult, cacheExists := srv.jobSchedulingResultsCache.Get(reqsHash)
+	cachedResult, cacheExists := srv.jobSchedulingResultsCache.Get(string(reqsHash))
 	result, castSuccess := cachedResult.(schedulingResult)
 
 	if !cacheExists || !castSuccess {
 		result = srv.check(reqs)
-		srv.jobSchedulingResultsCache.Add(reqsHash, result)
+		srv.jobSchedulingResultsCache.Add(string(reqsHash), result)
 	}
 
 	return result
