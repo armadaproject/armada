@@ -11,7 +11,7 @@ grpc:
   keepaliveEnforcementPolicy:
     minTime: 10s
     permitWithoutStream: false
-corsAllowedOrigins: ["http://localhost:3000", "http://localhost:8089"]
+corsAllowedOrigins: ["http://localhost:3000", "http://localhost:8089", "http://localhost:10000"]
 auth:
   basicAuth:
     enableAuthentication: false
