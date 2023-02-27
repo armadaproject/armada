@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"context"
 	"fmt"
+	log "github.com/sirupsen/logrus"
 	"math"
 	"math/rand"
 	"reflect"
@@ -58,7 +59,7 @@ type SchedulingConstraints struct {
 	// Per-queue resource limits.
 	// Map from resource type to the limit for that resource.
 	MaximalResourceFractionPerQueue map[string]float64
-	// Limit- as a fraction of total resources across worker clusters- of resource types at each priority.
+	// Limit, as a fraction of total resources across worker clusters, of resource types at each priority.
 	// The limits are cumulative, i.e., the limit at priority p includes all higher levels.
 	MaximalCumulativeResourceFractionPerQueueAndPriority map[int32]map[string]float64
 	// Max resources to schedule per queue at a time.
@@ -178,8 +179,8 @@ func (it *QueuedGangIterator) Peek() ([]LegacySchedulerJob, error) {
 			it.gangCardinalityAnnotation,
 		)
 		if err != nil {
-			log := ctxlogrus.Extract(it.ctx)
-			logging.WithStacktrace(log, err).Errorf("failed to get gang cardinality for job %s", job.GetId())
+			ctxLogger := ctxlogrus.Extract(it.ctx)
+			logging.WithStacktrace(ctxLogger, err).Errorf("failed to get gang cardinality for job %s", job.GetId())
 			gangCardinality = 1 // Schedule jobs with invalid gang cardinality one by one.
 		}
 		if isGangJob {
@@ -386,7 +387,7 @@ func totalResourceRequestsFromJobs(jobs []LegacySchedulerJob, priorityClasses ma
 	return rv
 }
 
-// Priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.
+// QueueCandidateGangIteratorPQ is the Priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.
 type QueueCandidateGangIteratorPQ []*QueueCandidateGangIteratorItem
 
 type QueueCandidateGangIteratorItem struct {
@@ -658,8 +659,8 @@ func exceedsPerPriorityResourceLimits(ctx context.Context, jobPriority int32, us
 					return true, fmt.Sprintf("%s at priority %d", msg, priority)
 				}
 			} else {
-				log := ctxlogrus.Extract(ctx)
-				log.Warnf("Job scheduled at priority %d but there are no per-priority limits set up for this class; skipping per periority limit check", priority)
+				ctxLogger := ctxlogrus.Extract(ctx)
+				ctxLogger.Warnf("Job scheduled at priority %d but there are no per-priority limits set up for this class; skipping per periority limit check", priority)
 			}
 		}
 	}
@@ -699,23 +700,35 @@ type LegacyScheduler struct {
 func (sched *LegacyScheduler) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	fmt.Fprintf(w, "Executor:\t%s\n", sched.ExecutorId)
-	if len(sched.SchedulingConstraints.TotalResources.Resources) == 0 {
-		fmt.Fprint(w, "Total resources:\tnone\n")
-	} else {
-		fmt.Fprint(w, "Total resources:\n")
-		for t, q := range sched.SchedulingConstraints.TotalResources.Resources {
-			fmt.Fprintf(w, "  %s: %s\n", t, q.String())
+
+	// Write formatted output to our tabwriter.
+	writeFormatted := func(format string, a ...any) {
+		_, err := fmt.Fprintf(w, format, a)
+		if err != nil { // Should never happen as stringBuilder never errors
+			log.WithError(err).Errorf("error building LegacyScheduler string")
 		}
 	}
-	fmt.Fprintf(w, "Minimum job size:\t%v\n", sched.MinimumJobSize)
-	if sched.NodeDb == nil {
-		fmt.Fprintf(w, "NodeDb:\t%v\n", sched.NodeDb)
+
+	writeFormatted("Executor:\t%s\n", sched.ExecutorId)
+	if len(sched.SchedulingConstraints.TotalResources.Resources) == 0 {
+		writeFormatted("Total resources:\tnone\n")
 	} else {
-		fmt.Fprint(w, "NodeDb:\n")
-		fmt.Fprint(w, indent.String("\t", sched.NodeDb.String()))
+		writeFormatted("Total resources:\n")
+		for t, q := range sched.SchedulingConstraints.TotalResources.Resources {
+			writeFormatted("  %s: %s\n", t, q)
+		}
 	}
-	w.Flush()
+	writeFormatted("Minimum job size:\t%v\n", sched.MinimumJobSize)
+	if sched.NodeDb == nil {
+		writeFormatted("NodeDb:\t%v\n", sched.NodeDb)
+	} else {
+		writeFormatted("NodeDb:\n")
+		writeFormatted(indent.String("\t", sched.NodeDb.String()))
+	}
+	err := w.Flush()
+	if err != nil { // Should never happen as stringBuilder never errors
+		log.WithError(err).Errorf("error flushing writer when building LegacyScheduler string")
+	}
 	return sb.String()
 }
 
@@ -752,7 +765,7 @@ func EvictPreemptible(
 	if evictionProbability <= 0 {
 		return nil, nil, nil
 	}
-	log := ctxlogrus.Extract(ctx)
+	ctxLogger := ctxlogrus.Extract(ctx)
 	return Evict(
 		it, jobRepo, priorityClasses,
 		func(node *schedulerobjects.Node) bool {
@@ -760,7 +773,7 @@ func EvictPreemptible(
 		},
 		func(job LegacySchedulerJob) bool {
 			if job.GetAnnotations() == nil {
-				log.Warnf("can't evict job %s: annotations not initialised", job.GetId())
+				ctxLogger.Warnf("can't evict job %s: annotations not initialised", job.GetId())
 				return false
 			}
 			priorityClassName := job.GetRequirements(priorityClasses).PriorityClassName
@@ -776,7 +789,7 @@ func EvictPreemptible(
 		func(job LegacySchedulerJob, node *schedulerobjects.Node) {
 			annotations := job.GetAnnotations()
 			if annotations == nil {
-				log.Errorf("error evicting job %s: annotations not initialised", job.GetId())
+				ctxLogger.Errorf("error evicting job %s: annotations not initialised", job.GetId())
 				return
 			}
 			// Add annotations to this job that indicate to the scheduler
@@ -807,7 +820,7 @@ func EvictOversubscribed(
 	if evictionProbability <= 0 {
 		return nil, nil, nil
 	}
-	log := ctxlogrus.Extract(ctx)
+	ctxLogger := ctxlogrus.Extract(ctx)
 	var overSubscribedPriorities map[int32]bool
 	prioritiesByName := configuration.PriorityByPriorityClassName(priorityClasses)
 	return Evict(
@@ -826,7 +839,7 @@ func EvictOversubscribed(
 		},
 		func(job LegacySchedulerJob) bool {
 			if job.GetAnnotations() == nil {
-				log.Warnf("can't evict job %s: annotations not initialised", job.GetId())
+				ctxLogger.Warnf("can't evict job %s: annotations not initialised", job.GetId())
 				return false
 			}
 			info := job.GetRequirements(priorityClasses)
@@ -839,11 +852,11 @@ func EvictOversubscribed(
 		func(job LegacySchedulerJob, node *schedulerobjects.Node) {
 			annotations := job.GetAnnotations()
 			if annotations == nil {
-				log.Errorf("error evicting job %s: annotations not initialised", job.GetId())
+				ctxLogger.Errorf("error evicting job %s: annotations not initialised", job.GetId())
 				return
 			}
 
-			// TODO: This is only necessary for jobs not shceduled in this cycle.
+			// TODO: This is only necessary for jobs not scheduled in this cycle.
 			// Since jobs scheduled in this cycle can be rescheduled onto another node without triggering a preemption.
 			//
 			// Add annotations to this job that indicate to the scheduler
@@ -852,7 +865,7 @@ func EvictOversubscribed(
 			annotations[TargetNodeIdAnnotation] = node.Id
 			annotations[IsEvictedAnnotation] = "true"
 
-			// TODO: This is only necessary for jobs not shceduled in this cycle.
+			// TODO: This is only necessary for jobs not scheduled in this cycle.
 			// Since jobs scheduled in this cycle can be rescheduled onto another node without triggering a preemption.
 			//
 			// Add an empty allocation for this queue.
@@ -927,7 +940,7 @@ func NewLegacyScheduler(
 		)
 	}
 	if ResourceListAsWeightedApproximateFloat64(constraints.ResourceScarcity, nodeDb.totalResources) == 0 {
-		// This refers to the resources currently considered for schedling.
+		// This refers to the resources currently considered for scheduling.
 		return nil, errors.Errorf(
 			"no resources with non-zero weight available for scheduling in NodeDb: resource scarcity %v, total resources %v",
 			constraints.ResourceScarcity, nodeDb.totalResources,
@@ -1005,12 +1018,12 @@ func Reschedule(
 	nodeOversubscribedEvictionProbability float64,
 	schedulingReportsRepository *SchedulingReportsRepository,
 ) ([]LegacySchedulerJob, []LegacySchedulerJob, map[string]*schedulerobjects.Node, map[string]schedulerobjects.QuantityByPriorityAndResourceType, error) {
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("function", "Reschedule")
+	ctxLogger := ctxlogrus.Extract(ctx)
+	ctxLogger = ctxLogger.WithField("function", "Reschedule")
 	usageByQueueAndPriority := armadamaps.DeepCopy(initialUsageByQueueAndPriority)
 	preemptedJobsById := make(map[string]LegacySchedulerJob)
 	scheduledJobsById := make(map[string]LegacySchedulerJob)
-	log.Infof("starting rescheduling with total resources %s", constraints.TotalResources.CompactString())
+	ctxLogger.Infof("starting rescheduling with total resources %s", constraints.TotalResources.CompactString())
 
 	// NodeDb snapshot prior to making any changes.
 	// We compare against this snapshot after scheduling to detect changes.
@@ -1045,7 +1058,7 @@ func Reschedule(
 		Subtract,
 	)
 	if s := JobsSummary(evictedJobs); s != "" {
-		log.Infof("evicted for resource balancing %d jobs on nodes %v; %s", len(evictedJobs), maps.Keys(affectedNodesById), s)
+		ctxLogger.Infof("evicted for resource balancing %d jobs on nodes %v; %s", len(evictedJobs), maps.Keys(affectedNodesById), s)
 	}
 
 	// Update nodes with evicted jobs in the NodeDb,
@@ -1109,7 +1122,7 @@ func Reschedule(
 		Add,
 	)
 	if s := JobsSummary(rescheduledJobs); s != "" {
-		log.Infof("rescheduled %d jobs after eviction; %s", len(rescheduledJobs), s)
+		ctxLogger.Infof("rescheduled %d jobs after eviction; %s", len(rescheduledJobs), s)
 	}
 
 	// Evict jobs on oversubscribed nodes.
@@ -1140,7 +1153,7 @@ func Reschedule(
 		Subtract,
 	)
 	if s := JobsSummary(evictedJobs); s != "" {
-		log.Infof("evicted %d oversubscribed jobs on nodes %v; %s", len(evictedJobs), maps.Keys(affectedNodesById), s)
+		ctxLogger.Infof("evicted %d oversubscribed jobs on nodes %v; %s", len(evictedJobs), maps.Keys(affectedNodesById), s)
 	}
 
 	// Update nodes with evicted jobs in the NodeDb and try to re-schedule these jobs.
@@ -1199,11 +1212,11 @@ func Reschedule(
 		Add,
 	)
 	if s := JobsSummary(rescheduledJobs); s != "" {
-		log.Infof("rescheduled %d jobs after priority class eviction; %s", len(rescheduledJobs), s)
+		ctxLogger.Infof("rescheduled %d jobs after priority class eviction; %s", len(rescheduledJobs), s)
 	}
 
 	// For each node in the NodeDb, compare assigned jobs relative to the initial snapshot.
-	// Jobs no longer assigned to a node are preemtped.
+	// Jobs no longer assigned to a node are preempted.
 	// Jobs assigned to a node that weren't present earlier are scheduled.
 	//
 	// Compare the NodeJobDiff with expected preempted/scheduled jobs to ensure it's consistent.
@@ -1214,12 +1227,12 @@ func Reschedule(
 	}
 	for jobId := range preemptedJobsById {
 		if _, ok := preempted[jobId]; !ok {
-			log.Errorf("inconsistent NodeDb: expected job %s to be preempted", jobId)
+			ctxLogger.Errorf("inconsistent NodeDb: expected job %s to be preempted", jobId)
 		}
 	}
 	for jobId := range scheduledJobsById {
 		if _, ok := scheduled[jobId]; !ok {
-			log.Errorf("inconsistent NodeDb: expected job %s to be scheduled", jobId)
+			ctxLogger.Errorf("inconsistent NodeDb: expected job %s to be scheduled", jobId)
 		}
 	}
 	nodesByJobId := make(map[string]*schedulerobjects.Node, len(preempted)+len(scheduled))
@@ -1229,7 +1242,7 @@ func Reschedule(
 		if job, ok := preemptedJobsById[jobId]; ok {
 			preemptedJobs = append(preemptedJobs, job)
 		} else {
-			log.Errorf("inconsistent NodeDb: didn't expect job %s to be preempted", jobId)
+			ctxLogger.Errorf("inconsistent NodeDb: didn't expect job %s to be preempted", jobId)
 		}
 	}
 	scheduledJobs := make([]LegacySchedulerJob, 0, len(preemptedJobsById))
@@ -1238,14 +1251,14 @@ func Reschedule(
 		if job, ok := scheduledJobsById[jobId]; ok {
 			scheduledJobs = append(scheduledJobs, job)
 		} else {
-			log.Errorf("inconsistent NodeDb: didn't expect job %s to be scheduled", jobId)
+			ctxLogger.Errorf("inconsistent NodeDb: didn't expect job %s to be scheduled", jobId)
 		}
 	}
 	if s := JobsSummary(preemptedJobs); s != "" {
-		log.Infof("preempting running jobs; %s", s)
+		ctxLogger.Infof("preempting running jobs; %s", s)
 	}
 	if s := JobsSummary(scheduledJobs); s != "" {
-		log.Infof("scheduling new jobs; %s", s)
+		ctxLogger.Infof("scheduling new jobs; %s", s)
 	}
 	return preemptedJobs, scheduledJobs, nodesByJobId, usageByQueueAndPriority, nil
 }

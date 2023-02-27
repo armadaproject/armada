@@ -13,7 +13,7 @@ const (
 	// TargetNodeIdAnnotation if set on a pod, the value of this annotation is interpreted as the id of a node
 	// and only the node with that id will be considered for scheduling the pod.
 	TargetNodeIdAnnotation = "armadaproject.io/targetNodeId"
-	// IsEvictedAnnotation, indicates a pod was evicted in this round and is currently running.
+	// IsEvictedAnnotation indicates a pod was evicted in this round and is currently running.
 	// Used by the scheduler to differentiate between pods from running and queued jobs.
 	IsEvictedAnnotation = "armadaproject.io/isEvicted"
 	// JobIdAnnotation if set on a pod, indicates which job this pod is part of.
@@ -32,7 +32,7 @@ var ArmadaSchedulerManagedAnnotations = []string{
 type Configuration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
-	// Redis Comnfig
+	// Redis Config
 	Redis config.RedisConfig
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig

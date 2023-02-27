@@ -71,7 +71,7 @@ func NewNodeType(taints []v1.Taint, labels map[string]string, indexedTaints map[
 // of taints, labels, and unset labels, of the form
 // $taint1$taint2...&$label1=labelValue1$label2=labelValue2...&$unsetIndexedLabel1=unsetIndexedLabelValue1...
 //
-// We separate taints/labels by $, labels and values by =, and and groups by &,
+// We separate taints/labels by $, labels and values by =, and groups by &,
 // since these characters are not allowed in taints and labels; see
 // https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
 // https://man.archlinux.org/man/community/kubectl/kubectl-taint.1.en
@@ -108,7 +108,7 @@ func getFilteredTaints(taints []v1.Taint, inclusionFilter taintsFilterFunc) []v1
 	if inclusionFilter == nil {
 		return taints
 	}
-	filteredTaints := []v1.Taint{}
+	var filteredTaints []v1.Taint
 	for _, taint := range taints {
 		if !inclusionFilter(&taint) {
 			continue

@@ -174,7 +174,7 @@ func (srv *ExecutorApi) ReportEvents(ctx context.Context, list *executorapi.Even
 	return &types.Empty{}, err
 }
 
-// createExecutorState extracts a schedulerobjects.Executor from the requesrt
+// createExecutorState extracts a schedulerobjects.Executor from the request
 func (srv *ExecutorApi) createExecutorState(ctx context.Context, req *executorapi.LeaseRequest) *schedulerobjects.Executor {
 	log := ctxlogrus.Extract(ctx)
 	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
@@ -203,7 +203,7 @@ func (srv *ExecutorApi) createExecutorState(ctx context.Context, req *executorap
 // extractRunIds extracts all the job runs contained in the executor request
 func extractRunIds(req *executorapi.LeaseRequest) ([]uuid.UUID, error) {
 	runIds := make([]uuid.UUID, 0)
-	// add all runids from nodes
+	// add all runIds from nodes
 	for _, node := range req.Nodes {
 		for runIdStr := range node.RunIdsByState {
 			runId, err := uuid.Parse(runIdStr)
@@ -213,7 +213,7 @@ func extractRunIds(req *executorapi.LeaseRequest) ([]uuid.UUID, error) {
 			runIds = append(runIds, runId)
 		}
 	}
-	// add all unassigned runids
+	// add all unassigned runIds
 	for _, runId := range req.UnassignedJobRunIds {
 		runIds = append(runIds, armadaevents.UuidFromProtoUuid(&runId))
 	}

@@ -2184,7 +2184,7 @@ func apiJobsFromPodReqs(queue string, reqs []*schedulerobjects.PodRequirements) 
 	return rv
 }
 
-func legacySchedulerJobsFromPodReqs(queue, priorityClassName string, reqs []*schedulerobjects.PodRequirements) []LegacySchedulerJob {
+func legacySchedulerJobsFromPodReqs(queue, _ string, reqs []*schedulerobjects.PodRequirements) []LegacySchedulerJob {
 	rv := make([]LegacySchedulerJob, len(reqs))
 	T := time.Now()
 	// TODO: This only works if each PC has a unique priority.
@@ -2227,15 +2227,15 @@ func newResourceLimits(minimum map[string]resource.Quantity, maximum map[string]
 }
 
 func assertResourceLimitsSatisfied(t *testing.T, limits resourceLimits, resources schedulerobjects.ResourceList) bool {
-	for resource, min := range limits.Minimum.Resources {
-		actual := resources.Resources[resource]
-		if !assert.NotEqual(t, 1, min.Cmp(actual), "%s limits not satisfied: min is %s, but actual is %s", resource, min.String(), actual.String()) {
+	for r, min := range limits.Minimum.Resources {
+		actual := resources.Resources[r]
+		if !assert.NotEqual(t, 1, min.Cmp(actual), "%s limits not satisfied: min is %s, but actual is %s", r, min.String(), actual.String()) {
 			return false
 		}
 	}
-	for resource, actual := range resources.Resources {
-		if max, ok := limits.Maximum.Resources[resource]; ok {
-			if !assert.NotEqual(t, -1, max.Cmp(actual), "%s limits not satisfied: max is %s, but actual is %s", resource, max.String(), actual.String()) {
+	for r, actual := range resources.Resources {
+		if max, ok := limits.Maximum.Resources[r]; ok {
+			if !assert.NotEqual(t, -1, max.Cmp(actual), "%s limits not satisfied: max is %s, but actual is %s", r, max.String(), actual.String()) {
 				return false
 			}
 		}
@@ -2357,7 +2357,7 @@ func (repo *mockJobRepository) GetExistingJobsByIds(jobIds []string) ([]LegacySc
 	return rv, nil
 }
 
-func (repo *mockJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
+func (repo *mockJobRepository) TryLeaseJobs(_ string, _ string, jobs []*api.Job) ([]*api.Job, error) {
 	successfullyLeasedJobs := make([]*api.Job, 0, len(jobs))
 	for _, job := range jobs {
 		if !repo.leasedJobs[job.Id] {
@@ -2376,15 +2376,4 @@ func benchmarkQuantityComparison(b *testing.B, q1, q2 resource.Quantity) {
 
 func BenchmarkQuantityComparison(b *testing.B) {
 	benchmarkQuantityComparison(b, resource.MustParse("1"), resource.MustParse("2"))
-}
-
-func BenchmarkIntComparison(b *testing.B) {
-	result := 0
-	v1 := 1
-	v2 := 2
-	for i := 0; i < b.N; i++ {
-		if v1 == v2 {
-			result += 1
-		}
-	}
 }

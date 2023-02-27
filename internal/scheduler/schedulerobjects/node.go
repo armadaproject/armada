@@ -17,7 +17,7 @@ func (node *Node) AvailableQuantityByPriorityAndResource(priority int32, resourc
 	return AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).Get(priority, resourceType)
 }
 
-// DominantQueue returns the name of the queue with largest CPU request on this node.
+// DominantQueue returns the name of the queue with the largest CPU request on this node.
 // If a tie, the lexicographically smaller queue is returned.
 func (node *Node) DominantQueue() string {
 	dominantQueue := ""

@@ -10,9 +10,9 @@ import (
 )
 
 const (
-	SCHEDULABLE_WITH_PREEMPTION_SCORE    = 0
-	SCHEDULABLE_WITHOUT_PREEMPTION_SCORE = 1
-	SCHEDULABLE_BEST_SCORE               = SCHEDULABLE_WITHOUT_PREEMPTION_SCORE
+	SchedulableWithPreemptionScore    = 0
+	SchedulableWithoutPreemptionScore = 1
+	SchedulableBestScore              = SchedulableWithoutPreemptionScore
 )
 
 type PodRequirementsNotMetReason interface {
@@ -111,11 +111,11 @@ func (node *Node) StaticPodRequirementsMet(req *PodRequirements) (bool, PodRequi
 		return matches, reason, err
 	}
 
-	for resource, required := range req.ResourceRequirements.Requests {
-		available := node.TotalResources.Get(string(resource))
+	for r, required := range req.ResourceRequirements.Requests {
+		available := node.TotalResources.Get(string(r))
 		if required.Cmp(available) == 1 {
 			return false, &InsufficientResources{
-				Resource:  string(resource),
+				Resource:  string(r),
 				Required:  required,
 				Available: available,
 			}, nil
@@ -132,12 +132,12 @@ func (node *Node) DynamicPodRequirementsMet(req *PodRequirements) (bool, int, Po
 	// by checking if resource requirements are met at priority 0.
 	matches, reason, err := podResourceRequirementsMet(0, node.AllocatableByPriorityAndResource, req)
 	if matches || err != nil {
-		return matches, SCHEDULABLE_WITHOUT_PREEMPTION_SCORE, reason, err
+		return matches, SchedulableWithoutPreemptionScore, reason, err
 	}
 
 	// Check if the pod can be scheduled with preemption.
 	matches, reason, err = podResourceRequirementsMet(req.GetPriority(), node.AllocatableByPriorityAndResource, req)
-	return matches, SCHEDULABLE_WITH_PREEMPTION_SCORE, reason, err
+	return matches, SchedulableWithPreemptionScore, reason, err
 }
 
 func podTolerationRequirementsMet(nodeTaints []v1.Taint, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
@@ -204,12 +204,12 @@ func podNodeAffinityRequirementsMet(nodeLabels map[string]string, req *PodRequir
 	return true, nil, nil
 }
 
-func podResourceRequirementsMet(priority int32, allocatableResources AllocatableByPriorityAndResourceType, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
-	for resource, required := range req.ResourceRequirements.Requests {
-		available := allocatableResources.Get(req.Priority, string(resource))
+func podResourceRequirementsMet(_ int32, allocatableResources AllocatableByPriorityAndResourceType, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
+	for r, required := range req.ResourceRequirements.Requests {
+		available := allocatableResources.Get(req.Priority, string(r))
 		if required.Cmp(available) == 1 {
 			return false, &InsufficientResources{
-				Resource:  string(resource),
+				Resource:  string(r),
 				Required:  required,
 				Available: available,
 			}, nil

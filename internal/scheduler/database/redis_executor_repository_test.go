@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	log "github.com/sirupsen/logrus"
 	"testing"
 	"time"
 
@@ -78,7 +79,12 @@ func TestRedisExecutorRepository_LoadAndSave(t *testing.T) {
 func withRedisExecutorRepository(action func(repository *RedisExecutorRepository)) {
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 	defer client.FlushDB()
-	defer client.Close()
+	defer func() {
+		err := client.Close()
+		if err != nil {
+			log.WithError(err).Warnf("Error closing redis client")
+		}
+	}()
 
 	client.FlushDB()
 	repo := NewRedisExecutorRepository(client, "pulsar")
