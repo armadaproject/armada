@@ -2,7 +2,6 @@ package service
 
 import (
 	"fmt"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -61,36 +60,11 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 			log.Warnf("Job for job %s run %s unexpectedly nil", run.Meta.JobId, run.Meta.RunId)
 			continue
 		}
-		jobs  = append(jobs, run.Job)
+		jobs = append(jobs, run.Job)
 	}
 
 	failedJobSubmissions := allocationService.submitter.SubmitJobs(jobs)
 	allocationService.processFailedJobSubmissions(failedJobSubmissions)
-}
-
-func (allocationService *ClusterAllocationService) handleFailedJobCreation(failedJobCreationDetails []*failedJobCreationDetails) {
-	for _, failedCreateDetails := range failedJobCreationDetails {
-		failedEvent := &api.JobFailedEvent{
-			JobId:             failedCreateDetails.JobRunMeta.JobId,
-			JobSetId:          failedCreateDetails.JobRunMeta.JobSet,
-			Queue:             failedCreateDetails.JobRunMeta.Queue,
-			Created:           time.Now(),
-			ClusterId:         allocationService.clusterId.GetClusterId(),
-			Reason:            failedCreateDetails.Error.Error(),
-			ExitCodes:         map[string]int32{},
-			ContainerStatuses: []*api.ContainerStatus{},
-			Cause:             api.Cause_Error,
-		}
-		err := allocationService.eventReporter.Report([]reporter.EventMessage{{Event: failedEvent, JobRunId: failedCreateDetails.JobRunMeta.RunId}})
-		if err == nil {
-			allocationService.jobRunStateStore.ReportFailedSubmission(failedCreateDetails.JobRunMeta)
-		} else {
-			// This will cause us to lease it again - which is acceptable as the pod was never created
-			allocationService.jobRunStateStore.Delete(failedCreateDetails.JobRunMeta.RunId)
-			log.Errorf("Failed to report job creation failed for job %s (run id %s) because %s",
-				failedCreateDetails.JobRunMeta.JobId, failedCreateDetails.JobRunMeta.RunId, err)
-		}
-	}
 }
 
 func (allocationService *ClusterAllocationService) processFailedJobSubmissions(failedSubmissions []*job.FailedSubmissionDetails) {

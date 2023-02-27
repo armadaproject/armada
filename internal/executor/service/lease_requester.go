@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"io"
-	"time"
 
 	grpcretry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/pkg/errors"
@@ -25,12 +24,12 @@ type LeaseRequest struct {
 
 type LeaseResponse struct {
 	LeasedRuns      []*executorapi.JobRunLease
-	RunsIdsToCancel []*armadaevents.Uuid
+	RunIdsToCancel  []*armadaevents.Uuid
 	RunIdsToPreempt []*armadaevents.Uuid
 }
 
 type LeaseRequester interface {
-	LeaseJobRuns(request *LeaseRequest) (*LeaseResponse, error)
+	LeaseJobRuns(ctx context.Context, request *LeaseRequest) (*LeaseResponse, error)
 }
 
 type JobLeaseRequester struct {
@@ -51,9 +50,7 @@ func NewJobLeaseRequester(
 	}
 }
 
-func (requester *JobLeaseRequester) LeaseJobRuns(request *LeaseRequest) (*LeaseResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+func (requester *JobLeaseRequester) LeaseJobRuns(ctx context.Context, request *LeaseRequest) (*LeaseResponse, error) {
 	stream, err := requester.executorApiClient.LeaseJobRuns(ctx, grpcretry.Disable(), grpc.UseCompressor(gzip.Name))
 	if err != nil {
 		return nil, err
@@ -109,7 +106,7 @@ func (requester *JobLeaseRequester) LeaseJobRuns(request *LeaseRequest) (*LeaseR
 
 	return &LeaseResponse{
 		LeasedRuns:      leaseRuns,
-		RunsIdsToCancel: runIdsToCancel,
+		RunIdsToCancel:  runIdsToCancel,
 		RunIdsToPreempt: runIdsToPreempt,
 	}, nil
 }

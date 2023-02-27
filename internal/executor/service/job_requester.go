@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -10,7 +11,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/slices"
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
-	"github.com/armadaproject/armada/internal/executor/context"
+	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/util"
@@ -24,13 +25,13 @@ type JobRequester struct {
 	leaseRequester     LeaseRequester
 	eventReporter      reporter.EventReporter
 	utilisationService utilisation.UtilisationService
-	clusterId          context.ClusterIdentity
+	clusterId          executorContext.ClusterIdentity
 	podDefaults        *configuration.PodDefaults
 	jobRunStateStore   *job.JobRunStateStore
 }
 
 func NewJobRequester(
-	clusterId context.ClusterIdentity,
+	clusterId executorContext.ClusterIdentity,
 	eventReporter reporter.EventReporter,
 	leaseRequester LeaseRequester,
 	jobRunStateStore *job.JobRunStateStore,
@@ -52,7 +53,9 @@ func (r *JobRequester) RequestJobsRuns() {
 		log.Errorf("Failed to create lease request because %s", err)
 		return
 	}
-	leaseResponse, err := r.leaseRequester.LeaseJobRuns(leaseRequest)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	leaseResponse, err := r.leaseRequester.LeaseJobRuns(ctx, leaseRequest)
 	if err != nil {
 		log.Errorf("Failed to request new jobs leases as because %s", err)
 		return
@@ -61,7 +64,7 @@ func (r *JobRequester) RequestJobsRuns() {
 
 	jobs, failedJobCreations := r.createSubmitJobs(leaseResponse.LeasedRuns)
 	r.markJobRunsAsLeased(jobs)
-	r.markJobRunsAsCancelled(leaseResponse.RunsIdsToCancel)
+	r.markJobRunsAsCancelled(leaseResponse.RunIdsToCancel)
 	r.markJobRunsToPreempt(leaseResponse.RunIdsToPreempt)
 	r.handleFailedJobCreation(failedJobCreations)
 }
