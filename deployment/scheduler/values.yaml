@@ -1,0 +1,79 @@
+additionalLabels: {}
+
+scheduler:
+  replicas: 1
+  image:
+    repository: gresearchdev/armada-scheduler
+    tag: LATEST
+  resources:
+    limits:
+      memory: 1Gi
+      cpu: 300m
+    requests:
+      memory: 512Mi
+      cpu: 200m
+  applicationConfig:
+    grpc:
+      port: 50051
+    metrics:
+      port: 9001
+    pulsar: {}
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
+  customServiceAccount: null
+  serviceAccount: null
+  additionalVolumeMounts: []
+  additionalVolumes: []
+  terminationGracePeriodSeconds: 30
+  ingress:
+    nameOverride: ""
+    annotations: {}
+    labels: {}
+  prometheus:
+    enabled: false
+    labels: {}
+    scrapeInterval: 15s
+
+ingester:
+  replicas: 1
+  image:
+    repository: gresearchdev/armada-scheduler-ingester
+    tag: LATEST
+  resources:
+    limits:
+      memory: 1Gi
+      cpu: 300m
+    requests:
+      memory: 512Mi
+      cpu: 200m
+  applicationConfig:
+    metrics:
+      port: 9003
+    pulsar: {}
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
+  customServiceAccount: null
+  serviceAccount: null
+  additionalVolumeMounts: []
+  additionalVolumes: []
+  terminationGracePeriodSeconds: 30
+
+pruner:
+  enabled: true
+  schedule: "@hourly"
+  resources:
+    limits:
+      memory: 1Gi
+      cpu: 300m
+    requests:
+      memory: 512Mi
+      cpu: 200m
+  args:
+    timeout: 5m
+    batchsize: 10000
+    expireAfter: 2h
+  applicationConfig: {}

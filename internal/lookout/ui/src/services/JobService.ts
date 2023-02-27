@@ -12,7 +12,7 @@ import {
   V1Container,
   V1PodSpec,
 } from "../openapi/lookout"
-import { reverseMap, secondsToDurationString, getErrorMessage } from "../utils"
+import { inverseMap, secondsToDurationString, getErrorMessage } from "../utils"
 
 type DurationFromApi = {
   seconds?: number
@@ -142,7 +142,7 @@ JOB_STATE_MAP.set("SUCCEEDED", "Succeeded")
 JOB_STATE_MAP.set("FAILED", "Failed")
 JOB_STATE_MAP.set("CANCELLED", "Cancelled")
 
-const INVERSE_JOB_STATE_MAP = reverseMap(JOB_STATE_MAP)
+const INVERSE_JOB_STATE_MAP = inverseMap(JOB_STATE_MAP)
 
 export const JOB_STATES_FOR_DISPLAY = ["Queued", "Pending", "Running", "Succeeded", "Failed", "Cancelled"]
 
@@ -201,7 +201,7 @@ export class LookoutJobService implements JobService {
 
   async getJobs(getJobsRequest: GetJobsRequest, signal: AbortSignal | undefined): Promise<Job[]> {
     const jobStatesForApi = getJobsRequest.jobStates.map(getJobStateForApi)
-    const jobSetsForApi = getJobsRequest.jobSets.map(escapeBackslashes)
+    const jobSetsForApi = getJobsRequest.jobSets
     const response = await this.lookoutApi.getJobs(
       {
         body: {
@@ -447,10 +447,6 @@ export class LookoutJobService implements JobService {
     }
     return userAnnotations
   }
-}
-
-function escapeBackslashes(str: string) {
-  return str.split("\\").join("\\\\")
 }
 
 function jobSetToViewModel(jobSet: LookoutJobSetInfo): JobSet {

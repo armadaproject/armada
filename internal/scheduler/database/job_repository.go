@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
@@ -12,6 +11,8 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -25,6 +26,7 @@ type JobRunLease struct {
 	Queue         string
 	JobSet        string
 	UserID        string
+	Node          string
 	Groups        []byte
 	SubmitMessage []byte
 }
@@ -37,7 +39,7 @@ type JobRepository interface {
 
 	// FetchJobRunErrors returns all armadaevents.JobRunErrors for the provided job run ids.  The returned map is
 	// keyed by job run id.  Any dbRuns which don't have errors wil be absent from the map.
-	FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.JobRunErrors, error)
+	FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error)
 
 	// CountReceivedPartitions returns a count of the number of partition messages present in the database corresponding
 	// to the provided groupId.  This is used by the scheduler to determine if the database represents the state of
@@ -70,33 +72,51 @@ func NewPostgresJobRepository(db *pgxpool.Pool, batchSize int32) *PostgresJobRep
 
 // FetchJobRunErrors returns all armadaevents.JobRunErrors for the provided job run ids.  The returned map is
 // keyed by job run id.  Any dbRuns which don't have errors wil be absent from the map.
-func (r *PostgresJobRepository) FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.JobRunErrors, error) {
-	queries := New(r.db)
-	rows, err := queries.SelectRunErrorsById(ctx, runIds)
-	if err == nil {
-		return nil, errors.WithStack(err)
-	}
-	jobRunErrors := make([]armadaevents.JobRunErrors, len(rows))
+func (r *PostgresJobRepository) FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error) {
+	chunks := armadaslices.Partition(runIds, int(r.batchSize))
+
+	errorsByRunId := make(map[uuid.UUID]*armadaevents.Error, len(runIds))
 	decompressor := compress.NewZlibDecompressor()
-	for i, row := range rows {
-		protoBytes, err := decompressor.Decompress(row.Error)
-		if err == nil {
-			return nil, err
-		}
-		jre := armadaevents.JobRunErrors{}
-		err = proto.Unmarshal(protoBytes, &jre)
-		if err == nil {
-			return nil, errors.WithStack(err)
-		}
-		jobRunErrors[i] = jre
-	}
 
-	errorsById := make(map[uuid.UUID]*armadaevents.JobRunErrors, len(jobRunErrors))
-	for _, jobRunError := range jobRunErrors {
-		errorsById[armadaevents.UuidFromProtoUuid(jobRunError.RunId)] = &jobRunError
-	}
+	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
+		IsoLevel:       pgx.ReadCommitted,
+		AccessMode:     pgx.ReadWrite,
+		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		for _, chunk := range chunks {
+			tmpTable, err := insertRunIdsToTmpTable(ctx, tx, chunk)
+			if err != nil {
+				return err
+			}
 
-	return errorsById, err
+			query := `
+		SELECT  job_run_errors.run_id, job_run_errors.error
+		FROM %s as tmp
+		JOIN job_run_errors ON job_run_errors.run_id = tmp.run_id`
+
+			rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable))
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+			for rows.Next() {
+				var runId uuid.UUID
+				var errorBytes []byte
+				err := rows.Scan(&runId, &errorBytes)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				jobError, err := protoutil.DecompressAndUnmarshall(errorBytes, &armadaevents.Error{}, decompressor)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				errorsByRunId[runId] = jobError
+			}
+		}
+		return nil
+	})
+
+	return errorsByRunId, err
 }
 
 // FetchJobUpdates returns all jobs and job dbRuns that have been updated after jobSerial and jobRunSerial respectively
@@ -121,17 +141,18 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx context.Context, jobSerial i
 		updatedJobs = make([]Job, len(updatedJobRows))
 		for i, row := range updatedJobRows {
 			updatedJobs[i] = Job{
-				JobID:           row.JobID,
-				JobSet:          row.JobSet,
-				Queue:           row.Queue,
-				Priority:        row.Priority,
-				Submitted:       row.Submitted,
-				CancelRequested: row.CancelRequested,
-				Cancelled:       row.Cancelled,
-				Succeeded:       row.Succeeded,
-				Failed:          row.Failed,
-				SchedulingInfo:  row.SchedulingInfo,
-				Serial:          row.Serial,
+				JobID:                   row.JobID,
+				JobSet:                  row.JobSet,
+				Queue:                   row.Queue,
+				Priority:                row.Priority,
+				Submitted:               row.Submitted,
+				CancelRequested:         row.CancelRequested,
+				Cancelled:               row.Cancelled,
+				CancelByJobsetRequested: row.CancelByJobsetRequested,
+				Succeeded:               row.Succeeded,
+				Failed:                  row.Failed,
+				SchedulingInfo:          row.SchedulingInfo,
+				Serial:                  row.Serial,
 			}
 		}
 
@@ -206,7 +227,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx context.Context, executor 
 		}
 
 		query := `
-				SELECT jr.run_id, j.queue, j.job_set, j.user_id, j.groups, j.submit_message
+				SELECT jr.run_id, jr.node, j.queue, j.job_set, j.user_id, j.groups, j.submit_message
 				FROM runs jr
 				LEFT JOIN %s as tmp ON (tmp.run_id = jr.run_id)    
 			    JOIN jobs j
@@ -226,7 +247,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx context.Context, executor 
 		defer rows.Close()
 		for rows.Next() {
 			run := JobRunLease{}
-			err = rows.Scan(&run.RunID, &run.Queue, &run.JobSet, &run.UserID, &run.Groups, &run.SubmitMessage)
+			err = rows.Scan(&run.RunID, &run.Node, &run.Queue, &run.JobSet, &run.UserID, &run.Groups, &run.SubmitMessage)
 			if err != nil {
 				return errors.WithStack(err)
 			}

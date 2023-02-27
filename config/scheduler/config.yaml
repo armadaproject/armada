@@ -9,6 +9,7 @@ pulsar:
   maxConnectionsPerBroker: 1
   compressionType: zlib
   compressionLevel: faster
+  maxAllowedMessageSize: 4194304 #4Mi
 redis:
   addrs:
     - redis:6379
@@ -35,6 +36,8 @@ grpc:
     minTime: 10s
     permitWithoutStream: true
 scheduling:
+  executorTimeout: 10m
+  nodeIdLabel: kubernetes.io/hostname
   preemption:
     enabled: true
     priorityClasses:

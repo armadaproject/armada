@@ -80,7 +80,7 @@ func MatchSchedulingRequirements(
 }
 
 func isLargeEnough(job *api.Job, minimumJobSize armadaresource.ComputeResources) bool {
-	resourceRequest := armadaresource.ComputeResources(job.GetRequirements(nil).GetTotalResourceRequest().Resources)
+	resourceRequest := job.TotalResourceRequest().DeepCopy()
 	resourceRequest.Sub(minimumJobSize)
 	return resourceRequest.IsValid()
 }

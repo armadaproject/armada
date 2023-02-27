@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
@@ -49,7 +51,7 @@ type Scheduler struct {
 	// Used for all timing decisions (sleep etc.). Injected here so that we can mock out for testing
 	clock clock.Clock
 	// Stores active jobs (i.e. queued/running) and provides fast in-memory lookups on them
-	jobDb *JobDb
+	jobDb *jobdb.JobDb
 	// Highest offset we've read from Postgres on the Jobs table.
 	jobsSerial int64
 	// Highest offset we've read from Postgres on the Job Runs table.
@@ -69,7 +71,7 @@ func NewScheduler(
 	executorTimeout time.Duration,
 	maxLeaseReturns uint,
 ) (*Scheduler, error) {
-	jobDb, err := NewJobDb()
+	jobDb, err := jobdb.NewJobDb()
 	if err != nil {
 		return nil, err
 	}
@@ -174,13 +176,7 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	}
 
 	// Generate any events that came out of synchronising the db state
-	events, err := s.generateUpdateMessages(ctx, updatedJobs)
-	if err != nil {
-		return err
-	}
-
-	// Remove any jobs that have moved into a terminal state as a result of the above actions
-	err = s.removeTerminalJobs(txn, updatedJobs)
+	events, err := s.generateUpdateMessages(ctx, updatedJobs, txn)
 	if err != nil {
 		return err
 	}
@@ -217,7 +213,7 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 
 // syncState updates the state of the jobs in jobDb to match the state in postgres
 // It returns all jobs that have been updated
-func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
+func (s *Scheduler) syncState(ctx context.Context) ([]*jobdb.Job, error) {
 	updatedJobs, updatedRuns, err := s.jobRepository.FetchJobUpdates(ctx, s.jobsSerial, s.runsSerial)
 	if err != nil {
 		return nil, err
@@ -228,11 +224,12 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 	defer txn.Abort()
 
 	jobsToDelete := make([]string, 0, len(updatedJobs))
-	jobsToUpdateById := make(map[string]*SchedulerJob, len(updatedJobs))
+	jobsToUpdateById := make(map[string]*jobdb.Job, len(updatedJobs))
 	for _, dbJob := range updatedJobs {
 		// Scheduler has sent a terminal message therefore we can safely remove the job
 		if dbJob.InTerminalState() {
 			jobsToDelete = append(jobsToDelete, dbJob.JobID)
+			continue
 		}
 
 		// Try and retrieve the job from the jobDb.  If it doesn't exist then create it.
@@ -240,7 +237,6 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 		if err != nil {
 			return nil, errors.Wrapf(err, "error retrieving job %s from jobDb ", dbJob.JobID)
 		}
-		job = job.DeepCopy()
 		if job == nil {
 			job, err = s.createSchedulerJob(&dbJob)
 			if err != nil {
@@ -248,9 +244,9 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 			}
 		} else {
 			// make the scheduler job look like the db job
-			updateSchedulerJob(job, &dbJob)
+			job = updateSchedulerJob(job, &dbJob)
 		}
-		jobsToUpdateById[job.JobId] = job
+		jobsToUpdateById[job.Id()] = job
 	}
 
 	for _, dbRun := range updatedRuns {
@@ -264,43 +260,42 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 				return nil, errors.Wrapf(err, "error retrieving job %s from jobDb ", jobId)
 			}
 
-			// If the job is nil at this point then it cannot be active.
+			// If the job is nil or terminal at this point then it cannot be active.
 			// In this case we can ignore the run
-			if job == nil {
+			if job == nil || job.InTerminalState() {
 				log.Debugf("Job %s is not an active job. Ignoring update for run %s", jobId, dbRun.RunID)
 				continue
 			}
-
-			job = job.DeepCopy()
-			jobsToUpdateById[jobId] = job
 		}
 
-		returnProcessed := false
 		run := job.RunById(dbRun.RunID)
 		if run == nil {
 			run = s.createSchedulerRun(&dbRun)
-			// TODO: we need to ensure that runs end up in the correct order here
-			// This will need us to store an order id in the db
-			job.Runs = append(job.Runs, run)
 		} else {
-			returnProcessed = run.Returned
 			// make the scheduler job look like the db job
-			updateSchedulerRun(run, &dbRun)
+			run = updateSchedulerRun(run, &dbRun)
 		}
-
-		// work out if the job needs to be re-queued.  This is a bit awkward as the old scheduler
-		// didn't send an explicit queued message here which means we have to infer it. For now, we
-		// do the same, but eventually we should send an actual queued message and this bit of code can disappear
-		if !returnProcessed && run.Returned && job.NumReturned() <= s.maxLeaseReturns {
-			job.Queued = true
-			run.Failed = false // unset failed here so that we don't generate a job failed message later
-		}
+		job = job.WithUpdatedRun(run)
+		jobsToUpdateById[jobId] = job
 	}
 
 	// any jobs that have don't have active run need to be marked as queued
 	for _, job := range jobsToUpdateById {
-		run := job.CurrentRun()
-		job.Queued = run == nil || run.InTerminalState()
+		// work out if the job needs to be re-queued.  This is a bit awkward as the old scheduler
+		// didn't send an explicit queued message here which means we have to infer it. For now, we
+		// do the same, but eventually we should send an actual queued message and this bit of code can disappear
+		run := job.LatestRun()
+		desiredQueueState := false
+		requeueJob := run != nil && run.Returned() && job.NumReturned() <= s.maxLeaseReturns
+		if run == nil || requeueJob {
+			desiredQueueState = true
+		}
+		if requeueJob {
+			job = job.WithUpdatedRun(run.WithFailed(false))
+		}
+		if desiredQueueState != job.Queued() || requeueJob {
+			jobsToUpdateById[job.Id()] = job.WithQueued(desiredQueueState)
+		}
 	}
 
 	jobsToUpdate := maps.Values(jobsToUpdateById)
@@ -323,24 +318,25 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*SchedulerJob, error) {
 }
 
 // generateLeaseMessages generates EventSequences from the supplied slice of leased jobs
-func (s *Scheduler) generateLeaseMessages(scheduledJobs []*SchedulerJob) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateLeaseMessages(scheduledJobs []*jobdb.Job) ([]*armadaevents.EventSequence, error) {
 	events := make([]*armadaevents.EventSequence, len(scheduledJobs))
 	for i, job := range scheduledJobs {
-		jobId, err := armadaevents.ProtoUuidFromUlidString(job.JobId)
+		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
 		if err != nil {
 			return nil, err
 		}
 		es := &armadaevents.EventSequence{
-			Queue:      job.Queue,
-			JobSetName: job.Jobset,
+			Queue:      job.Queue(),
+			JobSetName: job.Jobset(),
 			Events: []*armadaevents.EventSequence_Event{
 				{
 					Created: s.now(),
 					Event: &armadaevents.EventSequence_Event_JobRunLeased{
 						JobRunLeased: &armadaevents.JobRunLeased{
-							RunId:      armadaevents.ProtoUuidFromUuid(job.CurrentRun().RunID),
+							RunId:      armadaevents.ProtoUuidFromUuid(job.LatestRun().Id()),
 							JobId:      jobId,
-							ExecutorId: job.CurrentRun().Executor,
+							ExecutorId: job.LatestRun().Executor(),
+							NodeId:     job.LatestRun().Node(),
 						},
 					},
 				},
@@ -351,25 +347,14 @@ func (s *Scheduler) generateLeaseMessages(scheduledJobs []*SchedulerJob) ([]*arm
 	return events, nil
 }
 
-// removeTerminalJobs takes the supplied list of jobs and removes any that are in a terminal state from the Job Db
-func (s *Scheduler) removeTerminalJobs(txn *memdb.Txn, updatedJobs []*SchedulerJob) error {
-	idsToDelete := make([]string, 0)
-	for _, job := range updatedJobs {
-		if job.InTerminalState() {
-			idsToDelete = append(idsToDelete, job.JobId)
-		}
-	}
-	return s.jobDb.BatchDelete(txn, idsToDelete)
-}
-
 // generateUpdateMessages generates EventSequences representing the state changes on updated jobs
 // If there are no state changes then an empty slice will be returned
-func (s *Scheduler) generateUpdateMessages(ctx context.Context, updatedJobs []*SchedulerJob) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateUpdateMessages(ctx context.Context, updatedJobs []*jobdb.Job, txn *memdb.Txn) ([]*armadaevents.EventSequence, error) {
 	failedRunIds := make([]uuid.UUID, 0, len(updatedJobs))
 	for _, job := range updatedJobs {
-		run := job.CurrentRun()
-		if run != nil && run.Failed {
-			failedRunIds = append(failedRunIds, run.RunID)
+		run := job.LatestRun()
+		if run != nil && run.Failed() {
+			failedRunIds = append(failedRunIds, run.Id())
 		}
 	}
 	jobRunErrors, err := s.jobRepository.FetchJobRunErrors(ctx, failedRunIds)
@@ -380,7 +365,7 @@ func (s *Scheduler) generateUpdateMessages(ctx context.Context, updatedJobs []*S
 	// Generate any events that came out of synchronising the db state
 	var events []*armadaevents.EventSequence
 	for _, job := range updatedJobs {
-		jobEvents, err := s.generateUpdateMessagesFromJob(job, jobRunErrors)
+		jobEvents, err := s.generateUpdateMessagesFromJob(job, jobRunErrors, txn)
 		if err != nil {
 			return nil, err
 		}
@@ -393,7 +378,7 @@ func (s *Scheduler) generateUpdateMessages(ctx context.Context, updatedJobs []*S
 
 // generateUpdateMessages generates EventSequence representing the state change on a single jobs
 // If there are no state changes then nil will be returned
-func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunErrors map[uuid.UUID]*armadaevents.JobRunErrors) (*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error, txn *memdb.Txn) (*armadaevents.EventSequence, error) {
 	var events []*armadaevents.EventSequence_Event
 
 	// Is the job already in a terminal state?  If so then don't send any more messages
@@ -401,14 +386,14 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunError
 		return nil, nil
 	}
 
-	jobId, err := armadaevents.ProtoUuidFromUlidString(job.JobId)
+	jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
 	if err != nil {
 		return nil, err
 	}
-
+	origJob := job
 	// Has the job been requested cancelled. If so, cancel the job
-	if job.CancelRequested {
-		job.Cancelled = true
+	if job.CancelRequested() {
+		job = job.WithCancelled(true).WithQueued(false)
 		cancel := &armadaevents.EventSequence_Event{
 			Created: s.now(),
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
@@ -416,11 +401,26 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunError
 			},
 		}
 		events = append(events, cancel)
-	} else if len(job.Runs) > 0 {
-		lastRun := job.CurrentRun()
+	} else if job.CancelByJobsetRequested() {
+		job = job.WithCancelled(true).WithQueued(false)
+		cancelRequest := &armadaevents.EventSequence_Event{
+			Created: s.now(),
+			Event: &armadaevents.EventSequence_Event_CancelJob{
+				CancelJob: &armadaevents.CancelJob{JobId: jobId},
+			},
+		}
+		cancel := &armadaevents.EventSequence_Event{
+			Created: s.now(),
+			Event: &armadaevents.EventSequence_Event_CancelledJob{
+				CancelledJob: &armadaevents.CancelledJob{JobId: jobId},
+			},
+		}
+		events = append(events, cancelRequest, cancel)
+	} else if job.HasRuns() {
+		lastRun := job.LatestRun()
 		// InTerminalState states. Can only have one of these
-		if lastRun.Succeeded {
-			job.Succeeded = true
+		if lastRun.Succeeded() {
+			job = job.WithSucceeded(true).WithQueued(false)
 			jobSucceeded := &armadaevents.EventSequence_Event{
 				Created: s.now(),
 				Event: &armadaevents.EventSequence_Event_JobSucceeded{
@@ -430,26 +430,45 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *SchedulerJob, jobRunError
 				},
 			}
 			events = append(events, jobSucceeded)
-		} else if lastRun.Failed || lastRun.Expired {
-			job.Failed = true
-			runErrors := jobRunErrors[lastRun.RunID]
+		} else if lastRun.Failed() {
+			job = job.WithFailed(true).WithQueued(false)
+			runError := jobRunErrors[lastRun.Id()]
 			jobErrors := &armadaevents.EventSequence_Event{
 				Created: s.now(),
 				Event: &armadaevents.EventSequence_Event_JobErrors{
 					JobErrors: &armadaevents.JobErrors{
 						JobId:  jobId,
-						Errors: runErrors.GetErrors(),
+						Errors: []*armadaevents.Error{runError},
 					},
 				},
 			}
 			events = append(events, jobErrors)
 		}
+	} else if job.RequestedPriority() != job.Priority() {
+		job = job.WithPriority(job.RequestedPriority())
+		jobReprioritised := &armadaevents.EventSequence_Event{
+			Created: s.now(),
+			Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
+				ReprioritisedJob: &armadaevents.ReprioritisedJob{
+					JobId:    jobId,
+					Priority: job.Priority(),
+				},
+			},
+		}
+		events = append(events, jobReprioritised)
+	}
+
+	if origJob != job {
+		err := s.jobDb.Upsert(txn, []*jobdb.Job{job})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if len(events) > 0 {
 		return &armadaevents.EventSequence{
-			Queue:      job.Queue,
-			JobSetName: job.Jobset,
+			Queue:      job.Queue(),
+			JobSetName: job.Jobset(),
 			Events:     events,
 		}, nil
 	}
@@ -467,6 +486,8 @@ func (s *Scheduler) expireJobsIfNecessary(ctx context.Context, txn *memdb.Txn) (
 	}
 	staleExecutors := make(map[string]bool, 0)
 	cutOff := s.clock.Now().Add(-s.executorTimeout)
+
+	jobsToUpdate := make([]*jobdb.Job, 0)
 
 	// TODO: this will only detect stale clusters if they exist in the database
 	// Right now this is fine because nothing will delete this jobs, but we should consider the case where an executor
@@ -492,12 +513,18 @@ func (s *Scheduler) expireJobsIfNecessary(ctx context.Context, txn *memdb.Txn) (
 		return nil, err
 	}
 
-	jobsToDelete := make([]string, 0)
 	for _, job := range jobs {
-		run := job.CurrentRun()
-		if run != nil && !job.Queued && staleExecutors[run.Executor] {
-			log.Warnf("Cancelling job %s as it is running on lost executor %s", job.JobId, run.Executor)
-			jobId, err := armadaevents.ProtoUuidFromUlidString(job.JobId)
+
+		if job.InTerminalState() {
+			continue
+		}
+
+		run := job.LatestRun()
+		if run != nil && !job.Queued() && staleExecutors[run.Executor()] {
+			log.Warnf("Cancelling job %s as it is running on lost executor %s", job.Id(), run.Executor())
+			jobsToUpdate = append(jobsToUpdate, job.WithQueued(false).WithFailed(true))
+
+			jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
 			if err != nil {
 				return nil, err
 			}
@@ -509,14 +536,14 @@ func (s *Scheduler) expireJobsIfNecessary(ctx context.Context, txn *memdb.Txn) (
 				},
 			}
 			es := &armadaevents.EventSequence{
-				Queue:      job.Queue,
-				JobSetName: job.Jobset,
+				Queue:      job.Queue(),
+				JobSetName: job.Jobset(),
 				Events: []*armadaevents.EventSequence_Event{
 					{
 						Created: s.now(),
 						Event: &armadaevents.EventSequence_Event_JobRunErrors{
 							JobRunErrors: &armadaevents.JobRunErrors{
-								RunId:  armadaevents.ProtoUuidFromUuid(run.RunID),
+								RunId:  armadaevents.ProtoUuidFromUuid(run.Id()),
 								JobId:  jobId,
 								Errors: []*armadaevents.Error{leaseExpiredError},
 							},
@@ -534,10 +561,9 @@ func (s *Scheduler) expireJobsIfNecessary(ctx context.Context, txn *memdb.Txn) (
 				},
 			}
 			events = append(events, es)
-			jobsToDelete = append(jobsToDelete, job.JobId)
 		}
 	}
-	err = s.jobDb.BatchDelete(txn, jobsToDelete)
+	err = s.jobDb.Upsert(txn, jobsToUpdate)
 	if err != nil {
 		return nil, err
 	}
@@ -556,21 +582,25 @@ func (s *Scheduler) now() *time.Time {
 // we should be  able to make it load active jobs/runs only
 func (s *Scheduler) initialise(ctx context.Context) error {
 	for {
-		_, err := s.syncState(ctx)
-		if err != nil {
-			log.WithError(err).Error("Error initialising")
-		} else {
-			break
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			_, err := s.syncState(ctx)
+			if err == nil {
+				return nil
+			}
+			log.WithError(err).Error("Error initialising. Sleeping for 1 second before trying again")
+			time.Sleep(1 * time.Second)
 		}
 	}
-	return nil
 }
 
 // ensureDbUpToDate  blocks until that the database state contains all Pulsar messages sent *before* this
 // function was called. This is achieved firstly by publishing messages to Pulsar and then polling the
 // database until all messages have been written.
 func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Duration) error {
-	var groupId uuid.UUID
+	groupId := uuid.New()
 	var numSent uint32
 	var err error
 
@@ -612,7 +642,7 @@ func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Dura
 }
 
 // createSchedulerJob creates a new scheduler job from a database job
-func (s *Scheduler) createSchedulerJob(dbJob *database.Job) (*SchedulerJob, error) {
+func (s *Scheduler) createSchedulerJob(dbJob *database.Job) (*jobdb.Job, error) {
 	schedulingInfo := &schedulerobjects.JobSchedulingInfo{}
 	err := proto.Unmarshal(dbJob.SchedulingInfo, schedulingInfo)
 	if err != nil {
@@ -620,30 +650,31 @@ func (s *Scheduler) createSchedulerJob(dbJob *database.Job) (*SchedulerJob, erro
 			errors.WithStack(err), "error unmarshalling scheduling info for job %s", dbJob.JobID)
 	}
 	s.internJobSchedulingInfoStrings(schedulingInfo)
-	return &SchedulerJob{
-		JobId:             dbJob.JobID,
-		Jobset:            s.stringInterner.Intern(dbJob.JobSet),
-		Queue:             s.stringInterner.Intern(dbJob.Queue),
-		Queued:            true,
-		Priority:          uint32(dbJob.Priority),
-		jobSchedulingInfo: schedulingInfo,
-		CancelRequested:   dbJob.CancelRequested,
-		Cancelled:         dbJob.Cancelled,
-		Timestamp:         dbJob.Submitted,
-	}, nil
+	return jobdb.NewJob(
+		dbJob.JobID,
+		s.stringInterner.Intern(dbJob.JobSet),
+		s.stringInterner.Intern(dbJob.Queue),
+		uint32(dbJob.Priority),
+		schedulingInfo,
+		dbJob.CancelRequested,
+		dbJob.CancelByJobsetRequested,
+		dbJob.Cancelled,
+		dbJob.Submitted,
+	), nil
 }
 
 // createSchedulerRun creates a new scheduler job run from a database job run
-func (s *Scheduler) createSchedulerRun(dbRun *database.Run) *JobRun {
-	return &JobRun{
-		RunID:     dbRun.RunID,
-		Executor:  s.stringInterner.Intern(dbRun.Executor),
-		Running:   dbRun.Running,
-		Succeeded: dbRun.Succeeded,
-		Failed:    dbRun.Failed,
-		Cancelled: dbRun.Cancelled,
-		Returned:  dbRun.Returned,
-	}
+func (s *Scheduler) createSchedulerRun(dbRun *database.Run) *jobdb.JobRun {
+	return jobdb.CreateRun(
+		dbRun.RunID,
+		dbRun.Created,
+		s.stringInterner.Intern(dbRun.Executor),
+		s.stringInterner.Intern(dbRun.Node),
+		dbRun.Running,
+		dbRun.Succeeded,
+		dbRun.Failed,
+		dbRun.Cancelled,
+		dbRun.Returned)
 }
 
 func (s *Scheduler) internJobSchedulingInfoStrings(info *schedulerobjects.JobSchedulingInfo) {
@@ -662,17 +693,41 @@ func (s *Scheduler) internJobSchedulingInfoStrings(info *schedulerobjects.JobSch
 }
 
 // updateSchedulerRun updates the scheduler job run (in-place) to match the database job run
-func updateSchedulerRun(run *JobRun, dbRun *database.Run) {
-	run.Succeeded = dbRun.Succeeded
-	run.Failed = dbRun.Failed
-	run.Cancelled = dbRun.Cancelled
-	run.Returned = dbRun.Returned
+func updateSchedulerRun(run *jobdb.JobRun, dbRun *database.Run) *jobdb.JobRun {
+	if dbRun.Succeeded && !run.Succeeded() {
+		run = run.WithSucceeded(true)
+	}
+	if dbRun.Failed && !run.Failed() {
+		run = run.WithFailed(true)
+	}
+	if dbRun.Cancelled && !run.Cancelled() {
+		run = run.WithCancelled(true)
+	}
+	if dbRun.Returned && !run.Returned() {
+		run = run.WithReturned(true)
+	}
+	return run
 }
 
 // updateSchedulerJob updates the scheduler job  (in-place) to match the database job
-func updateSchedulerJob(job *SchedulerJob, dbJob *database.Job) {
-	job.CancelRequested = dbJob.CancelRequested
-	job.Succeeded = dbJob.Succeeded
-	job.Cancelled = dbJob.Cancelled
-	job.Failed = dbJob.Failed
+func updateSchedulerJob(job *jobdb.Job, dbJob *database.Job) *jobdb.Job {
+	if dbJob.CancelRequested && !job.CancelRequested() {
+		job = job.WithCancelRequested(true)
+	}
+	if dbJob.CancelByJobsetRequested && !job.CancelByJobsetRequested() {
+		job = job.WithCancelByJobsetRequested(true)
+	}
+	if dbJob.Cancelled && !job.Cancelled() {
+		job = job.WithCancelled(true)
+	}
+	if dbJob.Succeeded && !job.Succeeded() {
+		job = job.WithSucceeded(true)
+	}
+	if dbJob.Failed && !job.Failed() {
+		job = job.WithFailed(true)
+	}
+	if uint32(dbJob.Priority) != job.RequestedPriority() {
+		job = job.WithRequestedPriority(uint32(dbJob.Priority))
+	}
+	return job
 }

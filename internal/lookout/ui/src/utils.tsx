@@ -56,7 +56,7 @@ export async function getUIConfig(): Promise<UIConfig> {
   return config
 }
 
-export function reverseMap<K, V>(map: Map<K, V>): Map<V, K> {
+export function inverseMap<K, V>(map: Map<K, V>): Map<V, K> {
   return new Map(Array.from(map.entries()).map(([k, v]) => [v, k]))
 }
 

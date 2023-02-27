@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	math "math"
 	"strings"
 	time "time"
 
@@ -15,6 +16,18 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
+
+// IsTerminal returns true if the JobState s corresponds to a state
+// that indicates the job has been terminated.
+func (s JobState) IsTerminal() bool {
+	switch s {
+	case JobState_SUCCEEDED:
+		return true
+	case JobState_FAILED:
+		return true
+	}
+	return false
+}
 
 func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities []int32, lastSeen time.Time) (*schedulerobjects.Node, error) {
 	if executor == "" {
@@ -31,9 +44,19 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 			Message: "nodeInfo.Name is empty",
 		})
 	}
-	allocatableByPriorityAndResource := schedulerobjects.NewAllocatableByPriorityAndResourceType(allowedPriorities, nodeInfo.TotalResources)
-	for p, rs := range nodeInfo.AllocatedResources {
-		allocatableByPriorityAndResource.MarkAllocated(p, schedulerobjects.ResourceList{Resources: rs.Resources})
+
+	allocatableByPriorityAndResource := schedulerobjects.NewAllocatableByPriorityAndResourceType(
+		allowedPriorities,
+		schedulerobjects.ResourceList{
+			Resources: nodeInfo.TotalResources,
+		},
+	)
+	for p, rl := range nodeInfo.NonArmadaAllocatedResources {
+		allocatableByPriorityAndResource.MarkAllocated(p, schedulerobjects.ResourceList{Resources: rl.Resources})
+	}
+	nonArmadaAllocatedResources := make(map[int32]schedulerobjects.ResourceList)
+	for p, rl := range nodeInfo.NonArmadaAllocatedResources {
+		nonArmadaAllocatedResources[p] = schedulerobjects.ResourceList{Resources: rl.Resources}
 	}
 
 	jobRunsByState := make(map[string]schedulerobjects.JobRunState)
@@ -42,11 +65,13 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 	}
 	return &schedulerobjects.Node{
 		Id:                               fmt.Sprintf("%s-%s", executor, nodeInfo.Name),
+		Name:                             nodeInfo.Name,
 		LastSeen:                         lastSeen,
 		Taints:                           nodeInfo.GetTaints(),
 		Labels:                           nodeInfo.GetLabels(),
 		TotalResources:                   schedulerobjects.ResourceList{Resources: nodeInfo.TotalResources},
 		AllocatableByPriorityAndResource: allocatableByPriorityAndResource,
+		NonArmadaAllocatedResources:      nonArmadaAllocatedResources,
 		JobRunsByState:                   jobRunsByState,
 	}, nil
 }
@@ -75,11 +100,11 @@ func NewNodeTypeFromNodeInfo(nodeInfo *NodeInfo, indexedTaints map[string]interf
 
 func (job *Job) GetRequirements(priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
 	podSpecs := job.GetAllPodSpecs()
-	if len(podSpecs) == 0 {
-		return nil
-	}
 	objectRequirements := make([]*schedulerobjects.ObjectRequirements, len(podSpecs))
 	for i, podSpec := range podSpecs {
+		if podSpec == nil {
+			continue
+		}
 		objectRequirements[i] = &schedulerobjects.ObjectRequirements{
 			Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
 				PodRequirements: adapters.PodRequirementsFromPod(&v1.Pod{
@@ -91,9 +116,33 @@ func (job *Job) GetRequirements(priorityClasses map[string]configuration.Priorit
 			},
 		}
 	}
+	priorityClassName := ""
+	if len(podSpecs) > 0 {
+		priorityClassName = podSpecs[0].PriorityClassName
+	}
 	return &schedulerobjects.JobSchedulingInfo{
+		PriorityClassName:  priorityClassName,
+		Priority:           LogSubmitPriorityFromApiPriority(job.GetPriority()),
+		SubmitTime:         job.GetCreated(),
 		ObjectRequirements: objectRequirements,
 	}
+}
+
+func (job *Job) GetJobSet() string {
+	return job.JobSetId
+}
+
+// LogSubmitPriorityFromApiPriority returns the uint32 representation of the priority included with a submitted job,
+// or an error if the conversion fails.
+func LogSubmitPriorityFromApiPriority(priority float64) uint32 {
+	if priority < 0 {
+		priority = 0
+	}
+	if priority > math.MaxUint32 {
+		priority = math.MaxUint32
+	}
+	priority = math.Round(priority)
+	return uint32(priority)
 }
 
 func (job *Job) GetMainPodSpec() *v1.PodSpec {
@@ -192,6 +241,8 @@ func JobIdFromApiEvent(msg *EventMessage) string {
 		return e.Reprioritizing.JobId
 	case *EventMessage_Updated:
 		return e.Updated.JobId
+	case *EventMessage_Preempted:
+		return e.Preempted.JobId
 	}
 	return ""
 }
@@ -236,6 +287,8 @@ func JobSetIdFromApiEvent(msg *EventMessage) string {
 		return e.Reprioritizing.JobSetId
 	case *EventMessage_Updated:
 		return e.Updated.JobSetId
+	case *EventMessage_Preempted:
+		return e.Preempted.JobSetId
 	}
 	return ""
 }

@@ -39,10 +39,10 @@ func Run(config Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	log.Infof("Setting up database connections")
 	db, err := dbcommon.OpenPgxPool(config.Postgres)
-	defer db.Close()
 	if err != nil {
 		return errors.WithMessage(err, "Error opening connection to postgres")
 	}
+	defer db.Close()
 	jobRepository := database.NewPostgresJobRepository(db, int32(config.DatabaseFetchSize))
 	executorRepository := database.NewPostgresExecutorRepository(db)
 
@@ -117,7 +117,8 @@ func Run(config Configuration) error {
 		executorRepository,
 		legacyExecutorRepository,
 		allowedPcs,
-		config.Scheduling.MaximumJobsToSchedule)
+		config.Scheduling.MaximumJobsToSchedule,
+		config.Scheduling.Preemption.NodeIdLabel)
 	if err != nil {
 		return errors.WithMessage(err, "error creating executorApi")
 	}

@@ -8,7 +8,7 @@ jobs:
       terminationGracePeriodSeconds: 0
       restartPolicy: Never
       containers:
-        - name: cancel_by_set
+        - name: cancel-by-id
           imagePullPolicy: IfNotPresent
           image: alpine:3.10            
           args:

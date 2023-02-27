@@ -8,7 +8,7 @@ corsAllowedOrigins:
 cancelJobsBatchSize: 1000
 pulsarSchedulerEnabled: false
 probabilityOfUsingPulsarScheduler: 0
-ignoreJobSubmitChecks: true
+ignoreJobSubmitChecks: false
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m
@@ -32,19 +32,28 @@ eventsApiRedis:
 scheduling:
   preemption:
     enabled: true
+    preemptToFairShare: true
+    nodeEvictionProbability: 1.0
+    nodeOversubscriptionEvictionProbability: 0.0
+    setNodeIdSelector: true
+    nodeIdLabel: kubernetes.io/hostname
+    setNodeName: false
     priorityClasses:
       armada-default:
         priority: 1000
+        preemptible: false
         maximalResourceFractionPerQueue:
           memory: 0.99
           cpu: 0.99
       armada-preemptible:
         priority: 900
+        preemptible: true
         maximalResourceFractionPerQueue:
           memory: 0.99
           cpu: 0.99
     defaultPriorityClass: armada-default
   queueLeaseBatchSize: 1000
+  maxExtraNodesToConsider: 1
   minimumResourceToSchedule:
     memory: 1000000 # 1Mb
     cpu: 0.1
@@ -99,8 +108,6 @@ scheduling:
     - memory
   minTerminationGracePeriod: 1s
   maxTerminationGracePeriod: 300s
-  gangIdAnnotation: armadaproject.io/gangId
-  gangCardinalityAnnotation: armadaproject.io/gangCardinality
 queueManagement:
   defaultPriorityFactor: 1000
   defaultQueuedJobsLimit: 0  # No Limit

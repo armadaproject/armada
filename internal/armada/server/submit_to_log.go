@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"fmt"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -12,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -30,6 +30,7 @@ import (
 	commonvalidation "github.com/armadaproject/armada/internal/common/validation"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/scheduler"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -56,7 +57,7 @@ type PulsarSubmitServer struct {
 	// Flag to control if we enable sending messages to the pulsar scheduler
 	PulsarSchedulerEnabled bool
 	// Probability of using the pulsar scheduler.  Has no effect if PulsarSchedulerEnabled is false
-	ProbabilityOdfUsingPulsarScheduler float64
+	ProbabilityOfUsingPulsarScheduler float64
 	// Used to assign a job to either legacy or pulsar schedulers. Injected here to allow repeatable tests
 	Rand *rand.Rand
 	// Gang id annotation. Needed because we cannot split a gang across schedulers.
@@ -111,6 +112,8 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		return nil, err
 	}
 
+	pulsarJobDetails := make([]*schedulerobjects.PulsarSchedulerJobDetails, 0)
+
 	for i, apiJob := range apiJobs {
 		eventTime := time.Now()
 		assignedScheduler, ok := schedulersByJobId[apiJob.Id]
@@ -121,6 +124,11 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 
 		es := legacySchedulerEvents
 		if assignedScheduler == schedulers.Pulsar {
+			pulsarJobDetails = append(pulsarJobDetails, &schedulerobjects.PulsarSchedulerJobDetails{
+				JobId:  apiJob.Id,
+				Queue:  apiJob.Queue,
+				JobSet: apiJob.JobSetId,
+			})
 			es = pulsarSchedulerEvents
 		}
 
@@ -189,6 +197,14 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 					apiJob.ClientId,
 					apiJob.GetId())
 			}
+		}
+	}
+
+	if len(pulsarJobDetails) > 0 {
+		err = srv.SubmitServer.jobRepository.StorePulsarSchedulerJobDetails(pulsarJobDetails)
+		if err != nil {
+			log.WithError(err).Error("failed store pulsar job details")
+			return nil, status.Error(codes.Internal, "failed store pulsar job details")
 		}
 	}
 
@@ -507,11 +523,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 			Message: "JobSetId is empty",
 		}
 	}
-
-	priority, err := eventutil.LogSubmitPriorityFromApiPriority(req.NewPriority)
-	if err != nil {
-		return nil, err
-	}
+	priority := eventutil.LogSubmitPriorityFromApiPriority(req.NewPriority)
 
 	// results maps job ids to strings containing error messages.
 	results := make(map[string]string)
@@ -721,71 +733,134 @@ func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []
 	return nil, nil
 }
 
-// assignScheduler Assign a slice of jobs to either the legacy or pulsar schedulers.  This done by checking whether each
-// job can be scheduled on either scheduler.  If the job can only be scheduled on only one of the schedulers, it is
-// assigned to that scheduler. If it can be assigned to both scheduler it is assigned randomly based on
-// ProbabilityOdfUsingPulsarScheduler.  If it can be assigned on neither scheduler then an error is returned.
+// assignScheduler assigns each job to either the legacy or pulsar scheduler.
+// All jobs in a gang (i.e., set of jobs to be gang-scheduled) are assigned to the same scheduler.
+// Gangs that could only be scheduled by one scheduler are assigned to that scheduler.
+// Gangs that could be scheduled by either are assigned to a randomly selected scheduler.
+// If any gang could not be scheduled by either scheduler, an error is returned.
+//
+// Returns a map from job id to the scheduler the job with that id is assigned to.
 func (srv *PulsarSubmitServer) assignScheduler(jobs []*api.Job) (map[string]schedulers.Scheduler, error) {
-	// when assigning jobs to a scheduler, all the jobs in a gang have to go on the same scheduler
-	groups := srv.groupJobsByGangId(jobs)
-	assignedSchedulers := make(map[string]schedulers.Scheduler, len(jobs))
-	for _, group := range groups {
-		schedulableOnLegacyScheduler, legacyMsg := srv.LegacySchedulerSubmitChecker.CheckApiJobs(group)
-		schedulableOnLegacyScheduler = schedulableOnLegacyScheduler || srv.IgnoreJobSubmitChecks
-		schedulableOnPulsarScheduler := false
-		pulsarMsg := ""
-		if srv.PulsarSchedulerEnabled {
-			schedulableOnPulsarScheduler, pulsarMsg = srv.PulsarSchedulerSubmitChecker.CheckApiJobs(group)
-			schedulableOnPulsarScheduler = schedulableOnPulsarScheduler || srv.IgnoreJobSubmitChecks
+	gangs := srv.groupJobsByGangId(jobs)
+	schedulerByGangId := make(map[string]schedulers.Scheduler, len(jobs))
+	for gangId, gang := range gangs {
+		if len(gang) == 0 {
+			continue
 		}
-
-		// Not schedulable anywhere!
-		if !schedulableOnLegacyScheduler && !schedulableOnPulsarScheduler {
-			msg := fmt.Sprintf("Could not schedule on legacy scheduler because: %s", legacyMsg)
-			if srv.PulsarSchedulerEnabled {
-				msg = fmt.Sprintf("%s\nCould not schedule on pulsar scheduler because: %s", msg, pulsarMsg)
+		for i, job := range gang {
+			if job == nil {
+				return nil, &armadaerrors.ErrInvalidArgument{
+					Name:    fmt.Sprintf("gang[%d}", i),
+					Value:   job,
+					Message: fmt.Sprintf("unexpected nil job in gang %s", gangId),
+				}
 			}
-			return nil, errors.New(msg)
 		}
 
-		r := srv.Rand.Float64()
-		var assignedScheduler schedulers.Scheduler
-		if jobs[0].Scheduler == "pulsar" { // explicitly to pulsar.  I'm only checking the first job here, but as this is a debug option should be fine
-			assignedScheduler = schedulers.Pulsar
-		} else if jobs[0].Scheduler == "legacy" { // explicitly to legacy.  Again only check first job
-			assignedScheduler = schedulers.Legacy
-		} else if schedulableOnPulsarScheduler && !schedulableOnLegacyScheduler { // only schedulable on pulsar
-			assignedScheduler = schedulers.Pulsar
-		} else if schedulableOnLegacyScheduler && !schedulableOnPulsarScheduler { // only schedulable on legacy
-			assignedScheduler = schedulers.Legacy
-		} else if r < srv.ProbabilityOdfUsingPulsarScheduler { // probabilistic routing to pulsar
-			assignedScheduler = schedulers.Pulsar
-		} else { // probabilistic routing to legacy
-			assignedScheduler = schedulers.Legacy
+		// If the first job in the gang explicitly targets either scheduler, assign to that scheduler.
+		if jobs[0].Scheduler == "pulsar" {
+			schedulerByGangId[gangId] = schedulers.Pulsar
+			continue
 		}
-		for _, job := range group {
-			assignedSchedulers[job.Id] = assignedScheduler
+		if jobs[0].Scheduler == "legacy" {
+			schedulerByGangId[gangId] = schedulers.Legacy
+			continue
+		}
+
+		// Select primary scheduler at random.
+		var primaryScheduler schedulers.Scheduler
+		var secondaryScheduler schedulers.Scheduler
+		if srv.Rand.Float64() < srv.ProbabilityOfUsingPulsarScheduler {
+			primaryScheduler = schedulers.Pulsar
+			secondaryScheduler = schedulers.Legacy
+		} else {
+			primaryScheduler = schedulers.Legacy
+			secondaryScheduler = schedulers.Pulsar
+		}
+
+		// Check if the primary scheduler could schedule this gang.
+		unschedulableReasonByScheduler := make(map[schedulers.Scheduler]string, 2)
+		if schedulable, message := srv.schedulableOnScheduler(primaryScheduler, gang); schedulable {
+			schedulerByGangId[gangId] = primaryScheduler
+			continue
+		} else {
+			unschedulableReasonByScheduler[primaryScheduler] = message
+		}
+
+		// If not schedulable on the primary scheduler, try the secondary scheduler.
+		if schedulable, message := srv.schedulableOnScheduler(secondaryScheduler, gang); schedulable {
+			schedulerByGangId[gangId] = secondaryScheduler
+			continue
+		} else {
+			// Not schedulable by either scheduler; return an error.
+			unschedulableReasonByScheduler[secondaryScheduler] = message
+			var sb strings.Builder
+			if len(gang) == 1 {
+				sb.WriteString(fmt.Sprintf("job %s unschedulable: ", gang[0].Id))
+			} else {
+				sb.WriteString(fmt.Sprintf("gang %s unschedulable: ", gangId))
+			}
+			sb.WriteString(fmt.Sprintf(
+				"failed to schedule onto legacy scheduler because %s",
+				unschedulableReasonByScheduler[schedulers.Legacy],
+			))
+			if srv.PulsarSchedulerEnabled {
+				sb.WriteString(fmt.Sprintf(
+					"; failed to schedule onto Pulsar scheduler because %s",
+					unschedulableReasonByScheduler[schedulers.Pulsar],
+				))
+			}
+			return nil, errors.New(sb.String())
 		}
 	}
-	return assignedSchedulers, nil
+	schedulerByJobId := make(map[string]schedulers.Scheduler, len(jobs))
+	for gangId, gang := range gangs {
+		for _, job := range gang {
+			schedulerByJobId[job.Id] = schedulerByGangId[gangId]
+		}
+	}
+	return schedulerByJobId, nil
 }
 
-// group all the jobs by  gang id.  If no gang annotation is present then they will be put into a group of 1
-func (srv *PulsarSubmitServer) groupJobsByGangId(jobs []*api.Job) [][]*api.Job {
-	rv := make(map[string][]*api.Job)
-	for _, job := range jobs {
-		groupId := uuid.NewString()
-		if len(job.Annotations) == 0 {
-			rv[groupId] = append(rv[groupId], job)
-		} else {
-			value := job.Annotations[srv.GangIdAnnotation]
-			if value == "" {
-				rv[groupId] = append(rv[groupId], job)
-			}
-			rv[value] = append(rv[value], job)
-		}
+func (srv *PulsarSubmitServer) schedulableOnScheduler(scheduler schedulers.Scheduler, gang []*api.Job) (bool, string) {
+	if scheduler == schedulers.Legacy {
+		return srv.schedulableOnLegacyScheduler(gang)
+	} else if scheduler == schedulers.Pulsar {
+		return srv.schedulableOnPulsarScheduler(gang)
+	} else {
+		return false, fmt.Sprintf("no such scheduler %d", scheduler)
 	}
-	return maps.Values(rv)
+}
+
+func (srv *PulsarSubmitServer) schedulableOnLegacyScheduler(gang []*api.Job) (bool, string) {
+	if srv.IgnoreJobSubmitChecks {
+		return true, ""
+	}
+	return srv.LegacySchedulerSubmitChecker.CheckApiJobs(gang)
+}
+
+func (srv *PulsarSubmitServer) schedulableOnPulsarScheduler(gang []*api.Job) (bool, string) {
+	if !srv.PulsarSchedulerEnabled {
+		return false, "Pulsar scheduler disabled"
+	}
+	if srv.IgnoreJobSubmitChecks {
+		return true, ""
+	}
+	return srv.PulsarSchedulerSubmitChecker.CheckApiJobs(gang)
+}
+
+// groupJobsByGangId partitions the provided jobs by gang id.
+// Jobs with no gang id are treated as gangs of cardinality 1.
+func (srv *PulsarSubmitServer) groupJobsByGangId(jobs []*api.Job) map[string][]*api.Job {
+	jobsByGangId := make(map[string][]*api.Job)
+	for _, job := range jobs {
+		gangId, ok := job.Annotations[srv.GangIdAnnotation]
+		if !ok {
+			gangId = uuid.NewString()
+		}
+		jobsByGangId[gangId] = append(jobsByGangId[gangId], job)
+	}
+	return jobsByGangId
 }
 
 // resolveQueueAndJobsetForJob returns the queue and jobset for a job.
@@ -798,7 +873,7 @@ func (srv *PulsarSubmitServer) resolveQueueAndJobsetForJob(jobId string) (string
 	if err != nil {
 		return "", "", err
 	}
-	if len(jobs) >= 1 {
+	if len(jobs) > 0 && jobs[0].Error == nil {
 		return jobs[0].Job.GetQueue(), jobs[0].Job.GetJobSetId(), nil
 	}
 

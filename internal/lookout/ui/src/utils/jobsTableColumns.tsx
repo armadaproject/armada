@@ -1,10 +1,11 @@
 import { useCallback } from "react"
 
 import { Checkbox } from "@mui/material"
+import { ColumnFiltersState } from "@tanstack/react-table"
 import { ColumnDef, createColumnHelper, VisibilityState } from "@tanstack/table-core"
 import { JobStateLabel } from "components/lookoutV2/JobStateLabel"
 import { EnumFilterOption } from "components/lookoutV2/JobsTableFilter"
-import { JobTableRow } from "models/jobsTableModels"
+import { isJobGroupRow, JobTableRow } from "models/jobsTableModels"
 import { JobState, Match } from "models/lookoutV2Models"
 
 import { formatBytes, formatCPU, formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
@@ -44,6 +45,8 @@ export enum StandardColumnId {
   LastTransitionTimeUtc = "lastTransitionTimeUtc",
   TimeInState = "timeInState",
   SelectorCol = "selectorCol",
+
+  Count = "jobCount",
 }
 
 export type AnnotationColumnId = `annotation_${string}`
@@ -154,7 +157,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalOptions: {
       enableColumnFilter: true,
       enableSorting: true,
-      size: 120,
+      size: 90,
     },
     additionalMetadata: {
       filterType: FilterType.Text,
@@ -168,7 +171,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalOptions: {
       enableGrouping: true,
       enableColumnFilter: true,
-      size: 70,
+      size: 60,
       cell: (cell) => (
         <JobStateLabel state={cell.getValue() as JobState}>{formatJobState(cell.getValue() as JobState)}</JobStateLabel>
       ),
@@ -180,6 +183,23 @@ export const JOB_COLUMNS: JobTableColumn[] = [
         displayName: formatJobState(state),
       })),
       defaultMatchType: Match.AnyOf,
+    },
+  }),
+  accessorColumn({
+    id: StandardColumnId.Count,
+    accessor: (jobTableRow) => {
+      if (isJobGroupRow(jobTableRow)) {
+        return `${jobTableRow.jobCount}`
+      }
+      return ""
+    },
+    displayName: "Count",
+    additionalOptions: {
+      size: 40,
+      enableSorting: true,
+    },
+    additionalMetadata: {
+      isRightAligned: true,
     },
   }),
   accessorColumn({
@@ -218,21 +238,33 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     id: StandardColumnId.LastTransitionTimeUtc,
     accessor: (jobTableRow) => formatUtcDate(jobTableRow.lastTransitionTime),
     displayName: "Last State Change (UTC)",
+    additionalOptions: {
+      enableSorting: true,
+    },
   }),
   accessorColumn({
     id: StandardColumnId.TimeInState,
     accessor: (jobTableRow) => formatTimeSince(jobTableRow.lastTransitionTime),
     displayName: "Time In State",
+    additionalOptions: {
+      enableSorting: true,
+    },
   }),
   accessorColumn({
     id: StandardColumnId.TimeSubmittedUtc,
     accessor: (jobTableRow) => formatUtcDate(jobTableRow.submitted),
     displayName: "Time Submitted (UTC)",
+    additionalOptions: {
+      enableSorting: true,
+    },
   }),
   accessorColumn({
     id: StandardColumnId.TimeSubmittedAgo,
     accessor: (jobTableRow) => formatTimeSince(jobTableRow.submitted),
     displayName: "Time Since Submitted",
+    additionalOptions: {
+      enableSorting: true,
+    },
   }),
 ]
 
@@ -253,6 +285,10 @@ export const DEFAULT_COLUMN_VISIBILITY: VisibilityState = Object.values(Standard
   },
   {},
 )
+
+export const DEFAULT_FILTERS: ColumnFiltersState = [
+  { id: StandardColumnId.State, value: [JobState.Queued, JobState.Pending, JobState.Running] },
+]
 
 export const DEFAULT_GROUPING: ColumnId[] = [StandardColumnId.Queue, StandardColumnId.JobSet]
 

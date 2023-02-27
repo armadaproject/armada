@@ -1,4 +1,4 @@
-import { useState, useRef } from "react"
+import { useRef, useState } from "react"
 
 import { ArrowDropDown, ArrowDropUp } from "@material-ui/icons"
 import { Check, Delete, Edit } from "@mui/icons-material"
@@ -16,7 +16,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material"
-import { ColumnId, getColumnMetadata, JobTableColumn, toColId } from "utils/jobsTableColumns"
+import { ColumnId, getColumnMetadata, JobTableColumn, StandardColumnId, toColId } from "utils/jobsTableColumns"
 
 import styles from "./ColumnSelect.module.css"
 
@@ -124,7 +124,7 @@ export default function ColumnSelect({
                     }}
                     key={colId}
                     value={colMetadata.displayName}
-                    disabled={colIsGrouped}
+                    disabled={colIsGrouped || colId === StandardColumnId.Count}
                   >
                     <Checkbox checked={colIsVisible} onClick={() => onToggleColumn(colId)} />
                     {colIsAnnotation ? (

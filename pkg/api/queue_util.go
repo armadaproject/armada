@@ -6,12 +6,18 @@ func (m *Job) GetAllPodSpecs() []*v1.PodSpec {
 	if len(m.PodSpecs) != 0 {
 		return m.PodSpecs
 	}
-	return []*v1.PodSpec{m.PodSpec}
+	if m.PodSpec != nil {
+		return []*v1.PodSpec{m.PodSpec}
+	}
+	return nil
 }
 
 func (m *JobSubmitRequestItem) GetAllPodSpecs() []*v1.PodSpec {
 	if len(m.PodSpecs) != 0 {
 		return m.PodSpecs
 	}
-	return []*v1.PodSpec{m.PodSpec}
+	if m.PodSpec != nil {
+		return []*v1.PodSpec{m.PodSpec}
+	}
+	return nil
 }

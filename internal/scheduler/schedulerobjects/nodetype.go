@@ -134,6 +134,9 @@ func getFilteredLabels(labels map[string]string, inclusionFilter labelsFilterFun
 }
 
 func (nodeType *NodeType) DeepCopy() *NodeType {
+	if nodeType == nil {
+		return nil
+	}
 	return &NodeType{
 		Id:                 nodeType.Id,
 		Taints:             slices.Clone(nodeType.Taints),

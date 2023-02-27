@@ -346,7 +346,6 @@ func IsNetworkError(err error) bool {
 	{
 		var e *pulsar.Error
 		if ok := errors.As(err, &e); ok {
-			fmt.Println("Got Pulsar error", e)
 			for _, result := range PULSAR_CONNECTION_ERRORS {
 				if e.Result() == result {
 					return true
