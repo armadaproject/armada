@@ -72,6 +72,11 @@ docker-compose $COMPOSE_FILE up -d $INFRA_SVCS
 sleep $SLEEP_TIME
 docker-compose $COMPOSE_FILE up -d $ARMADA_SVCS
 
+# Give a note to users that it might take a long time to
+# compile the golang code
+
+echo "NOTE: it may take a while for the golang code to compile!"
+
 # Ask if user would like to view logs
 read -p "View logs? [y/N] " -n 1 -r
 echo

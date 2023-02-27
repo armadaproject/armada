@@ -17,7 +17,7 @@ postgres:
     port: 5432
     user: postgres
     password: psw
-    dbname: postgres
+    dbname: postgresv2
     sslmode: disable
 
 prunerConfig:

@@ -31,7 +31,10 @@ services:
     container_name: postgres
     image: postgres
     environment:
-      - "POSTGRES_PASSWORD=psw"
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=psw
+    volumes:
+      - ./scripts/postgres-init.sh:/docker-entrypoint-initdb.d/init-database.sh
     ports:
       - "5432:5432"
     networks:
