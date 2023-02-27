@@ -109,7 +109,6 @@ func NewNodeDb(
 }
 
 func (nodeDb *NodeDb) String() string {
-
 	w := NewTabWriter(1, 1, 1, ' ', 0)
 
 	w.Writef("Priorities:\t%v\n", configuration.AllowedPriorities(nodeDb.priorityClasses))

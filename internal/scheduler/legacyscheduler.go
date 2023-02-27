@@ -695,7 +695,6 @@ type LegacyScheduler struct {
 }
 
 func (sched *LegacyScheduler) String() string {
-
 	w := NewTabWriter(1, 1, 1, ' ', 0)
 
 	w.Writef("Executor:\t%s\n", sched.ExecutorId)

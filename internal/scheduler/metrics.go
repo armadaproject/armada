@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/common/logging"
 	"sync/atomic"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/logging"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/database"

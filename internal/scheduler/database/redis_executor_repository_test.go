@@ -2,7 +2,6 @@ package database
 
 import (
 	"context"
-	log "github.com/sirupsen/logrus"
 	"testing"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	log "github.com/sirupsen/logrus"
 )
 
 func TestRedisExecutorRepository_LoadAndSave(t *testing.T) {
