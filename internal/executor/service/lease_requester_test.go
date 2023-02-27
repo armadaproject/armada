@@ -123,16 +123,17 @@ func TestLeaseJobRuns_Send(t *testing.T) {
 }
 
 func TestLeaseJobRuns_HandlesNoEndMarkerMessage(t *testing.T) {
-	leaseMessages := []*executorapi.JobRunLease{lease1}
-	shortCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	leaseMessages := []*executorapi.JobRunLease{lease1, lease2}
+	shortCtx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 
 	jobRequester, mockExecutorApiClient, mockStream := setup(t)
 	mockExecutorApiClient.EXPECT().LeaseJobRuns(gomock.Any(), gomock.Any(), gomock.Any()).Return(mockStream, nil)
 	mockStream.EXPECT().Send(gomock.Any()).Return(nil)
+	setStreamExpectations(mockStream, leaseMessages, nil, nil)
 	// No end marker, hang. Should
 	mockStream.EXPECT().Recv().Do(func() {
-		time.Sleep(time.Millisecond * 200)
+		time.Sleep(time.Millisecond * 400)
 	})
 
 	response, err := jobRequester.LeaseJobRuns(shortCtx, &LeaseRequest{})
