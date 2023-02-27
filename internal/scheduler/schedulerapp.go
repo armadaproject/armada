@@ -117,7 +117,8 @@ func Run(config Configuration) error {
 		executorRepository,
 		legacyExecutorRepository,
 		allowedPcs,
-		config.Scheduling.MaximumJobsToSchedule)
+		config.Scheduling.MaximumJobsToSchedule,
+		config.Scheduling.Preemption.NodeIdLabel)
 	if err != nil {
 		return errors.WithMessage(err, "error creating executorApi")
 	}
