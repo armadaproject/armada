@@ -180,7 +180,7 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 		return err
 	}
 
-	// Expire any jobs running on clusters that haven't heartbeated within our time limit
+	// Expire any jobs running on clusters that haven't had a heartbeat within our time limit
 	expirationEvents, err := s.expireJobsIfNecessary(ctx, txn)
 	if err != nil {
 		return err

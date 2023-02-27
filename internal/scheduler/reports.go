@@ -2,10 +2,7 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"sync"
-	"text/tabwriter"
 	"time"
 
 	"github.com/google/uuid"
@@ -86,19 +83,17 @@ func NewSchedulingRoundReport(
 }
 
 func (report *SchedulingRoundReport) String() string {
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	fmt.Fprintf(w, "Started:\t%s\n", report.Started)
-	fmt.Fprintf(w, "Finished:\t%s\n", report.Finished)
-	fmt.Fprintf(w, "Duration:\t%s\n", report.Finished.Sub(report.Started))
-	fmt.Fprintf(w, "Total capacity:\t%s\n", report.TotalResources.CompactString())
+	w := NewTabWriter(1, 1, 1, ' ', 0)
+	w.Writef("Started:\t%s\n", report.Started)
+	w.Writef("Finished:\t%s\n", report.Finished)
+	w.Writef("Duration:\t%s\n", report.Finished.Sub(report.Started))
+	w.Writef("Total capacity:\t%s\n", report.TotalResources.CompactString())
 	totalJobsScheduled := 0
 	totalResourcesScheduled := make(schedulerobjects.QuantityByPriorityAndResourceType)
-	fmt.Fprintf(w, "Total jobs scheduled:\t%d\n", totalJobsScheduled)
-	fmt.Fprintf(w, "Total resources scheduled:\t%s\n", totalResourcesScheduled)
-	fmt.Fprintf(w, "Termination reason:\t%s\n", report.TerminationReason)
-	w.Flush()
-	return sb.String()
+	w.Writef("Total jobs scheduled:\t%d\n", totalJobsScheduled)
+	w.Writef("Total resources scheduled:\t%s\n", totalResourcesScheduled)
+	w.Writef("Termination reason:\t%s\n", report.TerminationReason)
+	return w.String()
 }
 
 // AddJobSchedulingReport adds a job scheduling report to the report for this invocation of the scheduler.
@@ -211,7 +206,7 @@ func (report *QueueSchedulingRoundReport) ClearJobSpecs() {
 	}
 }
 
-func (repo *SchedulingReportsRepository) GetQueueReport(ctx context.Context, queue *schedulerobjects.Queue) (*schedulerobjects.QueueReport, error) {
+func (repo *SchedulingReportsRepository) GetQueueReport(_ context.Context, queue *schedulerobjects.Queue) (*schedulerobjects.QueueReport, error) {
 	report, ok := repo.GetQueueSchedulingReport(queue.Name)
 	if !ok {
 		return nil, &armadaerrors.ErrNotFound{
@@ -225,7 +220,7 @@ func (repo *SchedulingReportsRepository) GetQueueReport(ctx context.Context, que
 	}, nil
 }
 
-func (repo *SchedulingReportsRepository) GetJobReport(ctx context.Context, jobId *schedulerobjects.JobId) (*schedulerobjects.JobReport, error) {
+func (repo *SchedulingReportsRepository) GetJobReport(_ context.Context, jobId *schedulerobjects.JobId) (*schedulerobjects.JobReport, error) {
 	jobUuid, err := uuidFromUlidString(jobId.Id)
 	if err != nil {
 		return nil, err
@@ -306,23 +301,21 @@ type QueueSchedulingReport struct {
 }
 
 func (report *QueueSchedulingReport) String() string {
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	fmt.Fprintf(w, "Queue:\t%s\n", report.Name)
+	w := NewTabWriter(1, 1, 1, ' ', 0)
+	w.Writef("Queue:\t%s\n", report.Name)
 	if report.MostRecentSuccessfulJobSchedulingReport != nil {
-		fmt.Fprint(w, "Most recent successful scheduling attempt:\n")
-		fmt.Fprint(w, indent.String("\t", report.MostRecentSuccessfulJobSchedulingReport.String()))
+		w.Writef("Most recent successful scheduling attempt:\n")
+		w.Writef(indent.String("\t", report.MostRecentSuccessfulJobSchedulingReport.String()))
 	} else {
-		fmt.Fprint(w, "Most recent successful scheduling attempt:\tnone\n")
+		w.Writef("Most recent successful scheduling attempt:\tnone\n")
 	}
 	if report.MostRecentUnsuccessfulJobSchedulingReport != nil {
-		fmt.Fprint(w, "Most recent unsuccessful scheduling attempt:\n")
-		fmt.Fprint(w, indent.String("\t", report.MostRecentUnsuccessfulJobSchedulingReport.String()))
+		w.Writef("Most recent unsuccessful scheduling attempt:\n")
+		w.Writef(indent.String("\t", report.MostRecentUnsuccessfulJobSchedulingReport.String()))
 	} else {
-		fmt.Fprint(w, "Most recent unsuccessful scheduling attempt:\n")
+		w.Writef("Most recent unsuccessful scheduling attempt:\n")
 	}
-	w.Flush()
-	return sb.String()
+	return w.String()
 }
 
 // JobSchedulingReport is created by the scheduler and contains information
@@ -347,36 +340,34 @@ type JobSchedulingReport struct {
 }
 
 func (report *JobSchedulingReport) String() string {
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	fmt.Fprintf(w, "Time:\t%s\n", report.Timestamp)
+	w := NewTabWriter(1, 1, 1, ' ', 0)
+	w.Writef("Time:\t%s\n", report.Timestamp)
 	if jobId, err := armadaevents.UlidStringFromProtoUuid(
 		armadaevents.ProtoUuidFromUuid(report.JobId),
 	); err == nil {
-		fmt.Fprintf(w, "Job id:\t%s\n", jobId)
+		w.Writef("Job id:\t%s\n", jobId)
 	} else {
-		fmt.Fprintf(w, "Job id:\t%s\n", err)
+		w.Writef("Job id:\t%s\n", err)
 	}
 	if report.ExecutorId != "" {
-		fmt.Fprintf(w, "Executor:\t%s\n", report.ExecutorId)
+		w.Writef("Executor:\t%s\n", report.ExecutorId)
 	} else {
-		fmt.Fprint(w, "Executor:\tnone\n")
+		w.Writef("Executor:\tnone\n")
 	}
 	if report.UnschedulableReason != "" {
-		fmt.Fprintf(w, "UnschedulableReason:\t%s\n", report.UnschedulableReason)
+		w.Writef("UnschedulableReason:\t%s\n", report.UnschedulableReason)
 	} else {
-		fmt.Fprint(w, "UnschedulableReason:\tnone\n")
+		w.Writef("UnschedulableReason:\tnone\n")
 	}
 	if len(report.PodSchedulingReports) == 0 {
-		fmt.Fprint(w, "Pod scheduling reports:\tnone\n")
+		w.Writef("Pod scheduling reports:\tnone\n")
 	} else {
-		fmt.Fprint(w, "Pod scheduling reports:\n")
+		w.Writef("Pod scheduling reports:\n")
 	}
 	for _, podSchedulingReport := range report.PodSchedulingReports {
-		fmt.Fprint(w, indent.String("\t", podSchedulingReport.String()))
+		w.Writef(indent.String("\t", podSchedulingReport.String()))
 	}
-	w.Flush()
-	return sb.String()
+	return w.String()
 }
 
 // PodSchedulingReport is returned by SelectAndBindNodeToPod and
@@ -405,41 +396,38 @@ type PodSchedulingReport struct {
 }
 
 func (report *PodSchedulingReport) String() string {
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	fmt.Fprintf(w, "Time:\t%s\n", report.Timestamp)
+	w := NewTabWriter(1, 1, 1, ' ', 0)
+	w.Writef("Time:\t%s\n", report.Timestamp)
 	if report.Node != nil {
-		fmt.Fprintf(w, "Node:\t%s\n", report.Node.Id)
+		w.Writef("Node:\t%s\n", report.Node.Id)
 	} else {
-		fmt.Fprint(w, "Node:\tnone\n")
+		w.Writef("Node:\tnone\n")
 	}
-	fmt.Fprintf(w, "Score:\t%d\n", report.Score)
-	fmt.Fprintf(w, "Number of matched Node types:\t%d\n", report.NumMatchedNodeTypes)
+	w.Writef("Score:\t%d\n", report.Score)
+	w.Writef("Number of matched Node types:\t%d\n", report.NumMatchedNodeTypes)
 	if len(report.NumExcludedNodeTypesByReason) == 0 {
-		fmt.Fprint(w, "Excluded Node types:\tnone\n")
+		w.Writef("Excluded Node types:\tnone\n")
 	} else {
-		fmt.Fprint(w, "Excluded Node types:\n")
+		w.Writef("Excluded Node types:\n")
 		for reason, count := range report.NumExcludedNodeTypesByReason {
-			fmt.Fprintf(w, "\t%d:\t%s\n", count, reason)
+			w.Writef("\t%d:\t%s\n", count, reason)
 		}
 	}
 	requestForDominantResourceType := report.Req.ResourceRequirements.Requests[v1.ResourceName(report.DominantResourceType)]
-	fmt.Fprint(w, "Excluded nodes:\n")
+	w.Writef("Excluded nodes:\n")
 	if len(report.NumExcludedNodesByReason) == 0 && requestForDominantResourceType.IsZero() {
-		fmt.Fprint(w, "Number of excluded nodes:\tnone\n")
+		w.Writef("Number of excluded nodes:\tnone\n")
 	} else {
 		for reason, count := range report.NumExcludedNodesByReason {
-			fmt.Fprintf(w, "\t%d:\t%s\n", count, reason)
+			w.Writef("\t%d:\t%s\n", count, reason)
 		}
-		fmt.Fprintf(
-			w,
+		w.Writef(
 			"\tany nodes with less than %s %s available at priority %d\n",
 			requestForDominantResourceType.String(),
 			report.DominantResourceType,
 			report.Req.Priority,
 		)
 	}
-	fmt.Fprintf(w, "Error:\t%s\n", report.Err)
-	w.Flush()
-	return sb.String()
+	w.Writef("Error:\t%s\n", report.Err)
+	return w.String()
 }

@@ -85,7 +85,7 @@ func NewMetricsCollector(
 	}
 }
 
-// Run enters s a loop which updates the metrics every refreshPeriod until the supplied comtext is cancelled
+// Run enters s a loop which updates the metrics every refreshPeriod until the supplied context is cancelled
 func (c *MetricsCollector) Run(ctx context.Context) error {
 	ticker := c.clock.NewTicker(c.refreshPeriod)
 	log.Infof("Will update metrics every %s", c.refreshPeriod)

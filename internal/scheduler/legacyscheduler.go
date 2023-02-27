@@ -4,13 +4,10 @@ import (
 	"container/heap"
 	"context"
 	"fmt"
-	log "github.com/sirupsen/logrus"
 	"math"
 	"math/rand"
 	"reflect"
 	"strconv"
-	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/google/uuid"
@@ -698,38 +695,26 @@ type LegacyScheduler struct {
 }
 
 func (sched *LegacyScheduler) String() string {
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 
-	// Write formatted output to our tabwriter.
-	writeFormatted := func(format string, a ...any) {
-		_, err := fmt.Fprintf(w, format, a)
-		if err != nil { // Should never happen as stringBuilder never errors
-			log.WithError(err).Errorf("error building LegacyScheduler string")
-		}
-	}
+	w := NewTabWriter(1, 1, 1, ' ', 0)
 
-	writeFormatted("Executor:\t%s\n", sched.ExecutorId)
+	w.Writef("Executor:\t%s\n", sched.ExecutorId)
 	if len(sched.SchedulingConstraints.TotalResources.Resources) == 0 {
-		writeFormatted("Total resources:\tnone\n")
+		w.Writef("Total resources:\tnone\n")
 	} else {
-		writeFormatted("Total resources:\n")
+		w.Writef("Total resources:\n")
 		for t, q := range sched.SchedulingConstraints.TotalResources.Resources {
-			writeFormatted("  %s: %s\n", t, q)
+			w.Writef("  %s: %s\n", t, q.String())
 		}
 	}
-	writeFormatted("Minimum job size:\t%v\n", sched.MinimumJobSize)
+	w.Writef("Minimum job size:\t%v\n", sched.MinimumJobSize)
 	if sched.NodeDb == nil {
-		writeFormatted("NodeDb:\t%v\n", sched.NodeDb)
+		w.Writef("NodeDb:\t%v\n", sched.NodeDb)
 	} else {
-		writeFormatted("NodeDb:\n")
-		writeFormatted(indent.String("\t", sched.NodeDb.String()))
+		w.Writef("NodeDb:\n")
+		w.Writef(indent.String("\t", sched.NodeDb.String()))
 	}
-	err := w.Flush()
-	if err != nil { // Should never happen as stringBuilder never errors
-		log.WithError(err).Errorf("error flushing writer when building LegacyScheduler string")
-	}
-	return sb.String()
+	return w.String()
 }
 
 type Queue struct {
