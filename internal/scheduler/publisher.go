@@ -18,8 +18,8 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-// This is half the default pulsar BatchingMaxSize
 const (
+	// This is half the default pulsar BatchingMaxSize
 	defaultMaxMessageBatchSize = 64 * 1024
 	explicitPartitionKey       = "armada_pulsar_partition"
 )
