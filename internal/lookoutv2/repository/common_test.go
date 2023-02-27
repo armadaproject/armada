@@ -15,12 +15,12 @@ var testFilters = []*model.Filter{
 	{
 		Field: "queue",
 		Match: "exact",
-		Value: "test-queue",
+		Value: "test\\queue",
 	},
 	{
 		Field: "owner",
 		Match: "startsWith",
-		Value: "anon",
+		Value: "anon\\one",
 	},
 	{
 		Field:        "1234",
@@ -152,7 +152,7 @@ func TestQueryBuilder_JobCount(t *testing.T) {
 			WHERE j.queue = $5 AND j.owner LIKE $6
 		`),
 		splitByWhitespace(query.Sql))
-	assert.Equal(t, []interface{}{"1234", "abcd", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
+	assert.Equal(t, []interface{}{"1234", "abcd", "5678", "efgh%", "test\\queue", "anon\\\\one%"}, query.Args)
 }
 
 func TestQueryBuilder_InsertIntoTempTableEmpty(t *testing.T) {
