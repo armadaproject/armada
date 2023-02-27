@@ -37,6 +37,7 @@ grpc:
     permitWithoutStream: true
 scheduling:
   executorTimeout: 10m
+  nodeIdLabel: kubernetes.io/hostname
   preemption:
     enabled: true
     priorityClasses:
