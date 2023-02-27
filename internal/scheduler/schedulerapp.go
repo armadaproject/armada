@@ -54,7 +54,9 @@ func Run(config Configuration) error {
 	defer func() {
 		err := redisClient.Close()
 		if err != nil {
-			log.WithError(errors.WithStack(err)).Warnf("Redis client didn't close down cleanly")
+			log.
+				WithError(err).
+				Warnf("Redis client didn't close down cleanly")
 		}
 	}()
 	queueRepository := database.NewLegacyQueueRepository(redisClient)

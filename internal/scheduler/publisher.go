@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"strconv"
 	"sync"
 	"time"
@@ -109,7 +110,10 @@ func (p *PulsarPublisher) PublishMessages(ctx context.Context, events []*armadae
 		for _, msg := range msgs {
 			p.producer.SendAsync(sendCtx, msg, func(_ pulsar.MessageID, _ *pulsar.ProducerMessage, err error) {
 				if err != nil {
-					log.WithError(err).Error("error sending message to Pulsar")
+					log.
+						WithField(logging.Stacktrace, logging.ExtractStack(err)).
+						WithError(err).
+						Error("error sending message to Pulsar")
 					errored = true
 				}
 				wg.Done()
