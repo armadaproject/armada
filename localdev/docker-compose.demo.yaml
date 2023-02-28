@@ -59,6 +59,7 @@ services:
       - redis
       - postgres
       - pulsar
+    working_dir: /app
     command: ./server --config /app/config/armada/config.yaml
 
   lookout:
@@ -72,7 +73,8 @@ services:
       - postgres
       - server
       - lookout-ingester
-    entrypoint: ./lookout --config /app/config/lookout/config.yaml --migrateDatabase && ./lookout --config /app/config/lookout/config.yaml
+    working_dir: /app
+    command: ./lookout --config /app/config/lookout/config.yaml --migrateDatabase && ./lookout --config /app/config/lookout/config.yaml
 
   lookoutv2:
     container_name: lookoutv2
@@ -85,7 +87,8 @@ services:
       - postgres
       - server
       - lookout-ingesterv2
-    entrypoint: ./lookoutv2 --config /app/config/lookout/config.yaml --migrateDatabase && ./lookoutv2 --config /app/config/lookout/config.yaml
+    working_dir: /app
+    command: ./lookoutv2 --config /app/config/lookout/config.yaml --migrateDatabase && ./lookoutv2 --config /app/config/lookout/config.yaml
 
   executor:
     container_name: executor
@@ -100,6 +103,7 @@ services:
       - ./.kube:/.kube
     environment:
       - KUBECONFIG=/.kube/config
+    working_dir: /app
     command: ./executor --config /app/config/executor/config.yaml
 
   binoculars:
@@ -115,6 +119,7 @@ services:
       - ./.kube:/.kube
     environment:
       - KUBECONFIG=/.kube/config
+    working_dir: /app
     command: ./binoculars --config /app/config/binoculars/config.yaml
 
   jobservice:
@@ -126,7 +131,8 @@ services:
       - 60003:60003
     depends_on:
       - server
-    command: ./jobservice --config /app/config/jobservice/config.yaml
+    working_dir: /app
+    command: ./jobservice run --config /app/config/jobservice/config.yaml
 
   lookout-ingester:
     container_name: lookout-ingester
@@ -145,6 +151,7 @@ services:
       - kind
     depends_on:
       - postgres
+    working_dir: /app
     command: ./lookoutingesterv2 --config /app/config/lookoutingesterv2/config.yaml
 
   event-ingester:
