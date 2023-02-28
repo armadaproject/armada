@@ -14,13 +14,15 @@ import (
 	_ "github.com/jackc/pgx/v4/stdlib"
 )
 
+type State int
+
 const (
-	QUEUED    int = 1
-	PENDING   int = 2
-	RUNNING   int = 3
-	SUCCEEDED int = 4
-	FAILED    int = 5
-	CANCELLED int = 6
+	QUEUED    State = 1
+	PENDING   State = 2
+	RUNNING   State = 3
+	SUCCEEDED State = 4
+	FAILED    State = 5
+	CANCELLED State = 6
 )
 
 var (
@@ -47,7 +49,7 @@ type Job struct {
 	jobset     string
 	priority   int
 	submitted  time.Time
-	state      int
+	state      State
 	jobUpdated time.Time
 }
 
@@ -104,100 +106,56 @@ func main() {
 /* Update job state from Queued -> Pending -> Running -> pick random jobs to either fail or cancel, otherwise succeed */
 func updateJobState(job_id *string, db *sql.DB) {
 	defer wg.Done()
-
-	pending(job_id, db)
-	running(job_id, db)
+	updateAndSetState(job_id, PENDING, db)
+	updateAndSetState(job_id, RUNNING, db)
 	switch r := rand.Intn(6); r {
 	case 0:
-		fail(job_id, db)
+		updateAndSetState(job_id, FAILED, db)
 	case 1:
-		cancel(job_id, db)
+		updateAndSetState(job_id, CANCELLED, db)
 	default:
-		success(job_id, db)
+		updateAndSetState(job_id, SUCCEEDED, db)
 	}
 }
 
-func pending(job_id *string, db *sql.DB) {
+func updateAndSetState(job_id *string, state State, db *sql.DB) {
 	time.Sleep(3 * time.Second)
 	updateTime := Now()
-
-	updateState := `UPDATE job SET state = $1, job_updated = $2 WHERE job_id = $3;`
-	_, err := db.Exec(updateState, PENDING, updateTime, job_id)
-	if err != nil {
+	updateState, updateJobRunState := getSqlStatement(state)
+	if _, err := db.Exec(updateState, state, updateTime, job_id); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		return
 	}
 
-	updateCreated := `UPDATE job_run SET created = $1 WHERE job_id = $2;`
-	_, err = db.Exec(updateCreated, updateTime, job_id)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-	}
-}
-
-func running(job_id *string, db *sql.DB) {
-	time.Sleep(3 * time.Second)
-	updateTime := Now()
-
-	updateState := `UPDATE job SET state = $1, job_updated = $2 WHERE job_id = $3;`
-	_, err := db.Exec(updateState, RUNNING, updateTime, job_id)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+	if state == CANCELLED {
 		return
 	}
 
-	updateStarted := `UPDATE job_run SET started = $1 WHERE job_id = $2`
-	_, err = db.Exec(updateStarted, updateTime, job_id)
-	if err != nil {
+	if _, err := db.Exec(updateJobRunState, updateTime, job_id); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 	}
 }
 
-func success(job_id *string, db *sql.DB) {
-	time.Sleep(3 * time.Second)
-	updateTime := Now()
-
-	updateState := `UPDATE job SET state = $1, job_updated = $2 WHERE job_id = $3;`
-	_, err := db.Exec(updateState, SUCCEEDED, updateTime, job_id)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		return
+func getSqlStatement(state State) (string, string) {
+	var updateState, updateJobRunState string
+	switch state {
+	case PENDING, RUNNING, SUCCEEDED, FAILED:
+		updateState = `UPDATE job SET state = $1, job_updated = $2 WHERE job_id = $3;`
+	case CANCELLED:
+		updateState = `UPDATE job SET state = $1, job_updated = $2, cancelled = $2 WHERE job_id = $3;`
+		return updateState, ""
 	}
-
-	updateFinishedSucceeded := `UPDATE job_run SET finished = $1, succeeded = true WHERE job_id = $2;`
-	_, err = db.Exec(updateFinishedSucceeded, updateTime, job_id)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
+	switch state {
+	case PENDING:
+		updateJobRunState = `UPDATE job_run SET created = $1 WHERE job_id = $2;`
+	case RUNNING:
+		updateJobRunState = `UPDATE job_run SET started = $1 WHERE job_id = $2;`
+	case SUCCEEDED:
+		updateJobRunState = `UPDATE job_run SET finished = $1, succeeded = true WHERE job_id = $2;`
+	case FAILED:
+		updateJobRunState = `UPDATE job_run SET finished = $1, succeeded = false, error = 'Unexpected error' WHERE job_id = $2;`
 	}
-}
-
-func fail(job_id *string, db *sql.DB) {
-	time.Sleep(3 * time.Second)
-	updateTime := Now()
-
-	updateState := `UPDATE job SET state = $1, job_updated = $2 WHERE job_id = $3;`
-	_, err := db.Exec(updateState, FAILED, updateTime, job_id)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		return
-	}
-
-	updateFinishedFailed := `UPDATE job_run SET finished = $1, succeeded = false, error = 'Unexpected error' WHERE job_id = $2;`
-	_, err = db.Exec(updateFinishedFailed, updateTime, job_id)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-	}
-}
-
-func cancel(job_id *string, db *sql.DB) {
-	time.Sleep(3 * time.Second)
-	updateTime := Now()
-
-	updateState := `UPDATE job SET state = $1, job_updated = $2, cancelled = $2 WHERE job_id = $3;`
-	_, err := db.Exec(updateState, CANCELLED, updateTime, job_id)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-	}
+	return updateState, updateJobRunState
 }
 
 /* Some helper functions */
