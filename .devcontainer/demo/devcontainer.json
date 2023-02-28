@@ -9,5 +9,6 @@
     "ms-python.python"
   ],
   // Open workspace in .devcontainer/demo folder
-  "workspaceFolder": "/workspaces/armada/.devcontainer/demo"
+  "workspaceFolder": "/workspaces/armada/.devcontainer/demo",
+  "name": "Demo"
 }
