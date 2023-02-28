@@ -18,7 +18,7 @@ case "$command" in
     docker build -t golang:1.18-delve .
     ;;
   "demo")
-    NON_INTERACTIVE=1
+    DEMO=1
     # COMPOSE_FILE="-f ../.devcontainer/demo/docker-compose.yaml --project-directory ."
     ;;
   *)
@@ -27,13 +27,13 @@ case "$command" in
     ;;
 esac
 
-# Rewrite the above to only read if NON_INTERACTIVE is not set
-if [ -z "$NON_INTERACTIVE" ]; then
+# Rewrite the above to only read if DEMO is not set
+if [ -z "$DEMO" ]; then
   read -p "Build Lookout UI? [y/N] " -n 1 -r
   echo
 else
   # Set REPLY to 'y' so that the if statement below will run
-  REPLY=y
+  REPLY=n
 fi
 
 if [[ $REPLY =~ ^[Yy]$ ]]
@@ -86,8 +86,8 @@ docker-compose $COMPOSE_FILE up -d $ARMADA_SVCS
 
 echo "NOTE: it may take a while for the golang code to compile!"
 
-# Apply the same logic as above to only read if NON_INTERACTIVE is not set
-if [ -z "$NON_INTERACTIVE" ]; then
+# Apply the same logic as above to only read if DEMO is not set
+if [ -z "$DEMO" ]; then
   read -p "View logs? [y/N] " -n 1 -r
   echo
 else

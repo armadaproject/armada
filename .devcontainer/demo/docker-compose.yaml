@@ -49,53 +49,47 @@ services:
   #
   server:
     container_name: server
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: sharp6292/armada-demo:latest
     networks:
       - kind
     ports:
       - 50051:50051
       - 8080:8080
-    volumes:
-      - ./config:/config
     depends_on:
       - redis
       - postgres
       - pulsar
-    command: ./server --config /config/armada/config.yaml
+    command: ./server --config /app/config/armada/config.yaml
 
   lookout:
     container_name: lookout
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: sharp6292/armada-demo:latest
     networks:
       - kind
     ports:
       - "8089:8089"
-    volumes:
-      - ./config:/config
     depends_on:
       - postgres
       - server
       - lookout-ingester
-    entrypoint: ./lookout --config /config/lookout/config.yaml --migrateDatabase && ./lookout --config /config/lookout/config.yaml
+    entrypoint: ./lookout --config /app/config/lookout/config.yaml --migrateDatabase && ./lookout --config /app/config/lookout/config.yaml
 
   lookoutv2:
     container_name: lookoutv2
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: sharp6292/armada-demo:latest
     networks:
       - kind
     ports:
       - "10000:10000"
-    volumes:
-      - ./config:/config
     depends_on:
       - postgres
       - server
       - lookout-ingesterv2
-    entrypoint: ./lookoutv2 --config /config/lookout/config.yaml --migrateDatabase && ./lookoutv2 --config /config/lookout/config.yaml
+    entrypoint: ./lookoutv2 --config /app/config/lookout/config.yaml --migrateDatabase && ./lookoutv2 --config /app/config/lookout/config.yaml
 
   executor:
     container_name: executor
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: sharp6292/armada-demo:latest
     networks:
       - kind
     ports:
@@ -103,15 +97,14 @@ services:
     depends_on:
       - server
     volumes:
-      - ./config:/config
       - ./.kube:/.kube
     environment:
       - KUBECONFIG=/.kube/config
-    command: ./executor --config /config/executor/config.yaml
+    command: ./executor --config /app/config/executor/config.yaml
 
   binoculars:
     container_name: binoculars
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: sharp6292/armada-demo:latest
     networks:
       - kind
     ports:
@@ -119,14 +112,13 @@ services:
     depends_on:
       - server
     volumes:
-      - ./config:/config
       - ./.kube:/.kube
     environment:
       - KUBECONFIG=/.kube/config
-    command: ./binoculars --config /config/binoculars/config.yaml
+    command: ./binoculars --config /app/config/binoculars/config.yaml
 
   jobservice:
-    container_name: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    container_name: sharp6292/armada-demo:latest
     image: golang:1.18-buster
     networks:
       - kind
@@ -134,43 +126,35 @@ services:
       - 60003:60003
     depends_on:
       - server
-    volumes:
-      - ./config:/config
-    command: ./jobservice run --config /config/jobservice/config.yaml
+    command: ./jobservice run --config /app/config/jobservice/config.yaml
 
   lookout-ingester:
     container_name: lookout-ingester
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: sharp6292/armada-demo:latest
     networks:
       - kind
     depends_on:
       - postgres
-    volumes:
-      - ./config:/config
     working_dir: /app
     entrypoint: go
-    command: ./lookoutingester --config /config/lookoutingester/config.yaml
+    command: ./lookoutingester --config /app/config/lookoutingester/config.yaml
 
   lookout-ingesterv2:
     container_name: lookout-ingesterv2
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: sharp6292/armada-demo:latest
     networks:
       - kind
     depends_on:
       - postgres
-    volumes:
-      - ./config:/config
-    command: ./lookoutingesterv2 --config /config/lookoutingesterv2/config.yaml
+    command: ./lookoutingesterv2 --config /app/config/lookoutingesterv2/config.yaml
 
   event-ingester:
     container_name: event-ingester
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: sharp6292/armada-demo:latest
     networks:
       - kind
     depends_on:
       - redis
-    volumes:
-      - ./config:/config
     working_dir: /app
     entrypoint: go
-    command: ./eventingester --config /config/eventingester/config.yaml
+    command: ./eventingester --config /app/config/eventingester/config.yaml

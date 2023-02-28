@@ -1,0 +1,10 @@
+{
+    "image": "mcr.microsoft.com/devcontainers/universal:2",
+    "features": {
+        "ghcr.io/mpriscella/features/kind:1": {}
+    },
+    "extensions": [
+        "golang.go",
+        "ms-python.python"
+    ],
+}
