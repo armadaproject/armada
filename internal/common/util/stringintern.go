@@ -5,32 +5,28 @@ import (
 	"github.com/pkg/errors"
 )
 
-// StringInterner allows strings with equal values but different backing arrays to be deduplicated
-// This is useful in Armada where common strings are often used across jobs (e.g. jobset, queue)
-// and so deduplication can help save memory.
-// The Interner is backed by an LRU so that only the most recently interned strings are kept.
-// Note that this probably isn't the most efficient implementation (eg see https://github.com/josharian/intern
-// which abuses sync.pool) but this should be reliable and performance more than good enough for Armada use cases
+// StringInterner deduplicates strings with equal value but different backing arrays,
+// thus reducing overall memory usage if many duplicate strings are stored.
+//
+// StringInterner is backed by an LRU so that only the most recently interned strings are kept.
 type StringInterner struct {
-	cache *lru.Cache
+	lru *lru.Cache
 }
 
-// NewStringInterner will allocate an Interner backed by an LRU limited to the provided size
+// NewStringInterner return a new *StringInterner backed by a LRU of the given size.
 func NewStringInterner(cacheSize uint32) (*StringInterner, error) {
-	cache, err := lru.New(int(cacheSize))
+	lru, err := lru.New(int(cacheSize))
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	return &StringInterner{cache: cache}, nil
+	return &StringInterner{lru: lru}, nil
 }
 
 // Intern ensures the string is cached and returns the cached string
-func (i *StringInterner) Intern(s string) string {
-	interned, present := i.cache.Get(s)
-	if !present {
-		interned = s
-		i.cache.Add(s, s)
-
+func (interner *StringInterner) Intern(s string) string {
+	if existing, ok, _ := interner.lru.PeekOrAdd(s, s); ok {
+		return existing.(string)
+	} else {
+		return s
 	}
-	return interned.(string)
 }
