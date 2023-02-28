@@ -794,6 +794,9 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 	}
 
 	maxRetries := int(q.schedulingConfig.MaxRetries)
+	if request.TrackedAnnotations[configuration.FailFastAnnotation] == "true" {
+		maxRetries = 0
+	}
 	if retries >= maxRetries {
 		failureReason := fmt.Sprintf("Exceeded maximum number of retries: %d", maxRetries)
 		err = q.reportFailure(request.JobId, request.ClusterId, failureReason)
