@@ -5,42 +5,33 @@
 FROM golang:1.18-buster
 
 # Server
-COPY bin/server /app/
-COPY localdev/config/armada/config.yaml /app/config/armada/config.yaml
+COPY bin/server /bin/
 
 # Executor
-COPY bin/executor /app/
-COPY localdev/config/executor/config.yaml /app/config/executor/config.yaml
+COPY bin/executor /bin/
 
 # Binoculars
-COPY bin/binoculars /app/
-COPY localdev/config/binoculars/config.yaml /app/config/binoculars/config.yaml
+COPY bin/binoculars /bin/
 
 # Lookout ingester
-COPY bin/lookoutingester /app/
-COPY localdev/config/lookoutingester/config.yaml /app/config/lookoutingester/config.yaml
+COPY bin/lookoutingester /bin/
 
 # Event ingester
-COPY bin/eventingester /app/
-COPY localdev/config/eventingester/config.yaml /app/config/eventingester/config.yaml
+COPY bin/eventingester /bin/
 
 # Lookout
-COPY bin/lookout /app/
-COPY localdev/config/lookout/config.yaml /app/config/lookout/config.yaml
+COPY bin/lookout /bin/
 
 # Lookout V2
-COPY bin/lookoutv2 /app/
-COPY localdev/config/lookoutv2/config.yaml /app/config/lookoutv2/config.yaml
+COPY bin/lookoutv2 /bin/
 
 # Jobservice
-COPY bin/jobservice /app/
-COPY localdev/config/jobservice/config.yaml /app/config/jobservice/config.yaml
+COPY bin/jobservice /bin/
 
 # Lookout V2 Ingester
-COPY bin/lookoutingesterv2 /app/
-COPY localdev/config/lookoutingesterv2/config.yaml /app/config/lookoutingesterv2/config.yaml
+COPY bin/lookoutingesterv2 /bin/
 
 # Lookout UI
-COPY internal/lookout/ui/build /app/internal/lookout/ui/build
+COPY internal/lookout/ui/build /bin/lookoutui
 
 WORKDIR /app

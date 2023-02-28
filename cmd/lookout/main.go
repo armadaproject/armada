@@ -28,6 +28,7 @@ const (
 	CustomConfigLocation string = "config"
 	MigrateDatabase      string = "migrateDatabase"
 	PruneDatabase               = "pruneDatabase"
+	LookoutUILocation           = "lookoutUI"
 )
 
 func init() {
@@ -38,6 +39,7 @@ func init() {
 	)
 	pflag.Bool(MigrateDatabase, false, "Migrate database instead of running server")
 	pflag.Bool(PruneDatabase, false, "Removes old jobs from the database instead of running server")
+	pflag.String(LookoutUILocation, "./internal/lookout/ui/build", "Location of the Lookout UI files")
 	pflag.Parse()
 }
 
@@ -108,7 +110,10 @@ func main() {
 	})
 
 	// server static UI files
-	mux.Handle("/", http.FileServer(serve.CreateDirWithIndexFallback("./internal/lookout/ui/build")))
+	mux.Handle("/", http.FileServer(serve.CreateDirWithIndexFallback(LookoutUILocation)))
+
+	// Print locatuion of UI files
+	fmt.Printf("Serving Lookout UI from %s", LookoutUILocation)
 
 	shutdownServer := common.ServeHttp(config.HttpPort, mux)
 

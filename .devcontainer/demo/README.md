@@ -3,8 +3,8 @@
 Run this when the script completes
 
 ```bash
-go run .//armadactl/main.go create queue test --priorityFactor 1
-go run ./cmd/armadactl/main.go submit ./devcontainer/demo/jobs.yaml
+go run ./cmd/armadactl/main.go create queue test --priorityFactor 1
+go run ./cmd/armadactl/main.go submit ./.devcontainer/demo/jobs.yaml
 go run ./cmd/armadactl/main.go watch test job-set-1
 ```
 
