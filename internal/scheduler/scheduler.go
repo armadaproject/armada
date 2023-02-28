@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/armadaproject/armada/internal/scheduler/jobdb"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
@@ -14,32 +12,33 @@ import (
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-// Scheduler is the main armada Scheduler. It runs a periodic scheduling cycle during which the following actions are
-// performed:
-// * Determine if we are leader
-// * Update internal state from postgres (via the jobRepository)
-// * If Leader:
-//   - Generate any armada events resulting from the state update
-//   - Expire any jobs that are running on  stale clusters
-//   - Attempt to schedule jobs from the queue
-//   - Publish any armada events resulting from the cycle to Pulsar
+// Scheduler is the main Armada scheduler.
+// It periodically performs the following cycle:
+// 1. Update state from postgres (via the jobRepository).
+// 2. Determine if leader and exit if not.
+// 3. Generate any necessary events resulting from the state update.
+// 4. Expire any jobs assigned to clusters that have timed out.
+// 5. Schedule jobs.
+// 6. Publish any Armada events resulting from the scheduling cycle.
 type Scheduler struct {
-	// Provides job updates from Postgres
+	// Provides job updates from Postgres.
 	jobRepository database.JobRepository
-	// Used to determine whether a cluster is active
+	// Used to determine whether a cluster is active.
 	executorRepository database.ExecutorRepository
-	// Responsible for assigning jobs to nodes
+	// Responsible for assigning jobs to nodes.
+	// TODO: Confusing name. Change.
 	schedulingAlgo SchedulingAlgo
-	// Tells us if we are leader. Only the leader may schedule jobs
+	// Tells us if we are leader. Only the leader may schedule jobs.
 	leaderController LeaderController
 	// We intern strings to save memory
-	stringInterner *util.StringInterner
+	stringInterner *stringinterner.StringInterner
 	// Responsible for publishing messages to Pulsar.  Only the leader publishes.
 	publisher Publisher
 	// Minimum duration between scheduling cycles.
@@ -66,7 +65,7 @@ func NewScheduler(
 	schedulingAlgo SchedulingAlgo,
 	leaderController LeaderController,
 	publisher Publisher,
-	stringInterner *util.StringInterner,
+	stringInterner *stringinterner.StringInterner,
 	cyclePeriod time.Duration,
 	executorTimeout time.Duration,
 	maxLeaseReturns uint,

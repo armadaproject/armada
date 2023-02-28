@@ -1,4 +1,4 @@
-package util
+package stringinterner
 
 import (
 	lru "github.com/hashicorp/golang-lru"
@@ -13,8 +13,8 @@ type StringInterner struct {
 	lru *lru.Cache
 }
 
-// NewStringInterner return a new *StringInterner backed by a LRU of the given size.
-func NewStringInterner(cacheSize uint32) (*StringInterner, error) {
+// New return a new *StringInterner backed by a LRU of the given size.
+func New(cacheSize uint32) (*StringInterner, error) {
 	lru, err := lru.New(int(cacheSize))
 	if err != nil {
 		return nil, errors.WithStack(err)
