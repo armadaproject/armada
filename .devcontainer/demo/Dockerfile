@@ -2,11 +2,7 @@
 # docker build -t armada-demo -f .devcontainer/demo/Dockerfile .
 # docker push user/armada-demo:latest
 
-ARG BASE_IMAGE=golang:1.18-buster
-FROM ${BASE_IMAGE}
-
-RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
-USER armada
+FROM golang:1.18-buster
 
 # Server
 COPY bin/server /app/

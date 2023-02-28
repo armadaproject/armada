@@ -126,7 +126,7 @@ services:
       - 60003:60003
     depends_on:
       - server
-    command: ./jobservice run --config /app/config/jobservice/config.yaml
+    command: ./jobservice --config /app/config/jobservice/config.yaml
 
   lookout-ingester:
     container_name: lookout-ingester
