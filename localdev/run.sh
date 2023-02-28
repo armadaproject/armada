@@ -1,7 +1,7 @@
 #!/bin/bash
 
 INFRA_SVCS="redis postgres pulsar"
-ARMADA_SVCS="server lookout lookout-ingester executor binoculars jobservice event-ingester"
+ARMADA_SVCS="server lookout lookout-ingester lookoutv2 lookout-ingesterv2 executor binoculars jobservice event-ingester"
 COMPOSE_FILE=""
 
 # make the dir containing this file the CWD
@@ -23,11 +23,33 @@ case "$command" in
     ;;
 esac
 
+# Give the user the option to install the lookout yarn build
+# from ./internal/lookout/ui
+read -p "Build Lookout UI? [y/N] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+  echo "Building Lookout UI from Yarn..."
+  cd ../internal/lookout/ui
+  yarn install
+  yarn run openapi
+  yarn run build
+  cd ../../../localdev
+fi
+
+# check if kind exists, otherwise run scripts/kind-start.sh
+kind --help &> /dev/null
+if [ $? -ne 0 ];
+then
+  echo "kind not found, installing ..."
+  scripts/kind-start.sh
+fi
+
 # start the kubernetes cluster if needed
 kind get clusters | grep armada-test &> /dev/null
 if [ $? -ne 0 ];
 then
-    scripts/kind-start.sh
+  scripts/kind-start.sh
 fi
 
 # select arm64 image for pulsar if needed
@@ -49,3 +71,16 @@ fi
 docker-compose $COMPOSE_FILE up -d $INFRA_SVCS
 sleep $SLEEP_TIME
 docker-compose $COMPOSE_FILE up -d $ARMADA_SVCS
+
+# Give a note to users that it might take a long time to
+# compile the golang code
+
+echo "NOTE: it may take a while for the golang code to compile!"
+
+# Ask if user would like to view logs
+read -p "View logs? [y/N] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+  docker-compose $COMPOSE_FILE logs -f --tail=20
+fi
