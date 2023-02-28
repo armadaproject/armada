@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
@@ -28,7 +30,7 @@ const (
 	CustomConfigLocation string = "config"
 	MigrateDatabase      string = "migrateDatabase"
 	PruneDatabase               = "pruneDatabase"
-	LookoutUILocation           = "lookoutUI"
+	LookoutUILocation    string = "lookoutUI"
 )
 
 func init() {
@@ -109,11 +111,12 @@ func main() {
 		configHandler(config.UIConfig, w)
 	})
 
-	// server static UI files
-	mux.Handle("/", http.FileServer(serve.CreateDirWithIndexFallback(LookoutUILocation)))
+	// Get location of UI files
+	uiLoc := viper.GetString(LookoutUILocation)
+	mux.Handle("/", http.FileServer(serve.CreateDirWithIndexFallback(uiLoc)))
 
-	// Print locatuion of UI files
-	fmt.Printf("Serving Lookout UI from %s", LookoutUILocation)
+	// Log Info of the Ui Location
+	log.Infof("Serving UI from %s", uiLoc)
 
 	shutdownServer := common.ServeHttp(config.HttpPort, mux)
 

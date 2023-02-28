@@ -3,9 +3,9 @@
 Run this when the script completes
 
 ```bash
-go run ./cmd/armadactl/main.go create queue test --priorityFactor 1
-go run ./cmd/armadactl/main.go submit ./.devcontainer/demo/jobs.yaml
-go run ./cmd/armadactl/main.go watch test job-set-1
+./armadactl create queue test --priorityFactor 1
+./armadactl submit ./.devcontainer/demo/jobs.yaml
+./armadactl watch test job-set-1
 ```
 
 # View Lookout
