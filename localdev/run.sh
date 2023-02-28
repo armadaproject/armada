@@ -12,21 +12,29 @@ command=${1:-default}
 # Switch compose files if requested by command-line arg
 case "$command" in
   "debug")
-    echo "starting debug compose environment"
+    echo "Starting debug compose environment"
     COMPOSE_FILE="-f docker-compose.yaml -f docker-compose.debug.yaml"
     # make golang image with delve
     docker build -t golang:1.18-delve .
     ;;
+  "non-interactive")
+    NON_INTERACTIVE=1
+    ;;
   *)
-    echo "starting compose environment"
+    echo "Starting compose environment"
     # default action
     ;;
 esac
 
-# Give the user the option to install the lookout yarn build
-# from ./internal/lookout/ui
-read -p "Build Lookout UI? [y/N] " -n 1 -r
-echo
+# Rewrite the above to only read if NON_INTERACTIVE is not set
+if [ -z "$NON_INTERACTIVE" ]; then
+  read -p "Build Lookout UI? [y/N] " -n 1 -r
+  echo
+else
+  # Set REPLY to 'y' so that the if statement below will run
+  REPLY=y
+fi
+
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
   echo "Building Lookout UI from Yarn..."
@@ -77,9 +85,16 @@ docker-compose $COMPOSE_FILE up -d $ARMADA_SVCS
 
 echo "NOTE: it may take a while for the golang code to compile!"
 
-# Ask if user would like to view logs
-read -p "View logs? [y/N] " -n 1 -r
-echo
+# Apply the same logic as above to only read if NON_INTERACTIVE is not set
+if [ -z "$NON_INTERACTIVE" ]; then
+  read -p "View logs? [y/N] " -n 1 -r
+  echo
+else
+  echo "Viewing logs..."
+  # Set REPLY to 'y' so that the if statement below will run
+  REPLY=y
+fi
+
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
   docker-compose $COMPOSE_FILE logs -f --tail=20

@@ -1,0 +1,173 @@
+version: "3.8"
+
+networks:
+  kind:
+    external: true
+
+services:
+  #
+  # Infrastructure services.
+  # A Kubernetes cluster (e.g., kind) must also be setup before starting Armada.
+  #
+  redis:
+    container_name: redis
+    image: redis
+    ports:
+      - "6379:6379"
+    networks:
+      - kind
+
+  postgres:
+    container_name: postgres
+    image: postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=psw
+    volumes:
+      - ./scripts/postgres-init.sh:/docker-entrypoint-initdb.d/init-database.sh
+    ports:
+      - "5432:5432"
+    networks:
+      - kind
+
+  pulsar:
+    image: ${PULSAR_IMAGE:-apachepulsar/pulsar:2.10.0}
+    container_name: pulsar
+    volumes:
+      - ./pulsar.conf:/conf/pulsar.conf
+    entrypoint: bin/pulsar standalone
+    ports:
+      - "0.0.0.0:6650:6650"
+    networks:
+      - kind
+
+  #
+  # Armada services.
+  #
+  server:
+    container_name: server
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - 50051:50051
+      - 8080:8080
+    volumes:
+      - ./config:/config
+    depends_on:
+      - redis
+      - postgres
+      - pulsar
+    command: ./server --config /config/armada/config.yaml
+
+  lookout:
+    container_name: lookout
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - "8089:8089"
+    volumes:
+      - ./config:/config
+    depends_on:
+      - postgres
+      - server
+      - lookout-ingester
+    entrypoint: ./lookout --config /config/lookout/config.yaml --migrateDatabase && ./lookout --config /config/lookout/config.yaml
+
+  lookoutv2:
+    container_name: lookoutv2
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - "10000:10000"
+    volumes:
+      - ./config:/config
+    depends_on:
+      - postgres
+      - server
+      - lookout-ingesterv2
+    entrypoint: ./lookoutv2 --config /config/lookout/config.yaml --migrateDatabase && ./lookoutv2 --config /config/lookout/config.yaml
+
+  executor:
+    container_name: executor
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - 9001:9001
+    depends_on:
+      - server
+    volumes:
+      - ./config:/config
+      - ./.kube:/.kube
+    environment:
+      - KUBECONFIG=/.kube/config
+    command: ./executor --config /config/executor/config.yaml
+
+  binoculars:
+    container_name: binoculars
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - 8082:8082
+    depends_on:
+      - server
+    volumes:
+      - ./config:/config
+      - ./.kube:/.kube
+    environment:
+      - KUBECONFIG=/.kube/config
+    command: ./binoculars --config /config/binoculars/config.yaml
+
+  jobservice:
+    container_name: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: golang:1.18-buster
+    networks:
+      - kind
+    ports:
+      - 60003:60003
+    depends_on:
+      - server
+    volumes:
+      - ./config:/config
+    command: ./jobservice run --config /config/jobservice/config.yaml
+
+  lookout-ingester:
+    container_name: lookout-ingester
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    depends_on:
+      - postgres
+    volumes:
+      - ./config:/config
+    working_dir: /app
+    entrypoint: go
+    command: ./lookoutingester --config /config/lookoutingester/config.yaml
+
+  lookout-ingesterv2:
+    container_name: lookout-ingesterv2
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    depends_on:
+      - postgres
+    volumes:
+      - ./config:/config
+    command: ./lookoutingesterv2 --config /config/lookoutingesterv2/config.yaml
+
+  event-ingester:
+    container_name: event-ingester
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    depends_on:
+      - redis
+    volumes:
+      - ./config:/config
+    working_dir: /app
+    entrypoint: go
+    command: ./eventingester --config /config/eventingester/config.yaml
