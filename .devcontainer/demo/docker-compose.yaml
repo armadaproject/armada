@@ -118,8 +118,8 @@ services:
     command: ./binoculars --config /app/config/binoculars/config.yaml
 
   jobservice:
-    container_name: sharp6292/armada-demo:latest
-    image: golang:1.18-buster
+    container_name: jobservice
+    image: sharp6292/armada-demo:latest
     networks:
       - kind
     ports:
@@ -136,7 +136,6 @@ services:
     depends_on:
       - postgres
     working_dir: /app
-    entrypoint: go
     command: ./lookoutingester --config /app/config/lookoutingester/config.yaml
 
   lookout-ingesterv2:
@@ -156,5 +155,4 @@ services:
     depends_on:
       - redis
     working_dir: /app
-    entrypoint: go
     command: ./eventingester --config /app/config/eventingester/config.yaml

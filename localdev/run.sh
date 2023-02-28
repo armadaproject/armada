@@ -18,6 +18,7 @@ case "$command" in
     docker build -t golang:1.18-delve .
     ;;
   "demo")
+    echo "Running Demo Enviroment"
     DEMO=1
     COMPOSE_FILE="-f ../.devcontainer/demo/docker-compose.yaml --project-directory ."
     ;;
@@ -70,7 +71,7 @@ fi
 
 # see if pulsar is already up, in which case we don't need to sleep
 SLEEP_TIME=0
-docker-compose ps | grep -E "pulsar.+running" &> /dev/null
+docker-compose $COMPOSE_FILE ps | grep -E "pulsar.+running|pulsar.+Up" &> /dev/null
 if [ $? -ne 0 ];
 then
     echo "Pausing for pulsar start up ..."
@@ -84,7 +85,10 @@ docker-compose $COMPOSE_FILE up -d $ARMADA_SVCS
 # Give a note to users that it might take a long time to
 # compile the golang code
 
-echo "NOTE: it may take a while for the golang code to compile!"
+# If demo is not set
+if ! [ -z "$DEMO" ]; then
+  echo "NOTE: it may take a while for the golang code to compile!"
+fi
 
 # Apply the same logic as above to only read if DEMO is not set
 if [ -z "$DEMO" ]; then

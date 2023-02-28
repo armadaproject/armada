@@ -2,7 +2,7 @@
 # docker build -t armada-demo -f .devcontainer/demo/Dockerfile .
 # docker push user/armada-demo:latest
 
-ARG BASE_IMAGE=alpine:3.17.0
+ARG BASE_IMAGE=golang:1.18-buster
 FROM ${BASE_IMAGE}
 
 RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
@@ -22,7 +22,7 @@ COPY localdev/config/binoculars/config.yaml /app/config/binoculars/config.yaml
 
 # Lookout ingester
 COPY bin/lookoutingester /app/
-COPY localdev/config/eventingester/config.yaml /app/config/eventingester/config.yaml
+COPY localdev/config/lookoutingester/config.yaml /app/config/lookoutingester/config.yaml
 
 # Event ingester
 COPY bin/eventingester /app/
@@ -35,6 +35,10 @@ COPY localdev/config/lookout/config.yaml /app/config/lookout/config.yaml
 # Lookout V2
 COPY bin/lookoutv2 /app/
 COPY localdev/config/lookoutv2/config.yaml /app/config/lookoutv2/config.yaml
+
+# Jobservice
+COPY bin/jobservice /app/
+COPY localdev/config/jobservice/config.yaml /app/config/jobservice/config.yaml
 
 # Lookout V2 Ingester
 COPY bin/lookoutingesterv2 /app/
