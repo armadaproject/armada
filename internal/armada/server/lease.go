@@ -771,15 +771,15 @@ func (q *AggregatedQueueServer) decompressOwnershipGroups(compressedOwnershipGro
 
 func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
-		return nil, status.Errorf(codes.PermissionDenied, "[RenewLease] error: %s", err)
+		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
 	renewed, e := q.jobRepository.RenewLease(request.ClusterId, request.Ids)
-	return &api.IdList{renewed}, e
+	return &api.IdList{Ids: renewed}, e
 }
 
 func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
-		return nil, status.Errorf(codes.PermissionDenied, "[ReturnLease] error: %s", err)
+		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
 
 	// Check how many times the same job has been retried already

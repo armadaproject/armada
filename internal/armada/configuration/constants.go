@@ -18,3 +18,7 @@ var ArmadaManagedAnnotations = []string{
 	GangCardinalityAnnotation,
 	FailFastAnnotation,
 }
+
+var ReturnLeaseRequestTrackedAnnotations = map[string]struct{}{
+	FailFastAnnotation: {},
+}
