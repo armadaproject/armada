@@ -19,7 +19,7 @@ case "$command" in
     ;;
   "demo")
     NON_INTERACTIVE=1
-    COMPOSE_FILE="-f ../.devcontainer/demo/docker-compose.yaml"
+    COMPOSE_FILE="-f ../.devcontainer/demo/docker-compose.yaml --project-directory ."
     ;;
   *)
     echo "Starting compose environment"

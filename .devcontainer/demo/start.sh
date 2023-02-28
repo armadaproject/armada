@@ -2,4 +2,4 @@
 
 cd ../../
 
-./localdev/run.sh non-interactive
+./localdev/run.sh demo
