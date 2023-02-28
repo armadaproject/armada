@@ -887,6 +887,16 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Build().
 			Job()
 
+		job2 := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				Annotations: map[string]string{
+					"annotation-key-1": "annotation-value-6",
+					"annotation-key-2": "annotation-value-4",
+				},
+			}).
+			Build().
+			Job()
+
 		repo := NewSqlGetJobsRepository(db)
 
 		t.Run("exact", func(t *testing.T) {
@@ -933,6 +943,34 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			assert.Len(t, result.Jobs, 1)
 			assert.Equal(t, 1, result.Count)
 			assert.Equal(t, job, result.Jobs[0])
+		})
+
+		t.Run("startsWith, multiple annotations", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{
+					{
+						Field:        "annotation-key-1",
+						Match:        model.MatchStartsWith,
+						Value:        "annotation-value-",
+						IsAnnotation: true,
+					},
+					{
+						Field:        "annotation-key-2",
+						Match:        model.MatchStartsWith,
+						Value:        "annotation-value-",
+						IsAnnotation: true,
+					},
+				},
+				&model.Order{},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 2)
+			assert.Equal(t, 2, result.Count)
+			assert.Equal(t, job, result.Jobs[0])
+			assert.Equal(t, job2, result.Jobs[1])
 		})
 
 		return nil

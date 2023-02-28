@@ -143,16 +143,19 @@ func TestQueryBuilder_JobCount(t *testing.T) {
 	assert.Equal(t, splitByWhitespace(`
 			SELECT COUNT(DISTINCT j.job_id) FROM job AS j
 			INNER JOIN (
+			    SELECT job_id
+			    FROM user_annotation_lookup
+			    WHERE queue = $1 AND key = $2 AND value = $3
+			) AS ual0 ON j.job_id = ual0.job_id
+			INNER JOIN (
 				SELECT job_id
 				FROM user_annotation_lookup
-				WHERE (key = $1 AND value = $2) OR (key = $3 AND value LIKE $4)
-				GROUP BY job_id
-				HAVING COUNT(*) = 2
-			) AS aft ON j.job_id = aft.job_id
-			WHERE j.queue = $5 AND j.owner LIKE $6
+				WHERE queue = $4 AND key = $5 AND value LIKE $6
+			) AS ual1 ON j.job_id = ual1.job_id
+			WHERE j.queue = $7 AND j.owner LIKE $8
 		`),
 		splitByWhitespace(query.Sql))
-	assert.Equal(t, []interface{}{"1234", "abcd", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
+	assert.Equal(t, []interface{}{"test-queue", "1234", "abcd", "test-queue", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
 }
 
 func TestQueryBuilder_InsertIntoTempTableEmpty(t *testing.T) {
@@ -191,19 +194,22 @@ func TestQueryBuilder_InsertIntoTempTable(t *testing.T) {
 			INSERT INTO test_table (job_id)
 			SELECT j.job_id FROM job AS j
 			INNER JOIN (
+			    SELECT job_id
+			    FROM user_annotation_lookup
+			    WHERE queue = $1 AND key = $2 AND value = $3
+			) AS ual0 ON j.job_id = ual0.job_id
+			INNER JOIN (
 				SELECT job_id
 				FROM user_annotation_lookup
-				WHERE (key = $1 AND value = $2) OR (key = $3 AND value LIKE $4)
-				GROUP BY job_id
-				HAVING COUNT(*) = 2
-			) AS aft ON j.job_id = aft.job_id
-			WHERE j.queue = $5 AND j.owner LIKE $6
+				WHERE queue = $4 AND key = $5 AND value LIKE $6
+			) AS ual1 ON j.job_id = ual1.job_id
+			WHERE j.queue = $7 AND j.owner LIKE $8
 			ORDER BY j.job_id ASC
 			LIMIT 10 OFFSET 0
 			ON CONFLICT DO NOTHING
 		`),
 		splitByWhitespace(query.Sql))
-	assert.Equal(t, []interface{}{"1234", "abcd", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
+	assert.Equal(t, []interface{}{"test-queue", "1234", "abcd", "test-queue", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
 }
 
 func TestQueryBuilder_CountGroupsEmpty(t *testing.T) {
@@ -236,16 +242,19 @@ func TestQueryBuilder_CountGroups(t *testing.T) {
 				INNER JOIN (
 					SELECT job_id
 					FROM user_annotation_lookup
-					WHERE (key = $1 AND value = $2) OR (key = $3 AND value LIKE $4)
-					GROUP BY job_id
-					HAVING COUNT(*) = 2
-				) AS aft ON j.job_id = aft.job_id
-			    WHERE j.queue = $5 AND j.owner LIKE $6
+					WHERE queue = $1 AND key = $2 AND value = $3
+				) AS ual0 ON j.job_id = ual0.job_id
+				INNER JOIN (
+					SELECT job_id
+					FROM user_annotation_lookup
+					WHERE queue = $4 AND key = $5 AND value LIKE $6
+				) AS ual1 ON j.job_id = ual1.job_id
+				WHERE j.queue = $7 AND j.owner LIKE $8
 			    GROUP BY j.state
 			) AS group_table
 		`),
 		splitByWhitespace(query.Sql))
-	assert.Equal(t, []interface{}{"1234", "abcd", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
+	assert.Equal(t, []interface{}{"test-queue", "1234", "abcd", "test-queue", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
 }
 
 func TestQueryBuilder_GroupByEmpty(t *testing.T) {
@@ -287,17 +296,20 @@ func TestQueryBuilder_GroupBy(t *testing.T) {
 			INNER JOIN (
 				SELECT job_id
 				FROM user_annotation_lookup
-				WHERE (key = $1 AND value = $2) OR (key = $3 AND value LIKE $4)
-				GROUP BY job_id
-				HAVING COUNT(*) = 2
-			) AS aft ON j.job_id = aft.job_id
-			WHERE j.queue = $5 AND j.owner LIKE $6
+				WHERE queue = $1 AND key = $2 AND value = $3
+			) AS ual0 ON j.job_id = ual0.job_id
+			INNER JOIN (
+				SELECT job_id
+				FROM user_annotation_lookup
+				WHERE queue = $4 AND key = $5 AND value LIKE $6
+			) AS ual1 ON j.job_id = ual1.job_id
+			WHERE j.queue = $7 AND j.owner LIKE $8
 			GROUP BY j.jobset
 			ORDER BY count DESC
 			LIMIT 10 OFFSET 0
 		`),
 		splitByWhitespace(query.Sql))
-	assert.Equal(t, []interface{}{"1234", "abcd", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
+	assert.Equal(t, []interface{}{"test-queue", "1234", "abcd", "test-queue", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
 }
 
 func TestQueryBuilder_GroupBySingleAggregate(t *testing.T) {
@@ -321,17 +333,20 @@ func TestQueryBuilder_GroupBySingleAggregate(t *testing.T) {
 			INNER JOIN (
 				SELECT job_id
 				FROM user_annotation_lookup
-				WHERE (key = $1 AND value = $2) OR (key = $3 AND value LIKE $4)
-				GROUP BY job_id
-				HAVING COUNT(*) = 2
-			) AS aft ON j.job_id = aft.job_id
-			WHERE j.queue = $5 AND j.owner LIKE $6
+				WHERE queue = $1 AND key = $2 AND value = $3
+			) AS ual0 ON j.job_id = ual0.job_id
+			INNER JOIN (
+				SELECT job_id
+				FROM user_annotation_lookup
+				WHERE queue = $4 AND key = $5 AND value LIKE $6
+			) AS ual1 ON j.job_id = ual1.job_id
+			WHERE j.queue = $7 AND j.owner LIKE $8
 			GROUP BY j.jobset
 			ORDER BY submitted ASC
 			LIMIT 100 OFFSET 20
 		`),
 		splitByWhitespace(query.Sql))
-	assert.Equal(t, []interface{}{"1234", "abcd", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
+	assert.Equal(t, []interface{}{"test-queue", "1234", "abcd", "test-queue", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
 }
 
 func TestQueryBuilder_GroupByMultipleAggregates(t *testing.T) {
@@ -356,17 +371,20 @@ func TestQueryBuilder_GroupByMultipleAggregates(t *testing.T) {
 			INNER JOIN (
 				SELECT job_id
 				FROM user_annotation_lookup
-				WHERE (key = $1 AND value = $2) OR (key = $3 AND value LIKE $4)
-				GROUP BY job_id
-				HAVING COUNT(*) = 2
-			) AS aft ON j.job_id = aft.job_id
-			WHERE j.queue = $5 AND j.owner LIKE $6
+				WHERE queue = $1 AND key = $2 AND value = $3
+			) AS ual0 ON j.job_id = ual0.job_id
+			INNER JOIN (
+				SELECT job_id
+				FROM user_annotation_lookup
+				WHERE queue = $4 AND key = $5 AND value LIKE $6
+			) AS ual1 ON j.job_id = ual1.job_id
+			WHERE j.queue = $7 AND j.owner LIKE $8
 			GROUP BY j.jobset
 			ORDER BY last_transition_time_seconds DESC
 			LIMIT 100 OFFSET 20
 		`),
 		splitByWhitespace(query.Sql))
-	assert.Equal(t, []interface{}{"1234", "abcd", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
+	assert.Equal(t, []interface{}{"test-queue", "1234", "abcd", "test-queue", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
 }
 
 func splitByWhitespace(s string) []string {
