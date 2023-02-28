@@ -243,8 +243,12 @@ func (srv *SubmitChecker) filterStaleNodeDbs(executorsById map[string]minimalExe
 
 func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	// Nodes to be considered by the scheduler.
+	// We just need to know if scheduling is possible;
+	// no need to try to find a good fit.
+	var maxExtraNodesToConsider uint = 0
 	nodeDb, err := NewNodeDb(
 		srv.priorityClasses,
+		maxExtraNodesToConsider,
 		srv.indexedResources,
 		srv.indexedTaints,
 		srv.indexedNodeLabels,

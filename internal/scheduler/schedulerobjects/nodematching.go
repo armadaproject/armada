@@ -9,6 +9,12 @@ import (
 	"k8s.io/component-helpers/scheduling/corev1"
 )
 
+const (
+	SCHEDULABLE_WITH_PREEMPTION_SCORE    = 0
+	SCHEDULABLE_WITHOUT_PREEMPTION_SCORE = 1
+	SCHEDULABLE_BEST_SCORE               = SCHEDULABLE_WITHOUT_PREEMPTION_SCORE
+)
+
 type PodRequirementsNotMetReason interface {
 	fmt.Stringer
 }
@@ -84,7 +90,6 @@ func (node *Node) PodRequirementsMet(req *PodRequirements) (bool, int, PodRequir
 	if !matches || err != nil {
 		return matches, 0, reason, err
 	}
-
 	return node.DynamicPodRequirementsMet(req)
 }
 
@@ -127,12 +132,12 @@ func (node *Node) DynamicPodRequirementsMet(req *PodRequirements) (bool, int, Po
 	// by checking if resource requirements are met at priority 0.
 	matches, reason, err := podResourceRequirementsMet(0, node.AllocatableByPriorityAndResource, req)
 	if matches || err != nil {
-		return matches, 1, reason, err
+		return matches, SCHEDULABLE_WITHOUT_PREEMPTION_SCORE, reason, err
 	}
 
 	// Check if the pod can be scheduled with preemption.
 	matches, reason, err = podResourceRequirementsMet(req.GetPriority(), node.AllocatableByPriorityAndResource, req)
-	return matches, 0, reason, err
+	return matches, SCHEDULABLE_WITH_PREEMPTION_SCORE, reason, err
 }
 
 func podTolerationRequirementsMet(nodeTaints []v1.Taint, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
