@@ -524,6 +524,9 @@ func (qb *QueryBuilder) makeFromSql(queryTables map[string]bool, normalFilters [
 				return "", err
 			}
 			tables, err := qb.lookoutTables.TablesForColumn(column)
+			if err != nil {
+				return "", err
+			}
 			if _, ok := tables[userAnnotationLookupTable]; ok {
 				normalFiltersToUse = append(normalFiltersToUse, filter)
 			}
