@@ -17,8 +17,9 @@ case "$command" in
     # make golang image with delve
     docker build -t golang:1.18-delve .
     ;;
-  "non-interactive")
+  "demo")
     NON_INTERACTIVE=1
+    COMPOSE_FILE="-f ../.devcontainer/demo/docker-compose.yaml"
     ;;
   *)
     echo "Starting compose environment"
