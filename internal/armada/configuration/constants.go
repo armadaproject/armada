@@ -8,7 +8,7 @@ const (
 	// The cardinality should be expressed as an integer, e.g., "3".
 	GangCardinalityAnnotation = "armadaproject.io/gangCardinality"
 	// Armada normally tries to re-schedule jobs for which a pod fails to start.
-	// Pods for which this annotation has value true are not retried.
+	// Pods for which this annotation has value "true" are not retried.
 	// Instead, the job the pod is part of fails immediately.
 	FailFastAnnotation = "armadaproject.io/failFast"
 )

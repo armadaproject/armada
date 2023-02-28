@@ -795,6 +795,7 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 
 	maxRetries := int(q.schedulingConfig.MaxRetries)
 	if request.TrackedAnnotations[configuration.FailFastAnnotation] == "true" {
+		// Fail-fast jobs are never retried.
 		maxRetries = 0
 	}
 	if retries >= maxRetries {
