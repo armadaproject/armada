@@ -1,3 +1,6 @@
+# NOTE:
+# This is here when the single docker image exists for all services.
+
 version: "3.8"
 
 networks:
