@@ -14,8 +14,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/strings/slices"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -797,7 +795,7 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 			if podSpec != nil {
 				fillContainerRequestsAndLimits(podSpec.Containers)
 			}
-			server.applyDefaultsToPodSpec(podSpec)
+			applyDefaultsToPodSpec(podSpec, *server.schedulingConfig)
 			err := validation.ValidatePodSpec(podSpec, server.schedulingConfig)
 			if err != nil {
 				return nil, errors.Errorf("[createJobs] error validating the %d-th pod of the %d-th job of job set %s: %v", j, i, request.JobSetId, err)
@@ -850,93 +848,6 @@ func enrichText(labels map[string]string, jobId string) {
 		value := strings.ReplaceAll(value, "{{JobId}}", ` \z`) // \z cannot be entered manually, hence its use
 		value = strings.ReplaceAll(value, "{JobId}", jobId)
 		labels[key] = strings.ReplaceAll(value, ` \z`, "JobId")
-	}
-}
-
-func (server *SubmitServer) applyDefaultsToPodSpec(spec *v1.PodSpec) {
-	if spec == nil {
-		return
-	}
-
-	// Add default resource requests and limits if missing
-	for i := range spec.Containers {
-		c := &spec.Containers[i]
-		if c.Resources.Limits == nil {
-			c.Resources.Limits = map[v1.ResourceName]resource.Quantity{}
-		}
-		if c.Resources.Requests == nil {
-			c.Resources.Requests = map[v1.ResourceName]resource.Quantity{}
-		}
-		for res, val := range server.schedulingConfig.DefaultJobLimits {
-			_, hasLimit := c.Resources.Limits[v1.ResourceName(res)]
-			_, hasRequest := c.Resources.Limits[v1.ResourceName(res)]
-
-			// TODO Should we check and apply these separately?
-			if !hasLimit && !hasRequest {
-				c.Resources.Requests[v1.ResourceName(res)] = val
-				c.Resources.Limits[v1.ResourceName(res)] = val
-			}
-		}
-	}
-
-	// Apply default priority class.
-	if server.schedulingConfig.Preemption.Enabled && spec.PriorityClassName == "" {
-		spec.PriorityClassName = server.schedulingConfig.Preemption.DefaultPriorityClass
-	}
-
-	// Add default tolerations.
-	spec.Tolerations = append(spec.Tolerations, server.schedulingConfig.DefaultJobTolerations...)
-	if server.schedulingConfig.DefaultJobTolerationsByPriorityClass != nil {
-		if tolerations, ok := server.schedulingConfig.DefaultJobTolerationsByPriorityClass[spec.PriorityClassName]; ok {
-			spec.Tolerations = append(spec.Tolerations, tolerations...)
-		}
-	}
-
-	server.applyTerminationGracePeriodDefault(spec)
-}
-
-// applyTerminationGracePeriodDefault sets the termination grace period
-// of the pod equal to the minimum if
-// - the pod does not explicitly set a termination period, or
-// - the pod explicitly sets a termination period of 0.
-func (server *SubmitServer) applyTerminationGracePeriodDefault(spec *v1.PodSpec) {
-	var podTerminationGracePeriodSeconds int64
-	if spec.TerminationGracePeriodSeconds != nil {
-		podTerminationGracePeriodSeconds = *spec.TerminationGracePeriodSeconds
-	}
-	if podTerminationGracePeriodSeconds == 0 {
-		defaultTerminationGracePeriodSeconds := int64(
-			server.schedulingConfig.MinTerminationGracePeriod.Seconds(),
-		)
-		spec.TerminationGracePeriodSeconds = &defaultTerminationGracePeriodSeconds
-	}
-}
-
-// fillContainerRequestsAndLimits updates resource's requests/limits of container to match the value of
-// limits/requests if the resource doesn't have requests/limits setup. If a Container specifies its own
-// memory limit, but does not specify a memory request, assign a memory request that matches the limit.
-// Similarly, if a Container specifies its own CPU limit, but does not specify a CPU request, automatically
-// assigns a CPU request that matches the limit.
-func fillContainerRequestsAndLimits(containers []v1.Container) {
-	for index := range containers {
-		if containers[index].Resources.Limits == nil {
-			containers[index].Resources.Limits = v1.ResourceList{}
-		}
-		if containers[index].Resources.Requests == nil {
-			containers[index].Resources.Requests = v1.ResourceList{}
-		}
-
-		for resourceName, quantity := range containers[index].Resources.Limits {
-			if _, ok := containers[index].Resources.Requests[resourceName]; !ok {
-				containers[index].Resources.Requests[resourceName] = quantity
-			}
-		}
-
-		for resourceName, quantity := range containers[index].Resources.Requests {
-			if _, ok := containers[index].Resources.Limits[resourceName]; !ok {
-				containers[index].Resources.Limits[resourceName] = quantity
-			}
-		}
 	}
 }
 
