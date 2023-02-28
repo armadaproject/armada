@@ -201,7 +201,7 @@ export class LookoutJobService implements JobService {
 
   async getJobs(getJobsRequest: GetJobsRequest, signal: AbortSignal | undefined): Promise<Job[]> {
     const jobStatesForApi = getJobsRequest.jobStates.map(getJobStateForApi)
-    const jobSetsForApi = getJobsRequest.jobSets.map(escapeBackslashes)
+    const jobSetsForApi = getJobsRequest.jobSets
     const response = await this.lookoutApi.getJobs(
       {
         body: {
@@ -447,10 +447,6 @@ export class LookoutJobService implements JobService {
     }
     return userAnnotations
   }
-}
-
-function escapeBackslashes(str: string) {
-  return str.split("\\").join("\\\\")
 }
 
 function jobSetToViewModel(jobSet: LookoutJobSetInfo): JobSet {
