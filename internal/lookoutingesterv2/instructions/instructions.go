@@ -509,13 +509,13 @@ func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armada
 
 	// Update job run
 	errorString := "preempted by non armada pod"
-	if event.PreemptiveJobId != nil {
-		preemptiveJobId, err := armadaevents.UlidStringFromProtoUuid(event.PreemptiveJobId)
-		if err != nil {
-			log.WithError(err).Warnf("could not convert non-nil preemptive job id")
-		}
+	preemptiveJobId, err := parseUlidString(event.PreemptiveJobId)
+	if err != nil {
+		log.WithError(err).Debug("failed to convert preemptive job id")
+	} else {
 		errorString = fmt.Sprintf("preempted by job %s", preemptiveJobId)
 	}
+
 	jobRun := model.UpdateJobRunInstruction{
 		RunId:       runId,
 		JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
@@ -524,6 +524,21 @@ func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armada
 	}
 	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
+}
+
+func parseUlidString(id *armadaevents.Uuid) (string, error) {
+	if id == nil {
+		return "", errors.New("uuid is nil")
+	}
+	// Likely wrong if it is zeroed
+	if id.High64 == 0 && id.Low64 == 0 {
+		return "", errors.New("")
+	}
+	stringId, err := armadaevents.UlidStringFromProtoUuid(id)
+	if err != nil {
+		return "", errors.Wrap(err, "could not convert non-nil preemptive job id")
+	}
+	return stringId, nil
 }
 
 func tryCompressError(jobId string, errorString string, compressor compress.Compressor) []byte {

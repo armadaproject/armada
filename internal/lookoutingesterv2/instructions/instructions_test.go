@@ -189,6 +189,11 @@ func TestConvert(t *testing.T) {
 	preempted.GetJobRunPreempted().PreemptiveJobId = otherJobIdProto
 	preempted.GetJobRunPreempted().PreemptiveRunId = otherRunIdProto
 
+	preemptedWithPrempteeWithZeroId, err := testfixtures.DeepCopy(testfixtures.JobPreempted)
+	assert.NoError(t, err)
+	preemptedWithPrempteeWithZeroId.GetJobRunPreempted().PreemptiveJobId = &armadaevents.Uuid{}
+	preemptedWithPrempteeWithZeroId.GetJobRunPreempted().PreemptiveRunId = &armadaevents.Uuid{}
+
 	tests := map[string]struct {
 		events   *ingest.EventSequencesWithIds
 		expected *model.InstructionSet
@@ -338,6 +343,22 @@ func TestConvert(t *testing.T) {
 					Finished:    &testfixtures.BaseTime,
 					JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
 					Error:       []byte(fmt.Sprintf("preempted by job %s", otherJobId)),
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"preempted with zeroed preemptee id": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(preemptedWithPrempteeWithZeroId)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{&expectedPreempted},
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
+					RunId:       testfixtures.RunIdString,
+					Finished:    &testfixtures.BaseTime,
+					JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
+					Error:       []byte("preempted by non armada pod"),
 				}},
 				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
