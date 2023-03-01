@@ -69,8 +69,8 @@ func NewLegacySchedulingAlgo(
 	}
 }
 
-// Schedule assigns jobs to nodes in the same way as the old lease call.  It iterates over each executor in turn
-// (using a random order) and assigns the jobs using a LegacyScheduler, before moving onto the next executor
+// Schedule assigns jobs to nodes in the same way as the old lease call.
+// It iterates over each executor in turn (using a random order) and assigns the jobs using a LegacyScheduler, before moving onto the next executor
 // Newly leased jobs are updated as such in the jobDb using the transaction provided and are also returned to the caller.
 func (l *LegacySchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) ([]*jobdb.Job, error) {
 	executors, err := l.executorRepository.GetExecutors(ctx)
@@ -119,7 +119,7 @@ func (l *LegacySchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, job
 
 	jobsToSchedule := make([]*jobdb.Job, 0)
 	for _, executor := range executors {
-		log.Infof("Attempting to schedule jobs on %s", executor.Id)
+		log.Infof("attempting to schedule jobs on %s", executor.Id)
 		totalResourceUsageByQueue := resourceUsagebyPool[executor.Pool]
 		jobs, err := l.scheduleOnExecutor(ctx, executor, jobsByExecutor[executor.Id], totalResourceUsageByQueue, totalCapacity, priorityFactorByQueue, jobDb, txn)
 		if err != nil {
@@ -227,32 +227,35 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	return updatedJobs, nil
 }
 
-// constructNodeDb constructs a node db with all jobs bound to it
+// constructNodeDb constructs a node db with all jobs bound to it.
 func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, jobs []*jobdb.Job, priorityClasses map[string]configuration.PriorityClass) (*NodeDb, error) {
 	nodesByName := make(map[string]*schedulerobjects.Node, len(nodes))
 	for _, node := range nodes {
-		// Clear out node
-		node.AllocatableByPriorityAndResource = schedulerobjects.NewAllocatableByPriorityAndResourceType(
-			configuration.AllowedPriorities(priorityClasses),
-			node.TotalResources,
-		)
 		nodesByName[node.Name] = node
 	}
-
 	for _, job := range jobs {
-		if job.HasRuns() {
-			assignedNode := job.LatestRun().Node()
-			node, ok := nodesByName[assignedNode]
-			if !ok {
-				log.Warnf("Job %s assigned to node %s on executor %s but no such node found", job.Id(), assignedNode, job.LatestRun().Executor())
-				continue
-			}
-			node, err := BindPodToNode(PodRequirementFromJobSchedulingInfo(job.JobSchedulingInfo()), node)
-			if err != nil {
-				return nil, err
-			}
-			nodesByName[node.Name] = node
+		if !job.HasRuns() {
+			continue
 		}
+		assignedNode := job.LatestRun().Node()
+		node, ok := nodesByName[assignedNode]
+		if !ok {
+			log.Warnf(
+				"job %s assigned to node %s on executor %s, but no such node found",
+				job.Id(), assignedNode, job.LatestRun().Executor(),
+			)
+			continue
+		}
+		req := PodRequirementFromLegacySchedulerJob(job, l.config.Preemption.PriorityClasses)
+		if req == nil {
+			log.Errorf("no pod spec found for job %s", job.Id())
+			continue
+		}
+		node, err := BindPodToNode(req, node)
+		if err != nil {
+			return nil, err
+		}
+		nodesByName[node.Name] = node
 	}
 
 	// Nodes to be considered by the scheduler.
@@ -299,7 +302,7 @@ func (l *LegacySchedulingAlgo) filterStaleExecutors(allExecutors []*schedulerobj
 	return activeExecutors
 }
 
-// aggregateUsage Creates a map of usage by pool
+// aggregateUsage creates a map of usage by pool.
 func aggregateUsage(executors []*schedulerobjects.Executor, txn *jobdb.Txn, jobDb *jobdb.JobDb) (map[string]map[string]schedulerobjects.QuantityByPriorityAndResourceType, error) {
 	usageByPool := make(map[string]map[string]schedulerobjects.QuantityByPriorityAndResourceType, 0)
 	for _, executor := range executors {
