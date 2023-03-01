@@ -69,8 +69,9 @@ message LeaseStreamMessage{
 service ExecutorApi {
   // Reports usage information to the scheduler. 
   // In return, the scheduler provides:
-  // - A list of job runs that the executor is currently running that should be cancelled (may be empty).
-  // - A list of job runs that the executor is not currently running that should now be scheduler (may be empty).
+  // - Slice of job runs that the executor is currently running that should be cancelled.
+  // - Slice of job runs that the executor is currently running that should be preempted.
+  // - Slice job runs that the executor is not currently running that should be scheduled.
   // This call also acts as a signal to the scheduler that the executor is alive and accepting jobs.
   rpc LeaseJobRuns (stream LeaseRequest) returns (stream LeaseStreamMessage);
   // Reports job run events to the scheduler.
