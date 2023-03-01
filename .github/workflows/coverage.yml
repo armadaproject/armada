@@ -20,7 +20,7 @@ jobs:
         run: make tests
 
       - name: Go Test Coverage
-        uses: codecov/codecov-action@v3.0.0
+        uses: codecov/codecov-action@v3
         with:
           files: ./internal_coverage.xml,./cmd_coverage.xml # optional
           flags: armada-server
