@@ -498,6 +498,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				queuedJob.WithUpdatedRun(
 					jobdb.CreateRun(
 						uuid.UUID{},
+						"",
 						123,
 						"test-executor",
 						"test-node",
@@ -505,8 +506,9 @@ func TestScheduler_TestSyncState(t *testing.T) {
 						false,
 						false,
 						false,
-						false)).
-					WithQueued(false),
+						false,
+					),
+				).WithQueued(false),
 			},
 			expectedJobDbIds: []string{queuedJob.Id()},
 		},

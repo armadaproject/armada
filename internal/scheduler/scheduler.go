@@ -664,6 +664,7 @@ func (s *Scheduler) createSchedulerJob(dbJob *database.Job) (*jobdb.Job, error) 
 func (s *Scheduler) createSchedulerRun(dbRun *database.Run) *jobdb.JobRun {
 	return jobdb.CreateRun(
 		dbRun.RunID,
+		dbRun.JobID,
 		dbRun.Created,
 		s.stringInterner.Intern(dbRun.Executor),
 		s.stringInterner.Intern(dbRun.Node),
@@ -671,7 +672,8 @@ func (s *Scheduler) createSchedulerRun(dbRun *database.Run) *jobdb.JobRun {
 		dbRun.Succeeded,
 		dbRun.Failed,
 		dbRun.Cancelled,
-		dbRun.Returned)
+		dbRun.Returned,
+	)
 }
 
 func (s *Scheduler) internJobSchedulingInfoStrings(info *schedulerobjects.JobSchedulingInfo) {

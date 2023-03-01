@@ -583,8 +583,9 @@ const _ = grpc.SupportPackageIsVersion4
 type ExecutorApiClient interface {
 	// Reports usage information to the scheduler.
 	// In return, the scheduler provides:
-	// - A list of job runs that the executor is currently running that should be cancelled (may be empty).
-	// - A list of job runs that the executor is not currently running that should now be scheduler (may be empty).
+	// - Slice of job runs that the executor is currently running that should be cancelled.
+	// - Slice of job runs that the executor is currently running that should be preempted.
+	// - Slice job runs that the executor is not currently running that should be scheduled.
 	// This call also acts as a signal to the scheduler that the executor is alive and accepting jobs.
 	LeaseJobRuns(ctx context.Context, opts ...grpc.CallOption) (ExecutorApi_LeaseJobRunsClient, error)
 	// Reports job run events to the scheduler.
@@ -643,8 +644,9 @@ func (c *executorApiClient) ReportEvents(ctx context.Context, in *EventList, opt
 type ExecutorApiServer interface {
 	// Reports usage information to the scheduler.
 	// In return, the scheduler provides:
-	// - A list of job runs that the executor is currently running that should be cancelled (may be empty).
-	// - A list of job runs that the executor is not currently running that should now be scheduler (may be empty).
+	// - Slice of job runs that the executor is currently running that should be cancelled.
+	// - Slice of job runs that the executor is currently running that should be preempted.
+	// - Slice job runs that the executor is not currently running that should be scheduled.
 	// This call also acts as a signal to the scheduler that the executor is alive and accepting jobs.
 	LeaseJobRuns(ExecutorApi_LeaseJobRunsServer) error
 	// Reports job run events to the scheduler.
