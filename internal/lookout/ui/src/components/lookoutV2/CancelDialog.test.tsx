@@ -5,15 +5,14 @@ import { SnackbarProvider } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { UpdateJobsResponse, UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
-import { makeTestJobs } from "utils/fakeJobsUtils"
+import { makeManyTestJobs, makeRandomJobs } from "utils/fakeJobsUtils"
 import { formatJobState } from "utils/jobsTableFormatters"
 
 import { CancelDialog } from "./CancelDialog"
 
 describe("CancelDialog", () => {
-  let numJobs = 5
-  const numQueues = 2,
-    numJobSets = 3
+  const numJobs = 5
+  const numFinishedJobs = 0
   let jobs: Job[],
     selectedItemFilters: JobFilter[][],
     getJobsService: IGetJobsService,
@@ -21,12 +20,12 @@ describe("CancelDialog", () => {
     onClose: () => void
 
   beforeEach(() => {
-    jobs = makeTestJobs(numJobs, 3, numQueues, numJobSets)
+    jobs = makeManyTestJobs(numJobs, numFinishedJobs)
     selectedItemFilters = [
       [
         {
           field: "jobId",
-          value: jobs[0].jobId,
+          value: "job-id-0",
           match: Match.Exact,
         },
       ],
@@ -60,10 +59,9 @@ describe("CancelDialog", () => {
     await findByRole("heading", { name: "Cancel 1 job" })
 
     // Check basic job information is displayed
-    getByText(jobs[0].jobId)
-    getByText(jobs[0].queue)
-    getByText(jobs[0].jobSet)
-    getByText(formatJobState(jobs[0].state))
+    getByText("job-id-0")
+    getByText("queue-0")
+    getByText("job-set-0")
   })
 
   it("shows an alert if all jobs in a terminated state", async () => {
@@ -75,13 +73,12 @@ describe("CancelDialog", () => {
   })
 
   it("paginates through many jobs correctly", async () => {
-    numJobs = 6_000
-    jobs = makeTestJobs(numJobs, 3, numQueues, numJobSets)
+    jobs = makeManyTestJobs(6000, 6000 - 1480)
     selectedItemFilters = [
       [
         {
           field: "queue",
-          value: jobs[0].queue,
+          value: "queue-0",
           match: Match.Exact,
         },
       ],
@@ -94,7 +91,7 @@ describe("CancelDialog", () => {
     // But only a subset will be in a non-terminated state
     // These will always be the same numbers as long as the makeJobs random seed is the same
     await findByRole("heading", { name: "Cancel 1480 jobs" }, { timeout: 3000 })
-    getByText("3000 jobs are selected, but only 1480 jobs are in a cancellable (non-terminated) state.")
+    getByText("6000 jobs are selected, but only 1480 jobs are in a cancellable (non-terminated) state.")
   })
 
   it("allows the user to cancel jobs", async () => {
