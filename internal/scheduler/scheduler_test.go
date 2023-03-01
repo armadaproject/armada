@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -233,7 +234,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			testClock := clock.NewFakeClock(time.Now())
 			schedulingAlgo := &testSchedulingAlgo{jobsToSchedule: tc.expectedJobRunLeased, shouldError: tc.scheduleError}
 			publisher := &testPublisher{shouldError: tc.publishError}
-			stringInterner, err := util.NewStringInterner(100)
+			stringInterner, err := stringinterner.New(100)
 			require.NoError(t, err)
 
 			heartbeatTime := testClock.Now()
@@ -388,7 +389,7 @@ func TestRun(t *testing.T) {
 	publisher := &testPublisher{}
 	clusterRepo := &testExecutorRepository{}
 	leaderController := NewStandaloneLeaderController()
-	stringInterner, err := util.NewStringInterner(100)
+	stringInterner, err := stringinterner.New(100)
 	require.NoError(t, err)
 
 	sched, err := NewScheduler(
@@ -497,6 +498,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				queuedJob.WithUpdatedRun(
 					jobdb.CreateRun(
 						uuid.UUID{},
+						queuedJob.Id(),
 						123,
 						"test-executor",
 						"test-node",
@@ -504,8 +506,9 @@ func TestScheduler_TestSyncState(t *testing.T) {
 						false,
 						false,
 						false,
-						false)).
-					WithQueued(false),
+						false,
+					),
+				).WithQueued(false),
 			},
 			expectedJobDbIds: []string{queuedJob.Id()},
 		},
@@ -561,7 +564,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			publisher := &testPublisher{}
 			clusterRepo := &testExecutorRepository{}
 			leaderController := NewStandaloneLeaderController()
-			stringInterner, err := util.NewStringInterner(100)
+			stringInterner, err := stringinterner.New(100)
 			require.NoError(t, err)
 
 			sched, err := NewScheduler(
