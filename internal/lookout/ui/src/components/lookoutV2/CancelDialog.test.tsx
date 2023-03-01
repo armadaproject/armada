@@ -5,7 +5,7 @@ import { SnackbarProvider } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { UpdateJobsResponse, UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
-import { makeManyTestJobs, makeRandomJobs } from "utils/fakeJobsUtils"
+import { makeManyTestJobs } from "utils/fakeJobsUtils"
 import { formatJobState } from "utils/jobsTableFormatters"
 
 import { CancelDialog } from "./CancelDialog"
