@@ -20,7 +20,7 @@ import (
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -133,7 +133,7 @@ func Run(config Configuration) error {
 	// Scheduling
 	//////////////////////////////////////////////////////////////////////////
 	log.Infof("setting up scheduling loop")
-	stringInterner, err := util.NewStringInterner(config.InternedStringsCacheSize)
+	stringInterner, err := stringinterner.New(config.InternedStringsCacheSize)
 	if err != nil {
 		return errors.WithMessage(err, "error creating string interner")
 	}
