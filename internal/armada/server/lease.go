@@ -527,7 +527,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		}
 	}
 
-	// Prepare preempted messages.
+	// Prepare preempted + failed messages.
 	sequences := make([]*armadaevents.EventSequence, len(preemptedJobs))
 	for i, job := range preemptedJobs {
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.GetId())
@@ -546,6 +546,20 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 							// Until the executor supports runs properly, JobId and RunId are the same.
 							PreemptedJobId: jobId,
 							PreemptedRunId: jobId,
+						},
+					},
+				},
+				{
+					Created: &created,
+					Event: &armadaevents.EventSequence_Event_JobErrors{
+						JobErrors: &armadaevents.JobErrors{
+							JobId: jobId,
+							Errors: []*armadaevents.Error{
+								{
+									Terminal: true,
+									Reason:   &armadaevents.Error_PodTerminated{},
+								},
+							},
 						},
 					},
 				},
@@ -646,19 +660,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		}
 	} else {
 		log.Error("no Pulsar producer provided; omitting publishing preempted messages")
-	}
-
-	// Delete preempted jobs from Redis. This will cause lease renewal to fail for these jobs.
-	// TODO: We can avoid potential inconsistency by deleting in a pulsar subscriber instead.
-	preemptedApiJobs := make([]*api.Job, len(preemptedJobs))
-	for i, job := range preemptedJobs {
-		preemptedApiJobs[i] = job.(*api.Job)
-	}
-	if _, err := q.jobRepository.DeleteJobs(preemptedApiJobs); err != nil {
-		logging.WithStacktrace(log, err).Errorf(
-			"failed to delete preempted jobs: %v",
-			util.Map(preemptedApiJobs, func(job *api.Job) string { return job.GetId() }),
-		)
 	}
 
 	// Update the usage report for this executor in-place to account for preempted/leased jobs and write it back into Redis.
@@ -774,7 +775,7 @@ func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.Ren
 		return nil, status.Errorf(codes.PermissionDenied, "[RenewLease] error: %s", err)
 	}
 	renewed, e := q.jobRepository.RenewLease(request.ClusterId, request.Ids)
-	return &api.IdList{renewed}, e
+	return &api.IdList{Ids: renewed}, e
 }
 
 func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
@@ -899,7 +900,7 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 			cleanedIds = append(cleanedIds, job.Id)
 		}
 	}
-	return &api.IdList{cleanedIds}, returnedError
+	return &api.IdList{Ids: cleanedIds}, returnedError
 }
 
 func (q *AggregatedQueueServer) reportLeaseReturned(leaseReturnRequest *api.ReturnLeaseRequest) error {
