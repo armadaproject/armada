@@ -775,7 +775,7 @@ func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.Ren
 		return nil, status.Errorf(codes.PermissionDenied, "[RenewLease] error: %s", err)
 	}
 	renewed, e := q.jobRepository.RenewLease(request.ClusterId, request.Ids)
-	return &api.IdList{renewed}, e
+	return &api.IdList{Ids: renewed}, e
 }
 
 func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
@@ -900,7 +900,7 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 			cleanedIds = append(cleanedIds, job.Id)
 		}
 	}
-	return &api.IdList{cleanedIds}, returnedError
+	return &api.IdList{Ids: cleanedIds}, returnedError
 }
 
 func (q *AggregatedQueueServer) reportLeaseReturned(leaseReturnRequest *api.ReturnLeaseRequest) error {

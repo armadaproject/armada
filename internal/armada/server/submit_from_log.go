@@ -80,7 +80,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 					"errored":       numErrored,
 					"interval":      logInterval,
 					"lastMessageId": lastMessageId,
-					"timeLag":       time.Now().Sub(lastPublishTime),
+					"timeLag":       time.Since(lastPublishTime),
 				},
 			).Info("message statistics")
 			numReceived = 0
@@ -332,18 +332,6 @@ func collectReprioritiseJobSetEvents(ctx context.Context, i int, sequence *armad
 	return result
 }
 
-func collectJobRunRunningEvents(ctx context.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.EventSequence_Event {
-	events := make([]*armadaevents.EventSequence_Event, 0)
-	for j := i; j < len(sequence.Events); j++ {
-		if _, ok := sequence.Events[j].Event.(*armadaevents.EventSequence_Event_JobRunRunning); ok {
-			events = append(events, sequence.Events[j])
-		} else {
-			break
-		}
-	}
-	return events
-}
-
 func collectEvents[T any](ctx context.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.EventSequence_Event {
 	events := make([]*armadaevents.EventSequence_Event, 0)
 	for j := i; j < len(sequence.Events); j++ {
@@ -463,7 +451,7 @@ func (srv *SubmitFromLog) SubmitJobs(
 
 // CancelJobs cancels all jobs specified by the provided events in a single operation.
 func (srv *SubmitFromLog) CancelJobs(ctx context.Context, userId string, es []*armadaevents.CancelJob) (bool, error) {
-	jobIds := make([]string, len(es), len(es))
+	jobIds := make([]string, len(es))
 	for i, e := range es {
 		id, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 		if err != nil {
@@ -565,7 +553,7 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, e
 		return true, nil
 	}
 
-	jobIds := make([]string, len(es), len(es))
+	jobIds := make([]string, len(es))
 	for i, e := range es {
 		id, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 		if err != nil {
@@ -608,7 +596,7 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, e
 }
 
 func (srv *SubmitFromLog) DeleteFailedJobs(ctx context.Context, es []*armadaevents.EventSequence_Event) (bool, error) {
-	jobIdsToDelete := make([]string, 0)
+	jobIdsToDelete := make([]string, 0, len(es))
 	for _, event := range es {
 		jobErrors := event.GetJobErrors()
 		if jobErrors == nil {
