@@ -1,2 +1,2 @@
 ignore:
-  - "**/*\\.pb\\.go"
+  - "internal/scheduler/schedulerobjects"
