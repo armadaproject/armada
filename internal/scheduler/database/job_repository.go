@@ -73,7 +73,11 @@ func NewPostgresJobRepository(db *pgxpool.Pool, batchSize int32) *PostgresJobRep
 // FetchJobRunErrors returns all armadaevents.JobRunErrors for the provided job run ids.  The returned map is
 // keyed by job run id.  Any dbRuns which don't have errors wil be absent from the map.
 func (r *PostgresJobRepository) FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error) {
-	chunks := armadaslices.Partition(runIds, int(r.batchSize))
+	if len(runIds) == 0 {
+		return map[uuid.UUID]*armadaevents.Error{}, nil
+	}
+
+	chunks := armadaslices.PartitionToMaxLen(runIds, int(r.batchSize))
 
 	errorsByRunId := make(map[uuid.UUID]*armadaevents.Error, len(runIds))
 	decompressor := compress.NewZlibDecompressor()

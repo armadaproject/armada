@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -234,7 +234,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			testClock := clock.NewFakeClock(time.Now())
 			schedulingAlgo := &testSchedulingAlgo{jobsToSchedule: tc.expectedJobRunLeased, shouldError: tc.scheduleError}
 			publisher := &testPublisher{shouldError: tc.publishError}
-			stringInterner, err := util.NewStringInterner(100)
+			stringInterner, err := stringinterner.New(100)
 			require.NoError(t, err)
 
 			heartbeatTime := testClock.Now()
@@ -350,8 +350,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			}
 
 			// assert that the job db is in the state we expect
-			jobs, err := sched.jobDb.GetAll(sched.jobDb.ReadTxn())
-			require.NoError(t, err)
+			jobs := sched.jobDb.GetAll(sched.jobDb.ReadTxn())
 			remainingLeased := stringSet(tc.expectedLeased)
 			remainingQueued := stringSet(tc.expectedQueued)
 			remainingTerminal := stringSet(tc.expectedTerminal)
@@ -390,7 +389,7 @@ func TestRun(t *testing.T) {
 	publisher := &testPublisher{}
 	clusterRepo := &testExecutorRepository{}
 	leaderController := NewStandaloneLeaderController()
-	stringInterner, err := util.NewStringInterner(100)
+	stringInterner, err := stringinterner.New(100)
 	require.NoError(t, err)
 
 	sched, err := NewScheduler(
@@ -499,6 +498,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				queuedJob.WithUpdatedRun(
 					jobdb.CreateRun(
 						uuid.UUID{},
+						queuedJob.Id(),
 						123,
 						"test-executor",
 						"test-node",
@@ -506,8 +506,9 @@ func TestScheduler_TestSyncState(t *testing.T) {
 						false,
 						false,
 						false,
-						false)).
-					WithQueued(false),
+						false,
+					),
+				).WithQueued(false),
 			},
 			expectedJobDbIds: []string{queuedJob.Id()},
 		},
@@ -563,7 +564,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			publisher := &testPublisher{}
 			clusterRepo := &testExecutorRepository{}
 			leaderController := NewStandaloneLeaderController()
-			stringInterner, err := util.NewStringInterner(100)
+			stringInterner, err := stringinterner.New(100)
 			require.NoError(t, err)
 
 			sched, err := NewScheduler(
@@ -588,8 +589,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedUpdatedJobs, updatedJobs)
-			allDbJobs, err := sched.jobDb.GetAll(sched.jobDb.ReadTxn())
-			require.NoError(t, err)
+			allDbJobs := sched.jobDb.GetAll(sched.jobDb.ReadTxn())
 
 			expectedIds := stringSet(tc.expectedJobDbIds)
 			require.Equal(t, len(tc.expectedJobDbIds), len(allDbJobs))
@@ -666,13 +666,13 @@ type testSchedulingAlgo struct {
 	shouldError    bool
 }
 
-func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *memdb.Txn, jobDb *jobdb.JobDb) ([]*jobdb.Job, error) {
+func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) ([]*jobdb.Job, error) {
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")
 	}
 	jobs := make([]*jobdb.Job, 0, len(t.jobsToSchedule))
 	for _, id := range t.jobsToSchedule {
-		job, _ := jobDb.GetById(txn, id)
+		job := jobDb.GetById(txn, id)
 		if job != nil {
 			if !job.Queued() {
 				return nil, errors.New(fmt.Sprintf("Was asked to lease %s but job was already leased", job.Id()))
