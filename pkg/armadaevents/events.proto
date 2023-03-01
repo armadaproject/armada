@@ -473,7 +473,7 @@ message JobDuplicateDetected {
     Uuid old_job_id = 2;
 }
 
-// Message to indicate that a JobRun has been preempted
+// Message to indicate that a JobRun has been preempted.
 message JobRunPreempted{
     // Uuid of the job that was preempted
     Uuid preempted_job_id = 1;
@@ -493,7 +493,7 @@ message PartitionMarker {
     uint32 partition = 2;
 }
 
-// Indicates that the scheduler has requested for the job run to be pre-empted
+// Indicates that the scheduler has requested for the job run to be pre-empted.
 message JobRunPreemptionRequested {
     Uuid run_id = 1;
     Uuid job_id = 2;

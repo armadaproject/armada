@@ -3010,7 +3010,7 @@ func (m *JobDuplicateDetected) GetOldJobId() *Uuid {
 	return nil
 }
 
-// Message to indicate that a JobRun has been preempted
+// Message to indicate that a JobRun has been preempted.
 type JobRunPreempted struct {
 	// Uuid of the job that was preempted
 	PreemptedJobId *Uuid `protobuf:"bytes,1,opt,name=preempted_job_id,json=preemptedJobId,proto3" json:"preemptedJobId,omitempty"`
@@ -3138,7 +3138,7 @@ func (m *PartitionMarker) GetPartition() uint32 {
 	return 0
 }
 
-// Indicates that the scheduler has requested for the job run to be pre-empted
+// Indicates that the scheduler has requested for the job run to be pre-empted.
 type JobRunPreemptionRequested struct {
 	RunId *Uuid `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"runId,omitempty"`
 	JobId *Uuid `protobuf:"bytes,2,opt,name=job_id,json=jobId,proto3" json:"jobId,omitempty"`
