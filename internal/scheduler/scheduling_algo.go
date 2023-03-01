@@ -119,7 +119,7 @@ func (l *LegacySchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, job
 
 	jobsToSchedule := make([]*jobdb.Job, 0)
 	for _, executor := range executors {
-		log.Infof("Attempting to schedule jobs on %s", executor.Id)
+		log.Infof("attempting to schedule jobs on %s", executor.Id)
 		totalResourceUsageByQueue := resourceUsagebyPool[executor.Pool]
 		jobs, err := l.scheduleOnExecutor(ctx, executor, jobsByExecutor[executor.Id], totalResourceUsageByQueue, totalCapacity, priorityFactorByQueue, jobDb, txn)
 		if err != nil {
@@ -230,6 +230,9 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 // constructNodeDb constructs a node db with all jobs bound to it.
 func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, jobs []*jobdb.Job, priorityClasses map[string]configuration.PriorityClass) (*NodeDb, error) {
 	nodesByName := make(map[string]*schedulerobjects.Node, len(nodes))
+	for _, node := range nodes {
+		nodesByName[node.Name] = node
+	}
 	for _, job := range jobs {
 		if !job.HasRuns() {
 			continue
