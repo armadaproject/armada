@@ -842,7 +842,7 @@ func (l *LookoutDb) filterEventsForTerminalJobs(
 		var state int16
 		err := rows.Scan(&jobId, &state)
 		if err != nil {
-			log.WithError(err).Warnf("Cannot retrieve jobId from row. Cancelled job will not be filtered out")
+			log.WithError(err).Warnf("Cannot retrieve jobId from row. Terminal jobs will not be filtered out")
 		} else {
 			terminalJobs[jobId] = int(state)
 		}
