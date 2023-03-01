@@ -1,3 +1,4 @@
-ignore:
-  - "internal"
+coverage:
+  ignore:
+    - "internal"
 
