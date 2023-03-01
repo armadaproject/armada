@@ -2,6 +2,7 @@ package instructions
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -102,13 +103,14 @@ func (c *InstructionConverter) convertSequence(
 			err = c.handleJobRunErrors(ts, event.GetJobRunErrors(), update)
 		case *armadaevents.EventSequence_Event_JobDuplicateDetected:
 			err = c.handleJobDuplicateDetected(ts, event.GetJobDuplicateDetected(), update)
+		case *armadaevents.EventSequence_Event_JobRunPreempted:
+			err = c.handleJobRunPreempted(ts, event.GetJobRunPreempted(), update)
 		case *armadaevents.EventSequence_Event_CancelJob:
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
 		case *armadaevents.EventSequence_Event_ResourceUtilisation:
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
-		case *armadaevents.EventSequence_Event_JobRunPreempted:
 		case *armadaevents.EventSequence_Event_PartitionMarker:
 			log.Debugf("Ignoring event type %T", event)
 		default:
@@ -478,6 +480,49 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 			break
 		}
 	}
+	return nil
+}
+
+func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(event.PreemptedJobId)
+	if err != nil {
+		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		return err
+	}
+
+	runId, err := armadaevents.UuidStringFromProtoUuid(event.PreemptedRunId)
+	if err != nil {
+		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		return err
+	}
+
+	// Update Job
+	job := model.UpdateJobInstruction{
+		JobId:                     jobId,
+		State:                     pointer.Int32(int32(lookout.JobPreemptedOrdinal)),
+		LastTransitionTime:        &ts,
+		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
+		LatestRunId:               &runId,
+	}
+
+	update.JobsToUpdate = append(update.JobsToUpdate, &job)
+
+	// Update job run
+	errorString := "preempted by non armada pod"
+	if event.PreemptiveJobId != nil {
+		preemptiveJobId, err := armadaevents.UlidStringFromProtoUuid(event.PreemptiveJobId)
+		if err != nil {
+			log.WithError(err).Warnf("could not convert non-nil preemptive job id")
+		}
+		errorString = fmt.Sprintf("preempted by job %s", preemptiveJobId)
+	}
+	jobRun := model.UpdateJobRunInstruction{
+		RunId:       runId,
+		JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
+		Finished:    &ts,
+		Error:       tryCompressError(jobId, errorString, c.compressor),
+	}
+	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
 	return nil
 }
 
