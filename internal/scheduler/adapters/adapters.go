@@ -13,7 +13,7 @@ import (
 )
 
 // PodRequirementsFromPod function creates the schedulerobjects and creates a value for the
-// Annotation field by supplying it with a cloned value of pod.Annotations
+// annotation field by supplying it with a cloned value of pod.Annotations
 func PodRequirementsFromPod(pod *v1.Pod, priorityByPriorityClassName map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
 	rv := PodRequirementsFromPodSpec(&pod.Spec, priorityByPriorityClassName)
 	rv.Annotations = maps.Clone(pod.Annotations)
@@ -66,8 +66,10 @@ func v1ResourceListFromComputeResources(resources armadaresource.ComputeResource
 
 // PriorityFromPodSpec returns the priority in a pod spec.
 // If priority is set directly, that value is returned.
-// Otherwise, it returns the value of the key podSpec.PriorityClassName in priorityByPriorityClassName map.
-// If no priority is set for the pod spec, 0 along with a false value would be returned
+// Otherwise, it returns the value of the key podSpec.
+// In both cases the value along with true boolean is returned.
+// PriorityClassName in priorityByPriorityClassName map.
+// If no priority is set for the pod spec, 0 along with a false boolean would be returned
 func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName map[string]configuration.PriorityClass) (int32, bool) {
 	// If there's no podspec there's nothing we can do
 	if podSpec == nil {

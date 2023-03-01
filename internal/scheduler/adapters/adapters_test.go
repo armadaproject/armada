@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,49 +13,63 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
+var (
+	priorityByPriorityClassName = map[string]configuration.PriorityClass{
+		"priority-0": {0, true, nil},
+		"priority-1": {1, true, nil},
+		"priority-2": {2, true, nil},
+		"priority-3": {3, false, nil},
+	}
+
+	priority int32 = 1
+)
+
 func TestPriorityFromPodSpec(t *testing.T) {
-	// test to check if PriorityFromPodSpec function returns a priority number of 0 and boolean value
-	// of false when podSpec is nil
-	var podSpec *v1.PodSpec = nil
-	// priority number is of type int32 to conform with the priority number type in the k8s API
-	var priority int32 = 1
-	priorityByPriorityClassName := map[string]configuration.PriorityClass{
-		"priority-0": {int32(0), true, nil},
-		"priority-1": {int32(1), true, nil},
-		"priority-2": {int32(2), true, nil},
-		"priority-3": {int32(3), false, nil},
+	tests := []struct {
+		name                     string
+		podSpec                  *v1.PodSpec
+		expectedPriorityNumber   int32
+		expectedCheckForPriority bool
+	}{
+		{
+			name:                     "Podspec is nil",
+			podSpec:                  nil,
+			expectedPriorityNumber:   0,
+			expectedCheckForPriority: false,
+		},
+		{
+			name: "Podspec has priority field",
+			podSpec: &v1.PodSpec{
+				Priority: &priority,
+			},
+			expectedPriorityNumber:   priority,
+			expectedCheckForPriority: true,
+		},
+		{
+			name: "Podspec has priorityClassName field",
+			podSpec: &v1.PodSpec{
+				PriorityClassName: "priority-3",
+			},
+			expectedPriorityNumber:   3,
+			expectedCheckForPriority: true,
+		},
+		{
+			name: "Podspec has a nil value for the priority field",
+			podSpec: &v1.PodSpec{
+				Priority: nil,
+			},
+			expectedPriorityNumber:   0,
+			expectedCheckForPriority: false,
+		},
 	}
 
-	priorityNumber, isPrioritySet := PriorityFromPodSpec(podSpec, priorityByPriorityClassName)
-	assert.Equal(t, int32(0), priorityNumber)
-	assert.False(t, isPrioritySet)
-
-	// test to ensure that the function PriorityFromPodSpec returns the podSpec's Priority and  a boolean value of true
-	// when podSpec has a value for the Priority field.
-	podSpec = &v1.PodSpec{
-		Priority: &priority,
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			wantedPriorityNumber, wantedCheckForPriority := PriorityFromPodSpec(test.podSpec, priorityByPriorityClassName)
+			assert.Equal(t, test.expectedCheckForPriority, wantedCheckForPriority)
+			assert.Equal(t, test.expectedPriorityNumber, wantedPriorityNumber)
+		})
 	}
-	priorityNumber, isPrioritySet = PriorityFromPodSpec(podSpec, priorityByPriorityClassName)
-	assert.Equal(t, priorityNumber, priority)
-	assert.True(t, isPrioritySet)
-
-	podSpec = &v1.PodSpec{
-		PriorityClassName: "priority-3",
-	}
-	priorityNumber, isPrioritySet = PriorityFromPodSpec(podSpec, priorityByPriorityClassName)
-	priorityObj, ok := priorityByPriorityClassName[podSpec.PriorityClassName]
-	require.True(t, ok)
-
-	assert.Equal(t, priorityNumber, priorityObj.Priority)
-	assert.True(t, isPrioritySet)
-
-	// test to ensure that the PriorityFromPodSpec function returns 0 and a boolean value of false when podSpec's Priority is nil
-	podSpec = &v1.PodSpec{
-		Priority: nil,
-	}
-	priorityNumber, isPrioritySet = PriorityFromPodSpec(podSpec, priorityByPriorityClassName)
-	assert.Equal(t, int32(0), priorityNumber)
-	assert.False(t, isPrioritySet)
 }
 
 func TestV1ResourceListFromComputeResources(t *testing.T) {
@@ -74,13 +87,6 @@ func TestV1ResourceListFromComputeResources(t *testing.T) {
 }
 
 func TestPodRequirementsFromPodSpec(t *testing.T) {
-	var priority int32 = 1
-	priorityByPriorityClassName := map[string]configuration.PriorityClass{
-		"priority-0": {0, true, nil},
-		"priority-1": {1, true, nil},
-		"priority-2": {2, true, nil},
-		"priority-3": {3, false, nil},
-	}
 	podSpec := &v1.PodSpec{
 		Priority: &priority,
 		Containers: []v1.Container{
@@ -121,13 +127,6 @@ func TestPodRequirementsFromPodSpec(t *testing.T) {
 }
 
 func TestPodRequirementsFromPod(t *testing.T) {
-	var priority int32 = 1
-	priorityByPriorityClassName := map[string]configuration.PriorityClass{
-		"priority-0": {0, true, nil},
-		"priority-1": {1, true, nil},
-		"priority-2": {2, true, nil},
-		"priority-3": {3, false, nil},
-	}
 	podSpec := &v1.PodSpec{
 		Priority: &priority,
 		Containers: []v1.Container{
@@ -156,5 +155,8 @@ func TestPodRequirementsFromPod(t *testing.T) {
 	}
 	rv := PodRequirementsFromPod(&pod, priorityByPriorityClassName)
 	rv.Annotations["something"] = "test"
+	// Ensures that any modification made to the returned value of PodRequirementsFromPod function, "rv", does not
+	// affect the original pod definition. This assertion checks if the length of "pod.Annotation" is altered
+	// in view of the modification made to "rv" above.
 	assert.Len(t, pod.Annotations, 2)
 }

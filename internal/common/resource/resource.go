@@ -12,8 +12,8 @@ import (
 // FromResourceList function takes a map with keys of type ResourceName and values of type
 // "resource.Quantity" as defined in the K8s API.
 //
-//	It converts the keys to strings and creates a new map with the same keys, but with deep copies of the values.
-//	The resulting map is of type map[string]resource.Quantity.
+// It converts the keys to strings and creates a new map with the same keys, but with deep copies of the values.
+// The resulting map is of type map[string]resource.Quantity.
 func FromResourceList(list v1.ResourceList) ComputeResources {
 	resources := make(ComputeResources)
 	for k, v := range list {
@@ -58,8 +58,6 @@ func (a ComputeResources) String() string {
 	return str
 }
 
-// Add function adds the provided values in map b to its corresponding existing
-// key's value in map, "a". If the corresponding key does not exist in "a", it is created.
 func (a ComputeResources) Add(b ComputeResources) {
 	for k, v := range b {
 		existing, ok := a[k]
@@ -187,8 +185,6 @@ func (a ComputeResources) Sub(b ComputeResources) {
 	}
 }
 
-// The DeepCopy function creates a separate and distinct copy of the variable "a" and
-// stores it in a new variable. This new variable is not linked or connected to the original "a" variable in any way.
 func (a ComputeResources) DeepCopy() ComputeResources {
 	targetComputeResource := make(ComputeResources)
 
@@ -268,10 +264,6 @@ func (a ComputeResourcesFloat) Sub(b ComputeResourcesFloat) {
 	}
 }
 
-// The Add function adds the values in "a" to the values
-// in "b". In the case a value exists in "b" but not in "a", the positive
-// of the value is mapped to it. The Add function can be visually
-// represented as a + b.
 func (a ComputeResourcesFloat) Add(b ComputeResourcesFloat) {
 	if b == nil {
 		return
@@ -298,8 +290,6 @@ func (a ComputeResourcesFloat) Max(b ComputeResourcesFloat) {
 	}
 }
 
-// The DeepCopy function creates a separate and distinct copy of the variable "a" and
-// stores it in a new variable. This new variable is not linked or connected to the original "a" variable in any way.
 func (a ComputeResourcesFloat) DeepCopy() ComputeResourcesFloat {
 	targetComputeResource := make(ComputeResourcesFloat)
 	for key, value := range a {
