@@ -246,8 +246,14 @@ func (srv *SubmitFromLog) ProcessSubSequence(ctx context.Context, i int, sequenc
 			j = i + len(es)
 		}
 	case *armadaevents.EventSequence_Event_JobRunRunning:
-		es := collectJobRunRunningEvents(ctx, i, sequence)
+		es := collectEvents[*armadaevents.EventSequence_Event_JobRunRunning](ctx, i, sequence)
 		ok, err = srv.UpdateJobStartTimes(ctx, es)
+		if ok {
+			j = i + len(es)
+		}
+	case *armadaevents.EventSequence_Event_JobErrors:
+		es := collectEvents[*armadaevents.EventSequence_Event_JobErrors](ctx, i, sequence)
+		ok, err = srv.DeleteFailedJobs(ctx, es)
 		if ok {
 			j = i + len(es)
 		}
@@ -330,6 +336,18 @@ func collectJobRunRunningEvents(ctx context.Context, i int, sequence *armadaeven
 	events := make([]*armadaevents.EventSequence_Event, 0)
 	for j := i; j < len(sequence.Events); j++ {
 		if _, ok := sequence.Events[j].Event.(*armadaevents.EventSequence_Event_JobRunRunning); ok {
+			events = append(events, sequence.Events[j])
+		} else {
+			break
+		}
+	}
+	return events
+}
+
+func collectEvents[T any](ctx context.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.EventSequence_Event {
+	events := make([]*armadaevents.EventSequence_Event, 0)
+	for j := i; j < len(sequence.Events); j++ {
+		if _, ok := sequence.Events[j].Event.(T); ok {
 			events = append(events, sequence.Events[j])
 		} else {
 			break
@@ -589,11 +607,42 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, e
 	return true, nil
 }
 
+func (srv *SubmitFromLog) DeleteFailedJobs(ctx context.Context, es []*armadaevents.EventSequence_Event) (bool, error) {
+	jobIdsToDelete := make([]string, 0)
+	for _, event := range es {
+		jobErrors := event.GetJobErrors()
+		if jobErrors == nil {
+			continue
+		}
+		for _, err := range jobErrors.Errors {
+			if err.Terminal {
+				jobId, err := armadaevents.UlidStringFromProtoUuid(jobErrors.JobId)
+				if err != nil {
+					return false, err
+				}
+				jobIdsToDelete = append(jobIdsToDelete, jobId)
+			}
+		}
+	}
+
+	jobsToDelete, err := srv.SubmitServer.jobRepository.GetExistingJobsByIds(jobIdsToDelete)
+	if err != nil {
+		return false, err
+	}
+	if _, err := srv.SubmitServer.jobRepository.DeleteJobs(jobsToDelete); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // UpdateJobStartTimes records the start time (in Redis) of one of more jobs.
 func (srv *SubmitFromLog) UpdateJobStartTimes(ctx context.Context, es []*armadaevents.EventSequence_Event) (bool, error) {
 	jobStartsInfos := make([]*repository.JobStartInfo, 0, len(es))
 	for _, event := range es {
 		jobRun := event.GetJobRunRunning()
+		if jobRun == nil {
+			continue
+		}
 		jobId, err := armadaevents.UlidStringFromProtoUuid(jobRun.GetJobId())
 		if err != nil {
 			logrus.WithError(err).Warnf("Invalid job id received when processing jobRunRunning Message")
