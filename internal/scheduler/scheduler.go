@@ -7,7 +7,6 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/util/clock"
@@ -72,10 +71,7 @@ func NewScheduler(
 	executorTimeout time.Duration,
 	maxLeaseReturns uint,
 ) (*Scheduler, error) {
-	jobDb, err := jobdb.NewJobDb()
-	if err != nil {
-		return nil, err
-	}
+	jobDb := jobdb.NewJobDb()
 	return &Scheduler{
 		jobRepository:      jobRepository,
 		executorRepository: executorRepository,
@@ -171,10 +167,7 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 	if updateAll {
-		updatedJobs, err = s.jobDb.GetAll(txn)
-		if err != nil {
-			return err
-		}
+		updatedJobs = s.jobDb.GetAll(txn)
 	}
 
 	// Generate any events that came out of synchronising the db state.
@@ -237,11 +230,8 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*jobdb.Job, error) {
 			continue
 		}
 
-		// Try and retrieve the job from the jobDb. If it doesn't exist then create it.
-		job, err := s.jobDb.GetById(txn, dbJob.JobID)
-		if err != nil {
-			return nil, errors.WithMessagef(err, "error retrieving job %s from jobDb ", dbJob.JobID)
-		}
+		// Try and retrieve the job from the jobDb.  If it doesn't exist then create it.
+		job := s.jobDb.GetById(txn, dbJob.JobID)
 		if job == nil {
 			job, err = s.createSchedulerJob(&dbJob)
 			if err != nil {
@@ -258,13 +248,10 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*jobdb.Job, error) {
 	for _, dbRun := range updatedRuns {
 		jobId := dbRun.JobID
 
-		// Retrieve the job. Look first in the list of updates, then in the jobDb
-		job, ok := jobsToUpdateById[jobId]
-		if !ok {
-			job, err = s.jobDb.GetById(txn, jobId)
-			if err != nil {
-				return nil, errors.WithMessagef(err, "error retrieving job %s from jobDb ", jobId)
-			}
+		// Retrieve the job, look first in the list of updates, then in the jobDb
+		job, present := jobsToUpdateById[jobId]
+		if !present {
+			job = s.jobDb.GetById(txn, jobId)
 
 			// If the job is nil or terminal at this point then it cannot be active.
 			// In this case we can ignore the run
@@ -354,7 +341,7 @@ func (s *Scheduler) generateLeaseMessages(scheduledJobs []*jobdb.Job) ([]*armada
 
 // generateUpdateMessages generates EventSequences representing the state changes on updated jobs
 // If there are no state changes then an empty slice will be returned
-func (s *Scheduler) generateUpdateMessages(ctx context.Context, updatedJobs []*jobdb.Job, txn *memdb.Txn) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateUpdateMessages(ctx context.Context, updatedJobs []*jobdb.Job, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
 	failedRunIds := make([]uuid.UUID, 0, len(updatedJobs))
 	for _, job := range updatedJobs {
 		run := job.LatestRun()
@@ -383,7 +370,7 @@ func (s *Scheduler) generateUpdateMessages(ctx context.Context, updatedJobs []*j
 
 // generateUpdateMessages generates EventSequence representing the state change on a single jobs
 // If there are no state changes then nil will be returned
-func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error, txn *memdb.Txn) (*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error, txn *jobdb.Txn) (*armadaevents.EventSequence, error) {
 	var events []*armadaevents.EventSequence_Event
 
 	// Is the job already in a terminal state?  If so then don't send any more messages
@@ -484,7 +471,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 // expireJobsIfNecessary removes any jobs from the JobDb which are running on stale executors.
 // It also generates an EventSequence for each job, indicating that both the run and the job has failed
 // Note that this is different behaviour from the old scheduler which would allow expired jobs to be rerun
-func (s *Scheduler) expireJobsIfNecessary(ctx context.Context, txn *memdb.Txn) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) expireJobsIfNecessary(ctx context.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("function", "expireJobsIfNecessary")
 
@@ -516,10 +503,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx context.Context, txn *memdb.Txn) (
 	events := make([]*armadaevents.EventSequence, 0)
 
 	// TODO: this is inefficient.  We should create a iterator of the jobs running on the affected executors
-	jobs, err := s.jobDb.GetAll(txn)
-	if err != nil {
-		return nil, err
-	}
+	jobs := s.jobDb.GetAll(txn)
 
 	for _, job := range jobs {
 
