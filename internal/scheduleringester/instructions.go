@@ -177,6 +177,7 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 		JobID:    jobId,
 		JobSet:   meta.jobset,
 		Executor: jobRunLeased.GetExecutorId(),
+		Node:     jobRunLeased.GetNodeId(),
 	}}}, nil
 }
 

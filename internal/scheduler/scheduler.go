@@ -323,6 +323,7 @@ func (s *Scheduler) generateLeaseMessages(scheduledJobs []*jobdb.Job) ([]*armada
 							RunId:      armadaevents.ProtoUuidFromUuid(job.LatestRun().Id()),
 							JobId:      jobId,
 							ExecutorId: job.LatestRun().Executor(),
+							NodeId:     job.LatestRun().Node(),
 						},
 					},
 				},
