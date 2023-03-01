@@ -2,5 +2,5 @@ codecov:
   disable_default_path_fixes: true
 coverage:
   ignore:
-  - "/home/runner/work/armada/armada/internal/scheduler/**/*"
+  - "github.com/armadaproject/armada/internal/scheduler/schedulerobjects/**/*"
 
