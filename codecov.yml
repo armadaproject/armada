@@ -1,3 +1,2 @@
 ignore:
-  - "armada/internal/scheduler/schedulerobjects/**/*"
-
+  - "internal/scheduler/schedulerobjects/schedulerobjects.pb.go"
