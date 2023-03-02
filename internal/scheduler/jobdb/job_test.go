@@ -227,3 +227,19 @@ func TestJob_TestRunsById(t *testing.T) {
 		assert.Equal(t, runs[i], job.runsById[runs[i].id])
 	}
 }
+
+func TestJobPriorityComparer(t *testing.T) {
+	job1 := &Job{
+		id:       "a",
+		priority: 10,
+		created:  5,
+	}
+
+	comparer := JobPriorityComparer{}
+
+	assert.Equal(t, 0, comparer.Compare(job1, job1))
+	assert.Equal(t, -1, comparer.Compare(job1, job1.WithPriority(9)))
+	assert.Equal(t, -1, comparer.Compare(job1, job1.WithCreated(6)))
+	assert.Equal(t, 1, comparer.Compare(job1, job1.WithPriority(11)))
+	assert.Equal(t, 1, comparer.Compare(job1, job1.WithCreated(4)))
+}

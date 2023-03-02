@@ -80,7 +80,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 					"errored":       numErrored,
 					"interval":      logInterval,
 					"lastMessageId": lastMessageId,
-					"timeLag":       time.Now().Sub(lastPublishTime),
+					"timeLag":       time.Since(lastPublishTime),
 				},
 			).Info("message statistics")
 			numReceived = 0
@@ -246,8 +246,14 @@ func (srv *SubmitFromLog) ProcessSubSequence(ctx context.Context, i int, sequenc
 			j = i + len(es)
 		}
 	case *armadaevents.EventSequence_Event_JobRunRunning:
-		es := collectJobRunRunningEvents(ctx, i, sequence)
+		es := collectEvents[*armadaevents.EventSequence_Event_JobRunRunning](ctx, i, sequence)
 		ok, err = srv.UpdateJobStartTimes(ctx, es)
+		if ok {
+			j = i + len(es)
+		}
+	case *armadaevents.EventSequence_Event_JobErrors:
+		es := collectEvents[*armadaevents.EventSequence_Event_JobErrors](ctx, i, sequence)
+		ok, err = srv.DeleteFailedJobs(ctx, es)
 		if ok {
 			j = i + len(es)
 		}
@@ -326,10 +332,10 @@ func collectReprioritiseJobSetEvents(ctx context.Context, i int, sequence *armad
 	return result
 }
 
-func collectJobRunRunningEvents(ctx context.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.EventSequence_Event {
+func collectEvents[T any](ctx context.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.EventSequence_Event {
 	events := make([]*armadaevents.EventSequence_Event, 0)
 	for j := i; j < len(sequence.Events); j++ {
-		if _, ok := sequence.Events[j].Event.(*armadaevents.EventSequence_Event_JobRunRunning); ok {
+		if _, ok := sequence.Events[j].Event.(T); ok {
 			events = append(events, sequence.Events[j])
 		} else {
 			break
@@ -445,7 +451,7 @@ func (srv *SubmitFromLog) SubmitJobs(
 
 // CancelJobs cancels all jobs specified by the provided events in a single operation.
 func (srv *SubmitFromLog) CancelJobs(ctx context.Context, userId string, es []*armadaevents.CancelJob) (bool, error) {
-	jobIds := make([]string, len(es), len(es))
+	jobIds := make([]string, len(es))
 	for i, e := range es {
 		id, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 		if err != nil {
@@ -547,7 +553,7 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, e
 		return true, nil
 	}
 
-	jobIds := make([]string, len(es), len(es))
+	jobIds := make([]string, len(es))
 	for i, e := range es {
 		id, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 		if err != nil {
@@ -589,11 +595,42 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, e
 	return true, nil
 }
 
+func (srv *SubmitFromLog) DeleteFailedJobs(ctx context.Context, es []*armadaevents.EventSequence_Event) (bool, error) {
+	jobIdsToDelete := make([]string, 0, len(es))
+	for _, event := range es {
+		jobErrors := event.GetJobErrors()
+		if jobErrors == nil {
+			continue
+		}
+		for _, err := range jobErrors.Errors {
+			if err.Terminal {
+				jobId, err := armadaevents.UlidStringFromProtoUuid(jobErrors.JobId)
+				if err != nil {
+					return false, err
+				}
+				jobIdsToDelete = append(jobIdsToDelete, jobId)
+			}
+		}
+	}
+
+	jobsToDelete, err := srv.SubmitServer.jobRepository.GetExistingJobsByIds(jobIdsToDelete)
+	if err != nil {
+		return false, err
+	}
+	if _, err := srv.SubmitServer.jobRepository.DeleteJobs(jobsToDelete); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // UpdateJobStartTimes records the start time (in Redis) of one of more jobs.
 func (srv *SubmitFromLog) UpdateJobStartTimes(ctx context.Context, es []*armadaevents.EventSequence_Event) (bool, error) {
 	jobStartsInfos := make([]*repository.JobStartInfo, 0, len(es))
 	for _, event := range es {
 		jobRun := event.GetJobRunRunning()
+		if jobRun == nil {
+			continue
+		}
 		jobId, err := armadaevents.UlidStringFromProtoUuid(jobRun.GetJobId())
 		if err != nil {
 			logrus.WithError(err).Warnf("Invalid job id received when processing jobRunRunning Message")
