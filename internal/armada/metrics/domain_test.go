@@ -96,12 +96,14 @@ func TestRecordResources_ShouldReportRuntimeResourcesForMultiplePools(t *testing
 			"cpu":    {8, 2, 5, 10},
 			"gpu":    {5, 2, 3.5, 7},
 			"memory": {7, 3, 5, 10},
-			"disk":   {7, 5, 6, 12}},
+			"disk":   {7, 5, 6, 12},
+		},
 		"pool-2": {
 			"cpu":    {5, 1, 3, 6},
 			"gpu":    {3, 2, 2.5, 5},
 			"memory": {14, 9, 11.5, 23},
-			"disk":   {20, 9, 14.5, 29}},
+			"disk":   {20, 9, 14.5, 29},
+		},
 	}
 
 	for _, queueMetric := range jobMetricsRecorder.Metrics() {
