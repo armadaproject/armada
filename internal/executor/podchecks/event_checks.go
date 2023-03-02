@@ -33,7 +33,7 @@ func newEventChecks(configs []config.EventCheck) (*eventChecks, error) {
 	for _, config := range configs {
 		re, err := regexp.Compile(config.Regexp)
 		if err != nil {
-			return nil, fmt.Errorf("Cannot parse regexp \"%s\": %+v", config.Regexp, err)
+			return nil, fmt.Errorf("cannot parse regexp \"%s\": %+v", config.Regexp, err)
 		}
 
 		action, err := mapAction(config.Action)
@@ -42,13 +42,13 @@ func newEventChecks(configs []config.EventCheck) (*eventChecks, error) {
 		}
 
 		if string(config.Type) != v1.EventTypeNormal && string(config.Type) != v1.EventTypeWarning {
-			return nil, fmt.Errorf("Invalid event type: \"%s\"", config.Type)
+			return nil, fmt.Errorf("invalid event type: \"%s\"", config.Type)
 		}
 
 		check := eventCheck{regexp: re, inverse: config.Inverse, eventType: config.Type, gracePeriod: config.GracePeriod, action: action}
 		eventChecks.checks = append(eventChecks.checks, check)
 		log.Infof(
-			"   Created event check %s %s\"%s\" %s %s",
+			"created event check %s %s\"%s\" %s %s",
 			check.eventType,
 			inverseString(check.inverse),
 			check.regexp.String(),
