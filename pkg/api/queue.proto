@@ -52,9 +52,9 @@ message StreamingLeaseRequest {
     string cluster_id = 1;
     // Nodes are split into pools. This field indicates for which pool jobs are leased.
     string pool = 2;
-    // Total resources available for scheduling across all nodes.    
+    // Total resources available for scheduling across all nodes.
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 3 [(gogoproto.nullable) = false];
-    // For each queue, the total resources allocated to jobs from that queue.    
+    // For each queue, the total resources allocated to jobs from that queue.
     ClusterLeasedReport cluster_leased_report = 4 [(gogoproto.nullable) = false];
     // Jobs submitted to this executor must require at least this amount of resources.
     map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 5 [(gogoproto.nullable) = false];
@@ -165,6 +165,8 @@ message ReturnLeaseRequest {
     string reason = 5;
     string kubernetes_id = 6;
     bool job_run_attempted = 7;
+    // The executor feeds back certain annotations.
+    map<string, string> tracked_annotations = 8;
 }
 
 service AggregatedQueue {

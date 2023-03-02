@@ -89,3 +89,7 @@ build/ssl/certs/ca-certificates.crt
 localdev/volumes/go/pkg/
 .coverage
 coverage.xml
+
+# Yarn
+localdev/yarn.lock
+localdev/node_modules/
