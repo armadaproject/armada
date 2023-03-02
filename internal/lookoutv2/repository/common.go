@@ -696,10 +696,12 @@ func (qb *QueryBuilder) comparatorForMatch(match string) (string, error) {
 func (qb *QueryBuilder) valueForMatch(value interface{}, match string) (string, error) {
 	switch match {
 	case model.MatchStartsWith:
-		v := fmt.Sprintf("%v%%", value)
+		s := parseStringForLike(value)
+		v := fmt.Sprintf("%s%%", s)
 		return qb.recordValue(v), nil
 	case model.MatchContains:
-		v := fmt.Sprintf("%%%v%%", value)
+		s := parseStringForLike(value)
+		v := fmt.Sprintf("%%%s%%", s)
 		return qb.recordValue(v), nil
 	case model.MatchAnyOf:
 		switch v := value.(type) {
@@ -715,6 +717,11 @@ func (qb *QueryBuilder) valueForMatch(value interface{}, match string) (string, 
 	default:
 		return qb.recordValue(value), nil
 	}
+}
+
+func parseStringForLike(value interface{}) string {
+	s := fmt.Sprintf("%v", value)
+	return strings.ReplaceAll(s, "\\", "\\\\")
 }
 
 // Save value to be used in prepared statement, returns template string to put in place of the value in the SQL string
