@@ -15,12 +15,12 @@ var testFilters = []*model.Filter{
 	{
 		Field: "queue",
 		Match: "exact",
-		Value: "test-queue",
+		Value: "test\\queue",
 	},
 	{
 		Field: "owner",
 		Match: "startsWith",
-		Value: "anon",
+		Value: "anon\\one",
 	},
 	{
 		Field:        "1234",
@@ -155,7 +155,7 @@ func TestQueryBuilder_JobCount(t *testing.T) {
 			WHERE j.queue = $7 AND j.owner LIKE $8
 		`),
 		splitByWhitespace(query.Sql))
-	assert.Equal(t, []interface{}{"test-queue", "1234", "abcd", "test-queue", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
+	assert.Equal(t, []interface{}{"test\\queue", "1234", "abcd", "test\\queue", "5678", "efgh%", "test\\queue", "anon\\\\one%"}, query.Args)
 }
 
 func TestQueryBuilder_InsertIntoTempTableEmpty(t *testing.T) {
@@ -209,7 +209,7 @@ func TestQueryBuilder_InsertIntoTempTable(t *testing.T) {
 			ON CONFLICT DO NOTHING
 		`),
 		splitByWhitespace(query.Sql))
-	assert.Equal(t, []interface{}{"test-queue", "1234", "abcd", "test-queue", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
+	assert.Equal(t, []interface{}{"test\\queue", "1234", "abcd", "test\\queue", "5678", "efgh%", "test\\queue", "anon\\\\one%"}, query.Args)
 }
 
 func TestQueryBuilder_CountGroupsEmpty(t *testing.T) {
@@ -254,7 +254,7 @@ func TestQueryBuilder_CountGroups(t *testing.T) {
 			) AS group_table
 		`),
 		splitByWhitespace(query.Sql))
-	assert.Equal(t, []interface{}{"test-queue", "1234", "abcd", "test-queue", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
+	assert.Equal(t, []interface{}{"test\\queue", "1234", "abcd", "test\\queue", "5678", "efgh%", "test\\queue", "anon\\\\one%"}, query.Args)
 }
 
 func TestQueryBuilder_GroupByEmpty(t *testing.T) {
@@ -309,7 +309,7 @@ func TestQueryBuilder_GroupBy(t *testing.T) {
 			LIMIT 10 OFFSET 0
 		`),
 		splitByWhitespace(query.Sql))
-	assert.Equal(t, []interface{}{"test-queue", "1234", "abcd", "test-queue", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
+	assert.Equal(t, []interface{}{"test\\queue", "1234", "abcd", "test\\queue", "5678", "efgh%", "test\\queue", "anon\\\\one%"}, query.Args)
 }
 
 func TestQueryBuilder_GroupBySingleAggregate(t *testing.T) {
@@ -346,7 +346,7 @@ func TestQueryBuilder_GroupBySingleAggregate(t *testing.T) {
 			LIMIT 100 OFFSET 20
 		`),
 		splitByWhitespace(query.Sql))
-	assert.Equal(t, []interface{}{"test-queue", "1234", "abcd", "test-queue", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
+	assert.Equal(t, []interface{}{"test\\queue", "1234", "abcd", "test\\queue", "5678", "efgh%", "test\\queue", "anon\\\\one%"}, query.Args)
 }
 
 func TestQueryBuilder_GroupByMultipleAggregates(t *testing.T) {
@@ -384,7 +384,7 @@ func TestQueryBuilder_GroupByMultipleAggregates(t *testing.T) {
 			LIMIT 100 OFFSET 20
 		`),
 		splitByWhitespace(query.Sql))
-	assert.Equal(t, []interface{}{"test-queue", "1234", "abcd", "test-queue", "5678", "efgh%", "test-queue", "anon%"}, query.Args)
+	assert.Equal(t, []interface{}{"test\\queue", "1234", "abcd", "test\\queue", "5678", "efgh%", "test\\queue", "anon\\\\one%"}, query.Args)
 }
 
 func splitByWhitespace(s string) []string {

@@ -562,22 +562,22 @@ func TestGetJobsByJobSet(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+			Submit(queue, "job\\set\\1", owner, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		job2 := NewJobSimulator(converter, store).
-			Submit(queue, "job-set-2", owner, baseTime, basicJobOpts).
+			Submit(queue, "job\\set\\2", owner, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		job3 := NewJobSimulator(converter, store).
-			Submit(queue, "job-set-3", owner, baseTime, basicJobOpts).
+			Submit(queue, "job\\set\\3", owner, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		job4 := NewJobSimulator(converter, store).
-			Submit(queue, "other-job-set", owner, baseTime, basicJobOpts).
+			Submit(queue, "other-job\\set", owner, baseTime, basicJobOpts).
 			Build().
 			Job()
 
@@ -594,7 +594,7 @@ func TestGetJobsByJobSet(t *testing.T) {
 				[]*model.Filter{{
 					Field: "jobSet",
 					Match: model.MatchExact,
-					Value: jobSet,
+					Value: "job\\set\\1",
 				}},
 				&model.Order{},
 				0,
@@ -612,7 +612,7 @@ func TestGetJobsByJobSet(t *testing.T) {
 				[]*model.Filter{{
 					Field: "jobSet",
 					Match: model.MatchStartsWith,
-					Value: "job-set-",
+					Value: "job\\set\\",
 				}},
 				&model.Order{
 					Field:     "jobId",
@@ -635,7 +635,7 @@ func TestGetJobsByJobSet(t *testing.T) {
 				[]*model.Filter{{
 					Field: "jobSet",
 					Match: model.MatchContains,
-					Value: "job-set",
+					Value: "job\\set",
 				}},
 				&model.Order{
 					Field:     "jobId",

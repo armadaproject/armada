@@ -46,12 +46,11 @@ import { JobsTablePreferencesService } from "services/lookoutV2/JobsTablePrefere
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import { ColumnId, JobTableColumn, StandardColumnId, toColId } from "utils/jobsTableColumns"
 import {
-  convertRowPartsToFilters,
   diffOfKeys,
   updaterToValue,
-  convertColumnFiltersToFilters,
   pendingDataForAllVisibleData,
   PendingData,
+  getFiltersForRows,
 } from "utils/jobsTableUtils"
 import { fromRowId, RowId } from "utils/reactTableUtils"
 
@@ -304,10 +303,9 @@ export const JobsTableContainer = ({
   const onSideBarClose = useCallback(() => setSidebarJobId(undefined), [])
 
   const selectedItemsFilters: JobFilter[][] = useMemo(() => {
-    const tableFilters = convertColumnFiltersToFilters(columnFilterState, allColumns)
     return Object.keys(selectedRows).map((rowId) => {
       const { rowIdPartsPath } = fromRowId(rowId as RowId)
-      return tableFilters.concat(convertRowPartsToFilters(rowIdPartsPath))
+      return getFiltersForRows(columnFilterState, allColumns, rowIdPartsPath)
     })
   }, [selectedRows, columnFilterState, allColumns])
 

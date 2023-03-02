@@ -32,6 +32,14 @@ describe("ReactTableUtils", () => {
         })
         expect(result).toBe(deeplyNestedRowIdExample)
       })
+
+      it("returns correct row ID with special characters", () => {
+        const result = toRowId({
+          type: "jobSet",
+          value: "E:\\tmp\\file-share",
+        })
+        expect(result).toBe("jobSet:E%3A%5Ctmp%5Cfile-share")
+      })
     })
 
     describe("fromRowId", () => {
@@ -70,6 +78,20 @@ describe("ReactTableUtils", () => {
             "jobSet:job-set-2>queue:queue-2",
             "jobSet:job-set-2>queue:queue-2>jobId:0",
           ],
+        })
+      })
+
+      it("handles special characters correctly", () => {
+        const result = fromRowId("jobSet:E%3A%5Ctmp%5Cfile-share")
+        expect(result).toStrictEqual({
+          rowId: "jobSet:E%3A%5Ctmp%5Cfile-share",
+          rowIdPartsPath: [
+            {
+              type: "jobSet",
+              value: "E:\\tmp\\file-share",
+            },
+          ],
+          rowIdPathFromRoot: ["jobSet:E%3A%5Ctmp%5Cfile-share"],
         })
       })
     })
