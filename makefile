@@ -13,6 +13,16 @@ else
 	K := $(foreach exec,$(EXECUTABLES),$(if $(shell which $(exec)),some string,$(error "No $(exec) in PATH")))
 endif
 
+internal.xml:
+	@tmpfile=$$(mktemp) && \
+	 while read -r line; do \
+	  if [[ "$$line" != *".pb.go"* ]]; then \
+	   echo "$$line" >> "$$tmpfile"; \
+	  fi \
+	 done < "internal_coverage.xml" && \
+	 mv "$$tmpfile" "internal_coverage.xml" && \
+	 echo "Lines containing '.pb.go' have been removed from internal_coverage.xml."
+
 # Docker buildkit builds work in parallel, lowering build times. Outputs are compatable.
 # Ignored on docker <18.09. This may lead to slower builds and different logs in STDOUT,
 # but the image output is the same.
@@ -372,6 +382,14 @@ tests: gotestsum
 	$(GOTESTSUM) -- -coverprofile internal_coverage.xml -v ./internal... 2>&1 | tee test_reports/internal.txt
 	$(GOTESTSUM) -- -coverprofile pkg_coverage.xml -v ./pkg... 2>&1 | tee test_reports/pkg.txt
 	$(GOTESTSUM) -- -coverprofile cmd_coverage.xml -v ./cmd... 2>&1 | tee test_reports/cmd.txt
+	@tmpfile=$$(mktemp) && \
+	 while read -r line; do \
+	  if [[ "$$line" != *".pb.go"* ]]; then \
+	   echo "$$line" >> "$$tmpfile"; \
+	  fi \
+	 done < "internal_coverage.xml" && \
+	 mv "$$tmpfile" "internal_coverage.xml" && \
+	 echo "Lines containing '.pb.go' have been removed from internal_coverage.xml."
 
 .ONESHELL:
 lint-fix:
