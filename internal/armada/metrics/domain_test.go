@@ -66,7 +66,9 @@ func TestRecordResources_ShouldReportRuntimeResources(t *testing.T) {
 		"disk":   {9, 5, 7, 14},
 	}
 	for _, queueMetric := range jobMetricsRecorder.Metrics() {
-		assert.Equal(t, expected[queueMetric.Pool], []float64{queueMetric.Resources[queueMetric.Pool].GetMax(), queueMetric.Resources[queueMetric.Pool].GetMin(),
-			queueMetric.Resources[queueMetric.Pool].GetMedian(), queueMetric.Resources[queueMetric.Pool].GetSum()})
+		assert.Equal(t, expected[queueMetric.Pool], []float64{
+			queueMetric.Resources[queueMetric.Pool].GetMax(), queueMetric.Resources[queueMetric.Pool].GetMin(),
+			queueMetric.Resources[queueMetric.Pool].GetMedian(), queueMetric.Resources[queueMetric.Pool].GetSum(),
+		})
 	}
 }
