@@ -166,12 +166,6 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 		return err
 	}
 
-	// Return no jobs if we don't have enough work.
-	var res armadaresource.ComputeResources = req.Resources
-	if res.AsFloat().IsLessThan(q.schedulingConfig.MinimumResourceToSchedule) {
-		return nil
-	}
-
 	// Get jobs to be leased.
 	jobs, err := q.getJobs(stream.Context(), req)
 	if err != nil {
@@ -397,6 +391,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	}
 	nodeDb, err := scheduler.NewNodeDb(
 		q.schedulingConfig.Preemption.PriorityClasses,
+		q.schedulingConfig.MaxExtraNodesToConsider,
 		indexedResources,
 		q.schedulingConfig.IndexedTaints,
 		q.schedulingConfig.IndexedNodeLabels,
@@ -475,6 +470,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			aggregatedUsageByQueue,
 			q.schedulingConfig.Preemption.NodeEvictionProbability,
 			q.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
+			q.SchedulingReportsRepository,
 		)
 		if err != nil {
 			return nil, err
@@ -522,9 +518,16 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		if err != nil {
 			return nil, err
 		}
+
+		// Log and store scheduling reports.
+		if q.SchedulingReportsRepository != nil && sched.SchedulingRoundReport != nil {
+			log.Infof("Scheduling report:\n%s", sched.SchedulingRoundReport)
+			sched.SchedulingRoundReport.ClearJobSpecs()
+			q.SchedulingReportsRepository.AddSchedulingRoundReport(sched.SchedulingRoundReport)
+		}
 	}
 
-	// Prepare preempted messages.
+	// Prepare preempted + failed messages.
 	sequences := make([]*armadaevents.EventSequence, len(preemptedJobs))
 	for i, job := range preemptedJobs {
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.GetId())
@@ -543,6 +546,20 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 							// Until the executor supports runs properly, JobId and RunId are the same.
 							PreemptedJobId: jobId,
 							PreemptedRunId: jobId,
+						},
+					},
+				},
+				{
+					Created: &created,
+					Event: &armadaevents.EventSequence_Event_JobErrors{
+						JobErrors: &armadaevents.JobErrors{
+							JobId: jobId,
+							Errors: []*armadaevents.Error{
+								{
+									Terminal: true,
+									Reason:   &armadaevents.Error_PodTerminated{},
+								},
+							},
 						},
 					},
 				},
@@ -644,27 +661,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	} else {
 		log.Error("no Pulsar producer provided; omitting publishing preempted messages")
 	}
-
-	// Delete preempted jobs from Redis. This will cause lease renewal to fail for these jobs.
-	// TODO: We can avoid potential inconsistency by deleting in a pulsar subscriber instead.
-	preemptedApiJobs := make([]*api.Job, len(preemptedJobs))
-	for i, job := range preemptedJobs {
-		preemptedApiJobs[i] = job.(*api.Job)
-	}
-	if _, err := q.jobRepository.DeleteJobs(preemptedApiJobs); err != nil {
-		logging.WithStacktrace(log, err).Errorf(
-			"failed to delete preempted jobs: %v",
-			util.Map(preemptedApiJobs, func(job *api.Job) string { return job.GetId() }),
-		)
-	}
-
-	// TODO: Re-enable if we need to be able to report successful scheduling attempts.
-	// // Log and store scheduling reports.
-	// if q.SchedulingReportsRepository != nil && sched.SchedulingRoundReport != nil {
-	// 	log.Infof("Scheduling report:\n%s", sched.SchedulingRoundReport)
-	// 	sched.SchedulingRoundReport.ClearJobSpecs()
-	// 	q.SchedulingReportsRepository.AddSchedulingRoundReport(sched.SchedulingRoundReport)
-	// }
 
 	// Update the usage report for this executor in-place to account for preempted/leased jobs and write it back into Redis.
 	// This ensures rpeempted/leased jobs are accounted for without needing to wait for feedback from the executor.
@@ -776,15 +772,15 @@ func (q *AggregatedQueueServer) decompressOwnershipGroups(compressedOwnershipGro
 
 func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
-		return nil, status.Errorf(codes.PermissionDenied, "[RenewLease] error: %s", err)
+		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
 	renewed, e := q.jobRepository.RenewLease(request.ClusterId, request.Ids)
-	return &api.IdList{renewed}, e
+	return &api.IdList{Ids: renewed}, e
 }
 
 func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
-		return nil, status.Errorf(codes.PermissionDenied, "[ReturnLease] error: %s", err)
+		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
 
 	// Check how many times the same job has been retried already
@@ -799,6 +795,10 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 	}
 
 	maxRetries := int(q.schedulingConfig.MaxRetries)
+	if request.TrackedAnnotations[configuration.FailFastAnnotation] == "true" {
+		// Fail-fast jobs are never retried.
+		maxRetries = 0
+	}
 	if retries >= maxRetries {
 		failureReason := fmt.Sprintf("Exceeded maximum number of retries: %d", maxRetries)
 		err = q.reportFailure(request.JobId, request.ClusterId, failureReason)
@@ -904,7 +904,7 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 			cleanedIds = append(cleanedIds, job.Id)
 		}
 	}
-	return &api.IdList{cleanedIds}, returnedError
+	return &api.IdList{Ids: cleanedIds}, returnedError
 }
 
 func (q *AggregatedQueueServer) reportLeaseReturned(leaseReturnRequest *api.ReturnLeaseRequest) error {

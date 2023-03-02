@@ -12,7 +12,7 @@ import (
 )
 
 func ValidateApiJobs(jobs []*api.Job, config configuration.SchedulingConfig) error {
-	err := validateGangs(jobs, config.GangIdAnnotation, config.GangCardinalityAnnotation)
+	err := validateGangs(jobs, configuration.GangIdAnnotation, configuration.GangCardinalityAnnotation)
 	if err != nil {
 		return err
 	}

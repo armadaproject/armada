@@ -232,7 +232,6 @@ func (it *QueueCandidateGangIterator) Clear() error {
 }
 
 func (it *QueueCandidateGangIterator) Peek() ([]*JobSchedulingReport, error) {
-	var consecutiveUnschedulableJobs uint
 	for gang, err := it.queuedGangIterator.Peek(); gang != nil; gang, err = it.queuedGangIterator.Peek() {
 		if err != nil {
 			return nil, err
@@ -245,7 +244,6 @@ func (it *QueueCandidateGangIterator) Peek() ([]*JobSchedulingReport, error) {
 		if err := it.queuedGangIterator.Clear(); err != nil {
 			return nil, err
 		}
-		consecutiveUnschedulableJobs++
 	}
 	return nil, nil
 }
@@ -267,7 +265,7 @@ func (it *QueueCandidateGangIterator) f(gang []LegacySchedulerJob) ([]*JobSchedu
 	}
 	if unschedulableReason != "" {
 		for _, report := range reports {
-			it.QueueSchedulingRoundReport.AddJobSchedulingReport(report)
+			it.QueueSchedulingRoundReport.AddJobSchedulingReport(report, false)
 		}
 	}
 	return reports, unschedulableReason == "", nil
@@ -284,10 +282,11 @@ func (it *QueueCandidateGangIterator) schedulingReportsFromJobs(ctx context.Cont
 	// Create the scheduling reports and calculate the total requests of the gang
 	// We consider the total resource requests of a gang
 	// to be the sum of the requests over all jobs in the gang.
+	allGangJobsEvicted := true
 	reports := make([]*JobSchedulingReport, len(jobs))
-	gangTotalResourceRequests := totalResourceRequestsFromJobs(jobs, it.PriorityClasses)
 	timestamp := time.Now()
 	for i, job := range jobs {
+		allGangJobsEvicted = allGangJobsEvicted && isEvictedJob(job)
 		jobId, err := uuidFromUlidString(job.GetId())
 		if err != nil {
 			return nil, err
@@ -305,6 +304,12 @@ func (it *QueueCandidateGangIterator) schedulingReportsFromJobs(ctx context.Cont
 		}
 	}
 
+	// Perform no checks for evicted jobs.
+	// Since we don't want to preempt already running jobs if we, e.g., change MinimumJobSize.
+	if allGangJobsEvicted {
+		return reports, nil
+	}
+
 	// Set the unschedulableReason of all reports before returning.
 	// If any job in a gang fails to schedule,
 	// we assign the unschedulable reason of that job to all jobs in the gang.
@@ -320,6 +325,7 @@ func (it *QueueCandidateGangIterator) schedulingReportsFromJobs(ctx context.Cont
 	priority := reports[0].Req.Priority
 
 	// Check that the job is large enough for this executor.
+	gangTotalResourceRequests := totalResourceRequestsFromJobs(jobs, it.PriorityClasses)
 	if ok, reason := jobIsLargeEnough(gangTotalResourceRequests, it.MinimumJobSize); !ok {
 		unschedulableReason = reason
 		return reports, nil
@@ -327,7 +333,7 @@ func (it *QueueCandidateGangIterator) schedulingReportsFromJobs(ctx context.Cont
 
 	// MaximalResourceFractionToSchedulePerQueue check.
 	roundQueueResourcesByPriority := it.QueueSchedulingRoundReport.ScheduledResourcesByPriority.DeepCopy()
-	roundQueueResourcesByPriority.AddResouceList(priority, gangTotalResourceRequests)
+	roundQueueResourcesByPriority.AddResourceList(priority, gangTotalResourceRequests)
 	if exceeded, reason := exceedsResourceLimits(
 		ctx,
 		roundQueueResourcesByPriority.AggregateByResource(),
@@ -339,8 +345,8 @@ func (it *QueueCandidateGangIterator) schedulingReportsFromJobs(ctx context.Cont
 	}
 
 	// MaximalResourceFractionPerQueue check.
-	totalQueueResourcesByPriority := it.QueueSchedulingRoundReport.InitialResourcesByPriority.DeepCopy()
-	totalQueueResourcesByPriority.Add(roundQueueResourcesByPriority)
+	totalQueueResourcesByPriority := it.QueueSchedulingRoundReport.ResourcesByPriority.DeepCopy()
+	totalQueueResourcesByPriority.AddResourceList(priority, gangTotalResourceRequests)
 	if exceeded, reason := exceedsResourceLimits(
 		ctx,
 		totalQueueResourcesByPriority.AggregateByResource(),
@@ -498,10 +504,7 @@ func (it *CandidateGangIterator) pushToPQ(queue string, queueIt *QueueCandidateG
 	for i, report := range reports {
 		gang[i] = report.Job
 	}
-	initialResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].InitialResourcesByPriority
-	scheduledResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].ScheduledResourcesByPriority
-	totalResourcesForQueue := initialResourcesForQueue.DeepCopy()
-	totalResourcesForQueue.Add(scheduledResourcesForQueue)
+	totalResourcesForQueue := it.SchedulingRoundReport.QueueSchedulingRoundReports[queue].ResourcesByPriority
 	totalResourcesForQueueWithGang := totalResourcesForQueue.AggregateByResource()
 	totalResourcesForQueueWithGang.Add(totalResourceRequestsFromJobs(gang, it.PriorityClasses))
 	fairShare := it.weightByQueue[queue] / it.weightSum
@@ -589,6 +592,10 @@ func (it *CandidateGangIterator) f(reports []*JobSchedulingReport) ([]*JobSchedu
 	totalScheduledResources := it.SchedulingRoundReport.ScheduledResourcesByPriority.AggregateByResource()
 	gangResourceRequests := schedulerobjects.ResourceList{}
 	for _, report := range reports {
+		if isEvictedJob(report.Job) {
+			// Evicted jobs don't count towards per-round scheduling limits.
+			continue
+		}
 		gangResourceRequests.Add(schedulerobjects.ResourceListFromV1ResourceList(report.Req.ResourceRequirements.Requests))
 	}
 	totalScheduledResources.Add(gangResourceRequests)
@@ -772,7 +779,7 @@ func EvictPreemptible(
 				log.Errorf("error evicting job %s: annotations not initialised", job.GetId())
 				return
 			}
-			// Add annotations to this pod that indicate to the scheduler
+			// Add annotations to this job that indicate to the scheduler
 			// - that this pod was evicted and
 			// - which node it was evicted from.
 			annotations[TargetNodeIdAnnotation] = node.Id
@@ -839,7 +846,7 @@ func EvictOversubscribed(
 			// TODO: This is only necessary for jobs not shceduled in this cycle.
 			// Since jobs scheduled in this cycle can be rescheduled onto another node without triggering a preemption.
 			//
-			// Add annotations to this pod that indicate to the scheduler
+			// Add annotations to this job that indicate to the scheduler
 			// - that this pod was evicted and
 			// - which node it was evicted from.
 			annotations[TargetNodeIdAnnotation] = node.Id
@@ -945,8 +952,8 @@ func NewLegacyScheduler(
 			ctx,
 			queue.jobIterator,
 			config.QueueLeaseBatchSize,
-			config.GangIdAnnotation,
-			config.GangCardinalityAnnotation,
+			configuration.GangIdAnnotation,
+			configuration.GangCardinalityAnnotation,
 		)
 
 		// Enforce per-queue constraints.
@@ -996,6 +1003,7 @@ func Reschedule(
 	initialUsageByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 	nodePreemptibleEvictionProbability float64,
 	nodeOversubscribedEvictionProbability float64,
+	schedulingReportsRepository *SchedulingReportsRepository,
 ) ([]LegacySchedulerJob, []LegacySchedulerJob, map[string]*schedulerobjects.Node, map[string]schedulerobjects.QuantityByPriorityAndResourceType, error) {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("function", "Reschedule")
@@ -1084,6 +1092,9 @@ func Reschedule(
 		return nil, nil, nil, nil, err
 	}
 	sched.SchedulingRoundReport.ClearJobSpecs()
+	if schedulingReportsRepository != nil {
+		schedulingReportsRepository.AddSchedulingRoundReport(sched.SchedulingRoundReport)
+	}
 	for _, job := range rescheduledJobs {
 		if _, ok := preemptedJobsById[job.GetId()]; ok {
 			delete(preemptedJobsById, job.GetId())
@@ -1171,6 +1182,9 @@ func Reschedule(
 		return nil, nil, nil, nil, err
 	}
 	sched.SchedulingRoundReport.ClearJobSpecs()
+	if schedulingReportsRepository != nil {
+		schedulingReportsRepository.AddSchedulingRoundReport(sched.SchedulingRoundReport)
+	}
 	for _, job := range rescheduledJobs {
 		if _, ok := preemptedJobsById[job.GetId()]; ok {
 			delete(preemptedJobsById, job.GetId())
@@ -1211,8 +1225,8 @@ func Reschedule(
 	nodesByJobId := make(map[string]*schedulerobjects.Node, len(preempted)+len(scheduled))
 	preemptedJobs := make([]LegacySchedulerJob, 0, len(scheduledJobsById))
 	for jobId, node := range preempted {
+		nodesByJobId[jobId] = node
 		if job, ok := preemptedJobsById[jobId]; ok {
-			nodesByJobId[jobId] = node
 			preemptedJobs = append(preemptedJobs, job)
 		} else {
 			log.Errorf("inconsistent NodeDb: didn't expect job %s to be preempted", jobId)
@@ -1220,8 +1234,8 @@ func Reschedule(
 	}
 	scheduledJobs := make([]LegacySchedulerJob, 0, len(preemptedJobsById))
 	for jobId, node := range scheduled {
+		nodesByJobId[jobId] = node
 		if job, ok := scheduledJobsById[jobId]; ok {
-			nodesByJobId[jobId] = node
 			scheduledJobs = append(scheduledJobs, job)
 		} else {
 			log.Errorf("inconsistent NodeDb: didn't expect job %s to be scheduled", jobId)
@@ -1383,10 +1397,8 @@ func (sched *LegacyScheduler) Schedule() ([]LegacySchedulerJob, error) {
 			}
 		} else {
 			for _, r := range reports {
-				// Rescheduled jobs should not count towards limits on shceduled jobs.
-				updateTotals := !isEvictedJob(r.Job)
 				jobsToLeaseByQueue[r.Job.GetQueue()] = append(jobsToLeaseByQueue[r.Job.GetQueue()], r.Job)
-				sched.SchedulingRoundReport.AddJobSchedulingReport(r, updateTotals)
+				sched.SchedulingRoundReport.AddJobSchedulingReport(r, isEvictedJob(r.Job))
 			}
 			numJobsToLease += len(reports)
 		}
@@ -1469,10 +1481,17 @@ func PodRequirementsFromLegacySchedulerJobs[S ~[]E, E LegacySchedulerJob](jobs S
 func PodRequirementFromLegacySchedulerJob[E LegacySchedulerJob](job E, priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
 	info := job.GetRequirements(priorityClasses)
 	req := PodRequirementFromJobSchedulingInfo(info)
-	if req.Annotations == nil {
-		req.Annotations = make(map[string]string)
+	req.Annotations = make(map[string]string)
+	for _, key := range configuration.ArmadaManagedAnnotations {
+		if value, ok := job.GetAnnotations()[key]; ok {
+			req.GetAnnotations()[key] = value
+		}
 	}
-	maps.Copy(req.Annotations, job.GetAnnotations())
+	for _, key := range ArmadaSchedulerManagedAnnotations {
+		if value, ok := job.GetAnnotations()[key]; ok {
+			req.GetAnnotations()[key] = value
+		}
+	}
 	req.Annotations[JobIdAnnotation] = job.GetId()
 	req.Annotations[QueueAnnotation] = job.GetQueue()
 	return req

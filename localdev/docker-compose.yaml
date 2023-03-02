@@ -31,7 +31,10 @@ services:
     container_name: postgres
     image: postgres
     environment:
-      - "POSTGRES_PASSWORD=psw"
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=psw
+    volumes:
+      - ./scripts/postgres-init.sh:/docker-entrypoint-initdb.d/init-database.sh
     ports:
       - "5432:5432"
     networks:
@@ -78,7 +81,6 @@ services:
     networks:
       - kind
     ports:
-      - "9009:9009"
       - "8089:8089"
     volumes:
       - ./config:/config
@@ -91,6 +93,25 @@ services:
       - lookout-ingester
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/lookout-start.sh"
+
+  lookoutv2:
+    container_name: lookoutv2
+    image: golang:1.18-buster
+    networks:
+      - kind
+    ports:
+      - "10000:10000"
+    volumes:
+      - ./config:/config
+      - "..:/app:rw"
+      - "gopath:/go:rw"
+      - "go-cache:/root/.cache/go-build:rw"
+    depends_on:
+      - postgres
+      - server
+      - lookout-ingesterv2
+    working_dir: "/app"
+    entrypoint: sh -c "localdev/scripts/lookoutv2-start.sh"
 
   executor:
     container_name: executor
@@ -167,6 +188,22 @@ services:
     working_dir: /app
     entrypoint: go
     command: run cmd/lookoutingester/main.go --config /config/lookoutingester/config.yaml
+
+  lookout-ingesterv2:
+    container_name: lookout-ingesterv2
+    image: golang:1.18-buster
+    networks:
+      - kind
+    depends_on:
+      - postgres
+    volumes:
+      - ./config:/config
+      - "..:/app:rw"
+      - "gopath:/go:rw"
+      - "go-cache:/root/.cache/go-build:rw"
+    working_dir: /app
+    entrypoint: go
+    command: run cmd/lookoutingesterv2/main.go --config /config/lookoutingesterv2/config.yaml
 
   event-ingester:
     container_name: event-ingester

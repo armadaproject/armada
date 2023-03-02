@@ -128,6 +128,12 @@ type SchedulingConfig struct {
 	PoolResourceScarcity map[string]map[string]float64
 	MaxPodSpecSizeBytes  uint
 	MinJobResources      v1.ResourceList
+	// Once a node has been found on which a pod can be scheduled,
+	// the scheduler will consider up to the next maxExtraNodesToConsider nodes.
+	// The scheduler selects the node with the best score out of the considered nodes.
+	// In particular, the score expresses whether preemption is necessary to schedule a pod.
+	// Hence, a larger MaxExtraNodesToConsider would reduce the expected number of preemptions.
+	MaxExtraNodesToConsider uint
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
 	// for which the scheduler creates indexes for efficient lookup.
 	// Applies only to the new scheduler.
@@ -170,14 +176,17 @@ type SchedulingConfig struct {
 	// Should normally not be set greater than single-digit minutes,
 	// since cancellation and preemption may need to wait for this amount of time.
 	MaxTerminationGracePeriod time.Duration
-	// Jobs with equal value for this annotation make up a gang.
-	// All jobs in a gang are guaranteed to be scheduled onto the same cluster at the same time.
-	GangIdAnnotation string
-	// All jobs in a gang must specify the total number of jobs in the gang via this annotation.
-	// The cardinality should be expressed as an integer, e.g., "3".
-	GangCardinalityAnnotation string
 	// If an executor hasn't heartbeated in this time period, it will be considered stale
 	ExecutorTimeout time.Duration
+	// Default activeDeadline for all pods that don't explicitly set activeDeadlineSeconds.
+	// Is trumped by DefaultActiveDeadlineByResourceRequest.
+	DefaultActiveDeadline time.Duration
+	// Default activeDeadline for pods with at least one container requesting a given resource.
+	// For example, if
+	// DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{"gpu": time.Second},
+	// then all pods requesting a non-zero amount of gpu and don't explicitly set activeDeadlineSeconds
+	// will have activeDeadlineSeconds set to 1. Trumps DefaultActiveDeadline.
+	DefaultActiveDeadlineByResourceRequest map[string]time.Duration
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.

@@ -338,6 +338,7 @@ func TestScheduleMany(t *testing.T) {
 func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 	db, err := NewNodeDb(
 		testPriorityClasses,
+		testMaxExtraNodesToConsider,
 		testResources,
 		testIndexedTaints,
 		testIndexedNodeLabels,
@@ -361,6 +362,7 @@ func BenchmarkUpsert100000(b *testing.B) { benchmarkUpsert(testNCpuNode(100000, 
 func benchmarkSelectAndBindNodeToPod(nodes []*schedulerobjects.Node, reqs []*schedulerobjects.PodRequirements, b *testing.B) {
 	db, err := NewNodeDb(
 		testPriorityClasses,
+		testMaxExtraNodesToConsider,
 		testResources,
 		testIndexedTaints,
 		testIndexedNodeLabels,

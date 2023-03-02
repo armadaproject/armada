@@ -6,12 +6,24 @@
 {{- printf "%s-%s" ( include "armada-scheduler.name" .) "config" -}}
 {{- end }}
 
+{{- define "armada-scheduler-ingester.config.name" -}}
+{{- printf "%s-%s-%s" ( include "armada-scheduler.name" .) "ingester" "config" -}}
+{{- end }}
+
+{{- define "armada-scheduler-pruner.config.name" -}}
+{{- printf "%s-%s-%s" ( include "armada-scheduler.name" .) "pruner" "config" -}}
+{{- end }}
+
 {{- define "armada-scheduler.config.filename" -}}
 {{- printf "%s%s" ( include "armada-scheduler.config.name" .) ".yaml" -}}
 {{- end }}
 
 {{- define "armada-scheduler-ingester.config.filename" -}}
 {{- printf "%s%s%s" ( include "armada-scheduler.config.name" .) "-ingester" ".yaml" -}}
+{{- end }}
+
+{{- define "armada-scheduler-pruner.config.filename" -}}
+{{- printf "%s%s%s" ( include "armada-scheduler.config.name" .) "-pruner" ".yaml" -}}
 {{- end }}
 
 {{- define "armada-scheduler-ingester.serviceaccount.name" -}}

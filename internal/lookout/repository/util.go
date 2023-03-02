@@ -47,6 +47,7 @@ func recordsToInterfaces(records []goqu.Record) []interface{} {
 }
 
 func StartsWith(field exp.IdentifierExpression, pattern string) goqu.Expression {
+	pattern = strings.ReplaceAll(pattern, "\\", "\\\\")
 	return field.Like(pattern + SQLLikeWildcard)
 }
 
@@ -59,6 +60,7 @@ const (
 // otherwise do an exact match.
 func GlobSearchOrExact(field exp.IdentifierExpression, pattern string) goqu.Expression {
 	if strings.Contains(pattern, SearchWildcard) {
+		pattern = strings.ReplaceAll(pattern, "\\", "\\\\")
 		return field.Like(
 			strings.Replace(pattern, SearchWildcard, SQLLikeWildcard, -1))
 	}
