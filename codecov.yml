@@ -1,0 +1,4 @@
+ignore:
+  - "**/*.pb.go"
+  - "**/*.sql.go"
+  - "**/*_moq.go"
