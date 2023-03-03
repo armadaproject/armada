@@ -773,7 +773,7 @@ func (q *AggregatedQueueServer) decompressOwnershipGroups(compressedOwnershipGro
 
 func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
-		return nil, status.Errorf(codes.PermissionDenied, "[RenewLease] error: %s", err)
+		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
 	renewed, e := q.jobRepository.RenewLease(request.ClusterId, request.Ids)
 	return &api.IdList{Ids: renewed}, e
@@ -781,7 +781,7 @@ func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.Ren
 
 func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
-		return nil, status.Errorf(codes.PermissionDenied, "[ReturnLease] error: %s", err)
+		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
 
 	// Check how many times the same job has been retried already
@@ -796,6 +796,10 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 	}
 
 	maxRetries := int(q.schedulingConfig.MaxRetries)
+	if request.TrackedAnnotations[configuration.FailFastAnnotation] == "true" {
+		// Fail-fast jobs are never retried.
+		maxRetries = 0
+	}
 	if retries >= maxRetries {
 		failureReason := fmt.Sprintf("Exceeded maximum number of retries: %d", maxRetries)
 		err = q.reportFailure(request.JobId, request.ClusterId, failureReason)

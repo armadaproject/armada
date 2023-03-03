@@ -16,11 +16,10 @@ import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { getErrorMessage } from "utils"
 import { ColumnId, JobTableColumn, StandardColumnId } from "utils/jobsTableColumns"
 import {
-  convertColumnFiltersToFilters,
-  convertRowPartsToFilters,
   fetchJobGroups,
   fetchJobs,
   FetchRowRequest,
+  getFiltersForRows,
   groupsToRows,
   jobsToRows,
   PendingData,
@@ -149,10 +148,7 @@ export const useFetchJobsTableData = ({
 
       const order = getOrder(sortedField, isJobFetch)
       const rowRequest: FetchRowRequest = {
-        filters: [
-          ...convertRowPartsToFilters(parentRowInfo?.rowIdPartsPath ?? []),
-          ...convertColumnFiltersToFilters(columnFilters, allColumns),
-        ],
+        filters: getFiltersForRows(columnFilters, allColumns, parentRowInfo?.rowIdPartsPath ?? []),
         skip: nextRequest.skip ?? 0,
         take: nextRequest.take ?? paginationState.pageSize,
         order: order,
