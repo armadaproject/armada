@@ -1767,7 +1767,6 @@ func TestReschedule(t *testing.T) {
 			expectedNodeIdByJobId := make(map[string]string)
 			log := logrus.NewEntry(logrus.New())
 			for i, round := range tc.Rounds {
-				fmt.Println("====== starting round", i)
 				jobs := make([]LegacySchedulerJob, 0)
 				for queue, reqs := range round.ReqsByQueue {
 					// TODO: Remove PC name argument. Since we now infer it.
@@ -1806,17 +1805,6 @@ func TestReschedule(t *testing.T) {
 					nil,
 				)
 				result, err := rescheduler.Schedule(ctxlogrus.ToContext(context.Background(), log))
-				// preemptedJobs, scheduledJobs, nodesByJobId, updatedUsageByQueue, err := Reschedule(
-				// 	ctxlogrus.ToContext(context.Background(), log),
-				// 	repo,
-				// 	*constraints,
-				// 	tc.SchedulingConfig,
-				// 	nodeDb,
-				// 	tc.PriorityFactorByQueue,
-				// 	initialUsageByQueue,
-				// 	1, 1,
-				// 	nil,
-				// )
 				require.NoError(t, err)
 
 				// Update initialUsage.
@@ -1941,9 +1929,12 @@ func BenchmarkReschedule(b *testing.B) {
 		MaxPriorityFactor int
 	}{
 		"1 node 1 queue 32 jobs": {
-			SchedulingConfig: withNodeEvictionProbabilityConfig(
-				0.1,
-				testSchedulingConfig(),
+			SchedulingConfig: withNodeOversubscriptionEvictionProbabilityConfig(
+				0,
+				withNodeEvictionProbabilityConfig(
+					0.1,
+					testSchedulingConfig(),
+				),
 			),
 			Nodes:             testNCpuNode(1, testPriorities),
 			PodReqFunc:        testNSmallCpuJob,
