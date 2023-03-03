@@ -69,96 +69,112 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Lint Server Helm Chart
+        if: always()
         uses: hopisaurus/helm-check-action@v0.1.1
         env:
           CHART_LOCATION: ./deployment/armada
           CHART_VALUES: ./deployment/armada/values.yaml
 
       - name: Lint Bundle Helm Chart
+        if: always()
         uses: hopisaurus/helm-check-action@v0.1.1
         env:
           CHART_LOCATION: ./deployment/armada-bundle
           CHART_VALUES: ./deployment/armada-bundle/values.yaml
 
       - name: Lint Binoculars Helm Chart
+        if: always()
         uses: hopisaurus/helm-check-action@v0.1.1
         env:
           CHART_LOCATION: ./deployment/binoculars
           CHART_VALUES: ./deployment/binoculars/values.yaml
 
       - name: Lint Server Helm Chart
+        if: always()
         uses: hopisaurus/helm-check-action@v0.1.1
         env:
           CHART_LOCATION: ./deployment/armada
           CHART_VALUES: ./deployment/armada/values.yaml
 
       - name: Lint Event Ingester Helm Chart
+        if: always()
         uses: hopisaurus/helm-check-action@v0.1.1
         env:
           CHART_LOCATION: ./deployment/event-ingester
           CHART_VALUES: ./deployment/event-ingester/values.yaml
 
       - name: Lint Executor Helm Chart
+        if: always()
         uses: hopisaurus/helm-check-action@v0.1.1
         env:
           CHART_LOCATION: ./deployment/executor
           CHART_VALUES: ./deployment/executor/values.yaml
 
       - name: Lint Executor Cluster Monitoring Helm Chart
+        if: always()
         uses: hopisaurus/helm-check-action@v0.1.1
         env:
           CHART_LOCATION: ./deployment/executor-cluster-monitoring
           CHART_VALUES: ./deployment/executor-cluster-monitoring/values.yaml
 
       - name: Lint Job Service Helm Chart
+        if: always()
         uses: hopisaurus/helm-check-action@v0.1.1
         env:
           CHART_LOCATION: ./deployment/jobservice
           CHART_VALUES: ./deployment/jobservice/values.yaml
 
       - name: Lint Lookout Helm Chart
+        if: always()
         uses: hopisaurus/helm-check-action@v0.1.1
         env:
           CHART_LOCATION: ./deployment/lookout
           CHART_VALUES: ./deployment/lookout/values.yaml
 
       - name: Lint Lookout Ingester Helm Chart
+        if: always()
         uses: hopisaurus/helm-check-action@v0.1.1
         env:
           CHART_LOCATION: ./deployment/lookout-ingester
           CHART_VALUES: ./deployment/lookout-ingester/values.yaml
 
       - name: Lint Lookout Ingester v2 Helm Chart
+        if: always()
         uses: hopisaurus/helm-check-action@v0.1.1
         env:
           CHART_LOCATION: ./deployment/lookout-ingester-v2
           CHART_VALUES: ./deployment/lookout-ingester-v2/values.yaml
 
       - name: Lint Lookout Migration Helm Chart
+        if: always()
         uses: hopisaurus/helm-check-action@v0.1.1
         env:
           CHART_LOCATION: ./deployment/lookout-migration
           CHART_VALUES: ./deployment/lookout-migration/values.yaml
 
       - name: Lint Lookout Migration v2 Helm Chart
+        if: always()
         uses: hopisaurus/helm-check-action@v0.1.1
         env:
           CHART_LOCATION: ./deployment/lookout-migration-v2
           CHART_VALUES: ./deployment/lookout-migration-v2/values.yaml
 
       - name: Lint Lookout v2 Helm Chart
+        if: always()
         uses: hopisaurus/helm-check-action@v0.1.1
         env:
           CHART_LOCATION: ./deployment/lookout-v2
           CHART_VALUES: ./deployment/lookout-v2/values.yaml
 
       - name: Lint Scheduler Helm Chart
+        if: always()
         uses: hopisaurus/helm-check-action@v0.1.1
         env:
           CHART_LOCATION: ./deployment/scheduler
           CHART_VALUES: ./deployment/scheduler/values.yaml
 
       - name: Lint Scheduler Migration Helm Chart
+        if: always()
         uses: hopisaurus/helm-check-action@v0.1.1
         env:
           CHART_LOCATION: ./deployment/scheduler-migration
