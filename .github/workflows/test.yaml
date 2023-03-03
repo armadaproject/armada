@@ -129,14 +129,26 @@ jobs:
           make proto
           make dotnet
           
+          changed=$(git status -s -uno | wc -l)
+          
           cat >> summary.txt << EOF
           ### Git status
-          $(git status -s -uno)
+          $(
+          if [[ "$changed" -gt 0 ]]; then
+            print "Generated proto files are out of date. Please run 'make proto' and commit the changes."
+        
+            git status -s -uno
           
-          ### Git diff
-          $(git --no-pager diff)
+            print "\n"
+            print "### Git diff\n"
+            
+            git --no-pager diff
+          else
+            print "Generated proto files are up to date."
+          fi
+          )
           EOF
           
           cat summary.txt >> $GITHUB_STEP_SUMMARY
           
-          exit $(git status -s -uno | wc -l)
+          exit $changed
