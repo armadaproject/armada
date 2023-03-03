@@ -43,4 +43,6 @@ jobs:
         uses: golangci/golangci-lint-action@v3
         with:
           version: latest
+          skip-pkg-cache: true
+          skip-build-cache: true
           args: --timeout=10m --issues-exit-code=1 --sort-results ./..."
