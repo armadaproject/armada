@@ -117,12 +117,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v1
-        with:
-          version: '3.17.3'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: ./.github/workflows/go-setup
 
       # TODO(JayF): Consider moving this into its own job, that runs under a larger set of circumstances
