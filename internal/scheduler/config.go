@@ -38,6 +38,8 @@ type Configuration struct {
 	Pulsar configuration.PulsarConfig
 	// Configuration controlling leader election
 	Leader LeaderConfig
+	// Configuration controlling metrics
+	Metrics configuration.MetricsConfig
 	// Scheduler configuration (this is shared with the old scheduler)
 	Scheduling configuration.SchedulingConfig
 	Auth       authconfig.AuthConfig
