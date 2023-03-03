@@ -29,7 +29,7 @@ jobs:
         run: make tests
 
       - name: Publish JUnit Report
-        uses: mikepenz/action-junit-report@v3.6.1
+        uses: mikepenz/action-junit-report@v3
         if: always()
         with:
           report_paths: test-reports/unit-tests.xml
@@ -91,14 +91,14 @@ jobs:
           go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
 
       - name: Upload JUnit Report Artifact
-        uses: actions/upload-artifact@v3.1.1
+        uses: actions/upload-artifact@v3
         with:
           name: integration-rest-reports
           path: junit.xml
           if-no-files-found: error
 
       - name: Publish JUnit Report
-        uses: mikepenz/action-junit-report@v3.6.1
+        uses: mikepenz/action-junit-report@v3
         if: always()
         with:
           report_paths: junit.xml
