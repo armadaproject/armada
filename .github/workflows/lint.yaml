@@ -19,7 +19,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Lint using protoling
+      - name: Lint using protolint
         uses: plexsystems/protolint-action@v0.7.0
         with:
           configDirectory: .

@@ -132,24 +132,19 @@ jobs:
           
           changed=$(git status -s -uno | wc -l)
           
-          cat >> summary.txt << EOF
-          ### Git status
-          $(
+          echo -e "### Git status" >> $GITHUB_STEP_SUMMARY
           if [[ "$changed" -gt 0 ]]; then
-            print "Generated proto files are out of date. Please run 'make proto' and commit the changes."
-        
-            git status -s -uno
+            echo -e "Generated proto files are out of date. Please run 'make proto' and commit the changes." >> $GITHUB_STEP_SUMMARY
           
-            print "\n"
-            print "### Git diff\n"
-            
-            git --no-pager diff
+            git status -s -uno >> $GITHUB_STEP_SUMMARY
+          
+            echo -e >> $GITHUB_STEP_SUMMARY
+            echo -e "### Git diff" >> $GITHUB_STEP_SUMMARY
+          
+            git --no-pager diff >> $GITHUB_STEP_SUMMARY
           else
-            print "Generated proto files are up to date."
+            echo -e "Generated proto files are up to date." >> $GITHUB_STEP_SUMMARY
+            echo -e >> $GITHUB_STEP_SUMMARY
           fi
-          )
-          EOF
-          
-          cat summary.txt >> $GITHUB_STEP_SUMMARY
           
           exit $changed
