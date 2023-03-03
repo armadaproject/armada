@@ -28,7 +28,7 @@ jobs:
         id: unit_test
         run: make tests
 
-      - name: Publish JUnit report
+      - name: Publish JUnit Report
         uses: mikepenz/action-junit-report@v3.6.1
         if: always()
         with:
@@ -36,12 +36,6 @@ jobs:
           fail_on_failure: true
           require_tests: true
           detailed_summary: true
-
-      - name: Annotate Unit Tests
-        if: always()
-        uses: guyarb/golang-test-annotations@v0.5.1
-        with:
-          test-results: test-reports/unit-tests.json
 
       - name: Upload Test Reports Artifacts
         if: always()
@@ -96,14 +90,14 @@ jobs:
           mkdir -p .kube/external
           go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
 
-      - name: Upload JUnit Report artifact
+      - name: Upload JUnit Report Artifact
         uses: actions/upload-artifact@v3.1.1
         with:
           name: integration-rest-reports
           path: junit.xml
           if-no-files-found: error
 
-      - name: Publish JUnit report
+      - name: Publish JUnit Report
         uses: mikepenz/action-junit-report@v3.6.1
         if: always()
         with:
