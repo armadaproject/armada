@@ -52,15 +52,12 @@ services:
     ports:
       - 50051:50051
       - 8080:8080
-    volumes:
-      - ./config:/config
-      - "..:/app:rw"
     depends_on:
       - redis
       - postgres
       - pulsar
     working_dir: /app
-    command: /bin/server --config /config/armada/config.yaml
+    command: bin/server --config localdev/config/armada/config.yaml
 
   lookout:
     container_name: lookout
@@ -69,15 +66,12 @@ services:
       - kind
     ports:
       - "8089:8089"
-    volumes:
-      - ./config:/config
-      - "..:/app:rw"
     depends_on:
       - postgres
       - server
       - lookout-ingester
     working_dir: "/app"
-    command: sh -c "/bin/lookout --config /config/lookout/config.yaml --migrateDatabase && /bin/lookout --config /config/lookout/config.yaml --lookoutUI /bin/lookoutui"
+    command: sh -c "bin/lookout --config localdev/config/lookout/config.yaml --migrateDatabase && bin/lookout --config localdev/config/lookout/config.yaml --lookoutUI /app/lookoutui"
 
   lookoutv2:
     container_name: lookoutv2
@@ -86,15 +80,12 @@ services:
       - kind
     ports:
       - "10000:10000"
-    volumes:
-      - ./config:/config
-      - "..:/app:rw"
     depends_on:
       - postgres
       - server
       - lookout-ingesterv2
     working_dir: "/app"
-    command: sh -c "/bin/lookoutv2 --config /config/lookoutv2/config.yaml --migrateDatabase && /bin/lookoutv2 --config /config/lookoutv2/config.yaml"
+    command: sh -c "bin/lookoutv2 --config localdev/config/lookoutv2/config.yaml --migrateDatabase && bin/lookoutv2 --config localdev/config/lookoutv2/config.yaml"
 
   executor:
     container_name: executor
@@ -106,13 +97,11 @@ services:
     depends_on:
       - server
     volumes:
-      - ./config:/config
       - ./.kube:/.kube
-      - "..:/app:rw"
     environment:
       - KUBECONFIG=/.kube/config
     working_dir: /app
-    command: /bin/executor --config /config/executor/config.yaml
+    command: bin/executor --config localdev/config/executor/config.yaml
 
   binoculars:
     container_name: binoculars
@@ -124,28 +113,11 @@ services:
     depends_on:
       - server
     volumes:
-      - ./config:/config
       - ./.kube:/.kube
-      - "..:/app:rw"
     environment:
       - KUBECONFIG=/.kube/config
     working_dir: /app
-    command: /bin/binoculars --config /config/binoculars/config.yaml
-
-  jobservice:
-    container_name: jobservice
-    image: sharp6292/armada-demo:latest
-    networks:
-      - kind
-    ports:
-      - 60003:60003
-    depends_on:
-      - server
-    volumes:
-      - ./config:/config
-      - "..:/app:rw"
-    working_dir: "/app"
-    command: /bin/jobservice run --config /config/jobservice/config.yaml
+    command: bin/app/binoculars --config localdev/config/app/binoculars/config.yaml
 
   lookout-ingester:
     container_name: lookout-ingester
@@ -154,11 +126,8 @@ services:
       - kind
     depends_on:
       - postgres
-    volumes:
-      - ./config:/config
-      - "..:/app:rw"
     working_dir: /app
-    command: /bin/lookoutingester --config /config/lookoutingester/config.yaml
+    command: bin/lookoutingester --config localdev/config/lookoutingester/config.yaml
 
   lookout-ingesterv2:
     container_name: lookout-ingesterv2
@@ -167,11 +136,8 @@ services:
       - kind
     depends_on:
       - postgres
-    volumes:
-      - ./config:/config
-      - "..:/app:rw"
     working_dir: /app
-    command: /bin/lookoutingesterv2 --config /config/lookoutingesterv2/config.yaml
+    command: bin/lookoutingesterv2 --config localdev/config/lookoutingesterv2/config.yaml
 
   event-ingester:
     container_name: event-ingester
@@ -180,8 +146,5 @@ services:
       - kind
     depends_on:
       - redis
-    volumes:
-      - ./config:/config
-      - "..:/app:rw"
     working_dir: /app
-    command: /bin/eventingester --config /config/eventingester/config.yaml
+    command: bin/eventingester --config localdev/config/eventingester/config.yaml

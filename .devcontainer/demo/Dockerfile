@@ -1,37 +1,23 @@
 # Commands to run
 # docker build -t armada-demo -f .devcontainer/demo/Dockerfile .
-# docker push user/armada-demo:latest
+# docker push armada-demo:latest
 
-FROM golang:1.18-buster
+ARG BASE_IMAGE=alpine:3.17.0
+FROM ${BASE_IMAGE}
 
-# Server
-COPY bin/server /bin/
+RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
+USER armada
 
-# Executor
-COPY bin/executor /bin/
-
-# Binoculars
-COPY bin/binoculars /bin/
-
-# Lookout ingester
-COPY bin/lookoutingester /bin/
-
-# Event ingester
-COPY bin/eventingester /bin/
-
-# Lookout
-COPY bin/lookout /bin/
-
-# Lookout V2
-COPY bin/lookoutv2 /bin/
-
-# Jobservice
-COPY bin/jobservice /bin/
-
-# Lookout V2 Ingester
-COPY bin/lookoutingesterv2 /bin/
+# Copy bin
+COPY bin /app/bin
 
 # Lookout UI
-COPY internal/lookout/ui/build /bin/lookoutui
+COPY internal/lookout/ui/build /app/lookoutui
+
+# Copy configs
+COPY config /app/config
+
+# Copy localdev configs
+COPY localdev/config /app/localdev/config
 
 WORKDIR /app

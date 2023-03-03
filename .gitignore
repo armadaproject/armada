@@ -6,6 +6,7 @@
 .build
 NuGet.Config
 armadactl.yaml
+/armadactl
 loadtest.yaml
 test_reports
 code_reports
