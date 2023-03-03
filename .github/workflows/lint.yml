@@ -180,81 +180,81 @@ jobs:
           CHART_LOCATION: ./deployment/scheduler-migration
           CHART_VALUES: ./deployment/scheduler-migration/values.yaml
 
-lint-docker:
-  name: Lint Docker
-  runs-on: ubuntu-22.04
+  lint-docker:
+    name: Lint Docker
+    runs-on: ubuntu-22.04
 
-  steps:
-    - name: Checkout
-      uses: actions/checkout@v3
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
 
-    - name: Lint ArmadaCtl Dockerfile
-      uses: hadolint/hadolint-action@v3.1.0
-      with:
-        dockerfile: build/armadactl/Dockerfile
+      - name: Lint ArmadaCtl Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: build/armadactl/Dockerfile
 
-    - name: Lint Binoculars Dockerfile
-      uses: hadolint/hadolint-action@v3.1.0
-      with:
-        dockerfile: build/binoculars/Dockerfile
+      - name: Lint Binoculars Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: build/binoculars/Dockerfile
 
-    - name: Lint Event Ingester Dockerfile
-      uses: hadolint/hadolint-action@v3.1.0
-      with:
-        dockerfile: build/event-ingester/Dockerfile
+      - name: Lint Event Ingester Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: build/event-ingester/Dockerfile
 
-    - name: Lint Executor Dockerfile
-      uses: hadolint/hadolint-action@v3.1.0
-      with:
-        dockerfile: build/executor/Dockerfile
+      - name: Lint Executor Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: build/executor/Dockerfile
 
-    - name: Lint Fake Executor Dockerfile
-      uses: hadolint/hadolint-action@v3.1.0
-      with:
-        dockerfile: build/fakeexecutor/Dockerfile
+      - name: Lint Fake Executor Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: build/fakeexecutor/Dockerfile
 
-    - name: Lint Job Service Dockerfile
-      uses: hadolint/hadolint-action@v3.1.0
-      with:
-        dockerfile: build/jobservice/Dockerfile
+      - name: Lint Job Service Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: build/jobservice/Dockerfile
 
-    - name: Lint Lookout Dockerfile
-      uses: hadolint/hadolint-action@v3.1.0
-      with:
-        dockerfile: build/lookout/Dockerfile
+      - name: Lint Lookout Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: build/lookout/Dockerfile
 
-    - name: Lint Lookout Ingester Dockerfile
-      uses: hadolint/hadolint-action@v3.1.0
-      with:
-        dockerfile: build/lookout-ingester/Dockerfile
+      - name: Lint Lookout Ingester Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: build/lookout-ingester/Dockerfile
 
-    - name: Lint Lookout Ingester v2 Dockerfile
-      uses: hadolint/hadolint-action@v3.1.0
-      with:
-        dockerfile: build/lookout-ingester-v2/Dockerfile
+      - name: Lint Lookout Ingester v2 Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: build/lookout-ingester-v2/Dockerfile
 
-    - name: Lint Lookout v2 Dockerfile
-      uses: hadolint/hadolint-action@v3.1.0
-      with:
-        dockerfile: build/lookout-v2/Dockerfile
+      - name: Lint Lookout v2 Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: build/lookout-v2/Dockerfile
 
-    - name: Lint Python Client Dockerfile
-      uses: hadolint/hadolint-action@v3.1.0
-      with:
-        dockerfile: build/python-client/Dockerfile
+      - name: Lint Python Client Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: build/python-client/Dockerfile
 
-    - name: Lint Scheduler Dockerfile
-      uses: hadolint/hadolint-action@v3.1.0
-      with:
-        dockerfile: build/scheduler/Dockerfile
+      - name: Lint Scheduler Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: build/scheduler/Dockerfile
 
-    - name: Lint Scheduler Ingester Dockerfile
-      uses: hadolint/hadolint-action@v3.1.0
-      with:
-        dockerfile: build/scheduleringester/Dockerfile
+      - name: Lint Scheduler Ingester Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: build/scheduleringester/Dockerfile
 
-    - name: Lint Testsuite Dockerfile
-      uses: hadolint/hadolint-action@v3.1.0
-      with:
-        dockerfile: build/testsuite/Dockerfile
+      - name: Lint Testsuite Dockerfile
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: build/testsuite/Dockerfile
 
