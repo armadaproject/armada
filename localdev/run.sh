@@ -21,6 +21,7 @@ case "$command" in
     echo "Running Demo Enviroment"
     DEMO=1
     COMPOSE_FILE="-f docker-compose.demo.yaml"
+    ARMADA_SVCS="server lookout lookout-ingester lookoutv2 lookout-ingesterv2 executor binoculars event-ingester"
     ;;
   *)
     echo "Starting compose environment"

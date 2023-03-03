@@ -3,6 +3,9 @@
 Run this when the script completes
 
 ```bash
+# If you are at the root of the repo
+cd .devcontainer/demo
+
 ./armadactl create queue test --priorityFactor 1
 ./armadactl submit ./.devcontainer/demo/jobs.yaml
 ./armadactl watch test job-set-1
