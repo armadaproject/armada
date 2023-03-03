@@ -1,0 +1,18 @@
+lint:
+  rules:
+    all_default: true
+
+    remove:
+      - SERVICES_HAVE_COMMENT
+      - FILE_HAS_COMMENT
+      - FIELDS_HAVE_COMMENT
+      - RPCS_HAVE_COMMENT
+      - MESSAGES_HAVE_COMMENT
+      - ENUMS_HAVE_COMMENT
+      - ENUM_FIELDS_HAVE_COMMENT
+      - FIELD_NAMES_EXCLUDE_PREPOSITIONS
+      - MESSAGE_NAMES_EXCLUDE_PREPOSITIONS
+
+  rules_option:
+    max_line_length:
+      max_chars: 150

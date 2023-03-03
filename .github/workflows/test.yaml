@@ -1,0 +1,125 @@
+name: Code Build and Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+          cache: true
+
+      - name: Unit Tests
+        id: unit_test
+        run: make tests
+
+      - name: Unit Tests Summary
+        if: always()
+        uses: test-summary/action@v1
+        with:
+          paths: |
+            unit-tests.xml
+
+      - name: Annotate Unit Tests
+        if: always()
+        uses: guyarb/golang-test-annotations@v0.5.1
+        with:
+          test-results: test-reports/unit-tests.json
+
+      - name: Upload Code Coverage Artifact
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: unit-test-coverage
+          path: test-reports/coverage.out
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Send Coverage Report to Codecov
+        if: always()
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./test-reports/coverage.out
+          flags: unittests
+          name: codecov-armada-unit-tests
+          verbose: true
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+          cache: true
+
+      - name: Setup and Run Integration Tests
+        run: |
+          # Manually create folders to ensure perms are correct.
+          mkdir -p .kube/internal
+          mkdir -p .kube/external
+          go run github.com/magefile/mage@v1.14.0 -v CiIntegrationTests
+
+      - name: Upload JUnit Report artifact
+        uses: actions/upload-artifact@v3.1.1
+        with:
+          name: junit.xml
+          path: junit.xml
+          if-no-files-found: error
+
+      - name: Publish JUnit report
+        uses: mikepenz/action-junit-report@v3.6.1
+        if: always()
+        with:
+          report_paths: junit.xml
+          fail_on_failure: true
+          require_tests: true
+          detailed_summary: true
+
+  proto-up-to-date:
+    name: Proto Up To Date
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.17.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: ./.github/workflows/go-setup
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: "latest"
+          skip-pkg-cache: true
+          skip-build-cache: true
+          args: "-c ./.golangci.yml --timeout=10m --issues-exit-code=1 --max-issues-per-linter=0 --sort-results ./..."
+
+      # TODO(JayF): Consider moving this into its own job, that runs under a larger set of circumstances
+      #             since it's possible for this to fail without any go changes being made.
+      - name: Validate no changes in generated proto files
+        run: |
+          make proto
+          make dotnet
+          git status -s -uno
+          git --no-pager diff
+          exit $(git status -s -uno | wc -l)

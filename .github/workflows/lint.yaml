@@ -1,0 +1,48 @@
+name: "Lint"
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - synchronize
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  lint-proto:
+    name: Lint proto
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Lint using protoling
+        uses: plexsystems/protolint-action@v0.7.0
+        with:
+          configDirectory: .
+          srcDirectory: pkg
+
+  lint-go:
+    name: Lint Go
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: 1.18
+          cache: true
+
+      - name: Lint using golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          args: --timeout=5m
+          only-new-issues: true

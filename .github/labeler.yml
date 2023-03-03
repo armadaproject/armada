@@ -1,0 +1,69 @@
+build:
+  - build/*
+  - build_goreleaser/*
+  - magefiles/*
+  - deployment/*
+  - scripts/*
+
+deployment:
+  - deployment/*
+
+docs:
+  - example/*
+  - docs/*
+  - assets/*
+  - localdev/*
+
+client-dotnet:
+  - client/DotNet/*
+
+client-python:
+  - client/python/*
+
+proto:
+  - pkg/api/*
+
+server:
+  - cmd/armada/*
+  - internal/armada/*
+
+armadactl:
+  - cmd/armadactl/*
+  - internal/armadactl/*
+
+binoculars:
+  - cmd/binoculars/*
+  - internal/binoculars/*
+
+eventingester:
+  - cmd/eventingester/*
+  - internal/eventingester/*
+
+executor:
+  - cmd/executor/*
+  - internal/executor/*
+
+lookout:
+  - cmd/lookout/*
+  - internal/lookout/*
+  - cmd/lookoutv2/*
+  - internal/lookoutv2/*
+
+lookoutingester:
+  - cmd/lookoutingester/*
+  - internal/lookoutingester/*
+  - cmd/lookoutingesterv2/*
+  - internal/lookoutingesterv2/*
+
+scheduler:
+  - cmd/scheduler/*
+  - internal/scheduler/*
+
+scheduleringester:
+  - cmd/scheduleringester/*
+  - internal/scheduleringester/*
+
+testsuite:
+  - cmd/testsuite/*
+  - internal/testsuite/*
+  - testsuite/*
