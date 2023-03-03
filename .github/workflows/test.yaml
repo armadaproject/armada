@@ -37,6 +37,7 @@ jobs:
           fail_on_failure: true
           require_tests: true
           detailed_summary: true
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload Test Reports Artifacts
         if: always()
@@ -106,6 +107,7 @@ jobs:
           fail_on_failure: true
           require_tests: true
           detailed_summary: true
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   proto-up-to-date:
     name: Proto Up To Date
