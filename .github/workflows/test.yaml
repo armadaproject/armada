@@ -129,11 +129,14 @@ jobs:
           make proto
           make dotnet
           
-          echo "### Git status\n"
-          echo $(git status -s -uno) >> $GITHUB_STEP_SUMMARY
-          echo "\n" >> $GITHUB_STEP_SUMMARY
-          echo "### Git diff\n"
-          echo $(git --no-pager diff) >> $GITHUB_STEP_SUMMARY
-          echo "\n" >> $GITHUB_STEP_SUMMARY
+          cat >> summary.txt << EOF
+          ### Git status
+          $(git status -s -uno)
+          
+          ### Git diff
+          $(git --no-pager diff)
+          EOF
+          
+          cat summary.txt >> $GITHUB_STEP_SUMMARY
           
           exit $(git status -s -uno | wc -l)
