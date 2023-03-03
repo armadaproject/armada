@@ -117,7 +117,7 @@ services:
     environment:
       - KUBECONFIG=/.kube/config
     working_dir: /app
-    command: bin/app/binoculars --config localdev/config/app/binoculars/config.yaml
+    command: bin/binoculars --config localdev/config/binoculars/config.yaml
 
   lookout-ingester:
     container_name: lookout-ingester

@@ -7,7 +7,7 @@ Run this when the script completes
 cd .devcontainer/demo
 
 ./armadactl create queue test --priorityFactor 1
-./armadactl submit ./.devcontainer/demo/jobs.yaml
+./armadactl submit jobs.yaml
 ./armadactl watch test job-set-1
 ```
 
