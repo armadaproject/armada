@@ -17,6 +17,7 @@ linters:
     - ineffassign
     - misspell
     - errcheck
+    - staticcheck
 
 linters-settings:
   lll:
