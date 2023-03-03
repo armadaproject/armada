@@ -2,7 +2,7 @@ import { render, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { Job } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
-import { makeTestJobs } from "utils/fakeJobsUtils"
+import { makeRandomJobs } from "utils/fakeJobsUtils"
 
 import { FakeGetRunErrorService } from "../../../services/lookoutV2/mocks/FakeGetRunErrorService"
 import { Sidebar } from "./Sidebar"
@@ -11,7 +11,7 @@ describe("Sidebar", () => {
   let job: Job, onClose: () => undefined
 
   beforeEach(() => {
-    job = makeTestJobs(1, 1, 1, 1)[0]
+    job = makeRandomJobs(1, 1, 1, 1)[0]
     onClose = jest.fn()
   })
 

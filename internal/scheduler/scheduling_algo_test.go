@@ -108,7 +108,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			runningJobs:   []*jobdb.Job{runningJobs[0]},
 			perQueueLimit: map[string]float64{"cpu": 0.5},
 			expectedJobs: map[string]string{
-				queuedJobs[0].Id(): "executor1",
+				queuedJobs[0].Id(): "executor2",
 			},
 		},
 		"no queuedJobs to schedule": {
@@ -144,7 +144,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 
 			algo := NewLegacySchedulingAlgo(config,
 				mockExecutorRepo,
-				mockQueueRepo)
+				mockQueueRepo,
+			)
 
 			// Use a test clock so we can control time
 			algo.clock = clock.NewFakeClock(baseTime)
