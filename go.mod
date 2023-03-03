@@ -83,6 +83,7 @@ require (
 
 require (
 	github.com/Masterminds/semver/v3 v3.1.1
+	github.com/benbjohnson/immutable v0.4.3
 	github.com/go-openapi/errors v0.20.3
 	github.com/go-openapi/strfmt v0.21.3
 	github.com/go-openapi/swag v0.22.3
@@ -94,7 +95,6 @@ require (
 	github.com/kyleconroy/sqlc v1.16.0
 	github.com/magefile/mage v1.14.0
 	github.com/matryer/moq v0.3.0
-	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/openconfig/goyang v1.2.0
 	github.com/pingcap/log v0.0.0-20210906054005-afc726e70354
 	github.com/prometheus/common v0.37.0

@@ -604,3 +604,11 @@ gotestsum: $(GOTESTSUM)## Download gotestsum locally if necessary.
 $(GOTESTSUM): $(LOCALBIN)
 	test -s $(LOCALBIN)/gotestsum || GOBIN=$(LOCALBIN) go install gotest.tools/gotestsum@v1.8.2
 
+populate-lookout-test:
+	if [ "$$(docker ps -q -f name=postgres)" ]; then \
+		docker stop postgres; \
+		docker rm postgres; \
+	fi
+	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
+	sleep 5
+	go test -v  ${PWD}/internal/lookout/db-gen/
