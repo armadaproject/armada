@@ -233,19 +233,19 @@ jobs:
         if: always()
         uses: hadolint/hadolint-action@v3.1.0
         with:
-          dockerfile: build/lookout-ingester/Dockerfile
+          dockerfile: build/lookoutingester/Dockerfile
 
       - name: Lint Lookout Ingester v2 Dockerfile
         if: always()
         uses: hadolint/hadolint-action@v3.1.0
         with:
-          dockerfile: build/lookout-ingester-v2/Dockerfile
+          dockerfile: build/lookoutingesterv2/Dockerfile
 
       - name: Lint Lookout v2 Dockerfile
         if: always()
         uses: hadolint/hadolint-action@v3.1.0
         with:
-          dockerfile: build/lookout-v2/Dockerfile
+          dockerfile: build/lookoutv2/Dockerfile
 
       - name: Lint Python Client Dockerfile
         if: always()
