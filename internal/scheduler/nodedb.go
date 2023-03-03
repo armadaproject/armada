@@ -62,7 +62,13 @@ type NodeDb struct {
 	mu sync.Mutex
 }
 
-func NewNodeDb(priorityClasses map[string]configuration.PriorityClass, maxExtraNodesToConsider uint, indexedResources, indexedTaints, indexedNodeLabels []string) (*NodeDb, error) {
+func NewNodeDb(
+	priorityClasses map[string]configuration.PriorityClass,
+	maxExtraNodesToConsider uint,
+	indexedResources,
+	indexedTaints,
+	indexedNodeLabels []string,
+) (*NodeDb, error) {
 	db, err := memdb.NewMemDB(nodeDbSchema(
 		configuration.AllowedPriorities(priorityClasses),
 		indexedResources,
@@ -633,7 +639,7 @@ func (nodeDb *NodeDb) ClearAllocated() error {
 		node = node.DeepCopy()
 		node.AllocatableByPriorityAndResource = schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			configuration.AllowedPriorities(nodeDb.priorityClasses),
-			node.TotalResources,
+			nodeDb.totalResources,
 		)
 		err := txn.Insert("nodes", node)
 		if err != nil {
