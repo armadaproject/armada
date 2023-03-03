@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [master]
 
+permissions:
+  checks: write
+
 jobs:
   unit-tests:
     name: Unit Tests
@@ -25,12 +28,14 @@ jobs:
         id: unit_test
         run: make tests
 
-      - name: Unit Tests Summary
+      - name: Publish JUnit report
+        uses: mikepenz/action-junit-report@v3.6.1
         if: always()
-        uses: test-summary/action@v2
         with:
-          paths: |
-            test-reports/unit-tests.xml
+          report_paths: test-reports/unit-tests.xml
+          fail_on_failure: true
+          require_tests: true
+          detailed_summary: true
 
       - name: Annotate Unit Tests
         if: always()
@@ -38,14 +43,13 @@ jobs:
         with:
           test-results: test-reports/unit-tests.json
 
-      - name: Upload Code Coverage Artifact
+      - name: Upload Test Reports Artifacts
         if: always()
         uses: actions/upload-artifact@v3
         with:
-          name: unit-test-coverage
-          path: test-reports/coverage.out
+          name: unit-test-reports
+          path: test-reports/
           if-no-files-found: error
-          retention-days: 7
 
       - name: Send Coverage Report to Codecov
         if: always()
@@ -95,7 +99,7 @@ jobs:
       - name: Upload JUnit Report artifact
         uses: actions/upload-artifact@v3.1.1
         with:
-          name: junit.xml
+          name: integration-rest-reports
           path: junit.xml
           if-no-files-found: error
 
@@ -113,21 +117,20 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v3
+
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
         with:
           version: '3.17.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: ./.github/workflows/go-setup
 
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v3
+      - name: Set up Go
+        uses: actions/setup-go@v3
         with:
-          version: "latest"
-          skip-pkg-cache: true
-          skip-build-cache: true
-          args: "-c ./.golangci.yml --timeout=10m --issues-exit-code=1 --max-issues-per-linter=0 --sort-results ./..."
+          go-version: 1.18
+          cache: true
 
       # TODO(JayF): Consider moving this into its own job, that runs under a larger set of circumstances
       #             since it's possible for this to fail without any go changes being made.
@@ -135,6 +138,12 @@ jobs:
         run: |
           make proto
           make dotnet
-          git status -s -uno
-          git --no-pager diff
+          
+          echo "### Git status\n"
+          echo $(git status -s -uno) >> $GITHUB_STEP_SUMMARY
+          echo "\n" >> $GITHUB_STEP_SUMMARY
+          echo "### Git diff\n"
+          echo $(git --no-pager diff) >> $GITHUB_STEP_SUMMARY
+          echo "\n" >> $GITHUB_STEP_SUMMARY
+          
           exit $(git status -s -uno | wc -l)

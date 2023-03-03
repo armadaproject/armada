@@ -1,8 +1,13 @@
 <div align="center">
 <img src="./logo.svg" width="200"/>
 
-<p><a href="https://circleci.com/gh/armadaproject/armada"><img src="https://circleci.com/gh/helm/helm.svg?style=shield" alt="CircleCI"></a>
-<a href="https://goreportcard.com/report/github.com/armadaproject/armada"><img src="https://goreportcard.com/badge/github.com/armadaproject/armada" alt="Go Report Card"></a></p>
+<p>
+    <a href="https://circleci.com/gh/armadaproject/armada"><img src="https://circleci.com/gh/helm/helm.svg?style=shield" alt="CircleCI"></a>
+    <a href="https://goreportcard.com/report/github.com/armadaproject/armada"><img src="https://goreportcard.com/badge/github.com/armadaproject/armada" alt="Go Report Card"></a>
+    <a href="https://armadaproject.io"><img src="https://img.shields.io/badge/GitBook-Docu-lightblue" alt="Docs"></a>
+    <img alt="Codecov" src="https://img.shields.io/codecov/c/github/armadaproject/armada">    
+    <img alt="GitHub go.mod Go version" src="https://img.shields.io/github/go-mod/go-version/armadaproject/armada">
+</p>
 </div>
 
 # Armada
