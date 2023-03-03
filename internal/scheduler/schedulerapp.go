@@ -138,7 +138,8 @@ func Run(config Configuration) error {
 		return errors.WithMessage(err, "error creating string interner")
 	}
 	schedulingAlgo := NewLegacySchedulingAlgo(config.Scheduling, executorRepository, queueRepository)
-	scheduler, err := NewScheduler(jobRepository,
+	scheduler, err := NewScheduler(
+		jobRepository,
 		executorRepository,
 		schedulingAlgo,
 		leaderController,
@@ -146,7 +147,8 @@ func Run(config Configuration) error {
 		stringInterner,
 		config.CyclePeriod,
 		config.ExecutorTimeout,
-		config.Scheduling.MaxRetries)
+		config.Scheduling.MaxRetries,
+	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")
 	}
