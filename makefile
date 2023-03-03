@@ -369,7 +369,7 @@ tests: gotestsum
 	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 	sleep 3
 	function tearDown { docker rm -f redis postgres; }; trap tearDown EXIT
-	$(GOTESTSUM) --format short-verbose --junitfile test-reports/unit-tests.xml --jsonfile test-reports/unit-tests.json -- -coverprofile=coverage.out -covermode=atomic ./cmd/... ./pkg/... ./internal... 2>&1 | tee test_reports/coverage.out
+	$(GOTESTSUM) --format short-verbose --junitfile test-reports/unit-tests.xml --jsonfile test-reports/unit-tests.json -- -coverprofile=test-reports/coverage.out -covermode=atomic ./cmd/... ./pkg/... ./internal...
 
 .ONESHELL:
 lint-fix:

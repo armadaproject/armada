@@ -27,10 +27,10 @@ jobs:
 
       - name: Unit Tests Summary
         if: always()
-        uses: test-summary/action@v1
+        uses: test-summary/action@v2
         with:
           paths: |
-            unit-tests.xml
+            test-reports/unit-tests.xml
 
       - name: Annotate Unit Tests
         if: always()
@@ -60,9 +60,24 @@ jobs:
     name: Integration Tests
     runs-on: ubuntu-22.04
 
+    env:
+      ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
+      ARMADA_EXECUTOR_INGRESS_PORT: 5001
+      # Cache Docker layers in the GitHub actions cache.
+      # These variables are picked up by the goreleaser config.
+      DOCKER_BUILDX_CACHE_FROM: "type=gha"
+      DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
+      DOCKER_BUILDX_BUILDER: "builder"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+
+      - name: Create Docker Buildx Builder
+        run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
+
+      - name: Install Docker Buildx
+        run: docker buildx install
 
       - name: Set up Go
         uses: actions/setup-go@v3
