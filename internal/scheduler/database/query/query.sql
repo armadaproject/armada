@@ -5,13 +5,13 @@ SELECT * FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
 SELECT job_id FROM jobs;
 
 -- name: SelectUpdatedJobs :many
-SELECT job_id, job_set, queue, priority, submitted, cancel_requested, cancelled, succeeded, failed, scheduling_info, serial FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
+SELECT job_id, job_set, queue, priority, submitted, cancel_requested, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, serial FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
 
 -- name: UpdateJobPriorityByJobSet :exec
 UPDATE jobs SET priority = $1 WHERE job_set = $2;
 
 -- name: MarkJobsCancelRequestedBySets :exec
-UPDATE jobs SET cancel_requested = true WHERE job_set = ANY(sqlc.arg(job_sets)::text[]);
+UPDATE jobs SET cancel_by_jobset_requested = true WHERE job_set = ANY(sqlc.arg(job_sets)::text[]);
 
 -- name: MarkJobsSucceededById :exec
 UPDATE jobs SET succeeded = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);

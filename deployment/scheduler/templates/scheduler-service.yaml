@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "armada-scheduler.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "armada-scheduler.labels.all" . | nindent 4 }}
+spec:
+  {{- if .Values.scheduler.nodePort }}
+  type: NodePort
+  {{- end }}
+  selector:
+    {{- include "armada-scheduler.labels.identity" . | nindent 4 }}
+  ports:
+    - name: grpc
+      protocol: TCP
+      port: {{ .Values.scheduler.applicationConfig.grpc.port }}
+      {{- if .Values.scheduler.nodePort }}
+      nodePort: {{ .Values.scheduler.nodePort }}
+      {{- end }}
+    - name: metrics
+      protocol: TCP
+      port: {{ .Values.scheduler.applicationConfig.metrics.port }}
+      {{- if .Values.scheduler.nodePort }}
+      nodePort: {{ .Values.scheduler.nodePort }}
+      {{- end }}
+
+

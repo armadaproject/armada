@@ -2,7 +2,7 @@ package maps
 
 import "github.com/armadaproject/armada/internal/common/deepcopy"
 
-// Map maps the values of m into valueFunc(v).
+// MapValues maps the values of m into valueFunc(v).
 func MapValues[M ~map[K]VA, K comparable, VA any, VB any](m M, valueFunc func(VA) VB) map[K]VB {
 	rv := make(map[K]VB, len(m))
 	for k, v := range m {
@@ -11,7 +11,7 @@ func MapValues[M ~map[K]VA, K comparable, VA any, VB any](m M, valueFunc func(VA
 	return rv
 }
 
-// Map maps the keys of m into keyFunc(k).
+// MapKeys maps the keys of m into keyFunc(k).
 // Duplicate keys are overwritten.
 func MapKeys[M ~map[KA]V, KA comparable, KB comparable, V any](m M, keyFunc func(KA) KB) map[KB]V {
 	rv := make(map[KB]V, len(m))
@@ -36,6 +36,17 @@ func DeepCopy[M ~map[K]V, K comparable, V deepcopy.DeepCopier[V]](m M) M {
 	rv := make(M, len(m))
 	for k, v := range m {
 		rv[k] = v.DeepCopy()
+	}
+	return rv
+}
+
+// FilterKeys returns a copy of the provided map with any keys for which predicate returns false removed.
+func FilterKeys[M ~map[K]V, K comparable, V any](m M, predicate func(K) bool) M {
+	rv := make(M)
+	for k, v := range m {
+		if predicate(k) {
+			rv[k] = v
+		}
 	}
 	return rv
 }

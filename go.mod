@@ -83,6 +83,7 @@ require (
 
 require (
 	github.com/Masterminds/semver/v3 v3.1.1
+	github.com/benbjohnson/immutable v0.4.3
 	github.com/go-openapi/errors v0.20.3
 	github.com/go-openapi/strfmt v0.21.3
 	github.com/go-openapi/swag v0.22.3

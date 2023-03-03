@@ -331,11 +331,23 @@ build-docker-jobservice:
 	cp -a ./config/jobservice ./.build/jobservice/config
 	docker build $(dockerFlags) -t armada-jobservice -f ./build/jobservice/Dockerfile ./.build/jobservice
 
-build-docker: build-docker-jobservice build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-lookout build-docker-lookout-v2 build-docker-lookout-ingester build-docker-lookout-ingester-v2 build-docker-binoculars build-docker-event-ingester
+build-docker-scheduler:
+	mkdir -p .build/scheduler
+	$(GO_CMD) $(gobuildlinux) -o ./.build/scheduler/scheduler cmd/scheduler/main.go
+	cp -a ./config/scheduler ./.build/scheduler/config
+	docker build $(dockerFlags) -t armada-scheduler -f ./build/scheduler/Dockerfile ./.build/scheduler
+
+build-docker-scheduler-ingester:
+	mkdir -p .build/scheduleringester
+	$(GO_CMD) $(gobuildlinux) -o ./.build/scheduleringester/scheduleringester cmd/scheduleringester/main.go
+	cp -a ./config/scheduleringester ./.build/scheduleringester/config
+	docker build $(dockerFlags) -t armada-scheduler-ingester -f ./build/scheduleringester/Dockerfile ./.build/scheduleringester
+
+build-docker: build-docker-no-lookout build-docker-lookout build-docker-lookout-v2
 
 # Build target without lookout (to avoid needing to load npm packages from the Internet).
 # We still build lookout-ingester since that go code that is isolated from lookout itself.
-build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars build-docker-lookout-ingester build-docker-lookout-ingester-v2
+build-docker-no-lookout: build-docker-server build-docker-executor build-docker-armadactl build-docker-testsuite build-docker-armada-load-tester build-docker-fakeexecutor build-docker-binoculars build-docker-lookout-ingester build-docker-lookout-ingester-v2 build-docker-event-ingester build-docker-jobservice build-docker-scheduler build-docker-scheduler-ingester
 
 build-ci: gobuild=$(gobuildlinux)
 build-ci: build-docker build-armadactl build-armadactl-multiplatform build-load-tester build-testsuite
@@ -461,6 +473,9 @@ tests-e2e-setup: setup-cluster
 	$(GO_CMD) go run cmd/armadactl/main.go create queue queue-a || true
 	$(GO_CMD) go run cmd/armadactl/main.go create queue queue-b || true
 
+	# Logs to diagonose problems
+	docker logs executor
+	docker logs server
 .ONESHELL:
 tests-e2e-no-setup: gotestsum
 	function printApplicationLogs {
@@ -580,3 +595,11 @@ gotestsum: $(GOTESTSUM)## Download gotestsum locally if necessary.
 $(GOTESTSUM): $(LOCALBIN)
 	test -s $(LOCALBIN)/gotestsum || GOBIN=$(LOCALBIN) go install gotest.tools/gotestsum@v1.8.2
 
+populate-lookout-test:
+	if [ "$$(docker ps -q -f name=postgres)" ]; then \
+		docker stop postgres; \
+		docker rm postgres; \
+	fi
+	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
+	sleep 5
+	go test -v  ${PWD}/internal/lookout/db-gen/

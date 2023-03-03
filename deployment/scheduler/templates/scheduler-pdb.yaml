@@ -1,0 +1,20 @@
+{{- if .Values.scheduler.podDisruptionBudget }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "armada-scheduler.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "armada-scheduler.labels.all" . | nindent 4}}
+spec:
+  {{- if .Values.scheduler.podDisruptionBudget.minAvailable }}
+  minAvailable: {{ .Values.scheduler.podDisruptionBudget.minAvailable }}
+  {{- end }}
+  {{- if .Values.scheduler.podDisruptionBudget.maxUnavailable }}
+  maxUnavailable: {{ .Values.scheduler.podDisruptionBudget.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "armada-scheduler.labels.identity" . | nindent 6 }}
+{{- end }}

@@ -53,11 +53,11 @@ func (a QuantityByPriorityAndResourceType) String() string {
 
 func (a QuantityByPriorityAndResourceType) Add(b QuantityByPriorityAndResourceType) {
 	for p, rlb := range b {
-		a.AddResouceList(p, rlb)
+		a.AddResourceList(p, rlb)
 	}
 }
 
-func (a QuantityByPriorityAndResourceType) AddResouceList(priority int32, rlb ResourceList) {
+func (a QuantityByPriorityAndResourceType) AddResourceList(priority int32, rlb ResourceList) {
 	rla := a[priority]
 	rla.Add(rlb)
 	a[priority] = rla

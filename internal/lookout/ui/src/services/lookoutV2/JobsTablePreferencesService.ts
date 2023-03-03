@@ -11,6 +11,7 @@ import {
   DEFAULT_GROUPING,
   JobTableColumn,
   JOB_COLUMNS,
+  DEFAULT_FILTERS,
 } from "../../utils/jobsTableColumns"
 
 export interface JobsTablePreferences {
@@ -25,16 +26,24 @@ export interface JobsTablePreferences {
   sidebarJobId: JobId | undefined
 }
 
-export const DEFAULT_PREFERENCES: JobsTablePreferences = {
+// Need two 'defaults'
+
+export const BLANK_PREFERENCES: JobsTablePreferences = {
   allColumnsInfo: JOB_COLUMNS,
   visibleColumns: DEFAULT_COLUMN_VISIBILITY,
-  groupedColumns: DEFAULT_GROUPING,
+  filterState: [],
+  groupedColumns: [],
   expandedState: {},
   pageIndex: 0,
   pageSize: 50,
   sortingState: [{ id: "jobId", desc: true }],
-  filterState: [],
   sidebarJobId: undefined,
+}
+
+export const DEFAULT_PREFERENCES: JobsTablePreferences = {
+  ...BLANK_PREFERENCES,
+  filterState: DEFAULT_FILTERS,
+  groupedColumns: DEFAULT_GROUPING,
 }
 
 // Reflects the type of data stored in the URL query params
@@ -141,9 +150,13 @@ export class JobsTablePreferencesService {
   constructor(private historyService: History) {}
 
   getInitialUserPrefs(): JobsTablePreferences {
+    const prefs = this.getPrefsFromQueryParams()
+    if (allFieldsAreUndefined(prefs)) {
+      return DEFAULT_PREFERENCES
+    }
     return {
       // TODO: Retrieve local storage prefs and merge
-      ...DEFAULT_PREFERENCES,
+      ...BLANK_PREFERENCES,
       ...this.getPrefsFromQueryParams(),
     }
   }
@@ -163,9 +176,8 @@ export class JobsTablePreferencesService {
         ...prefsQueryParams,
       }
 
-      console.log({ mergedQueryParams })
-
       this.historyService.push({
+        pathname: this.historyService.location.pathname,
         search: qs.stringify(mergedQueryParams, {
           encodeValuesOnly: true,
           strictNullHandling: true,
@@ -188,4 +200,8 @@ export class JobsTablePreferencesService {
       return {}
     }
   }
+}
+
+function allFieldsAreUndefined(obj: Record<string, unknown>): boolean {
+  return Object.values(obj).every((el) => el === undefined)
 }

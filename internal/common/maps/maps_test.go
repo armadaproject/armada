@@ -88,3 +88,18 @@ func TestDeepCopy(t *testing.T) {
 	}
 	assert.Equal(t, expected, actual)
 }
+
+func TestFilterKeys(t *testing.T) {
+	m := map[string][]int{
+		"foo":    {1, 2, 3},
+		"foobar": {10, 20, 30},
+	}
+	actual := FilterKeys(
+		m,
+		func(k string) bool { return len(k) > 3 },
+	)
+	expected := map[string][]int{
+		"foobar": {10, 20, 30},
+	}
+	assert.Equal(t, expected, actual)
+}

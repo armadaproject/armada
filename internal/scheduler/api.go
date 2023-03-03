@@ -4,8 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"github.com/armadaproject/armada/internal/common/schedulers"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
@@ -17,7 +15,8 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/schedulers"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
@@ -34,6 +33,7 @@ type ExecutorApi struct {
 	allowedPriorities        []int32 // allowed priority classes
 	maxJobsPerCall           uint    // maximum number of jobs that will be leased in a single call
 	maxPulsarMessageSize     uint    // maximum sizer of pulsar messages produced
+	nodeIdLabel              string
 	clock                    clock.Clock
 }
 
@@ -43,6 +43,7 @@ func NewExecutorApi(producer pulsar.Producer,
 	legacyExecutorRepository database.ExecutorRepository,
 	allowedPriorities []int32,
 	maxJobsPerCall uint,
+	nodeIdLabel string,
 ) (*ExecutorApi, error) {
 	if len(allowedPriorities) == 0 {
 		return nil, errors.New("allowedPriorities cannot be empty")
@@ -59,6 +60,7 @@ func NewExecutorApi(producer pulsar.Producer,
 		allowedPriorities:        allowedPriorities,
 		maxJobsPerCall:           maxJobsPerCall,
 		maxPulsarMessageSize:     1024 * 1024 * 2,
+		nodeIdLabel:              nodeIdLabel,
 		clock:                    clock.RealClock{},
 	}, nil
 }
@@ -112,7 +114,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		err = stream.Send(&executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_CancelRuns{
 				CancelRuns: &executorapi.CancelRuns{
-					JobRunIdsToCancel: slices.Map(runsToCancel, func(x uuid.UUID) *armadaevents.Uuid {
+					JobRunIdsToCancel: util.Map(runsToCancel, func(x uuid.UUID) *armadaevents.Uuid {
 						return armadaevents.ProtoUuidFromUuid(x)
 					}),
 				},
@@ -132,6 +134,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		if err != nil {
 			return err
 		}
+		srv.addNodeSelector(submitMsg, lease.Node)
 
 		var groups []string
 		if len(lease.Groups) > 0 {
@@ -169,6 +172,31 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	return nil
 }
 
+func (srv *ExecutorApi) addNodeSelector(job *armadaevents.SubmitJob, nodeId string) {
+	if job == nil || nodeId == "" {
+		return
+	}
+
+	if job.MainObject != nil {
+		switch typed := job.MainObject.Object.(type) {
+		case *armadaevents.KubernetesMainObject_PodSpec:
+			addNodeSelector(typed.PodSpec, srv.nodeIdLabel, nodeId)
+		}
+	}
+}
+
+func addNodeSelector(podSpec *armadaevents.PodSpecWithAvoidList, key string, value string) {
+	if podSpec == nil || podSpec.PodSpec == nil || key == "" || value == "" {
+		return
+	}
+
+	if podSpec.PodSpec.NodeSelector == nil {
+		podSpec.PodSpec.NodeSelector = make(map[string]string, 1)
+	}
+
+	podSpec.PodSpec.NodeSelector[key] = value
+}
+
 // ReportEvents publishes all events to pulsar. The events are compacted for more efficient publishing
 func (srv *ExecutorApi) ReportEvents(ctx context.Context, list *executorapi.EventList) (*types.Empty, error) {
 	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxPulsarMessageSize, schedulers.Pulsar)
@@ -195,7 +223,7 @@ func (srv *ExecutorApi) createExecutorState(ctx context.Context, req *executorap
 		Nodes:          nodes,
 		MinimumJobSize: schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
 		LastUpdateTime: srv.clock.Now().UTC(),
-		UnassignedJobRuns: slices.Map(req.UnassignedJobRunIds, func(x armadaevents.Uuid) string {
+		UnassignedJobRuns: util.Map(req.UnassignedJobRunIds, func(x armadaevents.Uuid) string {
 			return strings.ToLower(armadaevents.UuidFromProtoUuid(&x).String())
 		}),
 	}
@@ -214,7 +242,7 @@ func extractRunIds(req *executorapi.LeaseRequest) ([]uuid.UUID, error) {
 			runIds = append(runIds, runId)
 		}
 	}
-	// add all unassigned runidsreq *executorapi.LeaseRequest
+	// add all unassigned runids
 	for _, runId := range req.UnassignedJobRunIds {
 		runIds = append(runIds, armadaevents.UuidFromProtoUuid(&runId))
 	}

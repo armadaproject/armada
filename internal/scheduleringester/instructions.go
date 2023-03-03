@@ -67,11 +67,15 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 
 	operations := make([]DbOperation, 0, len(es.Events))
 	for idx, event := range es.Events {
+		eventTime := time.Now().UTC()
+		if event.Created != nil {
+			eventTime = *event.Created
+		}
 		var err error = nil
 		var operationsFromEvent []DbOperation
-		switch event.GetEvent().(type) {
+		switch eventType := event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
-			operationsFromEvent, err = c.handleSubmitJob(event.GetSubmitJob(), meta)
+			operationsFromEvent, err = c.handleSubmitJob(event.GetSubmitJob(), eventTime, meta)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 			operationsFromEvent, err = c.handleJobRunLeased(event.GetJobRunLeased(), meta)
 		case *armadaevents.EventSequence_Event_JobRunRunning:
@@ -100,12 +104,13 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 			*armadaevents.EventSequence_Event_JobDuplicateDetected,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
 			*armadaevents.EventSequence_Event_StandaloneIngressInfo,
-			*armadaevents.EventSequence_Event_JobRunPreempted:
+			*armadaevents.EventSequence_Event_JobRunPreempted,
+			*armadaevents.EventSequence_Event_JobRunAssigned:
 			// These events can all be safely ignored
 			log.Debugf("Ignoring event type %T", event)
 		default:
 			// This is an event type we haven't considered. Log a warning
-			log.Warnf("Ignoring unknown event type %T", event)
+			log.Warnf("Ignoring unknown event type %T", eventType)
 		}
 		if err != nil {
 			c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
@@ -117,7 +122,7 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 	return operations
 }
 
-func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, meta eventSequenceCommon) ([]DbOperation, error) {
+func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, submitTime time.Time, meta eventSequenceCommon) ([]DbOperation, error) {
 	// Store the job submit message so that it can be sent to an executor.
 	submitJobBytes, err := proto.Marshal(job)
 	if err != nil {
@@ -154,6 +159,7 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, meta
 		UserID:         meta.user,
 		Groups:         compressedGroups,
 		Queue:          meta.queue,
+		Submitted:      submitTime.UnixNano(),
 		Priority:       int64(job.Priority),
 		SubmitMessage:  compressedSubmitJobBytes,
 		SchedulingInfo: schedulingInfoBytes,
@@ -171,6 +177,7 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 		JobID:    jobId,
 		JobSet:   meta.jobset,
 		Executor: jobRunLeased.GetExecutorId(),
+		Node:     jobRunLeased.GetNodeId(),
 	}}}, nil
 }
 
@@ -280,7 +287,7 @@ func (c *InstructionConverter) handleCancelledJob(cancelledJob *armadaevents.Can
 }
 
 func (c *InstructionConverter) handlePartitionMarker(pm *armadaevents.PartitionMarker, created time.Time) ([]DbOperation, error) {
-	return []DbOperation{InsertPartitionMarker{
+	return []DbOperation{&InsertPartitionMarker{
 		markers: []*schedulerdb.Marker{
 			{
 				GroupID:     armadaevents.UuidFromProtoUuid(pm.GroupId),

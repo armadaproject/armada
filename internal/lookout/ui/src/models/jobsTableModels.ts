@@ -7,12 +7,9 @@ export interface BaseJobTableRow {
 }
 
 export type JobRow = BaseJobTableRow & Partial<Job>
-export type JobGroupRow = BaseJobTableRow & {
-  [groupedField in keyof Job]?: Job[groupedField]
-} & {
+export type JobGroupRow = JobRow & {
   isGroup: true // The ReactTable version of this doesn't seem to play nice with manual/serverside expanding
   jobCount?: number
-
   subRowCount?: number
   subRows: JobTableRow[]
   groupedField: string

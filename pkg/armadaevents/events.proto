@@ -87,6 +87,7 @@ message EventSequence {
             ResourceUtilisation resourceUtilisation = 17;
             JobRunPreempted jobRunPreempted = 19;
             PartitionMarker partitionMarker = 20;
+            JobRunPreemptionRequested jobRunPreemptionRequested = 21;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -271,6 +272,7 @@ message JobRunLeased {
     Uuid job_id = 2;
     // Each cluster is represented by an executor.
     string executor_id = 3;
+    string node_id = 4;
 }
 
 // Indicates that a job has been assigned to nodes by Kubernetes.
@@ -471,7 +473,7 @@ message JobDuplicateDetected {
     Uuid old_job_id = 2;
 }
 
-// Message to indicate that a JobRun has been preempted
+// Message to indicate that a JobRun has been preempted.
 message JobRunPreempted{
     // Uuid of the job that was preempted
     Uuid preempted_job_id = 1;
@@ -489,4 +491,10 @@ message PartitionMarker {
     Uuid group_id = 1;
     // The pulsar partition on which this message was sent
     uint32 partition = 2;
+}
+
+// Indicates that the scheduler has requested for the job run to be pre-empted.
+message JobRunPreemptionRequested {
+    Uuid run_id = 1;
+    Uuid job_id = 2;
 }

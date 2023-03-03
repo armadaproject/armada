@@ -17,12 +17,18 @@ func ciRunTests() error {
 
 	// TODO: Necessary to avoid connection error on Armada server startup.
 	time.Sleep(10 * time.Second)
-	err = dockerComposeRun("up", "-d", "server", "executor")
+	err = dockerComposeRun("up", "-d", "server")
 	if err != nil {
 		return err
 	}
 
 	time.Sleep(5 * time.Second)
+	err = dockerComposeRun("up", "-d", "executor")
+	if err != nil {
+		return err
+	}
+
+	time.Sleep(15 * time.Second)
 	err = goRun("run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
 	if err != nil {
 		return err

@@ -3,16 +3,16 @@ package validation
 import (
 	"github.com/pkg/errors"
 
+	"github.com/armadaproject/armada/internal/scheduler"
+
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/scheduler"
-
 	"github.com/armadaproject/armada/pkg/api"
 )
 
 func ValidateApiJobs(jobs []*api.Job, config configuration.SchedulingConfig) error {
-	err := validateGangs(jobs, config.GangIdAnnotation, config.GangCardinalityAnnotation)
+	err := validateGangs(jobs, configuration.GangIdAnnotation, configuration.GangCardinalityAnnotation)
 	if err != nil {
 		return err
 	}

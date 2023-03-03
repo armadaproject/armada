@@ -1,29 +1,10 @@
 package slices
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
-
-func TestMap(t *testing.T) {
-	toString := func(val int) string { return fmt.Sprintf("%d", val) }
-	input := []int{1, 3, 5, 7, 9}
-	expectedOutput := []string{"1", "3", "5", "7", "9"}
-
-	output := Map(input, toString)
-	assert.Equal(t, expectedOutput, output)
-}
-
-func TestMapEmptyList(t *testing.T) {
-	toString := func(val int) string { return fmt.Sprintf("%d", val) }
-	input := []int{}
-	expectedOutput := []string{}
-
-	output := Map(input, toString)
-	assert.Equal(t, expectedOutput, output)
-}
 
 func TestPartitionFlatten(t *testing.T) {
 	tests := map[string]struct {
@@ -132,4 +113,54 @@ func TestMapAndGroupByFuncs(t *testing.T) {
 		1: {3.0, 4.0, 5.0},
 	}
 	assert.Equal(t, expected, actual)
+}
+
+func TestSubtract(t *testing.T) {
+	tests := map[string]struct {
+		input          []int
+		toSubtract     []int
+		expectedOutput []int
+	}{
+		"RemovesExpectedElements": {
+			input:          []int{1, 3, 5},
+			toSubtract:     []int{1, 5},
+			expectedOutput: []int{3},
+		},
+		"ToRemoveAndInputAreEqual": {
+			input:          []int{1, 3, 5, 7, 9},
+			toSubtract:     []int{1, 3, 5, 7, 9},
+			expectedOutput: []int{},
+		},
+		"ToRemoveIsLargerThanInput": {
+			input:          []int{1, 5, 9},
+			toSubtract:     []int{1, 3, 5, 7, 9},
+			expectedOutput: []int{},
+		},
+		"InputIsNil": {
+			input:          nil,
+			toSubtract:     []int{1, 3, 5, 7, 9},
+			expectedOutput: nil,
+		},
+		"ToRemoveIsNil": {
+			input:          []int{1, 3, 5, 7, 9},
+			toSubtract:     nil,
+			expectedOutput: []int{1, 3, 5, 7, 9},
+		},
+		"AllInputsAreNil": {
+			input:          nil,
+			toSubtract:     nil,
+			expectedOutput: nil,
+		},
+		"AllInputsAreEmpty": {
+			input:          []int{},
+			toSubtract:     []int{},
+			expectedOutput: []int{},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			output := Subtract(tc.input, tc.toSubtract)
+			assert.Equal(t, output, tc.expectedOutput)
+		})
+	}
 }

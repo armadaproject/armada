@@ -1,7 +1,7 @@
-import { render, within, waitFor, screen } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { History, createMemoryHistory } from "history"
-import { Job, JobState } from "models/lookoutV2Models"
+import { createMemoryHistory, History } from "history"
+import { isTerminatedJobState, Job, JobState } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
@@ -9,7 +9,7 @@ import { JobsTablePreferencesService } from "services/lookoutV2/JobsTablePrefere
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
-import { makeTestJobs } from "utils/fakeJobsUtils"
+import { makeRandomJobs } from "utils/fakeJobsUtils"
 import { formatJobState, formatUtcDate } from "utils/jobsTableFormatters"
 
 import { IGetRunErrorService } from "../../services/lookoutV2/GetRunErrorService"
@@ -33,7 +33,7 @@ describe("JobsTableContainer", () => {
     numJobs = 5
     numQueues = 2
     numJobSets = 3
-    jobs = makeTestJobs(numJobs, 1, numQueues, numJobSets)
+    jobs = makeRandomJobs(numJobs, 1, numQueues)
     getJobsService = new FakeGetJobsService(jobs, false)
     groupJobsService = new FakeGroupJobsService(jobs, false)
     runErrorService = new FakeGetRunErrorService(false)
@@ -88,11 +88,12 @@ describe("JobsTableContainer", () => {
 
   describe("Grouping", () => {
     it("should be grouped by queue+jobset by default", async () => {
-      jobs = makeTestJobs(6, 1, numQueues, numJobSets)
+      jobs = makeRandomJobs(6, 1, numQueues, numJobSets)
       getJobsService = new FakeGetJobsService(jobs, false)
       groupJobsService = new FakeGroupJobsService(jobs, false)
 
       const { findByRole } = renderComponent()
+      await resetDefaultFilters()
       await waitForFinishedLoading()
 
       await assertNumDataRowsShown(numQueues)
@@ -126,6 +127,7 @@ describe("JobsTableContainer", () => {
       const numUniqueForJobKey = new Set(jobs.map((j) => j[jobObjKey])).size
 
       renderComponent()
+      await resetDefaultFilters()
       await waitForFinishedLoading()
 
       await clearAllGroupings()
@@ -145,17 +147,22 @@ describe("JobsTableContainer", () => {
     })
 
     it("should allow 3 level grouping", async () => {
-      jobs = makeTestJobs(1000, 1, numQueues, numJobSets)
+      jobs = makeRandomJobs(1000, 1, numQueues, numJobSets)
       getJobsService = new FakeGetJobsService(jobs, false)
       groupJobsService = new FakeGroupJobsService(jobs, false)
 
       const numStates = new Set(jobs.map((j) => j.state)).size
 
       renderComponent()
-      await waitForFinishedLoading()
+      await resetDefaultFilters()
+      await clearAllGroupings()
 
       // Group to 3 levels
+      await groupByColumn("Queue")
+      await groupByColumn("Job Set")
       await groupByColumn("State")
+
+      await waitForFinishedLoading()
       await assertNumDataRowsShown(numQueues)
 
       const job = jobs[0]
@@ -177,11 +184,12 @@ describe("JobsTableContainer", () => {
     })
 
     it("should reset currently-expanded if grouping changes", async () => {
-      jobs = makeTestJobs(5, 1, numQueues, numJobSets)
+      jobs = makeRandomJobs(5, 1, numQueues, numJobSets)
       getJobsService = new FakeGetJobsService(jobs, false)
       groupJobsService = new FakeGroupJobsService(jobs, false)
 
       const { getByRole, queryAllByRole } = renderComponent()
+      await resetDefaultFilters()
       await waitForFinishedLoading()
 
       // Check we're only showing one row for each queue
@@ -208,6 +216,7 @@ describe("JobsTableContainer", () => {
   describe("Selecting", () => {
     it("should allow selecting rows", async () => {
       const { findByRole } = renderComponent()
+      await resetDefaultFilters()
       await waitForFinishedLoading()
 
       expect(await findByRole("button", { name: "Cancel selected" })).toBeDisabled()
@@ -237,6 +246,7 @@ describe("JobsTableContainer", () => {
       jobs[0].state = JobState.Pending
 
       const { findByRole } = renderComponent()
+      await resetDefaultFilters()
       await waitForFinishedLoading()
 
       await expandRow(jobs[0].queue)
@@ -250,11 +260,12 @@ describe("JobsTableContainer", () => {
 
     it("should pass groups to cancel dialog", async () => {
       numJobs = 1000 // Add enough jobs that it exercises grouping logic
-      jobs = makeTestJobs(numJobs, 1, numQueues, numJobSets)
+      jobs = makeRandomJobs(numJobs, 1, numQueues, numJobSets)
       getJobsService = new FakeGetJobsService(jobs)
       groupJobsService = new FakeGroupJobsService(jobs)
 
       const { findByRole } = renderComponent()
+      await resetDefaultFilters()
       await waitForFinishedLoading()
 
       // Wait for table to update
@@ -262,20 +273,21 @@ describe("JobsTableContainer", () => {
 
       // Select a queue
       await toggleSelectedRow("queue", jobs[0].queue)
+      const jobsToCancel = jobs.filter((job) => job.queue === jobs[0].queue && !isTerminatedJobState(job.state))
 
       // Open the cancel dialog
       await userEvent.click(await findByRole("button", { name: "Cancel selected" }))
 
       // Check it retrieved the number of non-terminated jobs in this queue
       // Longer timeout as some fake API calls need to be made
-      // Number of jobs will be static as long as the random seed above is static
-      await findByRole("dialog", { name: "Cancel 258 jobs" }, { timeout: 2000 })
+      await findByRole("dialog", { name: `Cancel ${jobsToCancel.length} jobs` }, { timeout: 2000 })
     })
   })
 
   describe("Filtering", () => {
     it("should allow text filtering", async () => {
       renderComponent()
+      await resetDefaultFilters()
       await waitForFinishedLoading()
       await assertNumDataRowsShown(numQueues)
 
@@ -290,22 +302,24 @@ describe("JobsTableContainer", () => {
 
     it("should allow enum filtering", async () => {
       renderComponent()
-      await waitForFinishedLoading()
+      await resetDefaultFilters()
       await clearAllGroupings()
+      await waitForFinishedLoading()
 
       await assertNumDataRowsShown(jobs.length)
 
-      await toggleEnumFilterOption("State", formatJobState(jobs[0].state))
-      await assertNumDataRowsShown(2)
+      await toggleEnumFilterOptions("State", [formatJobState(jobs[0].state)])
+      await assertNumDataRowsShown(jobs.filter((job) => job.state === jobs[0].state).length)
 
-      await toggleEnumFilterOption("State", formatJobState(jobs[0].state))
+      await toggleEnumFilterOptions("State", [formatJobState(jobs[0].state)])
       await assertNumDataRowsShown(jobs.length)
     })
 
     it("allows filtering on annotation columns", async () => {
       const { findByRole } = renderComponent()
-      await waitForFinishedLoading()
+      await resetDefaultFilters()
       await clearAllGroupings()
+      await waitForFinishedLoading()
 
       await addAnnotationColumn("hyperparameter")
       await assertNumDataRowsShown(numJobs)
@@ -322,8 +336,9 @@ describe("JobsTableContainer", () => {
   describe("Sorting", () => {
     it("should allow sorting jobs", async () => {
       const { getAllByRole } = renderComponent()
-      await waitForFinishedLoading()
+      await resetDefaultFilters()
       await clearAllGroupings()
+      await waitForFinishedLoading()
 
       await toggleSorting("Job ID")
 
@@ -349,8 +364,9 @@ describe("JobsTableContainer", () => {
   describe("Refreshing data", () => {
     it("should allow refreshing data", async () => {
       const { findByRole } = renderComponent()
-      await waitForFinishedLoading()
+      await resetDefaultFilters()
       await clearAllGroupings()
+      await waitForFinishedLoading()
       await assertNumDataRowsShown(numJobs)
 
       const firstRow = await findByRole("row", { name: new RegExp(jobs[0].jobId) })
@@ -371,6 +387,7 @@ describe("JobsTableContainer", () => {
 
     it("should maintain grouping and filtering state when refreshing", async () => {
       const { findByText } = renderComponent()
+      await resetDefaultFilters()
       await waitForFinishedLoading()
 
       // Applying grouping and filtering
@@ -380,7 +397,8 @@ describe("JobsTableContainer", () => {
 
       // Check table is updated as expected
       await assertNumDataRowsShown(1)
-      await findByText("queue-1 (1)")
+      await findByText("queue-1")
+      await findByText("1")
 
       // Refresh the data
       await triggerRefresh()
@@ -388,13 +406,15 @@ describe("JobsTableContainer", () => {
 
       // Check table is in the same state
       await assertNumDataRowsShown(1)
-      await findByText("queue-1 (1)")
+      await findByText("queue-1")
+      await findByText("1")
     })
   })
 
   describe("Sidebar", () => {
     it("clicking job row should open sidebar", async () => {
       const { getByRole } = renderComponent()
+      await resetDefaultFilters()
       await waitForFinishedLoading()
 
       const firstJob = jobs[0]
@@ -409,6 +429,7 @@ describe("JobsTableContainer", () => {
 
     it("clicking grouped row should not open", async () => {
       const { findByRole, queryByRole } = renderComponent()
+      await resetDefaultFilters()
       await waitForFinishedLoading()
 
       const firstJob = jobs[0]
@@ -422,6 +443,7 @@ describe("JobsTableContainer", () => {
   describe("Query Params", () => {
     it("should save table state to query params on load", async () => {
       renderComponent()
+      await resetDefaultFilters()
       await waitForFinishedLoading()
 
       expect(historyService.location.search).toContain("page=0")
@@ -431,6 +453,7 @@ describe("JobsTableContainer", () => {
 
     it("should save modifications to query params", async () => {
       renderComponent()
+      await resetDefaultFilters()
       await waitForFinishedLoading()
 
       await clearAllGroupings()
@@ -526,15 +549,21 @@ describe("JobsTableContainer", () => {
     }
   }
 
-  async function toggleEnumFilterOption(columnDisplayName: string, filterOption: string) {
+  async function toggleEnumFilterOptions(columnDisplayName: string, filterOptions: string[]) {
     const headerCell = await getHeaderCell(columnDisplayName)
     const dropdownTrigger = await within(headerCell).findByRole("button", { name: "Filter..." })
     await userEvent.click(dropdownTrigger)
-    const optionButton = await screen.findByRole("option", { name: filterOption })
-    await userEvent.click(optionButton)
+    for (const filterOption of filterOptions) {
+      const optionButton = await screen.findByRole("option", { name: filterOption })
+      await userEvent.click(optionButton)
+    }
 
     // Ensure the dropdown is closed
     await userEvent.tab()
+  }
+
+  async function resetDefaultFilters() {
+    await toggleEnumFilterOptions("State", ["Queued", "Pending", "Running"])
   }
 
   async function toggleSorting(columnDisplayName: string) {

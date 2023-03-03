@@ -25,6 +25,12 @@ type NodeDb struct {
 	// In-memory database. Stores *SchedulerNode.
 	// Used to efficiently iterate over nodes in sorted order.
 	db *memdb.MemDB
+	// Once a node has been found on which a pod can be scheduled,
+	// the NodeDb will consider up to the next maxExtraNodesToConsider nodes.
+	// The NodeDb selects the node with the best score out of the considered nodes.
+	// In particular, the score expresses whether preemption is necessary to schedule a pod.
+	// Hence, a larger maxExtraNodesToConsider would reduce the expected number of preemptions.
+	maxExtraNodesToConsider uint
 	// Allowed priority classes..
 	// Because the number of database indices scales linearly with the number of distinct priorities,
 	// the efficiency of the NodeDb relies on the number of distinct priorities being small.
@@ -56,7 +62,13 @@ type NodeDb struct {
 	mu sync.Mutex
 }
 
-func NewNodeDb(priorityClasses map[string]configuration.PriorityClass, indexedResources, indexedTaints, indexedNodeLabels []string) (*NodeDb, error) {
+func NewNodeDb(
+	priorityClasses map[string]configuration.PriorityClass,
+	maxExtraNodesToConsider uint,
+	indexedResources,
+	indexedTaints,
+	indexedNodeLabels []string,
+) (*NodeDb, error) {
 	db, err := memdb.NewMemDB(nodeDbSchema(
 		configuration.AllowedPriorities(priorityClasses),
 		indexedResources,
@@ -87,13 +99,14 @@ func NewNodeDb(priorityClasses map[string]configuration.PriorityClass, indexedRe
 		return rv
 	}
 	return &NodeDb{
-		priorityClasses:   priorityClasses,
-		indexedResources:  mapFromSlice(indexedResources),
-		indexedTaints:     mapFromSlice(indexedTaints),
-		indexedNodeLabels: mapFromSlice(indexedNodeLabels),
-		nodeTypes:         make(map[string]*schedulerobjects.NodeType),
-		totalResources:    schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
-		db:                db,
+		priorityClasses:         priorityClasses,
+		maxExtraNodesToConsider: maxExtraNodesToConsider,
+		indexedResources:        mapFromSlice(indexedResources),
+		indexedTaints:           mapFromSlice(indexedTaints),
+		indexedNodeLabels:       mapFromSlice(indexedNodeLabels),
+		nodeTypes:               make(map[string]*schedulerobjects.NodeType),
+		totalResources:          schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
+		db:                      db,
 	}, nil
 }
 
@@ -294,7 +307,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		if it, err := txn.Get("nodes", "id", nodeId); err != nil {
 			return nil, errors.WithStack(err)
 		} else {
-			if _, err := selectNodeForPodWithIt(report, it, req); err != nil {
+			if _, err := nodeDb.selectNodeForPodWithIt(report, it, req); err != nil {
 				return nil, err
 			} else {
 				return report, nil
@@ -316,7 +329,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	); err != nil {
 		return nil, err
 	} else {
-		if node, err := selectNodeForPodWithIt(report, it, req); err != nil {
+		if node, err := nodeDb.selectNodeForPodWithIt(report, it, req); err != nil {
 			return nil, err
 		} else if node != nil {
 			return report, nil
@@ -333,7 +346,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	); err != nil {
 		return nil, err
 	} else {
-		if node, err := selectNodeForPodWithIt(report, it, req); err != nil {
+		if node, err := nodeDb.selectNodeForPodWithIt(report, it, req); err != nil {
 			return nil, err
 		} else if node != nil {
 			return report, nil
@@ -350,7 +363,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	); err != nil {
 		return nil, err
 	} else {
-		if node, err := selectNodeForPodWithIt(report, it, req); err != nil {
+		if node, err := nodeDb.selectNodeForPodWithIt(report, it, req); err != nil {
 			return nil, err
 		} else if node != nil {
 			return report, nil
@@ -360,24 +373,39 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	return report, nil
 }
 
-func selectNodeForPodWithIt(report *PodSchedulingReport, it memdb.ResultIterator, req *schedulerobjects.PodRequirements) (*schedulerobjects.Node, error) {
+func (nodeDb *NodeDb) selectNodeForPodWithIt(report *PodSchedulingReport, it memdb.ResultIterator, req *schedulerobjects.PodRequirements) (*schedulerobjects.Node, error) {
+	var selectedNode *schedulerobjects.Node
+	var selectedNodeScore int
+	var numConsideredNodes uint
 	for obj := it.Next(); obj != nil; obj = it.Next() {
 		node := obj.(*schedulerobjects.Node)
 		if node == nil {
 			return nil, nil
 		}
-		// TODO: Use the score when selecting a node.
 		matches, score, reason, err := node.PodRequirementsMet(req)
 		if err != nil {
 			return nil, err
 		} else if matches {
-			report.Node = node
-			report.Score = score
-			return node, nil
+			if selectedNode == nil || score > selectedNodeScore {
+				selectedNode = node
+				selectedNodeScore = score
+				if selectedNodeScore == schedulerobjects.SCHEDULABLE_BEST_SCORE {
+					break
+				}
+			}
+		} else {
+			report.NumExcludedNodesByReason[reason.String()] += 1
 		}
-		report.NumExcludedNodesByReason[reason.String()] += 1
+		if selectedNode != nil {
+			numConsideredNodes++
+			if numConsideredNodes == nodeDb.maxExtraNodesToConsider+1 {
+				break
+			}
+		}
 	}
-	return nil, nil
+	report.Node = selectedNode
+	report.Score = selectedNodeScore
+	return selectedNode, nil
 }
 
 // BindPodToNode returns a copy of node with req bound to it.
