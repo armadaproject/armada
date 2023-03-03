@@ -2,7 +2,7 @@
     position: relative;
     right: 0;
     top: 0;
-    height: 20px;
+    height: 100%;
     width: 5px;
     background: rgba(0, 0, 0, 0.5);
     cursor: col-resize;
@@ -23,4 +23,14 @@
     *:hover > .resizer {
         opacity: 1;
     }
+}
+
+.headerCell {
+    background-color: #f2f2f2;
+    height: 100%;
+
+}
+
+.headerCell th {
+    height: 100%;
 }

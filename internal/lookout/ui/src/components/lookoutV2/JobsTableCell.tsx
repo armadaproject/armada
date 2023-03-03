@@ -9,11 +9,16 @@ import styles from "./JobsTableCell.module.css"
 import { JobsTableFilter } from "./JobsTableFilter"
 
 const sharedCellStyle = {
-  padding: "0.5em",
-  overflowWrap: "break-word",
+  //padding: "0.5em",
+  padding: 0,
+  overflowWrap: "normal",
   "&:hover": {
     opacity: 0.85,
   },
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  borderRight: "1px solid #cccccc",
 }
 
 export interface HeaderCellProps {
@@ -21,7 +26,8 @@ export interface HeaderCellProps {
   columnResizeMode: ColumnResizeMode
   deltaOffset: number
 }
-export const HeaderCell = ({ header, columnResizeMode, deltaOffset }: HeaderCellProps) => {
+
+export function HeaderCell({ header, columnResizeMode, deltaOffset }: HeaderCellProps) {
   const id = toColId(header.id)
   const columnDef = header.column.columnDef
 
@@ -31,6 +37,31 @@ export const HeaderCell = ({ header, columnResizeMode, deltaOffset }: HeaderCell
   const sortDirection = header.column.getIsSorted()
   const defaultSortDirection = "asc"
 
+  const totalWidth = header.column.getSize()
+  const resizerWidth = 5
+  const borderWidth = 1
+  const remainingWidth = totalWidth - resizerWidth - borderWidth
+
+  if (header.isPlaceholder) {
+    return (
+      <TableCell
+        key={id}
+        align={isRightAligned ? "right" : "left"}
+        aria-label={metadata.displayName}
+        sx={{ ...sharedCellStyle }}
+        style={{
+          width: `${totalWidth}px`,
+          height: 50,
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          overflowY: "hidden",
+        }}
+        className={styles.headerCell}
+      ></TableCell>
+    )
+  }
+
   return (
     <TableCell
       key={id}
@@ -38,40 +69,76 @@ export const HeaderCell = ({ header, columnResizeMode, deltaOffset }: HeaderCell
       aria-label={metadata.displayName}
       sx={{ ...sharedCellStyle }}
       style={{
-        width: `${header.column.getSize()}px`,
-        height: "100%",
+        width: `${totalWidth}px`,
+        height: 65,
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        overflow: "hidden",
       }}
+      className={styles.headerCell}
     >
       <div
         style={{
-          width: "100%",
           height: "100%",
+          width: "100%",
           display: "flex",
           flexDirection: "row",
           justifyContent: "space-between",
+          alignItems: "center",
+          margin: 0,
         }}
       >
         <div
           style={{
             display: "flex",
             flexDirection: "column",
+            width: `${remainingWidth}px`,
+            padding: "0 10px 0 10px",
           }}
         >
-          {header.isPlaceholder ? null : header.column.getCanSort() ? (
-            <TableSortLabel
-              active={Boolean(sortDirection)}
-              direction={sortDirection || defaultSortDirection}
-              onClick={() => {
-                const desc = sortDirection ? sortDirection === "asc" : false
-                header.column.toggleSorting(desc)
+          {header.column.getCanSort() ? (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "row",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
               }}
-              aria-label={"Toggle sort"}
+            >
+              <TableSortLabel
+                active={Boolean(sortDirection)}
+                direction={sortDirection || defaultSortDirection}
+                onClick={() => {
+                  const desc = sortDirection ? sortDirection === "asc" : false
+                  header.column.toggleSorting(desc)
+                }}
+                aria-label={"Toggle sort"}
+                sx={{
+                  width: "100%",
+                }}
+              >
+                <div
+                  style={{
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                  }}
+                >
+                  {flexRender(columnDef.header, header.getContext())}
+                </div>
+              </TableSortLabel>
+            </div>
+          ) : (
+            <div
+              style={{
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+              }}
             >
               {flexRender(columnDef.header, header.getContext())}
-              {header.column.getIsGrouped() && <> (# Jobs)</>}
-            </TableSortLabel>
-          ) : (
-            flexRender(columnDef.header, header.getContext())
+            </div>
           )}
 
           {header.column.getCanFilter() && metadata.filterType && (
@@ -85,21 +152,19 @@ export const HeaderCell = ({ header, columnResizeMode, deltaOffset }: HeaderCell
             />
           )}
         </div>
-        {!header.isPlaceholder && (
-          <div
-            {...{
-              onMouseDown: header.getResizeHandler(),
-              onTouchStart: header.getResizeHandler(),
-              className: (header.column.getIsResizing() ? [styles.resizer, styles.isResizing] : [styles.resizer]).join(
-                " ",
-              ),
-              style: {
-                transform:
-                  columnResizeMode === "onEnd" && header.column.getIsResizing() ? `translateX(${deltaOffset}px)` : "",
-              },
-            }}
-          />
-        )}
+        <div
+          {...{
+            onMouseDown: header.getResizeHandler(),
+            onTouchStart: header.getResizeHandler(),
+            className: (header.column.getIsResizing() ? [styles.resizer, styles.isResizing] : [styles.resizer]).join(
+              " ",
+            ),
+            style: {
+              transform:
+                columnResizeMode === "onEnd" && header.column.getIsResizing() ? `translateX(${deltaOffset}px)` : "",
+            },
+          }}
+        />
       </div>
     </TableCell>
   )
@@ -121,6 +186,7 @@ export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange }: 
       align={isRightAligned ? "right" : "left"}
       sx={{
         ...sharedCellStyle,
+        padding: "2px 10px 2px 10px",
       }}
     >
       {rowIsGroup && cell.column.getIsGrouped() && cellHasValue ? (
