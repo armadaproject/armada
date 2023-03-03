@@ -7,7 +7,8 @@
     <a href="https://armadaproject.io"><img src="https://img.shields.io/badge/GitBook-Docu-lightblue" alt="Docs"></a>
     <img alt="Codecov" src="https://img.shields.io/codecov/c/github/armadaproject/armada">    
     <img alt="GitHub go.mod Go version" src="https://img.shields.io/github/go-mod/go-version/armadaproject/armada">
-</p>
+    <img alt="GitHub Workflow Status - Test" src="https://img.shields.io/github/actions/workflow/status/armadaproject/armada/test.yml?label=tests%20workflow"></p>
+    <img alt="GitHub Workflow Status - Lint" src="https://img.shields.io/github/actions/workflow/status/armadaproject/armada/lint.yml?label=lint%20workflow">
 </div>
 
 # Armada

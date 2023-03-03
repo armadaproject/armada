@@ -25,6 +25,21 @@ jobs:
           configDirectory: .
           srcDirectory: pkg
 
+  lint-docs:
+    name: Lint docs
+    runs-on: ubuntu-22.04
+
+  steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - name: Lint changelog file
+      uses: avto-dev/markdown-lint@v1
+      with:
+        rules: '/lint/rules/changelog.js'
+        config: '/lint/config/changelog.yml'
+        args: './CHANGELOG.md'
+
   lint-go:
     name: Lint Go
     runs-on: ubuntu-22.04
