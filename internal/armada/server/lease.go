@@ -515,10 +515,13 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		log.Info("LegacyScheduler:\n" + sched.String())
 
 		// Run the scheduler.
-		scheduledJobs, err = sched.Schedule()
+		result, err := sched.Schedule(ctx)
 		if err != nil {
 			return nil, err
 		}
+		preemptedJobs = result.PreemptedJobs
+		scheduledJobs = result.ScheduledJobs
+		nodesByJobId = result.NodeByJobId
 
 		// Log and store scheduling reports.
 		if q.SchedulingReportsRepository != nil && sched.SchedulingRoundReport != nil {

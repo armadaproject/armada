@@ -983,14 +983,13 @@ func TestSchedule(t *testing.T) {
 				return
 			}
 
-			jobs, err := sched.Schedule()
-			if !assert.NoError(t, err) {
-				return
-			}
+			result, err := sched.Schedule(context.Background())
+			require.NoError(t, err)
+			require.Empty(t, result.PreemptedJobs)
 
 			// Check that the right jobs got scheduled.
 			if tc.ExpectedIndicesByQueue != nil {
-				actualScheduledJobsByQueue := jobIdsByQueueFromJobs(jobs)
+				actualScheduledJobsByQueue := jobIdsByQueueFromJobs(result.ScheduledJobs)
 				for queue, expected := range expectedByQueue {
 					actual, ok := actualScheduledJobsByQueue[queue]
 					if !ok {
@@ -1003,10 +1002,17 @@ func TestSchedule(t *testing.T) {
 
 			// Check that each queue was allocated the right amount of resources.
 			if tc.ExpectedResourcesByQueue != nil {
-				actualUsageByQueue := usageByQueue(jobs, tc.SchedulingConfig.Preemption.PriorityClasses)
+				actualUsageByQueue := usageByQueue(result.ScheduledJobs, tc.SchedulingConfig.Preemption.PriorityClasses)
 				for queue, usage := range actualUsageByQueue {
 					assertResourceLimitsSatisfied(t, tc.ExpectedResourcesByQueue[queue], usage)
 				}
+			}
+
+			// Check that each job is allocated to a node.
+			for _, job := range result.ScheduledJobs {
+				node, ok := result.NodeByJobId[job.GetId()]
+				assert.True(t, ok)
+				assert.NotNil(t, node)
 			}
 
 			// Check that a scheduling round report was created.
@@ -1019,21 +1025,24 @@ func TestSchedule(t *testing.T) {
 			if !tc.DoNotCheckReports {
 				schedulingRoundReport := sched.SchedulingRoundReport
 
-				// Check that started and finished it set.
+				// Check that started and finished times are set.
 				assert.NotEqual(t, time.Time{}, schedulingRoundReport.Started)
 				assert.NotEqual(t, time.Time{}, schedulingRoundReport.Finished)
 
-				// Check that scheduling round report scheduled resources is set correctly.
-				for queue, expected := range usageByQueueAndPriority(jobs, tc.SchedulingConfig.Preemption.PriorityClasses) {
+				// Check that scheduled resources is set correctly.
+				for queue, expected := range usageByQueueAndPriority(result.ScheduledJobs, tc.SchedulingConfig.Preemption.PriorityClasses) {
 					queueSchedulingRoundReport, ok := schedulingRoundReport.QueueSchedulingRoundReports[queue]
-					if !assert.NotNil(t, queueSchedulingRoundReport) {
-						continue
-					}
-					if !assert.True(t, ok) {
-						continue
-					}
+					require.NotNil(t, queueSchedulingRoundReport)
+					require.True(t, ok)
+
+					// Scheduling round report accounting.
 					actual := queueSchedulingRoundReport.ScheduledResourcesByPriority
-					assert.True(t, expected.Equal(actual))
+					assert.True(t, expected.Equal(actual), "expected %v, but got %v", expected, actual)
+
+					// TODO: Test usage.
+					// // Scheduler result accounting.
+					// actual = result.UsageByQueueAndPriority[queue]
+					// assert.True(t, expected.Equal(actual), "expected %v, but got %v", expected, actual)
 				}
 
 				// Check that the scheduling round report contains reports for all queues and jobs.
@@ -1043,7 +1052,7 @@ func TestSchedule(t *testing.T) {
 					len(sched.SchedulingRoundReport.QueueSchedulingRoundReports),
 				)
 				leasedJobIds := make(map[uuid.UUID]interface{})
-				for _, job := range jobs {
+				for _, job := range result.ScheduledJobs {
 					jobId, err := uuidFromUlidString(job.GetId())
 					if !assert.NoError(t, err) {
 						return
