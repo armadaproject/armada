@@ -539,7 +539,8 @@ func init() {
             "RUNNING",
             "SUCCEEDED",
             "FAILED",
-            "CANCELLED"
+            "CANCELLED",
+            "PREEMPTED"
           ],
           "x-nullable": false
         },
@@ -1159,7 +1160,8 @@ func init() {
             "RUNNING",
             "SUCCEEDED",
             "FAILED",
-            "CANCELLED"
+            "CANCELLED",
+            "PREEMPTED"
           ],
           "x-nullable": false
         },

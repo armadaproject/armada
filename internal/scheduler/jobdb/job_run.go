@@ -28,6 +28,13 @@ type JobRun struct {
 	returned bool
 }
 
+func MinimalRun(id uuid.UUID, creationTime int64) *JobRun {
+	return &JobRun{
+		id:      id,
+		created: creationTime,
+	}
+}
+
 // CreateRun creates a new scheduler job run from a database job run
 func CreateRun(
 	id uuid.UUID,

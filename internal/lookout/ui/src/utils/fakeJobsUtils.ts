@@ -41,7 +41,7 @@ export async function simulateApiWait(abortSignal?: AbortSignal): Promise<void> 
   })
 }
 
-export function makeTestJobs(nJobs: number, seed: number, nQueues = 10, nJobSets = 100, state?: JobState): Job[] {
+export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSets = 100, state?: JobState): Job[] {
   const rand = mulberry32(seed)
   const uuid = seededUuid(rand)
   const annotationKeys = ["hyperparameter", "some/very/long/annotation/key/name/with/forward/slashes", "region"]
@@ -170,4 +170,35 @@ export function compareValues(valueA: any, valueB: any, direction: SortDirection
 
 function randomDate(start: Date, end: Date): string {
   return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime())).toISOString()
+}
+
+export function makeTestJob(queue: string, jobSet: string, jobId: string, state: JobState): Job {
+  return {
+    queue: queue,
+    jobSet: jobSet,
+    jobId: jobId,
+    owner: queue,
+    priority: 10,
+    cpu: 1,
+    memory: 1024,
+    ephemeralStorage: 1024,
+    gpu: 1,
+    submitted: new Date().toISOString(),
+    lastTransitionTime: new Date().toISOString(),
+    state: state,
+    runs: [],
+    annotations: {},
+  }
+}
+
+export function makeManyTestJobs(numJobs: number, numFinishedJobs: number): Job[] {
+  const jobs = []
+  for (let i = 0; i < numJobs; i++) {
+    let state = JobState.Queued
+    if (i < numFinishedJobs) {
+      state = JobState.Succeeded
+    }
+    jobs.push(makeTestJob(`queue-0`, `job-set-${i}`, `job-id-${i}`, state))
+  }
+  return jobs
 }

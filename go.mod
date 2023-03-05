@@ -95,9 +95,8 @@ require (
 	github.com/kyleconroy/sqlc v1.16.0
 	github.com/magefile/mage v1.14.0
 	github.com/matryer/moq v0.3.0
-	github.com/mitchellh/hashstructure/v2 v2.0.2
 	github.com/openconfig/goyang v1.2.0
-	github.com/pingcap/log v0.0.0-20210906054005-afc726e70354
+	github.com/pingcap/log v1.1.0
 	github.com/prometheus/common v0.37.0
 	github.com/sanity-io/litter v1.5.5
 )

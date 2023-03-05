@@ -14,7 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/util"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
@@ -150,16 +150,16 @@ func GroupJobsByAnnotation(annotation string, jobs []*api.Job) map[string][]*api
 
 func (srv *SubmitChecker) getSchedulingResult(reqs []*schedulerobjects.PodRequirements) schedulingResult {
 	overwriteAnnotations(reqs)
-	reqsHash, err := util.Hash(reqs, util.FormatV2, nil)
+	reqsHash, err := protoutil.HashMany(reqs)
 	if err != nil {
 		return schedulingResult{isSchedulable: false, reason: err.Error()}
 	}
-	cachedResult, cacheExists := srv.jobSchedulingResultsCache.Get(reqsHash)
+	cachedResult, cacheExists := srv.jobSchedulingResultsCache.Get(string(reqsHash))
 	result, castSuccess := cachedResult.(schedulingResult)
 
 	if !cacheExists || !castSuccess {
 		result = srv.check(reqs)
-		srv.jobSchedulingResultsCache.Add(reqsHash, result)
+		srv.jobSchedulingResultsCache.Add(string(reqsHash), result)
 	}
 
 	return result
