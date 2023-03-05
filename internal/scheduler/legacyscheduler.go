@@ -123,6 +123,9 @@ type Rescheduler struct {
 	priorityFactorByQueue                 map[string]float64
 	usageByQueueAndPriority               map[string]schedulerobjects.QuantityByPriorityAndResourceType
 	schedulingReportsRepository           *SchedulingReportsRepository
+	// If true, perform a series of checks after scheduling to ensure nodeDb
+	// is consistent with the computed scheduling decision.
+	checkNodeDbConsistency bool
 }
 
 func NewRescheduler(
@@ -276,18 +279,20 @@ func (sch *Rescheduler) Schedule(ctx context.Context) (*SchedulerResult, error) 
 		nodeByJobId[jobId] = node
 	}
 
-	err = sch.validateSchedulingConsistency(
-		ctxlogrus.ToContext(
-			ctx,
-			log.WithField("stage", "validate consistency"),
-		),
-		snapshot,
-		preemptedJobsById,
-		scheduledJobsById,
-		nodeByJobId,
-	)
-	if err != nil {
-		return nil, err
+	if sch.checkNodeDbConsistency {
+		err := sch.validateSchedulingConsistency(
+			ctxlogrus.ToContext(
+				ctx,
+				log.WithField("stage", "validate consistency"),
+			),
+			snapshot,
+			preemptedJobsById,
+			scheduledJobsById,
+			nodeByJobId,
+		)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &SchedulerResult{

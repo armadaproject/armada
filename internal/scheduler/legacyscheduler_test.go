@@ -1813,6 +1813,7 @@ func TestReschedule(t *testing.T) {
 					initialUsageByQueue,
 					nil,
 				)
+				rescheduler.checkNodeDbConsistency = true
 				result, err := rescheduler.Schedule(ctxlogrus.ToContext(context.Background(), log))
 				require.NoError(t, err)
 
