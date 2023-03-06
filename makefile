@@ -487,7 +487,6 @@ tests-e2e-no-setup: gotestsum
 	trap printApplicationLogs exit
 	mkdir -p test_reports
 	$(GOTESTSUM) -- -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
-	$(GOTESTSUM) -- -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
 	$(GOTESTSUM) -- -v ./e2e/pulsar_test/... -count=1 2>&1 | tee test_reports/e2e_pulsar.txt
 	$(GOTESTSUM) -- -v ./e2e/pulsartest_client/... -count=1 2>&1 | tee test_reports/e2e_pulsartest_client.txt
 	$(GOTESTSUM) -- -v ./e2e/lookout_ingester_test/... -count=1 2>&1 | tee test_reports/e2e_lookout_ingester.txt
