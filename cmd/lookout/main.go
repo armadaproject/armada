@@ -9,8 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
@@ -30,7 +28,6 @@ const (
 	CustomConfigLocation string = "config"
 	MigrateDatabase      string = "migrateDatabase"
 	PruneDatabase               = "pruneDatabase"
-	LookoutUILocation    string = "lookoutUI"
 )
 
 func init() {
@@ -41,7 +38,6 @@ func init() {
 	)
 	pflag.Bool(MigrateDatabase, false, "Migrate database instead of running server")
 	pflag.Bool(PruneDatabase, false, "Removes old jobs from the database instead of running server")
-	pflag.String(LookoutUILocation, "./internal/lookout/ui/build", "Location of the Lookout UI files")
 	pflag.Parse()
 }
 
@@ -111,12 +107,7 @@ func main() {
 		configHandler(config.UIConfig, w)
 	})
 
-	// Get location of UI files
-	uiLoc := viper.GetString(LookoutUILocation)
-	mux.Handle("/", http.FileServer(serve.CreateDirWithIndexFallback(uiLoc)))
-
-	// Log Info of the Ui Location
-	log.Infof("Serving UI from %s", uiLoc)
+	mux.Handle("/", http.FileServer(serve.CreateDirWithIndexFallback("./internal/lookout/ui/build")))
 
 	shutdownServer := common.ServeHttp(config.HttpPort, mux)
 

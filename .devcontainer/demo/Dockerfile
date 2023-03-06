@@ -12,7 +12,7 @@ USER armada
 COPY bin /app/bin
 
 # Lookout UI
-COPY internal/lookout/ui/build /app/lookoutui
+COPY internal/lookout/ui/build /app/internal/lookout/ui/build
 
 # Copy configs
 COPY config /app/config

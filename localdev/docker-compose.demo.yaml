@@ -71,7 +71,7 @@ services:
       - server
       - lookout-ingester
     working_dir: "/app"
-    command: sh -c "bin/lookout --config localdev/config/lookout/config.yaml --migrateDatabase && bin/lookout --config localdev/config/lookout/config.yaml --lookoutUI /app/lookoutui"
+    command: sh -c "bin/lookout --config localdev/config/lookout/config.yaml --migrateDatabase && bin/lookout --config localdev/config/lookout/config.yaml"
 
   lookoutv2:
     container_name: lookoutv2
