@@ -98,6 +98,7 @@ func CiPythonSetup() {
 	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind)
 	mg.Deps(ciSetup)
 }
+
 // run integration test
 func CiIntegrationTests() {
 	mg.Deps(ciRunTests)
