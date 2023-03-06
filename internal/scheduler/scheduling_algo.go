@@ -266,7 +266,7 @@ func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, j
 		nodesByName[node.Name] = node
 	}
 	for _, job := range jobs {
-		if !job.HasRuns() {
+		if job.InTerminalState() || !job.HasRuns() {
 			continue
 		}
 		assignedNode := job.LatestRun().Node()
