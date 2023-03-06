@@ -1,10 +1,11 @@
 package adapters
 
 import (
-	"github.com/stretchr/testify/require"
 	"io"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -120,7 +121,6 @@ func TestV1ResourceListFromComputeResources(t *testing.T) {
 }
 
 func TestPodRequirementsFromPodSpecPriorityByPriorityClassName(t *testing.T) {
-
 	tests := []struct {
 		name                        string
 		podspec                     v1.PodSpec
@@ -222,8 +222,8 @@ func TestPodRequirementsFromPodSpecPreemptionPolicy(t *testing.T) {
 			assert.Equal(t, scheduler.PreemptionPolicy, string(test.preemptionpolicy))
 		})
 	}
-
 }
+
 func TestPodRequirementsFromPod(t *testing.T) {
 	podSpec := &v1.PodSpec{
 		Priority: &priority,
