@@ -255,6 +255,7 @@ func (job *Job) HasRuns() bool {
 func (job *Job) WithNewRun(executor string, node string) *Job {
 	run := &JobRun{
 		id:       uuid.New(),
+		jobId:    job.id,
 		created:  time.Now().UnixNano(),
 		executor: executor,
 		node:     node,

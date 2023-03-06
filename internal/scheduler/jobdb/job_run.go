@@ -67,6 +67,11 @@ func (run *JobRun) Id() uuid.UUID {
 	return run.id
 }
 
+// Id returns the id of the job this run is associated with.
+func (run *JobRun) JobId() string {
+	return run.jobId
+}
+
 // Executor returns the executor to which the JobRun is assigned.
 func (run *JobRun) Executor() string {
 	return run.executor

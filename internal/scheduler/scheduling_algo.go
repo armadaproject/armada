@@ -214,6 +214,8 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 		}
 		if run := jobDbJob.LatestRun(); run != nil {
 			jobDbJob = jobDbJob.WithUpdatedRun(run.WithFailed(true))
+		} else {
+			return nil, errors.Errorf("attempting to preempt job %s with no associated runs", jobDbJob.Id())
 		}
 		result.ScheduledJobs[i] = jobDbJob.WithQueued(false).WithFailed(true)
 	}
