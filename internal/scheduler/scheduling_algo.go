@@ -228,11 +228,14 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	return result, nil
 }
 
+// Adapter to make jobDb implement the JobRepository interface.
 type schedulerJobRepositoryAdapter struct {
 	db  *jobdb.JobDb
 	txn *jobdb.Txn
 }
 
+// Necessary to implement the JobRepository interface,
+// which we need while transitioning from the old to new scheduler.
 func (repo *schedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]string, error) {
 	rv := make([]string, 0)
 	it := repo.db.QueuedJobs(repo.txn, queue)
@@ -242,6 +245,8 @@ func (repo *schedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]strin
 	return rv, nil
 }
 
+// Necessary to implement the JobRepository interface,
+// which we need while transitioning from the old to new scheduler.
 func (repo *schedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([]LegacySchedulerJob, error) {
 	rv := make([]LegacySchedulerJob, 0, len(ids))
 	for _, id := range ids {
