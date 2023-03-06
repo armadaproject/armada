@@ -93,10 +93,13 @@ func BootstrapProto() {
 	mg.Deps(protoInstallProtocArmadaPlugin, protoPrepareThirdPartyProtos)
 }
 
-// run integration test
-func CiIntegrationTests() {
+func CiPythonSetup() {
 	mg.Deps(BootstrapTools)
 	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind)
+	mg.Deps(ciSetup)
+}
+// run integration test
+func CiIntegrationTests() {
 	mg.Deps(ciRunTests)
 }
 
