@@ -1,6 +1,9 @@
 package adapters
 
 import (
+	"github.com/stretchr/testify/require"
+	"io"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,6 +25,36 @@ var (
 	}
 
 	priority int32 = 1
+
+	containerObj = []v1.Container{
+		{
+			Resources: v1.ResourceRequirements{
+				Limits: v1.ResourceList{
+					v1.ResourceName("cpu"):    *resource.NewMilliQuantity(5300, resource.DecimalSI),
+					v1.ResourceName("memory"): *resource.NewQuantity(5*1024*1024*1024, resource.BinarySI),
+				},
+				Requests: v1.ResourceList{
+					v1.ResourceName("cpu"):    *resource.NewMilliQuantity(300, resource.DecimalSI),
+					v1.ResourceName("memory"): *resource.NewQuantity(2*1024*1024*1024, resource.BinarySI),
+				},
+			},
+		},
+	}
+
+	expectedResourceRequirement = v1.ResourceRequirements{
+		Limits: v1.ResourceList{
+			v1.ResourceName("cpu"):    *resource.NewMilliQuantity(5300, resource.DecimalSI),
+			v1.ResourceName("memory"): *resource.NewQuantity(5*1024*1024*1024, resource.BinarySI),
+		},
+		Requests: v1.ResourceList{
+			v1.ResourceName("cpu"):    *resource.NewMilliQuantity(300, resource.DecimalSI),
+			v1.ResourceName("memory"): *resource.NewQuantity(2*1024*1024*1024, resource.BinarySI),
+		},
+	}
+	expectedScheduler = &schedulerobjects.PodRequirements{
+		ResourceRequirements: expectedResourceRequirement,
+		PreemptionPolicy:     string(v1.PreemptLowerPriority),
+	}
 )
 
 func TestPriorityFromPodSpec(t *testing.T) {
@@ -86,46 +119,111 @@ func TestV1ResourceListFromComputeResources(t *testing.T) {
 	assert.Equal(t, expectedRv, rv)
 }
 
-func TestPodRequirementsFromPodSpec(t *testing.T) {
-	podSpec := &v1.PodSpec{
-		Priority: &priority,
-		Containers: []v1.Container{
-			{
-				Resources: v1.ResourceRequirements{
-					Limits: v1.ResourceList{
-						v1.ResourceName("cpu"):    *resource.NewMilliQuantity(5300, resource.DecimalSI),
-						v1.ResourceName("memory"): *resource.NewQuantity(5*1024*1024*1024, resource.BinarySI),
-					},
-					Requests: v1.ResourceList{
-						v1.ResourceName("cpu"):    *resource.NewMilliQuantity(300, resource.DecimalSI),
-						v1.ResourceName("memory"): *resource.NewQuantity(2*1024*1024*1024, resource.BinarySI),
-					},
-				},
+func TestPodRequirementsFromPodSpecPriorityByPriorityClassName(t *testing.T) {
+
+	tests := []struct {
+		name                        string
+		podspec                     v1.PodSpec
+		priorityByPriorityClassName map[string]configuration.PriorityClass
+		loggedError                 bool
+		priority                    int32
+	}{
+		{
+			name: "PriorityClassName not present in priorityByPriorityClassName map",
+			podspec: v1.PodSpec{
+				PriorityClassName: "priority-8",
+				Containers:        containerObj,
 			},
+			priorityByPriorityClassName: priorityByPriorityClassName,
+			loggedError:                 true,
+			priority:                    0,
+		},
+		{
+			name: "PriorityByPriorityClassName map is nil",
+			podspec: v1.PodSpec{
+				PriorityClassName: "priority-3",
+				Containers:        containerObj,
+			},
+			priorityByPriorityClassName: nil,
+			loggedError:                 false,
+			priority:                    0,
+		},
+		{
+			name: "Priority is set directly on podspec",
+			podspec: v1.PodSpec{
+				Priority:   &priority,
+				Containers: containerObj,
+			},
+			priorityByPriorityClassName: priorityByPriorityClassName,
+			loggedError:                 false,
+			priority:                    priority,
 		},
 	}
 
-	expectedResourceRequirement := v1.ResourceRequirements{
-		Limits: v1.ResourceList{
-			v1.ResourceName("cpu"):    *resource.NewMilliQuantity(5300, resource.DecimalSI),
-			v1.ResourceName("memory"): *resource.NewQuantity(5*1024*1024*1024, resource.BinarySI),
-		},
-		Requests: v1.ResourceList{
-			v1.ResourceName("cpu"):    *resource.NewMilliQuantity(300, resource.DecimalSI),
-			v1.ResourceName("memory"): *resource.NewQuantity(2*1024*1024*1024, resource.BinarySI),
-		},
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Creating backup for stderr
+			old := os.Stderr
+			r, w, _ := os.Pipe()
+			// Assigning stderr to file, w
+			os.Stderr = w
+			// Stderr from this function would be written to file w
+			scheduler := PodRequirementsFromPodSpec(&test.podspec, test.priorityByPriorityClassName)
+			// Closing file, w
+			err := w.Close()
+			require.NoError(t, err)
+			// Reading from file
+			out, _ := io.ReadAll(r)
+			// Restoring stderr
+			os.Stderr = old
+			expectedScheduler.Priority = test.priority
+			assert.Equal(t, scheduler, expectedScheduler)
+			// if loggedError is true, bytes should be written to stderr,
+			// Otherwise, no byte is expected to be written to stderr
+			if test.loggedError {
+				assert.NotEqual(t, len(out), 0)
+			} else {
+				assert.Equal(t, len(out), 0)
+			}
+		})
 	}
-	expectedScheduler := &schedulerobjects.PodRequirements{
-		Priority:             priority,
-		ResourceRequirements: expectedResourceRequirement,
-		PreemptionPolicy:     string(v1.PreemptLowerPriority),
-	}
-
-	scheduler := PodRequirementsFromPodSpec(podSpec, priorityByPriorityClassName)
-
-	assert.Equal(t, scheduler, expectedScheduler)
 }
 
+func TestPodRequirementsFromPodSpecPreemptionPolicy(t *testing.T) {
+	preemptNever := v1.PreemptNever
+	tests := []struct {
+		name             string
+		podspec          v1.PodSpec
+		preemptionpolicy v1.PreemptionPolicy
+	}{
+		{
+			name: "Preemption policy is not nil",
+			podspec: v1.PodSpec{
+				Priority:         &priority,
+				Containers:       containerObj,
+				PreemptionPolicy: &preemptNever,
+			},
+			preemptionpolicy: preemptNever,
+		},
+
+		{
+			name: "Preemption policy is nil",
+			podspec: v1.PodSpec{
+				Priority:   &priority,
+				Containers: containerObj,
+			},
+			preemptionpolicy: v1.PreemptLowerPriority,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			scheduler := PodRequirementsFromPodSpec(&test.podspec, priorityByPriorityClassName)
+			assert.Equal(t, scheduler.PreemptionPolicy, string(test.preemptionpolicy))
+		})
+	}
+
+}
 func TestPodRequirementsFromPod(t *testing.T) {
 	podSpec := &v1.PodSpec{
 		Priority: &priority,
