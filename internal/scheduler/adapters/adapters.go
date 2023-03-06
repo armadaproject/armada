@@ -12,12 +12,17 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
+// PodRequirementsFromPod function creates the schedulerobjects and creates a value for the
+// annotation field by supplying it with a cloned value of pod.Annotations
 func PodRequirementsFromPod(pod *v1.Pod, priorityByPriorityClassName map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
 	rv := PodRequirementsFromPodSpec(&pod.Spec, priorityByPriorityClassName)
 	rv.Annotations = maps.Clone(pod.Annotations)
 	return rv
 }
 
+// PodRequirementsFromPodSpec function returns the *schedulerobjects.PodRequirements  object.
+// It logs an error if priority is set using priorityClassName and there is no
+// corresponding entry in the priorityByPriorityClassName map.
 func PodRequirementsFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
 	priority, ok := PriorityFromPodSpec(podSpec, priorityByPriorityClassName)
 	if priorityByPriorityClassName != nil && !ok {
@@ -48,6 +53,9 @@ func PodRequirementsFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName
 	}
 }
 
+// v1ResourceListFromComputeResources function converts the armadaresource.ComputeResources type
+// defined as map[string]resource.Quantity to v1.ResourceList defined in the k8s API as
+// map[ResourceName]resource.Quantity
 func v1ResourceListFromComputeResources(resources armadaresource.ComputeResources) v1.ResourceList {
 	rv := make(v1.ResourceList)
 	for t, q := range resources {
@@ -56,10 +64,12 @@ func v1ResourceListFromComputeResources(resources armadaresource.ComputeResource
 	return rv
 }
 
-// PriorityFromPodSpec returns the priority set in a pod spec.
+// PriorityFromPodSpec returns the priority in a pod spec.
 // If priority is set directly, that value is returned.
-// Otherwise, it returns priorityByPriorityClassName[podSpec.PriorityClassName].
-// ok is false if no priority is set for this pod spec, in which case priority is 0.
+// Otherwise, it returns the value of the key podSpec.
+// In both cases the value along with true boolean is returned.
+// PriorityClassName in priorityByPriorityClassName map.
+// If no priority is set for the pod spec, 0 along with a false boolean would be returned
 func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName map[string]configuration.PriorityClass) (int32, bool) {
 	// If there's no podspec there's nothing we can do
 	if podSpec == nil {
