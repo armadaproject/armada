@@ -1,42 +1,27 @@
-application:
-  clusterId : "Cluster1"
-  pool: "default"
-  submitConcurrencyLimit: 2
-  updateConcurrencyLimit: 10
-  deleteConcurrencyLimit: 2
-task:
-  utilisationReportingInterval: 1s
-  missingJobEventReconciliationInterval: 15s
-  jobLeaseRenewalInterval: 15s
-  podDeletionInterval: 5s
-  resourceCleanupInterval: 15s
-  allocateSpareClusterCapacityInterval: 5s
-  queueUsageDataRefreshInterval: 5s
-  utilisationEventProcessingInterval: 1s
-  utilisationEventReportingInterval: 5m
 apiConnection:
   armadaUrl : "server:50051"
   forceNoTls: true
-client:
-  maxMessageSizeBytes: 8388608 # 1024 * 1024 * 8
 metric:
   port: 9001
   exposeQueueUsageMetrics: false
 kubernetes:
+  # This line is different
   impersonateUsers: true
   etcd:
     fractionOfStorageInUseSoftLimit: 0.8
     fractionOfStorageInUseHardLimit: 0.9
     minimumAvailable: 2
+  # These lines are different
   QPS: 100
   Burst: 100
+
   minimumPodAge: 3m
   failedPodExpiry: 10m
   maxTerminatedPods: 1000 # Should be lower than kube-controller-managed terminated-pod-gc-threshold (default 12500)
   stuckTerminatingPodExpiry: 1m
   podDefaults:
     ingress:
-      hostnameSuffix: "localhost"
+      hostnameSuffix: "svc"
       certNameSuffix: "ingress-tls-certificate"
   # Instantly fail jobs when the pod submission error matches the regexes below
   fatalPodSubmissionErrors:

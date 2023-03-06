@@ -24,6 +24,8 @@ services:
       - POSTGRES_PASSWORD=psw
     ports:
       - "5432:5432"
+    volumes:
+      - ./developer/postgres-init.sh:/docker-entrypoint-initdb.d/init-database.sh
     networks:
       - kind
 
@@ -31,7 +33,7 @@ services:
     image: ${PULSAR_IMAGE:-apachepulsar/pulsar:2.10.0}
     container_name: pulsar
     volumes:
-      - ./localdev/pulsar.conf:/conf/pulsar.conf
+      - ./developer/pulsar.conf:/conf/pulsar.conf
     entrypoint: bin/pulsar standalone
     ports:
       - 0.0.0.0:6650:6650

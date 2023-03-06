@@ -1,8 +1,3 @@
-grpcPort: 50051
-httpPort: 8080
-metricsPort: 9000
-priorityHalfTime: 20m
-cancelJobsBatchSize: 1000
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m
@@ -10,8 +5,9 @@ grpc:
     timeout: 20s
   keepaliveEnforcementPolicy:
     minTime: 10s
+    # ?
     permitWithoutStream: false
-corsAllowedOrigins: ["http://localhost:3000", "http://localhost:8089", "http://localhost:10000"]
+
 auth:
   basicAuth:
     enableAuthentication: false
@@ -28,40 +24,7 @@ auth:
     watch_events: ["everyone"]
     watch_all_events: ["everyone"]
     execute_jobs: ["everyone"]
-redis:
-  addrs:
-    - "redis:6379"
-  password: ""
-  db: 0
-  poolSize: 1000
-eventsApiRedis:
-  addrs:
-    - "redis:6379"
-  password: ""
-  db: 1
-  poolSize: 1000
-pulsar:
-  URL: "pulsar://pulsar:6650"
-  jobsetEventsTopic: "events"
-  redisFromPulsarSubscription: "RedisFromPulsar"
-  pulsarFromPulsarSubscription: "PulsarFromPulsar"
-  hostnameSuffix: "svc"
-  certNameSuffix: "ingress-tls-certificate"
-  dedupTable: pulsar_submit_dedup
-  eventsPrinter: true
-  eventsPrinterSubscription: "EventsPrinter"
-  maxAllowedMessageSize: 4194304 # 4MB
-postgres: # TODO: Why different from the other postgres config?
-  maxOpenConns: 100
-  maxIdleConns: 25
-  connMaxLifetime: 30m
-  connection:
-    host: postgres
-    port: 5432
-    user: postgres
-    password: psw
-    dbname: postgres
-    sslmode: disable
+
 scheduling:
   queueLeaseBatchSize: 1000
   maximalResourceFractionToSchedulePerQueue:

@@ -9,6 +9,16 @@ import (
 	"github.com/pkg/errors"
 )
 
+// Quick Build
+func LocalDev() {
+	mg.Deps(BootstrapTools)
+	mg.Deps(BootstrapProto)
+	mg.Deps(mg.F(BuildDockers, "bundle"))
+	mg.Deps(mg.F(BuildDockers, "ask"))
+	mg.Deps(Kind)
+	mg.Deps(StartDependencies)
+}
+
 // install go tools
 func BootstrapTools() error {
 	mg.Deps(goCheck)
@@ -91,6 +101,31 @@ func Proto() {
 func BootstrapProto() {
 	mg.Deps(protocCheck)
 	mg.Deps(protoInstallProtocArmadaPlugin, protoPrepareThirdPartyProtos)
+}
+
+// Build the lookout UI from internal/lookout/ui
+func BuildLookoutUI(arg string) error {
+
+	// if arg is "ask" then ask the user if they want to build the UI
+	if arg == "ask" {
+		// Scan for Y press
+		var input string
+		fmt.Print("Do you want to build the Lookout UI? [Y/n] ")
+		fmt.Scanln(&input)
+		if input != "Y" {
+			return nil
+		}
+	}
+
+	// Only build the UI if the yarn binary is present
+	if err := yarnCheck(); err != nil {
+		return nil
+	}
+
+	mg.Deps(yarnInstall)
+	mg.Deps(yarnOpenAPI)
+	mg.Deps(yarnBuild)
+	return nil
 }
 
 // run integration test

@@ -16,42 +16,6 @@ volumes:
 
 services:
   #
-  # Infrastructure services.
-  # A Kubernetes cluster (e.g., kind) must also be setup before starting Armada.
-  #
-  redis:
-    container_name: redis
-    image: redis
-    ports:
-      - "6379:6379"
-    networks:
-      - kind
-
-  postgres:
-    container_name: postgres
-    image: postgres
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=psw
-    volumes:
-      - ./scripts/postgres-init.sh:/docker-entrypoint-initdb.d/init-database.sh
-    ports:
-      - "5432:5432"
-    networks:
-      - kind
-
-  pulsar:
-    image: ${PULSAR_IMAGE:-apachepulsar/pulsar:2.10.0}
-    container_name: pulsar
-    volumes:
-      - ./pulsar.conf:/conf/pulsar.conf
-    entrypoint: bin/pulsar standalone
-    ports:
-      - "0.0.0.0:6650:6650"
-    networks:
-      - kind
-
-  #
   # Armada services.
   #
   server:
@@ -67,10 +31,6 @@ services:
       - "..:/app:rw"
       - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
-    depends_on:
-      - redis
-      - postgres
-      - pulsar
     working_dir: /app
     entrypoint: go
     command: run cmd/armada/main.go --config /config/armada/config.yaml
@@ -81,14 +41,13 @@ services:
     networks:
       - kind
     ports:
-      - "8089:8089"
+      - "8089:8080"
     volumes:
       - ./config:/config
       - "..:/app:rw"
       - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
     depends_on:
-      - postgres
       - server
       - lookout-ingester
     working_dir: "/app"
@@ -107,7 +66,6 @@ services:
       - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
     depends_on:
-      - postgres
       - server
       - lookout-ingesterv2
     working_dir: "/app"
@@ -124,7 +82,7 @@ services:
       - server
     volumes:
       - ./config:/config
-      - ./.kube:/.kube
+      - ../.kube/internal:/.kube
       - "..:/app:rw"
       - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
@@ -145,7 +103,7 @@ services:
       - server
     volumes:
       - ./config:/config
-      - ./.kube:/.kube
+      - ../.kube/internal:/.kube
       - "..:/app:rw"
       - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
@@ -153,7 +111,7 @@ services:
       - KUBECONFIG=/.kube/config
     working_dir: /app
     entrypoint: go
-    command: run cmd/binoculars/main.go --config /config/binoculars/config.yaml
+    command: run cmd/binoculars/main.go
 
   jobservice:
     container_name: jobservice
@@ -171,15 +129,13 @@ services:
       - "go-cache:/root/.cache/go-build:rw"
     working_dir: "/app"
     entrypoint: go
-    command: run cmd/jobservice/main.go run --config /config/jobservice/config.yaml
+    command: run cmd/jobservice/main.go run
 
   lookout-ingester:
     container_name: lookout-ingester
     image: golang:1.18-buster
     networks:
       - kind
-    depends_on:
-      - postgres
     volumes:
       - ./config:/config
       - "..:/app:rw"
@@ -187,15 +143,13 @@ services:
       - "go-cache:/root/.cache/go-build:rw"
     working_dir: /app
     entrypoint: go
-    command: run cmd/lookoutingester/main.go --config /config/lookoutingester/config.yaml
+    command: run cmd/lookoutingester/main.go
 
   lookout-ingesterv2:
     container_name: lookout-ingesterv2
     image: golang:1.18-buster
     networks:
       - kind
-    depends_on:
-      - postgres
     volumes:
       - ./config:/config
       - "..:/app:rw"
@@ -210,8 +164,6 @@ services:
     image: golang:1.18-buster
     networks:
       - kind
-    depends_on:
-      - redis
     volumes:
       - ./config:/config
       - "..:/app:rw"
@@ -219,7 +171,7 @@ services:
       - "go-cache:/root/.cache/go-build:rw"
     working_dir: /app
     entrypoint: go
-    command: run cmd/eventingester/main.go --config /config/eventingester/config.yaml
+    command: run cmd/eventingester/main.go
 
   airflow:
     container_name: airflow
