@@ -202,8 +202,6 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 				ctx,
 				queuedJobsIterator,
 				tc.SchedulingConstraints.MaxLookbackPerQueue,
-				configuration.GangIdAnnotation,
-				configuration.GangCardinalityAnnotation,
 			)
 			it := &QueueCandidateGangIterator{
 				ctx:                        ctx,
@@ -974,7 +972,6 @@ func TestSchedule(t *testing.T) {
 			sched, err := NewLegacyScheduler(
 				context.Background(),
 				*constraints,
-				tc.SchedulingConfig,
 				nodeDb,
 				queues,
 				tc.InitialUsageByQueue,
@@ -983,14 +980,13 @@ func TestSchedule(t *testing.T) {
 				return
 			}
 
-			jobs, err := sched.Schedule()
-			if !assert.NoError(t, err) {
-				return
-			}
+			result, err := sched.Schedule(context.Background())
+			require.NoError(t, err)
+			require.Empty(t, result.PreemptedJobs)
 
 			// Check that the right jobs got scheduled.
 			if tc.ExpectedIndicesByQueue != nil {
-				actualScheduledJobsByQueue := jobIdsByQueueFromJobs(jobs)
+				actualScheduledJobsByQueue := jobIdsByQueueFromJobs(result.ScheduledJobs)
 				for queue, expected := range expectedByQueue {
 					actual, ok := actualScheduledJobsByQueue[queue]
 					if !ok {
@@ -1003,10 +999,17 @@ func TestSchedule(t *testing.T) {
 
 			// Check that each queue was allocated the right amount of resources.
 			if tc.ExpectedResourcesByQueue != nil {
-				actualUsageByQueue := usageByQueue(jobs, tc.SchedulingConfig.Preemption.PriorityClasses)
+				actualUsageByQueue := usageByQueue(result.ScheduledJobs, tc.SchedulingConfig.Preemption.PriorityClasses)
 				for queue, usage := range actualUsageByQueue {
 					assertResourceLimitsSatisfied(t, tc.ExpectedResourcesByQueue[queue], usage)
 				}
+			}
+
+			// Check that each job is allocated to a node.
+			for _, job := range result.ScheduledJobs {
+				node, ok := result.NodeByJobId[job.GetId()]
+				assert.True(t, ok)
+				assert.NotNil(t, node)
 			}
 
 			// Check that a scheduling round report was created.
@@ -1019,21 +1022,24 @@ func TestSchedule(t *testing.T) {
 			if !tc.DoNotCheckReports {
 				schedulingRoundReport := sched.SchedulingRoundReport
 
-				// Check that started and finished it set.
+				// Check that started and finished times are set.
 				assert.NotEqual(t, time.Time{}, schedulingRoundReport.Started)
 				assert.NotEqual(t, time.Time{}, schedulingRoundReport.Finished)
 
-				// Check that scheduling round report scheduled resources is set correctly.
-				for queue, expected := range usageByQueueAndPriority(jobs, tc.SchedulingConfig.Preemption.PriorityClasses) {
+				// Check that scheduled resources is set correctly.
+				for queue, expected := range usageByQueueAndPriority(result.ScheduledJobs, tc.SchedulingConfig.Preemption.PriorityClasses) {
 					queueSchedulingRoundReport, ok := schedulingRoundReport.QueueSchedulingRoundReports[queue]
-					if !assert.NotNil(t, queueSchedulingRoundReport) {
-						continue
-					}
-					if !assert.True(t, ok) {
-						continue
-					}
+					require.NotNil(t, queueSchedulingRoundReport)
+					require.True(t, ok)
+
+					// Scheduling round report accounting.
 					actual := queueSchedulingRoundReport.ScheduledResourcesByPriority
-					assert.True(t, expected.Equal(actual))
+					assert.True(t, expected.Equal(actual), "expected %v, but got %v", expected, actual)
+
+					// TODO: Test usage.
+					// // Scheduler result accounting.
+					// actual = result.UsageByQueueAndPriority[queue]
+					// assert.True(t, expected.Equal(actual), "expected %v, but got %v", expected, actual)
 				}
 
 				// Check that the scheduling round report contains reports for all queues and jobs.
@@ -1043,7 +1049,7 @@ func TestSchedule(t *testing.T) {
 					len(sched.SchedulingRoundReport.QueueSchedulingRoundReports),
 				)
 				leasedJobIds := make(map[uuid.UUID]interface{})
-				for _, job := range jobs {
+				for _, job := range result.ScheduledJobs {
 					jobId, err := uuidFromUlidString(job.GetId())
 					if !assert.NoError(t, err) {
 						return
@@ -1754,6 +1760,9 @@ func TestReschedule(t *testing.T) {
 		},
 	}
 	for name, tc := range tests {
+		// All tests are for eviction probability of 1.
+		tc.SchedulingConfig.Preemption.NodeEvictionProbability = 1
+		tc.SchedulingConfig.Preemption.NodeOversubscriptionEvictionProbability = 1
 		t.Run(name, func(t *testing.T) {
 			nodeDb, err := createNodeDb(tc.Nodes)
 			require.NoError(t, err)
@@ -1771,7 +1780,6 @@ func TestReschedule(t *testing.T) {
 				}
 				repo.jobsByQueue = make(map[string][]LegacySchedulerJob)
 				repo.EnqueueMany(jobs)
-
 				for _, reqs := range round.ReqsByQueue {
 					for j, req := range reqs {
 						jobId, err := JobIdFromPodRequirements(req)
@@ -1793,21 +1801,21 @@ func TestReschedule(t *testing.T) {
 					tc.SchedulingConfig,
 					tc.TotalResources,
 				)
-				preemptedJobs, scheduledJobs, nodesByJobId, updatedUsageByQueue, err := Reschedule(
-					ctxlogrus.ToContext(context.Background(), log),
-					repo,
+				rescheduler := NewRescheduler(
 					*constraints,
 					tc.SchedulingConfig,
+					repo,
 					nodeDb,
 					tc.PriorityFactorByQueue,
 					initialUsageByQueue,
-					1, 1,
 					nil,
 				)
+				rescheduler.enableValidation = true
+				result, err := rescheduler.Schedule(ctxlogrus.ToContext(context.Background(), log))
 				require.NoError(t, err)
 
 				// Update initialUsage.
-				for _, job := range preemptedJobs {
+				for _, job := range result.PreemptedJobs {
 					req := PodRequirementFromLegacySchedulerJob(job, tc.SchedulingConfig.Preemption.PriorityClasses)
 					requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
 					quantityByPriorityAndResourceType := schedulerobjects.QuantityByPriorityAndResourceType{
@@ -1815,7 +1823,7 @@ func TestReschedule(t *testing.T) {
 					}
 					initialUsageByQueue[job.GetQueue()].Sub(quantityByPriorityAndResourceType)
 				}
-				for _, job := range scheduledJobs {
+				for _, job := range result.ScheduledJobs {
 					req := PodRequirementFromLegacySchedulerJob(job, tc.SchedulingConfig.Preemption.PriorityClasses)
 					requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
 					quantityByPriorityAndResourceType := schedulerobjects.QuantityByPriorityAndResourceType{
@@ -1828,11 +1836,11 @@ func TestReschedule(t *testing.T) {
 					m.Add(quantityByPriorityAndResourceType)
 					initialUsageByQueue[job.GetQueue()] = m
 				}
-				assert.Equal(t, initialUsageByQueue, updatedUsageByQueue)
+				assert.Equal(t, initialUsageByQueue, result.AllocatedByQueueAndPriority)
 
 				// Test that jobs are mapped to nodes correctly.
-				for _, job := range preemptedJobs {
-					node, ok := nodesByJobId[job.GetId()]
+				for _, job := range result.PreemptedJobs {
+					node, ok := result.NodeByJobId[job.GetId()]
 					assert.True(t, ok)
 					assert.NotNil(t, node)
 
@@ -1841,8 +1849,8 @@ func TestReschedule(t *testing.T) {
 					assert.True(t, ok)
 					assert.Equal(t, nodeId, node.Id, "job %s preempted from unexpected node", job.GetId())
 				}
-				for _, job := range scheduledJobs {
-					node, ok := nodesByJobId[job.GetId()]
+				for _, job := range result.ScheduledJobs {
+					node, ok := result.NodeByJobId[job.GetId()]
 					assert.True(t, ok)
 					assert.NotNil(t, node)
 
@@ -1854,14 +1862,14 @@ func TestReschedule(t *testing.T) {
 						expectedNodeIdByJobId[job.GetId()] = node.Id
 					}
 				}
-				for jobId, node := range nodesByJobId {
+				for jobId, node := range result.NodeByJobId {
 					if nodeId, ok := expectedNodeIdByJobId[jobId]; ok {
 						assert.Equal(t, nodeId, node.Id, "job %s preempted from/scheduled onto unexpected node", jobId)
 					}
 				}
 
 				// Expected scheduled jobs.
-				jobIdsByQueue := jobIdsByQueueFromJobs(scheduledJobs)
+				jobIdsByQueue := jobIdsByQueueFromJobs(result.ScheduledJobs)
 				scheduledQueues := armadamaps.MapValues(round.ExpectedScheduledIndices, func(v []int) bool { return true })
 				maps.Copy(scheduledQueues, armadamaps.MapValues(jobIdsByQueue, func(v []string) bool { return true }))
 				for queue := range scheduledQueues {
@@ -1877,7 +1885,7 @@ func TestReschedule(t *testing.T) {
 				}
 
 				// Expected preempted jobs.
-				jobIdsByQueue = jobIdsByQueueFromJobs(preemptedJobs)
+				jobIdsByQueue = jobIdsByQueueFromJobs(result.PreemptedJobs)
 				preemptedQueues := armadamaps.MapValues(round.ExpectedPreemptedIndices, func(v map[int][]int) bool { return true })
 				maps.Copy(preemptedQueues, armadamaps.MapValues(jobIdsByQueue, func(v []string) bool { return true }))
 				for queue := range preemptedQueues {
@@ -1918,71 +1926,77 @@ func TestReschedule(t *testing.T) {
 
 func BenchmarkReschedule(b *testing.B) {
 	tests := map[string]struct {
-		SchedulingConfig                      configuration.SchedulingConfig
-		Nodes                                 []*schedulerobjects.Node
-		PodReqFunc                            func(queue string, priority int32, n int) []*schedulerobjects.PodRequirements
-		NumQueues                             int
-		NumJobsPerQueue                       int
-		MinimumJobSize                        map[string]resource.Quantity
-		MinPriorityFactor                     int
-		MaxPriorityFactor                     int
-		NodePreemptibleEvictionProbability    float64
-		NodeOversubscribedEvictionProbability float64
+		SchedulingConfig  configuration.SchedulingConfig
+		Nodes             []*schedulerobjects.Node
+		PodReqFunc        func(queue string, priority int32, n int) []*schedulerobjects.PodRequirements
+		NumQueues         int
+		NumJobsPerQueue   int
+		MinimumJobSize    map[string]resource.Quantity
+		MinPriorityFactor int
+		MaxPriorityFactor int
 	}{
 		"1 node 1 queue 32 jobs": {
-			SchedulingConfig:                      testSchedulingConfig(),
-			Nodes:                                 testNCpuNode(1, testPriorities),
-			PodReqFunc:                            testNSmallCpuJob,
-			NumQueues:                             1,
-			NumJobsPerQueue:                       32,
-			MinPriorityFactor:                     1,
-			MaxPriorityFactor:                     1,
-			NodePreemptibleEvictionProbability:    0.1,
-			NodeOversubscribedEvictionProbability: 0,
+			SchedulingConfig: withNodeOversubscriptionEvictionProbabilityConfig(
+				0,
+				withNodeEvictionProbabilityConfig(
+					0.1,
+					testSchedulingConfig(),
+				),
+			),
+			Nodes:             testNCpuNode(1, testPriorities),
+			PodReqFunc:        testNSmallCpuJob,
+			NumQueues:         1,
+			NumJobsPerQueue:   32,
+			MinPriorityFactor: 1,
+			MaxPriorityFactor: 1,
 		},
 		"10 nodes 1 queue 320 jobs": {
-			SchedulingConfig:                      testSchedulingConfig(),
-			Nodes:                                 testNCpuNode(10, testPriorities),
-			PodReqFunc:                            testNSmallCpuJob,
-			NumQueues:                             1,
-			NumJobsPerQueue:                       320,
-			MinPriorityFactor:                     1,
-			MaxPriorityFactor:                     1,
-			NodePreemptibleEvictionProbability:    0.1,
-			NodeOversubscribedEvictionProbability: 0,
+			SchedulingConfig: withNodeEvictionProbabilityConfig(
+				0.1,
+				testSchedulingConfig(),
+			),
+			Nodes:             testNCpuNode(10, testPriorities),
+			PodReqFunc:        testNSmallCpuJob,
+			NumQueues:         1,
+			NumJobsPerQueue:   320,
+			MinPriorityFactor: 1,
+			MaxPriorityFactor: 1,
 		},
 		"100 nodes 1 queue 3200 jobs": {
-			SchedulingConfig:                      testSchedulingConfig(),
-			Nodes:                                 testNCpuNode(100, testPriorities),
-			PodReqFunc:                            testNSmallCpuJob,
-			NumQueues:                             1,
-			NumJobsPerQueue:                       3200,
-			MinPriorityFactor:                     1,
-			MaxPriorityFactor:                     1,
-			NodePreemptibleEvictionProbability:    0.1,
-			NodeOversubscribedEvictionProbability: 0,
+			SchedulingConfig: withNodeEvictionProbabilityConfig(
+				0.1,
+				testSchedulingConfig(),
+			),
+			Nodes:             testNCpuNode(100, testPriorities),
+			PodReqFunc:        testNSmallCpuJob,
+			NumQueues:         1,
+			NumJobsPerQueue:   3200,
+			MinPriorityFactor: 1,
+			MaxPriorityFactor: 1,
 		},
 		"1000 nodes 1 queue 32000 jobs": {
-			SchedulingConfig:                      testSchedulingConfig(),
-			Nodes:                                 testNCpuNode(1000, testPriorities),
-			PodReqFunc:                            testNSmallCpuJob,
-			NumQueues:                             1,
-			NumJobsPerQueue:                       32000,
-			MinPriorityFactor:                     1,
-			MaxPriorityFactor:                     1,
-			NodePreemptibleEvictionProbability:    0.1,
-			NodeOversubscribedEvictionProbability: 0,
+			SchedulingConfig: withNodeEvictionProbabilityConfig(
+				0.1,
+				testSchedulingConfig(),
+			),
+			Nodes:             testNCpuNode(1000, testPriorities),
+			PodReqFunc:        testNSmallCpuJob,
+			NumQueues:         1,
+			NumJobsPerQueue:   32000,
+			MinPriorityFactor: 1,
+			MaxPriorityFactor: 1,
 		},
 		"mixed": {
-			SchedulingConfig:                      testSchedulingConfig(),
-			Nodes:                                 testNCpuNode(500, testPriorities),
-			PodReqFunc:                            testNSmallCpuJob,
-			NumQueues:                             100,
-			NumJobsPerQueue:                       256,
-			MinPriorityFactor:                     1,
-			MaxPriorityFactor:                     10,
-			NodePreemptibleEvictionProbability:    0.1,
-			NodeOversubscribedEvictionProbability: 0,
+			SchedulingConfig: withNodeEvictionProbabilityConfig(
+				0.1,
+				testSchedulingConfig(),
+			),
+			Nodes:             testNCpuNode(500, testPriorities),
+			PodReqFunc:        testNSmallCpuJob,
+			NumQueues:         100,
+			NumJobsPerQueue:   256,
+			MinPriorityFactor: 1,
+			MaxPriorityFactor: 10,
 		},
 	}
 	for name, tc := range tests {
@@ -2013,24 +2027,26 @@ func BenchmarkReschedule(b *testing.B) {
 				tc.SchedulingConfig,
 				nodeDb.totalResources,
 			)
-			preemptedJobs, scheduledJobs, _, usageByQueue, err := Reschedule(
-				context.Background(),
-				repo,
+			rescheduler := NewRescheduler(
 				*constraints,
 				tc.SchedulingConfig,
-				nodeDb,
+				repo, nodeDb,
 				priorityFactorByQueue,
 				usageByQueue,
-				tc.NodePreemptibleEvictionProbability,
-				tc.NodeOversubscribedEvictionProbability,
 				nil,
 			)
+			result, err := rescheduler.Schedule(
+				ctxlogrus.ToContext(
+					context.Background(),
+					logrus.NewEntry(logrus.New()),
+				),
+			)
 			require.NoError(b, err)
-			require.Equal(b, 0, len(preemptedJobs))
+			require.Equal(b, 0, len(result.PreemptedJobs))
 
 			// Create a new job repo without the scheduled jobs.
 			scheduledJobsById := make(map[string]LegacySchedulerJob)
-			for _, job := range scheduledJobs {
+			for _, job := range result.ScheduledJobs {
 				scheduledJobsById[job.GetId()] = job
 			}
 			unscheduledJobs := make([]LegacySchedulerJob, 0)
@@ -2044,23 +2060,25 @@ func BenchmarkReschedule(b *testing.B) {
 
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
-				preemptedJobs, scheduledJobs, _, usageByQueue, err = Reschedule(
-					context.Background(),
-					repo,
+				rescheduler := NewRescheduler(
 					*constraints,
 					tc.SchedulingConfig,
-					nodeDb,
+					repo, nodeDb,
 					priorityFactorByQueue,
 					usageByQueue,
-					tc.NodePreemptibleEvictionProbability,
-					tc.NodeOversubscribedEvictionProbability,
 					nil,
+				)
+				result, err := rescheduler.Schedule(
+					ctxlogrus.ToContext(
+						context.Background(),
+						logrus.NewEntry(logrus.New()),
+					),
 				)
 				require.NoError(b, err)
 
 				// We expect the system to be in steady-state, i.e., no preempted/scheduled jobs.
-				require.Equal(b, 0, len(preemptedJobs))
-				require.Equal(b, 0, len(scheduledJobs))
+				require.Equal(b, 0, len(result.PreemptedJobs))
+				require.Equal(b, 0, len(result.ScheduledJobs))
 			}
 		})
 	}
@@ -2151,22 +2169,21 @@ func TestEvictOversubscribed(t *testing.T) {
 	}
 	nodes[0] = node
 
-	it := NewInMemoryNodeIterator(nodes)
 	jobRepo := NewInMemoryJobRepository(testPriorityClasses)
 	jobRepo.EnqueueMany(jobs)
-	_, affectedNodesById, err := EvictOversubscribed(
-		context.Background(),
-		it,
+	evictor := NewOversubscribedEvictor(
 		jobRepo,
 		testPriorityClasses,
 		1,
 	)
+	it := NewInMemoryNodeIterator(nodes)
+	result, err := evictor.Evict(context.Background(), it)
 	require.NoError(t, err)
 
 	prioritiesByName := configuration.PriorityByPriorityClassName(testPriorityClasses)
 	priorities := maps.Values(prioritiesByName)
 	slices.Sort(priorities)
-	for nodeId, node := range affectedNodesById {
+	for nodeId, node := range result.AffectedNodesById {
 		for _, p := range priorities {
 			for resourceType, q := range node.AllocatableByPriorityAndResource[p].Resources {
 				assert.NotEqual(t, -1, q.Cmp(resource.Quantity{}), "resource %s oversubscribed by %s on node %s", resourceType, q.String(), nodeId)

@@ -20,7 +20,8 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-// SchedulingAlgo is an interface that should bne implemented by structs capable of assigning Jobs to nodes
+// SchedulingAlgo is the interface between the Pulsar-backed scheduler and the
+// algorithm deciding which jobs to schedule and preempt.
 type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided
@@ -201,18 +202,18 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	legacyScheduler, err := NewLegacyScheduler(
 		ctx,
 		*constraints,
-		l.config,
 		nodeDb,
 		queues,
-		totalResourceUsageByQueue)
+		totalResourceUsageByQueue,
+	)
 	if err != nil {
 		return nil, err
 	}
-	jobs, err := legacyScheduler.Schedule()
+	result, err := legacyScheduler.Schedule(ctx)
 	if err != nil {
 		return nil, err
 	}
-	updatedJobs := make([]*jobdb.Job, len(jobs))
+	updatedJobs := make([]*jobdb.Job, len(result.ScheduledJobs))
 	for i, report := range legacyScheduler.SchedulingRoundReport.SuccessfulJobSchedulingReports() {
 		job := report.Job.(*jobdb.Job)
 		nodeName := ""
