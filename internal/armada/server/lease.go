@@ -457,24 +457,25 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	var scheduledJobs []scheduler.LegacySchedulerJob
 	var nodesByJobId map[string]*schedulerobjects.Node
 	if q.schedulingConfig.Preemption.PreemptToFairShare {
-		preemptedJobs, scheduledJobs, nodesByJobId, _, err = scheduler.Reschedule(
-			ctx,
+		rescheduler := scheduler.NewRescheduler(
+			*constraints,
+			q.schedulingConfig,
 			&SchedulerJobRepositoryAdapter{
 				r: q.jobRepository,
 			},
-			*constraints,
-			q.schedulingConfig,
 			nodeDb,
 			// May need priority factors for inactive queues for rescheduling evicted jobs.
 			priorityFactorByQueue,
 			aggregatedUsageByQueue,
-			q.schedulingConfig.Preemption.NodeEvictionProbability,
-			q.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
 			q.SchedulingReportsRepository,
 		)
+		result, err := rescheduler.Schedule(ctx)
 		if err != nil {
 			return nil, err
 		}
+		preemptedJobs = result.PreemptedJobs
+		scheduledJobs = result.ScheduledJobs
+		nodesByJobId = result.NodeByJobId
 	} else {
 		schedulerQueues := make([]*scheduler.Queue, len(activeQueues))
 		for i, apiQueue := range activeQueues {
@@ -501,7 +502,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		sched, err := scheduler.NewLegacyScheduler(
 			ctx,
 			*constraints,
-			q.schedulingConfig,
 			nodeDb,
 			schedulerQueues,
 			aggregatedUsageByQueue,
@@ -514,10 +514,13 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		log.Info("LegacyScheduler:\n" + sched.String())
 
 		// Run the scheduler.
-		scheduledJobs, err = sched.Schedule()
+		result, err := sched.Schedule(ctx)
 		if err != nil {
 			return nil, err
 		}
+		preemptedJobs = result.PreemptedJobs
+		scheduledJobs = result.ScheduledJobs
+		nodesByJobId = result.NodeByJobId
 
 		// Log and store scheduling reports.
 		if q.SchedulingReportsRepository != nil && sched.SchedulingRoundReport != nil {
