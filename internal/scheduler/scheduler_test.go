@@ -665,7 +665,7 @@ type testSchedulingAlgo struct {
 	shouldError    bool
 }
 
-func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) ([]*jobdb.Job, error) {
+func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error) {
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")
 	}
@@ -688,7 +688,7 @@ func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb
 			return nil, err
 		}
 	}
-	return jobs, nil
+	return NewSchedulerResult(nil, jobs, nil, nil), nil
 }
 
 type testPublisher struct {

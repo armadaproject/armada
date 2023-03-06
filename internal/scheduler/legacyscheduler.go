@@ -111,6 +111,48 @@ type SchedulerResult struct {
 	AllocatedByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType
 }
 
+func NewSchedulerResult[S ~[]T, T LegacySchedulerJob](
+	preemptedJobs S,
+	scheduledJobs S,
+	nodeByJobId map[string]*schedulerobjects.Node,
+	allocatedByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
+) *SchedulerResult {
+	castPreemptedJobs := make([]LegacySchedulerJob, len(preemptedJobs))
+	for i, job := range preemptedJobs {
+		castPreemptedJobs[i] = job
+	}
+	castScheduledJobs := make([]LegacySchedulerJob, len(scheduledJobs))
+	for i, job := range scheduledJobs {
+		castScheduledJobs[i] = job
+	}
+	return &SchedulerResult{
+		PreemptedJobs:               castPreemptedJobs,
+		ScheduledJobs:               castScheduledJobs,
+		NodeByJobId:                 nodeByJobId,
+		AllocatedByQueueAndPriority: allocatedByQueueAndPriority,
+	}
+}
+
+// PreemptedJobsFromSchedulerResult returns the slice of preempted jobs in the result,
+// cast to type T.
+func PreemptedJobsFromSchedulerResult[T LegacySchedulerJob](sr *SchedulerResult) []T {
+	rv := make([]T, len(sr.PreemptedJobs))
+	for i, job := range sr.PreemptedJobs {
+		rv[i] = job.(T)
+	}
+	return rv
+}
+
+// ScheduledJobsFromScheduleResult returns the slice of scheduled jobs in the result,
+// cast to type T.
+func ScheduledJobsFromSchedulerResult[T LegacySchedulerJob](sr *SchedulerResult) []T {
+	rv := make([]T, len(sr.ScheduledJobs))
+	for i, job := range sr.ScheduledJobs {
+		rv[i] = job.(T)
+	}
+	return rv
+}
+
 // Rescheduler is a scheduler that makes a unified decisions on which jobs to preempt and schedule.
 // Uses LegacyScheduler as a building block.
 type Rescheduler struct {

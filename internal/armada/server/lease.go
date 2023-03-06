@@ -560,7 +560,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 							Errors: []*armadaevents.Error{
 								{
 									Terminal: true,
-									Reason:   &armadaevents.Error_PodTerminated{},
+									Reason:   &armadaevents.Error_JobRunPreemptedError{},
 								},
 							},
 						},
