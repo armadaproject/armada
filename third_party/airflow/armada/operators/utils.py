@@ -123,6 +123,7 @@ def search_for_job_complete(
             )
 
         job_state = job_state_from_pb(job_status_return.state)
+        armada_logger.debug(f"Got job state '{job_state.name}' for job {job_id}")
 
         time.sleep(3)
         if job_state == JobState.SUCCEEDED:
