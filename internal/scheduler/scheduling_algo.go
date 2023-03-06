@@ -301,18 +301,6 @@ func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, j
 	return nodeDb, nil
 }
 
-// filterEmptyQueues returns only the queues which have leased jobs in the jobs db
-func (l *LegacySchedulingAlgo) filterEmptyQueues(allQueues []*database.Queue, txn *jobdb.Txn, jobDb *jobdb.JobDb) ([]*database.Queue, error) {
-	activeQueues := make([]*database.Queue, 0, len(allQueues))
-	for _, queue := range allQueues {
-		keep := jobDb.HasQueuedJobs(txn, queue.Name)
-		if keep {
-			activeQueues = append(activeQueues, queue)
-		}
-	}
-	return activeQueues, nil
-}
-
 func (l *LegacySchedulingAlgo) filterStaleExecutors(allExecutors []*schedulerobjects.Executor) []*schedulerobjects.Executor {
 	activeExecutors := make([]*schedulerobjects.Executor, 0, len(allExecutors))
 	cutoff := l.clock.Now().Add(-l.config.ExecutorTimeout)
