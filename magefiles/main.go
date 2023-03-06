@@ -76,6 +76,11 @@ func KindTeardown() {
 	mg.Deps(kindTeardown)
 }
 
+func DockerStop() {
+	mg.Deps(dockerCheck)
+	mg.Deps(stopDocker)
+}
+
 // generate scheduler sql
 func Sql() error {
 	mg.Deps(sqlcCheck)
@@ -93,7 +98,7 @@ func BootstrapProto() {
 	mg.Deps(protoInstallProtocArmadaPlugin, protoPrepareThirdPartyProtos)
 }
 
-func CiPythonSetup() {
+func BuildCICluster() {
 	mg.Deps(BootstrapTools)
 	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind)
 	mg.Deps(ciSetup)
@@ -101,6 +106,7 @@ func CiPythonSetup() {
 
 // run integration test
 func CiIntegrationTests() {
+	mg.Deps(BuildCICluster)
 	mg.Deps(ciRunTests)
 }
 
