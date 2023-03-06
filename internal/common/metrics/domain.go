@@ -7,6 +7,11 @@ import (
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 )
 
+type QueueMetricProvider interface {
+	GetQueuedJobMetrics(queueName string) []*QueueMetrics
+	GetRunningJobMetrics(queueName string) []*QueueMetrics
+}
+
 type QueueMetrics struct {
 	Pool          string
 	PriorityClass string
@@ -60,7 +65,7 @@ func (r *JobMetricsRecorder) getOrCreateRecorder(pool string, pritorityClass str
 			Pool:             pool,
 			PriorityClass:    pritorityClass,
 			resourceRecorder: NewResourceMetricsRecorder(),
-			durationRecorder: NewFloatMetricsRecorder(),
+			durationRecorder: NewDefaultJobDurationMetricsRecorder(),
 		}
 		r.recordersByPoolAndPriorityClass[recorderKey] = qmr
 	}

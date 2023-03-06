@@ -12,6 +12,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -72,20 +73,52 @@ func NewPostgresJobRepository(db *pgxpool.Pool, batchSize int32) *PostgresJobRep
 // FetchJobRunErrors returns all armadaevents.JobRunErrors for the provided job run ids.  The returned map is
 // keyed by job run id.  Any dbRuns which don't have errors wil be absent from the map.
 func (r *PostgresJobRepository) FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error) {
-	queries := New(r.db)
-	rows, err := queries.SelectRunErrorsById(ctx, runIds)
-	if err != nil {
-		return nil, errors.WithStack(err)
+	if len(runIds) == 0 {
+		return map[uuid.UUID]*armadaevents.Error{}, nil
 	}
-	errorsByRunId := make(map[uuid.UUID]*armadaevents.Error, len(rows))
+
+	chunks := armadaslices.PartitionToMaxLen(runIds, int(r.batchSize))
+
+	errorsByRunId := make(map[uuid.UUID]*armadaevents.Error, len(runIds))
 	decompressor := compress.NewZlibDecompressor()
-	for _, row := range rows {
-		jobError, err := protoutil.DecompressAndUnmarshall(row.Error, &armadaevents.Error{}, decompressor)
-		if err != nil {
-			return nil, errors.WithStack(err)
+
+	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
+		IsoLevel:       pgx.ReadCommitted,
+		AccessMode:     pgx.ReadWrite,
+		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		for _, chunk := range chunks {
+			tmpTable, err := insertRunIdsToTmpTable(ctx, tx, chunk)
+			if err != nil {
+				return err
+			}
+
+			query := `
+		SELECT  job_run_errors.run_id, job_run_errors.error
+		FROM %s as tmp
+		JOIN job_run_errors ON job_run_errors.run_id = tmp.run_id`
+
+			rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable))
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+			for rows.Next() {
+				var runId uuid.UUID
+				var errorBytes []byte
+				err := rows.Scan(&runId, &errorBytes)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				jobError, err := protoutil.DecompressAndUnmarshall(errorBytes, &armadaevents.Error{}, decompressor)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				errorsByRunId[runId] = jobError
+			}
 		}
-		errorsByRunId[row.RunID] = jobError
-	}
+		return nil
+	})
 
 	return errorsByRunId, err
 }

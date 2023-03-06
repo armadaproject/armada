@@ -28,7 +28,7 @@ func ciRunTests() error {
 		return err
 	}
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(15 * time.Second)
 	err = goRun("run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
 	if err != nil {
 		return err

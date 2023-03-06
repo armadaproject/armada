@@ -27,6 +27,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
+	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/task"
@@ -191,18 +192,18 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	)
 
 	pulsarSubmitServer := &server.PulsarSubmitServer{
-		Producer:                           producer,
-		QueueRepository:                    queueRepository,
-		Permissions:                        permissions,
-		SubmitServer:                       submitServer,
-		MaxAllowedMessageSize:              config.Pulsar.MaxAllowedMessageSize,
-		PulsarSchedulerSubmitChecker:       pulsarSchedulerSubmitChecker,
-		LegacySchedulerSubmitChecker:       legacySchedulerSubmitChecker,
-		PulsarSchedulerEnabled:             config.PulsarSchedulerEnabled,
-		ProbabilityOdfUsingPulsarScheduler: config.ProbabilityOfUsingPulsarScheduler,
-		Rand:                               util.NewThreadsafeRand(time.Now().UnixNano()),
-		GangIdAnnotation:                   config.Scheduling.GangIdAnnotation,
-		IgnoreJobSubmitChecks:              config.IgnoreJobSubmitChecks,
+		Producer:                          producer,
+		QueueRepository:                   queueRepository,
+		Permissions:                       permissions,
+		SubmitServer:                      submitServer,
+		MaxAllowedMessageSize:             config.Pulsar.MaxAllowedMessageSize,
+		PulsarSchedulerSubmitChecker:      pulsarSchedulerSubmitChecker,
+		LegacySchedulerSubmitChecker:      legacySchedulerSubmitChecker,
+		PulsarSchedulerEnabled:            config.PulsarSchedulerEnabled,
+		ProbabilityOfUsingPulsarScheduler: config.ProbabilityOfUsingPulsarScheduler,
+		Rand:                              util.NewThreadsafeRand(time.Now().UnixNano()),
+		GangIdAnnotation:                  configuration.GangIdAnnotation,
+		IgnoreJobSubmitChecks:             config.IgnoreJobSubmitChecks,
 	}
 	submitServerToRegister := pulsarSubmitServer
 
@@ -289,7 +290,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
 
 	// Allows for registering functions to be run periodically in the background.
-	taskManager := task.NewBackgroundTaskManager(metrics.MetricPrefix)
+	taskManager := task.NewBackgroundTaskManager(commonmetrics.MetricPrefix)
 	defer taskManager.StopAll(time.Second * 2)
 	taskManager.Register(queueCache.Refresh, config.Metrics.RefreshInterval, "refresh_queue_cache")
 	taskManager.Register(leaseManager.ExpireLeases, config.Scheduling.Lease.ExpiryLoopInterval, "lease_expiry")

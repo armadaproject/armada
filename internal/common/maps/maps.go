@@ -39,3 +39,14 @@ func DeepCopy[M ~map[K]V, K comparable, V deepcopy.DeepCopier[V]](m M) M {
 	}
 	return rv
 }
+
+// FilterKeys returns a copy of the provided map with any keys for which predicate returns false removed.
+func FilterKeys[M ~map[K]V, K comparable, V any](m M, predicate func(K) bool) M {
+	rv := make(M)
+	for k, v := range m {
+		if predicate(k) {
+			rv[k] = v
+		}
+	}
+	return rv
+}

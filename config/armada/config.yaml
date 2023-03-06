@@ -53,6 +53,7 @@ scheduling:
           cpu: 0.99
     defaultPriorityClass: armada-default
   queueLeaseBatchSize: 1000
+  maxExtraNodesToConsider: 1
   minimumResourceToSchedule:
     memory: 1000000 # 1Mb
     cpu: 0.1
@@ -107,8 +108,6 @@ scheduling:
     - memory
   minTerminationGracePeriod: 1s
   maxTerminationGracePeriod: 300s
-  gangIdAnnotation: armadaproject.io/gangId
-  gangCardinalityAnnotation: armadaproject.io/gangCardinality
 queueManagement:
   defaultPriorityFactor: 1000
   defaultQueuedJobsLimit: 0  # No Limit
