@@ -12,8 +12,15 @@ func yarnBinary() string {
 }
 
 func yarnRun(args ...string) error {
-	os.Chdir("internal/lookout/ui")
-	return sh.Run(yarnBinary(), args...)
+	if err := os.Chdir("internal/lookout/ui"); err != nil {
+		return err
+	}
+
+	if err := sh.Run(yarnBinary(), args...); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func yarnInstall() error {

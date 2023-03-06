@@ -6,7 +6,6 @@ var services = []string{"pulsar", "postgres", "redis"}
 
 // Dependencies include pulsar, postgres (v1 and v2) as well as redis
 func StartDependencies() error {
-
 	// If user is on arm, export to env "PULSAR_IMAGE=kezhenxu94/pulsar"
 	if onArm() {
 		os.Setenv("PULSAR_IMAGE", "kezhenxu94/pulsar")
