@@ -502,7 +502,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		sched, err := scheduler.NewLegacyScheduler(
 			ctx,
 			*constraints,
-			q.schedulingConfig,
 			nodeDb,
 			schedulerQueues,
 			aggregatedUsageByQueue,

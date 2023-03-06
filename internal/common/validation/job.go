@@ -12,7 +12,7 @@ import (
 )
 
 func ValidateApiJobs(jobs []*api.Job, config configuration.SchedulingConfig) error {
-	err := validateGangs(jobs, configuration.GangIdAnnotation, configuration.GangCardinalityAnnotation)
+	err := validateGangs(jobs)
 	if err != nil {
 		return err
 	}
@@ -24,7 +24,7 @@ func ValidateApiJobs(jobs []*api.Job, config configuration.SchedulingConfig) err
 	return nil
 }
 
-func validateGangs(jobs []*api.Job, gangIdAnnotation, gangCardinalityAnnotation string) error {
+func validateGangs(jobs []*api.Job) error {
 	gangDetailsByGangId := make(map[string]struct {
 		actualCardinality         int
 		expectedCardinality       int
@@ -32,7 +32,7 @@ func validateGangs(jobs []*api.Job, gangIdAnnotation, gangCardinalityAnnotation 
 	})
 	for i, job := range jobs {
 		annotations := job.Annotations
-		gangId, gangCardinality, isGangJob, err := scheduler.GangIdAndCardinalityFromAnnotations(annotations, gangIdAnnotation, gangCardinalityAnnotation)
+		gangId, gangCardinality, isGangJob, err := scheduler.GangIdAndCardinalityFromAnnotations(annotations)
 		if err != nil {
 			return errors.WithMessagef(err, "%d-th job with id %s in gang %s", i, job.Id, gangId)
 		}

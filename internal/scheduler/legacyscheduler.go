@@ -88,6 +88,7 @@ func SchedulingConstraintsFromSchedulingConfig(
 		Pool:                            pool,
 		ResourceScarcity:                config.GetResourceScarcity(pool),
 		MaximumJobsToSchedule:           config.MaximumJobsToSchedule,
+		MaxLookbackPerQueue:             config.QueueLeaseBatchSize,
 		MinimumJobSize:                  minimumJobSize,
 		MaximalResourceFractionPerQueue: config.MaximalResourceFractionPerQueue,
 		MaximalCumulativeResourceFractionPerQueueAndPriority: maximalCumulativeResourceFractionPerQueueAndPriority,
@@ -107,25 +108,28 @@ type SchedulerResult struct {
 	// For each scheduled job, maps the job id to the node on which the job should be scheduled.
 	NodeByJobId map[string]*schedulerobjects.Node
 	// Resource usage by queue, accounting for preempted and scheduled jobs.
-	UsageByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType
+	AllocatedByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType
 }
 
 // Rescheduler is a scheduler that makes a unified decisions on which jobs to preempt and schedule.
 // Uses LegacyScheduler as a building block.
 type Rescheduler struct {
 	constraints SchedulingConstraints
-	// TODO: Don't pass in the whole config here.
-	config                                configuration.SchedulingConfig
+	// Map from priority class names to priority classes.
+	priorityClasses map[string]configuration.PriorityClass
+	// Priority class assigned to pods that do not specify one.
+	// Must be an entry in PriorityClasses above.
+	defaultPriorityClass                  string
 	nodePreemptibleEvictionProbability    float64
 	nodeOversubscribedEvictionProbability float64
 	jobRepo                               JobRepository
 	nodeDb                                *NodeDb
 	priorityFactorByQueue                 map[string]float64
-	usageByQueueAndPriority               map[string]schedulerobjects.QuantityByPriorityAndResourceType
+	allocatedByQueueAndPriority           map[string]schedulerobjects.QuantityByPriorityAndResourceType
 	schedulingReportsRepository           *SchedulingReportsRepository
 	// If true, perform a series of checks after scheduling to ensure nodeDb
 	// is consistent with the computed scheduling decision.
-	checkNodeDbConsistency bool
+	enableValidation bool
 }
 
 func NewRescheduler(
@@ -139,13 +143,14 @@ func NewRescheduler(
 ) *Rescheduler {
 	return &Rescheduler{
 		constraints:                           constraints,
-		config:                                config,
+		priorityClasses:                       config.Preemption.PriorityClasses,
+		defaultPriorityClass:                  config.Preemption.DefaultPriorityClass,
 		nodePreemptibleEvictionProbability:    config.Preemption.NodeEvictionProbability,
 		nodeOversubscribedEvictionProbability: config.Preemption.NodeOversubscriptionEvictionProbability,
 		jobRepo:                               jobRepo,
 		nodeDb:                                nodeDb,
 		priorityFactorByQueue:                 maps.Clone(priorityFactorByQueue),
-		usageByQueueAndPriority:               armadamaps.DeepCopy(initialUsageByQueueAndPriority),
+		allocatedByQueueAndPriority:           armadamaps.DeepCopy(initialUsageByQueueAndPriority),
 		schedulingReportsRepository:           schedulingReportsRepository,
 	}
 }
@@ -176,8 +181,8 @@ func (sch *Rescheduler) Schedule(ctx context.Context) (*SchedulerResult, error) 
 		),
 		NewStochasticEvictor(
 			sch.jobRepo,
-			sch.config.Preemption.PriorityClasses,
-			sch.config.Preemption.DefaultPriorityClass,
+			sch.priorityClasses,
+			sch.defaultPriorityClass,
 			sch.nodePreemptibleEvictionProbability,
 		),
 	)
@@ -216,7 +221,7 @@ func (sch *Rescheduler) Schedule(ctx context.Context) (*SchedulerResult, error) 
 		),
 		NewOversubscribedEvictor(
 			sch.jobRepo,
-			sch.config.Preemption.PriorityClasses,
+			sch.priorityClasses,
 			sch.nodeOversubscribedEvictionProbability,
 		),
 	)
@@ -264,22 +269,23 @@ func (sch *Rescheduler) Schedule(ctx context.Context) (*SchedulerResult, error) 
 	nodeByJobId := make(map[string]*schedulerobjects.Node)
 	for _, job := range preemptedJobs {
 		jobId := job.GetId()
-		node := intermediateNodeByJobId[jobId]
-		if node == nil {
+		if node := intermediateNodeByJobId[jobId]; node != nil {
+			nodeByJobId[jobId] = node
+		} else {
 			return nil, errors.Errorf("scheduled job %s not mapped to any node", jobId)
 		}
-		nodeByJobId[jobId] = node
 	}
 	for _, job := range scheduledJobs {
 		jobId := job.GetId()
-		node := intermediateNodeByJobId[jobId]
-		if node == nil {
+		if node := intermediateNodeByJobId[jobId]; node != nil {
+			nodeByJobId[jobId] = node
+		} else {
 			return nil, errors.Errorf("preempted job %s not mapped to any node", jobId)
 		}
-		nodeByJobId[jobId] = node
+
 	}
 
-	if sch.checkNodeDbConsistency {
+	if sch.enableValidation {
 		err := sch.validateSchedulingConsistency(
 			ctxlogrus.ToContext(
 				ctx,
@@ -296,16 +302,16 @@ func (sch *Rescheduler) Schedule(ctx context.Context) (*SchedulerResult, error) 
 	}
 
 	return &SchedulerResult{
-		PreemptedJobs:           preemptedJobs,
-		ScheduledJobs:           scheduledJobs,
-		NodeByJobId:             nodeByJobId,
-		UsageByQueueAndPriority: sch.usageByQueueAndPriority,
+		PreemptedJobs:               preemptedJobs,
+		ScheduledJobs:               scheduledJobs,
+		NodeByJobId:                 nodeByJobId,
+		AllocatedByQueueAndPriority: sch.allocatedByQueueAndPriority,
 	}, nil
 }
 
 func (sch *Rescheduler) evict(ctx context.Context, evictor *Evictor) (*EvictorResult, *InMemoryJobRepository, error) {
 	if evictor == nil {
-		return &EvictorResult{}, NewInMemoryJobRepository(sch.config.Preemption.PriorityClasses), nil
+		return &EvictorResult{}, NewInMemoryJobRepository(sch.priorityClasses), nil
 	}
 
 	it, err := NewNodesIterator(sch.nodeDb.Txn(false))
@@ -322,10 +328,10 @@ func (sch *Rescheduler) evict(ctx context.Context, evictor *Evictor) (*EvictorRe
 	}
 	evictedJobs := maps.Values(result.EvictedJobsById)
 	affectedNodes := maps.Values(result.AffectedNodesById)
-	sch.usageByQueueAndPriority = UpdateUsage(
-		sch.usageByQueueAndPriority,
+	sch.allocatedByQueueAndPriority = UpdateUsage(
+		sch.allocatedByQueueAndPriority,
 		evictedJobs,
-		sch.config.Preemption.PriorityClasses,
+		sch.priorityClasses,
 		Subtract,
 	)
 	if s := JobsSummary(evictedJobs); s != "" {
@@ -334,7 +340,7 @@ func (sch *Rescheduler) evict(ctx context.Context, evictor *Evictor) (*EvictorRe
 	if err := sch.nodeDb.UpsertMany(affectedNodes); err != nil {
 		return nil, nil, err
 	}
-	inMemoryJobRepo := NewInMemoryJobRepository(sch.config.Preemption.PriorityClasses)
+	inMemoryJobRepo := NewInMemoryJobRepository(sch.priorityClasses)
 	inMemoryJobRepo.EnqueueMany(evictedJobs)
 	return result, inMemoryJobRepo, nil
 }
@@ -363,10 +369,9 @@ func (sch *Rescheduler) schedule(ctx context.Context, inMemoryJobRepo *InMemoryJ
 	sched, err := NewLegacyScheduler(
 		ctx,
 		sch.constraints,
-		sch.config,
 		sch.nodeDb,
 		queues,
-		sch.usageByQueueAndPriority,
+		sch.allocatedByQueueAndPriority,
 	)
 	if err != nil {
 		return nil, err
@@ -382,13 +387,7 @@ func (sch *Rescheduler) schedule(ctx context.Context, inMemoryJobRepo *InMemoryJ
 	if sch.schedulingReportsRepository != nil {
 		sch.schedulingReportsRepository.AddSchedulingRoundReport(sched.SchedulingRoundReport)
 	}
-	// TODO: No longer necessary; use value in schedulerResult.
-	sch.usageByQueueAndPriority = UpdateUsage(
-		sch.usageByQueueAndPriority,
-		schedulerResult.ScheduledJobs,
-		sch.config.Preemption.PriorityClasses,
-		Add,
-	)
+	sch.allocatedByQueueAndPriority = schedulerResult.AllocatedByQueueAndPriority
 	if s := JobsSummary(schedulerResult.ScheduledJobs); s != "" {
 		log.Infof("rescheduled %d jobs; %s", len(schedulerResult.ScheduledJobs), s)
 	}
@@ -738,16 +737,18 @@ func (evi *Evictor) Evict(ctx context.Context, it NodeIterator) (*EvictorResult,
 type LegacyScheduler struct {
 	SchedulingConstraints
 	SchedulingRoundReport *SchedulingRoundReport
-	CandidateGangIterator *CandidateGangIterator
+	queues                []*Queue
+	// Resources allocated to each queue.
+	// Updated at the end of the scheduling cycle.
+	allocatedByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType
 	// Contains all nodes to be considered for scheduling.
 	// Used for matching pods with nodes.
-	NodeDb *NodeDb
+	nodeDb *NodeDb
 }
 
 func NewLegacyScheduler(
 	ctx context.Context,
 	constraints SchedulingConstraints,
-	config configuration.SchedulingConfig,
 	nodeDb *NodeDb,
 	queues []*Queue,
 	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
@@ -767,56 +768,11 @@ func NewLegacyScheduler(
 			constraints.ResourceScarcity, nodeDb.totalResources,
 		)
 	}
-
-	priorityFactorByQueue := make(map[string]float64)
-	for _, queue := range queues {
-		priorityFactorByQueue[queue.name] = queue.priorityFactor
-	}
-	schedulingRoundReport := NewSchedulingRoundReport(
-		constraints.TotalResources,
-		priorityFactorByQueue,
-		initialResourcesByQueueAndPriority,
-	)
-
-	// Per-queue iterator pipelines.
-	gangIteratorsByQueue := make(map[string]*QueueCandidateGangIterator)
-	for _, queue := range queues {
-		// Group jobs into gangs, to be scheduled together.
-		//
-		// TODO: Create iterators in Schedule() instead.
-		queuedGangIterator := NewQueuedGangIterator(
-			ctx,
-			queue.jobIterator,
-			config.QueueLeaseBatchSize,
-			configuration.GangIdAnnotation,
-			configuration.GangCardinalityAnnotation,
-		)
-
-		// Enforce per-queue constraints.
-		gangIteratorsByQueue[queue.name] = &QueueCandidateGangIterator{
-			SchedulingConstraints:      constraints,
-			QueueSchedulingRoundReport: schedulingRoundReport.QueueSchedulingRoundReports[queue.name],
-			ctx:                        ctx,
-			queuedGangIterator:         queuedGangIterator,
-		}
-	}
-
-	// Multiplex between queues and enforce cross-queue constraints.
-	candidateGangIterator, err := NewCandidateGangIterator(
-		constraints,
-		schedulingRoundReport,
-		ctx,
-		gangIteratorsByQueue,
-		maps.Clone(priorityFactorByQueue),
-	)
-	if err != nil {
-		return nil, err
-	}
 	return &LegacyScheduler{
-		SchedulingConstraints: constraints,
-		SchedulingRoundReport: schedulingRoundReport,
-		CandidateGangIterator: candidateGangIterator,
-		NodeDb:                nodeDb,
+		SchedulingConstraints:       constraints,
+		queues:                      queues,
+		allocatedByQueueAndPriority: armadamaps.DeepCopy(initialResourcesByQueueAndPriority),
+		nodeDb:                      nodeDb,
 	}, nil
 }
 
@@ -833,11 +789,11 @@ func (sched *LegacyScheduler) String() string {
 		}
 	}
 	fmt.Fprintf(w, "Minimum job size:\t%v\n", sched.MinimumJobSize)
-	if sched.NodeDb == nil {
-		fmt.Fprintf(w, "NodeDb:\t%v\n", sched.NodeDb)
+	if sched.nodeDb == nil {
+		fmt.Fprintf(w, "NodeDb:\t%v\n", sched.nodeDb)
 	} else {
 		fmt.Fprint(w, "NodeDb:\n")
-		fmt.Fprint(w, indent.String("\t", sched.NodeDb.String()))
+		fmt.Fprint(w, indent.String("\t", sched.nodeDb.String()))
 	}
 	w.Flush()
 	return sb.String()
@@ -848,10 +804,25 @@ func (sch *LegacyScheduler) Schedule(ctx context.Context) (*SchedulerResult, err
 		sch.SchedulingRoundReport.Finished = time.Now()
 	}()
 
+	priorityFactorByQueue := make(map[string]float64)
+	for _, queue := range sch.queues {
+		priorityFactorByQueue[queue.name] = queue.priorityFactor
+	}
+	sch.SchedulingRoundReport = NewSchedulingRoundReport(
+		sch.TotalResources,
+		priorityFactorByQueue,
+		sch.allocatedByQueueAndPriority,
+	)
+
+	candidateGangIterator, err := sch.setupIterators(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	nodeByJobId := make(map[string]*schedulerobjects.Node)
 	jobsToLeaseByQueue := make(map[string][]LegacySchedulerJob, 0)
 	numJobsToLease := 0
-	for reports, err := sch.CandidateGangIterator.Next(); reports != nil; reports, err = sch.CandidateGangIterator.Next() {
+	for reports, err := candidateGangIterator.Next(); reports != nil; reports, err = candidateGangIterator.Next() {
 		if err != nil {
 			sch.SchedulingRoundReport.TerminationReason = err.Error()
 			return nil, err
@@ -871,7 +842,7 @@ func (sch *LegacyScheduler) Schedule(ctx context.Context) (*SchedulerResult, err
 			jobs[i] = r.Job
 		}
 		reqs := PodRequirementsFromLegacySchedulerJobs(jobs, sch.PriorityClasses)
-		podSchedulingReports, ok, err := sch.NodeDb.ScheduleMany(reqs)
+		podSchedulingReports, ok, err := sch.nodeDb.ScheduleMany(reqs)
 		if err != nil {
 			return nil, err
 		}
@@ -913,20 +884,23 @@ func (sch *LegacyScheduler) Schedule(ctx context.Context) (*SchedulerResult, err
 		scheduledJobs = append(scheduledJobs, jobs...)
 	}
 
-	usageByQueueAndPriority := make(
+	allocatedByQueueAndPriority := make(
 		map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 		len(sch.SchedulingRoundReport.QueueSchedulingRoundReports),
 	)
 	for queue, queueReport := range sch.SchedulingRoundReport.QueueSchedulingRoundReports {
-		usageByQueueAndPriority[queue] = queueReport.ResourcesByPriority.DeepCopy()
+		if len(queueReport.ResourcesByPriority) > 0 {
+			allocatedByQueueAndPriority[queue] = queueReport.ResourcesByPriority.DeepCopy()
+		}
 	}
+	sch.allocatedByQueueAndPriority = allocatedByQueueAndPriority
 	if len(scheduledJobs) != len(nodeByJobId) {
 		return nil, errors.Errorf("only %d out of %d jobs mapped to a node", len(nodeByJobId), len(scheduledJobs))
 	}
 	return &SchedulerResult{
-		ScheduledJobs:           scheduledJobs,
-		NodeByJobId:             nodeByJobId,
-		UsageByQueueAndPriority: usageByQueueAndPriority,
+		ScheduledJobs:               scheduledJobs,
+		NodeByJobId:                 nodeByJobId,
+		AllocatedByQueueAndPriority: armadamaps.DeepCopy(allocatedByQueueAndPriority),
 	}, nil
 }
 
@@ -951,6 +925,43 @@ func NewQueue(name string, priorityFactor float64, jobIterator JobIterator) (*Qu
 	}, nil
 }
 
+func (sch *LegacyScheduler) setupIterators(ctx context.Context) (*CandidateGangIterator, error) {
+	// Per-queue iterator pipelines.
+	gangIteratorsByQueue := make(map[string]*QueueCandidateGangIterator)
+	priorityFactorByQueue := make(map[string]float64)
+	for _, queue := range sch.queues {
+		// Group jobs into gangs, to be scheduled together.
+		queuedGangIterator := NewQueuedGangIterator(
+			ctx,
+			queue.jobIterator,
+			sch.MaxLookbackPerQueue,
+		)
+
+		// Enforce per-queue constraints.
+		gangIteratorsByQueue[queue.name] = &QueueCandidateGangIterator{
+			SchedulingConstraints:      sch.SchedulingConstraints,
+			QueueSchedulingRoundReport: sch.SchedulingRoundReport.QueueSchedulingRoundReports[queue.name],
+			ctx:                        ctx,
+			queuedGangIterator:         queuedGangIterator,
+		}
+
+		priorityFactorByQueue[queue.name] = queue.priorityFactor
+	}
+
+	// Multiplex between queues and enforce cross-queue constraints.
+	candidateGangIterator, err := NewCandidateGangIterator(
+		sch.SchedulingConstraints,
+		sch.SchedulingRoundReport,
+		ctx,
+		gangIteratorsByQueue,
+		priorityFactorByQueue,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return candidateGangIterator, nil
+}
+
 // QueuedGangIterator is an iterator over all gangs in a queue,
 // where a gang is a set of jobs for which the gangIdAnnotation has equal value.
 // A gang is yielded once the final member of the gang has been received.
@@ -958,10 +969,6 @@ func NewQueue(name string, priorityFactor float64, jobIterator JobIterator) (*Qu
 type QueuedGangIterator struct {
 	ctx                context.Context
 	queuedJobsIterator JobIterator
-	// Jobs are grouped into gangs by this annotation.
-	gangIdAnnotation string
-	// Jobs in a gang must specify the total number of jobs in the gang via this annotation.
-	gangCardinalityAnnotation string
 	// Groups jobs by the gang they belong to.
 	jobsByGangId map[string][]LegacySchedulerJob
 	// Maximum number of jobs to look at before giving up
@@ -971,14 +978,12 @@ type QueuedGangIterator struct {
 	next     []LegacySchedulerJob
 }
 
-func NewQueuedGangIterator(ctx context.Context, it JobIterator, maxLookback uint, gangIdAnnotation, gangCardinalityAnnotation string) *QueuedGangIterator {
+func NewQueuedGangIterator(ctx context.Context, it JobIterator, maxLookback uint) *QueuedGangIterator {
 	return &QueuedGangIterator{
-		ctx:                       ctx,
-		queuedJobsIterator:        it,
-		gangIdAnnotation:          gangIdAnnotation,
-		gangCardinalityAnnotation: gangCardinalityAnnotation,
-		maxLookback:               maxLookback,
-		jobsByGangId:              make(map[string][]LegacySchedulerJob),
+		ctx:                ctx,
+		queuedJobsIterator: it,
+		maxLookback:        maxLookback,
+		jobsByGangId:       make(map[string][]LegacySchedulerJob),
 	}
 }
 
@@ -1030,8 +1035,6 @@ func (it *QueuedGangIterator) Peek() ([]LegacySchedulerJob, error) {
 		}
 		gangId, gangCardinality, isGangJob, err := GangIdAndCardinalityFromAnnotations(
 			job.GetAnnotations(),
-			it.gangIdAnnotation,
-			it.gangCardinalityAnnotation,
 		)
 		if err != nil {
 			log := ctxlogrus.Extract(it.ctx)
@@ -1567,7 +1570,7 @@ func targetNodeIdFromLegacySchedulerJob(job LegacySchedulerJob) (string, bool) {
 	return nodeId, ok
 }
 
-func GangIdAndCardinalityFromLegacySchedulerJob(job LegacySchedulerJob, gangIdAnnotation, gangCardinalityAnnotation string, priorityClasses map[string]configuration.PriorityClass) (string, int, bool, error) {
+func GangIdAndCardinalityFromLegacySchedulerJob(job LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) (string, int, bool, error) {
 	reqs := job.GetRequirements(priorityClasses)
 	if reqs == nil {
 		return "", 0, false, nil
@@ -1579,24 +1582,20 @@ func GangIdAndCardinalityFromLegacySchedulerJob(job LegacySchedulerJob, gangIdAn
 	if podReqs == nil {
 		return "", 0, false, nil
 	}
-	return GangIdAndCardinalityFromAnnotations(
-		podReqs.Annotations,
-		gangIdAnnotation,
-		gangCardinalityAnnotation,
-	)
+	return GangIdAndCardinalityFromAnnotations(podReqs.Annotations)
 }
 
-func GangIdAndCardinalityFromAnnotations(annotations map[string]string, gangIdAnnotation, gangCardinalityAnnotation string) (string, int, bool, error) {
+func GangIdAndCardinalityFromAnnotations(annotations map[string]string) (string, int, bool, error) {
 	if annotations == nil {
 		return "", 0, false, nil
 	}
-	gangId, ok := annotations[gangIdAnnotation]
+	gangId, ok := annotations[configuration.GangIdAnnotation]
 	if !ok {
 		return "", 0, false, nil
 	}
-	gangCardinalityString, ok := annotations[gangCardinalityAnnotation]
+	gangCardinalityString, ok := annotations[configuration.GangCardinalityAnnotation]
 	if !ok {
-		return "", 0, false, errors.Errorf("missing annotation %s", gangCardinalityAnnotation)
+		return "", 0, false, errors.Errorf("missing annotation %s", configuration.GangCardinalityAnnotation)
 	}
 	gangCardinality, err := strconv.Atoi(gangCardinalityString)
 	if err != nil {

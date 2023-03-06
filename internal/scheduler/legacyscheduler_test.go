@@ -202,8 +202,6 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 				ctx,
 				queuedJobsIterator,
 				tc.SchedulingConstraints.MaxLookbackPerQueue,
-				configuration.GangIdAnnotation,
-				configuration.GangCardinalityAnnotation,
 			)
 			it := &QueueCandidateGangIterator{
 				ctx:                        ctx,
@@ -974,7 +972,6 @@ func TestSchedule(t *testing.T) {
 			sched, err := NewLegacyScheduler(
 				context.Background(),
 				*constraints,
-				tc.SchedulingConfig,
 				nodeDb,
 				queues,
 				tc.InitialUsageByQueue,
@@ -1813,7 +1810,7 @@ func TestReschedule(t *testing.T) {
 					initialUsageByQueue,
 					nil,
 				)
-				rescheduler.checkNodeDbConsistency = true
+				rescheduler.enableValidation = true
 				result, err := rescheduler.Schedule(ctxlogrus.ToContext(context.Background(), log))
 				require.NoError(t, err)
 
@@ -1839,7 +1836,7 @@ func TestReschedule(t *testing.T) {
 					m.Add(quantityByPriorityAndResourceType)
 					initialUsageByQueue[job.GetQueue()] = m
 				}
-				assert.Equal(t, initialUsageByQueue, result.UsageByQueueAndPriority)
+				assert.Equal(t, initialUsageByQueue, result.AllocatedByQueueAndPriority)
 
 				// Test that jobs are mapped to nodes correctly.
 				for _, job := range result.PreemptedJobs {

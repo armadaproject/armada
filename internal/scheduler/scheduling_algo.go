@@ -202,10 +202,10 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	legacyScheduler, err := NewLegacyScheduler(
 		ctx,
 		*constraints,
-		l.config,
 		nodeDb,
 		queues,
-		totalResourceUsageByQueue)
+		totalResourceUsageByQueue,
+	)
 	if err != nil {
 		return nil, err
 	}
