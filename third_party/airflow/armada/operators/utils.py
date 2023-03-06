@@ -29,6 +29,8 @@ _pb_to_job_state = {
     jobservice_pb2.JobServiceResponse.SUCCEEDED: JobState.SUCCEEDED,
     jobservice_pb2.JobServiceResponse.CANCELLED: JobState.CANCELLED,
     jobservice_pb2.JobServiceResponse.JOB_ID_NOT_FOUND: JobState.JOB_ID_NOT_FOUND,
+    # NOTE(Clif): For whatever reason CONNECTION_ERR is not present in the
+    # generated protobuf.
     7: JobState.CONNECTION_ERR,
 }
 
