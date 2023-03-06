@@ -188,7 +188,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Lint ArmadaCtl Dockerfile
+      - name: Lint Armadactl Dockerfile
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: build/armadactl/Dockerfile

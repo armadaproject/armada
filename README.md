@@ -5,7 +5,7 @@
     <a href="https://circleci.com/gh/armadaproject/armada"><img src="https://circleci.com/gh/helm/helm.svg?style=shield" alt="CircleCI"></a>
     <a href="https://goreportcard.com/report/github.com/armadaproject/armada"><img src="https://goreportcard.com/badge/github.com/armadaproject/armada" alt="Go Report Card"></a>
     <a href="https://armadaproject.io"><img src="https://img.shields.io/badge/GitBook-Docu-lightblue" alt="Docs"></a>
-    <img alt="Codecov" src="https://img.shields.io/codecov/c/github/armadaproject/armada">    
+    <a href="https://app.codecov.io/github/armadaproject/armada"><img alt="Codecov" src="https://img.shields.io/codecov/c/github/armadaproject/armada"></a>
     <img alt="GitHub go.mod Go version" src="https://img.shields.io/github/go-mod/go-version/armadaproject/armada">
     <img alt="GitHub Workflow Status - Test" src="https://img.shields.io/github/actions/workflow/status/armadaproject/armada/test.yml?label=tests%20workflow"></p>
     <img alt="GitHub Workflow Status - Lint" src="https://img.shields.io/github/actions/workflow/status/armadaproject/armada/lint.yml?label=lint%20workflow">
