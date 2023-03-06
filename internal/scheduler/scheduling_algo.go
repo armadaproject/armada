@@ -196,10 +196,10 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 			txn: txn,
 			db:  db,
 		},
-		nodeDb,                      // TODO: Make sure jobs are bound to nodes.
-		priorityFactorByQueue,       // TODO: Make sure this includes all queues.
-		allocatedByQueueAndPriority, // TODO: Rename
-		nil,                         // TODO: Add a repo
+		nodeDb,
+		priorityFactorByQueue,
+		allocatedByQueueAndPriority,
+		nil, // TODO: Add a repo to enable querying for scheduler reports.
 	)
 	result, err := scheduler.Schedule(ctx)
 	if err != nil {
@@ -295,8 +295,7 @@ func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, j
 		return nil, err
 	}
 
-	err = nodeDb.UpsertMany(maps.Values(nodesByName))
-	if err != nil {
+	if err := nodeDb.UpsertMany(maps.Values(nodesByName)); err != nil {
 		return nil, err
 	}
 	return nodeDb, nil
