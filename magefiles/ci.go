@@ -46,11 +46,3 @@ func ciRunTests() error {
 	}
 	return nil
 }
-
-func stopDocker() error {
-	err := dockerComposeRun("down")
-	if err != nil {
-		return err
-	}
-	return nil
-}

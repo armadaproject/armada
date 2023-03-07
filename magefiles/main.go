@@ -76,11 +76,6 @@ func KindTeardown() {
 	mg.Deps(kindTeardown)
 }
 
-func DockerStop() {
-	mg.Deps(dockerCheck)
-	mg.Deps(stopDocker)
-}
-
 // generate scheduler sql
 func Sql() error {
 	mg.Deps(sqlcCheck)
