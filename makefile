@@ -522,7 +522,8 @@ tests-e2e-python: python
 # To run integration tests with jobservice and such, we can run this command
 # For now, let's just have it in rare cases that people need to test.
 .ONESHELL:
-tests-e2e-airflow: airflow-operator tests-e2e-setup build-ci
+tests-e2e-airflow: airflow-operator build-docker-jobservice
+	docker run -d --name jobservice --network=kind -v ${PWD}/e2e:/e2e armada-jobservice run --config /e2e/setup/jobservice.yaml
 	docker run -v ${PWD}/e2e:/e2e -v ${PWD}/third_party/airflow:/code --workdir /code -e ARMADA_SERVER=server -e ARMADA_PORT=50051 -e JOB_SERVICE_HOST=jobservice -e JOB_SERVICE_PORT=60003 --entrypoint python3 --network=kind armada-airflow-operator-builder:latest -m pytest -v -s /code/tests/integration/test_airflow_operator_logic.py
 
 # Output test results in Junit format, e.g., to display in Jenkins.
