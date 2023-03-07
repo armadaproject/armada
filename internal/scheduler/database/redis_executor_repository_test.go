@@ -10,8 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func TestRedisExecutorRepository_LoadAndSave(t *testing.T) {

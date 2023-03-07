@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/common/logging"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -12,6 +11,7 @@ import (
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
