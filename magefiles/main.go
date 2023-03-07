@@ -14,7 +14,7 @@ func LocalDev() {
 	mg.Deps(BootstrapTools)
 	mg.Deps(BootstrapProto)
 	mg.Deps(mg.F(BuildDockers, "bundle"))
-	mg.Deps(mg.F(BuildDockers, "ask"))
+	mg.Deps(mg.F(BuildLookoutUI, "ask"))
 	mg.Deps(Kind)
 	mg.Deps(StartDependencies)
 }
