@@ -34,7 +34,7 @@ scheduling:
     enabled: true
     preemptToFairShare: true
     nodeEvictionProbability: 1.0
-    nodeOversubscriptionEvictionProbability: 0.0
+    nodeOversubscriptionEvictionProbability: 1.0
     setNodeIdSelector: true
     nodeIdLabel: kubernetes.io/hostname
     setNodeName: false
@@ -108,6 +108,7 @@ scheduling:
     - memory
   minTerminationGracePeriod: 1s
   maxTerminationGracePeriod: 300s
+  podPreemptionPolicy: Never
 queueManagement:
   defaultPriorityFactor: 1000
   defaultQueuedJobsLimit: 0  # No Limit
