@@ -126,6 +126,7 @@ func TestJob_TestWithNewRun(t *testing.T) {
 	assert.NotNil(t, run)
 	assert.Equal(t, &JobRun{
 		id:       run.id,
+		jobId:    "test-job",
 		created:  run.created,
 		executor: "test-executor",
 		node:     "test-node",
