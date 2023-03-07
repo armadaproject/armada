@@ -27,6 +27,7 @@ services:
       - 50051:50051
       - 8080:8080
     volumes:
+      - "../developer:/developer:rw"
       - "..:/app:rw"
       - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
@@ -34,7 +35,7 @@ services:
       - ../developer/env/armada.env
     working_dir: /app
     entrypoint: go
-    command: run cmd/armada/main.go --config /config/armada/config.yaml
+    command: run cmd/armada/main.go --config /developer/config/insecure-armada.yaml
 
   lookout:
     container_name: lookout

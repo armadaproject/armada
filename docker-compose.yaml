@@ -52,7 +52,7 @@ services:
       - 50051:50051
       - 8080:8080
     volumes:
-      - ./e2e/setup/insecure-armada-auth-config.yaml:/config/insecure-armada-auth-config.yaml
+      - ./developer/config/insecure-armada.yaml:/config/insecure-armada.yaml
     depends_on:
       - redis
       - postgres
@@ -70,11 +70,12 @@ services:
     depends_on:
       - server
     volumes:
-      - ./e2e/setup/insecure-executor-config.yaml:/config/insecure-executor-config.yaml
       - ./.kube/internal:/.kube
     environment:
       - KUBECONFIG=/.kube/config
-    command: ./executor --config /config/insecure-executor-config.yaml
+    env_file:
+      - ./developer/env/executor.env
+    command: ./executor
 
   binoculars:
     container_name: binoculars
