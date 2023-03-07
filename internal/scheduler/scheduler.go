@@ -46,7 +46,7 @@ type Scheduler struct {
 	// Maximum number of times a lease can be returned before the job is considered failed.
 	maxLeaseReturns uint
 	// If an executor fails to report in for this amount of time,
-	// all jobs assign to that executor are cancelled.
+	// all jobs assigned to that executor are cancelled.
 	executorTimeout time.Duration
 	// Used for timing decisions (e.g., sleep).
 	// Injected here so that we can mock it out for testing.

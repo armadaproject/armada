@@ -6,11 +6,10 @@ import (
 	"time"
 
 	"github.com/go-redis/redis"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
-
-	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )

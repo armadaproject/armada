@@ -303,7 +303,7 @@ func (l *LegacySchedulingAlgo) filterStaleExecutors(allExecutors []*schedulerobj
 	return activeExecutors
 }
 
-// aggregateUsage Creates a map of usage by pool
+// aggregateUsage creates a map of usage by pool
 func aggregateUsage(executors []*schedulerobjects.Executor, txn *jobdb.Txn, jobDb *jobdb.JobDb) (map[string]map[string]schedulerobjects.QuantityByPriorityAndResourceType, error) {
 	usageByPool := make(map[string]map[string]schedulerobjects.QuantityByPriorityAndResourceType, 0)
 	for _, executor := range executors {
