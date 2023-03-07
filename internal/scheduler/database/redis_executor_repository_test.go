@@ -82,7 +82,7 @@ func withRedisExecutorRepository(action func(repository *RedisExecutorRepository
 	defer func() {
 		err := client.Close()
 		if err != nil {
-			log.WithStacktrace(err).Warnf("Error closing redis client")
+			log.WithError(err).Warnf("Error closing redis client")
 		}
 	}()
 
