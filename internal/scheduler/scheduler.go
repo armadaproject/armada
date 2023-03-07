@@ -184,15 +184,16 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	events = append(events, expirationEvents...)
 
 	// Schedule Jobs
-	scheduledJobs, err := s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
+	overallSchedulerResult, err := s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
 	if err != nil {
 		return err
 	}
-	scheduledJobEvents, err := s.generateLeaseMessages(scheduledJobs)
+
+	resultEvents, err := s.eventsFromSchedulerResult(overallSchedulerResult)
 	if err != nil {
 		return err
 	}
-	events = append(events, scheduledJobEvents...)
+	events = append(events, resultEvents...)
 
 	// Publish to pulsar
 	amLeader := func() bool {
@@ -309,13 +310,17 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*jobdb.Job, error) {
 	return jobsToUpdate, nil
 }
 
-// generateLeaseMessages generates EventSequences from the supplied slice of leased jobs.
-func (s *Scheduler) generateLeaseMessages(scheduledJobs []*jobdb.Job) ([]*armadaevents.EventSequence, error) {
-	events := make([]*armadaevents.EventSequence, len(scheduledJobs))
-	for i, job := range scheduledJobs {
+// eventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
+func (s *Scheduler) eventsFromSchedulerResult(result *SchedulerResult) ([]*armadaevents.EventSequence, error) {
+	events := make([]*armadaevents.EventSequence, 0, len(result.PreemptedJobs)+len(result.ScheduledJobs))
+	for _, job := range PreemptedJobsFromSchedulerResult[*jobdb.Job](result) {
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
 		if err != nil {
 			return nil, err
+		}
+		run := job.LatestRun()
+		if run == nil {
+			return nil, errors.Errorf("attempting to generate preempted events for job %s with no associated runs", job.Id())
 		}
 		es := &armadaevents.EventSequence{
 			Queue:      job.Queue(),
@@ -323,18 +328,71 @@ func (s *Scheduler) generateLeaseMessages(scheduledJobs []*jobdb.Job) ([]*armada
 			Events: []*armadaevents.EventSequence_Event{
 				{
 					Created: s.now(),
-					Event: &armadaevents.EventSequence_Event_JobRunLeased{
-						JobRunLeased: &armadaevents.JobRunLeased{
-							RunId:      armadaevents.ProtoUuidFromUuid(job.LatestRun().Id()),
-							JobId:      jobId,
-							ExecutorId: job.LatestRun().Executor(),
-							NodeId:     job.LatestRun().Node(),
+					Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+						JobRunPreempted: &armadaevents.JobRunPreempted{
+							PreemptedRunId: armadaevents.ProtoUuidFromUuid(run.Id()),
+							PreemptedJobId: jobId,
+						},
+					},
+				},
+				{
+					Created: s.now(),
+					Event: &armadaevents.EventSequence_Event_JobRunErrors{
+						JobRunErrors: &armadaevents.JobRunErrors{
+							RunId: armadaevents.ProtoUuidFromUuid(run.Id()),
+							JobId: jobId,
+							Errors: []*armadaevents.Error{
+								{
+									Terminal: true,
+									Reason:   &armadaevents.Error_JobRunPreemptedError{},
+								},
+							},
+						},
+					},
+				},
+				{
+					Created: s.now(),
+					Event: &armadaevents.EventSequence_Event_JobErrors{
+						JobErrors: &armadaevents.JobErrors{
+							JobId: jobId,
+							Errors: []*armadaevents.Error{
+								{
+									Terminal: true,
+									Reason:   &armadaevents.Error_JobRunPreemptedError{},
+								},
+							},
 						},
 					},
 				},
 			},
 		}
-		events[i] = es
+		events = append(events, es)
+	}
+	for _, job := range ScheduledJobsFromSchedulerResult[*jobdb.Job](result) {
+		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
+		if err != nil {
+			return nil, err
+		}
+		events = append(
+			events,
+			&armadaevents.EventSequence{
+				Queue:      job.Queue(),
+				JobSetName: job.Jobset(), // TODO: Rename to JobSet.
+				Events: []*armadaevents.EventSequence_Event{
+					{
+						Created: s.now(),
+						Event: &armadaevents.EventSequence_Event_JobRunLeased{
+							JobRunLeased: &armadaevents.JobRunLeased{
+								RunId:      armadaevents.ProtoUuidFromUuid(job.LatestRun().Id()),
+								JobId:      jobId,
+								ExecutorId: job.LatestRun().Executor(),
+								NodeId:     job.LatestRun().Node(),
+							},
+						},
+					},
+				},
+			},
+		)
 	}
 	return events, nil
 }
