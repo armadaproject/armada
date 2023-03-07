@@ -32,7 +32,7 @@ var ArmadaSchedulerManagedAnnotations = []string{
 type Configuration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
-	// Redis Config
+	// Redis configuration
 	Redis config.RedisConfig
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig
