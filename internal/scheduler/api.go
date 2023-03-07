@@ -33,6 +33,7 @@ type ExecutorApi struct {
 	allowedPriorities        []int32 // allowed priority classes
 	maxJobsPerCall           uint    // maximum number of jobs that will be leased in a single call
 	maxPulsarMessageSize     uint    // maximum sizer of pulsar messages produced
+	nodeIdLabel              string
 	clock                    clock.Clock
 }
 
@@ -42,6 +43,7 @@ func NewExecutorApi(producer pulsar.Producer,
 	legacyExecutorRepository database.ExecutorRepository,
 	allowedPriorities []int32,
 	maxJobsPerCall uint,
+	nodeIdLabel string,
 ) (*ExecutorApi, error) {
 	if len(allowedPriorities) == 0 {
 		return nil, errors.New("allowedPriorities cannot be empty")
@@ -58,6 +60,7 @@ func NewExecutorApi(producer pulsar.Producer,
 		allowedPriorities:        allowedPriorities,
 		maxJobsPerCall:           maxJobsPerCall,
 		maxPulsarMessageSize:     1024 * 1024 * 2,
+		nodeIdLabel:              nodeIdLabel,
 		clock:                    clock.RealClock{},
 	}, nil
 }
@@ -131,6 +134,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		if err != nil {
 			return err
 		}
+		srv.addNodeSelector(submitMsg, lease.Node)
 
 		var groups []string
 		if len(lease.Groups) > 0 {
@@ -166,6 +170,31 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		return errors.WithStack(err)
 	}
 	return nil
+}
+
+func (srv *ExecutorApi) addNodeSelector(job *armadaevents.SubmitJob, nodeId string) {
+	if job == nil || nodeId == "" {
+		return
+	}
+
+	if job.MainObject != nil {
+		switch typed := job.MainObject.Object.(type) {
+		case *armadaevents.KubernetesMainObject_PodSpec:
+			addNodeSelector(typed.PodSpec, srv.nodeIdLabel, nodeId)
+		}
+	}
+}
+
+func addNodeSelector(podSpec *armadaevents.PodSpecWithAvoidList, key string, value string) {
+	if podSpec == nil || podSpec.PodSpec == nil || key == "" || value == "" {
+		return
+	}
+
+	if podSpec.PodSpec.NodeSelector == nil {
+		podSpec.PodSpec.NodeSelector = make(map[string]string, 1)
+	}
+
+	podSpec.PodSpec.NodeSelector[key] = value
 }
 
 // ReportEvents publishes all events to pulsar. The events are compacted for more efficient publishing

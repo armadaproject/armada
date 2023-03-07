@@ -175,7 +175,7 @@ func TestJobDb_TestTransactions(t *testing.T) {
 	txn3 := jobDb.ReadTxn()
 	assert.NotNil(t, jobDb.GetById(txn3, job.id))
 
-	assert.Error(t, jobDb.Upsert(txn1, []*Job{job})) // should be error as you can't insert after committing
+	assert.Error(t, jobDb.Upsert(txn1, []*Job{job})) // should be error as you can't insert after commmiting
 }
 
 func TestJobDb_TestBatchDelete(t *testing.T) {

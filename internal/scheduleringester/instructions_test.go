@@ -77,6 +77,7 @@ func TestConvertSequence(t *testing.T) {
 				JobID:    f.JobIdString,
 				JobSet:   f.JobSetName,
 				Executor: f.ExecutorId,
+				Node:     f.NodeName,
 			}}},
 		},
 		"job run running": {

@@ -139,7 +139,8 @@ func (report *SchedulingRoundReport) SuccessfulJobSchedulingReports() []*JobSche
 type QueueSchedulingRoundReport struct {
 	// These factors influence the fraction of resources assigned to each queue.
 	PriorityFactor float64
-	// Resources assigned to the queue across all clusters at the start of the scheduling cycle.
+	// Total resources assigned to the queue across all clusters.
+	// Including jobs scheduled during this invocation of the scheduler.
 	ResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
 	// Resources assigned to this queue during this scheduling cycle.
 	ScheduledResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType

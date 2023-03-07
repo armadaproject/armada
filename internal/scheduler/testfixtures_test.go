@@ -68,6 +68,16 @@ func testSchedulingConfig() configuration.SchedulingConfig {
 	}
 }
 
+func withNodeEvictionProbabilityConfig(p float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.Preemption.NodeEvictionProbability = p
+	return config
+}
+
+func withNodeOversubscriptionEvictionProbabilityConfig(p float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.Preemption.NodeOversubscriptionEvictionProbability = p
+	return config
+}
+
 func withRoundLimitsConfig(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.MaximalClusterFractionToSchedule = limits
 	return config

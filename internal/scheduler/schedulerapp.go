@@ -24,7 +24,7 @@ import (
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
-	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -123,7 +123,8 @@ func Run(config Configuration) error {
 		executorRepository,
 		legacyExecutorRepository,
 		allowedPcs,
-		config.Scheduling.MaximumJobsToSchedule)
+		config.Scheduling.MaximumJobsToSchedule,
+		config.Scheduling.Preemption.NodeIdLabel)
 	if err != nil {
 		return errors.WithMessage(err, "error creating executorApi")
 	}
@@ -138,12 +139,13 @@ func Run(config Configuration) error {
 	// Scheduling
 	//////////////////////////////////////////////////////////////////////////
 	log.Infof("setting up scheduling loop")
-	stringInterner, err := util.NewStringInterner(config.InternedStringsCacheSize)
+	stringInterner, err := stringinterner.New(config.InternedStringsCacheSize)
 	if err != nil {
 		return errors.WithMessage(err, "error creating string interner")
 	}
 	schedulingAlgo := NewLegacySchedulingAlgo(config.Scheduling, executorRepository, queueRepository)
-	scheduler, err := NewScheduler(jobRepository,
+	scheduler, err := NewScheduler(
+		jobRepository,
 		executorRepository,
 		schedulingAlgo,
 		leaderController,
@@ -151,7 +153,8 @@ func Run(config Configuration) error {
 		stringInterner,
 		config.CyclePeriod,
 		config.ExecutorTimeout,
-		config.Scheduling.MaxRetries)
+		config.Scheduling.MaxRetries,
+	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")
 	}

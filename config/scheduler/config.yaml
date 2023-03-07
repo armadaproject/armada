@@ -4,7 +4,7 @@ databaseFetchSize: 1000
 pulsarSendTimeout: 5s
 internedStringsCacheSize: 100000
 metrics:
-  port: 9001
+  port: 9000
   refreshInterval: 30s
 pulsar:
   URL: "pulsar://pulsar:6650"
@@ -40,6 +40,7 @@ grpc:
     permitWithoutStream: true
 scheduling:
   executorTimeout: 10m
+  nodeIdLabel: kubernetes.io/hostname
   preemption:
     enabled: true
     priorityClasses:

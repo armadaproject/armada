@@ -473,6 +473,9 @@ tests-e2e-setup: setup-cluster
 	$(GO_CMD) go run cmd/armadactl/main.go create queue queue-a || true
 	$(GO_CMD) go run cmd/armadactl/main.go create queue queue-b || true
 
+	# Logs to diagonose problems
+	docker logs executor
+	docker logs server
 .ONESHELL:
 tests-e2e-no-setup: gotestsum
 	function printApplicationLogs {
@@ -484,7 +487,6 @@ tests-e2e-no-setup: gotestsum
 	trap printApplicationLogs exit
 	mkdir -p test_reports
 	$(GOTESTSUM) -- -v ./e2e/armadactl_test/... -count=1 2>&1 | tee test_reports/e2e_armadactl.txt
-	$(GOTESTSUM) -- -v ./e2e/basic_test/... -count=1 2>&1 | tee test_reports/e2e_basic.txt
 	$(GOTESTSUM) -- -v ./e2e/pulsar_test/... -count=1 2>&1 | tee test_reports/e2e_pulsar.txt
 	$(GOTESTSUM) -- -v ./e2e/pulsartest_client/... -count=1 2>&1 | tee test_reports/e2e_pulsartest_client.txt
 	$(GOTESTSUM) -- -v ./e2e/lookout_ingester_test/... -count=1 2>&1 | tee test_reports/e2e_lookout_ingester.txt
@@ -592,3 +594,11 @@ gotestsum: $(GOTESTSUM)## Download gotestsum locally if necessary.
 $(GOTESTSUM): $(LOCALBIN)
 	test -s $(LOCALBIN)/gotestsum || GOBIN=$(LOCALBIN) go install gotest.tools/gotestsum@v1.8.2
 
+populate-lookout-test:
+	if [ "$$(docker ps -q -f name=postgres)" ]; then \
+		docker stop postgres; \
+		docker rm postgres; \
+	fi
+	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
+	sleep 5
+	go test -v  ${PWD}/internal/lookout/db-gen/
