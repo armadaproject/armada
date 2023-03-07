@@ -5,7 +5,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const Stacktrace = "Stacktrace"
+const Stacktrace = "stacktrace"
 
 // Unexported but considered part of the stable interface of pkg/errors.
 type stackTracer interface {
