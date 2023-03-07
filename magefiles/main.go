@@ -127,10 +127,15 @@ func BuildLookoutUI(arg string) error {
 	return nil
 }
 
-// run integration test
-func CiIntegrationTests() {
+func BuildCICluster() {
 	mg.Deps(BootstrapTools)
 	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind)
+	mg.Deps(ciSetup)
+}
+
+// run integration test
+func CiIntegrationTests() {
+	mg.Deps(BuildCICluster)
 	mg.Deps(ciRunTests)
 }
 
