@@ -46,7 +46,7 @@ type Scheduler struct {
 	// Maximum number of times a lease can be returned before the job is considered failed.
 	maxLeaseReturns uint
 	// If an executor fails to report in for this amount of time,
-	// all jobs assigne to that executor are cancelled.
+	// all jobs assign to that executor are cancelled.
 	executorTimeout time.Duration
 	// Used for timing decisions (e.g., sleep).
 	// Injected here so that we can mock it out for testing.
@@ -125,7 +125,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 					log.
 						WithError(err).
 						WithField(logging.Stacktrace, logging.ExtractStack(err)).
-						Error("Could not become leader")
+						Error("Could not become master")
 					leaderToken = InvalidLeaderToken()
 				} else {
 					fullUpdate = true
@@ -169,7 +169,7 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	}
 
 	// If we've been asked to generate messages for all jobs do so.
-	// Otherwise generate messages only for jobs updated this cycle.
+	// Otherwise, generate messages only for jobs updated this cycle.
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 	if updateAll {
@@ -478,6 +478,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 // It also generates an EventSequence for each job, indicating that both the run and the job has failed
 // Note that this is different behaviour from the old scheduler which would allow expired jobs to be rerun
 func (s *Scheduler) expireJobsIfNecessary(ctx context.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
+	log := ctxlogrus.Extract(ctx)
+	log = log.WithField("function", "expireJobsIfNecessary")
+
 	heartbeatTimes, err := s.executorRepository.GetLastUpdateTimes(ctx)
 	if err != nil {
 		return nil, err

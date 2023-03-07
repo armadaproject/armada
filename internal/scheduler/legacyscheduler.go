@@ -8,8 +8,6 @@ import (
 	"math/rand"
 	"reflect"
 	"strconv"
-	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/google/uuid"
@@ -395,13 +393,13 @@ func (sch *Rescheduler) schedule(ctx context.Context, inMemoryJobRepo *InMemoryJ
 }
 
 // For each node in the NodeDb, compare assigned jobs relative to the initial snapshot.
-// Jobs no longer assigned to a node are preemtped.
+// Jobs no longer assigned to a node are preempted.
 // Jobs assigned to a node that weren't earlier are scheduled.
 //
 // Compare the NodeJobDiff with expected preempted/scheduled jobs to ensure NodeDb is consistent.
 // This is only to validate that nothing unexpected happened during scheduling.
 func (sch *Rescheduler) validateSchedulingConsistency(
-	ctx context.Context,
+	_ context.Context,
 	snapshot *memdb.Txn,
 	preemptedJobsById,
 	scheduledJobsById map[string]LegacySchedulerJob,
@@ -747,7 +745,7 @@ type LegacyScheduler struct {
 }
 
 func NewLegacyScheduler(
-	ctx context.Context,
+	_ context.Context,
 	constraints SchedulingConstraints,
 	nodeDb *NodeDb,
 	queues []*Queue,
@@ -776,27 +774,25 @@ func NewLegacyScheduler(
 	}, nil
 }
 
-func (sched *LegacyScheduler) String() string {
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	fmt.Fprintf(w, "Executor:\t%s\n", sched.ExecutorId)
-	if len(sched.SchedulingConstraints.TotalResources.Resources) == 0 {
-		fmt.Fprint(w, "Total resources:\tnone\n")
+func (sch *LegacyScheduler) String() string {
+	w := NewTabWriter(1, 1, 1, ' ', 0)
+	w.Writef("Executor:\t%s\n", sch.ExecutorId)
+	if len(sch.SchedulingConstraints.TotalResources.Resources) == 0 {
+		w.Writef("Total resources:\tnone\n")
 	} else {
-		fmt.Fprint(w, "Total resources:\n")
-		for t, q := range sched.SchedulingConstraints.TotalResources.Resources {
-			fmt.Fprintf(w, "  %s: %s\n", t, q.String())
+		w.Writef("Total resources:\n")
+		for t, q := range sch.SchedulingConstraints.TotalResources.Resources {
+			w.Writef("  %s: %s\n", t, q.String())
 		}
 	}
-	fmt.Fprintf(w, "Minimum job size:\t%v\n", sched.MinimumJobSize)
-	if sched.nodeDb == nil {
-		fmt.Fprintf(w, "NodeDb:\t%v\n", sched.nodeDb)
+	w.Writef("Minimum job size:\t%v\n", sch.MinimumJobSize)
+	if sch.nodeDb == nil {
+		w.Writef("NodeDb:\t%v\n", sch.nodeDb)
 	} else {
-		fmt.Fprint(w, "NodeDb:\n")
-		fmt.Fprint(w, indent.String("\t", sched.nodeDb.String()))
+		w.Writef("NodeDb:\n")
+		w.Writef(indent.String("\t", sch.nodeDb.String()))
 	}
-	w.Flush()
-	return sb.String()
+	return w.String()
 }
 
 func (sch *LegacyScheduler) Schedule(ctx context.Context) (*SchedulerResult, error) {
@@ -1245,7 +1241,8 @@ func totalResourceRequestsFromJobs(jobs []LegacySchedulerJob, priorityClasses ma
 	return rv
 }
 
-// Priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.
+// QueueCandidateGangIteratorPQ is a priority queue used by CandidateGangIterator to determine from which queue to
+// schedule the next job.
 type QueueCandidateGangIteratorPQ []*QueueCandidateGangIteratorItem
 
 type QueueCandidateGangIteratorItem struct {
@@ -1570,21 +1567,6 @@ func targetNodeIdFromLegacySchedulerJob(job LegacySchedulerJob) (string, bool) {
 	return nodeId, ok
 }
 
-func GangIdAndCardinalityFromLegacySchedulerJob(job LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) (string, int, bool, error) {
-	reqs := job.GetRequirements(priorityClasses)
-	if reqs == nil {
-		return "", 0, false, nil
-	}
-	if len(reqs.ObjectRequirements) != 1 {
-		return "", 0, false, errors.Errorf("expected exactly one object requirement in %v", reqs)
-	}
-	podReqs := reqs.ObjectRequirements[0].GetPodRequirements()
-	if podReqs == nil {
-		return "", 0, false, nil
-	}
-	return GangIdAndCardinalityFromAnnotations(podReqs.Annotations)
-}
-
 func GangIdAndCardinalityFromAnnotations(annotations map[string]string) (string, int, bool, error) {
 	if annotations == nil {
 		return "", 0, false, nil
@@ -1641,14 +1623,6 @@ func PodRequirementFromLegacySchedulerJob[E LegacySchedulerJob](job E, priorityC
 	req.Annotations[JobIdAnnotation] = job.GetId()
 	req.Annotations[QueueAnnotation] = job.GetQueue()
 	return req
-}
-
-func PodRequirementsFromJobSchedulingInfos(infos []*schedulerobjects.JobSchedulingInfo) []*schedulerobjects.PodRequirements {
-	rv := make([]*schedulerobjects.PodRequirements, 0, len(infos))
-	for _, info := range infos {
-		rv = append(rv, PodRequirementFromJobSchedulingInfo(info))
-	}
-	return rv
 }
 
 func PodRequirementFromJobSchedulingInfo(info *schedulerobjects.JobSchedulingInfo) *schedulerobjects.PodRequirements {

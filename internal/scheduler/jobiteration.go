@@ -120,7 +120,7 @@ func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) ([]Lega
 	return rv, nil
 }
 
-func (repo *InMemoryJobRepository) GetJobIterator(ctx context.Context, queue string) (JobIterator, error) {
+func (repo *InMemoryJobRepository) GetJobIterator(_ context.Context, queue string) (JobIterator, error) {
 	return NewInMemoryJobIterator(slices.Clone(repo.jobsByQueue[queue])), nil
 }
 
