@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"github.com/armadaproject/armada/internal/common/util"
 	"sync"
 	"time"
 
@@ -83,7 +84,7 @@ func NewSchedulingRoundReport(
 }
 
 func (report *SchedulingRoundReport) String() string {
-	w := NewTabWriter(1, 1, 1, ' ', 0)
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
 	w.Writef("Started:\t%s\n", report.Started)
 	w.Writef("Finished:\t%s\n", report.Finished)
 	w.Writef("Duration:\t%s\n", report.Finished.Sub(report.Started))
@@ -302,7 +303,7 @@ type QueueSchedulingReport struct {
 }
 
 func (report *QueueSchedulingReport) String() string {
-	w := NewTabWriter(1, 1, 1, ' ', 0)
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
 	w.Writef("Queue:\t%s\n", report.Name)
 	if report.MostRecentSuccessfulJobSchedulingReport != nil {
 		w.Writef("Most recent successful scheduling attempt:\n")
@@ -341,7 +342,7 @@ type JobSchedulingReport struct {
 }
 
 func (report *JobSchedulingReport) String() string {
-	w := NewTabWriter(1, 1, 1, ' ', 0)
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
 	w.Writef("Time:\t%s\n", report.Timestamp)
 	if jobId, err := armadaevents.UlidStringFromProtoUuid(
 		armadaevents.ProtoUuidFromUuid(report.JobId),
@@ -397,7 +398,7 @@ type PodSchedulingReport struct {
 }
 
 func (report *PodSchedulingReport) String() string {
-	w := NewTabWriter(1, 1, 1, ' ', 0)
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
 	w.Writef("Time:\t%s\n", report.Timestamp)
 	if report.Node != nil {
 		w.Writef("Node:\t%s\n", report.Node.Id)

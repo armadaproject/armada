@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/util"
 	"math"
 	"math/rand"
 	"reflect"
@@ -817,7 +818,7 @@ func NewLegacyScheduler(
 }
 
 func (sch *LegacyScheduler) String() string {
-	w := NewTabWriter(1, 1, 1, ' ', 0)
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
 	w.Writef("Executor:\t%s\n", sch.ExecutorId)
 	if len(sch.SchedulingConstraints.TotalResources.Resources) == 0 {
 		w.Writef("Total resources:\tnone\n")

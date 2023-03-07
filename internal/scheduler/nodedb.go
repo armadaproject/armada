@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/util"
 	"sync"
 	"time"
 
@@ -109,7 +110,7 @@ func NewNodeDb(
 }
 
 func (nodeDb *NodeDb) String() string {
-	w := NewTabWriter(1, 1, 1, ' ', 0)
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
 
 	w.Writef("Priorities:\t%v\n", configuration.AllowedPriorities(nodeDb.priorityClasses))
 	w.Writef("Indexed resources:\t%v\n", maps.Keys(nodeDb.indexedResources))
