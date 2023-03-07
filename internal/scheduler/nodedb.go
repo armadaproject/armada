@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/util"
 	"sync"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 

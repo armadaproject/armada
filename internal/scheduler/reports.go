@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/common/util"
 	"sync"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )

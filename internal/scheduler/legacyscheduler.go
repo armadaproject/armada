@@ -4,7 +4,6 @@ import (
 	"container/heap"
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/util"
 	"math"
 	"math/rand"
 	"reflect"
@@ -27,6 +26,7 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
