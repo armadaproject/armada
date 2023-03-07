@@ -105,7 +105,6 @@ func BootstrapProto() {
 
 // Build the lookout UI from internal/lookout/ui
 func BuildLookoutUI(arg string) error {
-
 	// if arg is "ask" then ask the user if they want to build the UI
 	if arg == "ask" {
 		// Scan for Y press
