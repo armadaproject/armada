@@ -1,9 +1,0 @@
-uiConfig:
-  armadaApiBaseUrl: "http://localhost:8080"
-  userAnnotationPrefix: "armadaproject.io/"
-  binocularsEnabled: true
-  binocularsBaseUrlPattern: "http://localhost:8082"
-  overviewAutoRefreshMs: 15000
-  jobSetsAutoRefreshMs: 15000
-  jobsAutoRefreshMs: 30000
-  lookoutV2ApiBaseUrl: "http://localhost:10000"

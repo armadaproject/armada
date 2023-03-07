@@ -5,6 +5,7 @@ Here, we show how to setup Armada for local development.
 **Prerequisites:**
 * Golang >= 1.18 [https://golang.org/doc/install](https://golang.org/doc/install)
 * `kubectl` [https://kubernetes.io/docs/tasks/tools/install-kubectl/](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+* `mage` [https://magefile.org/](https://magefile.org/)
 * Docker installed and configured for the current user [https://docs.docker.com/engine/install/](https://docs.docker.com/engine/install/)
 * Dependencies and tooling installed via `make download`.
 
@@ -20,13 +21,12 @@ In addition, Armada relies on the following components for storage and communica
 - Redis: the main database of Armada; used, e.g., to store queued jobs.
 - PostgreSQL: used for auxilliary storage. In the future, PostgreSQL will be the main database, instead of Redis.
 
-All of these components can be started and initialised with `./localdev/run.sh` When the script completes, you will have a fully functional local deployment of armada via docker.
+All of these components can be started and initialised with [./localdev/run.sh](https://github.com/armadaproject/armada/blob/master/localdev/run.sh) When the script completes, you will have a fully functional local deployment of armada via docker.
 
 Create a queue and submit a job:
 ```bash
-go run ./cmd/armadactl/main.go create queue test --priorityFactor 1
-go run ./cmd/armadactl/main.go submit ./example/jobs.yaml
-go run ./cmd/armadactl/main.go watch test job-set-1
+go run cmd/armadactl/main.go create queue e2e-test-queue
+go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
 ```
 
 **Note:** In the default setup you should submit jobs to the kubernetes `personal-anonymous` namespace. See this job-spec snippet:
@@ -50,19 +50,14 @@ Armada uses proto files extensively. Code-generation based on these files is run
 
 ## Lookout - Armada web UI
 
-Armada bundles a web UI referred to as Lookout. Lookout requires PostgreSQL. Lookout is based on React and is built with:
-```bash
-cd ./internal/lookout/ui
-yarn install
-yarn run openapi
-yarn run build
-```
+Armada bundles a web UI referred to as Lookout. Lookout requires PostgreSQL. Lookout is based on React and is built from [./localdev/run.sh](https://github.com/armadaproject/armada/blob/master/localdev/run.sh)
 
 Once completed, the Lookout UI should be accessible through your browser at `http://localhost:8089`
 
-For UI development, you can also use the React development server and skip the build step. Note that the Lookout API service will 
+For UI development, you can also use the React development server and skip the build step. Note that the Lookout API service will
 still have to be running for this to work. Browse to `http://localhost:3000` with this.
 ```bash
+cd ./internal/lookout/ui
 yarn run start
 ```
 
@@ -141,7 +136,7 @@ Setting up OIDC can be an art.  The [Okta Developer Program](https://developer.o
 2) Create a new App in the Okta UI.
     - Select OIDC - OpenID Connect.
     - Select Web Application.
-3) In grant type, make sure to select Client Credentials.  This has the advantage of requiring little interaction. 
+3) In grant type, make sure to select Client Credentials.  This has the advantage of requiring little interaction.
 4) Select 'Allow Everyone to Access'
 5) Deselect Federation Broker Mode.
 6) Click okay and generate a client secret.

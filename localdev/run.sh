@@ -11,13 +11,13 @@ command=${1:-default}
 # Switch compose files if requested by command-line arg
 case "$command" in
   "debug")
-    echo "starting debug compose environment"
+    echo "Starting debug compose environment"
     COMPOSE_FILE="-f docker-compose.yaml -f docker-compose.debug.yaml"
     # make golang image with delve
     docker build -t golang:1.18-delve .
     ;;
   *)
-    echo "starting compose environment"
+    echo "Starting compose environment"
     # default action
     ;;
 esac
@@ -32,18 +32,20 @@ fi
 
 cd ../
 
-mage buildlookoutui "ask"
-mage kind
-mage startdependencies
-
 # see if pulsar is already up, in which case we don't need to sleep
 SLEEP_TIME=0
 docker-compose ps | grep -E "pulsar.+running" &> /dev/null
 if [ $? -ne 0 ];
 then
+    echo ""
     echo "Pausing for pulsar start up ..."
+    echo ""
     SLEEP_TIME=50
 fi
+
+mage buildlookoutui "ask"
+mage kind
+mage startdependencies
 
 cd localdev
 

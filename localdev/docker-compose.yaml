@@ -27,10 +27,11 @@ services:
       - 50051:50051
       - 8080:8080
     volumes:
-      - ./config:/config
       - "..:/app:rw"
       - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
+    env_file:
+      - ../developer/env/armada.env
     working_dir: /app
     entrypoint: go
     command: run cmd/armada/main.go --config /config/armada/config.yaml
@@ -43,15 +44,16 @@ services:
     ports:
       - "8089:8080"
     volumes:
-      - ./config:/config
       - "..:/app:rw"
       - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
     depends_on:
       - server
       - lookout-ingester
+    env_file:
+      - ../developer/env/lookout.env
     working_dir: "/app"
-    entrypoint: sh -c "localdev/scripts/lookout-start.sh"
+    entrypoint: sh -c "go run ./cmd/lookout/main.go --migrateDatabase && go run ./cmd/lookout/main.go"
 
   lookoutv2:
     container_name: lookoutv2
@@ -61,15 +63,16 @@ services:
     ports:
       - "10000:10000"
     volumes:
-      - ./config:/config
       - "..:/app:rw"
       - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
     depends_on:
       - server
       - lookout-ingesterv2
+    env_file:
+      - ../developer/env/lookoutv2.env
     working_dir: "/app"
-    entrypoint: sh -c "localdev/scripts/lookoutv2-start.sh"
+    entrypoint: sh -c "go run ./cmd/lookoutv2/main.go --migrateDatabase && go run ./cmd/lookoutv2/main.go"
 
   executor:
     container_name: executor
@@ -81,16 +84,17 @@ services:
     depends_on:
       - server
     volumes:
-      - ./config:/config
       - ../.kube/internal:/.kube
       - "..:/app:rw"
       - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
     environment:
       - KUBECONFIG=/.kube/config
+    env_file:
+      - ../developer/env/executor.env
     working_dir: /app
     entrypoint: go
-    command: run cmd/executor/main.go --config /config/executor/config.yaml
+    command: run cmd/executor/main.go
 
   binoculars:
     container_name: binoculars
@@ -102,7 +106,6 @@ services:
     depends_on:
       - server
     volumes:
-      - ./config:/config
       - ../.kube/internal:/.kube
       - "..:/app:rw"
       - "gopath:/go:rw"
@@ -123,7 +126,6 @@ services:
     depends_on:
       - server
     volumes:
-      - ./config:/config
       - "..:/app:rw"
       - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
@@ -137,7 +139,6 @@ services:
     networks:
       - kind
     volumes:
-      - ./config:/config
       - "..:/app:rw"
       - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
@@ -151,13 +152,14 @@ services:
     networks:
       - kind
     volumes:
-      - ./config:/config
       - "..:/app:rw"
       - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
+    env_file:
+      - ../developer/env/lookoutv2.env
     working_dir: /app
     entrypoint: go
-    command: run cmd/lookoutingesterv2/main.go --config /config/lookoutingesterv2/config.yaml
+    command: run cmd/lookoutingesterv2/main.go
 
   event-ingester:
     container_name: event-ingester
@@ -165,7 +167,6 @@ services:
     networks:
       - kind
     volumes:
-      - ./config:/config
       - "..:/app:rw"
       - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
