@@ -17,7 +17,7 @@ type TabbedStringBuilder struct {
 	writer *tabwriter.Writer
 }
 
-// NewTabbedStringBuilder creates a new TabbedStringBuilder.  ALl parameters are equivalent to those defined in tabwriter.NewWriter
+// NewTabbedStringBuilder creates a new TabbedStringBuilder.  All parameters are equivalent to those defined in tabwriter.NewWriter
 func NewTabbedStringBuilder(minwidth, tabwidth, padding int, padchar byte, flags uint) *TabbedStringBuilder {
 	sb := &strings.Builder{}
 	return &TabbedStringBuilder{
