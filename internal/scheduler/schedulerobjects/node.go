@@ -7,6 +7,7 @@ import (
 	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 )
 
@@ -47,18 +48,6 @@ func (node *Node) DeepCopy() *Node {
 	if node == nil {
 		return nil
 	}
-	allocatedByJobId := maps.Clone(node.AllocatedByJobId)
-	for jobId, rl := range allocatedByJobId {
-		allocatedByJobId[jobId] = rl.DeepCopy()
-	}
-	allocatedByQueue := maps.Clone(node.AllocatedByQueue)
-	for queue, rl := range allocatedByQueue {
-		allocatedByQueue[queue] = rl.DeepCopy()
-	}
-	nonArmadaAllocatedResources := maps.Clone(node.NonArmadaAllocatedResources)
-	for priority, rl := range nonArmadaAllocatedResources {
-		nonArmadaAllocatedResources[priority] = rl.DeepCopy()
-	}
 	return &Node{
 		Id:             node.Id,
 		Name:           node.Name,
@@ -68,13 +57,14 @@ func (node *Node) DeepCopy() *Node {
 		Taints:         slices.Clone(node.Taints),
 		Labels:         maps.Clone(node.Labels),
 		TotalResources: node.TotalResources.DeepCopy(),
-		JobRunsByState: maps.Clone(node.JobRunsByState),
 		AllocatableByPriorityAndResource: AllocatableByPriorityAndResourceType(
 			node.AllocatableByPriorityAndResource,
 		).DeepCopy(),
-		NonArmadaAllocatedResources: nonArmadaAllocatedResources,
-		AllocatedByJobId:            allocatedByJobId,
-		AllocatedByQueue:            allocatedByQueue,
+		StateByJobRunId:             maps.Clone(node.StateByJobRunId),
+		AllocatedByJobId:            armadamaps.DeepCopy(node.AllocatedByJobId),
+		AllocatedByQueue:            armadamaps.DeepCopy(node.AllocatedByQueue),
+		EvictedJobRunIds:            maps.Clone(node.EvictedJobRunIds),
+		NonArmadaAllocatedResources: armadamaps.DeepCopy(node.NonArmadaAllocatedResources),
 	}
 }
 
