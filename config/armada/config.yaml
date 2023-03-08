@@ -108,7 +108,6 @@ scheduling:
     - memory
   minTerminationGracePeriod: 1s
   maxTerminationGracePeriod: 300s
-  podPreemptionPolicy: Never
 queueManagement:
   defaultPriorityFactor: 1000
   defaultQueuedJobsLimit: 0  # No Limit
