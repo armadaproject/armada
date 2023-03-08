@@ -9,33 +9,9 @@ Then, use the following commands to setup a local Armada system.
 # Download Go dependencies.
 go mod tidy
 
-# Install necessary tooling.
-mage BootstrapTools
+# Setup the local environment including starting Pulsar, Postgres and Redis
+mage localdev
 
-# Compile .pb.go files from .proto files
-# (only necessary after changing a .proto file).
-mage proto
-
-# Build a Docker image containing all Armada components.
-mage buildDockers "bundle"
-
-# Setup up a kind (i.e., Kubernetes-in-Docker) cluster; see
-# https://kind.sigs.k8s.io/ for details.
-mage Kind
-
-# Start necessary dependencies.
-# On Arm-based Macs, you may need to change the pulsar image
-# in docker-compose.yaml to be kezhenxu94/pulsar.
-docker-compose up -d redis postgres pulsar eventingester
-
-# Verify that dependencies started successfully
-# (check that redis, stan, postgres, and pulsar are all up).
-docker ps
-
-# Start the Armada server and executor.
-# Alternatively, run the Armada server and executor directly on the host,
-# e.g., through your IDE; see below for details.
-mage buildDockers "bundle"
 docker-compose up -d server executor
 ```
 
@@ -85,7 +61,7 @@ To run the Armada server and executor from Visual Studio Code for debugging purp
             "cwd": "${workspaceFolder}/",
             "program": "${workspaceFolder}/cmd/armada/main.go",
             "args": [
-                "--config", "${workspaceFolder}/localdev/config/armada/config.yaml"                
+                "--config", "${workspaceFolder}/localdev/config/armada/config.yaml"
             ]
         },
         {
@@ -112,6 +88,6 @@ To run the Armada server and executor from Visual Studio Code for debugging purp
           "configurations": ["server", "executor"],
           "stopAll": true
         }
-    ]    
+    ]
 }
 ```

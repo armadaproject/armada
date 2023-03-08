@@ -76,3 +76,12 @@ services:
     env_file:
       - ./developer/env/executor.env
     command: ./executor
+
+  eventingester:
+    container_name: eventingester
+    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    depends_on:
+      - redis
+    command: ./eventingester
