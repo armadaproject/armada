@@ -28,6 +28,8 @@ func WithStacktrace(logger *logrus.Entry, err error) *logrus.Entry {
 	return logger
 }
 
+// ExtractStack walks down the list of errors and retrieves the first errors.StackTrace it encounters
+// If no stacktraces are found, it returns nil
 func ExtractStack(err error) errors.StackTrace {
 	if stackErr, ok := err.(stackTracer); ok {
 		return stackErr.StackTrace()
