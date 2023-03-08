@@ -26,6 +26,8 @@ All of these components can be started and initialised with [./localdev/run.sh](
 Create a queue and submit a job:
 ```bash
 go run cmd/armadactl/main.go create queue e2e-test-queue
+
+# (The ingress test requires additional setup and will fail using this setup.)
 go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
 ```
 
