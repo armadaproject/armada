@@ -256,52 +256,52 @@ build-docker-server:
 	mkdir -p .build/server
 	$(GO_CMD) $(gobuildlinux) -o ./.build/server/server cmd/armada/main.go
 	cp -a ./config/armada ./.build/server/config
-	docker build $(dockerFlags) -t armada -f ./build/armada/Dockerfile ./.build/server/
+	docker buildx build -o type=docker $(dockerFlags) -t armada -f ./build/armada/Dockerfile ./.build/server/
 
 build-docker-executor:
 	mkdir -p .build/executor
 	$(GO_CMD) $(gobuildlinux) -o ./.build/executor/executor cmd/executor/main.go
 	cp -a ./config/executor ./.build/executor/config
-	docker build $(dockerFlags) -t armada-executor -f ./build/executor/Dockerfile ./.build/executor
+	docker buildx build -o type=docker $(dockerFlags) -t armada-executor -f ./build/executor/Dockerfile ./.build/executor
 
 build-docker-armada-load-tester:
 	mkdir -p .build/armada-load-tester
 	$(GO_CMD) $(gobuildlinux) -o ./.build/armada-load-tester/armada-load-tester cmd/armada-load-tester/main.go
-	docker build $(dockerFlags) -t armada-load-tester -f ./build/armada-load-tester/Dockerfile ./.build/armada-load-tester
+	docker buildx build -o type=docker $(dockerFlags) -t armada-load-tester -f ./build/armada-load-tester/Dockerfile ./.build/armada-load-tester
 
 build-docker-testsuite:
 	mkdir -p .build/testsuite
 	$(GO_CMD) $(gobuildlinux) -ldflags="$(TESTSUITE_LDFLAGS)" -o ./.build/testsuite/testsuite cmd/testsuite/main.go
-	docker build $(dockerFlags) -t testsuite -f ./build/testsuite/Dockerfile ./.build/testsuite
+	docker buildx build -o type=docker $(dockerFlags) -t testsuite -f ./build/testsuite/Dockerfile ./.build/testsuite
 
 build-docker-armadactl:
 	mkdir -p .build/armadactl
 	$(GO_CMD) $(gobuildlinux) -ldflags="$(ARMADACTL_LDFLAGS)" -o ./.build/armadactl/armadactl cmd/armadactl/main.go
-	docker build $(dockerFlags) -t armadactl -f ./build/armadactl/Dockerfile ./.build/armadactl
+	docker buildx build -o type=docker $(dockerFlags) -t armadactl -f ./build/armadactl/Dockerfile ./.build/armadactl
 
 build-docker-fakeexecutor:
 	mkdir -p .build/fakeexecutor
 	$(GO_CMD) $(gobuildlinux) -o ./.build/fakeexecutor/fakeexecutor cmd/fakeexecutor/main.go
 	cp -a ./config/executor ./.build/fakeexecutor/config
-	docker build $(dockerFlags) -t armada-fakeexecutor -f ./build/fakeexecutor/Dockerfile ./.build/fakeexecutor
+	docker buildx build -o type=docker $(dockerFlags) -t armada-fakeexecutor -f ./build/fakeexecutor/Dockerfile ./.build/fakeexecutor
 
 build-docker-lookout-ingester:
 	mkdir -p .build/lookoutingester
 	$(GO_CMD) $(gobuildlinux) -o ./.build/lookoutingester/lookoutingester cmd/lookoutingester/main.go
 	cp -a ./config/lookoutingester ./.build/lookoutingester/config
-	docker build $(dockerFlags) -t armada-lookout-ingester -f ./build/lookoutingester/Dockerfile ./.build/lookoutingester
+	docker buildx build -o type=docker $(dockerFlags) -t armada-lookout-ingester -f ./build/lookoutingester/Dockerfile ./.build/lookoutingester
 
 build-docker-lookout-ingester-v2:
 	mkdir -p .build/lookoutingesterv2
 	$(GO_CMD) $(gobuildlinux) -o ./.build/lookoutingesterv2/lookoutingesterv2 cmd/lookoutingesterv2/main.go
 	cp -a ./config/lookoutingesterv2 ./.build/lookoutingesterv2/config
-	docker build $(dockerFlags) -t armada-lookout-ingester-v2 -f ./build/lookoutingesterv2/Dockerfile ./.build/lookoutingesterv2
+	docker buildx build -o type=docker $(dockerFlags) -t armada-lookout-ingester-v2 -f ./build/lookoutingesterv2/Dockerfile ./.build/lookoutingesterv2
 
 build-docker-event-ingester:
 	mkdir -p .build/eventingester
 	$(GO_CMD) $(gobuildlinux) -o ./.build/eventingester/eventingester cmd/eventingester/main.go
 	cp -a ./config/eventingester ./.build/eventingester/config
-	docker build $(dockerFlags) -t armada-event-ingester -f ./build/eventingester/Dockerfile ./.build/eventingester
+	docker buildx build -o type=docker $(dockerFlags) -t armada-event-ingester -f ./build/eventingester/Dockerfile ./.build/eventingester
 
 build-docker-lookout: node-setup
 	$(NODE_CMD) yarn install --immutable
@@ -311,37 +311,37 @@ build-docker-lookout: node-setup
 	docker run --rm $(DOCKER_RUN_AS_USER) -v ${PWD}:/project openapitools/openapi-generator-cli:v5.4.0 /project/internal/lookout/ui/openapi.sh
 	$(NODE_CMD) yarn run build
 	$(GO_CMD) $(gobuildlinux) -o ./bin/linux/lookout cmd/lookout/main.go
-	docker build $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
+	docker buildx build -o type=docker $(dockerFlags) -t armada-lookout -f ./build/lookout/Dockerfile .
 
 build-docker-lookout-v2:
 	mkdir -p .build/lookoutv2
 	$(GO_CMD) $(gobuildlinux) -o ./.build/lookoutv2/lookoutv2 cmd/lookoutv2/main.go
 	cp -a ./config/lookoutv2 ./.build/lookoutv2/config
-	docker build $(dockerFlags) -t armada-lookout-v2 -f ./build/lookoutv2/Dockerfile ./.build/lookoutv2
+	docker buildx build -o type=docker $(dockerFlags) -t armada-lookout-v2 -f ./build/lookoutv2/Dockerfile ./.build/lookoutv2
 
 build-docker-binoculars:
 	mkdir -p .build/binoculars
 	$(GO_CMD) $(gobuildlinux) -o ./.build/binoculars/binoculars cmd/binoculars/main.go
 	cp -a ./config/binoculars ./.build/binoculars/config
-	docker build $(dockerFlags) -t armada-binoculars -f ./build/binoculars/Dockerfile ./.build/binoculars
+	docker buildx build -o type=docker $(dockerFlags) -t armada-binoculars -f ./build/binoculars/Dockerfile ./.build/binoculars
 
 build-docker-jobservice:
 	mkdir -p .build/jobservice
 	$(GO_CMD) $(gobuildlinux) -o ./.build/jobservice/jobservice cmd/jobservice/main.go
 	cp -a ./config/jobservice ./.build/jobservice/config
-	docker build $(dockerFlags) -t armada-jobservice -f ./build/jobservice/Dockerfile ./.build/jobservice
+	docker buildx build -o type=docker $(dockerFlags) -t armada-jobservice -f ./build/jobservice/Dockerfile ./.build/jobservice
 
 build-docker-scheduler:
 	mkdir -p .build/scheduler
 	$(GO_CMD) $(gobuildlinux) -o ./.build/scheduler/scheduler cmd/scheduler/main.go
 	cp -a ./config/scheduler ./.build/scheduler/config
-	docker build $(dockerFlags) -t armada-scheduler -f ./build/scheduler/Dockerfile ./.build/scheduler
+	docker buildx build -o type=docker $(dockerFlags) -t armada-scheduler -f ./build/scheduler/Dockerfile ./.build/scheduler
 
 build-docker-scheduler-ingester:
 	mkdir -p .build/scheduleringester
 	$(GO_CMD) $(gobuildlinux) -o ./.build/scheduleringester/scheduleringester cmd/scheduleringester/main.go
 	cp -a ./config/scheduleringester ./.build/scheduleringester/config
-	docker build $(dockerFlags) -t armada-scheduler-ingester -f ./build/scheduleringester/Dockerfile ./.build/scheduleringester
+	docker buildx build -o type=docker $(dockerFlags) -t armada-scheduler-ingester -f ./build/scheduleringester/Dockerfile ./.build/scheduleringester
 
 build-docker: build-docker-no-lookout build-docker-lookout build-docker-lookout-v2
 
