@@ -12,6 +12,9 @@ go mod tidy
 # Setup the local environment including starting Pulsar, Postgres and Redis
 mage localdev
 
+# Make sure that Pulsar has started up. (Usually around 1 Minute)
+docker-compose ps
+
 docker-compose up -d server executor
 ```
 
