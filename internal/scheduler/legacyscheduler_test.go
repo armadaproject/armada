@@ -683,7 +683,7 @@ func TestSchedule(t *testing.T) {
 				),
 			},
 		},
-		"Node with no available capacity": {
+		"node with no available capacity": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes: withUsedResourcesNodes(
 				0,
@@ -704,7 +704,7 @@ func TestSchedule(t *testing.T) {
 				"A": nil,
 			},
 		},
-		"Node with some available capacity": {
+		"node with some available capacity": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes: withUsedResourcesNodes(
 				0,
@@ -746,6 +746,31 @@ func TestSchedule(t *testing.T) {
 				"A": {0},
 			},
 		},
+		// // TODO: Can't test preemption here. Since we have no way to check for preemptions.
+		// "avoid preempting when possible": {
+		// 	SchedulingConfig: testSchedulingConfig(),
+		// 	Nodes: append(
+		// 		withUsedResourcesNodes(
+		// 			0,
+		// 			schedulerobjects.ResourceList{
+		// 				Resources: map[string]resource.Quantity{
+		// 					"cpu": resource.MustParse("32"),
+		// 				},
+		// 			},
+		// 			testNCpuNode(9, testPriorities),
+		// 		),
+		// 		testNCpuNode(1, testPriorities)...,
+		// 	),
+		// 	ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+		// 		"A": testNLargeCpuJob("A", 1, 1),
+		// 	},
+		// 	PriorityFactorByQueue: map[string]float64{
+		// 		"A": 1,
+		// 	},
+		// 	ExpectedIndicesByQueue: map[string][]int{
+		// 		"A": {0},
+		// 	},
+		// },
 		"respect taints": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNTaintedCpuNode(1, testPriorities),
@@ -1271,45 +1296,6 @@ func TestReschedule(t *testing.T) {
 				"B": 1,
 			},
 		},
-		"reschedule onto same node with PC preemption": {
-			SchedulingConfig: testSchedulingConfig(),
-			Nodes:            testNCpuNode(2, testPriorities),
-			Rounds: []ReschedulingRound{
-				{
-					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNSmallCpuJob("A", 0, 32),
-					},
-					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 31),
-					},
-				},
-				{
-					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNSmallCpuJob("A", 1, 32),
-					},
-					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 31),
-					},
-					ExpectedPreemptedIndices: map[string]map[int][]int{
-						"A": {
-							0: intRange(0, 31),
-						},
-					},
-				},
-				{
-					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"A": testNSmallCpuJob("A", 0, 32),
-					},
-					ExpectedScheduledIndices: map[string][]int{
-						"A": intRange(0, 31),
-					},
-				},
-			},
-			PriorityFactorByQueue: map[string]float64{
-				"A": 1,
-				"B": 1,
-			},
-		},
 		"reschedule onto same node reverse order": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(2, testPriorities),
@@ -1334,6 +1320,71 @@ func TestReschedule(t *testing.T) {
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 				"B": 1,
+			},
+		},
+		"avoid urgency-based preemptions when possible": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(2, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNLargeCpuJob("A", 0, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 0),
+					},
+				},
+				{
+					// These should all be scheduled onto the second node with no preemptions necessary.
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNLargeCpuJob("A", 1, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 0),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
+		"preempt in order of priority": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(2, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNLargeCpuJob("A", 1, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 0),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNLargeCpuJob("A", 0, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 0),
+					},
+				},
+				{
+					// This job should preempt the priority-0 jobs.
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNLargeCpuJob("A", 2, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 0),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							1: intRange(0, 0),
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
 			},
 		},
 		"rescheduled jobs don't count towards maxJobsToSchedule": {

@@ -187,12 +187,6 @@ type SchedulingConfig struct {
 	// then all pods requesting a non-zero amount of gpu and don't explicitly set activeDeadlineSeconds
 	// will have activeDeadlineSeconds set to 1. Trumps DefaultActiveDeadline.
 	DefaultActiveDeadlineByResourceRequest map[string]time.Duration
-	// Preemption policy set on submitted pods.
-	// At the time of writing, Kubernetes supports Never and PreemptLowerPriority.
-	// If set to the empty string, the preemption policy of pods is left as-is.
-	// Should be set to Never if the intention is for Armada to manage preemptions.
-	// If set to Never, make sure nodeOversubscriptionEvictionProbability is non-zero.
-	PodPreemptionPolicy string
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.
@@ -234,6 +228,8 @@ type PreemptionConfig struct {
 	// Priority class assigned to pods that do not specify one.
 	// Must be an entry in PriorityClasses above.
 	DefaultPriorityClass string
+	// If set, override the priority class name of pods with this value when sending to an executor.
+	PriorityClassNameOverride *string
 }
 
 type PriorityClass struct {

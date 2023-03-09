@@ -18,7 +18,6 @@ func applyDefaultsToPodSpec(spec *v1.PodSpec, config configuration.SchedulingCon
 	applyDefaultTolerationsToPodSpec(spec, config)
 	applyDefaultActiveDeadlineSecondsToPodSpec(spec, config)
 	applyDefaultTerminationGracePeriodToPodSpec(spec, config)
-	applyPodPreemptionPolicy(spec, config)
 }
 
 func applyDefaultRequestsAndLimitsToPodSpec(spec *v1.PodSpec, config configuration.SchedulingConfig) {
@@ -126,11 +125,4 @@ func fillContainerRequestsAndLimits(containers []v1.Container) {
 			}
 		}
 	}
-}
-
-func applyPodPreemptionPolicy(spec *v1.PodSpec, config configuration.SchedulingConfig) {
-	if config.PodPreemptionPolicy == "" {
-		return
-	}
-	spec.PreemptionPolicy = (*v1.PreemptionPolicy)(&config.PodPreemptionPolicy)
 }

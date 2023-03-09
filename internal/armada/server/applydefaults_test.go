@@ -274,28 +274,6 @@ func TestApplyDefaultsToPodSpec(t *testing.T) {
 				TerminationGracePeriodSeconds: pointerFromValue(int64(1)),
 			},
 		},
-		"PodPreemptionPolicy": {
-			Config: configuration.SchedulingConfig{
-				PodPreemptionPolicy: "Never",
-			},
-			PodSpec: v1.PodSpec{
-				PreemptionPolicy: pointerFromValue(v1.PreemptionPolicy("foo")),
-			},
-			Expected: v1.PodSpec{
-				PreemptionPolicy: pointerFromValue(v1.PreemptionPolicy("Never")),
-			},
-		},
-		"PodPreemptionPolicy empty": {
-			Config: configuration.SchedulingConfig{
-				PodPreemptionPolicy: "",
-			},
-			PodSpec: v1.PodSpec{
-				PreemptionPolicy: pointerFromValue(v1.PreemptionPolicy("foo")),
-			},
-			Expected: v1.PodSpec{
-				PreemptionPolicy: pointerFromValue(v1.PreemptionPolicy("foo")),
-			},
-		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
