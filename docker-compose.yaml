@@ -45,7 +45,7 @@ services:
   #
   server:
     container_name: server
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-dev}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
@@ -62,7 +62,7 @@ services:
 
   executor:
     container_name: executor
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-dev}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
@@ -77,11 +77,96 @@ services:
       - ./developer/env/executor.env
     command: ./executor
 
+  binoculars:
+    container_name: binoculars
+    image: ${ARMADA_IMAGE:-gresearch/armada-dev}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - 8082:8082
+    depends_on:
+      - server
+    volumes:
+      - ./.kube/internal:/.kube
+    environment:
+      - KUBECONFIG=/.kube/config
+    command: ./binoculars
+
   eventingester:
     container_name: eventingester
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-dev}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     depends_on:
       - redis
     command: ./eventingester
+
+  lookout:
+    container_name: lookout
+    image: ${ARMADA_IMAGE:-gresearch/armada-dev}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - "8089:8080"
+    depends_on:
+      - server
+      - lookoutingester
+    volumes:
+      - ./internal/lookout/ui/build:/app/internal/lookout/ui/build
+    env_file:
+      - ./developer/env/lookout.env
+    entrypoint: sh -c "./lookout --migrateDatabase && ./lookout"
+
+  lookoutv2:
+    container_name: lookoutv2
+    image: ${ARMADA_IMAGE:-gresearch/armada-dev}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - "10000:10000"
+    depends_on:
+      - server
+      - lookoutingesterv2
+    env_file:
+      - ./developer/env/lookoutv2.env
+    working_dir: "/app"
+    entrypoint: sh -c "./lookoutv2 --migrateDatabase && ./lookoutv2"
+
+  lookoutingester:
+    container_name: lookoutingester
+    image: ${ARMADA_IMAGE:-gresearch/armada-dev}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    command: ./lookoutingester
+
+  lookoutingesterv2:
+    container_name: lookoutingesterv2
+    image: ${ARMADA_IMAGE:-gresearch/armada-dev}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    env_file:
+      - ./developer/env/lookoutv2.env
+    command: ./lookoutingesterv2
+
+  jobservice:
+    container_name: jobservice
+    image: ${ARMADA_IMAGE:-gresearch/armada-dev}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - 60003:60003
+    depends_on:
+      - server
+    command: ./jobservice
+
+  airflow:
+    container_name: airflow
+    image: python:3.8-buster
+    networks:
+      - kind
+    ports:
+      - 8081:8081
+    volumes:
+      - ".:/app:rw"
+    working_dir: "/app"
+    entrypoint: sh -c "localdev/scripts/airflow-start.sh"

@@ -48,7 +48,7 @@ For more details on submitting jobs to Armada, see [the user guide](https://gith
 kind load docker-image busybox:latest
 ```
 
-Armada uses proto files extensively. Code-generation based on these files is run via `make proto`.
+Armada uses proto files extensively. Code-generation based on these files is run via `mage proto`.
 
 ## Lookout - Armada web UI
 
@@ -65,7 +65,7 @@ yarn run start
 
 ## Debugging
 
-The `localdev` environment can be started with debug servers for all
+The `localdev` environment can is started with debug servers for all
 Armada services. When started this way, you can connect to the debug
 servers using remote debugging configurations in your IDE, or by using
 the delve client (illustrated here). Note that the external ports are

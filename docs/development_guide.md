@@ -6,16 +6,19 @@ Before starting, please ensure you have installed [Go](https://go.dev/doc/instal
 
 Then, use the following commands to setup a local Armada system.
 ```bash
-# Download Go dependencies.
-go mod tidy
-
-# Setup the local environment including starting Pulsar, Postgres and Redis
-mage localdev
-
-# Make sure that Pulsar has started up. (Usually around 1 Minute)
-docker-compose ps
-
-docker-compose up -d server executor
+# Install necessary tooling.
+mage BootstrapTools
+# Compile .pb.go files from .proto files
+# (only necessary after changing a .proto file).
+mage proto
+# Build a Docker image containing all Armada components.
+mage buildDockers "bundle"
+# Setup up a kind (i.e., Kubernetes-in-Docker) cluster; see
+# https://kind.sigs.k8s.io/ for details.
+# As well as setting up the armada components and services.
+mage LocalDev
+# Optionally build the Lookout UI
+mage buildLookoutUI
 ```
 
 Run the Armada test suite against the local environment to verify that it is working correctly.

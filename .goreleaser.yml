@@ -179,6 +179,54 @@ dockers:
       - config/lookoutingester/config.yaml
       - config/eventingester/config.yaml
     dockerfile: ./build_goreleaser/armada/Dockerfile
+  - id: devbundle
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-dev:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-dev:latest"
+    build_flag_templates:
+      - --build-arg={{ .Env.BASE_IMAGE_ARG }}
+      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
+      - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
+      - --label=org.opencontainers.image.title=armada-dev
+      - --label=org.opencontainers.image.description="Armada Developer Bundle"
+      - --label=org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-dev
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada-dev
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.base.name=alpine:3.17.0
+      - --label=org.opencontainers.image.base.digest=c0d488a800e4
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+      - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - server
+      - executor
+      - binoculars
+      - lookoutingester
+      - eventingester
+      - lookout
+      - lookoutv2
+      - lookoutingesterv2
+      - jobservice
+    extra_files:
+      - config/armada/config.yaml
+      - config/executor/config.yaml
+      - config/binoculars/config.yaml
+      - config/lookoutingester/config.yaml
+      - config/eventingester/config.yaml
+      - config/lookout/config.yaml
+      - config/lookoutv2/config.yaml
+      - config/lookoutingesterv2/config.yaml
+      - config/jobservice/config.yaml
+      - internal/lookout/ui/
+      - pkg/api/api.swagger.json
+      - pkg/api/lookout/api.swagger.json
+      - pkg/api/binoculars/api.swagger.json
+    dockerfile: ./build_goreleaser/developer/Dockerfile
   - id: server
     use: buildx
     goos: linux
