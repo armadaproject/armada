@@ -318,6 +318,8 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	// Nodes to be considered by the scheduler.
 	lastSeen := q.clock.Now()
 	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
+	jobIdsByGangId := make(map[string]map[string]bool)
+	gangIdByJobId := make(map[string]string)
 	for _, nodeInfo := range req.Nodes {
 		node, err := api.NewNodeFromNodeInfo(
 			&nodeInfo,
@@ -359,6 +361,22 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 				nodeInfo.GetName(), req.GetClusterId(), missingJobIds,
 			)
 			continue
+		}
+
+		// Group gangs.
+		for _, job := range jobs {
+			gangId, _, isGangJob, err := scheduler.GangIdAndCardinalityFromLegacySchedulerJob(job, q.schedulingConfig.Preemption.PriorityClasses)
+			if err != nil {
+				return nil, err
+			}
+			if isGangJob {
+				if m, ok := jobIdsByGangId[gangId]; ok {
+					m[job.Id] = true
+				} else {
+					jobIdsByGangId[gangId] = map[string]bool{job.Id: true}
+				}
+				gangIdByJobId[job.Id] = gangId
+			}
 		}
 
 		// Bind pods to nodes, thus ensuring resources are marked allocated on the node.
@@ -467,6 +485,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			// May need priority factors for inactive queues for rescheduling evicted jobs.
 			priorityFactorByQueue,
 			aggregatedUsageByQueue,
+			nodeIdByJobId,
+			jobIdsByGangId,
+			gangIdByJobId,
 			q.SchedulingReportsRepository,
 		)
 		result, err := rescheduler.Schedule(ctx)

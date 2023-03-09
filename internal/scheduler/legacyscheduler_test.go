@@ -1835,6 +1835,9 @@ func TestReschedule(t *testing.T) {
 					tc.PriorityFactorByQueue,
 					initialUsageByQueue,
 					nil,
+					nil,
+					nil,
+					nil,
 				)
 				rescheduler.enableAssertions = true
 				result, err := rescheduler.Schedule(ctxlogrus.ToContext(context.Background(), log))
@@ -2059,6 +2062,9 @@ func BenchmarkReschedule(b *testing.B) {
 				priorityFactorByQueue,
 				usageByQueue,
 				nil,
+				nil,
+				nil,
+				nil,
 			)
 			result, err := rescheduler.Schedule(
 				ctxlogrus.ToContext(
@@ -2091,6 +2097,9 @@ func BenchmarkReschedule(b *testing.B) {
 					repo, nodeDb,
 					priorityFactorByQueue,
 					usageByQueue,
+					nil,
+					nil,
+					nil,
 					nil,
 				)
 				result, err := rescheduler.Schedule(

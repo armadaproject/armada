@@ -199,6 +199,10 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 		nodeDb,
 		priorityFactorByQueue,
 		allocatedByQueueAndPriority,
+		// TODO: Add missing maps to enable gang preemption.
+		nil,
+		nil,
+		nil,
 		nil, // TODO: Add a repo to enable querying for scheduler reports.
 	)
 	result, err := scheduler.Schedule(ctx)
