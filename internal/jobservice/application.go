@@ -76,7 +76,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		for range ticker.C {
 			for _, value := range sqlJobRepo.GetSubscribedJobSets() {
 				log.Infof("subscribed job sets : %s", value)
-				if sqlJobRepo.CheckToUnSubscribe(value.Queue, value.JobSet, config.SubscribeJobSetTime) {
+				if sqlJobRepo.CheckToUnSubscribe(value.Queue, value.JobSet, config.CleanupJobSet) {
 					_, err := sqlJobRepo.CleanupJobSetAndJobs(value.Queue, value.JobSet)
 					if err != nil {
 						logging.WithStacktrace(log, err).Warn("error cleaning up jobs")

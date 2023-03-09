@@ -1,6 +1,7 @@
 grpcPort: 60003
 httpPort: 8090
-subscribeJobSetTime: 1000
+subscribeJobSetTime: 100
+cleanupJobSet: 10000
 databasePath: "/var/jobservice.db"
 grpc:
   keepaliveParams:
