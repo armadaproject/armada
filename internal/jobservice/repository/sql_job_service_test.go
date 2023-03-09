@@ -3,9 +3,11 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+	"math/rand"
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -326,6 +328,66 @@ func TestHealthCheck(t *testing.T) {
 // This test will fail if sqlite writes are not serialised somehow due to
 // SQLITE_BUSY errors.
 func TestConcurrentJobStatusUpdating(t *testing.T) {
+	WithSqlServiceRepo(func(r *SQLJobService) {
+		responseRunning := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_RUNNING}
+		responseSucceeded := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
+
+		rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+		standardSleep, err := time.ParseDuration("50ms")
+		assert.Nil(t, err)
+
+		testTicks := 30
+		concurrency := 100
+		wg := sync.WaitGroup{}
+		wg.Add(concurrency)
+
+		startWg := sync.WaitGroup{}
+		startWg.Add(1)
+
+		for i := 0; i < concurrency; i++ {
+			go func(num int) {
+				defer wg.Done()
+
+				jobId := fmt.Sprintf("job-id-%d", num)
+				jobStatus := NewJobStatus("test", "job-set-1", jobId, *responseRunning)
+				err := r.UpdateJobServiceDb(jobStatus)
+				assert.Nil(t, err)
+
+				succeeded := false
+
+				// Each goroutine will hammer GetJobStatus for a short period of time.
+				startWg.Wait()
+				for j := 0; j < testTicks; j++ {
+					if rnd.Intn(10) >= 8 {
+						succeeded = true
+						err := r.UpdateJobServiceDb(NewJobStatus("test", "job-set-1", jobId, *responseSucceeded))
+						assert.Nil(t, err)
+					}
+
+					err := r.UpdateJobSetTime("test", "job-set-1")
+					assert.Nil(t, err)
+
+					actualSql, actualErr := r.GetJobStatus(jobId)
+					assert.Nil(t, actualErr)
+					if succeeded {
+						assert.Equal(t, actualSql, responseSucceeded)
+					} else {
+						assert.Equal(t, actualSql, responseRunning)
+					}
+					offset, err := time.ParseDuration(fmt.Sprintf("%dms", rnd.Intn(50)))
+					assert.Nil(t, err)
+					time.Sleep(standardSleep + offset)
+				}
+			}(i)
+		}
+
+		startWg.Done()
+		wg.Wait()
+	})
+}
+
+func TestGetJobStatusLoad(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		responseRunning := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_RUNNING}
 
