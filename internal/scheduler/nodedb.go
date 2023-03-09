@@ -361,61 +361,6 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		}
 	}
 
-	// // Otherwise, first try to schedule onto a node with jobs only from this queue.
-	// queue, err := QueueFromPodRequirements(req)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// if it, err := NewNodeTypesResourceIterator(
-	// 	txn,
-	// 	queue, 1,
-	// 	dominantResourceType, req.Priority,
-	// 	matchingNodeTypes,
-	// 	req.ResourceRequirements.Requests[v1.ResourceName(dominantResourceType)],
-	// ); err != nil {
-	// 	return nil, err
-	// } else {
-	// 	if node, err := nodeDb.selectNodeForPodWithIt(report, it, req); err != nil {
-	// 		return nil, err
-	// 	} else if node != nil {
-	// 		return report, nil
-	// 	}
-	// }
-
-	// // Then try to schedule onto a node with no jobs.
-	// if it, err := NewNodeTypesResourceIterator(
-	// 	txn,
-	// 	"", 0,
-	// 	dominantResourceType, req.Priority,
-	// 	matchingNodeTypes,
-	// 	req.ResourceRequirements.Requests[v1.ResourceName(dominantResourceType)],
-	// ); err != nil {
-	// 	return nil, err
-	// } else {
-	// 	if node, err := nodeDb.selectNodeForPodWithIt(report, it, req); err != nil {
-	// 		return nil, err
-	// 	} else if node != nil {
-	// 		return report, nil
-	// 	}
-	// }
-
-	// // Finally, try to schedule onto any node.
-	// if it, err := NewNodeTypesResourceIterator(
-	// 	txn,
-	// 	NodeDominantQueueWildcard, 0,
-	// 	dominantResourceType, req.Priority,
-	// 	matchingNodeTypes,
-	// 	req.ResourceRequirements.Requests[v1.ResourceName(dominantResourceType)],
-	// ); err != nil {
-	// 	return nil, err
-	// } else {
-	// 	if node, err := nodeDb.selectNodeForPodWithIt(report, it, req); err != nil {
-	// 		return nil, err
-	// 	} else if node != nil {
-	// 		return report, nil
-	// 	}
-	// }
-
 	return report, nil
 }
 
