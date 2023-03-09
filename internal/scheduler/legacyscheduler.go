@@ -735,7 +735,7 @@ func NewOversubscribedEvictor(
 				return
 			}
 
-			// TODO: This is only necessary for jobs not shceduled in this cycle.
+			// TODO: This is only necessary for jobs not scheduled in this cycle.
 			// Since jobs scheduled in this cycle can be rescheduled onto another node without triggering a preemption.
 			//
 			// Add annotations to this job that indicate to the scheduler
