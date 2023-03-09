@@ -17,18 +17,18 @@ import (
 
 type RunPreemptedProcessor struct {
 	clusterContext   executorContext.ClusterContext
-	jobRunStateStore *job.JobRunStateStore
-	eventReporter     reporter.EventReporter
+	jobRunStateStore job.RunStateStore
+	eventReporter    reporter.EventReporter
 }
 
 func NewRunPreemptedProcessor(
 	clusterContext executorContext.ClusterContext,
-	jobRunStateStore *job.JobRunStateStore,
+	jobRunStateStore job.RunStateStore,
 	eventReporter reporter.EventReporter) *RunPreemptedProcessor {
 	return &RunPreemptedProcessor{
 		clusterContext:   clusterContext,
 		jobRunStateStore: jobRunStateStore,
-		eventReporter: eventReporter,
+		eventReporter:    eventReporter,
 	}
 }
 
@@ -86,11 +86,11 @@ func (j *RunPreemptedProcessor) reportPodPreempted(run *job.RunState, pod *v1.Po
 
 	err = j.clusterContext.AddAnnotation(pod, map[string]string{
 		domain.JobPreemptedAnnotation: time.Now().String(),
-		string(v1.PodFailed): time.Now().String(),
+		string(v1.PodFailed):          time.Now().String(),
 	})
 
 	if err != nil {
-		return fmt.Errorf("Failed to annotate pod %s because %s",	pod.Name, err)
+		return fmt.Errorf("Failed to annotate pod %s because %s", pod.Name, err)
 	}
 	return nil
 }

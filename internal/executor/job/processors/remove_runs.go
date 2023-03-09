@@ -14,10 +14,10 @@ import (
 
 type RemoveRunProcessor struct {
 	clusterContext   executorContext.ClusterContext
-	jobRunStateStore *job.JobRunStateStore
+	jobRunStateStore job.RunStateStore
 }
 
-func NewRemoveRunProcessor(clusterContext executorContext.ClusterContext, jobRunStateStore *job.JobRunStateStore) *RemoveRunProcessor {
+func NewRemoveRunProcessor(clusterContext executorContext.ClusterContext, jobRunStateStore job.RunStateStore) *RemoveRunProcessor {
 	return &RemoveRunProcessor{
 		clusterContext:   clusterContext,
 		jobRunStateStore: jobRunStateStore,

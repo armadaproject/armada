@@ -12,6 +12,20 @@ import (
 	"github.com/armadaproject/armada/internal/executor/util"
 )
 
+type RunStateStore interface {
+	ReportRunLeased(runMeta *RunMeta, job *SubmitJob)
+	ReportRunInvalid(runMeta *RunMeta)
+	ReportFailedSubmission(runMeta *RunMeta)
+	RequestRunCancellation(runId string)
+	RequestRunPreemption(runId string)
+	Delete(runId string)
+	Get(runId string) *RunState
+	GetAll() []*RunState
+	GetByKubernetesId(kubernetesId string) *RunState
+	GetByPhase(phase RunPhase) []*RunState
+	GetWithFilter(fn func(state *RunState) bool) []*RunState
+}
+
 type JobRunStateStore struct {
 	// RunId -> RunState
 	jobRunState    map[string]*RunState

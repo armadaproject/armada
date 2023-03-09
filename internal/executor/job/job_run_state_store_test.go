@@ -39,7 +39,7 @@ func TestOnStartUp_ReconcilesWithKubernetes(t *testing.T) {
 
 func TestReportRunLeased(t *testing.T) {
 	jobRunStateManager, _ := setup(t, []*v1.Pod{})
-	jobRunStateManager.ReportRunLeased(defaultRunInfoMeta)
+	jobRunStateManager.ReportRunLeased(defaultRunInfoMeta, &SubmitJob{})
 
 	allKnownJobRuns := jobRunStateManager.GetAll()
 	assert.Len(t, allKnownJobRuns, 1)
@@ -71,7 +71,7 @@ func TestOnPodEvent_MovesJobRunStateToActive(t *testing.T) {
 	}
 
 	// Add leased job run
-	jobRunStateManager.ReportRunLeased(runInfo)
+	jobRunStateManager.ReportRunLeased(runInfo, &SubmitJob{})
 	jobRun := jobRunStateManager.Get(runInfo.RunId)
 	assert.NotNil(t, jobRun)
 	assert.Equal(t, jobRun.Phase, Leased)
@@ -88,7 +88,7 @@ func TestDelete(t *testing.T) {
 	jobRunStateManager, _ := setup(t, []*v1.Pod{})
 
 	// Add job run
-	jobRunStateManager.ReportRunLeased(defaultRunInfoMeta)
+	jobRunStateManager.ReportRunLeased(defaultRunInfoMeta, &SubmitJob{})
 	assert.Len(t, jobRunStateManager.GetAll(), 1)
 
 	jobRunStateManager.Delete(defaultRunInfoMeta.RunId)
@@ -99,7 +99,7 @@ func TestGet(t *testing.T) {
 	jobRunStateManager, _ := setup(t, []*v1.Pod{})
 
 	// Add job run
-	jobRunStateManager.ReportRunLeased(defaultRunInfoMeta)
+	jobRunStateManager.ReportRunLeased(defaultRunInfoMeta, &SubmitJob{})
 
 	jobRun := jobRunStateManager.Get(defaultRunInfoMeta.RunId)
 	assert.NotNil(t, jobRun)
