@@ -39,6 +39,25 @@ mage buildDockers "bundle"
 docker-compose up -d server executor
 ```
 
+Run the Armada test suite against the local environment to verify that it is working correctly.
+```bash
+# Create an Armada queue to submit jobs to.
+go run cmd/armadactl/main.go create queue e2e-test-queue
+
+# Run the Armada test suite against the local environment.
+# (The ingress test requires additional setup and will fail using this setup.)
+go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
+```
+
+Tear down the local environment using the following:
+```bash
+# Stop Armada components and dependencies.
+docker-compose down
+
+# Tear down the kind cluster.
+mage KindTeardown
+```
+
 
 ## Running the Armada server and executor in Visual Studio Code
 

@@ -22,7 +22,7 @@ func LocalDev() error {
 	mg.Deps(StartComponents)
 
 	fmt.Println("Components are running!")
-	fmt.Println("Run: docker-compose logs -f to see logs")
+	fmt.Println("Run: `docker-compose logs -f` to see logs")
 	return err
 }
 
