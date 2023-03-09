@@ -13,16 +13,17 @@ var services = []string{"pulsar", "postgres", "redis"}
 var components = []string{"server", "lookout", "lookoutingester", "lookoutv2", "lookoutingesterv2", "executor", "binoculars", "eventingester", "jobservice"}
 
 // Create a Local Armada Cluster
-func LocalDev() {
+func LocalDev() error {
 	mg.Deps(Kind)
 
 	mg.Deps(StartDependencies)
 	fmt.Println("Waiting for dependencies to start...")
-	checkForPulsarRunning()
+	err := checkForPulsarRunning()
 	mg.Deps(StartComponents)
 
 	fmt.Println("Components are running!")
 	fmt.Println("Run: docker-compose logs -f to see logs")
+	return err
 }
 
 // Stop Local Armada Cluster
