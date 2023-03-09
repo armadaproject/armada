@@ -90,6 +90,4 @@ jobs:
         with:
           version: '3.17.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: make python
-        shell: bash
       - run: make tests-e2e-python
