@@ -746,31 +746,6 @@ func TestSchedule(t *testing.T) {
 				"A": {0},
 			},
 		},
-		// // TODO: Can't test preemption here. Since we have no way to check for preemptions.
-		// "avoid preempting when possible": {
-		// 	SchedulingConfig: testSchedulingConfig(),
-		// 	Nodes: append(
-		// 		withUsedResourcesNodes(
-		// 			0,
-		// 			schedulerobjects.ResourceList{
-		// 				Resources: map[string]resource.Quantity{
-		// 					"cpu": resource.MustParse("32"),
-		// 				},
-		// 			},
-		// 			testNCpuNode(9, testPriorities),
-		// 		),
-		// 		testNCpuNode(1, testPriorities)...,
-		// 	),
-		// 	ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-		// 		"A": testNLargeCpuJob("A", 1, 1),
-		// 	},
-		// 	PriorityFactorByQueue: map[string]float64{
-		// 		"A": 1,
-		// 	},
-		// 	ExpectedIndicesByQueue: map[string][]int{
-		// 		"A": {0},
-		// 	},
-		// },
 		"respect taints": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNTaintedCpuNode(1, testPriorities),
