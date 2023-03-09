@@ -6,39 +6,39 @@ Before starting, please ensure you have installed [Go](https://go.dev/doc/instal
 
 Then, use the following commands to setup a local Armada system.
 ```bash
+# Download Go dependencies.
+go mod tidy
+
 # Install necessary tooling.
 mage BootstrapTools
+
 # Compile .pb.go files from .proto files
 # (only necessary after changing a .proto file).
 mage proto
+
 # Build a Docker image containing all Armada components.
 mage buildDockers "bundle"
+
 # Setup up a kind (i.e., Kubernetes-in-Docker) cluster; see
 # https://kind.sigs.k8s.io/ for details.
-# As well as setting up the armada components and services.
-mage LocalDev
-# Optionally build the Lookout UI
-mage buildLookoutUI
+mage Kind
+
+# Start necessary dependencies.
+# On Arm-based Macs, you may need to change the pulsar image
+# in docker-compose.yaml to be kezhenxu94/pulsar.
+docker-compose up -d redis postgres pulsar eventingester
+
+# Verify that dependencies started successfully
+# (check that redis, stan, postgres, and pulsar are all up).
+docker ps
+
+# Start the Armada server and executor.
+# Alternatively, run the Armada server and executor directly on the host,
+# e.g., through your IDE; see below for details.
+mage buildDockers "bundle"
+docker-compose up -d server executor
 ```
 
-Run the Armada test suite against the local environment to verify that it is working correctly.
-```bash
-# Create an Armada queue to submit jobs to.
-go run cmd/armadactl/main.go create queue e2e-test-queue
-
-# Run the Armada test suite against the local environment.
-# (The ingress test requires additional setup and will fail using this setup.)
-go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
-```
-
-Tear down the local environment using the following:
-```bash
-# Stop Armada components and dependencies.
-docker-compose down
-
-# Tear down the kind cluster.
-mage KindTeardown
-```
 
 ## Running the Armada server and executor in Visual Studio Code
 
