@@ -26,17 +26,15 @@ mage Kind
 # Start necessary dependencies.
 # On Arm-based Macs, you may need to change the pulsar image
 # in docker-compose.yaml to be kezhenxu94/pulsar.
-docker-compose up -d redis postgres pulsar eventingester
-
+docker-compose up -d redis postgres pulsar
 # Verify that dependencies started successfully
 # (check that redis, stan, postgres, and pulsar are all up).
-docker ps
+docker-compose ps
 
 # Start the Armada server and executor.
 # Alternatively, run the Armada server and executor directly on the host,
 # e.g., through your IDE; see below for details.
-mage buildDockers "bundle"
-docker-compose up -d server executor
+docker-compose up -d eventingester server executor
 ```
 
 Run the Armada test suite against the local environment to verify that it is working correctly.
@@ -44,8 +42,11 @@ Run the Armada test suite against the local environment to verify that it is wor
 # Create an Armada queue to submit jobs to.
 go run cmd/armadactl/main.go create queue e2e-test-queue
 
+# To allow Ingress tests to pass
+export ARMADA_EXECUTOR_INGRESS_URL="http://localhost"
+export ARMADA_EXECUTOR_INGRESS_PORT=5001
+
 # Run the Armada test suite against the local environment.
-# (The ingress test requires additional setup and will fail using this setup.)
 go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
 ```
 

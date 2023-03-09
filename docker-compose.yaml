@@ -157,7 +157,7 @@ services:
       - 60003:60003
     depends_on:
       - server
-    command: ./jobservice
+    command: ./jobservice run
 
   airflow:
     container_name: airflow
