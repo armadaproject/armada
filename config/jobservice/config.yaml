@@ -1,7 +1,7 @@
 grpcPort: 60003
 httpPort: 8090
 subscribeJobSetTime: 1000
-databasePath: "/e2e/jobservice.db"
+databasePath: "/var/jobservice.db"
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m
