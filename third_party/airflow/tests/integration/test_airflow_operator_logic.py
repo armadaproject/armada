@@ -179,6 +179,7 @@ def test_two_jobs_good_bad(client: ArmadaClient, jobservice: JobServiceClient):
     assert job_state == JobState.FAILED
     assert job_message.startswith(f"Armada test:{second_job_id} failed")
 
+
 def success_job(client: ArmadaClient, jobservice: JobServiceClient):
     job_set_name = f"test-{uuid.uuid1()}"
     job = client.submit_jobs(
@@ -197,7 +198,7 @@ def success_job(client: ArmadaClient, jobservice: JobServiceClient):
     )
 
     assert job_state == JobState.SUCCEEDED
-    assert job_message == f"Armada test:{first_job_id} succeeded"
+    assert job_message == f"Armada test:{job_id} succeeded"
 
 
 def test_parallel_execution(client: ArmadaClient, jobservice: JobServiceClient):
