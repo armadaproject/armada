@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/magefile/mage/mg"
 	"github.com/pkg/errors"
@@ -113,5 +114,38 @@ func BuildDockers(arg string) error {
 	if err := goreleaserMinimalRelease(dockerIds...); err != nil {
 		return err
 	}
+	return nil
+}
+
+// Create a Local Armada Cluster
+func LocalDev() error {
+	mg.Deps(Kind)
+
+	mg.Deps(StartDependencies)
+	fmt.Println("Waiting for dependencies to start...")
+	err := CheckForPulsarRunning()
+	mg.Deps(StartComponents)
+
+	fmt.Println("Waiting for components to start...")
+	time.Sleep(15 * time.Second)
+
+	fmt.Println("Run: `docker-compose logs -f` to see logs")
+	return err
+}
+
+// Stop Local Armada Cluster
+func LocalDevStop() {
+	mg.Deps(StopComponents)
+	mg.Deps(StopDependencies)
+	mg.Deps(KindTeardown)
+}
+
+// Build the lookout UI from internal/lookout/ui
+func BuildLookoutUI() error {
+	mg.Deps(yarnCheck)
+
+	mg.Deps(yarnInstall)
+	mg.Deps(yarnOpenAPI)
+	mg.Deps(yarnBuild)
 	return nil
 }

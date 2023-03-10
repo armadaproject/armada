@@ -3,19 +3,8 @@ package main
 import (
 	"os"
 
-	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
 )
-
-// Build the lookout UI from internal/lookout/ui
-func BuildLookoutUI() error {
-	mg.Deps(yarnCheck)
-
-	mg.Deps(yarnInstall)
-	mg.Deps(yarnOpenAPI)
-	mg.Deps(yarnBuild)
-	return nil
-}
 
 // Create golang code to build the UI
 func yarnBinary() string {
@@ -27,7 +16,11 @@ func yarnRun(args ...string) error {
 		return err
 	}
 
-	if err := sh.Run(yarnBinary(), args...); err != nil {
+	if err := sh.RunV(yarnBinary(), args...); err != nil {
+		return err
+	}
+
+	if err := os.Chdir("../../.."); err != nil {
 		return err
 	}
 

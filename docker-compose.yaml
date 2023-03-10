@@ -157,6 +157,8 @@ services:
       - 60003:60003
     depends_on:
       - server
+    env_file:
+      - ./developer/env/jobservice.env
     command: ./jobservice run
 
   airflow:

@@ -26,16 +26,18 @@ mage Kind
 # Start necessary dependencies.
 # On Arm-based Macs, you may need to change the pulsar image
 # in docker-compose.yaml to be kezhenxu94/pulsar.
-docker-compose up -d redis postgres pulsar
+mage StartDependencies
 # Verify that dependencies started successfully
-# (check that redis, stan, postgres, and pulsar are all up).
-docker-compose ps
+# (check that Pulsar has fully started as it is quite slow (~ 1min )).
+mage checkForPulsarRunning
 
 # Start the Armada server and executor.
 # Alternatively, run the Armada server and executor directly on the host,
 # e.g., through your IDE; see below for details.
-docker-compose up -d eventingester server executor
+docker-compose up -d server executor
 ```
+
+**Note: the components take ~15 seconds to start up.**
 
 Run the Armada test suite against the local environment to verify that it is working correctly.
 ```bash

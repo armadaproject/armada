@@ -23,7 +23,7 @@ In addition, Armada relies on the following components for storage and communica
 
 All of these components can be started and initialised with [./developer/init.sh](https://github.com/armadaproject/armada/blob/master/developer/init.sh) When the script completes, you will have a fully functional local deployment of armada via docker.
 
-Create a queue and submit a job:
+Create a queue and run the Test Suite:
 
 ```bash
 go run cmd/armadactl/main.go create queue e2e-test-queue
@@ -32,7 +32,6 @@ go run cmd/armadactl/main.go create queue e2e-test-queue
 export ARMADA_EXECUTOR_INGRESS_URL="http://localhost"
 export ARMADA_EXECUTOR_INGRESS_PORT=5001
 
-# (The ingress test requires additional setup and will fail using this setup.)
 go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
 ```
 
@@ -57,6 +56,8 @@ still have to be running for this to work. Browse to `http://localhost:3000` wit
 cd ./internal/lookout/ui
 yarn run start
 ```
+
+You can also get a production build of the UI by running `mage buildlookoutui` in the root of the repo.
 
 ## Debugging
 

@@ -22,24 +22,21 @@ fi
 
 cd ../
 
-# see if pulsar is already up, in which case we don't need to sleep
-SLEEP_TIME=0
-docker-compose ps | grep pulsar | grep -E "running|Up" &> /dev/null
-if [ $? -ne 0 ];
+# Offer the user to build the Lookout UI
+read -p "Build Lookout UI? [y/N] " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]
 then
-    echo ""
-    echo "Pausing for pulsar start up ..."
-    echo ""
-    SLEEP_TIME=50
+    mage buildlookoutui
 fi
 
-mage buildlookoutui "ask"
 mage kind
 mage startdependencies
+mage checkForPulsarRunning
+sleep 5
 
 cd localdev
 
-sleep $SLEEP_TIME
 docker-compose $COMPOSE_FILE up -d $ARMADA_SVCS
 
 # Give a note to users that it might take a long time to

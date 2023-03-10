@@ -3,35 +3,13 @@ package main
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
-
-	"github.com/magefile/mage/mg"
 )
 
 var services = []string{"pulsar", "postgres", "redis"}
 
 var components = []string{"server", "lookout", "lookoutingester", "lookoutv2", "lookoutingesterv2", "executor", "binoculars", "eventingester", "jobservice"}
-
-// Create a Local Armada Cluster
-func LocalDev() error {
-	mg.Deps(Kind)
-
-	mg.Deps(StartDependencies)
-	fmt.Println("Waiting for dependencies to start...")
-	err := checkForPulsarRunning()
-	mg.Deps(StartComponents)
-
-	fmt.Println("Components are running!")
-	fmt.Println("Run: `docker-compose logs -f` to see logs")
-	return err
-}
-
-// Stop Local Armada Cluster
-func LocalDevStop() {
-	mg.Deps(StopComponents)
-	mg.Deps(StopDependencies)
-	mg.Deps(KindTeardown)
-}
 
 // Dependencies include pulsar, postgres (v1 and v2) as well as redis
 func StartDependencies() error {
@@ -49,7 +27,7 @@ func StartDependencies() error {
 	return nil
 }
 
-// StopDependencies stops the dependencies
+// Stops the dependencies
 func StopDependencies() error {
 	servicesArg := append([]string{"down", "-v"}, services...)
 	if err := dockerComposeRun(servicesArg...); err != nil {
@@ -79,12 +57,28 @@ func StopComponents() error {
 	return nil
 }
 
-func checkForPulsarRunning() error {
-	if err := dockerComposeRun("exec", "pulsar", "bin/pulsar-admin", "tenants", "create", "test"); err == nil {
-		return nil
+// Repeatedly check logs until "alive": true is found.
+// Timeout after 1 minute
+func CheckForPulsarRunning() error {
+	timeout := time.After(1 * time.Minute)
+	tick := time.Tick(1 * time.Second)
+	seconds := 0
+	for {
+		select {
+		case <-timeout:
+			return fmt.Errorf("timed out waiting for Pulsar to start")
+		case <-tick:
+			out, err := dockerComposeOutput("logs", "pulsar", "--tail=10")
+			if err != nil {
+				return err
+			}
+			if strings.Contains(out, "alive") {
+				// Sleep for 5 seconds to allow Pulsar to fully start
+				time.Sleep(5 * time.Second)
+				fmt.Printf("Pulsar took %d seconds to start!\n\n", seconds+5)
+				return nil
+			}
+			seconds++
+		}
 	}
-
-	time.Sleep(time.Second * 50)
-
-	return nil
 }
