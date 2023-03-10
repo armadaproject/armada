@@ -169,6 +169,8 @@ services:
       - "..:/app:rw"
       - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
+    environment:
+      - LOG_LEVEL=debug
     working_dir: "/app"
     entrypoint: go
     command: run cmd/jobservice/main.go run --config /config/jobservice/config.yaml

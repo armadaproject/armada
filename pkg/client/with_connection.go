@@ -5,6 +5,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api/jobservice"
 )
 
 func WithConnection(apiConnectionDetails *ApiConnectionDetails, action func(*grpc.ClientConn) error) error {
@@ -35,4 +36,10 @@ func WithSchedulerReportingClient(apiConnectionDetails *ApiConnectionDetails, ac
 		client := schedulerobjects.NewSchedulerReportingClient(cc)
 		return action(client)
 	})
+}
+
+func WithJobServiceClient(clientConn *grpc.ClientConn, action func(jobservice.JobServiceClient) error) error {
+	client := jobservice.NewJobServiceClient(clientConn)
+	defer clientConn.Close()
+	return action(client)
 }

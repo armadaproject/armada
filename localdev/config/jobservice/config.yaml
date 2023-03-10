@@ -1,4 +1,4 @@
 databasePath: "/var/jobservice.db"
 subscribeJobSetTime: 100
-
-
+apiConnection:
+  forceNoTls: true
