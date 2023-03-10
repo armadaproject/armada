@@ -19,6 +19,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	"github.com/armadaproject/armada/internal/common/pointer"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -1132,6 +1133,10 @@ func TestReschedule(t *testing.T) {
 		TotalResources schedulerobjects.ResourceList
 		// Minimum job size.
 		MinimumJobSize map[string]resource.Quantity
+		// Override for NodeEvictionProbability.
+		NodeEvictionProbability *float64
+		// Override for NodeOversubscriptionEvictionProbability.
+		NodeOversubscriptionEvictionProbability *float64
 	}{
 		"balancing three queues": {
 			SchedulingConfig: testSchedulingConfig(),
@@ -1432,7 +1437,7 @@ func TestReschedule(t *testing.T) {
 				{
 					// Schedule a gang filling the remaining space on both nodes.
 					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
-						"C": withGangAnnotationsPodReqs(testNSmallCpuJob("A", 0, 32)),
+						"C": withGangAnnotationsPodReqs(testNSmallCpuJob("C", 0, 32)),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"C": intRange(0, 31),
@@ -1459,6 +1464,45 @@ func TestReschedule(t *testing.T) {
 				"B": 1,
 				"C": 1,
 			},
+		},
+		"gang preemption with NodeEvictionProbability 0": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(2, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					// Schedule a gang filling all of node 1 and part of node 2.
+					// Make the jobs of node 1 priority 1,
+					// to avoid them being urgency-preempted in the next round.
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": withGangAnnotationsPodReqs(
+							append(testNSmallCpuJob("A", 1, 32), testNSmallCpuJob("A", 0, 1)...),
+						),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 32),
+					},
+				},
+				{
+					// Schedule a that requires preempting one job in the gang,
+					// and assert that all jobs in the gang are preempted.
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"B": testNLargeCpuJob("B", 1, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": intRange(0, 0),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: intRange(0, 32),
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+			NodeEvictionProbability: pointer.Pointer(0.0),
 		},
 		"rescheduled jobs don't count towards maxJobsToSchedule": {
 			SchedulingConfig: withMaxJobsToScheduleConfig(5, testSchedulingConfig()),
@@ -1887,6 +1931,12 @@ func TestReschedule(t *testing.T) {
 		// All tests are for eviction probability of 1.
 		tc.SchedulingConfig.Preemption.NodeEvictionProbability = 1
 		tc.SchedulingConfig.Preemption.NodeOversubscriptionEvictionProbability = 1
+		if tc.NodeEvictionProbability != nil {
+			tc.SchedulingConfig.Preemption.NodeEvictionProbability = *tc.NodeEvictionProbability
+		}
+		if tc.NodeOversubscriptionEvictionProbability != nil {
+			tc.SchedulingConfig.Preemption.NodeOversubscriptionEvictionProbability = *tc.NodeOversubscriptionEvictionProbability
+		}
 		t.Run(name, func(t *testing.T) {
 			nodeDb, err := createNodeDb(tc.Nodes)
 			require.NoError(t, err)

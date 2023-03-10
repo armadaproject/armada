@@ -410,6 +410,9 @@ func (sch *Rescheduler) evict(ctx context.Context, evictor *Evictor) (*EvictorRe
 	if err := validateEvictedJobs(result.EvictedJobsById, result.AffectedNodesById); err != nil {
 		return nil, nil, err
 	}
+	if err := sch.nodeDb.UpsertManyWithTxn(txn, maps.Values(result.AffectedNodesById)); err != nil {
+		return nil, nil, err
+	}
 
 	// If gang jobs were evicted, evict preemptible jobs on any nodes with a job
 	// that is part of a gang for which at least one job was evicted.
@@ -426,12 +429,21 @@ func (sch *Rescheduler) evict(ctx context.Context, evictor *Evictor) (*EvictorRe
 			gangNodeIds[nodeId] = true
 		}
 	}
+	gangNodeIds = armadamaps.FilterKeys(
+		gangNodeIds,
+		// Filter out any nodes already processed.
+		func(nodeId string) bool {
+			_, ok := result.AffectedNodesById[nodeId]
+			return !ok
+		},
+	)
 	gangEvictor := NewNodeEvictor(
 		sch.jobRepo,
 		sch.priorityClasses,
 		sch.defaultPriorityClass,
 		gangNodeIds,
 	)
+
 	if gangEvictor != nil {
 		it, err := NewNodesIterator(txn)
 		if err != nil {
@@ -444,13 +456,15 @@ func (sch *Rescheduler) evict(ctx context.Context, evictor *Evictor) (*EvictorRe
 		if err := validateEvictedJobs(gangEvictorResult.EvictedJobsById, gangEvictorResult.AffectedNodesById); err != nil {
 			return nil, nil, err
 		}
+		if err := sch.nodeDb.UpsertManyWithTxn(txn, maps.Values(result.AffectedNodesById)); err != nil {
+			return nil, nil, err
+		}
 		maps.Copy(result.AffectedNodesById, gangEvictorResult.AffectedNodesById)
 		maps.Copy(result.EvictedJobsById, gangEvictorResult.EvictedJobsById)
 		maps.Copy(result.NodeIdByJobId, gangEvictorResult.NodeIdByJobId)
 	}
 
 	evictedJobs := maps.Values(result.EvictedJobsById)
-	affectedNodes := maps.Values(result.AffectedNodesById)
 	sch.allocatedByQueueAndPriority = UpdateUsage(
 		sch.allocatedByQueueAndPriority,
 		evictedJobs,
@@ -459,9 +473,6 @@ func (sch *Rescheduler) evict(ctx context.Context, evictor *Evictor) (*EvictorRe
 	)
 	if s := JobsSummary(evictedJobs); s != "" {
 		log.Infof("evicted %d jobs on nodes %v; %s", len(evictedJobs), maps.Keys(result.AffectedNodesById), s)
-	}
-	if err := sch.nodeDb.UpsertManyWithTxn(txn, affectedNodes); err != nil {
-		return nil, nil, err
 	}
 	inMemoryJobRepo := NewInMemoryJobRepository(sch.priorityClasses)
 	inMemoryJobRepo.EnqueueMany(evictedJobs)
