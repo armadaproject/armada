@@ -428,6 +428,7 @@ func (sch *Rescheduler) evict(ctx context.Context, evictor *Evictor) (*EvictorRe
 			nodeId := sch.nodeIdByJobId[gangJobId]
 			gangNodeIds[nodeId] = true
 		}
+		seenGangs[gangId] = true
 	}
 	gangNodeIds = armadamaps.FilterKeys(
 		gangNodeIds,
