@@ -136,6 +136,7 @@ var Leased = &armadaevents.EventSequence_Event{
 			RunId:      RunIdProto,
 			JobId:      JobIdProto,
 			ExecutorId: ExecutorId,
+			NodeId:     NodeName,
 		},
 	},
 }
@@ -258,6 +259,7 @@ var JobPreempted = &armadaevents.EventSequence_Event{
 	Created: &BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 		JobRunPreempted: &armadaevents.JobRunPreempted{
+			PreemptedJobId: JobIdProto,
 			PreemptedRunId: RunIdProto,
 		},
 	},

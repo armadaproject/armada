@@ -26,13 +26,10 @@ const (
 	poolName  = "pool1"
 )
 
-var (
-	queue = database.Queue{
-		Name:   queueName,
-		Weight: 100,
-	}
-	baseTime time.Time
-)
+var queue = database.Queue{
+	Name:   queueName,
+	Weight: 100,
+}
 
 func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 	queuedJobs := make([]*jobdb.Job, 10)
@@ -111,7 +108,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			runningJobs:   []*jobdb.Job{runningJobs[0]},
 			perQueueLimit: map[string]float64{"cpu": 0.5},
 			expectedJobs: map[string]string{
-				queuedJobs[0].Id(): "executor1",
+				queuedJobs[0].Id(): "executor2",
 			},
 		},
 		"no queuedJobs to schedule": {
@@ -147,24 +144,26 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 
 			algo := NewLegacySchedulingAlgo(config,
 				mockExecutorRepo,
-				mockQueueRepo)
+				mockQueueRepo,
+			)
 
 			// Use a test clock so we can control time
 			algo.clock = clock.NewFakeClock(baseTime)
 
 			// Set up JobDb
-			jobDb, err := jobdb.NewJobDb()
-			require.NoError(t, err)
+			jobDb := jobdb.NewJobDb()
+
 			txn := jobDb.WriteTxn()
-			err = jobDb.Upsert(txn, append(tc.queuedJobs, tc.runningJobs...))
+			err := jobDb.Upsert(txn, append(tc.queuedJobs, tc.runningJobs...))
 			require.NoError(t, err)
 
-			scheduledJobs, err := algo.Schedule(ctx, txn, jobDb)
+			schedulerResult, err := algo.Schedule(ctx, txn, jobDb)
 			require.NoError(t, err)
 
 			// check that we have scheduled the queuedJobs we expect
-			assert.Equal(t, len(tc.expectedJobs), len(scheduledJobs))
+			assert.Equal(t, len(tc.expectedJobs), len(schedulerResult.ScheduledJobs))
 
+			scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
 			for _, job := range scheduledJobs {
 				expectedExecutor, ok := tc.expectedJobs[job.Id()]
 				require.True(t, ok)
@@ -176,7 +175,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 
 			// check all scheduled queuedJobs are up-to-date in db
 			for _, job := range scheduledJobs {
-				dbJob, err := jobDb.GetById(txn, job.Id())
+				dbJob := jobDb.GetById(txn, job.Id())
 				require.NoError(t, err)
 				assert.Equal(t, job, dbJob)
 			}
@@ -222,7 +221,7 @@ func twoCoreNode(name string, jobs []*jobdb.Job) *schedulerobjects.Node {
 				},
 			},
 		),
-		JobRunsByState: jobRunsByState,
+		StateByJobRunId: jobRunsByState,
 	}
 }
 

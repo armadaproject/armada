@@ -1,0 +1,29 @@
+postgres:
+  maxOpenConns: 100
+  maxIdleConns: 25
+  connMaxLifetime: 30m
+  connection:
+    host: postgres
+    port: 5432
+    user: postgres
+    password: psw
+    dbname: postgresv2
+    sslmode: disable
+
+metrics:
+  port: 9000
+
+pulsar:
+  enabled: true
+  URL: "pulsar://pulsar:6650"
+  jobsetEventsTopic: "events"
+  receiveTimeout: 5s
+  backoffTime: 1s
+
+subscriptionName: "lookout-ingester-v2"
+batchSize: 10000
+batchDuration: 500ms
+minJobSpecCompressionSize: 1024
+userAnnotationPrefix: "armadaproject.io/"
+maxAttempts: 10
+maxBackoff: 60

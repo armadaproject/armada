@@ -6,29 +6,39 @@ import (
 
 // JobRun is the scheduler-internal representation of a job run.
 type JobRun struct {
-	// Unique identifier for the run
+	// Unique identifier for the run.
 	id uuid.UUID
-	// The time the run was allocated
+	// Id of the job this run is associated with.
+	jobId string
+	// Time at which the run was created.
 	created int64
-	// The name of the executor this run has been leased to
+	// The name of the executor this run has been leased to.
 	executor string
-	// The name of the nodes this run has been leased to
+	// The name of the nodes this run has been leased to.
 	node string
-	// True if the job has been reported as running by the executor
+	// True if the job has been reported as running by the executor.
 	running bool
-	// True if the job has been reported as succeeded by the executor
+	// True if the job has been reported as succeeded by the executor.
 	succeeded bool
-	// True if the job has been reported as failed by the executor
+	// True if the job has been reported as failed by the executor.
 	failed bool
-	// True if the job has been reported as cancelled by the executor
+	// True if the job has been reported as cancelled by the executor.
 	cancelled bool
-	// True if the job has been returned by the executor
+	// True if the job has been returned by the executor.
 	returned bool
+}
+
+func MinimalRun(id uuid.UUID, creationTime int64) *JobRun {
+	return &JobRun{
+		id:      id,
+		created: creationTime,
+	}
 }
 
 // CreateRun creates a new scheduler job run from a database job run
 func CreateRun(
 	id uuid.UUID,
+	jobId string,
 	creationTime int64,
 	executor string,
 	node string,
@@ -40,6 +50,7 @@ func CreateRun(
 ) *JobRun {
 	return &JobRun{
 		id:        id,
+		jobId:     jobId,
 		created:   creationTime,
 		executor:  executor,
 		node:      node,
@@ -54,6 +65,11 @@ func CreateRun(
 // Id returns the id of the JobRun.
 func (run *JobRun) Id() uuid.UUID {
 	return run.id
+}
+
+// Id returns the id of the job this run is associated with.
+func (run *JobRun) JobId() string {
+	return run.jobId
 }
 
 // Executor returns the executor to which the JobRun is assigned.
@@ -73,9 +89,9 @@ func (run *JobRun) Succeeded() bool {
 
 // WithSucceeded returns a copy of the job run with the succeeded status updated.
 func (run *JobRun) WithSucceeded(succeeded bool) *JobRun {
-	r := copyRun(*run)
-	r.succeeded = succeeded
-	return r
+	run = run.DeepCopy()
+	run.succeeded = succeeded
+	return run
 }
 
 // Failed Returns true if the executor has reported the job run as failed
@@ -85,9 +101,9 @@ func (run *JobRun) Failed() bool {
 
 // WithFailed returns a copy of the job run with the failed status updated.
 func (run *JobRun) WithFailed(failed bool) *JobRun {
-	r := copyRun(*run)
-	r.failed = failed
-	return r
+	run = run.DeepCopy()
+	run.failed = failed
+	return run
 }
 
 // Cancelled Returns true if the user has cancelled the job run
@@ -97,9 +113,9 @@ func (run *JobRun) Cancelled() bool {
 
 // WithCancelled returns a copy of the job run with the cancelled status updated.
 func (run *JobRun) WithCancelled(cancelled bool) *JobRun {
-	r := copyRun(*run)
-	r.cancelled = cancelled
-	return r
+	run = run.DeepCopy()
+	run.cancelled = cancelled
+	return run
 }
 
 // Running Returns true if the executor has reported the job run as running
@@ -109,9 +125,9 @@ func (run *JobRun) Running() bool {
 
 // WithRunning returns a copy of the job run with the running status updated.
 func (run *JobRun) WithRunning(running bool) *JobRun {
-	r := copyRun(*run)
-	r.running = running
-	return r
+	run = run.DeepCopy()
+	run.running = running
+	return run
 }
 
 // Returned Returns true if the executor has returned the job run.
@@ -121,9 +137,9 @@ func (run *JobRun) Returned() bool {
 
 // WithReturned returns a copy of the job run with the returned status updated.
 func (run *JobRun) WithReturned(returned bool) *JobRun {
-	r := copyRun(*run)
-	r.returned = returned
-	return r
+	run = run.DeepCopy()
+	run.returned = returned
+	return run
 }
 
 // Created Returns the creation time of the job run
@@ -136,7 +152,7 @@ func (run *JobRun) InTerminalState() bool {
 	return run.succeeded || run.failed || run.cancelled || run.returned
 }
 
-// copyRun makes a copy of the job run
-func copyRun(run JobRun) *JobRun {
-	return &run
+func (run *JobRun) DeepCopy() *JobRun {
+	v := *run
+	return &v
 }

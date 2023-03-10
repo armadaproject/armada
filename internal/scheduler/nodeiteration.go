@@ -248,10 +248,10 @@ func (pq *NodeTypesResourceIteratorPQ) Pop() any {
 // For example, all nodes of type "foo" for which there's at least 1Gi of memory available.
 //
 // Available resources is the sum of unused resources and resources assigned to lower-priority jobs.
-// Nodes are returned in sorted order, going from least to most of the specified resource available.
+// Nodes are returned in sorted order, from least to most of the specified resource available.
 //
-// If exclusiveToQueue is NodeDominantQueueWildcard, all nodes of the given node type are considered.
-// Otherwise, only nodes for which the given queue has the largest request are returned.
+// If dominantQueue is NodeDominantQueueWildcard, all nodes of the given node type are considered.
+// Otherwise, only nodes for which the given queue has the largest request are considered.
 // If maxActiveQueues > 0, only nodes with less than or equal to this number of active queues are returned.
 type NodeTypeResourceIterator struct {
 	nodeType        *schedulerobjects.NodeType
@@ -306,7 +306,12 @@ func NewNodeTypeResourceIterator(txn *memdb.Txn, dominantQueue string, maxActive
 	var err error
 	if dominantQueue == NodeDominantQueueWildcard {
 		indexName := nodeResourcePriorityIndexName(resource, priority)
-		it, err = txn.LowerBound("nodes", indexName, nodeType.Id, resourceAmount)
+		it, err = txn.LowerBound(
+			"nodes",
+			indexName,
+			nodeType.Id,
+			resourceAmount,
+		)
 		if err != nil {
 			return nil, errors.WithStack(err)
 		}

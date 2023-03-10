@@ -83,6 +83,7 @@ definitions:
           - SUCCEEDED
           - FAILED
           - CANCELLED
+          - PREEMPTED
         x-nullable: false
       lastTransitionTime:
         type: string

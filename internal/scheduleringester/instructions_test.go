@@ -38,6 +38,7 @@ func TestConvertSequence(t *testing.T) {
 				Groups:        compress.MustCompressStringArray(f.Groups, compressor),
 				Queue:         f.Queue,
 				Priority:      int64(f.Priority),
+				Submitted:     f.BaseTime.UnixNano(),
 				SubmitMessage: protoutil.MustMarshallAndCompress(f.Submit.GetSubmitJob(), compressor),
 				SchedulingInfo: protoutil.MustMarshall(&schedulerobjects.JobSchedulingInfo{
 					Lifetime:        0,
@@ -76,6 +77,7 @@ func TestConvertSequence(t *testing.T) {
 				JobID:    f.JobIdString,
 				JobSet:   f.JobSetName,
 				Executor: f.ExecutorId,
+				Node:     f.NodeName,
 			}}},
 		},
 		"job run running": {

@@ -89,11 +89,11 @@ type LeaseRequest struct {
 	// Jobs submitted to this executor must require at least this amount of resources.
 	MinimumJobSize map[string]resource.Quantity `protobuf:"bytes,4,rep,name=minimum_job_size,json=minimumJobSize,proto3" json:"minimumJobSize" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// For each node in the cluster:
-	// - the total allocatable resources on that node,
-	// - the job runs running on those nodes
-	// - any taints and labels on the node.
+	// - The total allocatable resources on that node.
+	// - The job runs running on those nodes,
+	// - Any taints and labels on the node.
 	Nodes []*api.NodeInfo `protobuf:"bytes,5,rep,name=nodes,proto3" json:"nodes,omitempty"`
-	// Run Ids of jobs owned by the executor but not currently assigned to a node
+	// Run Ids of jobs owned by the executor but not currently assigned to a node.
 	UnassignedJobRunIds []armadaevents.Uuid `protobuf:"bytes,6,rep,name=unassigned_job_run_ids,json=unassignedJobRunIds,proto3" json:"unassignedJobRunIds"`
 }
 
@@ -171,7 +171,7 @@ func (m *LeaseRequest) GetUnassignedJobRunIds() []armadaevents.Uuid {
 	return nil
 }
 
-// indicates that a job run is now leased
+// Indicates that a job run is now leased.
 type JobRunLease struct {
 	JobRunId *armadaevents.Uuid      `protobuf:"bytes,1,opt,name=job_run_id,json=jobRunId,proto3" json:"jobRunId,omitempty"`
 	Queue    string                  `protobuf:"bytes,2,opt,name=queue,proto3" json:"queue,omitempty"`
@@ -255,7 +255,7 @@ func (m *JobRunLease) GetJob() *armadaevents.SubmitJob {
 	return nil
 }
 
-// indicates that the given job run ids should be cancelled
+// Indicates that the job runs with the given ids should be cancelled.
 type CancelRuns struct {
 	JobRunIdsToCancel []*armadaevents.Uuid `protobuf:"bytes,1,rep,name=job_run_ids_to_cancel,json=jobRunIdsToCancel,proto3" json:"jobRunIdsToCancel,omitempty"`
 }
@@ -299,7 +299,7 @@ func (m *CancelRuns) GetJobRunIdsToCancel() []*armadaevents.Uuid {
 	return nil
 }
 
-// indicates that the given job run ids should be preempted
+// Indicates that the job runs with the given ids should be preempted.
 type PreemptRuns struct {
 	JobRunIdsToPreempt []*armadaevents.Uuid `protobuf:"bytes,1,rep,name=job_run_ids_to_preempt,json=jobRunIdsToPreempt,proto3" json:"jobRunIdsToPreempt,omitempty"`
 }
@@ -343,7 +343,7 @@ func (m *PreemptRuns) GetJobRunIdsToPreempt() []*armadaevents.Uuid {
 	return nil
 }
 
-// indicates the end of the lease stream
+// Indicates the end of the lease stream.
 type EndMarker struct {
 }
 
@@ -581,12 +581,14 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type ExecutorApiClient interface {
-	// Reports usage information to the scheduler.  In return, the scheduler provides:
-	//   - a list of job runs that the executor is currently running that should be cancelled (may be empty)
-	//   - a list of job runs that the executor is not currently running that should now be scheduler (may be empty)
-	// This call also acts as a signal to the scheduler that the executor is alive and accepting jobs
+	// Reports usage information to the scheduler.
+	// In return, the scheduler provides:
+	// - Slice of job runs that the executor is currently running that should be cancelled.
+	// - Slice of job runs that the executor is currently running that should be preempted.
+	// - Slice job runs that the executor is not currently running that should be scheduled.
+	// This call also acts as a signal to the scheduler that the executor is alive and accepting jobs.
 	LeaseJobRuns(ctx context.Context, opts ...grpc.CallOption) (ExecutorApi_LeaseJobRunsClient, error)
-	// Reports job run events to the scheduler
+	// Reports job run events to the scheduler.
 	ReportEvents(ctx context.Context, in *EventList, opts ...grpc.CallOption) (*types.Empty, error)
 }
 
@@ -640,12 +642,14 @@ func (c *executorApiClient) ReportEvents(ctx context.Context, in *EventList, opt
 
 // ExecutorApiServer is the server API for ExecutorApi service.
 type ExecutorApiServer interface {
-	// Reports usage information to the scheduler.  In return, the scheduler provides:
-	//   - a list of job runs that the executor is currently running that should be cancelled (may be empty)
-	//   - a list of job runs that the executor is not currently running that should now be scheduler (may be empty)
-	// This call also acts as a signal to the scheduler that the executor is alive and accepting jobs
+	// Reports usage information to the scheduler.
+	// In return, the scheduler provides:
+	// - Slice of job runs that the executor is currently running that should be cancelled.
+	// - Slice of job runs that the executor is currently running that should be preempted.
+	// - Slice job runs that the executor is not currently running that should be scheduled.
+	// This call also acts as a signal to the scheduler that the executor is alive and accepting jobs.
 	LeaseJobRuns(ExecutorApi_LeaseJobRunsServer) error
-	// Reports job run events to the scheduler
+	// Reports job run events to the scheduler.
 	ReportEvents(context.Context, *EventList) (*types.Empty, error)
 }
 

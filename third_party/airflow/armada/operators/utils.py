@@ -11,10 +11,32 @@ from armada.jobservice import jobservice_pb2
 
 
 class JobState(Enum):
-    SUCCEEDED = 1
-    FAILED = 2
-    CANCELLED = 3
-    JOB_ID_NOT_FOUND = 4
+    SUBMITTED = 0
+    DUPLICATE_FOUND = 1
+    RUNNING = 2
+    FAILED = 3
+    SUCCEEDED = 4
+    CANCELLED = 5
+    JOB_ID_NOT_FOUND = 6
+    CONNECTION_ERR = 7
+
+
+_pb_to_job_state = {
+    jobservice_pb2.JobServiceResponse.SUBMITTED: JobState.SUBMITTED,
+    jobservice_pb2.JobServiceResponse.DUPLICATE_FOUND: JobState.DUPLICATE_FOUND,
+    jobservice_pb2.JobServiceResponse.RUNNING: JobState.RUNNING,
+    jobservice_pb2.JobServiceResponse.FAILED: JobState.FAILED,
+    jobservice_pb2.JobServiceResponse.SUCCEEDED: JobState.SUCCEEDED,
+    jobservice_pb2.JobServiceResponse.CANCELLED: JobState.CANCELLED,
+    jobservice_pb2.JobServiceResponse.JOB_ID_NOT_FOUND: JobState.JOB_ID_NOT_FOUND,
+    # NOTE(Clif): For whatever reason CONNECTION_ERR is not present in the
+    # generated protobuf.
+    7: JobState.CONNECTION_ERR,
+}
+
+
+def job_state_from_pb(state) -> JobState:
+    return _pb_to_job_state[state]
 
 
 def airflow_error(job_state: JobState, name: str, job_id: str):
@@ -48,6 +70,9 @@ def default_job_status_callable(
     return job_service_client.get_job_status(
         queue=armada_queue, job_id=job_id, job_set_id=job_set_id
     )
+
+
+armada_logger = logging.getLogger("airflow.task")
 
 
 def search_for_job_complete(
@@ -97,24 +122,23 @@ def search_for_job_complete(
                 armada_queue=armada_queue, job_id=job_id, job_set_id=job_set_id
             )
 
+        job_state = job_state_from_pb(job_status_return.state)
+        armada_logger.debug(f"Got job state '{job_state.name}' for job {job_id}")
+
         time.sleep(3)
-        if job_status_return.state == jobservice_pb2.JobServiceResponse.SUCCEEDED:
-            job_state = JobState.SUCCEEDED
+        if job_state == JobState.SUCCEEDED:
             job_message = f"Armada {airflow_task_name}:{job_id} succeeded"
             break
-        if job_status_return.state == jobservice_pb2.JobServiceResponse.FAILED:
-            job_state = JobState.FAILED
+        if job_state == JobState.FAILED:
             job_message = (
                 f"Armada {airflow_task_name}:{job_id} failed\n"
                 f"failed with reason {job_status_return.error}"
             )
             break
-        if job_status_return.state == jobservice_pb2.JobServiceResponse.CANCELLED:
-            job_state = JobState.CANCELLED
+        if job_state == JobState.CANCELLED:
             job_message = f"Armada {airflow_task_name}:{job_id} cancelled"
             break
-        if job_status_return.state == jobservice_pb2.JobServiceResponse.CONNECTION_ERR:
-            armada_logger = logging.getLogger("airflow.task")
+        if job_state == JobState.CONNECTION_ERR:
             log_messages = (
                 f"Armada {airflow_task_name}:{job_id} connection error (will retry)"
                 f"failed with reason {job_status_return.error}"
@@ -122,10 +146,7 @@ def search_for_job_complete(
             armada_logger.warning(log_messages)
             continue
 
-        if (
-            job_status_return.state
-            == jobservice_pb2.JobServiceResponse.JOB_ID_NOT_FOUND
-        ):
+        if job_state == JobState.JOB_ID_NOT_FOUND:
             end_time = time.time()
             time_elasped = int(end_time) - int(start_time)
             if time_elasped > time_out_for_failure:

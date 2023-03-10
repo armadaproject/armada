@@ -12,319 +12,198 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 )
 
-func TestJobDbSchema(t *testing.T) {
-	err := jobDbSchema().Validate()
-	assert.NoError(t, err)
-}
+func TestJobDb_TestUpsert(t *testing.T) {
+	jobDb := NewJobDb()
 
-var job1 = &Job{
-	id:                uuid.NewString(),
-	queue:             "A",
-	priority:          0,
-	created:           10,
-	jobSchedulingInfo: nil,
-}
-
-var job2 = &Job{
-	id:                uuid.NewString(),
-	queue:             "A",
-	priority:          0,
-	created:           10,
-	jobSchedulingInfo: nil,
-}
-
-func TestBatchDelete(t *testing.T) {
-	tests := map[string]struct {
-		initialJobs          []*Job
-		idsToDelete          []string
-		expectedRemainingIds []string
-	}{
-		"Delete all jobs": {
-			initialJobs: []*Job{job1, job2},
-			idsToDelete: []string{job1.id, job2.id},
-		},
-		"Delete one job": {
-			initialJobs:          []*Job{job1, job2},
-			idsToDelete:          []string{job1.id},
-			expectedRemainingIds: []string{job2.id},
-		},
-		"Delete non-existent job": {
-			initialJobs:          []*Job{job1, job2},
-			idsToDelete:          []string{"notaJobId", job1.id},
-			expectedRemainingIds: []string{job2.id},
-		},
-		"delete nothing": {
-			initialJobs:          []*Job{job1, job2},
-			idsToDelete:          []string{},
-			expectedRemainingIds: []string{job1.id, job2.id},
-		},
-		"empty db": {
-			idsToDelete:          []string{job1.id},
-			expectedRemainingIds: []string{},
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			// Set up JobDb
-			jobDb := createPopulatedJobDb(t, tc.initialJobs)
-
-			// delete
-			txn := jobDb.WriteTxn()
-			err := jobDb.BatchDelete(txn, tc.idsToDelete)
-			require.NoError(t, err)
-
-			// check that db is as we expect
-			allJobs, err := jobDb.GetAll(txn)
-			outstandingIds := stringSet(tc.expectedRemainingIds)
-			require.NoError(t, err)
-			for _, job := range allJobs {
-				_, ok := outstandingIds[job.id]
-				assert.True(t, ok)
-				delete(outstandingIds, job.id)
-			}
-			assert.Equal(t, 0, len(outstandingIds))
-		})
-	}
-}
-
-func TestUpsert(t *testing.T) {
-	tests := map[string]struct {
-		initialJobs  []*Job
-		jobsToUpsert []*Job
-	}{
-		"Insert new job": {
-			initialJobs:  []*Job{},
-			jobsToUpsert: []*Job{job1, job2},
-		},
-		"modify existing job": {
-			initialJobs: []*Job{},
-			jobsToUpsert: []*Job{{
-				id:     job1.id,
-				queue:  "some queue",
-				jobset: "some jobset",
-			}},
-		},
-		"insert nothing": {
-			initialJobs:  []*Job{},
-			jobsToUpsert: []*Job{},
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			// Set up JobDb
-			jobDb := createPopulatedJobDb(t, tc.initialJobs)
-
-			// upsert
-			txn := jobDb.WriteTxn()
-			err := jobDb.Upsert(txn, tc.jobsToUpsert)
-			require.NoError(t, err)
-
-			// check that all jobs were updated
-			for _, job := range tc.jobsToUpsert {
-				retrievedJob, err := jobDb.GetById(txn, job.id)
-				require.NoError(t, err)
-				assert.Equal(t, job, retrievedJob)
-			}
-		})
-	}
-}
-
-func TestGetById(t *testing.T) {
-	tests := map[string]struct {
-		initialJobs   []*Job
-		jobToRetrieve string
-		jobPresent    bool
-	}{
-		"Job Present": {
-			initialJobs:   []*Job{job1, job2},
-			jobToRetrieve: job1.id,
-			jobPresent:    true,
-		},
-		"Job Missing": {
-			initialJobs:   []*Job{job1, job2},
-			jobToRetrieve: "notAJob",
-			jobPresent:    false,
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			// Set up JobDb
-			jobDb := createPopulatedJobDb(t, tc.initialJobs)
-
-			// upsert
-			txn := jobDb.ReadTxn()
-			job, err := jobDb.GetById(txn, tc.jobToRetrieve)
-			require.NoError(t, err)
-
-			if tc.jobPresent {
-				assert.NotNil(t, job)
-				assert.Equal(t, tc.jobToRetrieve, job.id)
-			} else {
-				assert.Nil(t, job)
-			}
-		})
-	}
-}
-
-func TestLookupByRun(t *testing.T) {
-	job := &Job{
-		id:       uuid.NewString(),
-		queue:    "A",
-		priority: 0,
-		created:  10,
-		runsById: map[uuid.UUID]*JobRun{},
-	}
-
-	run := &JobRun{
-		id: uuid.New(),
-	}
-
-	// set up the job db with a single job
-	jobDb, err := NewJobDb()
-	require.NoError(t, err)
+	job1 := newJob()
+	job2 := newJob()
 	txn := jobDb.WriteTxn()
-	err = jobDb.Upsert(txn, []*Job{job})
-	require.NoError(t, err)
 
-	// try to lookup the job by run id- this should be nil as no run exists yet
-	retrievedJob, err := jobDb.GetByRunId(txn, run.id)
+	// Insert Job
+	err := jobDb.Upsert(txn, []*Job{job1, job2})
 	require.NoError(t, err)
-	assert.Nil(t, retrievedJob)
+	retrieved := jobDb.GetById(txn, job1.Id())
+	assert.Equal(t, job1, retrieved)
+	retrieved = jobDb.GetById(txn, job2.Id())
+	assert.Equal(t, job2, retrieved)
 
-	// update the job to have a run
-	updatedJob := job.WithUpdatedRun(run)
+	// Updated Job
+	job1Updated := job1.WithQueued(true)
+	err = jobDb.Upsert(txn, []*Job{job1Updated})
+	require.NoError(t, err)
+	retrieved = jobDb.GetById(txn, job1.Id())
+	assert.Equal(t, job1Updated, retrieved)
+
+	// Can't insert with read only transaction
+	err = jobDb.Upsert(jobDb.ReadTxn(), []*Job{job1})
+	require.Error(t, err)
+}
+
+func TestJobDb_TestGetById(t *testing.T) {
+	jobDb := NewJobDb()
+	job1 := newJob()
+	job2 := newJob()
+	txn := jobDb.WriteTxn()
+
+	err := jobDb.Upsert(txn, []*Job{job1, job2})
+	require.NoError(t, err)
+	assert.Equal(t, job1, jobDb.GetById(txn, job1.Id()))
+	assert.Equal(t, job2, jobDb.GetById(txn, job2.Id()))
+	assert.Nil(t, jobDb.GetById(txn, util.NewULID()))
+}
+
+func TestJobDb_TestGetByRunId(t *testing.T) {
+	jobDb := NewJobDb()
+	job1 := newJob().WithNewRun("executor", "node")
+	job2 := newJob().WithNewRun("executor", "node")
+	txn := jobDb.WriteTxn()
+
+	err := jobDb.Upsert(txn, []*Job{job1, job2})
+	require.NoError(t, err)
+	assert.Equal(t, job1, jobDb.GetByRunId(txn, job1.LatestRun().id))
+	assert.Equal(t, job2, jobDb.GetByRunId(txn, job2.LatestRun().id))
+	assert.Nil(t, jobDb.GetByRunId(txn, uuid.New()))
+
+	err = jobDb.BatchDelete(txn, []string{job1.Id()})
+	require.NoError(t, err)
+	assert.Nil(t, jobDb.GetByRunId(txn, job1.LatestRun().id))
+}
+
+func TestJobDb_TestHasQueuedJobs(t *testing.T) {
+	jobDb := NewJobDb()
+	job1 := newJob().WithNewRun("executor", "node")
+	job2 := newJob().WithNewRun("executor", "node")
+	txn := jobDb.WriteTxn()
+
+	err := jobDb.Upsert(txn, []*Job{job1, job2})
+	require.NoError(t, err)
+	assert.False(t, jobDb.HasQueuedJobs(txn, job1.queue))
+	assert.False(t, jobDb.HasQueuedJobs(txn, "non-existent-queue"))
+
+	err = jobDb.Upsert(txn, []*Job{job1.WithQueued(true)})
+	require.NoError(t, err)
+	assert.True(t, jobDb.HasQueuedJobs(txn, job1.queue))
+	assert.False(t, jobDb.HasQueuedJobs(txn, "non-existent-queue"))
+}
+
+func TestJobDb_TestQueuedJobs(t *testing.T) {
+	jobDb := NewJobDb()
+	jobs := make([]*Job, 10)
+	for i := 0; i < len(jobs); i++ {
+		jobs[i] = newJob().WithQueued(true)
+		jobs[i].created = int64(i) // forces an order
+	}
+	shuffledJobs := slices.Clone(jobs)
+	rand.Shuffle(len(shuffledJobs), func(i, j int) { shuffledJobs[i], shuffledJobs[j] = shuffledJobs[j], jobs[i] })
+	txn := jobDb.WriteTxn()
+
+	err := jobDb.Upsert(txn, jobs)
+	require.NoError(t, err)
+	collect := func() []*Job {
+		retrieved := make([]*Job, 0)
+		iter := jobDb.QueuedJobs(txn, jobs[0].GetQueue())
+		for !iter.Done() {
+			j, _ := iter.Next()
+			retrieved = append(retrieved, j)
+		}
+		return retrieved
+	}
+
+	assert.Equal(t, jobs, collect())
+
+	// remove some jobs
+	err = jobDb.BatchDelete(txn, []string{jobs[1].id, jobs[3].id, jobs[5].id})
+	require.NoError(t, err)
+	assert.Equal(t, []*Job{jobs[0], jobs[2], jobs[4], jobs[6], jobs[7], jobs[8], jobs[9]}, collect())
+
+	// dequeue some jobs
+	err = jobDb.Upsert(txn, []*Job{jobs[7].WithQueued(false), jobs[4].WithQueued(false)})
+	require.NoError(t, err)
+	assert.Equal(t, []*Job{jobs[0], jobs[2], jobs[6], jobs[8], jobs[9]}, collect())
+
+	// change the priority of a job to put it to the front of the queue
+	updatedJob := jobs[8].WithPriority(100)
 	err = jobDb.Upsert(txn, []*Job{updatedJob})
 	require.NoError(t, err)
+	assert.Equal(t, []*Job{updatedJob, jobs[0], jobs[2], jobs[6], jobs[9]}, collect())
 
-	// try to lookup the job by run id- this should now return the job
-	retrievedJob, err = jobDb.GetByRunId(txn, run.id)
+	// new job
+	job10 := newJob().WithPriority(90).WithQueued(true)
+	err = jobDb.Upsert(txn, []*Job{job10})
 	require.NoError(t, err)
-	assert.Equal(t, updatedJob, retrievedJob)
+	assert.Equal(t, []*Job{updatedJob, job10, jobs[0], jobs[2], jobs[6], jobs[9]}, collect())
 
-	// Delete the job
-	err = jobDb.BatchDelete(txn, []string{job.id})
+	// clear all jobs
+	err = jobDb.BatchDelete(txn, []string{updatedJob.id, job10.id, jobs[0].id, jobs[2].id, jobs[6].id, jobs[9].id})
 	require.NoError(t, err)
-
-	// try to lookup the job by run id- this should  be nil as the job has been deleted
-	retrievedJob, err = jobDb.GetByRunId(txn, run.id)
-	require.NoError(t, err)
-	assert.Nil(t, retrievedJob)
+	assert.Equal(t, []*Job{}, collect())
 }
 
-func TestGetAll(t *testing.T) {
-	jobs := []*Job{job1, job2}
-	jobDb := createPopulatedJobDb(t, jobs)
-
-	txn := jobDb.ReadTxn()
-	retrievedJobs, err := jobDb.GetAll(txn)
-	require.NoError(t, err)
-
-	slices.SortFunc(jobs, func(a *Job, b *Job) bool { return a.id > b.id })
-	slices.SortFunc(retrievedJobs, func(a *Job, b *Job) bool { return a.id > b.id })
-	assert.Equal(t, jobs, retrievedJobs)
-}
-
-func TestJobQueuePriorityClassIterator(t *testing.T) {
-	// jobs in the db at the start of the test
-	initialJobs := []*Job{
-		// Jobs on queue A
-		{
-			id:       util.NewULID(),
-			queue:    "A",
-			priority: 0,
-			created:  0,
-			queued:   false,
-		},
-		{
-			id:       util.NewULID(),
-			queue:    "A",
-			priority: 0,
-			created:  0,
-			queued:   true,
-		},
-		{
-			id:       util.NewULID(),
-			queue:    "A",
-			priority: 0,
-			created:  1,
-			queued:   true,
-		},
-		{
-			id:       util.NewULID(),
-			queue:    "A",
-			priority: 1,
-			created:  0,
-			queued:   true,
-		},
-
-		// Jobs on Queue B
-		{
-			id:       util.NewULID(),
-			queue:    "B",
-			priority: 0,
-			created:  0,
-			queued:   true,
-		},
-	}
-
-	tests := map[string]struct {
-		Queue              string
-		ExpectedJobIndexes []int
-	}{
-		"Queue A": {
-			Queue:              "A",
-			ExpectedJobIndexes: []int{1, 2, 3},
-		},
-		"Queue B Queued": {
-			Queue:              "B",
-			ExpectedJobIndexes: []int{4},
-		},
-		"Unknown Queue": {
-			Queue:              "C",
-			ExpectedJobIndexes: []int{},
-		},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			// Shuffle and insert jobs.
-			jobs := slices.Clone(initialJobs)
-			slices.SortFunc(jobs, func(a, b *Job) bool { return rand.Float64() < 0.5 })
-			jobDb := createPopulatedJobDb(t, jobs)
-
-			// Test that jobs are returned in expected order.
-			txn := jobDb.ReadTxn()
-			it, err := NewJobQueueIterator(txn, tc.Queue)
-			if !assert.NoError(t, err) {
-				return
-			}
-			for _, i := range tc.ExpectedJobIndexes {
-				item := it.NextJobItem()
-				if !assert.Equal(t, initialJobs[i], item) {
-					return
-				}
-			}
-			assert.Nil(t, it.NextJobItem())
-		})
-	}
-}
-
-func createPopulatedJobDb(t *testing.T, initialJobs []*Job) *JobDb {
-	jobDb, err := NewJobDb()
-	require.NoError(t, err)
+func TestJobDb_TestGetAll(t *testing.T) {
+	jobDb := NewJobDb()
+	job1 := newJob().WithNewRun("executor", "node")
+	job2 := newJob().WithNewRun("executor", "node")
 	txn := jobDb.WriteTxn()
-	err = jobDb.Upsert(txn, initialJobs)
+	assert.Equal(t, []*Job{}, jobDb.GetAll(txn))
+
+	err := jobDb.Upsert(txn, []*Job{job1, job2})
 	require.NoError(t, err)
-	txn.Commit()
-	return jobDb
+	actual := jobDb.GetAll(txn)
+	expected := []*Job{job1, job2}
+	slices.SortFunc(expected, func(a, b *Job) bool {
+		return a.id > b.id
+	})
+	slices.SortFunc(actual, func(a, b *Job) bool {
+		return a.id > b.id
+	})
+	assert.Equal(t, expected, actual)
 }
 
-func stringSet(src []string) map[string]bool {
-	set := make(map[string]bool, len(src))
-	for _, s := range src {
-		set[s] = true
+func TestJobDb_TestTransactions(t *testing.T) {
+	jobDb := NewJobDb()
+	job := newJob()
+
+	txn1 := jobDb.WriteTxn()
+	txn2 := jobDb.ReadTxn()
+	err := jobDb.Upsert(txn1, []*Job{job})
+	require.NoError(t, err)
+
+	assert.NotNil(t, jobDb.GetById(txn1, job.id))
+	assert.Nil(t, jobDb.GetById(txn2, job.id))
+	txn1.Commit()
+
+	txn3 := jobDb.ReadTxn()
+	assert.NotNil(t, jobDb.GetById(txn3, job.id))
+
+	assert.Error(t, jobDb.Upsert(txn1, []*Job{job})) // should be error as you can't insert after commmiting
+}
+
+func TestJobDb_TestBatchDelete(t *testing.T) {
+	jobDb := NewJobDb()
+	job1 := newJob().WithQueued(true).WithNewRun("executor", "node")
+	job2 := newJob().WithQueued(true).WithNewRun("executor", "node")
+	txn := jobDb.WriteTxn()
+
+	// Insert Job
+	err := jobDb.Upsert(txn, []*Job{job1, job2})
+	require.NoError(t, err)
+	err = jobDb.BatchDelete(txn, []string{job2.Id()})
+	require.NoError(t, err)
+	assert.NotNil(t, jobDb.GetById(txn, job1.Id()))
+	assert.Nil(t, jobDb.GetById(txn, job2.Id()))
+
+	// Can't delete with read only transaction
+	err = jobDb.BatchDelete(jobDb.ReadTxn(), []string{job1.Id()})
+	require.Error(t, err)
+}
+
+func newJob() *Job {
+	return &Job{
+		id:       util.NewULID(),
+		queue:    "test-queue",
+		priority: 0,
+		created:  0,
+		queued:   false,
+		runsById: map[uuid.UUID]*JobRun{},
 	}
-	return set
 }
