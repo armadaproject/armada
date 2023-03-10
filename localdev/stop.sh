@@ -1,4 +1,5 @@
 #!/bin/bash
+COMPOSE_FILE="-f docker-compose.debug.yaml"
 
 # Check that mage is installed
 mage --help &> /dev/null
@@ -12,7 +13,7 @@ fi
 cd "$(dirname "${0}")" || exit
 
 # Stop services.
-docker-compose down
+docker-compose $COMPOSE_FILE down
 
 cd ../
 

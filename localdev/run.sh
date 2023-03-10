@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ARMADA_SVCS="server lookout lookout-ingester lookoutv2 lookout-ingesterv2 executor binoculars event-ingester"
-COMPOSE_FILE="-f docker-compose.yaml -f docker-compose.debug.yaml"
+COMPOSE_FILE="-f docker-compose.debug.yaml"
 
 # make the dir containing this file the CWD
 cd "$(dirname "${0}")" || exit
@@ -33,7 +33,6 @@ fi
 mage kind
 mage startdependencies
 mage checkForPulsarRunning
-sleep 5
 
 cd localdev
 
@@ -42,7 +41,7 @@ docker-compose $COMPOSE_FILE up -d $ARMADA_SVCS
 # Give a note to users that it might take a long time to
 # compile the golang code
 
-echo "NOTE: it may take a while for the golang code to compile!"
+echo "NOTE: It may take a while for Armada to start."
 
 # Ask if user would like to view logs
 read -p "View logs? [y/N] " -n 1 -r

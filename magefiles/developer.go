@@ -13,9 +13,8 @@ var components = []string{"server", "lookout", "lookoutingester", "lookoutv2", "
 
 // Dependencies include pulsar, postgres (v1 and v2) as well as redis
 func StartDependencies() error {
-	// If user is on arm, export to env "PULSAR_IMAGE=kezhenxu94/pulsar"
 	if onArm() {
-		os.Setenv("PULSAR_IMAGE", "kezhenxu94/pulsar")
+		os.Setenv("PULSAR_IMAGE", "richgross/pulsar:2.11.0")
 	}
 
 	// append "up", "-d" to the beginning of services
@@ -68,14 +67,14 @@ func CheckForPulsarRunning() error {
 		case <-timeout:
 			return fmt.Errorf("timed out waiting for Pulsar to start")
 		case <-tick:
-			out, err := dockerComposeOutput("logs", "pulsar", "--tail=10")
+			out, err := dockerComposeOutput("logs", "pulsar")
 			if err != nil {
 				return err
 			}
 			if strings.Contains(out, "alive") {
 				// Sleep for 5 seconds to allow Pulsar to fully start
 				time.Sleep(5 * time.Second)
-				fmt.Printf("Pulsar took %d seconds to start!\n\n", seconds+5)
+				fmt.Printf("\nPulsar took %d seconds to start!\n\n", seconds+5)
 				return nil
 			}
 			seconds++

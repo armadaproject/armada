@@ -61,7 +61,7 @@ You can also get a production build of the UI by running `mage buildlookoutui` i
 
 ## Debugging
 
-The `localdev` environment can is started with debug servers for all
+The `localdev` environment can be started with debug servers for all
 Armada services. When started this way, you can connect to the debug
 servers using remote debugging configurations in your IDE, or by using
 the delve client (illustrated here). Note that the external ports are
@@ -95,15 +95,17 @@ Breakpoint 3 set at 0x1fb3800 for github.com/armadaproject/armada/internal/armad
 
 External debug port mappings:
 
-|Armada service   |Debug host    |
-|-----------------|--------------|
-|Server           |localhost:4000|
-|Lookout          |localhost:4001|
-|Executor         |localhost:4002|
-|Binoculars       |localhost:4003|
-|Jobservice       |localhost:4004|
-|Lookout-ingester |localhost:4005|
-|Event-ingester   |localhost:4006|
+|Armada service     |Debug host    |
+|-------------------|--------------|
+|Server             |localhost:4000|
+|Lookout            |localhost:4001|
+|Executor           |localhost:4002|
+|Binoculars         |localhost:4003|
+|Jobservice         |localhost:4004|
+|Lookout-ingester   |localhost:4005|
+|Lookout-ingesterv2 |localhost:4006|
+|Event-ingester     |localhost:4007|
+|Lookoutv2          |localhost:4008|
 
 ## Usage metrics
 
