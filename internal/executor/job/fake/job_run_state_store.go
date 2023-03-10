@@ -25,7 +25,11 @@ func (s *StubRunStateStore) ReportRunInvalid(runMeta *job.RunMeta) {
 }
 
 func (s *StubRunStateStore) ReportFailedSubmission(runMeta *job.RunMeta) {
-	panic("implement me")
+	run, ok := s.JobRunState[runMeta.RunId]
+	if !ok {
+		return
+	}
+	run.Phase = job.FailedSubmission
 }
 
 func (s *StubRunStateStore) RequestRunCancellation(runId string) {

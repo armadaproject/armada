@@ -24,7 +24,7 @@ type ClusterAllocator interface {
 
 type ClusterAllocationService struct {
 	clusterId         executorContext.ClusterIdentity
-	jobRunStateStore  *job.JobRunStateStore
+	jobRunStateStore  job.RunStateStore
 	submitter         job.Submitter
 	eventReporter     reporter.EventReporter
 	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor
@@ -33,7 +33,7 @@ type ClusterAllocationService struct {
 func NewClusterAllocationService(
 	clusterId executorContext.ClusterIdentity,
 	eventReporter reporter.EventReporter,
-	jobRunStateManager *job.JobRunStateStore,
+	jobRunStateManager job.RunStateStore,
 	submitter job.Submitter,
 	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
 ) *ClusterAllocationService {
@@ -59,7 +59,8 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 	jobs := make([]*job.SubmitJob, 0, len(jobRuns))
 	for _, run := range jobRuns {
 		if run.Job == nil {
-			log.Warnf("Job for job %s run %s unexpectedly nil", run.Meta.JobId, run.Meta.RunId)
+			// TODO report invalid - when we drive events off state
+			log.Errorf("Job for job %s run %s unexpectedly nil", run.Meta.JobId, run.Meta.RunId)
 			continue
 		}
 		jobs = append(jobs, run.Job)
@@ -83,6 +84,7 @@ func (allocationService *ClusterAllocationService) processFailedJobSubmissions(f
 				allocationService.jobRunStateStore.ReportFailedSubmission(details.JobRunMeta)
 			} else {
 				// This will cause us to lease it again - which is acceptable as the pod was never created
+				// Longer term we'll just update the state and let the state manager handle resending this event
 				allocationService.jobRunStateStore.Delete(details.JobRunMeta.RunId)
 				log.Errorf("Failed to return lease for job %s because %s", details.JobRunMeta.JobId, err)
 			}
@@ -93,6 +95,7 @@ func (allocationService *ClusterAllocationService) processFailedJobSubmissions(f
 				allocationService.jobRunStateStore.ReportFailedSubmission(details.JobRunMeta)
 			} else {
 				// This will cause us to lease it again - which is acceptable as the pod was never created
+				// Longer term we'll just update the state and let the state manager handle resending this event
 				allocationService.jobRunStateStore.Delete(details.JobRunMeta.RunId)
 				log.Errorf("Failed to report submission as failed for job %s because %s", details.JobRunMeta.JobId, err)
 			}
