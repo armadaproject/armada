@@ -71,6 +71,17 @@ func TestReportRunInvalid(t *testing.T) {
 	assert.Equal(t, allKnownJobRuns[0].Phase, Invalid)
 }
 
+func TestReportSuccessfulSubmission(t *testing.T) {
+	jobRunStateManager, _ := setup(t, []*v1.Pod{})
+	jobRunStateManager.ReportSuccessfulSubmission(defaultRunInfoMeta)
+
+	allKnownJobRuns := jobRunStateManager.GetAll()
+	assert.Len(t, allKnownJobRuns, 1)
+	assert.Equal(t, allKnownJobRuns[0].Meta, defaultRunInfoMeta)
+	assert.Equal(t, allKnownJobRuns[0].KubernetesId, "")
+	assert.Equal(t, allKnownJobRuns[0].Phase, SuccessfulSubmission)
+}
+
 func TestReportFailedSubmission(t *testing.T) {
 	jobRunStateManager, _ := setup(t, []*v1.Pod{})
 	jobRunStateManager.ReportFailedSubmission(defaultRunInfoMeta)

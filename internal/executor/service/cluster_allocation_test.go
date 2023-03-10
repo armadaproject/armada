@@ -14,17 +14,18 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-var defaultLeaseRun = createRun("default-run", job.Leased)
-
 func TestAllocateSpareClusterCapacity(t *testing.T) {
+	leaseRun := createRun("leased", job.Leased)
 	clusterAllocationService, _, eventReporter, submitter, runStore := setupClusterAllocationServiceTest()
-	runStore.JobRunState = map[string]*job.RunState{defaultLeaseRun.Meta.RunId: defaultLeaseRun}
+	runStore.JobRunState = map[string]*job.RunState{leaseRun.Meta.RunId: leaseRun}
 
 	clusterAllocationService.AllocateSpareClusterCapacity()
 
 	assert.Len(t, submitter.ReceivedSubmitJobs, 1)
-	assert.Equal(t, submitter.ReceivedSubmitJobs[0], defaultLeaseRun.Job)
+	assert.Equal(t, submitter.ReceivedSubmitJobs[0], leaseRun.Job)
 	assert.Len(t, eventReporter.ReceivedEvents, 0)
+	runState := runStore.Get(leaseRun.Meta.RunId)
+	assert.Equal(t, runState.Phase, job.SuccessfulSubmission)
 }
 
 func TestAllocateSpareClusterCapacity_SkipsLeaseRunsWhereJobIsNil(t *testing.T) {
@@ -40,25 +41,28 @@ func TestAllocateSpareClusterCapacity_SkipsLeaseRunsWhereJobIsNil(t *testing.T) 
 }
 
 func TestAllocateSpareClusterCapacity_OnlySubmitsJobForLeasedRuns(t *testing.T) {
+	leaseRun := createRun("leased", job.Leased)
 	clusterAllocationService, _, eventReporter, submitter, runStore := setupClusterAllocationServiceTest()
 	runStore.JobRunState = map[string]*job.RunState{
-		defaultLeaseRun.Meta.RunId: defaultLeaseRun,
-		"invalid":                  createRun("failedSubmission", job.Invalid),
-		"failedSubmission":         createRun("failedSubmission", job.FailedSubmission),
-		"successfulSubmission":     createRun("successfulSubmission", job.SuccessfulSubmission),
-		"missing":                  createRun("missing", job.Missing),
-		"active":                   createRun("active", job.Active),
+		leaseRun.Meta.RunId:    leaseRun,
+		"invalid":              createRun("failedSubmission", job.Invalid),
+		"failedSubmission":     createRun("failedSubmission", job.FailedSubmission),
+		"successfulSubmission": createRun("successfulSubmission", job.SuccessfulSubmission),
+		"missing":              createRun("missing", job.Missing),
+		"active":               createRun("active", job.Active),
 	}
 
 	clusterAllocationService.AllocateSpareClusterCapacity()
 
 	assert.Len(t, submitter.ReceivedSubmitJobs, 1)
-	assert.Equal(t, submitter.ReceivedSubmitJobs[0], defaultLeaseRun.Job)
+	assert.Equal(t, submitter.ReceivedSubmitJobs[0], leaseRun.Job)
 	assert.Len(t, eventReporter.ReceivedEvents, 0)
 }
 
 func TestAllocateSpareClusterCapacity_DoesNotSubmitJobs_WhenEtcdIsNotWithinSoftLimit(t *testing.T) {
-	clusterAllocationService, etcdHealthMonitor, eventReporter, submitter, _ := setupClusterAllocationServiceTest()
+	leaseRun := createRun("leased", job.Leased)
+	clusterAllocationService, etcdHealthMonitor, eventReporter, submitter, runStore := setupClusterAllocationServiceTest()
+	runStore.JobRunState = map[string]*job.RunState{leaseRun.Meta.RunId: leaseRun}
 	etcdHealthMonitor.IsWithinSoftLimit = false
 
 	clusterAllocationService.AllocateSpareClusterCapacity()
@@ -69,29 +73,24 @@ func TestAllocateSpareClusterCapacity_DoesNotSubmitJobs_WhenEtcdIsNotWithinSoftL
 
 func TestAllocateSpareClusterCapacity_HandlesFailedPodCreations(t *testing.T) {
 	tests := map[string]struct {
-		initialRunState          *job.RunState
 		recoverableSubmitFailure bool
 		failOnReportingEvent     bool
 		expectLeaseReturnedEvent bool
 		expectFailEvent          bool
 	}{
 		"recoverable submission failure": {
-			initialRunState:          defaultLeaseRun,
 			recoverableSubmitFailure: true,
 			expectLeaseReturnedEvent: true,
 		},
 		"recoverable submission failure with event reporting failure": {
-			initialRunState:          defaultLeaseRun,
 			recoverableSubmitFailure: true,
 			failOnReportingEvent:     true,
 		},
 		"unrecoverable submission failure": {
-			initialRunState:          defaultLeaseRun,
 			recoverableSubmitFailure: false,
 			expectFailEvent:          true,
 		},
 		"unrecoverable submission failure with event reporting failure": {
-			initialRunState:          defaultLeaseRun,
 			recoverableSubmitFailure: false,
 			failOnReportingEvent:     true,
 		},
@@ -99,13 +98,14 @@ func TestAllocateSpareClusterCapacity_HandlesFailedPodCreations(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			leaseRun := createRun("leased", job.Leased)
 			clusterAllocationService, _, eventReporter, submitter, runStore := setupClusterAllocationServiceTest()
 			eventReporter.ErrorOnReport = tc.failOnReportingEvent
-			runStore.JobRunState = map[string]*job.RunState{tc.initialRunState.Meta.RunId: tc.initialRunState}
+			runStore.JobRunState = map[string]*job.RunState{leaseRun.Meta.RunId: leaseRun}
 			submitter.FailedSubmissionDetails = []*job.FailedSubmissionDetails{
 				{
-					JobRunMeta:  tc.initialRunState.Meta,
-					Pod:         tc.initialRunState.Job.Pod,
+					JobRunMeta:  leaseRun.Meta,
+					Pod:         leaseRun.Job.Pod,
 					Error:       fmt.Errorf("failed"),
 					Recoverable: tc.recoverableSubmitFailure,
 				},
@@ -115,12 +115,12 @@ func TestAllocateSpareClusterCapacity_HandlesFailedPodCreations(t *testing.T) {
 
 			if tc.failOnReportingEvent {
 				assert.Len(t, eventReporter.ReceivedEvents, 0)
-				run := runStore.Get(tc.initialRunState.Meta.RunId)
+				run := runStore.Get(leaseRun.Meta.RunId)
 				assert.Nil(t, run)
 			}
 
 			if tc.expectLeaseReturnedEvent {
-				run := runStore.Get(tc.initialRunState.Meta.RunId)
+				run := runStore.Get(leaseRun.Meta.RunId)
 				assert.Equal(t, run.Phase, job.FailedSubmission)
 				assert.Len(t, eventReporter.ReceivedEvents, 1)
 				_, ok := eventReporter.ReceivedEvents[0].Event.(*api.JobLeaseReturnedEvent)
@@ -128,7 +128,7 @@ func TestAllocateSpareClusterCapacity_HandlesFailedPodCreations(t *testing.T) {
 			}
 
 			if tc.expectFailEvent {
-				run := runStore.Get(tc.initialRunState.Meta.RunId)
+				run := runStore.Get(leaseRun.Meta.RunId)
 				assert.Equal(t, run.Phase, job.FailedSubmission)
 				assert.Len(t, eventReporter.ReceivedEvents, 1)
 				_, ok := eventReporter.ReceivedEvents[0].Event.(*api.JobFailedEvent)
@@ -164,7 +164,7 @@ func createRun(runId string, phase job.RunPhase) *job.RunState {
 		Job: &job.SubmitJob{
 			Meta: job.SubmitJobMeta{
 				RunMeta: &job.RunMeta{
-					RunId: "run-id",
+					RunId: runId,
 				},
 			},
 			Pod: makePod("queue-1"),

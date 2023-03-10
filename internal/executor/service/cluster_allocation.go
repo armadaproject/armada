@@ -67,7 +67,20 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 	}
 
 	failedJobSubmissions := allocationService.submitter.SubmitJobs(jobs)
+	allocationService.processSuccessfulSubmissions(jobs, failedJobSubmissions)
 	allocationService.processFailedJobSubmissions(failedJobSubmissions)
+}
+
+func (allocationService *ClusterAllocationService) processSuccessfulSubmissions(jobs []*job.SubmitJob, failedSubmissions []*job.FailedSubmissionDetails) {
+	failedSubmissionSet := make(map[string]bool, len(failedSubmissions))
+	for _, failedSubmission := range failedSubmissions {
+		failedSubmissionSet[failedSubmission.JobRunMeta.RunId] = true
+	}
+	for _, j := range jobs {
+		if _, failed := failedSubmissionSet[j.Meta.RunMeta.RunId]; !failed {
+			allocationService.jobRunStateStore.ReportSuccessfulSubmission(j.Meta.RunMeta)
+		}
+	}
 }
 
 func (allocationService *ClusterAllocationService) processFailedJobSubmissions(failedSubmissions []*job.FailedSubmissionDetails) {

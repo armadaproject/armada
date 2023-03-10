@@ -24,6 +24,14 @@ func (s *StubRunStateStore) ReportRunInvalid(runMeta *job.RunMeta) {
 	panic("implement me")
 }
 
+func (s *StubRunStateStore) ReportSuccessfulSubmission(runMeta *job.RunMeta) {
+	run, ok := s.JobRunState[runMeta.RunId]
+	if !ok {
+		return
+	}
+	run.Phase = job.SuccessfulSubmission
+}
+
 func (s *StubRunStateStore) ReportFailedSubmission(runMeta *job.RunMeta) {
 	run, ok := s.JobRunState[runMeta.RunId]
 	if !ok {

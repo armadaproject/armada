@@ -15,6 +15,7 @@ import (
 type RunStateStore interface {
 	ReportRunLeased(runMeta *RunMeta, job *SubmitJob)
 	ReportRunInvalid(runMeta *RunMeta)
+	ReportSuccessfulSubmission(runMeta *RunMeta)
 	ReportFailedSubmission(runMeta *RunMeta)
 	RequestRunCancellation(runId string)
 	RequestRunPreemption(runId string)
@@ -128,6 +129,22 @@ func (stateStore *JobRunStateStore) ReportRunInvalid(runMeta *RunMeta) {
 	} else {
 		log.Warnf("run unexpectedly reported as invalid (runId=%s, jobId=%s), state already exists", runMeta.RunId, runMeta.JobId)
 	}
+}
+
+func (stateStore *JobRunStateStore) ReportSuccessfulSubmission(runMeta *RunMeta) {
+	stateStore.lock.Lock()
+	defer stateStore.lock.Unlock()
+
+	currentState, present := stateStore.jobRunState[runMeta.RunId]
+	if !present {
+		log.Warnf("run unexpected reported as failed submission (runId=%s, jobId=%s), no current state exists", runMeta.RunId, runMeta.JobId)
+		currentState = &RunState{
+			Meta: runMeta,
+		}
+		stateStore.jobRunState[runMeta.RunId] = currentState
+	}
+	currentState.Phase = SuccessfulSubmission
+	currentState.LastPhaseTransitionTime = time.Now()
 }
 
 func (stateStore *JobRunStateStore) ReportFailedSubmission(runMeta *RunMeta) {
