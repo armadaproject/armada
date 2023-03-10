@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armadaproject/armada/internal/executor/job/state"
+	"github.com/armadaproject/armada/internal/executor/job"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -32,11 +32,11 @@ type JobEventReporter struct {
 	eventQueued      map[string]uint8
 	eventQueuedMutex sync.Mutex
 
-	jobRunStateStore *state.JobRunStateStore
+	jobRunStateStore *job.JobRunStateStore
 	clusterContext   clusterContext.ClusterContext
 }
 
-func NewJobEventReporter(clusterContext clusterContext.ClusterContext, jobRunState *state.JobRunStateStore, eventSender EventSender) (*JobEventReporter, chan bool) {
+func NewJobEventReporter(clusterContext clusterContext.ClusterContext, jobRunState *job.JobRunStateStore, eventSender EventSender) (*JobEventReporter, chan bool) {
 	stop := make(chan bool)
 	reporter := &JobEventReporter{
 		eventSender:      eventSender,

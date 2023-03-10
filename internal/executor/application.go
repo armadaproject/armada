@@ -8,8 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armadaproject/armada/internal/executor/job/state"
-	processors2 "github.com/armadaproject/armada/internal/executor/job/state/processors"
+	"github.com/armadaproject/armada/internal/executor/job/processors"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -93,7 +92,7 @@ func StartUpWithContext(
 	}
 
 	var executorApiClient executorapi.ExecutorApiClient
-	var jobRunState *state.JobRunStateStore
+	var jobRunState *job.JobRunStateStore
 	var usageClient api.UsageClient
 	var eventSender reporter.EventSender
 	var queueClient api.AggregatedQueueClient
@@ -101,7 +100,7 @@ func StartUpWithContext(
 	if config.Application.UseExecutorApi {
 		executorApiClient = executorapi.NewExecutorApiClient(conn)
 		eventSender = reporter.NewExecutorApiEventSender(executorApiClient, 4*1024*1024)
-		jobRunState = state.NewJobRunStateStore(clusterContext)
+		jobRunState = job.NewJobRunStateStore(clusterContext)
 	} else {
 		usageClient = api.NewUsageClient(conn)
 		queueClient = api.NewAggregatedQueueClient(conn)
@@ -159,8 +158,8 @@ func StartUpWithContext(
 	if config.Application.UseExecutorApi {
 		leaseRequester := service.NewJobLeaseRequester(
 			executorApiClient, clusterContext, config.Kubernetes.MinimumJobSize)
-		preemptRunProcessor := processors2.NewRunPreemptedProcessor(clusterContext, jobRunState, eventReporter)
-		removeRunProcessor := processors2.NewRemoveRunProcessor(clusterContext, jobRunState)
+		preemptRunProcessor := processors.NewRunPreemptedProcessor(clusterContext, jobRunState, eventReporter)
+		removeRunProcessor := processors.NewRemoveRunProcessor(clusterContext, jobRunState)
 		jobRequester := service.NewJobRequester(
 			clusterContext,
 			eventReporter,

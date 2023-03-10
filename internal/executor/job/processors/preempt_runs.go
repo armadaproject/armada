@@ -18,13 +18,13 @@ import (
 
 type RunPreemptedProcessor struct {
 	clusterContext   executorContext.ClusterContext
-	jobRunStateStore state.RunStateStore
+	jobRunStateStore job.RunStateStore
 	eventReporter    reporter.EventReporter
 }
 
 func NewRunPreemptedProcessor(
 	clusterContext executorContext.ClusterContext,
-	jobRunStateStore state.RunStateStore,
+	jobRunStateStore job.RunStateStore,
 	eventReporter reporter.EventReporter) *RunPreemptedProcessor {
 	return &RunPreemptedProcessor{
 		clusterContext:   clusterContext,

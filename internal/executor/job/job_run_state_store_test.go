@@ -1,10 +1,9 @@
-package state
+package job
 
 import (
 	"fmt"
 	"testing"
 
-	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,7 +15,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/util"
 )
 
-var defaultRunInfoMeta = &job.RunMeta{
+var defaultRunInfoMeta = &RunMeta{
 	RunId:  "run-1",
 	JobId:  "job-1",
 	Queue:  "queue-1",
@@ -35,18 +34,18 @@ func TestOnStartUp_ReconcilesWithKubernetes(t *testing.T) {
 	assert.Equal(t, allKnownJobRuns[0].Meta.Queue, util.ExtractQueue(existingPod))
 	assert.Equal(t, allKnownJobRuns[0].Meta.JobSet, util.ExtractJobSet(existingPod))
 	assert.Equal(t, allKnownJobRuns[0].KubernetesId, string(existingPod.UID))
-	assert.Equal(t, allKnownJobRuns[0].Phase, job.Active)
+	assert.Equal(t, allKnownJobRuns[0].Phase, Active)
 }
 
 func TestReportRunLeased(t *testing.T) {
 	jobRunStateManager, _ := setup(t, []*v1.Pod{})
-	jobRunStateManager.ReportRunLeased(defaultRunInfoMeta, &job.SubmitJob{})
+	jobRunStateManager.ReportRunLeased(defaultRunInfoMeta, &SubmitJob{})
 
 	allKnownJobRuns := jobRunStateManager.GetAll()
 	assert.Len(t, allKnownJobRuns, 1)
 	assert.Equal(t, allKnownJobRuns[0].Meta, defaultRunInfoMeta)
 	assert.Equal(t, allKnownJobRuns[0].KubernetesId, "")
-	assert.Equal(t, allKnownJobRuns[0].Phase, job.Leased)
+	assert.Equal(t, allKnownJobRuns[0].Phase, Leased)
 }
 
 func TestReportFailedSubmission(t *testing.T) {
@@ -57,14 +56,14 @@ func TestReportFailedSubmission(t *testing.T) {
 	assert.Len(t, allKnownJobRuns, 1)
 	assert.Equal(t, allKnownJobRuns[0].Meta, defaultRunInfoMeta)
 	assert.Equal(t, allKnownJobRuns[0].KubernetesId, "")
-	assert.Equal(t, allKnownJobRuns[0].Phase, job.FailedSubmission)
+	assert.Equal(t, allKnownJobRuns[0].Phase, FailedSubmission)
 }
 
 func TestOnPodEvent_MovesJobRunStateToActive(t *testing.T) {
 	jobRunStateManager, executorContext := setup(t, []*v1.Pod{})
 
 	pod1 := createPod()
-	runInfo := &job.RunMeta{
+	runInfo := &RunMeta{
 		RunId:  util.ExtractJobRunId(pod1),
 		JobId:  util.ExtractJobId(pod1),
 		Queue:  util.ExtractQueue(pod1),
@@ -72,24 +71,24 @@ func TestOnPodEvent_MovesJobRunStateToActive(t *testing.T) {
 	}
 
 	// Add leased job run
-	jobRunStateManager.ReportRunLeased(runInfo, &job.SubmitJob{})
+	jobRunStateManager.ReportRunLeased(runInfo, &SubmitJob{})
 	jobRun := jobRunStateManager.Get(runInfo.RunId)
 	assert.NotNil(t, jobRun)
-	assert.Equal(t, jobRun.Phase, job.Leased)
+	assert.Equal(t, jobRun.Phase, Leased)
 
 	// Simulate pod added to kubernetes
 	executorContext.SimulatePodAddEvent(pod1)
 
 	jobRun = jobRunStateManager.Get(runInfo.RunId)
 	assert.NotNil(t, jobRun)
-	assert.Equal(t, jobRun.Phase, job.Active)
+	assert.Equal(t, jobRun.Phase, Active)
 }
 
 func TestDelete(t *testing.T) {
 	jobRunStateManager, _ := setup(t, []*v1.Pod{})
 
 	// Add job run
-	jobRunStateManager.ReportRunLeased(defaultRunInfoMeta, &job.SubmitJob{})
+	jobRunStateManager.ReportRunLeased(defaultRunInfoMeta, &SubmitJob{})
 	assert.Len(t, jobRunStateManager.GetAll(), 1)
 
 	jobRunStateManager.Delete(defaultRunInfoMeta.RunId)
@@ -100,7 +99,7 @@ func TestGet(t *testing.T) {
 	jobRunStateManager, _ := setup(t, []*v1.Pod{})
 
 	// Add job run
-	jobRunStateManager.ReportRunLeased(defaultRunInfoMeta, &job.SubmitJob{})
+	jobRunStateManager.ReportRunLeased(defaultRunInfoMeta, &SubmitJob{})
 
 	jobRun := jobRunStateManager.Get(defaultRunInfoMeta.RunId)
 	assert.NotNil(t, jobRun)

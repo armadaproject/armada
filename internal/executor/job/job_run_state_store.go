@@ -1,10 +1,9 @@
-package state
+package job
 
 import (
 	"sync"
 	"time"
 
-	"github.com/armadaproject/armada/internal/executor/job"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
@@ -14,29 +13,29 @@ import (
 )
 
 type RunStateStore interface {
-	ReportRunLeased(runMeta *job.RunMeta, job *job.SubmitJob)
-	ReportRunInvalid(runMeta *job.RunMeta)
-	ReportFailedSubmission(runMeta *job.RunMeta)
+	ReportRunLeased(runMeta *RunMeta, job *SubmitJob)
+	ReportRunInvalid(runMeta *RunMeta)
+	ReportFailedSubmission(runMeta *RunMeta)
 	RequestRunCancellation(runId string)
 	RequestRunPreemption(runId string)
 	Delete(runId string)
-	Get(runId string) *job.RunState
-	GetAll() []*job.RunState
-	GetByKubernetesId(kubernetesId string) *job.RunState
-	GetByPhase(phase job.RunPhase) []*job.RunState
-	GetWithFilter(fn func(state *job.RunState) bool) []*job.RunState
+	Get(runId string) *RunState
+	GetAll() []*RunState
+	GetByKubernetesId(kubernetesId string) *RunState
+	GetByPhase(phase RunPhase) []*RunState
+	GetWithFilter(fn func(state *RunState) bool) []*RunState
 }
 
 type JobRunStateStore struct {
 	// RunId -> RunState
-	jobRunState    map[string]*job.RunState
+	jobRunState    map[string]*RunState
 	lock           sync.Mutex
 	clusterContext context.ClusterContext
 }
 
 func NewJobRunStateStore(clusterContext context.ClusterContext) *JobRunStateStore {
 	stateStore := &JobRunStateStore{
-		jobRunState:    map[string]*job.RunState{},
+		jobRunState:    map[string]*RunState{},
 		lock:           sync.Mutex{},
 		clusterContext: clusterContext,
 	}
@@ -80,7 +79,7 @@ func (stateStore *JobRunStateStore) reportRunActive(pod *v1.Pod) {
 		return
 	}
 
-	runMeta, err := job.ExtractJobRunMeta(pod)
+	runMeta, err := ExtractJobRunMeta(pod)
 	if err != nil {
 		log.Errorf("Failed to record pod %s as active because %s", pod.Name, err)
 		return
@@ -88,19 +87,19 @@ func (stateStore *JobRunStateStore) reportRunActive(pod *v1.Pod) {
 
 	currentState, present := stateStore.jobRunState[runMeta.RunId]
 	if !present {
-		currentState = &job.RunState{
+		currentState = &RunState{
 			Meta: runMeta,
 		}
 		stateStore.jobRunState[runMeta.RunId] = currentState
 	}
 
-	currentState.Phase = job.Active
+	currentState.Phase = Active
 	currentState.KubernetesId = string(pod.UID)
 	currentState.Job = nil // Now that the job is active, remove the object to save memory
 	currentState.LastPhaseTransitionTime = time.Now()
 }
 
-func (stateStore *JobRunStateStore) ReportRunLeased(runMeta *job.RunMeta, job *job.SubmitJob) {
+func (stateStore *JobRunStateStore) ReportRunLeased(runMeta *RunMeta, job *SubmitJob) {
 	stateStore.lock.Lock()
 	defer stateStore.lock.Unlock()
 	_, present := stateStore.jobRunState[runMeta.RunId]
@@ -117,14 +116,14 @@ func (stateStore *JobRunStateStore) ReportRunLeased(runMeta *job.RunMeta, job *j
 		log.Warnf("run unexpectedly reported as leased (runId=%s, jobId=%s), state already exists", runMeta.RunId, runMeta.JobId)
 	}
 }
-func (stateStore *JobRunStateStore) ReportRunInvalid(runMeta *job.RunMeta) {
+func (stateStore *JobRunStateStore) ReportRunInvalid(runMeta *RunMeta) {
 	stateStore.lock.Lock()
 	defer stateStore.lock.Unlock()
 	_, present := stateStore.jobRunState[runMeta.RunId]
 	if !present {
-		state := &job.RunState{
+		state := &RunState{
 			Meta:                    runMeta,
-			Phase:                   job.Invalid,
+			Phase:                   Invalid,
 			CancelRequested:         false,
 			LastPhaseTransitionTime: time.Now(),
 		}
@@ -134,19 +133,19 @@ func (stateStore *JobRunStateStore) ReportRunInvalid(runMeta *job.RunMeta) {
 	}
 }
 
-func (stateStore *JobRunStateStore) ReportFailedSubmission(runMeta *job.RunMeta) {
+func (stateStore *JobRunStateStore) ReportFailedSubmission(runMeta *RunMeta) {
 	stateStore.lock.Lock()
 	defer stateStore.lock.Unlock()
 
 	currentState, present := stateStore.jobRunState[runMeta.RunId]
 	if !present {
 		log.Warnf("run unexpected reported as failed submission (runId=%s, jobId=%s), no current state exists", runMeta.RunId, runMeta.JobId)
-		currentState = &job.RunState{
+		currentState = &RunState{
 			Meta: runMeta,
 		}
 		stateStore.jobRunState[runMeta.RunId] = currentState
 	}
-	currentState.Phase = job.FailedSubmission
+	currentState.Phase = FailedSubmission
 	currentState.LastPhaseTransitionTime = time.Now()
 }
 
@@ -175,25 +174,25 @@ func (stateStore *JobRunStateStore) Delete(runId string) {
 	delete(stateStore.jobRunState, runId)
 }
 
-func (stateStore *JobRunStateStore) Get(runId string) *job.RunState {
+func (stateStore *JobRunStateStore) Get(runId string) *RunState {
 	stateStore.lock.Lock()
 	defer stateStore.lock.Unlock()
 
 	return stateStore.jobRunState[runId].DeepCopy()
 }
 
-func (stateStore *JobRunStateStore) GetAll() []*job.RunState {
+func (stateStore *JobRunStateStore) GetAll() []*RunState {
 	stateStore.lock.Lock()
 	defer stateStore.lock.Unlock()
 
-	result := make([]*job.RunState, 0, len(stateStore.jobRunState))
+	result := make([]*RunState, 0, len(stateStore.jobRunState))
 	for _, jobRun := range stateStore.jobRunState {
 		result = append(result, jobRun.DeepCopy())
 	}
 	return result
 }
 
-func (stateStore *JobRunStateStore) GetByKubernetesId(kubernetesId string) *job.RunState {
+func (stateStore *JobRunStateStore) GetByKubernetesId(kubernetesId string) *RunState {
 	stateStore.lock.Lock()
 	defer stateStore.lock.Unlock()
 
@@ -205,17 +204,17 @@ func (stateStore *JobRunStateStore) GetByKubernetesId(kubernetesId string) *job.
 	return nil
 }
 
-func (stateStore *JobRunStateStore) GetByPhase(phase job.RunPhase) []*job.RunState {
-	return stateStore.GetWithFilter(func(state *job.RunState) bool {
+func (stateStore *JobRunStateStore) GetByPhase(phase RunPhase) []*RunState {
+	return stateStore.GetWithFilter(func(state *RunState) bool {
 		return state.Phase == phase
 	})
 }
 
-func (stateStore *JobRunStateStore) GetWithFilter(fn func(state *job.RunState) bool) []*job.RunState {
+func (stateStore *JobRunStateStore) GetWithFilter(fn func(state *RunState) bool) []*RunState {
 	stateStore.lock.Lock()
 	defer stateStore.lock.Unlock()
 
-	result := make([]*job.RunState, 0, len(stateStore.jobRunState))
+	result := make([]*RunState, 0, len(stateStore.jobRunState))
 	for _, jobRun := range stateStore.jobRunState {
 		if fn(jobRun) {
 			result = append(result, jobRun.DeepCopy())
