@@ -189,21 +189,27 @@ func NewRescheduler(
 	jobRepo JobRepository,
 	nodeDb *NodeDb,
 	priorityFactorByQueue map[string]float64,
-	initialUsageByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
+	initialAllocationByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 	initialNodeIdByJobId map[string]string,
-	jobIdsByGangId map[string]map[string]bool,
-	gangIdByJobId map[string]string,
+	initialJobIdsByGangId map[string]map[string]bool,
+	initialGangIdByJobId map[string]string,
 	schedulingReportsRepository *SchedulingReportsRepository,
 ) *Rescheduler {
-	if initialUsageByQueueAndPriority == nil {
-		initialUsageByQueueAndPriority = make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
+	if initialAllocationByQueueAndPriority == nil {
+		initialAllocationByQueueAndPriority = make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
 	}
 	if initialNodeIdByJobId == nil {
 		initialNodeIdByJobId = make(map[string]string)
 	}
-	jobIdsByGangId = maps.Clone(jobIdsByGangId)
-	for gangId, jobIds := range jobIdsByGangId {
-		jobIdsByGangId[gangId] = maps.Clone(jobIds)
+	if initialJobIdsByGangId == nil {
+		initialJobIdsByGangId = make(map[string]map[string]bool)
+	}
+	if initialGangIdByJobId == nil {
+		initialGangIdByJobId = make(map[string]string)
+	}
+	initialJobIdsByGangId = maps.Clone(initialJobIdsByGangId)
+	for gangId, jobIds := range initialJobIdsByGangId {
+		initialJobIdsByGangId[gangId] = maps.Clone(jobIds)
 	}
 	return &Rescheduler{
 		constraints:                           constraints,
@@ -214,10 +220,10 @@ func NewRescheduler(
 		jobRepo:                               jobRepo,
 		nodeDb:                                nodeDb,
 		priorityFactorByQueue:                 maps.Clone(priorityFactorByQueue),
-		allocatedByQueueAndPriority:           armadamaps.DeepCopy(initialUsageByQueueAndPriority),
+		allocatedByQueueAndPriority:           armadamaps.DeepCopy(initialAllocationByQueueAndPriority),
 		nodeIdByJobId:                         maps.Clone(initialNodeIdByJobId),
-		jobIdsByGangId:                        jobIdsByGangId,
-		gangIdByJobId:                         maps.Clone(gangIdByJobId),
+		jobIdsByGangId:                        initialJobIdsByGangId,
+		gangIdByJobId:                         maps.Clone(initialGangIdByJobId),
 		schedulingReportsRepository:           schedulingReportsRepository,
 	}
 }
