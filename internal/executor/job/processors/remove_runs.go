@@ -7,7 +7,6 @@ import (
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
-	"github.com/armadaproject/armada/internal/executor/job/state"
 	"github.com/armadaproject/armada/internal/executor/util"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -32,7 +31,7 @@ func (j *RemoveRunProcessor) Run() {
 		return
 	}
 
-	runsToCancel := j.jobRunStateStore.GetWithFilter(func(state *job.RunState) bool {
+	runsToCancel := j.jobRunStateStore.GetAllWithFilter(func(state *job.RunState) bool {
 		return state.CancelRequested
 	})
 	runPodInfos := createRunPodInfos(runsToCancel, managedPods)

@@ -21,9 +21,8 @@ type RunStateStore interface {
 	Delete(runId string)
 	Get(runId string) *RunState
 	GetAll() []*RunState
+	GetAllWithFilter(fn func(state *RunState) bool) []*RunState
 	GetByKubernetesId(kubernetesId string) *RunState
-	GetByPhase(phase RunPhase) []*RunState
-	GetWithFilter(fn func(state *RunState) bool) []*RunState
 }
 
 type JobRunStateStore struct {
@@ -104,11 +103,10 @@ func (stateStore *JobRunStateStore) ReportRunLeased(runMeta *RunMeta, job *Submi
 	defer stateStore.lock.Unlock()
 	_, present := stateStore.jobRunState[runMeta.RunId]
 	if !present {
-		state := &job.RunState{
+		state := &RunState{
 			Meta:                    runMeta,
 			Job:                     job,
-			Phase:                   job.Leased,
-			CancelRequested:         false,
+			Phase:                   Leased,
 			LastPhaseTransitionTime: time.Now(),
 		}
 		stateStore.jobRunState[runMeta.RunId] = state
@@ -124,7 +122,6 @@ func (stateStore *JobRunStateStore) ReportRunInvalid(runMeta *RunMeta) {
 		state := &RunState{
 			Meta:                    runMeta,
 			Phase:                   Invalid,
-			CancelRequested:         false,
 			LastPhaseTransitionTime: time.Now(),
 		}
 		stateStore.jobRunState[runMeta.RunId] = state
@@ -204,13 +201,7 @@ func (stateStore *JobRunStateStore) GetByKubernetesId(kubernetesId string) *RunS
 	return nil
 }
 
-func (stateStore *JobRunStateStore) GetByPhase(phase RunPhase) []*RunState {
-	return stateStore.GetWithFilter(func(state *RunState) bool {
-		return state.Phase == phase
-	})
-}
-
-func (stateStore *JobRunStateStore) GetWithFilter(fn func(state *RunState) bool) []*RunState {
+func (stateStore *JobRunStateStore) GetAllWithFilter(fn func(state *RunState) bool) []*RunState {
 	stateStore.lock.Lock()
 	defer stateStore.lock.Unlock()
 

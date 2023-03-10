@@ -8,7 +8,6 @@ import (
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
-	"github.com/armadaproject/armada/internal/executor/job/state"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/api"
@@ -40,7 +39,7 @@ func (j *RunPreemptedProcessor) Run() {
 		return
 	}
 
-	runsToCancel := j.jobRunStateStore.GetWithFilter(func(state *job.RunState) bool {
+	runsToCancel := j.jobRunStateStore.GetAllWithFilter(func(state *job.RunState) bool {
 		return state.PreemptionRequested
 	})
 	runPodInfos := createRunPodInfos(runsToCancel, managedPods)

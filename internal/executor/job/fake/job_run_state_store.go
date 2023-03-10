@@ -61,13 +61,7 @@ func (s *StubRunStateStore) GetByKubernetesId(kubernetesId string) *job.RunState
 	return nil
 }
 
-func (s *StubRunStateStore) GetByPhase(phase job.RunPhase) []*job.RunState {
-	return s.GetWithFilter(func(state *job.RunState) bool {
-		return state.Phase == phase
-	})
-}
-
-func (s *StubRunStateStore) GetWithFilter(fn func(state *job.RunState) bool) []*job.RunState {
+func (s *StubRunStateStore) GetAllWithFilter(fn func(state *job.RunState) bool) []*job.RunState {
 	result := make([]*job.RunState, 0, len(s.JobRunState))
 	for _, jobRun := range s.JobRunState {
 		if fn(jobRun) {

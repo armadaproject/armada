@@ -53,7 +53,9 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 		return
 	}
 
-	jobRuns := allocationService.jobRunStateStore.GetByPhase(job.Leased)
+	jobRuns := allocationService.jobRunStateStore.GetAllWithFilter(func(state *job.RunState) bool {
+		return state.Phase == job.Leased
+	})
 	jobs := make([]*job.SubmitJob, 0, len(jobRuns))
 	for _, run := range jobRuns {
 		if run.Job == nil {
