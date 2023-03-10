@@ -110,6 +110,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 				currentJobId := api.JobIdFromApiEvent(msg.Message)
 				jobStatus := EventsToJobResponse(*msg.Message)
 				if jobStatus != nil {
+					log.Infof("JobSet: %s JobId: %s Queue: %s State: %s", eventToJobService.jobSetId, eventToJobService.jobId, eventToJobService.queue, jobStatus.GetState().String())
 					jobStatus := repository.NewJobStatus(eventToJobService.queue, eventToJobService.jobSetId, currentJobId, *jobStatus)
 					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(jobStatus)
 					if err != nil {
@@ -117,6 +118,8 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 						time.Sleep(5 * time.Second)
 						continue
 					}
+				} else {
+					log.Warn("Message: ", *msg.Message)
 				}
 				// advance the message id for next loop
 				fromMessageId = msg.GetId()

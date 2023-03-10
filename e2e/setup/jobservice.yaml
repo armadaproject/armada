@@ -1,5 +1,5 @@
 databasePath: "/tmp/jobservice.db"
-subscribeJobSetTime: 100
+subscribeJobSetTime: 10000
 apiConnection:
   armadaUrl: "server:50051"
   forceNoTls: true

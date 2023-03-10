@@ -5,7 +5,6 @@ import (
 
 	"github.com/gogo/protobuf/types"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
 	"github.com/armadaproject/armada/internal/jobservice/events"
@@ -25,8 +24,6 @@ func NewJobService(config *configuration.JobServiceConfiguration, sqlService *re
 }
 
 func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobServiceRequest) (*js.JobServiceResponse, error) {
-	g, _ := errgroup.WithContext(ctx)
-
 	requestFields := log.Fields{
 		"job_id":     opts.JobId,
 		"job_set_id": opts.JobSetId,
@@ -39,9 +36,12 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 		log.WithFields(requestFields).Debug("Job set not subscribed")
 		eventClient := events.NewEventClient(&s.jobServiceConfig.ApiConnection)
 		eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, eventClient, s.jobRepository)
-		g.Go(func() error {
-			return eventJob.SubscribeToJobSetId(context.Background(), s.jobServiceConfig.SubscribeJobSetTime)
-		})
+		go func() {
+			err := eventJob.SubscribeToJobSetId(context.Background(), s.jobServiceConfig.SubscribeJobSetTime)
+			if err != nil {
+				log.WithFields(requestFields).Error("Error", err)
+			}
+		}()
 	}
 	if err := s.jobRepository.UpdateJobSetTime(opts.Queue, opts.JobSetId); err != nil {
 		log.WithFields(requestFields).Warn(err)
@@ -50,6 +50,9 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 	if err != nil {
 		log.WithFields(requestFields).Warn(err)
 		return nil, err
+	}
+	if err == nil {
+		log.WithFields(requestFields).Info("response: ", response.State.String())
 	}
 
 	return response, err
