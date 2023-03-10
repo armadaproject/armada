@@ -179,7 +179,10 @@ def test_two_jobs_good_bad(client: ArmadaClient, jobservice: JobServiceClient):
     assert job_state == JobState.FAILED
     assert job_message.startswith(f"Armada test:{second_job_id} failed")
 
+
 job_set_name = f"test-{uuid.uuid1()}"
+
+
 def success_job(client: ArmadaClient, jobservice: JobServiceClient):
     job = client.submit_jobs(
         queue="queue-a",
