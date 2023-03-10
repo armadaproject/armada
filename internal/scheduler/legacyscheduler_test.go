@@ -1502,6 +1502,7 @@ func TestReschedule(t *testing.T) {
 				"A": 1,
 				"B": 1,
 			},
+			// To test the gang evictor, we need to disable stochastic eviction.
 			NodeEvictionProbability: pointer.Pointer(0.0),
 		},
 		"rescheduled jobs don't count towards maxJobsToSchedule": {
