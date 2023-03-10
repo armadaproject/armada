@@ -24,12 +24,9 @@ mage buildDockers "bundle"
 mage Kind
 
 # Start necessary dependencies.
-# On Arm-based Macs, you may need to change the pulsar image
-# in docker-compose.yaml to be kezhenxu94/pulsar.
-mage StartDependencies
 # Verify that dependencies started successfully
 # (check that Pulsar has fully started as it is quite slow (~ 1min )).
-mage checkForPulsarRunning
+mage StartDependencies && mage checkForPulsarRunning
 
 # Start the Armada server and executor.
 # Alternatively, run the Armada server and executor directly on the host,
