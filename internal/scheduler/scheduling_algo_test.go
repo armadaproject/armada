@@ -221,7 +221,7 @@ func twoCoreNode(name string, jobs []*jobdb.Job) *schedulerobjects.Node {
 				},
 			},
 		),
-		JobRunsByState: jobRunsByState,
+		StateByJobRunId: jobRunsByState,
 	}
 }
 
