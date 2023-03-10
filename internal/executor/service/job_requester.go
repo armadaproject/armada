@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/armadaproject/armada/internal/executor/job/state"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 
@@ -27,14 +28,14 @@ type JobRequester struct {
 	utilisationService utilisation.UtilisationService
 	clusterId          executorContext.ClusterIdentity
 	podDefaults        *configuration.PodDefaults
-	jobRunStateStore   *job.JobRunStateStore
+	jobRunStateStore   *state.JobRunStateStore
 }
 
 func NewJobRequester(
 	clusterId executorContext.ClusterIdentity,
 	eventReporter reporter.EventReporter,
 	leaseRequester LeaseRequester,
-	jobRunStateStore *job.JobRunStateStore,
+	jobRunStateStore *state.JobRunStateStore,
 	utilisationService utilisation.UtilisationService,
 	podDefaults *configuration.PodDefaults) *JobRequester {
 	return &JobRequester{

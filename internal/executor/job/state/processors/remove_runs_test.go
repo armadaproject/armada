@@ -6,7 +6,7 @@ import (
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
-	fake2 "github.com/armadaproject/armada/internal/executor/job/fake"
+	fake2 "github.com/armadaproject/armada/internal/executor/job/state/fake"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

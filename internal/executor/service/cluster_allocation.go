@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 
+	"github.com/armadaproject/armada/internal/executor/job/state"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -24,7 +25,7 @@ type ClusterAllocator interface {
 
 type ClusterAllocationService struct {
 	clusterId         executorContext.ClusterIdentity
-	jobRunStateStore  *job.JobRunStateStore
+	jobRunStateStore  *state.JobRunStateStore
 	submitter         job.Submitter
 	eventReporter     reporter.EventReporter
 	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor
@@ -33,7 +34,7 @@ type ClusterAllocationService struct {
 func NewClusterAllocationService(
 	clusterId executorContext.ClusterIdentity,
 	eventReporter reporter.EventReporter,
-	jobRunStateManager *job.JobRunStateStore,
+	jobRunStateManager *state.JobRunStateStore,
 	submitter job.Submitter,
 	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
 ) *ClusterAllocationService {

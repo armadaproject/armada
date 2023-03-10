@@ -7,6 +7,7 @@ import (
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/job/state"
 	"github.com/armadaproject/armada/internal/executor/util"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
@@ -14,10 +15,10 @@ import (
 
 type RemoveRunProcessor struct {
 	clusterContext   executorContext.ClusterContext
-	jobRunStateStore job.RunStateStore
+	jobRunStateStore state.RunStateStore
 }
 
-func NewRemoveRunProcessor(clusterContext executorContext.ClusterContext, jobRunStateStore job.RunStateStore) *RemoveRunProcessor {
+func NewRemoveRunProcessor(clusterContext executorContext.ClusterContext, jobRunStateStore state.RunStateStore) *RemoveRunProcessor {
 	return &RemoveRunProcessor{
 		clusterContext:   clusterContext,
 		jobRunStateStore: jobRunStateStore,

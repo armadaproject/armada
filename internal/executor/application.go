@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/armadaproject/armada/internal/executor/job/state"
+	processors2 "github.com/armadaproject/armada/internal/executor/job/state/processors"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -19,7 +21,6 @@ import (
 	executor_context "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/healthmonitor"
 	"github.com/armadaproject/armada/internal/executor/job"
-	"github.com/armadaproject/armada/internal/executor/job/processors"
 	"github.com/armadaproject/armada/internal/executor/metrics"
 	"github.com/armadaproject/armada/internal/executor/metrics/pod_metrics"
 	"github.com/armadaproject/armada/internal/executor/node"
@@ -92,7 +93,7 @@ func StartUpWithContext(
 	}
 
 	var executorApiClient executorapi.ExecutorApiClient
-	var jobRunState *job.JobRunStateStore
+	var jobRunState *state.JobRunStateStore
 	var usageClient api.UsageClient
 	var eventSender reporter.EventSender
 	var queueClient api.AggregatedQueueClient
@@ -100,7 +101,7 @@ func StartUpWithContext(
 	if config.Application.UseExecutorApi {
 		executorApiClient = executorapi.NewExecutorApiClient(conn)
 		eventSender = reporter.NewExecutorApiEventSender(executorApiClient, 4*1024*1024)
-		jobRunState = job.NewJobRunStateStore(clusterContext)
+		jobRunState = state.NewJobRunStateStore(clusterContext)
 	} else {
 		usageClient = api.NewUsageClient(conn)
 		queueClient = api.NewAggregatedQueueClient(conn)
@@ -158,8 +159,8 @@ func StartUpWithContext(
 	if config.Application.UseExecutorApi {
 		leaseRequester := service.NewJobLeaseRequester(
 			executorApiClient, clusterContext, config.Kubernetes.MinimumJobSize)
-		preemptRunProcessor := processors.NewRunPreemptedProcessor(clusterContext, jobRunState, eventReporter)
-		removeRunProcessor := processors.NewRemoveRunProcessor(clusterContext, jobRunState)
+		preemptRunProcessor := processors2.NewRunPreemptedProcessor(clusterContext, jobRunState, eventReporter)
+		removeRunProcessor := processors2.NewRemoveRunProcessor(clusterContext, jobRunState)
 		jobRequester := service.NewJobRequester(
 			clusterContext,
 			eventReporter,

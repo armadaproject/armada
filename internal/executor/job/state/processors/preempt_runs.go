@@ -8,6 +8,7 @@ import (
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/job/state"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/api"
@@ -17,13 +18,13 @@ import (
 
 type RunPreemptedProcessor struct {
 	clusterContext   executorContext.ClusterContext
-	jobRunStateStore job.RunStateStore
+	jobRunStateStore state.RunStateStore
 	eventReporter    reporter.EventReporter
 }
 
 func NewRunPreemptedProcessor(
 	clusterContext executorContext.ClusterContext,
-	jobRunStateStore job.RunStateStore,
+	jobRunStateStore state.RunStateStore,
 	eventReporter reporter.EventReporter) *RunPreemptedProcessor {
 	return &RunPreemptedProcessor{
 		clusterContext:   clusterContext,

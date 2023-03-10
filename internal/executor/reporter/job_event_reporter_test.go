@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/armadaproject/armada/internal/executor/job/state"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,7 +14,6 @@ import (
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/domain"
-	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -104,7 +104,7 @@ func TestJobEventReporter_SendsPreemptionEvent(t *testing.T) {
 	}
 }
 
-func setupTest(t *testing.T, existingPods []*v1.Pod) (EventReporter, *fakecontext.SyncFakeClusterContext, *job.JobRunStateStore, *FakeEventSender) {
+func setupTest(t *testing.T, existingPods []*v1.Pod) (EventReporter, *fakecontext.SyncFakeClusterContext, *state.JobRunStateStore, *FakeEventSender) {
 	executorContext := fakecontext.NewSyncFakeClusterContext()
 	for _, pod := range existingPods {
 		_, err := executorContext.SubmitPod(pod, "test", []string{})
@@ -112,7 +112,7 @@ func setupTest(t *testing.T, existingPods []*v1.Pod) (EventReporter, *fakecontex
 	}
 
 	eventSender := NewFakeEventSender()
-	jobRunState := job.NewJobRunStateStore(executorContext)
+	jobRunState := state.NewJobRunStateStore(executorContext)
 	jobEventReporter, _ := NewJobEventReporter(executorContext, jobRunState, eventSender)
 
 	return jobEventReporter, executorContext, jobRunState, eventSender
