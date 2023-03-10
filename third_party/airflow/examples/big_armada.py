@@ -147,7 +147,167 @@ with DAG(
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
 
+    armada7 = ArmadaOperator(
+        task_id="armada7",
+        name="armada7",
+        armada_queue="test",
+        job_service_client=job_service_client,
+        armada_client=no_auth_client,
+        job_request_items=submit_sleep_job(),
+        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
+    )
+
+    armada8 = ArmadaOperator(
+        task_id="armada8",
+        name="armada8",
+        armada_queue="test",
+        job_service_client=job_service_client,
+        armada_client=no_auth_client,
+        job_request_items=submit_sleep_job(),
+        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
+    )
+
+    armada9 = ArmadaOperator(
+        task_id="armada9",
+        name="armada9",
+        armada_queue="test",
+        job_service_client=job_service_client,
+        armada_client=no_auth_client,
+        job_request_items=submit_sleep_job(),
+        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
+    )
+
+    armada10 = ArmadaOperator(
+        task_id="armada10",
+        name="armada10",
+        armada_queue="test",
+        job_service_client=job_service_client,
+        armada_client=no_auth_client,
+        job_request_items=submit_sleep_job(),
+        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
+    )
+
+    armada11 = ArmadaOperator(
+        task_id="armada11",
+        name="armada11",
+        armada_queue="test",
+        job_service_client=job_service_client,
+        armada_client=no_auth_client,
+        job_request_items=submit_sleep_job(),
+        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
+    )
+
+    armada12 = ArmadaOperator(
+        task_id="armada12",
+        name="armada12",
+        armada_queue="test",
+        job_service_client=job_service_client,
+        armada_client=no_auth_client,
+        job_request_items=submit_sleep_job(),
+        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
+    )
+    armada13 = ArmadaOperator(
+        task_id="armada13",
+        name="armada13",
+        armada_queue="test",
+        job_service_client=job_service_client,
+        armada_client=no_auth_client,
+        job_request_items=submit_sleep_job(),
+        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
+    )
+
+    armada14 = ArmadaOperator(
+        task_id="armada14",
+        name="armada14",
+        armada_queue="test",
+        job_service_client=job_service_client,
+        armada_client=no_auth_client,
+        job_request_items=submit_sleep_job(),
+        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
+    )
+
+    armada15 = ArmadaOperator(
+        task_id="armada15",
+        name="armada15",
+        armada_queue="test",
+        job_service_client=job_service_client,
+        armada_client=no_auth_client,
+        job_request_items=submit_sleep_job(),
+        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
+    )
+
+    armada16 = ArmadaOperator(
+        task_id="armada16",
+        name="armada16",
+        armada_queue="test",
+        job_service_client=job_service_client,
+        armada_client=no_auth_client,
+        job_request_items=submit_sleep_job(),
+        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
+    )
+
+    armada17 = ArmadaOperator(
+        task_id="armada17",
+        name="armada17",
+        armada_queue="test",
+        job_service_client=job_service_client,
+        armada_client=no_auth_client,
+        job_request_items=submit_sleep_job(),
+        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
+    )
+
+    armada18 = ArmadaOperator(
+        task_id="armada18",
+        name="armada18",
+        armada_queue="test",
+        job_service_client=job_service_client,
+        armada_client=no_auth_client,
+        job_request_items=submit_sleep_job(),
+        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
+    )
+    armada19 = ArmadaOperator(
+        task_id="armada19",
+        name="armada19",
+        armada_queue="test",
+        job_service_client=job_service_client,
+        armada_client=no_auth_client,
+        job_request_items=submit_sleep_job(),
+        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
+    )
+
+    armada20 = ArmadaOperator(
+        task_id="armada20",
+        name="armada20",
+        armada_queue="test",
+        job_service_client=job_service_client,
+        armada_client=no_auth_client,
+        job_request_items=submit_sleep_job(),
+        lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
+    )
+
     """
     Airflow dag syntax for running op and then armada.
     """
-    op >> [armada1, armada2, armada3, armada4, armada5, armada6]
+    op >> [
+        armada1,
+        armada2,
+        armada3,
+        armada4,
+        armada5,
+        armada6,
+        armada7,
+        armada8,
+        armada9,
+        armada10,
+        armada11,
+        armada12,
+        armada13,
+        armada14,
+        armada14,
+        armada15,
+        armada16,
+        armada17,
+        armada18,
+        armada19,
+        armada20,
+    ]
