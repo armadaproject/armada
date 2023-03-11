@@ -7,7 +7,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
-	"github.com/pingcap/log"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -113,7 +113,7 @@ func TestSubmitChecker_TestCheckApiJobs(t *testing.T) {
 			if !tc.expectPass {
 				assert.NotEqual(t, "", msg)
 			}
-			log.Info(msg)
+			logrus.Info(msg)
 		})
 	}
 }

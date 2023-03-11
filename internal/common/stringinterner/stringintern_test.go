@@ -1,4 +1,4 @@
-package util
+package stringinterner
 
 import (
 	"reflect"
@@ -19,7 +19,7 @@ var (
 
 // Test that repeated calls to intern for strings with identical values but different backing arrays result in deduplication
 func TestStringInterner_TestIntern(t *testing.T) {
-	interner, err := NewStringInterner(defaultCapacity)
+	interner, err := New(defaultCapacity)
 	require.NoError(t, err)
 
 	for i := 0; i < len(cloned1); i++ {
@@ -42,7 +42,7 @@ func TestStringInterner_TestIntern(t *testing.T) {
 
 // Test that we don't store more strings than capacity
 func TestStringInterner_TestCapacity(t *testing.T) {
-	interner, err := NewStringInterner(defaultCapacity)
+	interner, err := New(defaultCapacity)
 	require.NoError(t, err)
 
 	// intern a string and assert we return the same string
@@ -62,7 +62,7 @@ func TestStringInterner_TestCapacity(t *testing.T) {
 	assert.Equal(t, addr(cloned2[0]), retrieved2Ptr)
 	assert.NotEqual(t, retrievedPtr, retrieved2Ptr)
 
-	assert.Equal(t, 3, interner.cache.Len()) // confirm that our cache hasn't gone over capacity
+	assert.Equal(t, 3, interner.lru.Len()) // confirm that our cache hasn't gone over capacity
 }
 
 // This horrible thing allows us to check the pointer to the data backing the string

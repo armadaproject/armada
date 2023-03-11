@@ -40,26 +40,45 @@ export const pendingDataForAllVisibleData = (
   return [rootData].concat(expandedGroups)
 }
 
-export const convertRowPartsToFilters = (expandedRowIdParts: RowIdParts[]): JobFilter[] => {
-  return expandedRowIdParts.map(({ type, value }) => ({
-    field: type,
-    value,
-    match: Match.Exact,
-  }))
-}
-
-export const convertColumnFiltersToFilters = (filters: ColumnFiltersState, columns: JobTableColumn[]): JobFilter[] => {
-  return filters.map(({ id, value }) => {
+export function getFiltersForRows(
+  filters: ColumnFiltersState,
+  columns: JobTableColumn[],
+  expandedRowIdParts: RowIdParts[],
+): JobFilter[] {
+  const filterColumnsIndexes = new Map<string, number>()
+  const jobFilters = filters.map(({ id, value }, i) => {
     const isArray = _.isArray(value)
     const columnInfo = columns.find((col) => col.id === id)
     const metadata = columnInfo ? getColumnMetadata(columnInfo) : undefined
+    const field = metadata?.annotation?.annotationKey ?? id
+
+    filterColumnsIndexes.set(field, i)
+
     return {
       isAnnotation: Boolean(metadata?.annotation),
-      field: metadata?.annotation?.annotationKey ?? id,
+      field: field,
       value: isArray ? (value as string[]) : (value as string),
       match: metadata?.defaultMatchType ?? (isArray ? Match.AnyOf : Match.StartsWith),
     }
   })
+
+  // Overwrite for expanded groups
+  for (const rowIdParts of expandedRowIdParts) {
+    const filter = {
+      field: rowIdParts.type,
+      value: rowIdParts.value,
+      match: Match.Exact,
+      isAnnotation: false,
+    }
+    if (filterColumnsIndexes.has(rowIdParts.type)) {
+      const i = filterColumnsIndexes.get(rowIdParts.type) as number
+      jobFilters[i] = filter
+    } else {
+      jobFilters.push(filter)
+    }
+  }
+
+  return jobFilters
 }
 
 export interface FetchRowRequest {

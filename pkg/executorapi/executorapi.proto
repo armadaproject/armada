@@ -26,15 +26,15 @@ message LeaseRequest{
   // Jobs submitted to this executor must require at least this amount of resources.
   map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> minimum_job_size = 4 [(gogoproto.nullable) = false];
   // For each node in the cluster:
-  // - the total allocatable resources on that node,
-  // - the job runs running on those nodes
-  // - any taints and labels on the node.
+  // - The total allocatable resources on that node.
+  // - The job runs running on those nodes,
+  // - Any taints and labels on the node.
   repeated api.NodeInfo nodes = 5;
-  // Run Ids of jobs owned by the executor but not currently assigned to a node
+  // Run Ids of jobs owned by the executor but not currently assigned to a node.
   repeated armadaevents.Uuid unassigned_job_run_ids = 6 [(gogoproto.nullable) = false];
 }
 
-// indicates that a job run is now leased
+// Indicates that a job run is now leased.
 message JobRunLease{
   armadaevents.Uuid job_run_id = 1;
   string queue = 2;
@@ -44,12 +44,17 @@ message JobRunLease{
   armadaevents.SubmitJob job  = 6;
 }
 
-// indicates that the given job run ids should be cancelled
+// Indicates that the job runs with the given ids should be cancelled.
 message CancelRuns{
   repeated armadaevents.Uuid job_run_ids_to_cancel = 1;
 }
 
-// indicates the end of the lease stream
+// Indicates that the job runs with the given ids should be preempted.
+message PreemptRuns{
+  repeated armadaevents.Uuid job_run_ids_to_preempt = 1;
+}
+
+// Indicates the end of the lease stream.
 message EndMarker{}
 
 message LeaseStreamMessage{
@@ -57,15 +62,18 @@ message LeaseStreamMessage{
     JobRunLease lease = 1;
     CancelRuns cancel_runs = 2;
     EndMarker end = 3;
+    PreemptRuns preempt_runs = 4;
   }
 }
 
 service ExecutorApi {
-  // Reports usage information to the scheduler.  In return, the scheduler provides:
-  //   - a list of job runs that the executor is currently running that should be cancelled (may be empty)
-  //   - a list of job runs that the executor is not currently running that should now be scheduler (may be empty)
-  // This call also acts as a signal to the scheduler that the executor is alive and accepting jobs
+  // Reports usage information to the scheduler. 
+  // In return, the scheduler provides:
+  // - Slice of job runs that the executor is currently running that should be cancelled.
+  // - Slice of job runs that the executor is currently running that should be preempted.
+  // - Slice job runs that the executor is not currently running that should be scheduled.
+  // This call also acts as a signal to the scheduler that the executor is alive and accepting jobs.
   rpc LeaseJobRuns (stream LeaseRequest) returns (stream LeaseStreamMessage);
-  // Reports job run events to the scheduler
+  // Reports job run events to the scheduler.
   rpc ReportEvents (EventList) returns (google.protobuf.Empty);
 }

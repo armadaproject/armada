@@ -1,6 +1,9 @@
 package protoutil
 
 import (
+	"crypto/sha1"
+	"encoding/json"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 
@@ -71,4 +74,23 @@ func MustMarshallAndCompress(msg proto.Message, compressor compress.Compressor) 
 		panic(err)
 	}
 	return b
+}
+
+// Hash produces a 160 bit hash of the supplied proto object
+func Hash(msg proto.Message) ([]byte, error) {
+	return HashMany([]proto.Message{msg})
+}
+
+// HashMany produces a 160 bit hash of the supplied proto objects
+func HashMany[T proto.Message](msgs []T) ([]byte, error) {
+	var hash []byte = nil
+	h := sha1.New()
+	for _, msg := range msgs {
+		b, err := json.Marshal(msg)
+		if err != nil {
+			return nil, err
+		}
+		hash = h.Sum(b)
+	}
+	return hash, nil
 }

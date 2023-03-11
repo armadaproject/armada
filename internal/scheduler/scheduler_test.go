@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -65,6 +65,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedJobRunLeased     []string          // ids of jobs we expect to have produced leased messages
 		expectedJobRunErrors     []string          // ids of jobs we expect to have produced jobRunErrors messages
 		expectedJobErrors        []string          // ids of jobs we expect to have produced jobErrors messages
+		expectedJobRunPreempted  []string          // ids of jobs we expect to have produced jobRunPreempted messages
 		expectedJobCancelled     []string          // ids of jobs we expect to have  produced cancelled messages
 		expectedJobReprioritised []string          // ids of jobs we expect to have  produced reprioritised messages
 		expectedJobSucceeded     []string          // ids of jobs we expect to have  produced succeeeded messages
@@ -205,6 +206,13 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedJobSucceeded: []string{leasedJob.Id()},
 			expectedTerminal:     []string{leasedJob.Id()},
 		},
+		"Job preempted": {
+			initialJobs:             []*jobdb.Job{leasedJob},
+			expectedJobRunPreempted: []string{leasedJob.Id()},
+			expectedJobErrors:       []string{leasedJob.Id()},
+			expectedJobRunErrors:    []string{leasedJob.Id()},
+			expectedTerminal:        []string{leasedJob.Id()},
+		},
 		"Fetch fails": {
 			initialJobs:    []*jobdb.Job{leasedJob},
 			fetchError:     true,
@@ -232,9 +240,13 @@ func TestScheduler_TestCycle(t *testing.T) {
 				shouldError: tc.fetchError,
 			}
 			testClock := clock.NewFakeClock(time.Now())
-			schedulingAlgo := &testSchedulingAlgo{jobsToSchedule: tc.expectedJobRunLeased, shouldError: tc.scheduleError}
+			schedulingAlgo := &testSchedulingAlgo{
+				jobsToSchedule: tc.expectedJobRunLeased,
+				jobsToPreempt:  tc.expectedJobRunPreempted,
+				shouldError:    tc.scheduleError,
+			}
 			publisher := &testPublisher{shouldError: tc.publishError}
-			stringInterner, err := util.NewStringInterner(100)
+			stringInterner, err := stringinterner.New(100)
 			require.NoError(t, err)
 
 			heartbeatTime := testClock.Now()
@@ -253,7 +265,8 @@ func TestScheduler_TestCycle(t *testing.T) {
 				stringInterner,
 				1*time.Second,
 				clusterTimeout,
-				maxLeaseReturns)
+				maxLeaseReturns,
+			)
 			require.NoError(t, err)
 
 			sched.clock = testClock
@@ -273,69 +286,21 @@ func TestScheduler_TestCycle(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			// assert that every event we've generated was expected
-			outstandingLeaseMessages := stringSet(tc.expectedJobRunLeased)
-			outstandingJobErrorMessages := stringSet(tc.expectedJobErrors)
-			outstandingJobRunErrorMessages := stringSet(tc.expectedJobRunErrors)
-			outstandingCancelledMessages := stringSet(tc.expectedJobCancelled)
-			outstandingReprioritisedMessages := stringSet(tc.expectedJobReprioritised)
-			outstandingJobSucceededMessages := stringSet(tc.expectedJobSucceeded)
-			for _, event := range publisher.events {
-				for _, e := range event.Events {
-					if e.GetJobRunLeased() != nil {
-						leased := e.GetJobRunLeased()
-						jobId, err := armadaevents.UlidStringFromProtoUuid(leased.JobId)
-						require.NoError(t, err)
-						_, ok := outstandingLeaseMessages[jobId]
-						assert.True(t, ok)
-						delete(outstandingLeaseMessages, jobId)
-					} else if e.GetJobErrors() != nil {
-						jobErrors := e.GetJobErrors()
-						jobId, err := armadaevents.UlidStringFromProtoUuid(jobErrors.JobId)
-						require.NoError(t, err)
-						_, ok := outstandingJobErrorMessages[jobId]
-						assert.True(t, ok)
-						delete(outstandingJobErrorMessages, jobId)
-					} else if e.GetJobRunErrors() != nil {
-						jobErrors := e.GetJobRunErrors()
-						jobId, err := armadaevents.UlidStringFromProtoUuid(jobErrors.JobId)
-						require.NoError(t, err)
-						_, ok := outstandingJobRunErrorMessages[jobId]
-						assert.True(t, ok)
-						delete(outstandingJobRunErrorMessages, jobId)
-					} else if e.GetJobSucceeded() != nil {
-						jobErrors := e.GetJobSucceeded()
-						jobId, err := armadaevents.UlidStringFromProtoUuid(jobErrors.JobId)
-						require.NoError(t, err)
-						_, ok := outstandingJobSucceededMessages[jobId]
-						assert.True(t, ok)
-						delete(outstandingJobSucceededMessages, jobId)
-					} else if e.GetCancelledJob() != nil {
-						jobErrors := e.GetCancelledJob()
-						jobId, err := armadaevents.UlidStringFromProtoUuid(jobErrors.JobId)
-						require.NoError(t, err)
-						_, ok := outstandingCancelledMessages[jobId]
-						assert.True(t, ok)
-						delete(outstandingCancelledMessages, jobId)
-					} else if e.GetReprioritisedJob() != nil {
-						reprioritised := e.GetReprioritisedJob()
-						jobId, err := armadaevents.UlidStringFromProtoUuid(reprioritised.JobId)
-						require.NoError(t, err)
-						_, ok := outstandingReprioritisedMessages[jobId]
-						assert.True(t, ok)
-						delete(outstandingReprioritisedMessages, jobId)
-					} else {
-						assert.Fail(t, fmt.Sprintf("unknown event sent to publisher %+v", e))
-					}
-				}
+			// Assert that all expected events are generated and that all events are expected.
+			outstandingEventsByType := map[string]map[string]bool{
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunLeased{}):     stringSet(tc.expectedJobRunLeased),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobErrors{}):        stringSet(tc.expectedJobErrors),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunErrors{}):     stringSet(tc.expectedJobRunErrors),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunPreempted{}):  stringSet(tc.expectedJobRunPreempted),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_CancelledJob{}):     stringSet(tc.expectedJobCancelled),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_ReprioritisedJob{}): stringSet(tc.expectedJobReprioritised),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobSucceeded{}):     stringSet(tc.expectedJobSucceeded),
 			}
-			// Assert that we didn't miss out any events
-			assert.Equal(t, 0, len(outstandingLeaseMessages))
-			assert.Equal(t, 0, len(outstandingJobErrorMessages))
-			assert.Equal(t, 0, len(outstandingJobRunErrorMessages))
-			assert.Equal(t, 0, len(outstandingCancelledMessages))
-			assert.Equal(t, 0, len(outstandingReprioritisedMessages))
-			assert.Equal(t, 0, len(outstandingJobSucceededMessages))
+			err = subtractEventsFromOutstandingEventsByType(publisher.events, outstandingEventsByType)
+			require.NoError(t, err)
+			for eventType, m := range outstandingEventsByType {
+				assert.Empty(t, m, "%d outstanding events of type %s", len(m), eventType)
+			}
 
 			// assert that the serials are where we expect them to be
 			if len(tc.jobUpdates) > 0 {
@@ -350,8 +315,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			}
 
 			// assert that the job db is in the state we expect
-			jobs, err := sched.jobDb.GetAll(sched.jobDb.ReadTxn())
-			require.NoError(t, err)
+			jobs := sched.jobDb.GetAll(sched.jobDb.ReadTxn())
 			remainingLeased := stringSet(tc.expectedLeased)
 			remainingQueued := stringSet(tc.expectedQueued)
 			remainingTerminal := stringSet(tc.expectedTerminal)
@@ -381,6 +345,28 @@ func TestScheduler_TestCycle(t *testing.T) {
 	}
 }
 
+func subtractEventsFromOutstandingEventsByType(eventSequences []*armadaevents.EventSequence, outstandingEventsByType map[string]map[string]bool) error {
+	for _, eventSequence := range eventSequences {
+		for _, event := range eventSequence.Events {
+			protoJobId, err := armadaevents.JobIdFromEvent(event)
+			if err != nil {
+				return err
+			}
+			jobId, err := armadaevents.UlidStringFromProtoUuid(protoJobId)
+			if err != nil {
+				return err
+			}
+			key := fmt.Sprintf("%T", event.Event)
+			_, ok := outstandingEventsByType[key][jobId]
+			if !ok {
+				return errors.Errorf("received unexpected event for job %s: %v", jobId, event.Event)
+			}
+			delete(outstandingEventsByType[key], jobId)
+		}
+	}
+	return nil
+}
+
 // Test running multiple scheduler cycles
 func TestRun(t *testing.T) {
 	// Test objects
@@ -390,7 +376,7 @@ func TestRun(t *testing.T) {
 	publisher := &testPublisher{}
 	clusterRepo := &testExecutorRepository{}
 	leaderController := NewStandaloneLeaderController()
-	stringInterner, err := util.NewStringInterner(100)
+	stringInterner, err := stringinterner.New(100)
 	require.NoError(t, err)
 
 	sched, err := NewScheduler(
@@ -499,6 +485,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				queuedJob.WithUpdatedRun(
 					jobdb.CreateRun(
 						uuid.UUID{},
+						queuedJob.Id(),
 						123,
 						"test-executor",
 						"test-node",
@@ -506,8 +493,9 @@ func TestScheduler_TestSyncState(t *testing.T) {
 						false,
 						false,
 						false,
-						false)).
-					WithQueued(false),
+						false,
+					),
+				).WithQueued(false),
 			},
 			expectedJobDbIds: []string{queuedJob.Id()},
 		},
@@ -554,7 +542,6 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			defer cancel()
 
 			// Test objects
-			// Test objects
 			jobRepo := &testJobRepository{
 				updatedJobs: tc.jobUpdates,
 				updatedRuns: tc.runUpdates,
@@ -563,7 +550,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			publisher := &testPublisher{}
 			clusterRepo := &testExecutorRepository{}
 			leaderController := NewStandaloneLeaderController()
-			stringInterner, err := util.NewStringInterner(100)
+			stringInterner, err := stringinterner.New(100)
 			require.NoError(t, err)
 
 			sched, err := NewScheduler(
@@ -588,8 +575,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedUpdatedJobs, updatedJobs)
-			allDbJobs, err := sched.jobDb.GetAll(sched.jobDb.ReadTxn())
-			require.NoError(t, err)
+			allDbJobs := sched.jobDb.GetAll(sched.jobDb.ReadTxn())
 
 			expectedIds := stringSet(tc.expectedJobDbIds)
 			require.Equal(t, len(tc.expectedJobDbIds), len(allDbJobs))
@@ -647,7 +633,7 @@ type testExecutorRepository struct {
 }
 
 func (t testExecutorRepository) GetExecutors(ctx context.Context) ([]*schedulerobjects.Executor, error) {
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (t testExecutorRepository) GetLastUpdateTimes(ctx context.Context) (map[string]time.Time, error) {
@@ -658,38 +644,55 @@ func (t testExecutorRepository) GetLastUpdateTimes(ctx context.Context) (map[str
 }
 
 func (t testExecutorRepository) StoreExecutor(ctx context.Context, executor *schedulerobjects.Executor) error {
-	panic("implement me")
+	panic("not implemented")
 }
 
 type testSchedulingAlgo struct {
+	jobsToPreempt  []string
 	jobsToSchedule []string
 	shouldError    bool
 }
 
-func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *memdb.Txn, jobDb *jobdb.JobDb) ([]*jobdb.Job, error) {
+func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error) {
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")
 	}
-	jobs := make([]*jobdb.Job, 0, len(t.jobsToSchedule))
-	for _, id := range t.jobsToSchedule {
-		job, _ := jobDb.GetById(txn, id)
-		if job != nil {
-			if !job.Queued() {
-				return nil, errors.New(fmt.Sprintf("Was asked to lease %s but job was already leased", job.Id()))
-			}
-			job = job.WithQueued(false).WithNewRun("test-executor", "test-node")
-			jobs = append(jobs, job)
+	preemptedJobs := make([]*jobdb.Job, 0, len(t.jobsToPreempt))
+	scheduledJobs := make([]*jobdb.Job, 0, len(t.jobsToSchedule))
+	for _, id := range t.jobsToPreempt {
+		job := jobDb.GetById(txn, id)
+		if job == nil {
+			return nil, errors.Errorf("was asked to preempt job %s but job does not exist", id)
+		}
+		if job.Queued() {
+			return nil, errors.Errorf("was asked to preempt job %s but job is still queued", job.Id())
+		}
+		if run := job.LatestRun(); run != nil {
+			job = job.WithUpdatedRun(run.WithFailed(true))
 		} else {
-			return nil, errors.New(fmt.Sprintf("Was asked to lease %s but job does not exist", job.Id()))
+			return nil, errors.Errorf("attempting to preempt job %s with no associated runs", job.Id())
 		}
+		job = job.WithQueued(false).WithFailed(true)
+		preemptedJobs = append(preemptedJobs, job)
 	}
-	if len(jobs) > 0 {
-		err := jobDb.Upsert(txn, jobs)
-		if err != nil {
-			return nil, err
+	for _, id := range t.jobsToSchedule {
+		job := jobDb.GetById(txn, id)
+		if job == nil {
+			return nil, errors.Errorf("was asked to lease %s but job does not exist", id)
 		}
+		if !job.Queued() {
+			return nil, errors.Errorf("was asked to lease %s but job was already leased", job.Id())
+		}
+		job = job.WithQueued(false).WithNewRun("test-executor", "test-node")
+		scheduledJobs = append(scheduledJobs, job)
 	}
-	return jobs, nil
+	if err := jobDb.Upsert(txn, preemptedJobs); err != nil {
+		return nil, err
+	}
+	if err := jobDb.Upsert(txn, scheduledJobs); err != nil {
+		return nil, err
+	}
+	return NewSchedulerResult(preemptedJobs, scheduledJobs, nil, nil), nil
 }
 
 type testPublisher struct {
