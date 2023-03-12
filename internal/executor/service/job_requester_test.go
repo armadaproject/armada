@@ -3,19 +3,20 @@ package service
 import (
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/job"
-	"github.com/armadaproject/armada/internal/executor/reporter/fake"
+	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/utilisation"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRequestJobsRuns_ConstructsCorrectLeaseRequest(t *testing.T) {
@@ -139,9 +140,9 @@ func TestRequestJobsRuns_SkipsFullyInvalidLeasedJobs(t *testing.T) {
 	assert.Len(t, stateStore.GetAll(), 0)
 }
 
-func setupJobRequesterTest(t *testing.T) (*JobRequester, *fake.FakeEventReporter, *StubLeaseRequester, *job.TestJobRunStateStore, *utilisation.StubUtilisationService) {
+func setupJobRequesterTest(t *testing.T) (*JobRequester, *reporter.FakeEventReporter, *StubLeaseRequester, *job.TestJobRunStateStore, *utilisation.StubUtilisationService) {
 	clusterId := fakecontext.NewFakeClusterIdentity("cluster-1", "pool-1")
-	eventReporter := fake.NewFakeEventReporter()
+	eventReporter := reporter.NewFakeEventReporter()
 	stateStore := job.NewTestJobRunStateStore([]*job.RunState{})
 	leaseRequester := &StubLeaseRequester{}
 	podDefaults := &configuration.PodDefaults{}

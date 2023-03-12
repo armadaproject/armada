@@ -9,8 +9,7 @@ import (
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/healthmonitor"
 	"github.com/armadaproject/armada/internal/executor/job"
-	fake3 "github.com/armadaproject/armada/internal/executor/job/fake"
-	"github.com/armadaproject/armada/internal/executor/reporter/fake"
+	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -141,12 +140,12 @@ func TestAllocateSpareClusterCapacity_HandlesFailedPodCreations(t *testing.T) {
 func setupClusterAllocationServiceTest() (
 	*ClusterAllocationService,
 	*healthmonitor.FakeEtcdLimitHealthMonitor,
-	*fake.FakeEventReporter,
-	*fake3.FakeSubmitter,
+	*reporter.FakeEventReporter,
+	*job.FakeSubmitter,
 	*job.TestJobRunStateStore) {
 	clusterId := fakecontext.NewFakeClusterIdentity("cluster-1", "pool-1")
-	eventReporter := fake.NewFakeEventReporter()
-	submitter := &fake3.FakeSubmitter{}
+	eventReporter := reporter.NewFakeEventReporter()
+	submitter := &job.FakeSubmitter{}
 	etcdHealthChecker := &healthmonitor.FakeEtcdLimitHealthMonitor{IsWithinSoftLimit: true, IsWithinHardLimit: true}
 	jobRunStateManager := job.NewTestJobRunStateStore([]*job.RunState{})
 

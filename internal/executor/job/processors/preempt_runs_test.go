@@ -4,18 +4,19 @@ import (
 	"fmt"
 	"testing"
 
-	util2 "github.com/armadaproject/armada/internal/common/util"
-	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
-	"github.com/armadaproject/armada/internal/executor/domain"
-	"github.com/armadaproject/armada/internal/executor/job"
-	"github.com/armadaproject/armada/internal/executor/reporter/fake"
-	"github.com/armadaproject/armada/internal/executor/util"
-	"github.com/armadaproject/armada/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	util2 "github.com/armadaproject/armada/internal/common/util"
+	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/reporter"
+	"github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestRun_PreemptedRunProcessor(t *testing.T) {
@@ -111,14 +112,14 @@ func TestRun_PreemptedRunProcessor(t *testing.T) {
 func setupPreemptRunProcessorTest(
 	t *testing.T,
 	existingPod *v1.Pod,
-	existingJobRuns *job.RunState) (*RunPreemptedProcessor, *fakecontext.SyncFakeClusterContext, *fake.FakeEventReporter) {
+	existingJobRuns *job.RunState) (*RunPreemptedProcessor, *fakecontext.SyncFakeClusterContext, *reporter.FakeEventReporter) {
 	executorContext := fakecontext.NewSyncFakeClusterContext()
 	if existingPod != nil {
 		_, err := executorContext.SubmitPod(existingPod, "test", []string{})
 		assert.NoError(t, err)
 	}
 
-	eventReporter := fake.NewFakeEventReporter()
+	eventReporter := reporter.NewFakeEventReporter()
 	jobRunState := job.NewTestJobRunStateStore([]*job.RunState{existingJobRuns})
 	preemptRunProcessor := NewRunPreemptedProcessor(executorContext, jobRunState, eventReporter)
 	return preemptRunProcessor, executorContext, eventReporter

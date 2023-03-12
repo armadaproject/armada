@@ -1,6 +1,10 @@
 package job
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/armadaproject/armada/pkg/api"
+)
 
 // TestJobRunStateStore Just wraps JobRunStateStore but allows tests to set the initial state
 type TestJobRunStateStore struct {
@@ -63,4 +67,18 @@ func (s *TestJobRunStateStore) GetByKubernetesId(kubernetesId string) *RunState 
 
 func (s *TestJobRunStateStore) GetAllWithFilter(fn func(state *RunState) bool) []*RunState {
 	return s.jobRunStateStore.GetAllWithFilter(fn)
+}
+
+type FakeSubmitter struct {
+	FailedSubmissionDetails []*FailedSubmissionDetails
+	ReceivedSubmitJobs      []*SubmitJob
+}
+
+func (f *FakeSubmitter) SubmitApiJobs(jobsToSubmit []*api.Job) []*FailedSubmissionDetails {
+	return f.FailedSubmissionDetails
+}
+
+func (f *FakeSubmitter) SubmitJobs(jobsToSubmit []*SubmitJob) []*FailedSubmissionDetails {
+	f.ReceivedSubmitJobs = append(f.ReceivedSubmitJobs, jobsToSubmit...)
+	return f.FailedSubmissionDetails
 }
