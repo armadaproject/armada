@@ -17,6 +17,7 @@ task:
   queueUsageDataRefreshInterval: 5s
   utilisationEventProcessingInterval: 1s
   utilisationEventReportingInterval: 5m
+  runStateProcessorInterval: 5s
 apiConnection:
   armadaUrl: "server:50051"
 client:
