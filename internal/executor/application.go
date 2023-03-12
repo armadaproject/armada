@@ -179,7 +179,6 @@ func StartUpWithContext(
 			pendingPodChecker,
 			config.Kubernetes.StuckTerminatingPodExpiry)
 		taskManager.Register(podIssueService.HandlePodIssues, config.Task.PodIssueHandlingInterval, "pod_issue_handling")
-		// TODO sort out config for separate intervals
 		taskManager.Register(preemptRunProcessor.Run, config.Task.RunStateProcessorInterval, "preempt_runs")
 		taskManager.Register(removeRunProcessor.Run, config.Task.RunStateProcessorInterval, "remove_runs")
 		taskManager.Register(jobRequester.RequestJobsRuns, config.Task.AllocateSpareClusterCapacityInterval, "request_runs")
