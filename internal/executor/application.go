@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armadaproject/armada/internal/executor/job/processors"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -20,6 +19,7 @@ import (
 	executor_context "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/healthmonitor"
 	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/job/processors"
 	"github.com/armadaproject/armada/internal/executor/metrics"
 	"github.com/armadaproject/armada/internal/executor/metrics/pod_metrics"
 	"github.com/armadaproject/armada/internal/executor/node"

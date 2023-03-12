@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/armadaproject/armada/internal/common"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/executor/context"
@@ -12,9 +16,6 @@ import (
 	"github.com/armadaproject/armada/internal/executor/util"
 	. "github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
-	v1 "k8s.io/api/core/v1"
 )
 
 type UtilisationService interface {
