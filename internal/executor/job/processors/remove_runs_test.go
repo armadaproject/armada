@@ -6,7 +6,6 @@ import (
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
-	fake2 "github.com/armadaproject/armada/internal/executor/job/fake"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,14 +99,14 @@ func TestRun_RemoveRunProcessor(t *testing.T) {
 func setupRemoveRunProcessorTest(
 	t *testing.T,
 	existingPod *v1.Pod,
-	existingJobRuns *job.RunState) (*RemoveRunProcessor, *fakecontext.SyncFakeClusterContext, *fake2.StubRunStateStore) {
+	existingJobRuns *job.RunState) (*RemoveRunProcessor, *fakecontext.SyncFakeClusterContext, *job.StubRunStateStore) {
 	executorContext := fakecontext.NewSyncFakeClusterContext()
 	if existingPod != nil {
 		_, err := executorContext.SubmitPod(existingPod, "test", []string{})
 		assert.NoError(t, err)
 	}
 
-	jobRunState := fake2.NewStubRunStateStore([]*job.RunState{existingJobRuns})
+	jobRunState := job.NewStubRunStateStore([]*job.RunState{existingJobRuns})
 	removeRunProcessor := NewRemoveRunProcessor(executorContext, jobRunState)
 	return removeRunProcessor, executorContext, jobRunState
 }

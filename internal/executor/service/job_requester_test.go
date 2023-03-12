@@ -8,10 +8,8 @@ import (
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/job"
-	fake3 "github.com/armadaproject/armada/internal/executor/job/fake"
 	"github.com/armadaproject/armada/internal/executor/reporter/fake"
 	"github.com/armadaproject/armada/internal/executor/utilisation"
-	fake4 "github.com/armadaproject/armada/internal/executor/utilisation/fake"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
@@ -141,13 +139,13 @@ func TestRequestJobsRuns_SkipsFullyInvalidLeasedJobs(t *testing.T) {
 	assert.Len(t, stateStore.GetAll(), 0)
 }
 
-func setupJobRequesterTest(t *testing.T) (*JobRequester, *fake.FakeEventReporter, *StubLeaseRequester, *fake3.StubRunStateStore, *fake4.StubUtilisationService) {
+func setupJobRequesterTest(t *testing.T) (*JobRequester, *fake.FakeEventReporter, *StubLeaseRequester, *job.StubRunStateStore, *utilisation.StubUtilisationService) {
 	clusterId := fakecontext.NewFakeClusterIdentity("cluster-1", "pool-1")
 	eventReporter := fake.NewFakeEventReporter()
-	stateStore := fake3.NewStubRunStateStore([]*job.RunState{})
+	stateStore := job.NewStubRunStateStore([]*job.RunState{})
 	leaseRequester := &StubLeaseRequester{}
 	podDefaults := &configuration.PodDefaults{}
-	utilisationService := &fake4.StubUtilisationService{}
+	utilisationService := &utilisation.StubUtilisationService{}
 	utilisationService.ClusterAvailableCapacityReport = &utilisation.ClusterAvailableCapacityReport{
 		AvailableCapacity: &armadaresource.ComputeResources{},
 	}

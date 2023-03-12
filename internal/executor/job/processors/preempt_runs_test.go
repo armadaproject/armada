@@ -8,7 +8,6 @@ import (
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
-	fake2 "github.com/armadaproject/armada/internal/executor/job/fake"
 	"github.com/armadaproject/armada/internal/executor/reporter/fake"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/api"
@@ -120,7 +119,7 @@ func setupPreemptRunProcessorTest(
 	}
 
 	eventReporter := fake.NewFakeEventReporter()
-	jobRunState := fake2.NewStubRunStateStore([]*job.RunState{existingJobRuns})
+	jobRunState := job.NewStubRunStateStore([]*job.RunState{existingJobRuns})
 	preemptRunProcessor := NewRunPreemptedProcessor(executorContext, jobRunState, eventReporter)
 	return preemptRunProcessor, executorContext, eventReporter
 }

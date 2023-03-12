@@ -143,12 +143,12 @@ func setupClusterAllocationServiceTest() (
 	*healthmonitor.FakeEtcdLimitHealthMonitor,
 	*fake.FakeEventReporter,
 	*fake3.FakeSubmitter,
-	*fake3.StubRunStateStore) {
+	*job.StubRunStateStore) {
 	clusterId := fakecontext.NewFakeClusterIdentity("cluster-1", "pool-1")
 	eventReporter := fake.NewFakeEventReporter()
 	submitter := &fake3.FakeSubmitter{}
 	etcdHealthChecker := &healthmonitor.FakeEtcdLimitHealthMonitor{IsWithinSoftLimit: true, IsWithinHardLimit: true}
-	jobRunStateManager := fake3.NewStubRunStateStore([]*job.RunState{})
+	jobRunStateManager := job.NewStubRunStateStore([]*job.RunState{})
 
 	clusterAllocationService := NewClusterAllocationService(
 		clusterId, eventReporter, jobRunStateManager, submitter, etcdHealthChecker)
