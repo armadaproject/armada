@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -126,7 +125,7 @@ func (r *JobRequester) createSubmitJobs(newJobRuns []*executorapi.JobRunLease) (
 	submitJobs := make([]*job.SubmitJob, 0, len(newJobRuns))
 	failedJobCreations := []*failedJobCreationDetails{}
 	for _, jobToSubmit := range newJobRuns {
-		jobMeta, err := extractEssentialJobMetadata(jobToSubmit)
+		jobMeta, err := ExtractEssentialJobMetadata(jobToSubmit)
 		if err != nil {
 			log.Errorf("received invalid job - %s", err)
 			continue
@@ -195,31 +194,4 @@ func (r *JobRequester) handleFailedJobCreation(failedJobCreationDetails []*faile
 				failedCreateDetails.JobRunMeta.JobId, failedCreateDetails.JobRunMeta.RunId, err)
 		}
 	}
-}
-
-func extractEssentialJobMetadata(jobRun *executorapi.JobRunLease) (*job.RunMeta, error) {
-	if jobRun.Job == nil {
-		return nil, fmt.Errorf("job is invalid, job field is nil")
-	}
-	jobId, err := armadaevents.UlidStringFromProtoUuid(jobRun.Job.JobId)
-	if err != nil {
-		return nil, fmt.Errorf("unable to extract jobId because %s", err)
-	}
-	runId, err := armadaevents.UuidStringFromProtoUuid(jobRun.JobRunId)
-	if err != nil {
-		return nil, fmt.Errorf("unable to extract runId because %s", err)
-	}
-	if jobRun.Queue == "" {
-		return nil, fmt.Errorf("job is invalid, queue is empty")
-	}
-	if jobRun.Jobset == "" {
-		return nil, fmt.Errorf("job is invalid, jobset is empty")
-	}
-
-	return &job.RunMeta{
-		JobId:  jobId,
-		RunId:  runId,
-		Queue:  jobRun.Queue,
-		JobSet: jobRun.Jobset,
-	}, nil
 }

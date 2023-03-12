@@ -6,6 +6,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
 
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -20,14 +21,88 @@ import (
 )
 
 func TestRequestJobsRuns_ConstructsCorrectLeaseRequest(t *testing.T) {
+	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest(t)
+
+	jobId := util.NewULID()
+	protoJobId, err := armadaevents.ProtoUuidFromUlidString(jobId)
+	require.NoError(t, err)
+	leaseRequester.LeaseJobRunLeaseResponse = &LeaseResponse{
+		LeasedRuns: []*executorapi.JobRunLease{
+			{
+				JobRunId: armadaevents.ProtoUuidFromUuid(uuid.New()),
+				Queue:    "queue",
+				Jobset:   "job-set",
+				Job: &armadaevents.SubmitJob{
+					JobId: protoJobId,
+					ObjectMeta: &armadaevents.ObjectMeta{
+						Labels:      map[string]string{},
+						Annotations: map[string]string{},
+						Namespace:   "test-namespace",
+					},
+					MainObject: &armadaevents.KubernetesMainObject{
+						Object: &armadaevents.KubernetesMainObject_PodSpec{
+							PodSpec: &armadaevents.PodSpecWithAvoidList{
+								PodSpec: &v1.PodSpec{},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	jobRequester.RequestJobsRuns()
+
+	assert.Len(t, eventReporter.ReceivedEvents, 0)
+	allJobRuns := stateStore.GetAll()
+	assert.Len(t, allJobRuns, 1)
+	assert.Equal(t, allJobRuns[0].Phase, job.Leased)
+	assert.Equal(t, allJobRuns[0].Meta.JobId, jobId)
 }
 
 func TestRequestJobsRuns_HandlesLeasedJobs(t *testing.T) {
+	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest(t)
+
+	jobId := util.NewULID()
+	protoJobId, err := armadaevents.ProtoUuidFromUlidString(jobId)
+	require.NoError(t, err)
+	leaseRequester.LeaseJobRunLeaseResponse = &LeaseResponse{
+		LeasedRuns: []*executorapi.JobRunLease{
+			{
+				JobRunId: armadaevents.ProtoUuidFromUuid(uuid.New()),
+				Queue:    "queue",
+				Jobset:   "job-set",
+				Job: &armadaevents.SubmitJob{
+					JobId: protoJobId,
+					ObjectMeta: &armadaevents.ObjectMeta{
+						Labels:      map[string]string{},
+						Annotations: map[string]string{},
+						Namespace:   "test-namespace",
+					},
+					MainObject: &armadaevents.KubernetesMainObject{
+						Object: &armadaevents.KubernetesMainObject_PodSpec{
+							PodSpec: &armadaevents.PodSpecWithAvoidList{
+								PodSpec: &v1.PodSpec{},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	jobRequester.RequestJobsRuns()
+
+	assert.Len(t, eventReporter.ReceivedEvents, 0)
+	allJobRuns := stateStore.GetAll()
+	assert.Len(t, allJobRuns, 1)
+	assert.Equal(t, allJobRuns[0].Phase, job.Leased)
+	assert.Equal(t, allJobRuns[0].Meta.JobId, jobId)
 }
 
 func TestRequestJobsRuns_HandlesRunIdsToCancel(t *testing.T) {
-	jobId := uuid.New()
-	activeRun := createRun(jobId.String(), job.Active)
+	runId := uuid.New()
+	activeRun := createRun(runId.String(), job.Active)
 	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest(t)
 
 	stateStore.SetState(map[string]*job.RunState{
@@ -40,7 +115,7 @@ func TestRequestJobsRuns_HandlesRunIdsToCancel(t *testing.T) {
 	leaseRequester.LeaseJobRunLeaseResponse = &LeaseResponse{
 		RunIdsToCancel: []*armadaevents.Uuid{
 			nil, // Invalid should be skipped
-			armadaevents.ProtoUuidFromUuid(uuid.New()), // Belongs to no know runs, should be skipped
+			armadaevents.ProtoUuidFromUuid(uuid.New()), // Belongs to no known runs, should be skipped
 			activeRunUuid,
 		},
 	}
@@ -71,7 +146,7 @@ func TestRequestJobsRuns_HandlesRunIsToPreempt(t *testing.T) {
 	leaseRequester.LeaseJobRunLeaseResponse = &LeaseResponse{
 		RunIdsToPreempt: []*armadaevents.Uuid{
 			nil, // Invalid should be skipped
-			armadaevents.ProtoUuidFromUuid(uuid.New()), // Belongs to no know runs, should be skipped
+			armadaevents.ProtoUuidFromUuid(uuid.New()), // Belongs to no known runs, should be skipped
 			activeRunUuid,
 		},
 	}
