@@ -36,7 +36,8 @@ func NewJobRequester(
 	leaseRequester LeaseRequester,
 	jobRunStateStore job.RunStateStore,
 	utilisationService utilisation.UtilisationService,
-	podDefaults *configuration.PodDefaults) *JobRequester {
+	podDefaults *configuration.PodDefaults,
+) *JobRequester {
 	return &JobRequester{
 		leaseRequester:     leaseRequester,
 		eventReporter:      eventReporter,

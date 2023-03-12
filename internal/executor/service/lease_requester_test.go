@@ -230,7 +230,8 @@ func setup(t *testing.T) (*JobLeaseRequester, *mocks.MockExecutorApiClient, *moc
 func setStreamExpectations(stream *mocks.MockExecutorApi_LeaseJobRunsClient,
 	leaseMessages []*executorapi.JobRunLease,
 	cancelMessages [][]*armadaevents.Uuid,
-	preemptMessages [][]*armadaevents.Uuid) {
+	preemptMessages [][]*armadaevents.Uuid,
+) {
 	for _, lease := range leaseMessages {
 		message := &executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_Lease{

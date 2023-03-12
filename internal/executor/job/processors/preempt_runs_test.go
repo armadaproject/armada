@@ -112,7 +112,8 @@ func TestRun_PreemptedRunProcessor(t *testing.T) {
 func setupPreemptRunProcessorTest(
 	t *testing.T,
 	existingPod *v1.Pod,
-	existingJobRuns *job.RunState) (*RunPreemptedProcessor, *fakecontext.SyncFakeClusterContext, *reporter.FakeEventReporter) {
+	existingJobRuns *job.RunState,
+) (*RunPreemptedProcessor, *fakecontext.SyncFakeClusterContext, *reporter.FakeEventReporter) {
 	executorContext := fakecontext.NewSyncFakeClusterContext()
 	if existingPod != nil {
 		_, err := executorContext.SubmitPod(existingPod, "test", []string{})

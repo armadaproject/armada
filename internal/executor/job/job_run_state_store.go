@@ -115,6 +115,7 @@ func (stateStore *JobRunStateStore) ReportRunLeased(runMeta *RunMeta, job *Submi
 		log.Warnf("run unexpectedly reported as leased (runId=%s, jobId=%s), state already exists", runMeta.RunId, runMeta.JobId)
 	}
 }
+
 func (stateStore *JobRunStateStore) ReportRunInvalid(runMeta *RunMeta) {
 	stateStore.lock.Lock()
 	defer stateStore.lock.Unlock()

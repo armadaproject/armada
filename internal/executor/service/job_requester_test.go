@@ -20,11 +20,9 @@ import (
 )
 
 func TestRequestJobsRuns_ConstructsCorrectLeaseRequest(t *testing.T) {
-
 }
 
 func TestRequestJobsRuns_HandlesLeasedJobs(t *testing.T) {
-
 }
 
 func TestRequestJobsRuns_HandlesRunIdsToCancel(t *testing.T) {
@@ -41,7 +39,7 @@ func TestRequestJobsRuns_HandlesRunIdsToCancel(t *testing.T) {
 
 	leaseRequester.LeaseJobRunLeaseResponse = &LeaseResponse{
 		RunIdsToCancel: []*armadaevents.Uuid{
-			&armadaevents.Uuid{},                       // Invalid should be skipped
+			{}, // Invalid should be skipped
 			armadaevents.ProtoUuidFromUuid(uuid.New()), // Belongs to no know runs, should be skipped
 			activeRunUuid,
 		},
@@ -72,7 +70,7 @@ func TestRequestJobsRuns_HandlesRunIsToPreempt(t *testing.T) {
 
 	leaseRequester.LeaseJobRunLeaseResponse = &LeaseResponse{
 		RunIdsToPreempt: []*armadaevents.Uuid{
-			&armadaevents.Uuid{},                       // Invalid should be skipped
+			{}, // Invalid should be skipped
 			armadaevents.ProtoUuidFromUuid(uuid.New()), // Belongs to no know runs, should be skipped
 			activeRunUuid,
 		},

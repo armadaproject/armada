@@ -25,7 +25,8 @@ type RunPreemptedProcessor struct {
 func NewRunPreemptedProcessor(
 	clusterContext executorContext.ClusterContext,
 	jobRunStateStore job.RunStateStore,
-	eventReporter reporter.EventReporter) *RunPreemptedProcessor {
+	eventReporter reporter.EventReporter,
+) *RunPreemptedProcessor {
 	return &RunPreemptedProcessor{
 		clusterContext:   clusterContext,
 		jobRunStateStore: jobRunStateStore,

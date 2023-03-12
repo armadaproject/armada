@@ -100,7 +100,8 @@ func TestRun_RemoveRunProcessor(t *testing.T) {
 func setupRemoveRunProcessorTest(
 	t *testing.T,
 	existingPod *v1.Pod,
-	existingJobRuns *job.RunState) (*RemoveRunProcessor, *fakecontext.SyncFakeClusterContext, *job.TestJobRunStateStore) {
+	existingJobRuns *job.RunState,
+) (*RemoveRunProcessor, *fakecontext.SyncFakeClusterContext, *job.TestJobRunStateStore) {
 	executorContext := fakecontext.NewSyncFakeClusterContext()
 	if existingPod != nil {
 		_, err := executorContext.SubmitPod(existingPod, "test", []string{})
