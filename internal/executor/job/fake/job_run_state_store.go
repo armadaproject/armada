@@ -1,6 +1,10 @@
 package fake
 
-import "github.com/armadaproject/armada/internal/executor/job"
+import (
+	"time"
+
+	"github.com/armadaproject/armada/internal/executor/job"
+)
 
 type StubRunStateStore struct {
 	JobRunState map[string]*job.RunState
@@ -16,12 +20,12 @@ func NewStubRunStateStore(initialJobRuns []*job.RunState) *StubRunStateStore {
 	}
 }
 
-func (s *StubRunStateStore) ReportRunLeased(runMeta *job.RunMeta, job *job.SubmitJob) {
-	panic("implement me")
+func (s *StubRunStateStore) ReportRunLeased(runMeta *job.RunMeta, j *job.SubmitJob) {
+	s.JobRunState[runMeta.RunId] = &job.RunState{Meta: runMeta, Job: j, Phase: job.Leased, LastPhaseTransitionTime: time.Now()}
 }
 
 func (s *StubRunStateStore) ReportRunInvalid(runMeta *job.RunMeta) {
-	panic("implement me")
+	s.JobRunState[runMeta.RunId] = &job.RunState{Meta: runMeta, Phase: job.Invalid, LastPhaseTransitionTime: time.Now()}
 }
 
 func (s *StubRunStateStore) ReportSuccessfulSubmission(runMeta *job.RunMeta) {
@@ -41,11 +45,19 @@ func (s *StubRunStateStore) ReportFailedSubmission(runMeta *job.RunMeta) {
 }
 
 func (s *StubRunStateStore) RequestRunCancellation(runId string) {
-	panic("implement me")
+	run, ok := s.JobRunState[runId]
+	if !ok {
+		return
+	}
+	run.CancelRequested = true
 }
 
 func (s *StubRunStateStore) RequestRunPreemption(runId string) {
-	panic("implement me")
+	run, ok := s.JobRunState[runId]
+	if !ok {
+		return
+	}
+	run.PreemptionRequested = true
 }
 
 func (s *StubRunStateStore) Delete(runId string) {

@@ -27,14 +27,14 @@ type JobRequester struct {
 	utilisationService utilisation.UtilisationService
 	clusterId          executorContext.ClusterIdentity
 	podDefaults        *configuration.PodDefaults
-	jobRunStateStore   *job.JobRunStateStore
+	jobRunStateStore   job.RunStateStore
 }
 
 func NewJobRequester(
 	clusterId executorContext.ClusterIdentity,
 	eventReporter reporter.EventReporter,
 	leaseRequester LeaseRequester,
-	jobRunStateStore *job.JobRunStateStore,
+	jobRunStateStore job.RunStateStore,
 	utilisationService utilisation.UtilisationService,
 	podDefaults *configuration.PodDefaults) *JobRequester {
 	return &JobRequester{
@@ -197,6 +197,9 @@ func (r *JobRequester) handleFailedJobCreation(failedJobCreationDetails []*faile
 }
 
 func extractEssentialJobMetadata(jobRun *executorapi.JobRunLease) (*job.RunMeta, error) {
+	if jobRun.Job == nil {
+		return nil, fmt.Errorf("job is invalid, job field is nil")
+	}
 	jobId, err := armadaevents.UlidStringFromProtoUuid(jobRun.Job.JobId)
 	if err != nil {
 		return nil, fmt.Errorf("unable to extract jobId because %s", err)
