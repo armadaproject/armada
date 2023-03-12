@@ -39,7 +39,7 @@ func TestRequestJobsRuns_HandlesRunIdsToCancel(t *testing.T) {
 
 	leaseRequester.LeaseJobRunLeaseResponse = &LeaseResponse{
 		RunIdsToCancel: []*armadaevents.Uuid{
-			{}, // Invalid should be skipped
+			nil, // Invalid should be skipped
 			armadaevents.ProtoUuidFromUuid(uuid.New()), // Belongs to no know runs, should be skipped
 			activeRunUuid,
 		},
@@ -70,7 +70,7 @@ func TestRequestJobsRuns_HandlesRunIsToPreempt(t *testing.T) {
 
 	leaseRequester.LeaseJobRunLeaseResponse = &LeaseResponse{
 		RunIdsToPreempt: []*armadaevents.Uuid{
-			{}, // Invalid should be skipped
+			nil, // Invalid should be skipped
 			armadaevents.ProtoUuidFromUuid(uuid.New()), // Belongs to no know runs, should be skipped
 			activeRunUuid,
 		},
