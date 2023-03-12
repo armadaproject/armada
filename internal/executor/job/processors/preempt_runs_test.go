@@ -119,7 +119,7 @@ func setupPreemptRunProcessorTest(
 	}
 
 	eventReporter := fake.NewFakeEventReporter()
-	jobRunState := job.NewStubRunStateStore([]*job.RunState{existingJobRuns})
+	jobRunState := job.NewTestJobRunStateStore([]*job.RunState{existingJobRuns})
 	preemptRunProcessor := NewRunPreemptedProcessor(executorContext, jobRunState, eventReporter)
 	return preemptRunProcessor, executorContext, eventReporter
 }

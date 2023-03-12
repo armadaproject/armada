@@ -88,9 +88,9 @@ func TestRun_RemoveRunProcessor(t *testing.T) {
 			}
 
 			if tc.expectedRunDeleted {
-				assert.Equal(t, len(jobRunState.JobRunState), 0)
+				assert.Equal(t, len(jobRunState.GetAll()), 0)
 			} else {
-				assert.Equal(t, len(jobRunState.JobRunState), 1)
+				assert.Equal(t, len(jobRunState.GetAll()), 1)
 			}
 		})
 	}
@@ -99,14 +99,14 @@ func TestRun_RemoveRunProcessor(t *testing.T) {
 func setupRemoveRunProcessorTest(
 	t *testing.T,
 	existingPod *v1.Pod,
-	existingJobRuns *job.RunState) (*RemoveRunProcessor, *fakecontext.SyncFakeClusterContext, *job.StubRunStateStore) {
+	existingJobRuns *job.RunState) (*RemoveRunProcessor, *fakecontext.SyncFakeClusterContext, *job.TestJobRunStateStore) {
 	executorContext := fakecontext.NewSyncFakeClusterContext()
 	if existingPod != nil {
 		_, err := executorContext.SubmitPod(existingPod, "test", []string{})
 		assert.NoError(t, err)
 	}
 
-	jobRunState := job.NewStubRunStateStore([]*job.RunState{existingJobRuns})
+	jobRunState := job.NewTestJobRunStateStore([]*job.RunState{existingJobRuns})
 	removeRunProcessor := NewRemoveRunProcessor(executorContext, jobRunState)
 	return removeRunProcessor, executorContext, jobRunState
 }

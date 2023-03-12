@@ -1,92 +1,66 @@
 package job
 
-import "time"
+import "sync"
 
-type StubRunStateStore struct {
-	JobRunState map[string]*RunState
+// TestJobRunStateStore Just wraps JobRunStateStore but allows tests to set the initial state
+type TestJobRunStateStore struct {
+	jobRunStateStore *JobRunStateStore
 }
 
-func NewStubRunStateStore(initialJobRuns []*RunState) *StubRunStateStore {
-	state := map[string]*RunState{}
+func NewTestJobRunStateStore(initialJobRuns []*RunState) *TestJobRunStateStore {
+	stateStore := &JobRunStateStore{jobRunState: map[string]*RunState{}, lock: sync.Mutex{}}
 	for _, jobRun := range initialJobRuns {
-		state[jobRun.Meta.RunId] = jobRun
+		stateStore.jobRunState[jobRun.Meta.RunId] = jobRun
 	}
-	return &StubRunStateStore{
-		JobRunState: state,
+	return &TestJobRunStateStore{
+		jobRunStateStore: stateStore,
 	}
 }
 
-func (s *StubRunStateStore) ReportRunLeased(runMeta *RunMeta, j *SubmitJob) {
-	s.JobRunState[runMeta.RunId] = &RunState{Meta: runMeta, Job: j, Phase: Leased, LastPhaseTransitionTime: time.Now()}
+func (s *TestJobRunStateStore) SetState(runState map[string]*RunState) {
+	s.jobRunStateStore.jobRunState = runState
 }
 
-func (s *StubRunStateStore) ReportRunInvalid(runMeta *RunMeta) {
-	s.JobRunState[runMeta.RunId] = &RunState{Meta: runMeta, Phase: Invalid, LastPhaseTransitionTime: time.Now()}
+func (s *TestJobRunStateStore) ReportRunLeased(runMeta *RunMeta, j *SubmitJob) {
+	s.jobRunStateStore.ReportRunLeased(runMeta, j)
 }
 
-func (s *StubRunStateStore) ReportSuccessfulSubmission(runMeta *RunMeta) {
-	run, ok := s.JobRunState[runMeta.RunId]
-	if !ok {
-		return
-	}
-	run.Phase = SuccessfulSubmission
+func (s *TestJobRunStateStore) ReportRunInvalid(runMeta *RunMeta) {
+	s.jobRunStateStore.ReportRunInvalid(runMeta)
 }
 
-func (s *StubRunStateStore) ReportFailedSubmission(runMeta *RunMeta) {
-	run, ok := s.JobRunState[runMeta.RunId]
-	if !ok {
-		return
-	}
-	run.Phase = FailedSubmission
+func (s *TestJobRunStateStore) ReportSuccessfulSubmission(runMeta *RunMeta) {
+	s.jobRunStateStore.ReportSuccessfulSubmission(runMeta)
 }
 
-func (s *StubRunStateStore) RequestRunCancellation(runId string) {
-	run, ok := s.JobRunState[runId]
-	if !ok {
-		return
-	}
-	run.CancelRequested = true
+func (s *TestJobRunStateStore) ReportFailedSubmission(runMeta *RunMeta) {
+	s.jobRunStateStore.ReportFailedSubmission(runMeta)
 }
 
-func (s *StubRunStateStore) RequestRunPreemption(runId string) {
-	run, ok := s.JobRunState[runId]
-	if !ok {
-		return
-	}
-	run.PreemptionRequested = true
+func (s *TestJobRunStateStore) RequestRunCancellation(runId string) {
+	s.jobRunStateStore.RequestRunCancellation(runId)
 }
 
-func (s *StubRunStateStore) Delete(runId string) {
-	delete(s.JobRunState, runId)
+func (s *TestJobRunStateStore) RequestRunPreemption(runId string) {
+	s.jobRunStateStore.RequestRunPreemption(runId)
 }
 
-func (s *StubRunStateStore) Get(runId string) *RunState {
-	return s.JobRunState[runId]
+func (s *TestJobRunStateStore) Delete(runId string) {
+	s.jobRunStateStore.Delete(runId)
 }
 
-func (s *StubRunStateStore) GetAll() []*RunState {
-	result := make([]*RunState, 0, len(s.JobRunState))
-	for _, jobRun := range s.JobRunState {
-		result = append(result, jobRun)
-	}
-	return result
+func (s *TestJobRunStateStore) Get(runId string) *RunState {
+	return s.jobRunStateStore.Get(runId)
 }
 
-func (s *StubRunStateStore) GetByKubernetesId(kubernetesId string) *RunState {
-	for _, jobRun := range s.JobRunState {
-		if jobRun.KubernetesId == kubernetesId {
-			return jobRun
-		}
-	}
-	return nil
+func (s *TestJobRunStateStore) GetAll() []*RunState {
+	return s.jobRunStateStore.GetAll()
 }
 
-func (s *StubRunStateStore) GetAllWithFilter(fn func(state *RunState) bool) []*RunState {
-	result := make([]*RunState, 0, len(s.JobRunState))
-	for _, jobRun := range s.JobRunState {
-		if fn(jobRun) {
-			result = append(result, jobRun)
-		}
-	}
-	return result
+func (s *TestJobRunStateStore) GetByKubernetesId(kubernetesId string) *RunState {
+	return s.jobRunStateStore.GetByKubernetesId(kubernetesId)
+}
+
+func (s *TestJobRunStateStore) GetAllWithFilter(fn func(state *RunState) bool) []*RunState {
+	return s.jobRunStateStore.GetAllWithFilter(fn)
 }

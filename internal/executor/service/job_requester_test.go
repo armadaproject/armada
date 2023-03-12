@@ -31,9 +31,9 @@ func TestRequestJobsRuns_HandlesRunIdsToCancel(t *testing.T) {
 	activeRun := createRun(jobId.String(), job.Active)
 	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest(t)
 
-	stateStore.JobRunState = map[string]*job.RunState{
+	stateStore.SetState(map[string]*job.RunState{
 		activeRun.Meta.RunId: activeRun,
-	}
+	})
 
 	activeRunUuid, err := armadaevents.ProtoUuidFromUuidString(activeRun.Meta.RunId)
 	require.NoError(t, err)
@@ -62,9 +62,9 @@ func TestRequestJobsRuns_HandlesRunIsToPreempt(t *testing.T) {
 	activeRun := createRun(runId.String(), job.Active)
 	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest(t)
 
-	stateStore.JobRunState = map[string]*job.RunState{
+	stateStore.SetState(map[string]*job.RunState{
 		activeRun.Meta.RunId: activeRun,
-	}
+	})
 
 	activeRunUuid, err := armadaevents.ProtoUuidFromUuidString(activeRun.Meta.RunId)
 	require.NoError(t, err)
@@ -139,10 +139,10 @@ func TestRequestJobsRuns_SkipsFullyInvalidLeasedJobs(t *testing.T) {
 	assert.Len(t, stateStore.GetAll(), 0)
 }
 
-func setupJobRequesterTest(t *testing.T) (*JobRequester, *fake.FakeEventReporter, *StubLeaseRequester, *job.StubRunStateStore, *utilisation.StubUtilisationService) {
+func setupJobRequesterTest(t *testing.T) (*JobRequester, *fake.FakeEventReporter, *StubLeaseRequester, *job.TestJobRunStateStore, *utilisation.StubUtilisationService) {
 	clusterId := fakecontext.NewFakeClusterIdentity("cluster-1", "pool-1")
 	eventReporter := fake.NewFakeEventReporter()
-	stateStore := job.NewStubRunStateStore([]*job.RunState{})
+	stateStore := job.NewTestJobRunStateStore([]*job.RunState{})
 	leaseRequester := &StubLeaseRequester{}
 	podDefaults := &configuration.PodDefaults{}
 	utilisationService := &utilisation.StubUtilisationService{}

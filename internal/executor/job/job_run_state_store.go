@@ -192,7 +192,11 @@ func (stateStore *JobRunStateStore) Get(runId string) *RunState {
 	stateStore.lock.Lock()
 	defer stateStore.lock.Unlock()
 
-	return stateStore.jobRunState[runId].DeepCopy()
+	run, exists := stateStore.jobRunState[runId]
+	if !exists {
+		return nil
+	}
+	return run.DeepCopy()
 }
 
 func (stateStore *JobRunStateStore) GetAll() []*RunState {

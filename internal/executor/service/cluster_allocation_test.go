@@ -17,7 +17,7 @@ import (
 func TestAllocateSpareClusterCapacity(t *testing.T) {
 	leaseRun := createRun("leased", job.Leased)
 	clusterAllocationService, _, eventReporter, submitter, runStore := setupClusterAllocationServiceTest()
-	runStore.JobRunState = map[string]*job.RunState{leaseRun.Meta.RunId: leaseRun}
+	runStore.SetState(map[string]*job.RunState{leaseRun.Meta.RunId: leaseRun})
 
 	clusterAllocationService.AllocateSpareClusterCapacity()
 
@@ -32,7 +32,7 @@ func TestAllocateSpareClusterCapacity_SkipsLeaseRunsWhereJobIsNil(t *testing.T) 
 	clusterAllocationService, _, eventReporter, submitter, runStore := setupClusterAllocationServiceTest()
 	invalidLeaseRun := createRun("invalid", job.Leased)
 	invalidLeaseRun.Job = nil
-	runStore.JobRunState = map[string]*job.RunState{invalidLeaseRun.Meta.RunId: invalidLeaseRun}
+	runStore.SetState(map[string]*job.RunState{invalidLeaseRun.Meta.RunId: invalidLeaseRun})
 
 	clusterAllocationService.AllocateSpareClusterCapacity()
 
@@ -43,14 +43,14 @@ func TestAllocateSpareClusterCapacity_SkipsLeaseRunsWhereJobIsNil(t *testing.T) 
 func TestAllocateSpareClusterCapacity_OnlySubmitsJobForLeasedRuns(t *testing.T) {
 	leaseRun := createRun("leased", job.Leased)
 	clusterAllocationService, _, eventReporter, submitter, runStore := setupClusterAllocationServiceTest()
-	runStore.JobRunState = map[string]*job.RunState{
+	runStore.SetState(map[string]*job.RunState{
 		leaseRun.Meta.RunId:    leaseRun,
 		"invalid":              createRun("failedSubmission", job.Invalid),
 		"failedSubmission":     createRun("failedSubmission", job.FailedSubmission),
 		"successfulSubmission": createRun("successfulSubmission", job.SuccessfulSubmission),
 		"missing":              createRun("missing", job.Missing),
 		"active":               createRun("active", job.Active),
-	}
+	})
 
 	clusterAllocationService.AllocateSpareClusterCapacity()
 
@@ -62,7 +62,7 @@ func TestAllocateSpareClusterCapacity_OnlySubmitsJobForLeasedRuns(t *testing.T) 
 func TestAllocateSpareClusterCapacity_DoesNotSubmitJobs_WhenEtcdIsNotWithinSoftLimit(t *testing.T) {
 	leaseRun := createRun("leased", job.Leased)
 	clusterAllocationService, etcdHealthMonitor, eventReporter, submitter, runStore := setupClusterAllocationServiceTest()
-	runStore.JobRunState = map[string]*job.RunState{leaseRun.Meta.RunId: leaseRun}
+	runStore.SetState(map[string]*job.RunState{leaseRun.Meta.RunId: leaseRun})
 	etcdHealthMonitor.IsWithinSoftLimit = false
 
 	clusterAllocationService.AllocateSpareClusterCapacity()
@@ -101,7 +101,7 @@ func TestAllocateSpareClusterCapacity_HandlesFailedPodCreations(t *testing.T) {
 			leaseRun := createRun("leased", job.Leased)
 			clusterAllocationService, _, eventReporter, submitter, runStore := setupClusterAllocationServiceTest()
 			eventReporter.ErrorOnReport = tc.failOnReportingEvent
-			runStore.JobRunState = map[string]*job.RunState{leaseRun.Meta.RunId: leaseRun}
+			runStore.SetState(map[string]*job.RunState{leaseRun.Meta.RunId: leaseRun})
 			submitter.FailedSubmissionDetails = []*job.FailedSubmissionDetails{
 				{
 					JobRunMeta:  leaseRun.Meta,
@@ -143,12 +143,12 @@ func setupClusterAllocationServiceTest() (
 	*healthmonitor.FakeEtcdLimitHealthMonitor,
 	*fake.FakeEventReporter,
 	*fake3.FakeSubmitter,
-	*job.StubRunStateStore) {
+	*job.TestJobRunStateStore) {
 	clusterId := fakecontext.NewFakeClusterIdentity("cluster-1", "pool-1")
 	eventReporter := fake.NewFakeEventReporter()
 	submitter := &fake3.FakeSubmitter{}
 	etcdHealthChecker := &healthmonitor.FakeEtcdLimitHealthMonitor{IsWithinSoftLimit: true, IsWithinHardLimit: true}
-	jobRunStateManager := job.NewStubRunStateStore([]*job.RunState{})
+	jobRunStateManager := job.NewTestJobRunStateStore([]*job.RunState{})
 
 	clusterAllocationService := NewClusterAllocationService(
 		clusterId, eventReporter, jobRunStateManager, submitter, etcdHealthChecker)
