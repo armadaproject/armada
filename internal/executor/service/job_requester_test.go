@@ -30,7 +30,6 @@ func TestRequestJobsRuns_HandlesLeaseRequestError(t *testing.T) {
 	assert.Len(t, eventReporter.ReceivedEvents, 0)
 	allJobRuns := stateStore.GetAll()
 	assert.Len(t, allJobRuns, 0)
-
 }
 
 func TestRequestJobsRuns_HandlesGetClusterCapacityError(t *testing.T) {
