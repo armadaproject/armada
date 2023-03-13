@@ -318,6 +318,8 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	// Nodes to be considered by the scheduler.
 	lastSeen := q.clock.Now()
 	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
+	jobIdsByGangId := make(map[string]map[string]bool)
+	gangIdByJobId := make(map[string]string)
 	for _, nodeInfo := range req.Nodes {
 		node, err := api.NewNodeFromNodeInfo(
 			&nodeInfo,
@@ -359,6 +361,22 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 				nodeInfo.GetName(), req.GetClusterId(), missingJobIds,
 			)
 			continue
+		}
+
+		// Group gangs.
+		for _, job := range jobs {
+			gangId, _, isGangJob, err := scheduler.GangIdAndCardinalityFromLegacySchedulerJob(job, q.schedulingConfig.Preemption.PriorityClasses)
+			if err != nil {
+				return nil, err
+			}
+			if isGangJob {
+				if m, ok := jobIdsByGangId[gangId]; ok {
+					m[job.Id] = true
+				} else {
+					jobIdsByGangId[gangId] = map[string]bool{job.Id: true}
+				}
+				gangIdByJobId[job.Id] = gangId
+			}
 		}
 
 		// Bind pods to nodes, thus ensuring resources are marked allocated on the node.
@@ -455,7 +473,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 	var preemptedJobs []scheduler.LegacySchedulerJob
 	var scheduledJobs []scheduler.LegacySchedulerJob
-	var nodesByJobId map[string]*schedulerobjects.Node
+	var nodeIdByJobId map[string]string
 	if q.schedulingConfig.Preemption.PreemptToFairShare {
 		rescheduler := scheduler.NewRescheduler(
 			*constraints,
@@ -467,6 +485,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			// May need priority factors for inactive queues for rescheduling evicted jobs.
 			priorityFactorByQueue,
 			aggregatedUsageByQueue,
+			nodeIdByJobId,
+			jobIdsByGangId,
+			gangIdByJobId,
 			q.SchedulingReportsRepository,
 		)
 		result, err := rescheduler.Schedule(ctx)
@@ -475,7 +496,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		}
 		preemptedJobs = result.PreemptedJobs
 		scheduledJobs = result.ScheduledJobs
-		nodesByJobId = result.NodeByJobId
+		nodeIdByJobId = result.NodeIdByJobId
 	} else {
 		schedulerQueues := make([]*scheduler.Queue, len(activeQueues))
 		for i, apiQueue := range activeQueues {
@@ -520,7 +541,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		}
 		preemptedJobs = result.PreemptedJobs
 		scheduledJobs = result.ScheduledJobs
-		nodesByJobId = result.NodeByJobId
+		nodeIdByJobId = result.NodeIdByJobId
 
 		// Log and store scheduling reports.
 		if q.SchedulingReportsRepository != nil && sched.SchedulingRoundReport != nil {
@@ -590,13 +611,18 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 					log.Warnf("failed to set node id selector on job %s: missing pod spec", jobId)
 					continue
 				}
-				node := nodesByJobId[jobId]
-				if node == nil {
+				nodeId := nodeIdByJobId[jobId]
+				if nodeId == "" {
 					log.Warnf("failed to set node id selector on job %s: no node assigned to job", jobId)
 					continue
 				}
-				nodeId := node.Labels[q.schedulingConfig.Preemption.NodeIdLabel]
-				if nodeId == "" {
+				node, err := nodeDb.GetNode(nodeId)
+				if err != nil {
+					logging.WithStacktrace(log, err).Warnf("failed to set node id selector on job %s: node with id %s not found", jobId, nodeId)
+					continue
+				}
+				v := node.Labels[q.schedulingConfig.Preemption.NodeIdLabel]
+				if v == "" {
 					log.Warnf(
 						"failed to set node id selector on job %s to target node %s: nodeIdLabel missing from %s",
 						jobId, node.Name, node.Labels,
@@ -606,7 +632,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 				if podSpec.NodeSelector == nil {
 					podSpec.NodeSelector = make(map[string]string)
 				}
-				podSpec.NodeSelector[q.schedulingConfig.Preemption.NodeIdLabel] = nodeId
+				podSpec.NodeSelector[q.schedulingConfig.Preemption.NodeIdLabel] = v
 			}
 		}
 	}
@@ -622,12 +648,27 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 					log.Warnf("failed to set node name on job %s: missing pod spec", jobId)
 					continue
 				}
-				node := nodesByJobId[jobId]
-				if node == nil {
+				nodeId := nodeIdByJobId[jobId]
+				if nodeId == "" {
 					log.Warnf("failed to set node name on job %s: no node assigned to job", jobId)
 					continue
 				}
+				node, err := nodeDb.GetNode(nodeId)
+				if err != nil {
+					logging.WithStacktrace(log, err).Warnf("failed to set node name on job %s: node with id %s not found", jobId, nodeId)
+					continue
+				}
 				podSpec.NodeName = node.Name
+			}
+		}
+	}
+
+	// Optionally override priorityClassName on jobs.
+	if q.schedulingConfig.Preemption.PriorityClassNameOverride != nil {
+		priorityClassName := *q.schedulingConfig.Preemption.PriorityClassNameOverride
+		for _, apiJob := range scheduledApiJobsById {
+			for _, podSpec := range apiJob.GetAllPodSpecs() {
+				podSpec.PriorityClassName = priorityClassName
 			}
 		}
 	}
