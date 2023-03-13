@@ -67,7 +67,6 @@ export const Sidebar = memo(({ job, runErrorService, sidebarWidth, onClose, onWi
     currentX: 0,
   })
   const handleMouseDown = useCallback((x: number) => {
-    console.log("mousedown", x)
     resizeRef.current = true
     setResizeState({
       isResizing: true,
@@ -91,7 +90,6 @@ export const Sidebar = memo(({ job, runErrorService, sidebarWidth, onClose, onWi
     }
   }, [])
   const handleMouseUp = useCallback(() => {
-    console.log("mouseup", resizeState)
     resizeRef.current = false
     setResizeState({
       ...resizeState,

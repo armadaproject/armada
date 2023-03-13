@@ -91,7 +91,7 @@ export const JobsTableContainer = ({
         .filter((colId) => columnVisibility[colId]),
     [columnVisibility],
   )
-  const [columnResizeMode, setColumnResizeMode] = useState<ColumnResizeMode>("onChange")
+  const columnResizeMode = useMemo(() => "onChange" as ColumnResizeMode, [])
   const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(initialPrefs.columnSizing)
 
   // Grouping
@@ -306,7 +306,6 @@ export const JobsTableContainer = ({
   const onColumnSizingChange = useCallback(
     (updater: Updater<ColumnSizingState>) => {
       const newColumnSizing = updaterToValue(updater, columnSizing)
-      console.log(newColumnSizing)
       setColumnSizing(newColumnSizing)
     },
     [columnSizing],

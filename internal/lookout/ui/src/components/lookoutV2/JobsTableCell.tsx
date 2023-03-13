@@ -12,10 +12,10 @@ import { JobsTableFilter } from "./JobsTableFilter"
 
 const sharedCellStyle = {
   padding: 0,
-  overflowWrap: "normal",
   "&:hover": {
     opacity: 0.85,
   },
+  overflowWrap: "normal",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
   overflow: "hidden",
@@ -186,12 +186,17 @@ export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange }: 
       align={isRightAligned ? "right" : "left"}
       sx={{
         ...sharedCellStyle,
-        padding: "2px 10px 2px 10px",
+        padding: "2px 8px 2px 8px",
       }}
     >
       {rowIsGroup && cell.column.getIsGrouped() && cellHasValue ? (
         // If it's a grouped cell, add an expander and row count
-        <Box sx={{ display: "flex", gap: "0.25em" }}>
+        <Box
+          sx={{
+            display: "flex",
+            gap: "0.25em",
+          }}
+        >
           <IconButton size="small" sx={{ padding: 0 }} edge="start" onClick={() => onExpandedChange()}>
             {rowIsExpanded ? (
               <KeyboardArrowDown fontSize="small" aria-label="Collapse row" aria-hidden="false" />
@@ -199,7 +204,16 @@ export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange }: 
               <KeyboardArrowRight fontSize="small" aria-label="Expand row" aria-hidden="false" />
             )}
           </IconButton>
-          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          <div
+            style={{
+              overflowWrap: "normal",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+            }}
+          >
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </div>
         </Box>
       ) : cell.getIsAggregated() ? (
         // If the cell is aggregated, use the Aggregated
