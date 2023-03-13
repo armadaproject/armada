@@ -8,11 +8,12 @@ import (
 	context "context"
 	reflect "reflect"
 
-	executorapi "github.com/armadaproject/armada/pkg/executorapi"
 	types "github.com/gogo/protobuf/types"
 	gomock "github.com/golang/mock/gomock"
 	grpc "google.golang.org/grpc"
 	metadata "google.golang.org/grpc/metadata"
+
+	executorapi "github.com/armadaproject/armada/pkg/executorapi"
 )
 
 // MockExecutorApiClient is a mock of ExecutorApiClient interface.
