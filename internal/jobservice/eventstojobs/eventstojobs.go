@@ -17,7 +17,6 @@ import (
 type EventsToJobService struct {
 	queue                string
 	jobSetId             string
-	jobId                string
 	eventClient          events.JobEventReader
 	jobServiceRepository repository.JobTableUpdater
 }
@@ -25,14 +24,12 @@ type EventsToJobService struct {
 func NewEventsToJobService(
 	queue string,
 	jobSetId string,
-	jobId string,
 	eventClient events.JobEventReader,
 	jobServiceRepository repository.JobTableUpdater,
 ) *EventsToJobService {
 	return &EventsToJobService{
 		queue:                queue,
 		jobSetId:             jobSetId,
-		jobId:                jobId,
 		eventClient:          eventClient,
 		jobServiceRepository: jobServiceRepository,
 	}
@@ -110,7 +107,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 				currentJobId := api.JobIdFromApiEvent(msg.Message)
 				jobStatus := EventsToJobResponse(*msg.Message)
 				if jobStatus != nil {
-					log.Infof("JobSet: %s JobId: %s Queue: %s State: %s", eventToJobService.jobSetId, eventToJobService.jobId, eventToJobService.queue, jobStatus.GetState().String())
+					log.Infof("JobSet: %s JobId: %s Queue: %s State: %s", eventToJobService.jobSetId, currentJobId, eventToJobService.queue, jobStatus.GetState().String())
 					jobStatus := repository.NewJobStatus(eventToJobService.queue, eventToJobService.jobSetId, currentJobId, *jobStatus)
 					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(jobStatus)
 					if err != nil {
@@ -119,7 +116,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 						continue
 					}
 				} else {
-					log.Warn("Message: ", *msg.Message)
+					log.Info("Ignoring due to non relevant event: ", *msg.Message)
 				}
 				// advance the message id for next loop
 				fromMessageId = msg.GetId()

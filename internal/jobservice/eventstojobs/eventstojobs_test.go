@@ -70,12 +70,12 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 				SubscribeJobSetFunc:        func(string, string) {},
 				ClearSubscriptionErrorFunc: func(string, string) {},
 				SetSubscriptionErrorFunc:   func(string, string, string) {},
+				UnsubscribeJobSetFunc:      func(string, string) {},
 			}
 
 			service := eventstojobs.NewEventsToJobService(
 				"somestring",
 				"someJobSetId",
-				"someJobId",
 				&mockJobEventReader,
 				&mockJobRepo,
 			)

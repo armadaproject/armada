@@ -16,6 +16,8 @@ import (
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
+	"github.com/armadaproject/armada/internal/jobservice/events"
+	"github.com/armadaproject/armada/internal/jobservice/eventstojobs"
 	"github.com/armadaproject/armada/internal/jobservice/repository"
 	"github.com/armadaproject/armada/internal/jobservice/server"
 	js "github.com/armadaproject/armada/pkg/api/jobservice"
@@ -72,17 +74,22 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	}
 
 	g.Go(func() error {
+		PurgeJobSets(log, config.PurgeJobSetTime, sqlJobRepo)
+		return nil
+	})
+	g.Go(func() error {
 		ticker := time.NewTicker(time.Duration(config.SubscribeJobSetTime) * time.Second)
 		for range ticker.C {
 			for _, value := range sqlJobRepo.GetSubscribedJobSets() {
-				log.Infof("subscribed job sets : %s", value)
-				if sqlJobRepo.CheckToUnSubscribe(value.Queue, value.JobSet, config.SubscribeJobSetTime) {
-					_, err := sqlJobRepo.CleanupJobSetAndJobs(value.Queue, value.JobSet)
+				log.Infof("subscribing to %s-%s for 60 s", value.Queue, value.JobSet)
+				eventClient := events.NewEventClient(&config.ApiConnection)
+				eventJob := eventstojobs.NewEventsToJobService(value.Queue, value.JobSet, eventClient, sqlJobRepo)
+				go func() {
+					err := eventJob.SubscribeToJobSetId(context.Background(), config.SubscribeJobSetTime)
 					if err != nil {
-						logging.WithStacktrace(log, err).Warn("error cleaning up jobs")
+						log.Error("Error", err)
 					}
-					sqlJobRepo.UnsubscribeJobSet(value.Queue, value.JobSet)
-				}
+				}()
 			}
 		}
 		return nil
@@ -103,4 +110,20 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	}
 
 	return nil
+}
+
+func PurgeJobSets(log *log.Entry, purgeJobSetTime int64, sqlJobRepo *repository.SQLJobService) {
+	ticker := time.NewTicker(time.Duration(purgeJobSetTime) * time.Second)
+	for range ticker.C {
+		for _, value := range sqlJobRepo.GetSubscribedJobSets() {
+			log.Infof("subscribed job sets : %s", value)
+			if sqlJobRepo.CheckToUnSubscribe(value.Queue, value.JobSet, purgeJobSetTime) {
+				_, err := sqlJobRepo.CleanupJobSetAndJobs(value.Queue, value.JobSet)
+				if err != nil {
+					logging.WithStacktrace(log, err).Warn("error cleaning up jobs")
+				}
+				sqlJobRepo.UnsubscribeJobSet(value.Queue, value.JobSet)
+			}
+		}
+	}
 }

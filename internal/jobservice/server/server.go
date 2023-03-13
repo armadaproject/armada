@@ -8,7 +8,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
 	"github.com/armadaproject/armada/internal/jobservice/events"
-	"github.com/armadaproject/armada/internal/jobservice/eventstojobs"
 	"github.com/armadaproject/armada/internal/jobservice/repository"
 
 	js "github.com/armadaproject/armada/pkg/api/jobservice"
@@ -32,17 +31,6 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 
 	log.WithFields(requestFields).Debug("GetJobStatus called")
 
-	if !s.jobRepository.IsJobSetSubscribed(opts.Queue, opts.JobSetId) {
-		log.WithFields(requestFields).Debug("Job set not subscribed")
-		eventClient := events.NewEventClient(&s.jobServiceConfig.ApiConnection)
-		eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, eventClient, s.jobRepository)
-		go func() {
-			err := eventJob.SubscribeToJobSetId(context.Background(), s.jobServiceConfig.SubscribeJobSetTime)
-			if err != nil {
-				log.WithFields(requestFields).Error("Error", err)
-			}
-		}()
-	}
 	if err := s.jobRepository.UpdateJobSetTime(opts.Queue, opts.JobSetId); err != nil {
 		log.WithFields(requestFields).Warn(err)
 	}

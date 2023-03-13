@@ -310,7 +310,7 @@ func (mock *JobTableUpdaterMock) SubscribeJobSetCalls() []struct {
 
 func (mock *JobTableUpdaterMock) UnsubscribeJobSet(queue string, jobSet string) {
 	if mock.UnsubscribeJobSetFunc == nil {
-		panic("JobTableUpdaterMock.UnsubscribeJobSetFunc: method is nil but JobTableUpdater.IsJobSetSubscribed was just called")
+		panic("JobTableUpdaterMock.UnsubscribeJobSetFunc: method is nil but JobTableUpdater.UnsubscribeJobSetFunc was just called")
 	}
 	callInfo := struct {
 		Queue  string
