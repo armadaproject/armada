@@ -50,6 +50,10 @@ type Job struct {
 	activeRunTimestamp int64
 }
 
+func EmptyJob(id string) *Job {
+	return &Job{id: id, runsById: map[uuid.UUID]*JobRun{}}
+}
+
 // NewJob creates a new scheduler job
 func NewJob(
 	jobId string,
@@ -128,13 +132,7 @@ func (job *Job) WithPriority(priority uint32) *Job {
 	return j
 }
 
-// WithCreated returns a copy of the job with the created time updated.
-func (job *Job) WithCreated(created int64) *Job {
-	j := copyJob(*job)
-	j.created = created
-	return j
-}
-
+// WithRequestedPriority returns a copy of the job with the priority updated.
 func (job *Job) WithRequestedPriority(priority uint32) *Job {
 	j := copyJob(*job)
 	j.requestedPriority = priority
@@ -257,6 +255,7 @@ func (job *Job) HasRuns() bool {
 func (job *Job) WithNewRun(executor string, node string) *Job {
 	run := &JobRun{
 		id:       uuid.New(),
+		jobId:    job.id,
 		created:  time.Now().UnixNano(),
 		executor: executor,
 		node:     node,
@@ -297,6 +296,34 @@ func (job *Job) LatestRun() *JobRun {
 // RunById returns the Run corresponding to the provided run id or nil if no such Run exists.
 func (job *Job) RunById(id uuid.UUID) *JobRun {
 	return job.runsById[id]
+}
+
+// WithJobset returns a copy of the job with the jobset updated.
+func (job *Job) WithJobset(jobset string) *Job {
+	j := copyJob(*job)
+	j.jobset = jobset
+	return j
+}
+
+// WithQueue returns a copy of the job with the queue updated.
+func (job *Job) WithQueue(queue string) *Job {
+	j := copyJob(*job)
+	j.queue = queue
+	return j
+}
+
+// WithCreated returns a copy of the job with the creation time updated.
+func (job *Job) WithCreated(created int64) *Job {
+	j := copyJob(*job)
+	j.created = created
+	return j
+}
+
+// WithJobSchedulingInfo returns a copy of the job with the creation time updated.
+func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSchedulingInfo) *Job {
+	j := copyJob(*job)
+	j.jobSchedulingInfo = jobSchedulingInfo
+	return j
 }
 
 // copyJob makes a copy of the job

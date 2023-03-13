@@ -9,6 +9,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -97,38 +98,144 @@ func TestSelectNodeForPod_TargetNodeIdAnnotation_Failure(t *testing.T) {
 	}
 }
 
-func TestPodToFromNodeBinding(t *testing.T) {
+func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	node := testGpuNode(testPriorities)
 	req := testNGpuJob("A", 0, 1)[0]
 	request := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
-
-	newNode, err := BindPodToNode(req, node)
-	require.NoError(t, err)
-
 	jobId, err := JobIdFromPodRequirements(req)
 	require.NoError(t, err)
-	assert.Equal(t, []string{jobId}, maps.Keys(newNode.AllocatedByJobId))
-	assert.True(
-		t,
-		request.Equal(newNode.AllocatedByJobId[jobId]),
-	)
 
-	assert.Equal(t, []string{"A"}, maps.Keys(newNode.AllocatedByQueue))
-	assert.True(
-		t,
-		request.Equal(newNode.AllocatedByQueue["A"]),
-	)
-
-	expectedAllocatable := newNode.TotalResources.DeepCopy()
-	expectedAllocatable.Sub(request)
-	assert.True(t, expectedAllocatable.Equal(newNode.AllocatableByPriorityAndResource[req.Priority]))
-
-	newNode, err = UnbindPodFromNode(req, newNode)
+	boundNode, err := BindPodToNode(req, node)
 	require.NoError(t, err)
-	assert.Empty(t, newNode.AllocatedByJobId)
-	assert.Empty(t, newNode.AllocatedByQueue)
-	expectedAllocatable = newNode.TotalResources.DeepCopy()
-	assert.True(t, expectedAllocatable.Equal(newNode.AllocatableByPriorityAndResource[req.Priority]))
+
+	unboundNode, err := UnbindPodFromNode(req, boundNode)
+	require.NoError(t, err)
+
+	unboundMultipleNode, err := UnbindPodsFromNode([]*schedulerobjects.PodRequirements{req}, boundNode)
+	require.NoError(t, err)
+
+	evictedNode, err := EvictPodFromNode(req, boundNode)
+	require.NoError(t, err)
+
+	evictedUnboundNode, err := UnbindPodFromNode(req, evictedNode)
+	require.NoError(t, err)
+
+	evictedBoundNode, err := BindPodToNode(req, evictedNode)
+	require.NoError(t, err)
+
+	_, err = EvictPodFromNode(req, node)
+	require.Error(t, err)
+
+	_, err = UnbindPodFromNode(req, node)
+	require.Error(t, err)
+
+	_, err = BindPodToNode(req, boundNode)
+	require.Error(t, err)
+
+	_, err = EvictPodFromNode(req, evictedNode)
+	require.Error(t, err)
+
+	assertNodeAccountingEqual(t, node, unboundNode)
+	assertNodeAccountingEqual(t, node, evictedUnboundNode)
+	assertNodeAccountingEqual(t, unboundNode, evictedUnboundNode)
+	assertNodeAccountingEqual(t, boundNode, evictedBoundNode)
+	assertNodeAccountingEqual(t, unboundNode, unboundMultipleNode)
+
+	assert.True(
+		t,
+		armadamaps.DeepEqual(
+			map[string]schedulerobjects.ResourceList{jobId: request},
+			boundNode.AllocatedByJobId,
+		),
+	)
+	assert.True(
+		t,
+		armadamaps.DeepEqual(
+			map[string]schedulerobjects.ResourceList{jobId: request},
+			evictedNode.AllocatedByJobId,
+		),
+	)
+
+	assert.True(
+		t,
+		armadamaps.DeepEqual(
+			map[string]schedulerobjects.ResourceList{"A": request},
+			boundNode.AllocatedByQueue,
+		),
+	)
+	assert.True(
+		t,
+		armadamaps.DeepEqual(
+			map[string]schedulerobjects.ResourceList{"A": request},
+			evictedNode.AllocatedByQueue,
+		),
+	)
+
+	expectedAllocatable := boundNode.TotalResources.DeepCopy()
+	expectedAllocatable.Sub(request)
+	assert.True(t, expectedAllocatable.Equal(boundNode.AllocatableByPriorityAndResource[req.Priority]))
+
+	assert.Empty(t, unboundNode.AllocatedByJobId)
+	assert.Empty(t, unboundNode.AllocatedByQueue)
+	assert.Empty(t, unboundNode.EvictedJobRunIds)
+}
+
+func assertNodeAccountingEqual(t *testing.T, node1, node2 *schedulerobjects.Node) bool {
+	rv := true
+	rv = rv && assert.True(
+		t,
+		schedulerobjects.QuantityByPriorityAndResourceType(
+			node1.AllocatableByPriorityAndResource,
+		).Equal(
+			schedulerobjects.QuantityByPriorityAndResourceType(
+				node2.AllocatableByPriorityAndResource,
+			),
+		),
+		"expected %v, but got %v",
+		node1.AllocatableByPriorityAndResource,
+		node2.AllocatableByPriorityAndResource,
+	)
+	rv = rv && assert.True(
+		t,
+		armadamaps.DeepEqual(
+			node1.AllocatedByJobId,
+			node2.AllocatedByJobId,
+		),
+		"expected %v, but got %v",
+		node1.AllocatedByJobId,
+		node2.AllocatedByJobId,
+	)
+	rv = rv && assert.True(
+		t,
+		armadamaps.DeepEqual(
+			node1.AllocatedByQueue,
+			node2.AllocatedByQueue,
+		),
+		"expected %v, but got %v",
+		node1.AllocatedByQueue,
+		node2.AllocatedByQueue,
+	)
+	rv = rv && assert.True(
+		t,
+		maps.Equal(
+			node1.EvictedJobRunIds,
+			node2.EvictedJobRunIds,
+		),
+		"expected %v, but got %v",
+		node1.EvictedJobRunIds,
+		node2.EvictedJobRunIds,
+	)
+	rv = rv && assert.True(
+		t,
+		armadamaps.DeepEqual(
+			node1.NonArmadaAllocatedResources,
+			node2.NonArmadaAllocatedResources,
+		),
+		"expected %v, but got %v",
+		node1.NonArmadaAllocatedResources,
+		node2.NonArmadaAllocatedResources,
+	)
+	return rv
 }
 
 func TestSelectAndBindNodeToPod(t *testing.T) {

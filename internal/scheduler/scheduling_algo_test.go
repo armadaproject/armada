@@ -26,13 +26,10 @@ const (
 	poolName  = "pool1"
 )
 
-var (
-	queue = database.Queue{
-		Name:   queueName,
-		Weight: 100,
-	}
-	baseTime time.Time
-)
+var queue = database.Queue{
+	Name:   queueName,
+	Weight: 100,
+}
 
 func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 	queuedJobs := make([]*jobdb.Job, 10)
@@ -160,12 +157,13 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			err := jobDb.Upsert(txn, append(tc.queuedJobs, tc.runningJobs...))
 			require.NoError(t, err)
 
-			scheduledJobs, err := algo.Schedule(ctx, txn, jobDb)
+			schedulerResult, err := algo.Schedule(ctx, txn, jobDb)
 			require.NoError(t, err)
 
 			// check that we have scheduled the queuedJobs we expect
-			assert.Equal(t, len(tc.expectedJobs), len(scheduledJobs))
+			assert.Equal(t, len(tc.expectedJobs), len(schedulerResult.ScheduledJobs))
 
+			scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
 			for _, job := range scheduledJobs {
 				expectedExecutor, ok := tc.expectedJobs[job.Id()]
 				require.True(t, ok)
@@ -223,7 +221,7 @@ func twoCoreNode(name string, jobs []*jobdb.Job) *schedulerobjects.Node {
 				},
 			},
 		),
-		JobRunsByState: jobRunsByState,
+		StateByJobRunId: jobRunsByState,
 	}
 }
 

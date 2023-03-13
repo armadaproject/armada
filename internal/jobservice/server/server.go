@@ -27,8 +27,16 @@ func NewJobService(config *configuration.JobServiceConfiguration, sqlService *re
 func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobServiceRequest) (*js.JobServiceResponse, error) {
 	g, _ := errgroup.WithContext(ctx)
 
-	if !s.jobRepository.IsJobSetSubscribed(opts.Queue, opts.JobSetId) {
+	requestFields := log.Fields{
+		"job_id":     opts.JobId,
+		"job_set_id": opts.JobSetId,
+		"queue":      opts.Queue,
+	}
 
+	log.WithFields(requestFields).Debug("GetJobStatus called")
+
+	if !s.jobRepository.IsJobSetSubscribed(opts.Queue, opts.JobSetId) {
+		log.WithFields(requestFields).Debug("Job set not subscribed")
 		eventClient := events.NewEventClient(&s.jobServiceConfig.ApiConnection)
 		eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, eventClient, s.jobRepository)
 		g.Go(func() error {
@@ -36,11 +44,11 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 		})
 	}
 	if err := s.jobRepository.UpdateJobSetTime(opts.Queue, opts.JobSetId); err != nil {
-		log.Warn(err)
+		log.WithFields(requestFields).Warn(err)
 	}
 	response, err := s.jobRepository.GetJobStatus(opts.JobId)
 	if err != nil {
-		log.Warn(err)
+		log.WithFields(requestFields).Warn(err)
 		return nil, err
 	}
 
