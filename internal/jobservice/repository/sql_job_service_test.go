@@ -184,6 +184,14 @@ func TestCheckToUnSubscribeWithoutSubscribing(t *testing.T) {
 	})
 }
 
+func TestUnsubscribe(t *testing.T) {
+	WithSqlServiceRepo(func(r *SQLJobService) {
+		r.SubscribeJobSet("test", "testjobset")
+		r.UnsubscribeJobSet("test", "testjobset")
+		assert.False(t, r.IsJobSetSubscribed("test", "testjobset"))
+	})
+}
+
 func TestUpdateJobSetTime(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		r.SubscribeJobSet("test", "job-set-1")

@@ -60,6 +60,9 @@ type JobTableUpdaterMock struct {
 	// UpdateJobServiceDbFunc mocks the UpdateJobServiceDb method.
 	UpdateJobServiceDbFunc func(jobStatus *JobStatus) error
 
+	// Mock for Unsubscribe job set
+	UnsubscribeJobSetFunc func(queue, jobSet string)
+
 	// calls tracks calls to the methods.
 	calls struct {
 		// ClearSubscriptionError holds details about calls to the ClearSubscriptionError method.
@@ -104,10 +107,18 @@ type JobTableUpdaterMock struct {
 			// JobStatus is the jobStatus argument value.
 			JobStatus *JobStatus
 		}
+		// Unsubscribe Jobset
+		UnsubscribeJobSet []struct {
+			// Queue is the queue argument value.
+			Queue string
+			// JobSet is the jobSet argument value.
+			JobSet string
+		}
 	}
 	lockClearSubscriptionError sync.RWMutex
 	lockGetSubscriptionError   sync.RWMutex
 	lockIsJobSetSubscribed     sync.RWMutex
+	lockUnsubscribeJobSet      sync.RWMutex
 	lockSetSubscriptionError   sync.RWMutex
 	lockSubscribeJobSet        sync.RWMutex
 	lockUpdateJobServiceDb     sync.RWMutex
@@ -296,6 +307,24 @@ func (mock *JobTableUpdaterMock) SubscribeJobSetCalls() []struct {
 	mock.lockSubscribeJobSet.RUnlock()
 	return calls
 }
+
+func (mock *JobTableUpdaterMock) UnsubscribeJobSet(queue string, jobSet string) {
+	if mock.UnsubscribeJobSetFunc == nil {
+		panic("JobTableUpdaterMock.UnsubscribeJobSetFunc: method is nil but JobTableUpdater.IsJobSetSubscribed was just called")
+	}
+	callInfo := struct {
+		Queue  string
+		JobSet string
+	}{
+		Queue:  queue,
+		JobSet: jobSet,
+	}
+	mock.lockUnsubscribeJobSet.Lock()
+	mock.calls.UnsubscribeJobSet = append(mock.calls.UnsubscribeJobSet, callInfo)
+	mock.lockUnsubscribeJobSet.Unlock()
+	mock.UnsubscribeJobSetFunc(queue, jobSet)
+}
+
 
 // UpdateJobServiceDb calls UpdateJobServiceDbFunc.
 func (mock *JobTableUpdaterMock) UpdateJobServiceDb(jobStatus *JobStatus) error {

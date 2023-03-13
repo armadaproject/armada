@@ -22,6 +22,7 @@ type JobTableUpdater interface {
 	SetSubscriptionError(queue string, jobSet string, err string)
 	GetSubscriptionError(queue string, jobSet string) string
 	ClearSubscriptionError(queue string, jobSet string)
+	UnsubscribeJobSet(queue string, jobSet string)
 }
 
 // Internal structure for storing in memory JobTables and Subscription JobSets
@@ -267,6 +268,13 @@ func (s *SQLJobService) CheckToUnSubscribe(queue string, jobSet string, configTi
 		}
 	}
 	return false
+}
+
+func (s *SQLJobService) UnsubscribeJobSet(queue, jobSet string) {
+	s.jobSetSubscribe.subscribeLock.Lock()
+	defer s.jobSetSubscribe.subscribeLock.Unlock()
+	primaryKey := queue + jobSet
+	delete(s.jobSetSubscribe.subscribeMap, primaryKey)
 }
 
 // Update JobSet Map with time that a Job in that JobSet was requested

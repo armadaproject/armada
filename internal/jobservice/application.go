@@ -81,6 +81,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 					if err != nil {
 						logging.WithStacktrace(log, err).Warn("error cleaning up jobs")
 					}
+					sqlJobRepo.UnsubscribeJobSet(value.Queue, value.JobSet)
 				}
 			}
 		}

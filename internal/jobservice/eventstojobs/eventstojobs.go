@@ -50,7 +50,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 	ctx, cancel := context.WithCancel(ctx)
 	g, _ := errgroup.WithContext(ctx)
 	expiresAt := time.Now().Add(time.Duration(timeout) * time.Second)
-
+	defer eventToJobService.jobServiceRepository.UnsubscribeJobSet(eventToJobService.queue, eventToJobService.jobSetId)
 	g.Go(func() error {
 		defer cancel()
 
