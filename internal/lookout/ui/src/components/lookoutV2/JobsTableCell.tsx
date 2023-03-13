@@ -1,5 +1,3 @@
-import { MouseEvent, TouchEvent } from "react"
-
 import { KeyboardArrowRight, KeyboardArrowDown } from "@mui/icons-material"
 import { TableCell, IconButton, TableSortLabel, Box } from "@mui/material"
 import { Cell, ColumnResizeMode, flexRender, Header } from "@tanstack/react-table"
