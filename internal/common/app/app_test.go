@@ -25,7 +25,6 @@ func TestCreateContextWithShutdownSIGINTSignal(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Errorf("CreateContextWithShutdown did not shut down within 5 seconds")
 		}
-
 	}()
 
 	err := syscall.Kill(syscall.Getpid(), syscall.SIGINT)
@@ -42,5 +41,4 @@ func TestCreateContextWithShutdownNoSignal(t *testing.T) {
 		t.Errorf("CreateContextWithShutdown shut down without SIGINT signal")
 	case <-time.After(5 * time.Second):
 	}
-
 }

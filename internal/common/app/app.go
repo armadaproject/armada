@@ -6,7 +6,7 @@ import (
 	"os/signal"
 )
 
-// CreateContextWithShutdown returns a context that will report done when a SIGTERM is received
+// CreateContextWithShutdown returns a context that will report done when a SIGINT is received
 func CreateContextWithShutdown() context.Context {
 	ctx, cancel := context.WithCancel(context.Background())
 	c := make(chan os.Signal, 1)
