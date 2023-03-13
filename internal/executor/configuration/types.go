@@ -88,7 +88,7 @@ type TaskConfiguration struct {
 	UtilisationEventProcessingInterval    time.Duration
 	UtilisationEventReportingInterval     time.Duration
 	ResourceCleanupInterval               time.Duration
-	RunStateProcessorInterval             time.Duration
+	StateProcessorInterval             time.Duration
 }
 
 type MetricConfiguration struct {

@@ -179,8 +179,8 @@ func StartUpWithContext(
 			pendingPodChecker,
 			config.Kubernetes.StuckTerminatingPodExpiry)
 		taskManager.Register(podIssueService.HandlePodIssues, config.Task.PodIssueHandlingInterval, "pod_issue_handling")
-		taskManager.Register(preemptRunProcessor.Run, config.Task.RunStateProcessorInterval, "preempt_runs")
-		taskManager.Register(removeRunProcessor.Run, config.Task.RunStateProcessorInterval, "remove_runs")
+		taskManager.Register(preemptRunProcessor.Run, config.Task.StateProcessorInterval, "preempt_runs")
+		taskManager.Register(removeRunProcessor.Run, config.Task.StateProcessorInterval, "remove_runs")
 		taskManager.Register(jobRequester.RequestJobsRuns, config.Task.AllocateSpareClusterCapacityInterval, "request_runs")
 	} else {
 		jobLeaseService := service.NewJobLeaseService(
