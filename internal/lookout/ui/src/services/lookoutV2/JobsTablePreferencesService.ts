@@ -22,12 +22,13 @@ export interface JobsTablePreferences {
   pageIndex: number
   pageSize: number
   sortingState: SortingState
+  columnSizing: Record<string, number>
   filterState: ColumnFiltersState
   sidebarJobId: JobId | undefined
+  sidebarWidth?: number
 }
 
 // Need two 'defaults'
-
 export const BLANK_PREFERENCES: JobsTablePreferences = {
   allColumnsInfo: JOB_COLUMNS,
   visibleColumns: DEFAULT_COLUMN_VISIBILITY,
@@ -38,13 +39,19 @@ export const BLANK_PREFERENCES: JobsTablePreferences = {
   pageSize: 50,
   sortingState: [{ id: "jobId", desc: true }],
   sidebarJobId: undefined,
+  columnSizing: {},
 }
 
 export const DEFAULT_PREFERENCES: JobsTablePreferences = {
   ...BLANK_PREFERENCES,
   filterState: DEFAULT_FILTERS,
   groupedColumns: DEFAULT_GROUPING,
+  sidebarWidth: 600,
 }
+
+const KEY_PREFIX = "lookoutV2"
+const COLUMN_SIZING_KEY = `${KEY_PREFIX}ColumnSizing`
+const SIDEBAR_WIDTH_KEY = `${KEY_PREFIX}SidebarWidth`
 
 // Reflects the type of data stored in the URL query params
 // Keys are shortened to keep URL size lower
@@ -149,21 +156,27 @@ const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringSafePrefs>): Pa
 export class JobsTablePreferencesService {
   constructor(private historyService: History) {}
 
-  getInitialUserPrefs(): JobsTablePreferences {
-    const prefs = this.getPrefsFromQueryParams()
+  getUserPrefs(): JobsTablePreferences {
+    const prefs = this.loadPrefs()
     if (allFieldsAreUndefined(prefs)) {
       return DEFAULT_PREFERENCES
     }
     return {
-      // TODO: Retrieve local storage prefs and merge
       ...BLANK_PREFERENCES,
-      ...this.getPrefsFromQueryParams(),
+      ...prefs,
     }
   }
 
   saveNewPrefs(newPrefs: JobsTablePreferences) {
     this.savePrefsToQueryParams(newPrefs)
-    // TODO: Store user-preference settings to local storage (e.g. column widths)
+    this.savePrefsToLocalStorage(newPrefs)
+  }
+
+  private loadPrefs(): Partial<JobsTablePreferences> {
+    return {
+      ...this.getPrefsFromQueryParams(),
+      ...this.getPrefsFromLocalStorage(),
+    }
   }
 
   private savePrefsToQueryParams(newPrefs: JobsTablePreferences) {
@@ -188,6 +201,22 @@ export class JobsTablePreferencesService {
     }
   }
 
+  private savePrefsToLocalStorage(newPrefs: JobsTablePreferences) {
+    this.saveColumnSizingToLocalStorage(newPrefs.columnSizing)
+    this.saveSidebarWidthToLocalStorage(newPrefs.sidebarWidth)
+  }
+
+  private saveColumnSizingToLocalStorage(columnSizing: Record<string, number>) {
+    localStorage.setItem(COLUMN_SIZING_KEY, JSON.stringify(columnSizing))
+  }
+
+  private saveSidebarWidthToLocalStorage(sidebarWidth?: number) {
+    if (!sidebarWidth) {
+      return
+    }
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, JSON.stringify(sidebarWidth))
+  }
+
   private getPrefsFromQueryParams(): Partial<JobsTablePreferences> {
     try {
       const queryParamPrefs = qs.parse(this.historyService.location.search, {
@@ -200,8 +229,58 @@ export class JobsTablePreferencesService {
       return {}
     }
   }
+
+  private getPrefsFromLocalStorage(): Partial<JobsTablePreferences> {
+    return {
+      columnSizing: this.getColumnSizingFromLocalStorage(),
+      sidebarWidth: this.getSidebarWidthFromLocalStorage(),
+    }
+  }
+
+  private getColumnSizingFromLocalStorage(): Record<string, number> {
+    const json = localStorage.getItem(COLUMN_SIZING_KEY)
+    if (!json) {
+      return {}
+    }
+    const obj = tryParseJson(json)
+    if (!obj) {
+      return {}
+    }
+
+    const ans: Record<string, number> = {}
+    for (const key in obj) {
+      const val = obj[key]
+      if (typeof val === "number") {
+        ans[key] = val
+      }
+    }
+    return ans
+  }
+
+  private getSidebarWidthFromLocalStorage(): number | undefined {
+    const json = localStorage.getItem(SIDEBAR_WIDTH_KEY)
+    if (!json) {
+      return undefined
+    }
+    const obj = tryParseJson(json)
+    if (!obj) {
+      return undefined
+    }
+    return typeof obj === "number" ? obj : undefined
+  }
 }
 
 function allFieldsAreUndefined(obj: Record<string, unknown>): boolean {
   return Object.values(obj).every((el) => el === undefined)
+}
+
+function tryParseJson(json: string): any | undefined {
+  try {
+    return JSON.parse(json) as Record<string, unknown>
+  } catch (e: unknown) {
+    if (e instanceof Error) {
+      console.error(e.message)
+    }
+    return undefined
+  }
 }

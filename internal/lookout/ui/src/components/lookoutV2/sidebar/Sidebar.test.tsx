@@ -18,7 +18,13 @@ describe("Sidebar", () => {
   const renderComponent = () =>
     render(
       <SnackbarProvider>
-        <Sidebar job={job} runErrorService={new FakeGetRunErrorService()} onClose={onClose} />
+        <Sidebar
+          job={job}
+          runErrorService={new FakeGetRunErrorService()}
+          sidebarWidth={600}
+          onClose={onClose}
+          onWidthChange={() => undefined}
+        />
       </SnackbarProvider>,
     )
 

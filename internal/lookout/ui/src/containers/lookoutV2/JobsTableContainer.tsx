@@ -31,6 +31,7 @@ import {
   SortingState,
   VisibilityState,
   ColumnResizeMode,
+  ColumnSizingState,
 } from "@tanstack/react-table"
 import { JobsTableActionBar } from "components/lookoutV2/JobsTableActionBar"
 import { HeaderCell } from "components/lookoutV2/JobsTableCell"
@@ -78,7 +79,7 @@ export const JobsTableContainer = ({
 }: JobsTableContainerProps) => {
   const openSnackbar = useCustomSnackbar()
 
-  const initialPrefs = useMemo(() => jobsTablePreferencesService.getInitialUserPrefs(), [])
+  const initialPrefs = useMemo(() => jobsTablePreferencesService.getUserPrefs(), [])
 
   // Columns
   const [allColumns, setAllColumns] = useState<JobTableColumn[]>(initialPrefs.allColumnsInfo)
@@ -90,7 +91,8 @@ export const JobsTableContainer = ({
         .filter((colId) => columnVisibility[colId]),
     [columnVisibility],
   )
-  const [columnResizeMode, setColumnResizeMode] = React.useState<ColumnResizeMode>("onChange")
+  const [columnResizeMode, setColumnResizeMode] = useState<ColumnResizeMode>("onChange")
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(initialPrefs.columnSizing)
 
   // Grouping
   const [grouping, setGrouping] = useState<ColumnId[]>(initialPrefs.groupedColumns)
@@ -101,6 +103,7 @@ export const JobsTableContainer = ({
   // Selecting
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({})
   const [sidebarJobId, setSidebarJobId] = useState<JobId | undefined>(initialPrefs.sidebarJobId)
+  const [sidebarWidth, setSidebarWidth] = useState<number>(initialPrefs.sidebarWidth ?? 600)
 
   // Pagination
   const [pagination, setPagination] = useState<PaginationState>({
@@ -164,10 +167,12 @@ export const JobsTableContainer = ({
       pageIndex,
       pageSize,
       sortingState: sorting,
+      columnSizing: columnSizing,
       filterState: columnFilterState,
       allColumnsInfo: allColumns,
       visibleColumns: columnVisibility,
       sidebarJobId: sidebarJobId,
+      sidebarWidth: sidebarWidth,
     })
   }, [
     grouping,
@@ -175,11 +180,13 @@ export const JobsTableContainer = ({
     pageIndex,
     pageSize,
     sorting,
+    columnSizing,
     columnFilterState,
     allColumns,
     columnVisibility,
     selectedRows,
     sidebarJobId,
+    sidebarWidth,
   ])
 
   const onRefresh = useCallback(() => {
@@ -296,6 +303,15 @@ export const JobsTableContainer = ({
     [sorting, expanded, pageIndex, pageSize, data],
   )
 
+  const onColumnSizingChange = useCallback(
+    (updater: Updater<ColumnSizingState>) => {
+      const newColumnSizing = updaterToValue(updater, columnSizing)
+      console.log(newColumnSizing)
+      setColumnSizing(newColumnSizing)
+    },
+    [columnSizing],
+  )
+
   const onJobRowClick = useCallback((jobRow: JobRow) => {
     const clickedJob = jobRow as Job
     const jobId = clickedJob.jobId
@@ -325,6 +341,7 @@ export const JobsTableContainer = ({
       },
       columnVisibility,
       sorting,
+      columnSizing,
     },
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => row.rowId,
@@ -358,6 +375,9 @@ export const JobsTableContainer = ({
 
     // Sorting
     onSortingChange: onSortingChange,
+
+    // Column resizing
+    onColumnSizingChange: onColumnSizingChange,
   })
 
   const topLevelRows = table.getRowModel().rows.filter((row) => row.depth === 0)
@@ -387,6 +407,7 @@ export const JobsTableContainer = ({
             aria-label="Jobs table"
             style={{
               width: table.getCenterTotalSize(),
+              borderLeft: "1px solid #cccccc",
             }}
           >
             <TableHead>
@@ -435,7 +456,13 @@ export const JobsTableContainer = ({
       </Box>
 
       {sidebarJobDetails !== undefined && (
-        <Sidebar job={sidebarJobDetails} runErrorService={runErrorService} onClose={onSideBarClose} />
+        <Sidebar
+          job={sidebarJobDetails}
+          runErrorService={runErrorService}
+          sidebarWidth={sidebarWidth}
+          onClose={onSideBarClose}
+          onWidthChange={setSidebarWidth}
+        />
       )}
     </Box>
   )

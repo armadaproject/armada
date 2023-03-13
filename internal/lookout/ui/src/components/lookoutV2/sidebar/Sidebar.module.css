@@ -1,7 +1,5 @@
 .resizer {
-    position: relative;
-    right: 0;
-    top: 0;
+    flex: 0 0 5px;
     height: 100%;
     width: 5px;
     background: rgba(0, 0, 0, 0.5);
@@ -23,13 +21,4 @@
     *:hover > .resizer {
         opacity: 1;
     }
-}
-
-.headerCell {
-    background-color: #f2f2f2;
-    height: 100%;
-}
-
-.headerCell th {
-    height: 100%;
 }

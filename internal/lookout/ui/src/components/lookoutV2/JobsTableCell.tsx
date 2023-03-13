@@ -1,3 +1,5 @@
+import { MouseEvent, TouchEvent } from "react"
+
 import { KeyboardArrowRight, KeyboardArrowDown } from "@mui/icons-material"
 import { TableCell, IconButton, TableSortLabel, Box } from "@mui/material"
 import { Cell, ColumnResizeMode, flexRender, Header } from "@tanstack/react-table"
@@ -9,7 +11,6 @@ import styles from "./JobsTableCell.module.css"
 import { JobsTableFilter } from "./JobsTableFilter"
 
 const sharedCellStyle = {
-  //padding: "0.5em",
   padding: 0,
   overflowWrap: "normal",
   "&:hover": {
@@ -55,10 +56,9 @@ export function HeaderCell({ header, columnResizeMode, deltaOffset }: HeaderCell
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
           overflow: "hidden",
-          overflowY: "hidden",
         }}
         className={styles.headerCell}
-      ></TableCell>
+      />
     )
   }
 
