@@ -348,6 +348,22 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			}
 		}
 
+		// Group gangs.
+		for _, job := range jobs {
+			gangId, _, isGangJob, err := scheduler.GangIdAndCardinalityFromLegacySchedulerJob(job, q.schedulingConfig.Preemption.PriorityClasses)
+			if err != nil {
+				return nil, err
+			}
+			if isGangJob {
+				if m, ok := jobIdsByGangId[gangId]; ok {
+					m[job.Id] = true
+				} else {
+					jobIdsByGangId[gangId] = map[string]bool{job.Id: true}
+				}
+				gangIdByJobId[job.Id] = gangId
+			}
+		}
+
 		// Bind pods to nodes, thus ensuring resources are marked allocated on the node.
 		skipNode := false
 		for _, job := range jobs {
