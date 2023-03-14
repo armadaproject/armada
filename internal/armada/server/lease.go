@@ -672,14 +672,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 				}
 			}
 		}
-		if jobs, err := q.jobRepository.GetExistingJobsByIds(jobIdsToDelete); err != nil {
-			logging.WithStacktrace(log, err).Error("failed to get jobs from Redis")
-		} else if len(jobs) > 0 {
-			log.Errorf(
-				"deleted jobs still present in Redis: %v",
-				util.Map(jobs, func(job *api.Job) string { return job.Id }),
-			)
-		}
 	}
 
 	// Update resource cluster report to account for preempted/leased jobs and write it to Redis.
