@@ -682,25 +682,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		}
 	}
 
-	// Update the usage report for this executor in-place to account for preempted/leased jobs and write it back into Redis.
-	// This ensures preempted/leased jobs are accounted for without needing to wait for feedback from the executor.
-
-	// executorReport, ok := reportsByExecutor[req.ClusterId]
-	// if !ok || executorReport.ResourcesByQueue == nil {
-	// 	executorReport = &schedulerobjects.ClusterResourceUsageReport{
-	// 		Pool:             req.Pool,
-	// 		Created:          q.clock.Now(),
-	// 		ResourcesByQueue: make(map[string]*schedulerobjects.QueueClusterResourceUsage),
-	// 	}
-	// 	reportsByExecutor[req.ClusterId] = executorReport
-	// }
-	// allocatedByQueueForCluster = q.aggregateUsage(
-	// 	// We only want resources for this cluster.
-	// 	map[string]*schedulerobjects.ClusterResourceUsageReport{
-	// 		req.ClusterId: executorReport,
-	// 	},
-	// 	req.Pool,
-	// )
+	// Update resource cluster report to account for preempted/leased jobs and write it to Redis.
 	allocatedByQueueForCluster = scheduler.UpdateUsage(
 		allocatedByQueueForCluster,
 		preemptedJobs,
