@@ -31,7 +31,18 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 
 	log.WithFields(requestFields).Debug("GetJobStatus called")
 
-	if err := s.jobRepository.UpdateJobSetTime(opts.Queue, opts.JobSetId); err != nil {
+	jobSetExists, err := s.jobRepository.IsJobSetSubscribed(opts.Queue, opts.JobSetId)
+	if err != nil {
+		log.Error("Error checking if job is subscribed", err)
+	}
+	if !jobSetExists {
+		errsubscribe := s.jobRepository.SubscribeJobSet(opts.Queue, opts.JobSetId)
+		if errsubscribe != nil {
+			log.Error("unable to subscribe job set", err)
+		}
+		log.Infof("Subscribing %s-%s", opts.Queue, opts.JobSetId)
+	}
+	if err := s.jobRepository.UpdateJobSetDb(opts.Queue, opts.JobSetId); err != nil {
 		log.WithFields(requestFields).Warn(err)
 	}
 	response, err := s.jobRepository.GetJobStatus(opts.JobId)

@@ -17,7 +17,7 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 	tests := []struct {
 		name                 string
 		jobEventMessageFn    func(context.Context, *api.JobSetRequest) (*api.EventStreamMessage, error)
-		isJobSetSubscribedFn func(string, string) bool
+		isJobSetSubscribedFn func(string, string) (bool, error)
 		ttlSecs              int64
 		wantErr              bool
 		wantSubscriptionErr  bool
@@ -28,8 +28,8 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 			jobEventMessageFn: func(context.Context, *api.JobSetRequest) (*api.EventStreamMessage, error) {
 				return &api.EventStreamMessage{Message: &api.EventMessage{}}, nil
 			},
-			isJobSetSubscribedFn: func(string, string) bool {
-				return true
+			isJobSetSubscribedFn: func(string, string) (bool, error) {
+				return true, nil
 			},
 			wantErr: true,
 		},
@@ -39,8 +39,8 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 			jobEventMessageFn: func(context.Context, *api.JobSetRequest) (*api.EventStreamMessage, error) {
 				return &api.EventStreamMessage{Message: &api.EventMessage{}}, errors.New("some error")
 			},
-			isJobSetSubscribedFn: func(string, string) bool {
-				return true
+			isJobSetSubscribedFn: func(string, string) (bool, error) {
+				return true, nil
 			},
 			wantErr:             true,
 			wantSubscriptionErr: true,
@@ -51,8 +51,8 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 			jobEventMessageFn: func(context.Context, *api.JobSetRequest) (*api.EventStreamMessage, error) {
 				return &api.EventStreamMessage{Message: &api.EventMessage{}}, nil
 			},
-			isJobSetSubscribedFn: func(string, string) bool {
-				return false
+			isJobSetSubscribedFn: func(string, string) (bool, error) {
+				return false, nil
 			},
 			wantErr: false,
 		},
@@ -67,10 +67,10 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 
 			mockJobRepo := repository.JobTableUpdaterMock{
 				IsJobSetSubscribedFunc:     tt.isJobSetSubscribedFn,
-				SubscribeJobSetFunc:        func(string, string) {},
-				ClearSubscriptionErrorFunc: func(string, string) {},
-				SetSubscriptionErrorFunc:   func(string, string, string) {},
-				UnsubscribeJobSetFunc:      func(string, string) {},
+				SubscribeJobSetFunc:        func(string, string) error { return nil },
+				ClearSubscriptionErrorFunc: func(string, string) error { return nil },
+				SetSubscriptionErrorFunc:   func(string, string, string) error { return nil },
+				UnsubscribeJobSetFunc:      func(string, string) (int64, error) { return 0, nil },
 			}
 
 			service := eventstojobs.NewEventsToJobService(

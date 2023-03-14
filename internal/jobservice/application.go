@@ -44,9 +44,6 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		[]authorization.AuthService{&authorization.AnonymousAuthService{}},
 	)
 
-	subscribedJobSets := make(map[string]*repository.SubscribeTable)
-	jobStatusMap := repository.NewJobSetSubscriptions(subscribedJobSets)
-
 	dbDir := filepath.Dir(config.DatabasePath)
 	if _, err := os.Stat(dbDir); os.IsNotExist(err) {
 		if errMkDir := os.Mkdir(dbDir, 0o755); errMkDir != nil {
@@ -63,7 +60,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 			log.Warnf("error closing database: %v", err)
 		}
 	}()
-	sqlJobRepo := repository.NewSQLJobService(jobStatusMap, config, db)
+	sqlJobRepo := repository.NewSQLJobService(config, db)
 	sqlJobRepo.Setup()
 	jobService := server.NewJobService(config, sqlJobRepo)
 	js.RegisterJobServiceServer(grpcServer, jobService)
@@ -78,16 +75,22 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		return nil
 	})
 	g.Go(func() error {
-		ticker := time.NewTicker(time.Duration(config.SubscribeJobSetTime) * time.Second)
+		ticker := time.NewTicker(10 * time.Second)
 		for range ticker.C {
-			for _, value := range sqlJobRepo.GetSubscribedJobSets() {
-				log.Infof("subscribing to %s-%s for 60 s", value.Queue, value.JobSet)
+
+			jobSets, err := sqlJobRepo.GetSubscribedJobSets()
+			log.Infof("job service has %d subscribed job sets", len(jobSets))
+			if err != nil {
+				logging.WithStacktrace(log, err).Warn("error getting jobsets")
+			}
+			for _, value := range jobSets {
+				log.Infof("subscribing to %s-%s for %d s", value.Queue, value.JobSet, config.SubscribeJobSetTime)
 				eventClient := events.NewEventClient(&config.ApiConnection)
 				eventJob := eventstojobs.NewEventsToJobService(value.Queue, value.JobSet, eventClient, sqlJobRepo)
 				go func() {
 					err := eventJob.SubscribeToJobSetId(context.Background(), config.SubscribeJobSetTime)
 					if err != nil {
-						log.Error("Error", err)
+						log.Error("error on subscribing", err)
 					}
 				}()
 			}
@@ -113,16 +116,29 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 }
 
 func PurgeJobSets(log *log.Entry, purgeJobSetTime int64, sqlJobRepo *repository.SQLJobService) {
+	log.Info("duration config: ", purgeJobSetTime)
 	ticker := time.NewTicker(time.Duration(purgeJobSetTime) * time.Second)
 	for range ticker.C {
-		for _, value := range sqlJobRepo.GetSubscribedJobSets() {
+		jobSets, err := sqlJobRepo.GetSubscribedJobSets()
+		if err != nil {
+			logging.WithStacktrace(log, err).Warn("error getting jobsets")
+		}
+		for _, value := range jobSets {
 			log.Infof("subscribed job sets : %s", value)
-			if sqlJobRepo.CheckToUnSubscribe(value.Queue, value.JobSet, purgeJobSetTime) {
+			unsubscribe, err := sqlJobRepo.CheckToUnSubscribe(value.Queue, value.JobSet, purgeJobSetTime)
+			if err != nil {
+				log.WithError(err).Errorf("Unable to unsubscribe from queue/jobset %s/%s", value.Queue, value.JobSet)
+			}
+			if unsubscribe {
 				_, err := sqlJobRepo.CleanupJobSetAndJobs(value.Queue, value.JobSet)
 				if err != nil {
 					logging.WithStacktrace(log, err).Warn("error cleaning up jobs")
 				}
-				sqlJobRepo.UnsubscribeJobSet(value.Queue, value.JobSet)
+				_, err = sqlJobRepo.UnsubscribeJobSet(value.Queue, value.JobSet)
+				if err != nil {
+					log.WithError(err).Errorf("unable to delete queue/jobset %s/%s", value.Queue, value.JobSet)
+				}
+				log.Infof("deleted queue/jobset %s/%s", value.Queue, value.JobSet)
 			}
 		}
 	}
