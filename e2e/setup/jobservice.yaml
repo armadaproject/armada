@@ -1,4 +1,4 @@
-databasePath: "/e2e/jobservice.db"
+databasePath: "/tmp/jobservice.db"
 subscribeJobSetTime: 100
 apiConnection:
   armadaUrl: "server:50051"

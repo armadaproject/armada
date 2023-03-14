@@ -23,6 +23,28 @@ type LeaderController interface {
 	Run(ctx context.Context) error
 }
 
+// LeaderToken is a token handed out to schedulers which they can use to determine if they are leader
+type LeaderToken struct {
+	leader bool
+	id     uuid.UUID
+}
+
+// InvalidLeaderToken returns a LeaderToken indicating this instance is not leader.
+func InvalidLeaderToken() LeaderToken {
+	return LeaderToken{
+		leader: false,
+		id:     uuid.New(),
+	}
+}
+
+// NewLeaderToken returns a LeaderToken indicating this instance is the leader.
+func NewLeaderToken() LeaderToken {
+	return LeaderToken{
+		leader: true,
+		id:     uuid.New(),
+	}
+}
+
 // StandaloneLeaderController returns a token that always indicates you are leader
 // This can be used when only a single instance of the scheduler is needed
 type StandaloneLeaderController struct {
@@ -139,27 +161,5 @@ func (lc *KubernetesLeaderController) getNewLock() *resourcelock.LeaseLock {
 		LockConfig: resourcelock.ResourceLockConfig{
 			Identity: lc.config.PodName,
 		},
-	}
-}
-
-// LeaderToken is a token handed out to schedulers which they can use to determine if they are leader
-type LeaderToken struct {
-	leader bool
-	id     uuid.UUID
-}
-
-// InvalidLeaderToken returns a LeaderToken indicating this instance is not leader.
-func InvalidLeaderToken() LeaderToken {
-	return LeaderToken{
-		leader: false,
-		id:     uuid.New(),
-	}
-}
-
-// NewLeaderToken returns a LeaderToken indicating this instance is the leader.
-func NewLeaderToken() LeaderToken {
-	return LeaderToken{
-		leader: true,
-		id:     uuid.New(),
 	}
 }
