@@ -17,7 +17,8 @@ on:
       - '.github/workflows/ts.yml'
 
 jobs:
-  typescript:
+  ts-lint:
+    # TODO(JayF): Determine what nodejs versions we target, and setup matrix-based testing similar to what we do for go
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v3
@@ -25,18 +26,22 @@ jobs:
         with:
           node-version: 16.14.2
 
-      - name: Install
+      - name: Check TypeScript formatting
         run: |
-          yarn install --frozen-lockfile && yarn run openapi
-        working-directory: ./internal/lookout/ui
-
-      - name: Lint
-        run: |
-          yarn run fmt || exit 1
+          yarn install --frozen-lockfile && yarn run fmt || exit 1
           exit $(git status -s -uno | wc -l)
         working-directory: ./internal/lookout/ui
+  ts-unit-tests:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16.14.2
 
-      - name: Test
+      - name: Run Unit Tests
         run: |
-          CI=true yarn run test
+          yarn install --frozen-lockfile && yarn run openapi && CI=true yarn run test
         working-directory: ./internal/lookout/ui
+
+
