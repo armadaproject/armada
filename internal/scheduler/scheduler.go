@@ -344,7 +344,9 @@ func (s *Scheduler) eventsFromSchedulerResult(result *SchedulerResult) ([]*armad
 							Errors: []*armadaevents.Error{
 								{
 									Terminal: true,
-									Reason:   &armadaevents.Error_JobRunPreemptedError{},
+									Reason: &armadaevents.Error_JobRunPreemptedError{
+										JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+									},
 								},
 							},
 						},
@@ -358,7 +360,9 @@ func (s *Scheduler) eventsFromSchedulerResult(result *SchedulerResult) ([]*armad
 							Errors: []*armadaevents.Error{
 								{
 									Terminal: true,
-									Reason:   &armadaevents.Error_JobRunPreemptedError{},
+									Reason: &armadaevents.Error_JobRunPreemptedError{
+										JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+									},
 								},
 							},
 						},
