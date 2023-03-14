@@ -113,8 +113,6 @@ queueManagement:
   defaultPriorityFactor: 1000
   defaultQueuedJobsLimit: 0  # No Limit
   autoCreateQueues: true
-databaseRetention:
-  jobRetentionDuration: 168h
 eventRetention:
   expiryEnabled: true
   retentionDuration: 336h
