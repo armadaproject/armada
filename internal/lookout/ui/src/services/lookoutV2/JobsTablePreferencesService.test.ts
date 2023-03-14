@@ -3,7 +3,8 @@ import { ColumnId, createAnnotationColumn, JOB_COLUMNS } from "utils/jobsTableCo
 
 import {
   BLANK_PREFERENCES,
-  DEFAULT_PREFERENCES,
+  DEFAULT_LOCAL_STORAGE_PREFERENCES,
+  DEFAULT_QUERY_PARAM_PREFERENCES,
   JobsTablePreferences,
   JobsTablePreferencesService,
 } from "./JobsTablePreferencesService"
@@ -18,7 +19,11 @@ describe("JobsTablePreferencesService", () => {
 
   describe("getInitialUserPrefs", () => {
     it("gives default preferences if no query params", () => {
-      expect(service.getUserPrefs()).toStrictEqual(DEFAULT_PREFERENCES)
+      expect(service.getUserPrefs()).toStrictEqual({
+        ...BLANK_PREFERENCES,
+        ...DEFAULT_QUERY_PARAM_PREFERENCES,
+        ...DEFAULT_LOCAL_STORAGE_PREFERENCES,
+      })
     })
 
     it("merges blank config with provided query params", () => {

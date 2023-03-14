@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react"
+import { prettyDOM, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { createMemoryHistory, History } from "history"
 import { isTerminatedJobState, Job, JobState } from "models/lookoutV2Models"

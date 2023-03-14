@@ -1,4 +1,4 @@
-import { render, within } from "@testing-library/react"
+import { prettyDOM, render, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { Job } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
@@ -42,11 +42,10 @@ describe("Sidebar", () => {
     const run = job.runs[0]
 
     // Switch to runs tab
+    console.log(prettyDOM(getByRole("tab", { name: /Runs/ })))
     await userEvent.click(getByRole("tab", { name: /Runs/ }))
 
-    // Expand the first (and only) run
-    await userEvent.click(getByRole("button", { name: /Unable To Schedule/ }))
-
+    // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
     within(getByRole("row", { name: /Exit code/ })).getByText("17")
   })
@@ -59,9 +58,7 @@ describe("Sidebar", () => {
     // Switch to runs tab
     await userEvent.click(getByRole("tab", { name: /Runs/ }))
 
-    // Expand the first (and only) run
-    await userEvent.click(getByRole("button", { name: /Unable To Schedule/ }))
-
+    // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
   })
 

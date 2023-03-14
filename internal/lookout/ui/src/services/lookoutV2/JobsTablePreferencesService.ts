@@ -22,7 +22,7 @@ export interface JobsTablePreferences {
   pageIndex: number
   pageSize: number
   sortingState: SortingState
-  columnSizing: Record<string, number>
+  columnSizing?: Record<string, number>
   filterState: ColumnFiltersState
   sidebarJobId: JobId | undefined
   sidebarWidth?: number
@@ -42,10 +42,12 @@ export const BLANK_PREFERENCES: JobsTablePreferences = {
   columnSizing: {},
 }
 
-export const DEFAULT_PREFERENCES: JobsTablePreferences = {
-  ...BLANK_PREFERENCES,
+export const DEFAULT_QUERY_PARAM_PREFERENCES: Partial<JobsTablePreferences> = {
   filterState: DEFAULT_FILTERS,
   groupedColumns: DEFAULT_GROUPING,
+}
+
+export const DEFAULT_LOCAL_STORAGE_PREFERENCES: Partial<JobsTablePreferences> = {
   sidebarWidth: 600,
 }
 
@@ -157,26 +159,24 @@ export class JobsTablePreferencesService {
   constructor(private historyService: History) {}
 
   getUserPrefs(): JobsTablePreferences {
-    const prefs = this.loadPrefs()
-    if (allFieldsAreUndefined(prefs)) {
-      return DEFAULT_PREFERENCES
+    let queryParamPrefs = this.getPrefsFromQueryParams()
+    let localStoragePrefs = this.getPrefsFromLocalStorage()
+    if (allFieldsAreUndefined(queryParamPrefs)) {
+      queryParamPrefs = DEFAULT_QUERY_PARAM_PREFERENCES
+    }
+    if (allFieldsAreUndefined(localStoragePrefs)) {
+      localStoragePrefs = DEFAULT_LOCAL_STORAGE_PREFERENCES
     }
     return {
       ...BLANK_PREFERENCES,
-      ...prefs,
+      ...queryParamPrefs,
+      ...localStoragePrefs,
     }
   }
 
   saveNewPrefs(newPrefs: JobsTablePreferences) {
     this.savePrefsToQueryParams(newPrefs)
     this.savePrefsToLocalStorage(newPrefs)
-  }
-
-  private loadPrefs(): Partial<JobsTablePreferences> {
-    return {
-      ...this.getPrefsFromQueryParams(),
-      ...this.getPrefsFromLocalStorage(),
-    }
   }
 
   private savePrefsToQueryParams(newPrefs: JobsTablePreferences) {
@@ -206,13 +206,15 @@ export class JobsTablePreferencesService {
     this.saveSidebarWidthToLocalStorage(newPrefs.sidebarWidth)
   }
 
-  private saveColumnSizingToLocalStorage(columnSizing: Record<string, number>) {
-    localStorage.setItem(COLUMN_SIZING_KEY, JSON.stringify(columnSizing))
+  private saveColumnSizingToLocalStorage(columnSizing?: Record<string, number>) {
+    if (columnSizing) {
+      localStorage.setItem(COLUMN_SIZING_KEY, JSON.stringify(columnSizing))
+    }
   }
 
   private saveSidebarWidthToLocalStorage(sidebarWidth?: number) {
-    if (!sidebarWidth) {
-      return
+    if (sidebarWidth === undefined || sidebarWidth === 0) {
+      localStorage.removeItem(SIDEBAR_WIDTH_KEY)
     }
     localStorage.setItem(SIDEBAR_WIDTH_KEY, JSON.stringify(sidebarWidth))
   }
@@ -237,14 +239,15 @@ export class JobsTablePreferencesService {
     }
   }
 
-  private getColumnSizingFromLocalStorage(): Record<string, number> {
+  private getColumnSizingFromLocalStorage(): Record<string, number> | undefined {
     const json = localStorage.getItem(COLUMN_SIZING_KEY)
-    if (!json) {
-      return {}
+    if (stringIsInvalid(json)) {
+      return undefined
     }
-    const obj = tryParseJson(json)
+
+    const obj = tryParseJson(json as string)
     if (!obj) {
-      return {}
+      return undefined
     }
 
     const ans: Record<string, number> = {}
@@ -259,15 +262,20 @@ export class JobsTablePreferencesService {
 
   private getSidebarWidthFromLocalStorage(): number | undefined {
     const json = localStorage.getItem(SIDEBAR_WIDTH_KEY)
-    if (!json) {
+    if (stringIsInvalid(json)) {
       return undefined
     }
-    const obj = tryParseJson(json)
+
+    const obj = tryParseJson(json as string)
     if (!obj) {
       return undefined
     }
     return typeof obj === "number" ? obj : undefined
   }
+}
+
+function stringIsInvalid(s: string | undefined | null): boolean {
+  return s === undefined || s === null || s.length === 0 || s === "undefined"
 }
 
 function allFieldsAreUndefined(obj: Record<string, unknown>): boolean {
@@ -279,7 +287,7 @@ function tryParseJson(json: string): any | undefined {
     return JSON.parse(json) as Record<string, unknown>
   } catch (e: unknown) {
     if (e instanceof Error) {
-      console.error(e.message)
+      console.warn(e.message)
     }
     return undefined
   }
