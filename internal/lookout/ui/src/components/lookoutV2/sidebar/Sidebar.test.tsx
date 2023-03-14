@@ -42,7 +42,6 @@ describe("Sidebar", () => {
     const run = job.runs[0]
 
     // Switch to runs tab
-    console.log(prettyDOM(getByRole("tab", { name: /Runs/ })))
     await userEvent.click(getByRole("tab", { name: /Runs/ }))
 
     // First run should already be expanded
