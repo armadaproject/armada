@@ -31,7 +31,6 @@ type ArmadaConfig struct {
 	Scheduling                        SchedulingConfig
 	NewScheduler                      NewSchedulerConfig
 	QueueManagement                   QueueManagementConfig
-	DatabaseRetention                 DatabaseRetentionPolicy
 	Pulsar                            PulsarConfig
 	Postgres                          PostgresConfig // Used for Pulsar submit API deduplication
 	EventApi                          EventApiConfig
@@ -274,10 +273,6 @@ func AllowedPriorities(priorityClasses map[string]PriorityClass) []int32 {
 	}
 	slices.Sort(rv)
 	return slices.Compact(rv)
-}
-
-type DatabaseRetentionPolicy struct {
-	JobRetentionDuration time.Duration
 }
 
 type LeaseSettings struct {

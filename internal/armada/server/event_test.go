@@ -16,7 +16,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
@@ -30,7 +29,6 @@ import (
 func TestEventServer_Health(t *testing.T) {
 	withEventServer(
 		t,
-		configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 		func(s *EventServer) {
 			health, err := s.Health(context.Background(), &types.Empty{})
 			assert.Equal(t, health.Status, api.HealthCheckResponse_SERVING)
@@ -42,7 +40,6 @@ func TestEventServer_Health(t *testing.T) {
 func TestEventServer_ForceNew(t *testing.T) {
 	withEventServer(
 		t,
-		configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 		func(s *EventServer) {
 			jobSetId := "set1"
 			queue := ""
@@ -88,7 +85,6 @@ func TestEventServer_ForceNew(t *testing.T) {
 func TestEventServer_GetJobSetEvents_EmptyStreamShouldNotFail(t *testing.T) {
 	withEventServer(
 		t,
-		configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 		func(s *EventServer) {
 			stream := &eventStreamMock{}
 			e := s.GetJobSetEvents(&api.JobSetRequest{Id: "test", Watch: false}, stream)
@@ -101,7 +97,6 @@ func TestEventServer_GetJobSetEvents_EmptyStreamShouldNotFail(t *testing.T) {
 func TestEventServer_GetJobSetEvents_QueueDoNotExist(t *testing.T) {
 	withEventServer(
 		t,
-		configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 		func(s *EventServer) {
 			stream := &eventStreamMock{}
 
@@ -127,7 +122,6 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 	t.Run("job set non existent ErrorIfMissing true", func(t *testing.T) {
 		withEventServer(
 			t,
-			configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 			func(s *EventServer) {
 				err := s.queueRepository.CreateQueue(q)
 				assert.NoError(t, err)
@@ -149,7 +143,6 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 	t.Run("job set non existent ErrorIfMissing false", func(t *testing.T) {
 		withEventServer(
 			t,
-			configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 			func(s *EventServer) {
 				err := s.queueRepository.CreateQueue(q)
 				assert.NoError(t, err)
@@ -168,7 +161,6 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 	t.Run("job set exists ErrorIfMissing true", func(t *testing.T) {
 		withEventServer(
 			t,
-			configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 			func(s *EventServer) {
 				err := s.queueRepository.CreateQueue(q)
 				assert.NoError(t, err)
@@ -212,7 +204,6 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 	t.Run("job set exists ErrorIfMissing false", func(t *testing.T) {
 		withEventServer(
 			t,
-			configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 			func(s *EventServer) {
 				err := s.queueRepository.CreateQueue(q)
 				require.NoError(t, err)
@@ -277,7 +268,6 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 	t.Run("no permissions", func(t *testing.T) {
 		withEventServer(
 			t,
-			configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 			func(s *EventServer) {
 				s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
 				err := s.queueRepository.CreateQueue(q)
@@ -302,7 +292,6 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 	t.Run("global permissions", func(t *testing.T) {
 		withEventServer(
 			t,
-			configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 			func(s *EventServer) {
 				s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
 				err := s.queueRepository.CreateQueue(q)
@@ -327,7 +316,6 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 	t.Run("queue permission without specific global permission", func(t *testing.T) {
 		withEventServer(
 			t,
-			configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour},
 			func(s *EventServer) {
 				s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
 				err := s.queueRepository.CreateQueue(q)
@@ -350,7 +338,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 	})
 
 	t.Run("queue permission", func(t *testing.T) {
-		withEventServer(t, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour}, func(s *EventServer) {
+		withEventServer(t, func(s *EventServer) {
 			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
@@ -396,11 +384,7 @@ func reportPulsarEvent(es *armadaevents.EventSequence) error {
 	return nil
 }
 
-func withEventServer(
-	t *testing.T,
-	databaseRetention configuration.DatabaseRetentionPolicy,
-	action func(s *EventServer),
-) {
+func withEventServer(t *testing.T, action func(s *EventServer)) {
 	t.Helper()
 
 	// using real redis instance as miniredis does not support streams
@@ -409,7 +393,7 @@ func withEventServer(
 
 	eventRepo := repository.NewEventRepository(client)
 	queueRepo := repository.NewRedisQueueRepository(client)
-	jobRepo := repository.NewRedisJobRepository(client, databaseRetention)
+	jobRepo := repository.NewRedisJobRepository(client)
 	server := NewEventServer(&FakePermissionChecker{}, eventRepo, nil, queueRepo, jobRepo)
 
 	client.FlushDB()

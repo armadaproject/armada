@@ -2,8 +2,7 @@
   "name": "lookout",
   "private": true,
   "jest" : {
-        "coverageReporters": ["text",
-        "cobertura"]
+        "coverageReporters": ["text", "cobertura"]
     },
   "scripts": {
     "start": "react-scripts start",
