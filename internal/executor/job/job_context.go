@@ -87,6 +87,9 @@ func NewClusterJobContext(
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
 				return
 			}
+			if !util.IsManagedPod(pod) {
+				return
+			}
 			jobContext.handleDeletedPod(pod)
 		},
 	})
@@ -99,6 +102,7 @@ func (c *ClusterJobContext) GetJobs() ([]*RunningJob, error) {
 	if err != nil {
 		return nil, err
 	}
+	pods = util.FilterPods(pods, util.IsLegacyManagedPod)
 
 	runningJobs := groupRunningJobs(pods)
 	return c.addIssues(runningJobs), nil

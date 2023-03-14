@@ -376,3 +376,12 @@ func GroupByQueue(pods []*v1.Pod) map[string][]*v1.Pod {
 	}
 	return podsByQueue
 }
+
+func IsLegacyManagedPod(pod *v1.Pod) bool {
+	if !IsManagedPod(pod) {
+		return false
+	}
+	runId := ExtractJobRunId(pod)
+
+	return runId == ""
+}

@@ -117,6 +117,9 @@ func (p *PodIssueService) HandlePodIssues() {
 	if err != nil {
 		log.WithError(err).Errorf("unable to handle pod issus as failed to load pods")
 	}
+	managedPods = util.FilterPods(managedPods, func(pod *v1.Pod) bool {
+		return !util.IsLegacyManagedPod(pod)
+	})
 	p.detectPodIssues(managedPods)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
 	defer cancel()

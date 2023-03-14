@@ -23,7 +23,7 @@ func TestPodIssueService_DoesNothingIfNoPodsAreFound(t *testing.T) {
 
 func TestPodIssueService_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
 	podIssueService, fakeClusterContext, eventsReporter := setupTestComponents()
-	runningPod := makeRunningPod()
+	runningPod := makeRunningPod(false)
 	addPod(t, fakeClusterContext, runningPod)
 
 	podIssueService.HandlePodIssues()
@@ -35,7 +35,7 @@ func TestPodIssueService_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
 
 func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckAndUnretryable(t *testing.T) {
 	podIssueService, fakeClusterContext, eventsReporter := setupTestComponents()
-	unretryableStuckPod := makeUnretryableStuckPod()
+	unretryableStuckPod := makeUnretryableStuckPod(false)
 	addPod(t, fakeClusterContext, unretryableStuckPod)
 
 	podIssueService.HandlePodIssues()
@@ -54,7 +54,7 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckAndUnretryable(t *tes
 
 func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckTerminating(t *testing.T) {
 	podIssueService, fakeClusterContext, eventsReporter := setupTestComponents()
-	terminatingPod := makeTerminatingPod()
+	terminatingPod := makeTerminatingPod(false)
 	addPod(t, fakeClusterContext, terminatingPod)
 
 	podIssueService.HandlePodIssues()
@@ -70,7 +70,7 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckTerminating(t *testin
 
 func TestPodIssueService_DeletesPodAndReportsLeaseReturned_IfRetryableStuckPod(t *testing.T) {
 	podIssueService, fakeClusterContext, eventsReporter := setupTestComponents()
-	retryableStuckPod := makeRetryableStuckPod()
+	retryableStuckPod := makeRetryableStuckPod(false)
 	addPod(t, fakeClusterContext, retryableStuckPod)
 
 	podIssueService.HandlePodIssues()
@@ -90,7 +90,7 @@ func TestPodIssueService_DeletesPodAndReportsLeaseReturned_IfRetryableStuckPod(t
 
 func TestPodIssueService_ReportsFailed_IfDeletedExternally(t *testing.T) {
 	podIssueService, fakeClusterContext, eventsReporter := setupTestComponents()
-	runningPod := makeRunningPod()
+	runningPod := makeRunningPod(false)
 	fakeClusterContext.SimulateDeletionEvent(runningPod)
 
 	podIssueService.HandlePodIssues()
