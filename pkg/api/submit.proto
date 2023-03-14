@@ -110,9 +110,15 @@ message JobSubmitResponseItem {
     string error = 2;
 }
 
+message JobFailedToSchedule {
+    repeated k8s.io.api.core.v1.PodSpec pod_specs = 1;
+    string error = 2;
+}
+
 // swagger:model
 message JobSubmitResponse {
     repeated JobSubmitResponseItem job_response_items = 1;
+    repeated JobFailedToSchedule jobs_failed_to_schedule = 2;
 }
 
 // swagger:model

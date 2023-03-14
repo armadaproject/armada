@@ -867,6 +867,20 @@
         }
       }
     },
+    "apiJobFailedToSchedule": {
+      "type": "object",
+      "properties": {
+        "error": {
+          "type": "string"
+        },
+        "podSpecs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/v1PodSpec"
+          }
+        }
+      }
+    },
     "apiJobIngressInfoEvent": {
       "type": "object",
       "properties": {
@@ -1353,6 +1367,12 @@
           "type": "array",
           "items": {
             "$ref": "#/definitions/apiJobSubmitResponseItem"
+          }
+        },
+        "jobsFailedToSchedule": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/apiJobFailedToSchedule"
           }
         }
       }

@@ -296,11 +296,16 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, status.Errorf(codes.InvalidArgument, "error getting scheduling info: %s", err)
 	}
 
-	if ok, err := validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo); !ok {
-		if err != nil {
-			return nil, errors.WithMessagef(err, "can't schedule job for user %s", principal.GetName())
+	// Filter out Jobs that can not be scheduled
+	jobs, failedJobs := validateAndFilterJobs(jobs, allClusterSchedulingInfo)
+	var jobsFailedToSchedule []*api.JobFailedToSchedule
+	if len(failedJobs) != 0 {
+		for job, err := range failedJobs {
+			jobsFailedToSchedule = append(jobsFailedToSchedule, &api.JobFailedToSchedule{
+				PodSpecs: job.PodSpecs,
+				Error:    err.Error(),
+			})
 		}
-		return nil, errors.Errorf("can't schedule job for user %s", principal.GetName())
 	}
 
 	// Create events marking the jobs as submitted
@@ -322,7 +327,8 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 	// Create the response to send to the client
 	result := &api.JobSubmitResponse{
-		JobResponseItems: make([]*api.JobSubmitResponseItem, 0, len(submissionResults)),
+		JobResponseItems:     make([]*api.JobSubmitResponseItem, 0, len(submissionResults)),
+		JobsFailedToSchedule: jobsFailedToSchedule,
 	}
 
 	var createdJobs []*api.Job
@@ -364,6 +370,10 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 
 	if len(jobFailures) > 0 {
 		return result, status.Errorf(codes.Internal, fmt.Sprintf("[SubmitJobs] error submitting some or all jobs: %s", err))
+	}
+
+	if len(jobsFailedToSchedule) > 0 {
+		return result, status.Errorf(codes.Internal, fmt.Sprintf("[SubmitJobs] error scheduling some or all jobs: %s", err))
 	}
 
 	return result, nil

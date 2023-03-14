@@ -401,9 +401,10 @@ func TestSubmitServer_SubmitJob_WhenPodCannotBeScheduled(t *testing.T) {
 		})
 		assert.Empty(t, err)
 
-		_, err = s.SubmitJobs(context.Background(), jobRequest)
+		response, err := s.SubmitJobs(context.Background(), jobRequest)
 
 		assert.Error(t, err)
+		assert.NotEmpty(t, response.JobsFailedToSchedule)
 	})
 }
 

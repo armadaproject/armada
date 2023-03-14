@@ -878,6 +878,20 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"apiJobFailedToSchedule\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"error\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"podSpecs\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1PodSpec\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"apiJobIngressInfoEvent\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"properties\": {\n" +
@@ -1364,6 +1378,12 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
 		"            \"$ref\": \"#/definitions/apiJobSubmitResponseItem\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"jobsFailedToSchedule\": {\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/apiJobFailedToSchedule\"\n" +
 		"          }\n" +
 		"        }\n" +
 		"      }\n" +
