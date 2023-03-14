@@ -239,6 +239,9 @@ func (s *SQLJobService) ClearSubscriptionError(queue string, jobSet string) erro
 
 // Set subscription error if present
 func (s *SQLJobService) SetSubscriptionError(queue string, jobSet string, connErr string) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	jobSetState, err := s.db.Prepare("INSERT OR REPLACE INTO jobsets VALUES(?, ?, ?, ?)")
 	if err != nil {
 		return err
@@ -305,6 +308,9 @@ func (s *SQLJobService) CheckToUnSubscribe(queue string, jobSet string, configTi
 	if !jobSetFound {
 		return false, nil
 	}
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
 	row := s.db.QueryRow("SELECT Timestamp FROM jobsets WHERE Queue=? AND JobSetId=?", queue, jobSet)
 	var timeStamp int
 
