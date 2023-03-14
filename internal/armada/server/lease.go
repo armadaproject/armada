@@ -318,7 +318,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			}
 		}
 		if len(missingJobIds) > 0 {
-			log.Info(
+			log.Infof(
 				"could not load %d out of %d jobs from Redis on node %s (these jobs may have been preempted): %v",
 				len(missingJobIds), len(jobIds), nodeInfo.GetName(), missingJobIds,
 			)
