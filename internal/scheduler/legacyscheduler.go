@@ -17,7 +17,6 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/openconfig/goyang/pkg/indent"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -395,6 +394,7 @@ func (sch *Rescheduler) evict(ctx context.Context, evictor *Evictor) (*EvictorRe
 	if evictor == nil {
 		return &EvictorResult{}, NewInMemoryJobRepository(sch.priorityClasses), nil
 	}
+	log := ctxlogrus.Extract(ctx)
 
 	txn := sch.nodeDb.Txn(true)
 	defer txn.Abort()
@@ -457,7 +457,7 @@ func (sch *Rescheduler) evict(ctx context.Context, evictor *Evictor) (*EvictorRe
 		if err := validateEvictedJobs(gangEvictorResult.EvictedJobsById, gangEvictorResult.AffectedNodesById); err != nil {
 			return nil, nil, err
 		}
-		if err := sch.nodeDb.UpsertManyWithTxn(txn, maps.Values(result.AffectedNodesById)); err != nil {
+		if err := sch.nodeDb.UpsertManyWithTxn(txn, maps.Values(gangEvictorResult.AffectedNodesById)); err != nil {
 			return nil, nil, err
 		}
 		maps.Copy(result.AffectedNodesById, gangEvictorResult.AffectedNodesById)
@@ -482,6 +482,7 @@ func (sch *Rescheduler) evict(ctx context.Context, evictor *Evictor) (*EvictorRe
 }
 
 func (sch *Rescheduler) schedule(ctx context.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository) (*SchedulerResult, error) {
+	log := ctxlogrus.Extract(ctx)
 	queues := make([]*Queue, 0, len(sch.priorityFactorByQueue))
 	for queue, priorityFactor := range sch.priorityFactorByQueue {
 		evictedIt, err := inMemoryJobRepo.GetJobIterator(ctx, queue)
