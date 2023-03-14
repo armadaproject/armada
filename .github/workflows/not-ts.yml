@@ -17,11 +17,7 @@ on:
       - '.github/workflows/ts.yml'
 
 jobs:
-  ts-lint:
-    runs-on: ubuntu-latest
-    steps:
-      - run: 'echo "No lookout code modified, not running lookout jobs"'
-  ts-unit-tests:
-    runs-on: ubuntu-latest
+  typescript:
+    runs-on: ubuntu-22.04
     steps:
       - run: 'echo "No lookout code modified, not running lookout jobs"'
