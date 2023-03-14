@@ -255,6 +255,24 @@ func TestGetJobSetJobIds(t *testing.T) {
 	})
 }
 
+func TestReturnLeaseForDeletedJobShouldKeepJobDeleted(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		job := addLeasedJob(t, r, "cancel-test-queue", "cluster")
+
+		result, err := r.DeleteJobs([]*api.Job{job})
+		require.NoError(t, err, "delete failed")
+		assert.Nil(t, result[job])
+
+		returned, err := r.ReturnLease("cluster", job.Id)
+		assert.Nil(t, returned)
+		assert.Nil(t, err)
+
+		q, err := r.PeekQueue("cancel-test-queue", 100)
+		assert.Nil(t, err)
+		assert.Empty(t, q)
+	})
+}
+
 func TestGetLeasedJobIds(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		addTestJob(t, r, "queue1")

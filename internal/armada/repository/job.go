@@ -175,18 +175,13 @@ func (repo *RedisJobRepository) ReturnLease(clusterId string, jobId string) (ret
 		return nil, err
 	}
 	if len(jobs) == 0 {
-		err = &armadaerrors.ErrNotFound{
-			Type:    "job",
-			Value:   jobId,
-			Message: fmt.Sprintf("cluster %s", clusterId),
-		}
-		return nil, errors.WithStack(err)
+		// Job has already been deleted; no more changes necessary.
+		return nil, nil
 	} else if len(jobs) != 1 {
-		err = fmt.Errorf("expected to get exactly 1 job, but got %d jobs", len(jobs))
+		err = fmt.Errorf("expected to get exactly 0 or 1 job, but got %d jobs", len(jobs))
 		return nil, errors.WithStack(err)
 	}
 	job := jobs[0]
-
 	returned, err := returnLease(repo.db, clusterId, job.Queue, job.Id, job.Priority).Int()
 	if err != nil {
 		err = errors.WithMessagef(err, "error returning lease for job %s and cluster %s", job.Id, clusterId)
