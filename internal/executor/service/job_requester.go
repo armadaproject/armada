@@ -166,7 +166,7 @@ func (r *JobRequester) markJobRunsToPreempt(runIdsToPreempt []*armadaevents.Uuid
 	for _, runToCancelId := range runIdsToPreempt {
 		runIdStr, err := armadaevents.UuidStringFromProtoUuid(runToCancelId)
 		if err != nil {
-			log.Errorf("Skipping removing run because %s", err)
+			log.Errorf("Skipping preempting run because %s", err)
 			continue
 		}
 		r.jobRunStateStore.RequestRunPreemption(runIdStr)
