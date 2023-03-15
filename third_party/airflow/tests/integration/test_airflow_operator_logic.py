@@ -205,7 +205,8 @@ def success_job(client: ArmadaClient, jobservice: JobServiceClient):
 
 def test_parallel_execution(client: ArmadaClient, jobservice: JobServiceClient):
     threads = []
-    for _ in range(20):
+    success_job(client=client, jobservice=jobservice)
+    for _ in range(30):
         t = threading.Thread(target=success_job, args=[client, jobservice])
         t.start()
         threads.append(t)

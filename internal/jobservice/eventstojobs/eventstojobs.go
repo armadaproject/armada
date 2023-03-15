@@ -11,6 +11,7 @@ import (
 	"github.com/armadaproject/armada/internal/jobservice/events"
 	"github.com/armadaproject/armada/internal/jobservice/repository"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api/jobservice"
 )
 
 // Service that subscribes to events and stores JobStatus in the repository.
@@ -111,7 +112,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 				}
 				currentJobId := api.JobIdFromApiEvent(msg.Message)
 				jobStatus := EventsToJobResponse(*msg.Message)
-				if jobStatus != nil {
+				if jobStatus != nil && jobStatus.State != jobservice.JobServiceResponse_SUCCEEDED {
 					log.Infof("JobSet: %s JobId: %s Queue: %s State: %s", eventToJobService.jobSetId, currentJobId, eventToJobService.queue, jobStatus.GetState().String())
 					jobStatus := repository.NewJobStatus(eventToJobService.queue, eventToJobService.jobSetId, currentJobId, *jobStatus)
 					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(jobStatus)
