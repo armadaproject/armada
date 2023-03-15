@@ -433,7 +433,7 @@ func (sch *Rescheduler) evict(ctx context.Context, evictor *Evictor) (*EvictorRe
 // that is part of a gang for which at least one job was evicted.
 // This is to increase the probability of the gang jobs being re-scheduled.
 func (sch *Rescheduler) evictGangs(ctx context.Context, txn *memdb.Txn, previousEvictorResult *EvictorResult) (*EvictorResult, error) {
-	gangNodeIds, err := sch.collectNodesForGangEviction(previousEvictorResult.EvictedJobsById)
+	gangJobIds, gangNodeIds, err := sch.collectIdsForGangEviction(previousEvictorResult.EvictedJobsById)
 	if err != nil {
 		return nil, err
 	}
@@ -447,11 +447,11 @@ func (sch *Rescheduler) evictGangs(ctx context.Context, txn *memdb.Txn, previous
 			return !ok
 		},
 	)
-	evictor := NewNodeEvictor(
+	evictor := NewFilteredEvictor(
 		sch.jobRepo,
 		sch.priorityClasses,
-		sch.defaultPriorityClass,
 		gangNodeIds,
+		gangJobIds,
 	)
 	if evictor == nil {
 		// No gangs to evict.
@@ -468,8 +468,9 @@ func (sch *Rescheduler) evictGangs(ctx context.Context, txn *memdb.Txn, previous
 	return evictorResult, nil
 }
 
-// Collect any nodes with jobs part of gangs for which a job was evicted.
-func (sch *Rescheduler) collectNodesForGangEviction(evictedJobsById map[string]LegacySchedulerJob) (map[string]bool, error) {
+// Collect job ids for any gangs that were partially evicted and the ids of nodes those jobs are on.
+func (sch *Rescheduler) collectIdsForGangEviction(evictedJobsById map[string]LegacySchedulerJob) (map[string]bool, map[string]bool, error) {
+	allGangJobIds := make(map[string]bool)
 	gangNodeIds := make(map[string]bool)
 	seenGangs := make(map[string]bool)
 	for jobId := range evictedJobsById {
@@ -479,7 +480,7 @@ func (sch *Rescheduler) collectNodesForGangEviction(evictedJobsById map[string]L
 			continue
 		}
 		if gangId == "" {
-			return nil, errors.Errorf("no gang id found for job %s", jobId)
+			return nil, nil, errors.Errorf("no gang id found for job %s", jobId)
 		}
 		if seenGangs[gangId] {
 			// Gang already processed.
@@ -487,20 +488,21 @@ func (sch *Rescheduler) collectNodesForGangEviction(evictedJobsById map[string]L
 		}
 		gangJobIds := sch.jobIdsByGangId[gangId]
 		if len(gangJobIds) == 0 {
-			return nil, errors.Errorf("no jobs found for gang %s", gangId)
+			return nil, nil, errors.Errorf("no jobs found for gang %s", gangId)
 		}
 		for gangJobId := range gangJobIds {
+			allGangJobIds[gangJobId] = true
 			if nodeId, ok := sch.nodeIdByJobId[gangJobId]; !ok {
-				return nil, errors.Errorf("no node associated with gang job %s", gangJobId)
+				return nil, nil, errors.Errorf("no node associated with gang job %s", gangJobId)
 			} else if nodeId == "" {
-				return nil, errors.Errorf("empty node id associated with with gang job %s", gangJobId)
+				return nil, nil, errors.Errorf("empty node id associated with with gang job %s", gangJobId)
 			} else {
 				gangNodeIds[nodeId] = true
 			}
 		}
 		seenGangs[gangId] = true
 	}
-	return gangNodeIds, nil
+	return allGangJobIds, gangNodeIds, nil
 }
 
 // Some jobs in a gang may have terminated since the gang was scheduled.
@@ -856,28 +858,6 @@ func NewStochasticEvictor(
 	)
 }
 
-// NewNodeEvictor returns a new evictor that evicts all preemptible
-// jobs on nodes with nodeId such that nodeIdsToEvict[nodeId] is true.
-func NewNodeEvictor(
-	jobRepo JobRepository,
-	priorityClasses map[string]configuration.PriorityClass,
-	defaultPriorityClass string,
-	nodeIdsToEvict map[string]bool,
-) *Evictor {
-	if len(nodeIdsToEvict) == 0 {
-		return nil
-	}
-	return NewPreemptibleEvictor(
-		jobRepo,
-		priorityClasses,
-		defaultPriorityClass,
-		func(_ context.Context, node *schedulerobjects.Node) bool {
-			shouldEvict := nodeIdsToEvict[node.Id]
-			return shouldEvict
-		},
-	)
-}
-
 // NewPreemptibleEvictor returns a new evictor that evicts all preemptible jobs
 // on nodes for which nodeFilter returns true.
 func NewPreemptibleEvictor(
@@ -905,6 +885,44 @@ func NewPreemptibleEvictor(
 				return true
 			}
 			return false
+		},
+		postEvictFunc: func(ctx context.Context, job LegacySchedulerJob, node *schedulerobjects.Node) {
+			annotations := job.GetAnnotations()
+			if annotations == nil {
+				log := ctxlogrus.Extract(ctx)
+				log.Errorf("error evicting job %s: annotations not initialised", job.GetId())
+				return
+			}
+			// Add annotations to this job that indicate to the scheduler
+			// - that this pod was evicted and
+			// - which node it was evicted from.
+			annotations[TargetNodeIdAnnotation] = node.Id
+			annotations[IsEvictedAnnotation] = "true"
+		},
+	}
+}
+
+// NewFilteredEvictor returns a new evictor that evicts all jobs for which jobIdsToEvict[jobId] is true
+// on nodes for which nodeIdsToEvict[nodeId] is true.
+func NewFilteredEvictor(
+	jobRepo JobRepository,
+	priorityClasses map[string]configuration.PriorityClass,
+	nodeIdsToEvict map[string]bool,
+	jobIdsToEvict map[string]bool,
+) *Evictor {
+	if len(nodeIdsToEvict) == 0 || len(jobIdsToEvict) == 0 {
+		return nil
+	}
+	return &Evictor{
+		jobRepo:         jobRepo,
+		priorityClasses: priorityClasses,
+		nodeFilter: func(_ context.Context, node *schedulerobjects.Node) bool {
+			shouldEvict := nodeIdsToEvict[node.Id]
+			return shouldEvict
+		},
+		jobFilter: func(_ context.Context, job LegacySchedulerJob) bool {
+			shouldEvict := jobIdsToEvict[job.GetId()]
+			return shouldEvict
 		},
 		postEvictFunc: func(ctx context.Context, job LegacySchedulerJob, node *schedulerobjects.Node) {
 			annotations := job.GetAnnotations()

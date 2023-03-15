@@ -1596,6 +1596,54 @@ func TestReschedule(t *testing.T) {
 			// To test the gang evictor, we need to disable stochastic eviction.
 			NodeEvictionProbability: pointer.Pointer(0.0),
 		},
+		"gang preemption avoid cascading preemptions": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(3, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					// Schedule a gang spanning nodes 1 and 2.
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": withGangAnnotationsPodReqs(testNSmallCpuJob("A", 1, 33)),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 32),
+					},
+				},
+				{
+					// Schedule a gang spanning nodes 2 and 3.
+					// Make the one job landing on node 3 have priority 0, so it will be urgency-preempted next.
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": withGangAnnotationsPodReqs(
+							append(testNSmallCpuJob("A", 1, 31), testNSmallCpuJob("A", 0, 1)...),
+						),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 31),
+					},
+				},
+				{
+					// Schedule a job that requires preempting the one job on node 3.
+					// Assert that the entire second gang is preempted and that the first gang isn't.
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"B": testNLargeCpuJob("B", 1, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": intRange(0, 0),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							1: intRange(0, 31),
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+			// To test the gang evictor, we need to disable stochastic eviction.
+			NodeEvictionProbability: pointer.Pointer(0.0),
+		},
 		"rescheduled jobs don't count towards maxJobsToSchedule": {
 			SchedulingConfig: withMaxJobsToScheduleConfig(5, testSchedulingConfig()),
 			Nodes:            testNCpuNode(1, testPriorities),
