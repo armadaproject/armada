@@ -62,7 +62,8 @@ func (j *RunPreemptedProcessor) Run() {
 			if !util.IsReportedPreempted(pod) {
 				err := j.reportPodPreempted(runInfo.Run, runInfo.Pod)
 				if err != nil {
-					log.Error(err)
+					log.Errorf("failed to report run (runId = %s, jobId = %s) preempted because %s ",
+						runInfo.Run.Meta.RunId, runInfo.Run.Meta.JobId, err)
 					return
 				}
 			}
@@ -82,8 +83,7 @@ func (j *RunPreemptedProcessor) reportPodPreempted(run *job.RunState, pod *v1.Po
 
 	err := j.eventReporter.Report(events)
 	if err != nil {
-		return fmt.Errorf("Failed reporting preempted events for job %s run %s because %s",
-			run.Meta.JobId, run.Meta.RunId, err)
+		return fmt.Errorf("failed reporting preempted events because - %s", err)
 	}
 
 	err = j.clusterContext.AddAnnotation(pod, map[string]string{
@@ -92,7 +92,7 @@ func (j *RunPreemptedProcessor) reportPodPreempted(run *job.RunState, pod *v1.Po
 	})
 
 	if err != nil {
-		return fmt.Errorf("Failed to annotate pod %s because %s", pod.Name, err)
+		return fmt.Errorf("failed to annotate pod as preempted - %s", err)
 	}
 	return nil
 }

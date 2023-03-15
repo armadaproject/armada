@@ -78,7 +78,7 @@ func (allocationService *ClusterAllocationService) processSuccessfulSubmissions(
 	}
 	for _, j := range jobs {
 		if _, failed := failedSubmissionSet[j.Meta.RunMeta.RunId]; !failed {
-			allocationService.jobRunStateStore.ReportSuccessfulSubmission(j.Meta.RunMeta)
+			allocationService.jobRunStateStore.ReportSuccessfulSubmission(j.Meta.RunMeta.RunId)
 		}
 	}
 }
@@ -94,7 +94,7 @@ func (allocationService *ClusterAllocationService) processFailedJobSubmissions(f
 			returnLeaseEvent := reporter.CreateReturnLeaseEvent(details.Pod, message, allocationService.clusterId.GetClusterId(), true)
 			err := allocationService.eventReporter.Report([]reporter.EventMessage{{Event: returnLeaseEvent, JobRunId: details.JobRunMeta.RunId}})
 			if err == nil {
-				allocationService.jobRunStateStore.ReportFailedSubmission(details.JobRunMeta)
+				allocationService.jobRunStateStore.ReportFailedSubmission(details.JobRunMeta.RunId)
 			} else {
 				// This will cause us to lease it again - which is acceptable as the pod was never created
 				// Longer term we'll just update the state and let the state manager handle resending this event
@@ -105,7 +105,7 @@ func (allocationService *ClusterAllocationService) processFailedJobSubmissions(f
 			failEvent := reporter.CreateSimpleJobFailedEvent(details.Pod, message, allocationService.clusterId.GetClusterId(), api.Cause_Error)
 			err := allocationService.eventReporter.Report([]reporter.EventMessage{{Event: failEvent, JobRunId: details.JobRunMeta.RunId}})
 			if err == nil {
-				allocationService.jobRunStateStore.ReportFailedSubmission(details.JobRunMeta)
+				allocationService.jobRunStateStore.ReportFailedSubmission(details.JobRunMeta.RunId)
 			} else {
 				// This will cause us to lease it again - which is acceptable as the pod was never created
 				// Longer term we'll just update the state and let the state manager handle resending this event

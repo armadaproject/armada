@@ -15,8 +15,8 @@ import (
 type RunStateStore interface {
 	ReportRunLeased(runMeta *RunMeta, job *SubmitJob)
 	ReportRunInvalid(runMeta *RunMeta)
-	ReportSuccessfulSubmission(runMeta *RunMeta)
-	ReportFailedSubmission(runMeta *RunMeta)
+	ReportSuccessfulSubmission(runId string)
+	ReportFailedSubmission(runId string)
 	RequestRunCancellation(runId string)
 	RequestRunPreemption(runId string)
 	Delete(runId string)
@@ -55,6 +55,18 @@ func NewJobRunStateStore(clusterContext context.ClusterContext) *JobRunStateStor
 	err := stateStore.reconcileStateWithKubernetes()
 	if err != nil {
 		panic(err)
+	}
+	return stateStore
+}
+
+// NewJobRunStateStoreWithInitialState This constructor is only intended for tests - as it does not reconcile with kubernetes state
+func NewJobRunStateStoreWithInitialState(initialJobRuns []*RunState) *JobRunStateStore {
+	stateStore := &JobRunStateStore{
+		jobRunState: map[string]*RunState{},
+		lock:        sync.Mutex{},
+	}
+	for _, jobRun := range initialJobRuns {
+		stateStore.jobRunState[jobRun.Meta.RunId] = jobRun
 	}
 	return stateStore
 }
@@ -132,33 +144,27 @@ func (stateStore *JobRunStateStore) ReportRunInvalid(runMeta *RunMeta) {
 	}
 }
 
-func (stateStore *JobRunStateStore) ReportSuccessfulSubmission(runMeta *RunMeta) {
+func (stateStore *JobRunStateStore) ReportSuccessfulSubmission(runId string) {
 	stateStore.lock.Lock()
 	defer stateStore.lock.Unlock()
 
-	currentState, present := stateStore.jobRunState[runMeta.RunId]
+	currentState, present := stateStore.jobRunState[runId]
 	if !present {
-		log.Warnf("run unexpected reported as failed submission (runId=%s, jobId=%s), no current state exists", runMeta.RunId, runMeta.JobId)
-		currentState = &RunState{
-			Meta: runMeta,
-		}
-		stateStore.jobRunState[runMeta.RunId] = currentState
+		log.Warnf("run %s unexpectedly reported as successful submission, no run with that id exists", runId)
+		return
 	}
 	currentState.Phase = SuccessfulSubmission
 	currentState.LastPhaseTransitionTime = time.Now()
 }
 
-func (stateStore *JobRunStateStore) ReportFailedSubmission(runMeta *RunMeta) {
+func (stateStore *JobRunStateStore) ReportFailedSubmission(runId string) {
 	stateStore.lock.Lock()
 	defer stateStore.lock.Unlock()
 
-	currentState, present := stateStore.jobRunState[runMeta.RunId]
+	currentState, present := stateStore.jobRunState[runId]
 	if !present {
-		log.Warnf("run unexpected reported as failed submission (runId=%s, jobId=%s), no current state exists", runMeta.RunId, runMeta.JobId)
-		currentState = &RunState{
-			Meta: runMeta,
-		}
-		stateStore.jobRunState[runMeta.RunId] = currentState
+		log.Warnf("run %s unexpectedly reported as failed submission, no run with that id exists", runId)
+		return
 	}
 	currentState.Phase = FailedSubmission
 	currentState.LastPhaseTransitionTime = time.Now()
