@@ -8,7 +8,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
-	"github.com/armadaproject/armada/internal/executor/reporter"
+	"github.com/armadaproject/armada/internal/executor/reporter/mocks"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -102,9 +102,9 @@ func TestPodIssueService_ReportsFailed_IfDeletedExternally(t *testing.T) {
 	assert.Equal(t, failedEvent.JobId, util.ExtractJobId(runningPod))
 }
 
-func setupTestComponents() (*PodIssueService, *fakecontext.SyncFakeClusterContext, *reporter.FakeEventReporter) {
+func setupTestComponents() (*PodIssueService, *fakecontext.SyncFakeClusterContext, *mocks.FakeEventReporter) {
 	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
-	eventReporter := reporter.NewFakeEventReporter()
+	eventReporter := mocks.NewFakeEventReporter()
 	pendingPodChecker := makePodChecker()
 
 	podIssueHandler := NewPodIssueService(

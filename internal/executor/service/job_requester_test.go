@@ -15,8 +15,10 @@ import (
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/job"
-	"github.com/armadaproject/armada/internal/executor/reporter"
+	mocks3 "github.com/armadaproject/armada/internal/executor/reporter/mocks"
+	"github.com/armadaproject/armada/internal/executor/service/mocks"
 	"github.com/armadaproject/armada/internal/executor/utilisation"
+	mocks2 "github.com/armadaproject/armada/internal/executor/utilisation/mocks"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
@@ -221,14 +223,14 @@ func TestRequestJobsRuns_SkipsFullyInvalidLeasedJobs(t *testing.T) {
 	assert.Len(t, stateStore.GetAll(), 0)
 }
 
-func setupJobRequesterTest(initialJobRuns []*job.RunState) (*JobRequester, *reporter.FakeEventReporter, *StubLeaseRequester, *job.JobRunStateStore, *utilisation.StubUtilisationService) {
+func setupJobRequesterTest(initialJobRuns []*job.RunState) (*JobRequester, *mocks3.FakeEventReporter, *mocks.StubLeaseRequester, *job.JobRunStateStore, *mocks2.StubUtilisationService) {
 	clusterId := fakecontext.NewFakeClusterIdentity("cluster-1", "pool-1")
-	eventReporter := reporter.NewFakeEventReporter()
+	eventReporter := mocks3.NewFakeEventReporter()
 	stateStore := job.NewJobRunStateStoreWithInitialState(initialJobRuns)
-	leaseRequester := &StubLeaseRequester{}
+	leaseRequester := &mocks.StubLeaseRequester{}
 	leaseRequester.LeaseJobRunLeaseResponse = &LeaseResponse{}
 	podDefaults := &configuration.PodDefaults{}
-	utilisationService := &utilisation.StubUtilisationService{}
+	utilisationService := &mocks2.StubUtilisationService{}
 	utilisationService.ClusterAvailableCapacityReport = &utilisation.ClusterAvailableCapacityReport{
 		AvailableCapacity: &armadaresource.ComputeResources{},
 	}

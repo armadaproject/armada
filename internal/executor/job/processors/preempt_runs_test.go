@@ -14,7 +14,7 @@ import (
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
-	"github.com/armadaproject/armada/internal/executor/reporter"
+	"github.com/armadaproject/armada/internal/executor/reporter/mocks"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -113,7 +113,7 @@ func setupPreemptRunProcessorTest(
 	t *testing.T,
 	existingPod *v1.Pod,
 	existingJobRuns *job.RunState,
-) (*RunPreemptedProcessor, *fakecontext.SyncFakeClusterContext, *reporter.FakeEventReporter) {
+) (*RunPreemptedProcessor, *fakecontext.SyncFakeClusterContext, *mocks.FakeEventReporter) {
 	executorContext := fakecontext.NewSyncFakeClusterContext()
 	jobRunState := job.NewJobRunStateStoreWithInitialState([]*job.RunState{existingJobRuns})
 	if existingPod != nil {
@@ -121,7 +121,7 @@ func setupPreemptRunProcessorTest(
 		assert.NoError(t, err)
 	}
 
-	eventReporter := reporter.NewFakeEventReporter()
+	eventReporter := mocks.NewFakeEventReporter()
 	preemptRunProcessor := NewRunPreemptedProcessor(executorContext, jobRunState, eventReporter)
 	return preemptRunProcessor, executorContext, eventReporter
 }
