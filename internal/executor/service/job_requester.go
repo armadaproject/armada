@@ -109,9 +109,6 @@ func (r *JobRequester) getUnassignedRunIds(capacityReport *utilisation.ClusterAv
 	})...)
 
 	unassignedIds := slices.Subtract(allJobRunIds, allAssignedRunIds)
-	unassignedIds = util2.Filter(unassignedIds, func(val string) bool {
-		return val != ""
-	})
 
 	return util.StringUuidsToUuids(unassignedIds)
 }
