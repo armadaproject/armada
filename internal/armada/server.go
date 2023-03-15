@@ -41,11 +41,10 @@ import (
 func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
 	log.Info("Armada server starting")
 	defer log.Info("Armada server shutting down")
-
 	if config.Scheduling.Preemption.Enabled {
 		log.Info("Armada Job preemption is enabled")
-		log.Infof("Supported priority classes are: %v", config.Scheduling.Preemption.PriorityClasses)
-		log.Infof("Default priority class is: %s", config.Scheduling.Preemption.DefaultPriorityClass)
+		log.Infof("Armada priority classes: %v", config.Scheduling.Preemption.PriorityClasses)
+		log.Infof("Default priority class: %s", config.Scheduling.Preemption.DefaultPriorityClass)
 	} else {
 		log.Info("Armada Job preemption is disabled")
 	}
