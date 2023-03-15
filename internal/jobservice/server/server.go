@@ -29,8 +29,6 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 		"queue":      opts.Queue,
 	}
 
-	log.WithFields(requestFields).Debug("GetJobStatus called")
-
 	jobSetExists, err := s.jobRepository.IsJobSetSubscribed(opts.Queue, opts.JobSetId)
 	if err != nil {
 		log.Error("Error checking if job is subscribed", err)
@@ -47,11 +45,11 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 	}
 	response, err := s.jobRepository.GetJobStatus(opts.JobId)
 	if err != nil {
-		log.WithFields(requestFields).Warn(err)
+		log.WithFields(requestFields).Error(err)
 		return nil, err
 	}
-	if err == nil {
-		log.WithFields(requestFields).Info("response: ", response.State.String())
+	if response.State == js.JobServiceResponse_SUCCEEDED {
+		log.WithFields(requestFields).Info("job succeeded")
 	}
 
 	return response, err

@@ -107,7 +107,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 				errClear := eventToJobService.jobServiceRepository.ClearSubscriptionError(
 					eventToJobService.queue, eventToJobService.jobSetId)
 				if errClear != nil {
-					log.WithError(errClear).Error("could not clear subscrition error from job set table")
+					log.WithError(errClear).Error("could not clear subscription error from job set table")
 				}
 				currentJobId := api.JobIdFromApiEvent(msg.Message)
 				jobStatus := EventsToJobResponse(*msg.Message)
