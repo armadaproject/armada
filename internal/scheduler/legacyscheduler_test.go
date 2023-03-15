@@ -1179,6 +1179,14 @@ func TestReschedule(t *testing.T) {
 						},
 					},
 				},
+				{
+					// The system should be in steady-state; nothing should be scheduled/preempted.
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 1),
+						"B": testNSmallCpuJob("B", 0, 1),
+						"C": testNSmallCpuJob("C", 0, 1),
+					},
+				},
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -1209,6 +1217,13 @@ func TestReschedule(t *testing.T) {
 						"A": {
 							0: intRange(11, 31),
 						},
+					},
+				},
+				{
+					// The system should be in steady-state; nothing should be scheduled/preempted.
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 1),
+						"B": testNSmallCpuJob("B", 0, 1),
 					},
 				},
 			},
@@ -1242,6 +1257,13 @@ func TestReschedule(t *testing.T) {
 						},
 					},
 				},
+				{
+					// The system should be in steady-state; nothing should be scheduled/preempted.
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 1),
+						"B": testNSmallCpuJob("B", 0, 1),
+					},
+				},
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 2,
@@ -1270,6 +1292,7 @@ func TestReschedule(t *testing.T) {
 						"B": intRange(0, 31),
 					},
 				},
+				{}, // Empty round to make sure nothing changes.
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
@@ -1296,6 +1319,44 @@ func TestReschedule(t *testing.T) {
 						"A": intRange(0, 31),
 					},
 				},
+				{}, // Empty round to make sure nothing changes.
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+		},
+		"urgency-based preemption stability": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 2, 33),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 31),
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"B": testNSmallCpuJob("A", 3, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": intRange(0, 0),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: intRange(31, 31),
+						},
+					},
+				},
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 2, 1),
+					},
+				},
+				{}, // Empty round to make sure nothing changes.
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
