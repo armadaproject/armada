@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -16,7 +17,6 @@ import (
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/job"
 	mocks3 "github.com/armadaproject/armada/internal/executor/reporter/mocks"
-	"github.com/armadaproject/armada/internal/executor/service/mocks"
 	"github.com/armadaproject/armada/internal/executor/utilisation"
 	mocks2 "github.com/armadaproject/armada/internal/executor/utilisation/mocks"
 	"github.com/armadaproject/armada/pkg/api"
@@ -223,11 +223,11 @@ func TestRequestJobsRuns_SkipsFullyInvalidLeasedJobs(t *testing.T) {
 	assert.Len(t, stateStore.GetAll(), 0)
 }
 
-func setupJobRequesterTest(initialJobRuns []*job.RunState) (*JobRequester, *mocks3.FakeEventReporter, *mocks.StubLeaseRequester, *job.JobRunStateStore, *mocks2.StubUtilisationService) {
+func setupJobRequesterTest(initialJobRuns []*job.RunState) (*JobRequester, *mocks3.FakeEventReporter, *StubLeaseRequester, *job.JobRunStateStore, *mocks2.StubUtilisationService) {
 	clusterId := fakecontext.NewFakeClusterIdentity("cluster-1", "pool-1")
 	eventReporter := mocks3.NewFakeEventReporter()
 	stateStore := job.NewJobRunStateStoreWithInitialState(initialJobRuns)
-	leaseRequester := &mocks.StubLeaseRequester{}
+	leaseRequester := &StubLeaseRequester{}
 	leaseRequester.LeaseJobRunLeaseResponse = &LeaseResponse{}
 	podDefaults := &configuration.PodDefaults{}
 	utilisationService := &mocks2.StubUtilisationService{}
@@ -236,4 +236,15 @@ func setupJobRequesterTest(initialJobRuns []*job.RunState) (*JobRequester, *mock
 	}
 	jobRequester := NewJobRequester(clusterId, eventReporter, leaseRequester, stateStore, utilisationService, podDefaults)
 	return jobRequester, eventReporter, leaseRequester, stateStore, utilisationService
+}
+
+type StubLeaseRequester struct {
+	ReceivedLeaseRequests    []*LeaseRequest
+	LeaseJobRunError         error
+	LeaseJobRunLeaseResponse *LeaseResponse
+}
+
+func (s *StubLeaseRequester) LeaseJobRuns(ctx context.Context, request *LeaseRequest) (*LeaseResponse, error) {
+	s.ReceivedLeaseRequests = append(s.ReceivedLeaseRequests, request)
+	return s.LeaseJobRunLeaseResponse, s.LeaseJobRunError
 }
