@@ -112,8 +112,10 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 				}
 				currentJobId := api.JobIdFromApiEvent(msg.Message)
 				jobStatus := EventsToJobResponse(*msg.Message)
-				if jobStatus != nil && jobStatus.State != jobservice.JobServiceResponse_SUCCEEDED {
-					log.Infof("JobSet: %s JobId: %s Queue: %s State: %s", eventToJobService.jobSetId, currentJobId, eventToJobService.queue, jobStatus.GetState().String())
+				if jobStatus != nil {
+					if jobStatus.State != jobservice.JobServiceResponse_SUCCEEDED {
+						log.Infof("JobSet: %s JobId: %s Queue: %s State: %s", eventToJobService.jobSetId, currentJobId, eventToJobService.queue, jobStatus.GetState().String())
+					}
 					jobStatus := repository.NewJobStatus(eventToJobService.queue, eventToJobService.jobSetId, currentJobId, *jobStatus)
 					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(jobStatus)
 					if err != nil {
