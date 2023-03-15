@@ -296,7 +296,7 @@ func setupServerApiComponents(
 		jobLeaseService)
 	taskManager.Register(jobManager.ManageJobLeases, config.Task.JobLeaseRenewalInterval, "job_management")
 	taskManager.Register(clusterUtilisationService.ReportClusterUtilisation, config.Task.UtilisationReportingInterval, "utilisation_reporting")
-	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
+	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation_legacy")
 
 	if config.Metric.ExposeQueueUsageMetrics && config.Task.UtilisationEventReportingInterval > 0 {
 		podUtilisationReporter := utilisation.NewUtilisationEventReporter(
