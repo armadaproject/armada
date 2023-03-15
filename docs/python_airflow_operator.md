@@ -201,9 +201,17 @@ An enumeration.
 
 #### CANCELLED(_ = _ )
 
+#### CONNECTION_ERR(_ = _ )
+
+#### DUPLICATE_FOUND(_ = _ )
+
 #### FAILED(_ = _ )
 
 #### JOB_ID_NOT_FOUND(_ = _ )
+
+#### RUNNING(_ = _ )
+
+#### SUBMITTED(_ = _ )
 
 #### SUCCEEDED(_ = _ )
 
@@ -253,6 +261,14 @@ AirflowFailException tells Airflow Schedule to not reschedule the task
 * **Return type**
 
     *JobServiceResponse*
+
+
+
+### armada.operators.utils.job_state_from_pb(state)
+
+* **Return type**
+
+    *JobState*
 
 
 

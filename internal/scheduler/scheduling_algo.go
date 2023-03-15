@@ -20,12 +20,13 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-// SchedulingAlgo is an interface that should bne implemented by structs capable of assigning Jobs to nodes
+// SchedulingAlgo is the interface between the Pulsar-backed scheduler and the
+// algorithm deciding which jobs to schedule and preempt.
 type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided
 	// It should return a slice containing all scheduled jobs.
-	Schedule(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) ([]*jobdb.Job, error)
+	Schedule(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error)
 }
 
 // LegacySchedulingAlgo is a SchedulingAlgo that schedules jobs in the same way as the old lease call
@@ -72,7 +73,11 @@ func NewLegacySchedulingAlgo(
 // Schedule assigns jobs to nodes in the same way as the old lease call.
 // It iterates over each executor in turn (using a random order) and assigns the jobs using a LegacyScheduler, before moving onto the next executor
 // Newly leased jobs are updated as such in the jobDb using the transaction provided and are also returned to the caller.
-func (l *LegacySchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) ([]*jobdb.Job, error) {
+func (l *LegacySchedulingAlgo) Schedule(
+	ctx context.Context,
+	txn *jobdb.Txn,
+	jobDb *jobdb.JobDb,
+) (*SchedulerResult, error) {
 	executors, err := l.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		return nil, err
@@ -83,12 +88,6 @@ func (l *LegacySchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, job
 	if err != nil {
 		return nil, err
 	}
-
-	queues, err = l.filterEmptyQueues(queues, txn, jobDb)
-	if err != nil {
-		return nil, err
-	}
-
 	priorityFactorByQueue := make(map[string]float64)
 	for _, queue := range queues {
 		priorityFactorByQueue[queue.Name] = queue.Weight
@@ -102,7 +101,7 @@ func (l *LegacySchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, job
 		}
 	}
 
-	// create a map of jobs associated with each executor
+	// Create a map of jobs associated with each executor.
 	jobsByExecutor := make(map[string][]*jobdb.Job)
 	for _, job := range jobDb.GetAll(txn) {
 		if !job.Queued() && job.HasRuns() {
@@ -111,46 +110,47 @@ func (l *LegacySchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, job
 		}
 	}
 
-	// used to calculate fair share
+	// Used to calculate fair share.
 	resourceUsagebyPool, err := aggregateUsage(executors, txn, jobDb)
 	if err != nil {
 		return nil, err
 	}
 
-	jobsToSchedule := make([]*jobdb.Job, 0)
+	overallSchedulerResult := &SchedulerResult{
+		NodeIdByJobId: make(map[string]string),
+	}
 	for _, executor := range executors {
 		log.Infof("attempting to schedule jobs on %s", executor.Id)
 		totalResourceUsageByQueue := resourceUsagebyPool[executor.Pool]
-		jobs, err := l.scheduleOnExecutor(ctx, executor, jobsByExecutor[executor.Id], totalResourceUsageByQueue, totalCapacity, priorityFactorByQueue, jobDb, txn)
+		schedulerResult, err := l.scheduleOnExecutor(
+			ctx,
+			executor,
+			jobsByExecutor[executor.Id],
+			totalResourceUsageByQueue,
+			totalCapacity,
+			priorityFactorByQueue,
+			jobDb,
+			txn,
+		)
 		if err != nil {
 			return nil, err
 		}
-		if len(jobs) > 0 {
-			err := jobDb.Upsert(txn, jobs)
-			if err != nil {
-				return nil, err
-			}
-			jobsToSchedule = append(jobsToSchedule, jobs...)
-
-			// update totalResourceUsageByQueue with the jobs we just scheduled, so that fair share is
-			// correct when allocating on the next cluster
-			// TODO: this is far too complex- there is too much converting from one type to another
-			for _, job := range jobs {
-				quantityByPriorityAndResourceType, ok := totalResourceUsageByQueue[job.Queue()]
-				if !ok {
-					quantityByPriorityAndResourceType = make(schedulerobjects.QuantityByPriorityAndResourceType)
-					totalResourceUsageByQueue[job.Queue()] = quantityByPriorityAndResourceType
-				}
-				jobQty, err := schedulerQuantityFromJob(job)
-				if err != nil {
-					return nil, err
-				}
-				quantityByPriorityAndResourceType.Add(jobQty)
-			}
+		preemptedJobs := PreemptedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
+		scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
+		if err := jobDb.Upsert(txn, preemptedJobs); err != nil {
+			return nil, err
 		}
+		if err := jobDb.Upsert(txn, scheduledJobs); err != nil {
+			return nil, err
+		}
+		overallSchedulerResult.PreemptedJobs = append(overallSchedulerResult.PreemptedJobs, schedulerResult.PreemptedJobs...)
+		overallSchedulerResult.ScheduledJobs = append(overallSchedulerResult.ScheduledJobs, schedulerResult.ScheduledJobs...)
+		maps.Copy(overallSchedulerResult.NodeIdByJobId, schedulerResult.NodeIdByJobId)
+
+		resourceUsagebyPool[executor.Pool] = schedulerResult.AllocatedByQueueAndPriority
 	}
 
-	return jobsToSchedule, nil
+	return overallSchedulerResult, nil
 }
 
 type JobQueueIteratorAdapter struct {
@@ -170,12 +170,12 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	ctx context.Context,
 	executor *schedulerobjects.Executor,
 	leasedJobs []*jobdb.Job,
-	totalResourceUsageByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType,
+	allocatedByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 	totalCapacity schedulerobjects.ResourceList,
 	priorityFactorByQueue map[string]float64,
 	db *jobdb.JobDb,
 	txn *jobdb.Txn,
-) ([]*jobdb.Job, error) {
+) (*SchedulerResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	nodeDb, err := l.constructNodeDb(executor.Nodes, leasedJobs, l.config.Preemption.PriorityClasses)
@@ -189,42 +189,78 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 		l.config,
 		totalCapacity,
 	)
-	queues := make([]*Queue, 0, len(priorityFactorByQueue))
-	for name, priorityFactor := range priorityFactorByQueue {
-		it := db.QueuedJobs(txn, name)
-		if queue, err := NewQueue(name, priorityFactor, &JobQueueIteratorAdapter{it: it}); err != nil {
-			return nil, err
-		} else {
-			queues = append(queues, queue)
-		}
-	}
-	legacyScheduler, err := NewLegacyScheduler(
-		ctx,
+	scheduler := NewRescheduler(
 		*constraints,
 		l.config,
+		&schedulerJobRepositoryAdapter{
+			txn: txn,
+			db:  db,
+		},
 		nodeDb,
-		queues,
-		totalResourceUsageByQueue)
+		priorityFactorByQueue,
+		allocatedByQueueAndPriority,
+		// TODO: Add missing maps to enable gang preemption.
+		nil,
+		nil,
+		nil,
+		nil, // TODO: Add a repo to enable querying for scheduler reports.
+	)
+	result, err := scheduler.Schedule(ctx)
 	if err != nil {
 		return nil, err
 	}
-	jobs, err := legacyScheduler.Schedule()
-	if err != nil {
-		return nil, err
-	}
-	updatedJobs := make([]*jobdb.Job, len(jobs))
-	for i, report := range legacyScheduler.SchedulingRoundReport.SuccessfulJobSchedulingReports() {
-		job := report.Job.(*jobdb.Job)
-		nodeName := ""
-		if len(report.PodSchedulingReports) > 0 {
-			nodeName = report.PodSchedulingReports[0].Node.Name
+
+	for i, job := range result.PreemptedJobs {
+		jobDbJob := job.(*jobdb.Job)
+		if run := jobDbJob.LatestRun(); run != nil {
+			jobDbJob = jobDbJob.WithUpdatedRun(run.WithFailed(true))
 		} else {
-			log.Warnf("Could not resolve node for Job %s as no PodSchedulingReports were present", job.Id())
+			return nil, errors.Errorf("attempting to preempt job %s with no associated runs", jobDbJob.Id())
 		}
-		job = job.WithQueued(false).WithNewRun(executor.Id, nodeName)
-		updatedJobs[i] = job
+		result.ScheduledJobs[i] = jobDbJob.WithQueued(false).WithFailed(true)
 	}
-	return updatedJobs, nil
+	for i, job := range result.ScheduledJobs {
+		jobDbJob := job.(*jobdb.Job)
+		nodeId := result.NodeIdByJobId[jobDbJob.GetId()]
+		if nodeId == "" {
+			return nil, errors.Errorf("job %s not mapped to any node", jobDbJob.GetId())
+		}
+		if node, err := nodeDb.GetNode(nodeId); err != nil {
+			return nil, err
+		} else {
+			result.ScheduledJobs[i] = jobDbJob.WithQueued(false).WithNewRun(executor.Id, node.Name)
+		}
+	}
+	return result, nil
+}
+
+// Adapter to make jobDb implement the JobRepository interface.
+type schedulerJobRepositoryAdapter struct {
+	db  *jobdb.JobDb
+	txn *jobdb.Txn
+}
+
+// Necessary to implement the JobRepository interface,
+// which we need while transitioning from the old to new scheduler.
+func (repo *schedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]string, error) {
+	rv := make([]string, 0)
+	it := repo.db.QueuedJobs(repo.txn, queue)
+	for v, _ := it.Next(); v != nil; v, _ = it.Next() {
+		rv = append(rv, v.Id())
+	}
+	return rv, nil
+}
+
+// Necessary to implement the JobRepository interface,
+// which we need while transitioning from the old to new scheduler.
+func (repo *schedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([]LegacySchedulerJob, error) {
+	rv := make([]LegacySchedulerJob, 0, len(ids))
+	for _, id := range ids {
+		if job := repo.db.GetById(repo.txn, id); job != nil {
+			rv = append(rv, job)
+		}
+	}
+	return rv, nil
 }
 
 // constructNodeDb constructs a node db with all jobs bound to it.
@@ -234,7 +270,7 @@ func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, j
 		nodesByName[node.Name] = node
 	}
 	for _, job := range jobs {
-		if !job.HasRuns() {
+		if job.InTerminalState() || !job.HasRuns() {
 			continue
 		}
 		assignedNode := job.LatestRun().Node()
@@ -270,23 +306,10 @@ func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, j
 		return nil, err
 	}
 
-	err = nodeDb.UpsertMany(maps.Values(nodesByName))
-	if err != nil {
+	if err := nodeDb.UpsertMany(maps.Values(nodesByName)); err != nil {
 		return nil, err
 	}
 	return nodeDb, nil
-}
-
-// filterEmptyQueues returns only the queues which have leased jobs in the jobs db
-func (l *LegacySchedulingAlgo) filterEmptyQueues(allQueues []*database.Queue, txn *jobdb.Txn, jobDb *jobdb.JobDb) ([]*database.Queue, error) {
-	activeQueues := make([]*database.Queue, 0, len(allQueues))
-	for _, queue := range allQueues {
-		keep := jobDb.HasQueuedJobs(txn, queue.Name)
-		if keep {
-			activeQueues = append(activeQueues, queue)
-		}
-	}
-	return activeQueues, nil
 }
 
 func (l *LegacySchedulingAlgo) filterStaleExecutors(allExecutors []*schedulerobjects.Executor) []*schedulerobjects.Executor {

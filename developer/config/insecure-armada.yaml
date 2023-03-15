@@ -1,4 +1,3 @@
-corsAllowedOrigins: ["http://localhost:3000", "http://localhost:8089"]
 auth:
   basicAuth:
     enableAuthentication: false
@@ -15,15 +14,3 @@ auth:
     watch_events: ["everyone"]
     watch_all_events: ["everyone"]
     execute_jobs: ["everyone"]
-pulsar:
-  enabled: false
-redis:
-  addrs:
-    - "localhost:6379"
-eventsRedis:
-  addrs:
-    - "localhost:6379"
-eventapi:
-  postgres:
-    connection:
-      host: "postgres"

@@ -72,7 +72,7 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		TotalResources:                   schedulerobjects.ResourceList{Resources: nodeInfo.TotalResources},
 		AllocatableByPriorityAndResource: allocatableByPriorityAndResource,
 		NonArmadaAllocatedResources:      nonArmadaAllocatedResources,
-		JobRunsByState:                   jobRunsByState,
+		StateByJobRunId:                  jobRunsByState,
 	}, nil
 }
 

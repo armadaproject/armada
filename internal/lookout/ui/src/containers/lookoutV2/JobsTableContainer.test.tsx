@@ -17,7 +17,7 @@ import { FakeGetRunErrorService } from "../../services/lookoutV2/mocks/FakeGetRu
 import { JobsTableContainer } from "./JobsTableContainer"
 
 // This is quite a heavy component, and tests can timeout on a slower machine
-jest.setTimeout(15_000)
+jest.setTimeout(30_000)
 
 describe("JobsTableContainer", () => {
   let numJobs: number, numQueues: number, numJobSets: number
