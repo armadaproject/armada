@@ -428,10 +428,6 @@ func (sch *Rescheduler) evict(ctx context.Context, evictor *Evictor) (*EvictorRe
 
 // When evicting jobs, gangs may have been partially evicted.
 // Here, we evict all jobs in any gang for which at least one job was already evicted.
-//
-// More specifically, we evict all preemptible jobs on any nodes with a job
-// that is part of a gang for which at least one job was evicted.
-// This is to increase the probability of the gang jobs being re-scheduled.
 func (sch *Rescheduler) evictGangs(ctx context.Context, txn *memdb.Txn, previousEvictorResult *EvictorResult) (*EvictorResult, error) {
 	gangJobIds, gangNodeIds, err := sch.collectIdsForGangEviction(previousEvictorResult.EvictedJobsById)
 	if err != nil {
