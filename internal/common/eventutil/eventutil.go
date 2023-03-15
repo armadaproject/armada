@@ -798,7 +798,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 			case api.Cause_OOM:
 				containerError.KubernetesReason = armadaevents.KubernetesReason_OOM
 			default:
-				log.Warnf("Unknown cause %s on container %s", st.Cause, st.Name)
+				log.Warnf("unknown cause %s on container %s", st.Cause, st.Name)
 			}
 
 			containerErrors = append(containerErrors, containerError)

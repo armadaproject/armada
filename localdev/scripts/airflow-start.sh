@@ -21,4 +21,3 @@ airflow webserver -p 8081 &
 
 # Run the scheduler
 airflow scheduler
-

@@ -30,6 +30,8 @@ import {
   ColumnFiltersState,
   SortingState,
   VisibilityState,
+  ColumnResizeMode,
+  ColumnSizingState,
 } from "@tanstack/react-table"
 import { JobsTableActionBar } from "components/lookoutV2/JobsTableActionBar"
 import { HeaderCell } from "components/lookoutV2/JobsTableCell"
@@ -77,7 +79,7 @@ export const JobsTableContainer = ({
 }: JobsTableContainerProps) => {
   const openSnackbar = useCustomSnackbar()
 
-  const initialPrefs = useMemo(() => jobsTablePreferencesService.getInitialUserPrefs(), [])
+  const initialPrefs = useMemo(() => jobsTablePreferencesService.getUserPrefs(), [])
 
   // Columns
   const [allColumns, setAllColumns] = useState<JobTableColumn[]>(initialPrefs.allColumnsInfo)
@@ -89,6 +91,8 @@ export const JobsTableContainer = ({
         .filter((colId) => columnVisibility[colId]),
     [columnVisibility],
   )
+  const columnResizeMode = useMemo(() => "onChange" as ColumnResizeMode, [])
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(initialPrefs.columnSizing ?? {})
 
   // Grouping
   const [grouping, setGrouping] = useState<ColumnId[]>(initialPrefs.groupedColumns)
@@ -99,6 +103,7 @@ export const JobsTableContainer = ({
   // Selecting
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({})
   const [sidebarJobId, setSidebarJobId] = useState<JobId | undefined>(initialPrefs.sidebarJobId)
+  const [sidebarWidth, setSidebarWidth] = useState<number>(initialPrefs.sidebarWidth ?? 600)
 
   // Pagination
   const [pagination, setPagination] = useState<PaginationState>({
@@ -162,10 +167,12 @@ export const JobsTableContainer = ({
       pageIndex,
       pageSize,
       sortingState: sorting,
+      columnSizing: columnSizing,
       filterState: columnFilterState,
       allColumnsInfo: allColumns,
       visibleColumns: columnVisibility,
       sidebarJobId: sidebarJobId,
+      sidebarWidth: sidebarWidth,
     })
   }, [
     grouping,
@@ -173,11 +180,13 @@ export const JobsTableContainer = ({
     pageIndex,
     pageSize,
     sorting,
+    columnSizing,
     columnFilterState,
     allColumns,
     columnVisibility,
     selectedRows,
     sidebarJobId,
+    sidebarWidth,
   ])
 
   const onRefresh = useCallback(() => {
@@ -294,6 +303,14 @@ export const JobsTableContainer = ({
     [sorting, expanded, pageIndex, pageSize, data],
   )
 
+  const onColumnSizingChange = useCallback(
+    (updater: Updater<ColumnSizingState>) => {
+      const newColumnSizing = updaterToValue(updater, columnSizing)
+      setColumnSizing(newColumnSizing)
+    },
+    [columnSizing],
+  )
+
   const onJobRowClick = useCallback((jobRow: JobRow) => {
     const clickedJob = jobRow as Job
     const jobId = clickedJob.jobId
@@ -323,10 +340,12 @@ export const JobsTableContainer = ({
       },
       columnVisibility,
       sorting,
+      columnSizing,
     },
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => row.rowId,
     getSubRows: (row) => (isJobGroupRow(row) && row.subRows) || undefined,
+    columnResizeMode: columnResizeMode,
 
     // Selection
     enableRowSelection: true,
@@ -355,6 +374,9 @@ export const JobsTableContainer = ({
 
     // Sorting
     onSortingChange: onSortingChange,
+
+    // Column resizing
+    onColumnSizingChange: onColumnSizingChange,
   })
 
   const topLevelRows = table.getRowModel().rows.filter((row) => row.depth === 0)
@@ -363,8 +385,8 @@ export const JobsTableContainer = ({
     columnsForSelect = columnsForSelect.filter((col) => col.id !== StandardColumnId.Count)
   }
   return (
-    <Box sx={{ display: "flex" }}>
-      <Box sx={{ overflowX: "auto", overflowY: "auto", margin: "0.5em" }}>
+    <Box sx={{ display: "flex", width: "100%" }}>
+      <Box sx={{ overflowX: "auto", overflowY: "auto", margin: "0.5em", width: "100%" }}>
         <JobsTableActionBar
           isLoading={rowsToFetch.length > 0}
           allColumns={columnsForSelect}
@@ -379,12 +401,24 @@ export const JobsTableContainer = ({
           updateJobsService={updateJobsService}
         />
         <TableContainer component={Paper}>
-          <Table sx={{ tableLayout: "fixed" }} aria-label="Jobs table">
+          <Table
+            sx={{ tableLayout: "fixed" }}
+            aria-label="Jobs table"
+            style={{
+              width: table.getCenterTotalSize(),
+              borderLeft: "1px solid #cccccc",
+            }}
+          >
             <TableHead>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <HeaderCell header={header} key={header.id} />
+                    <HeaderCell
+                      header={header}
+                      key={header.id}
+                      columnResizeMode={columnResizeMode}
+                      deltaOffset={table.getState().columnSizingInfo.deltaOffset ?? 0}
+                    />
                   ))}
                 </TableRow>
               ))}
@@ -421,7 +455,13 @@ export const JobsTableContainer = ({
       </Box>
 
       {sidebarJobDetails !== undefined && (
-        <Sidebar job={sidebarJobDetails} runErrorService={runErrorService} onClose={onSideBarClose} />
+        <Sidebar
+          job={sidebarJobDetails}
+          runErrorService={runErrorService}
+          sidebarWidth={sidebarWidth}
+          onClose={onSideBarClose}
+          onWidthChange={setSidebarWidth}
+        />
       )}
     </Box>
   )
