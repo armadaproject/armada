@@ -31,7 +31,6 @@ type ArmadaConfig struct {
 	Scheduling                        SchedulingConfig
 	NewScheduler                      NewSchedulerConfig
 	QueueManagement                   QueueManagementConfig
-	DatabaseRetention                 DatabaseRetentionPolicy
 	Pulsar                            PulsarConfig
 	Postgres                          PostgresConfig // Used for Pulsar submit API deduplication
 	EventApi                          EventApiConfig
@@ -128,6 +127,12 @@ type SchedulingConfig struct {
 	PoolResourceScarcity map[string]map[string]float64
 	MaxPodSpecSizeBytes  uint
 	MinJobResources      v1.ResourceList
+	// Once a node has been found on which a pod can be scheduled,
+	// the scheduler will consider up to the next maxExtraNodesToConsider nodes.
+	// The scheduler selects the node with the best score out of the considered nodes.
+	// In particular, the score expresses whether preemption is necessary to schedule a pod.
+	// Hence, a larger MaxExtraNodesToConsider would reduce the expected number of preemptions.
+	MaxExtraNodesToConsider uint
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
 	// for which the scheduler creates indexes for efficient lookup.
 	// Applies only to the new scheduler.
@@ -172,6 +177,15 @@ type SchedulingConfig struct {
 	MaxTerminationGracePeriod time.Duration
 	// If an executor hasn't heartbeated in this time period, it will be considered stale
 	ExecutorTimeout time.Duration
+	// Default activeDeadline for all pods that don't explicitly set activeDeadlineSeconds.
+	// Is trumped by DefaultActiveDeadlineByResourceRequest.
+	DefaultActiveDeadline time.Duration
+	// Default activeDeadline for pods with at least one container requesting a given resource.
+	// For example, if
+	// DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{"gpu": time.Second},
+	// then all pods requesting a non-zero amount of gpu and don't explicitly set activeDeadlineSeconds
+	// will have activeDeadlineSeconds set to 1. Trumps DefaultActiveDeadline.
+	DefaultActiveDeadlineByResourceRequest map[string]time.Duration
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.
@@ -213,6 +227,8 @@ type PreemptionConfig struct {
 	// Priority class assigned to pods that do not specify one.
 	// Must be an entry in PriorityClasses above.
 	DefaultPriorityClass string
+	// If set, override the priority class name of pods with this value when sending to an executor.
+	PriorityClassNameOverride *string
 }
 
 type PriorityClass struct {
@@ -257,10 +273,6 @@ func AllowedPriorities(priorityClasses map[string]PriorityClass) []int32 {
 	}
 	slices.Sort(rv)
 	return slices.Compact(rv)
-}
-
-type DatabaseRetentionPolicy struct {
-	JobRetentionDuration time.Duration
 }
 
 type LeaseSettings struct {

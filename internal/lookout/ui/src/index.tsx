@@ -6,7 +6,7 @@ import { JobsTablePreferencesService } from "services/lookoutV2/JobsTablePrefere
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
-import { makeTestJobs } from "utils/fakeJobsUtils"
+import { makeRandomJobs } from "utils/fakeJobsUtils"
 
 import { App } from "./App"
 import { SubmitApi, Configuration as SubmitConfiguration } from "./openapi/armada"
@@ -46,7 +46,7 @@ import "./index.css"
   const lookoutV2BaseUrl = uiConfig.lookoutV2ApiBaseUrl
 
   const v2JobsTablePrefsService = new JobsTablePreferencesService(createBrowserHistory())
-  const v2TestJobs = fakeDataEnabled ? makeTestJobs(10000, 42) : []
+  const v2TestJobs = fakeDataEnabled ? makeRandomJobs(10000, 42) : []
   const v2GetJobsService = fakeDataEnabled ? new FakeGetJobsService(v2TestJobs) : new GetJobsService(lookoutV2BaseUrl)
   const v2GroupJobsService = fakeDataEnabled
     ? new FakeGroupJobsService(v2TestJobs)

@@ -2,7 +2,7 @@ import { render, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { Job } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
-import { makeTestJobs } from "utils/fakeJobsUtils"
+import { makeRandomJobs } from "utils/fakeJobsUtils"
 
 import { FakeGetRunErrorService } from "../../../services/lookoutV2/mocks/FakeGetRunErrorService"
 import { Sidebar } from "./Sidebar"
@@ -11,14 +11,20 @@ describe("Sidebar", () => {
   let job: Job, onClose: () => undefined
 
   beforeEach(() => {
-    job = makeTestJobs(1, 1, 1, 1)[0]
+    job = makeRandomJobs(1, 1, 1, 1)[0]
     onClose = jest.fn()
   })
 
   const renderComponent = () =>
     render(
       <SnackbarProvider>
-        <Sidebar job={job} runErrorService={new FakeGetRunErrorService()} onClose={onClose} />
+        <Sidebar
+          job={job}
+          runErrorService={new FakeGetRunErrorService()}
+          sidebarWidth={600}
+          onClose={onClose}
+          onWidthChange={() => undefined}
+        />
       </SnackbarProvider>,
     )
 
@@ -38,9 +44,7 @@ describe("Sidebar", () => {
     // Switch to runs tab
     await userEvent.click(getByRole("tab", { name: /Runs/ }))
 
-    // Expand the first (and only) run
-    await userEvent.click(getByRole("button", { name: /Unable To Schedule/ }))
-
+    // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
     within(getByRole("row", { name: /Exit code/ })).getByText("17")
   })
@@ -53,9 +57,7 @@ describe("Sidebar", () => {
     // Switch to runs tab
     await userEvent.click(getByRole("tab", { name: /Runs/ }))
 
-    // Expand the first (and only) run
-    await userEvent.click(getByRole("button", { name: /Unable To Schedule/ }))
-
+    // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
   })
 

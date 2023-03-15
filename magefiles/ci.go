@@ -5,8 +5,7 @@ import (
 	"time"
 )
 
-// Build images, spin up a test environment, and run the integration tests against it.
-func ciRunTests() error {
+func ciSetup() error {
 	if err := os.MkdirAll(".kube", os.ModeDir|0o755); err != nil {
 		return err
 	}
@@ -28,12 +27,17 @@ func ciRunTests() error {
 		return err
 	}
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(15 * time.Second)
 	err = goRun("run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
 	if err != nil {
 		return err
 	}
-	err = goRun("run", "cmd/testsuite/main.go", "test",
+	return nil
+}
+
+// Build images, spin up a test environment, and run the integration tests against it.
+func ciRunTests() error {
+	err := goRun("run", "cmd/testsuite/main.go", "test",
 		"--tests", "testsuite/testcases/basic/*",
 		"--junit", "junit.xml",
 	)

@@ -13,6 +13,8 @@ code_reports
 jobservice.db
 jobservice.db-shm
 jobservice.db-wal
+/armadactl
+junit.xml
 
 # Build artifacts
 dist
@@ -89,3 +91,7 @@ build/ssl/certs/ca-certificates.crt
 localdev/volumes/go/pkg/
 .coverage
 coverage.xml
+
+# Yarn
+localdev/yarn.lock
+localdev/node_modules/

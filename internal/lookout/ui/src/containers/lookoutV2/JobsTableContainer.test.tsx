@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { createMemoryHistory, History } from "history"
-import { Job, JobState } from "models/lookoutV2Models"
+import { isTerminatedJobState, Job, JobState } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
@@ -9,7 +9,7 @@ import { JobsTablePreferencesService } from "services/lookoutV2/JobsTablePrefere
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
-import { makeTestJobs } from "utils/fakeJobsUtils"
+import { makeRandomJobs } from "utils/fakeJobsUtils"
 import { formatJobState, formatUtcDate } from "utils/jobsTableFormatters"
 
 import { IGetRunErrorService } from "../../services/lookoutV2/GetRunErrorService"
@@ -17,7 +17,7 @@ import { FakeGetRunErrorService } from "../../services/lookoutV2/mocks/FakeGetRu
 import { JobsTableContainer } from "./JobsTableContainer"
 
 // This is quite a heavy component, and tests can timeout on a slower machine
-jest.setTimeout(15_000)
+jest.setTimeout(30_000)
 
 describe("JobsTableContainer", () => {
   let numJobs: number, numQueues: number, numJobSets: number
@@ -33,7 +33,7 @@ describe("JobsTableContainer", () => {
     numJobs = 5
     numQueues = 2
     numJobSets = 3
-    jobs = makeTestJobs(numJobs, 1, numQueues)
+    jobs = makeRandomJobs(numJobs, 1, numQueues)
     getJobsService = new FakeGetJobsService(jobs, false)
     groupJobsService = new FakeGroupJobsService(jobs, false)
     runErrorService = new FakeGetRunErrorService(false)
@@ -88,7 +88,7 @@ describe("JobsTableContainer", () => {
 
   describe("Grouping", () => {
     it("should be grouped by queue+jobset by default", async () => {
-      jobs = makeTestJobs(6, 1, numQueues, numJobSets)
+      jobs = makeRandomJobs(6, 1, numQueues, numJobSets)
       getJobsService = new FakeGetJobsService(jobs, false)
       groupJobsService = new FakeGroupJobsService(jobs, false)
 
@@ -147,7 +147,7 @@ describe("JobsTableContainer", () => {
     })
 
     it("should allow 3 level grouping", async () => {
-      jobs = makeTestJobs(1000, 1, numQueues, numJobSets)
+      jobs = makeRandomJobs(1000, 1, numQueues, numJobSets)
       getJobsService = new FakeGetJobsService(jobs, false)
       groupJobsService = new FakeGroupJobsService(jobs, false)
 
@@ -184,7 +184,7 @@ describe("JobsTableContainer", () => {
     })
 
     it("should reset currently-expanded if grouping changes", async () => {
-      jobs = makeTestJobs(5, 1, numQueues, numJobSets)
+      jobs = makeRandomJobs(5, 1, numQueues, numJobSets)
       getJobsService = new FakeGetJobsService(jobs, false)
       groupJobsService = new FakeGroupJobsService(jobs, false)
 
@@ -260,7 +260,7 @@ describe("JobsTableContainer", () => {
 
     it("should pass groups to cancel dialog", async () => {
       numJobs = 1000 // Add enough jobs that it exercises grouping logic
-      jobs = makeTestJobs(numJobs, 1, numQueues, numJobSets)
+      jobs = makeRandomJobs(numJobs, 1, numQueues, numJobSets)
       getJobsService = new FakeGetJobsService(jobs)
       groupJobsService = new FakeGroupJobsService(jobs)
 
@@ -273,14 +273,14 @@ describe("JobsTableContainer", () => {
 
       // Select a queue
       await toggleSelectedRow("queue", jobs[0].queue)
+      const jobsToCancel = jobs.filter((job) => job.queue === jobs[0].queue && !isTerminatedJobState(job.state))
 
       // Open the cancel dialog
       await userEvent.click(await findByRole("button", { name: "Cancel selected" }))
 
       // Check it retrieved the number of non-terminated jobs in this queue
       // Longer timeout as some fake API calls need to be made
-      // Number of jobs will be static as long as the random seed above is static
-      await findByRole("dialog", { name: "Cancel 258 jobs" }, { timeout: 2000 })
+      await findByRole("dialog", { name: `Cancel ${jobsToCancel.length} jobs` }, { timeout: 2000 })
     })
   })
 
@@ -309,7 +309,7 @@ describe("JobsTableContainer", () => {
       await assertNumDataRowsShown(jobs.length)
 
       await toggleEnumFilterOptions("State", [formatJobState(jobs[0].state)])
-      await assertNumDataRowsShown(2)
+      await assertNumDataRowsShown(jobs.filter((job) => job.state === jobs[0].state).length)
 
       await toggleEnumFilterOptions("State", [formatJobState(jobs[0].state)])
       await assertNumDataRowsShown(jobs.length)

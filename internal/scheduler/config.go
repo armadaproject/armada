@@ -22,6 +22,13 @@ const (
 	QueueAnnotation = "armadaproject.io/queue"
 )
 
+var ArmadaSchedulerManagedAnnotations = []string{
+	TargetNodeIdAnnotation,
+	IsEvictedAnnotation,
+	JobIdAnnotation,
+	QueueAnnotation,
+}
+
 type Configuration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
@@ -31,6 +38,8 @@ type Configuration struct {
 	Pulsar configuration.PulsarConfig
 	// Configuration controlling leader election
 	Leader LeaderConfig
+	// Configuration controlling metrics
+	Metrics configuration.MetricsConfig
 	// Scheduler configuration (this is shared with the old scheduler)
 	Scheduling configuration.SchedulingConfig
 	Auth       authconfig.AuthConfig

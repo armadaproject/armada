@@ -14,7 +14,7 @@ dependencies:
     condition: dependencies.postgresql
   - name: armada-lookout-migration
     version: v0.3.20
-    repository: https://armadaproject.github.io/charts/
+    repository: https://g-research.github.io/charts
     condition: dependencies.armada-lookout-migration
   - name: stan
     version: 0.13.0
