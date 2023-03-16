@@ -14,14 +14,14 @@ import { LookoutApi, Configuration as LookoutConfiguration } from "./openapi/loo
 import reportWebVitals from "./reportWebVitals"
 import { LookoutJobService } from "./services/JobService"
 import LogService from "./services/LogService"
+import { GetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 import { GetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
+import FakeGetJobSpecService from "./services/lookoutV2/mocks/FakeGetJobSpecService"
 import { FakeGetRunErrorService } from "./services/lookoutV2/mocks/FakeGetRunErrorService"
 import { getUIConfig } from "./utils"
 
 import "react-virtualized/styles.css"
 import "./index.css"
-import FakeGetJobSpecService from "./services/lookoutV2/mocks/FakeGetJobSpecService"
-import { GetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 ;(async () => {
   const uiConfig = await getUIConfig()
 
