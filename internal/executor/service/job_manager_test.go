@@ -17,8 +17,8 @@ import (
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/podchecks"
-	"github.com/armadaproject/armada/internal/executor/reporter"
-	"github.com/armadaproject/armada/internal/executor/service/fake"
+	mocks2 "github.com/armadaproject/armada/internal/executor/reporter/mocks"
+	"github.com/armadaproject/armada/internal/executor/service/mocks"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -261,10 +261,10 @@ func addPod(t *testing.T, fakeClusterContext context.ClusterContext, runningPod 
 	}
 }
 
-func makejobManagerWithTestDoubles() (*fakecontext.SyncFakeClusterContext, *fake.MockLeaseService, *reporter.FakeEventReporter, *JobManager) {
+func makejobManagerWithTestDoubles() (*fakecontext.SyncFakeClusterContext, *mocks.MockLeaseService, *mocks2.FakeEventReporter, *JobManager) {
 	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
-	mockLeaseService := fake.NewMockLeaseService()
-	eventReporter := reporter.NewFakeEventReporter()
+	mockLeaseService := mocks.NewMockLeaseService()
+	eventReporter := mocks2.NewFakeEventReporter()
 	jobContext := job.NewClusterJobContext(fakeClusterContext, makePodChecker(), time.Minute*3, 1)
 
 	jobManager := NewJobManager(

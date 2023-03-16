@@ -6,6 +6,7 @@ import (
 
 	grpcretry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding/gzip"
 
@@ -67,9 +68,9 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx context.Context, request *L
 		return nil, errors.WithStack(err)
 	}
 
-	leaseRuns := make([]*executorapi.JobRunLease, 0, 10)
-	runIdsToCancel := make([]*armadaevents.Uuid, 0, 10)
-	runIdsToPreempt := make([]*armadaevents.Uuid, 0, 10)
+	leaseRuns := []*executorapi.JobRunLease{}
+	runIdsToCancel := []*armadaevents.Uuid{}
+	runIdsToPreempt := []*armadaevents.Uuid{}
 	for {
 		shouldEndStreamCall := false
 		select {
@@ -96,6 +97,8 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx context.Context, request *L
 				runIdsToCancel = append(runIdsToCancel, typed.CancelRuns.JobRunIdsToCancel...)
 			case *executorapi.LeaseStreamMessage_End:
 				shouldEndStreamCall = true
+			default:
+				log.Errorf("unexpected lease stream message type %T", typed)
 			}
 		}
 

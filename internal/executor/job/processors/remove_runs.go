@@ -46,7 +46,7 @@ func (j *RemoveRunProcessor) Run() {
 			}
 
 			if util.IsInTerminalState(pod) && util.HasCurrentStateBeenReported(pod) {
-				// If pod is already finished, don't delete it so users can view pods
+				// If pod is already finished, don't delete it as users may want to view pods
 				// Annotate it with done and remove the run from the state
 				if !util.IsReportedDone(pod) {
 					err := j.clusterContext.AddAnnotation(pod, map[string]string{

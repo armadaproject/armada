@@ -24,28 +24,28 @@ mage buildDockers "bundle"
 mage Kind
 
 # Start necessary dependencies.
-# On Arm-based Macs, you may need to change the pulsar image
-# in docker-compose.yaml to be kezhenxu94/pulsar.
-docker-compose up -d redis postgres pulsar eventingester
-
 # Verify that dependencies started successfully
-# (check that redis, stan, postgres, and pulsar are all up).
-docker ps
+# (check that Pulsar has fully started as it is quite slow (~ 1min )).
+mage StartDependencies && mage checkForPulsarRunning
 
 # Start the Armada server and executor.
 # Alternatively, run the Armada server and executor directly on the host,
 # e.g., through your IDE; see below for details.
-mage buildDockers "bundle"
 docker-compose up -d server executor
 ```
+
+**Note: the components take ~15 seconds to start up.**
 
 Run the Armada test suite against the local environment to verify that it is working correctly.
 ```bash
 # Create an Armada queue to submit jobs to.
 go run cmd/armadactl/main.go create queue e2e-test-queue
 
+# To allow Ingress tests to pass
+export ARMADA_EXECUTOR_INGRESS_URL="http://localhost"
+export ARMADA_EXECUTOR_INGRESS_PORT=5001
+
 # Run the Armada test suite against the local environment.
-# (The ingress test requires additional setup and will fail using this setup.)
 go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
 ```
 
@@ -57,6 +57,7 @@ docker-compose down
 # Tear down the kind cluster.
 mage KindTeardown
 ```
+
 
 ## Running the Armada server and executor in Visual Studio Code
 
@@ -85,7 +86,7 @@ To run the Armada server and executor from Visual Studio Code for debugging purp
             "cwd": "${workspaceFolder}/",
             "program": "${workspaceFolder}/cmd/armada/main.go",
             "args": [
-                "--config", "${workspaceFolder}/localdev/config/armada/config.yaml"                
+                "--config", "${workspaceFolder}/localdev/config/armada/config.yaml"
             ]
         },
         {
@@ -112,6 +113,6 @@ To run the Armada server and executor from Visual Studio Code for debugging purp
           "configurations": ["server", "executor"],
           "stopAll": true
         }
-    ]    
+    ]
 }
 ```

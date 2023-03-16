@@ -24,6 +24,7 @@ executorApiConnection:
   armadaUrl: "server:50052"
 apiConnection:
   armadaUrl: "server:50051"
+  forceNoTls: false
 client:
   maxMessageSizeBytes: 8388608 # 1024 * 1024 * 8
 metric:

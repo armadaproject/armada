@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -15,15 +16,16 @@ import (
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
 	"github.com/armadaproject/armada/internal/executor/job"
-	"github.com/armadaproject/armada/internal/executor/reporter"
+	mocks3 "github.com/armadaproject/armada/internal/executor/reporter/mocks"
 	"github.com/armadaproject/armada/internal/executor/utilisation"
+	mocks2 "github.com/armadaproject/armada/internal/executor/utilisation/mocks"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 func TestRequestJobsRuns_HandlesLeaseRequestError(t *testing.T) {
-	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest(t)
+	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest([]*job.RunState{})
 	leaseRequester.LeaseJobRunError = fmt.Errorf("lease error")
 
 	jobRequester.RequestJobsRuns()
@@ -33,7 +35,7 @@ func TestRequestJobsRuns_HandlesLeaseRequestError(t *testing.T) {
 }
 
 func TestRequestJobsRuns_HandlesGetClusterCapacityError(t *testing.T) {
-	jobRequester, eventReporter, leaseRequester, stateStore, utilisationService := setupJobRequesterTest(t)
+	jobRequester, eventReporter, leaseRequester, stateStore, utilisationService := setupJobRequesterTest([]*job.RunState{})
 	utilisationService.GetClusterAvailableCapacityError = fmt.Errorf("capacity report error")
 
 	jobRequester.RequestJobsRuns()
@@ -46,12 +48,8 @@ func TestRequestJobsRuns_HandlesGetClusterCapacityError(t *testing.T) {
 func TestRequestJobsRuns_ConstructsCorrectLeaseRequest(t *testing.T) {
 	runId1 := uuid.New()
 	runId2 := uuid.New()
-	jobRequester, _, leaseRequester, stateStore, utilisationService := setupJobRequesterTest(t)
-
-	stateStore.SetState(map[string]*job.RunState{
-		runId1.String(): createRun(runId1.String(), job.Active),
-		runId2.String(): createRun(runId2.String(), job.Leased),
-	})
+	initialRuns := []*job.RunState{createRun(runId1.String(), job.Active), createRun(runId2.String(), job.Leased)}
+	jobRequester, _, leaseRequester, _, utilisationService := setupJobRequesterTest(initialRuns)
 
 	capacityReport := &utilisation.ClusterAvailableCapacityReport{
 		AvailableCapacity: &armadaresource.ComputeResources{
@@ -81,7 +79,7 @@ func TestRequestJobsRuns_ConstructsCorrectLeaseRequest(t *testing.T) {
 }
 
 func TestRequestJobsRuns_HandlesLeasedJobs(t *testing.T) {
-	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest(t)
+	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest([]*job.RunState{})
 
 	jobId := util.NewULID()
 	protoJobId, err := armadaevents.ProtoUuidFromUlidString(jobId)
@@ -123,11 +121,7 @@ func TestRequestJobsRuns_HandlesLeasedJobs(t *testing.T) {
 func TestRequestJobsRuns_HandlesRunIdsToCancel(t *testing.T) {
 	runId := uuid.New()
 	activeRun := createRun(runId.String(), job.Active)
-	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest(t)
-
-	stateStore.SetState(map[string]*job.RunState{
-		activeRun.Meta.RunId: activeRun,
-	})
+	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest([]*job.RunState{activeRun})
 
 	activeRunUuid, err := armadaevents.ProtoUuidFromUuidString(activeRun.Meta.RunId)
 	require.NoError(t, err)
@@ -154,11 +148,7 @@ func TestRequestJobsRuns_HandlesRunIdsToCancel(t *testing.T) {
 func TestRequestJobsRuns_HandlesRunIsToPreempt(t *testing.T) {
 	runId := uuid.New()
 	activeRun := createRun(runId.String(), job.Active)
-	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest(t)
-
-	stateStore.SetState(map[string]*job.RunState{
-		activeRun.Meta.RunId: activeRun,
-	})
+	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest([]*job.RunState{activeRun})
 
 	activeRunUuid, err := armadaevents.ProtoUuidFromUuidString(activeRun.Meta.RunId)
 	require.NoError(t, err)
@@ -183,7 +173,7 @@ func TestRequestJobsRuns_HandlesRunIsToPreempt(t *testing.T) {
 }
 
 func TestRequestJobsRuns_HandlesPartiallyInvalidLeasedJobs(t *testing.T) {
-	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest(t)
+	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest([]*job.RunState{})
 
 	jobId := util.NewULID()
 	protoJobId, err := armadaevents.ProtoUuidFromUlidString(jobId)
@@ -215,7 +205,7 @@ func TestRequestJobsRuns_HandlesPartiallyInvalidLeasedJobs(t *testing.T) {
 }
 
 func TestRequestJobsRuns_SkipsFullyInvalidLeasedJobs(t *testing.T) {
-	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest(t)
+	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest([]*job.RunState{})
 
 	leaseRequester.LeaseJobRunLeaseResponse = &LeaseResponse{
 		LeasedRuns: []*executorapi.JobRunLease{
@@ -233,17 +223,28 @@ func TestRequestJobsRuns_SkipsFullyInvalidLeasedJobs(t *testing.T) {
 	assert.Len(t, stateStore.GetAll(), 0)
 }
 
-func setupJobRequesterTest(t *testing.T) (*JobRequester, *reporter.FakeEventReporter, *StubLeaseRequester, *job.TestJobRunStateStore, *utilisation.StubUtilisationService) {
+func setupJobRequesterTest(initialJobRuns []*job.RunState) (*JobRequester, *mocks3.FakeEventReporter, *StubLeaseRequester, *job.JobRunStateStore, *mocks2.StubUtilisationService) {
 	clusterId := fakecontext.NewFakeClusterIdentity("cluster-1", "pool-1")
-	eventReporter := reporter.NewFakeEventReporter()
-	stateStore := job.NewTestJobRunStateStore([]*job.RunState{})
+	eventReporter := mocks3.NewFakeEventReporter()
+	stateStore := job.NewJobRunStateStoreWithInitialState(initialJobRuns)
 	leaseRequester := &StubLeaseRequester{}
 	leaseRequester.LeaseJobRunLeaseResponse = &LeaseResponse{}
 	podDefaults := &configuration.PodDefaults{}
-	utilisationService := &utilisation.StubUtilisationService{}
+	utilisationService := &mocks2.StubUtilisationService{}
 	utilisationService.ClusterAvailableCapacityReport = &utilisation.ClusterAvailableCapacityReport{
 		AvailableCapacity: &armadaresource.ComputeResources{},
 	}
 	jobRequester := NewJobRequester(clusterId, eventReporter, leaseRequester, stateStore, utilisationService, podDefaults)
 	return jobRequester, eventReporter, leaseRequester, stateStore, utilisationService
+}
+
+type StubLeaseRequester struct {
+	ReceivedLeaseRequests    []*LeaseRequest
+	LeaseJobRunError         error
+	LeaseJobRunLeaseResponse *LeaseResponse
+}
+
+func (s *StubLeaseRequester) LeaseJobRuns(ctx context.Context, request *LeaseRequest) (*LeaseResponse, error) {
+	s.ReceivedLeaseRequests = append(s.ReceivedLeaseRequests, request)
+	return s.LeaseJobRunLeaseResponse, s.LeaseJobRunError
 }

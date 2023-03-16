@@ -205,6 +205,9 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 		nil,
 		nil, // TODO: Add a repo to enable querying for scheduler reports.
 	)
+	if l.config.EnableAssertions {
+		scheduler.EnableAssertions()
+	}
 	result, err := scheduler.Schedule(ctx)
 	if err != nil {
 		return nil, err

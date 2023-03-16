@@ -18,7 +18,13 @@ describe("Sidebar", () => {
   const renderComponent = () =>
     render(
       <SnackbarProvider>
-        <Sidebar job={job} runErrorService={new FakeGetRunErrorService()} onClose={onClose} />
+        <Sidebar
+          job={job}
+          runErrorService={new FakeGetRunErrorService()}
+          sidebarWidth={600}
+          onClose={onClose}
+          onWidthChange={() => undefined}
+        />
       </SnackbarProvider>,
     )
 
@@ -38,9 +44,7 @@ describe("Sidebar", () => {
     // Switch to runs tab
     await userEvent.click(getByRole("tab", { name: /Runs/ }))
 
-    // Expand the first (and only) run
-    await userEvent.click(getByRole("button", { name: /Unable To Schedule/ }))
-
+    // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
     within(getByRole("row", { name: /Exit code/ })).getByText("17")
   })
@@ -53,9 +57,7 @@ describe("Sidebar", () => {
     // Switch to runs tab
     await userEvent.click(getByRole("tab", { name: /Runs/ }))
 
-    // Expand the first (and only) run
-    await userEvent.click(getByRole("button", { name: /Unable To Schedule/ }))
-
+    // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
   })
 
