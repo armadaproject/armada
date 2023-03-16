@@ -856,11 +856,10 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 		return nil, err
 	}
 
-	err = q.reportLeaseReturned(request)
+	err = q.reportLeaseReturned(ctx, request)
 	if err != nil {
 		return nil, err
 	}
-
 	maxRetries := int(q.schedulingConfig.MaxRetries)
 	if request.TrackedAnnotations[configuration.FailFastAnnotation] == "true" {
 		// Fail-fast jobs are never retried.
@@ -887,15 +886,11 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 			log.Warnf("Failed to set avoid node affinity for job %s: %v", request.JobId, err)
 		}
 	}
-
-	_, err = q.jobRepository.ReturnLease(request.ClusterId, request.JobId)
-	if err != nil {
+	if _, err := q.jobRepository.ReturnLease(request.ClusterId, request.JobId); err != nil {
 		return nil, err
 	}
-
 	if request.JobRunAttempted {
-		err = q.jobRepository.AddRetryAttempt(request.JobId)
-		if err != nil {
+		if err := q.jobRepository.AddRetryAttempt(request.JobId); err != nil {
 			return nil, err
 		}
 	}
@@ -974,17 +969,20 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 	return &api.IdList{Ids: cleanedIds}, returnedError
 }
 
-func (q *AggregatedQueueServer) reportLeaseReturned(leaseReturnRequest *api.ReturnLeaseRequest) error {
+func (q *AggregatedQueueServer) reportLeaseReturned(ctx context.Context, leaseReturnRequest *api.ReturnLeaseRequest) error {
 	job, err := q.getJobById(leaseReturnRequest.JobId)
 	if err != nil {
 		return err
+	}
+	if job == nil {
+		// Job already deleted; nothing to do.
+		return nil
 	}
 
 	err = reportJobLeaseReturned(q.eventStore, job, leaseReturnRequest)
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -992,6 +990,10 @@ func (q *AggregatedQueueServer) reportFailure(jobId string, clusterId string, re
 	job, err := q.getJobById(jobId)
 	if err != nil {
 		return err
+	}
+	if job == nil {
+		// Job already deleted; nothing to do.
+		return nil
 	}
 
 	err = reportFailed(q.eventStore, clusterId, []*jobFailure{{job: job, reason: reason}})
@@ -1007,8 +1009,8 @@ func (q *AggregatedQueueServer) getJobById(jobId string) (*api.Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(jobs) < 1 {
-		return nil, errors.Errorf("job with jobId %q not found", jobId)
+	if len(jobs) == 0 {
+		return nil, nil
 	}
 	return jobs[0], err
 }
