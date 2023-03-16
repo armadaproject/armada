@@ -22,7 +22,7 @@ type UtilisationEventReporter struct {
 	podInfo           map[string]*podUtilisationInfo
 	dataAccessMutex   sync.Mutex
 	reportingInterval time.Duration
-	legacy            bool
+	legacyMode        bool
 }
 
 type podUtilisationInfo struct {
@@ -36,7 +36,7 @@ func NewUtilisationEventReporter(
 	podUtilisation PodUtilisationService,
 	eventReporter reporter.EventReporter,
 	reportingPeriod time.Duration,
-	legacy bool,
+	legacyMode bool,
 ) *UtilisationEventReporter {
 	r := &UtilisationEventReporter{
 		clusterContext:    clusterContext,
@@ -44,7 +44,7 @@ func NewUtilisationEventReporter(
 		eventReporter:     eventReporter,
 		reportingInterval: reportingPeriod,
 		podInfo:           map[string]*podUtilisationInfo{},
-		legacy:            legacy,
+		legacyMode:        legacyMode,
 	}
 
 	clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
@@ -54,7 +54,7 @@ func NewUtilisationEventReporter(
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
 				return
 			}
-			if util.IsLegacyManagedPod(pod) != legacy {
+			if util.IsLegacyManagedPod(pod) != legacyMode {
 				return
 			}
 			go r.updatePod(pod)
@@ -65,7 +65,7 @@ func NewUtilisationEventReporter(
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", newObj)
 				return
 			}
-			if util.IsLegacyManagedPod(newPod) != legacy {
+			if util.IsLegacyManagedPod(newPod) != legacyMode {
 				return
 			}
 			go r.updatePod(newPod)
@@ -76,7 +76,7 @@ func NewUtilisationEventReporter(
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
 				return
 			}
-			if util.IsLegacyManagedPod(pod) != legacy {
+			if util.IsLegacyManagedPod(pod) != legacyMode {
 				return
 			}
 			go r.deletePod(pod)

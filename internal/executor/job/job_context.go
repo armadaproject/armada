@@ -87,7 +87,7 @@ func NewClusterJobContext(
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
 				return
 			}
-			if !util.IsManagedPod(pod) {
+			if !util.IsLegacyManagedPod(pod) {
 				return
 			}
 			jobContext.handleDeletedPod(pod)
