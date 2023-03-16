@@ -7,10 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/utils/pointer"
-
-	"k8s.io/apimachinery/pkg/util/clock"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -20,10 +16,12 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	clientTesting "k8s.io/client-go/testing"
+	"k8s.io/utils/pointer"
 
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -271,6 +269,105 @@ func TestKubernetesClusterContext_GetIngresses_NonExistent(t *testing.T) {
 	result, err := clusterContext.GetIngresses(pod)
 	assert.NoError(t, err)
 	assert.Equal(t, len(result), 0)
+}
+
+func TestKubernetesClusterContext_DeletePodWithCondition(t *testing.T) {
+	clusterContext, client := setupTest()
+	pod := createSubmittedBatchPod(t, clusterContext)
+
+	client.Fake.ClearActions()
+
+	err := clusterContext.DeletePodWithCondition(pod, func(pod *v1.Pod) bool {
+		return true
+	}, true)
+
+	assert.NoError(t, err)
+	assert.Equal(t, len(client.Fake.Actions()), 3)
+	assert.True(t, client.Fake.Actions()[0].Matches("patch", "pods"))
+
+	// Marks pod for deletion before deleting
+	patchAction, ok := client.Fake.Actions()[0].(clientTesting.PatchAction)
+	assert.True(t, ok)
+	assert.Equal(t, patchAction.GetName(), pod.Name)
+	patch := &domain.Patch{}
+	err = json.Unmarshal(patchAction.GetPatch(), patch)
+	assert.NoError(t, err)
+	_, exists := patch.MetaData.Annotations[domain.MarkedForDeletion]
+	assert.True(t, exists)
+
+	// Calls delete
+	assert.True(t, client.Fake.Actions()[2].Matches("delete", "pods"))
+}
+
+func TestKubernetesClusterContext_DeletePodWithCondition_DoesNotReapplyMarkForDeletion(t *testing.T) {
+	clusterContext, client := setupTest()
+	pod := createBatchPod()
+	pod.ObjectMeta.Annotations = map[string]string{domain.MarkedForDeletion: "now"}
+	submitPodsWithWait(t, clusterContext, pod)
+	client.Fake.ClearActions()
+
+	err := clusterContext.DeletePodWithCondition(pod, func(pod *v1.Pod) bool {
+		return true
+	}, true)
+
+	assert.NoError(t, err)
+	assert.Equal(t, len(client.Fake.Actions()), 1)
+	assert.True(t, client.Fake.Actions()[0].Matches("delete", "pods"))
+}
+
+func TestKubernetesClusterContext_DeletePodWithCondition_WhenPodDoesNotExist(t *testing.T) {
+	clusterContext, _ := setupTest()
+	pod := createBatchPod() // Not submitted pod
+
+	err := clusterContext.DeletePodWithCondition(pod, func(pod *v1.Pod) bool {
+		return true
+
+	}, true)
+
+	assert.Error(t, err)
+}
+
+func TestKubernetesClusterContext_DeletePodWithCondition_ForceDeletesPod(t *testing.T) {
+	clusterContext, client := setupTest()
+	testClock := clock.NewFakeClock(time.Now())
+	// create a pod with a deletion event 5 minutes in the past. This should be ignored
+	pod := createBatchPod()
+	pod.ObjectMeta.Annotations = map[string]string{domain.MarkedForDeletion: "now"}
+	pod.DeletionGracePeriodSeconds = pointer.Int64(10)
+	pod.DeletionTimestamp = &metav1.Time{Time: testClock.Now().Add(-300 * time.Second)}
+	submitPodsWithWait(t, clusterContext, pod)
+	client.Fake.ClearActions()
+
+	err := clusterContext.DeletePodWithCondition(pod, func(pod *v1.Pod) bool {
+		return true
+	}, true)
+	assert.NoError(t, err)
+	assert.Equal(t, len(client.Fake.Actions()), 0)
+
+	// create another pod with a deletion event 5 minutes and 10 seconds in the past. This should be force killed
+	pod = createBatchPod()
+	pod.ObjectMeta.Annotations = map[string]string{domain.MarkedForDeletion: "now"}
+	pod.DeletionGracePeriodSeconds = pointer.Int64(10)
+	pod.DeletionTimestamp = &metav1.Time{Time: testClock.Now().Add(-310 * time.Second)}
+	submitPodsWithWait(t, clusterContext, pod)
+	client.Fake.ClearActions()
+
+	err = clusterContext.DeletePodWithCondition(pod, func(pod *v1.Pod) bool {
+		return true
+	}, true)
+	assert.NoError(t, err)
+	assert.Equal(t, len(client.Fake.Actions()), 1)
+}
+
+func TestKubernetesClusterContext_DeletePodWithCondition_DoesNotDelete_WhenPodDoesNotMatchCondition(t *testing.T) {
+	clusterContext, _ := setupTest()
+
+	pod := createSubmittedBatchPod(t, clusterContext)
+	err := clusterContext.DeletePodWithCondition(pod, func(pod *v1.Pod) bool {
+		return false
+	}, true)
+
+	assert.Error(t, err)
 }
 
 func TestKubernetesClusterContext_ProcessPodsToDelete_CallDeleteOnClient_WhenPodsMarkedForDeletion(t *testing.T) {
