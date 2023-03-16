@@ -321,7 +321,6 @@ func TestKubernetesClusterContext_DeletePodWithCondition_WhenPodDoesNotExist(t *
 
 	err := clusterContext.DeletePodWithCondition(pod, func(pod *v1.Pod) bool {
 		return true
-
 	}, true)
 
 	assert.Error(t, err)
