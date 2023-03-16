@@ -138,6 +138,17 @@ func CreateJobIngressInfoEvent(pod *v1.Pod, clusterId string, associatedServices
 	}, nil
 }
 
+func CreateSimpleJobPreemptedEvent(pod *v1.Pod, clusterId string) *api.JobPreemptedEvent {
+	return &api.JobPreemptedEvent{
+		JobId:     pod.Labels[domain.JobId],
+		JobSetId:  pod.Annotations[domain.JobSetId],
+		Queue:     pod.Labels[domain.Queue],
+		Created:   time.Now(),
+		ClusterId: clusterId,
+		RunId:     util.ExtractJobRunId(pod),
+	}
+}
+
 func CreateJobPreemptedEvent(clusterEvent *v1.Event, clusterId string) (event *api.JobPreemptedEvent, err error) {
 	eventTime := clusterEvent.LastTimestamp.Time
 	if eventTime.IsZero() {

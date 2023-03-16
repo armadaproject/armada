@@ -282,6 +282,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	allocatedByQueueForCluster := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
 	jobIdsByGangId := make(map[string]map[string]bool)
 	gangIdByJobId := make(map[string]string)
+	nodeIdByJobId := make(map[string]string)
 	for _, nodeInfo := range req.Nodes {
 		node, err := api.NewNodeFromNodeInfo(
 			&nodeInfo,
@@ -339,7 +340,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 				return nil, err
 			}
 			if isGangJob {
-				if m, ok := jobIdsByGangId[gangId]; ok {
+				if m := jobIdsByGangId[gangId]; m != nil {
 					m[job.Id] = true
 				} else {
 					jobIdsByGangId[gangId] = map[string]bool{job.Id: true}
@@ -348,23 +349,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			}
 		}
 
-		// Group gangs.
-		for _, job := range jobs {
-			gangId, _, isGangJob, err := scheduler.GangIdAndCardinalityFromLegacySchedulerJob(job, q.schedulingConfig.Preemption.PriorityClasses)
-			if err != nil {
-				return nil, err
-			}
-			if isGangJob {
-				if m, ok := jobIdsByGangId[gangId]; ok {
-					m[job.Id] = true
-				} else {
-					jobIdsByGangId[gangId] = map[string]bool{job.Id: true}
-				}
-				gangIdByJobId[job.Id] = gangId
-			}
-		}
-
-		// Bind pods to nodes, thus ensuring resources are marked allocated on the node.
+		// Bind pods to nodes, thus ensuring resources are marked as allocated on the node.
 		skipNode := false
 		for _, job := range jobs {
 			node, err = scheduler.BindPodToNode(
@@ -386,6 +371,12 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		if skipNode {
 			continue
 		}
+
+		// Record the which node each job is scheduled on. Necessary for gang preemption.
+		for _, job := range jobs {
+			nodeIdByJobId[job.Id] = node.Id
+		}
+
 		nodes = append(nodes, node)
 	}
 	indexedResources := q.schedulingConfig.IndexedResources
@@ -483,7 +474,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 	var preemptedJobs []scheduler.LegacySchedulerJob
 	var scheduledJobs []scheduler.LegacySchedulerJob
-	var nodeIdByJobId map[string]string
 	if q.schedulingConfig.Preemption.PreemptToFairShare {
 		rescheduler := scheduler.NewRescheduler(
 			*constraints,
@@ -500,6 +490,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			gangIdByJobId,
 			q.SchedulingReportsRepository,
 		)
+		if q.schedulingConfig.EnableAssertions {
+			rescheduler.EnableAssertions()
+		}
 		result, err := rescheduler.Schedule(ctx)
 		if err != nil {
 			return nil, err

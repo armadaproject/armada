@@ -30,6 +30,7 @@ eventsApiRedis:
   db: 1
   poolSize: 1000
 scheduling:
+  enableAssertions: true
   preemption:
     enabled: true
     preemptToFairShare: true
@@ -55,9 +56,6 @@ scheduling:
     priorityClassNameOverride: armada-default
   queueLeaseBatchSize: 1000
   maxExtraNodesToConsider: 1
-  minimumResourceToSchedule:
-    memory: 1000000 # 1Mb
-    cpu: 0.1
   maximalResourceFractionToSchedulePerQueue:
     memory: 1.0
     cpu: 1.0
