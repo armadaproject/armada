@@ -95,6 +95,76 @@ func TestApplyDefaultsToPodSpec(t *testing.T) {
 				Tolerations:       []v1.Toleration{{Key: "baz"}, {Key: "foo"}, {Key: "bar"}},
 			},
 		},
+		"DefaultJobTolerationsByResourceRequest": {
+			Config: configuration.SchedulingConfig{
+				DefaultJobTolerationsByResourceRequest: map[string][]v1.Toleration{
+					"gpu": {{Key: "foo"}, {Key: "bar"}},
+				},
+			},
+			PodSpec: v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: map[v1.ResourceName]resource.Quantity{
+								"cpu": resource.MustParse("10"),
+								"gpu": resource.MustParse("1Gi"),
+							},
+							Limits: map[v1.ResourceName]resource.Quantity{},
+						},
+					},
+				},
+				Tolerations: []v1.Toleration{{Key: "baz"}},
+			},
+			Expected: v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: map[v1.ResourceName]resource.Quantity{
+								"cpu": resource.MustParse("10"),
+								"gpu": resource.MustParse("1Gi"),
+							},
+							Limits: map[v1.ResourceName]resource.Quantity{},
+						},
+					},
+				},
+				Tolerations: []v1.Toleration{{Key: "baz"}, {Key: "foo"}, {Key: "bar"}},
+			},
+		},
+		"DefaultJobTolerationsByResourceRequest explicit zero resource": {
+			Config: configuration.SchedulingConfig{
+				DefaultJobTolerationsByResourceRequest: map[string][]v1.Toleration{
+					"gpu": {{Key: "foo"}, {Key: "bar"}},
+				},
+			},
+			PodSpec: v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: map[v1.ResourceName]resource.Quantity{
+								"cpu": resource.MustParse("10"),
+								"gpu": resource.MustParse("0"),
+							},
+							Limits: map[v1.ResourceName]resource.Quantity{},
+						},
+					},
+				},
+				Tolerations: []v1.Toleration{{Key: "baz"}},
+			},
+			Expected: v1.PodSpec{
+				Containers: []v1.Container{
+					{
+						Resources: v1.ResourceRequirements{
+							Requests: map[v1.ResourceName]resource.Quantity{
+								"cpu": resource.MustParse("10"),
+								"gpu": resource.MustParse("0"),
+							},
+							Limits: map[v1.ResourceName]resource.Quantity{},
+						},
+					},
+				},
+				Tolerations: []v1.Toleration{{Key: "baz"}},
+			},
+		},
 		"DefaultPriorityClassName + DefaultJobTolerationsByPriorityClass": {
 			Config: configuration.SchedulingConfig{
 				Preemption: configuration.PreemptionConfig{
