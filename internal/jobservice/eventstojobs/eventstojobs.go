@@ -93,7 +93,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 					Queue:          eventToJobService.queue,
 					Watch:          true,
 					FromMessageId:  fromMessageId,
-					ErrorIfMissing: false,
+					ErrorIfMissing: true,
 				})
 				if err != nil {
 					log.WithError(err).Error("could not obtain job set event message, retrying")
