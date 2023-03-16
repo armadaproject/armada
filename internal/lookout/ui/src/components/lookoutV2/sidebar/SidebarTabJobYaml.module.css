@@ -1,0 +1,28 @@
+.jobYaml {
+  width: 100%;
+  white-space: pre-wrap;
+  font-family: monospace;
+  word-wrap: break-word;
+  background-color: #f5f5f5;
+  padding: 5px;
+  border-radius: 5px;
+  position: relative;
+}
+
+.jobYamlActions {
+  padding: 5px;
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+@media (hover: hover) {
+  .jobYamlActions {
+    opacity: 0;
+    transition: opacity 300ms ease-in-out;
+  }
+
+  *:hover > .jobYamlActions {
+    opacity: 1;
+  }
+}

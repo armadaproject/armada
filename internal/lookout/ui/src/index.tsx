@@ -20,6 +20,8 @@ import { getUIConfig } from "./utils"
 
 import "react-virtualized/styles.css"
 import "./index.css"
+import FakeGetJobSpecService from "./services/lookoutV2/mocks/FakeGetJobSpecService"
+import { GetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 ;(async () => {
   const uiConfig = await getUIConfig()
 
@@ -52,6 +54,7 @@ import "./index.css"
     ? new FakeGroupJobsService(v2TestJobs)
     : new GroupJobsService(lookoutV2BaseUrl)
   const v2RunErrorService = fakeDataEnabled ? new FakeGetRunErrorService() : new GetRunErrorService(lookoutV2BaseUrl)
+  const v2JobSpecService = fakeDataEnabled ? new FakeGetJobSpecService() : new GetJobSpecService(lookoutV2BaseUrl)
   const v2UpdateJobsService = new UpdateJobsService(submitApi)
 
   ReactDOM.render(
@@ -62,6 +65,7 @@ import "./index.css"
       v2GroupJobsService={v2GroupJobsService}
       v2UpdateJobsService={v2UpdateJobsService}
       v2RunErrorService={v2RunErrorService}
+      v2JobSpecService={v2JobSpecService}
       logService={logService}
       overviewAutoRefreshMs={uiConfig.overviewAutoRefreshMs}
       jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}
