@@ -278,6 +278,9 @@ func CreatePodFromExecutorApiJob(job *executorapi.JobRunLease, defaults *configu
 }
 
 func getPodSpec(job *executorapi.JobRunLease) (*v1.PodSpec, error) {
+	if job == nil || job.Job == nil || job.Job.MainObject == nil {
+		return nil, fmt.Errorf("no podspec found in the main object - jobs must specify a podspec")
+	}
 	switch typed := job.Job.MainObject.Object.(type) {
 	case *armadaevents.KubernetesMainObject_PodSpec:
 		return typed.PodSpec.PodSpec, nil

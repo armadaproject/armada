@@ -7,7 +7,6 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
@@ -115,10 +114,6 @@ func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisa
 type ClusterAvailableCapacityReport struct {
 	AvailableCapacity *armadaresource.ComputeResources
 	Nodes             []api.NodeInfo
-}
-
-func (r *ClusterAvailableCapacityReport) GetResourceQuantity(resource string) resource.Quantity {
-	return (*r.AvailableCapacity)[resource]
 }
 
 func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(useLegacyIds bool) (*ClusterAvailableCapacityReport, error) {

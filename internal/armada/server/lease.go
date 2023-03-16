@@ -282,6 +282,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	allocatedByQueueForCluster := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
 	jobIdsByGangId := make(map[string]map[string]bool)
 	gangIdByJobId := make(map[string]string)
+	nodeIdByJobId := make(map[string]string)
 	for _, nodeInfo := range req.Nodes {
 		node, err := api.NewNodeFromNodeInfo(
 			&nodeInfo,
@@ -339,7 +340,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 				return nil, err
 			}
 			if isGangJob {
-				if m, ok := jobIdsByGangId[gangId]; ok {
+				if m := jobIdsByGangId[gangId]; m != nil {
 					m[job.Id] = true
 				} else {
 					jobIdsByGangId[gangId] = map[string]bool{job.Id: true}
@@ -348,23 +349,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			}
 		}
 
-		// Group gangs.
-		for _, job := range jobs {
-			gangId, _, isGangJob, err := scheduler.GangIdAndCardinalityFromLegacySchedulerJob(job, q.schedulingConfig.Preemption.PriorityClasses)
-			if err != nil {
-				return nil, err
-			}
-			if isGangJob {
-				if m, ok := jobIdsByGangId[gangId]; ok {
-					m[job.Id] = true
-				} else {
-					jobIdsByGangId[gangId] = map[string]bool{job.Id: true}
-				}
-				gangIdByJobId[job.Id] = gangId
-			}
-		}
-
-		// Bind pods to nodes, thus ensuring resources are marked allocated on the node.
+		// Bind pods to nodes, thus ensuring resources are marked as allocated on the node.
 		skipNode := false
 		for _, job := range jobs {
 			node, err = scheduler.BindPodToNode(
@@ -386,6 +371,12 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		if skipNode {
 			continue
 		}
+
+		// Record the which node each job is scheduled on. Necessary for gang preemption.
+		for _, job := range jobs {
+			nodeIdByJobId[job.Id] = node.Id
+		}
+
 		nodes = append(nodes, node)
 	}
 	indexedResources := q.schedulingConfig.IndexedResources
@@ -483,7 +474,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 	var preemptedJobs []scheduler.LegacySchedulerJob
 	var scheduledJobs []scheduler.LegacySchedulerJob
-	var nodeIdByJobId map[string]string
 	if q.schedulingConfig.Preemption.PreemptToFairShare {
 		rescheduler := scheduler.NewRescheduler(
 			*constraints,
@@ -500,6 +490,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			gangIdByJobId,
 			q.SchedulingReportsRepository,
 		)
+		if q.schedulingConfig.EnableAssertions {
+			rescheduler.EnableAssertions()
+		}
 		result, err := rescheduler.Schedule(ctx)
 		if err != nil {
 			return nil, err
@@ -863,11 +856,10 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 		return nil, err
 	}
 
-	err = q.reportLeaseReturned(request)
+	err = q.reportLeaseReturned(ctx, request)
 	if err != nil {
 		return nil, err
 	}
-
 	maxRetries := int(q.schedulingConfig.MaxRetries)
 	if request.TrackedAnnotations[configuration.FailFastAnnotation] == "true" {
 		// Fail-fast jobs are never retried.
@@ -894,15 +886,11 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 			log.Warnf("Failed to set avoid node affinity for job %s: %v", request.JobId, err)
 		}
 	}
-
-	_, err = q.jobRepository.ReturnLease(request.ClusterId, request.JobId)
-	if err != nil {
+	if _, err := q.jobRepository.ReturnLease(request.ClusterId, request.JobId); err != nil {
 		return nil, err
 	}
-
 	if request.JobRunAttempted {
-		err = q.jobRepository.AddRetryAttempt(request.JobId)
-		if err != nil {
+		if err := q.jobRepository.AddRetryAttempt(request.JobId); err != nil {
 			return nil, err
 		}
 	}
@@ -981,17 +969,20 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 	return &api.IdList{Ids: cleanedIds}, returnedError
 }
 
-func (q *AggregatedQueueServer) reportLeaseReturned(leaseReturnRequest *api.ReturnLeaseRequest) error {
+func (q *AggregatedQueueServer) reportLeaseReturned(ctx context.Context, leaseReturnRequest *api.ReturnLeaseRequest) error {
 	job, err := q.getJobById(leaseReturnRequest.JobId)
 	if err != nil {
 		return err
+	}
+	if job == nil {
+		// Job already deleted; nothing to do.
+		return nil
 	}
 
 	err = reportJobLeaseReturned(q.eventStore, job, leaseReturnRequest)
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -999,6 +990,10 @@ func (q *AggregatedQueueServer) reportFailure(jobId string, clusterId string, re
 	job, err := q.getJobById(jobId)
 	if err != nil {
 		return err
+	}
+	if job == nil {
+		// Job already deleted; nothing to do.
+		return nil
 	}
 
 	err = reportFailed(q.eventStore, clusterId, []*jobFailure{{job: job, reason: reason}})
@@ -1014,8 +1009,8 @@ func (q *AggregatedQueueServer) getJobById(jobId string) (*api.Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	if len(jobs) < 1 {
-		return nil, errors.Errorf("job with jobId %q not found", jobId)
+	if len(jobs) == 0 {
+		return nil, nil
 	}
 	return jobs[0], err
 }

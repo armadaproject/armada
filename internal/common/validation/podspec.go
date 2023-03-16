@@ -10,15 +10,12 @@ import (
 )
 
 func ValidatePodSpec(spec *v1.PodSpec, schedulingConfig *configuration.SchedulingConfig) error {
-	maxAllowedSize := schedulingConfig.MaxPodSpecSizeBytes
-	minJobResources := schedulingConfig.MinJobResources
-
 	if spec == nil {
 		return errors.Errorf("empty pod spec")
 	}
 
-	if uint(spec.Size()) > maxAllowedSize {
-		return errors.Errorf("pod spec has a size of %v bytes which is greater than the maximum allowed size of %v", spec.Size(), maxAllowedSize)
+	if uint(spec.Size()) > schedulingConfig.MaxPodSpecSizeBytes {
+		return errors.Errorf("pod spec has a size of %v bytes which is greater than the maximum allowed size of %v", spec.Size(), schedulingConfig.MaxPodSpecSizeBytes)
 	}
 
 	if len(spec.Containers) == 0 {
@@ -42,11 +39,11 @@ func ValidatePodSpec(spec *v1.PodSpec, schedulingConfig *configuration.Schedulin
 		if len(container.Resources.Requests) == 0 {
 			return errors.Errorf("container %v has no resource requests specified", container.Name)
 		}
-		err = validateContainerResource(container.Resources.Limits, minJobResources, container.Name, "limit")
+		err = validateContainerResource(container.Resources.Limits, schedulingConfig.MinJobResources, container.Name, "limit")
 		if err != nil {
 			return err
 		}
-		err = validateContainerResource(container.Resources.Requests, minJobResources, container.Name, "request")
+		err = validateContainerResource(container.Resources.Requests, schedulingConfig.MinJobResources, container.Name, "request")
 		if err != nil {
 			return err
 		}

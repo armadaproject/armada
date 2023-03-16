@@ -274,11 +274,11 @@ func NewMaxQueueResources(value float64, pool string, priorityClass string, queu
 }
 
 func NewMinQueueResources(value float64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MinQueueAllocatedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, resource)
+	return prometheus.MustNewConstMetric(MinQueueResourcesDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, resource)
 }
 
 func NewMedianQueueResources(value float64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MedianQueueAllocatedDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, resource)
+	return prometheus.MustNewConstMetric(MedianQueueResourcesDesc, prometheus.GaugeValue, value, pool, priorityClass, queue, resource)
 }
 
 func NewCountQueueResources(value uint64, pool string, priorityClass string, queue string, resource string) prometheus.Metric {
@@ -290,7 +290,7 @@ func NewMinQueueDuration(value float64, pool string, priorityClass string, queue
 }
 
 func NewMaxQueueDuration(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MinQueueDurationDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
+	return prometheus.MustNewConstMetric(MaxQueueDurationDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
 }
 
 func NewMedianQueueDuration(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
@@ -306,7 +306,7 @@ func NewMaxJobRunDuration(value float64, pool string, priorityClass string, queu
 }
 
 func NewMedianJobRunDuration(value float64, pool string, priorityClass string, queue string) prometheus.Metric {
-	return prometheus.MustNewConstMetric(MaxJobRunDurationDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
+	return prometheus.MustNewConstMetric(MedianJobRunDurationDesc, prometheus.GaugeValue, value, pool, priorityClass, queue)
 }
 
 func NewJobRunRunDuration(count uint64, sum float64, buckets map[float64]uint64, pool string, priorityClass string, queue string) prometheus.Metric {

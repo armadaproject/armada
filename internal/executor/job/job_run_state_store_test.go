@@ -2,6 +2,7 @@ package job
 
 import (
 	"fmt"
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -38,25 +39,82 @@ func TestOnStartUp_ReconcilesWithKubernetes(t *testing.T) {
 }
 
 func TestReportRunLeased(t *testing.T) {
+	job := &SubmitJob{
+		Meta: SubmitJobMeta{
+			RunMeta: defaultRunInfoMeta,
+		},
+		Pod: createPod(),
+	}
 	jobRunStateManager, _ := setup(t, []*v1.Pod{})
-	jobRunStateManager.ReportRunLeased(defaultRunInfoMeta)
+	jobRunStateManager.ReportRunLeased(defaultRunInfoMeta, job)
 
 	allKnownJobRuns := jobRunStateManager.GetAll()
 	assert.Len(t, allKnownJobRuns, 1)
 	assert.Equal(t, allKnownJobRuns[0].Meta, defaultRunInfoMeta)
 	assert.Equal(t, allKnownJobRuns[0].KubernetesId, "")
 	assert.Equal(t, allKnownJobRuns[0].Phase, Leased)
+	assert.False(t, allKnownJobRuns[0].CancelRequested)
+	assert.False(t, allKnownJobRuns[0].PreemptionRequested)
+	assert.Equal(t, allKnownJobRuns[0].Job, job)
 }
 
-func TestReportFailedSubmission(t *testing.T) {
+func TestReportRunInvalid(t *testing.T) {
 	jobRunStateManager, _ := setup(t, []*v1.Pod{})
-	jobRunStateManager.ReportFailedSubmission(defaultRunInfoMeta)
+	jobRunStateManager.ReportRunInvalid(defaultRunInfoMeta)
 
 	allKnownJobRuns := jobRunStateManager.GetAll()
 	assert.Len(t, allKnownJobRuns, 1)
 	assert.Equal(t, allKnownJobRuns[0].Meta, defaultRunInfoMeta)
 	assert.Equal(t, allKnownJobRuns[0].KubernetesId, "")
+	assert.False(t, allKnownJobRuns[0].CancelRequested)
+	assert.False(t, allKnownJobRuns[0].PreemptionRequested)
+	assert.Equal(t, allKnownJobRuns[0].Phase, Invalid)
+}
+
+func TestReportSuccessfulSubmission(t *testing.T) {
+	jobRunStateManager, _ := setup(t, []*v1.Pod{})
+	jobRunStateManager.jobRunState = map[string]*RunState{
+		"run-1": createRunState("run-1", Leased),
+	}
+	jobRunStateManager.ReportSuccessfulSubmission("run-1")
+
+	allKnownJobRuns := jobRunStateManager.GetAll()
+	assert.Len(t, allKnownJobRuns, 1)
+	assert.Equal(t, allKnownJobRuns[0].Phase, SuccessfulSubmission)
+}
+
+func TestReportFailedSubmission(t *testing.T) {
+	jobRunStateManager, _ := setup(t, []*v1.Pod{})
+	jobRunStateManager.jobRunState = map[string]*RunState{
+		"run-1": createRunState("run-1", Leased),
+	}
+	jobRunStateManager.ReportFailedSubmission("run-1")
+
+	allKnownJobRuns := jobRunStateManager.GetAll()
+	assert.Len(t, allKnownJobRuns, 1)
 	assert.Equal(t, allKnownJobRuns[0].Phase, FailedSubmission)
+}
+
+func TestRequestRunPreemption(t *testing.T) {
+	jobRunStateManager, _ := setup(t, []*v1.Pod{})
+	jobRunStateManager.jobRunState = map[string]*RunState{
+		"run-1": createRunState("run-1", Active),
+	}
+
+	jobRunStateManager.RequestRunPreemption("run-1")
+	result := jobRunStateManager.Get("run-1")
+	assert.True(t, result.PreemptionRequested)
+}
+
+func TestRequestRunCancellation(t *testing.T) {
+	jobRunStateManager, _ := setup(t, []*v1.Pod{})
+	jobRunStateManager.jobRunState = map[string]*RunState{
+		"run-1": createRunState("run-1", Active),
+	}
+
+	jobRunStateManager.RequestRunCancellation("run-1")
+	result := jobRunStateManager.Get("run-1")
+	assert.True(t, result.CancelRequested)
 }
 
 func TestOnPodEvent_MovesJobRunStateToActive(t *testing.T) {
@@ -71,7 +129,7 @@ func TestOnPodEvent_MovesJobRunStateToActive(t *testing.T) {
 	}
 
 	// Add leased job run
-	jobRunStateManager.ReportRunLeased(runInfo)
+	jobRunStateManager.ReportRunLeased(runInfo, &SubmitJob{})
 	jobRun := jobRunStateManager.Get(runInfo.RunId)
 	assert.NotNil(t, jobRun)
 	assert.Equal(t, jobRun.Phase, Leased)
@@ -88,7 +146,7 @@ func TestDelete(t *testing.T) {
 	jobRunStateManager, _ := setup(t, []*v1.Pod{})
 
 	// Add job run
-	jobRunStateManager.ReportRunLeased(defaultRunInfoMeta)
+	jobRunStateManager.ReportRunLeased(defaultRunInfoMeta, &SubmitJob{})
 	assert.Len(t, jobRunStateManager.GetAll(), 1)
 
 	jobRunStateManager.Delete(defaultRunInfoMeta.RunId)
@@ -99,7 +157,7 @@ func TestGet(t *testing.T) {
 	jobRunStateManager, _ := setup(t, []*v1.Pod{})
 
 	// Add job run
-	jobRunStateManager.ReportRunLeased(defaultRunInfoMeta)
+	jobRunStateManager.ReportRunLeased(defaultRunInfoMeta, &SubmitJob{})
 
 	jobRun := jobRunStateManager.Get(defaultRunInfoMeta.RunId)
 	assert.NotNil(t, jobRun)
@@ -112,6 +170,40 @@ func TestGetAll(t *testing.T) {
 	jobRunStateManager, _ := setup(t, []*v1.Pod{pod1, pod2})
 
 	assert.Len(t, jobRunStateManager.GetAll(), 2)
+}
+
+func TestGetAllWithFilter(t *testing.T) {
+	leasedRun1 := createRunState("run-1", Leased)
+	leasedRun2 := createRunState("run-2", Leased)
+	runningRun := createRunState("run-3", Active)
+	cancelledRun := createRunState("run-4", Active)
+	cancelledRun.CancelRequested = true
+
+	jobRunStateManager, _ := setup(t, []*v1.Pod{})
+	jobRunStateManager.jobRunState = map[string]*RunState{
+		leasedRun1.Meta.RunId:   leasedRun1,
+		leasedRun2.Meta.RunId:   leasedRun2,
+		runningRun.Meta.RunId:   runningRun,
+		cancelledRun.Meta.RunId: cancelledRun,
+	}
+
+	// Filter on phase
+	leasedRuns := jobRunStateManager.GetAllWithFilter(func(state *RunState) bool {
+		return state.Phase == Leased
+	})
+	assert.Len(t, leasedRuns, 2)
+	sort.Slice(leasedRuns, func(i, j int) bool {
+		return leasedRuns[i].Meta.RunId < leasedRuns[j].Meta.RunId
+	})
+	assert.Equal(t, leasedRuns[0], leasedRun1)
+	assert.Equal(t, leasedRuns[1], leasedRun2)
+
+	// Filter on attribute
+	cancelledRuns := jobRunStateManager.GetAllWithFilter(func(state *RunState) bool {
+		return state.CancelRequested == true
+	})
+	assert.Len(t, cancelledRuns, 1)
+	assert.Equal(t, cancelledRuns[0], cancelledRun)
 }
 
 func TestGetByKubernetesId(t *testing.T) {
@@ -154,6 +246,15 @@ func createPod() *v1.Pod {
 			Annotations: map[string]string{
 				domain.JobSetId: fmt.Sprintf("job-set-%s", util2.NewULID()),
 			},
+		},
+	}
+}
+
+func createRunState(runId string, phase RunPhase) *RunState {
+	return &RunState{
+		Phase: phase,
+		Meta: &RunMeta{
+			RunId: runId,
 		},
 	}
 }
