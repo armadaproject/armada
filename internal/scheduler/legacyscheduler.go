@@ -1012,7 +1012,13 @@ func (evi *Evictor) Evict(ctx context.Context, it NodeIterator) (*EvictorResult,
 		if evi.nodeFilter != nil && !evi.nodeFilter(ctx, node) {
 			continue
 		}
-		jobIds := maps.Keys(node.AllocatedByJobId)
+		jobIds := util.Filter(
+			maps.Keys(node.AllocatedByJobId),
+			func(jobId string) bool {
+				_, ok := node.EvictedJobRunIds[jobId]
+				return !ok
+			},
+		)
 		jobs, err := evi.jobRepo.GetExistingJobsByIds(jobIds)
 		if err != nil {
 			return nil, err
