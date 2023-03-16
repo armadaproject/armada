@@ -60,8 +60,6 @@ type PulsarSubmitServer struct {
 	ProbabilityOfUsingPulsarScheduler float64
 	// Used to assign a job to either legacy or pulsar schedulers. Injected here to allow repeatable tests
 	Rand *rand.Rand
-	// Gang id annotation. Needed because we cannot split a gang across schedulers.
-	GangIdAnnotation string
 	// Temporary flag to stop us rejecting jobs as we switch over to new submit checks
 	IgnoreJobSubmitChecks bool
 }
@@ -854,7 +852,7 @@ func (srv *PulsarSubmitServer) schedulableOnPulsarScheduler(gang []*api.Job) (bo
 func (srv *PulsarSubmitServer) groupJobsByGangId(jobs []*api.Job) map[string][]*api.Job {
 	jobsByGangId := make(map[string][]*api.Job)
 	for _, job := range jobs {
-		gangId, ok := job.Annotations[srv.GangIdAnnotation]
+		gangId, ok := job.Annotations[configuration.GangUuidAnnotation]
 		if !ok {
 			gangId = uuid.NewString()
 		}

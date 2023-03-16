@@ -12,8 +12,7 @@ import (
 )
 
 func ValidateApiJobs(jobs []*api.Job, config configuration.SchedulingConfig) error {
-	err := validateGangs(jobs)
-	if err != nil {
+	if err := validateGangs(jobs); err != nil {
 		return err
 	}
 	for _, job := range jobs {
@@ -79,7 +78,10 @@ func validateGangs(jobs []*api.Job) error {
 }
 
 func ValidateApiJob(job *api.Job, config configuration.SchedulingConfig) error {
-	if err := ValidateApiJobPodSpecs(job); err != nil {
+	if err := validateApiJobPodSpecs(job); err != nil {
+		return err
+	}
+	if err := validateApiJobAnnotations(job); err != nil {
 		return err
 	}
 	if config.Preemption.Enabled {
@@ -96,19 +98,28 @@ func ValidateApiJob(job *api.Job, config configuration.SchedulingConfig) error {
 	return nil
 }
 
-func ValidateApiJobPodSpecs(j *api.Job) error {
-	if j.PodSpec == nil && len(j.PodSpecs) == 0 {
+func validateApiJobAnnotations(job *api.Job) error {
+	for _, annotation := range configuration.ArmadaInternalAnnotations {
+		if _, ok := job.Annotations[annotation]; ok {
+			return errors.Errorf("job %s specifies internal-only annotation %s", job.Id, annotation)
+		}
+	}
+	return nil
+}
+
+func validateApiJobPodSpecs(job *api.Job) error {
+	if job.PodSpec == nil && len(job.PodSpecs) == 0 {
 		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "PodSpec",
-			Value:   j.PodSpec,
+			Value:   job.PodSpec,
 			Message: "Job does not contain at least one PodSpec",
 		})
 	}
 
 	// We only support jobs with a single PodSpec, and it must be set to j.PodSpec.
-	if j.PodSpec == nil && len(j.PodSpecs) == 1 {
-		j.PodSpec = j.PodSpecs[0]
-		j.PodSpecs = nil
+	if job.PodSpec == nil && len(job.PodSpecs) == 1 {
+		job.PodSpec = job.PodSpecs[0]
+		job.PodSpecs = nil
 	}
 
 	// I'm not convinced that the code to create services/ingresses when multiple pods are submitted is correct.
@@ -116,10 +127,10 @@ func ValidateApiJobPodSpecs(j *api.Job) error {
 	// Hence, we return an error until we can make sure that the code is correct.
 	// The next error is redundant with this one, but we leave both since we may wish to remove this one.
 	// - Albin
-	if len(j.PodSpecs) > 0 {
+	if len(job.PodSpecs) > 0 {
 		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "PodSpecs",
-			Value:   j.PodSpecs,
+			Value:   job.PodSpecs,
 			Message: "Jobs with multiple pods are not supported",
 		})
 	}
@@ -127,10 +138,10 @@ func ValidateApiJobPodSpecs(j *api.Job) error {
 	// I'm not convinced the code is correct when combining j.PodSpec and j.PodSpecs.
 	// We should do more testing to make sure it's safe before we allow it.
 	// - Albin
-	if len(j.PodSpecs) > 0 && j.PodSpec != nil {
+	if len(job.PodSpecs) > 0 && job.PodSpec != nil {
 		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "PodSpec",
-			Value:   j.PodSpec,
+			Value:   job.PodSpec,
 			Message: "PodSpec must be nil if PodSpecs is provided (i.e., these are exclusive)",
 		})
 	}
