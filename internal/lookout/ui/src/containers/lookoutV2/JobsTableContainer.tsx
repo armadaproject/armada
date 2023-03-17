@@ -57,6 +57,7 @@ import {
 import { fromRowId, RowId } from "utils/reactTableUtils"
 
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
+import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
 import styles from "./JobsTableContainer.module.css"
 
 const PAGE_SIZE_OPTIONS = [5, 25, 50, 100]
@@ -67,6 +68,7 @@ interface JobsTableContainerProps {
   groupJobsService: IGroupJobsService
   updateJobsService: UpdateJobsService
   runErrorService: IGetRunErrorService
+  jobSpecService: IGetJobSpecService
   debug: boolean
 }
 export const JobsTableContainer = ({
@@ -75,6 +77,7 @@ export const JobsTableContainer = ({
   groupJobsService,
   updateJobsService,
   runErrorService,
+  jobSpecService,
   debug,
 }: JobsTableContainerProps) => {
   const openSnackbar = useCustomSnackbar()
@@ -458,6 +461,7 @@ export const JobsTableContainer = ({
         <Sidebar
           job={sidebarJobDetails}
           runErrorService={runErrorService}
+          jobSpecService={jobSpecService}
           sidebarWidth={sidebarWidth}
           onClose={onSideBarClose}
           onWidthChange={setSidebarWidth}

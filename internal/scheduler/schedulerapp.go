@@ -198,7 +198,7 @@ func createLeaderController(config LeaderConfig) (LeaderController, error) {
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error creating kubernetes client")
 		}
-		return NewKubernetesLeaderController(LeaderConfig{}, clientSet.CoordinationV1()), nil
+		return NewKubernetesLeaderController(config, clientSet.CoordinationV1()), nil
 	default:
 		return nil, errors.Errorf("%s is not a value leader mode", config.Mode)
 	}
