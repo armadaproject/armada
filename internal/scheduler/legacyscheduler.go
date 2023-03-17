@@ -303,7 +303,6 @@ func (sch *Rescheduler) Schedule(ctx context.Context) (*SchedulerResult, error) 
 	if err != nil {
 		return nil, err
 	}
-	inMemoryJobRepo.EnqueueMany(maps.Values(preemptedJobsById))
 	scheduledAndEvictedJobsById := armadamaps.FilterKeys(
 		scheduledJobsById,
 		func(jobId string) bool {
@@ -342,20 +341,24 @@ func (sch *Rescheduler) Schedule(ctx context.Context) (*SchedulerResult, error) 
 			} else {
 				scheduledJobsById[job.GetId()] = job
 			}
+			delete(scheduledAndEvictedJobsById, job.GetId())
 		}
 		maps.Copy(sch.nodeIdByJobId, schedulerResult.NodeIdByJobId)
 	}
 
 	preemptedJobs := maps.Values(preemptedJobsById)
 	scheduledJobs := maps.Values(scheduledJobsById)
+	if err := sch.unbindJobs(append(
+		slices.Clone(preemptedJobs),
+		maps.Values(scheduledAndEvictedJobsById)...),
+	); err != nil {
+		return nil, err
+	}
 	if s := JobsSummary(preemptedJobs); s != "" {
 		log.Infof("preempting running jobs; %s", s)
 	}
 	if s := JobsSummary(scheduledJobs); s != "" {
 		log.Infof("scheduling new jobs; %s", s)
-	}
-	if err := sch.unbindJobs(append(preemptedJobs, maps.Values(scheduledAndEvictedJobsById)...)); err != nil {
-		return nil, err
 	}
 	if sch.enableAssertions {
 		err := sch.reschedulerAssertions(
@@ -620,9 +623,9 @@ func (sch *Rescheduler) schedule(ctx context.Context, inMemoryJobRepo *InMemoryJ
 }
 
 // Unbind any preempted from the nodes they were evicted (and not re-scheduled) on.
-func (sch *Rescheduler) unbindJobs(preemptedJobs []LegacySchedulerJob) error {
-	for nodeId, jobs := range armadaslices.GroupByFunc(
-		preemptedJobs,
+func (sch *Rescheduler) unbindJobs(jobs []LegacySchedulerJob) error {
+	for nodeId, jobsOnNode := range armadaslices.GroupByFunc(
+		jobs,
 		func(job LegacySchedulerJob) string {
 			return sch.nodeIdByJobId[job.GetId()]
 		},
@@ -633,7 +636,7 @@ func (sch *Rescheduler) unbindJobs(preemptedJobs []LegacySchedulerJob) error {
 		}
 		node, err = UnbindPodsFromNode(
 			util.Map(
-				jobs,
+				jobsOnNode,
 				func(job LegacySchedulerJob) *schedulerobjects.PodRequirements {
 					return PodRequirementFromLegacySchedulerJob(job, sch.priorityClasses)
 				},
