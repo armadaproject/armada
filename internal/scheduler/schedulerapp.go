@@ -194,7 +194,7 @@ func createLeaderController(config LeaderConfig) (LeaderController, error) {
 		return NewStandaloneLeaderController(), nil
 	case "kubernetes":
 		log.Infof("Scheduler will run kubernetes mode")
-		clusterConfig, err := loadConfig()
+		clusterConfig, err := loadClusterConfig()
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error creating kubernetes client")
 		}
@@ -208,7 +208,7 @@ func createLeaderController(config LeaderConfig) (LeaderController, error) {
 	}
 }
 
-func loadConfig() (*rest.Config, error) {
+func loadClusterConfig() (*rest.Config, error) {
 	config, err := rest.InClusterConfig()
 	if err == rest.ErrNotInCluster {
 		log.Info("Running with default client configuration")
