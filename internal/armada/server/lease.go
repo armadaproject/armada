@@ -320,7 +320,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		}
 		if len(missingJobIds) > 0 {
 			log.Infof(
-				"could not load %d out of %d jobs from Redis on node %s (these jobs may have been preempted): %v",
+				"could not load %d out of %d jobs from Redis on node %s (jobs may have been cancelled or preempted): %v",
 				len(missingJobIds), len(jobIds), nodeInfo.GetName(), missingJobIds,
 			)
 		}
@@ -372,7 +372,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			continue
 		}
 
-		// Record the which node each job is scheduled on. Necessary for gang preemption.
+		// Record which node each job is scheduled on. Necessary for gang preemption.
 		for _, job := range jobs {
 			nodeIdByJobId[job.Id] = node.Id
 		}
