@@ -2086,6 +2086,27 @@ func TestReschedule(t *testing.T) {
 				"B": 1,
 			},
 		},
+		"Queued jobs are not preempted cross queue with some scheduled": {
+			SchedulingConfig: testSchedulingConfig(),
+			Nodes:            testNCpuNode(1, testPriorities),
+			Rounds: []ReschedulingRound{
+				{
+					ReqsByQueue: map[string][]*schedulerobjects.PodRequirements{
+						"A": testNSmallCpuJob("A", 0, 32),
+						"B": testNSmallCpuJob("B", 1, 31),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": intRange(0, 0),
+						"B": intRange(0, 30),
+					},
+				},
+				{}, // Empty round to make sure nothing changes.
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+		},
 		"Queued jobs are not preempted cross queue with non-preemptible jobs": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(1, testPriorities),
@@ -2106,7 +2127,7 @@ func TestReschedule(t *testing.T) {
 				"B": 1,
 			},
 		},
-		"Queued jobs are not preempted cross queue new": {
+		"Queued jobs are not preempted cross queue multiple rounds": {
 			SchedulingConfig: testSchedulingConfig(),
 			Nodes:            testNCpuNode(1, testPriorities),
 			Rounds: []ReschedulingRound{
