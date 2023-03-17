@@ -75,6 +75,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 		var err error
 		defer func() {
 			eventToJobService.eventClient.Close()
+			log.Info("closed the event client connection")
 			// cancel the ticker go routine if an error originated here
 			if err != nil {
 				cancel()

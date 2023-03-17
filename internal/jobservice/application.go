@@ -91,10 +91,10 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 					err := eventJob.SubscribeToJobSetId(context.Background(), config.SubscribeJobSetTime)
 					if err != nil {
 						log.Error("error on subscribing", err)
-						_, err := sqlJobRepo.UnsubscribeJobSet(value.Queue, value.JobSet)
-						if err != nil {
-							log.Errorf("unable to delete %s/%s", value.Queue, value.JobSet)
-						}
+					}
+					_, err = sqlJobRepo.UnsubscribeJobSet(value.Queue, value.JobSet)
+					if err != nil {
+						log.Errorf("unable to delete %s/%s", value.Queue, value.JobSet)
 					}
 				}(value)
 			}
