@@ -46,7 +46,6 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 	ctx, cancel := context.WithCancel(ctx)
 	g, _ := errgroup.WithContext(ctx)
 	expiresAt := time.Now().Add(time.Duration(timeout) * time.Second)
-	//	defer eventToJobService.jobServiceRepository.UnsubscribeJobSet(eventToJobService.queue, eventToJobService.jobSetId)
 	g.Go(func() error {
 		defer cancel()
 
@@ -86,8 +85,14 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 		for {
 			select {
 			case <-ctx.Done():
+				log.Errorf("context is done on %s/%s", eventToJobService.queue, eventToJobService.jobSetId)
 				return nil
 			default:
+				requestFields := log.Fields{
+					"job_set_id": eventToJobService.jobSetId,
+					"queue":      eventToJobService.queue,
+				}
+
 				msg, err := eventToJobService.eventClient.GetJobEventMessage(ctx, &api.JobSetRequest{
 					Id:             eventToJobService.jobSetId,
 					Queue:          eventToJobService.queue,
@@ -114,7 +119,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 				jobStatus := EventsToJobResponse(*msg.Message)
 				if jobStatus != nil {
 					if jobStatus.State != jobservice.JobServiceResponse_SUCCEEDED {
-						log.Infof("JobSet: %s JobId: %s Queue: %s State: %s", eventToJobService.jobSetId, currentJobId, eventToJobService.queue, jobStatus.GetState().String())
+						log.WithFields(requestFields).Infof("fromMessageId: %s JobId: %s State: %s", fromMessageId, currentJobId, jobStatus.GetState().String())
 					}
 					jobStatus := repository.NewJobStatus(eventToJobService.queue, eventToJobService.jobSetId, currentJobId, *jobStatus)
 					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(jobStatus)
@@ -124,7 +129,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 						continue
 					}
 				} else {
-					log.Info("Ignoring due to non relevant event: ", *msg.Message)
+					log.WithFields(requestFields).Infof("JobId: %s", currentJobId)
 				}
 				// advance the message id for next loop
 				fromMessageId = msg.GetId()

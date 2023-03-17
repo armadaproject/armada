@@ -31,7 +31,7 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 
 	jobSetExists, err := s.jobRepository.IsJobSetSubscribed(opts.Queue, opts.JobSetId)
 	if err != nil {
-		log.Error("Error checking if job is subscribed", err)
+		log.Error("error checking if job is subscribed", err)
 	}
 	if !jobSetExists {
 		errsubscribe := s.jobRepository.SubscribeJobSet(opts.Queue, opts.JobSetId)
@@ -59,7 +59,7 @@ func (s *JobServiceServer) Health(ctx context.Context, _ *types.Empty) (*js.Heal
 	eventClient := events.NewEventClient(&s.jobServiceConfig.ApiConnection)
 	_, err := eventClient.Health(context.Background(), &types.Empty{})
 	if err != nil {
-		log.Errorf("Health Check Failed for Events with %s", err)
+		log.Errorf("health check failed for events with %s", err)
 		return nil, err
 	}
 	return &js.HealthCheckResponse{Status: js.HealthCheckResponse_SERVING}, nil

@@ -173,9 +173,7 @@ func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobStatus) error {
 		return err
 	}
 	defer stmt.Close()
-	jobState := jobTable.jobResponse.State.String()
-
-	_, errExec := stmt.Exec(jobTable.queue, jobTable.jobSetId, jobTable.jobId, jobState, jobTable.jobResponse.Error, jobTable.timeStamp)
+	_, errExec := stmt.Exec(jobTable.queue, jobTable.jobSetId, jobTable.jobId, jobTable.jobResponse.State.String(), jobTable.jobResponse.Error, jobTable.timeStamp)
 	return errExec
 }
 
