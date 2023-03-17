@@ -388,83 +388,78 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 	}
 
 	for _, e := range event.GetErrors() {
-		// We just interpret the first terminal error
-		if e.Terminal {
-
-			// Certain legacy events mean we don't have a valid run id
-			// In this case we have to invent a fake run
-			// TODO: remove this when the legacy messages go away!
-			isLegacyEvent := runId == eventutil.LEGACY_RUN_ID
-			if isLegacyEvent {
-				jobRun := createFakeJobRun(jobId, ts)
-				runId = jobRun.RunId
-				objectMeta := extractMetaFromError(e)
-				if objectMeta != nil && objectMeta.ExecutorId != "" {
-					jobRun.Cluster = objectMeta.ExecutorId
-				}
-				update.JobRunsToCreate = append(update.JobRunsToCreate, jobRun)
+		// Certain legacy events mean we don't have a valid run id
+		// In this case we have to invent a fake run
+		// TODO: remove this when the legacy messages go away!
+		isLegacyEvent := runId == eventutil.LEGACY_RUN_ID
+		if isLegacyEvent {
+			jobRun := createFakeJobRun(jobId, ts)
+			runId = jobRun.RunId
+			objectMeta := extractMetaFromError(e)
+			if objectMeta != nil && objectMeta.ExecutorId != "" {
+				jobRun.Cluster = objectMeta.ExecutorId
 			}
+			update.JobRunsToCreate = append(update.JobRunsToCreate, jobRun)
+		}
 
-			jobRunUpdate := &model.UpdateJobRunInstruction{
-				RunId:     runId,
-				Succeeded: pointer.Bool(false),
-				Finished:  &ts,
-			}
-			if isLegacyEvent {
-				jobRunUpdate.Started = &ts
-			}
+		jobRunUpdate := &model.UpdateJobRunInstruction{
+			RunId:     runId,
+			Succeeded: pointer.Bool(false),
+			Finished:  &ts,
+		}
+		if isLegacyEvent {
+			jobRunUpdate.Started = &ts
+		}
 
-			// Error_LeaseExpired has an implied reset of the job state to queued
-			// Ideally we would send an explicit queued message here, but until this change is made we correct the job
-			// state here
-			// Note that this should also apply to PodLeaseReturned messages, but right now the executor can send
-			// phantom messages, which leads to the job being shown as queued in lookout forever.
-			resetStateToQueued := false
+		// Error_LeaseExpired has an implied reset of the job state to queued
+		// Ideally we would send an explicit queued message here, but until this change is made we correct the job
+		// state here
+		// Note that this should also apply to PodLeaseReturned messages, but right now the executor can send
+		// phantom messages, which leads to the job being shown as queued in lookout forever.
+		resetStateToQueued := false
 
-			switch reason := e.Reason.(type) {
-			case *armadaevents.Error_PodError:
-				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodError.GetMessage()), util.MaxMessageLength)
-				jobRunUpdate.Error = pointer.String(truncatedMsg)
-				jobRunUpdate.Node = extractNodeName(reason.PodError)
-				for _, containerError := range reason.PodError.ContainerErrors {
-					update.JobRunContainersToCreate = append(update.JobRunContainersToCreate, &model.CreateJobRunContainerInstruction{
-						RunId:         jobRunUpdate.RunId,
-						ExitCode:      containerError.ExitCode,
-						ContainerName: containerError.GetObjectMeta().GetName(),
-					})
-				}
-			case *armadaevents.Error_PodTerminated:
-				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodTerminated.GetMessage()), util.MaxMessageLength)
-				jobRunUpdate.Error = pointer.String(truncatedMsg)
-				jobRunUpdate.Node = extractNodeName(reason.PodTerminated)
-			case *armadaevents.Error_PodUnschedulable:
-				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodUnschedulable.GetMessage()), util.MaxMessageLength)
-				jobRunUpdate.Error = pointer.String(truncatedMsg)
-				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
-				jobRunUpdate.Node = extractNodeName(reason.PodUnschedulable)
-			case *armadaevents.Error_PodLeaseReturned:
-				truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodLeaseReturned.GetMessage()), util.MaxMessageLength)
-				jobRunUpdate.Error = pointer.String(truncatedMsg)
-				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
-				// TODO: re-enable this once the executor stops sending phantom PodLeaseReturned messages
-				// resetStateToQueued = true
-			case *armadaevents.Error_LeaseExpired:
-				jobRunUpdate.Error = pointer.String("Lease Expired")
-				jobRunUpdate.UnableToSchedule = pointer.Bool(true)
-				resetStateToQueued = true
-			default:
-				jobRunUpdate.Error = pointer.String("Unknown error")
-				log.Debugf("Ignoring event %T", reason)
-			}
-			update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
-			if resetStateToQueued {
-				update.JobsToUpdate = append(update.JobsToUpdate, &model.UpdateJobInstruction{
-					JobId:   jobId,
-					State:   pointer.Int32(int32(repository.JobQueuedOrdinal)),
-					Updated: ts,
+		switch reason := e.Reason.(type) {
+		case *armadaevents.Error_PodError:
+			truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodError.GetMessage()), util.MaxMessageLength)
+			jobRunUpdate.Error = pointer.String(truncatedMsg)
+			jobRunUpdate.Node = extractNodeName(reason.PodError)
+			for _, containerError := range reason.PodError.ContainerErrors {
+				update.JobRunContainersToCreate = append(update.JobRunContainersToCreate, &model.CreateJobRunContainerInstruction{
+					RunId:         jobRunUpdate.RunId,
+					ExitCode:      containerError.ExitCode,
+					ContainerName: containerError.GetObjectMeta().GetName(),
 				})
 			}
-			break
+		case *armadaevents.Error_PodTerminated:
+			truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodTerminated.GetMessage()), util.MaxMessageLength)
+			jobRunUpdate.Error = pointer.String(truncatedMsg)
+			jobRunUpdate.Node = extractNodeName(reason.PodTerminated)
+		case *armadaevents.Error_PodUnschedulable:
+			truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodUnschedulable.GetMessage()), util.MaxMessageLength)
+			jobRunUpdate.Error = pointer.String(truncatedMsg)
+			jobRunUpdate.UnableToSchedule = pointer.Bool(true)
+			jobRunUpdate.Node = extractNodeName(reason.PodUnschedulable)
+		case *armadaevents.Error_PodLeaseReturned:
+			truncatedMsg := util.Truncate(util.RemoveNullsFromString(reason.PodLeaseReturned.GetMessage()), util.MaxMessageLength)
+			jobRunUpdate.Error = pointer.String(truncatedMsg)
+			jobRunUpdate.UnableToSchedule = pointer.Bool(true)
+			// TODO: re-enable this once the executor stops sending phantom PodLeaseReturned messages
+			// resetStateToQueued = true
+		case *armadaevents.Error_LeaseExpired:
+			jobRunUpdate.Error = pointer.String("Lease Expired")
+			jobRunUpdate.UnableToSchedule = pointer.Bool(true)
+			resetStateToQueued = true
+		default:
+			jobRunUpdate.Error = pointer.String("Unknown error")
+			log.Debugf("Ignoring event %T", reason)
+		}
+		update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
+		if resetStateToQueued {
+			update.JobsToUpdate = append(update.JobsToUpdate, &model.UpdateJobInstruction{
+				JobId:   jobId,
+				State:   pointer.Int32(int32(repository.JobQueuedOrdinal)),
+				Updated: ts,
+			})
 		}
 	}
 	return nil
