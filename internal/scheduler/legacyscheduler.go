@@ -304,7 +304,20 @@ func (sch *Rescheduler) Schedule(ctx context.Context) (*SchedulerResult, error) 
 		return nil, err
 	}
 	inMemoryJobRepo.EnqueueMany(maps.Values(preemptedJobsById))
-	maps.Copy(preemptedJobsById, evictorResult.EvictedJobsById)
+	scheduledAndEvictedJobsById := armadamaps.FilterKeys(
+		scheduledJobsById,
+		func(jobId string) bool {
+			_, ok := evictorResult.EvictedJobsById[jobId]
+			return ok
+		},
+	)
+	for jobId, job := range evictorResult.EvictedJobsById {
+		if _, ok := scheduledJobsById[jobId]; ok {
+			delete(scheduledJobsById, jobId)
+		} else {
+			preemptedJobsById[jobId] = job
+		}
+	}
 	maps.Copy(sch.nodeIdByJobId, evictorResult.NodeIdByJobId)
 
 	// Re-schedule evicted jobs/schedule new jobs.
@@ -341,7 +354,7 @@ func (sch *Rescheduler) Schedule(ctx context.Context) (*SchedulerResult, error) 
 	if s := JobsSummary(scheduledJobs); s != "" {
 		log.Infof("scheduling new jobs; %s", s)
 	}
-	if err := sch.unbindPreemptedJobs(preemptedJobs); err != nil {
+	if err := sch.unbindJobs(append(preemptedJobs, maps.Values(scheduledAndEvictedJobsById)...)); err != nil {
 		return nil, err
 	}
 	if sch.enableAssertions {
@@ -607,7 +620,7 @@ func (sch *Rescheduler) schedule(ctx context.Context, inMemoryJobRepo *InMemoryJ
 }
 
 // Unbind any preempted from the nodes they were evicted (and not re-scheduled) on.
-func (sch *Rescheduler) unbindPreemptedJobs(preemptedJobs []LegacySchedulerJob) error {
+func (sch *Rescheduler) unbindJobs(preemptedJobs []LegacySchedulerJob) error {
 	for nodeId, jobs := range armadaslices.GroupByFunc(
 		preemptedJobs,
 		func(job LegacySchedulerJob) string {

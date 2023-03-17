@@ -101,6 +101,16 @@ func (a QuantityByPriorityAndResourceType) Equal(b QuantityByPriorityAndResource
 	return true
 }
 
+// IsZero returns true if all quantities in a are zero.
+func (a QuantityByPriorityAndResourceType) IsZero() bool {
+	for _, rl := range a {
+		if !rl.IsZero() {
+			return false
+		}
+	}
+	return true
+}
+
 // IsStrictlyNonNegative returns true if there are no quantities in a with value less than zero.
 func (a QuantityByPriorityAndResourceType) IsStrictlyNonNegative() bool {
 	for _, rl := range a {
