@@ -303,8 +303,20 @@ func (sch *Rescheduler) Schedule(ctx context.Context) (*SchedulerResult, error) 
 	if err != nil {
 		return nil, err
 	}
-	inMemoryJobRepo.EnqueueMany(maps.Values(preemptedJobsById))
-	maps.Copy(preemptedJobsById, evictorResult.EvictedJobsById)
+	scheduledAndEvictedJobsById := armadamaps.FilterKeys(
+		scheduledJobsById,
+		func(jobId string) bool {
+			_, ok := evictorResult.EvictedJobsById[jobId]
+			return ok
+		},
+	)
+	for jobId, job := range evictorResult.EvictedJobsById {
+		if _, ok := scheduledJobsById[jobId]; ok {
+			delete(scheduledJobsById, jobId)
+		} else {
+			preemptedJobsById[jobId] = job
+		}
+	}
 	maps.Copy(sch.nodeIdByJobId, evictorResult.NodeIdByJobId)
 
 	// Re-schedule evicted jobs/schedule new jobs.
@@ -329,20 +341,24 @@ func (sch *Rescheduler) Schedule(ctx context.Context) (*SchedulerResult, error) 
 			} else {
 				scheduledJobsById[job.GetId()] = job
 			}
+			delete(scheduledAndEvictedJobsById, job.GetId())
 		}
 		maps.Copy(sch.nodeIdByJobId, schedulerResult.NodeIdByJobId)
 	}
 
 	preemptedJobs := maps.Values(preemptedJobsById)
 	scheduledJobs := maps.Values(scheduledJobsById)
+	if err := sch.unbindJobs(append(
+		slices.Clone(preemptedJobs),
+		maps.Values(scheduledAndEvictedJobsById)...),
+	); err != nil {
+		return nil, err
+	}
 	if s := JobsSummary(preemptedJobs); s != "" {
 		log.Infof("preempting running jobs; %s", s)
 	}
 	if s := JobsSummary(scheduledJobs); s != "" {
 		log.Infof("scheduling new jobs; %s", s)
-	}
-	if err := sch.unbindPreemptedJobs(preemptedJobs); err != nil {
-		return nil, err
 	}
 	if sch.enableAssertions {
 		err := sch.reschedulerAssertions(
@@ -607,9 +623,9 @@ func (sch *Rescheduler) schedule(ctx context.Context, inMemoryJobRepo *InMemoryJ
 }
 
 // Unbind any preempted from the nodes they were evicted (and not re-scheduled) on.
-func (sch *Rescheduler) unbindPreemptedJobs(preemptedJobs []LegacySchedulerJob) error {
-	for nodeId, jobs := range armadaslices.GroupByFunc(
-		preemptedJobs,
+func (sch *Rescheduler) unbindJobs(jobs []LegacySchedulerJob) error {
+	for nodeId, jobsOnNode := range armadaslices.GroupByFunc(
+		jobs,
 		func(job LegacySchedulerJob) string {
 			return sch.nodeIdByJobId[job.GetId()]
 		},
@@ -620,7 +636,7 @@ func (sch *Rescheduler) unbindPreemptedJobs(preemptedJobs []LegacySchedulerJob) 
 		}
 		node, err = UnbindPodsFromNode(
 			util.Map(
-				jobs,
+				jobsOnNode,
 				func(job LegacySchedulerJob) *schedulerobjects.PodRequirements {
 					return PodRequirementFromLegacySchedulerJob(job, sch.priorityClasses)
 				},
@@ -1012,7 +1028,13 @@ func (evi *Evictor) Evict(ctx context.Context, it NodeIterator) (*EvictorResult,
 		if evi.nodeFilter != nil && !evi.nodeFilter(ctx, node) {
 			continue
 		}
-		jobIds := maps.Keys(node.AllocatedByJobId)
+		jobIds := util.Filter(
+			maps.Keys(node.AllocatedByJobId),
+			func(jobId string) bool {
+				_, ok := node.EvictedJobRunIds[jobId]
+				return !ok
+			},
+		)
 		jobs, err := evi.jobRepo.GetExistingJobsByIds(jobIds)
 		if err != nil {
 			return nil, err
