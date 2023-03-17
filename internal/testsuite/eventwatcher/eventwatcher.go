@@ -138,7 +138,6 @@ func (err *ErrUnexpectedEvent) Error() string {
 
 // AssertEvents compares the events received for each job with the expected events.
 func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[string]bool, expected []*api.EventMessage) error {
-
 	// terminatedByJobId indicates for which jobs we've received a terminal event.
 	// Initialise it by copying the jobIds map.
 	terminatedByJobId := maps.Clone(jobIds)
