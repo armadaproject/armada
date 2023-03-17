@@ -4,6 +4,7 @@ import { Job } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
 import { makeRandomJobs } from "utils/fakeJobsUtils"
 
+import FakeGetJobSpecService from "../../../services/lookoutV2/mocks/FakeGetJobSpecService"
 import { FakeGetRunErrorService } from "../../../services/lookoutV2/mocks/FakeGetRunErrorService"
 import { Sidebar } from "./Sidebar"
 
@@ -21,6 +22,7 @@ describe("Sidebar", () => {
         <Sidebar
           job={job}
           runErrorService={new FakeGetRunErrorService()}
+          jobSpecService={new FakeGetJobSpecService()}
           sidebarWidth={600}
           onClose={onClose}
           onWidthChange={() => undefined}

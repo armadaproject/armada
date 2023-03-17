@@ -116,6 +116,8 @@ type SchedulingConfig struct {
 	DefaultJobTolerations []v1.Toleration
 	// Set of tolerations added to all submitted pods of a given priority class.
 	DefaultJobTolerationsByPriorityClass map[string][]v1.Toleration
+	// Set of tolerations added to all submitted pods with a given resource request.
+	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
 	// Weights used when computing fair share.

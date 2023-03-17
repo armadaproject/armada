@@ -35,8 +35,16 @@ spec:
             - run
             - --config
             - /config/application_config.yaml
-          {{- if .Values.scheduler.env }}
           env:
+            - name: ARMADA_LEADER_PODNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ARMADA_LEADER_LEASELOCKNAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          {{- if .Values.scheduler.env }}
             {{- toYaml .Values.scheduler.env | nindent 12 -}}
           {{- end }}
           resources:
