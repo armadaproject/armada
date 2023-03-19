@@ -11,17 +11,19 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
 )
 
 type SyncFakeClusterContext struct {
 	Pods                 map[string]*v1.Pod
+	AnnotationsAdded     map[string]map[string]string
 	podEventHandlers     []*cache.ResourceEventHandlerFuncs
 	clusterEventHandlers []*cache.ResourceEventHandlerFuncs
 }
 
 func NewSyncFakeClusterContext() *SyncFakeClusterContext {
-	c := &SyncFakeClusterContext{Pods: map[string]*v1.Pod{}}
+	c := &SyncFakeClusterContext{Pods: map[string]*v1.Pod{}, AnnotationsAdded: map[string]map[string]string{}}
 	return c
 }
 
@@ -97,6 +99,11 @@ func (c *SyncFakeClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroup
 }
 
 func (c *SyncFakeClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
+	pod.Annotations = util.MergeMaps(pod.Annotations, annotations)
+	if c.AnnotationsAdded[pod.Labels[domain.JobId]] == nil {
+		c.AnnotationsAdded[pod.Labels[domain.JobId]] = map[string]string{}
+	}
+	c.AnnotationsAdded[pod.Labels[domain.JobId]] = util.MergeMaps(c.AnnotationsAdded[pod.Labels[domain.JobId]], annotations)
 	return nil
 }
 
@@ -151,4 +158,24 @@ func (c *SyncFakeClusterContext) SimulateClusterAddEvent(clusterEvent *v1.Event)
 			h.AddFunc(clusterEvent)
 		}
 	}
+}
+
+type FakeClusterIdentity struct {
+	clusterId   string
+	clusterPool string
+}
+
+func NewFakeClusterIdentity(clusterId string, clusterPool string) *FakeClusterIdentity {
+	return &FakeClusterIdentity{
+		clusterId:   clusterId,
+		clusterPool: clusterPool,
+	}
+}
+
+func (f *FakeClusterIdentity) GetClusterId() string {
+	return f.clusterId
+}
+
+func (f *FakeClusterIdentity) GetClusterPool() string {
+	return f.clusterPool
 }

@@ -6,7 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/prometheus/client_golang/prometheus"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/armadaproject/armada/internal/common"
 
@@ -32,6 +34,8 @@ import (
 // Run sets up a Scheduler application and runs it until a SIGTERM is received
 func Run(config Configuration) error {
 	g, ctx := errgroup.WithContext(app.CreateContextWithShutdown())
+	logrusLogger := log.NewEntry(log.New())
+	ctx = ctxlogrus.ToContext(ctx, logrusLogger)
 
 	// List of services to run concurrently.
 	// Because we want to start services only once all input validation has been completed,
@@ -188,9 +192,9 @@ func createLeaderController(config LeaderConfig) (LeaderController, error) {
 	case "standalone":
 		log.Infof("Scheduler will run in standalone mode")
 		return NewStandaloneLeaderController(), nil
-	case "cluster":
-		log.Infof("Scheduler will run cluster mode")
-		clusterConfig, err := rest.InClusterConfig()
+	case "kubernetes":
+		log.Infof("Scheduler will run kubernetes mode")
+		clusterConfig, err := loadClusterConfig()
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error creating kubernetes client")
 		}
@@ -198,8 +202,20 @@ func createLeaderController(config LeaderConfig) (LeaderController, error) {
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error creating kubernetes client")
 		}
-		return NewKubernetesLeaderController(LeaderConfig{}, clientSet.CoordinationV1()), nil
+		return NewKubernetesLeaderController(config, clientSet.CoordinationV1()), nil
 	default:
 		return nil, errors.Errorf("%s is not a value leader mode", config.Mode)
 	}
+}
+
+func loadClusterConfig() (*rest.Config, error) {
+	config, err := rest.InClusterConfig()
+	if err == rest.ErrNotInCluster {
+		log.Info("Running with default client configuration")
+		rules := clientcmd.NewDefaultClientConfigLoadingRules()
+		overrides := &clientcmd.ConfigOverrides{}
+		return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, overrides).ClientConfig()
+	}
+	log.Info("Running with in cluster client configuration")
+	return config, err
 }

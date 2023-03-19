@@ -82,12 +82,11 @@ type PulsarConfig struct {
 }
 
 type SchedulingConfig struct {
-	Preemption PreemptionConfig
+	// Set to true to enable scheduler assertions. This results in some performance loss.
+	EnableAssertions bool
+	Preemption       PreemptionConfig
 	// Number of jobs to load from the database at a time.
 	QueueLeaseBatchSize uint
-	// Minimum resources to schedule per request from an executor.
-	// Applies to the old scheduler.
-	MinimumResourceToSchedule armadaresource.ComputeResourcesFloat
 	// Maximum total size in bytes of all jobs returned in a single lease jobs call.
 	// Applies to the old scheduler. But is not necessary since we now stream job leases.
 	MaximumLeasePayloadSizeBytes int
@@ -117,6 +116,8 @@ type SchedulingConfig struct {
 	DefaultJobTolerations []v1.Toleration
 	// Set of tolerations added to all submitted pods of a given priority class.
 	DefaultJobTolerationsByPriorityClass map[string][]v1.Toleration
+	// Set of tolerations added to all submitted pods with a given resource request.
+	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
 	// Weights used when computing fair share.
