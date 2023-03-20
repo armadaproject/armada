@@ -43,31 +43,39 @@ var _ JobTableUpdater = &JobTableUpdaterMock{}
 //	}
 type JobTableUpdaterMock struct {
 	// ClearSubscriptionErrorFunc mocks the ClearSubscriptionError method.
-	ClearSubscriptionErrorFunc func(queue string, jobSet string)
+	AddMessageIdAndClearSubscriptionErrorFunc func(queue string, jobSet string, fromMessageId string) error
 
 	// GetSubscriptionErrorFunc mocks the GetSubscriptionError method.
-	GetSubscriptionErrorFunc func(queue string, jobSet string) string
+	GetSubscriptionErrorFunc func(queue string, jobSet string) (string, error)
 
 	// IsJobSetSubscribedFunc mocks the IsJobSetSubscribed method.
-	IsJobSetSubscribedFunc func(queue string, jobSet string) bool
+	IsJobSetSubscribedFunc func(queue string, jobSet string) (bool, string, error)
 
 	// SetSubscriptionErrorFunc mocks the SetSubscriptionError method.
-	SetSubscriptionErrorFunc func(queue string, jobSet string, err string)
+	SetSubscriptionErrorFunc func(queue string, jobSet string, err string, fromMessageId string) error
 
 	// SubscribeJobSetFunc mocks the SubscribeJobSet method.
-	SubscribeJobSetFunc func(queue string, jobSet string)
+	SubscribeJobSetFunc func(queue string, jobSet string, fromMessageId string) error
 
 	// UpdateJobServiceDbFunc mocks the UpdateJobServiceDb method.
 	UpdateJobServiceDbFunc func(jobStatus *JobStatus) error
 
+	// Mock for Unsubscribe job set
+	UnsubscribeJobSetFunc func(queue, jobSet string) (int64, error)
+
+	// Mock for UpdateJobSetDb
+	UpdateJobSetDbFunc func(queue, jobSet, fromMessageId string) (error)
+
 	// calls tracks calls to the methods.
 	calls struct {
 		// ClearSubscriptionError holds details about calls to the ClearSubscriptionError method.
-		ClearSubscriptionError []struct {
+		AddMessageIdAndClearSubscriptionError []struct {
 			// Queue is the queue argument value.
 			Queue string
 			// JobSet is the jobSet argument value.
 			JobSet string
+			// FromMessageId
+			FromMessageId string
 		}
 		// GetSubscriptionError holds details about calls to the GetSubscriptionError method.
 		GetSubscriptionError []struct {
@@ -91,6 +99,8 @@ type JobTableUpdaterMock struct {
 			JobSet string
 			// Err is the err argument value.
 			Err string
+			// FromMessageId is where job set subscription should start from
+			FromMessageId string
 		}
 		// SubscribeJobSet holds details about calls to the SubscribeJobSet method.
 		SubscribeJobSet []struct {
@@ -98,37 +108,59 @@ type JobTableUpdaterMock struct {
 			Queue string
 			// JobSet is the jobSet argument value.
 			JobSet string
+			// FromMessageId is where job set subscription should start from
+			FromMessageId string
 		}
 		// UpdateJobServiceDb holds details about calls to the UpdateJobServiceDb method.
 		UpdateJobServiceDb []struct {
 			// JobStatus is the jobStatus argument value.
 			JobStatus *JobStatus
 		}
+		// UpdateJobSetDb
+		UpdateJobSetDb []struct {
+			// Queue is the queue argument value.
+			Queue string
+			// JobSet is the jobSet argument value.
+			JobSet string
+			// FromMessageId is where job set subscription should start from
+			FromMessageId string
+		}
+		// Unsubscribe Jobset
+		UnsubscribeJobSet []struct {
+			// Queue is the queue argument value.
+			Queue string
+			// JobSet is the jobSet argument value.
+			JobSet string
+		}
 	}
 	lockClearSubscriptionError sync.RWMutex
 	lockGetSubscriptionError   sync.RWMutex
 	lockIsJobSetSubscribed     sync.RWMutex
+	lockUnsubscribeJobSet      sync.RWMutex
 	lockSetSubscriptionError   sync.RWMutex
 	lockSubscribeJobSet        sync.RWMutex
 	lockUpdateJobServiceDb     sync.RWMutex
+	lockUpdateJobSetDb         sync.RWMutex
 }
 
 // ClearSubscriptionError calls ClearSubscriptionErrorFunc.
-func (mock *JobTableUpdaterMock) ClearSubscriptionError(queue string, jobSet string) {
-	if mock.ClearSubscriptionErrorFunc == nil {
-		panic("JobTableUpdaterMock.ClearSubscriptionErrorFunc: method is nil but JobTableUpdater.ClearSubscriptionError was just called")
+func (mock *JobTableUpdaterMock) AddMessageIdAndClearSubscriptionError(queue string, jobSet string, fromMessageId string) error {
+	if mock.AddMessageIdAndClearSubscriptionErrorFunc == nil {
+		panic("JobTableUpdaterMock.AddMessageIdAndClearSubscriptionErrorFunc: method is nil but JobTableUpdater.AddMessageIdAndClearSubscriptionError was just called")
 	}
 	callInfo := struct {
 		Queue  string
 		JobSet string
+		FromMessageId string
 	}{
 		Queue:  queue,
 		JobSet: jobSet,
+		FromMessageId: fromMessageId,
 	}
 	mock.lockClearSubscriptionError.Lock()
-	mock.calls.ClearSubscriptionError = append(mock.calls.ClearSubscriptionError, callInfo)
+	mock.calls.AddMessageIdAndClearSubscriptionError = append(mock.calls.AddMessageIdAndClearSubscriptionError, callInfo)
 	mock.lockClearSubscriptionError.Unlock()
-	mock.ClearSubscriptionErrorFunc(queue, jobSet)
+	return mock.AddMessageIdAndClearSubscriptionErrorFunc(queue, jobSet, fromMessageId)
 }
 
 // ClearSubscriptionErrorCalls gets all the calls that were made to ClearSubscriptionError.
@@ -138,19 +170,21 @@ func (mock *JobTableUpdaterMock) ClearSubscriptionError(queue string, jobSet str
 func (mock *JobTableUpdaterMock) ClearSubscriptionErrorCalls() []struct {
 	Queue  string
 	JobSet string
+	FromMessageId string
 } {
 	var calls []struct {
 		Queue  string
 		JobSet string
+		FromMessageId string
 	}
 	mock.lockClearSubscriptionError.RLock()
-	calls = mock.calls.ClearSubscriptionError
+	calls = mock.calls.AddMessageIdAndClearSubscriptionError
 	mock.lockClearSubscriptionError.RUnlock()
 	return calls
 }
 
 // GetSubscriptionError calls GetSubscriptionErrorFunc.
-func (mock *JobTableUpdaterMock) GetSubscriptionError(queue string, jobSet string) string {
+func (mock *JobTableUpdaterMock) GetSubscriptionError(queue string, jobSet string) (string, error) {
 	if mock.GetSubscriptionErrorFunc == nil {
 		panic("JobTableUpdaterMock.GetSubscriptionErrorFunc: method is nil but JobTableUpdater.GetSubscriptionError was just called")
 	}
@@ -186,7 +220,7 @@ func (mock *JobTableUpdaterMock) GetSubscriptionErrorCalls() []struct {
 }
 
 // IsJobSetSubscribed calls IsJobSetSubscribedFunc.
-func (mock *JobTableUpdaterMock) IsJobSetSubscribed(queue string, jobSet string) bool {
+func (mock *JobTableUpdaterMock) IsJobSetSubscribed(queue string, jobSet string) (bool, string, error) {
 	if mock.IsJobSetSubscribedFunc == nil {
 		panic("JobTableUpdaterMock.IsJobSetSubscribedFunc: method is nil but JobTableUpdater.IsJobSetSubscribed was just called")
 	}
@@ -222,7 +256,7 @@ func (mock *JobTableUpdaterMock) IsJobSetSubscribedCalls() []struct {
 }
 
 // SetSubscriptionError calls SetSubscriptionErrorFunc.
-func (mock *JobTableUpdaterMock) SetSubscriptionError(queue string, jobSet string, err string) {
+func (mock *JobTableUpdaterMock) SetSubscriptionError(queue string, jobSet string, err string, fromMessageId string) error {
 	if mock.SetSubscriptionErrorFunc == nil {
 		panic("JobTableUpdaterMock.SetSubscriptionErrorFunc: method is nil but JobTableUpdater.SetSubscriptionError was just called")
 	}
@@ -230,15 +264,17 @@ func (mock *JobTableUpdaterMock) SetSubscriptionError(queue string, jobSet strin
 		Queue  string
 		JobSet string
 		Err    string
+		FromMessageId string
 	}{
 		Queue:  queue,
 		JobSet: jobSet,
 		Err:    err,
+		FromMessageId: fromMessageId,
 	}
 	mock.lockSetSubscriptionError.Lock()
 	mock.calls.SetSubscriptionError = append(mock.calls.SetSubscriptionError, callInfo)
 	mock.lockSetSubscriptionError.Unlock()
-	mock.SetSubscriptionErrorFunc(queue, jobSet, err)
+	return mock.SetSubscriptionErrorFunc(queue, jobSet, err, fromMessageId)
 }
 
 // SetSubscriptionErrorCalls gets all the calls that were made to SetSubscriptionError.
@@ -249,11 +285,13 @@ func (mock *JobTableUpdaterMock) SetSubscriptionErrorCalls() []struct {
 	Queue  string
 	JobSet string
 	Err    string
+	FromMessageId string
 } {
 	var calls []struct {
 		Queue  string
 		JobSet string
 		Err    string
+		FromMessageId string
 	}
 	mock.lockSetSubscriptionError.RLock()
 	calls = mock.calls.SetSubscriptionError
@@ -262,21 +300,23 @@ func (mock *JobTableUpdaterMock) SetSubscriptionErrorCalls() []struct {
 }
 
 // SubscribeJobSet calls SubscribeJobSetFunc.
-func (mock *JobTableUpdaterMock) SubscribeJobSet(queue string, jobSet string) {
+func (mock *JobTableUpdaterMock) SubscribeJobSet(queue string, jobSet string, fromMessageId string) error {
 	if mock.SubscribeJobSetFunc == nil {
 		panic("JobTableUpdaterMock.SubscribeJobSetFunc: method is nil but JobTableUpdater.SubscribeJobSet was just called")
 	}
 	callInfo := struct {
 		Queue  string
 		JobSet string
+		FromMessageId string
 	}{
 		Queue:  queue,
 		JobSet: jobSet,
+		FromMessageId: fromMessageId,
 	}
 	mock.lockSubscribeJobSet.Lock()
 	mock.calls.SubscribeJobSet = append(mock.calls.SubscribeJobSet, callInfo)
 	mock.lockSubscribeJobSet.Unlock()
-	mock.SubscribeJobSetFunc(queue, jobSet)
+	return mock.SubscribeJobSetFunc(queue, jobSet, fromMessageId)
 }
 
 // SubscribeJobSetCalls gets all the calls that were made to SubscribeJobSet.
@@ -286,16 +326,36 @@ func (mock *JobTableUpdaterMock) SubscribeJobSet(queue string, jobSet string) {
 func (mock *JobTableUpdaterMock) SubscribeJobSetCalls() []struct {
 	Queue  string
 	JobSet string
+	FromMessageId string
 } {
 	var calls []struct {
 		Queue  string
 		JobSet string
+		FromMessageId string
 	}
 	mock.lockSubscribeJobSet.RLock()
 	calls = mock.calls.SubscribeJobSet
 	mock.lockSubscribeJobSet.RUnlock()
 	return calls
 }
+
+func (mock *JobTableUpdaterMock) UnsubscribeJobSet(queue string, jobSet string) (int64, error) {
+	if mock.UnsubscribeJobSetFunc == nil {
+		panic("JobTableUpdaterMock.UnsubscribeJobSetFunc: method is nil but JobTableUpdater.UnsubscribeJobSetFunc was just called")
+	}
+	callInfo := struct {
+		Queue  string
+		JobSet string
+	}{
+		Queue:  queue,
+		JobSet: jobSet,
+	}
+	mock.lockUnsubscribeJobSet.Lock()
+	mock.calls.UnsubscribeJobSet = append(mock.calls.UnsubscribeJobSet, callInfo)
+	mock.lockUnsubscribeJobSet.Unlock()
+	return mock.UnsubscribeJobSetFunc(queue, jobSet)
+}
+
 
 // UpdateJobServiceDb calls UpdateJobServiceDbFunc.
 func (mock *JobTableUpdaterMock) UpdateJobServiceDb(jobStatus *JobStatus) error {
@@ -326,5 +386,45 @@ func (mock *JobTableUpdaterMock) UpdateJobServiceDbCalls() []struct {
 	mock.lockUpdateJobServiceDb.RLock()
 	calls = mock.calls.UpdateJobServiceDb
 	mock.lockUpdateJobServiceDb.RUnlock()
+	return calls
+}
+
+// UpdateJobServiceDb calls UpdateJobServiceDbFunc.
+func (mock *JobTableUpdaterMock) UpdateJobSetDb(queue, jobSet, fromMessageId string) error {
+	if mock.UpdateJobServiceDbFunc == nil {
+		panic("JobTableUpdaterMock.UpdateJobServiceDbFunc: method is nil but JobTableUpdater.UpdateJobServiceDb was just called")
+	}
+	callInfo := struct {
+		Queue  string
+		JobSet string
+		FromMessageId string
+	}{
+		Queue:  queue,
+		JobSet: jobSet,
+		FromMessageId: fromMessageId,
+	}
+	mock.lockUpdateJobSetDb.Lock()
+	mock.calls.UpdateJobSetDb = append(mock.calls.UpdateJobSetDb, callInfo)
+	mock.lockUpdateJobServiceDb.Unlock()
+	return mock.UpdateJobSetDbFunc(queue, jobSet, fromMessageId)
+}
+
+// UpdateJobServiceDbCalls gets all the calls that were made to UpdateJobServiceDb.
+// Check the length with:
+//
+//	len(mockedJobTableUpdater.UpdateJobServiceDbCalls())
+func (mock *JobTableUpdaterMock) UpdateJobSetDbCalls() []struct {
+	Queue string
+	JobSet string
+	FromMessageId string
+} {
+	var calls []struct {
+		Queue string
+		JobSet string
+		FromMessageId string
+	}
+	mock.lockUpdateJobSetDb.RLock()
+	calls = mock.calls.UpdateJobSetDb
+	mock.lockUpdateJobSetDb.RUnlock()
 	return calls
 }
