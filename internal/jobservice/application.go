@@ -88,13 +88,9 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 				eventClient := events.NewEventClient(&config.ApiConnection)
 				eventJob := eventstojobs.NewEventsToJobService(value.Queue, value.JobSet, eventClient, sqlJobRepo)
 				go func(value repository.SubscribedTuple) {
-					err := eventJob.SubscribeToJobSetId(context.Background(), config.SubscribeJobSetTime)
+					err := eventJob.SubscribeToJobSetId(context.Background(), config.SubscribeJobSetTime, value.FromMessageId)
 					if err != nil {
 						log.Error("error on subscribing", err)
-					}
-					_, err = sqlJobRepo.UnsubscribeJobSet(value.Queue, value.JobSet)
-					if err != nil {
-						log.Errorf("unable to delete %s/%s", value.Queue, value.JobSet)
 					}
 				}(value)
 			}

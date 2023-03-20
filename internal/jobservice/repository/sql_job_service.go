@@ -14,13 +14,13 @@ import (
 )
 
 type JobTableUpdater interface {
-	SubscribeJobSet(queue string, jobSet string) error
-	IsJobSetSubscribed(queue string, jobSet string) (bool, error)
+	SubscribeJobSet(queue string, jobSet string, fromMessageId string) error
+	IsJobSetSubscribed(queue string, jobSet string) (bool, string, error)
 	UpdateJobServiceDb(jobTable *JobStatus) error
-	UpdateJobSetDb(queue string, jobSet string) error
-	SetSubscriptionError(queue string, jobSet string, err string) error
+	UpdateJobSetDb(queue string, jobSet string, fromMessageId string) error
+	SetSubscriptionError(queue string, jobSet string, err string, fromMessageId string) error
 	GetSubscriptionError(queue string, jobSet string) (string, error)
-	ClearSubscriptionError(queue string, jobSet string) error
+	AddMessageIdAndClearSubscriptionError(queue string, jobSet string, messageId string) error
 	UnsubscribeJobSet(queue string, jobSet string) (int64, error)
 }
 
@@ -53,8 +53,9 @@ func (s *SQLJobService) useWAL() {
 }
 
 type SubscribedTuple struct {
-	Queue  string
-	JobSet string
+	Queue         string
+	JobSet        string
+	FromMessageId string
 }
 
 // Create a Table from a hard-coded schema.
@@ -95,6 +96,7 @@ ON jobservice (Queue, JobSetId)`)
 		JobSetId TEXT,
 		Timestamp INT,
 		ConnectionError TEXT,
+		FromMessageId TEXT,
 		UNIQUE(Queue,JobSetId))`)
 	if err != nil {
 		panic(err)
@@ -177,8 +179,8 @@ func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobStatus) error {
 	return errExec
 }
 
-func (s *SQLJobService) UpdateJobSetDb(queue string, jobSet string) error {
-	subscribe, err := s.IsJobSetSubscribed(queue, jobSet)
+func (s *SQLJobService) UpdateJobSetDb(queue string, jobSet string, fromMessageId string) error {
+	subscribe, _, err := s.IsJobSetSubscribed(queue, jobSet)
 	if err != nil {
 		return err
 	}
@@ -187,12 +189,12 @@ func (s *SQLJobService) UpdateJobSetDb(queue string, jobSet string) error {
 	}
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	jobSetState, err := s.db.Prepare("INSERT OR REPLACE INTO jobsets VALUES(?, ?, ?, ?)")
+	jobSetState, err := s.db.Prepare("INSERT OR REPLACE INTO jobsets VALUES(?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
 	defer jobSetState.Close()
-	_, jobSetErr := jobSetState.Exec(queue, jobSet, time.Now().Unix(), "")
+	_, jobSetErr := jobSetState.Exec(queue, jobSet, time.Now().Unix(), "", &fromMessageId)
 	if jobSetErr != nil {
 		return jobSetErr
 	}
@@ -214,39 +216,39 @@ func (s *SQLJobService) HealthCheck() (bool, error) {
 }
 
 // Check if JobSet is in our map.
-func (s *SQLJobService) IsJobSetSubscribed(queue string, jobSet string) (bool, error) {
+func (s *SQLJobService) IsJobSetSubscribed(queue string, jobSet string) (bool, string, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-	row := s.db.QueryRow("SELECT Queue, JobSetId FROM jobsets WHERE Queue=? AND JobSetId=?", queue, jobSet)
-	var queueScan, jobSetIdScan string
+	row := s.db.QueryRow("SELECT Queue, JobSetId, FromMessageId FROM jobsets WHERE Queue=? AND JobSetId=?", queue, jobSet)
+	var queueScan, jobSetIdScan, fromMessageId string
 
-	err := row.Scan(&queueScan, &jobSetIdScan)
+	err := row.Scan(&queueScan, &jobSetIdScan, &fromMessageId)
 
 	if err == sql.ErrNoRows {
-		return false, nil
+		return false, "", nil
 	} else if err != nil {
-		return false, err
+		return false, "", err
 	}
-	return true, nil
+	return true, fromMessageId, nil
 }
 
 // Clear subscription error if present
-func (s *SQLJobService) ClearSubscriptionError(queue string, jobSet string) error {
-	return s.SetSubscriptionError(queue, jobSet, "")
+func (s *SQLJobService) AddMessageIdAndClearSubscriptionError(queue string, jobSet string, fromMessageId string) error {
+	return s.SetSubscriptionError(queue, jobSet, "", fromMessageId)
 }
 
 // Set subscription error if present
-func (s *SQLJobService) SetSubscriptionError(queue string, jobSet string, connErr string) error {
+func (s *SQLJobService) SetSubscriptionError(queue string, jobSet string, connErr string, fromMessageId string) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	jobSetState, err := s.db.Prepare("INSERT OR REPLACE INTO jobsets VALUES(?, ?, ?, ?)")
+	jobSetState, err := s.db.Prepare("INSERT OR REPLACE INTO jobsets VALUES(?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
 	defer jobSetState.Close()
 	subscribeTable := NewSubscribeTable(queue, jobSet)
-	_, jobSetErr := jobSetState.Exec(subscribeTable.queue, jobSet, subscribeTable.lastRequestTimeStamp, connErr)
+	_, jobSetErr := jobSetState.Exec(subscribeTable.queue, jobSet, subscribeTable.lastRequestTimeStamp, connErr, fromMessageId)
 	if jobSetErr != nil {
 		return jobSetErr
 	}
@@ -271,17 +273,17 @@ func (s *SQLJobService) GetSubscriptionError(queue string, jobSet string) (strin
 // Mark our JobSet as being subscribed
 // SubscribeTable contains Queue, JobSet and time when it was created.
 
-func (s *SQLJobService) SubscribeJobSet(queue string, jobSet string) error {
+func (s *SQLJobService) SubscribeJobSet(queue string, jobSet string, fromMessageId string) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	jobSetState, err := s.db.Prepare("INSERT OR REPLACE INTO jobsets VALUES(?, ?, ?, ?)")
+	jobSetState, err := s.db.Prepare("INSERT OR REPLACE INTO jobsets VALUES(?, ?, ?, ?, ?)")
 	if err != nil {
 		return err
 	}
 	defer jobSetState.Close()
 	subscribeTable := NewSubscribeTable(queue, jobSet)
-	_, jobSetErr := jobSetState.Exec(subscribeTable.queue, subscribeTable.jobSet, subscribeTable.lastRequestTimeStamp, "")
+	_, jobSetErr := jobSetState.Exec(subscribeTable.queue, subscribeTable.jobSet, subscribeTable.lastRequestTimeStamp, "", fromMessageId)
 	return jobSetErr
 }
 
@@ -299,7 +301,7 @@ func (s *SQLJobService) CleanupJobSetAndJobs(queue string, jobSet string) (int64
 // We allow unsubscribing if the jobset hasn't been updated in configTime
 // TODO implement this
 func (s *SQLJobService) CheckToUnSubscribe(queue string, jobSet string, configTimeWithoutUpdates int64) (bool, error) {
-	jobSetFound, err := s.IsJobSetSubscribed(queue, jobSet)
+	jobSetFound, _, err := s.IsJobSetSubscribed(queue, jobSet)
 	if err != nil {
 		return false, nil
 	}
@@ -354,7 +356,7 @@ func (s *SQLJobService) GetSubscribedJobSets() ([]SubscribedTuple, error) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	rows, err := s.db.Query("SELECT Queue, JobSetId FROM jobsets")
+	rows, err := s.db.Query("SELECT Queue, JobSetId, FromMessageId FROM jobsets")
 	if err != nil {
 		return nil, err
 	}
@@ -365,7 +367,7 @@ func (s *SQLJobService) GetSubscribedJobSets() ([]SubscribedTuple, error) {
 	// Loop through rows, using Scan to assign column data to struct fields.
 	for rows.Next() {
 		var st SubscribedTuple
-		if err := rows.Scan(&st.Queue, &st.JobSet); err != nil {
+		if err := rows.Scan(&st.Queue, &st.JobSet, &st.FromMessageId); err != nil {
 			return tuples, err
 		}
 		tuples = append(tuples, st)
