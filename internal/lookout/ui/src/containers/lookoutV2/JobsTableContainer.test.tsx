@@ -12,7 +12,9 @@ import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
 import { makeRandomJobs } from "utils/fakeJobsUtils"
 import { formatJobState, formatUtcDate } from "utils/jobsTableFormatters"
 
+import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "../../services/lookoutV2/GetRunErrorService"
+import FakeGetJobSpecService from "../../services/lookoutV2/mocks/FakeGetJobSpecService"
 import { FakeGetRunErrorService } from "../../services/lookoutV2/mocks/FakeGetRunErrorService"
 import { JobsTableContainer } from "./JobsTableContainer"
 
@@ -25,6 +27,7 @@ describe("JobsTableContainer", () => {
     getJobsService: IGetJobsService,
     groupJobsService: IGroupJobsService,
     runErrorService: IGetRunErrorService,
+    jobSpecService: IGetJobSpecService,
     updateJobsService: UpdateJobsService,
     historyService: History,
     jobsTablePreferencesService: JobsTablePreferencesService
@@ -37,6 +40,7 @@ describe("JobsTableContainer", () => {
     getJobsService = new FakeGetJobsService(jobs, false)
     groupJobsService = new FakeGroupJobsService(jobs, false)
     runErrorService = new FakeGetRunErrorService(false)
+    jobSpecService = new FakeGetJobSpecService(false)
 
     historyService = createMemoryHistory()
     jobsTablePreferencesService = new JobsTablePreferencesService(historyService)
@@ -55,6 +59,7 @@ describe("JobsTableContainer", () => {
           groupJobsService={groupJobsService}
           updateJobsService={updateJobsService}
           runErrorService={runErrorService}
+          jobSpecService={jobSpecService}
           debug={false}
         />
       </SnackbarProvider>,

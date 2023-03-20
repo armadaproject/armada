@@ -1,11 +1,14 @@
-package fake
+package mocks
 
 import (
+	"fmt"
+
 	"github.com/armadaproject/armada/internal/executor/reporter"
 )
 
 type FakeEventReporter struct {
 	ReceivedEvents []reporter.EventMessage
+	ErrorOnReport  bool
 }
 
 func NewFakeEventReporter() *FakeEventReporter {
@@ -13,6 +16,9 @@ func NewFakeEventReporter() *FakeEventReporter {
 }
 
 func (f *FakeEventReporter) Report(events []reporter.EventMessage) error {
+	if f.ErrorOnReport {
+		return fmt.Errorf("failed to report events")
+	}
 	f.ReceivedEvents = append(f.ReceivedEvents, events...)
 	return nil
 }

@@ -23,14 +23,12 @@ func (d *ResourceMetricsRecorder) Record(value armadaresource.ComputeResourcesFl
 	}
 }
 
+type ResourceMetrics map[string]*FloatMetrics
+
 func (d *ResourceMetricsRecorder) GetMetrics() ResourceMetrics {
 	result := make(map[string]*FloatMetrics, len(d.metrics))
-
 	for resourceType, metrics := range d.metrics {
 		result[resourceType] = metrics.GetMetrics()
 	}
-
 	return result
 }
-
-type ResourceMetrics map[string]*FloatMetrics

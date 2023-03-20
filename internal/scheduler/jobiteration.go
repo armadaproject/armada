@@ -47,13 +47,17 @@ type InMemoryJobRepository struct {
 	jobsByQueue     map[string][]LegacySchedulerJob
 	jobsById        map[string]LegacySchedulerJob
 	priorityClasses map[string]configuration.PriorityClass
+	// If true, jobs are sorted first by priority class priority.
+	// If false, priority class is ignored when ordering jobs.
+	sortByPriorityClass bool
 }
 
 func NewInMemoryJobRepository(priorityClasses map[string]configuration.PriorityClass) *InMemoryJobRepository {
 	return &InMemoryJobRepository{
-		jobsByQueue:     make(map[string][]LegacySchedulerJob),
-		jobsById:        make(map[string]LegacySchedulerJob),
-		priorityClasses: maps.Clone(priorityClasses),
+		jobsByQueue:         make(map[string][]LegacySchedulerJob),
+		jobsById:            make(map[string]LegacySchedulerJob),
+		priorityClasses:     maps.Clone(priorityClasses),
+		sortByPriorityClass: true,
 	}
 }
 
@@ -85,12 +89,14 @@ func (repo *InMemoryJobRepository) sortQueue(queue string) {
 	slices.SortFunc(repo.jobsByQueue[queue], func(a, b LegacySchedulerJob) bool {
 		infoa := a.GetRequirements(repo.priorityClasses)
 		infob := b.GetRequirements(repo.priorityClasses)
-		pca := repo.priorityClasses[infoa.PriorityClassName]
-		pcb := repo.priorityClasses[infob.PriorityClassName]
-		if pca.Priority > pcb.Priority {
-			return true
-		} else if pca.Priority < pcb.Priority {
-			return false
+		if repo.sortByPriorityClass {
+			pca := repo.priorityClasses[infoa.PriorityClassName]
+			pcb := repo.priorityClasses[infob.PriorityClassName]
+			if pca.Priority > pcb.Priority {
+				return true
+			} else if pca.Priority < pcb.Priority {
+				return false
+			}
 		}
 		if infoa.GetPriority() < infob.GetPriority() {
 			return true

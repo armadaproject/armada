@@ -10,8 +10,8 @@
     "test": "react-scripts test --coverage",
     "eject": "react-scripts eject",
     "openapi": "docker run --rm -u $(id -u ${USER}):$(id -g ${USER}) -v \"${PWD}/../../../:/project\" openapitools/openapi-generator-cli:v5.4.0 /project/internal/lookout/ui/openapi.sh",
-    "lint": "eslint ./src/**/*.{js,ts,tsx} --max-warnings 0 --no-error-on-unmatched-pattern",
-    "fmt": "eslint ./src/**/*.{js,ts,tsx} --max-warnings 0 --no-error-on-unmatched-pattern --fix"
+    "lint": "eslint './src/**/*.{js,ts,tsx}' --max-warnings 0 --no-error-on-unmatched-pattern",
+    "fmt": "eslint './src/**/*.{js,ts,tsx}' --max-warnings 0 --no-error-on-unmatched-pattern --fix"
   },
   "dependencies": {
     "@emotion/react": "^11.10.5",

@@ -1,17 +1,21 @@
 package util
 
 import (
+	"fmt"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	v1 "k8s.io/api/core/v1"
+	networking "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/pkg/api"
-
-	"github.com/stretchr/testify/assert"
-	v1 "k8s.io/api/core/v1"
-	networking "k8s.io/api/networking/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 func TestCreateLabels_CreatesExpectedLabels(t *testing.T) {
@@ -472,4 +476,109 @@ func TestCreateService_Headless(t *testing.T) {
 		},
 	}
 	assert.Equal(t, createdService, expected)
+}
+
+func TestCreatePodFromExecutorApiJob(t *testing.T) {
+	runId := armadaevents.ProtoUuidFromUuid(uuid.New())
+	runIdStr, err := armadaevents.UuidStringFromProtoUuid(runId)
+	assert.NoError(t, err)
+	jobId := armadaevents.ProtoUuidFromUuid(uuid.New())
+	jobIdStr, err := armadaevents.UlidStringFromProtoUuid(jobId)
+	assert.NoError(t, err)
+
+	validJobLease := &executorapi.JobRunLease{
+		JobRunId: runId,
+		Queue:    "queue",
+		Jobset:   "job-set",
+		User:     "user",
+		Job: &armadaevents.SubmitJob{
+			ObjectMeta: &armadaevents.ObjectMeta{
+				Labels:      map[string]string{},
+				Annotations: map[string]string{},
+				Namespace:   "test-namespace",
+			},
+			JobId: jobId,
+			MainObject: &armadaevents.KubernetesMainObject{
+				Object: &armadaevents.KubernetesMainObject_PodSpec{
+					PodSpec: &armadaevents.PodSpecWithAvoidList{
+						PodSpec: &v1.PodSpec{},
+					},
+				},
+			},
+		},
+	}
+
+	expectedPod := &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("armada-%s-0", jobIdStr),
+			Namespace: "test-namespace",
+			Labels: map[string]string{
+				domain.JobId:     jobIdStr,
+				domain.JobRunId:  runIdStr,
+				domain.Queue:     "queue",
+				domain.PodNumber: "0",
+				domain.PodCount:  "1",
+			},
+			Annotations: map[string]string{
+				domain.JobSetId: "job-set",
+				domain.Owner:    "user",
+			},
+		},
+		Spec: v1.PodSpec{
+			RestartPolicy: v1.RestartPolicyNever,
+			SchedulerName: "scheduler-name",
+		},
+	}
+
+	result, err := CreatePodFromExecutorApiJob(validJobLease, &configuration.PodDefaults{SchedulerName: "scheduler-name"})
+	assert.NoError(t, err)
+	assert.Equal(t, expectedPod, result)
+}
+
+func TestCreatePodFromExecutorApiJob_Invalid(t *testing.T) {
+	lease := createBasicJobRunLease()
+	_, err := CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+	assert.NoError(t, err)
+
+	// Invalid run id
+	lease = createBasicJobRunLease()
+	lease.JobRunId = nil
+	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+	assert.Error(t, err)
+
+	// Invalid job id
+	lease = createBasicJobRunLease()
+	lease.Job.JobId = nil
+	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+	assert.Error(t, err)
+
+	// no pod spec
+	lease = createBasicJobRunLease()
+	lease.Job.MainObject = &armadaevents.KubernetesMainObject{}
+	_, err = CreatePodFromExecutorApiJob(lease, &configuration.PodDefaults{})
+	assert.Error(t, err)
+}
+
+func createBasicJobRunLease() *executorapi.JobRunLease {
+	return &executorapi.JobRunLease{
+		JobRunId: armadaevents.ProtoUuidFromUuid(uuid.New()),
+		Queue:    "queue",
+		Jobset:   "job-set",
+		User:     "user",
+		Job: &armadaevents.SubmitJob{
+			ObjectMeta: &armadaevents.ObjectMeta{
+				Labels:      map[string]string{},
+				Annotations: map[string]string{},
+				Namespace:   "test-namespace",
+			},
+			JobId: armadaevents.ProtoUuidFromUuid(uuid.New()),
+			MainObject: &armadaevents.KubernetesMainObject{
+				Object: &armadaevents.KubernetesMainObject_PodSpec{
+					PodSpec: &armadaevents.PodSpecWithAvoidList{
+						PodSpec: &v1.PodSpec{},
+					},
+				},
+			},
+		},
+	}
 }

@@ -19,6 +19,7 @@ import (
 	executor_context "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/healthmonitor"
 	"github.com/armadaproject/armada/internal/executor/job"
+	"github.com/armadaproject/armada/internal/executor/job/processors"
 	"github.com/armadaproject/armada/internal/executor/metrics"
 	"github.com/armadaproject/armada/internal/executor/metrics/pod_metrics"
 	"github.com/armadaproject/armada/internal/executor/node"
@@ -157,14 +158,20 @@ func StartUpWithContext(
 	if config.Application.UseExecutorApi {
 		leaseRequester := service.NewJobLeaseRequester(
 			executorApiClient, clusterContext, config.Kubernetes.MinimumJobSize)
-		clusterAllocationService = service.NewClusterAllocationService(
+		preemptRunProcessor := processors.NewRunPreemptedProcessor(clusterContext, jobRunState, eventReporter)
+		removeRunProcessor := processors.NewRemoveRunProcessor(clusterContext, jobRunState)
+		jobRequester := service.NewJobRequester(
 			clusterContext,
 			eventReporter,
 			leaseRequester,
 			jobRunState,
 			clusterUtilisationService,
+			config.Kubernetes.PodDefaults)
+		clusterAllocationService = service.NewClusterAllocationService(
+			clusterContext,
+			eventReporter,
+			jobRunState,
 			submitter,
-			config.Kubernetes.PodDefaults,
 			etcdHealthMonitor)
 		podIssueService := service.NewPodIssueService(
 			clusterContext,
@@ -172,6 +179,9 @@ func StartUpWithContext(
 			pendingPodChecker,
 			config.Kubernetes.StuckTerminatingPodExpiry)
 		taskManager.Register(podIssueService.HandlePodIssues, config.Task.PodIssueHandlingInterval, "pod_issue_handling")
+		taskManager.Register(preemptRunProcessor.Run, config.Task.StateProcessorInterval, "preempt_runs")
+		taskManager.Register(removeRunProcessor.Run, config.Task.StateProcessorInterval, "remove_runs")
+		taskManager.Register(jobRequester.RequestJobsRuns, config.Task.AllocateSpareClusterCapacityInterval, "request_runs")
 	} else {
 		jobLeaseService := service.NewJobLeaseService(
 			clusterContext,
