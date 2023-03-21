@@ -1,6 +1,11 @@
 syntax = 'proto3';
 package schedulerobjects;
+import "google/protobuf/empty.proto";
 option go_package = "github.com/armadaproject/armada/internal/scheduler/schedulerobjects";
+
+message SchedulingReport {
+    string report = 1;
+}
 
 message Queue {
     string name = 1;
@@ -19,13 +24,10 @@ message JobReport {
 }
 
 service SchedulerReporting {
-    // Return the most recent report for a given queue.
-    // Returns not found if the scheduler has never considered this queue.
-    // Only a limited number of reports are stored.
+    // Return the most recent scheduling report for each executor.
+    rpc GetSchedulingReport (google.protobuf.Empty) returns (QueueReport);
+    // Return the most recent report scheduling for each executor for the given queue.
     rpc GetQueueReport (Queue) returns (QueueReport);
-    // Return the most recent scheduling report for a given job.
-    // Returns not found if the scheduler has never attempted to schedule this job.
-    // The total number of reports stored across all queues is limited, i.e.,
-    // the report for a scheduled job may have been deleted to make room for newer reports.
+    // Return the most recent scheduling report for each executor for the given job.
     rpc GetJobReport (JobId) returns (JobReport);
 }

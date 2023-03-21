@@ -7,7 +7,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/openconfig/goyang/pkg/indent"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -118,6 +117,8 @@ type QueueSchedulingContext struct {
 	Created time.Time
 	// Executor this job was attempted to be assigned to.
 	ExecutorId string
+	// Queue name.
+	Queue string
 	// These factors influence the fraction of resources assigned to each queue.
 	PriorityFactor float64
 	// Total resources assigned to the queue across all clusters.
@@ -129,8 +130,6 @@ type QueueSchedulingContext struct {
 	SuccessfulJobSchedulingContexts map[string]*JobSchedulingContext
 	// Job scheduling contexts associated with unsuccessful scheduling attempts.
 	UnsuccessfulJobSchedulingContexts map[string]*JobSchedulingContext
-	// Total number of jobs successfully scheduled in this round for this queue.
-	NumScheduledJobs int
 	// Protects the above maps.
 	mu sync.Mutex
 }
@@ -152,6 +151,20 @@ func NewQueueSchedulingContext(executorId string, priorityFactor float64, initia
 	}
 }
 
+func (qctx *QueueSchedulingContext) String() string {
+	var sb strings.Builder
+	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	fmt.Fprintf(w, "Time:\t%s\n", qctx.Created)
+	fmt.Fprintf(w, "Queue:\t%s\n", qctx.Queue)
+	fmt.Fprintf(w, "Priority factor:\t%f\n", qctx.PriorityFactor)
+	fmt.Fprintf(w, "Allocated resources after scheduling:\t%s\n", qctx.ResourcesByPriority.String())
+	fmt.Fprintf(w, "Scheduled resources:\t%s\n", qctx.ScheduledResourcesByPriority.String())
+	fmt.Fprintf(w, "Successfully scheduled jobs:\t%d\n", len(qctx.SuccessfulJobSchedulingContexts))
+	fmt.Fprintf(w, "Unsuccessful scheduling attempts:\t%d\n", len(qctx.UnsuccessfulJobSchedulingContexts))
+	w.Flush()
+	return sb.String()
+}
+
 // AddJobSchedulingContext adds a job scheduling context.
 // Automatically updates scheduled resources.
 func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContext, isEvictedJob bool) {
@@ -168,7 +181,6 @@ func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingC
 		// Since ScheduledResourcesByPriority is used to control per-round scheduling constraints.
 		if !isEvictedJob {
 			qctx.SuccessfulJobSchedulingContexts[jctx.JobId] = jctx
-			qctx.NumScheduledJobs++
 			rl := qctx.ScheduledResourcesByPriority[jctx.Req.Priority]
 			rl.Add(schedulerobjects.ResourceListFromV1ResourceList(jctx.Req.ResourceRequirements.Requests))
 			qctx.ScheduledResourcesByPriority[jctx.Req.Priority] = rl
@@ -216,23 +228,13 @@ func (jctx *JobSchedulingContext) String() string {
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	fmt.Fprintf(w, "Time:\t%s\n", jctx.Created)
 	fmt.Fprintf(w, "Job id:\t%s\n", jctx.JobId)
-	if jctx.ExecutorId != "" {
-		fmt.Fprintf(w, "Executor:\t%s\n", jctx.ExecutorId)
-	} else {
-		fmt.Fprint(w, "Executor:\tnone\n")
-	}
 	if jctx.UnschedulableReason != "" {
 		fmt.Fprintf(w, "UnschedulableReason:\t%s\n", jctx.UnschedulableReason)
 	} else {
 		fmt.Fprint(w, "UnschedulableReason:\tnone\n")
 	}
-	if len(jctx.PodSchedulingContexts) == 0 {
-		fmt.Fprint(w, "Pod scheduling reports:\tnone\n")
-	} else {
-		fmt.Fprint(w, "Pod scheduling reports:\n")
-	}
 	for _, pctx := range jctx.PodSchedulingContexts {
-		fmt.Fprint(w, indent.String("\t", pctx.String()))
+		fmt.Fprint(w, pctx.String())
 	}
 	w.Flush()
 	return sb.String()
@@ -253,6 +255,8 @@ type PodSchedulingContext struct {
 	Node *schedulerobjects.Node
 	// Score indicates how well the pod fits on the selected Node.
 	Score int
+	// Total number of nodes.
+	NumNodes int
 	// Node types on which this pod could be scheduled.
 	MatchingNodeTypes []*schedulerobjects.NodeType
 	// Number of Node types excluded by reason.
@@ -266,13 +270,11 @@ type PodSchedulingContext struct {
 func (pctx *PodSchedulingContext) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	fmt.Fprintf(w, "Time:\t%s\n", pctx.Created)
 	if pctx.Node != nil {
 		fmt.Fprintf(w, "Node:\t%s\n", pctx.Node.Id)
 	} else {
 		fmt.Fprint(w, "Node:\tnone\n")
 	}
-	fmt.Fprintf(w, "Score:\t%d\n", pctx.Score)
 	fmt.Fprintf(w, "Number of matched Node types:\t%d\n", len(pctx.MatchingNodeTypes))
 	if len(pctx.NumExcludedNodeTypesByReason) == 0 {
 		fmt.Fprint(w, "Excluded Node types:\tnone\n")
@@ -282,23 +284,28 @@ func (pctx *PodSchedulingContext) String() string {
 			fmt.Fprintf(w, "\t%d:\t%s\n", count, reason)
 		}
 	}
+	fmt.Fprintf(w, "Number of nodes in cluster:\t%d\n", pctx.NumNodes)
 	requestForDominantResourceType := pctx.Req.ResourceRequirements.Requests[v1.ResourceName(pctx.DominantResourceType)]
-	fmt.Fprint(w, "Excluded nodes:\n")
+	fmt.Fprintf(
+		w,
+		"Node filter:\tconsidering nodes with %s %s allocatable at priority %d\n",
+		requestForDominantResourceType.String(),
+		pctx.DominantResourceType,
+		pctx.Req.Priority,
+	)
 	if len(pctx.NumExcludedNodesByReason) == 0 && requestForDominantResourceType.IsZero() {
-		fmt.Fprint(w, "Number of excluded nodes:\tnone\n")
+		fmt.Fprint(w, "Excluded nodes:\tnone\n")
 	} else {
+		fmt.Fprint(w, "Excluded nodes:\n")
 		for reason, count := range pctx.NumExcludedNodesByReason {
 			fmt.Fprintf(w, "\t%d:\t%s\n", count, reason)
 		}
-		fmt.Fprintf(
-			w,
-			"\tany nodes with less than %s %s available at priority %d\n",
-			requestForDominantResourceType.String(),
-			pctx.DominantResourceType,
-			pctx.Req.Priority,
-		)
 	}
-	fmt.Fprintf(w, "Error:\t%s\n", pctx.Err)
+	if pctx.Err != nil {
+		fmt.Fprintf(w, "Error:\t%s\n", pctx.Err)
+	} else {
+		fmt.Fprintf(w, "Error:\tnone\n")
+	}
 	w.Flush()
 	return sb.String()
 }

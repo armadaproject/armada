@@ -65,8 +65,9 @@ type NodeDb struct {
 	//
 	// If not set, no labels are indexed.
 	indexedNodeLabels map[string]interface{}
-	// Total amount of resources, e.g., "cpu", "memory", "gpu", managed by the scheduler.
-	// Computed approximately by periodically scanning all nodes in the db.
+	// Total number of nodes in the db.
+	numNodes int
+	// Total amount of resources, e.g., "cpu", "memory", "gpu", across all nodes in the db.
 	totalResources schedulerobjects.ResourceList
 	// Set of node types. Populated automatically as nodes are inserted.
 	// Node types are not cleaned up if all nodes of that type are removed from the NodeDb.
@@ -318,6 +319,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		Created:                      time.Now(),
 		Req:                          req,
 		DominantResourceType:         dominantResourceType,
+		NumNodes:                     nodeDb.numNodes,
 		MatchingNodeTypes:            matchingNodeTypes,
 		NumExcludedNodeTypesByReason: numExcludedNodeTypesByReason,
 		NumExcludedNodesByReason:     make(map[string]int),
@@ -751,6 +753,7 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node)
 	// Record time of the most recent upsert and all unique node types.
 	nodeDb.mu.Lock()
 	if isNewNode {
+		nodeDb.numNodes++
 		nodeDb.totalResources.Add(node.TotalResources)
 	}
 	nodeDb.nodeTypes[nodeType.Id] = nodeType

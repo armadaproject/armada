@@ -7,29 +7,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNormaliseSchedulingContext(t *testing.T) {
+func TestExtractQueueAndJobContexts(t *testing.T) {
 	sctx := testSchedulingContext("executor", "queue", "success", "failure")
-	queueSchedulingContextByQueue, jobSchedulingContextByJobId := normaliseSchedulingContext(sctx)
+	queueSchedulingContextByQueue, jobSchedulingContextByJobId := extractQueueAndJobContexts(sctx)
 	assert.Equal(
 		t,
-		map[string]*QueueSchedulingContext{
-			"queue": nil,
-		},
-		sctx.QueueSchedulingContexts,
+		testSchedulingContext("executor", "queue", "success", "failure"),
+		sctx,
 	)
 	assert.Equal(
 		t,
-		map[string]*QueueSchedulingContext{
-			"queue": {
-				ExecutorId: "executor",
-				SuccessfulJobSchedulingContexts: map[string]*JobSchedulingContext{
-					"success": nil,
-				},
-				UnsuccessfulJobSchedulingContexts: map[string]*JobSchedulingContext{
-					"failure": nil,
-				},
-			},
-		},
+		testSchedulingContext("executor", "queue", "success", "failure").QueueSchedulingContexts,
 		queueSchedulingContextByQueue,
 	)
 	assert.Equal(
@@ -49,53 +37,6 @@ func TestNormaliseSchedulingContext(t *testing.T) {
 }
 
 func TestAddGetSchedulingContext(t *testing.T) {
-	// Create a context.
-	// Create some queue contexts.
-	// Create some job contexts.
-	// Insert
-	// Get
-	// Make sure I get the same thing back as I put in.
-
-	// sctx := NewSchedulingContext(
-	// 	"executor",
-	// 	schedulerobjects.ResourceList{
-	// 		Resources: map[string]resource.Quantity{
-	// 			"cpu": resource.MustParse("1"),
-	// 			"memory": resource.MustParse("10Mi"),
-	// 		},
-	// 	},
-	// 	nil,
-	// 	nil,
-	// )
-	// sctxFoo := &SchedulingContext{
-	// 	ExecutorId: "foo",
-	// 	QueueSchedulingContexts: map[string]*QueueSchedulingContext{
-	// 		"A": {
-	// 			ExecutorId: "foo",
-	// 			SuccessfulJobSchedulingContexts: map[string]*JobSchedulingContext{
-	// 				"myJobIdFoo": {
-	// 					ExecutorId: "foo",
-	// 					JobId:      "myJobIdFoo",
-	// 				},
-	// 			},
-	// 		},
-	// 	},
-	// }
-	// sctxBar := &SchedulingContext{
-	// 	ExecutorId: "bar",
-	// 	QueueSchedulingContexts: map[string]*QueueSchedulingContext{
-	// 		"B": {
-	// 			ExecutorId: "bar",
-	// 			SuccessfulJobSchedulingContexts: map[string]*JobSchedulingContext{
-	// 				"myJobIdBar": {
-	// 					ExecutorId: "bar",
-	// 					JobId:      "myJobIdBar",
-	// 				},
-	// 			},
-	// 		},
-	// 	},
-	// }
-
 	repo, err := NewSchedulingContextRepository(10)
 	require.NoError(t, err)
 	repo.AddSchedulingContext(testSchedulingContext("foo", "A", "successA", "failureA"))
@@ -142,16 +83,15 @@ func TestAddGetSchedulingContext(t *testing.T) {
 		actualQueueSchedulingContextByExecutor,
 	)
 
-	// schedulingContextByExecutor := repo.GetSchedulingContextByExecutor()
-
-	// fmt.Println(schedulingContextByExecutor["foo"].QueueSchedulingContexts["A"])
-	// assert.Equal(
-	// 	t,
-	// 	SchedulingContextByExecutor{
-	// 		"foo": testSchedulingContext("foo", "A", "successFooA", "failureFooA"),
-	// 	},
-	// 	schedulingContextByExecutor,
-	// )
+	actualSchedulingContextByExecutor := repo.GetSchedulingContextByExecutor()
+	assert.Equal(
+		t,
+		SchedulingContextByExecutor{
+			"foo": testSchedulingContext("foo", "A", "successA", "failureA"),
+			"bar": testSchedulingContext("bar", "B", "successB", "failureB"),
+		},
+		actualSchedulingContextByExecutor,
+	)
 }
 
 func testSchedulingContext(executorId, queue, successJobId, unsuccessfulJobId string) *SchedulingContext {
