@@ -234,6 +234,7 @@ func (jctx *JobSchedulingContext) String() string {
 		fmt.Fprint(w, "UnschedulableReason:\tnone\n")
 	}
 	for _, pctx := range jctx.PodSchedulingContexts {
+		fmt.Fprint(w, "---\n")
 		fmt.Fprint(w, pctx.String())
 	}
 	w.Flush()

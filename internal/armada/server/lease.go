@@ -547,10 +547,10 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		nodeIdByJobId = result.NodeIdByJobId
 
 		// Log and store scheduling reports.
-		if q.SchedulingReportsRepository != nil && sched.SchedulingRoundReport != nil {
-			log.Infof("Scheduling report:\n%s", sched.SchedulingRoundReport)
-			sched.SchedulingRoundReport.ClearJobSpecs()
-			q.SchedulingReportsRepository.AddSchedulingRoundReport(sched.SchedulingRoundReport)
+		if q.SchedulingReportsRepository != nil && sched.SchedulingContext != nil {
+			log.Infof("Scheduling report:\n%s", sched.SchedulingContext)
+			sched.SchedulingContext.ClearJobSpecs()
+			q.SchedulingReportsRepository.AddSchedulingRoundReport(sched.SchedulingContext)
 		}
 	}
 
