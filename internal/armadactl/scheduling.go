@@ -10,7 +10,7 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-func (a *App) GetSchedulingReport(jobId string) error {
+func (a *App) GetSchedulingReport() error {
 	return client.WithSchedulerReportingClient(a.Params.ApiConnectionDetails, func(c schedulerobjects.SchedulerReportingClient) error {
 		ctx, cancel := common.ContextWithDefaultTimeout()
 		defer cancel()
