@@ -607,7 +607,6 @@ func (sch *Rescheduler) schedule(ctx context.Context, inMemoryJobRepo *InMemoryJ
 	if len(schedulerResult.PreemptedJobs) != 0 {
 		return nil, errors.New("unexpected preemptions during scheduling")
 	}
-	sched.SchedulingContext.ClearJobSpecs()
 	sch.allocatedByQueueAndPriority = schedulerResult.AllocatedByQueueAndPriority
 	if err := sch.updateGangAccounting(nil, schedulerResult.ScheduledJobs); err != nil {
 		return nil, err

@@ -25,7 +25,7 @@ message JobReport {
 
 service SchedulerReporting {
     // Return the most recent scheduling report for each executor.
-    rpc GetSchedulingReport (google.protobuf.Empty) returns (QueueReport);
+    rpc GetSchedulingReport (google.protobuf.Empty) returns (SchedulingReport);
     // Return the most recent report scheduling for each executor for the given queue.
     rpc GetQueueReport (Queue) returns (QueueReport);
     // Return the most recent scheduling report for each executor for the given job.

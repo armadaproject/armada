@@ -272,11 +272,12 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		config.Pulsar.MaxAllowedMessageSize,
 		legacyExecutorRepo,
 	)
-	if config.Scheduling.MaxQueueReportsToStore > 0 || config.Scheduling.MaxJobReportsToStore > 0 {
-		aggregatedQueueServer.SchedulingReportsRepository = scheduler.NewSchedulingReportsRepository(
-			config.Scheduling.MaxQueueReportsToStore,
-			config.Scheduling.MaxJobReportsToStore,
-		)
+	if schedulingContextRepository, err := scheduler.NewSchedulingContextRepository(
+		config.Scheduling.MaxJobSchedulingContextsToStore,
+	); err != nil {
+		return err
+	} else {
+		aggregatedQueueServer.SchedulingContextRepository = schedulingContextRepository
 	}
 
 	eventServer := server.NewEventServer(
@@ -299,10 +300,10 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
 	api.RegisterUsageServer(grpcServer, usageServer)
 	api.RegisterEventServer(grpcServer, eventServer)
-	if aggregatedQueueServer.SchedulingReportsRepository != nil {
+	if aggregatedQueueServer.SchedulingContextRepository != nil {
 		schedulerobjects.RegisterSchedulerReportingServer(
 			grpcServer,
-			aggregatedQueueServer.SchedulingReportsRepository,
+			aggregatedQueueServer.SchedulingContextRepository,
 		)
 	}
 

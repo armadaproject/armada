@@ -54,7 +54,7 @@ type AggregatedQueueServer struct {
 	decompressorPool         *pool.ObjectPool
 	clock                    clock.Clock
 	// For storing reports of scheduling attempts.
-	SchedulingReportsRepository *scheduler.SchedulingContextRepository
+	SchedulingContextRepository *scheduler.SchedulingContextRepository
 	// Stores the most recent NodeDb for each executor.
 	// Used to check if a job could ever be scheduled at job submit time.
 	SubmitChecker *scheduler.SubmitChecker
@@ -488,7 +488,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			nodeIdByJobId,
 			jobIdsByGangId,
 			gangIdByJobId,
-			q.SchedulingReportsRepository,
 		)
 		if q.schedulingConfig.EnableAssertions {
 			rescheduler.EnableAssertions()
@@ -500,6 +499,12 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		preemptedJobs = result.PreemptedJobs
 		scheduledJobs = result.ScheduledJobs
 		nodeIdByJobId = result.NodeIdByJobId
+
+		// Store the scheduling context for querying.
+		if q.SchedulingContextRepository != nil && result.SchedulingContext != nil {
+			result.SchedulingContext.ClearJobSpecs()
+			q.SchedulingContextRepository.AddSchedulingContext(result.SchedulingContext)
+		}
 	} else {
 		schedulerQueues := make([]*scheduler.Queue, len(activeQueues))
 		for i, apiQueue := range activeQueues {
@@ -546,11 +551,10 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		scheduledJobs = result.ScheduledJobs
 		nodeIdByJobId = result.NodeIdByJobId
 
-		// Log and store scheduling reports.
-		if q.SchedulingReportsRepository != nil && sched.SchedulingContext != nil {
-			log.Infof("Scheduling report:\n%s", sched.SchedulingContext)
-			sched.SchedulingContext.ClearJobSpecs()
-			q.SchedulingReportsRepository.AddSchedulingRoundReport(sched.SchedulingContext)
+		// Store the scheduling context for querying.
+		if q.SchedulingContextRepository != nil && result.SchedulingContext != nil {
+			result.SchedulingContext.ClearJobSpecs()
+			q.SchedulingContextRepository.AddSchedulingContext(result.SchedulingContext)
 		}
 	}
 

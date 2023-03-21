@@ -7,6 +7,7 @@ import (
 	"sync"
 	"text/tabwriter"
 
+	"github.com/gogo/protobuf/types"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/openconfig/goyang/pkg/indent"
 	"golang.org/x/exp/maps"
@@ -85,7 +86,7 @@ func extractQueueAndJobContexts(sctx *SchedulingContext) (map[string]*QueueSched
 	return queueSchedulingContextByQueue, jobSchedulingContextByJobId
 }
 
-func (repo *SchedulingContextRepository) GetSchedulingReport(ctx context.Context) (*schedulerobjects.SchedulingReport, error) {
+func (repo *SchedulingContextRepository) GetSchedulingReport(_ context.Context, _ *types.Empty) (*schedulerobjects.SchedulingReport, error) {
 	schedulingContextByExecutor := repo.GetSchedulingContextByExecutor()
 	if schedulingContextByExecutor == nil {
 		return &schedulerobjects.SchedulingReport{
@@ -97,7 +98,7 @@ func (repo *SchedulingContextRepository) GetSchedulingReport(ctx context.Context
 	}, nil
 }
 
-func (repo *SchedulingContextRepository) GetQueueReport(ctx context.Context, queue *schedulerobjects.Queue) (*schedulerobjects.QueueReport, error) {
+func (repo *SchedulingContextRepository) GetQueueReport(_ context.Context, queue *schedulerobjects.Queue) (*schedulerobjects.QueueReport, error) {
 	queueSchedulingContextByExecutor, ok := repo.GetQueueSchedulingContextByExecutor(queue.Name)
 	if queueSchedulingContextByExecutor == nil || !ok {
 		return &schedulerobjects.QueueReport{
@@ -109,7 +110,7 @@ func (repo *SchedulingContextRepository) GetQueueReport(ctx context.Context, que
 	}, nil
 }
 
-func (repo *SchedulingContextRepository) GetJobReport(ctx context.Context, jobId *schedulerobjects.JobId) (*schedulerobjects.JobReport, error) {
+func (repo *SchedulingContextRepository) GetJobReport(_ context.Context, jobId *schedulerobjects.JobId) (*schedulerobjects.JobReport, error) {
 	jobSchedulingContextByExecutor, ok := repo.GetJobSchedulingContextByExecutor(jobId.Id)
 	if jobSchedulingContextByExecutor == nil || !ok {
 		return &schedulerobjects.JobReport{
