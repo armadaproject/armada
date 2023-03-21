@@ -21,6 +21,7 @@ import { IGetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
 
 import "./App.css"
+import { ILogService } from "./services/lookoutV2/LogService"
 
 // Required for Mui V4 and V5 to be compatible with each other
 // See https://mui.com/x/react-data-grid/migration-v4/#using-mui-core-v4-with-v5
@@ -67,6 +68,7 @@ type AppProps = {
   v2GroupJobsService: IGroupJobsService
   v2RunErrorService: IGetRunErrorService
   v2JobSpecService: IGetJobSpecService
+  v2LogService: ILogService
   v2UpdateJobsService: UpdateJobsService
   logService: LogService
   overviewAutoRefreshMs: number
@@ -106,6 +108,7 @@ export function App(props: AppProps) {
                         updateJobsService={props.v2UpdateJobsService}
                         runErrorService={props.v2RunErrorService}
                         jobSpecService={props.v2JobSpecService}
+                        logService={props.v2LogService}
                         debug={props.debugEnabled}
                       />
                     </Route>

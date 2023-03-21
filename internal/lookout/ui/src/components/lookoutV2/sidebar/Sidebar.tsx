@@ -6,10 +6,12 @@ import { Job } from "models/lookoutV2Models"
 
 import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "../../../services/lookoutV2/GetRunErrorService"
+import { ILogService } from "../../../services/lookoutV2/LogService"
 import styles from "./Sidebar.module.css"
 import { SidebarHeader } from "./SidebarHeader"
 import { SidebarTabJobDetails } from "./SidebarTabJobDetails"
-import { SidebarTabJobRuns } from "./SidebarTabJobRuns"
+import { SidebarTabJobLogs } from "./SidebarTabJobLogs"
+import { SidebarTabJobRuns, SidebarTabJobRunsProps } from "./SidebarTabJobRuns"
 import { SidebarTabJobYaml } from "./SidebarTabJobYaml"
 
 enum SidebarTab {
@@ -29,13 +31,14 @@ export interface SidebarProps {
   job: Job
   runErrorService: IGetRunErrorService
   jobSpecService: IGetJobSpecService
+  logService: ILogService
   sidebarWidth: number
   onClose: () => void
   onWidthChange: (width: number) => void
 }
 
 export const Sidebar = memo(
-  ({ job, runErrorService, jobSpecService, sidebarWidth, onClose, onWidthChange }: SidebarProps) => {
+  ({ job, runErrorService, jobSpecService, logService, sidebarWidth, onClose, onWidthChange }: SidebarProps) => {
     const [openTab, setOpenTab] = useState<SidebarTab>(SidebarTab.JobDetails)
 
     const handleTabChange = useCallback((_, newValue: SidebarTab) => {
@@ -166,7 +169,7 @@ export const Sidebar = memo(
                 <Tab label="Details" value={SidebarTab.JobDetails} sx={{ minWidth: "50px" }}></Tab>
                 <Tab label="Runs" value={SidebarTab.JobRuns} sx={{ minWidth: "50px" }}></Tab>
                 <Tab label="Yaml" value={SidebarTab.Yaml} sx={{ minWidth: "50px" }}></Tab>
-                <Tab label="Logs" value={SidebarTab.Logs} disabled sx={{ minWidth: "50px" }}></Tab>
+                <Tab label="Logs" value={SidebarTab.Logs} sx={{ minWidth: "50px" }}></Tab>
               </Tabs>
 
               <TabPanel value={SidebarTab.JobDetails}>
@@ -181,7 +184,9 @@ export const Sidebar = memo(
                 <SidebarTabJobYaml job={job} jobSpecService={jobSpecService} />
               </TabPanel>
 
-              <TabPanel value={SidebarTab.Logs}>TODO</TabPanel>
+              <TabPanel value={SidebarTab.Logs} style={{ height: "100%" }}>
+                <SidebarTabJobLogs job={job} jobSpecService={jobSpecService} logService={logService} />
+              </TabPanel>
             </TabContext>
           </Box>
         </div>

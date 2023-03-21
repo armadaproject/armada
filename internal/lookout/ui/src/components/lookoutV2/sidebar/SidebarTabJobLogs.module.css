@@ -3,34 +3,27 @@
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  margin-bottom: 0.5em;
+  margin: 0.5em 0 0.5em 0;
 }
 
-.jobYaml {
+.logView {
   width: 100%;
   white-space: pre-wrap;
   font-family: monospace;
   word-wrap: break-word;
+  margin-top: 5px;
   background-color: #f5f5f5;
   padding: 5px;
   border-radius: 5px;
   position: relative;
+  overflow-y: auto;
 }
 
-.jobYamlActions {
-  padding: 5px;
-  position: absolute;
-  top: 0;
-  right: 0;
+.logView * {
+  overflow-anchor: none;
 }
 
-@media (hover: hover) {
-  .jobYamlActions {
-    opacity: 0;
-    transition: opacity 300ms ease-in-out;
-  }
-
-  *:hover > .jobYamlActions {
-    opacity: 1;
-  }
+.anchor {
+  overflow-anchor: auto;
+  height: 20px;
 }

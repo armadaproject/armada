@@ -71,6 +71,7 @@ import "./index.css"
       v2UpdateJobsService={v2UpdateJobsService}
       v2RunErrorService={v2RunErrorService}
       v2JobSpecService={v2JobSpecService}
+      v2LogService={v2LogService}
       logService={logService}
       overviewAutoRefreshMs={uiConfig.overviewAutoRefreshMs}
       jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}

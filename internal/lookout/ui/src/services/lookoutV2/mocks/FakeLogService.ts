@@ -17,7 +17,7 @@ export class FakeLogService implements ILogService {
       await simulateApiWait(signal)
     }
 
-    const nLines = tailLines ?? 100
+    const nLines = tailLines ?? 10
     const log: LogLine[] = []
     for (let i = 0; i < nLines; i++) {
       log.push({
