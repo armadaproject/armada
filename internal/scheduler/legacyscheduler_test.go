@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -207,7 +206,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			it := &QueueCandidateGangIterator{
 				ctx:                        ctx,
 				SchedulingConstraints:      tc.SchedulingConstraints,
-				QueueSchedulingRoundReport: NewQueueSchedulingRoundReport(0, tc.InitialUsageByPriority),
+				QueueSchedulingRoundReport: NewQueueSchedulingContext("executor", 0, tc.InitialUsageByPriority),
 				queuedGangIterator:         queuedGangIterator,
 			}
 
@@ -219,7 +218,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 				}
 				for _, report := range reports {
 					if tc.LeaseJobs {
-						it.QueueSchedulingRoundReport.AddJobSchedulingReport(report, false)
+						it.QueueSchedulingRoundReport.AddJobSchedulingContext(report, false)
 					}
 					actual = append(actual, report.Job.(*api.Job))
 					actualIndices = append(actualIndices, indexByJobId[report.Job.GetId()])
@@ -1029,7 +1028,7 @@ func TestSchedule(t *testing.T) {
 
 				// Check that scheduled resources is set correctly.
 				for queue, expected := range usageByQueueAndPriority(result.ScheduledJobs, tc.SchedulingConfig.Preemption.PriorityClasses) {
-					queueSchedulingRoundReport, ok := schedulingRoundReport.QueueSchedulingRoundReports[queue]
+					queueSchedulingRoundReport, ok := schedulingRoundReport.QueueSchedulingContexts[queue]
 					require.NotNil(t, queueSchedulingRoundReport)
 					require.True(t, ok)
 
@@ -1047,18 +1046,14 @@ func TestSchedule(t *testing.T) {
 				assert.Equal(
 					t,
 					len(tc.PriorityFactorByQueue),
-					len(sched.SchedulingRoundReport.QueueSchedulingRoundReports),
+					len(sched.SchedulingRoundReport.QueueSchedulingContexts),
 				)
-				leasedJobIds := make(map[uuid.UUID]interface{})
+				leasedJobIds := make(map[string]interface{})
 				for _, job := range result.ScheduledJobs {
-					jobId, err := uuidFromUlidString(job.GetId())
-					if !assert.NoError(t, err) {
-						return
-					}
-					leasedJobIds[jobId] = true
+					leasedJobIds[job.GetId()] = true
 				}
 				for queue, jobs := range jobRepository.jobsByQueue {
-					queueSchedulingRoundReport, ok := schedulingRoundReport.QueueSchedulingRoundReports[queue]
+					queueSchedulingRoundReport, ok := schedulingRoundReport.QueueSchedulingContexts[queue]
 					if !assert.NotNil(t, queueSchedulingRoundReport) {
 						continue
 					}
@@ -1070,23 +1065,19 @@ func TestSchedule(t *testing.T) {
 						if i >= int(tc.SchedulingConfig.QueueLeaseBatchSize) {
 							break
 						}
-						jobId, err := uuidFromUlidString(job.Id)
-						if !assert.NoError(t, err) {
-							return
-						}
 
-						_, isLeased := leasedJobIds[jobId]
-						var jobReports map[uuid.UUID]*JobSchedulingReport
+						_, isLeased := leasedJobIds[job.GetId()]
+						var jobReports map[string]*JobSchedulingContext
 						if isLeased {
-							jobReports = queueSchedulingRoundReport.SuccessfulJobSchedulingReports
+							jobReports = queueSchedulingRoundReport.SuccessfulJobSchedulingContexts
 						} else {
-							jobReports = queueSchedulingRoundReport.UnsuccessfulJobSchedulingReports
+							jobReports = queueSchedulingRoundReport.UnsuccessfulJobSchedulingContexts
 						}
 						if !assert.NotNil(t, jobReports) {
 							continue
 						}
 
-						jobReport, ok := jobReports[jobId]
+						jobReport, ok := jobReports[job.GetId()]
 						if !assert.True(t, ok, "missing report for job; leased: %v", isLeased) {
 							continue
 						}

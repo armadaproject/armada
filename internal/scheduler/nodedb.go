@@ -223,7 +223,7 @@ func NodeJobDiff(txnA, txnB *memdb.Txn) (map[string]*schedulerobjects.Node, map[
 // The assignment is atomic, i.e., either all pods are successfully assigned to nodes or none are.
 // The returned bool indicates whether assignment succeeded or not.
 // TODO: Pass through contexts to support timeouts.
-func (nodeDb *NodeDb) ScheduleMany(reqs []*schedulerobjects.PodRequirements) ([]*PodSchedulingReport, bool, error) {
+func (nodeDb *NodeDb) ScheduleMany(reqs []*schedulerobjects.PodRequirements) ([]*PodSchedulingContext, bool, error) {
 	txn := nodeDb.db.Txn(true)
 	defer txn.Abort()
 	reports, ok, err := nodeDb.ScheduleManyWithTxn(txn, reqs)
@@ -234,9 +234,9 @@ func (nodeDb *NodeDb) ScheduleMany(reqs []*schedulerobjects.PodRequirements) ([]
 	return reports, ok, err
 }
 
-func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, reqs []*schedulerobjects.PodRequirements) ([]*PodSchedulingReport, bool, error) {
+func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, reqs []*schedulerobjects.PodRequirements) ([]*PodSchedulingContext, bool, error) {
 	// Attempt to schedule pods one by one in a transaction.
-	reports := make([]*PodSchedulingReport, 0, len(reqs))
+	reports := make([]*PodSchedulingContext, 0, len(reqs))
 	for _, req := range reqs {
 		report, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
 		if err != nil {
@@ -264,7 +264,7 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, reqs []*schedulerobjec
 	return reports, true, nil
 }
 
-func (nodeDb *NodeDb) SelectAndBindNodeToPod(req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
+func (nodeDb *NodeDb) SelectAndBindNodeToPod(req *schedulerobjects.PodRequirements) (*PodSchedulingContext, error) {
 	txn := nodeDb.db.Txn(true)
 	defer txn.Abort()
 	report, err := nodeDb.SelectAndBindNodeToPodWithTxn(txn, req)
@@ -275,7 +275,7 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(req *schedulerobjects.PodRequiremen
 	return report, nil
 }
 
-func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
+func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*PodSchedulingContext, error) {
 	report, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
 	if err != nil {
 		return nil, err
@@ -293,12 +293,12 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, req *schedul
 	return report, nil
 }
 
-func (nodeDb *NodeDb) SelectNodeForPod(req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
+func (nodeDb *NodeDb) SelectNodeForPod(req *schedulerobjects.PodRequirements) (*PodSchedulingContext, error) {
 	return nodeDb.SelectNodeForPodWithTxn(nodeDb.db.Txn(false), req)
 }
 
 // SelectNodeForPodWithTxn selects a node on which the pod can be scheduled.
-func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*PodSchedulingReport, error) {
+func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*PodSchedulingContext, error) {
 	// Collect all node types that could potentially schedule the pod.
 	matchingNodeTypes, numExcludedNodeTypesByReason, err := nodeDb.NodeTypesMatchingPod(req)
 	if err != nil {
@@ -314,8 +314,8 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	}
 
 	// Create a report to be returned to the caller.
-	report := &PodSchedulingReport{
-		Timestamp:                    time.Now(),
+	report := &PodSchedulingContext{
+		Created:                      time.Now(),
 		Req:                          req,
 		DominantResourceType:         dominantResourceType,
 		MatchingNodeTypes:            matchingNodeTypes,
@@ -366,7 +366,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 
 func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	txn *memdb.Txn,
-	report *PodSchedulingReport,
+	report *PodSchedulingContext,
 	priority int32,
 	req *schedulerobjects.PodRequirements,
 ) (*schedulerobjects.Node, error) {
@@ -429,7 +429,7 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 }
 
 func (nodeDb *NodeDb) selectNodeForPodWithIt(
-	report *PodSchedulingReport,
+	report *PodSchedulingContext,
 	it memdb.ResultIterator,
 	priority int32,
 	req *schedulerobjects.PodRequirements,
