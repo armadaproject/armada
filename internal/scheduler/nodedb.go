@@ -319,7 +319,6 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		Created:                      time.Now(),
 		Req:                          req,
 		DominantResourceType:         dominantResourceType,
-		NumNodes:                     nodeDb.numNodes,
 		MatchingNodeTypes:            matchingNodeTypes,
 		NumExcludedNodeTypesByReason: numExcludedNodeTypesByReason,
 		NumExcludedNodesByReason:     make(map[string]int),

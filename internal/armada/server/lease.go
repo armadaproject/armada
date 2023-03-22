@@ -503,7 +503,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		// Store the scheduling context for querying.
 		if q.SchedulingContextRepository != nil && result.SchedulingContext != nil {
 			result.SchedulingContext.ClearJobSpecs()
-			q.SchedulingContextRepository.AddSchedulingContext(result.SchedulingContext)
+			if err := q.SchedulingContextRepository.AddSchedulingContext(result.SchedulingContext); err != nil {
+				logging.WithStacktrace(log, err).Error("failed to store scheduling context")
+			}
 		}
 	} else {
 		schedulerQueues := make([]*scheduler.Queue, len(activeQueues))
@@ -554,7 +556,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		// Store the scheduling context for querying.
 		if q.SchedulingContextRepository != nil && result.SchedulingContext != nil {
 			result.SchedulingContext.ClearJobSpecs()
-			q.SchedulingContextRepository.AddSchedulingContext(result.SchedulingContext)
+			if err := q.SchedulingContextRepository.AddSchedulingContext(result.SchedulingContext); err != nil {
+				logging.WithStacktrace(log, err).Error("failed to store scheduling context")
+			}
 		}
 	}
 

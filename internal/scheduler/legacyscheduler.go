@@ -782,7 +782,12 @@ func JobsSummary(jobs []LegacySchedulerJob) string {
 	return fmt.Sprintf(
 		"affected queues %v; resources %v; jobs %v",
 		maps.Keys(evictedJobsByQueue),
-		resourcesByQueue,
+		armadamaps.MapValues(
+			resourcesByQueue,
+			func(rl schedulerobjects.ResourceList) string {
+				return rl.CompactString()
+			},
+		),
 		jobIdsByQueue,
 	)
 }
@@ -1169,6 +1174,7 @@ func (sch *LegacyScheduler) Schedule(ctx context.Context) (*SchedulerResult, err
 		jobs := make([]LegacySchedulerJob, len(jctxs))
 		for i, jctx := range jctxs {
 			jobs[i] = jctx.Job
+			jctx.NumNodes = sch.nodeDb.numNodes
 		}
 		reqs := PodRequirementsFromLegacySchedulerJobs(jobs, sch.PriorityClasses)
 		pctxs, ok, err := sch.nodeDb.ScheduleMany(reqs)
@@ -1480,10 +1486,10 @@ func (it *QueueCandidateGangIterator) jobSchedulingContextsFromJobs(ctx context.
 		req := PodRequirementFromJobSchedulingInfo(job.GetRequirements(it.PriorityClasses))
 		jctxs[i] = &JobSchedulingContext{
 			Created:    timestamp,
+			ExecutorId: it.ExecutorId,
 			JobId:      job.GetId(),
 			Job:        job,
 			Req:        req,
-			ExecutorId: it.ExecutorId,
 		}
 	}
 

@@ -66,7 +66,7 @@ scheduling:
     memory: 1.0
     cpu: 1.0
   maximumJobsToSchedule: 5000
-  maxJobSchedulingContextsToStore: 10000
+  maxJobSchedulingContextsPerExecutor: 10000
   lease:
     expireAfter: 15m
     expiryLoopInterval: 5s

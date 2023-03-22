@@ -7,8 +7,10 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -43,6 +45,7 @@ func NewSchedulingContext(
 	queueSchedulingContexts := make(map[string]*QueueSchedulingContext)
 	for queue := range priorityFactorByQueue {
 		queueSchedulingContexts[queue] = NewQueueSchedulingContext(
+			queue,
 			executorId,
 			priorityFactorByQueue[queue],
 			initialResourcesByQueueAndPriority[queue],
@@ -50,6 +53,7 @@ func NewSchedulingContext(
 	}
 	return &SchedulingContext{
 		Started:                      time.Now(),
+		ExecutorId:                   executorId,
 		QueueSchedulingContexts:      queueSchedulingContexts,
 		TotalResources:               totalResources.DeepCopy(),
 		ScheduledResourcesByPriority: make(schedulerobjects.QuantityByPriorityAndResourceType),
@@ -63,10 +67,9 @@ func (sctx *SchedulingContext) String() string {
 	fmt.Fprintf(w, "Finished:\t%s\n", sctx.Finished)
 	fmt.Fprintf(w, "Duration:\t%s\n", sctx.Finished.Sub(sctx.Started))
 	fmt.Fprintf(w, "Total capacity:\t%s\n", sctx.TotalResources.CompactString())
-	totalJobsScheduled := 0
-	totalResourcesScheduled := make(schedulerobjects.QuantityByPriorityAndResourceType)
-	fmt.Fprintf(w, "Total jobs scheduled:\t%d\n", totalJobsScheduled)
-	fmt.Fprintf(w, "Total resources scheduled:\t%s\n", totalResourcesScheduled)
+	fmt.Fprintf(w, "Jobs scheduled:\t%d\n", sctx.NumScheduledJobs)
+	fmt.Fprintf(w, "Total resources scheduled:\t%s\n", sctx.ScheduledResourcesByPriority.AggregateByResource().CompactString())
+	fmt.Fprintf(w, "Total resources scheduled (by priority):\t%s\n", sctx.ScheduledResourcesByPriority.String())
 	fmt.Fprintf(w, "Termination reason:\t%s\n", sctx.TerminationReason)
 	w.Flush()
 	return sb.String()
@@ -134,7 +137,7 @@ type QueueSchedulingContext struct {
 	mu sync.Mutex
 }
 
-func NewQueueSchedulingContext(executorId string, priorityFactor float64, initialResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType) *QueueSchedulingContext {
+func NewQueueSchedulingContext(queue, executorId string, priorityFactor float64, initialResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType) *QueueSchedulingContext {
 	if initialResourcesByPriority == nil {
 		initialResourcesByPriority = make(schedulerobjects.QuantityByPriorityAndResourceType)
 	} else {
@@ -142,6 +145,7 @@ func NewQueueSchedulingContext(executorId string, priorityFactor float64, initia
 	}
 	return &QueueSchedulingContext{
 		Created:                           time.Now(),
+		Queue:                             queue,
 		ExecutorId:                        executorId,
 		PriorityFactor:                    priorityFactor,
 		ResourcesByPriority:               initialResourcesByPriority,
@@ -151,16 +155,54 @@ func NewQueueSchedulingContext(executorId string, priorityFactor float64, initia
 	}
 }
 
+const maxPrintedJobIdsByReason = 1
+
 func (qctx *QueueSchedulingContext) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	fmt.Fprintf(w, "Time:\t%s\n", qctx.Created)
 	fmt.Fprintf(w, "Queue:\t%s\n", qctx.Queue)
-	fmt.Fprintf(w, "Priority factor:\t%f\n", qctx.PriorityFactor)
-	fmt.Fprintf(w, "Allocated resources after scheduling:\t%s\n", qctx.ResourcesByPriority.String())
-	fmt.Fprintf(w, "Scheduled resources:\t%s\n", qctx.ScheduledResourcesByPriority.String())
-	fmt.Fprintf(w, "Successfully scheduled jobs:\t%d\n", len(qctx.SuccessfulJobSchedulingContexts))
-	fmt.Fprintf(w, "Unsuccessful scheduling attempts:\t%d\n", len(qctx.UnsuccessfulJobSchedulingContexts))
+	fmt.Fprintf(w, "Total allocated resources after scheduling:\t%s\n", qctx.ResourcesByPriority.AggregateByResource().CompactString())
+	fmt.Fprintf(w, "Total allocated resources after scheduling (by priority):\t%s\n", qctx.ResourcesByPriority.String())
+	fmt.Fprintf(w, "Scheduled resources:\t%s\n", qctx.ScheduledResourcesByPriority.AggregateByResource().CompactString())
+	fmt.Fprintf(w, "Scheduled resources (by priority):\t%s\n", qctx.ScheduledResourcesByPriority.String())
+	fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", len(qctx.SuccessfulJobSchedulingContexts))
+	fmt.Fprintf(w, "Number of jobs that could not be scheduled:\t%d\n", len(qctx.UnsuccessfulJobSchedulingContexts))
+	if len(qctx.SuccessfulJobSchedulingContexts) > 0 {
+		jobIdsToPrint := maps.Keys(qctx.SuccessfulJobSchedulingContexts)
+		if len(jobIdsToPrint) > maxPrintedJobIdsByReason {
+			jobIdsToPrint = jobIdsToPrint[0:maxPrintedJobIdsByReason]
+		}
+		fmt.Fprintf(w, "Scheduled jobs:\t%v", jobIdsToPrint)
+		if len(jobIdsToPrint) != len(qctx.SuccessfulJobSchedulingContexts) {
+			fmt.Fprintf(w, " (and %d others not shown)\n", len(qctx.SuccessfulJobSchedulingContexts)-len(jobIdsToPrint))
+		} else {
+			fmt.Fprint(w, "\n")
+		}
+	}
+	if len(qctx.UnsuccessfulJobSchedulingContexts) > 0 {
+		fmt.Fprint(w, "Unschedulable jobs:\n")
+		for reason, jobIds := range armadaslices.MapAndGroupByFuncs(
+			maps.Values(qctx.UnsuccessfulJobSchedulingContexts),
+			func(jctx *JobSchedulingContext) string {
+				return jctx.UnschedulableReason
+			},
+			func(jctx *JobSchedulingContext) string {
+				return jctx.JobId
+			},
+		) {
+			jobIdsToPrint := jobIds
+			if len(jobIdsToPrint) > maxPrintedJobIdsByReason {
+				jobIdsToPrint = jobIds[0:maxPrintedJobIdsByReason]
+			}
+			fmt.Fprintf(w, "\t%d:\t%s jobs\t%v", len(qctx.UnsuccessfulJobSchedulingContexts), reason, jobIdsToPrint)
+			if len(jobIdsToPrint) != len(jobIds) {
+				fmt.Fprintf(w, " (and %d others not shown)\n", len(jobIds)-len(jobIdsToPrint))
+			} else {
+				fmt.Fprint(w, "\n")
+			}
+		}
+	}
 	w.Flush()
 	return sb.String()
 }
@@ -209,6 +251,8 @@ type JobSchedulingContext struct {
 	Created time.Time
 	// Executor this job was attempted to be assigned to.
 	ExecutorId string
+	// Total number of nodes in the cluster when trying to schedule.
+	NumNodes int
 	// Id of the job this pod corresponds to.
 	JobId string
 	// Job spec.
@@ -228,6 +272,7 @@ func (jctx *JobSchedulingContext) String() string {
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	fmt.Fprintf(w, "Time:\t%s\n", jctx.Created)
 	fmt.Fprintf(w, "Job id:\t%s\n", jctx.JobId)
+	fmt.Fprintf(w, "Number of nodes in cluster:\t%d\n", jctx.NumNodes)
 	if jctx.UnschedulableReason != "" {
 		fmt.Fprintf(w, "UnschedulableReason:\t%s\n", jctx.UnschedulableReason)
 	} else {
@@ -256,8 +301,6 @@ type PodSchedulingContext struct {
 	Node *schedulerobjects.Node
 	// Score indicates how well the pod fits on the selected Node.
 	Score int
-	// Total number of nodes.
-	NumNodes int
 	// Node types on which this pod could be scheduled.
 	MatchingNodeTypes []*schedulerobjects.NodeType
 	// Number of Node types excluded by reason.
@@ -272,20 +315,19 @@ func (pctx *PodSchedulingContext) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	if pctx.Node != nil {
-		fmt.Fprintf(w, "Node:\t%s\n", pctx.Node.Id)
+		fmt.Fprintf(w, "Assigned node:\t%s\n", pctx.Node.Id)
 	} else {
-		fmt.Fprint(w, "Node:\tnone\n")
+		fmt.Fprint(w, "Assigned node:\tnone\n")
 	}
-	fmt.Fprintf(w, "Number of matched Node types:\t%d\n", len(pctx.MatchingNodeTypes))
+	fmt.Fprintf(w, "Number of matched node types:\t%d\n", len(pctx.MatchingNodeTypes))
 	if len(pctx.NumExcludedNodeTypesByReason) == 0 {
-		fmt.Fprint(w, "Excluded Node types:\tnone\n")
+		fmt.Fprint(w, "Excluded node types:\tnone\n")
 	} else {
-		fmt.Fprint(w, "Excluded Node types:\n")
+		fmt.Fprint(w, "Excluded node types:\n")
 		for reason, count := range pctx.NumExcludedNodeTypesByReason {
 			fmt.Fprintf(w, "\t%d:\t%s\n", count, reason)
 		}
 	}
-	fmt.Fprintf(w, "Number of nodes in cluster:\t%d\n", pctx.NumNodes)
 	requestForDominantResourceType := pctx.Req.ResourceRequirements.Requests[v1.ResourceName(pctx.DominantResourceType)]
 	fmt.Fprintf(
 		w,
@@ -304,8 +346,6 @@ func (pctx *PodSchedulingContext) String() string {
 	}
 	if pctx.Err != nil {
 		fmt.Fprintf(w, "Error:\t%s\n", pctx.Err)
-	} else {
-		fmt.Fprintf(w, "Error:\tnone\n")
 	}
 	w.Flush()
 	return sb.String()

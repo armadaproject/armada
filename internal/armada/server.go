@@ -273,7 +273,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		legacyExecutorRepo,
 	)
 	if schedulingContextRepository, err := scheduler.NewSchedulingContextRepository(
-		config.Scheduling.MaxJobSchedulingContextsToStore,
+		config.Scheduling.MaxJobSchedulingContextsPerExecutor,
 	); err != nil {
 		return err
 	} else {

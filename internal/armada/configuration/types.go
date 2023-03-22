@@ -105,9 +105,9 @@ type SchedulingConfig struct {
 	// Armada stores contexts associated with recent job scheduling attempts.
 	// This setting limits the number of such contexts to store.
 	// Contexts associated with the most recent scheduling attempt for each queue and cluster are always stored.
-	MaxJobSchedulingContextsToStore uint
-	Lease                           LeaseSettings
-	DefaultJobLimits                armadaresource.ComputeResources
+	MaxJobSchedulingContextsPerExecutor uint
+	Lease                               LeaseSettings
+	DefaultJobLimits                    armadaresource.ComputeResources
 	// Set of tolerations added to all submitted pods.
 	DefaultJobTolerations []v1.Toleration
 	// Set of tolerations added to all submitted pods of a given priority class.

@@ -206,7 +206,7 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 			it := &QueueCandidateGangIterator{
 				ctx:                     ctx,
 				SchedulingConstraints:   tc.SchedulingConstraints,
-				QueueSchedulingContexts: NewQueueSchedulingContext("executor", 0, tc.InitialUsageByPriority),
+				QueueSchedulingContexts: NewQueueSchedulingContext("A", "executor", 0, tc.InitialUsageByPriority),
 				queuedGangIterator:      queuedGangIterator,
 			}
 

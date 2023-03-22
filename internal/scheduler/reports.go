@@ -10,63 +10,146 @@ import (
 	"github.com/gogo/protobuf/types"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/openconfig/goyang/pkg/indent"
+	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // SchedulingContextRepository stores scheduling contexts associated with recent scheduling attempts.
+//
+// TODO: Add async way to add reports.
 type SchedulingContextRepository struct {
 	// Maps executor id to *SchedulingContext.
-	schedulingContextByExecutor SchedulingContextByExecutor
+	// The most recent attempt.
+	mostRecentSchedulingContextByExecutor SchedulingContextByExecutor
+	// The most recent attempt where a non-zero amount of resources where scheduled.
+	mostRecentSuccessfulSchedulingContextByExecutor SchedulingContextByExecutor
 	// Maps queue name to QueueSchedulingContextByExecutor.
-	queueSchedulingContextByExecutorByQueue map[string]QueueSchedulingContextByExecutor
+	// The most recent attempt.
+	mostRecentQueueSchedulingContextByExecutorByQueue map[string]QueueSchedulingContextByExecutor
+	// The most recent attempt where a non-zero amount of resources where scheduled.
+	mostRecentSuccessfulQueueSchedulingContextByExecutorByQueue map[string]QueueSchedulingContextByExecutor
 	// Maps job id to JobSchedulingContextByExecutor.
 	// We limit the number of job contexts to store to control memory usage.
 	jobSchedulingContextByExecutorByJobId *lru.Cache
+	// Store all executor ids seen so far in a set.
+	// Used to ensure all executors are included in reports.
+	executorIds map[string]bool
+	// All executors in sorted order.
+	sortedExecutorIds []string
 	// Protects the fields in this struct from writing concurrent with reading.
 	// (Concurrent reading from maps is safe if there are no concurrent writes.)
 	rw sync.RWMutex
 }
 
-func NewSchedulingContextRepository(maxJobSchedulingContexts uint) (*SchedulingContextRepository, error) {
-	jobSchedulingContextByExecutorByJobId, err := lru.New(int(maxJobSchedulingContexts))
+func NewSchedulingContextRepository(maxJobSchedulingContextsPerExecutor uint) (*SchedulingContextRepository, error) {
+	jobSchedulingContextByExecutorByJobId, err := lru.New(int(maxJobSchedulingContextsPerExecutor))
 	if err != nil {
 		return nil, err
 	}
 	return &SchedulingContextRepository{
-		schedulingContextByExecutor:             make(SchedulingContextByExecutor),
-		queueSchedulingContextByExecutorByQueue: make(map[string]QueueSchedulingContextByExecutor),
-		jobSchedulingContextByExecutorByJobId:   jobSchedulingContextByExecutorByJobId,
+		mostRecentSchedulingContextByExecutor:                       make(SchedulingContextByExecutor),
+		mostRecentSuccessfulSchedulingContextByExecutor:             make(SchedulingContextByExecutor),
+		mostRecentQueueSchedulingContextByExecutorByQueue:           make(map[string]QueueSchedulingContextByExecutor),
+		mostRecentSuccessfulQueueSchedulingContextByExecutorByQueue: make(map[string]QueueSchedulingContextByExecutor),
+		jobSchedulingContextByExecutorByJobId:                       jobSchedulingContextByExecutorByJobId,
+		executorIds:                                                 make(map[string]bool),
 	}, nil
 }
 
-func (repo *SchedulingContextRepository) AddSchedulingContext(sctx *SchedulingContext) {
+func (repo *SchedulingContextRepository) AddSchedulingContext(sctx *SchedulingContext) error {
 	queueSchedulingContextByQueue, jobSchedulingContextByJobId := extractQueueAndJobContexts(sctx)
 	repo.rw.Lock()
 	defer repo.rw.Unlock()
-	for jobId, jctx := range jobSchedulingContextByJobId {
-		previous, ok, _ := repo.jobSchedulingContextByExecutorByJobId.PeekOrAdd(
-			jobId,
-			JobSchedulingContextByExecutor{sctx.ExecutorId: jctx},
-		)
-		if ok {
-			jobSchedulingContextByExecutor := previous.(JobSchedulingContextByExecutor)
-			jobSchedulingContextByExecutor[sctx.ExecutorId] = jctx
-			repo.jobSchedulingContextByExecutorByJobId.Add(jobId, jobSchedulingContextByExecutor)
+	for _, jctx := range jobSchedulingContextByJobId {
+		if err := repo.addJobSchedulingContext(jctx); err != nil {
+			return err
 		}
 	}
-	for queue, qctx := range queueSchedulingContextByQueue {
-		if previous := repo.queueSchedulingContextByExecutorByQueue[queue]; previous != nil {
-			previous[sctx.ExecutorId] = qctx
+	for _, qctx := range queueSchedulingContextByQueue {
+		if err := repo.addQueueSchedulingContext(qctx); err != nil {
+			return err
+		}
+	}
+
+	repo.mostRecentSchedulingContextByExecutor[sctx.ExecutorId] = sctx
+	if !sctx.ScheduledResourcesByPriority.IsZero() {
+		repo.mostRecentSuccessfulSchedulingContextByExecutor[sctx.ExecutorId] = sctx
+	}
+
+	n := len(repo.executorIds)
+	repo.executorIds[sctx.ExecutorId] = true
+	if len(repo.executorIds) != n {
+		repo.sortedExecutorIds = append(repo.sortedExecutorIds, sctx.ExecutorId)
+		slices.Sort(repo.sortedExecutorIds)
+	}
+	return nil
+}
+
+// Should only be called from AddSchedulingContext to avoid concurrency/locking issues.
+func (repo *SchedulingContextRepository) addQueueSchedulingContext(qctx *QueueSchedulingContext) error {
+	if qctx.ExecutorId == "" {
+		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "ExecutorId",
+			Value:   "",
+			Message: "received empty executorId",
+		})
+	}
+	if qctx.Queue == "" {
+		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "Queue",
+			Value:   "",
+			Message: "received empty queue name",
+		})
+	}
+	if previous := repo.mostRecentQueueSchedulingContextByExecutorByQueue[qctx.Queue]; previous != nil {
+		previous[qctx.ExecutorId] = qctx
+	} else {
+		repo.mostRecentQueueSchedulingContextByExecutorByQueue[qctx.Queue] = QueueSchedulingContextByExecutor{
+			qctx.ExecutorId: qctx,
+		}
+	}
+	if !qctx.ScheduledResourcesByPriority.IsZero() {
+		if previous := repo.mostRecentSuccessfulQueueSchedulingContextByExecutorByQueue[qctx.Queue]; previous != nil {
+			previous[qctx.ExecutorId] = qctx
 		} else {
-			repo.queueSchedulingContextByExecutorByQueue[queue] = QueueSchedulingContextByExecutor{
-				sctx.ExecutorId: qctx,
+			repo.mostRecentSuccessfulQueueSchedulingContextByExecutorByQueue[qctx.Queue] = QueueSchedulingContextByExecutor{
+				qctx.ExecutorId: qctx,
 			}
 		}
 	}
-	repo.schedulingContextByExecutor[sctx.ExecutorId] = sctx
+	return nil
+}
+
+// Should only be called from AddSchedulingContext to avoid concurrency/locking issues.
+func (repo *SchedulingContextRepository) addJobSchedulingContext(jctx *JobSchedulingContext) error {
+	if jctx.ExecutorId == "" {
+		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "ExecutorId",
+			Value:   "",
+			Message: "received empty executorId",
+		})
+	}
+	if jctx.JobId == "" {
+		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "JobId",
+			Value:   "",
+			Message: "received empty jobId",
+		})
+	}
+	previous, ok, _ := repo.jobSchedulingContextByExecutorByJobId.PeekOrAdd(
+		jctx.JobId,
+		JobSchedulingContextByExecutor{jctx.ExecutorId: jctx},
+	)
+	if ok {
+		jobSchedulingContextByExecutor := previous.(JobSchedulingContextByExecutor)
+		jobSchedulingContextByExecutor[jctx.ExecutorId] = jctx
+		repo.jobSchedulingContextByExecutorByJobId.Add(jctx.JobId, jobSchedulingContextByExecutor)
+	}
+	return nil
 }
 
 // NormaliseSchedulingContext extracts the job and queue scheduling contexts from the scheduling context,
@@ -87,27 +170,66 @@ func extractQueueAndJobContexts(sctx *SchedulingContext) (map[string]*QueueSched
 }
 
 func (repo *SchedulingContextRepository) GetSchedulingReport(_ context.Context, _ *types.Empty) (*schedulerobjects.SchedulingReport, error) {
-	schedulingContextByExecutor := repo.GetSchedulingContextByExecutor()
-	if schedulingContextByExecutor == nil {
-		return &schedulerobjects.SchedulingReport{
-			Report: "no recent scheduling attempts",
-		}, nil
-	}
 	return &schedulerobjects.SchedulingReport{
-		Report: schedulingContextByExecutor.String(),
+		Report: repo.getSchedulingReportString(),
 	}, nil
 }
 
-func (repo *SchedulingContextRepository) GetQueueReport(_ context.Context, queue *schedulerobjects.Queue) (*schedulerobjects.QueueReport, error) {
-	queueSchedulingContextByExecutor, ok := repo.GetQueueSchedulingContextByExecutor(queue.Name)
-	if queueSchedulingContextByExecutor == nil || !ok {
-		return &schedulerobjects.QueueReport{
-			Report: fmt.Sprintf("queue %s has not been considered for scheduling recently", queue.Name),
-		}, nil
+func (repo *SchedulingContextRepository) getSchedulingReportString() string {
+	var sb strings.Builder
+	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	for _, executorId := range repo.sortedExecutorIds {
+		fmt.Fprintf(w, "%s:\n", executorId)
+		sctx := repo.mostRecentSchedulingContextByExecutor[executorId]
+		if sctx != nil {
+			fmt.Fprint(w, indent.String("\t", "Most recent attempt:\n"))
+			fmt.Fprint(w, indent.String("\t\t", sctx.String()))
+		} else {
+			fmt.Fprint(w, indent.String("\t", "Most recent attempt: none\n"))
+		}
+		sctx = repo.mostRecentSuccessfulSchedulingContextByExecutor[executorId]
+		if sctx != nil {
+			fmt.Fprint(w, indent.String("\t", "Most recent successful attempt:\n"))
+			fmt.Fprint(w, indent.String("\t\t", sctx.String()))
+		} else {
+			fmt.Fprint(w, indent.String("\t", "Most recent successful attempt: none\n"))
+		}
 	}
+	w.Flush()
+	return sb.String()
+}
+
+func (repo *SchedulingContextRepository) GetQueueReport(_ context.Context, queue *schedulerobjects.Queue) (*schedulerobjects.QueueReport, error) {
+	queueName := strings.TrimSpace(queue.Name)
 	return &schedulerobjects.QueueReport{
-		Report: queueSchedulingContextByExecutor.String(),
+		Report: repo.getQueueReportString(queueName),
 	}, nil
+}
+
+func (repo *SchedulingContextRepository) getQueueReportString(queue string) string {
+	var sb strings.Builder
+	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	mostRecentQueueSchedulingContextByExecutor := repo.mostRecentQueueSchedulingContextByExecutorByQueue[queue]
+	mostRecentSuccessfulQueueSchedulingContextByExecutor := repo.mostRecentSuccessfulQueueSchedulingContextByExecutorByQueue[queue]
+	for _, executorId := range repo.sortedExecutorIds {
+		fmt.Fprintf(w, "%s:\n", executorId)
+		qctx := mostRecentQueueSchedulingContextByExecutor[executorId]
+		if qctx != nil {
+			fmt.Fprint(w, indent.String("\t", "Most recent attempt:\n"))
+			fmt.Fprint(w, indent.String("\t\t", qctx.String()))
+		} else {
+			fmt.Fprint(w, indent.String("\t", "Most recent attempt: none\n"))
+		}
+		qctx = mostRecentSuccessfulQueueSchedulingContextByExecutor[executorId]
+		if qctx != nil {
+			fmt.Fprint(w, indent.String("\t", "Most recent successful attempt:\n"))
+			fmt.Fprint(w, indent.String("\t\t", qctx.String()))
+		} else {
+			fmt.Fprint(w, indent.String("\t", "Most recent successful attempt: none\n"))
+		}
+	}
+	w.Flush()
+	return sb.String()
 }
 
 func (repo *SchedulingContextRepository) GetJobReport(_ context.Context, jobId *schedulerobjects.JobId) (*schedulerobjects.JobReport, error) {
@@ -125,14 +247,14 @@ func (repo *SchedulingContextRepository) GetJobReport(_ context.Context, jobId *
 func (repo *SchedulingContextRepository) GetSchedulingContextByExecutor() SchedulingContextByExecutor {
 	repo.rw.RLock()
 	defer repo.rw.RUnlock()
-	schedulingContextByExecutor := repo.schedulingContextByExecutor
+	schedulingContextByExecutor := repo.mostRecentSchedulingContextByExecutor
 	return schedulingContextByExecutor
 }
 
 func (repo *SchedulingContextRepository) GetQueueSchedulingContextByExecutor(queueName string) (QueueSchedulingContextByExecutor, bool) {
 	repo.rw.RLock()
 	defer repo.rw.RUnlock()
-	if queueSchedulingContextByExecutor, ok := repo.queueSchedulingContextByExecutorByQueue[queueName]; ok {
+	if queueSchedulingContextByExecutor, ok := repo.mostRecentQueueSchedulingContextByExecutorByQueue[queueName]; ok {
 		return queueSchedulingContextByExecutor, true
 	} else {
 		return nil, false
@@ -189,7 +311,7 @@ func (m JobSchedulingContextByExecutor) String() string {
 	slices.Sort(executorIds)
 	for _, executorId := range executorIds {
 		jctx := m[executorId]
-		fmt.Fprintf(w, "Executor %s:\n", executorId)
+		fmt.Fprintf(w, "%s:\n", executorId)
 		fmt.Fprint(w, indent.String("\t", jctx.String()))
 	}
 	w.Flush()
