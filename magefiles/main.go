@@ -3,12 +3,12 @@ package main
 import (
 	"fmt"
 	"os"
-	"sigs.k8s.io/yaml"
 	"strings"
 	"time"
 
 	"github.com/magefile/mage/mg"
 	"github.com/pkg/errors"
+	"sigs.k8s.io/yaml"
 )
 
 // BootstrapTools installs all tools needed tobuild and release armada
