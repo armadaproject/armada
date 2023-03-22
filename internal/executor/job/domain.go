@@ -39,29 +39,40 @@ func (r *RunMeta) DeepCopy() *RunMeta {
 type RunPhase int
 
 const (
+	// Invalid is when the job run provided could not be processed
+	// examples: invalid id formats, a missing podspec definition
+	Invalid RunPhase = iota
 	// Leased is the initial state and occurs before we submit the run to kubernetes
-	Leased RunPhase = iota
-	// Active is any run present in Kubernetes
-	Active
+	Leased
+	// SuccessfulSubmission is when a job was successfully sent to the k8s api
+	SuccessfulSubmission
 	// FailedSubmission is when a failed submission has been reported
 	FailedSubmission
+	// Active is any run present in Kubernetes
+	Active
 	// Missing is when we have lost track of the run
 	// This may happen if we submit a pod to kubernetes but the pod never becomes present in kubernetes
 	Missing
 )
 
 type RunState struct {
-	Meta               *RunMeta
-	KubernetesId       string
-	Phase              RunPhase
-	LastTransitionTime time.Time
+	Meta                    *RunMeta
+	Job                     *SubmitJob
+	KubernetesId            string
+	Phase                   RunPhase
+	CancelRequested         bool
+	PreemptionRequested     bool
+	LastPhaseTransitionTime time.Time
 }
 
 func (r *RunState) DeepCopy() *RunState {
 	return &RunState{
-		Meta:               r.Meta.DeepCopy(),
-		KubernetesId:       r.KubernetesId,
-		Phase:              r.Phase,
-		LastTransitionTime: r.LastTransitionTime,
+		Meta:                    r.Meta.DeepCopy(),
+		Job:                     r.Job, // This isn't deep copied right now - as it would be expensive to do so
+		KubernetesId:            r.KubernetesId,
+		Phase:                   r.Phase,
+		CancelRequested:         r.CancelRequested,
+		PreemptionRequested:     r.PreemptionRequested,
+		LastPhaseTransitionTime: r.LastPhaseTransitionTime,
 	}
 }

@@ -12,7 +12,6 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -89,15 +88,13 @@ type JobRepository interface {
 }
 
 type RedisJobRepository struct {
-	db              redis.UniversalClient
-	retentionPolicy configuration.DatabaseRetentionPolicy
+	db redis.UniversalClient
 }
 
 func NewRedisJobRepository(
 	db redis.UniversalClient,
-	retentionPolicy configuration.DatabaseRetentionPolicy,
 ) *RedisJobRepository {
-	return &RedisJobRepository{db: db, retentionPolicy: retentionPolicy}
+	return &RedisJobRepository{db: db}
 }
 
 // TODO DuplicateDetected should be remove in favour of setting the error to
@@ -178,18 +175,13 @@ func (repo *RedisJobRepository) ReturnLease(clusterId string, jobId string) (ret
 		return nil, err
 	}
 	if len(jobs) == 0 {
-		err = &armadaerrors.ErrNotFound{
-			Type:    "job",
-			Value:   jobId,
-			Message: fmt.Sprintf("cluster %s", clusterId),
-		}
-		return nil, errors.WithStack(err)
+		// Job has already been deleted; no more changes necessary.
+		return nil, nil
 	} else if len(jobs) != 1 {
-		err = fmt.Errorf("expected to get exactly 1 job, but got %d jobs", len(jobs))
+		err = fmt.Errorf("expected to get exactly 0 or 1 job, but got %d jobs", len(jobs))
 		return nil, errors.WithStack(err)
 	}
 	job := jobs[0]
-
 	returned, err := returnLease(repo.db, clusterId, job.Queue, job.Id, job.Priority).Int()
 	if err != nil {
 		err = errors.WithMessagef(err, "error returning lease for job %s and cluster %s", job.Id, clusterId)
@@ -203,45 +195,35 @@ func (repo *RedisJobRepository) ReturnLease(clusterId string, jobId string) (ret
 
 type deleteJobRedisResponse struct {
 	job                            *api.Job
-	expiryAlreadySet               bool
 	removeFromLeasedResult         *redis.IntCmd
 	removeFromQueueResult          *redis.IntCmd
 	removeClusterAssociationResult *redis.IntCmd
 	removeStartTimeResult          *redis.IntCmd
-	setJobExpiryResult             *redis.BoolCmd
 	deleteJobSetIndexResult        *redis.IntCmd
 	deleteJobRetriesResult         *redis.IntCmd
+	deleteJobObjectResult          *redis.IntCmd
 }
 
 func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) (map[*api.Job]error, error) {
-	expiryStatus, err := repo.getExpiryStatus(jobs)
-	if err != nil {
-		err = errors.WithMessage(err, "error getting expiry status")
-		return nil, err
-	}
 	pipe := repo.db.TxPipeline()
 	deletionResults := make([]*deleteJobRedisResponse, 0, len(jobs))
 	for _, job := range jobs {
-		// This is safe because attempting to delete non-existing keys results in a no-op
-		deletionResult := &deleteJobRedisResponse{job: job, expiryAlreadySet: expiryStatus[job]}
+		// This is safe because attempting to delete non-existing keys results in a no-op.
+		deletionResult := &deleteJobRedisResponse{job: job}
 		deletionResult.removeFromQueueResult = pipe.ZRem(jobQueuePrefix+job.Queue, job.Id)
 		deletionResult.removeFromLeasedResult = pipe.ZRem(jobLeasedPrefix+job.Queue, job.Id)
 		deletionResult.removeClusterAssociationResult = pipe.HDel(jobClusterMapKey, job.Id)
 		deletionResult.removeStartTimeResult = pipe.Del(jobStartTimePrefix + job.Id)
 		deletionResult.deleteJobSetIndexResult = pipe.SRem(jobSetPrefix+job.JobSetId, job.Id)
 		deletionResult.deleteJobRetriesResult = pipe.Del(jobRetriesPrefix + job.Id)
+		deletionResult.deleteJobObjectResult = pipe.Del(jobObjectPrefix + job.Id)
 
 		// Don't care if deletion fails during compatibility period
 		pipe.SRem(jobSetPrefix+job.Queue+keySeparator+job.JobSetId, job.Id)
 
-		if !deletionResult.expiryAlreadySet {
-			deletionResult.setJobExpiryResult = pipe.Expire(jobObjectPrefix+job.Id, repo.retentionPolicy.JobRetentionDuration)
-		}
 		deletionResults = append(deletionResults, deletionResult)
 	}
-
-	_, err = pipe.Exec()
-	if err != nil {
+	if _, err := pipe.Exec(); err != nil {
 		return nil, errors.WithStack(err)
 	}
 
@@ -257,36 +239,7 @@ func (repo *RedisJobRepository) DeleteJobs(jobs []*api.Job) (map[*api.Job]error,
 			cancelledJobs[deletionResult.job] = err
 		}
 	}
-
 	return cancelledJobs, nil
-}
-
-// Returns details on if the expiry for each job is already set or not
-func (repo *RedisJobRepository) getExpiryStatus(jobs []*api.Job) (map[*api.Job]bool, error) {
-	pipe := repo.db.Pipeline()
-	var cmds []*redis.DurationCmd
-	for _, job := range jobs {
-		cmd := pipe.TTL(jobObjectPrefix + job.Id)
-		cmds = append(cmds, cmd)
-	}
-
-	_, err := pipe.Exec()
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-
-	expiryStatus := make(map[*api.Job]bool, len(jobs))
-	for index, response := range cmds {
-		expiry, err := response.Result()
-		job := jobs[index]
-
-		expiryStatus[job] = false
-		if err == nil && expiry > 0 {
-			expiryStatus[job] = true
-		}
-	}
-
-	return expiryStatus, nil
 }
 
 func processDeletionResponse(deletionResponse *deleteJobRedisResponse) (int64, error) {
@@ -317,13 +270,9 @@ func processDeletionResponse(deletionResponse *deleteJobRedisResponse) (int64, e
 	totalUpdates += modified
 	result = multierror.Append(result, err)
 
-	if !deletionResponse.expiryAlreadySet {
-		expirySet, err := deletionResponse.setJobExpiryResult.Result()
-		if expirySet {
-			totalUpdates++
-		}
-		result = multierror.Append(result, err)
-	}
+	modified, err = deletionResponse.deleteJobObjectResult.Result()
+	totalUpdates += modified
+	result = multierror.Append(result, err)
 
 	return totalUpdates, result.ErrorOrNil()
 }
@@ -1065,11 +1014,10 @@ func (repo *RedisJobRepository) GetPulsarSchedulerJobDetails(jobId string) (*sch
 func (repo *RedisJobRepository) DeletePulsarSchedulerJobDetails(jobIds []string) error {
 	pipe := repo.db.Pipeline()
 	for _, jobId := range jobIds {
-		pipe.Expire(pulsarJobPrefix+jobId, repo.retentionPolicy.JobRetentionDuration)
+		pipe.Del(pulsarJobPrefix + jobId)
 	}
-	_, err := pipe.Exec()
-	if err != nil {
-		return errors.Wrap(err, "Error expiring pulsar job details in redis")
+	if _, err := pipe.Exec(); err != nil {
+		return errors.Wrap(err, "failed to delete pulsar job details in Redis")
 	}
 	return nil
 }

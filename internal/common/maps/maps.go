@@ -64,3 +64,14 @@ func FilterKeys[M ~map[K]V, K comparable, V any](m M, predicate func(K) bool) M 
 	}
 	return rv
 }
+
+// Filter returns a copy of the provided map with any keys for which predicate returns false removed.
+func Filter[M ~map[K]V, K comparable, V any](m M, predicate func(K, V) bool) M {
+	rv := make(M)
+	for k, v := range m {
+		if predicate(k, v) {
+			rv[k] = v
+		}
+	}
+	return rv
+}

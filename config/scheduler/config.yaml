@@ -29,6 +29,12 @@ postgres:
     sslmode: disable
 leader:
   mode: standalone
+  leaseLockName: armada-scheduler
+  LeaseLockNamespace: "" # This must be set so viper allows env vars to overwrite it
+  leaseDuration: 15s
+  renewDeadline: 10s
+  retryPeriod: 2s
+  podName: "" # This must be set so viper allows env vars to overwrite it
 grpc:
   port: 50052
   keepaliveParams:

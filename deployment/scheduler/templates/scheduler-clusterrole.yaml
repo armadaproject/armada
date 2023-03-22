@@ -1,0 +1,14 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "armada-scheduler.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "armada-scheduler.labels.all" . | nindent 4 }}
+rules:
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - '*'

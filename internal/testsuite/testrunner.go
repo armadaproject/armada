@@ -166,6 +166,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// Assert that we get the right events for each job.
 	// Returns once we've received all events or when ctx is cancelled.
 	if err = eventwatcher.AssertEvents(ctx, assertCh, maps.Clone(jobIdMap), srv.testSpec.ExpectedEvents); err != nil {
+		cancel()
 		groupErr := g.Wait()
 		if groupErr != nil {
 			return errors.Errorf("%s: %s", err, groupErr)
