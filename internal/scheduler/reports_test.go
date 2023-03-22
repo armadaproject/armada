@@ -39,9 +39,12 @@ func TestExtractQueueAndJobContexts(t *testing.T) {
 func TestAddGetSchedulingContext(t *testing.T) {
 	repo, err := NewSchedulingContextRepository(10)
 	require.NoError(t, err)
-	repo.AddSchedulingContext(testSchedulingContext("foo", "A", "successA", "failureA"))
-	repo.AddSchedulingContext(testSchedulingContext("bar", "A", "successA", "failureA"))
-	repo.AddSchedulingContext(testSchedulingContext("bar", "B", "successB", "failureB"))
+	err = repo.AddSchedulingContext(testSchedulingContext("foo", "A", "successA", "failureA"))
+	require.NoError(t, err)
+	err = repo.AddSchedulingContext(testSchedulingContext("bar", "A", "successA", "failureA"))
+	require.NoError(t, err)
+	err = repo.AddSchedulingContext(testSchedulingContext("bar", "B", "successB", "failureB"))
+	require.NoError(t, err)
 
 	actualJobSchedulingContextByExecutor, ok := repo.GetJobSchedulingContextByExecutor("doesNotExist")
 	require.Nil(t, actualJobSchedulingContextByExecutor)
