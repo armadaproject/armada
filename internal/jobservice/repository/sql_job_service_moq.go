@@ -64,7 +64,7 @@ type JobTableUpdaterMock struct {
 	UnsubscribeJobSetFunc func(queue, jobSet string) (int64, error)
 
 	// Mock for UpdateJobSetDb
-	UpdateJobSetDbFunc func(queue, jobSet, fromMessageId string) (error)
+	UpdateJobSetDbFunc func(queue, jobSet, fromMessageId string) error
 
 	// calls tracks calls to the methods.
 	calls struct {
@@ -149,12 +149,12 @@ func (mock *JobTableUpdaterMock) AddMessageIdAndClearSubscriptionError(queue str
 		panic("JobTableUpdaterMock.AddMessageIdAndClearSubscriptionErrorFunc: method is nil but JobTableUpdater.AddMessageIdAndClearSubscriptionError was just called")
 	}
 	callInfo := struct {
-		Queue  string
-		JobSet string
+		Queue         string
+		JobSet        string
 		FromMessageId string
 	}{
-		Queue:  queue,
-		JobSet: jobSet,
+		Queue:         queue,
+		JobSet:        jobSet,
 		FromMessageId: fromMessageId,
 	}
 	mock.lockClearSubscriptionError.Lock()
@@ -168,13 +168,13 @@ func (mock *JobTableUpdaterMock) AddMessageIdAndClearSubscriptionError(queue str
 //
 //	len(mockedJobTableUpdater.ClearSubscriptionErrorCalls())
 func (mock *JobTableUpdaterMock) ClearSubscriptionErrorCalls() []struct {
-	Queue  string
-	JobSet string
+	Queue         string
+	JobSet        string
 	FromMessageId string
 } {
 	var calls []struct {
-		Queue  string
-		JobSet string
+		Queue         string
+		JobSet        string
 		FromMessageId string
 	}
 	mock.lockClearSubscriptionError.RLock()
@@ -261,14 +261,14 @@ func (mock *JobTableUpdaterMock) SetSubscriptionError(queue string, jobSet strin
 		panic("JobTableUpdaterMock.SetSubscriptionErrorFunc: method is nil but JobTableUpdater.SetSubscriptionError was just called")
 	}
 	callInfo := struct {
-		Queue  string
-		JobSet string
-		Err    string
+		Queue         string
+		JobSet        string
+		Err           string
 		FromMessageId string
 	}{
-		Queue:  queue,
-		JobSet: jobSet,
-		Err:    err,
+		Queue:         queue,
+		JobSet:        jobSet,
+		Err:           err,
 		FromMessageId: fromMessageId,
 	}
 	mock.lockSetSubscriptionError.Lock()
@@ -282,15 +282,15 @@ func (mock *JobTableUpdaterMock) SetSubscriptionError(queue string, jobSet strin
 //
 //	len(mockedJobTableUpdater.SetSubscriptionErrorCalls())
 func (mock *JobTableUpdaterMock) SetSubscriptionErrorCalls() []struct {
-	Queue  string
-	JobSet string
-	Err    string
+	Queue         string
+	JobSet        string
+	Err           string
 	FromMessageId string
 } {
 	var calls []struct {
-		Queue  string
-		JobSet string
-		Err    string
+		Queue         string
+		JobSet        string
+		Err           string
 		FromMessageId string
 	}
 	mock.lockSetSubscriptionError.RLock()
@@ -305,12 +305,12 @@ func (mock *JobTableUpdaterMock) SubscribeJobSet(queue string, jobSet string, fr
 		panic("JobTableUpdaterMock.SubscribeJobSetFunc: method is nil but JobTableUpdater.SubscribeJobSet was just called")
 	}
 	callInfo := struct {
-		Queue  string
-		JobSet string
+		Queue         string
+		JobSet        string
 		FromMessageId string
 	}{
-		Queue:  queue,
-		JobSet: jobSet,
+		Queue:         queue,
+		JobSet:        jobSet,
 		FromMessageId: fromMessageId,
 	}
 	mock.lockSubscribeJobSet.Lock()
@@ -324,13 +324,13 @@ func (mock *JobTableUpdaterMock) SubscribeJobSet(queue string, jobSet string, fr
 //
 //	len(mockedJobTableUpdater.SubscribeJobSetCalls())
 func (mock *JobTableUpdaterMock) SubscribeJobSetCalls() []struct {
-	Queue  string
-	JobSet string
+	Queue         string
+	JobSet        string
 	FromMessageId string
 } {
 	var calls []struct {
-		Queue  string
-		JobSet string
+		Queue         string
+		JobSet        string
 		FromMessageId string
 	}
 	mock.lockSubscribeJobSet.RLock()
@@ -355,7 +355,6 @@ func (mock *JobTableUpdaterMock) UnsubscribeJobSet(queue string, jobSet string) 
 	mock.lockUnsubscribeJobSet.Unlock()
 	return mock.UnsubscribeJobSetFunc(queue, jobSet)
 }
-
 
 // UpdateJobServiceDb calls UpdateJobServiceDbFunc.
 func (mock *JobTableUpdaterMock) UpdateJobServiceDb(jobStatus *JobStatus) error {
@@ -395,12 +394,12 @@ func (mock *JobTableUpdaterMock) UpdateJobSetDb(queue, jobSet, fromMessageId str
 		panic("JobTableUpdaterMock.UpdateJobServiceDbFunc: method is nil but JobTableUpdater.UpdateJobServiceDb was just called")
 	}
 	callInfo := struct {
-		Queue  string
-		JobSet string
+		Queue         string
+		JobSet        string
 		FromMessageId string
 	}{
-		Queue:  queue,
-		JobSet: jobSet,
+		Queue:         queue,
+		JobSet:        jobSet,
 		FromMessageId: fromMessageId,
 	}
 	mock.lockUpdateJobSetDb.Lock()
@@ -414,13 +413,13 @@ func (mock *JobTableUpdaterMock) UpdateJobSetDb(queue, jobSet, fromMessageId str
 //
 //	len(mockedJobTableUpdater.UpdateJobServiceDbCalls())
 func (mock *JobTableUpdaterMock) UpdateJobSetDbCalls() []struct {
-	Queue string
-	JobSet string
+	Queue         string
+	JobSet        string
 	FromMessageId string
 } {
 	var calls []struct {
-		Queue string
-		JobSet string
+		Queue         string
+		JobSet        string
 		FromMessageId string
 	}
 	mock.lockUpdateJobSetDb.RLock()
