@@ -103,6 +103,7 @@ func testSchedulingContext(executorId, queue, successJobId, unsuccessfulJobId st
 		QueueSchedulingContexts: map[string]*QueueSchedulingContext{
 			queue: {
 				ExecutorId: executorId,
+				Queue:      queue,
 				SuccessfulJobSchedulingContexts: map[string]*JobSchedulingContext{
 					successJobId: {
 						ExecutorId: executorId,
