@@ -199,7 +199,7 @@ func podNodeAffinityRequirementsMet(nodeLabels map[string]string, req *PodRequir
 
 func podResourceRequirementsMet(priority int32, allocatableResources AllocatableByPriorityAndResourceType, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
 	for r, required := range req.ResourceRequirements.Requests {
-		available := allocatableResources.Get(priority, string(resource))
+		available := allocatableResources.Get(priority, string(r))
 		if required.Cmp(available) == 1 {
 			return false, &InsufficientResources{
 				Resource:  string(r),
