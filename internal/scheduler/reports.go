@@ -272,9 +272,11 @@ func (repo *SchedulingContextRepository) GetJobSchedulingContextByExecutor(jobId
 	}
 }
 
-type SchedulingContextByExecutor map[string]*SchedulingContext
-type QueueSchedulingContextByExecutor map[string]*QueueSchedulingContext
-type JobSchedulingContextByExecutor map[string]*JobSchedulingContext
+type (
+	SchedulingContextByExecutor      map[string]*SchedulingContext
+	QueueSchedulingContextByExecutor map[string]*QueueSchedulingContext
+	JobSchedulingContextByExecutor   map[string]*JobSchedulingContext
+)
 
 func (m SchedulingContextByExecutor) String() string {
 	var sb strings.Builder
