@@ -15,7 +15,6 @@ import (
 	"github.com/hashicorp/go-memdb"
 	"github.com/openconfig/goyang/pkg/indent"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -103,9 +102,9 @@ type SchedulerResult struct {
 	PreemptedJobs []LegacySchedulerJob
 	// Queued jobs that should be scheduled.
 	ScheduledJobs []LegacySchedulerJob
-	// For each preempted job, maps the job id to the node on which the job is running.
-	// For each scheduled job, maps the job id to the node on which the job should be scheduled.
-	NodeByJobId map[string]*schedulerobjects.Node
+	// For each preempted job, maps the job id to the id of the node on which the job was running.
+	// For each scheduled job, maps the job id to the id of the node on which the job should be scheduled.
+	NodeIdByJobId map[string]string
 	// Resource usage by queue, accounting for preempted and scheduled jobs.
 	AllocatedByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType
 }
@@ -113,7 +112,7 @@ type SchedulerResult struct {
 func NewSchedulerResult[S ~[]T, T LegacySchedulerJob](
 	preemptedJobs S,
 	scheduledJobs S,
-	nodeByJobId map[string]*schedulerobjects.Node,
+	nodeIdByJobId map[string]string,
 	allocatedByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 ) *SchedulerResult {
 	castPreemptedJobs := make([]LegacySchedulerJob, len(preemptedJobs))
@@ -127,7 +126,7 @@ func NewSchedulerResult[S ~[]T, T LegacySchedulerJob](
 	return &SchedulerResult{
 		PreemptedJobs:               castPreemptedJobs,
 		ScheduledJobs:               castScheduledJobs,
-		NodeByJobId:                 nodeByJobId,
+		NodeIdByJobId:               nodeIdByJobId,
 		AllocatedByQueueAndPriority: allocatedByQueueAndPriority,
 	}
 }
@@ -166,11 +165,19 @@ type Rescheduler struct {
 	jobRepo                               JobRepository
 	nodeDb                                *NodeDb
 	priorityFactorByQueue                 map[string]float64
-	allocatedByQueueAndPriority           map[string]schedulerobjects.QuantityByPriorityAndResourceType
-	schedulingReportsRepository           *SchedulingReportsRepository
-	// If true, perform a series of checks after scheduling to ensure nodeDb
-	// is consistent with the computed scheduling decision.
-	enableValidation bool
+	// Resources allocated to each queue across all clusters.
+	allocatedByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType
+	// Maps job ids to the id of the node the job is associated with.
+	// For scheduled or running jobs, that is the node the job is assigned to.
+	// For preempted jobs, that is the node the job was preempted from.
+	nodeIdByJobId map[string]string
+	// Maps gang ids to the ids of jobs in that gang.
+	jobIdsByGangId map[string]map[string]bool
+	// Maps job ids of gang jobs to the id of that gang.
+	gangIdByJobId               map[string]string
+	schedulingReportsRepository *SchedulingReportsRepository
+	// If true, asserts that the nodeDb state is consistent with expected changes.
+	enableAssertions bool
 }
 
 func NewRescheduler(
@@ -179,9 +186,28 @@ func NewRescheduler(
 	jobRepo JobRepository,
 	nodeDb *NodeDb,
 	priorityFactorByQueue map[string]float64,
-	initialUsageByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
+	initialAllocationByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
+	initialNodeIdByJobId map[string]string,
+	initialJobIdsByGangId map[string]map[string]bool,
+	initialGangIdByJobId map[string]string,
 	schedulingReportsRepository *SchedulingReportsRepository,
 ) *Rescheduler {
+	if initialAllocationByQueueAndPriority == nil {
+		initialAllocationByQueueAndPriority = make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
+	}
+	if initialNodeIdByJobId == nil {
+		initialNodeIdByJobId = make(map[string]string)
+	}
+	if initialJobIdsByGangId == nil {
+		initialJobIdsByGangId = make(map[string]map[string]bool)
+	}
+	if initialGangIdByJobId == nil {
+		initialGangIdByJobId = make(map[string]string)
+	}
+	initialJobIdsByGangId = maps.Clone(initialJobIdsByGangId)
+	for gangId, jobIds := range initialJobIdsByGangId {
+		initialJobIdsByGangId[gangId] = maps.Clone(jobIds)
+	}
 	return &Rescheduler{
 		constraints:                           constraints,
 		priorityClasses:                       config.Preemption.PriorityClasses,
@@ -191,9 +217,16 @@ func NewRescheduler(
 		jobRepo:                               jobRepo,
 		nodeDb:                                nodeDb,
 		priorityFactorByQueue:                 maps.Clone(priorityFactorByQueue),
-		allocatedByQueueAndPriority:           armadamaps.DeepCopy(initialUsageByQueueAndPriority),
+		allocatedByQueueAndPriority:           armadamaps.DeepCopy(initialAllocationByQueueAndPriority),
+		nodeIdByJobId:                         maps.Clone(initialNodeIdByJobId),
+		jobIdsByGangId:                        initialJobIdsByGangId,
+		gangIdByJobId:                         maps.Clone(initialGangIdByJobId),
 		schedulingReportsRepository:           schedulingReportsRepository,
 	}
+}
+
+func (sch *Rescheduler) EnableAssertions() {
+	sch.enableAssertions = true
 }
 
 // Schedule
@@ -204,7 +237,6 @@ func (sch *Rescheduler) Schedule(ctx context.Context) (*SchedulerResult, error) 
 	log = log.WithField("function", "Reschedule")
 	preemptedJobsById := make(map[string]LegacySchedulerJob)
 	scheduledJobsById := make(map[string]LegacySchedulerJob)
-	intermediateNodeByJobId := make(map[string]*schedulerobjects.Node)
 	log.Infof(
 		"starting rescheduling with total resources %s",
 		sch.constraints.TotalResources.CompactString(),
@@ -231,7 +263,7 @@ func (sch *Rescheduler) Schedule(ctx context.Context) (*SchedulerResult, error) 
 		return nil, err
 	}
 	maps.Copy(preemptedJobsById, evictorResult.EvictedJobsById)
-	maps.Copy(intermediateNodeByJobId, evictorResult.NodeByJobId)
+	maps.Copy(sch.nodeIdByJobId, evictorResult.NodeIdByJobId)
 
 	// Re-schedule evicted jobs/schedule new jobs.
 	schedulerResult, err := sch.schedule(
@@ -252,7 +284,7 @@ func (sch *Rescheduler) Schedule(ctx context.Context) (*SchedulerResult, error) 
 			scheduledJobsById[job.GetId()] = job
 		}
 	}
-	maps.Copy(intermediateNodeByJobId, schedulerResult.NodeByJobId)
+	maps.Copy(sch.nodeIdByJobId, schedulerResult.NodeIdByJobId)
 
 	// Evict jobs on oversubscribed nodes.
 	evictorResult, inMemoryJobRepo, err = sch.evict(
@@ -269,8 +301,21 @@ func (sch *Rescheduler) Schedule(ctx context.Context) (*SchedulerResult, error) 
 	if err != nil {
 		return nil, err
 	}
-	maps.Copy(preemptedJobsById, evictorResult.EvictedJobsById)
-	maps.Copy(intermediateNodeByJobId, evictorResult.NodeByJobId)
+	scheduledAndEvictedJobsById := armadamaps.FilterKeys(
+		scheduledJobsById,
+		func(jobId string) bool {
+			_, ok := evictorResult.EvictedJobsById[jobId]
+			return ok
+		},
+	)
+	for jobId, job := range evictorResult.EvictedJobsById {
+		if _, ok := scheduledJobsById[jobId]; ok {
+			delete(scheduledJobsById, jobId)
+		} else {
+			preemptedJobsById[jobId] = job
+		}
+	}
+	maps.Copy(sch.nodeIdByJobId, evictorResult.NodeIdByJobId)
 
 	// Re-schedule evicted jobs/schedule new jobs.
 	// Only necessary if a non-zero number of jobs were evicted.
@@ -282,7 +327,7 @@ func (sch *Rescheduler) Schedule(ctx context.Context) (*SchedulerResult, error) 
 			),
 			inMemoryJobRepo,
 			// Only evicted jobs should be scheduled in this round,
-			// so we set an empty repo for queued jobs.
+			// so we provide an empty repo for queued jobs.
 			NewInMemoryJobRepository(sch.nodeDb.priorityClasses),
 		)
 		if err != nil {
@@ -294,40 +339,27 @@ func (sch *Rescheduler) Schedule(ctx context.Context) (*SchedulerResult, error) 
 			} else {
 				scheduledJobsById[job.GetId()] = job
 			}
+			delete(scheduledAndEvictedJobsById, job.GetId())
 		}
-		maps.Copy(intermediateNodeByJobId, schedulerResult.NodeByJobId)
+		maps.Copy(sch.nodeIdByJobId, schedulerResult.NodeIdByJobId)
 	}
 
 	preemptedJobs := maps.Values(preemptedJobsById)
 	scheduledJobs := maps.Values(scheduledJobsById)
+	if err := sch.unbindJobs(append(
+		slices.Clone(preemptedJobs),
+		maps.Values(scheduledAndEvictedJobsById)...),
+	); err != nil {
+		return nil, err
+	}
 	if s := JobsSummary(preemptedJobs); s != "" {
 		log.Infof("preempting running jobs; %s", s)
 	}
 	if s := JobsSummary(scheduledJobs); s != "" {
 		log.Infof("scheduling new jobs; %s", s)
 	}
-
-	nodeByJobId := make(map[string]*schedulerobjects.Node)
-	for _, job := range preemptedJobs {
-		jobId := job.GetId()
-		if node := intermediateNodeByJobId[jobId]; node != nil {
-			nodeByJobId[jobId] = node
-		} else {
-			return nil, errors.Errorf("scheduled job %s not mapped to any node", jobId)
-		}
-	}
-	for _, job := range scheduledJobs {
-		jobId := job.GetId()
-		if node := intermediateNodeByJobId[jobId]; node != nil {
-			nodeByJobId[jobId] = node
-		} else {
-			return nil, errors.Errorf("preempted job %s not mapped to any node", jobId)
-		}
-
-	}
-
-	if sch.enableValidation {
-		err := sch.validateSchedulingConsistency(
+	if sch.enableAssertions {
+		err := sch.reschedulerAssertions(
 			ctxlogrus.ToContext(
 				ctx,
 				log.WithField("stage", "validate consistency"),
@@ -335,17 +367,16 @@ func (sch *Rescheduler) Schedule(ctx context.Context) (*SchedulerResult, error) 
 			snapshot,
 			preemptedJobsById,
 			scheduledJobsById,
-			nodeByJobId,
+			sch.nodeIdByJobId,
 		)
 		if err != nil {
 			return nil, err
 		}
 	}
-
 	return &SchedulerResult{
 		PreemptedJobs:               preemptedJobs,
 		ScheduledJobs:               scheduledJobs,
-		NodeByJobId:                 nodeByJobId,
+		NodeIdByJobId:               sch.nodeIdByJobId,
 		AllocatedByQueueAndPriority: sch.allocatedByQueueAndPriority,
 	}, nil
 }
@@ -354,39 +385,190 @@ func (sch *Rescheduler) evict(ctx context.Context, evictor *Evictor) (*EvictorRe
 	if evictor == nil {
 		return &EvictorResult{}, NewInMemoryJobRepository(sch.priorityClasses), nil
 	}
+	log := ctxlogrus.Extract(ctx)
+	txn := sch.nodeDb.Txn(true)
+	defer txn.Abort()
 
-	it, err := NewNodesIterator(sch.nodeDb.Txn(false))
+	// Evict using the provided evictor.
+	it, err := NewNodesIterator(txn)
 	if err != nil {
 		return nil, nil, err
 	}
-
 	result, err := evictor.Evict(ctx, it)
 	if err != nil {
 		return nil, nil, err
 	}
-	if err := validateEvictedJobs(result.EvictedJobsById, result.AffectedNodesById); err != nil {
+	if err := sch.nodeDb.UpsertManyWithTxn(txn, maps.Values(result.AffectedNodesById)); err != nil {
+		return nil, nil, err
+	}
+
+	// Evict any remaining jobs in partially evicted gangs.
+	// Add any changes to the result of the first evictor.
+	gangEvictorResult, err := sch.evictGangs(ctx, txn, result)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := sch.nodeDb.UpsertManyWithTxn(txn, maps.Values(gangEvictorResult.AffectedNodesById)); err != nil {
+		return nil, nil, err
+	}
+	maps.Copy(result.AffectedNodesById, gangEvictorResult.AffectedNodesById)
+	maps.Copy(result.EvictedJobsById, gangEvictorResult.EvictedJobsById)
+	maps.Copy(result.NodeIdByJobId, gangEvictorResult.NodeIdByJobId)
+
+	if err := sch.setEvictedGangCardinality(result.EvictedJobsById); err != nil {
+		return nil, nil, err
+	}
+	if err := sch.evictionAssertions(result.EvictedJobsById, result.AffectedNodesById); err != nil {
 		return nil, nil, err
 	}
 	evictedJobs := maps.Values(result.EvictedJobsById)
-	affectedNodes := maps.Values(result.AffectedNodesById)
 	sch.allocatedByQueueAndPriority = UpdateUsage(
 		sch.allocatedByQueueAndPriority,
 		evictedJobs,
 		sch.priorityClasses,
 		Subtract,
 	)
+	if err := sch.updateGangAccounting(evictedJobs, nil); err != nil {
+		return nil, nil, err
+	}
 	if s := JobsSummary(evictedJobs); s != "" {
 		log.Infof("evicted %d jobs on nodes %v; %s", len(evictedJobs), maps.Keys(result.AffectedNodesById), s)
 	}
-	if err := sch.nodeDb.UpsertMany(affectedNodes); err != nil {
-		return nil, nil, err
-	}
 	inMemoryJobRepo := NewInMemoryJobRepository(sch.priorityClasses)
 	inMemoryJobRepo.EnqueueMany(evictedJobs)
+	txn.Commit()
 	return result, inMemoryJobRepo, nil
 }
 
+// When evicting jobs, gangs may have been partially evicted.
+// Here, we evict all jobs in any gang for which at least one job was already evicted.
+func (sch *Rescheduler) evictGangs(ctx context.Context, txn *memdb.Txn, previousEvictorResult *EvictorResult) (*EvictorResult, error) {
+	gangJobIds, gangNodeIds, err := sch.collectIdsForGangEviction(previousEvictorResult.EvictedJobsById)
+	if err != nil {
+		return nil, err
+	}
+	gangNodeIds = armadamaps.FilterKeys(
+		gangNodeIds,
+		// Filter out any nodes already processed.
+		// (Just for efficiency; not strictly necessary.)
+		// This assumes all gang jobs on these nodes were already evicted.
+		func(nodeId string) bool {
+			_, ok := previousEvictorResult.AffectedNodesById[nodeId]
+			return !ok
+		},
+	)
+	evictor := NewFilteredEvictor(
+		sch.jobRepo,
+		sch.priorityClasses,
+		gangNodeIds,
+		gangJobIds,
+	)
+	if evictor == nil {
+		// No gangs to evict.
+		return &EvictorResult{}, nil
+	}
+	it, err := NewNodesIterator(txn)
+	if err != nil {
+		return nil, err
+	}
+	evictorResult, err := evictor.Evict(ctx, it)
+	if err != nil {
+		return nil, err
+	}
+	return evictorResult, nil
+}
+
+// Collect job ids for any gangs that were partially evicted and the ids of nodes those jobs are on.
+func (sch *Rescheduler) collectIdsForGangEviction(evictedJobsById map[string]LegacySchedulerJob) (map[string]bool, map[string]bool, error) {
+	allGangJobIds := make(map[string]bool)
+	gangNodeIds := make(map[string]bool)
+	seenGangs := make(map[string]bool)
+	for jobId := range evictedJobsById {
+		gangId, ok := sch.gangIdByJobId[jobId]
+		if !ok {
+			// Not a gang job.
+			continue
+		}
+		if gangId == "" {
+			return nil, nil, errors.Errorf("no gang id found for job %s", jobId)
+		}
+		if seenGangs[gangId] {
+			// Gang already processed.
+			continue
+		}
+		gangJobIds := sch.jobIdsByGangId[gangId]
+		if len(gangJobIds) == 0 {
+			return nil, nil, errors.Errorf("no jobs found for gang %s", gangId)
+		}
+		for gangJobId := range gangJobIds {
+			allGangJobIds[gangJobId] = true
+			if nodeId, ok := sch.nodeIdByJobId[gangJobId]; !ok {
+				return nil, nil, errors.Errorf("no node associated with gang job %s", gangJobId)
+			} else if nodeId == "" {
+				return nil, nil, errors.Errorf("empty node id associated with with gang job %s", gangJobId)
+			} else {
+				gangNodeIds[nodeId] = true
+			}
+		}
+		seenGangs[gangId] = true
+	}
+	return allGangJobIds, gangNodeIds, nil
+}
+
+// Some jobs in a gang may have terminated since the gang was scheduled.
+// For these gangs, we need to set the gang cardinality to the number of jobs in the gang yet to terminate.
+// Otherwise the evicted gang jobs will not be schedulable, since some gang jobs will be considered missing.
+func (sch *Rescheduler) setEvictedGangCardinality(evictedJobsById map[string]LegacySchedulerJob) error {
+	for _, job := range evictedJobsById {
+		gangId, ok := sch.gangIdByJobId[job.GetId()]
+		if !ok {
+			// Not a gang job.
+			continue
+		}
+		gangCardinality := len(sch.jobIdsByGangId[gangId])
+		annotations := job.GetAnnotations()
+		if annotations == nil {
+			return errors.Errorf("error setting gang cardinality for job %s: annotations not initialised", job.GetId())
+		}
+		annotations[configuration.GangCardinalityAnnotation] = fmt.Sprintf("%d", gangCardinality)
+	}
+	return nil
+}
+
+func (sch *Rescheduler) evictionAssertions(evictedJobsById map[string]LegacySchedulerJob, affectedNodesById map[string]*schedulerobjects.Node) error {
+	evictedJobIdsByGangId := make(map[string]map[string]bool)
+	for _, job := range evictedJobsById {
+		if gangId, ok := sch.gangIdByJobId[job.GetId()]; ok {
+			if m := evictedJobIdsByGangId[gangId]; m != nil {
+				m[job.GetId()] = true
+			} else {
+				evictedJobIdsByGangId[gangId] = map[string]bool{job.GetId(): true}
+			}
+		}
+		if !isEvictedJob(job) {
+			return errors.Errorf("evicted job %s is not marked as such: job annotations %v", job.GetId(), job.GetAnnotations())
+		}
+		if nodeId, ok := targetNodeIdFromLegacySchedulerJob(job); ok {
+			if _, ok := affectedNodesById[nodeId]; !ok {
+				return errors.Errorf("node id %s targeted by job %s is not marked as affected", nodeId, job.GetId())
+			}
+		} else {
+			return errors.Errorf("evicted job %s is missing target node id: job annotations %v", job.GetId(), job.GetAnnotations())
+		}
+	}
+	for gangId, evictedGangJobIds := range evictedJobIdsByGangId {
+		if !maps.Equal(evictedGangJobIds, sch.jobIdsByGangId[gangId]) {
+			return errors.Errorf(
+				"gang %s was partially evicted: %d out of %d jobs evicted",
+				gangId, len(evictedGangJobIds), len(sch.jobIdsByGangId[gangId]),
+			)
+		}
+	}
+	return nil
+}
+
 func (sch *Rescheduler) schedule(ctx context.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository) (*SchedulerResult, error) {
+	log := ctxlogrus.Extract(ctx)
 	queues := make([]*Queue, 0, len(sch.priorityFactorByQueue))
 	for queue, priorityFactor := range sch.priorityFactorByQueue {
 		evictedIt, err := inMemoryJobRepo.GetJobIterator(ctx, queue)
@@ -429,10 +611,69 @@ func (sch *Rescheduler) schedule(ctx context.Context, inMemoryJobRepo *InMemoryJ
 		sch.schedulingReportsRepository.AddSchedulingRoundReport(sched.SchedulingRoundReport)
 	}
 	sch.allocatedByQueueAndPriority = schedulerResult.AllocatedByQueueAndPriority
+	if err := sch.updateGangAccounting(nil, schedulerResult.ScheduledJobs); err != nil {
+		return nil, err
+	}
 	if s := JobsSummary(schedulerResult.ScheduledJobs); s != "" {
 		log.Infof("rescheduled %d jobs; %s", len(schedulerResult.ScheduledJobs), s)
 	}
 	return schedulerResult, nil
+}
+
+// Unbind any preempted from the nodes they were evicted (and not re-scheduled) on.
+func (sch *Rescheduler) unbindJobs(jobs []LegacySchedulerJob) error {
+	for nodeId, jobsOnNode := range armadaslices.GroupByFunc(
+		jobs,
+		func(job LegacySchedulerJob) string {
+			return sch.nodeIdByJobId[job.GetId()]
+		},
+	) {
+		node, err := sch.nodeDb.GetNode(nodeId)
+		if err != nil {
+			return err
+		}
+		node, err = UnbindPodsFromNode(
+			util.Map(
+				jobsOnNode,
+				func(job LegacySchedulerJob) *schedulerobjects.PodRequirements {
+					return PodRequirementFromLegacySchedulerJob(job, sch.priorityClasses)
+				},
+			),
+			node,
+		)
+		if err != nil {
+			return err
+		}
+		if err := sch.nodeDb.Upsert(node); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Update sch.gangIdByJobId and sch.jobIdsByGangId based on preempted/scheduled jobs.
+func (sch *Rescheduler) updateGangAccounting(preemptedJobs, scheduledJobs []LegacySchedulerJob) error {
+	for _, job := range preemptedJobs {
+		if gangId, ok := sch.gangIdByJobId[job.GetId()]; ok {
+			delete(sch.gangIdByJobId, job.GetId())
+			delete(sch.jobIdsByGangId, gangId)
+		}
+	}
+	for _, job := range scheduledJobs {
+		gangId, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(job, sch.priorityClasses)
+		if err != nil {
+			return err
+		}
+		if isGangJob {
+			sch.gangIdByJobId[job.GetId()] = gangId
+			if m := sch.jobIdsByGangId[gangId]; m != nil {
+				m[job.GetId()] = true
+			} else {
+				sch.jobIdsByGangId[gangId] = map[string]bool{job.GetId(): true}
+			}
+		}
+	}
+	return nil
 }
 
 // For each node in the NodeDb, compare assigned jobs relative to the initial snapshot.
@@ -441,34 +682,40 @@ func (sch *Rescheduler) schedule(ctx context.Context, inMemoryJobRepo *InMemoryJ
 //
 // Compare the NodeJobDiff with expected preempted/scheduled jobs to ensure NodeDb is consistent.
 // This is only to validate that nothing unexpected happened during scheduling.
-func (sch *Rescheduler) validateSchedulingConsistency(
-	_ context.Context,
+func (sch *Rescheduler) reschedulerAssertions(
+	ctx context.Context,
 	snapshot *memdb.Txn,
 	preemptedJobsById,
 	scheduledJobsById map[string]LegacySchedulerJob,
-	nodeByJobId map[string]*schedulerobjects.Node,
+	nodeIdByJobId map[string]string,
 ) error {
+	// Compare two snapshots of the nodeDb to find jobs that
+	// were preempted/scheduled between creating the snapshots.
 	preempted, scheduled, err := NodeJobDiff(snapshot, sch.nodeDb.Txn(false))
 	if err != nil {
 		return err
 	}
+
+	// Assert that jobs we expect to be preempted/scheduled are marked as such in the nodeDb.
 	for jobId := range preemptedJobsById {
 		if _, ok := preempted[jobId]; !ok {
-			return errors.Errorf("inconsistent NodeDb: expected job %s to be preempted", jobId)
+			return errors.Errorf("inconsistent NodeDb: expected job %s to be preempted in nodeDb", jobId)
 		}
 	}
 	for jobId := range scheduledJobsById {
 		if _, ok := scheduled[jobId]; !ok {
-			return errors.Errorf("inconsistent NodeDb: expected job %s to be scheduled", jobId)
+			return errors.Errorf("inconsistent NodeDb: expected job %s to be scheduled in nodeDb", jobId)
 		}
 	}
-	// nodesByJobId := make(map[string]*schedulerobjects.Node, len(preempted)+len(scheduled))
+
+	// Assert that jobs marked as preempted (scheduled) in the nodeDb are expected to be preempted (scheduled),
+	// and that jobs are preempted/scheduled on the nodes we expect them to.
 	for jobId, node := range preempted {
-		if expectedNode := nodeByJobId[jobId]; expectedNode != nil {
-			if expectedNode.Id != node.Id {
+		if expectedNodeId, ok := nodeIdByJobId[jobId]; ok {
+			if expectedNodeId != node.Id {
 				return errors.Errorf(
 					"inconsistent NodeDb: expected job %s to be preempted from node %s, but got %s",
-					jobId, expectedNode.Id, node.Id,
+					jobId, expectedNodeId, node.Id,
 				)
 			}
 		} else {
@@ -482,11 +729,11 @@ func (sch *Rescheduler) validateSchedulingConsistency(
 		}
 	}
 	for jobId, node := range scheduled {
-		if expectedNode := nodeByJobId[jobId]; expectedNode != nil {
-			if expectedNode.Id != node.Id {
+		if expectedNodeId, ok := nodeIdByJobId[jobId]; ok {
+			if expectedNodeId != node.Id {
 				return errors.Errorf(
 					"inconsistent NodeDb: expected job %s to be on node %s, but got %s",
-					jobId, expectedNode.Id, node.Id,
+					jobId, expectedNodeId, node.Id,
 				)
 			}
 		} else {
@@ -596,13 +843,12 @@ type EvictorResult struct {
 	EvictedJobsById map[string]LegacySchedulerJob
 	// Map from node id to node, containing all nodes on which at least one job was evicted.
 	AffectedNodesById map[string]*schedulerobjects.Node
-	// For each evicted job, maps the id of the job to the node it was evicted from.
-	// Maps to the same nodes as AffectedNodesById.
-	NodeByJobId map[string]*schedulerobjects.Node
+	// For each evicted job, maps the id of the job to the id of the node it was evicted from.
+	NodeIdByJobId map[string]string
 }
 
-// NewStochasticEvictor returns a new evictor that
-// for each node evicts all preemptible jobs from that node with probability perNodeEvictionProbability.
+// NewStochasticEvictor returns a new evictor that for each node evicts
+// all preemptible jobs from that node with probability perNodeEvictionProbability.
 func NewStochasticEvictor(
 	jobRepo JobRepository,
 	priorityClasses map[string]configuration.PriorityClass,
@@ -612,12 +858,28 @@ func NewStochasticEvictor(
 	if perNodeEvictionProbability <= 0 {
 		return nil
 	}
+	return NewPreemptibleEvictor(
+		jobRepo,
+		priorityClasses,
+		defaultPriorityClass,
+		func(_ context.Context, node *schedulerobjects.Node) bool {
+			return len(node.AllocatedByJobId) > 0 && rand.Float64() < perNodeEvictionProbability
+		},
+	)
+}
+
+// NewPreemptibleEvictor returns a new evictor that evicts all preemptible jobs
+// on nodes for which nodeFilter returns true.
+func NewPreemptibleEvictor(
+	jobRepo JobRepository,
+	priorityClasses map[string]configuration.PriorityClass,
+	defaultPriorityClass string,
+	nodeFilter func(context.Context, *schedulerobjects.Node) bool,
+) *Evictor {
 	return &Evictor{
 		jobRepo:         jobRepo,
 		priorityClasses: priorityClasses,
-		nodeFilter: func(_ context.Context, node *schedulerobjects.Node) bool {
-			return len(node.AllocatedByJobId) > 0 && rand.Float64() < perNodeEvictionProbability
-		},
+		nodeFilter:      nodeFilter,
 		jobFilter: func(ctx context.Context, job LegacySchedulerJob) bool {
 			if job.GetAnnotations() == nil {
 				log := ctxlogrus.Extract(ctx)
@@ -646,13 +908,44 @@ func NewStochasticEvictor(
 			// - which node it was evicted from.
 			annotations[TargetNodeIdAnnotation] = node.Id
 			annotations[IsEvictedAnnotation] = "true"
+		},
+	}
+}
 
-			// Add an empty allocation for this queue.
-			// To make the scheduler avoid this node when scheduling pods from other queues.
-			// (As a result of per-queue bin-packing.)
-			if rl, ok := node.AllocatedByQueue[job.GetQueue()]; !ok {
-				node.AllocatedByQueue[job.GetQueue()] = rl
+// NewFilteredEvictor returns a new evictor that evicts all jobs for which jobIdsToEvict[jobId] is true
+// on nodes for which nodeIdsToEvict[nodeId] is true.
+func NewFilteredEvictor(
+	jobRepo JobRepository,
+	priorityClasses map[string]configuration.PriorityClass,
+	nodeIdsToEvict map[string]bool,
+	jobIdsToEvict map[string]bool,
+) *Evictor {
+	if len(nodeIdsToEvict) == 0 || len(jobIdsToEvict) == 0 {
+		return nil
+	}
+	return &Evictor{
+		jobRepo:         jobRepo,
+		priorityClasses: priorityClasses,
+		nodeFilter: func(_ context.Context, node *schedulerobjects.Node) bool {
+			shouldEvict := nodeIdsToEvict[node.Id]
+			return shouldEvict
+		},
+		jobFilter: func(_ context.Context, job LegacySchedulerJob) bool {
+			shouldEvict := jobIdsToEvict[job.GetId()]
+			return shouldEvict
+		},
+		postEvictFunc: func(ctx context.Context, job LegacySchedulerJob, node *schedulerobjects.Node) {
+			annotations := job.GetAnnotations()
+			if annotations == nil {
+				log := ctxlogrus.Extract(ctx)
+				log.Errorf("error evicting job %s: annotations not initialised", job.GetId())
+				return
 			}
+			// Add annotations to this job that indicate to the scheduler
+			// - that this pod was evicted and
+			// - which node it was evicted from.
+			annotations[TargetNodeIdAnnotation] = node.Id
+			annotations[IsEvictedAnnotation] = "true"
 		},
 	}
 }
@@ -709,7 +1002,7 @@ func NewOversubscribedEvictor(
 				return
 			}
 
-			// TODO: This is only necessary for jobs not shceduled in this cycle.
+			// TODO: This is only necessary for jobs not scheduled in this cycle.
 			// Since jobs scheduled in this cycle can be rescheduled onto another node without triggering a preemption.
 			//
 			// Add annotations to this job that indicate to the scheduler
@@ -717,16 +1010,6 @@ func NewOversubscribedEvictor(
 			// - which node it was evicted from.
 			annotations[TargetNodeIdAnnotation] = node.Id
 			annotations[IsEvictedAnnotation] = "true"
-
-			// TODO: This is only necessary for jobs not shceduled in this cycle.
-			// Since jobs scheduled in this cycle can be rescheduled onto another node without triggering a preemption.
-			//
-			// Add an empty allocation for this queue.
-			// To make the scheduler avoid this node when scheduling pods from other queues.
-			// (As a result of per-queue bin-packing.)
-			if rl, ok := node.AllocatedByQueue[job.GetQueue()]; !ok {
-				node.AllocatedByQueue[job.GetQueue()] = rl
-			}
 		},
 	}
 }
@@ -738,12 +1021,18 @@ func NewOversubscribedEvictor(
 func (evi *Evictor) Evict(ctx context.Context, it NodeIterator) (*EvictorResult, error) {
 	evictedJobsById := make(map[string]LegacySchedulerJob)
 	affectedNodesById := make(map[string]*schedulerobjects.Node)
-	nodeByJobId := make(map[string]*schedulerobjects.Node)
+	nodeIdByJobId := make(map[string]string)
 	for node := it.NextNode(); node != nil; node = it.NextNode() {
 		if evi.nodeFilter != nil && !evi.nodeFilter(ctx, node) {
 			continue
 		}
-		jobIds := maps.Keys(node.AllocatedByJobId)
+		jobIds := util.Filter(
+			maps.Keys(node.AllocatedByJobId),
+			func(jobId string) bool {
+				_, ok := node.EvictedJobRunIds[jobId]
+				return !ok
+			},
+		)
 		jobs, err := evi.jobRepo.GetExistingJobsByIds(jobIds)
 		if err != nil {
 			return nil, err
@@ -756,22 +1045,23 @@ func (evi *Evictor) Evict(ctx context.Context, it NodeIterator) (*EvictorResult,
 			if req == nil {
 				continue
 			}
-			node, err = UnbindPodFromNode(req, node)
+			node, err = EvictPodFromNode(req, node)
 			if err != nil {
 				return nil, err
 			}
 			if evi.postEvictFunc != nil {
 				evi.postEvictFunc(ctx, job, node)
 			}
+
 			evictedJobsById[job.GetId()] = job
-			affectedNodesById[node.Id] = node
-			nodeByJobId[job.GetId()] = node
+			nodeIdByJobId[job.GetId()] = node.Id
 		}
+		affectedNodesById[node.Id] = node
 	}
 	return &EvictorResult{
 		EvictedJobsById:   evictedJobsById,
 		AffectedNodesById: affectedNodesById,
-		NodeByJobId:       nodeByJobId,
+		NodeIdByJobId:     nodeIdByJobId,
 	}, nil
 }
 
@@ -858,7 +1148,7 @@ func (sch *LegacyScheduler) Schedule(ctx context.Context) (*SchedulerResult, err
 		return nil, err
 	}
 
-	nodeByJobId := make(map[string]*schedulerobjects.Node)
+	nodeIdByJobId := make(map[string]string)
 	jobsToLeaseByQueue := make(map[string][]LegacySchedulerJob, 0)
 	numJobsToLease := 0
 	for reports, err := candidateGangIterator.Next(); reports != nil; reports, err = candidateGangIterator.Next() {
@@ -908,7 +1198,7 @@ func (sch *LegacyScheduler) Schedule(ctx context.Context) (*SchedulerResult, err
 				if err != nil {
 					return nil, err
 				}
-				nodeByJobId[jobId] = r.Node
+				nodeIdByJobId[jobId] = r.Node.Id
 			}
 			for _, r := range reports {
 				jobsToLeaseByQueue[r.Job.GetQueue()] = append(jobsToLeaseByQueue[r.Job.GetQueue()], r.Job)
@@ -933,12 +1223,14 @@ func (sch *LegacyScheduler) Schedule(ctx context.Context) (*SchedulerResult, err
 		}
 	}
 	sch.allocatedByQueueAndPriority = allocatedByQueueAndPriority
-	if len(scheduledJobs) != len(nodeByJobId) {
-		return nil, errors.Errorf("only %d out of %d jobs mapped to a node", len(nodeByJobId), len(scheduledJobs))
+	if len(scheduledJobs) != len(nodeIdByJobId) {
+		return nil, errors.Errorf("only %d out of %d jobs mapped to a node", len(nodeIdByJobId), len(scheduledJobs))
 	}
 	return &SchedulerResult{
+		// This scheduler never preempts jobs.
+		PreemptedJobs:               nil,
 		ScheduledJobs:               scheduledJobs,
-		NodeByJobId:                 nodeByJobId,
+		NodeIdByJobId:               nodeIdByJobId,
 		AllocatedByQueueAndPriority: armadamaps.DeepCopy(allocatedByQueueAndPriority),
 	}, nil
 }
@@ -1583,22 +1875,6 @@ func jobIsLargeEnough(jobTotalResourceRequests, minimumJobSize schedulerobjects.
 		}
 	}
 	return true, ""
-}
-
-func validateEvictedJobs(evictedJobsById map[string]LegacySchedulerJob, affectedNodesById map[string]*schedulerobjects.Node) error {
-	for _, job := range evictedJobsById {
-		if !isEvictedJob(job) {
-			return errors.Errorf("evicted job %s is not marked as such: job annotations %v", job.GetId(), job.GetAnnotations())
-		}
-		if nodeId, ok := targetNodeIdFromLegacySchedulerJob(job); ok {
-			if _, ok := affectedNodesById[nodeId]; !ok {
-				return errors.Errorf("node id %s targeted by job %s is not marked as affected", nodeId, job.GetId())
-			}
-		} else {
-			return errors.Errorf("evicted job %s is missing target node id: job annotations %v", job.GetId(), job.GetAnnotations())
-		}
-	}
-	return nil
 }
 
 func isEvictedJob(job LegacySchedulerJob) bool {

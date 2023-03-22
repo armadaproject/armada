@@ -33,7 +33,11 @@ def submit_sleep_job(client):
         ],
     )
 
-    return [client.create_job_request_item(priority=0, pod_spec=pod)]
+    return [
+        client.create_job_request_item(
+            priority=0, namespace="personal-anonymous", pod_spec=pod
+        )
+    ]
 
 
 def wait_for(client: ArmadaClient, queue, job_set_id=None):

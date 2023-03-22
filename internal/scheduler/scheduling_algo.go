@@ -117,7 +117,7 @@ func (l *LegacySchedulingAlgo) Schedule(
 	}
 
 	overallSchedulerResult := &SchedulerResult{
-		NodeByJobId: make(map[string]*schedulerobjects.Node),
+		NodeIdByJobId: make(map[string]string),
 	}
 	for _, executor := range executors {
 		log.Infof("attempting to schedule jobs on %s", executor.Id)
@@ -145,7 +145,7 @@ func (l *LegacySchedulingAlgo) Schedule(
 		}
 		overallSchedulerResult.PreemptedJobs = append(overallSchedulerResult.PreemptedJobs, schedulerResult.PreemptedJobs...)
 		overallSchedulerResult.ScheduledJobs = append(overallSchedulerResult.ScheduledJobs, schedulerResult.ScheduledJobs...)
-		maps.Copy(overallSchedulerResult.NodeByJobId, schedulerResult.NodeByJobId)
+		maps.Copy(overallSchedulerResult.NodeIdByJobId, schedulerResult.NodeIdByJobId)
 
 		resourceUsagebyPool[executor.Pool] = schedulerResult.AllocatedByQueueAndPriority
 	}
@@ -199,8 +199,15 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 		nodeDb,
 		priorityFactorByQueue,
 		allocatedByQueueAndPriority,
+		// TODO: Add missing maps to enable gang preemption.
+		nil,
+		nil,
+		nil,
 		nil, // TODO: Add a repo to enable querying for scheduler reports.
 	)
+	if l.config.EnableAssertions {
+		scheduler.EnableAssertions()
+	}
 	result, err := scheduler.Schedule(ctx)
 	if err != nil {
 		return nil, err
@@ -208,10 +215,6 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 
 	for i, job := range result.PreemptedJobs {
 		jobDbJob := job.(*jobdb.Job)
-		node := result.NodeByJobId[jobDbJob.GetId()]
-		if node == nil {
-			return nil, errors.Errorf("job %s not mapped to any node", jobDbJob.GetId())
-		}
 		if run := jobDbJob.LatestRun(); run != nil {
 			jobDbJob = jobDbJob.WithUpdatedRun(run.WithFailed(true))
 		} else {
@@ -221,11 +224,15 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	}
 	for i, job := range result.ScheduledJobs {
 		jobDbJob := job.(*jobdb.Job)
-		node := result.NodeByJobId[jobDbJob.GetId()]
-		if node == nil {
+		nodeId := result.NodeIdByJobId[jobDbJob.GetId()]
+		if nodeId == "" {
 			return nil, errors.Errorf("job %s not mapped to any node", jobDbJob.GetId())
 		}
-		result.ScheduledJobs[i] = jobDbJob.WithQueued(false).WithNewRun(executor.Id, node.Name)
+		if node, err := nodeDb.GetNode(nodeId); err != nil {
+			return nil, err
+		} else {
+			result.ScheduledJobs[i] = jobDbJob.WithQueued(false).WithNewRun(executor.Id, node.Name)
+		}
 	}
 	return result, nil
 }

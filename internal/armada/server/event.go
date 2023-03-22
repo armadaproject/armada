@@ -47,7 +47,7 @@ func (s *EventServer) Report(ctx context.Context, message *api.EventMessage) (*t
 		return nil, status.Errorf(codes.PermissionDenied, "[Report] error: %s", err)
 	}
 
-	return &types.Empty{}, s.eventStore.ReportEvents([]*api.EventMessage{message})
+	return &types.Empty{}, s.eventStore.ReportEvents(ctx, []*api.EventMessage{message})
 }
 
 func (s *EventServer) ReportMultiple(ctx context.Context, message *api.EventList) (*types.Empty, error) {
@@ -59,7 +59,7 @@ func (s *EventServer) ReportMultiple(ctx context.Context, message *api.EventList
 		return &types.Empty{}, err
 	}
 
-	return &types.Empty{}, s.eventStore.ReportEvents(message.Events)
+	return &types.Empty{}, s.eventStore.ReportEvents(ctx, message.Events)
 }
 
 func (s *EventServer) checkForPreemptedEvents(message *api.EventList) error {

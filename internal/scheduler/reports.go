@@ -387,8 +387,8 @@ type PodSchedulingReport struct {
 	Node *schedulerobjects.Node
 	// Score indicates how well the pod fits on the selected Node.
 	Score int
-	// Number of Node types that
-	NumMatchedNodeTypes int
+	// Node types on which this pod could be scheduled.
+	MatchingNodeTypes []*schedulerobjects.NodeType
 	// Number of Node types excluded by reason.
 	NumExcludedNodeTypesByReason map[string]int
 	// Number of nodes excluded by reason.
@@ -406,7 +406,7 @@ func (report *PodSchedulingReport) String() string {
 		w.Writef("Node:\tnone\n")
 	}
 	w.Writef("Score:\t%d\n", report.Score)
-	w.Writef("Number of matched Node types:\t%d\n", report.NumMatchedNodeTypes)
+	w.Writef("Number of matched Node types:\t%d\n", report.MatchingNodeTypes)
 	if len(report.NumExcludedNodeTypesByReason) == 0 {
 		w.Writef("Excluded Node types:\tnone\n")
 	} else {

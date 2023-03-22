@@ -17,6 +17,7 @@ import JobsContainer from "./containers/JobsContainer"
 import OverviewContainer from "./containers/OverviewContainer"
 import { JobService } from "./services/JobService"
 import LogService from "./services/LogService"
+import { IGetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
 
 import "./App.css"
@@ -65,6 +66,7 @@ type AppProps = {
   v2GetJobsService: IGetJobsService
   v2GroupJobsService: IGroupJobsService
   v2RunErrorService: IGetRunErrorService
+  v2JobSpecService: IGetJobSpecService
   v2UpdateJobsService: UpdateJobsService
   logService: LogService
   overviewAutoRefreshMs: number
@@ -77,7 +79,11 @@ export function App(props: AppProps) {
     <StylesProvider generateClassName={generateClassName}>
       <ThemeProviderV4 theme={themeV4}>
         <ThemeProviderV5 theme={themeV5}>
-          <SnackbarProvider anchorOrigin={{ horizontal: "right", vertical: "bottom" }} autoHideDuration={8000}>
+          <SnackbarProvider
+            anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+            autoHideDuration={8000}
+            maxSnack={3}
+          >
             <Router>
               <div className="app-container">
                 <NavBar />
@@ -99,6 +105,7 @@ export function App(props: AppProps) {
                         groupJobsService={props.v2GroupJobsService}
                         updateJobsService={props.v2UpdateJobsService}
                         runErrorService={props.v2RunErrorService}
+                        jobSpecService={props.v2JobSpecService}
                         debug={props.debugEnabled}
                       />
                     </Route>

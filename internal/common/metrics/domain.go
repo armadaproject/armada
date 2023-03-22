@@ -31,7 +31,7 @@ type JobMetricsRecorder struct {
 }
 
 func NewJobMetricsRecorder() *JobMetricsRecorder {
-	return &JobMetricsRecorder{map[string]*QueueMetricsRecorder{}}
+	return &JobMetricsRecorder{make(map[string]*QueueMetricsRecorder)}
 }
 
 func (r *JobMetricsRecorder) RecordJobRuntime(pool string, priorityClass string, jobRuntime time.Duration) {
@@ -59,8 +59,8 @@ func (r *JobMetricsRecorder) Metrics() []*QueueMetrics {
 
 func (r *JobMetricsRecorder) getOrCreateRecorder(pool string, pritorityClass string) *QueueMetricsRecorder {
 	recorderKey := key(pool, pritorityClass)
-	qmr, exists := r.recordersByPoolAndPriorityClass[recorderKey]
-	if !exists {
+	qmr, ok := r.recordersByPoolAndPriorityClass[recorderKey]
+	if !ok {
 		qmr = &QueueMetricsRecorder{
 			Pool:             pool,
 			PriorityClass:    pritorityClass,

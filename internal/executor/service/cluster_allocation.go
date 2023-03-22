@@ -1,29 +1,21 @@
 package service
 
 import (
-	"context"
 	"fmt"
-	"time"
 
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
-	"github.com/armadaproject/armada/internal/common/slices"
 	util2 "github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/executor/configuration"
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
-	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/healthmonitor"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/reporter"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/internal/executor/utilisation"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/armadaevents"
-	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 type ClusterAllocator interface {
@@ -31,35 +23,26 @@ type ClusterAllocator interface {
 }
 
 type ClusterAllocationService struct {
-	leaseRequester     LeaseRequester
-	eventReporter      reporter.EventReporter
-	utilisationService utilisation.UtilisationService
-	clusterContext     executorContext.ClusterContext
-	submitter          job.Submitter
-	jobRunStateStore   *job.JobRunStateStore
-	podDefaults        *configuration.PodDefaults
-	etcdHealthMonitor  healthmonitor.EtcdLimitHealthMonitor
+	clusterId         executorContext.ClusterIdentity
+	jobRunStateStore  job.RunStateStore
+	submitter         job.Submitter
+	eventReporter     reporter.EventReporter
+	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor
 }
 
 func NewClusterAllocationService(
-	clusterContext executorContext.ClusterContext,
+	clusterId executorContext.ClusterIdentity,
 	eventReporter reporter.EventReporter,
-	leaseRequester LeaseRequester,
-	jobRunStateManager *job.JobRunStateStore,
-	utilisationService utilisation.UtilisationService,
+	jobRunStateManager job.RunStateStore,
 	submitter job.Submitter,
-	podDefaults *configuration.PodDefaults,
 	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
 ) *ClusterAllocationService {
 	return &ClusterAllocationService{
-		leaseRequester:     leaseRequester,
-		eventReporter:      eventReporter,
-		utilisationService: utilisationService,
-		clusterContext:     clusterContext,
-		submitter:          submitter,
-		jobRunStateStore:   jobRunStateManager,
-		podDefaults:        podDefaults,
-		etcdHealthMonitor:  etcdHealthMonitor,
+		eventReporter:     eventReporter,
+		clusterId:         clusterId,
+		submitter:         submitter,
+		jobRunStateStore:  jobRunStateManager,
+		etcdHealthMonitor: etcdHealthMonitor,
 	}
 }
 
@@ -70,153 +53,34 @@ func (allocationService *ClusterAllocationService) AllocateSpareClusterCapacity(
 		return
 	}
 
-	capacityReport, err := allocationService.utilisationService.GetAvailableClusterCapacity(false)
-	if err != nil {
-		log.Errorf("Failed to allocate spare cluster capacity because %s", err)
-		return
-	}
-
-	unassignedRunIds, err := allocationService.getUnassignedRunIds(capacityReport)
-	if err != nil {
-		log.Errorf("Failed to allocate spare cluster capacity because %s", err)
-		return
-	}
-
-	nodes := make([]*api.NodeInfo, 0, len(capacityReport.Nodes))
-	for i := range capacityReport.Nodes {
-		nodes = append(nodes, &capacityReport.Nodes[i])
-	}
-
-	newJobRuns, runsToCancel, err := allocationService.leaseRequester.LeaseJobRuns(
-		capacityReport.AvailableCapacity,
-		nodes,
-		unassignedRunIds,
-	)
-	if err != nil {
-		log.Errorf("failed to lease new jobs: %v", err)
-		return
-	}
-
-	logAvailableResources(capacityReport, len(newJobRuns))
-
-	jobs, failedJobCreations := allocationService.createSubmitJobs(newJobRuns)
-	allocationService.markJobsLeased(jobs, failedJobCreations)
-	allocationService.handleFailedJobCreation(failedJobCreations)
-	failedJobSubmissions := allocationService.submitter.SubmitJobs(jobs)
-	allocationService.processFailedJobSubmissions(failedJobSubmissions)
-	allocationService.processRunsToCancel(runsToCancel)
-}
-
-func (allocationService *ClusterAllocationService) markJobsLeased(jobs []*job.SubmitJob, failedJobCreations []*failedJobCreationDetails) {
-	for _, j := range jobs {
-		allocationService.jobRunStateStore.ReportRunLeased(j.Meta.RunMeta)
-	}
-
-	for _, failedJob := range failedJobCreations {
-		allocationService.jobRunStateStore.ReportRunLeased(failedJob.JobRunMeta)
-	}
-}
-
-type failedJobCreationDetails struct {
-	JobRunMeta *job.RunMeta
-	Error      error
-}
-
-func (allocationService *ClusterAllocationService) createSubmitJobs(newJobRuns []*executorapi.JobRunLease) ([]*job.SubmitJob, []*failedJobCreationDetails) {
-	submitJobs := make([]*job.SubmitJob, 0, len(newJobRuns))
-	failedJobCreations := []*failedJobCreationDetails{}
-	for _, jobToSubmit := range newJobRuns {
-		jobMeta, err := extractEssentialJobMetadata(jobToSubmit)
-		if err != nil {
-			log.Errorf("received invalid job - %s", err)
+	jobRuns := allocationService.jobRunStateStore.GetAllWithFilter(func(state *job.RunState) bool {
+		return state.Phase == job.Leased
+	})
+	jobs := make([]*job.SubmitJob, 0, len(jobRuns))
+	for _, run := range jobRuns {
+		if run.Job == nil {
+			// TODO report invalid - when we drive events off state
+			log.Errorf("Job for job %s run %s unexpectedly nil", run.Meta.JobId, run.Meta.RunId)
 			continue
 		}
-
-		submitJob, err := job.CreateSubmitJobFromExecutorApiJobRunLease(jobToSubmit, allocationService.podDefaults)
-		if err != nil {
-			failedJobCreations = append(failedJobCreations, &failedJobCreationDetails{
-				JobRunMeta: jobMeta,
-				Error:      err,
-			})
-		} else {
-			submitJobs = append(submitJobs, submitJob)
-		}
+		jobs = append(jobs, run.Job)
 	}
 
-	return submitJobs, failedJobCreations
+	failedJobSubmissions := allocationService.submitter.SubmitJobs(jobs)
+	allocationService.processSuccessfulSubmissions(jobs, failedJobSubmissions)
+	allocationService.processFailedJobSubmissions(failedJobSubmissions)
 }
 
-func extractEssentialJobMetadata(jobRun *executorapi.JobRunLease) (*job.RunMeta, error) {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(jobRun.Job.JobId)
-	if err != nil {
-		return nil, fmt.Errorf("unable to extract jobId because %s", err)
+func (allocationService *ClusterAllocationService) processSuccessfulSubmissions(jobs []*job.SubmitJob, failedSubmissions []*job.FailedSubmissionDetails) {
+	failedSubmissionSet := make(map[string]bool, len(failedSubmissions))
+	for _, failedSubmission := range failedSubmissions {
+		failedSubmissionSet[failedSubmission.JobRunMeta.RunId] = true
 	}
-	runId, err := armadaevents.UuidStringFromProtoUuid(jobRun.JobRunId)
-	if err != nil {
-		return nil, fmt.Errorf("unable to extract runId because %s", err)
-	}
-	if jobRun.Queue == "" {
-		return nil, fmt.Errorf("job is invalid, queue is empty")
-	}
-	if jobRun.Jobset == "" {
-		return nil, fmt.Errorf("job is invalid, jobset is empty")
-	}
-
-	return &job.RunMeta{
-		JobId:  jobId,
-		RunId:  runId,
-		Queue:  jobRun.Queue,
-		JobSet: jobRun.Jobset,
-	}, nil
-}
-
-func (allocationService *ClusterAllocationService) handleFailedJobCreation(failedJobCreationDetails []*failedJobCreationDetails) {
-	for _, failedCreateDetails := range failedJobCreationDetails {
-		failedEvent := &api.JobFailedEvent{
-			JobId:             failedCreateDetails.JobRunMeta.JobId,
-			JobSetId:          failedCreateDetails.JobRunMeta.JobSet,
-			Queue:             failedCreateDetails.JobRunMeta.Queue,
-			Created:           time.Now(),
-			ClusterId:         allocationService.clusterContext.GetClusterId(),
-			Reason:            failedCreateDetails.Error.Error(),
-			ExitCodes:         map[string]int32{},
-			ContainerStatuses: []*api.ContainerStatus{},
-			Cause:             api.Cause_Error,
-		}
-		err := allocationService.eventReporter.Report([]reporter.EventMessage{{Event: failedEvent, JobRunId: failedCreateDetails.JobRunMeta.RunId}})
-		if err == nil {
-			allocationService.jobRunStateStore.ReportFailedSubmission(failedCreateDetails.JobRunMeta)
-		} else {
-			// This will cause us to lease it again - which is acceptable as the pod was never created
-			allocationService.jobRunStateStore.Delete(failedCreateDetails.JobRunMeta.RunId)
-			log.Errorf("Failed to report job creation failed for job %s (run id %s) because %s",
-				failedCreateDetails.JobRunMeta.JobId, failedCreateDetails.JobRunMeta.RunId, err)
+	for _, j := range jobs {
+		if _, failed := failedSubmissionSet[j.Meta.RunMeta.RunId]; !failed {
+			allocationService.jobRunStateStore.ReportSuccessfulSubmission(j.Meta.RunMeta.RunId)
 		}
 	}
-}
-
-// Returns the RunIds of all managed pods that haven't been assigned to a node
-func (allocationService *ClusterAllocationService) getUnassignedRunIds(capacityReport *utilisation.ClusterAvailableCapacityReport) ([]armadaevents.Uuid, error) {
-	allAssignedRunIds := []string{}
-	allJobRunIds := []string{}
-
-	for _, node := range capacityReport.Nodes {
-		allAssignedRunIds = append(allAssignedRunIds, maps.Keys(node.RunIdsByState)...)
-	}
-
-	// We make the assumption here that JobRunStateStore knows about all job runs and don't reconcile again against kubernetes
-	// This should be a safe assumption - and would be a bug if it was ever not true
-	allJobRuns := allocationService.jobRunStateStore.GetAll()
-	allJobRunIds = append(allJobRunIds, util2.Map(allJobRuns, func(val *job.RunState) string {
-		return val.Meta.RunId
-	})...)
-
-	unassignedIds := slices.Subtract(allJobRunIds, allAssignedRunIds)
-	unassignedIds = util2.Filter(unassignedIds, func(val string) bool {
-		return val != ""
-	})
-
-	return util.StringUuidsToUuids(unassignedIds)
 }
 
 func (allocationService *ClusterAllocationService) processFailedJobSubmissions(failedSubmissions []*job.FailedSubmissionDetails) {
@@ -227,88 +91,28 @@ func (allocationService *ClusterAllocationService) processFailedJobSubmissions(f
 		}
 
 		if details.Recoverable {
-			returnLeaseEvent := reporter.CreateReturnLeaseEvent(details.Pod, message, allocationService.clusterContext.GetClusterId(), true)
+			returnLeaseEvent := reporter.CreateReturnLeaseEvent(details.Pod, message, allocationService.clusterId.GetClusterId(), true)
 			err := allocationService.eventReporter.Report([]reporter.EventMessage{{Event: returnLeaseEvent, JobRunId: details.JobRunMeta.RunId}})
 			if err == nil {
-				allocationService.jobRunStateStore.ReportFailedSubmission(details.JobRunMeta)
+				allocationService.jobRunStateStore.ReportFailedSubmission(details.JobRunMeta.RunId)
 			} else {
 				// This will cause us to lease it again - which is acceptable as the pod was never created
+				// Longer term we'll just update the state and let the state manager handle resending this event
 				allocationService.jobRunStateStore.Delete(details.JobRunMeta.RunId)
 				log.Errorf("Failed to return lease for job %s because %s", details.JobRunMeta.JobId, err)
 			}
 		} else {
-			failEvent := reporter.CreateSimpleJobFailedEvent(details.Pod, message, allocationService.clusterContext.GetClusterId(), api.Cause_Error)
+			failEvent := reporter.CreateSimpleJobFailedEvent(details.Pod, message, allocationService.clusterId.GetClusterId(), api.Cause_Error)
 			err := allocationService.eventReporter.Report([]reporter.EventMessage{{Event: failEvent, JobRunId: details.JobRunMeta.RunId}})
 			if err == nil {
-				allocationService.jobRunStateStore.ReportFailedSubmission(details.JobRunMeta)
+				allocationService.jobRunStateStore.ReportFailedSubmission(details.JobRunMeta.RunId)
 			} else {
 				// This will cause us to lease it again - which is acceptable as the pod was never created
+				// Longer term we'll just update the state and let the state manager handle resending this event
 				allocationService.jobRunStateStore.Delete(details.JobRunMeta.RunId)
 				log.Errorf("Failed to report submission as failed for job %s because %s", details.JobRunMeta.JobId, err)
 			}
 		}
-	}
-}
-
-func (allocationService *ClusterAllocationService) processRunsToCancel(runsToRemove []*armadaevents.Uuid) {
-	runsToRemoveIds := make([]string, 0, len(runsToRemove))
-	for _, runToCancelId := range runsToRemove {
-		runIdStr, err := armadaevents.UuidStringFromProtoUuid(runToCancelId)
-		if err != nil {
-			log.Errorf("Skipping removing run because %s", err)
-			continue
-		}
-		runsToRemoveIds = append(runsToRemoveIds, runIdStr)
-	}
-	runsToRemoveSet := util2.StringListToSet(runsToRemoveIds)
-
-	managedPods, err := allocationService.clusterContext.GetBatchPods()
-	if err != nil {
-		log.Errorf("Failed to cancel runs because unable to get a current managed pods due to %s", err)
-		return
-	}
-
-	// Find all runs with a pod
-	podsToRemove := make([]*v1.Pod, 0, len(runsToRemove))
-	for _, pod := range managedPods {
-		runId := util.ExtractJobRunId(pod)
-		if _, ok := runsToRemoveSet[runId]; ok {
-			podsToRemove = append(podsToRemove, pod)
-		}
-	}
-
-	// Annotate corresponding pods with JobDoneAnnotation
-	// Then update the runs state
-	util.ProcessItemsWithThreadPool(context.Background(), 20, podsToRemove,
-		func(pod *v1.Pod) {
-			if util.IsInTerminalState(pod) && util.HasCurrentStateBeenReported(pod) {
-				if !util.IsReportedDone(pod) {
-					err := allocationService.clusterContext.AddAnnotation(pod, map[string]string{
-						domain.JobDoneAnnotation: time.Now().String(),
-					})
-					if err != nil {
-						log.Errorf("Failed to annotate pod %s as done because %s", pod.Name, err)
-						return
-					}
-				}
-
-				runId := util.ExtractJobRunId(pod)
-				allocationService.jobRunStateStore.Delete(runId)
-			} else {
-				// This path should only happen during cancellation
-				allocationService.clusterContext.DeletePods(podsToRemove)
-			}
-		},
-	)
-	// For all runs that don't have a corresponding pod, delete the run from the state
-	runsWithPods := util2.Map(podsToRemove, func(pod *v1.Pod) string {
-		return util.ExtractJobRunId(pod)
-	})
-
-	runsToDelete := slices.Subtract(runsToRemoveIds, runsWithPods)
-
-	for _, runToDelete := range runsToDelete {
-		allocationService.jobRunStateStore.Delete(runToDelete)
 	}
 }
 
@@ -367,7 +171,7 @@ func (allocationService *LegacyClusterAllocationService) AllocateSpareClusterCap
 		utilisation.GetAllocationByQueue(activePods),
 		utilisation.GetAllocationByQueueAndPriority(activePods),
 	)
-	logAvailableResources(capacityReport, len(newJobs))
+	logAvailableResources(*capacityReport.AvailableCapacity, len(newJobs))
 	if err != nil {
 		log.Errorf("failed to lease new jobs: %v", err)
 		return
@@ -379,26 +183,26 @@ func (allocationService *LegacyClusterAllocationService) AllocateSpareClusterCap
 	}
 }
 
-func logAvailableResources(capacityReport *utilisation.ClusterAvailableCapacityReport, jobCount int) {
-	cpu := capacityReport.GetResourceQuantity("cpu")
-	memory := capacityReport.GetResourceQuantity("memory")
-	ephemeralStorage := capacityReport.GetResourceQuantity("ephemeral-storage")
+func logAvailableResources(availableResource armadaresource.ComputeResources, jobCount int) {
+	cpu := availableResource["cpu"]
+	memory := availableResource["memory"]
+	ephemeralStorage := availableResource["ephemeral-storage"]
 
 	resources := fmt.Sprintf(
 		"cpu: %dm, memory %s, ephemeral-storage: %s",
 		cpu.MilliValue(), util2.FormatBinarySI(memory.Value()), util2.FormatBinarySI(ephemeralStorage.Value()),
 	)
 
-	nvidiaGpu := capacityReport.GetResourceQuantity("nvidia.com/gpu")
+	nvidiaGpu := availableResource["nvidia.com/gpu"]
 	if nvidiaGpu.Value() > 0 {
 		resources += fmt.Sprintf(", nvidia.com/gpu: %d", nvidiaGpu.Value())
 	}
-	amdGpu := capacityReport.GetResourceQuantity("amd.com/gpu")
+	amdGpu := availableResource["amd.com/gpu"]
 	if amdGpu.Value() > 0 {
 		resources += fmt.Sprintf(", amd.com/gpu: %d", nvidiaGpu.Value())
 	}
 
-	log.Infof("Requesting new jobs with free resource %s. Received %d new jobs. ", resources, jobCount)
+	log.Infof("Reporting current free resource %s. Received %d new jobs. ", resources, jobCount)
 }
 
 // Any pod not in a terminal state is considered active for the purposes of cluster allocation
