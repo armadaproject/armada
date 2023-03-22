@@ -19,9 +19,9 @@ import { JobService } from "./services/JobService"
 import LogService from "./services/LogService"
 import { IGetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
+import { ILogService } from "./services/lookoutV2/LogService"
 
 import "./App.css"
-import { ILogService } from "./services/lookoutV2/LogService"
 
 // Required for Mui V4 and V5 to be compatible with each other
 // See https://mui.com/x/react-data-grid/migration-v4/#using-mui-core-v4-with-v5

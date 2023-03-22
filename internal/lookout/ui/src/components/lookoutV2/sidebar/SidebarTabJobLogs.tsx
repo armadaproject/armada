@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState, UIEvent } from "react"
 
 import {
   Checkbox,
@@ -65,6 +65,7 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
   const [runIndex, setRunIndex] = useState(0)
   const [selectedContainer, setSelectedContainer] = useState("")
   const [loadFromStart, setLoadFromStart] = useState(false)
+  const [showTimestamps, setShowTimestamps] = useState(false)
   const [logs, setLogs] = useState<LogLine[]>([])
   const logsRef = useRef<LogLine[]>([]) // Cannot use state in setTimeout
   const [logsRequestStatus, setLogsRequestStatus] = useState<RequestStatus>("Idle")
@@ -160,7 +161,7 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
   }
 
   useEffect(() => {
-    if (selectedContainer === "") {
+    if (selectedContainer === "" || job.runs.length === 0) {
       return
     }
 
@@ -174,144 +175,178 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
     }
   }, [job, runIndex, selectedContainer, loadFromStart])
 
+  if (jobSpecState.jobSpec === undefined) {
+    return (
+      <div className={styles.loading}>
+        <CircularProgress size={24} />
+      </div>
+    )
+  }
+
   return (
-    <div style={{ width: "100%", height: "100%" }}>
+    <div className={styles.sidebarLogsTabContainer}>
       {jobSpecState.loadState === "Loading" && (
         <div className={styles.loading}>
           <CircularProgress size={24} />
         </div>
       )}
-      {jobSpecState.jobSpec && (
-        <div
-          style={{
-            width: "100%",
-            height: "100%",
-            flexDirection: "column",
-            display: "flex",
-          }}
-        >
-          <div
+      <div className={styles.logsHeader}>
+        <div className={styles.logOption}>
+          <FormControl
+            variant="standard"
             style={{
-              display: "flex",
-              flexDirection: "row",
               width: "100%",
-              alignItems: "flex-start",
-              justifyContent: "center",
             }}
           >
-            <div
+            <InputLabel id="select-job-run-label">Job Run</InputLabel>
+            <Select
+              labelId="select-job-run-label"
+              variant="standard"
+              disabled={runsNewestFirst.length === 0}
+              value={runIndex}
+              size="small"
+              onChange={(e) => {
+                const index = e.target.value as number
+                setRunIndex(index)
+              }}
               style={{
-                minWidth: "30%",
-                flex: "1 1 auto",
-                padding: "0 5px 0 5px",
+                maxWidth: "300px",
               }}
             >
-              <FormControl
-                variant="standard"
-                style={{
-                  width: "100%",
-                }}
-              >
-                <InputLabel id="select-job-run-label">Job Run</InputLabel>
-                <Select
-                  labelId="select-job-run-label"
-                  variant="standard"
-                  disabled={runsNewestFirst.length === 0}
-                  value={runIndex}
-                  size="small"
-                  onChange={(e) => {
-                    const index = e.target.value as number
-                    setRunIndex(index)
-                  }}
-                  style={{
-                    maxWidth: "300px",
-                  }}
-                >
-                  {runsNewestFirst.map((run, i) => (
-                    <MenuItem value={i} key={i}>
-                      {run.started}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </div>
-            <div
-              style={{
-                minWidth: "30%",
-                flex: "1 1 auto",
-                padding: "0 5px 0 5px",
-              }}
-            >
-              <FormControl
-                variant="standard"
-                style={{
-                  width: "100%",
-                }}
-              >
-                <InputLabel id="select-container-label">Container</InputLabel>
-                {
-                  <Select
-                    labelId="select-container-label"
-                    variant="standard"
-                    value={selectedContainer}
-                    displayEmpty={true}
-                    onChange={(e) => {
-                      const container = e.target.value as string
-                      setSelectedContainer(container)
-                    }}
-                    size="small"
-                    style={{
-                      maxWidth: "250px",
-                    }}
-                  >
-                    {containers.map((container) => (
-                      <MenuItem value={container} key={container}>
-                        {container}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                }
-              </FormControl>
-            </div>
-            <div
-              style={{
-                minWidth: "30%",
-                flex: "1 1 auto",
-                padding: "0 5px 0 10px",
-              }}
-            >
-              <FormGroup>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={loadFromStart}
-                      onChange={(e) => {
-                        setLoadFromStart(e.target.checked)
-                      }}
-                    />
-                  }
-                  label="Load from start"
-                />
-              </FormGroup>
-            </div>
-          </div>
-          {logs.length > 0 ? (
-            <div className={styles.logView}>
-              {logs.map((logLine) => (
-                <span>{logLine.line}</span>
+              {runsNewestFirst.map((run, i) => (
+                <MenuItem value={i} key={i}>
+                  {run.started}
+                </MenuItem>
               ))}
-              {logsRequestStatus === "Loading" && (
-                <div className={styles.loading}>
-                  <CircularProgress size={24} />
-                </div>
-              )}
-              <div className={styles.anchor} />
-            </div>
-          ) : (
-            <div>No logs to display</div>
-          )}
+            </Select>
+          </FormControl>
         </div>
-      )}
+        <div className={styles.logOption}>
+          <FormControl
+            variant="standard"
+            style={{
+              width: "100%",
+            }}
+          >
+            <InputLabel id="select-container-label">Container</InputLabel>
+            {
+              <Select
+                labelId="select-container-label"
+                variant="standard"
+                value={selectedContainer}
+                displayEmpty={true}
+                onChange={(e) => {
+                  const container = e.target.value as string
+                  setSelectedContainer(container)
+                }}
+                size="small"
+                style={{
+                  maxWidth: "250px",
+                }}
+              >
+                {containers.map((container) => (
+                  <MenuItem value={container} key={container}>
+                    {container}
+                  </MenuItem>
+                ))}
+              </Select>
+            }
+          </FormControl>
+        </div>
+        <div className={styles.logOption}>
+          <FormGroup>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={loadFromStart}
+                  onChange={(e) => {
+                    setLoadFromStart(e.target.checked)
+                  }}
+                />
+              }
+              label="Load from start"
+            />
+          </FormGroup>
+        </div>
+        <div className={styles.logOption}>
+          <FormGroup>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={showTimestamps}
+                  onChange={(e) => {
+                    setShowTimestamps(e.target.checked)
+                  }}
+                />
+              }
+              label="Show timestamps"
+            />
+          </FormGroup>
+        </div>
+      </div>
+      <LogView logLines={logs} showTimestamps={showTimestamps} />
+      <div
+        className={styles.loading + " " + styles.logsLoading}
+        style={{
+          visibility: logsRequestStatus === "Loading" ? "visible" : "hidden",
+        }}
+      >
+        <CircularProgress size={24} />
+      </div>
+    </div>
+  )
+}
+
+function LogView({ logLines, showTimestamps }: { logLines: LogLine[]; showTimestamps: boolean }) {
+  if (logLines.length === 0) {
+    return (
+      <div key={"EMPTY"} className={styles.emptyLogView}>
+        No logs to display
+      </div>
+    )
+  }
+
+  const [shouldScrollDown, setShouldScrollDown] = useState<boolean>(true)
+  const logsEndRef = useRef<HTMLDivElement>(null)
+  const previousScrollTopRef = useRef<number | undefined>()
+
+  const scrollToBottom = () => {
+    if (shouldScrollDown) {
+      logsEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    }
+  }
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [logLines])
+
+  const handleScroll = (e: UIEvent<HTMLDivElement>) => {
+    const element = e.currentTarget
+    const scrollHeight = element.scrollHeight
+    const scrollTop = element.scrollTop
+    const clientHeight = element.clientHeight
+
+    const previousScrollTop = previousScrollTopRef.current
+    if (previousScrollTop && previousScrollTop >= scrollTop) {
+      setShouldScrollDown(false)
+    }
+    previousScrollTopRef.current = scrollTop
+
+    const isAtBottom = Math.round(scrollHeight - scrollTop) === clientHeight
+    if (isAtBottom) {
+      setShouldScrollDown(true)
+    }
+  }
+
+  return (
+    <div className={styles.logView} onScroll={handleScroll}>
+      {logLines.map((logLine, i) => (
+        <span key={`${i}-${logLine.timestamp}`}>
+          {showTimestamps && <span className={styles.timestamp}>{logLine.timestamp}</span>}
+          {logLine.line + "\n"}
+        </span>
+      ))}
+      <div ref={logsEndRef} key={"END"} />
     </div>
   )
 }
