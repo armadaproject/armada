@@ -406,7 +406,7 @@ func (report *PodSchedulingReport) String() string {
 		w.Writef("Node:\tnone\n")
 	}
 	w.Writef("Score:\t%d\n", report.Score)
-	w.Writef("Number of matched Node types:\t%d\n", report.MatchingNodeTypes)
+	w.Writef("Number of matched Node types:\t%d\n", len(report.MatchingNodeTypes))
 	if len(report.NumExcludedNodeTypesByReason) == 0 {
 		w.Writef("Excluded Node types:\tnone\n")
 	} else {
