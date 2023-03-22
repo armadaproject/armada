@@ -474,6 +474,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 	var preemptedJobs []scheduler.LegacySchedulerJob
 	var scheduledJobs []scheduler.LegacySchedulerJob
+	var schedulingContext *scheduler.SchedulingContext
 	if q.schedulingConfig.Preemption.PreemptToFairShare {
 		rescheduler := scheduler.NewRescheduler(
 			*constraints,
@@ -499,14 +500,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		preemptedJobs = result.PreemptedJobs
 		scheduledJobs = result.ScheduledJobs
 		nodeIdByJobId = result.NodeIdByJobId
-
-		// Store the scheduling context for querying.
-		if q.SchedulingContextRepository != nil && result.SchedulingContext != nil {
-			result.SchedulingContext.ClearJobSpecs()
-			if err := q.SchedulingContextRepository.AddSchedulingContext(result.SchedulingContext); err != nil {
-				logging.WithStacktrace(log, err).Error("failed to store scheduling context")
-			}
-		}
+		schedulingContext = result.SchedulingContext
 	} else {
 		schedulerQueues := make([]*scheduler.Queue, len(activeQueues))
 		for i, apiQueue := range activeQueues {
@@ -552,13 +546,14 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		preemptedJobs = result.PreemptedJobs
 		scheduledJobs = result.ScheduledJobs
 		nodeIdByJobId = result.NodeIdByJobId
+		schedulingContext = result.SchedulingContext
+	}
 
-		// Store the scheduling context for querying.
-		if q.SchedulingContextRepository != nil && result.SchedulingContext != nil {
-			result.SchedulingContext.ClearJobSpecs()
-			if err := q.SchedulingContextRepository.AddSchedulingContext(result.SchedulingContext); err != nil {
-				logging.WithStacktrace(log, err).Error("failed to store scheduling context")
-			}
+	// Store the scheduling context for querying.
+	if q.SchedulingContextRepository != nil && schedulingContext != nil {
+		schedulingContext.ClearJobSpecs()
+		if err := q.SchedulingContextRepository.AddSchedulingContext(schedulingContext); err != nil {
+			logging.WithStacktrace(log, err).Error("failed to store scheduling context")
 		}
 	}
 

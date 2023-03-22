@@ -19,8 +19,6 @@ import (
 )
 
 // SchedulingContextRepository stores scheduling contexts associated with recent scheduling attempts.
-//
-// TODO: Add async way to add reports.
 type SchedulingContextRepository struct {
 	// Maps executor id to *SchedulingContext.
 	// The most recent attempt.
