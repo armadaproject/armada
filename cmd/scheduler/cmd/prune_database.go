@@ -6,7 +6,6 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/database"
@@ -19,25 +18,34 @@ func pruneDbCmd() *cobra.Command {
 		Short: "removes old data from the database",
 		RunE:  pruneDatabase,
 	}
-	cmd.PersistentFlags().Duration(
+	cmd.Flags().Duration(
 		"timeout",
 		5*time.Minute,
 		"Duration after which the job will fail if it has not completed")
-	cmd.PersistentFlags().Int(
+	cmd.Flags().Int(
 		"batchsize",
 		10000,
 		"Number of rows that will be deleted in a single batch")
-	cmd.PersistentFlags().Duration(
+	cmd.Flags().Duration(
 		"expireAfter",
 		2*time.Hour,
 		"Length of time after completion that job data will be removed")
 	return cmd
 }
 
-func pruneDatabase(_ *cobra.Command, _ []string) error {
-	timeout := viper.GetDuration("timeout")
-	batchSize := viper.GetInt("batchsize")
-	expireAfter := viper.GetDuration("expireAfter")
+func pruneDatabase(cmd *cobra.Command, _ []string) error {
+	timeout, err := cmd.Flags().GetDuration("timeout")
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	batchSize, err := cmd.Flags().GetInt("batchsize")
+	if err != nil {
+		return errors.WithStack(err)
+	}
+	expireAfter, err := cmd.Flags().GetDuration("expireAfter")
+	if err != nil {
+		return errors.WithStack(err)
+	}
 
 	config, err := loadConfig()
 	if err != nil {
