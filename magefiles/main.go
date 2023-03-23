@@ -8,17 +8,25 @@ import (
 
 	"github.com/magefile/mage/mg"
 	"github.com/pkg/errors"
+	"sigs.k8s.io/yaml"
 )
 
-// install go tools
+// BootstrapTools installs all tools needed tobuild and release armada
+// For the list of tools this will install, see tools.yaml in the root directory
 func BootstrapTools() error {
 	mg.Deps(goCheck)
-	packages, err := goOutput("list", "-f", "{{range .Imports}}{{.}} {{end}}", "internal/tools/tools.go")
+	type ToolsList struct {
+		Tools []string
+	}
+
+	tools := &ToolsList{}
+	err := readYaml("tools.yaml", tools)
 	if err != nil {
 		return err
 	}
-	for _, p := range strings.Split(strings.TrimSpace(packages), " ") {
-		err := goRun("install", p)
+
+	for _, tool := range tools.Tools {
+		err := goRun("install", tool)
 		if err != nil {
 			return err
 		}
@@ -148,4 +156,14 @@ func BuildLookoutUI() error {
 	mg.Deps(yarnOpenAPI)
 	mg.Deps(yarnBuild)
 	return nil
+}
+
+// readYaml reads a yaml file and unmarshalls the result into out
+func readYaml(filename string, out interface{}) error {
+	bytes, err := os.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+	err = yaml.Unmarshal(bytes, out)
+	return err
 }

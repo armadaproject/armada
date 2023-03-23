@@ -572,10 +572,10 @@ push-nuget: dotnet-setup proto-setup
 	$(DOTNET_CMD) dotnet pack client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
 	$(DOTNET_CMD) dotnet nuget push ./bin/client/DotNet/ArmadaProject.Io.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
 
-# Download all dependencies and install tools listed in internal/tools/tools.go
+# Download all dependencies and install tools listed in tools.yaml
 download:
+	go run github.com/magefile/mage@v1.14.0 BootstrapTools
 	$(GO_TEST_CMD) go mod download
-	$(GO_TEST_CMD) go list -f '{{range .Imports}}{{.}} {{end}}' internal/tools/tools.go | xargs $(GO_TEST_CMD) go install
 	$(GO_TEST_CMD) go mod tidy
 
 generate:

@@ -57,7 +57,7 @@ type Configuration struct {
 }
 
 type LeaderConfig struct {
-	// Valid modes are "standalone" or "cluster"
+	// Valid modes are "standalone" or "kubernetes"
 	Mode string `validate:"required"`
 	// Name of the K8s Lock Object
 	LeaseLockName string

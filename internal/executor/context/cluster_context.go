@@ -323,19 +323,25 @@ func (c *KubernetesClusterContext) AddClusterEventAnnotation(event *v1.Event, an
 }
 
 func (c *KubernetesClusterContext) DeletePodWithCondition(pod *v1.Pod, condition func(pod *v1.Pod) bool, pessimistic bool) error {
-	if !condition(pod) {
-		return fmt.Errorf("pod does not match provided condition")
+	currentPod, err := c.podInformer.Lister().Pods(pod.Namespace).Get(pod.Name)
+	if err != nil {
+		return errors.Errorf("unable to find current pod state for pod %s because %s", pod.Name, err)
 	}
 
-	currentPod := pod
-	if !util.IsMarkedForDeletion(pod) {
-		_, err := c.markForDeletion(pod)
+	if !util.IsMarkedForDeletion(currentPod) {
+		_, err := c.markForDeletion(currentPod)
 		if err != nil {
 			return err
 		}
-		currentPod, err = c.waitForPodUpdateInLocalCache(pod, time.Second*5)
+		// Get latest pod state - bypassing cache
+		timeout, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+		currentPod, err = c.kubernetesClient.CoreV1().Pods(currentPod.Namespace).Get(timeout, currentPod.Name, metav1.GetOptions{})
 		if err != nil {
 			return err
+		}
+		if !util.IsMarkedForDeletion(currentPod) {
+			return errors.Errorf("failed to get updated version of pod from kubernetes")
 		}
 	}
 
@@ -350,29 +356,24 @@ func (c *KubernetesClusterContext) DeletePodWithCondition(pod *v1.Pod, condition
 		}
 	}
 
-	err := c.deletePod(currentPod, deleteOptions)
+	if currentPod.DeletionTimestamp != nil {
+		killTime := currentPod.DeletionTimestamp.
+			Add(util.GetDeletionGracePeriodOrDefault(currentPod)).
+			Add(c.podKillTimeout)
+		if c.clock.Now().After(killTime) {
+			log.Infof("Pod %s/%s was requested deleted at %s, but is still present. Force killing.", currentPod.Namespace, currentPod.Name, currentPod.DeletionTimestamp)
+			deleteOptions.GracePeriodSeconds = pointer.Int64(0)
+		} else {
+			log.Debugf("Asked to delete pod %s/%s but this pod is already being deleted", currentPod.Namespace, currentPod.Name)
+			return nil
+		}
+	}
+
+	err = c.deletePod(currentPod, deleteOptions)
 	if err != nil && k8s_errors.IsNotFound(err) {
 		return nil
 	}
 	return err
-}
-
-func (c *KubernetesClusterContext) waitForPodUpdateInLocalCache(pod *v1.Pod, timeout time.Duration) (*v1.Pod, error) {
-	timeoutContext, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	for {
-		if timeoutContext.Err() != nil {
-			return nil, fmt.Errorf("giving up waiting for pod informer cache sync for pod %s", pod.Name)
-		}
-		cachedPod, err := c.podInformer.Lister().Pods(pod.Namespace).Get(pod.Name)
-		if err != nil {
-			return nil, err
-		}
-		if cachedPod.ResourceVersion != pod.ResourceVersion {
-			return cachedPod, nil
-		}
-		time.Sleep(time.Millisecond * 50)
-	}
 }
 
 func (c *KubernetesClusterContext) DeletePods(pods []*v1.Pod) {
