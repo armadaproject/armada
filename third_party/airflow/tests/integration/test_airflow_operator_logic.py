@@ -1,6 +1,7 @@
 import os
 import uuid
 import pytest
+import threading
 
 from armada_client.armada import (
     submit_pb2,
@@ -177,3 +178,38 @@ def test_two_jobs_good_bad(client: ArmadaClient, jobservice: JobServiceClient):
     )
     assert job_state == JobState.FAILED
     assert job_message.startswith(f"Armada test:{second_job_id} failed")
+
+
+job_set_name = f"test-{uuid.uuid1()}"
+
+
+def success_job(client: ArmadaClient, jobservice: JobServiceClient):
+    job = client.submit_jobs(
+        queue="queue-a",
+        job_set_id=job_set_name,
+        job_request_items=sleep_pod(image="busybox"),
+    )
+    job_id = job.job_response_items[0].job_id
+
+    job_state, job_message = search_for_job_complete(
+        job_service_client=jobservice,
+        armada_queue="queue-a",
+        job_set_id=job_set_name,
+        airflow_task_name="test",
+        job_id=job_id,
+    )
+
+    assert job_state == JobState.SUCCEEDED
+    assert job_message == f"Armada test:{job_id} succeeded"
+
+
+def test_parallel_execution(client: ArmadaClient, jobservice: JobServiceClient):
+    threads = []
+    success_job(client=client, jobservice=jobservice)
+    for _ in range(30):
+        t = threading.Thread(target=success_job, args=[client, jobservice])
+        t.start()
+        threads.append(t)
+
+    for thread in threads:
+        thread.join()

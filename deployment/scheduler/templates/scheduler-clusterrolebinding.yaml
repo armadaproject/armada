@@ -1,0 +1,33 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "armada-scheduler.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "armada-scheduler.labels.all" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "armada-scheduler.name" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.scheduler.customServiceAccount | default (include "armada-scheduler.name" .) }}
+    namespace: {{ .Release.Namespace }}
+{{- $root := . -}}
+{{ range .Values.additionalClusterRoleBindings }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "armada-scheduler.name" $root }}-{{ .nameSuffix }}
+  labels:
+    {{- include "armada-scheduler.labels.all" $root | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .clusterRoleName }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $root.Values.customServiceAccount | default (include "armada-scheduler.name" $root) }}
+    namespace: {{ $root.Release.Namespace }}
+{{ end }}
