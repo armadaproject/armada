@@ -224,10 +224,14 @@ func hasIssueSelfResolved(runningJob *job.RunningJob) bool {
 	isStuckStartingUpAndResolvable := runningJob.Issue.Type == job.StuckStartingUp &&
 		(runningJob.Issue.Retryable || (!runningJob.Issue.Retryable && !runningJob.Issue.Reported))
 	if runningJob.Issue.Type == job.UnableToSchedule || isStuckStartingUpAndResolvable {
-		for _, pods := range runningJob.ActivePods {
-			// These are issues causing pods to get stuck in Pending
-			// As the pods are no longer Pending, the issue is no longer present
-			if pods.Status.Phase != v1.PodPending {
+		for _, pod := range runningJob.ActivePods {
+			// Pod has completed - no need to report any issues
+			if util.IsInTerminalState(pod) {
+				return true
+			}
+
+			// Pod has started running, and we haven't requested deletion - let it continue
+			if pod.Status.Phase == v1.PodRunning && pod.DeletionTimestamp == nil {
 				return true
 			}
 		}
