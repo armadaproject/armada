@@ -557,7 +557,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		}
 	}
 
-	// Prepare preempted + failed messages.
+	// Publish preempted + failed messages.
 	sequences := make([]*armadaevents.EventSequence, len(preemptedJobs))
 	for i, job := range preemptedJobs {
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.GetId())
@@ -598,6 +598,10 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			},
 		}
 	}
+	err = pulsarutils.CompactAndPublishSequences(ctx, sequences, q.pulsarProducer, q.maxPulsarMessageSize, schedulers.All)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to publish preempted messages")
+	}
 
 	preemptedApiJobsById := make(map[string]*api.Job)
 	for _, job := range preemptedJobs {
@@ -613,6 +617,27 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			scheduledApiJobsById[job.GetId()] = apiJob
 		} else {
 			log.Errorf("failed to convert job %s to api job", job.GetId())
+		}
+	}
+
+	// Delete preempted jobs from Redis.
+	// This ensures preempted jobs don't count towards allocated resources in the next scheduling round.
+	// As a fallback, a log processor asynchronously deletes any jobs for which there's a job failed message.
+	if len(preemptedApiJobsById) > 0 {
+		jobsToDelete := maps.Values(preemptedApiJobsById)
+		jobIdsToDelete := util.Map(jobsToDelete, func(job *api.Job) string { return job.Id })
+		log.Infof("deleting preempted jobs: %v", jobIdsToDelete)
+		if deletionResult, err := q.jobRepository.DeleteJobs(jobsToDelete); err != nil {
+			logging.WithStacktrace(log, err).Error("failed to delete preempted jobs from Redis")
+		} else {
+			deleteErrorByJobId := armadamaps.MapKeys(deletionResult, func(job *api.Job) string { return job.Id })
+			for jobId := range preemptedApiJobsById {
+				if err, ok := deleteErrorByJobId[jobId]; !ok {
+					log.Errorf("deletion result missing for preempted job %s", jobId)
+				} else if err != nil {
+					log.Errorf("failed to delete preempted job %s: %s", jobId, err.Error())
+				}
+			}
 		}
 	}
 
@@ -635,37 +660,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 				successfullyLeasedApiJobs = append(successfullyLeasedApiJobs, apiJob)
 			} else {
 				log.Errorf("didn't expect job %s to be leased", jobId)
-			}
-		}
-	}
-
-	// Publish preempted messages.
-	if q.pulsarProducer != nil {
-		err = pulsarutils.CompactAndPublishSequences(ctx, sequences, q.pulsarProducer, q.maxPulsarMessageSize, schedulers.All)
-		if err != nil {
-			logging.WithStacktrace(log, err).Error("failed to publish preempted messages")
-		}
-	} else {
-		log.Error("no Pulsar producer provided; omitting publishing preempted messages")
-	}
-
-	// Delete preempted jobs from Redis.
-	// This ensures preempted jobs don't count towards allocated resources in the next scheduling round.
-	// As a fallback, a log processor asynchronously deletes any jobs for which there's a job failed message.
-	if len(preemptedApiJobsById) > 0 {
-		jobsToDelete := maps.Values(preemptedApiJobsById)
-		jobIdsToDelete := util.Map(jobsToDelete, func(job *api.Job) string { return job.Id })
-		log.Infof("deleting preempted jobs: %v", jobIdsToDelete)
-		if deletionResult, err := q.jobRepository.DeleteJobs(jobsToDelete); err != nil {
-			logging.WithStacktrace(log, err).Error("failed to delete preempted jobs from Redis")
-		} else {
-			deleteErrorByJobId := armadamaps.MapKeys(deletionResult, func(job *api.Job) string { return job.Id })
-			for jobId := range preemptedApiJobsById {
-				if err, ok := deleteErrorByJobId[jobId]; !ok {
-					log.Errorf("deletion result missing for preempted job %s", jobId)
-				} else if err != nil {
-					log.Errorf("failed to delete preempted job %s: %s", jobId, err.Error())
-				}
 			}
 		}
 	}
