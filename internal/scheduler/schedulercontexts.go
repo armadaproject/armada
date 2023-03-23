@@ -10,6 +10,7 @@ import (
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -70,6 +71,17 @@ func (sctx *SchedulingContext) String() string {
 	fmt.Fprintf(w, "Jobs scheduled:\t%d\n", sctx.NumScheduledJobs)
 	fmt.Fprintf(w, "Total resources scheduled:\t%s\n", sctx.ScheduledResourcesByPriority.AggregateByResource().CompactString())
 	fmt.Fprintf(w, "Total resources scheduled (by priority):\t%s\n", sctx.ScheduledResourcesByPriority.String())
+	fmt.Fprintf(
+		w, "Scheduled queues:\t%v\n",
+		maps.Keys(
+			armadamaps.Filter(
+				sctx.QueueSchedulingContexts,
+				func(_ string, qctx *QueueSchedulingContext) bool {
+					return len(qctx.SuccessfulJobSchedulingContexts) > 0
+				},
+			),
+		),
+	)
 	fmt.Fprintf(w, "Termination reason:\t%s\n", sctx.TerminationReason)
 	w.Flush()
 	return sb.String()
