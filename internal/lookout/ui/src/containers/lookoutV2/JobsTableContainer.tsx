@@ -317,13 +317,13 @@ export const JobsTableContainer = ({
     [columnSizing],
   )
 
-  const onJobRowClick = useCallback((jobRow: JobRow) => {
+  const onJobRowClick = (jobRow: JobRow) => {
     const clickedJob = jobRow as Job
     const jobId = clickedJob.jobId
     // Deselect if clicking on a job row that's already shown in the sidebar
     setSidebarJobId(jobId === sidebarJobId ? undefined : jobId)
-  }, [])
-  const onSideBarClose = useCallback(() => setSidebarJobId(undefined), [])
+  }
+  const onSideBarClose = () => setSidebarJobId(undefined)
 
   const selectedItemsFilters: JobFilter[][] = useMemo(() => {
     return Object.keys(selectedRows).map((rowId) => {

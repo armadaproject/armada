@@ -11,7 +11,7 @@ export const useCustomSnackbar = (): OpenSnackbarFn => {
       variant: variant,
       ...options,
       action: (snackbarKey) => (
-        <IconButton onClick={() => closeSnackbar(snackbarKey)}>
+        <IconButton style={{ flex: "0" }} onClick={() => closeSnackbar(snackbarKey)}>
           <Close style={{ color: "white" }} />
         </IconButton>
       ),

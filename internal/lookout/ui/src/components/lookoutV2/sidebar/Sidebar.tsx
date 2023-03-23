@@ -2,7 +2,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react"
 
 import { TabContext, TabPanel } from "@mui/lab"
 import { Box, Divider, Drawer, Tab, Tabs } from "@mui/material"
-import { Job } from "models/lookoutV2Models"
+import { Job, JobState } from "models/lookoutV2Models"
 
 import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "../../../services/lookoutV2/GetRunErrorService"
@@ -151,7 +151,12 @@ export const Sidebar = memo(
                   <Tab label="Details" value={SidebarTab.JobDetails} sx={{ minWidth: "50px" }}></Tab>
                   <Tab label="Runs" value={SidebarTab.JobRuns} sx={{ minWidth: "50px" }}></Tab>
                   <Tab label="Yaml" value={SidebarTab.Yaml} sx={{ minWidth: "50px" }}></Tab>
-                  <Tab label="Logs" value={SidebarTab.Logs} sx={{ minWidth: "50px" }}></Tab>
+                  <Tab
+                    label="Logs"
+                    value={SidebarTab.Logs}
+                    sx={{ minWidth: "50px" }}
+                    disabled={job.state === JobState.Queued}
+                  ></Tab>
                 </Tabs>
 
                 <TabPanel value={SidebarTab.JobDetails} className={styles.sidebarTabPanel}>

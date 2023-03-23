@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState, UIEvent } from "react"
 
+import { Refresh } from "@mui/icons-material"
 import {
   Checkbox,
   CircularProgress,
   FormControl,
   FormControlLabel,
   FormGroup,
+  IconButton,
   InputLabel,
   MenuItem,
   Select,
@@ -16,7 +18,7 @@ import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { useJobSpec } from "../../../hooks/useJobSpec"
 import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
 import { ILogService, LogLine } from "../../../services/lookoutV2/LogService"
-import { getErrorMessage, RequestStatus } from "../../../utils"
+import { getErrorMessage, RequestStatus, waitMillis } from "../../../utils"
 import styles from "./SidebarTabJobLogs.module.css"
 
 export interface SidebarTabJobLogsProps {
@@ -56,7 +58,7 @@ function readContainerNames(containers: any): string[] {
   return containerNames
 }
 
-const TAIL_LINES = 10
+const TAIL_LINES = 1000
 const TIMEOUT = 1000
 
 export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTabJobLogsProps) => {
@@ -69,12 +71,19 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
   const [logs, setLogs] = useState<LogLine[]>([])
   const logsRef = useRef<LogLine[]>([]) // Cannot use state in setTimeout
   const [logsRequestStatus, setLogsRequestStatus] = useState<RequestStatus>("Idle")
+  const [logsRequestError, setLogsRequestError] = useState<string | undefined>(undefined)
+  const logsRequestErrorRef = useRef<string | undefined>(undefined)
 
   const jobSpecState = useJobSpec(job, jobSpecService, openSnackbar)
 
-  function setLogsFull(newLogs: LogLine[]) {
+  const setLogsFull = (newLogs: LogLine[]) => {
     logsRef.current = newLogs
     setLogs(newLogs)
+  }
+
+  const setLogsRequestErrorFull = (error: string | undefined) => {
+    logsRequestErrorRef.current = error
+    setLogsRequestError(error)
   }
 
   const containers = useMemo(() => getContainers(jobSpecState.jobSpec), [job, jobSpecState])
@@ -101,11 +110,24 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
   const loadLogs = async (sinceTime: string, tailLines: number | undefined): Promise<LogLine[]> => {
     setLogsRequestStatus("Loading")
     try {
-      return await logService.getLogs(cluster, namespace, job.jobId, selectedContainer, sinceTime, tailLines, undefined)
+      const logLines = await logService.getLogs(
+        cluster,
+        namespace,
+        job.jobId,
+        selectedContainer,
+        sinceTime,
+        tailLines,
+        undefined,
+      )
+      setLogsRequestErrorFull(undefined)
+      return logLines
     } catch (e) {
       const errMsg = await getErrorMessage(e)
+      setLogsRequestErrorFull(errMsg)
       console.error(errMsg)
-      openSnackbar("Failed to retrieve Job logs for Job with ID: " + job.jobId + ": " + errMsg, "error")
+      openSnackbar("Failed to retrieve Job logs for Job with ID: " + job.jobId + ": " + errMsg, "error", {
+        autoHideDuration: 5000,
+      })
       return []
     } finally {
       setLogsRequestStatus("Idle")
@@ -151,9 +173,20 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
     mergeLogs(newLogs)
   }
 
-  const timeoutRef = useRef<NodeJS.Timeout | undefined>()
+  const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const timerLoad = async () => {
+    if (logsRequestErrorRef.current !== undefined) {
+      return
+    }
     await loadMore()
+    clearTimeout(timeoutRef.current)
+    timeoutRef.current = setTimeout(async () => {
+      await timerLoad()
+    }, TIMEOUT)
+  }
+
+  const refresh = async () => {
+    await loadFirst()
     clearTimeout(timeoutRef.current)
     timeoutRef.current = setTimeout(async () => {
       await timerLoad()
@@ -165,15 +198,17 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
       return
     }
 
-    loadFirst()
-    timeoutRef.current = setTimeout(async () => {
-      await timerLoad()
-    }, TIMEOUT)
+    refresh()
 
     return () => {
+      setLogsRequestErrorFull(undefined)
       clearTimeout(timeoutRef.current)
     }
   }, [job, runIndex, selectedContainer, loadFromStart])
+
+  if (job.runs.length === 0) {
+    return <div className={styles.didNotRun}>This job did not run.</div>
+  }
 
   if (jobSpecState.jobSpec === undefined) {
     return (
@@ -215,7 +250,7 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
             >
               {runsNewestFirst.map((run, i) => (
                 <MenuItem value={i} key={i}>
-                  {run.started}
+                  {run.started === "" || run.started === undefined ? run.pending : run.started}
                 </MenuItem>
               ))}
             </Select>
@@ -285,13 +320,22 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
         </div>
       </div>
       <LogView logLines={logs} showTimestamps={showTimestamps} />
-      <div
-        className={styles.loading + " " + styles.logsLoading}
-        style={{
-          visibility: logsRequestStatus === "Loading" ? "visible" : "hidden",
-        }}
-      >
-        <CircularProgress size={24} />
+      <div className={styles.gutter}>
+        {logsRequestStatus === "Loading" && (
+          <div className={styles.loading}>
+            <CircularProgress size={24} />
+          </div>
+        )}
+        {logsRequestError !== undefined && (
+          <>
+            <div className={styles.errorMessage}>{logsRequestError}</div>
+            <div>
+              <IconButton onClick={refresh}>
+                <Refresh />
+              </IconButton>
+            </div>
+          </>
+        )}
       </div>
     </div>
   )

@@ -20,9 +20,29 @@
   padding: 0 5px 0 5px;
 }
 
-.logsLoading {
+.gutter {
+  flex: 0 0 40px;
   max-width: 100%;
-  flex: 0 0 1px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.errorMessage {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  white-space: pre-wrap;
+  font-family: monospace;
+  word-wrap: break-word;
+  overflow-y: auto;
+  background-color: #ffcdd2;
+  border-radius: 5px;
+  padding: 0 5px 0 5px;
 }
 
 .loading {
@@ -51,10 +71,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 5px 0 5px 0;
+  margin: 10px 0 10px 0;
 }
 
 .timestamp {
   background-color: #e0e0e0;
   margin-right: 10px;
+}
+
+.didNotRun {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
