@@ -524,13 +524,6 @@ func TestHandlePodTerminated(t *testing.T) {
 	msg := NewMsg(podTerminated)
 	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
-		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-			RunId:     runIdString,
-			Node:      pointer.String(nodeName),
-			Finished:  &baseTime,
-			Succeeded: pointer.Bool(false),
-			Error:     pointer.String(terminatedMsg),
-		}},
 		MessageIds: msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)

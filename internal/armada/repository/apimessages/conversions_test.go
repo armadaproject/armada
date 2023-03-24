@@ -363,7 +363,25 @@ func TestConvertPodUnschedulable(t *testing.T) {
 		},
 	}
 
-	expected := []*api.EventMessage{}
+	expected := []*api.EventMessage{
+		{
+			Events: &api.EventMessage_UnableToSchedule{
+				UnableToSchedule: &api.JobUnableToScheduleEvent{
+					JobId:        jobIdString,
+					ClusterId:    executorId,
+					PodNamespace: namespace,
+					PodName:      podName,
+					KubernetesId: runIdString,
+					Reason:       "couldn't schedule pod",
+					NodeName:     nodeName,
+					PodNumber:    podNumber,
+					JobSetId:     jobSetName,
+					Queue:        queue,
+					Created:      baseTime,
+				},
+			},
+		},
+	}
 
 	apiEvents, err := FromEventSequence(toEventSeq(unschedulable))
 	assert.NoError(t, err)
@@ -451,7 +469,24 @@ func TestConvertPodTerminated(t *testing.T) {
 		},
 	}
 
-	expected := []*api.EventMessage{}
+	expected := []*api.EventMessage{
+		{
+			Events: &api.EventMessage_Terminated{
+				Terminated: &api.JobTerminatedEvent{
+					JobId:        jobIdString,
+					ClusterId:    executorId,
+					PodNamespace: namespace,
+					PodName:      podName,
+					KubernetesId: runIdString,
+					Reason:       "The pod was terminated",
+					PodNumber:    podNumber,
+					JobSetId:     jobSetName,
+					Queue:        queue,
+					Created:      baseTime,
+				},
+			},
+		},
+	}
 
 	apiEvents, err := FromEventSequence(toEventSeq(terminated))
 	assert.NoError(t, err)
