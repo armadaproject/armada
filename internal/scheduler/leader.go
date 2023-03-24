@@ -68,7 +68,7 @@ func (lc *StandaloneLeaderController) ValidateToken(tok LeaderToken) bool {
 	return false
 }
 
-func (lc *StandaloneLeaderController) Run(ctx context.Context) error {
+func (lc *StandaloneLeaderController) Run(_ context.Context) error {
 	return nil
 }
 

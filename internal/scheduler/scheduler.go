@@ -11,6 +11,7 @@ import (
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -45,7 +46,7 @@ type Scheduler struct {
 	// Maximum number of times a lease can be returned before the job is considered failed.
 	maxLeaseReturns uint
 	// If an executor fails to report in for this amount of time,
-	// all jobs assigne to that executor are cancelled.
+	// all jobs assigned to that executor are cancelled.
 	executorTimeout time.Duration
 	// Used for timing decisions (e.g., sleep).
 	// Injected here so that we can mock it out for testing.
@@ -121,7 +122,10 @@ func (s *Scheduler) Run(ctx context.Context) error {
 				syncContext, cancel := context.WithTimeout(ctx, 5*time.Minute)
 				err := s.ensureDbUpToDate(syncContext, 1*time.Second)
 				if err != nil {
-					log.WithError(err).Error("Could not become master")
+					log.
+						WithError(err).
+						WithField(logging.Stacktrace, logging.ExtractStack(err)).
+						Error("Could not become master")
 					leaderToken = InvalidLeaderToken()
 				} else {
 					fullUpdate = true
@@ -135,7 +139,9 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			// a partial publish and consequently an inconsistent state. Once the Pulsar client supports transactions
 			// we should be able to remove this limitation
 			if err != nil {
-				log.WithError(err).Error("scheduling cycle failure:")
+				log.WithError(err).
+					WithField(logging.Stacktrace, logging.ExtractStack(err)).
+					Error("Error in scheduling cycle")
 				leaderToken = InvalidLeaderToken()
 			}
 			log.Infof("scheduling cycle completed in %s", s.clock.Since(start))
@@ -163,7 +169,7 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	}
 
 	// If we've been asked to generate messages for all jobs do so.
-	// Otherwise generate messages only for jobs updated this cycle.
+	// Otherwise, generate messages only for jobs updated this cycle.
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 	if updateAll {
@@ -176,7 +182,7 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 		return err
 	}
 
-	// Expire any jobs running on clusters that haven't heartbeated within our time limit.
+	// Expire any jobs running on clusters that haven't had a heartbeat within our time limit
 	expirationEvents, err := s.expireJobsIfNecessary(ctx, txn)
 	if err != nil {
 		return err
@@ -642,13 +648,14 @@ func (s *Scheduler) initialise(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
-			if _, err := s.syncState(ctx); err != nil {
-				log.WithError(err).Error("failed to initialise; trying again in 1 second")
-				time.Sleep(1 * time.Second)
-			} else {
-				// Initialisation succeeded.
+			_, err := s.syncState(ctx)
+			if err == nil {
 				return nil
 			}
+			log.WithError(err).
+				WithField(logging.Stacktrace, logging.ExtractStack(err)).
+				Error("Error initialising. Sleeping for 1 second before trying again")
+			time.Sleep(1 * time.Second)
 		}
 	}
 }
@@ -673,7 +680,9 @@ func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Dura
 		default:
 			numSent, err = s.publisher.PublishMarkers(ctx, groupId)
 			if err != nil {
-				log.WithError(err).Error("Error sending marker messages to pulsar")
+				log.WithError(err).
+					WithField(logging.Stacktrace, logging.ExtractStack(err)).
+					Error("Error sending marker messages to pulsar")
 				s.clock.Sleep(pollInterval)
 			} else {
 				messagesSent = true
@@ -689,7 +698,9 @@ func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Dura
 		default:
 			numReceived, err := s.jobRepository.CountReceivedPartitions(ctx, groupId)
 			if err != nil {
-				log.WithError(err).Error("Error querying the database or marker messages")
+				log.WithError(err).
+					WithField(logging.Stacktrace, logging.ExtractStack(err)).
+					Error("Error querying the database  or marker messages")
 			}
 			if numSent == numReceived {
 				log.Infof("Successfully ensured that database state is up to date")

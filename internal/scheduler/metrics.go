@@ -9,6 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/logging"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -84,7 +85,7 @@ func NewMetricsCollector(
 	}
 }
 
-// Run enters s a loop which updates the metrics every refreshPeriod until the supplied comtext is cancelled
+// Run enters s a loop which updates the metrics every refreshPeriod until the supplied context is cancelled
 func (c *MetricsCollector) Run(ctx context.Context) error {
 	ticker := c.clock.NewTicker(c.refreshPeriod)
 	log.Infof("Will update metrics every %s", c.refreshPeriod)
@@ -96,7 +97,9 @@ func (c *MetricsCollector) Run(ctx context.Context) error {
 		case <-ticker.C():
 			err := c.refresh(ctx)
 			if err != nil {
-				log.WithError(err).Warnf("error refreshing metrics state")
+				log.WithError(err).
+					WithField(logging.Stacktrace, logging.ExtractStack(err)).
+					Error("Error refreshing metrics state")
 			}
 		}
 	}

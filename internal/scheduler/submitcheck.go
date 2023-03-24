@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/logging"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -87,7 +88,9 @@ func (srv *SubmitChecker) Run(ctx context.Context) error {
 func (srv *SubmitChecker) updateExecutors(ctx context.Context) {
 	executors, err := srv.executorRepository.GetExecutors(ctx)
 	if err != nil {
-		log.WithError(err).Error("Error fetching executors")
+		log.WithError(err).
+			WithField(logging.Stacktrace, logging.ExtractStack(err)).
+			Error("Error fetching executors")
 		return
 	}
 	for _, executor := range executors {
@@ -100,10 +103,16 @@ func (srv *SubmitChecker) updateExecutors(ctx context.Context) {
 			}
 			srv.mu.Unlock()
 			if err != nil {
-				log.WithError(err).Errorf("Error constructing node db for executor %s", executor.Id)
+				log.
+					WithError(err).
+					WithField(logging.Stacktrace, logging.ExtractStack(err)).
+					Errorf("Error constructing node db for executor %s", executor.Id)
 			}
 		} else {
-			log.WithError(err).Warnf("Error clearing nodedb for executor %s", executor.Id)
+			log.
+				WithError(err).
+				WithField(logging.Stacktrace, logging.ExtractStack(err)).
+				Warnf("Error clearing nodedb for executor %s", executor.Id)
 		}
 
 	}

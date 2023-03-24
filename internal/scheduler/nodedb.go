@@ -2,9 +2,7 @@ package scheduler
 
 import (
 	"fmt"
-	"strings"
 	"sync"
-	"text/tabwriter"
 	"time"
 
 	"github.com/hashicorp/go-memdb"
@@ -17,6 +15,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -133,22 +132,21 @@ func NewNodeDb(
 }
 
 func (nodeDb *NodeDb) String() string {
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	fmt.Fprintf(w, "Priorities:\t%v\n", configuration.AllowedPriorities(nodeDb.priorityClasses))
-	fmt.Fprintf(w, "Indexed resources:\t%v\n", maps.Keys(nodeDb.indexedResources))
-	fmt.Fprintf(w, "Indexed taints:\t%v\n", maps.Keys(nodeDb.indexedTaints))
-	fmt.Fprintf(w, "Indexed node labels:\t%v\n", maps.Keys(nodeDb.indexedNodeLabels))
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
+
+	w.Writef("Priorities:\t%v\n", configuration.AllowedPriorities(nodeDb.priorityClasses))
+	w.Writef("Indexed resources:\t%v\n", maps.Keys(nodeDb.indexedResources))
+	w.Writef("Indexed taints:\t%v\n", maps.Keys(nodeDb.indexedTaints))
+	w.Writef("Indexed node labels:\t%v\n", maps.Keys(nodeDb.indexedNodeLabels))
 	if len(nodeDb.nodeTypes) == 0 {
-		fmt.Fprint(w, "Node types:\tnone\n")
+		w.Writef("Node types:\tnone\n")
 	} else {
-		fmt.Fprint(w, "Node types:\n")
+		w.Writef("Node types:\n")
 		for _, nodeType := range nodeDb.nodeTypes {
-			fmt.Fprintf(w, "  %s\n", nodeType.Id)
+			w.Writef("  %s\n", nodeType.Id)
 		}
 	}
-	w.Flush()
-	return sb.String()
+	return w.String()
 }
 
 func (nodeDb *NodeDb) Txn(write bool) *memdb.Txn {
@@ -323,7 +321,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		NumExcludedNodesByReason:     make(map[string]int),
 	}
 
-	// If the targetNodeIdAnnocation is set, consider only that node,
+	// If the targetNodeIdAnnotation is set, consider only that node,
 	// and schedule onto that node even if it requires preempting other jobs.
 	if nodeId, ok := req.Annotations[TargetNodeIdAnnotation]; ok {
 		if it, err := txn.Get("nodes", "id", nodeId); err != nil {
@@ -790,8 +788,8 @@ func nodeDbSchema(priorities []int32, resources []string) *memdb.DBSchema {
 		Indexer: &memdb.StringFieldIndex{Field: "Id"},
 	}
 	for _, priority := range priorities {
-		for _, resource := range resources {
-			name := nodeResourcePriorityIndexName(resource, priority)
+		for _, r := range resources {
+			name := nodeResourcePriorityIndexName(r, priority)
 			indexes[name] = &memdb.IndexSchema{
 				Name:   name,
 				Unique: false,
@@ -799,14 +797,14 @@ func nodeDbSchema(priorities []int32, resources []string) *memdb.DBSchema {
 					Indexes: []memdb.Indexer{
 						&memdb.StringFieldIndex{Field: "NodeTypeId"},
 						&NodeAvailableResourceIndex{
-							Resource: resource,
+							Resource: r,
 							Priority: priority,
 						},
 					},
 				},
 			}
 
-			name = nodeDominantQueueResourcePriorityIndexName(resource, priority)
+			name = nodeDominantQueueResourcePriorityIndexName(r, priority)
 			indexes[name] = &memdb.IndexSchema{
 				Name:   name,
 				Unique: false,
@@ -815,7 +813,7 @@ func nodeDbSchema(priorities []int32, resources []string) *memdb.DBSchema {
 						&NodeDominantQueueIndex{},
 						&memdb.StringFieldIndex{Field: "NodeTypeId"},
 						&NodeAvailableResourceIndex{
-							Resource: resource,
+							Resource: r,
 							Priority: priority,
 						},
 					},

@@ -112,11 +112,11 @@ func (node *Node) StaticPodRequirementsMet(req *PodRequirements) (bool, PodRequi
 		return matches, reason, err
 	}
 
-	for resource, required := range req.ResourceRequirements.Requests {
-		available := node.TotalResources.Get(string(resource))
+	for r, required := range req.ResourceRequirements.Requests {
+		available := node.TotalResources.Get(string(r))
 		if required.Cmp(available) == 1 {
 			return false, &InsufficientResources{
-				Resource:  string(resource),
+				Resource:  string(r),
 				Required:  required,
 				Available: available,
 			}, nil
@@ -198,11 +198,11 @@ func podNodeAffinityRequirementsMet(nodeLabels map[string]string, req *PodRequir
 }
 
 func podResourceRequirementsMet(priority int32, allocatableResources AllocatableByPriorityAndResourceType, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
-	for resource, required := range req.ResourceRequirements.Requests {
-		available := allocatableResources.Get(priority, string(resource))
+	for r, required := range req.ResourceRequirements.Requests {
+		available := allocatableResources.Get(priority, string(r))
 		if required.Cmp(available) == 1 {
 			return false, &InsufficientResources{
-				Resource:  string(resource),
+				Resource:  string(r),
 				Required:  required,
 				Available: available,
 			}, nil

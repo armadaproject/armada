@@ -16,6 +16,8 @@ import (
 //go:embed migrations/*.sql
 var fs embed.FS
 
+// Migrate updates the supplied database to the latest version.
+// If the database is already at the latest version ten this is a no-op
 func Migrate(ctx context.Context, db pgxtype.Querier) error {
 	start := time.Now()
 	migrations, err := database.ReadMigrations(fs, "migrations")
@@ -30,6 +32,8 @@ func Migrate(ctx context.Context, db pgxtype.Querier) error {
 	return nil
 }
 
+// WithTestDb creates a scheduler database suitable for testing.  This will instantiate a completely
+// new Postgres database which will be torn down after this function completes
 func WithTestDb(action func(queries *Queries, db *pgxpool.Pool) error) error {
 	migrations, err := database.ReadMigrations(fs, "migrations")
 	if err != nil {

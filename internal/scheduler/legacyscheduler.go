@@ -8,8 +8,6 @@ import (
 	"math/rand"
 	"reflect"
 	"strconv"
-	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/google/uuid"
@@ -60,7 +58,7 @@ type SchedulingConstraints struct {
 	// Per-queue resource limits.
 	// Map from resource type to the limit for that resource.
 	MaximalResourceFractionPerQueue map[string]float64
-	// Limit- as a fraction of total resources across worker clusters- of resource types at each priority.
+	// Limit, as a fraction of total resources across worker clusters, of resource types at each priority.
 	// The limits are cumulative, i.e., the limit at priority p includes all higher levels.
 	MaximalCumulativeResourceFractionPerQueueAndPriority map[int32]map[string]float64
 	// Max resources to schedule per queue at a time.
@@ -143,7 +141,7 @@ func PreemptedJobsFromSchedulerResult[T LegacySchedulerJob](sr *SchedulerResult)
 	return rv
 }
 
-// ScheduledJobsFromScheduleResult returns the slice of scheduled jobs in the result,
+// ScheduledJobsFromSchedulerResult returns the slice of scheduled jobs in the result,
 // cast to type T.
 func ScheduledJobsFromSchedulerResult[T LegacySchedulerJob](sr *SchedulerResult) []T {
 	rv := make([]T, len(sr.ScheduledJobs))
@@ -679,13 +677,13 @@ func (sch *Rescheduler) updateGangAccounting(preemptedJobs, scheduledJobs []Lega
 }
 
 // For each node in the NodeDb, compare assigned jobs relative to the initial snapshot.
-// Jobs no longer assigned to a node are preemtped.
+// Jobs no longer assigned to a node are preempted.
 // Jobs assigned to a node that weren't earlier are scheduled.
 //
 // Compare the NodeJobDiff with expected preempted/scheduled jobs to ensure NodeDb is consistent.
 // This is only to validate that nothing unexpected happened during scheduling.
 func (sch *Rescheduler) reschedulerAssertions(
-	ctx context.Context,
+	_ context.Context,
 	snapshot *memdb.Txn,
 	preemptedJobsById,
 	scheduledJobsById map[string]LegacySchedulerJob,
@@ -1080,7 +1078,7 @@ type LegacyScheduler struct {
 }
 
 func NewLegacyScheduler(
-	ctx context.Context,
+	_ context.Context,
 	constraints SchedulingConstraints,
 	nodeDb *NodeDb,
 	queues []*Queue,
@@ -1095,7 +1093,7 @@ func NewLegacyScheduler(
 		)
 	}
 	if ResourceListAsWeightedApproximateFloat64(constraints.ResourceScarcity, nodeDb.totalResources) == 0 {
-		// This refers to the resources currently considered for schedling.
+		// This refers to the resources currently considered for scheduling.
 		return nil, errors.Errorf(
 			"no resources with non-zero weight available for scheduling in NodeDb: resource scarcity %v, total resources %v",
 			constraints.ResourceScarcity, nodeDb.totalResources,
@@ -1109,27 +1107,25 @@ func NewLegacyScheduler(
 	}, nil
 }
 
-func (sched *LegacyScheduler) String() string {
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	fmt.Fprintf(w, "Executor:\t%s\n", sched.ExecutorId)
-	if len(sched.SchedulingConstraints.TotalResources.Resources) == 0 {
-		fmt.Fprint(w, "Total resources:\tnone\n")
+func (sch *LegacyScheduler) String() string {
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
+	w.Writef("Executor:\t%s\n", sch.ExecutorId)
+	if len(sch.SchedulingConstraints.TotalResources.Resources) == 0 {
+		w.Writef("Total resources:\tnone\n")
 	} else {
-		fmt.Fprint(w, "Total resources:\n")
-		for t, q := range sched.SchedulingConstraints.TotalResources.Resources {
-			fmt.Fprintf(w, "  %s: %s\n", t, q.String())
+		w.Writef("Total resources:\n")
+		for t, q := range sch.SchedulingConstraints.TotalResources.Resources {
+			w.Writef("  %s: %s\n", t, q.String())
 		}
 	}
-	fmt.Fprintf(w, "Minimum job size:\t%v\n", sched.MinimumJobSize)
-	if sched.nodeDb == nil {
-		fmt.Fprintf(w, "NodeDb:\t%v\n", sched.nodeDb)
+	w.Writef("Minimum job size:\t%v\n", sch.MinimumJobSize)
+	if sch.nodeDb == nil {
+		w.Writef("NodeDb:\t%v\n", sch.nodeDb)
 	} else {
-		fmt.Fprint(w, "NodeDb:\n")
-		fmt.Fprint(w, indent.String("\t", sched.nodeDb.String()))
+		w.Writef("NodeDb:\n")
+		w.Writef(indent.String("\t", sch.nodeDb.String()))
 	}
-	w.Flush()
-	return sb.String()
+	return w.String()
 }
 
 func (sch *LegacyScheduler) Schedule(ctx context.Context) (*SchedulerResult, error) {
@@ -1580,7 +1576,8 @@ func totalResourceRequestsFromJobs(jobs []LegacySchedulerJob, priorityClasses ma
 	return rv
 }
 
-// Priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.
+// QueueCandidateGangIteratorPQ is a priority queue used by CandidateGangIterator to determine from which queue to
+// schedule the next job.
 type QueueCandidateGangIteratorPQ []*QueueCandidateGangIteratorItem
 
 type QueueCandidateGangIteratorItem struct {
@@ -1960,14 +1957,6 @@ func PodRequirementFromLegacySchedulerJob[E LegacySchedulerJob](job E, priorityC
 	req.Annotations[JobIdAnnotation] = job.GetId()
 	req.Annotations[QueueAnnotation] = job.GetQueue()
 	return req
-}
-
-func PodRequirementsFromJobSchedulingInfos(infos []*schedulerobjects.JobSchedulingInfo) []*schedulerobjects.PodRequirements {
-	rv := make([]*schedulerobjects.PodRequirements, 0, len(infos))
-	for _, info := range infos {
-		rv = append(rv, PodRequirementFromJobSchedulingInfo(info))
-	}
-	return rv
 }
 
 func PodRequirementFromJobSchedulingInfo(info *schedulerobjects.JobSchedulingInfo) *schedulerobjects.PodRequirements {

@@ -14,6 +14,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -109,7 +110,10 @@ func (p *PulsarPublisher) PublishMessages(ctx context.Context, events []*armadae
 		for _, msg := range msgs {
 			p.producer.SendAsync(sendCtx, msg, func(_ pulsar.MessageID, _ *pulsar.ProducerMessage, err error) {
 				if err != nil {
-					log.WithError(err).Error("error sending message to Pulsar")
+					log.
+						WithField(logging.Stacktrace, logging.ExtractStack(err)).
+						WithError(err).
+						Error("error sending message to Pulsar")
 					errored = true
 				}
 				wg.Done()
