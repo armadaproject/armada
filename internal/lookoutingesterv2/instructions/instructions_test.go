@@ -306,8 +306,7 @@ func TestConvert(t *testing.T) {
 				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedTerminated},
-				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"unschedulable": {
@@ -316,8 +315,7 @@ func TestConvert(t *testing.T) {
 				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedUnschedulable},
-				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"preempted": {

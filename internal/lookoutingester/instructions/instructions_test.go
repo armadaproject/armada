@@ -504,7 +504,7 @@ func TestHandlePodTerminated(t *testing.T) {
 				RunId: runIdProto,
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: true,
+						Terminal: false,
 						Reason: &armadaevents.Error_PodTerminated{
 							PodTerminated: &armadaevents.PodTerminated{
 								NodeName: nodeName,
@@ -593,7 +593,7 @@ func TestHandlePodUnschedulable(t *testing.T) {
 				RunId: runIdProto,
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: false,
+						Terminal: true,
 						Reason: &armadaevents.Error_PodUnschedulable{
 							PodUnschedulable: &armadaevents.PodUnschedulable{
 								NodeName: nodeName,

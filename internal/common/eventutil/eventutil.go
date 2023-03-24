@@ -993,7 +993,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
-							Terminal: true,
+							Terminal: false,
 							Reason: &armadaevents.Error_PodTerminated{
 								PodTerminated: &armadaevents.PodTerminated{
 									ObjectMeta: &armadaevents.ObjectMeta{

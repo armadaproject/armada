@@ -427,7 +427,7 @@ func (js *JobSimulator) RunTerminated(runId string, cluster string, node string,
 				RunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(runId)),
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: true,
+						Terminal: false,
 						Reason: &armadaevents.Error_PodTerminated{
 							PodTerminated: &armadaevents.PodTerminated{
 								NodeName: node,

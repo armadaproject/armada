@@ -297,7 +297,7 @@ var JobRunTerminated = &armadaevents.EventSequence_Event{
 			RunId: RunIdProto,
 			Errors: []*armadaevents.Error{
 				{
-					Terminal: true,
+					Terminal: false,
 					Reason: &armadaevents.Error_PodTerminated{
 						PodTerminated: &armadaevents.PodTerminated{
 							NodeName: NodeName,
