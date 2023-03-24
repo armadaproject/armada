@@ -17,6 +17,7 @@ type ApplicationConfiguration struct {
 	UpdateConcurrencyLimit int
 	DeleteConcurrencyLimit int
 	UseExecutorApi         bool
+	UseLegacyApi           bool
 }
 
 type PodDefaults struct {
@@ -120,12 +121,13 @@ const (
 )
 
 type ExecutorConfiguration struct {
-	HttpPort      uint16
-	Metric        MetricConfiguration
-	Application   ApplicationConfiguration
-	ApiConnection client.ApiConnectionDetails
-	Client        ClientConfiguration
-	GRPC          keepalive.ClientParameters
+	HttpPort              uint16
+	Metric                MetricConfiguration
+	Application           ApplicationConfiguration
+	ApiConnection         client.ApiConnectionDetails
+	ExecutorApiConnection client.ApiConnectionDetails
+	Client                ClientConfiguration
+	GRPC                  keepalive.ClientParameters
 
 	Kubernetes KubernetesConfiguration
 	Task       TaskConfiguration

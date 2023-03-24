@@ -332,8 +332,8 @@ func TestGetRunIdsByNode(t *testing.T) {
 		},
 		"LegacyGivesJobIds": {
 			inputPods: []*v1.Pod{
-				createPodOnNode("job-1", "run-1", v1.PodRunning, "node-1", ""),
-				createPodOnNode("job-2", "run-2", v1.PodRunning, "node-2", ""),
+				createPodOnNode("job-1", "", v1.PodRunning, "node-1", ""),
+				createPodOnNode("job-2", "", v1.PodRunning, "node-2", ""),
 			},
 			expectedOutput: map[string]map[string]api.JobState{
 				"node-1": {"job-1": api.JobState_RUNNING},

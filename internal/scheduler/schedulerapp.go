@@ -34,7 +34,7 @@ import (
 // Run sets up a Scheduler application and runs it until a SIGTERM is received
 func Run(config Configuration) error {
 	g, ctx := errgroup.WithContext(app.CreateContextWithShutdown())
-	logrusLogger := log.NewEntry(log.New())
+	logrusLogger := log.NewEntry(log.StandardLogger())
 	ctx = ctxlogrus.ToContext(ctx, logrusLogger)
 
 	// List of services to run concurrently.
