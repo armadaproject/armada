@@ -9,10 +9,10 @@ type StubUtilisationService struct {
 	GetAllNodeGroupAllocationInfoError error
 }
 
-func (f *StubUtilisationService) GetAvailableClusterCapacity(useLegacyIds bool) (*utilisation.ClusterAvailableCapacityReport, error) {
+func (f *StubUtilisationService) GetAvailableClusterCapacity(legacy bool) (*utilisation.ClusterAvailableCapacityReport, error) {
 	return f.ClusterAvailableCapacityReport, f.GetClusterAvailableCapacityError
 }
 
-func (f *StubUtilisationService) GetAllNodeGroupAllocationInfo() ([]*utilisation.NodeGroupAllocationInfo, error) {
+func (f *StubUtilisationService) GetAllNodeGroupAllocationInfo(legacy bool) ([]*utilisation.NodeGroupAllocationInfo, error) {
 	return f.AllNodeGroupAllocationInfo, f.GetAllNodeGroupAllocationInfoError
 }
