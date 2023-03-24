@@ -109,22 +109,6 @@ var expectedFailedRun = model.UpdateJobRunInstruction{
 	ExitCode:    pointer.Int32(testfixtures.ExitCode),
 }
 
-var expectedTerminated = model.UpdateJobRunInstruction{
-	RunId:       testfixtures.RunIdString,
-	Node:        pointer.String(testfixtures.NodeName),
-	Finished:    &testfixtures.BaseTime,
-	JobRunState: pointer.Int32(lookout.JobRunTerminatedOrdinal),
-	Error:       []byte(testfixtures.TerminatedMsg),
-}
-
-var expectedUnschedulable = model.UpdateJobRunInstruction{
-	RunId:       testfixtures.RunIdString,
-	Node:        pointer.String(testfixtures.NodeName),
-	Finished:    &testfixtures.BaseTime,
-	JobRunState: pointer.Int32(lookout.JobRunUnableToScheduleOrdinal),
-	Error:       []byte(testfixtures.UnschedulableMsg),
-}
-
 var expectedPreempted = model.UpdateJobInstruction{
 	JobId:                     testfixtures.JobIdString,
 	State:                     pointer.Int32(lookout.JobPreemptedOrdinal),
