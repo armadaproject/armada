@@ -252,7 +252,7 @@ func (p *PodIssueService) handleNonRetryableJobIssue(issue *issue) {
 			log.Errorf("Failed to report failed event for job %s because %s", issue.Issue.JobId, err)
 			return
 		}
-		log.Info("Non-retryable issue detected for job %s run %s - %s", issue.Issue.JobId, issue.Issue.RunId, issue.Issue.Message)
+		log.Infof("Non-retryable issue detected for job %s run %s - %s", issue.Issue.JobId, issue.Issue.RunId, issue.Issue.Message)
 		p.markIssueReported(issue.Issue)
 	}
 
@@ -281,7 +281,7 @@ func (p *PodIssueService) handleRetryableJobIssue(issue *issue) {
 				return
 			}
 		}
-		log.Info("Retryable issue detected for job %s run %s - %s", issue.Issue.JobId, issue.Issue.RunId, issue.Issue.Message)
+		log.Infof("Retryable issue detected for job %s run %s - %s", issue.Issue.JobId, issue.Issue.RunId, issue.Issue.Message)
 		p.markIssueReported(issue.Issue)
 	}
 
