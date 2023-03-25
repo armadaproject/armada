@@ -11,7 +11,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
@@ -249,7 +248,7 @@ func TestGetQueuedJobMetrics_SkipsWhenJobOnInactiveCluster(t *testing.T) {
 }
 
 func createQueueCache(redisClient redis.UniversalClient, clock util.Clock) *QueueCache {
-	jobRepo := repository.NewRedisJobRepository(redisClient, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
+	jobRepo := repository.NewRedisJobRepository(redisClient)
 	queueRepo := repository.NewRedisQueueRepository(redisClient)
 	schedulingInfoRepo := repository.NewRedisSchedulingInfoRepository(redisClient)
 

@@ -17,8 +17,8 @@ import (
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/podchecks"
-	reporter_fake "github.com/armadaproject/armada/internal/executor/reporter/fake"
-	"github.com/armadaproject/armada/internal/executor/service/fake"
+	mocks2 "github.com/armadaproject/armada/internal/executor/reporter/mocks"
+	"github.com/armadaproject/armada/internal/executor/service/mocks"
 	"github.com/armadaproject/armada/internal/executor/util"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -34,7 +34,7 @@ func TestJobManager_DoesNothingIfNoPodsAreFound(t *testing.T) {
 
 func TestJobManager_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
 	fakeClusterContext, mockLeaseService, _, jobManager := makejobManagerWithTestDoubles()
-	runningPod := makeRunningPod()
+	runningPod := makeRunningPod(true)
 	addPod(t, fakeClusterContext, runningPod)
 
 	jobManager.ManageJobLeases()
@@ -46,7 +46,7 @@ func TestJobManager_DoesNothingIfNoStuckPodsAreFound(t *testing.T) {
 func TestJobManager_DeletesPodAndReportsTerminated_IfLeasePreventedOnRunningPod(t *testing.T) {
 	fakeClusterContext, mockLeaseService, mockEventsReporter, jobManager := makejobManagerWithTestDoubles()
 
-	runningPod := makeRunningPod()
+	runningPod := makeRunningPod(true)
 	addPod(t, fakeClusterContext, runningPod)
 	// Prevent renewal of lease for pod
 	mockLeaseService.NonrenewableJobIds = []string{util.ExtractJobId(runningPod)}
@@ -67,7 +67,7 @@ func TestJobManager_DeletesPodAndReportsTerminated_IfLeasePreventedOnRunningPod(
 
 func TestJobManager_DoesNothing_IfLeaseRenewalPreventOnFinishedPod(t *testing.T) {
 	fakeClusterContext, mockLeaseService, mockEventsReporter, jobManager := makejobManagerWithTestDoubles()
-	runningPod := makeSucceededPod()
+	runningPod := makeSucceededPod(true)
 	addPod(t, fakeClusterContext, runningPod)
 	// Prevent renewal of lease for pod
 	mockLeaseService.NonrenewableJobIds = []string{util.ExtractJobId(runningPod)}
@@ -87,7 +87,7 @@ func TestJobManager_DoesNothing_IfLeaseRenewalPreventOnFinishedPod(t *testing.T)
 
 func TestJobManager_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testing.T) {
 	fakeClusterContext, mockLeaseService, eventsReporter, jobManager := makejobManagerWithTestDoubles()
-	unretryableStuckPod := makeUnretryableStuckPod()
+	unretryableStuckPod := makeUnretryableStuckPod(true)
 	addPod(t, fakeClusterContext, unretryableStuckPod)
 
 	jobManager.ManageJobLeases()
@@ -108,7 +108,7 @@ func TestJobManager_DeletesPodAndReportsDoneIfStuckAndUnretryable(t *testing.T) 
 }
 
 func TestJobManager_DeletesPodAndReportsFailedIfStuckTerminating(t *testing.T) {
-	terminatingPod := makeTerminatingPod()
+	terminatingPod := makeTerminatingPod(true)
 
 	fakeClusterContext, mockLeaseService, eventsReporter, jobManager := makejobManagerWithTestDoubles()
 
@@ -130,7 +130,7 @@ func TestJobManager_DeletesPodAndReportsFailedIfStuckTerminating(t *testing.T) {
 }
 
 func TestJobManager_ReturnsLeaseAndDeletesRetryableStuckPod(t *testing.T) {
-	retryableStuckPod := makeRetryableStuckPod()
+	retryableStuckPod := makeRetryableStuckPod(true)
 
 	fakeClusterContext, mockLeaseService, _, jobManager := makejobManagerWithTestDoubles()
 
@@ -160,7 +160,7 @@ func TestJobManager_ReturnsLeaseAndDeletesRetryableStuckPod(t *testing.T) {
 
 func TestJobManager_ReportsDoneAndFailed_IfDeletedExternally(t *testing.T) {
 	fakeClusterContext, mockLeaseService, eventsReporter, jobManager := makejobManagerWithTestDoubles()
-	runningPod := makeRunningPod()
+	runningPod := makeRunningPod(true)
 	fakeClusterContext.SimulateDeletionEvent(runningPod)
 
 	jobManager.ManageJobLeases()
@@ -182,23 +182,23 @@ func getActivePods(t *testing.T, clusterContext context.ClusterContext) []*v1.Po
 	return remainingActivePods
 }
 
-func makeSucceededPod() *v1.Pod {
-	return makeTestPod(v1.PodStatus{Phase: v1.PodSucceeded})
+func makeSucceededPod(legacy bool) *v1.Pod {
+	return makeTestPod(legacy, v1.PodStatus{Phase: v1.PodSucceeded})
 }
 
-func makeRunningPod() *v1.Pod {
-	return makeTestPod(v1.PodStatus{Phase: v1.PodRunning})
+func makeRunningPod(legacy bool) *v1.Pod {
+	return makeTestPod(legacy, v1.PodStatus{Phase: v1.PodRunning})
 }
 
-func makeTerminatingPod() *v1.Pod {
-	pod := makeTestPod(v1.PodStatus{Phase: v1.PodRunning})
+func makeTerminatingPod(legacy bool) *v1.Pod {
+	pod := makeTestPod(legacy, v1.PodStatus{Phase: v1.PodRunning})
 	t := metav1.NewTime(time.Now().Add(-time.Hour))
 	pod.DeletionTimestamp = &t
 	return pod
 }
 
-func makeUnretryableStuckPod() *v1.Pod {
-	return makeTestPod(v1.PodStatus{
+func makeUnretryableStuckPod(legacy bool) *v1.Pod {
+	return makeTestPod(legacy, v1.PodStatus{
 		Phase: "Pending",
 		ContainerStatuses: []v1.ContainerStatus{
 			{
@@ -213,8 +213,8 @@ func makeUnretryableStuckPod() *v1.Pod {
 	})
 }
 
-func makeRetryableStuckPod() *v1.Pod {
-	return makeTestPod(v1.PodStatus{
+func makeRetryableStuckPod(legacy bool) *v1.Pod {
+	return makeTestPod(legacy, v1.PodStatus{
 		Phase: "Pending",
 		ContainerStatuses: []v1.ContainerStatus{
 			{
@@ -229,13 +229,12 @@ func makeRetryableStuckPod() *v1.Pod {
 	})
 }
 
-func makeTestPod(status v1.PodStatus) *v1.Pod {
-	return &v1.Pod{
+func makeTestPod(legacy bool, status v1.PodStatus) *v1.Pod {
+	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
-				domain.JobId:    "job-id-1",
-				domain.JobRunId: "job-run-id-1",
-				domain.Queue:    "queue-id-1",
+				domain.JobId: "job-id-1",
+				domain.Queue: "queue-id-1",
 			},
 			Annotations: map[string]string{
 				domain.JobSetId: "job-set-id-1",
@@ -248,6 +247,10 @@ func makeTestPod(status v1.PodStatus) *v1.Pod {
 		},
 		Status: status,
 	}
+	if !legacy {
+		pod.ObjectMeta.Labels[domain.JobRunId] = "job-run-id-1"
+	}
+	return pod
 }
 
 func addPod(t *testing.T, fakeClusterContext context.ClusterContext, runningPod *v1.Pod) {
@@ -258,10 +261,10 @@ func addPod(t *testing.T, fakeClusterContext context.ClusterContext, runningPod 
 	}
 }
 
-func makejobManagerWithTestDoubles() (*fakecontext.SyncFakeClusterContext, *fake.MockLeaseService, *reporter_fake.FakeEventReporter, *JobManager) {
+func makejobManagerWithTestDoubles() (*fakecontext.SyncFakeClusterContext, *mocks.MockLeaseService, *mocks2.FakeEventReporter, *JobManager) {
 	fakeClusterContext := fakecontext.NewSyncFakeClusterContext()
-	mockLeaseService := fake.NewMockLeaseService()
-	eventReporter := reporter_fake.NewFakeEventReporter()
+	mockLeaseService := mocks.NewMockLeaseService()
+	eventReporter := mocks2.NewFakeEventReporter()
 	jobContext := job.NewClusterJobContext(fakeClusterContext, makePodChecker(), time.Minute*3, 1)
 
 	jobManager := NewJobManager(

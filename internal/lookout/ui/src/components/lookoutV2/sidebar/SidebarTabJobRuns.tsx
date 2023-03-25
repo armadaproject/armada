@@ -78,10 +78,10 @@ export const SidebarTabJobRuns = ({ job, runErrorService }: SidebarTabJobRuns) =
   }, [job])
 
   return (
-    <>
-      {runsNewestFirst.map((run) => {
+    <div style={{ width: "100%", height: "100%" }}>
+      {runsNewestFirst.map((run, i) => {
         return (
-          <Accordion key={run.runId}>
+          <Accordion key={run.runId} defaultExpanded={i === 0}>
             <AccordionSummary expandIcon={<ExpandMore />} aria-controls="panel1a-content">
               <Typography>
                 {formatUtcDate(run.pending)} UTC ({formatJobRunState(run.jobRunState)})
@@ -118,6 +118,6 @@ export const SidebarTabJobRuns = ({ job, runErrorService }: SidebarTabJobRuns) =
         )
       })}
       {runsNewestFirst.length === 0 && <>This job has not run.</>}
-    </>
+    </div>
   )
 }

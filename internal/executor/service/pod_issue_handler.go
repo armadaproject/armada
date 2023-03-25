@@ -28,14 +28,15 @@ const (
 
 type podIssue struct {
 	// A copy of the pod when an issue was detected
-	OriginalPodState *v1.Pod
-	JobId            string
-	RunId            string
-	Message          string
-	Retryable        bool
-	Reported         bool
-	Type             IssueType
-	Cause            api.Cause
+	OriginalPodState  *v1.Pod
+	JobId             string
+	RunId             string
+	Message           string
+	Retryable         bool
+	Reported          bool
+	DeletionRequested bool
+	Type              IssueType
+	Cause             api.Cause
 }
 
 type issue struct {
@@ -117,6 +118,9 @@ func (p *PodIssueService) HandlePodIssues() {
 	if err != nil {
 		log.WithError(err).Errorf("unable to handle pod issus as failed to load pods")
 	}
+	managedPods = util.FilterPods(managedPods, func(pod *v1.Pod) bool {
+		return !util.IsLegacyManagedPod(pod)
+	})
 	p.detectPodIssues(managedPods)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
 	defer cancel()
@@ -254,6 +258,7 @@ func (p *PodIssueService) handleNonRetryableJobIssue(issue *issue) {
 
 	if issue.CurrentPodState != nil {
 		p.clusterContext.DeletePods([]*v1.Pod{issue.CurrentPodState})
+		issue.Issue.DeletionRequested = true
 	} else {
 		p.markIssuesResolved(issue.Issue)
 	}
@@ -264,9 +269,7 @@ func (p *PodIssueService) handleNonRetryableJobIssue(issue *issue) {
 //   - Report JobReturnLeaseEvent
 //
 // Special consideration must be taken that most of these pods are somewhat "stuck" in pending.
-//
-//	So can transition to Running/Completed/Failed in the middle of this
-//
+// So can transition to Running/Completed/Failed in the middle of this
 // We must not return the lease if the pod state changes - as likely it has become "unstuck"
 func (p *PodIssueService) handleRetryableJobIssue(issue *issue) {
 	if !issue.Issue.Reported {
@@ -289,6 +292,8 @@ func (p *PodIssueService) handleRetryableJobIssue(issue *issue) {
 		if err != nil {
 			log.Errorf("Failed to delete pod of running job %s because %s", issue.Issue.JobId, err)
 			return
+		} else {
+			issue.Issue.DeletionRequested = true
 		}
 	}
 
@@ -314,11 +319,21 @@ func hasPodIssueSelfResolved(issue *issue) bool {
 		if issue.CurrentPodState == nil {
 			return false
 		}
-		// These are issues causing pods to get stuck in Pending
-		// As the pods are no longer Pending, the issue is no longer present
-		if issue.CurrentPodState.Status.Phase != v1.PodPending {
+
+		// Pod has completed - no need to report any issues
+		if util.IsInTerminalState(issue.CurrentPodState) {
 			return true
 		}
+
+		// Pod has started running, and we haven't requested deletion - let it continue
+		if issue.CurrentPodState.Status.Phase == v1.PodRunning && !issue.Issue.DeletionRequested {
+			return true
+		}
+		// TODO There is an edge case here where the pod has started running but we have requested deletion
+		// Without a proper state model, we can't easily handle this correctly
+		// Ideally we'd see if it completes or deletes first and report it accordingly
+		// If it completes first - do nothing
+		// If it deletes first - report JobFailed (as we accidentally deleted it during the run)
 	}
 
 	return false
