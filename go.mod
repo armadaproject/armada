@@ -98,6 +98,7 @@ require (
 	github.com/pingcap/log v0.0.0-20210906054005-afc726e70354
 	github.com/prometheus/common v0.37.0
 	github.com/sanity-io/litter v1.5.5
+	github.com/uptrace/opentelemetry-go-extra/otellogrus v0.1.21
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.39.0
 	go.opentelemetry.io/otel v1.13.0
 	go.opentelemetry.io/otel/exporters/jaeger v1.13.0
@@ -315,7 +316,6 @@ require (
 	github.com/technoweenie/multipartstreamer v1.0.1 // indirect
 	github.com/toqueteos/webbrowser v1.2.0 // indirect
 	github.com/ulikunitz/xz v0.5.10 // indirect
-	github.com/uptrace/opentelemetry-go-extra/otellogrus v0.1.21 // indirect
 	github.com/uptrace/opentelemetry-go-extra/otelutil v0.1.21 // indirect
 	github.com/withfig/autocomplete-tools/integrations/cobra v1.2.1 // indirect
 	github.com/xanzy/go-gitlab v0.73.1 // indirect
