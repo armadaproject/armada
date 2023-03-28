@@ -6,10 +6,12 @@ import (
 	"os"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
 	"github.com/armadaproject/armada/pkg/api/jobservice"
 )
@@ -392,14 +394,49 @@ func TestConcurrentJobStatusUpdating(t *testing.T) {
 }
 
 func WithSqlServiceRepo(action func(r *SQLJobService)) {
+	var db *sql.DB
+	var err error
 	config := &configuration.JobServiceConfiguration{}
-	db, err := sql.Open("sqlite", "test.db")
-	if err != nil {
-		panic(err)
+
+	// XXX TODO
+	// config.DatabaseType = "sqlite"
+	config.DatabaseType = "postgres"
+	config.PostgresConfig = configuration.PostgresConfig{
+		MaxOpenConns:    20,
+		MaxIdleConns:    5,
+		ConnMaxLifetime: 30 * time.Second,
+		Connection: map[string]string{
+			"host":     "localhost",
+			"port":     "5432",
+			"user":     "postgres",
+			"password": "psw",
+			"dbname":   "postgres",
+			"sslmode":  "disable",
+		},
 	}
+
+	if config.DatabaseType == "postgres" {
+		db, err = sql.Open("pgx", database.CreateConnectionString(config.PostgresConfig.Connection))
+		if err != nil {
+			panic(err)
+		}
+		db.SetMaxOpenConns(config.PostgresConfig.MaxOpenConns)
+		db.SetMaxIdleConns(config.PostgresConfig.MaxIdleConns)
+		db.SetConnMaxLifetime(config.PostgresConfig.ConnMaxLifetime)
+
+	} else if config.DatabaseType == "sqlite" {
+		db, err = sql.Open("sqlite", "test.db")
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	repo := NewSQLJobService(config, db)
 	repo.Setup()
 	action(repo)
 	db.Close()
-	os.Remove("test.db")
+
+	if config.DatabaseType == "sqlite" {
+		os.Remove("test.db")
+	}
 }

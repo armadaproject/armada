@@ -2,7 +2,23 @@ grpcPort: 60003
 httpPort: 8090
 purgeJobSetTime: 1000
 subscribeJobSetTime: 100
+# databaseType can be either 'postgres' or 'sqlite'
+databaseType: "postgres"
+# databasePath specifies the location of the back-end
+# storage file when using database type 'sqlite'
 databasePath: "/var/jobservice.db"
+# Connection details when using database type 'postgres'
+postgres:
+  maxOpenConns: 50
+  maxIdleConns: 10
+  connMaxLifetime: 30m
+  connection:
+    host: localhost
+    port: 5432
+    user: postgres
+    password: psw
+    dbname: postgres
+    sslmode: disable
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m
