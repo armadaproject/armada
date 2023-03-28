@@ -70,8 +70,10 @@ func (s *SQLJobService) CreateTable() {
 		integerType = "INTEGER"
 	}
 
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
 
 	_, err := s.db.Exec("DROP TABLE IF EXISTS jobservice")
 	if err != nil {
@@ -114,8 +116,10 @@ func (s *SQLJobService) CreateTable() {
 
 // Get the JobStatus given the jodId
 func (s *SQLJobService) GetJobStatus(jobId string) (*js.JobServiceResponse, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
 
 	var sqlStmt string
 	if s.jobServiceConfig.DatabaseType == "sqlite" {
@@ -182,10 +186,12 @@ func jobStateStrToJSRState(jobState string) (js.JobServiceResponse_State, error)
 
 // Update database with JobTable.
 func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobStatus) error {
-	// SQLite only allows one write at a time. Therefore we must serialize
-	// writes in order to avoid SQL_BUSY errors.
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		// SQLite only allows one write at a time. Therefore we must serialize
+		// writes in order to avoid SQL_BUSY errors.
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
 
 	var sqlStmt string
 
@@ -216,8 +222,10 @@ func (s *SQLJobService) UpdateJobSetDb(queue string, jobSet string, fromMessageI
 	if !subscribe {
 		return fmt.Errorf("queue %s jobSet %s is already unsubscribed", queue, jobSet)
 	}
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
 
 	var sqlStmt string
 	if s.jobServiceConfig.DatabaseType == "sqlite" {
@@ -243,8 +251,11 @@ func (s *SQLJobService) UpdateJobSetDb(queue string, jobSet string, fromMessageI
 
 // Simple Health Check to Verify if SQLite is working.
 func (s *SQLJobService) HealthCheck() (bool, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
+
 	row := s.db.QueryRow("SELECT 1")
 	var col int
 	err := row.Scan(&col)
@@ -257,8 +268,10 @@ func (s *SQLJobService) HealthCheck() (bool, error) {
 
 // Check if JobSet is in our map.
 func (s *SQLJobService) IsJobSetSubscribed(queue string, jobSet string) (bool, string, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
 
 	var sqlStmt string
 
@@ -287,8 +300,10 @@ func (s *SQLJobService) AddMessageIdAndClearSubscriptionError(queue string, jobS
 
 // Set subscription error if present
 func (s *SQLJobService) SetSubscriptionError(queue string, jobSet string, connErr string, fromMessageId string) error {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
 
 	var sqlStmt string
 	if s.jobServiceConfig.DatabaseType == "sqlite" {
@@ -339,8 +354,10 @@ func (s *SQLJobService) GetSubscriptionError(queue string, jobSet string) (strin
 // SubscribeTable contains Queue, JobSet and time when it was created.
 
 func (s *SQLJobService) SubscribeJobSet(queue string, jobSet string, fromMessageId string) error {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
 
 	var sqlStmt string
 	if s.jobServiceConfig.DatabaseType == "sqlite" {
@@ -384,8 +401,11 @@ func (s *SQLJobService) CheckToUnSubscribe(queue string, jobSet string, configTi
 	if !jobSetFound {
 		return false, nil
 	}
-	s.lock.Lock()
-	defer s.lock.Unlock()
+
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
 
 	var sqlStmt string
 	if s.jobServiceConfig.DatabaseType == "sqlite" {
@@ -413,8 +433,10 @@ func (s *SQLJobService) CheckToUnSubscribe(queue string, jobSet string, configTi
 }
 
 func (s *SQLJobService) UnsubscribeJobSet(queue, jobSet string) (int64, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
 
 	var sqlStmt string
 	if s.jobServiceConfig.DatabaseType == "sqlite" {
@@ -432,8 +454,10 @@ func (s *SQLJobService) UnsubscribeJobSet(queue, jobSet string) (int64, error) {
 
 // Delete Jobs in the database
 func (s *SQLJobService) DeleteJobsInJobSet(queue string, jobSet string) (int64, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
 
 	var sqlStmt string
 	if s.jobServiceConfig.DatabaseType == "sqlite" {
@@ -450,8 +474,10 @@ func (s *SQLJobService) DeleteJobsInJobSet(queue string, jobSet string) (int64, 
 }
 
 func (s *SQLJobService) GetSubscribedJobSets() ([]SubscribedTuple, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
 
 	rows, err := s.db.Query("SELECT Queue, JobSetId, FromMessageId FROM jobsets")
 	if err != nil {
