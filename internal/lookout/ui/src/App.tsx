@@ -5,7 +5,7 @@ import { createGenerateClassName } from "@material-ui/core/styles"
 import { ThemeProvider as ThemeProviderV5, createTheme as createThemeV5 } from "@mui/material/styles"
 import { JobsTableContainer } from "containers/lookoutV2/JobsTableContainer"
 import { SnackbarProvider } from "notistack"
-import { Route, BrowserRouter as Router, Switch } from "react-router-dom"
+import { Route, BrowserRouter as Router, Routes } from "react-router-dom"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { JobsTablePreferencesService } from "services/lookoutV2/JobsTablePreferencesService"
@@ -88,17 +88,17 @@ export function App(props: AppProps) {
               <div className="app-container">
                 <NavBar />
                 <div className="app-content">
-                  <Switch>
-                    <Route exact path="/">
+                  <Routes>
+                    <Route path="/">
                       <OverviewContainer {...props} />
                     </Route>
-                    <Route exact path="/job-sets">
+                    <Route path="/job-sets">
                       <JobSetsContainer {...props} />
                     </Route>
-                    <Route exact path="/jobs">
+                    <Route path="/jobs">
                       <JobsContainer {...props} />
                     </Route>
-                    <Route exact path="/v2">
+                    <Route path="/v2">
                       <JobsTableContainer
                         jobsTablePreferencesService={props.v2JobsTablePrefsService}
                         getJobsService={props.v2GetJobsService}
@@ -109,7 +109,7 @@ export function App(props: AppProps) {
                         debug={props.debugEnabled}
                       />
                     </Route>
-                  </Switch>
+                  </Routes>
                 </div>
               </div>
             </Router>
