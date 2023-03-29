@@ -3,7 +3,6 @@ package scheduler
 import (
 	"fmt"
 	"strings"
-	"sync"
 	"text/tabwriter"
 	"time"
 
@@ -33,8 +32,6 @@ type SchedulingContext struct {
 	NumScheduledJobs int
 	// Reason for why the scheduling round finished.
 	TerminationReason string
-	// Protects everything in this struct.
-	mu sync.Mutex
 }
 
 func NewSchedulingContext(
@@ -90,8 +87,6 @@ func (sctx *SchedulingContext) String() string {
 // AddJobSchedulingContext adds a job scheduling context.
 // Automatically updates scheduled resources
 func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContext, isEvictedJob bool) {
-	sctx.mu.Lock()
-	defer sctx.mu.Unlock()
 	if !isEvictedJob && jctx.UnschedulableReason == "" {
 		sctx.ScheduledResourcesByPriority.AddResourceList(
 			jctx.Req.Priority,
@@ -106,16 +101,12 @@ func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContex
 
 // ClearJobSpecs zeroes out job specs to reduce memory usage.
 func (sctx *SchedulingContext) ClearJobSpecs() {
-	sctx.mu.Lock()
-	defer sctx.mu.Unlock()
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		qctx.ClearJobSpecs()
 	}
 }
 
 func (sctx *SchedulingContext) SuccessfulJobSchedulingContexts() []*JobSchedulingContext {
-	sctx.mu.Lock()
-	defer sctx.mu.Unlock()
 	jctxs := make([]*JobSchedulingContext, 0)
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		for _, jctx := range qctx.SuccessfulJobSchedulingContexts {
@@ -145,8 +136,6 @@ type QueueSchedulingContext struct {
 	SuccessfulJobSchedulingContexts map[string]*JobSchedulingContext
 	// Job scheduling contexts associated with unsuccessful scheduling attempts.
 	UnsuccessfulJobSchedulingContexts map[string]*JobSchedulingContext
-	// Protects the above maps.
-	mu sync.Mutex
 }
 
 func NewQueueSchedulingContext(queue, executorId string, priorityFactor float64, initialResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType) *QueueSchedulingContext {
@@ -222,8 +211,6 @@ func (qctx *QueueSchedulingContext) String() string {
 // AddJobSchedulingContext adds a job scheduling context.
 // Automatically updates scheduled resources.
 func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContext, isEvictedJob bool) {
-	qctx.mu.Lock()
-	defer qctx.mu.Unlock()
 	if jctx.UnschedulableReason == "" {
 		// Always update ResourcesByPriority.
 		// Since ResourcesByPriority is used to order queues by fraction of fair share.
@@ -246,8 +233,6 @@ func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingC
 
 // ClearJobSpecs zeroes out job specs to reduce memory usage.
 func (qctx *QueueSchedulingContext) ClearJobSpecs() {
-	qctx.mu.Lock()
-	defer qctx.mu.Unlock()
 	for _, jctx := range qctx.SuccessfulJobSchedulingContexts {
 		jctx.Job = nil
 	}
