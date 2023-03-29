@@ -371,8 +371,8 @@ tests: gotestsum
 	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 	sleep 3
 	function tearDown { docker rm -f redis postgres; }; trap tearDown EXIT
-	$(GOTESTSUM) -- -coverprofile internal_coverage.xml -v ./internal... \
-		-skip 'TestJobSvc.*' 2>&1 | tee test_reports/internal.txt
+	$(GOTESTSUM) -- $(shell go list ./internal/... | grep -v 'jobservice/repository') \
+		-coverprofile internal_coverage.xml -v  2>&1 | tee test_reports/internal.txt
 	env JSDBTYPE=sqlite $(GOTESTSUM) -- -v \
 			 ./internal/jobservice/repository/... 2>&1 | tee -a test_reports/internal.txt
 	env JSDBTYPE=postgres $(GOTESTSUM) -- -v \

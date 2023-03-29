@@ -16,7 +16,7 @@ import (
 	"github.com/armadaproject/armada/pkg/api/jobservice"
 )
 
-func TestJobSvcConstructInMemoryDoesNotExist(t *testing.T) {
+func TestConstructInMemoryDoesNotExist(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		responseExpected := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
 		jobStatus := NewJobStatus("test", "job-set-1", "job-id", *responseExpected)
@@ -29,7 +29,7 @@ func TestJobSvcConstructInMemoryDoesNotExist(t *testing.T) {
 	})
 }
 
-func TestJobSvcSubscriptionError(t *testing.T) {
+func TestSubscriptionError(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		err := r.SubscribeJobSet("queue-1", "job-set-1", "")
 		require.NoError(t, err)
@@ -41,7 +41,7 @@ func TestJobSvcSubscriptionError(t *testing.T) {
 	})
 }
 
-func TestJobSvcUpdateJobSetDb(t *testing.T) {
+func TestUpdateJobSetDb(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		err := r.SubscribeJobSet("test", "job-set-1", "test")
 		require.NoError(t, err)
@@ -50,7 +50,7 @@ func TestJobSvcUpdateJobSetDb(t *testing.T) {
 	})
 }
 
-func TestJobSvcConstructInMemoryServiceFailed(t *testing.T) {
+func TestConstructInMemoryServiceFailed(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		responseExpected := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
 		jobStatus := NewJobStatus("test", "job-set-1", "job-id", *responseExpected)
@@ -64,7 +64,7 @@ func TestJobSvcConstructInMemoryServiceFailed(t *testing.T) {
 	})
 }
 
-func TestJobSvcConstructInMemoryServiceNoJob(t *testing.T) {
+func TestConstructInMemoryServiceNoJob(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		responseExpected := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
 		resp, err := r.GetJobStatus("job-set-1")
@@ -73,7 +73,7 @@ func TestJobSvcConstructInMemoryServiceNoJob(t *testing.T) {
 	})
 }
 
-func TestJobSvcIsJobSubscribed(t *testing.T) {
+func TestIsJobSubscribed(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		resp, _, err := r.IsJobSetSubscribed("queue-1", "job-set-1")
 		require.NoError(t, err)
@@ -88,7 +88,7 @@ func TestJobSvcIsJobSubscribed(t *testing.T) {
 	})
 }
 
-func TestJobSvcSubscribeList(t *testing.T) {
+func TestSubscribeList(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		err := r.SubscribeJobSet("queue", "job-set-1", "")
 		require.NoError(t, err)
@@ -111,7 +111,7 @@ func TestJobSvcSubscribeList(t *testing.T) {
 	})
 }
 
-func TestJobSvcCleanupJobSetAndJobsIfNonExist(t *testing.T) {
+func TestCleanupJobSetAndJobsIfNonExist(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		rowsAffected, err := r.CleanupJobSetAndJobs("queue", "job-set-1")
 		require.NoError(t, err)
@@ -123,7 +123,7 @@ func TestJobSvcCleanupJobSetAndJobsIfNonExist(t *testing.T) {
 	})
 }
 
-func TestJobSvcCleanupJobSetAndJobsHappy(t *testing.T) {
+func TestCleanupJobSetAndJobsHappy(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		err := r.SubscribeJobSet("queue", "job-set-1", "")
 		require.NoError(t, err)
@@ -137,7 +137,7 @@ func TestJobSvcCleanupJobSetAndJobsHappy(t *testing.T) {
 	})
 }
 
-func TestJobSvcDeleteJobsInJobSet(t *testing.T) {
+func TestDeleteJobsInJobSet(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		responseExpected1 := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
 
@@ -164,7 +164,7 @@ func TestJobSvcDeleteJobsInJobSet(t *testing.T) {
 	})
 }
 
-func TestJobSvcCheckToUnSubscribe(t *testing.T) {
+func TestCheckToUnSubscribe(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		responseExpected1 := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
 
@@ -187,7 +187,7 @@ func TestJobSvcCheckToUnSubscribe(t *testing.T) {
 	})
 }
 
-func TestJobSvcCheckToUnSubscribeWithoutSubscribing(t *testing.T) {
+func TestCheckToUnSubscribeWithoutSubscribing(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		responseExpected1 := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
 		responseExpected2 := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
@@ -209,7 +209,7 @@ func TestJobSvcCheckToUnSubscribeWithoutSubscribing(t *testing.T) {
 	})
 }
 
-func TestJobSvcUnsubscribe(t *testing.T) {
+func TestUnsubscribe(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		err := r.SubscribeJobSet("test", "testjobset", "")
 		require.NoError(t, err)
@@ -222,7 +222,7 @@ func TestJobSvcUnsubscribe(t *testing.T) {
 	})
 }
 
-func TestJobSvcUpdateJobSetTime(t *testing.T) {
+func TestUpdateJobSetTime(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		err := r.SubscribeJobSet("test", "job-set-1", "")
 		require.NoError(t, err)
@@ -231,14 +231,14 @@ func TestJobSvcUpdateJobSetTime(t *testing.T) {
 	})
 }
 
-func TestJobSvcUpdateJobSetTimeWithoutSubscribe(t *testing.T) {
+func TestUpdateJobSetTimeWithoutSubscribe(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		updateErr := r.UpdateJobSetDb("test", "job-set-1", "")
 		assert.EqualError(t, updateErr, "queue test jobSet job-set-1 is already unsubscribed")
 	})
 }
 
-func TestJobSvcGetJobStatusAllStates(t *testing.T) {
+func TestGetJobStatusAllStates(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		responseFailed := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
 		responseSuccess := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
@@ -296,7 +296,7 @@ func TestJobSvcGetJobStatusAllStates(t *testing.T) {
 	})
 }
 
-func TestJobSvcDeleteJobsBeforePersistingRaceError(t *testing.T) {
+func TestDeleteJobsBeforePersistingRaceError(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		responseSuccess := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
 		noExist := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
@@ -318,7 +318,7 @@ func TestJobSvcDeleteJobsBeforePersistingRaceError(t *testing.T) {
 	})
 }
 
-func TestJobSvcGetJobStatusAfterPersisting(t *testing.T) {
+func TestGetJobStatusAfterPersisting(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		responseSuccess := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
 
@@ -331,7 +331,7 @@ func TestJobSvcGetJobStatusAfterPersisting(t *testing.T) {
 	})
 }
 
-func TestJobSvcDuplicateIdDatabaseInsert(t *testing.T) {
+func TestDuplicateIdDatabaseInsert(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		responseRunning := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_RUNNING}
 		responseSuccess := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
@@ -351,7 +351,7 @@ func TestJobSvcDuplicateIdDatabaseInsert(t *testing.T) {
 	})
 }
 
-func TestJobSvcHealthCheck(t *testing.T) {
+func TestHealthCheck(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		healthCheck, err := r.HealthCheck()
 		assert.True(t, healthCheck)
@@ -361,7 +361,7 @@ func TestJobSvcHealthCheck(t *testing.T) {
 
 // This test will fail if sqlite writes are not serialised somehow due to
 // SQLITE_BUSY errors.
-func TestJobSvcConcurrentJobStatusUpdating(t *testing.T) {
+func TestConcurrentJobStatusUpdating(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
 		responseRunning := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_RUNNING}
 
