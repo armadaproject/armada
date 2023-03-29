@@ -1,12 +1,7 @@
 package job
 
 import (
-	context2 "context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/tracing"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/baggage"
 	"regexp"
 	"sync"
 
@@ -123,30 +118,6 @@ func (submitService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToSubmi
 // This function may fail partly, i.e., it may successfully create a subset of the requested objects before failing.
 // In case of failure, any already created objects are not cleaned up.
 func (submitService *SubmitService) submitPod(job *SubmitJob) (*v1.Pod, error) {
-	if carrier := job.Meta.JobMeta["carrier"]; carrier != nil {
-		ctx, _ := tracing.ExtractTraceCtx(context2.Background(), carrier)
-		tp := otel.Tracer("executor")
-		ctx, span := tp.Start(ctx, "SubmitService.submitPod")
-		defer span.End()
-		bg := baggage.FromContext(ctx)
-		span.SetAttributes(
-			attribute.String("queue", bg.Member("queue").Value()),
-			attribute.String("jobSetId", bg.Member("jobSetId").Value()),
-			attribute.String("userId", bg.Member("userId").Value()),
-		)
-
-		traceparent := tracing.ExtractTraceparent(ctx)
-		traceID := span.SpanContext().TraceID()
-		spanID := span.SpanContext().SpanID()
-		otelEnv := []v1.EnvVar{
-			{Name: "OTEL_TRACEPARENT", Value: traceparent},
-			{Name: "OTEL_TRACE_ID", Value: traceID.String()},
-			{Name: "OTEL_SPAN_ID", Value: spanID.String()},
-			{Name: "OTEL_WORKLOAD_NAME", Value: job.Pod.Name},
-		}
-		job.Pod.Spec.Containers[0].Env = append(job.Pod.Spec.Containers[0].Env, otelEnv...)
-	}
-
 	pod := job.Pod
 	// Ensure the K8SService and K8SIngress fields are populated
 	submitService.applyExecutorSpecificIngressDetails(job)

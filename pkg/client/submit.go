@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
@@ -38,6 +39,7 @@ func SubmitJobs(submitClient api.SubmitClient, request *api.JobSubmitRequest) (*
 	defer cancel()
 	return submitClient.SubmitJobs(ctx, request)
 }
+
 func SubmitJobsWithCtx(ctx context.Context, submitClient api.SubmitClient, request *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 	AddClientIds(request.JobRequestItems)
 	ctx, cancel := common.ContextWithDefaultTimeout()

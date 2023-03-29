@@ -3,12 +3,14 @@ package server
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"time"
+
 	"github.com/armadaproject/armada/internal/common/tracing"
+
 	"github.com/gogo/protobuf/types"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"reflect"
-	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
@@ -295,7 +297,7 @@ func (srv *SubmitFromLog) ProcessSubSequence(ctx context.Context, i int, sequenc
 // collectJobSubmitEvents (and the corresponding functions for other types below)
 // return a slice of events starting at index i in the sequence with equal type.
 func collectJobSubmitEvents(ctx context.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.SubmitJob {
-	ctx, span := otel.Tracer("server").Start(ctx, "collectJobSubmitEvents")
+	_, span := otel.Tracer("server").Start(ctx, "collectJobSubmitEvents")
 	defer span.End()
 	result := make([]*armadaevents.SubmitJob, 0)
 	for j := i; j < len(sequence.Events); j++ {
