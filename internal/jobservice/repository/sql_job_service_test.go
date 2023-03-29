@@ -2,6 +2,7 @@ package repository
 
 import (
 	"database/sql"
+	"flag"
 	"fmt"
 	"os"
 	"sync"
@@ -15,6 +16,8 @@ import (
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
 	"github.com/armadaproject/armada/pkg/api/jobservice"
 )
+
+var jsDatabase = flag.String("jsDatabase", "", "type of JobService database ('postgres' or 'sqlite')")
 
 func TestConstructInMemoryDoesNotExist(t *testing.T) {
 	WithSqlServiceRepo(func(r *SQLJobService) {
@@ -398,24 +401,29 @@ func WithSqlServiceRepo(action func(r *SQLJobService)) {
 	var err error
 	config := &configuration.JobServiceConfiguration{}
 
-	// XXX TODO
-	// config.DatabaseType = "sqlite"
-	config.DatabaseType = "postgres"
-	config.PostgresConfig = configuration.PostgresConfig{
-		MaxOpenConns:    20,
-		MaxIdleConns:    5,
-		ConnMaxLifetime: 30 * time.Second,
-		Connection: map[string]string{
-			"host":     "localhost",
-			"port":     "5432",
-			"user":     "postgres",
-			"password": "psw",
-			"dbname":   "postgres",
-			"sslmode":  "disable",
-		},
-	}
+	if *jsDatabase == "sqlite" {
+		config.DatabaseType = "sqlite"
 
-	if config.DatabaseType == "postgres" {
+		db, err = sql.Open("sqlite", "test.db")
+		if err != nil {
+			panic(err)
+		}
+	} else if *jsDatabase == "postgres" {
+		config.DatabaseType = "postgres"
+		config.PostgresConfig = configuration.PostgresConfig{
+			MaxOpenConns:    20,
+			MaxIdleConns:    5,
+			ConnMaxLifetime: 30 * time.Second,
+			Connection: map[string]string{
+				"host":     "localhost",
+				"port":     "5432",
+				"user":     "postgres",
+				"password": "psw",
+				"dbname":   "postgres",
+				"sslmode":  "disable",
+			},
+		}
+
 		db, err = sql.Open("pgx", database.CreateConnectionString(config.PostgresConfig.Connection))
 		if err != nil {
 			panic(err)
@@ -423,12 +431,6 @@ func WithSqlServiceRepo(action func(r *SQLJobService)) {
 		db.SetMaxOpenConns(config.PostgresConfig.MaxOpenConns)
 		db.SetMaxIdleConns(config.PostgresConfig.MaxIdleConns)
 		db.SetConnMaxLifetime(config.PostgresConfig.ConnMaxLifetime)
-
-	} else if config.DatabaseType == "sqlite" {
-		db, err = sql.Open("sqlite", "test.db")
-		if err != nil {
-			panic(err)
-		}
 	}
 
 	repo := NewSQLJobService(config, db)
