@@ -10,10 +10,10 @@ import (
 
 func getSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:           "scheduling-report",
-		Short:         "Get scheduler reports",
-		Args:          cobra.ExactArgs(0),
-		SilenceErrors: true,
+		Use:          "scheduling-report",
+		Short:        "Get scheduler reports",
+		Args:         cobra.ExactArgs(0),
+		SilenceUsage: true,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
 		},
@@ -26,10 +26,10 @@ func getSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 
 func getQueueSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:           "queue-report",
-		Short:         "Get queue scheduler reports",
-		Args:          cobra.ExactArgs(0),
-		SilenceErrors: true,
+		Use:          "queue-report",
+		Short:        "Get queue scheduler reports",
+		Args:         cobra.ExactArgs(0),
+		SilenceUsage: true,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
 		},
@@ -48,10 +48,10 @@ func getQueueSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 
 func getJobSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:           "job-report",
-		Short:         "Get job scheduler reports",
-		Args:          cobra.ExactArgs(0),
-		SilenceErrors: true,
+		Use:          "job-report",
+		Short:        "Get job scheduler reports",
+		Args:         cobra.ExactArgs(0),
+		SilenceUsage: true,
 		PreRunE: func(cmd *cobra.Command, args []string) error {
 			return initParams(cmd, a.Params)
 		},
