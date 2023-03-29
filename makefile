@@ -362,6 +362,8 @@ tests-no-setup: gotestsum
 	$(GOTESTSUM) -- -v ./pkg... 2>&1 | tee test_reports/pkg.txt
 	$(GOTESTSUM) -- -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
+
+# Note that we do separate Job Service repository test runs for both sqlite and postgres database types
 .ONESHELL:
 tests: gotestsum
 	mkdir -p test_reports
@@ -369,7 +371,12 @@ tests: gotestsum
 	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 	sleep 3
 	function tearDown { docker rm -f redis postgres; }; trap tearDown EXIT
-	$(GOTESTSUM) -- -coverprofile internal_coverage.xml -v ./internal... 2>&1 | tee test_reports/internal.txt
+	$(GOTESTSUM) -- -coverprofile internal_coverage.xml -v ./internal... \
+		-skip 'TestJobSvc.*' 2>&1 | tee test_reports/internal.txt
+	env JSDBTYPE=sqlite $(GOTESTSUM) -- -v \
+			 ./internal/jobservice/repository/... 2>&1 | tee -a test_reports/internal.txt
+	env JSDBTYPE=postgres $(GOTESTSUM) -- -v \
+			 ./internal/jobservice/repository/... 2>&1 | tee -a test_reports/internal.txt
 	$(GOTESTSUM) -- -coverprofile pkg_coverage.xml -v ./pkg... 2>&1 | tee test_reports/pkg.txt
 	$(GOTESTSUM) -- -coverprofile cmd_coverage.xml -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
