@@ -6,6 +6,7 @@ import { makeRandomJobs } from "utils/fakeJobsUtils"
 
 import FakeGetJobSpecService from "../../../services/lookoutV2/mocks/FakeGetJobSpecService"
 import { FakeGetRunErrorService } from "../../../services/lookoutV2/mocks/FakeGetRunErrorService"
+import { FakeLogService } from "../../../services/lookoutV2/mocks/FakeLogService"
 import { Sidebar } from "./Sidebar"
 
 describe("Sidebar", () => {
@@ -23,6 +24,7 @@ describe("Sidebar", () => {
           job={job}
           runErrorService={new FakeGetRunErrorService()}
           jobSpecService={new FakeGetJobSpecService()}
+          logService={new FakeLogService()}
           sidebarWidth={600}
           onClose={onClose}
           onWidthChange={() => undefined}
