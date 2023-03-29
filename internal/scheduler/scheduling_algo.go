@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 	"math/rand"
 	"time"
 
@@ -115,6 +116,10 @@ func (l *LegacySchedulingAlgo) Schedule(
 	if err != nil {
 		return nil, err
 	}
+
+	// Filter out any executor that isn't acknowledging jobs in a timely fashion
+	// Note that we do this after calculating aggregate usage for fair share.
+	executors = l.filterLaggingExecutors(executors, jobsByExecutor)
 
 	overallSchedulerResult := &SchedulerResult{
 		NodeIdByJobId: make(map[string]string),
@@ -243,8 +248,8 @@ type schedulerJobRepositoryAdapter struct {
 	txn *jobdb.Txn
 }
 
-// Necessary to implement the JobRepository interface,
-// which we need while transitioning from the old to new scheduler.
+// GetQueueJobIds is Necessary to implement the JobRepository interface, which we need while transitioning from the old
+// to new scheduler.
 func (repo *schedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]string, error) {
 	rv := make([]string, 0)
 	it := repo.db.QueuedJobs(repo.txn, queue)
@@ -254,8 +259,8 @@ func (repo *schedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]strin
 	return rv, nil
 }
 
-// Necessary to implement the JobRepository interface,
-// which we need while transitioning from the old to new scheduler.
+// GetExistingJobsByIds is Necessary to implement the JobRepository interface which we need while transitioning from the
+// old to new scheduler.
 func (repo *schedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([]LegacySchedulerJob, error) {
 	rv := make([]LegacySchedulerJob, 0, len(ids))
 	for _, id := range ids {
@@ -315,6 +320,8 @@ func (l *LegacySchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, j
 	return nodeDb, nil
 }
 
+// filterStaleExecutors returns all executors which have sent a lease request within the duration given by l.config.ExecutorTimeout.
+// This ensures that we don't continue to assign jobs to executors that are no longer active.
 func (l *LegacySchedulingAlgo) filterStaleExecutors(allExecutors []*schedulerobjects.Executor) []*schedulerobjects.Executor {
 	activeExecutors := make([]*schedulerobjects.Executor, 0, len(allExecutors))
 	cutoff := l.clock.Now().Add(-l.config.ExecutorTimeout)
@@ -324,6 +331,45 @@ func (l *LegacySchedulingAlgo) filterStaleExecutors(allExecutors []*schedulerobj
 		} else {
 			log.Debugf("Ignoring executor %s because it hasn't heartbeated since %s", executor.Id, executor.LastUpdateTime)
 		}
+	}
+	return activeExecutors
+}
+
+// filterLaggingExecutors returns all executors who have fewer than l.config.MaxUnacknowledgedJobsPerExecutor jobs unacknowledged.
+// A job is considered as unacknowledged if the scheduler has leased it to the executor, but the executor hasn't echoed back the
+// corresponding run Id in the lease calls.
+// This mechanism ensures that we don't continue to assign jobs to an executor that is not capable of receiving them.
+func (l *LegacySchedulingAlgo) filterLaggingExecutors(
+	executors []*schedulerobjects.Executor, leasedJobsByExecutor map[string][]*jobdb.Job) []*schedulerobjects.Executor {
+	activeExecutors := make([]*schedulerobjects.Executor, 0, len(executors))
+	for _, executor := range executors {
+		leasedJobs := leasedJobsByExecutor[executor.Id]
+		executorRuns, err := executor.AllRuns()
+		if err != nil {
+			log.Warnf("Could not retrieve runs for executor %s.  Executor will be not be considered for scheduling", executor.Id)
+			continue
+		}
+		executorRunIds := make(map[uuid.UUID]bool, len(executorRuns))
+		for _, run := range executorRuns {
+			executorRunIds[run] = true
+		}
+
+		numUnacknowledgedJobs := 0
+		for _, leasedJob := range leasedJobs {
+			if leasedJob.HasRuns() && !leasedJob.InTerminalState() {
+				if !executorRunIds[leasedJob.LatestRun().Id()] {
+					numUnacknowledgedJobs++
+				}
+			}
+		}
+		if numUnacknowledgedJobs <= l.config.MaxUnacknowledgedJobsPerExecutor {
+			activeExecutors = append(activeExecutors, executor)
+		} else {
+			log.Warnf(
+				"Executor %s has %d unacknowledged jobs which is greater than the limit of %d.  Executor will not be considered for scheduling this cycle",
+				executor.Id, numUnacknowledgedJobs, l.config.MaxUnacknowledgedJobsPerExecutor)
+		}
+
 	}
 	return activeExecutors
 }
