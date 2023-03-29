@@ -14,8 +14,10 @@ import { LookoutJobService } from "./services/JobService"
 import LogService from "./services/LogService"
 import { GetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 import { GetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
+import { LogService as V2LogService } from "./services/lookoutV2/LogService"
 import FakeGetJobSpecService from "./services/lookoutV2/mocks/FakeGetJobSpecService"
 import { FakeGetRunErrorService } from "./services/lookoutV2/mocks/FakeGetRunErrorService"
+import { FakeLogService } from "./services/lookoutV2/mocks/FakeLogService"
 import { getUIConfig } from "./utils"
 
 import "react-virtualized/styles.css"
@@ -51,6 +53,9 @@ import "./index.css"
     ? new FakeGroupJobsService(v2TestJobs)
     : new GroupJobsService(lookoutV2BaseUrl)
   const v2RunErrorService = fakeDataEnabled ? new FakeGetRunErrorService() : new GetRunErrorService(lookoutV2BaseUrl)
+  const v2LogService = fakeDataEnabled
+    ? new FakeLogService()
+    : new V2LogService({ credentials: "include" }, uiConfig.binocularsBaseUrlPattern)
   const v2JobSpecService = fakeDataEnabled ? new FakeGetJobSpecService() : new GetJobSpecService(lookoutV2BaseUrl)
   const v2UpdateJobsService = new UpdateJobsService(submitApi)
 
@@ -62,6 +67,7 @@ import "./index.css"
       v2UpdateJobsService={v2UpdateJobsService}
       v2RunErrorService={v2RunErrorService}
       v2JobSpecService={v2JobSpecService}
+      v2LogService={v2LogService}
       logService={logService}
       overviewAutoRefreshMs={uiConfig.overviewAutoRefreshMs}
       jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}
