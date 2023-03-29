@@ -1,20 +1,18 @@
 import React from "react"
 
-import { RouteComponentProps, withRouter } from "react-router-dom"
-
 import JobSets from "../components/job-sets/JobSets"
 import IntervalService from "../services/IntervalService"
 import { JobService, GetJobSetsRequest, JobSet } from "../services/JobService"
 import JobSetsLocalStorageService from "../services/JobSetsLocalStorageService"
 import JobSetsQueryParamsService from "../services/JobSetsQueryParamsService"
-import { ApiResult, debounced, RequestStatus, selectItem, setStateAsync } from "../utils"
+import { ApiResult, debounced, PropsWithRouter, RequestStatus, selectItem, setStateAsync, withRouter } from "../utils"
 import CancelJobSetsDialog, { getCancellableJobSets } from "./CancelJobSetsDialog"
 import ReprioritizeJobSetsDialog, { getReprioritizeableJobSets } from "./ReprioritizeJobSetsDialog"
 
-type JobSetsContainerProps = {
+interface JobSetsContainerProps extends PropsWithRouter {
   jobService: JobService
   jobSetsAutoRefreshMs: number
-} & RouteComponentProps
+}
 
 type JobSetsContainerParams = {
   queue: string
@@ -49,7 +47,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
 
     this.autoRefreshService = new IntervalService(props.jobSetsAutoRefreshMs)
     this.localStorageService = new JobSetsLocalStorageService()
-    this.queryParamsService = new JobSetsQueryParamsService(this.props)
+    this.queryParamsService = new JobSetsQueryParamsService(this.props.router)
 
     this.state = {
       queue: "",
@@ -221,8 +219,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
   }
 
   navigateToJobSetForState(jobSet: string, jobState: string) {
-    this.props.history.push({
-      ...this.props.location,
+    this.props.router.navigate({
       pathname: "/jobs",
       search: `queue=${this.state.queue}&job_set=${jobSet}&job_states=${jobState}`,
     })
@@ -323,4 +320,6 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
   }
 }
 
-export default withRouter(JobSetsContainer)
+export default withRouter((props: JobSetsContainerProps) => {
+  return <JobSetsContainer {...props} />
+})

@@ -1,4 +1,4 @@
-import { NavigateFunction, Params, useLocation, useNavigate, useParams } from "react-router-dom"
+import { Location, NavigateFunction, Params, useLocation, useNavigate, useParams } from "react-router-dom"
 
 interface UIConfig {
   armadaApiBaseUrl: string
@@ -197,7 +197,7 @@ export async function waitMillis(millisToWait: number): Promise<void> {
 export interface Router {
   location: Location
   navigate: NavigateFunction
-  params: Readonly<Params<string>>
+  params: Readonly<Params>
 }
 
 export interface PropsWithRouter {

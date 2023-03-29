@@ -1,8 +1,8 @@
 import { ExpandedStateList, ColumnFiltersState, SortingState, VisibilityState } from "@tanstack/react-table"
-import { History } from "history"
 import { JobId } from "models/lookoutV2Models"
 import qs from "qs"
 
+import { Router } from "../../utils"
 import {
   ANNOTATION_COLUMN_PREFIX,
   ColumnId,
@@ -156,7 +156,7 @@ const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringSafePrefs>): Pa
 }
 
 export class JobsTablePreferencesService {
-  constructor(private historyService: History) {}
+  constructor(private router: Router) {}
 
   getUserPrefs(): JobsTablePreferences {
     let queryParamPrefs = this.getPrefsFromQueryParams()
@@ -182,15 +182,15 @@ export class JobsTablePreferencesService {
   private savePrefsToQueryParams(newPrefs: JobsTablePreferences) {
     try {
       // Avoids overwriting existing unrelated query params
-      const existingQueryParams = qs.parse(this.historyService.location.search, { ignoreQueryPrefix: true })
+      const existingQueryParams = qs.parse(this.router.location.search, { ignoreQueryPrefix: true })
       const prefsQueryParams = toQueryStringSafe(newPrefs)
       const mergedQueryParams = {
         ...existingQueryParams,
         ...prefsQueryParams,
       }
 
-      this.historyService.push({
-        pathname: this.historyService.location.pathname,
+      this.router.navigate({
+        pathname: this.router.location.pathname,
         search: qs.stringify(mergedQueryParams, {
           encodeValuesOnly: true,
           strictNullHandling: true,
@@ -221,7 +221,7 @@ export class JobsTablePreferencesService {
 
   private getPrefsFromQueryParams(): Partial<JobsTablePreferences> {
     try {
-      const queryParamPrefs = qs.parse(this.historyService.location.search, {
+      const queryParamPrefs = qs.parse(this.router.location.search, {
         ignoreQueryPrefix: true,
         strictNullHandling: true,
       })

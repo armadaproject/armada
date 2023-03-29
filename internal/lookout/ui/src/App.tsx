@@ -5,10 +5,9 @@ import { createGenerateClassName } from "@material-ui/core/styles"
 import { ThemeProvider as ThemeProviderV5, createTheme as createThemeV5 } from "@mui/material/styles"
 import { JobsTableContainer } from "containers/lookoutV2/JobsTableContainer"
 import { SnackbarProvider } from "notistack"
-import { Route, BrowserRouter as Router, Routes } from "react-router-dom"
+import { Route, BrowserRouter, Routes } from "react-router-dom"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
-import { JobsTablePreferencesService } from "services/lookoutV2/JobsTablePreferencesService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 
 import NavBar from "./components/NavBar"
@@ -62,7 +61,6 @@ const themeV5 = createThemeV5(theme)
 
 type AppProps = {
   jobService: JobService
-  v2JobsTablePrefsService: JobsTablePreferencesService
   v2GetJobsService: IGetJobsService
   v2GroupJobsService: IGroupJobsService
   v2RunErrorService: IGetRunErrorService
@@ -74,6 +72,7 @@ type AppProps = {
   jobsAutoRefreshMs: number
   debugEnabled: boolean
 }
+
 export function App(props: AppProps) {
   return (
     <StylesProvider generateClassName={generateClassName}>
@@ -84,35 +83,31 @@ export function App(props: AppProps) {
             autoHideDuration={8000}
             maxSnack={3}
           >
-            <Router>
+            <BrowserRouter>
               <div className="app-container">
                 <NavBar />
                 <div className="app-content">
                   <Routes>
-                    <Route path="/">
-                      <OverviewContainer {...props} />
-                    </Route>
-                    <Route path="/job-sets">
-                      <JobSetsContainer {...props} />
-                    </Route>
-                    <Route path="/jobs">
-                      <JobsContainer {...props} />
-                    </Route>
-                    <Route path="/v2">
-                      <JobsTableContainer
-                        jobsTablePreferencesService={props.v2JobsTablePrefsService}
-                        getJobsService={props.v2GetJobsService}
-                        groupJobsService={props.v2GroupJobsService}
-                        updateJobsService={props.v2UpdateJobsService}
-                        runErrorService={props.v2RunErrorService}
-                        jobSpecService={props.v2JobSpecService}
-                        debug={props.debugEnabled}
-                      />
-                    </Route>
+                    <Route path="/" element={<OverviewContainer {...props} />} />
+                    <Route path="/job-sets" element={<JobSetsContainer {...props} />} />
+                    <Route path="/jobs" element={<JobsContainer {...props} />} />
+                    <Route
+                      path="/v2"
+                      element={
+                        <JobsTableContainer
+                          getJobsService={props.v2GetJobsService}
+                          groupJobsService={props.v2GroupJobsService}
+                          updateJobsService={props.v2UpdateJobsService}
+                          runErrorService={props.v2RunErrorService}
+                          jobSpecService={props.v2JobSpecService}
+                          debug={props.debugEnabled}
+                        />
+                      }
+                    />
                   </Routes>
                 </div>
               </div>
-            </Router>
+            </BrowserRouter>
           </SnackbarProvider>
         </ThemeProviderV5>
       </ThemeProviderV4>
