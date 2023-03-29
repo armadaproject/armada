@@ -3,10 +3,17 @@
 Armadactl is a command line tool for managing and deploying Armada charts. It allows users to install, upgrade, and delete charts, as well as view their status and history. Armadactl is designed to be easy to use and customizable, and can be installed as a kubectl plugin via krew.
 
 ## Installation
-Armadactl can be installed via krew, the package manager for kubectl plugins. First, ensure that krew is installed by following the instructions on the krew GitHub page. Then, run the following command to install Armadactl:
+To install Armada, follow these steps:
 
+- Install Armada CLI:
 ```bash
-kubectl krew install armadactl
+curl -sL https://github.com/armadaplatform/armada-cli/releases/latest/download/armada-linux-amd64 -o armada
+sudo mv armada /usr/local/bin/
+sudo chmod +x /usr/local/bin/armada
+```
+- Check that Armada CLI is installed properly:
+```bash
+armada version
 ```
 
 Alternatively, Armadactl can be installed manually by downloading the latest release from the Armada GitHub repository and adding the binary to your system path.
