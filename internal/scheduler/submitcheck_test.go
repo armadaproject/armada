@@ -7,7 +7,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
-	"github.com/pingcap/log"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -113,14 +113,16 @@ func TestSubmitChecker_TestCheckApiJobs(t *testing.T) {
 			if !tc.expectPass {
 				assert.NotEqual(t, "", msg)
 			}
-			log.Info(msg)
+			logrus.Info(msg)
 		})
 	}
 }
 
+// TODO: Move to testfixtures_test.go/delete in favour of existing fixture.
 func test1CoreCpuJob() *api.Job {
 	return &api.Job{
-		Id: util.NewULID(),
+		Id:    util.NewULID(),
+		Queue: uuid.NewString(),
 		PodSpec: &v1.PodSpec{
 			Containers: []v1.Container{
 				{
@@ -138,17 +140,19 @@ func test1CoreCpuJob() *api.Job {
 	}
 }
 
+// TODO: Move to testfixtures_test.go.
 func testNJobGang(n int) []*api.Job {
 	gangId := uuid.NewString()
 	gang := make([]*api.Job, n)
 	for i := 0; i < n; i++ {
 		job := test1CoreCpuJob()
-		job.Annotations = map[string]string{testGangIdAnnotation: gangId}
+		job.Annotations = map[string]string{configuration.GangIdAnnotation: gangId}
 		gang[i] = job
 	}
 	return gang
 }
 
+// TODO: Move to testfixtures_test.go.
 func test100CoreCpuJob() *api.Job {
 	job := test1CoreCpuJob()
 	hundredCores := map[v1.ResourceName]resource.Quantity{
@@ -159,17 +163,19 @@ func test100CoreCpuJob() *api.Job {
 	return job
 }
 
+// TODO: Move to testfixtures_test.go.
 func test1CoreCpuJobWithNodeSelector(selector map[string]string) *api.Job {
 	job := test1CoreCpuJob()
 	job.PodSpec.NodeSelector = selector
 	return job
 }
 
+// TODO: Move to testfixtures_test.go.
 func testExecutor(lastUpdateTime time.Time) *schedulerobjects.Executor {
 	return &schedulerobjects.Executor{
 		Id:             uuid.NewString(),
 		Pool:           "cpu",
 		LastUpdateTime: lastUpdateTime,
-		Nodes:          testNodeItems1(),
+		Nodes:          testCluster(),
 	}
 }

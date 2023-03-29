@@ -200,22 +200,15 @@ func LogSubmitJobFromApiJob(job *api.Job) (*armadaevents.SubmitJob, error) {
 			Message: "Both PodSpec and PodSpecs are set",
 		})
 	}
-
 	jobId, err := armadaevents.ProtoUuidFromUlidString(job.GetId())
 	if err != nil {
 		return nil, err
 	}
-
-	priority, err := LogSubmitPriorityFromApiPriority(job.GetPriority())
-	if err != nil {
-		return nil, err
-	}
-
+	priority := LogSubmitPriorityFromApiPriority(job.GetPriority())
 	mainObject, objects, err := LogSubmitObjectsFromApiJob(job)
 	if err != nil {
 		return nil, err
 	}
-
 	return &armadaevents.SubmitJob{
 		JobId:           jobId,
 		DeduplicationId: job.GetClientId(),
@@ -338,7 +331,7 @@ func K8sServicesIngressesFromApiJob(job *api.Job, ingressConfig *configuration.I
 
 // LogSubmitPriorityFromApiPriority returns the uint32 representation of the priority included with a submitted job,
 // or an error if the conversion fails.
-func LogSubmitPriorityFromApiPriority(priority float64) (uint32, error) {
+func LogSubmitPriorityFromApiPriority(priority float64) uint32 {
 	if priority < 0 {
 		priority = 0
 	}
@@ -346,7 +339,7 @@ func LogSubmitPriorityFromApiPriority(priority float64) (uint32, error) {
 		priority = math.MaxUint32
 	}
 	priority = math.Round(priority)
-	return uint32(priority), nil
+	return uint32(priority)
 }
 
 func LogObjectMetaFromK8sObjectMeta(meta *metav1.ObjectMeta) *armadaevents.ObjectMeta {
@@ -387,7 +380,7 @@ func EventSequencesFromApiEvents(msgs []*api.EventMessage) ([]*armadaevents.Even
 }
 
 // CompactEventSequences converts a []*armadaevents.EventSequence into a []*armadaevents.EventSequence of minimal length.
-// In particular, it moves events with equal (queue, jobSetName, userId, groups) into a single sequence.
+// In particular, it moves events with equal (queue, jobSetName, userId, groups) into a single sequence
 // when doing so is possible without changing the order of events within job sets.
 //
 // For example, three sequences [A, B, C], [D, E], [F, G]
@@ -447,7 +440,8 @@ func CompactEventSequences(sequences []*armadaevents.EventSequence) []*armadaeve
 
 func groupsEqual(g1, g2 []string) bool {
 	if len(g1) == 0 && len(g2) == 0 {
-		return true // Consider make []string{} and nil equal.
+		// []string{} and nil are considered equal.
+		return true
 	}
 	if len(g1) != len(g2) {
 		return false
@@ -805,7 +799,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 			case api.Cause_OOM:
 				containerError.KubernetesReason = armadaevents.KubernetesReason_OOM
 			default:
-				log.Warnf("Unknown cause %s on container %s", st.Cause, st.Name)
+				log.Warnf("unknown cause %s on container %s", st.Cause, st.Name)
 			}
 
 			containerErrors = append(containerErrors, containerError)
@@ -944,17 +938,11 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		sequence.Queue = m.Reprioritized.Queue
 		sequence.JobSetName = m.Reprioritized.JobSetId
 		sequence.UserId = m.Reprioritized.Requestor
-
 		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Reprioritized.JobId)
 		if err != nil {
 			return nil, err
 		}
-
-		priority, err := LogSubmitPriorityFromApiPriority(m.Reprioritized.NewPriority)
-		if err != nil {
-			return nil, err
-		}
-
+		priority := LogSubmitPriorityFromApiPriority(m.Reprioritized.NewPriority)
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Created: &m.Reprioritized.Created,
 			Event: &armadaevents.EventSequence_Event_ReprioritisedJob{

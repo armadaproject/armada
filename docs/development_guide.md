@@ -7,7 +7,6 @@ Before starting, please ensure you have installed [Go](https://go.dev/doc/instal
 Then, use the following commands to setup a local Armada system.
 ```bash
 # Download Go dependencies.
-go get
 go mod tidy
 
 # Install necessary tooling.
@@ -17,34 +16,36 @@ mage BootstrapTools
 # (only necessary after changing a .proto file).
 mage proto
 
+# Build a Docker image containing all Armada components.
+mage buildDockers "bundle"
+
 # Setup up a kind (i.e., Kubernetes-in-Docker) cluster; see
 # https://kind.sigs.k8s.io/ for details.
 mage Kind
 
 # Start necessary dependencies.
-# On Arm-based Macs, you may need to change the pulsar image
-# in docker-compose.yaml to be kezhenxu94/pulsar.
-docker-compose up -d redis postgres pulsar eventingester
-
 # Verify that dependencies started successfully
-# (check that redis, stan, postgres, and pulsar are all up).
-docker ps
+# (check that Pulsar has fully started as it is quite slow (~ 1min )).
+mage StartDependencies && mage checkForPulsarRunning
 
-# Build a Docker image containing the Armada server and executor
-# and run them in separate containers.
+# Start the Armada server and executor.
 # Alternatively, run the Armada server and executor directly on the host,
-# e.g., through your IDE; see below for more information.
-mage buildDockers "bundle"
+# e.g., through your IDE; see below for details.
 docker-compose up -d server executor
 ```
+
+**Note: the components take ~15 seconds to start up.**
 
 Run the Armada test suite against the local environment to verify that it is working correctly.
 ```bash
 # Create an Armada queue to submit jobs to.
 go run cmd/armadactl/main.go create queue e2e-test-queue
 
+# To allow Ingress tests to pass
+export ARMADA_EXECUTOR_INGRESS_URL="http://localhost"
+export ARMADA_EXECUTOR_INGRESS_PORT=5001
+
 # Run the Armada test suite against the local environment.
-# (The ingress test requires additional setup and will fail using this setup.)
 go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
 ```
 
@@ -56,6 +57,7 @@ docker-compose down
 # Tear down the kind cluster.
 mage KindTeardown
 ```
+
 
 ## Running the Armada server and executor in Visual Studio Code
 
@@ -75,10 +77,8 @@ To run the Armada server and executor from Visual Studio Code for debugging purp
             "mode": "auto",
             "env": {
                 "CGO_ENABLED": "0",
-                // Necessary config overrides.
                 "ARMADA_REDIS_ADDRS": "localhost:6379",
-                "ARMADA_EVENTSREDIS_ADDRS": "localhost:6379",
-                "ARMADA_EVENTSNATS_SERVERS": "nats://localhost:4222",
+                "ARMADA_EVENTSAPIREDIS_ADDRS": "localhost:6379",
                 "ARMADA_EVENTAPI_POSTGRES_CONNECTION_HOST": "localhost",
                 "ARMADA_POSTGRES_CONNECTION_HOST": "localhost",
                 "ARMADA_PULSAR_URL": "pulsar://localhost:6650"
@@ -86,7 +86,7 @@ To run the Armada server and executor from Visual Studio Code for debugging purp
             "cwd": "${workspaceFolder}/",
             "program": "${workspaceFolder}/cmd/armada/main.go",
             "args": [
-                "--config", "${workspaceFolder}/localdev/config/armada/config.yaml"                
+                "--config", "${workspaceFolder}/localdev/config/armada/config.yaml"
             ]
         },
         {
@@ -96,6 +96,7 @@ To run the Armada server and executor from Visual Studio Code for debugging purp
             "mode": "auto",
             "env": {
                 "CGO_ENABLED": "0",
+                "ARMADA_HTTPPORT": "8081",
                 "ARMADA_APICONNECTION_ARMADAURL": "localhost:50051",
                 "KUBECONFIG": "${workspaceFolder}/.kube/external/config"
             },
@@ -112,6 +113,6 @@ To run the Armada server and executor from Visual Studio Code for debugging purp
           "configurations": ["server", "executor"],
           "stopAll": true
         }
-      ]    
+    ]
 }
 ```

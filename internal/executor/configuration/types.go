@@ -17,6 +17,7 @@ type ApplicationConfiguration struct {
 	UpdateConcurrencyLimit int
 	DeleteConcurrencyLimit int
 	UseExecutorApi         bool
+	UseLegacyApi           bool
 }
 
 type PodDefaults struct {
@@ -57,7 +58,11 @@ type KubernetesConfiguration struct {
 	// NodeReservedResources config is used to factor in reserved resources on each node
 	// when validating can a job be scheduled on a node during job submit (i.e. factor in resources for daemonset pods)
 	NodeReservedResources armadaresource.ComputeResources
-	PodKillTimeout        time.Duration
+	// NodeReservedResourcesPriority - The priority the reserved resource is reported at
+	// All pods in kubernetes have a priority - and we report to the Armada API resource for a given priority
+	// Therefore we also need to set a priority for the reserved resource
+	NodeReservedResourcesPriority int32
+	PodKillTimeout                time.Duration
 }
 
 type EtcdConfiguration struct {
@@ -84,6 +89,7 @@ type TaskConfiguration struct {
 	UtilisationEventProcessingInterval    time.Duration
 	UtilisationEventReportingInterval     time.Duration
 	ResourceCleanupInterval               time.Duration
+	StateProcessorInterval                time.Duration
 }
 
 type MetricConfiguration struct {
@@ -115,12 +121,13 @@ const (
 )
 
 type ExecutorConfiguration struct {
-	HttpPort      uint16
-	Metric        MetricConfiguration
-	Application   ApplicationConfiguration
-	ApiConnection client.ApiConnectionDetails
-	Client        ClientConfiguration
-	GRPC          keepalive.ClientParameters
+	HttpPort              uint16
+	Metric                MetricConfiguration
+	Application           ApplicationConfiguration
+	ApiConnection         client.ApiConnectionDetails
+	ExecutorApiConnection client.ApiConnectionDetails
+	Client                ClientConfiguration
+	GRPC                  keepalive.ClientParameters
 
 	Kubernetes KubernetesConfiguration
 	Task       TaskConfiguration

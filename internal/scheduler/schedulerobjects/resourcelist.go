@@ -53,21 +53,26 @@ func (a QuantityByPriorityAndResourceType) String() string {
 
 func (a QuantityByPriorityAndResourceType) Add(b QuantityByPriorityAndResourceType) {
 	for p, rlb := range b {
-		a.AddResouceList(p, rlb)
+		a.AddResourceList(p, rlb)
 	}
 }
 
-func (a QuantityByPriorityAndResourceType) AddResouceList(priority int32, rlb ResourceList) {
+func (a QuantityByPriorityAndResourceType) Sub(b QuantityByPriorityAndResourceType) {
+	for p, rlb := range b {
+		a.SubResourceList(p, rlb)
+	}
+}
+
+func (a QuantityByPriorityAndResourceType) AddResourceList(priority int32, rlb ResourceList) {
 	rla := a[priority]
 	rla.Add(rlb)
 	a[priority] = rla
 }
 
-func (a QuantityByPriorityAndResourceType) Sub(b QuantityByPriorityAndResourceType) {
-	for p, rsb := range b {
-		rsa := a[p]
-		rsa.Sub(rsb)
-	}
+func (a QuantityByPriorityAndResourceType) SubResourceList(priority int32, rlb ResourceList) {
+	rla := a[priority]
+	rla.Sub(rlb)
+	a[priority] = rla
 }
 
 func (a QuantityByPriorityAndResourceType) Equal(b QuantityByPriorityAndResourceType) bool {
@@ -90,6 +95,26 @@ func (a QuantityByPriorityAndResourceType) Equal(b QuantityByPriorityAndResource
 				return false
 			}
 		} else {
+			return false
+		}
+	}
+	return true
+}
+
+// IsZero returns true if all quantities in a are zero.
+func (a QuantityByPriorityAndResourceType) IsZero() bool {
+	for _, rl := range a {
+		if !rl.IsZero() {
+			return false
+		}
+	}
+	return true
+}
+
+// IsStrictlyNonNegative returns true if there are no quantities in a with value less than zero.
+func (a QuantityByPriorityAndResourceType) IsStrictlyNonNegative() bool {
+	for _, rl := range a {
+		if !rl.IsStrictlyNonNegative() {
 			return false
 		}
 	}
@@ -135,9 +160,12 @@ func (a *ResourceList) Sub(b ResourceList) {
 	}
 }
 
-func (rl *ResourceList) DeepCopy() ResourceList {
+func (rl ResourceList) DeepCopy() ResourceList {
+	if rl.Resources == nil {
+		return ResourceList{}
+	}
 	rv := ResourceList{
-		Resources: make(map[string]resource.Quantity),
+		Resources: make(map[string]resource.Quantity, len(rl.Resources)),
 	}
 	for t, q := range rl.Resources {
 		rv.Resources[t] = q.DeepCopy()
@@ -145,26 +173,33 @@ func (rl *ResourceList) DeepCopy() ResourceList {
 	return rv
 }
 
-func (a ResourceList) Equal(b ResourceList) bool {
-	if len(a.Resources) != len(b.Resources) {
-		return false
-	}
-	if a.Resources == nil {
-		if b.Resources == nil {
-			return true
-		} else {
+func (a ResourceList) IsZero() bool {
+	for _, q := range a.Resources {
+		if !q.IsZero() {
 			return false
 		}
 	}
-	if b.Resources == nil && a.Resources != nil {
-		return false
-	}
+	return true
+}
+
+func (a ResourceList) Equal(b ResourceList) bool {
 	for t, qa := range a.Resources {
-		if qb, ok := b.Resources[t]; ok {
-			if qa.Cmp(qb) != 0 {
-				return false
-			}
-		} else {
+		if qa.Cmp(b.Get(t)) != 0 {
+			return false
+		}
+	}
+	for t, qb := range b.Resources {
+		if qb.Cmp(a.Get(t)) != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// IsStrictlyNonNegative returns true if there are no quantities in a with value less than zero.
+func (a ResourceList) IsStrictlyNonNegative() bool {
+	for _, q := range a.Resources {
+		if q.Cmp(resource.Quantity{}) == -1 {
 			return false
 		}
 	}
@@ -192,20 +227,16 @@ func (rl ResourceList) CompactString() string {
 // where alloctable resources = unused resources + resources allocated to lower-priority pods.
 type AllocatableByPriorityAndResourceType QuantityByPriorityAndResourceType
 
-func NewAllocatableByPriorityAndResourceType(priorities []int32, resources map[string]resource.Quantity) AllocatableByPriorityAndResourceType {
+func NewAllocatableByPriorityAndResourceType(priorities []int32, rl ResourceList) AllocatableByPriorityAndResourceType {
 	rv := make(AllocatableByPriorityAndResourceType)
 	for _, priority := range priorities {
-		m := make(map[string]resource.Quantity)
-		for t, q := range resources {
-			m[t] = q.DeepCopy()
-		}
-		rv[priority] = ResourceList{Resources: m}
+		rv[priority] = rl.DeepCopy()
 	}
 	return rv
 }
 
 func (m AllocatableByPriorityAndResourceType) DeepCopy() AllocatableByPriorityAndResourceType {
-	rv := make(AllocatableByPriorityAndResourceType)
+	rv := make(AllocatableByPriorityAndResourceType, len(m))
 	for priority, resourcesAtPriority := range m {
 		rv[priority] = resourcesAtPriority.DeepCopy()
 	}

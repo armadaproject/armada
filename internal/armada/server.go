@@ -27,6 +27,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
+	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/task"
@@ -40,11 +41,10 @@ import (
 func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
 	log.Info("Armada server starting")
 	defer log.Info("Armada server shutting down")
-
 	if config.Scheduling.Preemption.Enabled {
 		log.Info("Armada Job preemption is enabled")
-		log.Infof("Supported priority classes are: %v", config.Scheduling.Preemption.PriorityClasses)
-		log.Infof("Default priority class is: %s", config.Scheduling.Preemption.DefaultPriorityClass)
+		log.Infof("Armada priority classes: %v", config.Scheduling.Preemption.PriorityClasses)
+		log.Infof("Default priority class: %s", config.Scheduling.Preemption.DefaultPriorityClass)
 	} else {
 		log.Info("Armada Job preemption is disabled")
 	}
@@ -110,7 +110,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		}
 	}()
 
-	jobRepository := repository.NewRedisJobRepository(db, config.DatabaseRetention)
+	jobRepository := repository.NewRedisJobRepository(db)
 	usageRepository := repository.NewRedisUsageRepository(db)
 	queueRepository := repository.NewRedisQueueRepository(db)
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(db)
@@ -191,18 +191,18 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	)
 
 	pulsarSubmitServer := &server.PulsarSubmitServer{
-		Producer:                           producer,
-		QueueRepository:                    queueRepository,
-		Permissions:                        permissions,
-		SubmitServer:                       submitServer,
-		MaxAllowedMessageSize:              config.Pulsar.MaxAllowedMessageSize,
-		PulsarSchedulerSubmitChecker:       pulsarSchedulerSubmitChecker,
-		LegacySchedulerSubmitChecker:       legacySchedulerSubmitChecker,
-		PulsarSchedulerEnabled:             config.PulsarSchedulerEnabled,
-		ProbabilityOdfUsingPulsarScheduler: config.ProbabilityOfUsingPulsarScheduler,
-		Rand:                               util.NewThreadsafeRand(time.Now().UnixNano()),
-		GangIdAnnotation:                   config.Scheduling.GangIdAnnotation,
-		IgnoreJobSubmitChecks:              config.IgnoreJobSubmitChecks,
+		Producer:                          producer,
+		QueueRepository:                   queueRepository,
+		Permissions:                       permissions,
+		SubmitServer:                      submitServer,
+		MaxAllowedMessageSize:             config.Pulsar.MaxAllowedMessageSize,
+		PulsarSchedulerSubmitChecker:      pulsarSchedulerSubmitChecker,
+		LegacySchedulerSubmitChecker:      legacySchedulerSubmitChecker,
+		PulsarSchedulerEnabled:            config.PulsarSchedulerEnabled,
+		ProbabilityOfUsingPulsarScheduler: config.ProbabilityOfUsingPulsarScheduler,
+		Rand:                              util.NewThreadsafeRand(time.Now().UnixNano()),
+		GangIdAnnotation:                  configuration.GangIdAnnotation,
+		IgnoreJobSubmitChecks:             config.IgnoreJobSubmitChecks,
 	}
 	submitServerToRegister := pulsarSubmitServer
 
@@ -268,6 +268,8 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		usageRepository,
 		eventStore,
 		schedulingInfoRepository,
+		producer,
+		config.Pulsar.MaxAllowedMessageSize,
 		legacyExecutorRepo,
 	)
 	if config.Scheduling.MaxQueueReportsToStore > 0 || config.Scheduling.MaxJobReportsToStore > 0 {
@@ -287,7 +289,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	leaseManager := scheduling.NewLeaseManager(jobRepository, queueRepository, eventStore, config.Scheduling.Lease.ExpireAfter)
 
 	// Allows for registering functions to be run periodically in the background.
-	taskManager := task.NewBackgroundTaskManager(metrics.MetricPrefix)
+	taskManager := task.NewBackgroundTaskManager(commonmetrics.MetricPrefix)
 	defer taskManager.StopAll(time.Second * 2)
 	taskManager.Register(queueCache.Refresh, config.Metrics.RefreshInterval, "refresh_queue_cache")
 	taskManager.Register(leaseManager.ExpireLeases, config.Scheduling.Lease.ExpiryLoopInterval, "lease_expiry")

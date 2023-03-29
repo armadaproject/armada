@@ -1,12 +1,12 @@
 import { ColumnFiltersState, ExpandedStateList, Updater } from "@tanstack/react-table"
 import _ from "lodash"
-import { JobRow, JobGroupRow, JobTableRow } from "models/jobsTableModels"
+import { JobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobGroup, JobOrder, Match } from "models/lookoutV2Models"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 
-import { getColumnMetadata, JobTableColumn } from "./jobsTableColumns"
-import { RowIdParts, toRowId, RowId, findRowInData } from "./reactTableUtils"
+import { ColumnId, getColumnMetadata, JobTableColumn } from "./jobsTableColumns"
+import { findRowInData, RowId, RowIdParts, toRowId } from "./reactTableUtils"
 
 export interface PendingData {
   parentRowId: RowId | "ROOT"
@@ -40,28 +40,45 @@ export const pendingDataForAllVisibleData = (
   return [rootData].concat(expandedGroups)
 }
 
-export const convertRowPartsToFilters = (expandedRowIdParts: RowIdParts[]): JobFilter[] => {
-  const filters: JobFilter[] = expandedRowIdParts.map(({ type, value }) => ({
-    field: type,
-    value,
-    match: Match.Exact,
-  }))
-
-  return filters
-}
-
-export const convertColumnFiltersToFilters = (filters: ColumnFiltersState, columns: JobTableColumn[]): JobFilter[] => {
-  return filters.map(({ id, value }) => {
+export function getFiltersForRows(
+  filters: ColumnFiltersState,
+  columns: JobTableColumn[],
+  expandedRowIdParts: RowIdParts[],
+): JobFilter[] {
+  const filterColumnsIndexes = new Map<string, number>()
+  const jobFilters = filters.map(({ id, value }, i) => {
     const isArray = _.isArray(value)
     const columnInfo = columns.find((col) => col.id === id)
     const metadata = columnInfo ? getColumnMetadata(columnInfo) : undefined
+    const field = metadata?.annotation?.annotationKey ?? id
+
+    filterColumnsIndexes.set(field, i)
+
     return {
       isAnnotation: Boolean(metadata?.annotation),
-      field: metadata?.annotation?.annotationKey ?? id,
+      field: field,
       value: isArray ? (value as string[]) : (value as string),
       match: metadata?.defaultMatchType ?? (isArray ? Match.AnyOf : Match.StartsWith),
     }
   })
+
+  // Overwrite for expanded groups
+  for (const rowIdParts of expandedRowIdParts) {
+    const filter = {
+      field: rowIdParts.type,
+      value: rowIdParts.value,
+      match: Match.Exact,
+      isAnnotation: false,
+    }
+    if (filterColumnsIndexes.has(rowIdParts.type)) {
+      const i = filterColumnsIndexes.get(rowIdParts.type) as number
+      jobFilters[i] = filter
+    } else {
+      jobFilters.push(filter)
+    }
+  }
+
+  return jobFilters
 }
 
 export interface FetchRowRequest {
@@ -87,14 +104,7 @@ export const fetchJobGroups = async (
   columnsToAggregate: string[],
   abortSignal: AbortSignal,
 ) => {
-  const { filters, skip, take } = rowRequest
-  let { order } = rowRequest
-
-  // API only supports grouping by the group's job count for now
-  order = {
-    field: "count",
-    direction: "DESC",
-  }
+  const { filters, skip, take, order } = rowRequest
 
   return await groupJobsService.groupJobs(filters, order, groupedColumn, columnsToAggregate, skip, take, abortSignal)
 }
@@ -111,10 +121,10 @@ export const jobsToRows = (jobs: Job[]): JobRow[] => {
 export const groupsToRows = (
   groups: JobGroup[],
   baseRowId: RowId | undefined,
-  groupingField: string,
+  groupingField: ColumnId,
 ): JobGroupRow[] => {
-  return groups.map(
-    (group): JobGroupRow => ({
+  return groups.map((group): JobGroupRow => {
+    const row: JobGroupRow = {
       rowId: toRowId({ type: groupingField, value: group.name, parentRowId: baseRowId }),
       [groupingField]: group.name,
       groupedField: groupingField,
@@ -125,8 +135,21 @@ export const groupsToRows = (
       // Will be set later if expanded
       subRowCount: undefined,
       subRows: [],
-    }),
-  )
+    }
+    for (const [key, val] of Object.entries(group.aggregates)) {
+      switch (key) {
+        case "submitted":
+          row.submitted = val as string
+          break
+        case "lastTransitionTime":
+          row.lastTransitionTime = val as string
+          break
+        default:
+          break
+      }
+    }
+    return row
+  })
 }
 
 export const diffOfKeys = <K extends string | number | symbol>(

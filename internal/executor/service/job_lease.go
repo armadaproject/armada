@@ -14,8 +14,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding/gzip"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common"
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	commonUtil "github.com/armadaproject/armada/internal/common/util"
 	context2 "github.com/armadaproject/armada/internal/executor/context"
@@ -211,40 +214,61 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 
 func (jobLeaseService *JobLeaseService) returnLeases(jobs []*api.Job, reason string, jobRunAttempted bool) {
 	for _, j := range jobs {
-		if err := jobLeaseService.ReturnLeaseById(j.Id, "", nil, reason, jobRunAttempted); err != nil {
-			log.Errorf("Failed to return lease for job %s because %s", j.Id, err)
+		podSpecs := j.GetAllPodSpecs()
+		if len(podSpecs) == 0 {
+			log.Errorf("no pod specs found for job %s", j.Id)
+			continue
+		}
+		podSpec := podSpecs[0]
+		err := jobLeaseService.ReturnLease(
+			&v1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: j.Annotations,
+				},
+				Spec: *podSpec,
+			},
+			reason,
+			jobRunAttempted,
+		)
+		if err != nil {
+			log.Errorf("failed to return lease for job %s: %s", j.Id, err)
 		}
 	}
 }
 
 func (jobLeaseService *JobLeaseService) ReturnLease(pod *v1.Pod, reason string, jobRunAttempted bool) error {
 	jobId := util.ExtractJobId(pod)
-	avoidNodeLabels, err := getAvoidNodeLabels(pod, jobLeaseService.avoidNodeLabelsOnRetry, jobLeaseService.clusterContext)
+	nodeLabelsToAvoid, err := getAvoidNodeLabels(pod, jobLeaseService.avoidNodeLabelsOnRetry, jobLeaseService.clusterContext)
 	if err != nil {
 		log.Warnf("Failed to get node labels to avoid on rerun for pod %s in namespace %s: %v", pod.Name, pod.Namespace, err)
-		avoidNodeLabels = emptyOrderedStringMap()
+		nodeLabelsToAvoid = emptyOrderedStringMap()
 	}
-	return jobLeaseService.ReturnLeaseById(jobId, string(pod.UID), avoidNodeLabels, reason, jobRunAttempted)
-}
 
-func (jobLeaseService *JobLeaseService) ReturnLeaseById(jobId string, kubernetesId string, nodeLabelsToAvoid *api.OrderedStringMap, reason string, jobRunAttempted bool) error {
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
 
 	if nodeLabelsToAvoid != nil && len(nodeLabelsToAvoid.Entries) > 0 {
-		log.Infof("Returning lease for job %s (will try to avoid these node labels next time: %v)", jobId, nodeLabelsToAvoid)
+		log.Infof("returning lease for job %s (will try to avoid these node labels next time: %v)", jobId, nodeLabelsToAvoid)
 	} else {
-		log.Infof("Returning lease for job %s", jobId)
+		log.Infof("returning lease for job %s", jobId)
 	}
-	_, err := jobLeaseService.queueClient.ReturnLease(ctx,
+	_, err = jobLeaseService.queueClient.ReturnLease(ctx,
 		&api.ReturnLeaseRequest{
 			ClusterId:       jobLeaseService.clusterContext.GetClusterId(),
 			JobId:           jobId,
 			AvoidNodeLabels: nodeLabelsToAvoid,
 			Reason:          reason,
-			KubernetesId:    kubernetesId,
+			KubernetesId:    string(pod.UID),
 			JobRunAttempted: jobRunAttempted,
-		})
+			TrackedAnnotations: armadamaps.FilterKeys(
+				pod.Annotations,
+				func(k string) bool {
+					_, ok := configuration.ReturnLeaseRequestTrackedAnnotations[k]
+					return ok
+				},
+			),
+		},
+	)
 	return err
 }
 

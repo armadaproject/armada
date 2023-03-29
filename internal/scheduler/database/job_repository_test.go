@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -12,8 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
+	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const defaultBatchSize = 1
@@ -108,6 +112,102 @@ func TestFetchJobUpdates(t *testing.T) {
 	}
 }
 
+func TestFetchJobRunErrors(t *testing.T) {
+	const numErrors = 10
+
+	dbErrors := make([]JobRunError, numErrors)
+	expectedErrors := make([]*armadaevents.Error, numErrors)
+
+	for i := 0; i < numErrors; i++ {
+		runError := &armadaevents.Error{
+			Terminal: true,
+			Reason: &armadaevents.Error_PodError{
+				PodError: &armadaevents.PodError{
+					PodNumber: int32(i), // makes each error unique
+				},
+			},
+		}
+		expectedErrors[i] = runError
+		dbErrors[i] = JobRunError{
+			RunID: uuid.New(),
+			JobID: util.NewULID(),
+			Error: protoutil.MustMarshallAndCompress(runError, compress.NewThreadSafeZlibCompressor(1024)),
+		}
+	}
+
+	tests := map[string]struct {
+		errorsInDb  []JobRunError
+		idsToLookup []uuid.UUID
+		expected    map[uuid.UUID]*armadaevents.Error
+		expectError bool
+	}{
+		"single error": {
+			errorsInDb:  dbErrors,
+			idsToLookup: []uuid.UUID{dbErrors[1].RunID},
+			expected:    map[uuid.UUID]*armadaevents.Error{dbErrors[1].RunID: expectedErrors[1]},
+		},
+		"multiple errors": {
+			errorsInDb:  dbErrors,
+			idsToLookup: []uuid.UUID{dbErrors[1].RunID, dbErrors[4].RunID, dbErrors[5].RunID, dbErrors[7].RunID},
+			expected: map[uuid.UUID]*armadaevents.Error{
+				dbErrors[1].RunID: expectedErrors[1],
+				dbErrors[4].RunID: expectedErrors[4],
+				dbErrors[5].RunID: expectedErrors[5],
+				dbErrors[7].RunID: expectedErrors[7],
+			},
+		},
+		"some errors missing": {
+			errorsInDb:  dbErrors,
+			idsToLookup: []uuid.UUID{dbErrors[1].RunID, uuid.New(), uuid.New(), dbErrors[7].RunID},
+			expected: map[uuid.UUID]*armadaevents.Error{
+				dbErrors[1].RunID: expectedErrors[1],
+				dbErrors[7].RunID: expectedErrors[7],
+			},
+		},
+		"all errors missing": {
+			errorsInDb:  dbErrors,
+			idsToLookup: []uuid.UUID{uuid.New(), uuid.New(), uuid.New(), uuid.New()},
+			expected:    map[uuid.UUID]*armadaevents.Error{},
+		},
+		"emptyDb": {
+			errorsInDb:  []JobRunError{},
+			idsToLookup: []uuid.UUID{uuid.New(), uuid.New(), uuid.New(), uuid.New()},
+			expected:    map[uuid.UUID]*armadaevents.Error{},
+		},
+		"invalid data": {
+			errorsInDb: []JobRunError{{
+				RunID: dbErrors[0].RunID,
+				JobID: dbErrors[0].JobID,
+				Error: []byte{0x1, 0x4, 0x5}, // not a valid compressed proto
+			}},
+			idsToLookup: []uuid.UUID{dbErrors[0].RunID},
+			expectError: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			err := withJobRepository(func(repo *PostgresJobRepository) error {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				// Set up db
+				err := database.Upsert(ctx, repo.db, "job_run_errors", tc.errorsInDb)
+				require.NoError(t, err)
+
+				// Fetch updates
+				received, err := repo.FetchJobRunErrors(ctx, tc.idsToLookup)
+				if tc.expectError {
+					require.Error(t, err)
+				} else {
+					require.NoError(t, err)
+					assert.Equal(t, tc.expected, received)
+				}
+				cancel()
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
 func TestCountReceivedPartitions(t *testing.T) {
 	tests := map[string]struct {
 		numPartitions int
@@ -157,33 +257,35 @@ func createTestJobs(numJobs int) ([]Job, []Job) {
 
 	for i := 0; i < numJobs; i++ {
 		dbJobs[i] = Job{
-			JobID:           util.NewULID(),
-			JobSet:          "test-jobset",
-			Queue:           "test-queue",
-			Submitted:       int64(i),
-			Priority:        int64(i),
-			CancelRequested: true,
-			Cancelled:       true,
-			Succeeded:       true,
-			Failed:          true,
-			SchedulingInfo:  []byte{byte(i)},
-			SubmitMessage:   []byte{},
+			JobID:                   util.NewULID(),
+			JobSet:                  "test-jobset",
+			Queue:                   "test-queue",
+			Submitted:               int64(i),
+			Priority:                int64(i),
+			CancelRequested:         true,
+			Cancelled:               true,
+			CancelByJobsetRequested: true,
+			Succeeded:               true,
+			Failed:                  true,
+			SchedulingInfo:          []byte{byte(i)},
+			SubmitMessage:           []byte{},
 		}
 	}
 
 	for i, job := range dbJobs {
 		expectedJobs[i] = Job{
-			JobID:           job.JobID,
-			JobSet:          job.JobSet,
-			Queue:           job.Queue,
-			Submitted:       job.Submitted,
-			Priority:        job.Priority,
-			CancelRequested: job.CancelRequested,
-			Cancelled:       job.Cancelled,
-			Succeeded:       job.Succeeded,
-			Failed:          job.Failed,
-			SchedulingInfo:  job.SchedulingInfo,
-			Serial:          int64(i + 1),
+			JobID:                   job.JobID,
+			JobSet:                  job.JobSet,
+			Queue:                   job.Queue,
+			Submitted:               job.Submitted,
+			Priority:                job.Priority,
+			CancelRequested:         job.CancelRequested,
+			CancelByJobsetRequested: true,
+			Cancelled:               job.Cancelled,
+			Succeeded:               job.Succeeded,
+			Failed:                  job.Failed,
+			SchedulingInfo:          job.SchedulingInfo,
+			Serial:                  int64(i + 1),
 		}
 	}
 	return dbJobs, expectedJobs
@@ -413,6 +515,7 @@ func createTestRuns(numRuns int) ([]Run, []Run) {
 			JobID:     util.NewULID(),
 			JobSet:    "test-jobset",
 			Executor:  "test-executor",
+			Node:      fmt.Sprintf("test-node-%d", i),
 			Cancelled: true,
 			Running:   true,
 			Succeeded: true,
@@ -427,6 +530,7 @@ func createTestRuns(numRuns int) ([]Run, []Run) {
 			JobID:     run.JobID,
 			JobSet:    run.JobSet,
 			Executor:  run.Executor,
+			Node:      fmt.Sprintf("test-node-%d", i),
 			Cancelled: run.Cancelled,
 			Running:   run.Running,
 			Succeeded: run.Succeeded,

@@ -7,7 +7,6 @@ export const getAllJobsMatchingFilters = async (
   getJobsService: IGetJobsService,
 ): Promise<Job[]> => {
   const MAX_JOBS_PER_REQUEST = 10000
-
   const receivedJobs: Job[] = []
   let continuePaginating = true
   while (continuePaginating) {
@@ -18,14 +17,11 @@ export const getAllJobsMatchingFilters = async (
       MAX_JOBS_PER_REQUEST,
       undefined,
     )
-
     receivedJobs.push(...jobs)
-
     if (receivedJobs.length >= totalJobs || jobs.length === 0) {
       continuePaginating = false
     }
   }
-
   return receivedJobs
 }
 

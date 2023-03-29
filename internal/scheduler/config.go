@@ -13,9 +13,21 @@ const (
 	// TargetNodeIdAnnotation if set on a pod, the value of this annotation is interpreted as the id of a node
 	// and only the node with that id will be considered for scheduling the pod.
 	TargetNodeIdAnnotation = "armadaproject.io/targetNodeId"
+	// IsEvictedAnnotation, indicates a pod was evicted in this round and is currently running.
+	// Used by the scheduler to differentiate between pods from running and queued jobs.
+	IsEvictedAnnotation = "armadaproject.io/isEvicted"
 	// JobIdAnnotation if set on a pod, indicates which job this pod is part of.
 	JobIdAnnotation = "armadaproject.io/jobId"
+	// QueueAnnotation if set on a pod, indicates which queue this pod is part of.
+	QueueAnnotation = "armadaproject.io/queue"
 )
+
+var ArmadaSchedulerManagedAnnotations = []string{
+	TargetNodeIdAnnotation,
+	IsEvictedAnnotation,
+	JobIdAnnotation,
+	QueueAnnotation,
+}
 
 type Configuration struct {
 	// Database configuration
@@ -26,6 +38,8 @@ type Configuration struct {
 	Pulsar configuration.PulsarConfig
 	// Configuration controlling leader election
 	Leader LeaderConfig
+	// Configuration controlling metrics
+	Metrics configuration.MetricsConfig
 	// Scheduler configuration (this is shared with the old scheduler)
 	Scheduling configuration.SchedulingConfig
 	Auth       authconfig.AuthConfig
@@ -43,7 +57,7 @@ type Configuration struct {
 }
 
 type LeaderConfig struct {
-	// Valid modes are "standalone" or "cluster"
+	// Valid modes are "standalone" or "kubernetes"
 	Mode string `validate:"required"`
 	// Name of the K8s Lock Object
 	LeaseLockName string

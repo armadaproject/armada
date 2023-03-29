@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { Refresh, Dangerous } from "@mui/icons-material"
 import { LoadingButton } from "@mui/lab"
@@ -28,6 +28,7 @@ export const CancelDialog = ({
   getJobsService,
   updateJobsService,
 }: CancelDialogProps) => {
+  const mounted = useRef(false)
   // State
   const [isLoadingJobs, setIsLoadingJobs] = useState(true)
   const [selectedJobs, setSelectedJobs] = useState<Job[]>([])
@@ -39,10 +40,18 @@ export const CancelDialog = ({
 
   // Actions
   const fetchSelectedJobs = useCallback(async () => {
+    if (!mounted.current) {
+      return
+    }
+
     setIsLoadingJobs(true)
 
     const uniqueJobsToCancel = await getUniqueJobsMatchingFilters(selectedItemFilters, getJobsService)
     const sortedJobs = _.orderBy(uniqueJobsToCancel, (job) => job.jobId, "desc")
+
+    if (!mounted.current) {
+      return
+    }
 
     setSelectedJobs(sortedJobs)
     setIsLoadingJobs(false)
@@ -76,7 +85,11 @@ export const CancelDialog = ({
 
   // On dialog open
   useEffect(() => {
+    mounted.current = true
     fetchSelectedJobs().catch(console.error)
+    return () => {
+      mounted.current = false
+    }
   }, [])
 
   // Event handlers

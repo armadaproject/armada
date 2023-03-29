@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 
 import { Accordion, AccordionSummary, Typography, AccordionDetails, CircularProgress } from "@material-ui/core"
 import { ExpandMore } from "@mui/icons-material"
@@ -20,12 +20,13 @@ export interface SidebarTabJobRuns {
 type LoadState = "Idle" | "Loading"
 
 export const SidebarTabJobRuns = ({ job, runErrorService }: SidebarTabJobRuns) => {
+  const mounted = useRef(false)
   const openSnackbar = useCustomSnackbar()
   const runsNewestFirst = [...job.runs].reverse()
   const [runErrorMap, setRunErrorMap] = useState<Map<string, string>>(new Map<string, string>())
   const [runErrorLoadingMap, setRunErrorLoadingMap] = useState<Map<string, LoadState>>(new Map<string, LoadState>())
 
-  const fetchRunErrors = async () => {
+  const fetchRunErrors = useCallback(async () => {
     const newRunErrorLoadingMap = new Map<string, LoadState>()
     for (const run of job.runs) {
       newRunErrorLoadingMap.set(run.runId, "Loading")
@@ -44,30 +45,43 @@ export const SidebarTabJobRuns = ({ job, runErrorService }: SidebarTabJobRuns) =
     for (const result of results) {
       result.promise
         .then((errorString) => {
+          if (!mounted.current) {
+            return
+          }
           newRunErrorMap.set(result.runId, errorString)
           setRunErrorMap(new Map(newRunErrorMap))
         })
         .catch(async (e) => {
           const errMsg = await getErrorMessage(e)
           console.error(errMsg)
+          if (!mounted.current) {
+            return
+          }
           openSnackbar("Failed to retrieve Job Run error for Run with ID: " + result.runId + ": " + errMsg, "error")
         })
         .finally(() => {
+          if (!mounted.current) {
+            return
+          }
           newRunErrorLoadingMap.set(result.runId, "Idle")
           setRunErrorLoadingMap(new Map(newRunErrorLoadingMap))
         })
     }
-  }
+  }, [job])
 
   useEffect(() => {
+    mounted.current = true
     fetchRunErrors()
+    return () => {
+      mounted.current = false
+    }
   }, [job])
 
   return (
-    <>
-      {runsNewestFirst.map((run) => {
+    <div style={{ width: "100%", height: "100%" }}>
+      {runsNewestFirst.map((run, i) => {
         return (
-          <Accordion key={run.runId}>
+          <Accordion key={run.runId} defaultExpanded={i === 0}>
             <AccordionSummary expandIcon={<ExpandMore />} aria-controls="panel1a-content">
               <Typography>
                 {formatUtcDate(run.pending)} UTC ({formatJobRunState(run.jobRunState)})
@@ -104,6 +118,6 @@ export const SidebarTabJobRuns = ({ job, runErrorService }: SidebarTabJobRuns) =
         )
       })}
       {runsNewestFirst.length === 0 && <>This job has not run.</>}
-    </>
+    </div>
   )
 }

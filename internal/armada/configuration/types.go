@@ -5,6 +5,7 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
@@ -30,7 +31,6 @@ type ArmadaConfig struct {
 	Scheduling                        SchedulingConfig
 	NewScheduler                      NewSchedulerConfig
 	QueueManagement                   QueueManagementConfig
-	DatabaseRetention                 DatabaseRetentionPolicy
 	Pulsar                            PulsarConfig
 	Postgres                          PostgresConfig // Used for Pulsar submit API deduplication
 	EventApi                          EventApiConfig
@@ -82,13 +82,11 @@ type PulsarConfig struct {
 }
 
 type SchedulingConfig struct {
-	Preemption                                PreemptionConfig
-	UseProbabilisticSchedulingForAllResources bool
+	// Set to true to enable scheduler assertions. This results in some performance loss.
+	EnableAssertions bool
+	Preemption       PreemptionConfig
 	// Number of jobs to load from the database at a time.
 	QueueLeaseBatchSize uint
-	// Minimum resources to schedule per request from an executor.
-	// Applies to the old scheduler.
-	MinimumResourceToSchedule armadaresource.ComputeResourcesFloat
 	// Maximum total size in bytes of all jobs returned in a single lease jobs call.
 	// Applies to the old scheduler. But is not necessary since we now stream job leases.
 	MaximumLeasePayloadSizeBytes int
@@ -118,6 +116,8 @@ type SchedulingConfig struct {
 	DefaultJobTolerations []v1.Toleration
 	// Set of tolerations added to all submitted pods of a given priority class.
 	DefaultJobTolerationsByPriorityClass map[string][]v1.Toleration
+	// Set of tolerations added to all submitted pods with a given resource request.
+	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
 	// Weights used when computing fair share.
@@ -128,6 +128,12 @@ type SchedulingConfig struct {
 	PoolResourceScarcity map[string]map[string]float64
 	MaxPodSpecSizeBytes  uint
 	MinJobResources      v1.ResourceList
+	// Once a node has been found on which a pod can be scheduled,
+	// the scheduler will consider up to the next maxExtraNodesToConsider nodes.
+	// The scheduler selects the node with the best score out of the considered nodes.
+	// In particular, the score expresses whether preemption is necessary to schedule a pod.
+	// Hence, a larger MaxExtraNodesToConsider would reduce the expected number of preemptions.
+	MaxExtraNodesToConsider uint
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
 	// for which the scheduler creates indexes for efficient lookup.
 	// Applies only to the new scheduler.
@@ -170,14 +176,17 @@ type SchedulingConfig struct {
 	// Should normally not be set greater than single-digit minutes,
 	// since cancellation and preemption may need to wait for this amount of time.
 	MaxTerminationGracePeriod time.Duration
-	// Jobs with equal value for this annotation make up a gang.
-	// All jobs in a gang are guaranteed to be scheduled onto the same cluster at the same time.
-	GangIdAnnotation string
-	// All jobs in a gang must specify the total number of jobs in the gang via this annotation.
-	// The cardinality should be expressed as an integer, e.g., "3".
-	GangCardinalityAnnotation string
 	// If an executor hasn't heartbeated in this time period, it will be considered stale
 	ExecutorTimeout time.Duration
+	// Default activeDeadline for all pods that don't explicitly set activeDeadlineSeconds.
+	// Is trumped by DefaultActiveDeadlineByResourceRequest.
+	DefaultActiveDeadline time.Duration
+	// Default activeDeadline for pods with at least one container requesting a given resource.
+	// For example, if
+	// DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{"gpu": time.Second},
+	// then all pods requesting a non-zero amount of gpu and don't explicitly set activeDeadlineSeconds
+	// will have activeDeadlineSeconds set to 1. Trumps DefaultActiveDeadline.
+	DefaultActiveDeadlineByResourceRequest map[string]time.Duration
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.
@@ -188,11 +197,30 @@ type NewSchedulerConfig struct {
 
 // TODO: Remove. Move PriorityClasses and DefaultPriorityClass into SchedulingConfig.
 type PreemptionConfig struct {
+	// TODO: We should remove the enabled flag. Disabling it makes no sense now.
 	// If true, Armada will:
 	// 1. Validate that submitted pods specify no or a valid priority class.
 	// 2. Assign a default priority class to submitted pods that do not specify a priority class.
 	// 3. Assign jobs to executors that may preempt currently running jobs.
 	Enabled bool
+	// Whether to preempt jobs with a balanced priority class to divide resources more fairly.
+	PreemptToFairShare bool
+	// If using PreemptToFairShare,
+	// the probability of evicting jobs on a node to balance resource usage.
+	NodeEvictionProbability float64
+	// If using PreemptToFairShare,
+	// the probability of evicting jobs on oversubscribed nodes, i.e.,
+	// nodes on which the total resource requests are greater than the available resources.
+	NodeOversubscriptionEvictionProbability float64
+	// If true, the Armada scheduler will add to scheduled pods a node selector
+	// NodeIdLabel: <value of label on node selected by scheduler>.
+	// If true, NodeIdLabel must be non-empty.
+	SetNodeIdSelector bool
+	// Label used with SetNodeIdSelector. Must be non-empty if SetNodeIdSelector is true.
+	NodeIdLabel string
+	// If true, the Armada scheduler will set the node name of the selected node directly on scheduled pods,
+	// thus bypassing kube-scheduler entirely.
+	SetNodeName bool
 	// Map from priority class names to priority classes.
 	// Must be consistent with Kubernetes priority classes.
 	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
@@ -200,10 +228,14 @@ type PreemptionConfig struct {
 	// Priority class assigned to pods that do not specify one.
 	// Must be an entry in PriorityClasses above.
 	DefaultPriorityClass string
+	// If set, override the priority class name of pods with this value when sending to an executor.
+	PriorityClassNameOverride *string
 }
 
 type PriorityClass struct {
 	Priority int32
+	// If true, Armada will may preempt jobs of this class to improve fairness.
+	Preemptible bool
 	// Max fraction of resources assigned to jobs of this priority or lower.
 	// Must be non-increasing with higher priority.
 	//
@@ -219,16 +251,29 @@ type PriorityClass struct {
 	MaximalResourceFractionPerQueue map[string]float64
 }
 
-func (p PreemptionConfig) AllowedPriorities() []int32 {
-	allowedPcs := make([]int32, 0, len(p.PriorityClasses))
-	for _, v := range p.PriorityClasses {
-		allowedPcs = append(allowedPcs, v.Priority)
-	}
-	return allowedPcs
+func (p PreemptionConfig) PriorityByPriorityClassName() map[string]int32 {
+	return PriorityByPriorityClassName(p.PriorityClasses)
 }
 
-type DatabaseRetentionPolicy struct {
-	JobRetentionDuration time.Duration
+func PriorityByPriorityClassName(priorityClasses map[string]PriorityClass) map[string]int32 {
+	rv := make(map[string]int32, len(priorityClasses))
+	for name, pc := range priorityClasses {
+		rv[name] = pc.Priority
+	}
+	return rv
+}
+
+func (p PreemptionConfig) AllowedPriorities() []int32 {
+	return AllowedPriorities(p.PriorityClasses)
+}
+
+func AllowedPriorities(priorityClasses map[string]PriorityClass) []int32 {
+	rv := make([]int32, 0, len(priorityClasses))
+	for _, v := range priorityClasses {
+		rv = append(rv, v.Priority)
+	}
+	slices.Sort(rv)
+	return slices.Compact(rv)
 }
 
 type LeaseSettings struct {

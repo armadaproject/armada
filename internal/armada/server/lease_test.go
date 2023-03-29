@@ -206,7 +206,10 @@ func makeAggregatedQueueServerWithTestDoubles(maxRetries uint) (*mockJobReposito
 		&fakeUsageRepository{},
 		fakeEventStore,
 		fakeSchedulingInfoRepository,
-		fakeExecutorRepository{})
+		nil,
+		0,
+		fakeExecutorRepository{},
+	)
 }
 
 type mockJobRepository struct {
@@ -449,7 +452,7 @@ type fakeEventStore struct {
 	events []*api.EventMessage
 }
 
-func (es *fakeEventStore) ReportEvents(message []*api.EventMessage) error {
+func (es *fakeEventStore) ReportEvents(_ context.Context, message []*api.EventMessage) error {
 	es.events = append(es.events, message...)
 	return nil
 }

@@ -8,14 +8,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -23,75 +25,86 @@ import (
 // Data to be used in tests
 const maxLeaseReturns = 1
 
-var queuedJob = SchedulerJob{
-	JobId:  util.NewULID(),
-	Queue:  "testQueue",
-	Jobset: "testJobset",
-	Queued: true,
-}
+var (
+	schedulingInfo      = &schedulerobjects.JobSchedulingInfo{AtMostOnce: true}
+	schedulingInfoBytes = protoutil.MustMarshall(schedulingInfo)
+)
 
-var leasedJob = SchedulerJob{
-	JobId:  util.NewULID(),
-	Queue:  "testQueue",
-	Jobset: "testJobset",
-	Queued: false,
-	Runs: []*JobRun{
-		{
-			RunID:    uuid.New(),
-			Executor: "testExecutor",
-		},
-	},
-}
+var queuedJob = jobdb.NewJob(
+	util.NewULID(),
+	"testJobset",
+	"testQueue",
+	uint32(10),
+	schedulingInfo,
+	false,
+	false,
+	false,
+	1)
+
+var leasedJob = jobdb.NewJob(
+	util.NewULID(),
+	"testJobset",
+	"testQueue",
+	uint32(10),
+	schedulingInfo,
+	false,
+	false,
+	false,
+	1).WithQueued(false).WithNewRun("testExecutor", "test-node")
 
 // Test a single scheduler cycle
-func TestCycle(t *testing.T) {
+func TestScheduler_TestCycle(t *testing.T) {
 	tests := map[string]struct {
-		initialJobs          []*SchedulerJob // jobs in the jobdb at the start of the cycle
-		jobUpdates           []database.Job  // job updates from the database
-		runUpdates           []database.Run  // run updates from the database
-		staleExecutor        bool            // if true then the executorRepository will report the executor as stale
-		fetchError           bool            // if true then the jobRepository will throw an error
-		scheduleError        bool            // if true then the schedulingalgo will throw an error
-		publishError         bool            // if true the publisher will throw an error
-		expectedJobRunLeased []string        // ids of jobs we expect to have produced leased messages
-		expectedJobRunErrors []string        // ids of jobs we expect to have produced jobRunErrors messages
-		expectedJobErrors    []string        // ids of jobs we expect to have produced jobErrors messages
-		expectedJobCancelled []string        // ids of jobs we expect to have  produced cancelled messages
-		expectedJobSucceeded []string        // ids of jobs we expect to have  produced suceeeded messages
-		expectedLeased       []string        // ids of jobs we expected to be leased in jobdb at the end of the cycle
-		expectedQueued       []string        // ids of jobs we expected to be queued in jobdb at the end of the cycle
+		initialJobs              []*jobdb.Job      // jobs in the jobdb at the start of the cycle
+		jobUpdates               []database.Job    // job updates from the database
+		runUpdates               []database.Run    // run updates from the database
+		staleExecutor            bool              // if true then the executorRepository will report the executor as stale
+		fetchError               bool              // if true then the jobRepository will throw an error
+		scheduleError            bool              // if true then the schedulingalgo will throw an error
+		publishError             bool              // if true the publisher will throw an error
+		expectedJobRunLeased     []string          // ids of jobs we expect to have produced leased messages
+		expectedJobRunErrors     []string          // ids of jobs we expect to have produced jobRunErrors messages
+		expectedJobErrors        []string          // ids of jobs we expect to have produced jobErrors messages
+		expectedJobRunPreempted  []string          // ids of jobs we expect to have produced jobRunPreempted messages
+		expectedJobCancelled     []string          // ids of jobs we expect to have  produced cancelled messages
+		expectedJobReprioritised []string          // ids of jobs we expect to have  produced reprioritised messages
+		expectedJobSucceeded     []string          // ids of jobs we expect to have  produced succeeeded messages
+		expectedLeased           []string          // ids of jobs we expected to be leased in jobdb at the end of the cycle
+		expectedQueued           []string          // ids of jobs we expected to be queued in jobdb at the end of the cycle
+		expectedTerminal         []string          // ids of jobs we expected to be terminal in jobdb at the end of the cycle
+		expectedJobPriority      map[string]uint32 // expected priority of jobs at the end of the cycle
 	}{
 		"Lease a single job already in the db": {
-			initialJobs:          []*SchedulerJob{&queuedJob},
-			expectedJobRunLeased: []string{queuedJob.JobId},
-			expectedLeased:       []string{queuedJob.JobId},
+			initialJobs:          []*jobdb.Job{queuedJob},
+			expectedJobRunLeased: []string{queuedJob.Id()},
+			expectedLeased:       []string{queuedJob.Id()},
 		},
 		"Lease a single job from an update": {
 			jobUpdates: []database.Job{
 				{
-					JobID:  queuedJob.JobId,
+					JobID:  queuedJob.Id(),
 					JobSet: "testJobSet",
 					Queue:  "testQueue",
 					Serial: 1,
 				},
 			},
-			expectedJobRunLeased: []string{queuedJob.JobId},
-			expectedLeased:       []string{queuedJob.JobId},
+			expectedJobRunLeased: []string{queuedJob.Id()},
+			expectedLeased:       []string{queuedJob.Id()},
 		},
 		"Nothing leased": {
-			initialJobs:    []*SchedulerJob{&queuedJob},
-			expectedQueued: []string{queuedJob.JobId},
+			initialJobs:    []*jobdb.Job{queuedJob},
+			expectedQueued: []string{queuedJob.Id()},
 		},
 		"No updates to an already leased job": {
-			initialJobs:    []*SchedulerJob{&leasedJob},
-			expectedLeased: []string{leasedJob.JobId},
+			initialJobs:    []*jobdb.Job{leasedJob},
+			expectedLeased: []string{leasedJob.Id()},
 		},
 		"Lease returned and re-queued": {
-			initialJobs: []*SchedulerJob{&leasedJob},
+			initialJobs: []*jobdb.Job{leasedJob},
 			runUpdates: []database.Run{
 				{
-					RunID:    leasedJob.Runs[0].RunID,
-					JobID:    leasedJob.JobId,
+					RunID:    leasedJob.LatestRun().Id(),
+					JobID:    leasedJob.Id(),
 					JobSet:   "testJobSet",
 					Executor: "testExecutor",
 					Failed:   true,
@@ -99,15 +112,15 @@ func TestCycle(t *testing.T) {
 					Serial:   1,
 				},
 			},
-			expectedQueued: []string{leasedJob.JobId},
+			expectedQueued: []string{leasedJob.Id()},
 		},
 		"Lease returned too many times": {
-			initialJobs: []*SchedulerJob{&leasedJob},
+			initialJobs: []*jobdb.Job{leasedJob},
 			// 2 failures here so the second one should trigger a run failure
 			runUpdates: []database.Run{
 				{
-					RunID:    leasedJob.Runs[0].RunID,
-					JobID:    leasedJob.JobId,
+					RunID:    leasedJob.LatestRun().Id(),
+					JobID:    leasedJob.Id(),
 					JobSet:   "testJobSet",
 					Executor: "testExecutor",
 					Failed:   true,
@@ -116,7 +129,7 @@ func TestCycle(t *testing.T) {
 				},
 				{
 					RunID:    uuid.New(),
-					JobID:    leasedJob.JobId,
+					JobID:    leasedJob.Id(),
 					JobSet:   "testJobSet",
 					Executor: "testExecutor",
 					Failed:   true,
@@ -124,69 +137,96 @@ func TestCycle(t *testing.T) {
 					Serial:   2,
 				},
 			},
-			expectedJobErrors: []string{leasedJob.JobId},
+			expectedJobErrors: []string{leasedJob.Id()},
+			expectedTerminal:  []string{leasedJob.Id()},
 		},
 		"Job cancelled": {
-			initialJobs: []*SchedulerJob{&queuedJob},
+			initialJobs: []*jobdb.Job{queuedJob},
 			jobUpdates: []database.Job{
 				{
-					JobID:           queuedJob.JobId,
+					JobID:           queuedJob.Id(),
 					JobSet:          "testJobSet",
 					Queue:           "testQueue",
 					CancelRequested: true,
 					Serial:          1,
 				},
 			},
-			expectedJobCancelled: []string{queuedJob.JobId},
+			expectedJobCancelled: []string{queuedJob.Id()},
+			expectedTerminal:     []string{queuedJob.Id()},
+		},
+		"Job reprioritised": {
+			initialJobs: []*jobdb.Job{queuedJob},
+			jobUpdates: []database.Job{
+				{
+					JobID:    queuedJob.Id(),
+					JobSet:   "testJobSet",
+					Queue:    "testQueue",
+					Priority: 2,
+					Serial:   1,
+				},
+			},
+			expectedJobReprioritised: []string{queuedJob.Id()},
+			expectedQueued:           []string{queuedJob.Id()},
+			expectedJobPriority:      map[string]uint32{queuedJob.Id(): 2},
 		},
 		"Lease expired": {
-			initialJobs:          []*SchedulerJob{&leasedJob},
+			initialJobs:          []*jobdb.Job{leasedJob},
 			staleExecutor:        true,
-			expectedJobRunErrors: []string{leasedJob.JobId},
-			expectedJobErrors:    []string{leasedJob.JobId},
+			expectedJobRunErrors: []string{leasedJob.Id()},
+			expectedJobErrors:    []string{leasedJob.Id()},
+			expectedTerminal:     []string{leasedJob.Id()},
 		},
 		"Job failed": {
-			initialJobs: []*SchedulerJob{&leasedJob},
+			initialJobs: []*jobdb.Job{leasedJob},
 			runUpdates: []database.Run{
 				{
-					RunID:    leasedJob.Runs[0].RunID,
-					JobID:    leasedJob.JobId,
+					RunID:    leasedJob.LatestRun().Id(),
+					JobID:    leasedJob.Id(),
 					JobSet:   "testJobSet",
 					Executor: "testExecutor",
 					Failed:   true,
 					Serial:   1,
 				},
 			},
-			expectedJobErrors: []string{leasedJob.JobId},
+			expectedJobErrors: []string{leasedJob.Id()},
+			expectedTerminal:  []string{leasedJob.Id()},
 		},
 		"Job succeeded": {
-			initialJobs: []*SchedulerJob{&leasedJob},
+			initialJobs: []*jobdb.Job{leasedJob},
 			runUpdates: []database.Run{
 				{
-					RunID:     leasedJob.Runs[0].RunID,
-					JobID:     leasedJob.JobId,
+					RunID:     leasedJob.LatestRun().Id(),
+					JobID:     leasedJob.Id(),
 					JobSet:    "testJobSet",
 					Executor:  "testExecutor",
 					Succeeded: true,
 					Serial:    1,
 				},
 			},
-			expectedJobSucceeded: []string{leasedJob.JobId},
+			expectedJobSucceeded: []string{leasedJob.Id()},
+			expectedTerminal:     []string{leasedJob.Id()},
+		},
+		"Job preempted": {
+			initialJobs:             []*jobdb.Job{leasedJob},
+			expectedJobRunPreempted: []string{leasedJob.Id()},
+			expectedJobErrors:       []string{leasedJob.Id()},
+			expectedJobRunErrors:    []string{leasedJob.Id()},
+			expectedTerminal:        []string{leasedJob.Id()},
 		},
 		"Fetch fails": {
-			initialJobs:    []*SchedulerJob{&leasedJob},
+			initialJobs:    []*jobdb.Job{leasedJob},
 			fetchError:     true,
-			expectedLeased: []string{leasedJob.JobId},
+			expectedLeased: []string{leasedJob.Id()},
 		},
 		"Schedule fails": {
-			initialJobs:    []*SchedulerJob{&leasedJob},
+			initialJobs:    []*jobdb.Job{leasedJob},
 			scheduleError:  true,
-			expectedLeased: []string{leasedJob.JobId}, // job should still be leased as error was thrown and transaction rolled back
+			expectedLeased: []string{leasedJob.Id()}, // job should still be leased as error was thrown and transaction rolled back
 		},
 		"Publish fails": {
-			initialJobs:    []*SchedulerJob{&leasedJob},
+			initialJobs:    []*jobdb.Job{leasedJob},
 			publishError:   true,
-			expectedLeased: []string{leasedJob.JobId}, // job should still be leased as error was thrown and transaction rolled back
+			expectedLeased: []string{leasedJob.Id()}, // job should still be leased as error was thrown and transaction rolled back
 		},
 	}
 	for name, tc := range tests {
@@ -200,9 +240,13 @@ func TestCycle(t *testing.T) {
 				shouldError: tc.fetchError,
 			}
 			testClock := clock.NewFakeClock(time.Now())
-			schedulingAlgo := &testSchedulingAlgo{jobsToSchedule: tc.expectedJobRunLeased, shouldError: tc.scheduleError}
+			schedulingAlgo := &testSchedulingAlgo{
+				jobsToSchedule: tc.expectedJobRunLeased,
+				jobsToPreempt:  tc.expectedJobRunPreempted,
+				shouldError:    tc.scheduleError,
+			}
 			publisher := &testPublisher{shouldError: tc.publishError}
-			stringInterner, err := util.NewStringInterner(100)
+			stringInterner, err := stringinterner.New(100)
 			require.NoError(t, err)
 
 			heartbeatTime := testClock.Now()
@@ -221,7 +265,8 @@ func TestCycle(t *testing.T) {
 				stringInterner,
 				1*time.Second,
 				clusterTimeout,
-				maxLeaseReturns)
+				maxLeaseReturns,
+			)
 			require.NoError(t, err)
 
 			sched.clock = testClock
@@ -241,60 +286,21 @@ func TestCycle(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			// assert that every event we've generated was expected
-			outstandingLeaseMessages := stringSet(tc.expectedJobRunLeased)
-			outstandingJobErrorMessages := stringSet(tc.expectedJobErrors)
-			outstandingJobRunErrorMessages := stringSet(tc.expectedJobRunErrors)
-			outstandingCancelledMessages := stringSet(tc.expectedJobCancelled)
-			outstandingJobSucceededMessages := stringSet(tc.expectedJobSucceeded)
-			for _, event := range publisher.events {
-				for _, e := range event.Events {
-					if e.GetJobRunLeased() != nil {
-						leased := e.GetJobRunLeased()
-						jobId, err := armadaevents.UlidStringFromProtoUuid(leased.JobId)
-						require.NoError(t, err)
-						_, ok := outstandingLeaseMessages[jobId]
-						assert.True(t, ok)
-						delete(outstandingLeaseMessages, jobId)
-					} else if e.GetJobErrors() != nil {
-						jobErrors := e.GetJobErrors()
-						jobId, err := armadaevents.UlidStringFromProtoUuid(jobErrors.JobId)
-						require.NoError(t, err)
-						_, ok := outstandingJobErrorMessages[jobId]
-						assert.True(t, ok)
-						delete(outstandingJobErrorMessages, jobId)
-					} else if e.GetJobRunErrors() != nil {
-						jobErrors := e.GetJobRunErrors()
-						jobId, err := armadaevents.UlidStringFromProtoUuid(jobErrors.JobId)
-						require.NoError(t, err)
-						_, ok := outstandingJobRunErrorMessages[jobId]
-						assert.True(t, ok)
-						delete(outstandingJobRunErrorMessages, jobId)
-					} else if e.GetJobSucceeded() != nil {
-						jobErrors := e.GetJobSucceeded()
-						jobId, err := armadaevents.UlidStringFromProtoUuid(jobErrors.JobId)
-						require.NoError(t, err)
-						_, ok := outstandingJobSucceededMessages[jobId]
-						assert.True(t, ok)
-						delete(outstandingJobSucceededMessages, jobId)
-					} else if e.GetCancelledJob() != nil {
-						jobErrors := e.GetCancelledJob()
-						jobId, err := armadaevents.UlidStringFromProtoUuid(jobErrors.JobId)
-						require.NoError(t, err)
-						_, ok := outstandingCancelledMessages[jobId]
-						assert.True(t, ok)
-						delete(outstandingCancelledMessages, jobId)
-					} else {
-						assert.Fail(t, fmt.Sprintf("unknown event sent to publisher %+v", e))
-					}
-				}
+			// Assert that all expected events are generated and that all events are expected.
+			outstandingEventsByType := map[string]map[string]bool{
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunLeased{}):     stringSet(tc.expectedJobRunLeased),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobErrors{}):        stringSet(tc.expectedJobErrors),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunErrors{}):     stringSet(tc.expectedJobRunErrors),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunPreempted{}):  stringSet(tc.expectedJobRunPreempted),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_CancelledJob{}):     stringSet(tc.expectedJobCancelled),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_ReprioritisedJob{}): stringSet(tc.expectedJobReprioritised),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobSucceeded{}):     stringSet(tc.expectedJobSucceeded),
 			}
-			// Assert that we didn't miss out any events
-			assert.Equal(t, 0, len(outstandingLeaseMessages))
-			assert.Equal(t, 0, len(outstandingJobErrorMessages))
-			assert.Equal(t, 0, len(outstandingJobRunErrorMessages))
-			assert.Equal(t, 0, len(outstandingCancelledMessages))
-			assert.Equal(t, 0, len(outstandingJobSucceededMessages))
+			err = subtractEventsFromOutstandingEventsByType(publisher.events, outstandingEventsByType)
+			require.NoError(t, err)
+			for eventType, m := range outstandingEventsByType {
+				assert.Empty(t, m, "%d outstanding events of type %s", len(m), eventType)
+			}
 
 			// assert that the serials are where we expect them to be
 			if len(tc.jobUpdates) > 0 {
@@ -309,26 +315,56 @@ func TestCycle(t *testing.T) {
 			}
 
 			// assert that the job db is in the state we expect
-			jobs, err := sched.jobDb.GetAll(sched.jobDb.ReadTxn())
-			require.NoError(t, err)
+			jobs := sched.jobDb.GetAll(sched.jobDb.ReadTxn())
 			remainingLeased := stringSet(tc.expectedLeased)
 			remainingQueued := stringSet(tc.expectedQueued)
+			remainingTerminal := stringSet(tc.expectedTerminal)
 			for _, job := range jobs {
-				if job.Queued {
-					_, ok := remainingQueued[job.JobId]
+				if job.InTerminalState() {
+					_, ok := remainingTerminal[job.Id()]
 					assert.True(t, ok)
-					delete(remainingQueued, job.JobId)
+					delete(remainingTerminal, job.Id())
+				} else if job.Queued() {
+					_, ok := remainingQueued[job.Id()]
+					assert.True(t, ok)
+					delete(remainingQueued, job.Id())
 				} else {
-					_, ok := remainingLeased[job.JobId]
+					_, ok := remainingLeased[job.Id()]
 					assert.True(t, ok)
-					delete(remainingLeased, job.JobId)
+					delete(remainingLeased, job.Id())
+				}
+				if expectedPriority, ok := tc.expectedJobPriority[job.Id()]; ok {
+					assert.Equal(t, job.Priority(), expectedPriority)
 				}
 			}
 			assert.Equal(t, 0, len(remainingLeased))
 			assert.Equal(t, 0, len(remainingQueued))
+			assert.Equal(t, 0, len(remainingTerminal))
 			cancel()
 		})
 	}
+}
+
+func subtractEventsFromOutstandingEventsByType(eventSequences []*armadaevents.EventSequence, outstandingEventsByType map[string]map[string]bool) error {
+	for _, eventSequence := range eventSequences {
+		for _, event := range eventSequence.Events {
+			protoJobId, err := armadaevents.JobIdFromEvent(event)
+			if err != nil {
+				return err
+			}
+			jobId, err := armadaevents.UlidStringFromProtoUuid(protoJobId)
+			if err != nil {
+				return err
+			}
+			key := fmt.Sprintf("%T", event.Event)
+			_, ok := outstandingEventsByType[key][jobId]
+			if !ok {
+				return errors.Errorf("received unexpected event for job %s: %v", jobId, event.Event)
+			}
+			delete(outstandingEventsByType[key], jobId)
+		}
+	}
+	return nil
 }
 
 // Test running multiple scheduler cycles
@@ -340,7 +376,7 @@ func TestRun(t *testing.T) {
 	publisher := &testPublisher{}
 	clusterRepo := &testExecutorRepository{}
 	leaderController := NewStandaloneLeaderController()
-	stringInterner, err := util.NewStringInterner(100)
+	stringInterner, err := stringinterner.New(100)
 	require.NoError(t, err)
 
 	sched, err := NewScheduler(
@@ -394,11 +430,168 @@ func TestRun(t *testing.T) {
 	cancel()
 }
 
+func TestScheduler_TestSyncState(t *testing.T) {
+	tests := map[string]struct {
+		initialJobs         []*jobdb.Job   // jobs in the jobdb at the start of the cycle
+		jobUpdates          []database.Job // job updates from the database
+		runUpdates          []database.Run // run updates from the database
+		expectedUpdatedJobs []*jobdb.Job
+		expectedJobDbIds    []string
+	}{
+		"insert job": {
+			jobUpdates: []database.Job{
+				{
+					JobID:          queuedJob.Id(),
+					JobSet:         queuedJob.Jobset(),
+					Queue:          queuedJob.Queue(),
+					Submitted:      queuedJob.Created(),
+					Priority:       int64(queuedJob.Priority()),
+					SchedulingInfo: schedulingInfoBytes,
+					Serial:         1,
+				},
+			},
+			expectedUpdatedJobs: []*jobdb.Job{queuedJob},
+			expectedJobDbIds:    []string{queuedJob.Id()},
+		},
+		"insert job that already exists": {
+			initialJobs: []*jobdb.Job{queuedJob},
+			jobUpdates: []database.Job{
+				{
+					JobID:          queuedJob.Id(),
+					JobSet:         queuedJob.Jobset(),
+					Queue:          queuedJob.Queue(),
+					Submitted:      queuedJob.Created(),
+					Priority:       int64(queuedJob.Priority()),
+					SchedulingInfo: schedulingInfoBytes,
+					Serial:         1,
+				},
+			},
+			expectedUpdatedJobs: []*jobdb.Job{queuedJob},
+			expectedJobDbIds:    []string{queuedJob.Id()},
+		},
+		"add job run": {
+			initialJobs: []*jobdb.Job{queuedJob},
+			runUpdates: []database.Run{
+				{
+					RunID:    uuid.UUID{},
+					JobID:    queuedJob.Id(),
+					JobSet:   queuedJob.Jobset(),
+					Executor: "test-executor",
+					Node:     "test-node",
+					Created:  123,
+				},
+			},
+			expectedUpdatedJobs: []*jobdb.Job{
+				queuedJob.WithUpdatedRun(
+					jobdb.CreateRun(
+						uuid.UUID{},
+						queuedJob.Id(),
+						123,
+						"test-executor",
+						"test-node",
+						false,
+						false,
+						false,
+						false,
+						false,
+					),
+				).WithQueued(false),
+			},
+			expectedJobDbIds: []string{queuedJob.Id()},
+		},
+		"job succeeded": {
+			initialJobs: []*jobdb.Job{queuedJob},
+			jobUpdates: []database.Job{
+				{
+					JobID:          queuedJob.Id(),
+					JobSet:         queuedJob.Jobset(),
+					Queue:          queuedJob.Queue(),
+					Submitted:      queuedJob.Created(),
+					Priority:       int64(queuedJob.Priority()),
+					SchedulingInfo: schedulingInfoBytes,
+					Succeeded:      true,
+					Serial:         1,
+				},
+			},
+			expectedUpdatedJobs: []*jobdb.Job{},
+			expectedJobDbIds:    []string{},
+		},
+		"lease returned": {
+			initialJobs: []*jobdb.Job{leasedJob},
+			runUpdates: []database.Run{
+				{
+					JobID:    leasedJob.Id(),
+					JobSet:   leasedJob.Id(),
+					RunID:    leasedJob.LatestRun().Id(),
+					Failed:   true,
+					Returned: true,
+					Created:  leasedJob.LatestRun().Created(),
+				},
+			},
+			expectedUpdatedJobs: []*jobdb.Job{
+				leasedJob.
+					WithUpdatedRun(leasedJob.LatestRun().WithReturned(true)).
+					WithQueued(true),
+			},
+			expectedJobDbIds: []string{leasedJob.Id()},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			// Test objects
+			jobRepo := &testJobRepository{
+				updatedJobs: tc.jobUpdates,
+				updatedRuns: tc.runUpdates,
+			}
+			schedulingAlgo := &testSchedulingAlgo{}
+			publisher := &testPublisher{}
+			clusterRepo := &testExecutorRepository{}
+			leaderController := NewStandaloneLeaderController()
+			stringInterner, err := stringinterner.New(100)
+			require.NoError(t, err)
+
+			sched, err := NewScheduler(
+				jobRepo,
+				clusterRepo,
+				schedulingAlgo,
+				leaderController,
+				publisher,
+				stringInterner,
+				1*time.Second,
+				1*time.Hour,
+				maxLeaseReturns)
+			require.NoError(t, err)
+
+			// insert initial jobs
+			txn := sched.jobDb.WriteTxn()
+			err = sched.jobDb.Upsert(txn, tc.initialJobs)
+			require.NoError(t, err)
+			txn.Commit()
+
+			updatedJobs, err := sched.syncState(ctx)
+			require.NoError(t, err)
+
+			assert.Equal(t, tc.expectedUpdatedJobs, updatedJobs)
+			allDbJobs := sched.jobDb.GetAll(sched.jobDb.ReadTxn())
+
+			expectedIds := stringSet(tc.expectedJobDbIds)
+			require.Equal(t, len(tc.expectedJobDbIds), len(allDbJobs))
+			for _, job := range allDbJobs {
+				_, ok := expectedIds[job.Id()]
+				assert.True(t, ok)
+			}
+		})
+	}
+}
+
 // Test implementations of the interfaces needed by the Scheduler
 type testJobRepository struct {
 	updatedJobs           []database.Job
 	updatedRuns           []database.Run
-	errors                map[uuid.UUID]*armadaevents.JobRunErrors
+	errors                map[uuid.UUID]*armadaevents.Error
 	shouldError           bool
 	numReceivedPartitions uint32
 }
@@ -420,7 +613,7 @@ func (t *testJobRepository) FetchJobUpdates(ctx context.Context, jobSerial int64
 	return t.updatedJobs, t.updatedRuns, nil
 }
 
-func (t *testJobRepository) FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.JobRunErrors, error) {
+func (t *testJobRepository) FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error) {
 	if t.shouldError {
 		return nil, errors.New("error fetching job run errors")
 	}
@@ -440,7 +633,7 @@ type testExecutorRepository struct {
 }
 
 func (t testExecutorRepository) GetExecutors(ctx context.Context) ([]*schedulerobjects.Executor, error) {
-	panic("implement me")
+	panic("not implemented")
 }
 
 func (t testExecutorRepository) GetLastUpdateTimes(ctx context.Context) (map[string]time.Time, error) {
@@ -451,43 +644,55 @@ func (t testExecutorRepository) GetLastUpdateTimes(ctx context.Context) (map[str
 }
 
 func (t testExecutorRepository) StoreExecutor(ctx context.Context, executor *schedulerobjects.Executor) error {
-	panic("implement me")
+	panic("not implemented")
 }
 
 type testSchedulingAlgo struct {
+	jobsToPreempt  []string
 	jobsToSchedule []string
 	shouldError    bool
 }
 
-func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *memdb.Txn, jobDb *JobDb) ([]*SchedulerJob, error) {
+func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error) {
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")
 	}
-	jobs := make([]*SchedulerJob, 0, len(t.jobsToSchedule))
-	for _, id := range t.jobsToSchedule {
-		job, _ := jobDb.GetById(txn, id)
-		if job != nil {
-			if !job.Queued {
-				return nil, errors.New(fmt.Sprintf("Was asked to lease %s but job was already leased", job.JobId))
-			}
-			job = job.DeepCopy()
-			job.Queued = false
-			job.Runs = append(job.Runs, &JobRun{
-				RunID:    uuid.New(),
-				Executor: "test-executor",
-			})
-			jobs = append(jobs, job)
+	preemptedJobs := make([]*jobdb.Job, 0, len(t.jobsToPreempt))
+	scheduledJobs := make([]*jobdb.Job, 0, len(t.jobsToSchedule))
+	for _, id := range t.jobsToPreempt {
+		job := jobDb.GetById(txn, id)
+		if job == nil {
+			return nil, errors.Errorf("was asked to preempt job %s but job does not exist", id)
+		}
+		if job.Queued() {
+			return nil, errors.Errorf("was asked to preempt job %s but job is still queued", job.Id())
+		}
+		if run := job.LatestRun(); run != nil {
+			job = job.WithUpdatedRun(run.WithFailed(true))
 		} else {
-			return nil, errors.New(fmt.Sprintf("Was asked to lease %s but job does not exist", job.JobId))
+			return nil, errors.Errorf("attempting to preempt job %s with no associated runs", job.Id())
 		}
+		job = job.WithQueued(false).WithFailed(true)
+		preemptedJobs = append(preemptedJobs, job)
 	}
-	if len(jobs) > 0 {
-		err := jobDb.Upsert(txn, jobs)
-		if err != nil {
-			return nil, err
+	for _, id := range t.jobsToSchedule {
+		job := jobDb.GetById(txn, id)
+		if job == nil {
+			return nil, errors.Errorf("was asked to lease %s but job does not exist", id)
 		}
+		if !job.Queued() {
+			return nil, errors.Errorf("was asked to lease %s but job was already leased", job.Id())
+		}
+		job = job.WithQueued(false).WithNewRun("test-executor", "test-node")
+		scheduledJobs = append(scheduledJobs, job)
 	}
-	return jobs, nil
+	if err := jobDb.Upsert(txn, preemptedJobs); err != nil {
+		return nil, err
+	}
+	if err := jobDb.Upsert(txn, scheduledJobs); err != nil {
+		return nil, err
+	}
+	return NewSchedulerResult(preemptedJobs, scheduledJobs, nil, nil), nil
 }
 
 type testPublisher struct {

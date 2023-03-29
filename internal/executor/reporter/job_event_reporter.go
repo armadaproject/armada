@@ -10,6 +10,7 @@ import (
 
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
 	domain2 "github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/util"
 )
 
@@ -31,17 +32,21 @@ type JobEventReporter struct {
 	eventQueued      map[string]uint8
 	eventQueuedMutex sync.Mutex
 
-	clusterContext clusterContext.ClusterContext
+	legacyMode       bool
+	jobRunStateStore *job.JobRunStateStore
+	clusterContext   clusterContext.ClusterContext
 }
 
-func NewJobEventReporter(clusterContext clusterContext.ClusterContext, eventSender EventSender) (*JobEventReporter, chan bool) {
+func NewJobEventReporter(clusterContext clusterContext.ClusterContext, jobRunState *job.JobRunStateStore, eventSender EventSender) (*JobEventReporter, chan bool) {
 	stop := make(chan bool)
 	reporter := &JobEventReporter{
 		eventSender:      eventSender,
 		clusterContext:   clusterContext,
+		jobRunStateStore: jobRunState,
 		eventBuffer:      make(chan *queuedEvent, 1000000),
 		eventQueued:      map[string]uint8{},
 		eventQueuedMutex: sync.Mutex{},
+		legacyMode:       jobRunState == nil,
 	}
 
 	clusterContext.AddPodEventHandler(reporter.podEventHandler())
@@ -60,6 +65,9 @@ func (eventReporter *JobEventReporter) podEventHandler() cache.ResourceEventHand
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
 				return
 			}
+			if util.IsLegacyManagedPod(pod) != eventReporter.legacyMode {
+				return
+			}
 			go eventReporter.reportCurrentStatus(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
@@ -71,6 +79,9 @@ func (eventReporter *JobEventReporter) podEventHandler() cache.ResourceEventHand
 			newPod, ok := newObj.(*v1.Pod)
 			if !ok {
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", newObj)
+				return
+			}
+			if util.IsLegacyManagedPod(newPod) != eventReporter.legacyMode {
 				return
 			}
 			go eventReporter.reportStatusUpdate(oldPod, newPod)
@@ -102,13 +113,32 @@ func (eventReporter *JobEventReporter) reportPreemptedEvent(clusterEvent *v1.Eve
 		return
 	}
 
+	preemptedRunId := ""
 	event, err := CreateJobPreemptedEvent(clusterEvent, eventReporter.clusterContext.GetClusterId())
 	if err != nil {
 		log.Errorf("Failed to create JobPreemptedEvent: %v", err)
 		return
 	}
-	// TODO work out if its possible to get JobRunId from preemption event
-	eventReporter.QueueEvent(EventMessage{Event: event, JobRunId: ""}, func(err error) {
+	// Special handling for Executor API
+	// Once we are migrated to the Executor API this should be tidied up (and probably moved out of job_event_reporter)
+	if eventReporter.jobRunStateStore != nil {
+		preemptedRun := eventReporter.jobRunStateStore.GetByKubernetesId(event.RunId)
+		if preemptedRun != nil && preemptedRun.Meta != nil {
+			preemptedRunId = preemptedRun.Meta.RunId
+			event.Queue = preemptedRun.Meta.Queue
+			event.JobSetId = preemptedRun.Meta.JobSet
+		} else {
+			log.Errorf("Failed to create JobPreemptedEvent for job %s because job run id could not be found", event.JobId)
+			return
+		}
+		preemptiveRun := eventReporter.jobRunStateStore.GetByKubernetesId(event.PreemptiveRunId)
+		if preemptiveRun != nil && preemptiveRun.Meta != nil {
+			event.PreemptiveRunId = preemptiveRun.Meta.RunId
+		} else {
+			event.PreemptiveRunId = ""
+		}
+	}
+	eventReporter.QueueEvent(EventMessage{Event: event, JobRunId: preemptedRunId}, func(err error) {
 		if err != nil {
 			log.Errorf(
 				"Failed to report event JobPreemptedEvent for cluster event %s/%s: %v",
@@ -267,6 +297,9 @@ func (eventReporter *JobEventReporter) ReportMissingJobEvents() {
 		log.Errorf("Failed to reconcile missing job events: %v", err)
 		return
 	}
+	allBatchPods = util.FilterPods(allBatchPods, func(pod *v1.Pod) bool {
+		return util.IsLegacyManagedPod(pod) == eventReporter.legacyMode
+	})
 	podsWithCurrentPhaseNotReported := filterPodsWithCurrentStateNotReported(allBatchPods)
 
 	for _, pod := range podsWithCurrentPhaseNotReported {

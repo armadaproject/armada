@@ -1,4 +1,4 @@
-httpPort: 8098
+httpPort: 8080
 application:
   clusterId : "Cluster1"
   pool: "default"
@@ -6,6 +6,7 @@ application:
   updateConcurrencyLimit: 10
   deleteConcurrencyLimit: 2
   useExecutorApi: false
+  useLegacyApi: true
 task:
   utilisationReportingInterval: 1s
   missingJobEventReconciliationInterval: 15s
@@ -17,8 +18,13 @@ task:
   queueUsageDataRefreshInterval: 5s
   utilisationEventProcessingInterval: 1s
   utilisationEventReportingInterval: 5m
+  stateProcessorInterval: 5s
+# The executor api section should only be needed until we migrate to it fully - then we go back to just using apiConnection
+executorApiConnection:
+  armadaUrl: "server:50052"
 apiConnection:
-  armadaUrl: "localhost:50051"
+  armadaUrl: "server:50051"
+  forceNoTls: false
 client:
   maxMessageSizeBytes: 8388608 # 1024 * 1024 * 8
 metric:
@@ -26,6 +32,8 @@ metric:
   exposeQueueUsageMetrics: false
 kubernetes:
   impersonateUsers: false
+  trackedNodeLabels:
+    - kubernetes.io/hostname
   etcd:
     fractionOfStorageInUseSoftLimit: 0.8
     fractionOfStorageInUseHardLimit: 0.9
@@ -38,6 +46,7 @@ kubernetes:
   maxTerminatedPods: 1000 # Should be lower than kube-controller-managed terminated-pod-gc-threshold (default 12500)
   stuckTerminatingPodExpiry: 1m
   podKillTimeout: 5m
+  nodeReservedResourcesPriority: 2000001000 # same priority as system-node-critical
   podDefaults:
     ingress:
       hostnameSuffix: "svc"

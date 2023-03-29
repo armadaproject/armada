@@ -166,6 +166,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	// Assert that we get the right events for each job.
 	// Returns once we've received all events or when ctx is cancelled.
 	if err = eventwatcher.AssertEvents(ctx, assertCh, maps.Clone(jobIdMap), srv.testSpec.ExpectedEvents); err != nil {
+		cancel()
 		groupErr := g.Wait()
 		if groupErr != nil {
 			return errors.Errorf("%s: %s", err, groupErr)
@@ -192,6 +193,7 @@ func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.Api
 	switch {
 	case testSpec.Cancel == api.TestSpec_BY_ID:
 		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			time.Sleep(3 * time.Second)
 			for _, jobId := range jobIds {
 				req.JobId = jobId
 				_, err := sc.CancelJobs(ctx, req)
@@ -203,6 +205,7 @@ func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.Api
 		})
 	case testSpec.Cancel == api.TestSpec_BY_SET:
 		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			time.Sleep(3 * time.Second)
 			_, err := sc.CancelJobs(ctx, req)
 			if err != nil {
 				return errors.WithStack(err)
@@ -211,6 +214,7 @@ func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.Api
 		})
 	case testSpec.Cancel == api.TestSpec_BY_IDS:
 		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			time.Sleep(3 * time.Second)
 			req.JobIds = jobIds
 			_, err := sc.CancelJobs(ctx, req)
 			if err != nil {

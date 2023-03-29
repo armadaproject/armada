@@ -57,7 +57,6 @@ export const JobsTableRow = ({ row, isOpenInSidebar, onClick }: JobsTableRowProp
           rowIsGroup={rowIsGroup}
           rowIsExpanded={row.getIsExpanded()}
           onExpandedChange={row.toggleExpanded}
-          subCount={rowIsGroup ? original.jobCount : undefined}
           key={cell.id}
         />
       ))}
