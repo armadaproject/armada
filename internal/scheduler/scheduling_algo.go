@@ -3,11 +3,11 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"github.com/google/uuid"
 	"math/rand"
 	"time"
 
 	"github.com/benbjohnson/immutable"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
@@ -340,7 +340,8 @@ func (l *LegacySchedulingAlgo) filterStaleExecutors(allExecutors []*schedulerobj
 // corresponding run Id in the lease calls.
 // This mechanism ensures that we don't continue to assign jobs to an executor that is not capable of receiving them.
 func (l *LegacySchedulingAlgo) filterLaggingExecutors(
-	executors []*schedulerobjects.Executor, leasedJobsByExecutor map[string][]*jobdb.Job) []*schedulerobjects.Executor {
+	executors []*schedulerobjects.Executor, leasedJobsByExecutor map[string][]*jobdb.Job,
+) []*schedulerobjects.Executor {
 	activeExecutors := make([]*schedulerobjects.Executor, 0, len(executors))
 	for _, executor := range executors {
 		leasedJobs := leasedJobsByExecutor[executor.Id]
