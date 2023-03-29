@@ -2,13 +2,15 @@ import { memo, useCallback, useEffect, useRef, useState } from "react"
 
 import { TabContext, TabPanel } from "@mui/lab"
 import { Box, Divider, Drawer, Tab, Tabs } from "@mui/material"
-import { Job } from "models/lookoutV2Models"
+import { Job, JobState } from "models/lookoutV2Models"
 
 import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "../../../services/lookoutV2/GetRunErrorService"
+import { ILogService } from "../../../services/lookoutV2/LogService"
 import styles from "./Sidebar.module.css"
 import { SidebarHeader } from "./SidebarHeader"
 import { SidebarTabJobDetails } from "./SidebarTabJobDetails"
+import { SidebarTabJobLogs } from "./SidebarTabJobLogs"
 import { SidebarTabJobRuns } from "./SidebarTabJobRuns"
 import { SidebarTabJobYaml } from "./SidebarTabJobYaml"
 
@@ -29,13 +31,14 @@ export interface SidebarProps {
   job: Job
   runErrorService: IGetRunErrorService
   jobSpecService: IGetJobSpecService
+  logService: ILogService
   sidebarWidth: number
   onClose: () => void
   onWidthChange: (width: number) => void
 }
 
 export const Sidebar = memo(
-  ({ job, runErrorService, jobSpecService, sidebarWidth, onClose, onWidthChange }: SidebarProps) => {
+  ({ job, runErrorService, jobSpecService, logService, sidebarWidth, onClose, onWidthChange }: SidebarProps) => {
     const [openTab, setOpenTab] = useState<SidebarTab>(SidebarTab.JobDetails)
 
     const handleTabChange = useCallback((_, newValue: SidebarTab) => {
@@ -137,52 +140,42 @@ export const Sidebar = memo(
         }}
         open={true}
       >
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            height: "100%",
-            width: "100%",
-            justifyContent: "space-between",
-          }}
-        >
+        <div className={styles.sidebarContainer}>
           <div onMouseDown={(e) => handleMouseDown(e.clientX)} id="dragger" className={resizerClasses} />
-          <Box
-            sx={{
-              flex: "1 1 auto",
-              display: "flex",
-              flexDirection: "column",
-              gap: "0.5em",
-              padding: "0.5em",
-              width: "100%",
-              height: "100%",
-              overflowY: "auto",
-            }}
-          >
-            <SidebarHeader job={job} onClose={onClose} />
+          <Box className={styles.sidebarContent}>
+            <SidebarHeader job={job} onClose={onClose} className={styles.sidebarHeader} />
             <Divider />
-            <TabContext value={openTab}>
-              <Tabs value={openTab} onChange={handleTabChange}>
-                <Tab label="Details" value={SidebarTab.JobDetails} sx={{ minWidth: "50px" }}></Tab>
-                <Tab label="Runs" value={SidebarTab.JobRuns} sx={{ minWidth: "50px" }}></Tab>
-                <Tab label="Yaml" value={SidebarTab.Yaml} sx={{ minWidth: "50px" }}></Tab>
-                <Tab label="Logs" value={SidebarTab.Logs} disabled sx={{ minWidth: "50px" }}></Tab>
-              </Tabs>
+            <div className={styles.sidebarTabContext}>
+              <TabContext value={openTab}>
+                <Tabs value={openTab} onChange={handleTabChange} className={styles.sidebarTabs}>
+                  <Tab label="Details" value={SidebarTab.JobDetails} sx={{ minWidth: "50px" }}></Tab>
+                  <Tab label="Runs" value={SidebarTab.JobRuns} sx={{ minWidth: "50px" }}></Tab>
+                  <Tab label="Yaml" value={SidebarTab.Yaml} sx={{ minWidth: "50px" }}></Tab>
+                  <Tab
+                    label="Logs"
+                    value={SidebarTab.Logs}
+                    sx={{ minWidth: "50px" }}
+                    disabled={job.state === JobState.Queued}
+                  ></Tab>
+                </Tabs>
 
-              <TabPanel value={SidebarTab.JobDetails}>
-                <SidebarTabJobDetails job={job} />
-              </TabPanel>
+                <TabPanel value={SidebarTab.JobDetails} className={styles.sidebarTabPanel}>
+                  <SidebarTabJobDetails job={job} />
+                </TabPanel>
 
-              <TabPanel value={SidebarTab.JobRuns}>
-                <SidebarTabJobRuns job={job} runErrorService={runErrorService} />
-              </TabPanel>
+                <TabPanel value={SidebarTab.JobRuns} className={styles.sidebarTabPanel}>
+                  <SidebarTabJobRuns job={job} runErrorService={runErrorService} />
+                </TabPanel>
 
-              <TabPanel value={SidebarTab.Yaml}>
-                <SidebarTabJobYaml job={job} jobSpecService={jobSpecService} />
-              </TabPanel>
+                <TabPanel value={SidebarTab.Yaml} className={styles.sidebarTabPanel}>
+                  <SidebarTabJobYaml job={job} jobSpecService={jobSpecService} />
+                </TabPanel>
 
-              <TabPanel value={SidebarTab.Logs}>TODO</TabPanel>
-            </TabContext>
+                <TabPanel value={SidebarTab.Logs} className={styles.sidebarTabPanel}>
+                  <SidebarTabJobLogs job={job} jobSpecService={jobSpecService} logService={logService} />
+                </TabPanel>
+              </TabContext>
+            </div>
           </Box>
         </div>
       </Drawer>

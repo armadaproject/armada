@@ -58,6 +58,7 @@ import { fromRowId, RowId } from "utils/reactTableUtils"
 
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
+import { ILogService } from "../../services/lookoutV2/LogService"
 import styles from "./JobsTableContainer.module.css"
 
 const PAGE_SIZE_OPTIONS = [5, 25, 50, 100]
@@ -69,6 +70,7 @@ interface JobsTableContainerProps {
   updateJobsService: UpdateJobsService
   runErrorService: IGetRunErrorService
   jobSpecService: IGetJobSpecService
+  logService: ILogService
   debug: boolean
 }
 export const JobsTableContainer = ({
@@ -78,6 +80,7 @@ export const JobsTableContainer = ({
   updateJobsService,
   runErrorService,
   jobSpecService,
+  logService,
   debug,
 }: JobsTableContainerProps) => {
   const openSnackbar = useCustomSnackbar()
@@ -314,13 +317,13 @@ export const JobsTableContainer = ({
     [columnSizing],
   )
 
-  const onJobRowClick = useCallback((jobRow: JobRow) => {
+  const onJobRowClick = (jobRow: JobRow) => {
     const clickedJob = jobRow as Job
     const jobId = clickedJob.jobId
     // Deselect if clicking on a job row that's already shown in the sidebar
     setSidebarJobId(jobId === sidebarJobId ? undefined : jobId)
-  }, [])
-  const onSideBarClose = useCallback(() => setSidebarJobId(undefined), [])
+  }
+  const onSideBarClose = () => setSidebarJobId(undefined)
 
   const selectedItemsFilters: JobFilter[][] = useMemo(() => {
     return Object.keys(selectedRows).map((rowId) => {
@@ -462,6 +465,7 @@ export const JobsTableContainer = ({
           job={sidebarJobDetails}
           runErrorService={runErrorService}
           jobSpecService={jobSpecService}
+          logService={logService}
           sidebarWidth={sidebarWidth}
           onClose={onSideBarClose}
           onWidthChange={setSidebarWidth}

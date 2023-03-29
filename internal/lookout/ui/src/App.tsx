@@ -19,6 +19,7 @@ import { JobService } from "./services/JobService"
 import LogService from "./services/LogService"
 import { IGetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
+import { ILogService } from "./services/lookoutV2/LogService"
 
 import "./App.css"
 
@@ -67,6 +68,7 @@ type AppProps = {
   v2GroupJobsService: IGroupJobsService
   v2RunErrorService: IGetRunErrorService
   v2JobSpecService: IGetJobSpecService
+  v2LogService: ILogService
   v2UpdateJobsService: UpdateJobsService
   logService: LogService
   overviewAutoRefreshMs: number
@@ -106,6 +108,7 @@ export function App(props: AppProps) {
                         updateJobsService={props.v2UpdateJobsService}
                         runErrorService={props.v2RunErrorService}
                         jobSpecService={props.v2JobSpecService}
+                        logService={props.v2LogService}
                         debug={props.debugEnabled}
                       />
                     </Route>
