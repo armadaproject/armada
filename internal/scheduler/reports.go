@@ -28,12 +28,12 @@ type SchedulingContextRepository struct {
 	// Maps executor id to *SchedulingContext.
 	// The most recent attempt.
 	mostRecentSchedulingContextByExecutorP atomic.Pointer[SchedulingContextByExecutor]
-	// The most recent attempt where a non-zero amount of resources where scheduled.
+	// The most recent attempt where a non-zero amount of resources were scheduled.
 	mostRecentSuccessfulSchedulingContextByExecutorP atomic.Pointer[SchedulingContextByExecutor]
 	// Maps queue name to QueueSchedulingContextByExecutor.
 	// The most recent attempt.
 	mostRecentQueueSchedulingContextByExecutorByQueueP atomic.Pointer[map[string]QueueSchedulingContextByExecutor]
-	// The most recent attempt where a non-zero amount of resources where scheduled.
+	// The most recent attempt where a non-zero amount of resources were scheduled.
 	mostRecentSuccessfulQueueSchedulingContextByExecutorByQueueP atomic.Pointer[map[string]QueueSchedulingContextByExecutor]
 	// Maps job id to JobSchedulingContextByExecutor.
 	// We limit the number of job contexts to store to control memory usage.
