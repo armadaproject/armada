@@ -354,7 +354,7 @@ func (l *LegacySchedulingAlgo) filterLaggingExecutors(
 			executorRunIds[run] = true
 		}
 
-		numUnacknowledgedJobs := 0
+		numUnacknowledgedJobs := uint(0)
 		for _, leasedJob := range leasedJobs {
 			if leasedJob.HasRuns() && !leasedJob.InTerminalState() {
 				if !executorRunIds[leasedJob.LatestRun().Id()] {

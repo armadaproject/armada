@@ -70,7 +70,7 @@ func testSchedulingConfig() configuration.SchedulingConfig {
 	}
 }
 
-func withMaxUnacknowledgedJobsPerExecutor(i int, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func withMaxUnacknowledgedJobsPerExecutor(i uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.MaxUnacknowledgedJobsPerExecutor = i
 	return config
 }

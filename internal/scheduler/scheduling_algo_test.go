@@ -47,7 +47,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		runningJobs                      []*jobdb.Job
 		unacknowledgedJobs               []*jobdb.Job
 		perQueueLimit                    map[string]float64
-		maxUnacknowledgedJobsPerExecutor int
+		maxUnacknowledgedJobsPerExecutor uint
 		expectedJobs                     map[string]string // map of jobId to name of executor on which it should be scheduled
 	}{
 		"fill up both clusters": {
