@@ -89,7 +89,9 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     this.queryParamsService.updateState(newState)
 
     this.localStorageService.saveState(newState)
-    this.queryParamsService.saveState(newState)
+    // queryParamsService.saveState calls navigate, which should only be called in useEffect
+    // actual fix is migrating this component to a functional one with hooks
+    setTimeout(() => this.queryParamsService.saveState(newState))
 
     await setStateAsync(this, {
       ...newState,

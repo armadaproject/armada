@@ -12,6 +12,7 @@ import {
 
 class FakeRouter implements Router {
   location: Location
+
   navigate: NavigateFunction = (to) => {
     if (typeof to === "number") {
       return
