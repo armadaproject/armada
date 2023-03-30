@@ -2,7 +2,6 @@ package instructions
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	"testing"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/lookout/repository"
 	"github.com/armadaproject/armada/internal/lookoutingester/metrics"

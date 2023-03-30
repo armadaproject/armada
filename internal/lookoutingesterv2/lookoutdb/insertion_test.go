@@ -769,6 +769,27 @@ func TestConflateJobUpdatesWithPreempted(t *testing.T) {
 	assert.Equal(t, expected, updates)
 }
 
+func TestConflateJobUpdatesWithNullState(t *testing.T) {
+	updates := conflateJobUpdates([]*model.UpdateJobInstruction{
+		{JobId: jobIdString, State: pointer.Int32(lookout.JobFailedOrdinal)},
+		{JobId: jobIdString, LatestRunId: pointer.String("test-id")},
+	})
+
+	// Ignored because terminal event received
+	expected := []*model.UpdateJobInstruction{
+		{JobId: jobIdString, State: pointer.Int32(lookout.JobFailedOrdinal)},
+	}
+
+	sort.Slice(updates, func(i, j int) bool {
+		return updates[i].JobId < updates[j].JobId
+	})
+
+	sort.Slice(expected, func(i, j int) bool {
+		return expected[i].JobId < expected[j].JobId
+	})
+	assert.Equal(t, expected, updates)
+}
+
 func TestConflateJobRunUpdates(t *testing.T) {
 	// Empty
 	updates := conflateJobRunUpdates([]*model.UpdateJobRunInstruction{})
