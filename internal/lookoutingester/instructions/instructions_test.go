@@ -2,6 +2,7 @@ package instructions
 
 import (
 	"context"
+	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	"testing"
 	"time"
 
@@ -342,6 +343,17 @@ func TestSubmit(t *testing.T) {
 	expected := &model.InstructionSet{
 		JobsToCreate: []*model.CreateJobInstruction{&expectedSubmit},
 		MessageIds:   msg.MessageIds,
+	}
+	assert.Equal(t, expected, instructions)
+}
+
+// Single duplicate submit message is ignored
+func TestDuplicate(t *testing.T) {
+	svc := SimpleInstructionConverter()
+	msg := NewMsg(testfixtures.SubmitDuplicate)
+	instructions := svc.Convert(context.Background(), msg)
+	expected := &model.InstructionSet{
+		MessageIds: msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
 }

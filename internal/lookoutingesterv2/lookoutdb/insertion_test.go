@@ -623,7 +623,9 @@ func TestCreateUserAnnotationsBatch(t *testing.T) {
 func TestStoreWithEmptyInstructionSet(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		ldb := NewLookoutDb(db, m, 2, 10)
-		err := ldb.Store(ctx.Background(), &model.InstructionSet{})
+		err := ldb.Store(ctx.Background(), &model.InstructionSet{
+			MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+		})
 		assert.NoError(t, err)
 		assertNoRows(t, ldb.db, "job")
 		assertNoRows(t, ldb.db, "job_run")
