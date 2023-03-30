@@ -16,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/lookout/repository"
 	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
@@ -342,6 +343,17 @@ func TestSubmit(t *testing.T) {
 	expected := &model.InstructionSet{
 		JobsToCreate: []*model.CreateJobInstruction{&expectedSubmit},
 		MessageIds:   msg.MessageIds,
+	}
+	assert.Equal(t, expected, instructions)
+}
+
+// Single duplicate submit message is ignored
+func TestDuplicate(t *testing.T) {
+	svc := SimpleInstructionConverter()
+	msg := NewMsg(testfixtures.SubmitDuplicate)
+	instructions := svc.Convert(context.Background(), msg)
+	expected := &model.InstructionSet{
+		MessageIds: msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
 }
