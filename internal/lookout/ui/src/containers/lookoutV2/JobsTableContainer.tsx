@@ -41,6 +41,7 @@ import { columnIsAggregatable, useFetchJobsTableData } from "hooks/useJobsTableD
 import _ from "lodash"
 import { JobTableRow, isJobGroupRow, JobRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobId } from "models/lookoutV2Models"
+import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGetRunErrorService } from "services/lookoutV2/GetRunErrorService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
@@ -64,7 +65,6 @@ import styles from "./JobsTableContainer.module.css"
 const PAGE_SIZE_OPTIONS = [5, 25, 50, 100]
 
 interface JobsTableContainerProps {
-  jobsTablePreferencesService: JobsTablePreferencesService
   getJobsService: IGetJobsService
   groupJobsService: IGroupJobsService
   updateJobsService: UpdateJobsService
@@ -74,7 +74,6 @@ interface JobsTableContainerProps {
   debug: boolean
 }
 export const JobsTableContainer = ({
-  jobsTablePreferencesService,
   getJobsService,
   groupJobsService,
   updateJobsService,
@@ -85,6 +84,10 @@ export const JobsTableContainer = ({
 }: JobsTableContainerProps) => {
   const openSnackbar = useCustomSnackbar()
 
+  const location = useLocation()
+  const navigate = useNavigate()
+  const params = useParams()
+  const jobsTablePreferencesService = useMemo(() => new JobsTablePreferencesService({ location, navigate, params }), [])
   const initialPrefs = useMemo(() => jobsTablePreferencesService.getUserPrefs(), [])
 
   // Columns
@@ -483,6 +486,7 @@ interface JobsTableBodyProps {
   onLoadMoreSubRows: (rowId: RowId, skip: number) => void
   onClickJobRow: (row: JobRow) => void
 }
+
 const JobsTableBody = ({
   dataIsLoading,
   columns,
