@@ -2,21 +2,33 @@
 
 Armadactl is a command-line tool used for managing jobs in the Armada workload orchestration system. It provides functionality for creating, updating, and deleting jobs, as well as monitoring job status and resource usage.
 
+## Pre-requisites
+- Git
+- Docker
+- Helm v3.5+
+- Kind v0.11.1+
+- Kubectl
+
 ## Installation
 To install Armada, follow these steps:
 
-- Install Armada CLI:
+- Clone this repository:
 ```bash
-curl -sL https://github.com/armadaplatform/armada-cli/releases/latest/download/armada-linux-amd64 -o armada
-sudo mv armada /usr/local/bin/
-sudo chmod +x /usr/local/bin/armada
+git clone https://github.com/armadaproject/armada.git
+cd armada
 ```
-- Check that Armada CLI is installed properly:
+- To install Armada and all its dependencies you can use this script:
+```bash
+./docs/local/setup.sh
+```
+- Likewise you can remove the Armada components from your system:
+```bash
+./docs/local/destroy.sh
+```
+- To check that Armada is installed properly use:
 ```bash
 armada version
 ```
-
-Alternatively, Armadactl can be installed manually by downloading the latest release from the Armada GitHub repository and adding the binary to your system path.
 
 ## Usage
 Once Armadactl is successfully installed, you can use it to execute Armada subcommands by running the following command:
@@ -97,9 +109,3 @@ armada:
     manifests:
         path: /etc/armada
 ```
-
-## Contributing
-Contributions to Armadactl are welcome! Please see the [CONTRIBUTING.md](https://github.com/armadaproject/armada/blob/master/CONTRIBUTING.md) file in the [Armada GitHub repository](https://github.com/armadaproject/armada) for more information.
-
-## License
-Armadactl is licensed under the Apache License, Version 2.0. See the [LICENSE file](https://github.com/armadaproject/armada/blob/master/LICENSE) in the [Armada GitHub repository](https://github.com/armadaproject/armada) for more information.
