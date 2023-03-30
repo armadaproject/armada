@@ -1,6 +1,5 @@
 import React from "react"
 
-import { RouteComponentProps, withRouter } from "react-router-dom"
 import { v4 as uuidv4 } from "uuid"
 
 import Jobs from "../components/jobs/Jobs"
@@ -11,16 +10,16 @@ import JobsLocalStorageService from "../services/JobsLocalStorageService"
 import JobsQueryParamsService from "../services/JobsQueryParamsService"
 import LogService from "../services/LogService"
 import TimerService from "../services/TimerService"
-import { ApiResult, RequestStatus, selectItem, setStateAsync } from "../utils"
+import { ApiResult, PropsWithRouter, RequestStatus, selectItem, setStateAsync, withRouter } from "../utils"
 import CancelJobsDialog from "./CancelJobsDialog"
 import JobDialog from "./JobDialog"
 import ReprioritizeJobsDialog from "./ReprioritizeJobsDialog"
 
-type JobsContainerProps = {
+interface JobsContainerProps extends PropsWithRouter {
   jobService: JobService
   logService: LogService
   jobsAutoRefreshMs: number
-} & RouteComponentProps
+}
 
 export type JobsContainerState = {
   jobs: Job[]
@@ -628,4 +627,4 @@ class JobsContainer extends React.Component<JobsContainerProps, JobsContainerSta
   }
 }
 
-export default withRouter(JobsContainer)
+export default withRouter((props: JobsContainerProps) => <JobsContainer {...props} />)

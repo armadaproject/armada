@@ -1,20 +1,18 @@
 import React from "react"
 
-import { RouteComponentProps, withRouter } from "react-router-dom"
-
 import Overview from "../components/Overview"
 import IntervalService from "../services/IntervalService"
 import { JobService, Job, QueueInfo } from "../services/JobService"
 import LogService from "../services/LogService"
 import OverviewLocalStorageService from "../services/OverviewLocalStorageService"
-import { RequestStatus, setStateAsync } from "../utils"
+import { PropsWithRouter, RequestStatus, setStateAsync, withRouter } from "../utils"
 import JobDialog from "./JobDialog"
 
-type OverviewContainerProps = {
+interface OverviewContainerProps extends PropsWithRouter {
   jobService: JobService
   logService: LogService
   overviewAutoRefreshMs: number
-} & RouteComponentProps
+}
 
 export type OverviewContainerState = {
   queueInfos: QueueInfo[]
@@ -92,16 +90,14 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
   }
 
   navigateToJobSets(queue: string) {
-    this.props.history.push({
-      ...this.props.location,
+    this.props.router.navigate({
       pathname: "/job-sets",
       search: `queue=${queue}`,
     })
   }
 
   navigateToJobs(queue: string) {
-    this.props.history.push({
-      ...this.props.location,
+    this.props.router.navigate({
       pathname: "/jobs",
       search: `queue=${queue}&job_states=Queued,Pending,Running`,
     })
@@ -181,4 +177,6 @@ class OverviewContainer extends React.Component<OverviewContainerProps, Overview
   }
 }
 
-export default withRouter(OverviewContainer)
+export default withRouter((props: OverviewContainerProps) => {
+  return <OverviewContainer {...props} />
+})

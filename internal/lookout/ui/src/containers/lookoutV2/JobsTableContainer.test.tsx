@@ -1,11 +1,10 @@
 import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { createMemoryHistory, History } from "history"
 import { isTerminatedJobState, Job, JobState } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
+import { createMemoryRouter, RouterProvider } from "react-router-dom"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
-import { JobsTablePreferencesService } from "services/lookoutV2/JobsTablePreferencesService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
@@ -31,9 +30,7 @@ describe("JobsTableContainer", () => {
     runErrorService: IGetRunErrorService,
     jobSpecService: IGetJobSpecService,
     logService: ILogService,
-    updateJobsService: UpdateJobsService,
-    historyService: History,
-    jobsTablePreferencesService: JobsTablePreferencesService
+    updateJobsService: UpdateJobsService
 
   beforeEach(() => {
     numJobs = 5
@@ -46,19 +43,15 @@ describe("JobsTableContainer", () => {
     jobSpecService = new FakeGetJobSpecService(false)
     logService = new FakeLogService()
 
-    historyService = createMemoryHistory()
-    jobsTablePreferencesService = new JobsTablePreferencesService(historyService)
-
     updateJobsService = {
       cancelJobs: jest.fn(),
     } as any
   })
 
-  const renderComponent = () =>
-    render(
+  const renderComponent = (search?: string) => {
+    const element = (
       <SnackbarProvider>
         <JobsTableContainer
-          jobsTablePreferencesService={jobsTablePreferencesService}
           getJobsService={getJobsService}
           groupJobsService={groupJobsService}
           updateJobsService={updateJobsService}
@@ -67,8 +60,32 @@ describe("JobsTableContainer", () => {
           logService={logService}
           debug={false}
         />
-      </SnackbarProvider>,
+      </SnackbarProvider>
     )
+    let initialEntry = "/v2"
+    if (search !== undefined) {
+      initialEntry += search
+    }
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/",
+          element: <>Navigated from Start</>,
+        },
+        {
+          path: "/v2",
+          element: element,
+        },
+      ],
+      {
+        initialEntries: [initialEntry],
+        initialIndex: 0,
+      },
+    )
+
+    const utils = render(<RouterProvider router={router} />)
+    return { ...utils, router }
+  }
 
   it("should render a spinner while loading initially", async () => {
     getJobsService.getJobs = jest.fn(() => new Promise(() => undefined))
@@ -452,17 +469,17 @@ describe("JobsTableContainer", () => {
 
   describe("Query Params", () => {
     it("should save table state to query params on load", async () => {
-      renderComponent()
+      const { router } = renderComponent()
       await resetDefaultFilters()
       await waitForFinishedLoading()
 
-      expect(historyService.location.search).toContain("page=0")
-      expect(historyService.location.search).toContain("g[0]=queue&g[1]=jobSet")
-      expect(historyService.location.search).toContain("sort[0][id]=jobId&sort[0][desc]=true")
+      expect(router.state.location.search).toContain("page=0")
+      expect(router.state.location.search).toContain("g[0]=queue&g[1]=jobSet")
+      expect(router.state.location.search).toContain("sort[0][id]=jobId&sort[0][desc]=true")
     })
 
     it("should save modifications to query params", async () => {
-      renderComponent()
+      const { router } = renderComponent()
       await resetDefaultFilters()
       await waitForFinishedLoading()
 
@@ -475,20 +492,18 @@ describe("JobsTableContainer", () => {
 
       await clickOnJobRow(jobs[0].jobId)
 
-      expect(historyService.location.search).toContain("g[0]=jobSet")
-      expect(historyService.location.search).not.toContain("g[1]")
-      expect(historyService.location.search).toContain("sb=01gkv9cj53h0rk9407mds0")
-      expect(historyService.location.search).toContain("e[0]=jobSet%3Ajob-set-1")
+      expect(router.state.location.search).toContain("g[0]=jobSet")
+      expect(router.state.location.search).not.toContain("g[1]")
+      expect(router.state.location.search).toContain("sb=01gkv9cj53h0rk9407mds0")
+      expect(router.state.location.search).toContain("e[0]=jobSet%3Ajob-set-1")
     })
 
     it("should populate table state from query params", async () => {
       // Set query param to the same as the test above
-      historyService.push({
-        ...historyService.location,
-        search: `?page=0&g[0]=jobSet&sort[0][id]=jobId&sort[0][desc]=true&vCols[0]=jobId&vCols[1]=queue&vCols[2]=jobSet&vCols[3]=state&vCols[4]=timeSubmittedUtc&vCols[5]=timeInState&vCols[6]=selectorCol&pS=50&f[0][id]=jobSet&f[0][value]=job-set-1&e[0]=jobSet%3Ajob-set-1&sb=01gkv9cj53h0rk9407mds0`,
-      })
+      const { findByRole } = renderComponent(
+        `?page=0&g[0]=jobSet&sort[0][id]=jobId&sort[0][desc]=true&vCols[0]=jobId&vCols[1]=queue&vCols[2]=jobSet&vCols[3]=state&vCols[4]=timeSubmittedUtc&vCols[5]=timeInState&vCols[6]=selectorCol&pS=50&f[0][id]=jobSet&f[0][value]=job-set-1&e[0]=jobSet%3Ajob-set-1&sb=01gkv9cj53h0rk9407mds0`,
+      )
 
-      const { findByRole } = renderComponent()
       await waitForFinishedLoading()
 
       // 1 jobset + jobs for expanded jobset
