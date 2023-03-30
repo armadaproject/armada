@@ -136,6 +136,10 @@ func (c *InstructionConverter) handleSubmitJob(
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
 	}
+	if event.IsDuplicate {
+		log.Debugf("job %s is a duplicate, ignoring", jobId)
+		return nil
+	}
 
 	// Try and marshall the job proto. This shouldn't go wrong but if it does, it's not a fatal error
 	// Rather it means that the job spec won't be available in the ui
