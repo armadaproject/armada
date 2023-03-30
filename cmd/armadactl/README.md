@@ -1,6 +1,6 @@
 # Armadactl
 
-Armadactl is a command line tool for managing and deploying Armada charts. It allows users to install, upgrade, and delete charts, as well as view their status and history.
+Armadactl is a command-line tool used for managing jobs in the Armada workload orchestration system. It provides functionality for creating, updating, and deleting jobs, as well as monitoring job status and resource usage.
 
 ## Installation
 To install Armada, follow these steps:
