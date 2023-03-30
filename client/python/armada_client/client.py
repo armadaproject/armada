@@ -6,7 +6,6 @@ https://armadaproject.io/api
 """
 
 import os
-from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Iterator, List, Optional
 
 from google.protobuf import empty_pb2
@@ -32,14 +31,10 @@ class ArmadaClient:
     :param channel: gRPC channel used for authentication. See
                     https://grpc.github.io/grpc/python/grpc.html
                     for more information.
-    :param max_workers: number of cores for thread pools, if unset, defaults
-                        to number of CPUs
     :return: an Armada client instance
     """
 
-    def __init__(self, channel, max_workers: Optional[int] = None):
-        self.executor = ThreadPoolExecutor(max_workers=max_workers or os.cpu_count())
-
+    def __init__(self, channel):
         self.submit_stub = submit_pb2_grpc.SubmitStub(channel)
         self.event_stub = event_pb2_grpc.EventStub(channel)
         self.usage_stub = usage_pb2_grpc.UsageStub(channel)
