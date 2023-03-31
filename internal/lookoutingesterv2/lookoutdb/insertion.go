@@ -130,7 +130,7 @@ func (l *LookoutDb) CreateJobsBatch(ctx context.Context, instructions []*model.C
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
-				CREATE TEMPORARY TABLE %s 
+				CREATE TEMPORARY TABLE %s
 				(
 					job_id 	                      varchar(32),
 					queue                        varchar(512),
@@ -725,7 +725,7 @@ func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJo
 		// Need to deal with preempted jobs separately
 		// We could get a JobFailed event (or another terminal event) after a JobPreempted event,
 		// but the job should still be marked as Preempted
-		if !isTerminal(existing.State) || *update.State == lookout.JobPreemptedOrdinal {
+		if !isTerminal(existing.State) || (update.State != nil && *update.State == lookout.JobPreemptedOrdinal) {
 			if update.Priority != nil {
 				existing.Priority = update.Priority
 			}
