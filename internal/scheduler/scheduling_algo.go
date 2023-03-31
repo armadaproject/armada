@@ -203,7 +203,6 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 		nil,
 		nil,
 		nil,
-		nil, // TODO: Add a repo to enable querying for scheduler reports.
 	)
 	if l.config.EnableAssertions {
 		scheduler.EnableAssertions()
@@ -212,6 +211,7 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	if err != nil {
 		return nil, err
 	}
+	// TODO: Add a repo to enable querying for scheduler reports.
 
 	for i, job := range result.PreemptedJobs {
 		jobDbJob := job.(*jobdb.Job)
