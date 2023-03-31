@@ -5,9 +5,9 @@ For the api definitions:
 https://armadaproject.io/api
 """
 
-import os
-from typing import Dict, Iterator, List, Optional
+from typing import Dict, List, Optional, AsyncIterator
 
+import grpc
 from google.protobuf import empty_pb2
 
 from armada_client.armada import (
@@ -24,7 +24,7 @@ from armada_client.permissions import Permissions
 from armada_client.typings import JobState
 
 
-class ArmadaClient:
+class ArmadaAsyncIOClient:
     """
     Client for accessing Armada over gRPC with AsyncIO.
 
@@ -34,7 +34,7 @@ class ArmadaClient:
     :return: an Armada client instance
     """
 
-    def __init__(self, channel: grpc.aio.Channel):
+    def __init__(self, channel: grpc.aio.Channel) -> None:
         self.submit_stub = submit_pb2_grpc.SubmitStub(channel)
         self.event_stub = event_pb2_grpc.EventStub(channel)
         self.usage_stub = usage_pb2_grpc.UsageStub(channel)
@@ -44,7 +44,7 @@ class ArmadaClient:
         queue: str,
         job_set_id: str,
         from_message_id: Optional[str] = None,
-    ) -> Iterator[event_pb2.EventStreamMessage]:
+    ) -> AsyncIterator[event_pb2.EventStreamMessage]:
         """Get event stream for a job set.
 
         Uses the GetJobSetEvents rpc to get a stream of events relating
@@ -75,7 +75,8 @@ class ArmadaClient:
             watch=True,
             errorIfMissing=True,
         )
-        return await self.event_stub.GetJobSetEvents(jsr)
+        response = self.event_stub.GetJobSetEvents(jsr)
+        return response
 
     @staticmethod
     def unmarshal_event_response(event: event_pb2.EventStreamMessage) -> Event:
@@ -93,18 +94,20 @@ class ArmadaClient:
         Health check for Submit Service.
         :return: A HealthCheckResponse object.
         """
-        return await self.submit_stub.Health(request=empty_pb2.Empty())
+        response = await self.submit_stub.Health(request=empty_pb2.Empty())
+        return response
 
     async def event_health(self) -> health_pb2.HealthCheckResponse:
         """
         Health check for Event Service.
         :return: A HealthCheckResponse object.
         """
-        return await self.event_stub.Health(request=empty_pb2.Empty())
+        response = await self.event_stub.Health(request=empty_pb2.Empty())
+        return response
 
     async def submit_jobs(
         self, queue: str, job_set_id: str, job_request_items
-    ) -> submit_pb2.JobSubmitResponse:
+    ) -> AsyncIterator[submit_pb2.JobSubmitResponse]:
         """Submit a armada job.
 
         Uses SubmitJobs RPC to submit a job.
@@ -118,7 +121,8 @@ class ArmadaClient:
         request = submit_pb2.JobSubmitRequest(
             queue=queue, job_set_id=job_set_id, job_request_items=job_request_items
         )
-        return await self.submit_stub.SubmitJobs(request)
+        response = await self.submit_stub.SubmitJobs(request)
+        return response
 
     async def cancel_jobs(
         self,
@@ -150,7 +154,8 @@ class ArmadaClient:
         else:
             raise ValueError("Either job_id or job_set_id and queue must be provided.")
 
-        return await self.submit_stub.CancelJobs(request)
+        response = await self.submit_stub.CancelJobs(request)
+        return response
 
     async def cancel_jobset(
         self,
@@ -177,7 +182,8 @@ class ArmadaClient:
         request = submit_pb2.JobSetCancelRequest(
             queue=queue, job_set_id=job_set_id, filter=job_filter
         )
-        return await self.submit_stub.CancelJobSet(request)
+        response = await self.submit_stub.CancelJobSet(request)
+        return response
 
     async def reprioritize_jobs(
         self,
@@ -217,7 +223,8 @@ class ArmadaClient:
         else:
             raise ValueError("Either job_ids or job_set_id and queue must be provided.")
 
-        return await self.submit_stub.ReprioritizeJobs(request)
+        response = await self.submit_stub.ReprioritizeJobs(request)
+        return response
 
     async def create_queue(self, queue: submit_pb2.Queue) -> empty_pb2.Empty:
         """
@@ -226,7 +233,8 @@ class ArmadaClient:
         :param queue: A queue to create.
         """
 
-        return await self.submit_stub.CreateQueue(queue)
+        response = await self.submit_stub.CreateQueue(queue)
+        return response
 
     async def update_queue(self, queue: submit_pb2.Queue) -> empty_pb2.Empty:
         """
@@ -235,7 +243,8 @@ class ArmadaClient:
         :param queue: A queue to update.
         """
 
-        return await self.submit_stub.UpdateQueue(queue)
+        response = await self.submit_stub.UpdateQueue(queue)
+        return response
 
     async def create_queues(
         self, queues: List[submit_pb2.Queue]
@@ -247,7 +256,8 @@ class ArmadaClient:
         """
 
         queue_list = submit_pb2.QueueList(queues=queues)
-        return await self.submit_stub.CreateQueues(queue_list)
+        response = await self.submit_stub.CreateQueues(queue_list)
+        return response
 
     async def update_queues(
         self, queues: List[submit_pb2.Queue]
@@ -259,7 +269,8 @@ class ArmadaClient:
         """
 
         queue_list = submit_pb2.QueueList(queues=queues)
-        return await self.submit_stub.UpdateQueues(queue_list)
+        response = await self.submit_stub.UpdateQueues(queue_list)
+        return response
 
     async def delete_queue(self, name: str) -> None:
         """Delete an empty queue by name.
@@ -281,7 +292,8 @@ class ArmadaClient:
         :return: A queue object. See the api definition.
         """
         request = submit_pb2.QueueGetRequest(name=name)
-        return await self.submit_stub.GetQueue(request)
+        response = await self.submit_stub.GetQueue(request)
+        return response
 
     async def get_queue_info(self, name: str) -> submit_pb2.QueueInfo:
         """Get the queue info by name.
@@ -292,7 +304,8 @@ class ArmadaClient:
         :return: A queue info object.  See the api definition.
         """
         request = submit_pb2.QueueInfoRequest(name=name)
-        return await self.submit_stub.GetQueueInfo(request)
+        response = await self.submit_stub.GetQueueInfo(request)
+        return response
 
     @staticmethod
     def unwatch_events(event_stream) -> None:
@@ -342,8 +355,8 @@ class ArmadaClient:
             permissions=queue_permissions,
         )
 
+    @staticmethod
     def create_job_request_item(
-        self,
         priority: float = 1.0,
         pod_spec: Optional[core_v1.PodSpec] = None,
         pod_specs: Optional[List[core_v1.PodSpec]] = None,

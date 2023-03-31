@@ -5,7 +5,6 @@ For the api definitions:
 https://armadaproject.io/api
 """
 
-import os
 from typing import Dict, Iterator, List, Optional
 
 from google.protobuf import empty_pb2
