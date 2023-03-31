@@ -12,14 +12,14 @@ import (
 )
 
 type EventStore interface {
-	ReportEvents(message []*api.EventMessage) error
+	ReportEvents(context.Context, []*api.EventMessage) error
 }
 
 type TestEventStore struct {
 	ReceivedEvents []*api.EventMessage
 }
 
-func (es *TestEventStore) ReportEvents(message []*api.EventMessage) error {
+func (es *TestEventStore) ReportEvents(_ context.Context, message []*api.EventMessage) error {
 	es.ReceivedEvents = append(es.ReceivedEvents, message...)
 	return nil
 }
@@ -35,7 +35,7 @@ func NewEventStore(producer pulsar.Producer, maxAllowedMessageSize uint) *Stream
 	}
 }
 
-func (n *StreamEventStore) ReportEvents(apiEvents []*api.EventMessage) error {
+func (n *StreamEventStore) ReportEvents(ctx context.Context, apiEvents []*api.EventMessage) error {
 	if len(apiEvents) == 0 {
 		return nil
 	}
@@ -55,5 +55,5 @@ func (n *StreamEventStore) ReportEvents(apiEvents []*api.EventMessage) error {
 	if err != nil {
 		return err
 	}
-	return pulsarutils.PublishSequences(context.Background(), n.Producer, sequences, schedulers.Legacy)
+	return pulsarutils.PublishSequences(ctx, n.Producer, sequences, schedulers.Legacy)
 }

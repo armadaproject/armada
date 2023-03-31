@@ -7,7 +7,6 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
@@ -20,8 +19,8 @@ import (
 )
 
 type UtilisationService interface {
-	GetAvailableClusterCapacity(useLegacyIds bool) (*ClusterAvailableCapacityReport, error)
-	GetAllNodeGroupAllocationInfo() ([]*NodeGroupAllocationInfo, error)
+	GetAvailableClusterCapacity(legacy bool) (*ClusterAvailableCapacityReport, error)
+	GetAllNodeGroupAllocationInfo(legacy bool) ([]*NodeGroupAllocationInfo, error)
 }
 
 type ClusterUtilisationService struct {
@@ -71,8 +70,10 @@ func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisa
 		log.Errorf("Failed to get required information to report cluster usage because %s", err)
 		return
 	}
+	// We only report cluster utilisation for legacy use cases
+	allBatchPods = util.FilterPods(allBatchPods, IsLegacyManagedPod)
 
-	nodeGroupInfos, err := clusterUtilisationService.GetAllNodeGroupAllocationInfo()
+	nodeGroupInfos, err := clusterUtilisationService.GetAllNodeGroupAllocationInfo(true)
 	if err != nil {
 		log.Errorf("Failed to get required information to report cluster usage because %s", err)
 		return
@@ -117,11 +118,7 @@ type ClusterAvailableCapacityReport struct {
 	Nodes             []api.NodeInfo
 }
 
-func (r *ClusterAvailableCapacityReport) GetResourceQuantity(resource string) resource.Quantity {
-	return (*r.AvailableCapacity)[resource]
-}
-
-func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(useLegacyIds bool) (*ClusterAvailableCapacityReport, error) {
+func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(legacy bool) (*ClusterAvailableCapacityReport, error) {
 	processingNodes, err := cls.nodeInfoService.GetAllAvailableProcessingNodes()
 	if err != nil {
 		return nil, errors.Errorf("Failed getting available cluster capacity due to: %s", err)
@@ -144,7 +141,7 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(useLegacyIds b
 	nodesUsage := getAllocatedResourceByNodeName(allNonCompletePodsRequiringResource)
 	runningPodsByNode := groupPodsByNodes(allNonCompletePodsRequiringResource)
 	nodes := make([]api.NodeInfo, 0, len(processingNodes))
-	runIdsByNode := cls.getRunIdsByNode(processingNodes, allPods, useLegacyIds)
+	runIdsByNode := cls.getRunIdsByNode(processingNodes, allPods, legacy)
 	for _, n := range processingNodes {
 		allocatable := armadaresource.FromResourceList(n.Status.Allocatable)
 		available := allocatable.DeepCopy()
@@ -182,6 +179,9 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(useLegacyIds b
 // This returns all the pods assigned the node or soon to be assigned (via node-selector)
 // The server api expects job ids, the executor api expects run ids - the legacy flag controls which this returns
 func (clusterUtilisationService *ClusterUtilisationService) getRunIdsByNode(nodes []*v1.Node, pods []*v1.Pod, legacy bool) map[string]map[string]api.JobState {
+	pods = util.FilterPods(pods, func(pod *v1.Pod) bool {
+		return legacy == util.IsLegacyManagedPod(pod)
+	})
 	nodeIdToNodeName := make(map[string]string, len(nodes))
 	for _, n := range nodes {
 		if nodeId, nodeIdPresent := n.Labels[clusterUtilisationService.nodeIdLabel]; nodeIdPresent {
@@ -320,7 +320,7 @@ func groupPodsByPriority(pods []*v1.Pod) map[int32][]*v1.Pod {
 // NodeGroupCapacity is the total capacity of a nodegroup (including cordoned nodes)
 // NodeGroupAllocatableCapacity is the capacity available to armada on schedulable nodes
 // NodeGroupCordonedCapacity is the resource in use by armada on unschedulable nodes
-func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAllocationInfo() ([]*NodeGroupAllocationInfo, error) {
+func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAllocationInfo(legacy bool) ([]*NodeGroupAllocationInfo, error) {
 	allAvailableProcessingNodes, err := clusterUtilisationService.nodeInfoService.GetAllNodes()
 	if err != nil {
 		return []*NodeGroupAllocationInfo{}, err
@@ -334,6 +334,9 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAlloc
 	batchPods, err := clusterUtilisationService.clusterContext.GetBatchPods()
 	if err != nil {
 		return []*NodeGroupAllocationInfo{}, err
+	}
+	if legacy {
+		batchPods = util.FilterPods(batchPods, IsLegacyManagedPod)
 	}
 
 	nodeGroups := clusterUtilisationService.nodeInfoService.GroupNodesByType(allAvailableProcessingNodes)

@@ -123,6 +123,15 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 }
 
 func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, submitTime time.Time, meta eventSequenceCommon) ([]DbOperation, error) {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(job.JobId)
+	if err != nil {
+		return nil, err
+	}
+	if job.IsDuplicate {
+		log.Debugf("job %s is a duplicate, ignoring", jobId)
+		return nil, nil
+	}
+
 	// Store the job submit message so that it can be sent to an executor.
 	submitJobBytes, err := proto.Marshal(job)
 	if err != nil {
@@ -149,10 +158,6 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, subm
 		return nil, err
 	}
 
-	jobId, err := armadaevents.UlidStringFromProtoUuid(job.JobId)
-	if err != nil {
-		return nil, err
-	}
 	return []DbOperation{InsertJobs{jobId: &schedulerdb.Job{
 		JobID:          jobId,
 		JobSet:         meta.jobset,

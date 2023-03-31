@@ -1,12 +1,26 @@
 version: "3.8"
 
+networks:
+  kind:
+    external: true
+
+volumes:
+  # shared gopath volume for armada services
+  # with this, modules do not need to be redundantly downloaded
+  # and persist through restarts
+  gopath:
+  # shared gocache volume for armada services
+  # with this, build artifacts do not need to be redundantly downloaded
+  # and persist through restarts
+  go-cache:
+
 services:
   #
   # Armada services with debugging
   #
   server:
     container_name: server
-    image: golang:1.18-delve
+    image: golang:1.20-delve
     networks:
       - kind
     ports:
@@ -14,21 +28,16 @@ services:
       - 9080:8080
       - 4000:4000
     volumes:
-      - ./config:/config
+      - ../developer/config/insecure-armada.yaml:/config/insecure-armada.yaml
       - "..:/app:rw"
-      - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
-    depends_on:
-      - redis
-      - postgres
-      - pulsar
     working_dir: /app
     entrypoint: dlv
-    command: debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_server cmd/armada/main.go -- --config /config/armada/config.yaml
+    command: debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_server cmd/armada/main.go -- --config /config/insecure-armada.yaml
 
   lookout:
     container_name: lookout
-    image: golang:1.18-delve
+    image: golang:1.20-delve
     networks:
       - kind
     ports:
@@ -36,41 +45,39 @@ services:
       - "8089:8089"
       - 4001:4000
     volumes:
-      - ./config:/config
       - "..:/app:rw"
-      - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
     depends_on:
-      - postgres
       - server
       - lookout-ingester
     working_dir: "/app"
+    env_file:
+      - ../developer/env/lookout.env
     entrypoint: sh -c "localdev/scripts/lookout-debug-start.sh"
 
 
   lookoutv2:
     container_name: lookoutv2
-    image: golang:1.18-delve
+    image: golang:1.20-delve
     networks:
       - kind
     ports:
       - "10000:10000"
-      - 4001:4000
+      - 4008:4000
     volumes:
-      - ./config:/config
       - "..:/app:rw"
-      - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
     depends_on:
-      - postgres
       - server
       - lookout-ingesterv2
+    env_file:
+      - ../developer/env/lookoutv2.env
     working_dir: "/app"
     entrypoint: sh -c "localdev/scripts/lookoutv2-debug-start.sh"
 
   executor:
     container_name: executor
-    image: golang:1.18-delve
+    image: golang:1.20-delve
     networks:
       - kind
     ports:
@@ -79,20 +86,20 @@ services:
     depends_on:
       - server
     volumes:
-      - ./config:/config
-      - ./.kube:/.kube
+      - ../.kube/internal:/.kube
       - "..:/app:rw"
-      - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
     environment:
       - KUBECONFIG=/.kube/config
     working_dir: /app
     entrypoint: dlv
-    command: debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_executor cmd/executor/main.go -- --config /config/executor/config.yaml
+    env_file:
+      - ../developer/env/executor.env
+    command: debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_executor cmd/executor/main.go --
 
   binoculars:
     container_name: binoculars
-    image: golang:1.18-delve
+    image: golang:1.20-delve
     networks:
       - kind
     ports:
@@ -101,20 +108,18 @@ services:
     depends_on:
       - server
     volumes:
-      - ./config:/config
-      - ./.kube:/.kube
+      - ../.kube/internal:/.kube
       - "..:/app:rw"
-      - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
     environment:
       - KUBECONFIG=/.kube/config
     working_dir: /app
     entrypoint: dlv
-    command: debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_binoc cmd/binoculars/main.go -- --config /config/binoculars/config.yaml
+    command: debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_binoc cmd/binoculars/main.go --
 
   jobservice:
     container_name: jobservice
-    image: golang:1.18-delve
+    image: golang:1.20-delve
     networks:
       - kind
     ports:
@@ -123,64 +128,54 @@ services:
     depends_on:
       - server
     volumes:
-      - ./config:/config
       - "..:/app:rw"
-      - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
     working_dir: "/app"
     entrypoint: dlv
-    command: debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_jobservice cmd/jobservice/main.go -- --config /config/jobservice/config.yaml
+    env_file:
+      - ../developer/env/jobservice.env
+    command: debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_jobservice cmd/jobservice/main.go --
 
   lookout-ingester:
     container_name: lookout-ingester
-    image: golang:1.18-delve
+    image: golang:1.20-delve
     networks:
       - kind
     ports:
       - 4005:4000
-    depends_on:
-      - postgres
     volumes:
-      - ./config:/config
       - "..:/app:rw"
-      - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
     working_dir: /app
     entrypoint: dlv
-    command: debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_lookout_ingester cmd/lookoutingester/main.go -- --config /config/lookoutingester/config.yaml
+    command: debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_lookout_ingester cmd/lookoutingester/main.go --
 
   lookout-ingesterv2:
     container_name: lookout-ingesterv2
-    image: golang:1.18-delve
-    networks:
-      - kind
-    ports:
-      - 4005:4000
-    depends_on:
-      - postgres
-    volumes:
-      - ./config:/config
-      - "..:/app:rw"
-      - "gopath:/go:rw"
-      - "go-cache:/root/.cache/go-build:rw"
-    working_dir: /app
-    entrypoint: dlv
-    command: debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_lookout_ingester cmd/lookoutingesterv2/main.go -- --config /config/lookoutingesterv2/config.yaml
-
-  event-ingester:
-    container_name: event-ingester
-    image: golang:1.18-delve
+    image: golang:1.20-delve
     networks:
       - kind
     ports:
       - 4006:4000
-    depends_on:
-      - redis
     volumes:
-      - ./config:/config
       - "..:/app:rw"
-      - "gopath:/go:rw"
       - "go-cache:/root/.cache/go-build:rw"
     working_dir: /app
     entrypoint: dlv
-    command: debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_event_ingester cmd/eventingester/main.go -- --config /config/eventingester/config.yaml
+    env_file:
+      - ../developer/env/lookoutv2.env
+    command: debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_lookout_ingester cmd/lookoutingesterv2/main.go --
+
+  event-ingester:
+    container_name: event-ingester
+    image: golang:1.20-delve
+    networks:
+      - kind
+    ports:
+      - 4007:4000
+    volumes:
+      - "..:/app:rw"
+      - "go-cache:/root/.cache/go-build:rw"
+    working_dir: /app
+    entrypoint: dlv
+    command: debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_event_ingester cmd/eventingester/main.go --

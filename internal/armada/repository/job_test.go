@@ -12,7 +12,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
@@ -189,59 +188,6 @@ func TestDeleteQueuedJob(t *testing.T) {
 	})
 }
 
-func TestDeleteJobShouldSetJobObjectToExpire(t *testing.T) {
-	withRepository(func(r *RedisJobRepository) {
-		job := addLeasedJob(t, r, "queue1", "cluster1")
-		expiryStatuses, err := r.getExpiryStatus([]*api.Job{job})
-		require.NoError(t, err, "getting expiry status failed")
-
-		assert.False(t, expiryStatuses[job])
-
-		result, err := r.DeleteJobs([]*api.Job{job})
-		require.NoError(t, err, "deleting jobs failed")
-		err, deletionOccurred := result[job]
-		assert.Nil(t, err)
-		assert.True(t, deletionOccurred)
-
-		expiryStatuses, err = r.getExpiryStatus([]*api.Job{job})
-		require.NoError(t, err)
-		assert.True(t, expiryStatuses[job])
-	})
-}
-
-func TestDeleteJob_JobObjectShouldBeRemovedAfterRetentionPeriod(t *testing.T) {
-	withRepositoryUsingJobDefaults(configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour}, func(r *RedisJobRepository) {
-		job := addLeasedJob(t, r, "queue1", "cluster1")
-
-		result, err := r.DeleteJobs([]*api.Job{job})
-		require.NoError(t, err, "delete failed")
-		err, deletionOccurred := result[job]
-		assert.Nil(t, err)
-		assert.True(t, deletionOccurred)
-
-		existingJobs, err := r.GetExistingJobsByIds([]string{job.Id})
-		require.NoError(t, err)
-		assert.True(t, len(existingJobs) == 1)
-	})
-
-	withRepositoryUsingJobDefaults(configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Millisecond}, func(r *RedisJobRepository) {
-		job := addLeasedJob(t, r, "queue1", "cluster1")
-
-		result, err := r.DeleteJobs([]*api.Job{job})
-		require.NoError(t, err, "deleting jobs failed")
-
-		err, deletionOccurred := result[job]
-		assert.Nil(t, err)
-		assert.True(t, deletionOccurred)
-
-		time.Sleep(time.Millisecond * 300)
-
-		existingJobs, err := r.GetExistingJobsByIds([]string{job.Id})
-		require.NoError(t, err)
-		assert.True(t, len(existingJobs) == 0)
-	})
-}
-
 func TestDeleteWithSomeMissingJobs(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		missingJob := &api.Job{Id: "jobId"}
@@ -256,24 +202,6 @@ func TestDeleteWithSomeMissingJobs(t *testing.T) {
 		err, deletionOccurred = result[runningJob]
 		assert.Nil(t, err)
 		assert.True(t, deletionOccurred)
-	})
-}
-
-func TestReturnLeaseForDeletedJobShouldKeepJobDeleted(t *testing.T) {
-	withRepository(func(r *RedisJobRepository) {
-		job := addLeasedJob(t, r, "cancel-test-queue", "cluster")
-
-		result, err := r.DeleteJobs([]*api.Job{job})
-		require.NoError(t, err, "delete failed")
-		assert.Nil(t, result[job])
-
-		returned, err := r.ReturnLease("cluster", job.Id)
-		assert.Nil(t, returned)
-		assert.Nil(t, err)
-
-		q, err := r.PeekQueue("cancel-test-queue", 100)
-		assert.Nil(t, err)
-		assert.Empty(t, q)
 	})
 }
 
@@ -324,6 +252,24 @@ func TestGetJobSetJobIds(t *testing.T) {
 		require.NoError(t, e)
 		assert.Equal(t, 1, len(ids))
 		assert.Equal(t, ids[0], leasedJob.Id)
+	})
+}
+
+func TestReturnLeaseForDeletedJobShouldKeepJobDeleted(t *testing.T) {
+	withRepository(func(r *RedisJobRepository) {
+		job := addLeasedJob(t, r, "cancel-test-queue", "cluster")
+
+		result, err := r.DeleteJobs([]*api.Job{job})
+		require.NoError(t, err, "delete failed")
+		assert.Nil(t, result[job])
+
+		returned, err := r.ReturnLease("cluster", job.Id)
+		assert.Nil(t, returned)
+		assert.Nil(t, err)
+
+		q, err := r.PeekQueue("cancel-test-queue", 100)
+		assert.Nil(t, err)
+		assert.Empty(t, q)
 	})
 }
 
@@ -889,19 +835,11 @@ func addTestJobInner(
 }
 
 func withRepository(action func(r *RedisJobRepository)) {
-	withRepositoryUsingJobDefaults(configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour}, action)
-}
-
-func withRepositoryUsingJobDefaults(
-	retention configuration.DatabaseRetentionPolicy, action func(r *RedisJobRepository),
-) {
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 	defer client.FlushDB()
 	defer client.Close()
-
 	client.FlushDB()
-
-	repo := NewRedisJobRepository(client, retention)
+	repo := NewRedisJobRepository(client)
 	action(repo)
 }
 

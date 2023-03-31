@@ -78,7 +78,8 @@ const accessorColumn = ({
     header: displayName,
     enableHiding: true,
     enableSorting: false,
-    size: 70,
+    size: 140,
+    minSize: 80,
     ...additionalOptions,
     meta: {
       displayName: displayName,
@@ -157,7 +158,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalOptions: {
       enableColumnFilter: true,
       enableSorting: true,
-      size: 90,
+      size: 180,
     },
     additionalMetadata: {
       filterType: FilterType.Text,
@@ -171,7 +172,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalOptions: {
       enableGrouping: true,
       enableColumnFilter: true,
-      size: 60,
+      size: 100,
       cell: (cell) => (
         <JobStateLabel state={cell.getValue() as JobState}>{formatJobState(cell.getValue() as JobState)}</JobStateLabel>
       ),
@@ -195,7 +196,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     },
     displayName: "Count",
     additionalOptions: {
-      size: 40,
+      size: 100,
       enableSorting: true,
     },
     additionalMetadata: {
@@ -228,6 +229,9 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     id: StandardColumnId.Memory,
     accessor: (jobTableRow) => formatBytes(jobTableRow.memory),
     displayName: "Memory",
+    additionalOptions: {
+      size: 40,
+    },
   }),
   accessorColumn({
     id: StandardColumnId.GPU,
@@ -248,6 +252,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     displayName: "Time In State",
     additionalOptions: {
       enableSorting: true,
+      size: 120,
     },
   }),
   accessorColumn({

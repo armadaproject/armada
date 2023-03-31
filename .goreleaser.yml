@@ -172,12 +172,24 @@ dockers:
       - binoculars
       - lookoutingester
       - eventingester
+      - lookout
+      - lookoutv2
+      - lookoutingesterv2
+      - jobservice
     extra_files:
       - config/armada/config.yaml
       - config/executor/config.yaml
       - config/binoculars/config.yaml
       - config/lookoutingester/config.yaml
       - config/eventingester/config.yaml
+      - config/lookout/config.yaml
+      - config/lookoutv2/config.yaml
+      - config/lookoutingesterv2/config.yaml
+      - config/jobservice/config.yaml
+      - internal/lookout/ui/
+      - pkg/api/api.swagger.json
+      - pkg/api/lookout/api.swagger.json
+      - pkg/api/binoculars/api.swagger.json
     dockerfile: ./build_goreleaser/armada/Dockerfile
   - id: server
     use: buildx

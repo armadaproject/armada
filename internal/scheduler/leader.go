@@ -92,11 +92,13 @@ type KubernetesLeaderController struct {
 }
 
 func NewKubernetesLeaderController(config LeaderConfig, client coordinationv1client.LeasesGetter) *KubernetesLeaderController {
-	return &KubernetesLeaderController{
+	controller := &KubernetesLeaderController{
 		client: client,
 		token:  atomic.Value{},
 		config: config,
 	}
+	controller.token.Store(InvalidLeaderToken())
+	return controller
 }
 
 func (lc *KubernetesLeaderController) GetToken() LeaderToken {

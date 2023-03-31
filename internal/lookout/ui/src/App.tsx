@@ -5,10 +5,9 @@ import { createGenerateClassName } from "@material-ui/core/styles"
 import { ThemeProvider as ThemeProviderV5, createTheme as createThemeV5 } from "@mui/material/styles"
 import { JobsTableContainer } from "containers/lookoutV2/JobsTableContainer"
 import { SnackbarProvider } from "notistack"
-import { Route, BrowserRouter as Router, Switch } from "react-router-dom"
+import { Route, BrowserRouter, Routes } from "react-router-dom"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
-import { JobsTablePreferencesService } from "services/lookoutV2/JobsTablePreferencesService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 
 import NavBar from "./components/NavBar"
@@ -17,7 +16,9 @@ import JobsContainer from "./containers/JobsContainer"
 import OverviewContainer from "./containers/OverviewContainer"
 import { JobService } from "./services/JobService"
 import LogService from "./services/LogService"
+import { IGetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
+import { ILogService } from "./services/lookoutV2/LogService"
 
 import "./App.css"
 
@@ -61,10 +62,11 @@ const themeV5 = createThemeV5(theme)
 
 type AppProps = {
   jobService: JobService
-  v2JobsTablePrefsService: JobsTablePreferencesService
   v2GetJobsService: IGetJobsService
   v2GroupJobsService: IGroupJobsService
   v2RunErrorService: IGetRunErrorService
+  v2JobSpecService: IGetJobSpecService
+  v2LogService: ILogService
   v2UpdateJobsService: UpdateJobsService
   logService: LogService
   overviewAutoRefreshMs: number
@@ -72,40 +74,43 @@ type AppProps = {
   jobsAutoRefreshMs: number
   debugEnabled: boolean
 }
+
 export function App(props: AppProps) {
   return (
     <StylesProvider generateClassName={generateClassName}>
       <ThemeProviderV4 theme={themeV4}>
         <ThemeProviderV5 theme={themeV5}>
-          <SnackbarProvider anchorOrigin={{ horizontal: "right", vertical: "bottom" }} autoHideDuration={8000}>
-            <Router>
+          <SnackbarProvider
+            anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
+            autoHideDuration={8000}
+            maxSnack={3}
+          >
+            <BrowserRouter>
               <div className="app-container">
                 <NavBar />
                 <div className="app-content">
-                  <Switch>
-                    <Route exact path="/">
-                      <OverviewContainer {...props} />
-                    </Route>
-                    <Route exact path="/job-sets">
-                      <JobSetsContainer {...props} />
-                    </Route>
-                    <Route exact path="/jobs">
-                      <JobsContainer {...props} />
-                    </Route>
-                    <Route exact path="/v2">
-                      <JobsTableContainer
-                        jobsTablePreferencesService={props.v2JobsTablePrefsService}
-                        getJobsService={props.v2GetJobsService}
-                        groupJobsService={props.v2GroupJobsService}
-                        updateJobsService={props.v2UpdateJobsService}
-                        runErrorService={props.v2RunErrorService}
-                        debug={props.debugEnabled}
-                      />
-                    </Route>
-                  </Switch>
+                  <Routes>
+                    <Route path="/" element={<OverviewContainer {...props} />} />
+                    <Route path="/job-sets" element={<JobSetsContainer {...props} />} />
+                    <Route path="/jobs" element={<JobsContainer {...props} />} />
+                    <Route
+                      path="/v2"
+                      element={
+                        <JobsTableContainer
+                          getJobsService={props.v2GetJobsService}
+                          groupJobsService={props.v2GroupJobsService}
+                          updateJobsService={props.v2UpdateJobsService}
+                          runErrorService={props.v2RunErrorService}
+                          jobSpecService={props.v2JobSpecService}
+                          logService={props.v2LogService}
+                          debug={props.debugEnabled}
+                        />
+                      }
+                    />
+                  </Routes>
                 </div>
               </div>
-            </Router>
+            </BrowserRouter>
           </SnackbarProvider>
         </ThemeProviderV5>
       </ThemeProviderV4>

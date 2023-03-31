@@ -32,6 +32,7 @@ type JobEventReporter struct {
 	eventQueued      map[string]uint8
 	eventQueuedMutex sync.Mutex
 
+	legacyMode       bool
 	jobRunStateStore *job.JobRunStateStore
 	clusterContext   clusterContext.ClusterContext
 }
@@ -45,6 +46,7 @@ func NewJobEventReporter(clusterContext clusterContext.ClusterContext, jobRunSta
 		eventBuffer:      make(chan *queuedEvent, 1000000),
 		eventQueued:      map[string]uint8{},
 		eventQueuedMutex: sync.Mutex{},
+		legacyMode:       jobRunState == nil,
 	}
 
 	clusterContext.AddPodEventHandler(reporter.podEventHandler())
@@ -63,6 +65,9 @@ func (eventReporter *JobEventReporter) podEventHandler() cache.ResourceEventHand
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
 				return
 			}
+			if util.IsLegacyManagedPod(pod) != eventReporter.legacyMode {
+				return
+			}
 			go eventReporter.reportCurrentStatus(pod)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
@@ -74,6 +79,9 @@ func (eventReporter *JobEventReporter) podEventHandler() cache.ResourceEventHand
 			newPod, ok := newObj.(*v1.Pod)
 			if !ok {
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", newObj)
+				return
+			}
+			if util.IsLegacyManagedPod(newPod) != eventReporter.legacyMode {
 				return
 			}
 			go eventReporter.reportStatusUpdate(oldPod, newPod)
@@ -289,6 +297,9 @@ func (eventReporter *JobEventReporter) ReportMissingJobEvents() {
 		log.Errorf("Failed to reconcile missing job events: %v", err)
 		return
 	}
+	allBatchPods = util.FilterPods(allBatchPods, func(pod *v1.Pod) bool {
+		return util.IsLegacyManagedPod(pod) == eventReporter.legacyMode
+	})
 	podsWithCurrentPhaseNotReported := filterPodsWithCurrentStateNotReported(allBatchPods)
 
 	for _, pod := range podsWithCurrentPhaseNotReported {

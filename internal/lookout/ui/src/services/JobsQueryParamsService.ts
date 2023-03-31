@@ -1,7 +1,7 @@
 import queryString, { ParseOptions, StringifiableRecord, StringifyOptions } from "query-string"
-import { RouteComponentProps } from "react-router-dom"
 
 import { ColumnSpec, JobsContainerState } from "../containers/JobsContainer"
+import { PropsWithRouter, Router } from "../utils"
 import { JOB_STATES_FOR_DISPLAY } from "./JobService"
 
 const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
@@ -73,24 +73,20 @@ function parseJobStates(jobStates: string[] | string): string[] {
 }
 
 export default class JobsQueryParamsService {
-  routeComponentProps: RouteComponentProps
+  router: Router
 
-  constructor(routeComponentProps: RouteComponentProps) {
-    this.routeComponentProps = routeComponentProps
+  constructor(routeComponentProps: PropsWithRouter) {
+    this.router = routeComponentProps.router
   }
 
   saveState(state: JobsContainerState) {
-    this.routeComponentProps.history.push({
-      ...this.routeComponentProps.location,
+    this.router.navigate({
+      ...this.router.location,
       search: makeQueryString(state.defaultColumns, state.annotationColumns),
     })
   }
 
   updateState(state: JobsContainerState) {
-    updateColumnsFromQueryString(
-      this.routeComponentProps.location.search,
-      state.defaultColumns,
-      state.annotationColumns,
-    )
+    updateColumnsFromQueryString(this.router.location.search, state.defaultColumns, state.annotationColumns)
   }
 }

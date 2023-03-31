@@ -4,20 +4,29 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/magefile/mage/mg"
 	"github.com/pkg/errors"
+	"sigs.k8s.io/yaml"
 )
 
-// install go tools
+// BootstrapTools installs all tools needed tobuild and release armada
+// For the list of tools this will install, see tools.yaml in the root directory
 func BootstrapTools() error {
 	mg.Deps(goCheck)
-	packages, err := goOutput("list", "-f", "{{range .Imports}}{{.}} {{end}}", "internal/tools/tools.go")
+	type ToolsList struct {
+		Tools []string
+	}
+
+	tools := &ToolsList{}
+	err := readYaml("tools.yaml", tools)
 	if err != nil {
 		return err
 	}
-	for _, p := range strings.Split(strings.TrimSpace(packages), " ") {
-		err := goRun("install", p)
+
+	for _, tool := range tools.Tools {
+		err := goRun("install", tool)
 		if err != nil {
 			return err
 		}
@@ -114,4 +123,47 @@ func BuildDockers(arg string) error {
 		return err
 	}
 	return nil
+}
+
+// Create a Local Armada Cluster
+func LocalDev() error {
+	mg.Deps(Kind)
+
+	mg.Deps(StartDependencies)
+	fmt.Println("Waiting for dependencies to start...")
+	err := CheckForPulsarRunning()
+	mg.Deps(StartComponents)
+
+	fmt.Println("Waiting for components to start...")
+	time.Sleep(15 * time.Second)
+
+	fmt.Println("Run: `docker-compose logs -f` to see logs")
+	return err
+}
+
+// Stop Local Armada Cluster
+func LocalDevStop() {
+	mg.Deps(StopComponents)
+	mg.Deps(StopDependencies)
+	mg.Deps(KindTeardown)
+}
+
+// Build the lookout UI from internal/lookout/ui
+func BuildLookoutUI() error {
+	mg.Deps(yarnCheck)
+
+	mg.Deps(yarnInstall)
+	mg.Deps(yarnOpenAPI)
+	mg.Deps(yarnBuild)
+	return nil
+}
+
+// readYaml reads a yaml file and unmarshalls the result into out
+func readYaml(filename string, out interface{}) error {
+	bytes, err := os.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+	err = yaml.Unmarshal(bytes, out)
+	return err
 }

@@ -15,7 +15,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	fakeContext "github.com/armadaproject/armada/internal/executor/fake/context"
-	reporter_fake "github.com/armadaproject/armada/internal/executor/reporter/fake"
+	"github.com/armadaproject/armada/internal/executor/reporter/mocks"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -32,16 +32,16 @@ var testPodResources = domain.UtilisationData{
 func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	reportingPeriod := 100 * time.Millisecond
 	clusterContext := fakeContext.NewFakeClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}, nil)
-	fakeEventReporter := &reporter_fake.FakeEventReporter{}
+	fakeEventReporter := &mocks.FakeEventReporter{}
 	fakeUtilisationService := &fakePodUtilisationService{data: &testPodResources}
 
-	reporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
+	eventReporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod, true)
 	_, err := submitPod(clusterContext)
 	require.NoError(t, err)
 
 	deadline := time.Now().Add(time.Second)
 	for {
-		reporter.ReportUtilisationEvents()
+		eventReporter.ReportUtilisationEvents()
 		time.Sleep(time.Millisecond)
 
 		if len(fakeEventReporter.ReceivedEvents) >= 2 || time.Now().After(deadline) {
@@ -65,17 +65,17 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 func TestUtilisationEventReporter_ReportUtilisationEvents_WhenNoUtilisationData(t *testing.T) {
 	reportingPeriod := 100 * time.Millisecond
 	clusterContext := fakeContext.NewFakeClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}, nil)
-	fakeEventReporter := &reporter_fake.FakeEventReporter{}
+	fakeEventReporter := &mocks.FakeEventReporter{}
 	fakeUtilisationService := &fakePodUtilisationService{data: domain.EmptyUtilisationData()}
 
-	reporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod)
+	eventReporter := NewUtilisationEventReporter(clusterContext, fakeUtilisationService, fakeEventReporter, reportingPeriod, true)
 	_, err := submitPod(clusterContext)
 	require.NoError(t, err)
 
 	deadline := time.Now().Add(time.Millisecond * 500)
 	count := 0
 	for {
-		reporter.ReportUtilisationEvents()
+		eventReporter.ReportUtilisationEvents()
 		count++
 		time.Sleep(time.Millisecond)
 		if time.Now().After(deadline) {
