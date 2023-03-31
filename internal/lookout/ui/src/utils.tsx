@@ -1,3 +1,5 @@
+import { Location, NavigateFunction, Params, useLocation, useNavigate, useParams } from "react-router-dom"
+
 interface UIConfig {
   armadaApiBaseUrl: string
   userAnnotationPrefix: string
@@ -190,4 +192,24 @@ export function pl(itemsOrCount: unknown[] | number, singularForm: string, plura
 
 export async function waitMillis(millisToWait: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, millisToWait))
+}
+
+export interface Router {
+  location: Location
+  navigate: NavigateFunction
+  params: Readonly<Params>
+}
+
+export interface PropsWithRouter {
+  router: Router
+}
+
+export function withRouter<T extends PropsWithRouter>(Component: React.FC<T>): React.FC<Omit<T, "router">> {
+  function ComponentWithRouterProp(props: T) {
+    const location = useLocation()
+    const navigate = useNavigate()
+    const params = useParams()
+    return <Component {...props} router={{ location, navigate, params }} />
+  }
+  return ComponentWithRouterProp as React.FC<Omit<T, "router">>
 }
