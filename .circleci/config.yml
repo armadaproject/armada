@@ -1,5 +1,8 @@
 version: 2.1
 
+orbs:
+  go: circleci/go@1.7.3
+
 commands:
   deploy-executor:
     parameters:
@@ -127,11 +130,11 @@ jobs:
     working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
-
+      - go/install:
+          version: '1.20.2'
       - restore_cache: # restore dependencies
           keys:
             - go-mod-v3-{{ checksum "go.sum" }}
-
       - run:
           name: Download dependencies
           command: |
