@@ -160,6 +160,8 @@ message SubmitJob {
     // Indicates which scheduler should manage this job.
     // If empty, the default scheduler is used.
     string scheduler = 11;
+    // Indicates whether job is a duplicate
+    bool isDuplicate = 12;
 }
 
 // Kubernetes objects that can serve as main objects for an Armada job.
