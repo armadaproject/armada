@@ -300,8 +300,8 @@ type PodSchedulingContext struct {
 	Score int
 	// Node types on which this pod could be scheduled.
 	MatchingNodeTypes []*schedulerobjects.NodeType
-	// Number of Node types excluded by reason.
-	NumExcludedNodeTypesByReason map[string]int
+	// Total number of nodes in the cluster when trying to schedule.
+	NumNodes int
 	// Number of nodes excluded by reason.
 	NumExcludedNodesByReason map[string]int
 	// Set if an error occurred while attempting to schedule this pod.
@@ -316,19 +316,10 @@ func (pctx *PodSchedulingContext) String() string {
 	} else {
 		fmt.Fprint(w, "Assigned node:\tnone\n")
 	}
-	fmt.Fprintf(w, "Number of matched node types:\t%d\n", len(pctx.MatchingNodeTypes))
-	if len(pctx.NumExcludedNodeTypesByReason) == 0 {
-		fmt.Fprint(w, "Excluded node types:\tnone\n")
-	} else {
-		fmt.Fprint(w, "Excluded node types:\n")
-		for reason, count := range pctx.NumExcludedNodeTypesByReason {
-			fmt.Fprintf(w, "\t%d:\t%s\n", count, reason)
-		}
-	}
 	requestForDominantResourceType := pctx.Req.ResourceRequirements.Requests[v1.ResourceName(pctx.DominantResourceType)]
 	fmt.Fprintf(
 		w,
-		"Node filter:\tconsidering nodes with %s %s allocatable at priority %d\n",
+		"Node filter:\tnodes with %s %s allocatable at priority %d\n",
 		requestForDominantResourceType.String(),
 		pctx.DominantResourceType,
 		pctx.Req.Priority,
@@ -337,6 +328,19 @@ func (pctx *PodSchedulingContext) String() string {
 		fmt.Fprint(w, "Excluded nodes:\tnone\n")
 	} else {
 		fmt.Fprint(w, "Excluded nodes:\n")
+		numExplicitlyExcludedNodes := 0
+		for _, count := range pctx.NumExcludedNodesByReason {
+			numExplicitlyExcludedNodes += count
+		}
+		numImplicitlyExcludedNodes := pctx.NumNodes - numExplicitlyExcludedNodes
+		if numImplicitlyExcludedNodes > 0 {
+			reason := fmt.Sprintf(
+				"less than %s %s available",
+				requestForDominantResourceType.String(),
+				pctx.DominantResourceType,
+			)
+			fmt.Fprintf(w, "\t%d:\t%s\n", numImplicitlyExcludedNodes, reason)
+		}
 		for reason, count := range pctx.NumExcludedNodesByReason {
 			fmt.Fprintf(w, "\t%d:\t%s\n", count, reason)
 		}

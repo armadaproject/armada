@@ -67,6 +67,8 @@ type NodeDb struct {
 	indexedNodeLabels map[string]interface{}
 	// Total number of nodes in the db.
 	numNodes int
+	// Number of nodes in the db by node type.
+	numNodesByNodeType map[string]int
 	// Total amount of resources, e.g., "cpu", "memory", "gpu", across all nodes in the db.
 	totalResources schedulerobjects.ResourceList
 	// Set of node types. Populated automatically as nodes are inserted.
@@ -128,6 +130,7 @@ func NewNodeDb(
 		indexedTaints:              mapFromSlice(indexedTaints),
 		indexedNodeLabels:          mapFromSlice(indexedNodeLabels),
 		nodeTypes:                  make(map[string]*schedulerobjects.NodeType),
+		numNodesByNodeType:         make(map[string]int),
 		totalResources:             schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
 		db:                         db,
 	}, nil
@@ -300,7 +303,7 @@ func (nodeDb *NodeDb) SelectNodeForPod(req *schedulerobjects.PodRequirements) (*
 // SelectNodeForPodWithTxn selects a node on which the pod can be scheduled.
 func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*PodSchedulingContext, error) {
 	// Collect all node types that could potentially schedule the pod.
-	matchingNodeTypes, numExcludedNodeTypesByReason, err := nodeDb.NodeTypesMatchingPod(req)
+	matchingNodeTypes, numExcludedNodesByReason, err := nodeDb.NodeTypesMatchingPod(req)
 	if err != nil {
 		return nil, err
 	}
@@ -315,12 +318,12 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 
 	// Create a pctx to be returned to the caller.
 	pctx := &PodSchedulingContext{
-		Created:                      time.Now(),
-		Req:                          req,
-		DominantResourceType:         dominantResourceType,
-		MatchingNodeTypes:            matchingNodeTypes,
-		NumExcludedNodeTypesByReason: numExcludedNodeTypesByReason,
-		NumExcludedNodesByReason:     make(map[string]int),
+		Created:                  time.Now(),
+		Req:                      req,
+		DominantResourceType:     dominantResourceType,
+		MatchingNodeTypes:        matchingNodeTypes,
+		NumNodes:                 nodeDb.numNodes,
+		NumExcludedNodesByReason: maps.Clone(numExcludedNodesByReason),
 	}
 
 	// If the targetNodeIdAnnocation is set, consider only that node,
@@ -344,6 +347,12 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		if priority > req.Priority {
 			break
 		}
+
+		// Reset NumExcludedNodesByReason to avoid double-counting nodes
+		// (since we may consider all nodes at each priority).
+		pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
+
+		// To to find a node at this priority.
 		node, err := nodeDb.selectNodeForPodAtPriority(txn, pctx, priority, req)
 		if err != nil {
 			return nil, err
@@ -370,6 +379,9 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	priority int32,
 	req *schedulerobjects.PodRequirements,
 ) (*schedulerobjects.Node, error) {
+	// So we can later reset pctx.NumExcludedNodesByReason if necessary.
+	numExcludedNodesByReason := maps.Clone(pctx.NumExcludedNodesByReason)
+
 	// First try to schedule onto a node with jobs only from this queue.
 	queue, err := QueueFromPodRequirements(req)
 	if err != nil {
@@ -409,6 +421,10 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	}
 
 	// Finally, try to schedule onto any node.
+	// Reset NumExcludedNodesByReason to avoid double-counting nodes
+	// (this step may consider nodes again).
+	// TODO: We could avoid needing to reset by having a smarter iterator.
+	pctx.NumExcludedNodesByReason = numExcludedNodesByReason
 	if it, err := NewNodeTypesResourceIterator(
 		txn,
 		NodeDominantQueueWildcard, 0,
@@ -641,18 +657,12 @@ func valueFromPodRequirements(req *schedulerobjects.PodRequirements, key string)
 	return v, nil
 }
 
-// NodeTypesMatchingPod returns a slice composed of all node types
-// a given pod could potentially be scheduled on.
+// NodeTypesMatchingPod returns a slice with all node types a pod could be scheduled on.
+// It also returns the number of nodes excluded by reason for exclusion.
 func (nodeDb *NodeDb) NodeTypesMatchingPod(req *schedulerobjects.PodRequirements) ([]*schedulerobjects.NodeType, map[string]int, error) {
-	return NodeTypesMatchingPod(nodeDb.nodeTypes, req)
-}
-
-// NodeTypesMatchingPod returns a slice composed of all node types
-// a given pod could potentially be scheduled on.
-func NodeTypesMatchingPod(nodeTypes map[string]*schedulerobjects.NodeType, req *schedulerobjects.PodRequirements) ([]*schedulerobjects.NodeType, map[string]int, error) {
 	selectedNodeTypes := make([]*schedulerobjects.NodeType, 0)
-	numNodeTypesExcludedByReason := make(map[string]int)
-	for _, nodeType := range nodeTypes {
+	numExcludedNodesByReason := make(map[string]int)
+	for _, nodeType := range nodeDb.nodeTypes {
 		matches, reason, err := nodeType.PodRequirementsMet(req)
 		if err != nil {
 			return nil, nil, err
@@ -660,12 +670,12 @@ func NodeTypesMatchingPod(nodeTypes map[string]*schedulerobjects.NodeType, req *
 		if matches {
 			selectedNodeTypes = append(selectedNodeTypes, nodeType)
 		} else if reason != nil {
-			numNodeTypesExcludedByReason[reason.String()] += 1
+			numExcludedNodesByReason[reason.String()] += nodeDb.numNodesByNodeType[nodeType.Id]
 		} else {
-			numNodeTypesExcludedByReason["unknown reason"] += 1
+			numExcludedNodesByReason["unknown"] += nodeDb.numNodesByNodeType[nodeType.Id]
 		}
 	}
-	return selectedNodeTypes, numNodeTypesExcludedByReason, nil
+	return selectedNodeTypes, numExcludedNodesByReason, nil
 }
 
 func (nodeDb *NodeDb) dominantResource(req *schedulerobjects.PodRequirements) string {
@@ -752,6 +762,7 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node)
 	nodeDb.mu.Lock()
 	if isNewNode {
 		nodeDb.numNodes++
+		nodeDb.numNodesByNodeType[nodeType.Id]++
 		nodeDb.totalResources.Add(node.TotalResources)
 	}
 	nodeDb.nodeTypes[nodeType.Id] = nodeType
