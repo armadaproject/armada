@@ -3,7 +3,7 @@
 Here, we show how to setup Armada for local development.
 
 **Prerequisites:**
-* Golang >= 1.18 [https://golang.org/doc/install](https://golang.org/doc/install)
+* Golang >= 1.20 [https://golang.org/doc/install](https://golang.org/doc/install)
 * `kubectl` [https://kubernetes.io/docs/tasks/tools/install-kubectl/](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 * `mage` [https://magefile.org/](https://magefile.org/)
 * Docker installed and configured for the current user [https://docs.docker.com/engine/install/](https://docs.docker.com/engine/install/)

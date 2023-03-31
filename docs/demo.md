@@ -12,7 +12,7 @@ The Armada UI (lookout) can be found at this URL:
 ## Local prerequisites
 
 - Git
-- Go 1.18
+- Go 1.20
 
 ## Obtain the armada source
 Clone [this](https://github.com/armadaproject/armada) repository:

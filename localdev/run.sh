@@ -10,7 +10,7 @@ command=${1:-default}
 
 echo "Starting debug compose environment"
 
-docker build -t golang:1.18-delve .
+docker build -t golang:1.20-delve .
 
 # Check that mage is installed
 mage --help &> /dev/null

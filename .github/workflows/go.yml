@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go: [ '1.18' ]
+        go: [ '1.20' ]
     steps:
       - uses: actions/checkout@v3
       - name: Install Protoc
@@ -48,7 +48,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        go: [ '1.18' ]
+        go: [ '1.20' ]
     steps:
       - uses: actions/checkout@v3
       - uses: ./.github/workflows/go-setup
