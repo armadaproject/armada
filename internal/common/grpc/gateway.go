@@ -30,6 +30,7 @@ func CreateGatewayHandler(
 	spec string,
 	handlers ...func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error,
 ) (shutdown func()) {
+	var err error
 	connectionCtx, cancelConnectionCtx := context.WithCancel(context.Background())
 
 	grpcAddress := fmt.Sprintf(":%d", grpcPort)

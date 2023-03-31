@@ -3,6 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/propagation"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/backoff"
 	"net/http"
 	"os"
 	"os/signal"
@@ -15,7 +19,6 @@ import (
 	"github.com/uptrace/opentelemetry-go-extra/otellogrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
@@ -44,23 +47,6 @@ func init() {
 func main() {
 	common.ConfigureLogging()
 	common.BindCommandlineArguments()
-
-	exp, err := newExporter("http://localhost:14268/api/traces")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	tp := trace.NewTracerProvider(
-		trace.WithSampler(trace.AlwaysSample()),
-		trace.WithSpanProcessor(trace.NewBatchSpanProcessor(exp)),
-		trace.WithResource(newResource()),
-	)
-	defer func() {
-		if err := tp.Shutdown(context.Background()); err != nil {
-			log.Fatal(err)
-		}
-	}()
-	otel.SetTracerProvider(tp)
 
 	log.AddHook(otellogrus.NewHook(otellogrus.WithLevels(
 		log.PanicLevel,
@@ -117,6 +103,38 @@ func main() {
 	)
 	defer shutdownGateway()
 
+	traceExporter, err := otlptracegrpc.New(
+		ctx,
+		otlptracegrpc.WithInsecure(),
+		otlptracegrpc.WithEndpoint("collector-endpoint.svc.local:50052"),
+		otlptracegrpc.WithDialOption(
+			grpc.WithConnectParams(grpc.ConnectParams{
+				Backoff: backoff.Config{
+					BaseDelay:  1 * time.Second,
+					Multiplier: 1.6,
+					MaxDelay:   15 * time.Second,
+				},
+				MinConnectTimeout: 0,
+			}),
+		),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	tp := trace.NewTracerProvider(
+		trace.WithSampler(trace.AlwaysSample()),
+		trace.WithSpanProcessor(trace.NewBatchSpanProcessor(traceExporter)),
+		trace.WithResource(newResource()),
+	)
+	defer func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			log.Fatal(err)
+		}
+	}()
+	otel.SetTracerProvider(tp)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+
 	// start HTTP server
 	// TODO: Run in errgroup
 	shutdownHttpServer := common.ServeHttp(config.HttpPort, mux)
@@ -136,10 +154,6 @@ func main() {
 	if err := g.Wait(); err != nil {
 		logging.WithStacktrace(log.NewEntry(log.StandardLogger()), err).Error("Armada server shut down")
 	}
-}
-
-func newExporter(url string) (trace.SpanExporter, error) {
-	return jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(url)))
 }
 
 // newResource returns a resource describing this application.
