@@ -41,6 +41,7 @@ import { columnIsAggregatable, useFetchJobsTableData } from "hooks/useJobsTableD
 import _ from "lodash"
 import { JobTableRow, isJobGroupRow, JobRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobId } from "models/lookoutV2Models"
+import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGetRunErrorService } from "services/lookoutV2/GetRunErrorService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
@@ -58,30 +59,35 @@ import { fromRowId, RowId } from "utils/reactTableUtils"
 
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
+import { ILogService } from "../../services/lookoutV2/LogService"
 import styles from "./JobsTableContainer.module.css"
 
 const PAGE_SIZE_OPTIONS = [5, 25, 50, 100]
 
 interface JobsTableContainerProps {
-  jobsTablePreferencesService: JobsTablePreferencesService
   getJobsService: IGetJobsService
   groupJobsService: IGroupJobsService
   updateJobsService: UpdateJobsService
   runErrorService: IGetRunErrorService
   jobSpecService: IGetJobSpecService
+  logService: ILogService
   debug: boolean
 }
 export const JobsTableContainer = ({
-  jobsTablePreferencesService,
   getJobsService,
   groupJobsService,
   updateJobsService,
   runErrorService,
   jobSpecService,
+  logService,
   debug,
 }: JobsTableContainerProps) => {
   const openSnackbar = useCustomSnackbar()
 
+  const location = useLocation()
+  const navigate = useNavigate()
+  const params = useParams()
+  const jobsTablePreferencesService = useMemo(() => new JobsTablePreferencesService({ location, navigate, params }), [])
   const initialPrefs = useMemo(() => jobsTablePreferencesService.getUserPrefs(), [])
 
   // Columns
@@ -314,13 +320,13 @@ export const JobsTableContainer = ({
     [columnSizing],
   )
 
-  const onJobRowClick = useCallback((jobRow: JobRow) => {
+  const onJobRowClick = (jobRow: JobRow) => {
     const clickedJob = jobRow as Job
     const jobId = clickedJob.jobId
     // Deselect if clicking on a job row that's already shown in the sidebar
     setSidebarJobId(jobId === sidebarJobId ? undefined : jobId)
-  }, [])
-  const onSideBarClose = useCallback(() => setSidebarJobId(undefined), [])
+  }
+  const onSideBarClose = () => setSidebarJobId(undefined)
 
   const selectedItemsFilters: JobFilter[][] = useMemo(() => {
     return Object.keys(selectedRows).map((rowId) => {
@@ -462,6 +468,7 @@ export const JobsTableContainer = ({
           job={sidebarJobDetails}
           runErrorService={runErrorService}
           jobSpecService={jobSpecService}
+          logService={logService}
           sidebarWidth={sidebarWidth}
           onClose={onSideBarClose}
           onWidthChange={setSidebarWidth}
@@ -479,6 +486,7 @@ interface JobsTableBodyProps {
   onLoadMoreSubRows: (rowId: RowId, skip: number) => void
   onClickJobRow: (row: JobRow) => void
 }
+
 const JobsTableBody = ({
   dataIsLoading,
   columns,

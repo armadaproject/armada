@@ -20,7 +20,7 @@ services:
   #
   server:
     container_name: server
-    image: golang:1.18-delve
+    image: golang:1.20-delve
     networks:
       - kind
     ports:
@@ -37,7 +37,7 @@ services:
 
   lookout:
     container_name: lookout
-    image: golang:1.18-delve
+    image: golang:1.20-delve
     networks:
       - kind
     ports:
@@ -58,7 +58,7 @@ services:
 
   lookoutv2:
     container_name: lookoutv2
-    image: golang:1.18-delve
+    image: golang:1.20-delve
     networks:
       - kind
     ports:
@@ -77,7 +77,7 @@ services:
 
   executor:
     container_name: executor
-    image: golang:1.18-delve
+    image: golang:1.20-delve
     networks:
       - kind
     ports:
@@ -99,7 +99,7 @@ services:
 
   binoculars:
     container_name: binoculars
-    image: golang:1.18-delve
+    image: golang:1.20-delve
     networks:
       - kind
     ports:
@@ -119,7 +119,7 @@ services:
 
   jobservice:
     container_name: jobservice
-    image: golang:1.18-delve
+    image: golang:1.20-delve
     networks:
       - kind
     ports:
@@ -138,7 +138,7 @@ services:
 
   lookout-ingester:
     container_name: lookout-ingester
-    image: golang:1.18-delve
+    image: golang:1.20-delve
     networks:
       - kind
     ports:
@@ -152,7 +152,7 @@ services:
 
   lookout-ingesterv2:
     container_name: lookout-ingesterv2
-    image: golang:1.18-delve
+    image: golang:1.20-delve
     networks:
       - kind
     ports:
@@ -168,7 +168,7 @@ services:
 
   event-ingester:
     container_name: event-ingester
-    image: golang:1.18-delve
+    image: golang:1.20-delve
     networks:
       - kind
     ports:

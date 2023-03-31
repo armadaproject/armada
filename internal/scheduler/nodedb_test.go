@@ -94,7 +94,7 @@ func TestSelectNodeForPod_TargetNodeIdAnnotation_Failure(t *testing.T) {
 			continue
 		}
 		assert.Nil(t, report.Node)
-		assert.Equal(t, 0, len(report.NumExcludedNodesByReason))
+		assert.Equal(t, 1, len(report.NumExcludedNodesByReason))
 	}
 }
 

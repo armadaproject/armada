@@ -70,6 +70,10 @@ func TestConvertSequence(t *testing.T) {
 				}),
 			}}},
 		},
+		"ignores duplicate submit": {
+			events:   []*armadaevents.EventSequence_Event{f.SubmitDuplicate},
+			expected: []DbOperation{},
+		},
 		"job run leased": {
 			events: []*armadaevents.EventSequence_Event{f.Leased},
 			expected: []DbOperation{InsertRuns{f.RunIdUuid: &schedulerdb.Run{
