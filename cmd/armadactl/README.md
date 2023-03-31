@@ -2,34 +2,6 @@
 
 Armadactl is a command-line tool used for managing jobs in the Armada workload orchestration system. It provides functionality for creating, updating, and deleting jobs, as well as monitoring job status and resource usage.
 
-## Pre-requisites
-- Git
-- Docker
-- Helm v3.5+
-- Kind v0.11.1+
-- Kubectl
-
-## Installation
-To install Armada, follow these steps:
-
-- Clone this repository:
-```bash
-git clone https://github.com/armadaproject/armada.git
-cd armada
-```
-- To install Armada and all its dependencies you can use this script:
-```bash
-./docs/local/setup.sh
-```
-- Likewise you can remove the Armada components from your system:
-```bash
-./docs/local/destroy.sh
-```
-- To check that Armada is installed properly use:
-```bash
-armada version
-```
-
 ## Usage
 Once Armadactl is successfully installed, you can use it to execute Armada subcommands by running the following command:
 ```bash
