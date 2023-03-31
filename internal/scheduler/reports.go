@@ -223,6 +223,8 @@ func extractQueueAndJobContexts(sctx *SchedulingContext) (map[string]*QueueSched
 	return queueSchedulingContextByQueue, jobSchedulingContextByJobId
 }
 
+// GetSchedulingReport is a gRPC endpoint for querying scheduler reports.
+// TODO: Further separate this from internal contexts.
 func (repo *SchedulingContextRepository) GetSchedulingReport(_ context.Context, _ *types.Empty) (*schedulerobjects.SchedulingReport, error) {
 	return &schedulerobjects.SchedulingReport{
 		Report: repo.getSchedulingReportString(),
@@ -256,6 +258,8 @@ func (repo *SchedulingContextRepository) getSchedulingReportString() string {
 	return sb.String()
 }
 
+// GetQueueReport is a gRPC endpoint for querying queue reports.
+// TODO: Further separate this from internal contexts.
 func (repo *SchedulingContextRepository) GetQueueReport(_ context.Context, queue *schedulerobjects.Queue) (*schedulerobjects.QueueReport, error) {
 	queueName := strings.TrimSpace(queue.Name)
 	return &schedulerobjects.QueueReport{
@@ -290,6 +294,8 @@ func (repo *SchedulingContextRepository) getQueueReportString(queue string) stri
 	return sb.String()
 }
 
+// GetJobReport is a gRPC endpoint for querying job reports.
+// TODO: Further separate this from internal contexts.
 func (repo *SchedulingContextRepository) GetJobReport(_ context.Context, jobId *schedulerobjects.JobId) (*schedulerobjects.JobReport, error) {
 	key := strings.TrimSpace(jobId.Id)
 	if _, err := ulid.Parse(key); err != nil {
