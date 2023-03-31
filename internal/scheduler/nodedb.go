@@ -227,71 +227,70 @@ func NodeJobDiff(txnA, txnB *memdb.Txn) (map[string]*schedulerobjects.Node, map[
 func (nodeDb *NodeDb) ScheduleMany(reqs []*schedulerobjects.PodRequirements) ([]*PodSchedulingContext, bool, error) {
 	txn := nodeDb.db.Txn(true)
 	defer txn.Abort()
-	reports, ok, err := nodeDb.ScheduleManyWithTxn(txn, reqs)
+	pctxs, ok, err := nodeDb.ScheduleManyWithTxn(txn, reqs)
 	if ok && err == nil {
 		// All pods can be scheduled; commit the transaction.
 		txn.Commit()
 	}
-	return reports, ok, err
+	return pctxs, ok, err
 }
 
 func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, reqs []*schedulerobjects.PodRequirements) ([]*PodSchedulingContext, bool, error) {
 	// Attempt to schedule pods one by one in a transaction.
-	reports := make([]*PodSchedulingContext, 0, len(reqs))
+	pctxs := make([]*PodSchedulingContext, 0, len(reqs))
 	for _, req := range reqs {
-		report, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
+		pctx, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
 		if err != nil {
 			return nil, false, err
 		}
-		reports = append(reports, report)
+		pctxs = append(pctxs, pctx)
 
 		// If we found a node for this pod, bind it and continue to the next pod.
 		//
-		// Otherwise, zero out the node binding in all previous reports,
-		// abort the transaction, and return.
-		if report.Node != nil {
-			if node, err := BindPodToNode(req, report.Node); err != nil {
+		// Otherwise, zero out the node binding for all pods and abort the transaction.
+		if pctx.Node != nil {
+			if node, err := BindPodToNode(req, pctx.Node); err != nil {
 				return nil, false, err
 			} else {
 				if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
 					return nil, false, err
 				}
-				report.Node = node
+				pctx.Node = node
 			}
 		} else {
-			return reports, false, nil
+			return pctxs, false, nil
 		}
 	}
-	return reports, true, nil
+	return pctxs, true, nil
 }
 
 func (nodeDb *NodeDb) SelectAndBindNodeToPod(req *schedulerobjects.PodRequirements) (*PodSchedulingContext, error) {
 	txn := nodeDb.db.Txn(true)
 	defer txn.Abort()
-	report, err := nodeDb.SelectAndBindNodeToPodWithTxn(txn, req)
+	pctx, err := nodeDb.SelectAndBindNodeToPodWithTxn(txn, req)
 	if err != nil {
 		return nil, err
 	}
 	txn.Commit()
-	return report, nil
+	return pctx, nil
 }
 
 func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*PodSchedulingContext, error) {
-	report, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
+	pctx, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
 	if err != nil {
 		return nil, err
 	}
-	if report.Node != nil {
-		if node, err := BindPodToNode(req, report.Node); err != nil {
+	if pctx.Node != nil {
+		if node, err := BindPodToNode(req, pctx.Node); err != nil {
 			return nil, err
 		} else {
 			if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
 				return nil, err
 			}
-			report.Node = node
+			pctx.Node = node
 		}
 	}
-	return report, nil
+	return pctx, nil
 }
 
 func (nodeDb *NodeDb) SelectNodeForPod(req *schedulerobjects.PodRequirements) (*PodSchedulingContext, error) {
@@ -314,8 +313,8 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		return nil, errors.Errorf("requests include no indexed resource: %v", req.ResourceRequirements.Requests)
 	}
 
-	// Create a report to be returned to the caller.
-	report := &PodSchedulingContext{
+	// Create a pctx to be returned to the caller.
+	pctx := &PodSchedulingContext{
 		Created:                      time.Now(),
 		Req:                          req,
 		DominantResourceType:         dominantResourceType,
@@ -330,10 +329,10 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		if it, err := txn.Get("nodes", "id", nodeId); err != nil {
 			return nil, errors.WithStack(err)
 		} else {
-			if _, err := nodeDb.selectNodeForPodWithIt(report, it, req.Priority, req); err != nil {
+			if _, err := nodeDb.selectNodeForPodWithIt(pctx, it, req.Priority, req); err != nil {
 				return nil, err
 			} else {
-				return report, nil
+				return pctx, nil
 			}
 		}
 	}
@@ -345,29 +344,29 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		if priority > req.Priority {
 			break
 		}
-		node, err := nodeDb.selectNodeForPodAtPriority(txn, report, priority, req)
+		node, err := nodeDb.selectNodeForPodAtPriority(txn, pctx, priority, req)
 		if err != nil {
 			return nil, err
 		}
 		if node != nil {
-			if report.Node == nil {
-				return nil, errors.New("report.Node not set")
+			if pctx.Node == nil {
+				return nil, errors.New("pctx.Node not set")
 			}
-			if node.Id != report.Node.Id {
-				return nil, errors.New("report.Node.Id does not match that of the returned node")
+			if node.Id != pctx.Node.Id {
+				return nil, errors.New("pctx.Node.Id does not match that of the returned node")
 			}
-			return report, nil
-		} else if report.Node != nil {
-			return nil, errors.New("report.Node is set, but no node was returned")
+			return pctx, nil
+		} else if pctx.Node != nil {
+			return nil, errors.New("pctx.Node is set, but no node was returned")
 		}
 	}
 
-	return report, nil
+	return pctx, nil
 }
 
 func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	txn *memdb.Txn,
-	report *PodSchedulingContext,
+	pctx *PodSchedulingContext,
 	priority int32,
 	req *schedulerobjects.PodRequirements,
 ) (*schedulerobjects.Node, error) {
@@ -379,13 +378,13 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	if it, err := NewNodeTypesResourceIterator(
 		txn,
 		queue, 1,
-		report.DominantResourceType, priority,
-		report.MatchingNodeTypes,
-		req.ResourceRequirements.Requests[v1.ResourceName(report.DominantResourceType)],
+		pctx.DominantResourceType, priority,
+		pctx.MatchingNodeTypes,
+		req.ResourceRequirements.Requests[v1.ResourceName(pctx.DominantResourceType)],
 	); err != nil {
 		return nil, err
 	} else {
-		if node, err := nodeDb.selectNodeForPodWithIt(report, it, priority, req); err != nil {
+		if node, err := nodeDb.selectNodeForPodWithIt(pctx, it, priority, req); err != nil {
 			return nil, err
 		} else if node != nil {
 			return node, nil
@@ -396,13 +395,13 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	if it, err := NewNodeTypesResourceIterator(
 		txn,
 		"", 0,
-		report.DominantResourceType, priority,
-		report.MatchingNodeTypes,
-		req.ResourceRequirements.Requests[v1.ResourceName(report.DominantResourceType)],
+		pctx.DominantResourceType, priority,
+		pctx.MatchingNodeTypes,
+		req.ResourceRequirements.Requests[v1.ResourceName(pctx.DominantResourceType)],
 	); err != nil {
 		return nil, err
 	} else {
-		if node, err := nodeDb.selectNodeForPodWithIt(report, it, priority, req); err != nil {
+		if node, err := nodeDb.selectNodeForPodWithIt(pctx, it, priority, req); err != nil {
 			return nil, err
 		} else if node != nil {
 			return node, nil
@@ -413,13 +412,13 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	if it, err := NewNodeTypesResourceIterator(
 		txn,
 		NodeDominantQueueWildcard, 0,
-		report.DominantResourceType, priority,
-		report.MatchingNodeTypes,
-		req.ResourceRequirements.Requests[v1.ResourceName(report.DominantResourceType)],
+		pctx.DominantResourceType, priority,
+		pctx.MatchingNodeTypes,
+		req.ResourceRequirements.Requests[v1.ResourceName(pctx.DominantResourceType)],
 	); err != nil {
 		return nil, err
 	} else {
-		if node, err := nodeDb.selectNodeForPodWithIt(report, it, priority, req); err != nil {
+		if node, err := nodeDb.selectNodeForPodWithIt(pctx, it, priority, req); err != nil {
 			return nil, err
 		} else if node != nil {
 			return node, nil
@@ -430,7 +429,7 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 }
 
 func (nodeDb *NodeDb) selectNodeForPodWithIt(
-	report *PodSchedulingContext,
+	pctx *PodSchedulingContext,
 	it memdb.ResultIterator,
 	priority int32,
 	req *schedulerobjects.PodRequirements,
@@ -455,7 +454,7 @@ func (nodeDb *NodeDb) selectNodeForPodWithIt(
 				}
 			}
 		} else {
-			report.NumExcludedNodesByReason[reason.String()] += 1
+			pctx.NumExcludedNodesByReason[reason.String()] += 1
 		}
 		if selectedNode != nil {
 			numConsideredNodes++
@@ -464,8 +463,8 @@ func (nodeDb *NodeDb) selectNodeForPodWithIt(
 			}
 		}
 	}
-	report.Node = selectedNode
-	report.Score = selectedNodeScore
+	pctx.Node = selectedNode
+	pctx.Score = selectedNodeScore
 	return selectedNode, nil
 }
 
