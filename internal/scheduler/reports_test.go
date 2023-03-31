@@ -247,5 +247,8 @@ func withUnsuccessfulJobSchedulingContext(sctx *SchedulingContext, queue, jobId 
 }
 
 func testSchedulingContext(executorId string) *SchedulingContext {
-	return NewSchedulingContext(executorId, schedulerobjects.ResourceList{}, nil, nil)
+	sctx := NewSchedulingContext(executorId, schedulerobjects.ResourceList{}, nil, nil)
+	sctx.Started = time.Time{}
+	sctx.Finished = time.Time{}
+	return sctx
 }
