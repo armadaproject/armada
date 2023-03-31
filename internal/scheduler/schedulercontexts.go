@@ -312,9 +312,9 @@ func (pctx *PodSchedulingContext) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	if pctx.Node != nil {
-		fmt.Fprintf(w, "Assigned node:\t%s\n", pctx.Node.Id)
+		fmt.Fprintf(w, "Node:\t%s\n", pctx.Node.Id)
 	} else {
-		fmt.Fprint(w, "Assigned node:\tnone\n")
+		fmt.Fprint(w, "Node:\tnone\n")
 	}
 	requestForDominantResourceType := pctx.Req.ResourceRequirements.Requests[v1.ResourceName(pctx.DominantResourceType)]
 	fmt.Fprintf(
@@ -324,7 +324,7 @@ func (pctx *PodSchedulingContext) String() string {
 		pctx.DominantResourceType,
 		pctx.Req.Priority,
 	)
-	if len(pctx.NumExcludedNodesByReason) == 0 && requestForDominantResourceType.IsZero() {
+	if len(pctx.NumExcludedNodesByReason) == 0 {
 		fmt.Fprint(w, "Excluded nodes:\tnone\n")
 	} else {
 		fmt.Fprint(w, "Excluded nodes:\n")

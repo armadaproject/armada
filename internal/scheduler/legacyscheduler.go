@@ -1188,7 +1188,7 @@ func (sch *LegacyScheduler) Schedule(ctx context.Context) (*SchedulerResult, err
 		if !ok {
 			if len(jctxs) > 0 {
 				for _, jctx := range jctxs {
-					jctx.UnschedulableReason = "at least one pod in the gang did not fit on any Node"
+					jctx.UnschedulableReason = "at least one pod in the gang did not fit on any node"
 				}
 			} else {
 				for _, jctx := range jctxs {
