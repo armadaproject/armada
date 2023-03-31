@@ -326,6 +326,27 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		NumExcludedNodesByReason: maps.Clone(numExcludedNodesByReason),
 	}
 
+	// For pods that failed to schedule, add an exclusion reason for implicitly excluded nodes.
+	defer func() {
+		if pctx.Node != nil {
+			return
+		}
+		numExplicitlyExcludedNodes := 0
+		for _, count := range pctx.NumExcludedNodesByReason {
+			numExplicitlyExcludedNodes += count
+		}
+		numImplicitlyExcludedNodes := pctx.NumNodes - numExplicitlyExcludedNodes
+		if numImplicitlyExcludedNodes > 0 {
+			requestForDominantResourceType := req.ResourceRequirements.Requests[v1.ResourceName(dominantResourceType)]
+			reason := fmt.Sprintf(
+				"less than %s %s available",
+				requestForDominantResourceType.String(),
+				pctx.DominantResourceType,
+			)
+			pctx.NumExcludedNodesByReason[reason] += numImplicitlyExcludedNodes
+		}
+	}()
+
 	// If the targetNodeIdAnnocation is set, consider only that node,
 	// and schedule onto that node even if it requires preempting other jobs.
 	if nodeId, ok := req.Annotations[TargetNodeIdAnnotation]; ok {

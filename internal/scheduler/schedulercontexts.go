@@ -328,19 +328,6 @@ func (pctx *PodSchedulingContext) String() string {
 		fmt.Fprint(w, "Excluded nodes:\tnone\n")
 	} else {
 		fmt.Fprint(w, "Excluded nodes:\n")
-		numExplicitlyExcludedNodes := 0
-		for _, count := range pctx.NumExcludedNodesByReason {
-			numExplicitlyExcludedNodes += count
-		}
-		numImplicitlyExcludedNodes := pctx.NumNodes - numExplicitlyExcludedNodes
-		if numImplicitlyExcludedNodes > 0 {
-			reason := fmt.Sprintf(
-				"less than %s %s available",
-				requestForDominantResourceType.String(),
-				pctx.DominantResourceType,
-			)
-			fmt.Fprintf(w, "\t%d:\t%s\n", numImplicitlyExcludedNodes, reason)
-		}
 		for reason, count := range pctx.NumExcludedNodesByReason {
 			fmt.Fprintf(w, "\t%d:\t%s\n", count, reason)
 		}

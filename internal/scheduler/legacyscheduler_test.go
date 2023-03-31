@@ -1042,7 +1042,7 @@ func TestSchedule(t *testing.T) {
 					// assert.True(t, expected.Equal(actual), "expected %v, but got %v", expected, actual)
 				}
 
-				// Check that the scheduling context contains contets for all queues and jobs.
+				// Check that the scheduling context includes all queues and jobs.
 				assert.Equal(
 					t,
 					len(tc.PriorityFactorByQueue),
@@ -1083,6 +1083,26 @@ func TestSchedule(t *testing.T) {
 						}
 						if !assert.NotNil(t, jctx) {
 							continue
+						}
+					}
+
+					// For jobs that could not be scheduled,
+					// check that the number of excluded nodes equals the total number of nodes.
+					for _, qctx := range result.SchedulingContext.QueueSchedulingContexts {
+						for _, jctx := range qctx.UnsuccessfulJobSchedulingContexts {
+							for _, pctx := range jctx.PodSchedulingContexts {
+								if pctx.Node != nil {
+									// To avoid checking pod scheduling contexts for gang jobs that succeeded
+									// (we include these in failed job scheduling contexts).
+									continue
+								}
+								assert.Equal(t, nodeDb.numNodes, pctx.NumNodes)
+								numExcludedNodes := 0
+								for _, count := range pctx.NumExcludedNodesByReason {
+									numExcludedNodes += count
+								}
+								assert.Equal(t, nodeDb.numNodes, numExcludedNodes)
+							}
 						}
 					}
 				}
