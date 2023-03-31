@@ -67,17 +67,3 @@ armadactl getJobSchedulingReport
 ```
 
 For a full list of subcommands and options, you can run **armadactl --help**.
-
-## Configuration
-Armadactl can be customized using a configuration file. By default, Armadactl looks for a file named **config.yaml** in the user's home directory. Here is an example configuration file:
-
- ```yaml
-armada:
-    namespace: armada
-    tiller_namespace: kube-system
-    tiller_host: localhost:44134
-    helm:
-        timeout: 300
-    manifests:
-        path: /etc/armada
-```
