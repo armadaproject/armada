@@ -61,12 +61,13 @@ type InsufficientResources struct {
 }
 
 func (err *InsufficientResources) String() string {
-	return fmt.Sprintf(
-		"pod requires %s %s, but only %s is available",
-		err.Required.String(),
-		err.Resource,
-		err.Available.String(),
-	)
+	// Note that the below is much faster than fmt.Sprintf().
+	// This is important as this gets called in a tight loop
+	return "pod requires " + err.Required.String() + " " + err.Resource + ", but only " +
+		err.Available.String() + " is available"
+
+	// TODO: this would be even faster
+	//return "insufficient " + err.Resource
 }
 
 // PodRequirementsMet determines whether a pod can be scheduled on nodes of this NodeType.
