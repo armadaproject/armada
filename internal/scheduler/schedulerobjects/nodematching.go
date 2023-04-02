@@ -67,7 +67,7 @@ func (err *InsufficientResources) String() string {
 		err.Available.String() + " is available"
 
 	// TODO: this would be even faster
-	//return "insufficient " + err.Resource
+	// return "insufficient " + err.Resource
 }
 
 // PodRequirementsMet determines whether a pod can be scheduled on nodes of this NodeType.
