@@ -3,6 +3,8 @@ package main
 import (
 	"os"
 	"time"
+
+	"github.com/magefile/mage/mg"
 )
 
 func ciSetup() error {
@@ -13,6 +15,8 @@ func ciSetup() error {
 	if err != nil {
 		return err
 	}
+
+	mg.Deps(CheckForPulsarRunning)
 
 	// TODO: Necessary to avoid connection error on Armada server startup.
 	time.Sleep(10 * time.Second)
