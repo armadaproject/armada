@@ -54,4 +54,10 @@ jobs:
             docker tag $img:latest $remote
             echo "Pushing $img to Docker Hub $remote"
             docker push $remote
+
+            TAG="latest"
+            remote="gresearch/${uploads[$img]}:${TAG}"
+            docker tag $img:latest $remote
+            echo "Pushing $img to Docker Hub $remote"
+            docker push $remote
           done
