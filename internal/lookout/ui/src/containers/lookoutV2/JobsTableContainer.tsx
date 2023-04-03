@@ -30,6 +30,8 @@ import {
   ColumnFiltersState,
   SortingState,
   VisibilityState,
+  ColumnResizeMode,
+  ColumnSizingState,
 } from "@tanstack/react-table"
 import { JobsTableActionBar } from "components/lookoutV2/JobsTableActionBar"
 import { HeaderCell } from "components/lookoutV2/JobsTableCell"
@@ -39,6 +41,7 @@ import { columnIsAggregatable, useFetchJobsTableData } from "hooks/useJobsTableD
 import _ from "lodash"
 import { JobTableRow, isJobGroupRow, JobRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobId } from "models/lookoutV2Models"
+import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGetRunErrorService } from "services/lookoutV2/GetRunErrorService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
@@ -55,29 +58,37 @@ import {
 import { fromRowId, RowId } from "utils/reactTableUtils"
 
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
+import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
+import { ILogService } from "../../services/lookoutV2/LogService"
 import styles from "./JobsTableContainer.module.css"
 
 const PAGE_SIZE_OPTIONS = [5, 25, 50, 100]
 
 interface JobsTableContainerProps {
-  jobsTablePreferencesService: JobsTablePreferencesService
   getJobsService: IGetJobsService
   groupJobsService: IGroupJobsService
   updateJobsService: UpdateJobsService
   runErrorService: IGetRunErrorService
+  jobSpecService: IGetJobSpecService
+  logService: ILogService
   debug: boolean
 }
 export const JobsTableContainer = ({
-  jobsTablePreferencesService,
   getJobsService,
   groupJobsService,
   updateJobsService,
   runErrorService,
+  jobSpecService,
+  logService,
   debug,
 }: JobsTableContainerProps) => {
   const openSnackbar = useCustomSnackbar()
 
-  const initialPrefs = useMemo(() => jobsTablePreferencesService.getInitialUserPrefs(), [])
+  const location = useLocation()
+  const navigate = useNavigate()
+  const params = useParams()
+  const jobsTablePreferencesService = useMemo(() => new JobsTablePreferencesService({ location, navigate, params }), [])
+  const initialPrefs = useMemo(() => jobsTablePreferencesService.getUserPrefs(), [])
 
   // Columns
   const [allColumns, setAllColumns] = useState<JobTableColumn[]>(initialPrefs.allColumnsInfo)
@@ -89,6 +100,8 @@ export const JobsTableContainer = ({
         .filter((colId) => columnVisibility[colId]),
     [columnVisibility],
   )
+  const columnResizeMode = useMemo(() => "onChange" as ColumnResizeMode, [])
+  const [columnSizing, setColumnSizing] = useState<ColumnSizingState>(initialPrefs.columnSizing ?? {})
 
   // Grouping
   const [grouping, setGrouping] = useState<ColumnId[]>(initialPrefs.groupedColumns)
@@ -99,6 +112,7 @@ export const JobsTableContainer = ({
   // Selecting
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({})
   const [sidebarJobId, setSidebarJobId] = useState<JobId | undefined>(initialPrefs.sidebarJobId)
+  const [sidebarWidth, setSidebarWidth] = useState<number>(initialPrefs.sidebarWidth ?? 600)
 
   // Pagination
   const [pagination, setPagination] = useState<PaginationState>({
@@ -162,10 +176,12 @@ export const JobsTableContainer = ({
       pageIndex,
       pageSize,
       sortingState: sorting,
+      columnSizing: columnSizing,
       filterState: columnFilterState,
       allColumnsInfo: allColumns,
       visibleColumns: columnVisibility,
       sidebarJobId: sidebarJobId,
+      sidebarWidth: sidebarWidth,
     })
   }, [
     grouping,
@@ -173,11 +189,13 @@ export const JobsTableContainer = ({
     pageIndex,
     pageSize,
     sorting,
+    columnSizing,
     columnFilterState,
     allColumns,
     columnVisibility,
     selectedRows,
     sidebarJobId,
+    sidebarWidth,
   ])
 
   const onRefresh = useCallback(() => {
@@ -294,13 +312,21 @@ export const JobsTableContainer = ({
     [sorting, expanded, pageIndex, pageSize, data],
   )
 
-  const onJobRowClick = useCallback((jobRow: JobRow) => {
+  const onColumnSizingChange = useCallback(
+    (updater: Updater<ColumnSizingState>) => {
+      const newColumnSizing = updaterToValue(updater, columnSizing)
+      setColumnSizing(newColumnSizing)
+    },
+    [columnSizing],
+  )
+
+  const onJobRowClick = (jobRow: JobRow) => {
     const clickedJob = jobRow as Job
     const jobId = clickedJob.jobId
     // Deselect if clicking on a job row that's already shown in the sidebar
     setSidebarJobId(jobId === sidebarJobId ? undefined : jobId)
-  }, [])
-  const onSideBarClose = useCallback(() => setSidebarJobId(undefined), [])
+  }
+  const onSideBarClose = () => setSidebarJobId(undefined)
 
   const selectedItemsFilters: JobFilter[][] = useMemo(() => {
     return Object.keys(selectedRows).map((rowId) => {
@@ -323,10 +349,12 @@ export const JobsTableContainer = ({
       },
       columnVisibility,
       sorting,
+      columnSizing,
     },
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => row.rowId,
     getSubRows: (row) => (isJobGroupRow(row) && row.subRows) || undefined,
+    columnResizeMode: columnResizeMode,
 
     // Selection
     enableRowSelection: true,
@@ -355,6 +383,9 @@ export const JobsTableContainer = ({
 
     // Sorting
     onSortingChange: onSortingChange,
+
+    // Column resizing
+    onColumnSizingChange: onColumnSizingChange,
   })
 
   const topLevelRows = table.getRowModel().rows.filter((row) => row.depth === 0)
@@ -363,8 +394,8 @@ export const JobsTableContainer = ({
     columnsForSelect = columnsForSelect.filter((col) => col.id !== StandardColumnId.Count)
   }
   return (
-    <Box sx={{ display: "flex" }}>
-      <Box sx={{ overflowX: "auto", overflowY: "auto", margin: "0.5em" }}>
+    <Box sx={{ display: "flex", width: "100%" }}>
+      <Box sx={{ overflowX: "auto", overflowY: "auto", margin: "0.5em", width: "100%" }}>
         <JobsTableActionBar
           isLoading={rowsToFetch.length > 0}
           allColumns={columnsForSelect}
@@ -379,12 +410,24 @@ export const JobsTableContainer = ({
           updateJobsService={updateJobsService}
         />
         <TableContainer component={Paper}>
-          <Table sx={{ tableLayout: "fixed" }} aria-label="Jobs table">
+          <Table
+            sx={{ tableLayout: "fixed" }}
+            aria-label="Jobs table"
+            style={{
+              width: table.getCenterTotalSize(),
+              borderLeft: "1px solid #cccccc",
+            }}
+          >
             <TableHead>
               {table.getHeaderGroups().map((headerGroup) => (
                 <TableRow key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
-                    <HeaderCell header={header} key={header.id} />
+                    <HeaderCell
+                      header={header}
+                      key={header.id}
+                      columnResizeMode={columnResizeMode}
+                      deltaOffset={table.getState().columnSizingInfo.deltaOffset ?? 0}
+                    />
                   ))}
                 </TableRow>
               ))}
@@ -421,7 +464,15 @@ export const JobsTableContainer = ({
       </Box>
 
       {sidebarJobDetails !== undefined && (
-        <Sidebar job={sidebarJobDetails} runErrorService={runErrorService} onClose={onSideBarClose} />
+        <Sidebar
+          job={sidebarJobDetails}
+          runErrorService={runErrorService}
+          jobSpecService={jobSpecService}
+          logService={logService}
+          sidebarWidth={sidebarWidth}
+          onClose={onSideBarClose}
+          onWidthChange={setSidebarWidth}
+        />
       )}
     </Box>
   )
@@ -435,6 +486,7 @@ interface JobsTableBodyProps {
   onLoadMoreSubRows: (rowId: RowId, skip: number) => void
   onClickJobRow: (row: JobRow) => void
 }
+
 const JobsTableBody = ({
   dataIsLoading,
   columns,

@@ -18,7 +18,7 @@ def submit_sleep_job(client):
             core_v1.Container(
                 name="sleep",
                 image="alpine:latest",
-                args=["sleep", "30s"],
+                args=["sleep", "10s"],
                 resources=core_v1.ResourceRequirements(
                     requests={
                         "cpu": api_resource.Quantity(string="0.2"),
@@ -33,7 +33,11 @@ def submit_sleep_job(client):
         ],
     )
 
-    return [client.create_job_request_item(priority=0, pod_spec=pod)]
+    return [
+        client.create_job_request_item(
+            priority=0, namespace="personal-anonymous", pod_spec=pod
+        )
+    ]
 
 
 def wait_for(client: ArmadaClient, queue, job_set_id=None):

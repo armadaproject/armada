@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+
 project_name: armada
 
 dist: "dist"
@@ -114,7 +116,7 @@ archives:
       - goos: windows
         format: zip
 
-# macOS Universal Binaries-*
+# macOS Universal Binaries
 universal_binaries:
   - replace: true
     id: armadactl
@@ -131,12 +133,12 @@ env:
   # If set, BASE_IMAGE determines the base image used for all containers.
   - BASE_IMAGE_ARG={{ if index .Env "BASE_IMAGE"  }}BASE_IMAGE={{ .Env.BASE_IMAGE }}{{ else }}{{ end }}
   - DOCKER_REPO={{ if index .Env "DOCKER_REPO"  }}{{ .Env.DOCKER_REPO }}/{{ else }}gresearch/{{ end }}
-  # Goreleaser always uses the docker buildx builder with name "default"; see
+  # GoReleaser always uses the docker buildx builder with name "default"; see
   # https://github.com/goreleaser/goreleaser/pull/3199
   # To use a builder other than "default", set this variable.
-  # Necessary for, e.g., Github actions cache integration.
-  - DOCKER_BUILDX_BUILDER={{ if index .Env "DOCKER_BUILDX_BUILDER"  }}{{ .Env.DOCKER_BUILDX_BUILDER }}{{ else }}default{{ end }}
-  # Setup to enable Docker to use, e.g., the Github actions cache; see
+  # Necessary for, e.g., GitHub actions cache integration.
+  - DOCKER_BUILDX_BUILDER={{ if index .Env "DOCKER_BUILDX_BUILDER"  }}{{ .Env.DOCKER_BUILDX_BUILDER }}{{ else }}{{ end }}
+  # Setup to enable Docker to use, e.g., the GitHub actions cache; see
   # https://docs.docker.com/build/building/cache/backends/
   # https://github.com/moby/buildkit#export-cache
   - DOCKER_BUILDX_CACHE_FROM={{ if index .Env "DOCKER_BUILDX_CACHE_FROM"  }}{{ .Env.DOCKER_BUILDX_CACHE_FROM }}{{ else }}type=registry{{ end }}
@@ -149,10 +151,9 @@ dockers:
     goarch: amd64
     image_templates:
       - "{{ .Env.DOCKER_REPO }}armada:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
-      - "{{ .Env.DOCKER_REPO }}armada:latest"
     build_flag_templates:
       - --build-arg={{ .Env.BASE_IMAGE_ARG }}
-      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --context={{ .Env.DOCKER_BUILDX_BUILDER }}
       - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
       - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
       - --label=org.opencontainers.image.title=armada
@@ -172,12 +173,24 @@ dockers:
       - binoculars
       - lookoutingester
       - eventingester
+      - lookout
+      - lookoutv2
+      - lookoutingesterv2
+      - jobservice
     extra_files:
       - config/armada/config.yaml
       - config/executor/config.yaml
       - config/binoculars/config.yaml
       - config/lookoutingester/config.yaml
       - config/eventingester/config.yaml
+      - config/lookout/config.yaml
+      - config/lookoutv2/config.yaml
+      - config/lookoutingesterv2/config.yaml
+      - config/jobservice/config.yaml
+      - internal/lookout/ui/
+      - pkg/api/api.swagger.json
+      - pkg/api/lookout/api.swagger.json
+      - pkg/api/binoculars/api.swagger.json
     dockerfile: ./build_goreleaser/armada/Dockerfile
   - id: server
     use: buildx
@@ -185,10 +198,9 @@ dockers:
     goarch: amd64
     image_templates:
       - "{{ .Env.DOCKER_REPO }}armada-server:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
-      - "{{ .Env.DOCKER_REPO }}armada-server:latest"
     build_flag_templates:
       - --build-arg={{ .Env.BASE_IMAGE_ARG }}
-      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --context={{ .Env.DOCKER_BUILDX_BUILDER }}
       - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
       - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
       - --label=org.opencontainers.image.title=armada-server
@@ -213,10 +225,9 @@ dockers:
     goarch: amd64
     image_templates:
       - "{{ .Env.DOCKER_REPO }}armada-executor:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
-      - "{{ .Env.DOCKER_REPO }}armada-executor:latest"
     build_flag_templates:
       - --build-arg={{ .Env.BASE_IMAGE_ARG }}
-      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --context={{ .Env.DOCKER_BUILDX_BUILDER }}
       - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
       - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
       - --label=org.opencontainers.image.title=armada-executor
@@ -241,10 +252,9 @@ dockers:
     goarch: amd64
     image_templates:
       - "{{ .Env.DOCKER_REPO }}armada-lookoutingester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
-      - "{{ .Env.DOCKER_REPO }}armada-lookoutingester:latest"
     build_flag_templates:
       - --build-arg={{ .Env.BASE_IMAGE_ARG }}
-      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --context={{ .Env.DOCKER_BUILDX_BUILDER }}
       - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
       - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
       - --label=org.opencontainers.image.title=armada-lookoutingester
@@ -269,10 +279,9 @@ dockers:
     goarch: amd64
     image_templates:
       - "{{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
-      - "{{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:latest"
     build_flag_templates:
       - --build-arg={{ .Env.BASE_IMAGE_ARG }}
-      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --context={{ .Env.DOCKER_BUILDX_BUILDER }}
       - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
       - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
       - --label=org.opencontainers.image.title=armada-lookoutingesterv2
@@ -297,10 +306,9 @@ dockers:
     goarch: amd64
     image_templates:
       - "{{ .Env.DOCKER_REPO }}armada-lookout:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
-      - "{{ .Env.DOCKER_REPO }}armada-lookout:latest"
     build_flag_templates:
       - --build-arg={{ .Env.BASE_IMAGE_ARG }}
-      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --context={{ .Env.DOCKER_BUILDX_BUILDER }}
       - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
       - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
       - --label=org.opencontainers.image.title=armada-lookout
@@ -331,10 +339,9 @@ dockers:
     goarch: amd64
     image_templates:
       - "{{ .Env.DOCKER_REPO }}armada-lookoutv2:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
-      - "{{ .Env.DOCKER_REPO }}armada-lookoutv2:latest"
     build_flag_templates:
       - --build-arg={{ .Env.BASE_IMAGE_ARG }}
-      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --context={{ .Env.DOCKER_BUILDX_BUILDER }}
       - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
       - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
       - --label=org.opencontainers.image.title=armada-lookoutv2
@@ -361,10 +368,9 @@ dockers:
     goarch: amd64
     image_templates:
       - "{{ .Env.DOCKER_REPO }}armada-eventingester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
-      - "{{ .Env.DOCKER_REPO }}armada-eventingester:latest"
     build_flag_templates:
       - --build-arg={{ .Env.BASE_IMAGE_ARG }}
-      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --context={{ .Env.DOCKER_BUILDX_BUILDER }}
       - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
       - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
       - --label=org.opencontainers.image.title=armada-eventingester
@@ -389,10 +395,9 @@ dockers:
     goarch: amd64
     image_templates:
       - "{{ .Env.DOCKER_REPO }}armada-binoculars:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
-      - "{{ .Env.DOCKER_REPO }}armada-binoculars:latest"
     build_flag_templates:
       - --build-arg={{ .Env.BASE_IMAGE_ARG }}
-      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --context={{ .Env.DOCKER_BUILDX_BUILDER }}
       - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
       - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
       - --label=org.opencontainers.image.title=armada-binoculars
@@ -417,10 +422,9 @@ dockers:
     goarch: amd64
     image_templates:
       - "{{ .Env.DOCKER_REPO }}armada-jobservice:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
-      - "{{ .Env.DOCKER_REPO }}armada-jobservice:latest"
     build_flag_templates:
       - --build-arg={{ .Env.BASE_IMAGE_ARG }}
-      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --context={{ .Env.DOCKER_BUILDX_BUILDER }}
       - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
       - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
       - --label=org.opencontainers.image.title=armada-jobservice
@@ -445,10 +449,9 @@ dockers:
     goarch: amd64
     image_templates:
       - "{{ .Env.DOCKER_REPO }}armadactl:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
-      - "{{ .Env.DOCKER_REPO }}armadactl:latest"
     build_flag_templates:
       - --build-arg={{ .Env.BASE_IMAGE_ARG }}
-      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --context={{ .Env.DOCKER_BUILDX_BUILDER }}
       - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
       - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
       - --label=org.opencontainers.image.title=armadactl
@@ -480,28 +483,20 @@ release:
     ## Docker images
     ### Armada Bundle
     - `docker pull {{ .Env.DOCKER_REPO }}armada:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}armada:latest`
     ### Armada Server
     - `docker pull {{ .Env.DOCKER_REPO }}armada-server:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-server:latest`
     ### Armada Executor
     - `docker pull {{ .Env.DOCKER_REPO }}armada-executor:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-executor:latest`
     ### Armada Lookout Ingester
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutingester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutingester:latest`
     ### Armada Event Ingester
     - `docker pull {{ .Env.DOCKER_REPO }}armada-eventingester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-eventingester:latest`
     ### Armada Binoculars
     - `docker pull {{ .Env.DOCKER_REPO }}armada-binoculars:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-binoculars:latest`
     ### Armada Job Service
     - `docker pull {{ .Env.DOCKER_REPO }}armada-jobservice:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-jobservice:latest`
     ### Armada CLI
     - `docker pull {{ .Env.DOCKER_REPO }}armadactl:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}armadactl:latest`
 
 snapshot:
   name_template: "{{ .Tag }}"

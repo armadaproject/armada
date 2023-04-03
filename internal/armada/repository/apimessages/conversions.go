@@ -362,32 +362,45 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 	if err != nil {
 		return nil, err
 	}
-
 	events := make([]*api.EventMessage, 0)
 	for _, msgErr := range e.GetErrors() {
-		if msgErr.Terminal {
-			switch reason := msgErr.Reason.(type) {
-			case *armadaevents.Error_PodError:
-				event := &api.EventMessage{
-					Events: &api.EventMessage_Failed{
-						Failed: makeJobFailed(jobId, queueName, jobSetName, time, reason),
-					},
-				}
-				events = append(events, event)
-			default:
-				log.Warnf("Unknown job error %T", reason)
-				event := &api.EventMessage{
-					Events: &api.EventMessage_Failed{
-						Failed: &api.JobFailedEvent{
-							JobId:    jobId,
-							JobSetId: jobSetName,
-							Queue:    queueName,
-							Created:  time,
-						},
-					},
-				}
-				events = append(events, event)
+		if !msgErr.Terminal {
+			continue
+		}
+		switch reason := msgErr.Reason.(type) {
+		case *armadaevents.Error_PodError:
+			event := &api.EventMessage{
+				Events: &api.EventMessage_Failed{
+					Failed: makeJobFailed(jobId, queueName, jobSetName, time, reason),
+				},
 			}
+			events = append(events, event)
+		case *armadaevents.Error_JobRunPreemptedError:
+			event := &api.EventMessage{
+				Events: &api.EventMessage_Failed{
+					Failed: &api.JobFailedEvent{
+						JobId:    jobId,
+						JobSetId: jobSetName,
+						Queue:    queueName,
+						Created:  time,
+						Reason:   "preempted",
+					},
+				},
+			}
+			events = append(events, event)
+		default:
+			log.Warnf("unknown error %T for job %s", reason, jobId)
+			event := &api.EventMessage{
+				Events: &api.EventMessage_Failed{
+					Failed: &api.JobFailedEvent{
+						JobId:    jobId,
+						JobSetId: jobSetName,
+						Queue:    queueName,
+						Created:  time,
+					},
+				},
+			}
+			events = append(events, event)
 		}
 	}
 	return events, nil

@@ -1,6 +1,7 @@
 package scheduling
 
 import (
+	"context"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -54,7 +55,7 @@ func (l *LeaseManager) ExpireLeases() {
 				if e != nil {
 					log.Error(e)
 				} else {
-					e := l.eventStore.ReportEvents([]*api.EventMessage{event})
+					e := l.eventStore.ReportEvents(context.Background(), []*api.EventMessage{event})
 					if e != nil {
 						log.Error(e)
 					}

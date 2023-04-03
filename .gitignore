@@ -13,6 +13,8 @@ code_reports
 jobservice.db
 jobservice.db-shm
 jobservice.db-wal
+/armadactl
+junit.xml
 
 # Build artifacts
 dist

@@ -273,6 +273,11 @@ func IsReportedDone(pod *v1.Pod) bool {
 	return exists
 }
 
+func IsReportedPreempted(pod *v1.Pod) bool {
+	_, exists := pod.Annotations[domain.JobPreemptedAnnotation]
+	return exists
+}
+
 // GetDeletionGracePeriodOrDefault returns the pod's DeletionGracePeriodSeconds seconds (if populated) or the K8s
 // default value of 30 seconds (if it isn't)
 func GetDeletionGracePeriodOrDefault(pod *v1.Pod) time.Duration {
@@ -370,4 +375,13 @@ func GroupByQueue(pods []*v1.Pod) map[string][]*v1.Pod {
 		podsByQueue[queue] = append(podsByQueue[queue], pod)
 	}
 	return podsByQueue
+}
+
+func IsLegacyManagedPod(pod *v1.Pod) bool {
+	if !IsManagedPod(pod) {
+		return false
+	}
+	runId := ExtractJobRunId(pod)
+
+	return runId == ""
 }

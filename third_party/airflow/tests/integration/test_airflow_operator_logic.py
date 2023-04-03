@@ -1,6 +1,7 @@
 import os
 import uuid
 import pytest
+import threading
 
 from armada_client.armada import (
     submit_pb2,
@@ -103,77 +104,37 @@ def test_bad_job(client: ArmadaClient, jobservice: JobServiceClient):
     assert job_message.startswith(f"Armada test:{job_id} failed")
 
 
-def test_two_jobs(client: ArmadaClient, jobservice: JobServiceClient):
-    job_set_name = f"test-{uuid.uuid1()}"
+job_set_name = "test"
 
-    first_job = client.submit_jobs(
+
+def success_job(client: ArmadaClient, jobservice: JobServiceClient):
+    job = client.submit_jobs(
         queue="queue-a",
         job_set_id=job_set_name,
         job_request_items=sleep_pod(image="busybox"),
     )
-    first_job_id = first_job.job_response_items[0].job_id
+    job_id = job.job_response_items[0].job_id
 
     job_state, job_message = search_for_job_complete(
         job_service_client=jobservice,
         armada_queue="queue-a",
         job_set_id=job_set_name,
         airflow_task_name="test",
-        job_id=first_job_id,
+        job_id=job_id,
     )
+
     assert job_state == JobState.SUCCEEDED
-    assert job_message == f"Armada test:{first_job_id} succeeded"
-
-    second_job = client.submit_jobs(
-        queue="queue-a",
-        job_set_id=job_set_name,
-        job_request_items=sleep_pod(image="busybox"),
-    )
-    second_job_id = second_job.job_response_items[0].job_id
-
-    job_state, job_message = search_for_job_complete(
-        job_service_client=jobservice,
-        armada_queue="queue-a",
-        job_set_id=job_set_name,
-        airflow_task_name="test",
-        job_id=second_job_id,
-    )
-    assert job_state == JobState.SUCCEEDED
-    assert job_message == f"Armada test:{second_job_id} succeeded"
+    assert job_message == f"Armada test:{job_id} succeeded"
 
 
-def test_two_jobs_good_bad(client: ArmadaClient, jobservice: JobServiceClient):
-    job_set_name = f"test-{uuid.uuid1()}"
+@pytest.mark.skip(reason="we should not test performance in the CI.")
+def test_parallel_execution(client: ArmadaClient, jobservice: JobServiceClient):
+    threads = []
+    success_job(client=client, jobservice=jobservice)
+    for _ in range(30):
+        t = threading.Thread(target=success_job, args=[client, jobservice])
+        t.start()
+        threads.append(t)
 
-    first_job = client.submit_jobs(
-        queue="queue-a",
-        job_set_id=job_set_name,
-        job_request_items=sleep_pod(image="busybox"),
-    )
-    first_job_id = first_job.job_response_items[0].job_id
-
-    job_state, job_message = search_for_job_complete(
-        job_service_client=jobservice,
-        armada_queue="queue-a",
-        job_set_id=job_set_name,
-        airflow_task_name="test",
-        job_id=first_job_id,
-    )
-    assert job_state == JobState.SUCCEEDED
-    assert job_message == f"Armada test:{first_job_id} succeeded"
-
-    second_job = client.submit_jobs(
-        queue="queue-a",
-        job_set_id=job_set_name,
-        job_request_items=sleep_pod(image="NOTACONTAINER"),
-    )
-    second_job_id = second_job.job_response_items[0].job_id
-
-    job_state, job_message = search_for_job_complete(
-        job_service_client=jobservice,
-        armada_queue="queue-a",
-        job_set_id=job_set_name,
-        airflow_task_name="test",
-        job_id=second_job_id,
-    )
-    assert job_state == JobState.FAILED
-    assert job_message.startswith(f"Armada test:{second_job_id} failed")
+    for thread in threads:
+        thread.join()

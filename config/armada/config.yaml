@@ -30,11 +30,12 @@ eventsApiRedis:
   db: 1
   poolSize: 1000
 scheduling:
+  enableAssertions: true
   preemption:
     enabled: true
     preemptToFairShare: true
     nodeEvictionProbability: 1.0
-    nodeOversubscriptionEvictionProbability: 0.0
+    nodeOversubscriptionEvictionProbability: 1.0
     setNodeIdSelector: true
     nodeIdLabel: kubernetes.io/hostname
     setNodeName: false
@@ -52,11 +53,9 @@ scheduling:
           memory: 0.99
           cpu: 0.99
     defaultPriorityClass: armada-default
+    priorityClassNameOverride: armada-default
   queueLeaseBatchSize: 1000
   maxExtraNodesToConsider: 1
-  minimumResourceToSchedule:
-    memory: 1000000 # 1Mb
-    cpu: 0.1
   maximalResourceFractionToSchedulePerQueue:
     memory: 1.0
     cpu: 1.0
@@ -67,8 +66,7 @@ scheduling:
     memory: 1.0
     cpu: 1.0
   maximumJobsToSchedule: 5000
-  maxQueueReportsToStore: 1000
-  MaxJobReportsToStore: 10000
+  maxJobSchedulingContextsPerExecutor: 10000
   lease:
     expireAfter: 15m
     expiryLoopInterval: 5s
@@ -112,8 +110,6 @@ queueManagement:
   defaultPriorityFactor: 1000
   defaultQueuedJobsLimit: 0  # No Limit
   autoCreateQueues: true
-databaseRetention:
-  jobRetentionDuration: 168h
 eventRetention:
   expiryEnabled: true
   retentionDuration: 336h

@@ -57,17 +57,22 @@ func (a QuantityByPriorityAndResourceType) Add(b QuantityByPriorityAndResourceTy
 	}
 }
 
+func (a QuantityByPriorityAndResourceType) Sub(b QuantityByPriorityAndResourceType) {
+	for p, rlb := range b {
+		a.SubResourceList(p, rlb)
+	}
+}
+
 func (a QuantityByPriorityAndResourceType) AddResourceList(priority int32, rlb ResourceList) {
 	rla := a[priority]
 	rla.Add(rlb)
 	a[priority] = rla
 }
 
-func (a QuantityByPriorityAndResourceType) Sub(b QuantityByPriorityAndResourceType) {
-	for p, rsb := range b {
-		rsa := a[p]
-		rsa.Sub(rsb)
-	}
+func (a QuantityByPriorityAndResourceType) SubResourceList(priority int32, rlb ResourceList) {
+	rla := a[priority]
+	rla.Sub(rlb)
+	a[priority] = rla
 }
 
 func (a QuantityByPriorityAndResourceType) Equal(b QuantityByPriorityAndResourceType) bool {
@@ -90,6 +95,26 @@ func (a QuantityByPriorityAndResourceType) Equal(b QuantityByPriorityAndResource
 				return false
 			}
 		} else {
+			return false
+		}
+	}
+	return true
+}
+
+// IsZero returns true if all quantities in a are zero.
+func (a QuantityByPriorityAndResourceType) IsZero() bool {
+	for _, rl := range a {
+		if !rl.IsZero() {
+			return false
+		}
+	}
+	return true
+}
+
+// IsStrictlyNonNegative returns true if there are no quantities in a with value less than zero.
+func (a QuantityByPriorityAndResourceType) IsStrictlyNonNegative() bool {
+	for _, rl := range a {
+		if !rl.IsStrictlyNonNegative() {
 			return false
 		}
 	}
@@ -165,6 +190,16 @@ func (a ResourceList) Equal(b ResourceList) bool {
 	}
 	for t, qb := range b.Resources {
 		if qb.Cmp(a.Get(t)) != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// IsStrictlyNonNegative returns true if there are no quantities in a with value less than zero.
+func (a ResourceList) IsStrictlyNonNegative() bool {
+	for _, q := range a.Resources {
+		if q.Cmp(resource.Quantity{}) == -1 {
 			return false
 		}
 	}

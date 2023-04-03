@@ -31,7 +31,6 @@ type ArmadaConfig struct {
 	Scheduling                        SchedulingConfig
 	NewScheduler                      NewSchedulerConfig
 	QueueManagement                   QueueManagementConfig
-	DatabaseRetention                 DatabaseRetentionPolicy
 	Pulsar                            PulsarConfig
 	Postgres                          PostgresConfig // Used for Pulsar submit API deduplication
 	EventApi                          EventApiConfig
@@ -83,12 +82,11 @@ type PulsarConfig struct {
 }
 
 type SchedulingConfig struct {
-	Preemption PreemptionConfig
+	// Set to true to enable scheduler assertions. This results in some performance loss.
+	EnableAssertions bool
+	Preemption       PreemptionConfig
 	// Number of jobs to load from the database at a time.
 	QueueLeaseBatchSize uint
-	// Minimum resources to schedule per request from an executor.
-	// Applies to the old scheduler.
-	MinimumResourceToSchedule armadaresource.ComputeResourcesFloat
 	// Maximum total size in bytes of all jobs returned in a single lease jobs call.
 	// Applies to the old scheduler. But is not necessary since we now stream job leases.
 	MaximumLeasePayloadSizeBytes int
@@ -104,20 +102,18 @@ type SchedulingConfig struct {
 	MaximalResourceFractionPerQueue map[string]float64
 	// Max number of jobs to scheduler per lease jobs call.
 	MaximumJobsToSchedule uint
-	// The scheduler stores reports about scheduling decisions for each queue.
-	// These can be queried by users. To limit memory usage, old reports are deleted
-	// to keep the number of stored reports within this limit.
-	MaxQueueReportsToStore int
-	// The scheduler stores reports about scheduling decisions for each job.
-	// These can be queried by users. To limit memory usage, old reports are deleted
-	// to keep the number of stored reports within this limit.
-	MaxJobReportsToStore int
-	Lease                LeaseSettings
-	DefaultJobLimits     armadaresource.ComputeResources
+	// Armada stores contexts associated with recent job scheduling attempts.
+	// This setting limits the number of such contexts to store.
+	// Contexts associated with the most recent scheduling attempt for each queue and cluster are always stored.
+	MaxJobSchedulingContextsPerExecutor uint
+	Lease                               LeaseSettings
+	DefaultJobLimits                    armadaresource.ComputeResources
 	// Set of tolerations added to all submitted pods.
 	DefaultJobTolerations []v1.Toleration
 	// Set of tolerations added to all submitted pods of a given priority class.
 	DefaultJobTolerationsByPriorityClass map[string][]v1.Toleration
+	// Set of tolerations added to all submitted pods with a given resource request.
+	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
 	// Weights used when computing fair share.
@@ -228,6 +224,8 @@ type PreemptionConfig struct {
 	// Priority class assigned to pods that do not specify one.
 	// Must be an entry in PriorityClasses above.
 	DefaultPriorityClass string
+	// If set, override the priority class name of pods with this value when sending to an executor.
+	PriorityClassNameOverride *string
 }
 
 type PriorityClass struct {
@@ -272,10 +270,6 @@ func AllowedPriorities(priorityClasses map[string]PriorityClass) []int32 {
 	}
 	slices.Sort(rv)
 	return slices.Compact(rv)
-}
-
-type DatabaseRetentionPolicy struct {
-	JobRetentionDuration time.Duration
 }
 
 type LeaseSettings struct {

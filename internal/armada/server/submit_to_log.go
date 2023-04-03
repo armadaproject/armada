@@ -175,6 +175,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		originalId, found := originalIds[apiJob.GetId()]
 		if apiJob.ClientId != "" && originalId != apiJob.GetId() {
 			if found && originalId != "" {
+				logJob.IsDuplicate = true
 				oldJobId, err := armadaevents.ProtoUuidFromUlidString(originalIds[apiJob.GetId()])
 				if err != nil {
 					return nil, status.Error(codes.Internal, "error marshalling oldJobId")

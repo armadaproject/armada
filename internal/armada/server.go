@@ -41,11 +41,10 @@ import (
 func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
 	log.Info("Armada server starting")
 	defer log.Info("Armada server shutting down")
-
 	if config.Scheduling.Preemption.Enabled {
 		log.Info("Armada Job preemption is enabled")
-		log.Infof("Supported priority classes are: %v", config.Scheduling.Preemption.PriorityClasses)
-		log.Infof("Default priority class is: %s", config.Scheduling.Preemption.DefaultPriorityClass)
+		log.Infof("Armada priority classes: %v", config.Scheduling.Preemption.PriorityClasses)
+		log.Infof("Default priority class: %s", config.Scheduling.Preemption.DefaultPriorityClass)
 	} else {
 		log.Info("Armada Job preemption is disabled")
 	}
@@ -111,7 +110,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		}
 	}()
 
-	jobRepository := repository.NewRedisJobRepository(db, config.DatabaseRetention)
+	jobRepository := repository.NewRedisJobRepository(db)
 	usageRepository := repository.NewRedisUsageRepository(db)
 	queueRepository := repository.NewRedisQueueRepository(db)
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(db)
@@ -273,11 +272,12 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		config.Pulsar.MaxAllowedMessageSize,
 		legacyExecutorRepo,
 	)
-	if config.Scheduling.MaxQueueReportsToStore > 0 || config.Scheduling.MaxJobReportsToStore > 0 {
-		aggregatedQueueServer.SchedulingReportsRepository = scheduler.NewSchedulingReportsRepository(
-			config.Scheduling.MaxQueueReportsToStore,
-			config.Scheduling.MaxJobReportsToStore,
-		)
+	if schedulingContextRepository, err := scheduler.NewSchedulingContextRepository(
+		config.Scheduling.MaxJobSchedulingContextsPerExecutor,
+	); err != nil {
+		return err
+	} else {
+		aggregatedQueueServer.SchedulingContextRepository = schedulingContextRepository
 	}
 
 	eventServer := server.NewEventServer(
@@ -300,10 +300,10 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
 	api.RegisterUsageServer(grpcServer, usageServer)
 	api.RegisterEventServer(grpcServer, eventServer)
-	if aggregatedQueueServer.SchedulingReportsRepository != nil {
+	if aggregatedQueueServer.SchedulingContextRepository != nil {
 		schedulerobjects.RegisterSchedulerReportingServer(
 			grpcServer,
-			aggregatedQueueServer.SchedulingReportsRepository,
+			aggregatedQueueServer.SchedulingContextRepository,
 		)
 	}
 

@@ -7,6 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 )
 
 func applyDefaultsToPodSpec(spec *v1.PodSpec, config configuration.SchedulingConfig) {
@@ -45,6 +46,18 @@ func applyDefaultTolerationsToPodSpec(spec *v1.PodSpec, config configuration.Sch
 	if config.DefaultJobTolerationsByPriorityClass != nil {
 		if tolerations, ok := config.DefaultJobTolerationsByPriorityClass[spec.PriorityClassName]; ok {
 			spec.Tolerations = append(spec.Tolerations, tolerations...)
+		}
+	}
+	if config.DefaultJobTolerationsByResourceRequest != nil {
+		resourceRequest := armadaresource.TotalPodResourceRequest(spec)
+		for resourceType, value := range resourceRequest {
+			if value.Cmp(resource.Quantity{}) <= 0 {
+				// Skip for resource specified but 0
+				continue
+			}
+			if tolerations, ok := config.DefaultJobTolerationsByResourceRequest[resourceType]; ok {
+				spec.Tolerations = append(spec.Tolerations, tolerations...)
+			}
 		}
 	}
 }
