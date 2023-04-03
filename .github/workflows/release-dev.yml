@@ -33,7 +33,7 @@ jobs:
         with:
           distribution: goreleaser
           version: 1.16.2
-          args: release --clean --config .goreleaser.dev.yml --snapshot
+          args: release --clean --config .goreleaser.dev.yml --snapshot --debug
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
