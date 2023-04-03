@@ -36,6 +36,10 @@ message WorkflowNode {
     // Standard object's metadata.
     // More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
     k8s.io.apimachinery.pkg.apis.meta.v1.ObjectMeta metadata = 1;
+    WorkflowNodeSpec spec = 2;
+}
+
+message WorkflowNodeSpec {
     // Job specification.
     // May be empty, in which case this node is considered failed or succeeded as determined by the success/failurePolicy.
     JobTemplateSpec spec = 2;
