@@ -1,0 +1,149 @@
+syntax = 'proto3';
+package armadaevents;
+option go_package = "github.com/armadaproject/armada/pkg/armadaevents";
+option csharp_namespace = "ArmadaProject.Io.ArmadaEvents";
+
+import "k8s.io/api/core/v1/generated.proto";
+import "k8s.io/api/batch/v1/generated.proto";
+import "k8s.io/api/networking/v1/generated.proto";
+import "google/protobuf/timestamp.proto";
+import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+
+// A workflow describes an orchestrated set of components to be scheduled and executor together.
+// Specifically, it contains the root of a tree of WorkflowNodes,
+// each of which contains an embedded Job along with rules for
+// - rules for when the WorkflowNode is considered schedulable, succeeded, or failed, and
+// - constraints for scheduling the embedded Job.
+message Workflow {
+    // Standard object's metadata.
+    // More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+    k8s.io.apimachinery.pkg.apis.meta.v1.ObjectMeta metadata = 1;
+    WorkflowNode root = 2;
+}
+
+// A WorkflowNode contains a Job, a set of child WorkflowNodes,
+// and constraints/policies for scheduling, success, and failure.
+//
+// A WorkflowNode is schedulable when the embedded job is schedulable and all taskSchedulingPolicy rules are met.
+//
+// A WorkflowNode is always considered succed (failed) if the embedded job succeeds (fails).
+// However, it may also be considered succeeded (failed) if, e.g., child jobs succeed (fail),
+// as specified in the embedded success (failure) policy.
+//
+// On success (failure), all children are also considered to have succeeded (failed) and may be deleted.
+message WorkflowNode {
+    // Standard object's metadata.
+    // More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+    k8s.io.apimachinery.pkg.apis.meta.v1.ObjectMeta metadata = 1;
+    // Job specification.
+    // May be empty, in which case this node is considered failed or succeeded as determined by the success/failurePolicy.
+    JobTemplateSpec spec = 2;
+    // Child nodes. I.e., each WorkflowNode is either a leaf or the root of a tree of WorkflowNode.
+    repeated WorkflowNode children = 3;
+    // Specifies the number of retries before marking this task as failed.
+    // Defaults to 0.
+    uint32 backoffLimit = 4;
+    // JobSchedulingConstraints constrains the conditions under which the embedded is schedulable,
+    // e.g., by constraining the minimum number of pods that must be schedulable.
+    JobSchedulingConstraints jobSchedulingContraints = 5;
+    // Contains rules regarding when this WorkflowNode is schedulable.
+    // E.g., it may require that all children are also schedulable.
+    WorkflowSchedulingPolicy WorkflowSchedulingPolicy = 6;
+    // A WorkflowNode may succeed before the embedded job has succeeded,
+    // e.g., if all children have succeeded. This policy specifies all such scenarios.
+    WorkflowSuccessPolicy WorkflowSuccessPolicy = 7;
+    // A WorkflowNode may fail even if the embedded job has not,
+    // e.g., if a child fails. This policy specifies all such scenarios.
+    WorkflowFailurePolicy WorkflowFailurePolicy = 8;
+}
+
+// JobTemplateSpec describes the data a pod should have when created from a template.
+message JobTemplateSpec {
+  // Standard object's metadata.
+  // More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+  k8s.io.apimachinery.pkg.apis.meta.v1.ObjectMeta metadata = 1;
+  // Specification of the desired behavior of the job.
+  // More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
+  k8s.io.api.batch.v1.JobSpec spec = 2;
+}
+
+// JobSchedulingConstraints contains rules constraining the conditions under which the embedded job is schedulable.
+// E.g., by constraining the minimum number of pods that must be schedulable.
+message JobSchedulingConstraints {
+    repeated JobSchedulingConstraint constraints = 1;
+}
+
+message JobSchedulingConstraint {
+    oneof constraint {
+        JobSchedulingConstraintMinPodsSchedulable jobSchedulingConstraintMinPodsSchedulable = 1;
+        JobSchedulingConstraintLabelUniformity jobSchedulingConstraintLabelUniformity = 2;
+    }
+}
+
+// Expresses a co-scheduling constraint,
+// such that the embedded job is only scheduled if at least minPodsSchedulable pods are schedulable.
+message JobSchedulingConstraintMinPodsSchedulable {
+    uint32 minPodsSchedulable = 1;
+}
+
+// Expresses a node uniformity constraint.
+// Specifically, all pods in the embedded job must be scheduled onto nodes for which the node label "label" has equal value.
+// If group is set, all pods across the workflow affected by a JobSchedulingConstraintLabelUniformity for which group has the same value
+// must be scheduled onto nodes for which the node label "label" has equal value.
+message JobSchedulingConstraintLabelUniformity {
+    string label = 1;
+    string group = 2;
+}
+
+// Specifies when a workflow can be scheduled.
+// E.g., when all children can be scheduled.
+message WorkflowSchedulingPolicy {
+    repeated WorkflowSchedulingPolicyRule rules = 1;
+}
+
+// Defaults to a single WorkflowSchedulingPolicyRuleMinChildrenSchedulable with the min equal to the total
+// if no rules are provided.
+message WorkflowSchedulingPolicyRule {
+    oneof rule {
+        WorkflowSchedulingPolicyRuleMinChildrenSchedulable workflowSchedulingPolicyRuleMinChildrenSchedulable = 1;
+    }
+}
+
+message WorkflowSchedulingPolicyRuleMinChildrenSchedulable {
+    uint32 minChildrenSchedulable = 1;
+}
+
+
+
+// Specifies when a Workflow should be considered to have failed.
+// E.g., when all children have succeeded.
+message WorkflowSuccessPolicy {
+    repeated WorkflowSuccessPolicyRule rules = 1;
+}
+
+message WorkflowSuccessPolicyRule {
+    oneof rules {
+        WorkflowSuccessPolicyMinSChildSuccesses workflowSuccessPolicyMinSChildSuccesses = 1;
+    }
+}
+
+message WorkflowSuccessPolicyMinSChildSuccesses {
+    uint32 minSChildSuccesses = 1;
+}
+
+// Specifies when a workflow should be considered failed.
+// E.g., if a child fails.
+message WorkflowFailurePolicy {
+    repeated WorkflowFailurePolicyRule rules = 1;
+}
+
+message WorkflowFailurePolicyRule {
+    oneof rules {
+        WorkflowFailurePolicyRuleMaxChildFailures workflowFailurePolicyRuleMaxChildFailures = 1;
+    }
+}
+
+message WorkflowFailurePolicyRuleMaxChildFailures {
+    uint32 maxChildFailures = 1;
+}
