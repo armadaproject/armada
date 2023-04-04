@@ -1,6 +1,13 @@
+nameOverride: ""
+fullnameOverride: ""
+
 image:
+  # image repository
   repository: gresearchdev/armada-server
-  tag: LATEST
+  # image tag
+  tag: v0.3.62
+
+# -- resource configuration
 resources:
   limits:
     memory: 1Gi
@@ -8,27 +15,87 @@ resources:
   requests:
     memory: 512Mi
     cpu: 200m
+
+# -- Security Context for armada Container
+containerSecurityContext:
+  readOnlyRootFilesystem: true
+
+# -- Pod Security Context
+podSecurityContext: {}
+# -- Additional labels for all Armada Server K8s resources
 additionalLabels: {}
+# -- Additional volume mounts for Armada Server Deployment resource
 additionalVolumeMounts: []
+# -- Additional volumes for Armada Server Deployment resource
 additionalVolumes: []
+
+# -- Number of seconds to wait for Armada Server to gracefully shutdown
 terminationGracePeriodSeconds: 30
+# -- Armada Server replica count
 replicas: 1
+
+# -- See https://pkg.go.dev/k8s.io/api/core/v1#EnvVar for env model
+# -- Additional environment variables for Armada Server Deployment resource
+env: {}
+ # - name: FOO
+ #   value: bar
+
 strategy:
   rollingUpdate:
     maxUnavailable: 1
   type: RollingUpdate
+
+# -- Ingress Class
+ingressClass: nginx
+# -- cert-manager's ClusterIssuer from which to request TLS certificate
+clusterIssuer: "haha"
+# -- Hostnames for which to create Ingress rules
+hostnames: [dejan]
+  # - armada.example.com
 ingress:
+  # -- Toggle whether to create gRPC and HTTP Ingress for Armada Server
+  enabled: true
+  # -- Ingress resource name override
   nameOverride: ""
+  # -- Additional annotations for Ingress resource
   annotations: {}
+  # -- Additional labels for Ingress resource
   labels: {}
+
 prometheus:
+  # -- Toggle whether to install ServiceMonitor and PrometheusRule for Armada Server monitoring
   enabled: false
+  # -- Additional labels for ServiceMonitor and PrometheusRule
   labels: {}
+  # -- Prometheus scrape interval
   scrapeInterval: 15s
-customServiceAccount: null
-serviceAccount: null
+
+podDisruptionBudget: {}
+
+# -- If a port number is specified, the Service will be of type NodePort and the gRPC server will be exposed on that node port
+#nodePort: 8080
+# -- If a port number is specified, REST server will be exposed on that node port
+#httpNodePort: 50051
+
+# -- If specified, custom ServiceAccount name will be attached to Armada Server Deployment resource and the default ServiceAccount will not be created
+customServiceAccount: ""
+# -- More info here https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+# -- Additional ServiceAccount properties (e.g. automountServiceAccountToken, imagePullSecrets, etc.)
+serviceAccount: {}
 
 applicationConfig:
+  # -- Armada Server gRPC port
   grpcPort: 50051
+  # -- Armada Server REST port
   httpPort: 8080
-  pulsar: {}
+  pulsar:
+    # -- Pulsar Broker URL
+    URL: "pulsar://pulsar:6650"
+    # -- Toggle whether to mount Pulsar Token secret
+    authenticationEnabled: false
+    # -- Name of the secret which contains the Pulsar Token
+    authenticationSecret: armada-pulsar-token-armada-admin
+    # -- Toggle whether to mount Pulsar CA certificate secret
+    tlsEnabled: false
+    # -- Name of the secret which contains the Pulsar CA certificate
+    cacert: armada-pulsar-ca-tls
