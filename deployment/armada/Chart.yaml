@@ -1,5 +1,12 @@
 apiVersion: v1
-description: A helm chart for armada API component
 name: armada
-version: LATEST
+description: Armada Server is the centralized Control Plane for Armada, the multi-cluster batch scheduler.
+home: https://armadaproject.io
+sources:
+  - https://github.com/armadaproject/armada
+icon: https://armadaproject.io/assets/img/Armada-favicon.png
+version: 1.2.3
 appVersion: LATEST
+keywords:
+  - multi-cluster
+  - batch-scheduler

@@ -5,7 +5,7 @@ image:
   # image repository
   repository: gresearchdev/armada-server
   # image tag
-  tag: LATEST
+  tag: v0.3.39
 
 # -- resource configuration
 resources:
@@ -18,10 +18,10 @@ resources:
 
 # -- Security Context for armada Container
 containerSecurityContext:
-  readOnlyRootFilesystem: true
-
+  allowPrivilegeEscalation: false
 # -- Pod Security Context
 podSecurityContext: {}
+
 # -- Additional labels for all Armada Server K8s resources
 additionalLabels: {}
 # -- Additional volume mounts for Armada Server Deployment resource
@@ -49,7 +49,7 @@ strategy:
 ingressClass: nginx
 # -- cert-manager's ClusterIssuer from which to request TLS certificate
 clusterIssuer: ""
-# -- Hostnames for which to create Ingress rules
+# -- Hostnames for which to create gRPC and REST Ingress rules
 hostnames: []
   # - armada.example.com
 ingress:
@@ -99,3 +99,28 @@ applicationConfig:
     tlsEnabled: false
     # -- Name of the secret which contains the Pulsar CA certificate
     cacert: armada-pulsar-ca-tls
+  postgres:
+    connection:
+      # -- Postgres host
+      host: postgres
+      # -- Postgres port
+      port: 5432
+      # -- Postgres user
+      user: postgres
+      # -- Postgres password
+      password: psw
+      # -- Postgres database name
+      dbname: postgres
+      # -- Toggle whether to use SSL mode
+      sslmode: disable
+  redis:
+    # -- Redis hosts
+    addrs: []
+     # - redis:6379
+    password: ""
+  eventsApiRedis:
+    # -- Redis hosts
+    addrs: []
+     # - redis:6379
+    # -- Redis password
+    password: ""
