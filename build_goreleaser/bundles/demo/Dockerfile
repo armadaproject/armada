@@ -1,11 +1,11 @@
 ARG NODE_BUILD_IMAGE=node:16.14-buster
 ARG OPENAPI_BUILD_IMAGE=openapitools/openapi-generator-cli:v5.4.0
 ARG BASE_IMAGE=alpine:3.17.0
+
+FROM ${OPENAPI_BUILD_IMAGE} AS OPENAPI
 LABEL org.opencontainers.image.title=demo-bundle
 LABEL org.opencontainers.image.description="Demo Bundle"
 LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/demo-bundle
-
-FROM ${OPENAPI_BUILD_IMAGE} AS OPENAPI
 COPY internal/lookout/ui /project/internal/lookout/ui
 COPY pkg/api/lookout/*.swagger.json /project/pkg/api/lookout/
 COPY pkg/api/*.swagger.json /project/pkg/api/
