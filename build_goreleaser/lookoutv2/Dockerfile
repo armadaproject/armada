@@ -1,4 +1,8 @@
 ARG BASE_IMAGE=alpine:3.17.0
+LABEL org.opencontainers.image.title=lookoutv2
+LABEL org.opencontainers.image.description="Lookout V2"
+LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/lookoutv2
+
 FROM ${BASE_IMAGE}
 RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
 USER armada
