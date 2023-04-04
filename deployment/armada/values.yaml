@@ -5,7 +5,7 @@ image:
   # image repository
   repository: gresearchdev/armada-server
   # image tag
-  tag: v0.3.62
+  tag: LATEST
 
 # -- resource configuration
 resources:
@@ -48,9 +48,9 @@ strategy:
 # -- Ingress Class
 ingressClass: nginx
 # -- cert-manager's ClusterIssuer from which to request TLS certificate
-clusterIssuer: "haha"
+clusterIssuer: ""
 # -- Hostnames for which to create Ingress rules
-hostnames: [dejan]
+hostnames: []
   # - armada.example.com
 ingress:
   # -- Toggle whether to create gRPC and HTTP Ingress for Armada Server

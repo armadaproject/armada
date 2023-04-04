@@ -1,6 +1,6 @@
 # armada
 
-![Version: 0.3.39](https://img.shields.io/badge/Version-0.3.39-informational?style=flat-square) ![AppVersion: LATEST](https://img.shields.io/badge/AppVersion-LATEST-informational?style=flat-square)
+![Version: LATEST](https://img.shields.io/badge/Version-LATEST-informational?style=flat-square) ![AppVersion: LATEST](https://img.shields.io/badge/AppVersion-LATEST-informational?style=flat-square)
 
 A helm chart for armada API component
 
@@ -25,7 +25,7 @@ A helm chart for armada API component
 | fullnameOverride | string | `""` |  |
 | hostnames | list | `["dejan"]` | Hostnames for which to create Ingress rules |
 | image.repository | string | `"gresearchdev/armada-server"` |  |
-| image.tag | string | `"v0.3.62"` |  |
+| image.tag | string | `"LATEST"` |  |
 | ingress.annotations | object | `{}` | Additional annotations for Ingress resource |
 | ingress.enabled | bool | `true` | Toggle whether to create gRPC and HTTP Ingress for Armada Server |
 | ingress.labels | object | `{}` | Additional labels for Ingress resource |
