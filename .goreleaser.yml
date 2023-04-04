@@ -9,7 +9,6 @@ gomod:
   env:
     - GOPROXY={{ if index .Env "GOPROXY"  }}{{ .Env.GOPROXY }}{{ else }}https://proxy.golang.org,direct{{ end }}
     - GOSUMDB={{ if index .Env "GOSUMDB"  }}{{ .Env.GOSUMDB }}{{ else }}sum.golang.org{{ end }}
-  gobinary: go
 
 builds:
   - env: [CGO_ENABLED=0]
