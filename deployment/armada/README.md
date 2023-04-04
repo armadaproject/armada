@@ -1,6 +1,6 @@
 # armada
 
-![Version: 1.2.3](https://img.shields.io/badge/Version-1.2.3-informational?style=flat-square)
+![Version: LATEST](https://img.shields.io/badge/Version-LATEST-informational?style=flat-square)
 
 Armada Server is the centralized Control Plane for Armada, the multi-cluster batch scheduler.
 
