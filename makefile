@@ -356,6 +356,8 @@ build-docker-full-bundle: build-docker-jobservice
 	cp -a ./.build/binoculars/binoculars ./binoculars
 	cp -a ./.build/jobservice/jobservice ./jobservice
 
+	ls -a
+
 	docker buildx build -o type=docker $(dockerFlags) -t armada-full-bundle -f ./build_goreleaser/bundles/full/Dockerfile .
 
 build-docker: build-docker-no-lookout build-docker-lookout build-docker-lookout-v2
