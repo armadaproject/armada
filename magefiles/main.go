@@ -129,6 +129,12 @@ func BuildDockers(arg string) error {
 func Build() {
 	mg.Deps(BootstrapTools)
 	mg.Deps(Proto)
+	mg.Deps(mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"))
+}
+
+func BuildMinimal() {
+	mg.Deps(BootstrapTools)
+	mg.Deps(Proto)
 	mg.Deps(mg.F(BuildDockers, "bundle"))
 }
 
