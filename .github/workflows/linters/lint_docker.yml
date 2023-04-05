@@ -1,0 +1,88 @@
+name: "Lint Dockerfiles"
+description: "Lint Dockerfiles uding hadolint"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Lint Armadactl Dockerfile
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: build/armadactl/Dockerfile
+
+    - name: Lint Binoculars Dockerfile
+      if: always()
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: build/binoculars/Dockerfile
+
+    - name: Lint Event Ingester Dockerfile
+      if: always()
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: build/eventingester/Dockerfile
+
+    - name: Lint Executor Dockerfile
+      if: always()
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: build/executor/Dockerfile
+
+    - name: Lint Fake Executor Dockerfile
+      if: always()
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: build/fakeexecutor/Dockerfile
+
+    - name: Lint Job Service Dockerfile
+      if: always()
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: build/jobservice/Dockerfile
+
+    - name: Lint Lookout Dockerfile
+      if: always()
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: build/lookout/Dockerfile
+
+    - name: Lint Lookout Ingester Dockerfile
+      if: always()
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: build/lookoutingester/Dockerfile
+
+    - name: Lint Lookout Ingester v2 Dockerfile
+      if: always()
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: build/lookoutingesterv2/Dockerfile
+
+    - name: Lint Lookout v2 Dockerfile
+      if: always()
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: build/lookoutv2/Dockerfile
+
+    - name: Lint Python Client Dockerfile
+      if: always()
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: build/python-client/Dockerfile
+
+    - name: Lint Scheduler Dockerfile
+      if: always()
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: build/scheduler/Dockerfile
+
+    - name: Lint Scheduler Ingester Dockerfile
+      if: always()
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: build/scheduleringester/Dockerfile
+
+    - name: Lint Testsuite Dockerfile
+      if: always()
+      uses: hadolint/hadolint-action@v3.1.0
+      with:
+        dockerfile: build/testsuite/Dockerfile
