@@ -344,17 +344,17 @@ build-docker-scheduler-ingester:
 	docker buildx build -o type=docker $(dockerFlags) -t armada-scheduler-ingester -f ./build/scheduleringester/Dockerfile ./.build/scheduleringester
 
 build-docker-full-bundle: build-docker-jobservice
-	cp -a ./.build/server/server ./bin/server
-	cp -a ./.build/executor/executor ./bin/executor
-	cp -a ./.build/armadactl/armadactl ./bin/armadactl
-	cp -a ./.build/testsuite/testsuite ./bin/testsuite
-	cp -a ./.build/armada-load-tester/armada-load-tester ./bin/armada-load-tester
-	cp -a ./.build/fakeexecutor/fakeexecutor ./bin/fakeexecutor
-	cp -a ./.build/lookoutingester/lookoutingester ./bin/lookoutingester
-	cp -a ./.build/lookoutingesterv2/lookoutingesterv2 ./bin/lookoutingesterv2
-	cp -a ./.build/eventingester/eventingester ./bin/eventingester
-	cp -a ./.build/binoculars/binoculars ./bin/binoculars
-	cp -a ./.build/jobservice/jobservice ./bin/jobservice
+	cp -a ./.build/server/server ./server
+	cp -a ./.build/executor/executor ./executor
+	cp -a ./.build/armadactl/armadactl ./armadactl
+	cp -a ./.build/testsuite/testsuite ./testsuite
+	cp -a ./.build/armada-load-tester/armada-load-tester ./armada-load-tester
+	cp -a ./.build/fakeexecutor/fakeexecutor ./fakeexecutor
+	cp -a ./.build/lookoutingester/lookoutingester ./lookoutingester
+	cp -a ./.build/lookoutingesterv2/lookoutingesterv2 ./lookoutingesterv2
+	cp -a ./.build/eventingester/eventingester ./eventingester
+	cp -a ./.build/binoculars/binoculars ./binoculars
+	cp -a ./.build/jobservice/jobservice ./jobservice
 
 	docker buildx build -o type=docker $(dockerFlags) -t armada-full-bundle -f ./build_goreleaser/bundles/full/Dockerfile .
 
