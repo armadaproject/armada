@@ -344,6 +344,18 @@ build-docker-scheduler-ingester:
 	docker buildx build -o type=docker $(dockerFlags) -t armada-scheduler-ingester -f ./build/scheduleringester/Dockerfile ./.build/scheduleringester
 
 build-docker-full-bundle:
+	cp -a ./build/server/server ./bin/server
+	cp -a ./build/executor/executor ./bin/executor
+	cp -a ./build/armadactl/armadactl ./bin/armadactl
+	cp -a ./build/testsuite/testsuite ./bin/testsuite
+	cp -a ./build/armada-load-tester/armada-load-tester ./bin/armada-load-tester
+	cp -a ./build/fakeexecutor/fakeexecutor ./bin/fakeexecutor
+	cp -a ./build/lookoutingester/lookoutingester ./bin/lookoutingester
+	cp -a ./build/lookoutingesterv2/lookoutingesterv2 ./bin/lookoutingesterv2
+	cp -a ./build/eventingester/eventingester ./bin/eventingester
+	cp -a ./build/binoculars/binoculars ./bin/binoculars
+	cp -a ./build/jobservice/jobservice ./bin/jobservice
+
 	docker buildx build -o type=docker $(dockerFlags) -t armada-full-bundle -f ./build_goreleaser/bundles/full/Dockerfile .
 
 build-docker: build-docker-no-lookout build-docker-lookout build-docker-lookout-v2
