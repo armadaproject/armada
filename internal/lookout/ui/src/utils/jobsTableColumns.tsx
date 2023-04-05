@@ -1,5 +1,3 @@
-import { useCallback } from "react"
-
 import { Checkbox } from "@mui/material"
 import { ColumnFiltersState } from "@tanstack/react-table"
 import { ColumnDef, createColumnHelper, VisibilityState } from "@tanstack/table-core"
@@ -22,7 +20,7 @@ export interface JobTableColumnMetadata {
   isRightAligned?: boolean
 
   filterType?: FilterType
-  enumFitlerValues?: EnumFilterOption[]
+  enumFilterValues?: EnumFilterOption[]
   defaultMatchType?: Match
 
   annotation?: {
@@ -48,6 +46,8 @@ export enum StandardColumnId {
 
   Count = "jobCount",
 }
+
+export const ANNOTATION_COLUMN_PREFIX = "annotation_"
 
 export type AnnotationColumnId = `annotation_${string}`
 
@@ -110,8 +110,6 @@ export const JOB_COLUMNS: JobTableColumn[] = [
       <Checkbox
         checked={row.getIsGrouped() ? row.getIsAllSubRowsSelected() : row.getIsSelected()}
         indeterminate={row.getIsSomeSelected()}
-        onChange={useCallback(row.getToggleSelectedHandler(), [row])}
-        onClick={(e) => e.stopPropagation()}
         size="small"
         sx={{
           p: 0,
@@ -179,7 +177,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     },
     additionalMetadata: {
       filterType: FilterType.Enum,
-      enumFitlerValues: Object.values(JobState).map((state) => ({
+      enumFilterValues: Object.values(JobState).map((state) => ({
         value: state,
         displayName: formatJobState(state),
       })),
@@ -297,7 +295,6 @@ export const DEFAULT_FILTERS: ColumnFiltersState = [
 
 export const DEFAULT_GROUPING: ColumnId[] = [StandardColumnId.Queue, StandardColumnId.JobSet]
 
-export const ANNOTATION_COLUMN_PREFIX = "annotation_"
 export const createAnnotationColumn = (annotationKey: string): JobTableColumn => {
   return accessorColumn({
     id: `${ANNOTATION_COLUMN_PREFIX}${annotationKey}`,
