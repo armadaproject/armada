@@ -250,7 +250,16 @@ build-event-ingester:
 build-jobservice:
 	$(GO_CMD) $(gobuild) -o ./bin/jobservice cmd/jobservice/main.go
 
-build: build-jobservice build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-event-ingester
+build-lookout:
+	$(GO_CMD) $(gobuild) -o ./bin/lookoutingester cmd/lookoutingester/main.go
+
+build-lookoutv2:
+	$(GO_CMD) $(gobuild) -o ./bin/lookoutv2 cmd/lookoutv2/main.go
+
+build lookoutingesterv2:
+	$(GO_CMD) $(gobuild) -o ./bin/lookoutingesterv2 cmd/lookoutingesterv2/main.go
+
+build: build lookoutingesterv2 build-lookoutv2 build-lookout build-jobservice build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-event-ingester
 
 build-docker-server:
 	mkdir -p .build/server
@@ -343,7 +352,7 @@ build-docker-scheduler-ingester:
 	cp -a ./config/scheduleringester ./.build/scheduleringester/config
 	docker buildx build -o type=docker $(dockerFlags) -t armada-scheduler-ingester -f ./build/scheduleringester/Dockerfile ./.build/scheduleringester
 
-build-docker-full-bundle: build-docker-jobservice
+build-docker-full-bundle: build
 	cp -a ./.build/server/server ./server
 	cp -a ./.build/executor/executor ./executor
 	cp -a ./.build/armadactl/armadactl ./armadactl
