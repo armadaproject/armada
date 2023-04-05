@@ -1,4 +1,4 @@
-import React, { useState } from "react"
+import React, { useState, MouseEvent } from "react"
 
 import { TableRow } from "@mui/material"
 import { Row } from "@tanstack/table-core"
@@ -10,7 +10,7 @@ import styles from "./JobsTableRow.module.css"
 export interface JobsTableRowProps {
   row: Row<JobTableRow>
   isOpenInSidebar: boolean
-  onClick?: (row: JobRow) => void
+  onClick?: (row: JobRow, e: MouseEvent<HTMLTableRowElement>) => void
 }
 export const JobsTableRow = ({ row, isOpenInSidebar, onClick }: JobsTableRowProps) => {
   // Helpers to avoid triggering onClick if the user is selecting text
@@ -47,7 +47,7 @@ export const JobsTableRow = ({ row, isOpenInSidebar, onClick }: JobsTableRowProp
       onMouseDown={(e) => setPagePosition(e)}
       onClick={(e) => {
         if (!isDragging(e) && onClick) {
-          onClick(row.original)
+          onClick(row.original, e)
         }
       }}
     >
