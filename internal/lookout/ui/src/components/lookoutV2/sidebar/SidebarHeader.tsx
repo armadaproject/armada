@@ -10,10 +10,12 @@ import { JobStateLabel } from "../JobStateLabel"
 export interface SidebarHeaderProps {
   job: Job
   onClose: () => void
+  className?: string
 }
-export const SidebarHeader = memo(({ job, onClose }: SidebarHeaderProps) => {
+
+export const SidebarHeader = memo(({ job, onClose, className }: SidebarHeaderProps) => {
   return (
-    <Box sx={{ display: "flex", flexDirection: "row", gap: "1em" }}>
+    <Box className={className}>
       <HeaderSection title={"Job ID"} value={<Box sx={{ wordBreak: "break-all" }}>{job.jobId}</Box>} />
       <HeaderSection
         title={"State"}

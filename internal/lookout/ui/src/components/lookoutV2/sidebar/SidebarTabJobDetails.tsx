@@ -4,10 +4,11 @@ import { formatBytes, formatCPU } from "utils/jobsTableFormatters"
 
 import { KeyValuePairTable } from "./KeyValuePairTable"
 
-export interface SidebarTabJobDetails {
+export interface SidebarTabJobDetailsProps {
   job: Job
 }
-export const SidebarTabJobDetails = ({ job }: SidebarTabJobDetails) => {
+
+export const SidebarTabJobDetails = ({ job }: SidebarTabJobDetailsProps) => {
   return (
     <>
       <Typography variant="subtitle2">Info:</Typography>

@@ -3,7 +3,7 @@
 Here, we show how to setup Armada for local development.
 
 **Prerequisites:**
-* Golang >= 1.18 [https://golang.org/doc/install](https://golang.org/doc/install)
+* Golang >= 1.20 [https://golang.org/doc/install](https://golang.org/doc/install)
 * `kubectl` [https://kubernetes.io/docs/tasks/tools/install-kubectl/](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 * `mage` [https://magefile.org/](https://magefile.org/)
 * Docker installed and configured for the current user [https://docs.docker.com/engine/install/](https://docs.docker.com/engine/install/)
@@ -21,7 +21,7 @@ In addition, Armada relies on the following components for storage and communica
 - Redis: the main database of Armada; used, e.g., to store queued jobs.
 - PostgreSQL: used for auxilliary storage. In the future, PostgreSQL will be the main database, instead of Redis.
 
-All of these components can be started and initialised with [./developer/init.sh](https://github.com/armadaproject/armada/blob/master/developer/init.sh) When the script completes, you will have a fully functional local deployment of armada via docker.
+All of these components can be started and initialised with `mage build ui localdev`
 
 Create a queue and run the Test Suite:
 

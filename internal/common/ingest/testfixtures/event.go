@@ -104,6 +104,53 @@ var Submit = &armadaevents.EventSequence_Event{
 	},
 }
 
+var SubmitDuplicate = &armadaevents.EventSequence_Event{
+	Created: &BaseTime,
+	Event: &armadaevents.EventSequence_Event_SubmitJob{
+		SubmitJob: &armadaevents.SubmitJob{
+			IsDuplicate:     true,
+			JobId:           JobIdProto,
+			Priority:        Priority,
+			AtMostOnce:      true,
+			Preemptible:     true,
+			ConcurrencySafe: true,
+			ObjectMeta: &armadaevents.ObjectMeta{
+				Namespace: Namespace,
+				Name:      "test-job",
+			},
+			MainObject: &armadaevents.KubernetesMainObject{
+				Object: &armadaevents.KubernetesMainObject_PodSpec{
+					PodSpec: &armadaevents.PodSpecWithAvoidList{
+						PodSpec: &v1.PodSpec{
+							NodeSelector:      NodeSelector,
+							Tolerations:       Tolerations,
+							PriorityClassName: PriorityClassName,
+							Containers: []v1.Container{
+								{
+									Name:    "container1",
+									Image:   "alpine:latest",
+									Command: []string{"myprogram.sh"},
+									Args:    []string{"foo", "bar"},
+									Resources: v1.ResourceRequirements{
+										Limits: map[v1.ResourceName]resource.Quantity{
+											"memory": resource.MustParse("64Mi"),
+											"cpu":    resource.MustParse("150m"),
+										},
+										Requests: map[v1.ResourceName]resource.Quantity{
+											"memory": resource.MustParse("64Mi"),
+											"cpu":    resource.MustParse("150m"),
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+}
+
 var Assigned = &armadaevents.EventSequence_Event{
 	Created: &BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunAssigned{
