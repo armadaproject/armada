@@ -147,7 +147,6 @@ jobs:
           name: Build
           command: |
             make build-ci
-            make build-docker-full-bundle
 
       - run:
           name: e2e test environment setup
@@ -239,9 +238,6 @@ jobs:
 
             docker tag armada-scheduler-ingester gresearchdev/armada-scheduler-ingester-dev:${TAG}
             docker push gresearchdev/armada-scheduler-ingester-dev:${TAG}
-
-            docker tag armada-full-bundle gresearchdev/armada-full-bundle-dev:${TAG}
-            docker push gresearchdev/armada-full-bundle-dev:${TAG}
 
 
   release-armadactl:
@@ -358,10 +354,6 @@ jobs:
             docker tag gresearchdev/armada-scheduler-ingester-dev:${TAG} gresearchdev/armada-scheduler-ingester:${RELEASE_TAG}
             docker push gresearchdev/armada-scheduler-ingester:${RELEASE_TAG}
 
-            docker pull gresearchdev/armada-full-bundle-dev:${TAG}
-            docker tag gresearchdev/armada-full-bundle-dev:${TAG} gresearchdev/armada-full-bundle:${RELEASE_TAG}
-            docker push gresearchdev/armada-full-bundle:${RELEASE_TAG}
-
   release-charts:
     machine:
       docker_layer_caching: true
@@ -415,6 +407,35 @@ jobs:
       - store_artifacts:
           path: bin/client/DotNet
 
+  bundle-build-and-release:
+    machine:
+      docker_layer_caching: true
+      image: ubuntu-2204:2022.07.1
+      resource_class: large
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/armadaproject/armada
+    steps:
+      - checkout
+
+      - run:
+          name: Build
+          command: |
+            make build-docker-full-bundle
+
+      - run:
+          name: Publish images
+          command: |
+            TAG=${CIRCLE_SHA1}
+            RELEASE_TAG=${CIRCLE_TAG}
+
+            echo ${DOCKERHUB_PASS} | docker login -u ${DOCKERHUB_USER} --password-stdin
+
+            docker tag armada-full-bundle gresearchdev/armada-full-bundle:${RELEASE_TAG}
+            docker push gresearchdev/armada-full-bundle:${RELEASE_TAG}
+
 workflows:
   version: 2
   build_and_deploy:
@@ -444,3 +465,7 @@ workflows:
               only: /.*/
             branches:
               ignore: /.*/
+      - bundle-build-and-release:
+          filters:
+            branches:
+              only: master
