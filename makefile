@@ -251,15 +251,15 @@ build-jobservice:
 	$(GO_CMD) $(gobuild) -o ./bin/jobservice cmd/jobservice/main.go
 
 build-lookout:
-	$(GO_CMD) $(gobuild) -o ./bin/lookoutingester cmd/lookoutingester/main.go
+	$(GO_CMD) $(gobuild) -o ./bin/lookout cmd/lookout/main.go
 
 build-lookoutv2:
 	$(GO_CMD) $(gobuild) -o ./bin/lookoutv2 cmd/lookoutv2/main.go
 
-build lookoutingesterv2:
+build-lookoutingesterv2:
 	$(GO_CMD) $(gobuild) -o ./bin/lookoutingesterv2 cmd/lookoutingesterv2/main.go
 
-build: build lookoutingesterv2 build-lookoutv2 build-lookout build-jobservice build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-event-ingester
+build: build-lookoutingesterv2 build-lookoutv2 build-lookout build-jobservice build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-event-ingester
 
 build-docker-server:
 	mkdir -p .build/server
