@@ -203,13 +203,13 @@ dockers:
       - config/lookoutingester/config.yaml
     dockerfile: ./build_goreleaser/bundles/lookout/Dockerfile
 
-  - id: demo-bundle
+  - id: full-bundle
     use: buildx
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-demo-bundle:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
-      - "{{ .Env.DOCKER_REPO }}armada-demo-bundle:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-full-bundle:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-full-bundle:latest"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - lookout
@@ -232,7 +232,7 @@ dockers:
       - pkg/api/binoculars/api.swagger.json
       - config/lookout/config.yaml
       - config/lookoutingester/config.yaml
-    dockerfile: ./build_goreleaser/bundles/demo/Dockerfile
+    dockerfile: ./build_goreleaser/bundles/full/Dockerfile
 
   - id: server
     use: buildx

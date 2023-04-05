@@ -343,6 +343,9 @@ build-docker-scheduler-ingester:
 	cp -a ./config/scheduleringester ./.build/scheduleringester/config
 	docker buildx build -o type=docker $(dockerFlags) -t armada-scheduler-ingester -f ./build/scheduleringester/Dockerfile ./.build/scheduleringester
 
+build-docker-full-bundle:
+	docker buildx build -o type=docker $(dockerFlags) -t armada-full-bundle -f ./build_goreleaser/bundles/full/Dockerfile .
+
 build-docker: build-docker-no-lookout build-docker-lookout build-docker-lookout-v2
 
 # Build target without lookout (to avoid needing to load npm packages from the Internet).
