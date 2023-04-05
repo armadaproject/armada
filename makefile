@@ -343,7 +343,7 @@ build-docker-scheduler-ingester:
 	cp -a ./config/scheduleringester ./.build/scheduleringester/config
 	docker buildx build -o type=docker $(dockerFlags) -t armada-scheduler-ingester -f ./build/scheduleringester/Dockerfile ./.build/scheduleringester
 
-build-docker-full-bundle:
+build-docker-full-bundle: build-docker-jobservice
 	cp -a ./.build/server/server ./bin/server
 	cp -a ./.build/executor/executor ./bin/executor
 	cp -a ./.build/armadactl/armadactl ./bin/armadactl
