@@ -355,6 +355,8 @@ build-docker-full-bundle: build-docker-jobservice
 	cp -a ./.build/eventingester/eventingester ./eventingester
 	cp -a ./.build/binoculars/binoculars ./binoculars
 	cp -a ./.build/jobservice/jobservice ./jobservice
+	cp -a ./.build/lookout/lookout ./lookout
+	cp -a ./.build/lookoutv2/lookoutv2 ./lookoutv2
 
 	ls -a
 
