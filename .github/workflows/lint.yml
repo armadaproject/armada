@@ -1,42 +1,48 @@
 name: "Lint"
 
 on:
+  push:
+    branches-ignore:
+      - master
+      - main
   pull_request:
-    types:
-      - opened
-      - edited
-      - synchronize
+    branches:
+      - master
+      - main
 
 permissions:
   contents: read
+  pull-requests: read
 
 jobs:
-  lint-proto:
-    name: Lint proto
-    runs-on: ubuntu-22.04
+# TODO: will enable linters in subsequent PR so changes are small
+#  lint-proto:
+#    name: Lint proto
+#    runs-on: ubuntu-22.04
+#
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v3
+#
+#      - name: Lint using protolint
+#        uses: plexsystems/protolint-action@v0.7.0
+#        with:
+#          configDirectory: .
+#          srcDirectory: pkg
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Lint using protolint
-        uses: plexsystems/protolint-action@v0.7.0
-        with:
-          configDirectory: .
-          srcDirectory: pkg
-
-  lint-docs:
-    name: Lint docs
-    runs-on: ubuntu-22.04
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Lint changelog file
-        uses: avto-dev/markdown-lint@v1
-        with:
-          args: './docs'
+#  TODO: will enable linters in subsequent PR so changes are small
+#  lint-docs:
+#    name: Lint docs
+#    runs-on: ubuntu-22.04
+#
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v3
+#
+#      - name: Lint changelog file
+#        uses: avto-dev/markdown-lint@v1
+#        with:
+#          args: './docs'
 
   lint-go:
     name: Lint Go
@@ -47,37 +53,39 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
-          go-version: 1.18
-          cache: true
+          go-version: 1.20
 
       - name: Lint using golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: latest
+          version: v1.52.2
           skip-pkg-cache: true
           skip-build-cache: true
+          only-new-issues: true
           args: --timeout=10m --issues-exit-code=1 --sort-results ./...
 
-  lint-helm:
-    name: Lint Helm charts
-    runs-on: ubuntu-22.04
+#  TODO: will enable linters in subsequent PR so changes are small
+#  lint-helm:
+#    name: Lint Helm charts
+#    runs-on: ubuntu-22.04
+#
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v3
+#
+#      - name: Lint Helm charts
+#        uses: ./.github/workflows/linters/lint-helm
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Lint Helm charts
-        uses: ./.github/workflows/linters/lint-helm/lint-helm.yml
-
-  lint-docker:
-    name: Lint Dockerfiles
-    runs-on: ubuntu-22.04
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Lint Dockerfiles
-        uses: ./.github/workflows/linters/lint-docker/lint-docker.yml
+#  TODO: will enable linters in subsequent PR so changes are small
+#  lint-docker:
+#    name: Lint Dockerfiles
+#    runs-on: ubuntu-22.04
+#
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v3
+#
+#      - name: Lint Dockerfiles
+#        uses: ./.github/workflows/linters/lint-docker

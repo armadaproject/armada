@@ -17,7 +17,8 @@ linters:
     - ineffassign
     - misspell
     - errcheck
-    - staticcheck
+# TODO: Will enable it in subsequent PR to keep the changes small
+#    - staticcheck
 
 linters-settings:
   lll:

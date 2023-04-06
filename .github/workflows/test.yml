@@ -20,10 +20,9 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
-          go-version: 1.18
-          cache: true
+          go-version: 1.20
 
       - name: Unit Tests
         id: unit_test
@@ -131,22 +130,22 @@ jobs:
         run: |
           make proto
           make dotnet
-          
+
           changed=$(git status -s -uno | wc -l)
-          
+
           echo -e "### Git status" >> $GITHUB_STEP_SUMMARY
           if [[ "$changed" -gt 0 ]]; then
             echo -e "Generated proto files are out of date. Please run 'make proto' and commit the changes." >> $GITHUB_STEP_SUMMARY
-          
+
             git status -s -uno >> $GITHUB_STEP_SUMMARY
-          
+
             echo -e >> $GITHUB_STEP_SUMMARY
             echo -e "### Git diff" >> $GITHUB_STEP_SUMMARY
-          
+
             git --no-pager diff >> $GITHUB_STEP_SUMMARY
           else
             echo -e "Generated proto files are up to date." >> $GITHUB_STEP_SUMMARY
             echo -e >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           exit $changed
