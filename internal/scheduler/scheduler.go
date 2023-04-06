@@ -565,8 +565,8 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 				}
 				runError = &armadaevents.Error{
 					Terminal: true,
-					Reason: &armadaevents.Error_PodLeaseReturned{
-						PodLeaseReturned: &armadaevents.PodLeaseReturned{
+					Reason: &armadaevents.Error_MaxRunsExceeded{
+						MaxRunsExceeded: &armadaevents.MaxRunsExceeded{
 							Message: errorMessage,
 						},
 					},

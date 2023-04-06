@@ -467,6 +467,7 @@ message LeaseExpired {
 }
 
 message MaxRunsExceeded {
+  string message = 1;
 }
 
 message JobRunPreemptedError{

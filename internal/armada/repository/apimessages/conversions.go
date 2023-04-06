@@ -386,7 +386,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 				},
 			}
 			events = append(events, event)
-		case *armadaevents.Error_PodLeaseReturned:
+		case *armadaevents.Error_MaxRunsExceeded:
 			event := &api.EventMessage{
 				Events: &api.EventMessage_Failed{
 					Failed: &api.JobFailedEvent{
@@ -394,7 +394,7 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 						JobSetId: jobSetName,
 						Queue:    queueName,
 						Created:  time,
-						Reason:   reason.PodLeaseReturned.Message,
+						Reason:   reason.MaxRunsExceeded.Message,
 					},
 				},
 			}
