@@ -79,10 +79,9 @@ jobs:
         run: docker buildx install
 
       - name: Set up Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
-          go-version: 1.18
-          cache: true
+          go-version: 1.20
 
       - name: Setup and Run Integration Tests
         run: |
@@ -108,6 +107,45 @@ jobs:
           detailed_summary: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  go-mod-up-to-date:
+    name: Go Mod Up To Date
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Golang
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.20
+
+      - name: Download all Go modules
+        run: go mod download
+
+      - name: Check for tidyness of go.mod and go.sum
+        run: |
+          go mod tidy
+
+          changed=$(git status -s -uno | wc -l)
+
+          echo -e "### Git status" >> $GITHUB_STEP_SUMMARY
+          if [[ "$changed" -gt 0 ]]; then
+            echo -e "Go modules are not synchronized. Please run 'go mod tidy' and commit the changes." >> $GITHUB_STEP_SUMMARY
+
+            git status -s -uno >> $GITHUB_STEP_SUMMARY
+
+            echo -e >> $GITHUB_STEP_SUMMARY
+            echo -e "### Git diff" >> $GITHUB_STEP_SUMMARY
+
+            git --no-pager diff >> $GITHUB_STEP_SUMMARY
+          else
+            echo -e "Go modules are synchronized." >> $GITHUB_STEP_SUMMARY
+            echo -e >> $GITHUB_STEP_SUMMARY
+          fi
+
+          exit $changed
+
   proto-up-to-date:
     name: Proto Up To Date
     runs-on: ubuntu-22.04
@@ -122,7 +160,14 @@ jobs:
           version: '3.17.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: ./.github/workflows/go-setup
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: Setup dependencies
+        shell: bash
+        run: make download
 
       # TODO(JayF): Consider moving this into its own job, that runs under a larger set of circumstances
       #             since it's possible for this to fail without any go changes being made.
