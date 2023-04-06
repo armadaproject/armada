@@ -49,7 +49,9 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	var db *sql.DB
 
 	if config.DatabaseType == "postgres" {
-		db, err := sql.Open("pgx", database.CreateConnectionString(config.PostgresConfig.Connection))
+		var err error
+		log.Info("using postgres")
+		db, err = sql.Open("pgx", database.CreateConnectionString(config.PostgresConfig.Connection))
 		if err != nil {
 			return err
 		}
@@ -58,6 +60,9 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		db.SetConnMaxLifetime(config.PostgresConfig.ConnMaxLifetime)
 
 	} else if config.DatabaseType == "sqlite" {
+		log.Info("using sqlite")
+		var err error
+
 		dbDir := filepath.Dir(config.DatabasePath)
 		if _, err := os.Stat(dbDir); os.IsNotExist(err) {
 			if errMkDir := os.Mkdir(dbDir, 0o755); errMkDir != nil {
@@ -65,7 +70,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 			}
 		}
 
-		db, err := sql.Open("sqlite", config.DatabasePath)
+		db, err = sql.Open("sqlite", config.DatabasePath)
 		if err != nil {
 			log.Fatalf("error opening sqlite DB from %s %v", config.DatabasePath, err)
 		}

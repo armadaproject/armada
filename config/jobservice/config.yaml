@@ -8,12 +8,12 @@ databaseType: "postgres"
 # storage file when using database type 'sqlite'
 databasePath: "/var/jobservice.db"
 # Connection details when using database type 'postgres'
-postgres:
+postgresConfig:
   maxOpenConns: 50
   maxIdleConns: 10
   connMaxLifetime: 30m
   connection:
-    host: localhost
+    host: postgres
     port: 5432
     user: postgres
     password: psw
