@@ -3,9 +3,10 @@ package affinity
 import (
 	"testing"
 
-	"github.com/armadaproject/armada/pkg/api"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func TestAddNodeAntiAffinity_WhenNoExistingAffinity_AddsCorrectly(t *testing.T) {

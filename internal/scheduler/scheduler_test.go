@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	affinity2 "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
-	"github.com/armadaproject/armada/pkg/api"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -21,13 +19,17 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // Data to be used in tests
-const maxNumberOfAttempts = 2
-const nodeIdLabel = "kubernetes.io/hostname"
+const (
+	maxNumberOfAttempts = 2
+	nodeIdLabel         = "kubernetes.io/hostname"
+)
 
 var (
 	schedulingInfo = &schedulerobjects.JobSchedulingInfo{
@@ -413,11 +415,11 @@ func TestScheduler_TestCycle(t *testing.T) {
 }
 
 func createAntiAffinity(key string, values []string) *v1.Affinity {
-	affinity := &v1.Affinity{}
+	newAffinity := &v1.Affinity{}
 	for _, value := range values {
-		affinity2.AddNodeAntiAffinity(affinity, key, value)
+		affinity.AddNodeAntiAffinity(newAffinity, key, value)
 	}
-	return affinity
+	return newAffinity
 }
 
 func subtractEventsFromOutstandingEventsByType(eventSequences []*armadaevents.EventSequence, outstandingEventsByType map[string]map[string]bool) error {
