@@ -353,7 +353,6 @@ build-docker-scheduler-ingester:
 	docker buildx build -o type=docker $(dockerFlags) -t armada-scheduler-ingester -f ./build/scheduleringester/Dockerfile ./.build/scheduleringester
 
 build-docker-full-bundle: build
-	ls -la ./bin
 	cp -a ./bin/server ./server
 	cp -a ./bin/executor ./executor
 	cp -a ./bin/lookoutingester ./lookoutingester
@@ -363,6 +362,7 @@ build-docker-full-bundle: build
 	cp -a ./bin/jobservice ./jobservice
 	cp -a ./bin/lookout ./lookout
 	cp -a ./bin/lookoutv2 ./lookoutv2
+	cp -a ./bin/armadactl ./armadactl
 
 	docker buildx build -o type=docker $(dockerFlags) -t armada-full-bundle -f ./build_goreleaser/bundles/full/Dockerfile .
 
