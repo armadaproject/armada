@@ -145,7 +145,7 @@ export function HeaderCell({ header, columnResizeMode, deltaOffset }: HeaderCell
               currentFilter={header.column.getFilterValue() as string | string[]}
               filterType={metadata.filterType}
               matchType={metadata.defaultMatchType ?? Match.Exact}
-              enumFilterValues={metadata.enumFitlerValues}
+              enumFilterValues={metadata.enumFilterValues}
               onFilterChange={header.column.setFilterValue}
             />
           )}
@@ -195,7 +195,15 @@ export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange }: 
             gap: "0.25em",
           }}
         >
-          <IconButton size="small" sx={{ padding: 0 }} edge="start" onClick={() => onExpandedChange()}>
+          <IconButton
+            size="small"
+            sx={{ padding: 0 }}
+            edge="start"
+            onClick={(e) => {
+              onExpandedChange()
+              e.stopPropagation()
+            }}
+          >
             {rowIsExpanded ? (
               <KeyboardArrowDown fontSize="small" aria-label="Collapse row" aria-hidden="false" />
             ) : (
