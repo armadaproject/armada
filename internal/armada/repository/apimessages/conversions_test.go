@@ -343,7 +343,7 @@ func TestConvertPodUnschedulable(t *testing.T) {
 				RunId: runIdProto,
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: true,
+						Terminal: false,
 						Reason: &armadaevents.Error_PodUnschedulable{
 							PodUnschedulable: &armadaevents.PodUnschedulable{
 								ObjectMeta: &armadaevents.ObjectMeta{
@@ -449,7 +449,7 @@ func TestConvertPodTerminated(t *testing.T) {
 				RunId: runIdProto,
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: true,
+						Terminal: false,
 						Reason: &armadaevents.Error_PodTerminated{
 							PodTerminated: &armadaevents.PodTerminated{
 								ObjectMeta: &armadaevents.ObjectMeta{
