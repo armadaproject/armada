@@ -217,6 +217,40 @@ func TestJob_TestNumReturned(t *testing.T) {
 	assert.Equal(t, uint(2), returned3.NumReturned())
 }
 
+func TestJob_TestNumAttempts(t *testing.T) {
+	attemptedRun := func() *JobRun {
+		return &JobRun{
+			id:           uuid.New(),
+			created:      baseRun.created,
+			returned:     true,
+			runAttempted: true,
+		}
+	}
+
+	nonAttemptedRun := func() *JobRun {
+		return &JobRun{
+			id:           uuid.New(),
+			created:      baseRun.created,
+			returned:     true,
+			runAttempted: false,
+		}
+	}
+	// initial job has no runs
+	assert.Equal(t, uint(0), baseJob.NumAttempts())
+
+	// one returned run
+	returned1 := baseJob.WithUpdatedRun(attemptedRun())
+	assert.Equal(t, uint(1), returned1.NumAttempts())
+
+	// still one returned run
+	returned2 := returned1.WithUpdatedRun(nonAttemptedRun())
+	assert.Equal(t, uint(1), returned2.NumAttempts())
+
+	// two returned runs
+	returned3 := returned2.WithUpdatedRun(attemptedRun())
+	assert.Equal(t, uint(2), returned3.NumAttempts())
+}
+
 func TestJob_TestRunsById(t *testing.T) {
 	runs := make([]*JobRun, 10)
 	job := baseJob

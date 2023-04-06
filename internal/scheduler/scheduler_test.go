@@ -7,10 +7,13 @@ import (
 	"testing"
 	"time"
 
+	affinity2 "github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
@@ -23,10 +26,22 @@ import (
 )
 
 // Data to be used in tests
-const maxLeaseReturns = 1
+const maxNumberOfAttempts = 2
+const nodeIdLabel = "kubernetes.io/hostname"
 
 var (
-	schedulingInfo      = &schedulerobjects.JobSchedulingInfo{AtMostOnce: true}
+	schedulingInfo = &schedulerobjects.JobSchedulingInfo{
+		AtMostOnce: true,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						Priority: int32(10),
+					},
+				},
+			},
+		},
+	}
 	schedulingInfoBytes = protoutil.MustMarshall(schedulingInfo)
 )
 
@@ -55,24 +70,26 @@ var leasedJob = jobdb.NewJob(
 // Test a single scheduler cycle
 func TestScheduler_TestCycle(t *testing.T) {
 	tests := map[string]struct {
-		initialJobs              []*jobdb.Job      // jobs in the jobdb at the start of the cycle
-		jobUpdates               []database.Job    // job updates from the database
-		runUpdates               []database.Run    // run updates from the database
-		staleExecutor            bool              // if true then the executorRepository will report the executor as stale
-		fetchError               bool              // if true then the jobRepository will throw an error
-		scheduleError            bool              // if true then the schedulingalgo will throw an error
-		publishError             bool              // if true the publisher will throw an error
-		expectedJobRunLeased     []string          // ids of jobs we expect to have produced leased messages
-		expectedJobRunErrors     []string          // ids of jobs we expect to have produced jobRunErrors messages
-		expectedJobErrors        []string          // ids of jobs we expect to have produced jobErrors messages
-		expectedJobRunPreempted  []string          // ids of jobs we expect to have produced jobRunPreempted messages
-		expectedJobCancelled     []string          // ids of jobs we expect to have  produced cancelled messages
-		expectedJobReprioritised []string          // ids of jobs we expect to have  produced reprioritised messages
-		expectedJobSucceeded     []string          // ids of jobs we expect to have  produced succeeeded messages
-		expectedLeased           []string          // ids of jobs we expected to be leased in jobdb at the end of the cycle
-		expectedQueued           []string          // ids of jobs we expected to be queued in jobdb at the end of the cycle
-		expectedTerminal         []string          // ids of jobs we expected to be terminal in jobdb at the end of the cycle
-		expectedJobPriority      map[string]uint32 // expected priority of jobs at the end of the cycle
+		initialJobs                []*jobdb.Job      // jobs in the jobdb at the start of the cycle
+		jobUpdates                 []database.Job    // job updates from the database
+		runUpdates                 []database.Run    // run updates from the database
+		staleExecutor              bool              // if true then the executorRepository will report the executor as stale
+		fetchError                 bool              // if true then the jobRepository will throw an error
+		scheduleError              bool              // if true then the schedulingalgo will throw an error
+		publishError               bool              // if true the publisher will throw an error
+		submitCheckerFailure       bool              // if true the submit checker will say the job is unschedulable
+		expectedJobRunLeased       []string          // ids of jobs we expect to have produced leased messages
+		expectedJobRunErrors       []string          // ids of jobs we expect to have produced jobRunErrors messages
+		expectedJobErrors          []string          // ids of jobs we expect to have produced jobErrors messages
+		expectedJobRunPreempted    []string          // ids of jobs we expect to have produced jobRunPreempted messages
+		expectedJobCancelled       []string          // ids of jobs we expect to have  produced cancelled messages
+		expectedJobReprioritised   []string          // ids of jobs we expect to have  produced reprioritised messages
+		expectedJobSucceeded       []string          // ids of jobs we expect to have  produced succeeeded messages
+		expectedLeased             []string          // ids of jobs we expected to be leased in jobdb at the end of the cycle
+		expectedQueued             []string          // ids of jobs we expected to be queued in jobdb at the end of the cycle
+		expectedTerminal           []string          // ids of jobs we expected to be terminal in jobdb at the end of the cycle
+		expectedJobPriority        map[string]uint32 // expected priority of jobs at the end of the cycle
+		expectedNodeAntiAffinities []string          // list of nodes there is expected to be anti affinities for on job scheduling info
 	}{
 		"Lease a single job already in the db": {
 			initialJobs:          []*jobdb.Job{queuedJob},
@@ -99,42 +116,83 @@ func TestScheduler_TestCycle(t *testing.T) {
 			initialJobs:    []*jobdb.Job{leasedJob},
 			expectedLeased: []string{leasedJob.Id()},
 		},
-		"Lease returned and re-queued": {
+		"Lease returned and re-queued when run attempted": {
 			initialJobs: []*jobdb.Job{leasedJob},
 			runUpdates: []database.Run{
 				{
-					RunID:    leasedJob.LatestRun().Id(),
-					JobID:    leasedJob.Id(),
-					JobSet:   "testJobSet",
-					Executor: "testExecutor",
-					Failed:   true,
-					Returned: true,
-					Serial:   1,
+					RunID:        leasedJob.LatestRun().Id(),
+					JobID:        leasedJob.Id(),
+					JobSet:       "testJobSet",
+					Executor:     "testExecutor",
+					Failed:       true,
+					Returned:     true,
+					RunAttempted: true,
+					Serial:       1,
 				},
 			},
 			expectedQueued: []string{leasedJob.Id()},
+			// Should add node anti affinities for nodes of any attempted runs
+			expectedNodeAntiAffinities: []string{leasedJob.LatestRun().Node()},
+		},
+		"Lease returned and re-queued when run not attempted": {
+			initialJobs: []*jobdb.Job{leasedJob},
+			runUpdates: []database.Run{
+				{
+					RunID:        leasedJob.LatestRun().Id(),
+					JobID:        leasedJob.Id(),
+					JobSet:       "testJobSet",
+					Executor:     "testExecutor",
+					Failed:       true,
+					Returned:     true,
+					RunAttempted: false,
+					Serial:       1,
+				},
+			},
+			expectedQueued: []string{leasedJob.Id()},
+		},
+		// When a lease is returned and the run was attempted, a node anti affinity is added
+		// If this node anti-affinity makes the job unschedulable, it should be failed
+		"Lease returned and failed": {
+			initialJobs: []*jobdb.Job{leasedJob},
+			runUpdates: []database.Run{
+				{
+					RunID:        leasedJob.LatestRun().Id(),
+					JobID:        leasedJob.Id(),
+					JobSet:       "testJobSet",
+					Executor:     "testExecutor",
+					Failed:       true,
+					Returned:     true,
+					RunAttempted: true,
+					Serial:       1,
+				},
+			},
+			submitCheckerFailure: true,
+			expectedJobErrors:    []string{leasedJob.Id()},
+			expectedTerminal:     []string{leasedJob.Id()},
 		},
 		"Lease returned too many times": {
 			initialJobs: []*jobdb.Job{leasedJob},
 			// 2 failures here so the second one should trigger a run failure
 			runUpdates: []database.Run{
 				{
-					RunID:    leasedJob.LatestRun().Id(),
-					JobID:    leasedJob.Id(),
-					JobSet:   "testJobSet",
-					Executor: "testExecutor",
-					Failed:   true,
-					Returned: true,
-					Serial:   1,
+					RunID:        leasedJob.LatestRun().Id(),
+					JobID:        leasedJob.Id(),
+					JobSet:       "testJobSet",
+					Executor:     "testExecutor",
+					Failed:       true,
+					Returned:     true,
+					RunAttempted: true,
+					Serial:       1,
 				},
 				{
-					RunID:    uuid.New(),
-					JobID:    leasedJob.Id(),
-					JobSet:   "testJobSet",
-					Executor: "testExecutor",
-					Failed:   true,
-					Returned: true,
-					Serial:   2,
+					RunID:        uuid.New(),
+					JobID:        leasedJob.Id(),
+					JobSet:       "testJobSet",
+					Executor:     "testExecutor",
+					Failed:       true,
+					Returned:     true,
+					RunAttempted: true,
+					Serial:       2,
 				},
 			},
 			expectedJobErrors: []string{leasedJob.Id()},
@@ -248,6 +306,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			publisher := &testPublisher{shouldError: tc.publishError}
 			stringInterner, err := stringinterner.New(100)
 			require.NoError(t, err)
+			submitChecker := &testSubmitChecker{checkSuccess: !tc.submitCheckerFailure}
 
 			heartbeatTime := testClock.Now()
 			if tc.staleExecutor {
@@ -263,9 +322,11 @@ func TestScheduler_TestCycle(t *testing.T) {
 				NewStandaloneLeaderController(),
 				publisher,
 				stringInterner,
+				submitChecker,
 				1*time.Second,
 				clusterTimeout,
-				maxLeaseReturns,
+				maxNumberOfAttempts,
+				nodeIdLabel,
 			)
 			require.NoError(t, err)
 
@@ -336,6 +397,12 @@ func TestScheduler_TestCycle(t *testing.T) {
 				if expectedPriority, ok := tc.expectedJobPriority[job.Id()]; ok {
 					assert.Equal(t, job.Priority(), expectedPriority)
 				}
+				if len(tc.expectedNodeAntiAffinities) > 0 {
+					assert.Len(t, job.JobSchedulingInfo().ObjectRequirements, 1)
+					affinity := job.JobSchedulingInfo().ObjectRequirements[0].GetPodRequirements().Affinity
+					assert.NotNil(t, affinity)
+					assert.Equal(t, createAntiAffinity(nodeIdLabel, tc.expectedNodeAntiAffinities), affinity)
+				}
 			}
 			assert.Equal(t, 0, len(remainingLeased))
 			assert.Equal(t, 0, len(remainingQueued))
@@ -343,6 +410,14 @@ func TestScheduler_TestCycle(t *testing.T) {
 			cancel()
 		})
 	}
+}
+
+func createAntiAffinity(key string, values []string) *v1.Affinity {
+	affinity := &v1.Affinity{}
+	for _, value := range values {
+		affinity2.AddNodeAntiAffinity(affinity, key, value)
+	}
+	return affinity
 }
 
 func subtractEventsFromOutstandingEventsByType(eventSequences []*armadaevents.EventSequence, outstandingEventsByType map[string]map[string]bool) error {
@@ -376,6 +451,7 @@ func TestRun(t *testing.T) {
 	publisher := &testPublisher{}
 	clusterRepo := &testExecutorRepository{}
 	leaderController := NewStandaloneLeaderController()
+	submitChecker := &testSubmitChecker{checkSuccess: true}
 	stringInterner, err := stringinterner.New(100)
 	require.NoError(t, err)
 
@@ -386,9 +462,11 @@ func TestRun(t *testing.T) {
 		leaderController,
 		publisher,
 		stringInterner,
+		submitChecker,
 		1*time.Second,
 		1*time.Hour,
-		maxLeaseReturns)
+		maxNumberOfAttempts,
+		nodeIdLabel)
 	require.NoError(t, err)
 
 	sched.clock = testClock
@@ -494,6 +572,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 						false,
 						false,
 						false,
+						false,
 					),
 				).WithQueued(false),
 			},
@@ -560,9 +639,11 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				leaderController,
 				publisher,
 				stringInterner,
+				nil,
 				1*time.Second,
 				1*time.Hour,
-				maxLeaseReturns)
+				maxNumberOfAttempts,
+				nodeIdLabel)
 			require.NoError(t, err)
 
 			// insert initial jobs
@@ -585,6 +666,18 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			}
 		})
 	}
+}
+
+type testSubmitChecker struct {
+	checkSuccess bool
+}
+
+func (t *testSubmitChecker) CheckPodRequirements(podRequirement *schedulerobjects.PodRequirements) (bool, string) {
+	return t.checkSuccess, ""
+}
+
+func (t *testSubmitChecker) CheckApiJobs(jobs []*api.Job) (bool, string) {
+	return t.checkSuccess, "2"
 }
 
 // Test implementations of the interfaces needed by the Scheduler

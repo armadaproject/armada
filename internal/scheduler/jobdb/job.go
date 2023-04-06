@@ -287,6 +287,23 @@ func (job *Job) NumReturned() uint {
 	return returned
 }
 
+// NumAttempts returns the number of times the executors tried to run this job
+// Note that this is O(N) on Runs, but this should be fine as the number of runs should be small.
+func (job *Job) NumAttempts() uint {
+	attempts := uint(0)
+	for _, run := range job.runsById {
+		if run.runAttempted {
+			attempts++
+		}
+	}
+	return attempts
+}
+
+// AllRuns returns all runs associated with job.
+func (job *Job) AllRuns() []*JobRun {
+	return maps.Values(job.runsById)
+}
+
 // LatestRun returns the currently active job run or nil if there are no runs yet.
 // Callers should either guard against nil values explicitly or via HasRuns.
 func (job *Job) LatestRun() *JobRun {
@@ -319,7 +336,7 @@ func (job *Job) WithCreated(created int64) *Job {
 	return j
 }
 
-// WithJobSchedulingInfo returns a copy of the job with the creation time updated.
+// WithJobSchedulingInfo returns a copy of the job with the job scheduling info updated.
 func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSchedulingInfo) *Job {
 	j := copyJob(*job)
 	j.jobSchedulingInfo = jobSchedulingInfo

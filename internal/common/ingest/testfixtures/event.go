@@ -229,7 +229,8 @@ var LeaseReturned = &armadaevents.EventSequence_Event{
 					Terminal: true,
 					Reason: &armadaevents.Error_PodLeaseReturned{
 						PodLeaseReturned: &armadaevents.PodLeaseReturned{
-							Message: LeaseReturnedMsg,
+							Message:      LeaseReturnedMsg,
+							RunAttempted: true,
 						},
 					},
 				},

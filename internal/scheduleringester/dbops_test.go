@@ -150,10 +150,10 @@ func TestDbOperationOptimisation(t *testing.T) {
 		"MarkRunsFailed": {N: 3, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                   // 1
 			InsertRuns{runIds[0]: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}, // 2
-			MarkRunsFailed{runIds[0]: &JobRunFailed{true}},                              // 3
+			MarkRunsFailed{runIds[0]: &JobRunFailed{true, true}},                        // 3
 			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                   // 3
 			InsertRuns{runIds[1]: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}}, // 3
-			MarkRunsFailed{runIds[1]: &JobRunFailed{true}},                              // 3
+			MarkRunsFailed{runIds[1]: &JobRunFailed{true, true}},                        // 3
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                   // 3
 		}},
 		"MarkRunsRunning": {N: 3, Ops: []DbOperation{

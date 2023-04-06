@@ -21,6 +21,7 @@ func (d *DbOperationsWithMessageIds) GetMessageIDs() []pulsar.MessageID {
 
 type JobRunFailed struct {
 	LeaseReturned bool
+	RunAttempted  bool
 }
 
 // DbOperation captures a generic batch database operation.

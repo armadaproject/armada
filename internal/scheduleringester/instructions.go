@@ -216,7 +216,14 @@ func (c *InstructionConverter) handleJobRunErrors(jobRunErrors *armadaevents.Job
 				JobID: jobId,
 				Error: bytes,
 			}
-			markRunsFailed[runId] = &JobRunFailed{LeaseReturned: runError.GetPodLeaseReturned() != nil}
+			runAttempted := false
+			if runError.GetPodLeaseReturned() != nil {
+				runAttempted = runError.GetPodLeaseReturned().RunAttempted
+			}
+			markRunsFailed[runId] = &JobRunFailed{
+				LeaseReturned: runError.GetPodLeaseReturned() != nil,
+				RunAttempted:  runAttempted,
+			}
 			return []DbOperation{insertJobRunErrors, markRunsFailed}, nil
 		}
 	}

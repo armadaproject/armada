@@ -180,7 +180,8 @@ func TestWriteOps(t *testing.T) {
 			},
 			MarkRunsFailed{
 				runIds[0]: &JobRunFailed{LeaseReturned: true},
-				runIds[1]: &JobRunFailed{LeaseReturned: false},
+				runIds[1]: &JobRunFailed{LeaseReturned: true, RunAttempted: true},
+				runIds[2]: &JobRunFailed{LeaseReturned: false},
 			},
 		}},
 		"MarkRunsRunning": {Ops: []DbOperation{
@@ -465,6 +466,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			if expectedRun, ok := expected[run.RunID]; ok {
 				assert.True(t, run.Failed)
 				assert.Equal(t, expectedRun.LeaseReturned, run.Returned)
+				assert.Equal(t, expectedRun.RunAttempted, run.RunAttempted)
 				numChanged++
 			}
 		}

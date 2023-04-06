@@ -132,9 +132,13 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 	case MarkRunsFailed:
 		runIds := maps.Keys(o)
 		returned := make([]uuid.UUID, 0, len(runIds))
+		runAttempted := make([]uuid.UUID, 0, len(runIds))
 		for k, v := range o {
 			if v.LeaseReturned {
 				returned = append(returned, k)
+			}
+			if v.RunAttempted {
+				runAttempted = append(runAttempted, k)
 			}
 		}
 		err := queries.MarkJobRunsFailedById(ctx, runIds)
@@ -142,6 +146,10 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			return errors.WithStack(err)
 		}
 		err = queries.MarkJobRunsReturnedById(ctx, returned)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		err = queries.MarkJobRunsAttemptedById(ctx, runAttempted)
 		if err != nil {
 			return errors.WithStack(err)
 		}

@@ -100,7 +100,7 @@ func TestConvertSequence(t *testing.T) {
 					JobID: f.JobIdString,
 					Error: protoutil.MustMarshallAndCompress(f.LeaseReturned.GetJobRunErrors().Errors[0], compressor),
 				}},
-				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: true}},
+				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: true, RunAttempted: true}},
 			},
 		},
 		"job failed": {

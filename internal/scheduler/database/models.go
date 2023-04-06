@@ -64,6 +64,7 @@ type Run struct {
 	Succeeded    bool      `db:"succeeded"`
 	Failed       bool      `db:"failed"`
 	Returned     bool      `db:"returned"`
+	RunAttempted bool      `db:"run_attempted"`
 	Serial       int64     `db:"serial"`
 	LastModified time.Time `db:"last_modified"`
 }

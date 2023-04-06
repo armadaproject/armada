@@ -72,6 +72,15 @@ func (q *Queries) InsertMarker(ctx context.Context, arg InsertMarkerParams) erro
 	return err
 }
 
+const markJobRunsAttemptedById = `-- name: MarkJobRunsAttemptedById :exec
+UPDATE runs SET run_attempted = true WHERE run_id = ANY($1::UUID[])
+`
+
+func (q *Queries) MarkJobRunsAttemptedById(ctx context.Context, runIds []uuid.UUID) error {
+	_, err := q.db.Exec(ctx, markJobRunsAttemptedById, runIds)
+	return err
+}
+
 const markJobRunsFailedById = `-- name: MarkJobRunsFailedById :exec
 UPDATE runs SET failed = true WHERE run_id = ANY($1::UUID[])
 `
@@ -400,7 +409,7 @@ func (q *Queries) SelectNewJobs(ctx context.Context, arg SelectNewJobsParams) ([
 }
 
 const selectNewRuns = `-- name: SelectNewRuns :many
-SELECT run_id, job_id, created, job_set, executor, node, cancelled, running, succeeded, failed, returned, serial, last_modified FROM runs WHERE serial > $1 ORDER BY serial LIMIT $2
+SELECT run_id, job_id, created, job_set, executor, node, cancelled, running, succeeded, failed, returned, run_attempted, serial, last_modified FROM runs WHERE serial > $1 ORDER BY serial LIMIT $2
 `
 
 type SelectNewRunsParams struct {
@@ -429,6 +438,7 @@ func (q *Queries) SelectNewRuns(ctx context.Context, arg SelectNewRunsParams) ([
 			&i.Succeeded,
 			&i.Failed,
 			&i.Returned,
+			&i.RunAttempted,
 			&i.Serial,
 			&i.LastModified,
 		); err != nil {
@@ -443,7 +453,7 @@ func (q *Queries) SelectNewRuns(ctx context.Context, arg SelectNewRunsParams) ([
 }
 
 const selectNewRunsForJobs = `-- name: SelectNewRunsForJobs :many
-SELECT run_id, job_id, created, job_set, executor, node, cancelled, running, succeeded, failed, returned, serial, last_modified FROM runs WHERE serial > $1 AND job_id = ANY($2::text[]) ORDER BY serial
+SELECT run_id, job_id, created, job_set, executor, node, cancelled, running, succeeded, failed, returned, run_attempted, serial, last_modified FROM runs WHERE serial > $1 AND job_id = ANY($2::text[]) ORDER BY serial
 `
 
 type SelectNewRunsForJobsParams struct {
@@ -472,6 +482,7 @@ func (q *Queries) SelectNewRunsForJobs(ctx context.Context, arg SelectNewRunsFor
 			&i.Succeeded,
 			&i.Failed,
 			&i.Returned,
+			&i.RunAttempted,
 			&i.Serial,
 			&i.LastModified,
 		); err != nil {

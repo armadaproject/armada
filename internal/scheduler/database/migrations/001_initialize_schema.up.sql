@@ -55,6 +55,8 @@ CREATE TABLE runs (
     failed boolean NOT NULL DEFAULT false,
     -- Set to true when the lease is returned by the executor.
     returned boolean NOT NULL DEFAULT false,
+    -- Set to true when the returned job run was given a chance to run. i.e unscheduled jobs will be false, image pull failure would be true
+    run_attempted boolean NOT NULL DEFAULT false,
     serial bigserial NOT NULL,
     last_modified timestamptz NOT NULL
 );
