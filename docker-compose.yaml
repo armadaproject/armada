@@ -103,7 +103,7 @@ services:
 
   lookout:
     container_name: lookout
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
@@ -119,7 +119,7 @@ services:
 
   lookoutv2:
     container_name: lookoutv2
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
@@ -134,14 +134,14 @@ services:
 
   lookoutingester:
     container_name: lookoutingester
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     command: ./lookoutingester
 
   lookoutingesterv2:
     container_name: lookoutingesterv2
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     env_file:
@@ -150,7 +150,7 @@ services:
 
   jobservice:
     container_name: jobservice
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-jobservice}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
