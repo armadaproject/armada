@@ -65,25 +65,25 @@ jobs:
           args: --timeout=10m --issues-exit-code=1 --sort-results ./...
 
 #  TODO: will enable linters in subsequent PR so changes are small
-  lint-helm:
-    name: Lint Helm charts
-    runs-on: ubuntu-22.04
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Lint Helm charts
-        uses: ./.github/workflows/linters/lint-helm
+#  lint-helm:
+#    name: Lint Helm charts
+#    runs-on: ubuntu-22.04
+#
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v3
+#
+#      - name: Lint Helm charts
+#        uses: ./.github/workflows/linters/lint-helm
 
 #  TODO: will enable linters in subsequent PR so changes are small
-  lint-docker:
-    name: Lint Dockerfiles
-    runs-on: ubuntu-22.04
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-
-      - name: Lint Dockerfiles
-        uses: ./.github/workflows/linters/lint-docker
+#  lint-docker:
+#    name: Lint Dockerfiles
+#    runs-on: ubuntu-22.04
+#
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v3
+#
+#      - name: Lint Dockerfiles
+#        uses: ./.github/workflows/linters/lint-docker
