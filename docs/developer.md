@@ -21,7 +21,7 @@ In addition, Armada relies on the following components for storage and communica
 - Redis: the main database of Armada; used, e.g., to store queued jobs.
 - PostgreSQL: used for auxilliary storage. In the future, PostgreSQL will be the main database, instead of Redis.
 
-All of these components can be started and initialised with [./developer/init.sh](https://github.com/armadaproject/armada/blob/master/developer/init.sh) When the script completes, you will have a fully functional local deployment of armada via docker.
+All of these components can be started and initialised with `mage build ui localdev`
 
 Create a queue and run the Test Suite:
 
