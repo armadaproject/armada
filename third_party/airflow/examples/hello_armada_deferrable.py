@@ -14,11 +14,7 @@ from armada_client.armada import (
     submit_pb2,
 )
 
-from armada_client.client import ArmadaClient
-import grpc
-
 import pendulum
-from armada.operators.jobservice import JobServiceClient
 
 
 def submit_sleep_job():
@@ -59,7 +55,8 @@ def submit_sleep_job():
 
 
 """
-This is an example of a Airflow dag that uses a BashOperator and an ArmadaDeferrableOperator
+This is an example of a Airflow dag that uses a BashOperator and
+an ArmadaDeferrableOperator
 """
 with DAG(
     dag_id="hello_armada_deferrable",
