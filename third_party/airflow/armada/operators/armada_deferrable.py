@@ -51,13 +51,11 @@ class GrpcAsyncIOChannelArguments(object):
         credentials: Optional[grpc.ChannelCredentials] = None,
         options: Optional[Sequence[Tuple[str, Any]]] = None,
         compression: Optional[grpc.Compression] = None,
-        interceptors: Optional[Sequence[grpc.ClientInterceptor]] = None,
     ) -> None:
         self.target = target
         self.credentials = credentials
         self.options = options
         self.compression = compression
-        self.interceptors = interceptors
 
     def instantiate_channel(self) -> grpc.aio.Channel:
         if self.credentials is None:
@@ -65,14 +63,12 @@ class GrpcAsyncIOChannelArguments(object):
                 target=self.target,
                 options=self.options,
                 compression=self.compression,
-                interceptors=self.interceptors,
             )
         return grpc.aio.secure_channel(
             target=self.target,
             credentials=self.credentials,
             options=self.options,
             compression=self.compression,
-            interceptors=self.interceptors,
         )
 
     # TODO: Not sure if this is needed.
@@ -82,7 +78,6 @@ class GrpcAsyncIOChannelArguments(object):
             "credentials": self.credentials,
             "options": self.options,
             "compression": self.compression,
-            "interceptors": self.interceptors,
         }.items()
 
 
@@ -139,7 +134,9 @@ class ArmadaDeferrableOperator(BaseOperator):
 
         :return: None
         """
-        self.job_request_items = annotate_job_request_items(self.job_request_items)
+        self.job_request_items = annotate_job_request_items(
+            context=context, job_request_items=self.job_request_items
+        )
         self.defer(
             trigger=ArmadaSubmitJobTrigger(
                 armada_channel_args=self.armada_channel_args,
@@ -248,7 +245,7 @@ class ArmadaSubmitJobTrigger(BaseTrigger):
 
     def serialize(self) -> tuple:
         return (
-            "armada.operators.ArmadaSubmitJobTrigger",
+            "armada.operators.armada_deferrable.ArmadaSubmitJobTrigger",
             {
                 "armada_channel_args": self.armada_channel_args,
                 "job_service_channel_args": self.job_service_channel_args,
@@ -291,7 +288,7 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
 
     def serialize(self) -> tuple:
         return (
-            "armada.operators.ArmadaJobCompleteTrigger",
+            "armada.operators.armada_deferrable.ArmadaJobCompleteTrigger",
             {
                 "job_id": self.job_id,
                 "job_service_channel_args": self.job_service_channel_args,

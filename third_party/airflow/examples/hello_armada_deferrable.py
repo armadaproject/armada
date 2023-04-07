@@ -1,6 +1,6 @@
 from airflow import DAG
 from airflow.operators.bash import BashOperator
-from armada.operators.armada import (
+from armada.operators.armada_deferrable import (
     ArmadaDeferrableOperator,
     GrpcAsyncIOChannelArguments,
 )
