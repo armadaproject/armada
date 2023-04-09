@@ -1,9 +1,6 @@
 from airflow import DAG
 from airflow.operators.bash import BashOperator
-from armada.operators.armada_deferrable import (
-    ArmadaDeferrableOperator,
-    GrpcAsyncIOChannelArguments,
-)
+from armada.operators.armada_deferrable import ArmadaDeferrableOperator
 
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
@@ -68,8 +65,8 @@ with DAG(
     """
     The ArmadaDeferrableOperatorOperator requires grpc.aio.channel arguments
     """
-    armada_channel_args = GrpcAsyncIOChannelArguments(target="127.0.0.1:50051")
-    job_service_channel_args = GrpcAsyncIOChannelArguments(target="127.0.0.1:60003")
+    armada_channel_args = {"target": "127.0.0.1:50051"}
+    job_service_channel_args = {"target": "127.0.0.1:60003"}
     """
     This defines an Airflow task that runs Hello World and it gives the airflow
     task name of dummy.

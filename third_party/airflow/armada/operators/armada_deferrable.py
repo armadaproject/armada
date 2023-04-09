@@ -72,13 +72,13 @@ class GrpcAsyncIOChannelArguments(object):
         )
 
     # TODO: Not sure if this is needed.
-    def serialize(self) -> tuple:
+    def serialize(self) -> dict:
         return {
             "target": self.target,
             "credentials": self.credentials,
             "options": self.options,
             "compression": self.compression,
-        }.items()
+        }
 
 
 class ArmadaDeferrableOperator(BaseOperator):
@@ -109,8 +109,8 @@ class ArmadaDeferrableOperator(BaseOperator):
     def __init__(
         self,
         name: str,
-        armada_channel_args: GrpcAsyncIOChannelArguments,
-        job_service_channel_args: GrpcAsyncIOChannelArguments,
+        armada_channel_args: dict,
+        job_service_channel_args: dict,
         armada_queue: str,
         job_request_items,
         lookout_url_template: Optional[str] = None,
@@ -118,8 +118,10 @@ class ArmadaDeferrableOperator(BaseOperator):
     ) -> None:
         super().__init__(**kwargs)
         self.name = name
-        self.armada_channel_args = armada_channel_args
-        self.job_service_channel_args = job_service_channel_args
+        self.armada_channel_args = GrpcAsyncIOChannelArguments(**armada_channel_args)
+        self.job_service_channel_args = GrpcAsyncIOChannelArguments(
+            **job_service_channel_args
+        )
         self.armada_queue = armada_queue
         self.job_request_items = job_request_items
         self.lookout_url_template = lookout_url_template
@@ -139,8 +141,8 @@ class ArmadaDeferrableOperator(BaseOperator):
         )
         self.defer(
             trigger=ArmadaSubmitJobTrigger(
-                armada_channel_args=self.armada_channel_args,
-                job_service_channel_args=self.job_service_channel_args,
+                armada_channel_args=self.armada_channel_args.serialize(),
+                job_service_channel_args=self.job_service_channel_args.serialize(),
                 run_id=context["run_id"],
                 armada_queue=self.armada_queue,
                 job_request_items=self.job_request_items,
@@ -181,7 +183,7 @@ class ArmadaDeferrableOperator(BaseOperator):
         self.defer(
             trigger=ArmadaJobCompleteTrigger(
                 job_id=job_id,
-                job_service_channel_args=job_service_channel_args,
+                job_service_channel_args=job_service_channel_args.serialize(),
                 armada_queue=armada_queue,
                 job_set_id=run_id,
                 airflow_task_name=airflow_task_name,
@@ -207,15 +209,17 @@ class ArmadaDeferrableOperator(BaseOperator):
 class ArmadaSubmitJobTrigger(BaseTrigger):
     def __init__(
         self,
-        armada_channel_args: GrpcAsyncIOChannelArguments,
-        job_service_channel_args: GrpcAsyncIOChannelArguments,
+        armada_channel_args: dict,
+        job_service_channel_args: dict,
         run_id: str,
         armada_queue: str,
         job_request_items,
     ) -> None:
         super().__init__()
-        self.armada_channel_args = armada_channel_args
-        self.job_service_channel_args = job_service_channel_args
+        self.armada_channel_args = GrpcAsyncIOChannelArguments(**armada_channel_args)
+        self.job_service_channel_args = GrpcAsyncIOChannelArguments(
+            **job_service_channel_args
+        )
         self.run_id = run_id
         self.armada_queue = armada_queue
         self.job_request_items = job_request_items
@@ -247,8 +251,8 @@ class ArmadaSubmitJobTrigger(BaseTrigger):
         return (
             "armada.operators.armada_deferrable.ArmadaSubmitJobTrigger",
             {
-                "armada_channel_args": self.armada_channel_args,
-                "job_service_channel_args": self.job_service_channel_args,
+                "armada_channel_args": self.armada_channel_args.serialize(),
+                "job_service_channel_args": self.job_service_channel_args.serialize(),
                 "run_id": self.run_id,
                 "armada_queue": self.armada_queue,
                 "job_request_items": self.job_request_items,
@@ -260,14 +264,16 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
     def __init__(
         self,
         job_id: str,
-        job_service_channel_args: GrpcAsyncIOChannelArguments,
+        job_service_channel_args: dict,
         armada_queue: str,
         job_set_id: str,
         airflow_task_name: str,
     ) -> None:
         super().__init__()
         self.job_id = job_id
-        self.job_service_channel_args = (job_service_channel_args,)
+        self.job_service_channel_args = GrpcAsyncIOChannelArguments(
+            **job_service_channel_args
+        )
         self.armada_queue = armada_queue
         self.job_set_id = job_set_id
         self.airflow_task_name = airflow_task_name
@@ -291,7 +297,7 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
             "armada.operators.armada_deferrable.ArmadaJobCompleteTrigger",
             {
                 "job_id": self.job_id,
-                "job_service_channel_args": self.job_service_channel_args,
+                "job_service_channel_args": self.job_service_channel_args.serialize(),
                 "armada_queue": self.armada_queue,
                 "job_set_id": self.job_set_id,
                 "airflow_task_name": self.airflow_task_name,
