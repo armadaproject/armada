@@ -35,9 +35,15 @@ spec:
           args:
             - --config
             - /config/application_config.yaml
-          {{- if .Values.env }}
+          {{- if or (include "armada.gomemlimit" .) .Values.env}}
           env:
-            {{- toYaml .Values.env | nindent 12 -}}
+            {{- with include "armada.gomemlimit" . }}
+            - name: GOMEMLIMIT
+              value: {{ quote . }}
+            {{- end }}
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 -}}
+            {{- end }}
           {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
