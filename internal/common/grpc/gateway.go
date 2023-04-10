@@ -7,6 +7,8 @@ import (
 	"path"
 	"strings"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/go-openapi/runtime/middleware"
@@ -28,6 +30,7 @@ func CreateGatewayHandler(
 	spec string,
 	handlers ...func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error,
 ) (shutdown func()) {
+	var err error
 	connectionCtx, cancelConnectionCtx := context.WithCancel(context.Background())
 
 	grpcAddress := fmt.Sprintf(":%d", grpcPort)
@@ -42,7 +45,13 @@ func CreateGatewayHandler(
 			return fmt.Sprintf("%s%s", runtime.MetadataHeaderPrefix, key), true
 		}))
 
-	conn, err := grpc.DialContext(connectionCtx, grpcAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.DialContext(
+		connectionCtx,
+		grpcAddress,
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+		grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
+	)
 	if err != nil {
 		panic(err)
 	}

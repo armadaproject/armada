@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
@@ -37,8 +39,8 @@ func CreateGrpcServer(
 	// Logging, authentication, etc. are implemented via gRPC interceptors
 	// (i.e., via functions that are called before handling the actual request).
 	// There are separate interceptors for unary and streaming gRPC calls.
-	unaryInterceptors := []grpc.UnaryServerInterceptor{}
-	streamInterceptors := []grpc.StreamServerInterceptor{}
+	unaryInterceptors := []grpc.UnaryServerInterceptor{otelgrpc.UnaryServerInterceptor()}
+	streamInterceptors := []grpc.StreamServerInterceptor{otelgrpc.StreamServerInterceptor()}
 
 	// Automatically recover from panics
 	// NOTE This must be the first interceptor, so it can handle panics in any subsequently added interceptor

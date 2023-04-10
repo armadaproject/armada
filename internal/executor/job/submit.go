@@ -92,7 +92,7 @@ func (submitService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToSubmi
 	defer wg.Done()
 
 	for job := range jobsToSubmitChannel {
-		jobPods := []*v1.Pod{}
+		var jobPods []*v1.Pod
 		pod, err := submitService.submitPod(job)
 		jobPods = append(jobPods, pod)
 

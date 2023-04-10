@@ -682,6 +682,12 @@ func SwaggerJsonTemplate() string {
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
 		"        },\n" +
+		"        \"meta\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"object\"\n" +
+		"          }\n" +
+		"        },\n" +
 		"        \"namespace\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
@@ -1292,6 +1298,12 @@ func SwaggerJsonTemplate() string {
 		"        },\n" +
 		"        \"jobSetId\": {\n" +
 		"          \"type\": \"string\"\n" +
+		"        },\n" +
+		"        \"meta\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"object\"\n" +
+		"          }\n" +
 		"        },\n" +
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +

@@ -188,6 +188,12 @@
             "type": "string"
           }
         },
+        "meta": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object"
+          }
+        },
         "namespace": {
           "type": "string"
         },
