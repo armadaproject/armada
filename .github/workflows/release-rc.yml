@@ -69,9 +69,10 @@ jobs:
         with:
           distribution: "goreleaser"
           version: "v1.16.2"
-          args: "-f ./.goreleaser.rc.yml release --clean"
+          args: "-f ./.goreleaser.rc.yml release --clean --debug"
         env:
           DOCKER_REPO: "dpejcev"
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           DOCKER_BUILDX_CACHE_FROM: "type=gha"
           DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
+
