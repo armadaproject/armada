@@ -38,7 +38,10 @@ func NewSQLJobService(config *configuration.JobServiceConfiguration, db *sql.DB)
 
 // Call on a newly created SQLJobService object to setup the DB for use.
 func (s *SQLJobService) Setup() {
-	s.useWAL()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.useWAL()
+	}
+
 	s.CreateTable()
 }
 
@@ -60,28 +63,36 @@ type SubscribedTuple struct {
 
 // Create a Table from a hard-coded schema.
 func (s *SQLJobService) CreateTable() {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	var integerType string
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		integerType = "INT"
+	} else if s.jobServiceConfig.DatabaseType == "postgres" {
+		integerType = "INTEGER"
+	}
+
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
 
 	_, err := s.db.Exec("DROP TABLE IF EXISTS jobservice")
 	if err != nil {
 		panic(err)
 	}
-	_, err = s.db.Exec(`
-CREATE TABLE jobservice (
-Queue TEXT,
-JobSetId TEXT,
-JobId TEXT,
-JobResponseState TEXT,
-JobResponseError TEXT,
-Timestamp INT,
-PRIMARY KEY(JobId)
-)`)
+	_, err = s.db.Exec(fmt.Sprintf(`
+		CREATE TABLE jobservice (
+		Queue TEXT,
+		JobSetId TEXT,
+		JobId TEXT,
+		JobResponseState TEXT,
+		JobResponseError TEXT,
+		Timestamp %s,
+		PRIMARY KEY(JobId))`, integerType))
+
 	if err != nil {
 		panic(err)
 	}
-	_, errIndex := s.db.Exec(`CREATE INDEX idx_job_set_queue 
-ON jobservice (Queue, JobSetId)`)
+	_, errIndex := s.db.Exec(`CREATE INDEX idx_job_set_queue ON jobservice (Queue, JobSetId)`)
 	if errIndex != nil {
 		panic(errIndex)
 	}
@@ -90,14 +101,14 @@ ON jobservice (Queue, JobSetId)`)
 		panic(err)
 	}
 
-	_, err = s.db.Exec(`
-	CREATE TABLE jobsets (
-		Queue TEXT,
-		JobSetId TEXT,
-		Timestamp INT,
-		ConnectionError TEXT,
-		FromMessageId TEXT,
-		UNIQUE(Queue,JobSetId))`)
+	_, err = s.db.Exec(fmt.Sprintf(`
+		CREATE TABLE jobsets (
+			Queue TEXT,
+			JobSetId TEXT,
+			Timestamp %s,
+			ConnectionError TEXT,
+			FromMessageId TEXT,
+			UNIQUE(Queue,JobSetId))`, integerType))
 	if err != nil {
 		panic(err)
 	}
@@ -105,9 +116,19 @@ ON jobservice (Queue, JobSetId)`)
 
 // Get the JobStatus given the jodId
 func (s *SQLJobService) GetJobStatus(jobId string) (*js.JobServiceResponse, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	row := s.db.QueryRow("SELECT Queue, JobSetId, JobResponseState, JobResponseError FROM jobservice WHERE JobId=?", jobId)
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
+
+	var sqlStmt string
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		sqlStmt = "SELECT Queue, JobSetId, JobResponseState, JobResponseError FROM jobservice WHERE JobId = ?"
+	} else if s.jobServiceConfig.DatabaseType == "postgres" {
+		sqlStmt = "SELECT Queue, JobSetId, JobResponseState, JobResponseError FROM jobservice WHERE JobId = $1"
+	}
+
+	row := s.db.QueryRow(sqlStmt, jobId)
 	var queue, jobSetId, jobState, jobError string
 
 	err := row.Scan(&queue, &jobSetId, &jobState, &jobError)
@@ -165,17 +186,31 @@ func jobStateStrToJSRState(jobState string) (js.JobServiceResponse_State, error)
 
 // Update database with JobTable.
 func (s *SQLJobService) UpdateJobServiceDb(jobTable *JobStatus) error {
-	// SQLite only allows one write at a time. Therefore we must serialize
-	// writes in order to avoid SQL_BUSY errors.
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		// SQLite only allows one write at a time. Therefore we must serialize
+		// writes in order to avoid SQL_BUSY errors.
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
 
-	stmt, err := s.db.Prepare("INSERT OR REPLACE INTO jobservice VALUES (?, ?, ?, ?, ?, ?)")
+	var sqlStmt string
+
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		sqlStmt = "INSERT OR REPLACE INTO jobservice VALUES (?, ?, ?, ?, ?, ?)"
+	} else if s.jobServiceConfig.DatabaseType == "postgres" {
+		sqlStmt = `INSERT INTO jobservice (Queue, JobSetId, JobId, JobResponseState, JobResponseError, Timestamp)
+		VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (JobId) DO UPDATE SET
+		(Queue, JobSetId, JobResponseState, JobResponseError, Timestamp) =
+		(excluded.Queue, excluded.JobSetId, excluded.JobResponseState, excluded.JobResponseError, excluded.Timestamp)`
+	}
+
+	stmt, err := s.db.Prepare(sqlStmt)
 	if err != nil {
 		return err
 	}
 	defer stmt.Close()
-	_, errExec := stmt.Exec(jobTable.queue, jobTable.jobSetId, jobTable.jobId, jobTable.jobResponse.State.String(), jobTable.jobResponse.Error, jobTable.timeStamp)
+	_, errExec := stmt.Exec(jobTable.queue, jobTable.jobSetId, jobTable.jobId,
+		jobTable.jobResponse.State.String(), jobTable.jobResponse.Error, jobTable.timeStamp)
 	return errExec
 }
 
@@ -187,9 +222,22 @@ func (s *SQLJobService) UpdateJobSetDb(queue string, jobSet string, fromMessageI
 	if !subscribe {
 		return fmt.Errorf("queue %s jobSet %s is already unsubscribed", queue, jobSet)
 	}
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	jobSetState, err := s.db.Prepare("INSERT OR REPLACE INTO jobsets VALUES(?, ?, ?, ?, ?)")
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
+
+	var sqlStmt string
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		sqlStmt = "INSERT OR REPLACE INTO jobsets VALUES(?, ?, ?, ?, ?)"
+	} else if s.jobServiceConfig.DatabaseType == "postgres" {
+		sqlStmt = `INSERT INTO jobsets (Queue, JobSetId, Timestamp, ConnectionError, FromMessageId)
+			VALUES ($1, $2, $3, $4, $5) ON CONFLICT (Queue, JobSetId) DO UPDATE SET
+			(Timestamp, ConnectionError, FromMessageId) =
+			(excluded.Timestamp, excluded.ConnectionError, excluded.FromMessageId)`
+	}
+
+	jobSetState, err := s.db.Prepare(sqlStmt)
 	if err != nil {
 		return err
 	}
@@ -201,10 +249,13 @@ func (s *SQLJobService) UpdateJobSetDb(queue string, jobSet string, fromMessageI
 	return nil
 }
 
-// Simple Health Check to Verify if SqlLite is working.
+// Simple Health Check to Verify if SQLite is working.
 func (s *SQLJobService) HealthCheck() (bool, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
+
 	row := s.db.QueryRow("SELECT 1")
 	var col int
 	err := row.Scan(&col)
@@ -217,9 +268,19 @@ func (s *SQLJobService) HealthCheck() (bool, error) {
 
 // Check if JobSet is in our map.
 func (s *SQLJobService) IsJobSetSubscribed(queue string, jobSet string) (bool, string, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-	row := s.db.QueryRow("SELECT Queue, JobSetId, FromMessageId FROM jobsets WHERE Queue=? AND JobSetId=?", queue, jobSet)
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
+
+	var sqlStmt string
+
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		sqlStmt = "SELECT Queue, JobSetId, FromMessageId FROM jobsets WHERE Queue = ? AND JobSetId = ?"
+	} else if s.jobServiceConfig.DatabaseType == "postgres" {
+		sqlStmt = "SELECT Queue, JobSetId, FromMessageId FROM jobsets WHERE Queue = $1 AND JobSetId = $2"
+	}
+	row := s.db.QueryRow(sqlStmt, queue, jobSet)
 	var queueScan, jobSetIdScan, fromMessageId string
 
 	err := row.Scan(&queueScan, &jobSetIdScan, &fromMessageId)
@@ -239,16 +300,29 @@ func (s *SQLJobService) AddMessageIdAndClearSubscriptionError(queue string, jobS
 
 // Set subscription error if present
 func (s *SQLJobService) SetSubscriptionError(queue string, jobSet string, connErr string, fromMessageId string) error {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
 
-	jobSetState, err := s.db.Prepare("INSERT OR REPLACE INTO jobsets VALUES(?, ?, ?, ?, ?)")
+	var sqlStmt string
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		sqlStmt = "INSERT OR REPLACE INTO jobsets VALUES(?, ?, ?, ?, ?)"
+	} else if s.jobServiceConfig.DatabaseType == "postgres" {
+		sqlStmt = `INSERT INTO jobsets (Queue, JobSetId, Timestamp, ConnectionError, FromMessageId)
+			VALUES ($1, $2, $3, $4, $5) ON CONFLICT (Queue, JobSetId) DO UPDATE SET
+			(Timestamp, ConnectionError, FromMessageId) =
+			(excluded.Timestamp, excluded.ConnectionError, excluded.FromMessageId)`
+	}
+
+	jobSetState, err := s.db.Prepare(sqlStmt)
 	if err != nil {
 		return err
 	}
 	defer jobSetState.Close()
 	subscribeTable := NewSubscribeTable(queue, jobSet)
-	_, jobSetErr := jobSetState.Exec(subscribeTable.queue, jobSet, subscribeTable.lastRequestTimeStamp, connErr, fromMessageId)
+	_, jobSetErr := jobSetState.Exec(subscribeTable.queue, jobSet, subscribeTable.lastRequestTimeStamp,
+		connErr, fromMessageId)
 	if jobSetErr != nil {
 		return jobSetErr
 	}
@@ -257,7 +331,13 @@ func (s *SQLJobService) SetSubscriptionError(queue string, jobSet string, connEr
 
 // Get subscription error if present
 func (s *SQLJobService) GetSubscriptionError(queue string, jobSet string) (string, error) {
-	row := s.db.QueryRow("SELECT ConnectionError FROM jobsets WHERE Queue=? AND JobSetId=?", queue, jobSet)
+	var sqlStmt string
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		sqlStmt = "SELECT ConnectionError FROM jobsets WHERE Queue = ? AND JobSetId = ?"
+	} else if s.jobServiceConfig.DatabaseType == "postgres" {
+		sqlStmt = "SELECT ConnectionError FROM jobsets WHERE Queue = $1 AND JobSetId = $2"
+	}
+	row := s.db.QueryRow(sqlStmt, queue, jobSet)
 	var connError string
 
 	err := row.Scan(&connError)
@@ -274,16 +354,29 @@ func (s *SQLJobService) GetSubscriptionError(queue string, jobSet string) (strin
 // SubscribeTable contains Queue, JobSet and time when it was created.
 
 func (s *SQLJobService) SubscribeJobSet(queue string, jobSet string, fromMessageId string) error {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
 
-	jobSetState, err := s.db.Prepare("INSERT OR REPLACE INTO jobsets VALUES(?, ?, ?, ?, ?)")
+	var sqlStmt string
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		sqlStmt = "INSERT OR REPLACE INTO jobsets VALUES(?, ?, ?, ?, ?)"
+	} else if s.jobServiceConfig.DatabaseType == "postgres" {
+		sqlStmt = `INSERT INTO jobsets (Queue, JobSetId, Timestamp, ConnectionError, FromMessageId)
+			VALUES ($1, $2, $3, $4, $5) ON CONFLICT (Queue, JobSetId) DO UPDATE SET
+			(Timestamp, ConnectionError, FromMessageId) =
+			(excluded.Timestamp, excluded.ConnectionError, excluded.FromMessageId)`
+	}
+
+	jobSetState, err := s.db.Prepare(sqlStmt)
 	if err != nil {
 		return err
 	}
 	defer jobSetState.Close()
 	subscribeTable := NewSubscribeTable(queue, jobSet)
-	_, jobSetErr := jobSetState.Exec(subscribeTable.queue, subscribeTable.jobSet, subscribeTable.lastRequestTimeStamp, "", fromMessageId)
+	_, jobSetErr := jobSetState.Exec(subscribeTable.queue, subscribeTable.jobSet,
+		subscribeTable.lastRequestTimeStamp, "", fromMessageId)
 	return jobSetErr
 }
 
@@ -308,10 +401,20 @@ func (s *SQLJobService) CheckToUnSubscribe(queue string, jobSet string, configTi
 	if !jobSetFound {
 		return false, nil
 	}
-	s.lock.Lock()
-	defer s.lock.Unlock()
 
-	row := s.db.QueryRow("SELECT Timestamp FROM jobsets WHERE Queue=? AND JobSetId=?", queue, jobSet)
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
+
+	var sqlStmt string
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		sqlStmt = "SELECT Timestamp FROM jobsets WHERE Queue = ? AND JobSetId = ?"
+	} else if s.jobServiceConfig.DatabaseType == "postgres" {
+		sqlStmt = "SELECT Timestamp FROM jobsets WHERE Queue = $1 AND JobSetId = $2"
+	}
+
+	row := s.db.QueryRow(sqlStmt, queue, jobSet)
 	var timeStamp int
 
 	timeErr := row.Scan(&timeStamp)
@@ -330,10 +433,19 @@ func (s *SQLJobService) CheckToUnSubscribe(queue string, jobSet string, configTi
 }
 
 func (s *SQLJobService) UnsubscribeJobSet(queue, jobSet string) (int64, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
 
-	result, err := s.db.Exec("DELETE FROM jobsets WHERE Queue=? AND JobSetId=?", queue, jobSet)
+	var sqlStmt string
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		sqlStmt = "DELETE FROM jobsets WHERE Queue = ? AND JobSetId = ?"
+	} else if s.jobServiceConfig.DatabaseType == "postgres" {
+		sqlStmt = "DELETE FROM jobsets WHERE Queue = $1 AND JobSetId = $2"
+	}
+
+	result, err := s.db.Exec(sqlStmt, queue, jobSet)
 	if err != nil {
 		return 0, err
 	}
@@ -342,10 +454,19 @@ func (s *SQLJobService) UnsubscribeJobSet(queue, jobSet string) (int64, error) {
 
 // Delete Jobs in the database
 func (s *SQLJobService) DeleteJobsInJobSet(queue string, jobSet string) (int64, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
 
-	result, err := s.db.Exec("DELETE FROM jobservice WHERE Queue=? AND JobSetId=?", queue, jobSet)
+	var sqlStmt string
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		sqlStmt = "DELETE FROM jobservice WHERE Queue = ? AND JobSetId = ?"
+	} else if s.jobServiceConfig.DatabaseType == "postgres" {
+		sqlStmt = "DELETE FROM jobservice WHERE Queue = $1 AND JobSetId = $2"
+	}
+
+	result, err := s.db.Exec(sqlStmt, queue, jobSet)
 	if err != nil {
 		return 0, err
 	}
@@ -353,8 +474,10 @@ func (s *SQLJobService) DeleteJobsInJobSet(queue string, jobSet string) (int64, 
 }
 
 func (s *SQLJobService) GetSubscribedJobSets() ([]SubscribedTuple, error) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	if s.jobServiceConfig.DatabaseType == "sqlite" {
+		s.lock.Lock()
+		defer s.lock.Unlock()
+	}
 
 	rows, err := s.db.Query("SELECT Queue, JobSetId, FromMessageId FROM jobsets")
 	if err != nil {

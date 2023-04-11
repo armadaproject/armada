@@ -362,6 +362,8 @@ tests-no-setup: gotestsum
 	$(GOTESTSUM) -- -v ./pkg... 2>&1 | tee test_reports/pkg.txt
 	$(GOTESTSUM) -- -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
+
+# Note that we do separate Job Service repository test runs for both sqlite and postgres database types
 .ONESHELL:
 tests: gotestsum
 	mkdir -p test_reports
