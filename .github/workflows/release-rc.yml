@@ -4,15 +4,16 @@ on:
   push:
     branches:
       - main
+      - master
 
 permissions:
   contents: write
 
 jobs:
-  test:
-    uses: "kubeshop/testkube-cloud-api/.github/workflows/test.yaml@main"
-  build:
+  release:
+    name: Release
     runs-on: "ubuntu-22.04"
+
     steps:
       - name: "Checkout"
         uses: "actions/checkout@v3"

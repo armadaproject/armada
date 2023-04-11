@@ -1,4 +1,4 @@
-name: goreleaser
+name: Release
 
 on:
   push:
@@ -11,7 +11,9 @@ permissions:
   issues: write
 
 jobs:
-  goreleaser:
+  release:
+    name: "Release"
+
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
