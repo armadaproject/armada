@@ -33,7 +33,7 @@ func TestCalculateRunningJobStats(t *testing.T) {
 
 		assert.Equal(t, len(result), 1)
 		runTimeMetrics := result[0].Durations
-		assert.Equal(t, runTimeMetrics.GetCount(), uint64(3))
+		assert.Equal(t, runTimeMetrics.GetCount(), uint64(9999))
 		assert.Equal(t, runTimeMetrics.GetMin(), float64(60*10))
 		assert.Equal(t, runTimeMetrics.GetMedian(), float64(60*20))
 		assert.Equal(t, runTimeMetrics.GetMax(), float64(60*30))
