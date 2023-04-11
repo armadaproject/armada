@@ -75,4 +75,3 @@ jobs:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           DOCKER_BUILDX_CACHE_FROM: "type=gha"
           DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
-
