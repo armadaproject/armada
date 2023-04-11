@@ -55,14 +55,15 @@ type KubernetesConfiguration struct {
 	PodDefaults               *PodDefaults
 	PendingPodChecks          *podchecks.Checks
 	FatalPodSubmissionErrors  []string
-	// NodeReservedResources config is used to factor in reserved resources on each node
-	// when validating can a job be scheduled on a node during job submit (i.e. factor in resources for daemonset pods)
-	NodeReservedResources armadaresource.ComputeResources
-	// NodeReservedResourcesPriority - The priority the reserved resource is reported at
-	// All pods in kubernetes have a priority - and we report to the Armada API resource for a given priority
-	// Therefore we also need to set a priority for the reserved resource
-	NodeReservedResourcesPriority int32
-	PodKillTimeout                time.Duration
+	// Minimum amount of resources marked as allocated to non-Armada pods on each node.
+	// I.e., if the total resources allocated to non-Armada pods on some node drops below this value,
+	// the executor adds a fictional allocation to make up the difference, such that the total is at least this.
+	// Hence, specifying can ensure that, e.g., if a deamonset pod restarts, those resources are not considered for scheduling.
+	MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode armadaresource.ComputeResources
+	// When adding a fictional allocation to ensure resources allocated to non-Armada pods is at least
+	// MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode, those resources are marked allocated at this priority.
+	MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority int32
+	PodKillTimeout                                                time.Duration
 }
 
 type EtcdConfiguration struct {
