@@ -29,6 +29,7 @@ export type RowIdInfo = {
   // E.g. ["queue:queue-2", "queue:queue-2>jobSet:job-set-2"]
   rowIdPathFromRoot: RowId[]
 }
+
 export const fromRowId = (rowId: RowId): RowIdInfo => {
   const rowIdSegments: RowIdSegment[] = rowId.split(">") as RowIdSegment[]
 
