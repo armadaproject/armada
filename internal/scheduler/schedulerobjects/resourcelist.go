@@ -123,7 +123,7 @@ func (a QuantityByPriorityAndResourceType) AggregateByResource() ResourceList {
 // a[p1][t] + ... + a[pn][t] = max(a[p1][t] + ... + a[pn][t], rl[t]),
 // where p1, ..., pn are the priorities in a, for each resource set explicitly in rl.
 //
-// If necessary to add resources to make up the difference, those resoruces are added at priority p.
+// If necessary to add resources to make up the difference, those resources are added at priority p.
 func (a QuantityByPriorityAndResourceType) MaxAggregatedByResource(p int32, rl ResourceList) {
 	aggregate := a.AggregateByResource()
 	var difference ResourceList
