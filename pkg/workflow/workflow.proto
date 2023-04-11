@@ -10,9 +10,8 @@ import "google/protobuf/timestamp.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
-// A workflow describes an orchestrated set of components to be scheduled and executor together.
-// Specifically, it contains the root of a tree of WorkflowNodes,
-// each of which contains an embedded Job along with rules for
+// A workflow describes an orchestrated set of components with a shared life cycle.
+// Specifically, it contains the root of a tree of WorkflowNodes, each with an embedded job, and
 // - rules for when the WorkflowNode is considered schedulable, succeeded, or failed, and
 // - constraints for scheduling the embedded Job.
 message Workflow {
@@ -22,14 +21,12 @@ message Workflow {
     WorkflowNode root = 2;
 }
 
-// A WorkflowNode contains a Job, a set of child WorkflowNodes,
-// and constraints/policies for scheduling, success, and failure.
+// A WorkflowNode contains a Job, a set of child WorkflowNodes, and constraints/policies for scheduling, success, and failure.
 //
 // A WorkflowNode is schedulable when the embedded job is schedulable and all taskSchedulingPolicy rules are met.
 //
 // A WorkflowNode is always considered succed (failed) if the embedded job succeeds (fails).
-// However, it may also be considered succeeded (failed) if, e.g., child jobs succeed (fail),
-// as specified in the embedded success (failure) policy.
+// It may also be considered succeeded (failed) if, e.g., child jobs succeed (fail), depending on the embedded success (failure) policy.
 //
 // On success (failure), all children are also considered to have succeeded (failed) and may be deleted.
 message WorkflowNode {
@@ -40,15 +37,14 @@ message WorkflowNode {
 }
 
 message WorkflowNodeSpec {
-    // Job specification.
-    // May be empty, in which case this node is considered failed or succeeded as determined by the success/failurePolicy.
+    // Job specification. If empty, success and failure is determined by the success and failure of children.
     JobTemplateSpec spec = 2;
-    // Child nodes. I.e., each WorkflowNode is either a leaf or the root of a tree of WorkflowNode.
+    // Child nodes. Each WorkflowNode is either a leaf or the root of a tree of WorkflowNode.
     repeated WorkflowNode children = 3;
     // Specifies the number of retries before marking this task as failed.
     // Defaults to 0.
     uint32 backoffLimit = 4;
-    // JobSchedulingConstraints constrains the conditions under which the embedded is schedulable,
+    // Constrains the conditions under which the embedded is schedulable,
     // e.g., by constraining the minimum number of pods that must be schedulable.
     JobSchedulingConstraints jobSchedulingContraints = 5;
     // Contains rules regarding when this WorkflowNode is schedulable.
@@ -117,8 +113,6 @@ message WorkflowSchedulingPolicyRule {
 message WorkflowSchedulingPolicyRuleMinChildrenSchedulable {
     uint32 minChildrenSchedulable = 1;
 }
-
-
 
 // Specifies when a Workflow should be considered to have failed.
 // E.g., when all children have succeeded.
