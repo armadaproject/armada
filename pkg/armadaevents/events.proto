@@ -219,8 +219,8 @@ message ReprioritiseJob {
 message JobRequeued {
     Uuid job_id = 1;
     schedulerobjects.JobSchedulingInfo scheduling_info = 2;
-  // Used by the scheduler to maintain a consistent state
-  int32 update_sequence_number = 3;
+    // Used by the scheduler to maintain a consistent state
+    int32 update_sequence_number = 3;
 }
 
 // Set the priority of all jobs part of a job set.
