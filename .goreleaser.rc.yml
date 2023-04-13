@@ -146,6 +146,7 @@ dockers:
     build_flag_templates: &BUILD_FLAG_TEMPLATES
       - --build-arg={{ .Env.BASE_IMAGE_ARG }}
       - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --cache={{ if .Env.DOCKER_BUILDX_CACHE_TO and .Env.DOCKER_BUILDX_CACHE_FROM }}enabled{{ else }}disabled{{ end }}
       - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
       - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
       - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
