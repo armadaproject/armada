@@ -170,11 +170,11 @@ func TestConvertSequence(t *testing.T) {
 			expected: []DbOperation{
 				UpdateJobQueuedState{f.JobIdString: &JobQueuedStateUpdate{
 					Queued:             true,
-					QueuedStateVersion: f.JobRequeued.GetRequeueJob().UpdateSequenceNumber,
+					QueuedStateVersion: f.JobRequeued.GetJobRequeued().UpdateSequenceNumber,
 				}},
 				UpdateJobSchedulingInfo{f.JobIdString: &JobSchedulingInfoUpdate{
-					JobSchedulingInfo:        protoutil.MustMarshall(f.JobRequeued.GetRequeueJob().SchedulingInfo),
-					JobSchedulingInfoVersion: int32(f.JobRequeued.GetRequeueJob().SchedulingInfo.Version),
+					JobSchedulingInfo:        protoutil.MustMarshall(f.JobRequeued.GetJobRequeued().SchedulingInfo),
+					JobSchedulingInfoVersion: int32(f.JobRequeued.GetJobRequeued().SchedulingInfo.Version),
 				}},
 			},
 		},

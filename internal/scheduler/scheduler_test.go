@@ -404,7 +404,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_CancelledJob{}):     stringSet(tc.expectedJobCancelled),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_ReprioritisedJob{}): stringSet(tc.expectedJobReprioritised),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobSucceeded{}):     stringSet(tc.expectedJobSucceeded),
-				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_RequeueJob{}):       stringSet(tc.expectedRequeued),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRequeued{}):      stringSet(tc.expectedRequeued),
 			}
 			err = subtractEventsFromOutstandingEventsByType(publisher.events, outstandingEventsByType)
 			require.NoError(t, err)
