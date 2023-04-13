@@ -97,17 +97,12 @@ builds:
       - amd64
       - arm64
 
-source:
-  enabled: true
-  name_template: "{{ .ProjectName }}_{{ replace .Version "-" "_" }}_source"
-  format: "zip"
-
 archives:
   - id: armadactl
     builds:
       - armadactl
     allow_different_binary_count: true
-    name_template: "armadactl_{{ replace .Version "-" "_" }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "armadactl_{{ replace .Version - _ }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
         format: zip
