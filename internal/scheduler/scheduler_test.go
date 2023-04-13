@@ -90,7 +90,6 @@ var leasedJob = jobdb.NewJob(
 
 // Test a single scheduler cycle
 func TestScheduler_TestCycle(t *testing.T) {
-
 	tests := map[string]struct {
 		initialJobs                      []*jobdb.Job      // jobs in the jobdb at the start of the cycle
 		jobUpdates                       []database.Job    // job updates from the database

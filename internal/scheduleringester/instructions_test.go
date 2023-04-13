@@ -91,7 +91,8 @@ func TestConvertSequence(t *testing.T) {
 					Queued:             false,
 					QueuedStateVersion: 1,
 				}},
-			}},
+			},
+		},
 		"job run running": {
 			events:   []*armadaevents.EventSequence_Event{f.Running},
 			expected: []DbOperation{MarkRunsRunning{f.RunIdUuid: true}},
