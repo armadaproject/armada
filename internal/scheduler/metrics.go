@@ -2,6 +2,8 @@ package scheduler
 
 import (
 	"context"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/google/uuid"
 	"sync/atomic"
 	"time"
 
@@ -60,31 +62,34 @@ func (m metricsState) numQueuedJobs() map[string]int {
 // MetricsCollector is a Prometheus Collector that handles scheduler metrics.
 // The metrics themselves are calculated asynchronously every refreshPeriod
 type MetricsCollector struct {
-	jobDb           *jobdb.JobDb
-	queueRepository database.QueueRepository
-	poolAssigner    PoolAssigner
-	refreshPeriod   time.Duration
-	clock           clock.Clock
-	state           atomic.Value
+	jobDb              *jobdb.JobDb
+	queueRepository    database.QueueRepository
+	executorRepository database.ExecutorRepository
+	poolAssigner       PoolAssigner
+	refreshPeriod      time.Duration
+	clock              clock.Clock
+	state              atomic.Value
 }
 
 func NewMetricsCollector(
 	jobDb *jobdb.JobDb,
 	queueRepository database.QueueRepository,
+	executorRepository database.ExecutorRepository,
 	poolAssigner PoolAssigner,
 	refreshPeriod time.Duration,
 ) *MetricsCollector {
 	return &MetricsCollector{
-		jobDb:           jobDb,
-		queueRepository: queueRepository,
-		poolAssigner:    poolAssigner,
-		refreshPeriod:   refreshPeriod,
-		clock:           clock.RealClock{},
-		state:           atomic.Value{},
+		jobDb:              jobDb,
+		queueRepository:    queueRepository,
+		executorRepository: executorRepository,
+		poolAssigner:       poolAssigner,
+		refreshPeriod:      refreshPeriod,
+		clock:              clock.RealClock{},
+		state:              atomic.Value{},
 	}
 }
 
-// Run enters s a loop which updates the metrics every refreshPeriod until the supplied comtext is cancelled
+// Run enters s a loop which updates the metrics every refreshPeriod until the supplied context is cancelled
 func (c *MetricsCollector) Run(ctx context.Context) error {
 	ticker := c.clock.NewTicker(c.refreshPeriod)
 	log.Infof("Will update metrics every %s", c.refreshPeriod)
@@ -111,7 +116,7 @@ func (c *MetricsCollector) Describe(out chan<- *prometheus.Desc) {
 func (c *MetricsCollector) Collect(metrics chan<- prometheus.Metric) {
 	state, ok := c.state.Load().(metricsState)
 	if ok {
-		commonmetrics.CollectQueueMetrics(state.numQueuedJobs(), state, metrics)
+
 	}
 }
 
@@ -120,6 +125,11 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 	start := time.Now()
 
 	queues, err := c.queueRepository.GetAllQueues()
+	if err != nil {
+		return err
+	}
+
+	executors, err := c.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		return err
 	}
@@ -141,7 +151,8 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 	}
 
 	currentTime := c.clock.Now()
-	for _, job := range c.jobDb.GetAll(c.jobDb.ReadTxn()) {
+	txn := c.jobDb.ReadTxn()
+	for _, job := range c.jobDb.GetAll(txn) {
 		// Don't calculate metrics for dead jobs
 		if job.InTerminalState() {
 			continue
@@ -180,6 +191,36 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 		recorder.RecordJobRuntime(pool, priorityClass, timeInState)
 		recorder.RecordResources(pool, priorityClass, jobResources)
 	}
+
+	queueMetrics := commonmetrics.CollectQueueMetrics(ms.numQueuedJobs(), ms)
+
+	type phaseKey struct {
+		cluster   string
+		pool      string
+		queueName string
+		phase     string
+		nodeType  string
+	}
+	countsByKey := map[phaseKey]int{}
+	for _, executor := range executors {
+		for _, node := range executor.Nodes {
+			for runId, jobRunState := range node.StateByJobRunId {
+				job := c.jobDb.GetByRunId(txn, uuid.MustParse(runId))
+				if job != nil {
+					phase := schedulerobjects.JobRunState_name[int32(jobRunState)]
+					key := phaseKey{
+						cluster:   executor.Id,
+						pool:      executor.Pool,
+						queueName: job.Queue(),
+						phase:     phase,
+						nodeType:  "",
+					}
+					countsByKey[key]++
+				}
+			}
+		}
+	}
+
 	c.state.Store(ms)
 	log.Debugf("Refreshed prometheus metrics in %s", time.Since(start))
 	return nil
