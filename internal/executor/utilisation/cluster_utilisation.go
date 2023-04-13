@@ -14,7 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/node"
 	"github.com/armadaproject/armada/internal/executor/util"
-	. "github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -24,14 +24,14 @@ type UtilisationService interface {
 }
 
 type ClusterUtilisationService struct {
-	clusterContext                context.ClusterContext
-	queueUtilisationService       PodUtilisationService
-	nodeInfoService               node.NodeInfoService
-	usageClient                   api.UsageClient
-	trackedNodeLabels             []string
-	nodeIdLabel                   string
-	nodeReservedResources         armadaresource.ComputeResources
-	nodeReservedResourcesPriority int32
+	clusterContext                                                context.ClusterContext
+	queueUtilisationService                                       PodUtilisationService
+	nodeInfoService                                               node.NodeInfoService
+	usageClient                                                   api.UsageClient
+	trackedNodeLabels                                             []string
+	nodeIdLabel                                                   string
+	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode         armadaresource.ComputeResources
+	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority int32
 }
 
 func NewClusterUtilisationService(
@@ -41,18 +41,18 @@ func NewClusterUtilisationService(
 	usageClient api.UsageClient,
 	trackedNodeLabels []string,
 	nodeIdLabel string,
-	nodeReservedResources armadaresource.ComputeResources,
-	nodeReservedResourcesPriority int32,
+	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode armadaresource.ComputeResources,
+	minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority int32,
 ) *ClusterUtilisationService {
 	return &ClusterUtilisationService{
-		clusterContext:                clusterContext,
-		queueUtilisationService:       queueUtilisationService,
-		nodeInfoService:               nodeInfoService,
-		usageClient:                   usageClient,
-		trackedNodeLabels:             trackedNodeLabels,
-		nodeIdLabel:                   nodeIdLabel,
-		nodeReservedResources:         nodeReservedResources,
-		nodeReservedResourcesPriority: nodeReservedResourcesPriority,
+		clusterContext:          clusterContext,
+		queueUtilisationService: queueUtilisationService,
+		nodeInfoService:         nodeInfoService,
+		usageClient:             usageClient,
+		trackedNodeLabels:       trackedNodeLabels,
+		nodeIdLabel:             nodeIdLabel,
+		minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode:         minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
+		minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority: minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
 	}
 }
 
@@ -71,7 +71,7 @@ func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisa
 		return
 	}
 	// We only report cluster utilisation for legacy use cases
-	allBatchPods = util.FilterPods(allBatchPods, IsLegacyManagedPod)
+	allBatchPods = util.FilterPods(allBatchPods, util.IsLegacyManagedPod)
 
 	nodeGroupInfos, err := clusterUtilisationService.GetAllNodeGroupAllocationInfo(true)
 	if err != nil {
@@ -81,7 +81,7 @@ func (clusterUtilisationService *ClusterUtilisationService) ReportClusterUtilisa
 
 	nodeGroupReports := make([]api.NodeTypeUsageReport, 0, len(nodeGroupInfos))
 	for _, nodeGroup := range nodeGroupInfos {
-		managedPodsOnNodes := GetPodsOnNodes(allBatchPods, nodeGroup.Nodes)
+		managedPodsOnNodes := util.GetPodsOnNodes(allBatchPods, nodeGroup.Nodes)
 		queueReports := clusterUtilisationService.createReportsOfQueueUsages(managedPodsOnNodes)
 
 		unschedulableNodes := util.
@@ -130,7 +130,7 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(legacy bool) (
 	}
 
 	allPodsRequiringResource := getAllPodsRequiringResourceOnProcessingNodes(allPods, processingNodes)
-	allNonCompletePodsRequiringResource := FilterNonCompletedPods(allPodsRequiringResource)
+	allNonCompletePodsRequiringResource := util.FilterNonCompletedPods(allPodsRequiringResource)
 
 	totalNodeResource := armadaresource.CalculateTotalResource(processingNodes)
 	totalPodResource := armadaresource.CalculateTotalResourceRequest(allNonCompletePodsRequiringResource)
@@ -142,31 +142,40 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(legacy bool) (
 	runningPodsByNode := groupPodsByNodes(allNonCompletePodsRequiringResource)
 	nodes := make([]api.NodeInfo, 0, len(processingNodes))
 	runIdsByNode := cls.getRunIdsByNode(processingNodes, allPods, legacy)
-	for _, n := range processingNodes {
-		allocatable := armadaresource.FromResourceList(n.Status.Allocatable)
+	for _, node := range processingNodes {
+		allocatable := armadaresource.FromResourceList(node.Status.Allocatable)
 		available := allocatable.DeepCopy()
-		available.Sub(nodesUsage[n.Name])
+		available.Sub(nodesUsage[node.Name])
 
-		runningNodePods := runningPodsByNode[n.Name]
+		runningNodePods := runningPodsByNode[node.Name]
 		runningNodePodsNonArmada := util.FilterPods(runningNodePods, func(pod *v1.Pod) bool {
 			return !util.IsManagedPod(pod)
 		})
-		allocated := getAllocatedResourcesByPriority(runningNodePods)
-		allocatedNonArmada := getAllocatedResourcesByPriority(runningNodePodsNonArmada)
+		allocatedByPriority := allocatedByPriorityAndResourceTypeFromPods(runningNodePods)
+		allocatedByPriorityNonArmada := allocatedByPriorityAndResourceTypeFromPods(runningNodePodsNonArmada)
+		allocatedByPriorityNonArmada.MaxAggregatedByResource(
+			cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
+			schedulerobjects.ResourceList{Resources: cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode},
+		)
 
-		reserved := calculateReservedNodeResource(cls.nodeReservedResources, armadaresource.CalculateTotalResourceRequest(runningNodePodsNonArmada))
-		addReservedResource(reserved, cls.nodeReservedResourcesPriority, allocatedNonArmada)
-
+		nodeAllocatedResources := make(map[int32]api.ComputeResource)
+		for p, rl := range allocatedByPriority {
+			nodeAllocatedResources[p] = api.ComputeResource{Resources: rl.Resources}
+		}
+		nodeNonArmadaAllocatedResources := make(map[int32]api.ComputeResource)
+		for p, rl := range allocatedByPriorityNonArmada {
+			nodeNonArmadaAllocatedResources[p] = api.ComputeResource{Resources: rl.Resources}
+		}
 		nodes = append(nodes, api.NodeInfo{
-			Name:                        n.Name,
-			Labels:                      cls.filterTrackedLabels(n.Labels),
-			Taints:                      n.Spec.Taints,
+			Name:                        node.Name,
+			Labels:                      cls.filterTrackedLabels(node.Labels),
+			Taints:                      node.Spec.Taints,
 			AllocatableResources:        allocatable,
 			AvailableResources:          available,
 			TotalResources:              allocatable,
-			AllocatedResources:          allocated,
-			RunIdsByState:               runIdsByNode[n.Name],
-			NonArmadaAllocatedResources: allocatedNonArmada,
+			AllocatedResources:          nodeAllocatedResources,
+			RunIdsByState:               runIdsByNode[node.Name],
+			NonArmadaAllocatedResources: nodeNonArmadaAllocatedResources,
 		})
 	}
 
@@ -221,35 +230,6 @@ func (clusterUtilisationService *ClusterUtilisationService) getRunIdsByNode(node
 	return result
 }
 
-func calculateReservedNodeResource(
-	reserved armadaresource.ComputeResources,
-	existingNodeResource armadaresource.ComputeResources,
-) armadaresource.ComputeResources {
-	if reserved == nil {
-		return armadaresource.ComputeResources{}
-	}
-	reservedRemaining := reserved
-	reservedRemaining.Sub(existingNodeResource)
-	reservedRemaining.LimitToZero()
-	return reservedRemaining
-}
-
-func addReservedResource(
-	reserved armadaresource.ComputeResources,
-	reservedPriority int32,
-	resourceByPriority map[int32]api.ComputeResource,
-) {
-	if reserved.IsValid() && !reserved.IsZero() {
-		if resourceAtPriority, present := resourceByPriority[reservedPriority]; present {
-			totalResource := armadaresource.ComputeResources(resourceAtPriority.Resources)
-			totalResource.Add(reserved)
-			resourceByPriority[reservedPriority] = api.ComputeResource{Resources: totalResource}
-		} else {
-			resourceByPriority[reservedPriority] = api.ComputeResource{Resources: reserved}
-		}
-	}
-}
-
 func getJobRunState(pod *v1.Pod) api.JobState {
 	switch {
 	case pod.Status.Phase == v1.PodPending:
@@ -289,31 +269,18 @@ func groupPodsByNodes(pods []*v1.Pod) map[string][]*v1.Pod {
 	return podsByNodes
 }
 
-func getAllocatedResourcesByPriority(pods []*v1.Pod) map[int32]api.ComputeResource {
-	resourceUsageByPriority := make(map[int32]api.ComputeResource)
-
-	podsByPriority := groupPodsByPriority(pods)
-
-	for priority, podsForPriority := range podsByPriority {
-		resources := api.ComputeResource{Resources: armadaresource.CalculateTotalResourceRequest(podsForPriority)}
-		resourceUsageByPriority[priority] = resources
-	}
-
-	return resourceUsageByPriority
-}
-
-func groupPodsByPriority(pods []*v1.Pod) map[int32][]*v1.Pod {
-	priorityMap := make(map[int32][]*v1.Pod)
-
-	for _, p := range pods {
+func allocatedByPriorityAndResourceTypeFromPods(pods []*v1.Pod) schedulerobjects.QuantityByPriorityAndResourceType {
+	rv := make(schedulerobjects.QuantityByPriorityAndResourceType)
+	for _, pod := range pods {
 		var priority int32 = 0
-		if p.Spec.Priority != nil {
-			priority = *(p.Spec.Priority)
+		if pod.Spec.Priority != nil {
+			priority = *(pod.Spec.Priority)
 		}
-		priorityMap[priority] = append(priorityMap[priority], p)
+		request := armadaresource.TotalPodResourceRequest(&pod.Spec)
+		rl := schedulerobjects.ResourceList{Resources: request}
+		rv.AddResourceList(priority, rl)
 	}
-
-	return priorityMap
+	return rv
 }
 
 // GetAllNodeGroupAllocationInfo returns allocation information for all nodes on the cluster.
@@ -336,7 +303,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAlloc
 		return []*NodeGroupAllocationInfo{}, err
 	}
 	if legacy {
-		batchPods = util.FilterPods(batchPods, IsLegacyManagedPod)
+		batchPods = util.FilterPods(batchPods, util.IsLegacyManagedPod)
 	}
 
 	nodeGroups := clusterUtilisationService.nodeInfoService.GroupNodesByType(allAvailableProcessingNodes)
@@ -364,7 +331,7 @@ func (clusterUtilisationService *ClusterUtilisationService) GetAllNodeGroupAlloc
 // significant resource is running on cordoned nodes.
 func getCordonedResource(nodes []*v1.Node, pods []*v1.Pod) armadaresource.ComputeResources {
 	cordonedNodes := util.FilterNodes(nodes, func(node *v1.Node) bool { return node.Spec.Unschedulable })
-	podsOnNodes := GetPodsOnNodes(pods, cordonedNodes)
+	podsOnNodes := util.GetPodsOnNodes(pods, cordonedNodes)
 	usage := armadaresource.ComputeResources{}
 	for _, pod := range podsOnNodes {
 		for _, container := range pod.Spec.Containers {
@@ -380,23 +347,23 @@ func getCordonedResource(nodes []*v1.Node, pods []*v1.Pod) armadaresource.Comput
 func (clusterUtilisationService *ClusterUtilisationService) getAllocatableResourceByNodeType() (map[string]armadaresource.ComputeResources, error) {
 	allAvailableProcessingNodes, err := clusterUtilisationService.nodeInfoService.GetAllAvailableProcessingNodes()
 	if err != nil {
-		return map[string]armadaresource.ComputeResources{}, fmt.Errorf("Failed getting total allocatable cluster capacity due to: %s", err)
+		return map[string]armadaresource.ComputeResources{}, fmt.Errorf("failed getting total allocatable cluster capacity due to: %s", err)
 	}
 
 	allPods, err := clusterUtilisationService.clusterContext.GetAllPods()
 	if err != nil {
-		return map[string]armadaresource.ComputeResources{}, fmt.Errorf("Failed getting total allocatable cluster capacity due to: %s", err)
+		return map[string]armadaresource.ComputeResources{}, fmt.Errorf("failed getting total allocatable cluster capacity due to: %s", err)
 	}
-	unmanagedPods := FilterPods(allPods, func(pod *v1.Pod) bool {
-		return !IsManagedPod(pod)
+	unmanagedPods := util.FilterPods(allPods, func(pod *v1.Pod) bool {
+		return !util.IsManagedPod(pod)
 	})
-	activeUnmanagedPods := FilterPodsWithPhase(unmanagedPods, v1.PodRunning)
+	activeUnmanagedPods := util.FilterPodsWithPhase(unmanagedPods, v1.PodRunning)
 
 	nodeGroups := clusterUtilisationService.nodeInfoService.GroupNodesByType(allAvailableProcessingNodes)
 	result := map[string]armadaresource.ComputeResources{}
 
 	for _, nodeGroup := range nodeGroups {
-		activeUnmanagedPodsOnNodes := GetPodsOnNodes(activeUnmanagedPods, nodeGroup.Nodes)
+		activeUnmanagedPodsOnNodes := util.GetPodsOnNodes(activeUnmanagedPods, nodeGroup.Nodes)
 		unmanagedPodResource := armadaresource.CalculateTotalResourceRequest(activeUnmanagedPodsOnNodes)
 		totalNodeGroupResource := armadaresource.CalculateTotalResource(nodeGroup.Nodes)
 		allocatableNodeGroupResource := totalNodeGroupResource.DeepCopy()
@@ -426,7 +393,7 @@ func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, processingN
 	for _, pod := range allPods {
 		if _, presentOnProcessingNode := nodeMap[pod.Spec.NodeName]; presentOnProcessingNode {
 			podsUsingResourceOnProcessingNodes = append(podsUsingResourceOnProcessingNodes, pod)
-		} else if IsManagedPod(pod) && pod.Spec.NodeName == "" {
+		} else if util.IsManagedPod(pod) && pod.Spec.NodeName == "" {
 			podsUsingResourceOnProcessingNodes = append(podsUsingResourceOnProcessingNodes, pod)
 		}
 	}
@@ -435,13 +402,13 @@ func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, processingN
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) createReportsOfQueueUsages(pods []*v1.Pod) []*api.QueueReport {
-	podsByQueue := GroupByQueue(pods)
+	podsByQueue := util.GroupByQueue(pods)
 	queueReports := make([]*api.QueueReport, 0, len(podsByQueue))
 	for queueName, queuePods := range podsByQueue {
-		runningPods := FilterPodsWithPhase(queuePods, v1.PodRunning)
+		runningPods := util.FilterPodsWithPhase(queuePods, v1.PodRunning)
 		resourceAllocated := armadaresource.CalculateTotalResourceRequest(runningPods)
 		resourceUsed := clusterUtilisationService.getTotalPodUtilisation(queuePods)
-		phaseSummary := CountPodsByPhase(queuePods)
+		phaseSummary := util.CountPodsByPhase(queuePods)
 
 		queueReport := api.QueueReport{
 			Name:               queueName,
