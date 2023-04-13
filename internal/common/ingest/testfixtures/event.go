@@ -285,8 +285,8 @@ var JobCancelled = &armadaevents.EventSequence_Event{
 
 var JobRequeued = &armadaevents.EventSequence_Event{
 	Created: &BaseTime,
-	Event: &armadaevents.EventSequence_Event_RequeueJob{
-		RequeueJob: &armadaevents.RequeueJob{
+	Event: &armadaevents.EventSequence_Event_JobRequeued{
+		JobRequeued: &armadaevents.JobRequeued{
 			JobId: JobIdProto,
 			SchedulingInfo: &schedulerobjects.JobSchedulingInfo{
 				Lifetime:        0,

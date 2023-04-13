@@ -99,7 +99,7 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 		case *armadaevents.EventSequence_Event_CancelledJob:
 			operationsFromEvent, err = c.handleCancelledJob(event.GetCancelledJob())
 		case *armadaevents.EventSequence_Event_JobRequeued:
-			operationsFromEvent, err = c.handleRequeueJob(event.GetJobRequeued())
+			operationsFromEvent, err = c.handleJobRequeued(event.GetJobRequeued())
 		case *armadaevents.EventSequence_Event_PartitionMarker:
 			operationsFromEvent, err = c.handlePartitionMarker(event.GetPartitionMarker(), *event.Created)
 		case *armadaevents.EventSequence_Event_ReprioritisedJob,
@@ -197,7 +197,7 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 	}, nil
 }
 
-func (c *InstructionConverter) handleRequeueJob(jobRequeued *armadaevents.JobRequeued) ([]DbOperation, error) {
+func (c *InstructionConverter) handleJobRequeued(jobRequeued *armadaevents.JobRequeued) ([]DbOperation, error) {
 	schedulingInfoBytes, err := proto.Marshal(jobRequeued.SchedulingInfo)
 	if err != nil {
 		return nil, errors.WithStack(err)
