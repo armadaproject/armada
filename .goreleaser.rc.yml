@@ -298,7 +298,7 @@ dockers:
       - lookout
       - lookoutingester
     extra_files:
-      - internal\lookout\ui
+      - internal/lookout/ui
       - pkg/api/api.swagger.json
       - pkg/api/lookout/api.swagger.json
       - pkg/api/binoculars/api.swagger.json
