@@ -65,19 +65,12 @@ jobs:
           tag_exists_error: true
           message: "Armada Release Candidate for version v${{ steps.gitversion.outputs.majorMinorPatch }}"
 
-      - name: "Check GoReleaser config"
-        uses: "goreleaser/goreleaser-action@v4"
-        with:
-          distribution: "goreleaser"
-          version: "v1.16.2"
-          args: "-f ./.goreleaser.rc.yml check"
-
       - name: "Run GoReleaser"
         uses: "goreleaser/goreleaser-action@v4"
         with:
           distribution: "goreleaser"
           version: "v1.16.2"
-          args: "-f ./.goreleaser.rc.yml release --clean --debug"
+          args: "-f ./.goreleaser.rc.yml release --clean"
         env:
           DOCKER_REPO: "dpejcev"
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
