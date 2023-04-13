@@ -203,10 +203,15 @@ dockers:
       - "{{ .Env.DOCKER_REPO }}armada-demo-bundle:latest"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
+      - server
+      - executor
+      - binoculars
       - lookout
       - lookoutv2
       - lookoutingester
       - lookoutingesterv2
+      - eventingester
+      - jobservice
     extra_files:
       - config/armada/config.yaml
       - config/executor/config.yaml
