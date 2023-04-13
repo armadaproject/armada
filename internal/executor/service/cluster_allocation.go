@@ -123,7 +123,6 @@ type LegacyClusterAllocationService struct {
 	clusterContext     executorContext.ClusterContext
 	submitter          job.Submitter
 	etcdHealthMonitor  healthmonitor.EtcdLimitHealthMonitor
-	reserved           armadaresource.ComputeResources
 }
 
 func NewLegacyClusterAllocationService(
@@ -133,7 +132,6 @@ func NewLegacyClusterAllocationService(
 	utilisationService utilisation.UtilisationService,
 	submitter job.Submitter,
 	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
-	reserved armadaresource.ComputeResources,
 ) *LegacyClusterAllocationService {
 	return &LegacyClusterAllocationService{
 		leaseService:       leaseService,
@@ -142,7 +140,6 @@ func NewLegacyClusterAllocationService(
 		clusterContext:     clusterContext,
 		submitter:          submitter,
 		etcdHealthMonitor:  etcdHealthMonitor,
-		reserved:           reserved,
 	}
 }
 
