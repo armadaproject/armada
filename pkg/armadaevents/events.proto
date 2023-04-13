@@ -88,7 +88,7 @@ message EventSequence {
             JobRunPreempted jobRunPreempted = 19;
             PartitionMarker partitionMarker = 20;
             JobRunPreemptionRequested jobRunPreemptionRequested = 21;
-            RequeueJob requeueJob = 22;
+            JobRequeued jobRequeued = 22;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -216,7 +216,7 @@ message ReprioritiseJob {
     uint32 priority = 2;
 }
 
-message RequeueJob {
+message JobRequeued {
     Uuid job_id = 1;
     schedulerobjects.JobSchedulingInfo scheduling_info = 2;
   // Used by the scheduler to maintain a consistent state

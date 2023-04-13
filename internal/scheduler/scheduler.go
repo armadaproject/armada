@@ -547,8 +547,8 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 
 				requeueJobEvent := &armadaevents.EventSequence_Event{
 					Created: s.now(),
-					Event: &armadaevents.EventSequence_Event_RequeueJob{
-						RequeueJob: &armadaevents.RequeueJob{
+					Event: &armadaevents.EventSequence_Event_JobRequeued{
+						JobRequeued: &armadaevents.JobRequeued{
 							JobId:                jobId,
 							SchedulingInfo:       job.JobSchedulingInfo(),
 							UpdateSequenceNumber: job.QueuedVersion(),
