@@ -54,7 +54,7 @@ type AggregatedQueueServer struct {
 	decompressorPool         *pool.ObjectPool
 	clock                    clock.Clock
 	// For storing reports of scheduling attempts.
-	SchedulingReportsRepository *scheduler.SchedulingReportsRepository
+	SchedulingContextRepository *scheduler.SchedulingContextRepository
 	// Stores the most recent NodeDb for each executor.
 	// Used to check if a job could ever be scheduled at job submit time.
 	SubmitChecker *scheduler.SubmitChecker
@@ -376,7 +376,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		for _, job := range jobs {
 			nodeIdByJobId[job.Id] = node.Id
 		}
-
 		nodes = append(nodes, node)
 	}
 	indexedResources := q.schedulingConfig.IndexedResources
@@ -474,6 +473,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 	var preemptedJobs []scheduler.LegacySchedulerJob
 	var scheduledJobs []scheduler.LegacySchedulerJob
+	var schedulingContext *scheduler.SchedulingContext
 	if q.schedulingConfig.Preemption.PreemptToFairShare {
 		rescheduler := scheduler.NewRescheduler(
 			*constraints,
@@ -488,7 +488,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			nodeIdByJobId,
 			jobIdsByGangId,
 			gangIdByJobId,
-			q.SchedulingReportsRepository,
 		)
 		if q.schedulingConfig.EnableAssertions {
 			rescheduler.EnableAssertions()
@@ -500,6 +499,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		preemptedJobs = result.PreemptedJobs
 		scheduledJobs = result.ScheduledJobs
 		nodeIdByJobId = result.NodeIdByJobId
+		schedulingContext = result.SchedulingContext
 	} else {
 		schedulerQueues := make([]*scheduler.Queue, len(activeQueues))
 		for i, apiQueue := range activeQueues {
@@ -545,12 +545,14 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		preemptedJobs = result.PreemptedJobs
 		scheduledJobs = result.ScheduledJobs
 		nodeIdByJobId = result.NodeIdByJobId
+		schedulingContext = result.SchedulingContext
+	}
 
-		// Log and store scheduling reports.
-		if q.SchedulingReportsRepository != nil && sched.SchedulingRoundReport != nil {
-			log.Infof("Scheduling report:\n%s", sched.SchedulingRoundReport)
-			sched.SchedulingRoundReport.ClearJobSpecs()
-			q.SchedulingReportsRepository.AddSchedulingRoundReport(sched.SchedulingRoundReport)
+	// Store the scheduling context for querying.
+	if q.SchedulingContextRepository != nil && schedulingContext != nil {
+		schedulingContext.ClearJobSpecs()
+		if err := q.SchedulingContextRepository.AddSchedulingContext(schedulingContext); err != nil {
+			logging.WithStacktrace(log, err).Error("failed to store scheduling context")
 		}
 	}
 

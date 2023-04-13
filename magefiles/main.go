@@ -125,6 +125,19 @@ func BuildDockers(arg string) error {
 	return nil
 }
 
+// Build Dependencies for Armada
+func Build() {
+	mg.Deps(BootstrapTools)
+	mg.Deps(Proto)
+	mg.Deps(mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"))
+}
+
+func BuildMinimal() {
+	mg.Deps(BootstrapTools)
+	mg.Deps(Proto)
+	mg.Deps(mg.F(BuildDockers, "bundle"))
+}
+
 // Create a Local Armada Cluster
 func LocalDev() error {
 	mg.Deps(Kind)
@@ -149,7 +162,7 @@ func LocalDevStop() {
 }
 
 // Build the lookout UI from internal/lookout/ui
-func BuildLookoutUI() error {
+func UI() error {
 	mg.Deps(yarnCheck)
 
 	mg.Deps(yarnInstall)

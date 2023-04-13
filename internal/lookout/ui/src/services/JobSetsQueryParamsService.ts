@@ -1,7 +1,7 @@
 import queryString, { ParseOptions, StringifyOptions } from "query-string"
-import { RouteComponentProps } from "react-router-dom"
 
 import { isJobSetsView, JobSetsContainerState } from "../containers/JobSetsContainer"
+import { Router } from "../utils"
 
 const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
   arrayFormat: "comma",
@@ -29,24 +29,17 @@ function makeQueryString(state: JobSetsContainerState): string {
 }
 
 export default class JobSetsQueryParamsService {
-  routeComponentProps: RouteComponentProps
-
-  constructor(routeComponentProps: RouteComponentProps) {
-    this.routeComponentProps = routeComponentProps
-  }
+  constructor(private router: Router) {}
 
   saveState(state: JobSetsContainerState) {
-    this.routeComponentProps.history.push({
-      ...this.routeComponentProps.location,
+    this.router.navigate({
+      ...this.router.location,
       search: makeQueryString(state),
     })
   }
 
   updateState(state: JobSetsContainerState) {
-    const params = queryString.parse(
-      this.routeComponentProps.location.search,
-      QUERY_STRING_OPTIONS,
-    ) as JobSetsQueryParams
+    const params = queryString.parse(this.router.location.search, QUERY_STRING_OPTIONS) as JobSetsQueryParams
 
     if (params.queue) state.queue = params.queue
     if (params.view && isJobSetsView(params.view)) state.currentView = params.view

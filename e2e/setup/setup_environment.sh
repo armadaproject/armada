@@ -12,7 +12,7 @@ sudo mv linux-amd64/helm /usr/local/bin/helm
 
 echo "Installing Go"
 sudo rm -rf /usr/local/go
-wget https://dl.google.com/go/go1.18.5.linux-amd64.tar.gz
-sudo tar -xvf go1.18.5.linux-amd64.tar.gz
+wget https://dl.google.com/go/go1.20.2.linux-amd64.tar.gz
+sudo tar -xvf go1.20.2.linux-amd64.tar.gz
 sudo mv go /usr/local
 go version

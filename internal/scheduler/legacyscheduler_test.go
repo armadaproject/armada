@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -205,24 +204,24 @@ func TestQueueCandidateGangIterator(t *testing.T) {
 				tc.SchedulingConstraints.MaxLookbackPerQueue,
 			)
 			it := &QueueCandidateGangIterator{
-				ctx:                        ctx,
-				SchedulingConstraints:      tc.SchedulingConstraints,
-				QueueSchedulingRoundReport: NewQueueSchedulingRoundReport(0, tc.InitialUsageByPriority),
-				queuedGangIterator:         queuedGangIterator,
+				ctx:                     ctx,
+				SchedulingConstraints:   tc.SchedulingConstraints,
+				QueueSchedulingContexts: NewQueueSchedulingContext("A", "executor", 0, tc.InitialUsageByPriority),
+				queuedGangIterator:      queuedGangIterator,
 			}
 
 			actual := make([]*api.Job, 0)
 			actualIndices := make([]int, 0)
-			for reports, err := it.Next(); reports != nil; reports, err = it.Next() {
+			for jctxs, err := it.Next(); jctxs != nil; jctxs, err = it.Next() {
 				if !assert.NoError(t, err) {
 					return
 				}
-				for _, report := range reports {
+				for _, jctx := range jctxs {
 					if tc.LeaseJobs {
-						it.QueueSchedulingRoundReport.AddJobSchedulingReport(report, false)
+						it.QueueSchedulingContexts.AddJobSchedulingContext(jctx, false)
 					}
-					actual = append(actual, report.Job.(*api.Job))
-					actualIndices = append(actualIndices, indexByJobId[report.Job.GetId()])
+					actual = append(actual, jctx.Job.(*api.Job))
+					actualIndices = append(actualIndices, indexByJobId[jctx.Job.GetId()])
 				}
 			}
 			assert.Equal(t, tc.ExpectedIndices, actualIndices) // Redundant, but useful to debug tests.
@@ -247,9 +246,9 @@ func TestSchedule(t *testing.T) {
 		TotalResources schedulerobjects.ResourceList
 		// Minimum job size.
 		MinimumJobSize map[string]resource.Quantity
-		// Skip checking if reports were generated.
+		// Skip checking if contexts were generated.
 		// Needed for tests where not all jobs are considered.
-		DoNotCheckReports bool
+		DoNotCheckContexts bool
 		// For each queue, the indices of jobs expected to be scheduled.
 		ExpectedIndicesByQueue map[string][]int
 		// For each queue, the expected resources assigned to jobs from that queue.
@@ -362,7 +361,7 @@ func TestSchedule(t *testing.T) {
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
-			DoNotCheckReports: true,
+			DoNotCheckContexts: true,
 			ExpectedIndicesByQueue: map[string][]int{
 				"A": {0, 1},
 			},
@@ -1013,28 +1012,28 @@ func TestSchedule(t *testing.T) {
 				assert.NotEmpty(t, nodeId)
 			}
 
-			// Check that a scheduling round report was created.
-			if !assert.NotNil(t, sched.SchedulingRoundReport) {
+			// Check that a scheduling context was created.
+			if !assert.NotNil(t, sched.SchedulingContext) {
 				return
 			}
 
-			// Check that scheduling reports were generated.
-			// TODO: Check that reports correctly indicate success/not.
-			if !tc.DoNotCheckReports {
-				schedulingRoundReport := sched.SchedulingRoundReport
+			// Check that scheduling contexts were generated.
+			// TODO: Check that contexts correctly indicate success/not.
+			if !tc.DoNotCheckContexts {
+				schedulingContext := sched.SchedulingContext
 
 				// Check that started and finished times are set.
-				assert.NotEqual(t, time.Time{}, schedulingRoundReport.Started)
-				assert.NotEqual(t, time.Time{}, schedulingRoundReport.Finished)
+				assert.NotEqual(t, time.Time{}, schedulingContext.Started)
+				assert.NotEqual(t, time.Time{}, schedulingContext.Finished)
 
 				// Check that scheduled resources is set correctly.
 				for queue, expected := range usageByQueueAndPriority(result.ScheduledJobs, tc.SchedulingConfig.Preemption.PriorityClasses) {
-					queueSchedulingRoundReport, ok := schedulingRoundReport.QueueSchedulingRoundReports[queue]
-					require.NotNil(t, queueSchedulingRoundReport)
+					qctx, ok := schedulingContext.QueueSchedulingContexts[queue]
+					require.NotNil(t, qctx)
 					require.True(t, ok)
 
-					// Scheduling round report accounting.
-					actual := queueSchedulingRoundReport.ScheduledResourcesByPriority
+					// Scheduling round accounting.
+					actual := qctx.ScheduledResourcesByPriority
 					assert.True(t, expected.Equal(actual), "expected %v, but got %v", expected, actual)
 
 					// TODO: Test usage.
@@ -1043,23 +1042,19 @@ func TestSchedule(t *testing.T) {
 					// assert.True(t, expected.Equal(actual), "expected %v, but got %v", expected, actual)
 				}
 
-				// Check that the scheduling round report contains reports for all queues and jobs.
+				// Check that the scheduling context includes all queues and jobs.
 				assert.Equal(
 					t,
 					len(tc.PriorityFactorByQueue),
-					len(sched.SchedulingRoundReport.QueueSchedulingRoundReports),
+					len(sched.SchedulingContext.QueueSchedulingContexts),
 				)
-				leasedJobIds := make(map[uuid.UUID]interface{})
+				leasedJobIds := make(map[string]interface{})
 				for _, job := range result.ScheduledJobs {
-					jobId, err := uuidFromUlidString(job.GetId())
-					if !assert.NoError(t, err) {
-						return
-					}
-					leasedJobIds[jobId] = true
+					leasedJobIds[job.GetId()] = true
 				}
 				for queue, jobs := range jobRepository.jobsByQueue {
-					queueSchedulingRoundReport, ok := schedulingRoundReport.QueueSchedulingRoundReports[queue]
-					if !assert.NotNil(t, queueSchedulingRoundReport) {
+					qctx, ok := schedulingContext.QueueSchedulingContexts[queue]
+					if !assert.NotNil(t, qctx) {
 						continue
 					}
 					if !assert.True(t, ok) {
@@ -1070,37 +1065,53 @@ func TestSchedule(t *testing.T) {
 						if i >= int(tc.SchedulingConfig.QueueLeaseBatchSize) {
 							break
 						}
-						jobId, err := uuidFromUlidString(job.Id)
-						if !assert.NoError(t, err) {
-							return
-						}
 
-						_, isLeased := leasedJobIds[jobId]
-						var jobReports map[uuid.UUID]*JobSchedulingReport
+						_, isLeased := leasedJobIds[job.GetId()]
+						var jctxByJobId map[string]*JobSchedulingContext
 						if isLeased {
-							jobReports = queueSchedulingRoundReport.SuccessfulJobSchedulingReports
+							jctxByJobId = qctx.SuccessfulJobSchedulingContexts
 						} else {
-							jobReports = queueSchedulingRoundReport.UnsuccessfulJobSchedulingReports
+							jctxByJobId = qctx.UnsuccessfulJobSchedulingContexts
 						}
-						if !assert.NotNil(t, jobReports) {
+						if !assert.NotNil(t, jctxByJobId) {
 							continue
 						}
 
-						jobReport, ok := jobReports[jobId]
-						if !assert.True(t, ok, "missing report for job; leased: %v", isLeased) {
+						jctx, ok := jctxByJobId[job.GetId()]
+						if !assert.True(t, ok, "missing context for job; leased: %v", isLeased) {
 							continue
 						}
-						if !assert.NotNil(t, jobReport) {
+						if !assert.NotNil(t, jctx) {
 							continue
+						}
+					}
+
+					// For jobs that could not be scheduled,
+					// check that the number of excluded nodes equals the total number of nodes.
+					for _, qctx := range result.SchedulingContext.QueueSchedulingContexts {
+						for _, jctx := range qctx.UnsuccessfulJobSchedulingContexts {
+							for _, pctx := range jctx.PodSchedulingContexts {
+								if pctx.Node != nil {
+									// To avoid checking pod scheduling contexts for gang jobs that succeeded
+									// (we include these in failed job scheduling contexts).
+									continue
+								}
+								assert.Equal(t, nodeDb.numNodes, pctx.NumNodes)
+								numExcludedNodes := 0
+								for _, count := range pctx.NumExcludedNodesByReason {
+									numExcludedNodes += count
+								}
+								assert.Equal(t, nodeDb.numNodes, numExcludedNodes)
+							}
 						}
 					}
 				}
 
 				// Check that total resources is correct.
-				assert.True(t, schedulingRoundReport.TotalResources.Equal(tc.TotalResources))
+				assert.True(t, schedulingContext.TotalResources.Equal(tc.TotalResources))
 
 				// Check that we were given a termination reason.
-				assert.NotEmpty(t, schedulingRoundReport.TerminationReason)
+				assert.NotEmpty(t, schedulingContext.TerminationReason)
 			}
 		})
 	}
@@ -2249,7 +2260,6 @@ func TestReschedule(t *testing.T) {
 					nodeIdByJobId,
 					jobIdsByGangId,
 					gangIdByJobId,
-					nil,
 				)
 				rescheduler.EnableAssertions()
 				result, err := rescheduler.Schedule(ctxlogrus.ToContext(context.Background(), log))
@@ -2510,7 +2520,6 @@ func BenchmarkReschedule(b *testing.B) {
 				nil,
 				nil,
 				nil,
-				nil,
 			)
 			result, err := rescheduler.Schedule(
 				ctxlogrus.ToContext(
@@ -2543,7 +2552,6 @@ func BenchmarkReschedule(b *testing.B) {
 					repo, nodeDb,
 					priorityFactorByQueue,
 					usageByQueue,
-					nil,
 					nil,
 					nil,
 					nil,

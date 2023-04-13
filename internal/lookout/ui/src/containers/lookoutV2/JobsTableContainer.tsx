@@ -41,6 +41,7 @@ import { columnIsAggregatable, useFetchJobsTableData } from "hooks/useJobsTableD
 import _ from "lodash"
 import { JobTableRow, isJobGroupRow, JobRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobId } from "models/lookoutV2Models"
+import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGetRunErrorService } from "services/lookoutV2/GetRunErrorService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
@@ -59,12 +60,12 @@ import { fromRowId, RowId } from "utils/reactTableUtils"
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
 import { ILogService } from "../../services/lookoutV2/LogService"
+import { waitMillis } from "../../utils"
 import styles from "./JobsTableContainer.module.css"
 
 const PAGE_SIZE_OPTIONS = [5, 25, 50, 100]
 
 interface JobsTableContainerProps {
-  jobsTablePreferencesService: JobsTablePreferencesService
   getJobsService: IGetJobsService
   groupJobsService: IGroupJobsService
   updateJobsService: UpdateJobsService
@@ -73,8 +74,8 @@ interface JobsTableContainerProps {
   logService: ILogService
   debug: boolean
 }
+
 export const JobsTableContainer = ({
-  jobsTablePreferencesService,
   getJobsService,
   groupJobsService,
   updateJobsService,
@@ -85,6 +86,10 @@ export const JobsTableContainer = ({
 }: JobsTableContainerProps) => {
   const openSnackbar = useCustomSnackbar()
 
+  const location = useLocation()
+  const navigate = useNavigate()
+  const params = useParams()
+  const jobsTablePreferencesService = useMemo(() => new JobsTablePreferencesService({ location, navigate, params }), [])
   const initialPrefs = useMemo(() => jobsTablePreferencesService.getUserPrefs(), [])
 
   // Columns
@@ -108,6 +113,9 @@ export const JobsTableContainer = ({
 
   // Selecting
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({})
+  const [lastSelectedRow, setLastSelectedRow] = useState<Row<JobTableRow> | undefined>(undefined)
+
+  // Sidebar
   const [sidebarJobId, setSidebarJobId] = useState<JobId | undefined>(initialPrefs.sidebarJobId)
   const [sidebarWidth, setSidebarWidth] = useState<number>(initialPrefs.sidebarWidth ?? 600)
 
@@ -279,13 +287,14 @@ export const JobsTableContainer = ({
     [expanded],
   )
 
-  const onSelectedRowChange = useCallback(
-    (updater: Updater<RowSelectionState>) => {
-      const newSelectedRows = updaterToValue(updater, selectedRows)
-      setSelectedRows(newSelectedRows)
-    },
-    [selectedRows],
-  )
+  const onSelectedRowChange = (updater: Updater<RowSelectionState>) => {
+    const newSelectedRows = updaterToValue(updater, selectedRows)
+    setSelectedRows(newSelectedRows)
+  }
+
+  const onSelectRow = (row: Row<JobTableRow>) => {
+    setLastSelectedRow(row)
+  }
 
   const onFilterChange = useCallback(
     (updater: Updater<ColumnFiltersState>) => {
@@ -385,6 +394,21 @@ export const JobsTableContainer = ({
     onColumnSizingChange: onColumnSizingChange,
   })
 
+  const onShiftClickRow = async (row: Row<JobTableRow>) => {
+    if (lastSelectedRow === undefined || row.depth !== lastSelectedRow.depth) {
+      return
+    }
+    const sameDepthRows = table.getRowModel().rows.filter((_row) => row.depth === lastSelectedRow.depth)
+    const lastSelectedIdx = sameDepthRows.indexOf(lastSelectedRow)
+    const currentIdx = sameDepthRows.indexOf(row)
+    const shouldSelect = lastSelectedRow.getIsSelected()
+    // Race condition - if we don't wait here the rows do not get selected
+    await waitMillis(5)
+    for (let i = Math.min(lastSelectedIdx, currentIdx); i <= Math.max(lastSelectedIdx, currentIdx); i++) {
+      sameDepthRows[i].toggleSelected(shouldSelect)
+    }
+  }
+
   const topLevelRows = table.getRowModel().rows.filter((row) => row.depth === 0)
   let columnsForSelect = allColumns
   if (grouping.length === 0) {
@@ -437,6 +461,8 @@ export const JobsTableContainer = ({
               sidebarJobId={sidebarJobId}
               onLoadMoreSubRows={onLoadMoreSubRows}
               onClickJobRow={onJobRowClick}
+              onToggleSelect={onSelectRow}
+              onShiftClickRow={onShiftClickRow}
             />
 
             <TableFooter>
@@ -482,7 +508,10 @@ interface JobsTableBodyProps {
   sidebarJobId: JobId | undefined
   onLoadMoreSubRows: (rowId: RowId, skip: number) => void
   onClickJobRow: (row: JobRow) => void
+  onToggleSelect: (row: Row<JobTableRow>) => void
+  onShiftClickRow: (row: Row<JobTableRow>) => void
 }
+
 const JobsTableBody = ({
   dataIsLoading,
   columns,
@@ -490,6 +519,8 @@ const JobsTableBody = ({
   sidebarJobId,
   onLoadMoreSubRows,
   onClickJobRow,
+  onToggleSelect,
+  onShiftClickRow,
 }: JobsTableBodyProps) => {
   const canDisplay = !dataIsLoading && topLevelRows.length > 0
   return (
@@ -506,7 +537,9 @@ const JobsTableBody = ({
           )}
         </TableRow>
       )}
-      {topLevelRows.map((row) => recursiveRowRender(row, sidebarJobId, onLoadMoreSubRows, onClickJobRow))}
+      {topLevelRows.map((row) =>
+        recursiveRowRender(row, sidebarJobId, onLoadMoreSubRows, onClickJobRow, onToggleSelect, onShiftClickRow),
+      )}
     </TableBody>
   )
 }
@@ -516,6 +549,8 @@ const recursiveRowRender = (
   sidebarJobId: JobId | undefined,
   onLoadMoreSubRows: (rowId: RowId, skip: number) => void,
   onClickJobRow: (row: JobRow) => void,
+  onToggleSelect: (row: Row<JobTableRow>) => void,
+  onShiftClickRow: (row: Row<JobTableRow>) => void,
 ): JSX.Element => {
   const original = row.original
   const rowIsGroup = isJobGroupRow(original)
@@ -526,12 +561,27 @@ const recursiveRowRender = (
   return (
     <React.Fragment key={`${row.id}_d${row.depth}`}>
       {/* Render the current row */}
-      <JobsTableRow row={row} isOpenInSidebar={isOpenInSidebar} onClick={!rowIsGroup ? onClickJobRow : undefined} />
+      <JobsTableRow
+        row={row}
+        isOpenInSidebar={isOpenInSidebar}
+        onClick={(jr, e) => {
+          if (!rowIsGroup) {
+            onClickJobRow(jr)
+          }
+          onToggleSelect(row)
+          if (e.shiftKey) {
+            onShiftClickRow(row)
+          }
+          row.getToggleSelectedHandler()(e)
+        }}
+      />
 
       {/* Render any sub rows if expanded */}
       {rowIsGroup &&
         row.getIsExpanded() &&
-        row.subRows.map((row) => recursiveRowRender(row, sidebarJobId, onLoadMoreSubRows, onClickJobRow))}
+        row.subRows.map((row) =>
+          recursiveRowRender(row, sidebarJobId, onLoadMoreSubRows, onClickJobRow, onToggleSelect, onShiftClickRow),
+        )}
 
       {/* Render pagination tools for this expanded row */}
       {rowIsGroup && row.getIsExpanded() && (original.subRowCount ?? 0) > original.subRows.length && (

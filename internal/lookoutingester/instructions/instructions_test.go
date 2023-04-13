@@ -16,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/lookout/repository"
 	"github.com/armadaproject/armada/internal/lookoutingester/metrics"
@@ -346,6 +347,17 @@ func TestSubmit(t *testing.T) {
 	assert.Equal(t, expected, instructions)
 }
 
+// Single duplicate submit message is ignored
+func TestDuplicate(t *testing.T) {
+	svc := SimpleInstructionConverter()
+	msg := NewMsg(testfixtures.SubmitDuplicate)
+	instructions := svc.Convert(context.Background(), msg)
+	expected := &model.InstructionSet{
+		MessageIds: msg.MessageIds,
+	}
+	assert.Equal(t, expected, instructions)
+}
+
 // Happy path of submit -> assigned -> running -> succeeded
 // All in a single update
 // Single submit message
@@ -504,7 +516,7 @@ func TestHandlePodTerminated(t *testing.T) {
 				RunId: runIdProto,
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: true,
+						Terminal: false,
 						Reason: &armadaevents.Error_PodTerminated{
 							PodTerminated: &armadaevents.PodTerminated{
 								NodeName: nodeName,
@@ -524,13 +536,6 @@ func TestHandlePodTerminated(t *testing.T) {
 	msg := NewMsg(podTerminated)
 	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
-		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-			RunId:     runIdString,
-			Node:      pointer.String(nodeName),
-			Finished:  &baseTime,
-			Succeeded: pointer.Bool(false),
-			Error:     pointer.String(terminatedMsg),
-		}},
 		MessageIds: msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
@@ -593,7 +598,7 @@ func TestHandlePodUnschedulable(t *testing.T) {
 				RunId: runIdProto,
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: true,
+						Terminal: false,
 						Reason: &armadaevents.Error_PodUnschedulable{
 							PodUnschedulable: &armadaevents.PodUnschedulable{
 								NodeName: nodeName,
@@ -613,14 +618,6 @@ func TestHandlePodUnschedulable(t *testing.T) {
 	msg := NewMsg(podUnschedulable)
 	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
-		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-			RunId:            runIdString,
-			Node:             pointer.String(nodeName),
-			Finished:         &baseTime,
-			Succeeded:        pointer.Bool(false),
-			UnableToSchedule: pointer.Bool(true),
-			Error:            pointer.String(unschedulableMsg),
-		}},
 		MessageIds: msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)

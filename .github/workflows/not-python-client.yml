@@ -31,14 +31,14 @@ jobs:
   python-client-tox:
     strategy:
       matrix:
-        go: [ '1.18' ]
+        go: [ '1.20' ]
     runs-on: ubuntu-latest
     steps:
       - run: 'echo "No python modified, not running python jobs"'
   python-client-integration-tests:
     strategy:
       matrix:
-        go: [ '1.18' ]
+        go: [ '1.20' ]
     runs-on: ubuntu-latest
     steps:
       - run: 'echo "No python modified, not running python jobs"'

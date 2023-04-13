@@ -109,22 +109,6 @@ var expectedFailedRun = model.UpdateJobRunInstruction{
 	ExitCode:    pointer.Int32(testfixtures.ExitCode),
 }
 
-var expectedTerminated = model.UpdateJobRunInstruction{
-	RunId:       testfixtures.RunIdString,
-	Node:        pointer.String(testfixtures.NodeName),
-	Finished:    &testfixtures.BaseTime,
-	JobRunState: pointer.Int32(lookout.JobRunTerminatedOrdinal),
-	Error:       []byte(testfixtures.TerminatedMsg),
-}
-
-var expectedUnschedulable = model.UpdateJobRunInstruction{
-	RunId:       testfixtures.RunIdString,
-	Node:        pointer.String(testfixtures.NodeName),
-	Finished:    &testfixtures.BaseTime,
-	JobRunState: pointer.Int32(lookout.JobRunUnableToScheduleOrdinal),
-	Error:       []byte(testfixtures.UnschedulableMsg),
-}
-
 var expectedPreempted = model.UpdateJobInstruction{
 	JobId:                     testfixtures.JobIdString,
 	State:                     pointer.Int32(lookout.JobPreemptedOrdinal),
@@ -306,8 +290,7 @@ func TestConvert(t *testing.T) {
 				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedTerminated},
-				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"unschedulable": {
@@ -316,8 +299,16 @@ func TestConvert(t *testing.T) {
 				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedUnschedulable},
-				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"duplicate submit is ignored": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.SubmitDuplicate)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"preempted": {

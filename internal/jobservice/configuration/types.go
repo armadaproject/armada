@@ -1,9 +1,18 @@
 package configuration
 
 import (
+	"time"
+
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/pkg/client"
 )
+
+type PostgresConfig struct {
+	MaxOpenConns    int
+	MaxIdleConns    int
+	ConnMaxLifetime time.Duration
+	Connection      map[string]string
+}
 
 type JobServiceConfiguration struct {
 	HttpPort    uint16
@@ -18,6 +27,13 @@ type JobServiceConfiguration struct {
 	SubscribeJobSetTime int64
 	// Purging JobSets
 	PurgeJobSetTime int64
-	// Absolute or relative path for sqllite database and must include the db name
+	// Type of database used - must be either 'postgres' or 'sqlite'
+	DatabaseType string
+	// Absolute or relative path for sqlite database and must include the db name
+	// This field is only read when DatabaseType is 'sqlite'
 	DatabasePath string
+
+	// Configuration details for using a Postgres database; this field is
+	// ignored if the DatabaseType above is not 'postgres'
+	PostgresConfig PostgresConfig
 }

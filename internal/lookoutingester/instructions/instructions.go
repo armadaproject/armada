@@ -113,6 +113,10 @@ func (c *InstructionConverter) handleSubmitJob(
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
 	}
+	if event.IsDuplicate {
+		log.Debugf("job %s is a duplicate, ignoring", jobId)
+		return nil
+	}
 
 	// Try and marshall the job Json. This shouldn't go wrong but if it does, it'c not a fatal error
 	// Rather it means that the json won't be available in the ui
