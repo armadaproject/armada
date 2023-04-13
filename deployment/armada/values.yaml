@@ -2,12 +2,9 @@ nameOverride: ""
 fullnameOverride: ""
 
 image:
-  # image repository
   repository: gresearchdev/armada-server
-  # image tag
   tag: LATEST
 
-# -- resource configuration
 resources:
   limits:
     memory: 1Gi
@@ -45,9 +42,8 @@ strategy:
     maxUnavailable: 1
   type: RollingUpdate
 
-# -- Ingress Class
 ingressClass: nginx
-# -- cert-manager's ClusterIssuer from which to request TLS certificate
+# -- cert-manager's ClusterIssuer from which to request TLS certificate for the Ingres resources
 clusterIssuer: ""
 # -- Hostnames for which to create gRPC and REST Ingress rules
 hostnames: []
@@ -89,8 +85,6 @@ applicationConfig:
   # -- Armada Server REST port
   httpPort: 8080
   pulsar:
-    # -- Pulsar Broker URL
-    URL: "pulsar://pulsar:6650"
     # -- Toggle whether to mount Pulsar Token secret
     authenticationEnabled: false
     # -- Name of the secret which contains the Pulsar Token
@@ -99,28 +93,3 @@ applicationConfig:
     tlsEnabled: false
     # -- Name of the secret which contains the Pulsar CA certificate
     cacert: armada-pulsar-ca-tls
-  postgres:
-    connection:
-      # -- Postgres host
-      host: postgres
-      # -- Postgres port
-      port: 5432
-      # -- Postgres user
-      user: postgres
-      # -- Postgres password
-      password: psw
-      # -- Postgres database name
-      dbname: postgres
-      # -- Toggle whether to use SSL mode
-      sslmode: disable
-  redis:
-    # -- Redis hosts
-    addrs: []
-     # - redis:6379
-    password: ""
-  eventsApiRedis:
-    # -- Redis hosts
-    addrs: []
-     # - redis:6379
-    # -- Redis password
-    password: ""
