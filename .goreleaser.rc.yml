@@ -99,7 +99,7 @@ builds:
 
 source:
   enabled: true
-  name_template: "{{ .ProjectName }}_{{ .Version }}_rc_{{ .ShortCommit }}_source"
+  name_template: "{{ .ProjectName }}_{{ replace .Version "-" "_" }}_source"
   format: "zip"
 
 archives:
@@ -107,7 +107,7 @@ archives:
     builds:
       - armadactl
     allow_different_binary_count: true
-    name_template: "armadactl_{{ .Version }}_rc_{{ .ShortCommit }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "armadactl_{{ replace .Version "-" "_" }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
         format: zip
@@ -141,7 +141,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada:{{ .Version }}-rc-{{ .ShortCommit }}"
+      - "{{ .Env.DOCKER_REPO }}armada:{{ .Version }}"
       - "{{ .Env.DOCKER_REPO }}armada:latest"
     build_flag_templates: &BUILD_FLAG_TEMPLATES
       - --build-arg={{ .Env.BASE_IMAGE_ARG }}
@@ -173,7 +173,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-lookout-bundle:{{ .Version }}-rc-{{ .ShortCommit }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookout-bundle:{{ .Version }}"
       - "{{ .Env.DOCKER_REPO }}armada-lookout-bundle:latest"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
@@ -199,7 +199,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-demo-bundle:{{ .Version }}-rc-{{ .ShortCommit }}"
+      - "{{ .Env.DOCKER_REPO }}armada-demo-bundle:{{ .Version }}"
       - "{{ .Env.DOCKER_REPO }}armada-demo-bundle:latest"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
@@ -235,7 +235,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-server:{{ .Version }}-rc-{{ .ShortCommit }}"
+      - "{{ .Env.DOCKER_REPO }}armada-server:{{ .Version }}"
       - "{{ .Env.DOCKER_REPO }}armada-server:latest"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
@@ -249,7 +249,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-executor:{{ .Version }}-rc-{{ .ShortCommit }}"
+      - "{{ .Env.DOCKER_REPO }}armada-executor:{{ .Version }}"
       - "{{ .Env.DOCKER_REPO }}armada-executor:latest"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
@@ -263,7 +263,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-lookoutingester:{{ .Version }}-rc-{{ .ShortCommit }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookoutingester:{{ .Version }}"
       - "{{ .Env.DOCKER_REPO }}armada-lookoutingester:latest"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
@@ -277,7 +277,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:{{ .Version }}-rc-{{ .ShortCommit }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:{{ .Version }}"
       - "{{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:latest"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
@@ -291,7 +291,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-lookout:{{ .Version }}-rc-{{ .ShortCommit }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookout:{{ .Version }}"
       - "{{ .Env.DOCKER_REPO }}armada-lookout:latest"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
@@ -311,7 +311,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-lookoutv2:{{ .Version }}-rc-{{ .ShortCommit }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookoutv2:{{ .Version }}"
       - "{{ .Env.DOCKER_REPO }}armada-lookoutv2:latest"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
@@ -327,7 +327,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-eventingester:{{ .Version }}-rc-{{ .ShortCommit }}"
+      - "{{ .Env.DOCKER_REPO }}armada-eventingester:{{ .Version }}"
       - "{{ .Env.DOCKER_REPO }}armada-eventingester:latest"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
@@ -341,7 +341,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-binoculars:{{ .Version }}-rc-{{ .ShortCommit }}"
+      - "{{ .Env.DOCKER_REPO }}armada-binoculars:{{ .Version }}"
       - "{{ .Env.DOCKER_REPO }}armada-binoculars:latest"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
@@ -355,7 +355,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-jobservice:{{ .Version }}-rc-{{ .ShortCommit }}"
+      - "{{ .Env.DOCKER_REPO }}armada-jobservice:{{ .Version }}"
       - "{{ .Env.DOCKER_REPO }}armada-jobservice:latest"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
@@ -369,7 +369,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armadactl:{{ .Version }}-rc-{{ .ShortCommit }}"
+      - "{{ .Env.DOCKER_REPO }}armadactl:{{ .Version }}"
       - "{{ .Env.DOCKER_REPO }}armadactl:latest"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
@@ -380,4 +380,4 @@ checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  name_template: "{{ .Version }}-rc-{{ .ShortCommit }}"
+  name_template: "{{ .Version }}"
