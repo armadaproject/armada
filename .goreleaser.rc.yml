@@ -102,7 +102,7 @@ archives:
     builds:
       - armadactl
     allow_different_binary_count: true
-    name_template: "armadactl_{{ replace .Version '-' '_' }}_{{ .Os }}_{{ .Arch }}"
+    name_template: 'armadactl_{{ replace .Version "-" "_" }}_{{ .Os }}_{{ .Arch }}'
     format_overrides:
       - goos: windows
         format: zip
