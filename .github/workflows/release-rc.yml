@@ -70,7 +70,7 @@ jobs:
         with:
           distribution: "goreleaser"
           version: "v1.16.2"
-          args: "-f ./.goreleaser.rc.yml release --clean"
+          args: "-f ./.goreleaser.rc.yml release --clean --debug"
         env:
           DOCKER_REPO: "dpejcev"
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
