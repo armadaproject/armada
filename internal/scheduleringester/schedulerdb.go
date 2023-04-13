@@ -81,6 +81,32 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 				return errors.WithStack(err)
 			}
 		}
+	case UpdateJobSchedulingInfo:
+		// TODO This is inefficient and can actually be done neatly in bulk in postgres - but not supported by sqlc
+		// However this operation should happen relatively rarely, so the impact of doing it inefficiently may not be very much
+		for key, value := range o {
+			err := queries.UpdateJobSchedulingInfo(ctx, schedulerdb.UpdateJobSchedulingInfoParams{
+				SchedulingInfo:        value.JobSchedulingInfo,
+				SchedulingInfoVersion: value.JobSchedulingInfoVersion,
+				JobID:                 key,
+			})
+			if err != nil {
+				return errors.WithStack(err)
+			}
+		}
+	case UpdateJobQueuedState:
+		// TODO This is inefficient and can actually be done neatly in bulk in postgres - but not supported by sqlc
+		// However this operation should happen relatively rarely, so the impact of doing it inefficiently may not be very much
+		for key, value := range o {
+			err := queries.UpdateJobQueued(ctx, schedulerdb.UpdateJobQueuedParams{
+				Queued:        value.Queued,
+				QueuedVersion: value.QueuedStateVersion,
+				JobID:         key,
+			})
+			if err != nil {
+				return errors.WithStack(err)
+			}
+		}
 	case MarkJobSetsCancelRequested:
 		jobSets := maps.Keys(o)
 		err := queries.MarkJobsCancelRequestedBySets(ctx, jobSets)

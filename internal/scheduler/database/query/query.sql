@@ -5,7 +5,7 @@ SELECT * FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
 SELECT job_id FROM jobs;
 
 -- name: SelectUpdatedJobs :many
-SELECT job_id, job_set, queue, priority, submitted, cancel_requested, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, serial FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
+SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, cancel_requested, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, serial FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2;
 
 -- name: UpdateJobPriorityByJobSet :exec
 UPDATE jobs SET priority = $1 WHERE job_set = $2;
@@ -24,6 +24,12 @@ UPDATE jobs SET cancelled = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 
 -- name: MarkJobsFailedById :exec
 UPDATE jobs SET failed = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
+
+-- name: UpdateJobQueued :exec
+UPDATE jobs SET (queued, queued_version) = ($1, $2) WHERE job_id = $3 AND queued_version < $2;
+
+-- name: UpdateJobSchedulingInfo :exec
+UPDATE jobs SET (scheduling_info, scheduling_info_version) = ($1, $2) WHERE job_id = $3 AND scheduling_info_version < $2;
 
 -- name: UpdateJobPriorityById :exec
 UPDATE jobs SET priority = $1 WHERE job_id = $2;

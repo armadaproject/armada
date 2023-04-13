@@ -265,6 +265,8 @@ func OneCpuJob(creationTime int64) *jobdb.Job {
 		queueName,
 		0,
 		schedulingInfo,
+		true,
+		1,
 		false,
 		false,
 		false,

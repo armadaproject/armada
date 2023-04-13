@@ -30,6 +30,8 @@ type Job struct {
 	// True if the job is currently queued.
 	// If this is set then the job will not be considered for scheduling
 	queued bool
+	// The current version of the queued state
+	queuedVersion int32
 	// Scheduling requirements of this job.
 	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo
 	// True if the user has requested this job be cancelled
@@ -61,6 +63,8 @@ func NewJob(
 	queue string,
 	priority uint32,
 	schedulingInfo *schedulerobjects.JobSchedulingInfo,
+	queued bool,
+	queuedVersion int32,
 	cancelRequested bool,
 	cancelByJobsetRequested bool,
 	cancelled bool,
@@ -70,7 +74,8 @@ func NewJob(
 		id:                      jobId,
 		jobset:                  jobset,
 		queue:                   queue,
-		queued:                  true,
+		queued:                  queued,
+		queuedVersion:           queuedVersion,
 		priority:                priority,
 		requestedPriority:       priority,
 		jobSchedulingInfo:       schedulingInfo,
@@ -159,6 +164,18 @@ func (job *Job) Queued() bool {
 func (job *Job) WithQueued(queued bool) *Job {
 	j := copyJob(*job)
 	j.queued = queued
+	return j
+}
+
+// QueuedVersion returns current queued state version.
+func (job *Job) QueuedVersion() int32 {
+	return job.queuedVersion
+}
+
+// WithQueuedVersion returns a copy of the job with the queued version updated.
+func (job *Job) WithQueuedVersion(version int32) *Job {
+	j := copyJob(*job)
+	j.queuedVersion = version
 	return j
 }
 

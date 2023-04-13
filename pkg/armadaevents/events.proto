@@ -8,7 +8,7 @@ import "k8s.io/api/networking/v1/generated.proto";
 import "google/protobuf/timestamp.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
-
+import "internal/scheduler/schedulerobjects/schedulerobjects.proto";
 // Armada state transition model
 //
 // The central concepts are:
@@ -88,6 +88,7 @@ message EventSequence {
             JobRunPreempted jobRunPreempted = 19;
             PartitionMarker partitionMarker = 20;
             JobRunPreemptionRequested jobRunPreemptionRequested = 21;
+            RequeueJob requeueJob = 22;
         }
     }
     // The system is namespaced by queue, and all events are associated with a job set.
@@ -215,6 +216,13 @@ message ReprioritiseJob {
     uint32 priority = 2;
 }
 
+message RequeueJob {
+    Uuid job_id = 1;
+    schedulerobjects.JobSchedulingInfo scheduling_info = 2;
+  // Used by the scheduler to maintain a consistent state
+  int32 update_sequence_number = 3;
+}
+
 // Set the priority of all jobs part of a job set.
 // This sets the priority of all jobs in the job set currently in the queued state.
 message ReprioritiseJobSet {
@@ -275,6 +283,8 @@ message JobRunLeased {
     // Each cluster is represented by an executor.
     string executor_id = 3;
     string node_id = 4;
+    // Used by the scheduler to maintain a consistent state
+    int32 update_sequence_number = 5;
 }
 
 // Indicates that a job has been assigned to nodes by Kubernetes.

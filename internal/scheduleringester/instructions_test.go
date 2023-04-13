@@ -37,6 +37,8 @@ func TestConvertSequence(t *testing.T) {
 				UserID:        f.UserId,
 				Groups:        compress.MustCompressStringArray(f.Groups, compressor),
 				Queue:         f.Queue,
+				Queued:        true,
+				QueuedVersion: 0,
 				Priority:      int64(f.Priority),
 				Submitted:     f.BaseTime.UnixNano(),
 				SubmitMessage: protoutil.MustMarshallAndCompress(f.Submit.GetSubmitJob(), compressor),
@@ -45,6 +47,7 @@ func TestConvertSequence(t *testing.T) {
 					AtMostOnce:      true,
 					Preemptible:     true,
 					ConcurrencySafe: true,
+					Version:         0,
 					ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 						{
 							Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
@@ -76,14 +79,19 @@ func TestConvertSequence(t *testing.T) {
 		},
 		"job run leased": {
 			events: []*armadaevents.EventSequence_Event{f.Leased},
-			expected: []DbOperation{InsertRuns{f.RunIdUuid: &schedulerdb.Run{
-				RunID:    f.RunIdUuid,
-				JobID:    f.JobIdString,
-				JobSet:   f.JobSetName,
-				Executor: f.ExecutorId,
-				Node:     f.NodeName,
-			}}},
-		},
+			expected: []DbOperation{
+				InsertRuns{f.RunIdUuid: &schedulerdb.Run{
+					RunID:    f.RunIdUuid,
+					JobID:    f.JobIdString,
+					JobSet:   f.JobSetName,
+					Executor: f.ExecutorId,
+					Node:     f.NodeName,
+				}},
+				UpdateJobQueuedState{f.JobIdString: &JobQueuedStateUpdate{
+					Queued:             false,
+					QueuedStateVersion: 1,
+				}},
+			}},
 		"job run running": {
 			events:   []*armadaevents.EventSequence_Event{f.Running},
 			expected: []DbOperation{MarkRunsRunning{f.RunIdUuid: true}},
@@ -154,6 +162,19 @@ func TestConvertSequence(t *testing.T) {
 			events: []*armadaevents.EventSequence_Event{f.JobCancelled},
 			expected: []DbOperation{
 				MarkJobsCancelled{f.JobIdString: true},
+			},
+		},
+		"JobRequeued": {
+			events: []*armadaevents.EventSequence_Event{f.JobRequeued},
+			expected: []DbOperation{
+				UpdateJobQueuedState{f.JobIdString: &JobQueuedStateUpdate{
+					Queued:             true,
+					QueuedStateVersion: f.JobRequeued.GetRequeueJob().UpdateSequenceNumber,
+				}},
+				UpdateJobSchedulingInfo{f.JobIdString: &JobSchedulingInfoUpdate{
+					JobSchedulingInfo:        protoutil.MustMarshall(f.JobRequeued.GetRequeueJob().SchedulingInfo),
+					JobSchedulingInfoVersion: int32(f.JobRequeued.GetRequeueJob().SchedulingInfo.Version),
+				}},
 			},
 		},
 		"PositionMarker": {

@@ -30,6 +30,8 @@ var baseJob = NewJob(
 	2,
 	schedulingInfo,
 	false,
+	0,
+	false,
 	false,
 	false,
 	3)
@@ -75,6 +77,12 @@ func TestJob_TestQueued(t *testing.T) {
 	newJob := baseJob.WithQueued(false)
 	assert.Equal(t, true, baseJob.Queued())
 	assert.Equal(t, false, newJob.Queued())
+}
+
+func TestJob_QueuedVersion(t *testing.T) {
+	newJob := baseJob.WithQueuedVersion(1)
+	assert.Equal(t, 0, baseJob.QueuedVersion())
+	assert.Equal(t, 1, newJob.QueuedVersion())
 }
 
 func TestJob_TestCancelRequested(t *testing.T) {

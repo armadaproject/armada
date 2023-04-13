@@ -98,6 +98,8 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 			operationsFromEvent, err = c.handleCancelJobSet(meta.jobset)
 		case *armadaevents.EventSequence_Event_CancelledJob:
 			operationsFromEvent, err = c.handleCancelledJob(event.GetCancelledJob())
+		case *armadaevents.EventSequence_Event_RequeueJob:
+			operationsFromEvent, err = c.handleRequeueJob(event.GetRequeueJob())
 		case *armadaevents.EventSequence_Event_PartitionMarker:
 			operationsFromEvent, err = c.handlePartitionMarker(event.GetPartitionMarker(), *event.Created)
 		case *armadaevents.EventSequence_Event_ReprioritisedJob,
@@ -159,15 +161,18 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, subm
 	}
 
 	return []DbOperation{InsertJobs{jobId: &schedulerdb.Job{
-		JobID:          jobId,
-		JobSet:         meta.jobset,
-		UserID:         meta.user,
-		Groups:         compressedGroups,
-		Queue:          meta.queue,
-		Submitted:      submitTime.UnixNano(),
-		Priority:       int64(job.Priority),
-		SubmitMessage:  compressedSubmitJobBytes,
-		SchedulingInfo: schedulingInfoBytes,
+		JobID:                 jobId,
+		JobSet:                meta.jobset,
+		UserID:                meta.user,
+		Groups:                compressedGroups,
+		Queue:                 meta.queue,
+		Queued:                true,
+		QueuedVersion:         0,
+		Submitted:             submitTime.UnixNano(),
+		Priority:              int64(job.Priority),
+		SubmitMessage:         compressedSubmitJobBytes,
+		SchedulingInfo:        schedulingInfoBytes,
+		SchedulingInfoVersion: int32(schedulingInfo.Version),
 	}}}, nil
 }
 
@@ -177,13 +182,40 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 	if err != nil {
 		return nil, err
 	}
-	return []DbOperation{InsertRuns{runId: &schedulerdb.Run{
-		RunID:    runId,
-		JobID:    jobId,
-		JobSet:   meta.jobset,
-		Executor: jobRunLeased.GetExecutorId(),
-		Node:     jobRunLeased.GetNodeId(),
-	}}}, nil
+	return []DbOperation{
+		InsertRuns{runId: &schedulerdb.Run{
+			RunID:    runId,
+			JobID:    jobId,
+			JobSet:   meta.jobset,
+			Executor: jobRunLeased.GetExecutorId(),
+			Node:     jobRunLeased.GetNodeId(),
+		}},
+		UpdateJobQueuedState{jobId: &JobQueuedStateUpdate{
+			Queued:             false,
+			QueuedStateVersion: jobRunLeased.UpdateSequenceNumber,
+		}},
+	}, nil
+}
+
+func (c *InstructionConverter) handleRequeueJob(requeueJob *armadaevents.RequeueJob) ([]DbOperation, error) {
+	schedulingInfoBytes, err := proto.Marshal(requeueJob.SchedulingInfo)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	jobId, err := armadaevents.UlidStringFromProtoUuid(requeueJob.GetJobId())
+	if err != nil {
+		return nil, err
+	}
+	return []DbOperation{
+		UpdateJobQueuedState{jobId: &JobQueuedStateUpdate{
+			Queued:             true,
+			QueuedStateVersion: requeueJob.UpdateSequenceNumber,
+		}},
+		UpdateJobSchedulingInfo{jobId: &JobSchedulingInfoUpdate{
+			JobSchedulingInfo:        schedulingInfoBytes,
+			JobSchedulingInfoVersion: int32(requeueJob.SchedulingInfo.Version),
+		}},
+	}, nil
 }
 
 func (c *InstructionConverter) handleJobRunRunning(jobRunRunning *armadaevents.JobRunRunning) ([]DbOperation, error) {
@@ -319,6 +351,7 @@ func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaeven
 		AtMostOnce:      submitJob.AtMostOnce,
 		Preemptible:     submitJob.Preemptible,
 		ConcurrencySafe: submitJob.ConcurrencySafe,
+		Version:         0,
 	}
 
 	// Scheduling requirements specific to the objects that make up this job.
