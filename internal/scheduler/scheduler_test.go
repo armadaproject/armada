@@ -501,7 +501,8 @@ func TestScheduler_TestCycle(t *testing.T) {
 					assert.Len(t, job.JobSchedulingInfo().ObjectRequirements, 1)
 					affinity := job.JobSchedulingInfo().ObjectRequirements[0].GetPodRequirements().Affinity
 					assert.NotNil(t, affinity)
-					assert.Equal(t, createAntiAffinity(nodeIdLabel, tc.expectedNodeAntiAffinities), affinity)
+					expectedAffinity := createAntiAffinity(t, nodeIdLabel, tc.expectedNodeAntiAffinities)
+					assert.Equal(t, expectedAffinity, affinity)
 				}
 				expectedQueuedVersion := int32(1)
 				if tc.expectedQueuedVersion != 0 {
@@ -522,10 +523,11 @@ func TestScheduler_TestCycle(t *testing.T) {
 	}
 }
 
-func createAntiAffinity(key string, values []string) *v1.Affinity {
+func createAntiAffinity(t *testing.T, key string, values []string) *v1.Affinity {
 	newAffinity := &v1.Affinity{}
 	for _, value := range values {
-		affinity.AddNodeAntiAffinity(newAffinity, key, value)
+		err := affinity.AddNodeAntiAffinity(newAffinity, key, value)
+		assert.NoError(t, err)
 	}
 	return newAffinity
 }
