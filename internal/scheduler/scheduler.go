@@ -523,7 +523,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 				},
 			}
 			events = append(events, jobSucceeded)
-		} else if lastRun.Failed() {
+		} else if lastRun.Failed() && !job.Queued() {
 			requeueJob := lastRun.Returned() && job.NumAttempts() < s.maxAttemptedRuns
 
 			if requeueJob && lastRun.RunAttempted() {
