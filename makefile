@@ -250,7 +250,16 @@ build-event-ingester:
 build-jobservice:
 	$(GO_CMD) $(gobuild) -o ./bin/jobservice cmd/jobservice/main.go
 
-build: build-jobservice build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-event-ingester
+build-lookout:
+	$(GO_CMD) $(gobuild) -o ./bin/lookout cmd/lookout/main.go
+
+build-lookoutv2:
+	$(GO_CMD) $(gobuild) -o ./bin/lookoutv2 cmd/lookoutv2/main.go
+
+build-lookoutingesterv2:
+	$(GO_CMD) $(gobuild) -o ./bin/lookoutingesterv2 cmd/lookoutingesterv2/main.go
+
+build: build-lookoutingesterv2 build-lookoutv2 build-lookout build-jobservice build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-event-ingester
 
 build-docker-server:
 	mkdir -p .build/server
@@ -342,6 +351,20 @@ build-docker-scheduler-ingester:
 	$(GO_CMD) $(gobuildlinux) -o ./.build/scheduleringester/scheduleringester cmd/scheduleringester/main.go
 	cp -a ./config/scheduleringester ./.build/scheduleringester/config
 	docker buildx build -o type=docker $(dockerFlags) -t armada-scheduler-ingester -f ./build/scheduleringester/Dockerfile ./.build/scheduleringester
+
+build-docker-full-bundle: build
+	cp -a ./bin/server ./server
+	cp -a ./bin/executor ./executor
+	cp -a ./bin/lookoutingester ./lookoutingester
+	cp -a ./bin/lookoutingesterv2 ./lookoutingesterv2
+	cp -a ./bin/eventingester ./eventingester
+	cp -a ./bin/binoculars ./binoculars
+	cp -a ./bin/jobservice ./jobservice
+	cp -a ./bin/lookout ./lookout
+	cp -a ./bin/lookoutv2 ./lookoutv2
+	cp -a ./bin/armadactl ./armadactl
+
+	docker buildx build -o type=docker $(dockerFlags) -t armada-full-bundle -f ./build_goreleaser/bundles/full/Dockerfile .
 
 build-docker: build-docker-no-lookout build-docker-lookout build-docker-lookout-v2
 
