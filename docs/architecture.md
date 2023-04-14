@@ -9,8 +9,8 @@ At a high level, Armada is a so-called data stream system (sometimes referred to
 
 The log is a publish-subscribe system consisting of multiple topics to which messages can be published. Those messages are eventually delivered to all subscribers of the topic. Important properties of the log are:
 
-Durability: Messages published to the log are stored in a durable manner, i.e., they are not lost in case of up to x node failures, where x is a tuneable parameter.
-Ordering: All subscribers of a topic see messages in the same order as they were published in, and replaying messages on a topic always results in the same message order. Further, all messages on the same topic are annotated with a message id that is monotonically increasing within each topic.
+* Durability: Messages published to the log are stored in a durable manner, i.e., they are not lost in case of up to x node failures, where x is a tuneable parameter.
+* Ordering: All subscribers of a topic see messages in the same order as they were published in, and replaying messages on a topic always results in the same message order. Further, all messages on the same topic are annotated with a message id that is monotonically increasing within each topic.
 
 In Armada, the log is implemented using Apache Pulsar.
 
