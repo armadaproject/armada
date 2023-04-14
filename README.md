@@ -38,6 +38,7 @@ For an overview of the architecture and design of Armada, and instructions for s
 
 - [System overview](./docs/design.md)
 - [Scheduler](./docs/scheduler.md)
+- [Architecture](./docs/architecture.md)
 - [User guide](./docs/user.md)
 - [Quickstart](./docs/quickstart/index.md)
 
