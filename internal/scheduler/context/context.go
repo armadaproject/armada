@@ -1,4 +1,4 @@
-package scheduler
+package context
 
 import (
 	"fmt"
@@ -11,6 +11,7 @@ import (
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -208,6 +209,12 @@ func (qctx *QueueSchedulingContext) String() string {
 	return sb.String()
 }
 
+func (qctx *QueueSchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingContext, isEvictedGang bool) {
+	for _, jctx := range gctx.JobSchedulingContexts {
+		qctx.AddJobSchedulingContext(jctx, isEvictedGang)
+	}
+}
+
 // AddJobSchedulingContext adds a job scheduling context.
 // Automatically updates scheduled resources.
 func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContext, isEvictedJob bool) {
@@ -241,6 +248,11 @@ func (qctx *QueueSchedulingContext) ClearJobSpecs() {
 	}
 }
 
+type GangSchedulingContext struct {
+	Created               time.Time
+	JobSchedulingContexts []*JobSchedulingContext
+}
+
 // JobSchedulingContext is created by the scheduler and contains information
 // about the decision made by the scheduler for a particular job.
 type JobSchedulingContext struct {
@@ -253,7 +265,7 @@ type JobSchedulingContext struct {
 	// Id of the job this pod corresponds to.
 	JobId string
 	// Job spec.
-	Job LegacySchedulerJob
+	Job interfaces.LegacySchedulerJob
 	// Scheduling requirements of this job.
 	// We currently require that each job contains exactly one pod spec.
 	Req *schedulerobjects.PodRequirements

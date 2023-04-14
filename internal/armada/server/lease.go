@@ -37,7 +37,10 @@ import (
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	schedulerinterfaces "github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -235,12 +238,12 @@ func (repo *SchedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]strin
 	return repo.r.GetQueueJobIds(queue)
 }
 
-func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([]scheduler.LegacySchedulerJob, error) {
+func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([]schedulerinterfaces.LegacySchedulerJob, error) {
 	jobs, err := repo.r.GetExistingJobsByIds(ids)
 	if err != nil {
 		return nil, err
 	}
-	rv := make([]scheduler.LegacySchedulerJob, len(jobs))
+	rv := make([]schedulerinterfaces.LegacySchedulerJob, len(jobs))
 	for i, job := range jobs {
 		rv[i] = job
 	}
@@ -352,7 +355,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		// Bind pods to nodes, thus ensuring resources are marked as allocated on the node.
 		skipNode := false
 		for _, job := range jobs {
-			node, err = scheduler.BindPodToNode(
+			node, err = nodedb.BindPodToNode(
 				scheduler.PodRequirementFromLegacySchedulerJob(
 					job,
 					q.schedulingConfig.Preemption.PriorityClasses,
@@ -382,7 +385,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if len(indexedResources) == 0 {
 		indexedResources = []string{"cpu", "memory"}
 	}
-	nodeDb, err := scheduler.NewNodeDb(
+	nodeDb, err := nodedb.NewNodeDb(
 		q.schedulingConfig.Preemption.PriorityClasses,
 		q.schedulingConfig.MaxExtraNodesToConsider,
 		indexedResources,
@@ -471,9 +474,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		schedulerobjects.ResourceList{Resources: totalCapacity},
 	)
 
-	var preemptedJobs []scheduler.LegacySchedulerJob
-	var scheduledJobs []scheduler.LegacySchedulerJob
-	var schedulingContext *scheduler.SchedulingContext
+	var preemptedJobs []schedulerinterfaces.LegacySchedulerJob
+	var scheduledJobs []schedulerinterfaces.LegacySchedulerJob
+	var schedulingContext *schedulercontext.SchedulingContext
 	if q.schedulingConfig.Preemption.PreemptToFairShare {
 		rescheduler := scheduler.NewRescheduler(
 			*constraints,

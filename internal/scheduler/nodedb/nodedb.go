@@ -1,4 +1,4 @@
-package scheduler
+package nodedb
 
 import (
 	"fmt"
@@ -17,6 +17,8 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -155,6 +157,18 @@ func (nodeDb *NodeDb) String() string {
 	return sb.String()
 }
 
+func (nodeDb *NodeDb) NumNodes() int {
+	nodeDb.mu.Lock()
+	defer nodeDb.mu.Unlock()
+	return nodeDb.numNodes
+}
+
+func (nodeDb *NodeDb) TotalResources() schedulerobjects.ResourceList {
+	nodeDb.mu.Lock()
+	defer nodeDb.mu.Unlock()
+	return nodeDb.totalResources.DeepCopy()
+}
+
 func (nodeDb *NodeDb) Txn(write bool) *memdb.Txn {
 	return nodeDb.db.Txn(write)
 }
@@ -227,7 +241,7 @@ func NodeJobDiff(txnA, txnB *memdb.Txn) (map[string]*schedulerobjects.Node, map[
 // The assignment is atomic, i.e., either all pods are successfully assigned to nodes or none are.
 // The returned bool indicates whether assignment succeeded or not.
 // TODO: Pass through contexts to support timeouts.
-func (nodeDb *NodeDb) ScheduleMany(reqs []*schedulerobjects.PodRequirements) ([]*PodSchedulingContext, bool, error) {
+func (nodeDb *NodeDb) ScheduleMany(reqs []*schedulerobjects.PodRequirements) ([]*schedulercontext.PodSchedulingContext, bool, error) {
 	txn := nodeDb.db.Txn(true)
 	defer txn.Abort()
 	pctxs, ok, err := nodeDb.ScheduleManyWithTxn(txn, reqs)
@@ -238,9 +252,9 @@ func (nodeDb *NodeDb) ScheduleMany(reqs []*schedulerobjects.PodRequirements) ([]
 	return pctxs, ok, err
 }
 
-func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, reqs []*schedulerobjects.PodRequirements) ([]*PodSchedulingContext, bool, error) {
+func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, reqs []*schedulerobjects.PodRequirements) ([]*schedulercontext.PodSchedulingContext, bool, error) {
 	// Attempt to schedule pods one by one in a transaction.
-	pctxs := make([]*PodSchedulingContext, 0, len(reqs))
+	pctxs := make([]*schedulercontext.PodSchedulingContext, 0, len(reqs))
 	for _, req := range reqs {
 		pctx, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
 		if err != nil {
@@ -267,7 +281,7 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, reqs []*schedulerobjec
 	return pctxs, true, nil
 }
 
-func (nodeDb *NodeDb) SelectAndBindNodeToPod(req *schedulerobjects.PodRequirements) (*PodSchedulingContext, error) {
+func (nodeDb *NodeDb) SelectAndBindNodeToPod(req *schedulerobjects.PodRequirements) (*schedulercontext.PodSchedulingContext, error) {
 	txn := nodeDb.db.Txn(true)
 	defer txn.Abort()
 	pctx, err := nodeDb.SelectAndBindNodeToPodWithTxn(txn, req)
@@ -278,7 +292,7 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPod(req *schedulerobjects.PodRequiremen
 	return pctx, nil
 }
 
-func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*PodSchedulingContext, error) {
+func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*schedulercontext.PodSchedulingContext, error) {
 	pctx, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
 	if err != nil {
 		return nil, err
@@ -296,12 +310,12 @@ func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, req *schedul
 	return pctx, nil
 }
 
-func (nodeDb *NodeDb) SelectNodeForPod(req *schedulerobjects.PodRequirements) (*PodSchedulingContext, error) {
+func (nodeDb *NodeDb) SelectNodeForPod(req *schedulerobjects.PodRequirements) (*schedulercontext.PodSchedulingContext, error) {
 	return nodeDb.SelectNodeForPodWithTxn(nodeDb.db.Txn(false), req)
 }
 
 // SelectNodeForPodWithTxn selects a node on which the pod can be scheduled.
-func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*PodSchedulingContext, error) {
+func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*schedulercontext.PodSchedulingContext, error) {
 	// Collect all node types that could potentially schedule the pod.
 	matchingNodeTypes, numExcludedNodesByReason, err := nodeDb.NodeTypesMatchingPod(req)
 	if err != nil {
@@ -317,7 +331,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	}
 
 	// Create a pctx to be returned to the caller.
-	pctx := &PodSchedulingContext{
+	pctx := &schedulercontext.PodSchedulingContext{
 		Created:                  time.Now(),
 		Req:                      req,
 		DominantResourceType:     dominantResourceType,
@@ -349,7 +363,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 
 	// If the targetNodeIdAnnocation is set, consider only that node,
 	// and schedule onto that node even if it requires preempting other jobs.
-	if nodeId, ok := req.Annotations[TargetNodeIdAnnotation]; ok {
+	if nodeId, ok := req.Annotations[schedulerconfig.TargetNodeIdAnnotation]; ok {
 		if it, err := txn.Get("nodes", "id", nodeId); err != nil {
 			return nil, errors.WithStack(err)
 		} else {
@@ -396,7 +410,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 
 func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	txn *memdb.Txn,
-	pctx *PodSchedulingContext,
+	pctx *schedulercontext.PodSchedulingContext,
 	priority int32,
 	req *schedulerobjects.PodRequirements,
 ) (*schedulerobjects.Node, error) {
@@ -466,7 +480,7 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 }
 
 func (nodeDb *NodeDb) selectNodeForPodWithIt(
-	pctx *PodSchedulingContext,
+	pctx *schedulercontext.PodSchedulingContext,
 	it memdb.ResultIterator,
 	priority int32,
 	req *schedulerobjects.PodRequirements,
@@ -652,11 +666,11 @@ func unbindPodFromNodeInPlace(req *schedulerobjects.PodRequirements, node *sched
 }
 
 func JobIdFromPodRequirements(req *schedulerobjects.PodRequirements) (string, error) {
-	return valueFromPodRequirements(req, JobIdAnnotation)
+	return valueFromPodRequirements(req, schedulerconfig.JobIdAnnotation)
 }
 
 func QueueFromPodRequirements(req *schedulerobjects.PodRequirements) (string, error) {
-	return valueFromPodRequirements(req, QueueAnnotation)
+	return valueFromPodRequirements(req, schedulerconfig.QueueAnnotation)
 }
 
 func valueFromPodRequirements(req *schedulerobjects.PodRequirements, key string) (string, error) {

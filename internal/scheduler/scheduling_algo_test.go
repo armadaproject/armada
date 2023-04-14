@@ -15,10 +15,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/util"
+	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
 const (
@@ -50,8 +52,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 	}{
 		"fill up both clusters": {
 			executors: []*schedulerobjects.Executor{
-				TwoCoreExecutor("executor1", nil, baseTime),
-				TwoCoreExecutor("executor2", nil, baseTime),
+				TwoCoreExecutor("executor1", nil, testfixtures.BaseTime),
+				TwoCoreExecutor("executor2", nil, testfixtures.BaseTime),
 			},
 			queues:     []*database.Queue{&queue},
 			queuedJobs: queuedJobs,
@@ -64,8 +66,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		},
 		"one executor stale": {
 			executors: []*schedulerobjects.Executor{
-				TwoCoreExecutor("executor1", nil, baseTime),
-				TwoCoreExecutor("executor2", nil, baseTime.Add(-1*time.Hour)),
+				TwoCoreExecutor("executor1", nil, testfixtures.BaseTime),
+				TwoCoreExecutor("executor2", nil, testfixtures.BaseTime.Add(-1*time.Hour)),
 			},
 			queues:     []*database.Queue{&queue},
 			queuedJobs: queuedJobs,
@@ -76,8 +78,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		},
 		"one executor full": {
 			executors: []*schedulerobjects.Executor{
-				TwoCoreExecutor("executor1", runningJobs, baseTime),
-				TwoCoreExecutor("executor2", nil, baseTime),
+				TwoCoreExecutor("executor1", runningJobs, testfixtures.BaseTime),
+				TwoCoreExecutor("executor2", nil, testfixtures.BaseTime),
 			},
 			queues:      []*database.Queue{&queue},
 			queuedJobs:  queuedJobs,
@@ -89,8 +91,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		},
 		"user is at usage cap before scheduling": {
 			executors: []*schedulerobjects.Executor{
-				TwoCoreExecutor("executor1", runningJobs, baseTime),
-				TwoCoreExecutor("executor2", nil, baseTime),
+				TwoCoreExecutor("executor1", runningJobs, testfixtures.BaseTime),
+				TwoCoreExecutor("executor2", nil, testfixtures.BaseTime),
 			},
 			queues:        []*database.Queue{&queue},
 			queuedJobs:    queuedJobs,
@@ -100,8 +102,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		},
 		"user hits usage cap during scheduling": {
 			executors: []*schedulerobjects.Executor{
-				TwoCoreExecutor("executor1", []*jobdb.Job{runningJobs[0]}, baseTime),
-				TwoCoreExecutor("executor2", nil, baseTime),
+				TwoCoreExecutor("executor1", []*jobdb.Job{runningJobs[0]}, testfixtures.BaseTime),
+				TwoCoreExecutor("executor2", nil, testfixtures.BaseTime),
 			},
 			queues:        []*database.Queue{&queue},
 			queuedJobs:    queuedJobs,
@@ -113,8 +115,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		},
 		"no queuedJobs to schedule": {
 			executors: []*schedulerobjects.Executor{
-				TwoCoreExecutor("executor1", nil, baseTime),
-				TwoCoreExecutor("executor2", nil, baseTime),
+				TwoCoreExecutor("executor1", nil, testfixtures.BaseTime),
+				TwoCoreExecutor("executor2", nil, testfixtures.BaseTime),
 			},
 			queues:       []*database.Queue{&queue},
 			queuedJobs:   nil,
@@ -131,9 +133,9 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			config := testSchedulingConfig()
+			config := testfixtures.TestSchedulingConfig()
 			if tc.perQueueLimit != nil {
-				config = withPerQueueLimitsConfig(tc.perQueueLimit, config)
+				config = testfixtures.WithPerQueueLimitsConfig(tc.perQueueLimit, config)
 			}
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
@@ -148,7 +150,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			)
 
 			// Use a test clock so we can control time
-			algo.clock = clock.NewFakeClock(baseTime)
+			algo.clock = clock.NewFakeClock(testfixtures.BaseTime)
 
 			// Set up JobDb
 			jobDb := jobdb.NewJobDb()
@@ -210,7 +212,7 @@ func twoCoreNode(name string, jobs []*jobdb.Job) *schedulerobjects.Node {
 			},
 		},
 		Labels: map[string]string{
-			testHostnameLabel: id,
+			testfixtures.TestHostnameLabel: id,
 		},
 		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			[]int32{0},
@@ -251,8 +253,8 @@ func OneCpuJob(creationTime int64) *jobdb.Job {
 							},
 						},
 						Annotations: map[string]string{
-							JobIdAnnotation: uuid.NewString(),
-							QueueAnnotation: queueName,
+							schedulerconfig.JobIdAnnotation: uuid.NewString(),
+							schedulerconfig.QueueAnnotation: queueName,
 						},
 					},
 				},

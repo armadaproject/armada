@@ -16,12 +16,13 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
 type minimalExecutor struct {
-	nodeDb     *NodeDb
+	nodeDb     *nodedb.NodeDb
 	updateTime time.Time
 }
 
@@ -196,7 +197,7 @@ func (srv *SubmitChecker) check(reqs []*schedulerobjects.PodRequirements) schedu
 	var sb strings.Builder
 	for id, executor := range executorById {
 		nodeDb := executor.nodeDb
-		txn := nodeDb.db.Txn(true)
+		txn := nodeDb.Txn(true)
 		reports, ok, err := nodeDb.ScheduleManyWithTxn(txn, reqs)
 		txn.Abort()
 
@@ -241,12 +242,12 @@ func (srv *SubmitChecker) filterStaleNodeDbs(executorsById map[string]minimalExe
 	return rv
 }
 
-func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
+func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
 	// Nodes to be considered by the scheduler.
 	// We just need to know if scheduling is possible;
 	// no need to try to find a good fit.
 	var maxExtraNodesToConsider uint = 0
-	nodeDb, err := NewNodeDb(
+	nodeDb, err := nodedb.NewNodeDb(
 		srv.priorityClasses,
 		maxExtraNodesToConsider,
 		srv.indexedResources,
