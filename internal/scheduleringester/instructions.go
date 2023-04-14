@@ -248,7 +248,7 @@ func (c *InstructionConverter) handleJobRunErrors(jobRunErrors *armadaevents.Job
 				JobID: jobId,
 				Error: bytes,
 			}
-			runAttempted := false
+			runAttempted := true
 			if runError.GetPodLeaseReturned() != nil {
 				runAttempted = runError.GetPodLeaseReturned().RunAttempted
 			}

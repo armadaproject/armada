@@ -120,7 +120,7 @@ func TestConvertSequence(t *testing.T) {
 					JobID: f.JobIdString,
 					Error: protoutil.MustMarshallAndCompress(f.JobRunFailed.GetJobRunErrors().Errors[0], compressor),
 				}},
-				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: false}},
+				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: false, RunAttempted: true}},
 			},
 		},
 		"job errors terminal": {
