@@ -42,6 +42,8 @@ jobs:
           docker save armada-lookout-v2 | gzip > docker-images/armada-lookout-v2.tar.gz
           docker save armada-lookout-ingester-v2 | gzip > docker-images/armada-lookout-ingester-v2.tar.gz
           docker save armada-event-ingester | gzip > docker-images/armada-event-ingester.tar.gz
+          docker save armada-scheduler | gzip > docker-images/armada-scheduler.tar.gz
+          docker save armada-scheduler-ingester | gzip > docker-images/armada-scheduler-ingester.tar.gz
           docker save armada-binoculars | gzip > docker-images/armada-binoculars.tar.gz
           docker save armada-jobservice | gzip > docker-images/armada-jobservice.tar.gz
 

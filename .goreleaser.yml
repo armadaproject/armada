@@ -83,6 +83,24 @@ builds:
     goarch:
       - amd64
   - env: [CGO_ENABLED=0]
+    id: scheduler
+    binary: scheduler
+    main: ./cmd/scheduler/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: scheduleringester
+    binary: scheduleringester
+    main: ./cmd/scheduleringester/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
     id: jobservice
     binary: jobservice
     main: ./cmd/jobservice/main.go
@@ -168,11 +186,15 @@ dockers:
       - executor
       - binoculars
       - eventingester
+      - scheduler
+      - scheduleringester
     extra_files:
       - config/armada/config.yaml
       - config/executor/config.yaml
       - config/binoculars/config.yaml
       - config/eventingester/config.yaml
+      - config/scheduler/config.yaml
+      - config/scheduleringester/config.yaml
     dockerfile: ./build_goreleaser/bundles/armada/Dockerfile
 
   - id: lookout-bundle
@@ -384,7 +406,7 @@ dockers:
       - lookout
       - lookoutingester
     extra_files:
-      - internal\lookout\ui
+      - internal/lookout/ui
       - pkg/api/api.swagger.json
       - pkg/api/lookout/api.swagger.json
       - pkg/api/binoculars/api.swagger.json
@@ -445,6 +467,58 @@ dockers:
     extra_files:
       - config/eventingester/config.yaml
     dockerfile: ./build_goreleaser/eventingester/Dockerfile
+
+  - id: scheduler
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-scheduler:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-scheduler:latest"
+    build_flag_templates:
+      - --build-arg={{ .Env.BASE_IMAGE_ARG }}
+      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
+      - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.base.name=alpine:3.17.0
+      - --label=org.opencontainers.image.base.digest=c0d488a800e4
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+      - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - scheduler
+    extra_files:
+      - config/scheduler/config.yaml
+    dockerfile: ./build_goreleaser/scheduler/Dockerfile
+
+  - id: scheduleringester
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-scheduleringester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-scheduleringester:latest"
+    build_flag_templates:
+      - --build-arg={{ .Env.BASE_IMAGE_ARG }}
+      - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
+      - --cache-to={{ .Env.DOCKER_BUILDX_CACHE_TO }}
+      - --cache-from={{ .Env.DOCKER_BUILDX_CACHE_FROM }}
+      - --label=org.opencontainers.image.source=https://github.com/armadaproject/armada
+      - --label=org.opencontainers.image.version={{ .Version }}
+      - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
+      - --label=org.opencontainers.image.revision={{ .FullCommit }}
+      - --label=org.opencontainers.image.base.name=alpine:3.17.0
+      - --label=org.opencontainers.image.base.digest=c0d488a800e4
+      - --label=org.opencontainers.image.licenses=Apache-2.0
+      - --label=org.opencontainers.image.vendor=G-Research
+    ids:
+      - scheduleringester
+    extra_files:
+      - config/scheduleringester/config.yaml
+    dockerfile: ./build_goreleaser/scheduleringester/Dockerfile
 
   - id: binoculars
     use: buildx
@@ -549,6 +623,12 @@ release:
     ### Armada Event Ingester
     - `docker pull {{ .Env.DOCKER_REPO }}armada-eventingester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-eventingester:latest`
+    ### Armada Scheduler
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-scheduler:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-scheduler:latest`
+    ### Armada Scheduler Ingester
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-scheduleringester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-scheduleringester:latest`
     ### Armada Binoculars
     - `docker pull {{ .Env.DOCKER_REPO }}armada-binoculars:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-binoculars:latest`
