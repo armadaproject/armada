@@ -155,8 +155,8 @@ func setupExecutorApiComponents(
 		nil,
 		config.Kubernetes.TrackedNodeLabels,
 		config.Kubernetes.NodeIdLabel,
-		config.Kubernetes.NodeReservedResources,
-		config.Kubernetes.NodeReservedResourcesPriority,
+		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
+		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
 	)
 
 	eventReporter, stopReporter := reporter.NewJobEventReporter(
@@ -261,8 +261,8 @@ func setupServerApiComponents(
 		usageClient,
 		config.Kubernetes.TrackedNodeLabels,
 		config.Kubernetes.NodeIdLabel,
-		config.Kubernetes.NodeReservedResources,
-		config.Kubernetes.NodeReservedResourcesPriority,
+		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
+		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
 	)
 
 	jobLeaseService := service.NewJobLeaseService(
@@ -286,7 +286,6 @@ func setupServerApiComponents(
 		clusterUtilisationService,
 		submitter,
 		etcdHealthMonitor,
-		config.Kubernetes.NodeReservedResources,
 	)
 
 	jobManager := service.NewJobManager(
