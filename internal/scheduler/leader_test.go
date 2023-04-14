@@ -67,7 +67,7 @@ func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 
 			lease := &v1.Lease{}
 			idx := 0
-			// update holderIdentity every 100 milliseconds
+			// update holderIdentity every 200 milliseconds
 			// the sleep here should be fine because the client is polling every 10 millis
 			go func() {
 				var holderIdentity string
@@ -85,7 +85,7 @@ func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 						},
 					}
 					idx++
-					time.Sleep(100 * time.Millisecond)
+					time.Sleep(200 * time.Millisecond)
 				}
 			}()
 
