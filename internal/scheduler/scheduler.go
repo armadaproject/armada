@@ -321,7 +321,10 @@ func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job
 
 	for _, run := range job.AllRuns() {
 		if run.RunAttempted() {
-			affinity.AddNodeAntiAffinity(newAffinity, s.nodeIdLabel, run.Node())
+			err := affinity.AddNodeAntiAffinity(newAffinity, s.nodeIdLabel, run.Node())
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	podSchedulingRequirement.Affinity = newAffinity

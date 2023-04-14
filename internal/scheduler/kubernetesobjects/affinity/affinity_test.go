@@ -9,39 +9,50 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
+func TestAddNodeAntiAffinity_WhenAffinityNil_ReturnsError(t *testing.T) {
+	var affinity *v1.Affinity = nil
+	err := AddNodeAntiAffinity(affinity, "a", "b")
+	assert.Error(t, err)
+}
+
 func TestAddNodeAntiAffinity_WhenNoExistingAffinity_AddsCorrectly(t *testing.T) {
 	affinity := &v1.Affinity{}
-	AddNodeAntiAffinity(affinity, "a", "b")
 	expected := vanillaAvoidLabelAffinity("a", "b")
 
+	err := AddNodeAntiAffinity(affinity, "a", "b")
+	assert.NoError(t, err)
 	assert.Equal(t, expected, affinity)
 }
 
 func TestAddNodeAntiAffinity_WhenAlreadyThere_DoesNothing(t *testing.T) {
 	affinity := vanillaAvoidLabelAffinity("a", "b")
-	AddNodeAntiAffinity(affinity, "a", "b")
 	expected := vanillaAvoidLabelAffinity("a", "b")
 
+	err := AddNodeAntiAffinity(affinity, "a", "b")
+	assert.NoError(t, err)
 	assert.Equal(t, expected, affinity)
 }
 
 func TestAddNodeAntiAffinity_WhenSameLabelDifferentValueAlreadyThere_IncludesBothValues(t *testing.T) {
 	affinity := &v1.Affinity{}
-	AddNodeAntiAffinity(affinity, "a", "b")
-	AddNodeAntiAffinity(affinity, "a", "c")
-
 	expected := vanillaAvoidLabelAffinity("a", "b")
 	expected.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms[0].MatchExpressions[0].Values = []string{"b", "c"}
 
+	err := AddNodeAntiAffinity(affinity, "a", "b")
+	assert.NoError(t, err)
+	err = AddNodeAntiAffinity(affinity, "a", "c")
+	assert.NoError(t, err)
 	assert.Equal(t, expected, affinity)
 }
 
 func TestAddNodeAntiAffinity_WhenDifferentLabelAlreadyThere_IncludesBothLabels(t *testing.T) {
 	affinity := &v1.Affinity{}
-	AddNodeAntiAffinity(affinity, "a", "b")
-	AddNodeAntiAffinity(affinity, "aa", "bb")
-
 	expected := vanillaAvoidLabelAffinites([]*api.StringKeyValuePair{{Key: "a", Value: "b"}, {Key: "aa", Value: "bb"}})
+
+	err := AddNodeAntiAffinity(affinity, "a", "b")
+	assert.NoError(t, err)
+	err = AddNodeAntiAffinity(affinity, "aa", "bb")
+	assert.NoError(t, err)
 
 	assert.Equal(t, expected, affinity)
 }

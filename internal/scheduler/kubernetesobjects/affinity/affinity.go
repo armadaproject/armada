@@ -1,17 +1,20 @@
 package affinity
 
 import (
+	"fmt"
+
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/util"
 )
 
-func AddNodeAntiAffinity(affinity *v1.Affinity, labelName string, labelValue string) {
+func AddNodeAntiAffinity(affinity *v1.Affinity, labelName string, labelValue string) error {
 	if affinity == nil {
-		return
+		return fmt.Errorf("failed to add not anti affinity, as provided affinity is nil")
 	}
 	ensureAffinityHasNodeSelectorTerms(affinity)
 	addAvoidNodeAffinityToNodeSelectorTerms(affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution.NodeSelectorTerms, labelName, labelValue)
+	return nil
 }
 
 func ensureAffinityHasNodeSelectorTerms(affinity *v1.Affinity) {
