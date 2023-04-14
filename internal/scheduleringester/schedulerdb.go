@@ -97,7 +97,10 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 		}
 
 		argMarkersString := strings.Join(argMarkers, ",")
-		updateJobInfoSqlStatement := fmt.Sprintf("update jobs as j set  scheduling_info = updated.scheduling_info, scheduling_info_version = updated.scheduling_info_version from (values %s) as updated(job_id, scheduling_info, scheduling_info_version) where j.job_id = updated.job_id and updated.scheduling_info_version > j.scheduling_info_version", argMarkersString)
+		updateJobInfoSqlStatement := fmt.Sprintf(
+			`update jobs as j set  scheduling_info = updated.scheduling_info, scheduling_info_version = updated.scheduling_info_version
+				 from (values %s) as updated(job_id, scheduling_info, scheduling_info_version)
+                 where j.job_id = updated.job_id and updated.scheduling_info_version > j.scheduling_info_version`, argMarkersString)
 
 		_, err := s.db.Exec(ctx, updateJobInfoSqlStatement, args...)
 		if err != nil {
@@ -117,7 +120,10 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 		}
 
 		argMarkersString := strings.Join(argMarkers, ",")
-		updateQueuedStateSqlStatement := fmt.Sprintf("update jobs as j set  queued = updated.queued, queued_version = updated.queued_version from (values %s) as updated(job_id, queued, queued_version) where j.job_id = updated.job_id and updated.queued_version > j.queued_version", argMarkersString)
+		updateQueuedStateSqlStatement := fmt.Sprintf(
+			`update jobs as j set  queued = updated.queued, queued_version = updated.queued_version
+				 from (values %s) as updated(job_id, queued, queued_version)
+				 where j.job_id = updated.job_id and updated.queued_version > j.queued_version`, argMarkersString)
 
 		_, err := s.db.Exec(ctx, updateQueuedStateSqlStatement, args...)
 		if err != nil {

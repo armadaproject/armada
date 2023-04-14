@@ -88,20 +88,22 @@ var leasedJob = jobdb.NewJob(
 	false,
 	1).WithQueued(false).WithNewRun("testExecutor", "test-node")
 
-var requeuedJobId = util.NewULID()
-var requeuedJob = jobdb.NewJob(
-	requeuedJobId,
-	"testJobset",
-	"testQueue",
-	uint32(10),
-	schedulingInfo,
-	true,
-	2,
-	false,
-	false,
-	false,
-	1).WithUpdatedRun(
-	jobdb.CreateRun(uuid.New(), requeuedJobId, time.Now().Unix(), "testExecutor", "test-node", false, false, true, false, true, true),
+var (
+	requeuedJobId = util.NewULID()
+	requeuedJob   = jobdb.NewJob(
+		requeuedJobId,
+		"testJobset",
+		"testQueue",
+		uint32(10),
+		schedulingInfo,
+		true,
+		2,
+		false,
+		false,
+		false,
+		1).WithUpdatedRun(
+		jobdb.CreateRun(uuid.New(), requeuedJobId, time.Now().Unix(), "testExecutor", "test-node", false, false, true, false, true, true),
+	)
 )
 
 // Test a single scheduler cycle
