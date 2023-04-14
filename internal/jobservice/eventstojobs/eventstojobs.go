@@ -42,6 +42,7 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 }
 
 func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, timeout int64, fromMessageId string) error {
+	// XXX shadowing of passed-in ctx?
 	ctx, cancel := context.WithCancel(ctx)
 	g, _ := errgroup.WithContext(ctx)
 	expiresAt := time.Now().Add(time.Duration(timeout) * time.Second)
@@ -123,7 +124,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 						log.WithFields(requestFields).Infof("fromMessageId: %s JobId: %s State: %s", fromMessageId, currentJobId, jobStatus.GetState().String())
 					}
 					jobStatus := repository.NewJobStatus(eventToJobService.queue, eventToJobService.jobSetId, currentJobId, *jobStatus)
-					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(jobStatus)
+					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(ctx, jobStatus)
 					if err != nil {
 						log.WithError(err).Error("could not update job status, retrying")
 						time.Sleep(5 * time.Second)

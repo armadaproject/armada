@@ -2,19 +2,14 @@ package jobservice
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"net"
-	"os"
-	"path/filepath"
 	"time"
 
-	_ "github.com/jackc/pgx/v4/stdlib"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
-	"github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
@@ -46,43 +41,8 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		[]authorization.AuthService{&authorization.AnonymousAuthService{}},
 	)
 
-	var db *sql.DB
-
-	if config.DatabaseType == "postgres" {
-		var err error
-		log.Info("using postgres")
-		db, err = sql.Open("pgx", database.CreateConnectionString(config.PostgresConfig.Connection))
-		if err != nil {
-			return err
-		}
-		db.SetMaxOpenConns(config.PostgresConfig.MaxOpenConns)
-		db.SetMaxIdleConns(config.PostgresConfig.MaxIdleConns)
-		db.SetConnMaxLifetime(config.PostgresConfig.ConnMaxLifetime)
-
-	} else if config.DatabaseType == "sqlite" {
-		log.Info("using sqlite")
-		var err error
-
-		dbDir := filepath.Dir(config.DatabasePath)
-		if _, err := os.Stat(dbDir); os.IsNotExist(err) {
-			if errMkDir := os.Mkdir(dbDir, 0o755); errMkDir != nil {
-				log.Fatalf("error: could not make directory at %s for sqlite db: %v", dbDir, errMkDir)
-			}
-		}
-
-		db, err = sql.Open("sqlite", config.DatabasePath)
-		if err != nil {
-			log.Fatalf("error opening sqlite DB from %s %v", config.DatabasePath, err)
-		}
-		defer func() {
-			if err := db.Close(); err != nil {
-				log.Warnf("error closing database: %v", err)
-			}
-		}()
-	}
-
-	sqlJobRepo := repository.NewSQLJobService(config, db)
-	sqlJobRepo.Setup()
+	sqlJobRepo := repository.NewSQLJobService(config)
+	sqlJobRepo.Setup(ctx)
 	jobService := server.NewJobService(config, sqlJobRepo)
 	js.RegisterJobServiceServer(grpcServer, jobService)
 
