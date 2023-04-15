@@ -32,6 +32,15 @@ message LeaseRequest{
   repeated api.NodeInfo nodes = 5;
   // Run Ids of jobs owned by the executor but not currently assigned to a node.
   repeated armadaevents.Uuid unassigned_job_run_ids = 6 [(gogoproto.nullable) = false];
+  // This should only be used for metrics
+  // An aggregated real usage of jobs by queue
+  map<string, ResourceUsage> resource_usage_by_queue = 7;
+}
+
+message ResourceUsage {
+  // Total resources currently being used by all pods from this queue.
+  // This is real usage and not just the allocated value
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources_used = 1 [(gogoproto.nullable) = false];
 }
 
 // Indicates that a job run is now leased.
@@ -67,7 +76,7 @@ message LeaseStreamMessage{
 }
 
 service ExecutorApi {
-  // Reports usage information to the scheduler. 
+  // Reports usage information to the scheduler.
   // In return, the scheduler provides:
   // - Slice of job runs that the executor is currently running that should be cancelled.
   // - Slice of job runs that the executor is currently running that should be preempted.
