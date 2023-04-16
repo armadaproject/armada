@@ -74,3 +74,11 @@ func (node *Node) CompactString() string {
 	}
 	return fmt.Sprintf("Node{Id; %s}", node.Id)
 }
+
+func (node *Node) AvailableArmadaResource() ResourceList {
+	tr := node.TotalResources.DeepCopy()
+	for _, rl := range node.NonArmadaAllocatedResources {
+		tr.Sub(rl)
+	}
+	return tr
+}

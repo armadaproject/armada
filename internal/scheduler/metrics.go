@@ -204,10 +204,13 @@ func (c *MetricsCollector) updateClusterMetrics(ctx context.Context) ([]promethe
 		return nil, err
 	}
 	countsByKey := map[phaseKey]int{}
+	txn := c.jobDb.ReadTxn()
 	for _, executor := range executors {
+		availableCapacity := schedulerobjects.ResourceList{}
 		for _, node := range executor.Nodes {
+			availableCapacity.Add(node.AvailableArmadaResource())
 			for runId, jobRunState := range node.StateByJobRunId {
-				job := c.jobDb.GetByRunId(c.jobDb.ReadTxn(), uuid.MustParse(runId))
+				job := c.jobDb.GetByRunId(txn, uuid.MustParse(runId))
 				if job != nil {
 					phase := schedulerobjects.JobRunState_name[int32(jobRunState)]
 					key := phaseKey{
