@@ -2,12 +2,11 @@ package scheduleringester
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -84,48 +83,26 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			}
 		}
 	case UpdateJobSchedulingInfo:
-		args := make([]interface{}, 0, len(o)*3)
-		argMarkers := make([]string, 0, len(o))
+		updateJobInfoSqlStatement := "update jobs set scheduling_info = $1::bytea, scheduling_info_version = $2::int where job_id = $3 and $2::int > scheduling_info_version"
 
-		currentIndex := 1
+		batch := &pgx.Batch{}
 		for key, value := range o {
-			args = append(args, key)
-			args = append(args, value.JobSchedulingInfo)
-			args = append(args, value.JobSchedulingInfoVersion)
-			argMarkers = append(argMarkers, fmt.Sprintf("($%d, $%d::bytea, $%d::int)", currentIndex, currentIndex+1, currentIndex+2))
-			currentIndex += 3
+			batch.Queue(updateJobInfoSqlStatement, value.JobSchedulingInfo, value.JobSchedulingInfoVersion, key)
 		}
 
-		argMarkersString := strings.Join(argMarkers, ",")
-		updateJobInfoSqlStatement := fmt.Sprintf(
-			`update jobs as j set  scheduling_info = updated.scheduling_info, scheduling_info_version = updated.scheduling_info_version
-				 from (values %s) as updated(job_id, scheduling_info, scheduling_info_version)
-                 where j.job_id = updated.job_id and updated.scheduling_info_version > j.scheduling_info_version`, argMarkersString)
-
-		_, err := s.db.Exec(ctx, updateJobInfoSqlStatement, args...)
+		err := s.execBatch(ctx, batch)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 	case UpdateJobQueuedState:
-		args := make([]interface{}, 0, len(o)*3)
-		argMarkers := make([]string, 0, len(o))
+		updateQueuedStateSqlStatement := "update jobs set queued = $1::bool, queued_version = $2::int where job_id = $3 and $2::int > queued_version"
 
-		currentIndex := 1
+		batch := &pgx.Batch{}
 		for key, value := range o {
-			args = append(args, key)
-			args = append(args, value.Queued)
-			args = append(args, value.QueuedStateVersion)
-			argMarkers = append(argMarkers, fmt.Sprintf("($%d, $%d::bool, $%d::int)", currentIndex, currentIndex+1, currentIndex+2))
-			currentIndex += 3
+			batch.Queue(updateQueuedStateSqlStatement, value.Queued, value.QueuedStateVersion, key)
 		}
 
-		argMarkersString := strings.Join(argMarkers, ",")
-		updateQueuedStateSqlStatement := fmt.Sprintf(
-			`update jobs as j set  queued = updated.queued, queued_version = updated.queued_version
-				 from (values %s) as updated(job_id, queued, queued_version)
-				 where j.job_id = updated.job_id and updated.queued_version > j.queued_version`, argMarkersString)
-
-		_, err := s.db.Exec(ctx, updateQueuedStateSqlStatement, args...)
+		err := s.execBatch(ctx, batch)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -229,6 +206,22 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 		return nil
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
+	}
+	return nil
+}
+
+func (s *SchedulerDb) execBatch(ctx context.Context, batch *pgx.Batch) error {
+	result := s.db.SendBatch(ctx, batch)
+	for i := 0; i < batch.Len(); i++ {
+		_, err := result.Exec()
+		if err != nil {
+			return err
+		}
+	}
+
+	err := result.Close()
+	if err != nil {
+		return err
 	}
 	return nil
 }
