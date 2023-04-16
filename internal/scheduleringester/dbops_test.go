@@ -34,13 +34,13 @@ func TestMerge_UpdateJobSchedulingInfo(t *testing.T) {
 	jobId2 := util.NewULID()
 	jobId3 := util.NewULID()
 	jobId4 := util.NewULID()
-	updateSchedulingInfo1 := UpdateJobSchedulingInfo{jobId1: &JobSchedulingInfoUpdate{[]byte("job 1"), 1}, jobId2: &JobSchedulingInfoUpdate{[]byte("job 2"), 1}, jobId3: &JobSchedulingInfoUpdate{[]byte("job 3 v2"), 2}}
-	updateSchedulingInfo2 := UpdateJobSchedulingInfo{jobId2: &JobSchedulingInfoUpdate{[]byte("job 2 v2"), 2}, jobId3: &JobSchedulingInfoUpdate{[]byte("job 3"), 1}, jobId4: &JobSchedulingInfoUpdate{[]byte("job 4"), 1}}
+	updateSchedulingInfo1 := UpdateJobSchedulingInfo{jobId1: &JobSchedulingInfoUpdate{[]byte("job 1"), []byte("req 1"), 1}, jobId2: &JobSchedulingInfoUpdate{[]byte("job 2"), []byte("req 2"), 1}, jobId3: &JobSchedulingInfoUpdate{[]byte("job 3 v2"), []byte("req 3 v2"), 2}}
+	updateSchedulingInfo2 := UpdateJobSchedulingInfo{jobId2: &JobSchedulingInfoUpdate{[]byte("job 2 v2"), []byte("req 2 v2"), 2}, jobId3: &JobSchedulingInfoUpdate{[]byte("job 3"), []byte("req 3"), 1}, jobId4: &JobSchedulingInfoUpdate{[]byte("job 4"), []byte("req 4"), 1}}
 	expectedResult := UpdateJobSchedulingInfo{
-		jobId1: &JobSchedulingInfoUpdate{[]byte("job 1"), 1},
-		jobId2: &JobSchedulingInfoUpdate{[]byte("job 2 v2"), 2},
-		jobId3: &JobSchedulingInfoUpdate{[]byte("job 3 v2"), 2},
-		jobId4: &JobSchedulingInfoUpdate{[]byte("job 4"), 1},
+		jobId1: &JobSchedulingInfoUpdate{[]byte("job 1"), []byte("req 1"), 1},
+		jobId2: &JobSchedulingInfoUpdate{[]byte("job 2 v2"), []byte("req 2 v2"), 2},
+		jobId3: &JobSchedulingInfoUpdate{[]byte("job 3 v2"), []byte("req 3 v2"), 2},
+		jobId4: &JobSchedulingInfoUpdate{[]byte("job 4"), []byte("req 4"), 1},
 	}
 	ok := updateSchedulingInfo1.Merge(updateSchedulingInfo2)
 	assert.True(t, ok)
@@ -208,12 +208,12 @@ func TestDbOperationOptimisation(t *testing.T) {
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}}, // 1
 		}},
 		"UpdateJobSchedulingInfo": {N: 2, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                        // 1
-			UpdateJobSchedulingInfo{jobIds[0]: &JobSchedulingInfoUpdate{[]byte("job 1"), 1}}, // 2
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                        // 1
-			UpdateJobSchedulingInfo{jobIds[1]: &JobSchedulingInfoUpdate{[]byte("job 2"), 1}}, // 2
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                        // 1
-			UpdateJobSchedulingInfo{jobIds[2]: &JobSchedulingInfoUpdate{[]byte("job 3"), 1}}, // 2
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                                         // 1
+			UpdateJobSchedulingInfo{jobIds[0]: &JobSchedulingInfoUpdate{[]byte("job 1"), []byte("req 1"), 1}}, // 2
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                                         // 1
+			UpdateJobSchedulingInfo{jobIds[1]: &JobSchedulingInfoUpdate{[]byte("job 2"), []byte("req 2"), 1}}, // 2
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                                         // 1
+			UpdateJobSchedulingInfo{jobIds[2]: &JobSchedulingInfoUpdate{[]byte("job 3"), []byte("req 3"), 1}}, // 2
 		}},
 		"UpdateJobQueuedState": {N: 2, Ops: []DbOperation{
 			UpdateJobQueuedState{jobIds[0]: &JobQueuedStateUpdate{true, 1}},  // 2

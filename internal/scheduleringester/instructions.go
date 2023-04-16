@@ -172,6 +172,7 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, subm
 		Priority:              int64(job.Priority),
 		SubmitMessage:         compressedSubmitJobBytes,
 		SchedulingInfo:        schedulingInfoBytes,
+		PodRequirementsHash:   schedulingInfo.PodRequirementsHash,
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
 	}}}, nil
 }
@@ -202,6 +203,9 @@ func (c *InstructionConverter) handleJobRequeued(jobRequeued *armadaevents.JobRe
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	if len(jobRequeued.SchedulingInfo.PodRequirementsHash) == 0 {
+		return nil, errors.Errorf("pod requirements hash is unexpectedly empty")
+	}
 	jobId, err := armadaevents.UlidStringFromProtoUuid(jobRequeued.GetJobId())
 	if err != nil {
 		return nil, err
@@ -213,6 +217,7 @@ func (c *InstructionConverter) handleJobRequeued(jobRequeued *armadaevents.JobRe
 		}},
 		UpdateJobSchedulingInfo{jobId: &JobSchedulingInfoUpdate{
 			JobSchedulingInfo:        schedulingInfoBytes,
+			PodRequirementsHash:      jobRequeued.SchedulingInfo.PodRequirementsHash,
 			JobSchedulingInfoVersion: int32(jobRequeued.SchedulingInfo.Version),
 		}},
 	}, nil
@@ -365,6 +370,11 @@ func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaeven
 			schedulingInfo.ObjectRequirements,
 			&schedulerobjects.ObjectRequirements{Requirements: requirements},
 		)
+		podRequirementsHash, err := schedulerobjects.CalculateHashFromPodRequirements(requirements.PodRequirements)
+		if err != nil {
+			return nil, err
+		}
+		schedulingInfo.PodRequirementsHash = podRequirementsHash
 	default:
 		return nil, errors.Errorf("unsupported object type %T", object)
 	}

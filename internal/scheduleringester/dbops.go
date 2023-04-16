@@ -26,6 +26,7 @@ type JobRunFailed struct {
 
 type JobSchedulingInfoUpdate struct {
 	JobSchedulingInfo        []byte
+	PodRequirementsHash      []byte
 	JobSchedulingInfoVersion int32
 }
 

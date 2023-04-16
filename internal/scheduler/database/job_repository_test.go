@@ -270,6 +270,7 @@ func createTestJobs(numJobs int) ([]Job, []Job) {
 			Succeeded:               true,
 			Failed:                  true,
 			SchedulingInfo:          []byte{byte(i)},
+			PodRequirementsHash:     []byte{byte(i)},
 			SubmitMessage:           []byte{},
 		}
 	}

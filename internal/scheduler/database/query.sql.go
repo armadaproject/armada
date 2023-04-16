@@ -363,7 +363,7 @@ func (q *Queries) SelectJobsForExecutor(ctx context.Context, arg SelectJobsForEx
 }
 
 const selectNewJobs = `-- name: SelectNewJobs :many
-SELECT job_id, job_set, queue, user_id, submitted, groups, priority, queued, queued_version, cancel_requested, cancelled, cancel_by_jobset_requested, succeeded, failed, submit_message, scheduling_info, scheduling_info_version, serial, last_modified FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2
+SELECT job_id, job_set, queue, user_id, submitted, groups, priority, queued, queued_version, cancel_requested, cancelled, cancel_by_jobset_requested, succeeded, failed, submit_message, scheduling_info, pod_requirements_hash, scheduling_info_version, serial, last_modified FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2
 `
 
 type SelectNewJobsParams struct {
@@ -397,6 +397,7 @@ func (q *Queries) SelectNewJobs(ctx context.Context, arg SelectNewJobsParams) ([
 			&i.Failed,
 			&i.SubmitMessage,
 			&i.SchedulingInfo,
+			&i.PodRequirementsHash,
 			&i.SchedulingInfoVersion,
 			&i.Serial,
 			&i.LastModified,
@@ -525,7 +526,7 @@ func (q *Queries) SelectRunErrorsById(ctx context.Context, runIds []uuid.UUID) (
 }
 
 const selectUpdatedJobs = `-- name: SelectUpdatedJobs :many
-SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, cancel_requested, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, scheduling_info_version, serial FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2
+SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, cancel_requested, cancel_by_jobset_requested, cancelled, succeeded, failed, scheduling_info, pod_requirements_hash, scheduling_info_version, serial FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2
 `
 
 type SelectUpdatedJobsParams struct {
@@ -547,6 +548,7 @@ type SelectUpdatedJobsRow struct {
 	Succeeded               bool   `db:"succeeded"`
 	Failed                  bool   `db:"failed"`
 	SchedulingInfo          []byte `db:"scheduling_info"`
+	PodRequirementsHash     []byte `db:"pod_requirements_hash"`
 	SchedulingInfoVersion   int32  `db:"scheduling_info_version"`
 	Serial                  int64  `db:"serial"`
 }
@@ -574,6 +576,7 @@ func (q *Queries) SelectUpdatedJobs(ctx context.Context, arg SelectUpdatedJobsPa
 			&i.Succeeded,
 			&i.Failed,
 			&i.SchedulingInfo,
+			&i.PodRequirementsHash,
 			&i.SchedulingInfoVersion,
 			&i.Serial,
 		); err != nil {

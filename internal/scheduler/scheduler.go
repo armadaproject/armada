@@ -328,6 +328,11 @@ func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job
 		}
 	}
 	podSchedulingRequirement.Affinity = newAffinity
+	newRequirementsHash, err := schedulerobjects.CalculateHashFromPodRequirements(podSchedulingRequirement)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	newSchedulingInfo.PodRequirementsHash = newRequirementsHash
 	return newSchedulingInfo, nil
 }
 
