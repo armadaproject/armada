@@ -17,20 +17,18 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 )
 
-// stores the metrics state associated with a queue
+// Metrics Recorders associated with a queue
 type queueState struct {
-	numQueuedJobs      int
 	queuedJobRecorder  *commonmetrics.JobMetricsRecorder
 	runningJobRecorder *commonmetrics.JobMetricsRecorder
 }
 
-// a snapshot of metrics.  Implements QueueMetricProvider
-type metricsState struct {
-	queues      []*database.Queue
+// metricProvider is a simple implementation of QueueMetricProvider
+type metricProvider struct {
 	queueStates map[string]*queueState
 }
 
-func (m metricsState) GetQueuedJobMetrics(queueName string) []*commonmetrics.QueueMetrics {
+func (m metricProvider) GetQueuedJobMetrics(queueName string) []*commonmetrics.QueueMetrics {
 	state, ok := m.queueStates[queueName]
 	if ok {
 		return state.queuedJobRecorder.Metrics()
@@ -38,25 +36,12 @@ func (m metricsState) GetQueuedJobMetrics(queueName string) []*commonmetrics.Que
 	return nil
 }
 
-func (m metricsState) GetRunningJobMetrics(queueName string) []*commonmetrics.QueueMetrics {
+func (m metricProvider) GetRunningJobMetrics(queueName string) []*commonmetrics.QueueMetrics {
 	state, ok := m.queueStates[queueName]
 	if ok {
 		return state.runningJobRecorder.Metrics()
 	}
 	return nil
-}
-
-func (m metricsState) numQueuedJobs() map[string]int {
-	queueCounts := make(map[string]int)
-	for _, queue := range m.queues {
-		state, ok := m.queueStates[queue.Name]
-		count := 0
-		if ok {
-			count = state.numQueuedJobs
-		}
-		queueCounts[queue.Name] = count
-	}
-	return queueCounts
 }
 
 // MetricsCollector is a Prometheus Collector that handles scheduler metrics.
@@ -96,7 +81,7 @@ func (c *MetricsCollector) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Infof("Context cancelled, returning..")
+			log.Debugf("Context cancelled, returning..")
 			return nil
 		case <-ticker.C():
 			err := c.refresh(ctx)
@@ -114,50 +99,60 @@ func (c *MetricsCollector) Describe(out chan<- *prometheus.Desc) {
 
 // Collect returns the current state of all metrics of the collector.
 func (c *MetricsCollector) Collect(metrics chan<- prometheus.Metric) {
-	state, ok := c.state.Load().(metricsState)
+	state, ok := c.state.Load().([]prometheus.Metric)
 	if ok {
-
+		for _, m := range state {
+			metrics <- m
+		}
 	}
 }
 
 func (c *MetricsCollector) refresh(ctx context.Context) error {
 	log.Debugf("Refreshing prometheus metrics")
 	start := time.Now()
-
-	queues, err := c.queueRepository.GetAllQueues()
+	queueMetrics, err := c.updateQueueMetrics(ctx)
 	if err != nil {
 		return err
 	}
-
-	executors, err := c.executorRepository.GetExecutors(ctx)
+	clusterMetrics, err := c.updateClusterMetrics(ctx)
 	if err != nil {
 		return err
+	}
+	allMetrics := append(queueMetrics, clusterMetrics...)
+	c.state.Store(allMetrics)
+	log.Debugf("Refreshed prometheus metrics in %s", time.Since(start))
+	return nil
+}
+
+func (c *MetricsCollector) updateQueueMetrics(ctx context.Context) ([]prometheus.Metric, error) {
+
+	queues, err := c.queueRepository.GetAllQueues()
+	if err != nil {
+		return nil, err
+	}
+
+	provider := metricProvider{queueStates: make(map[string]*queueState, len(queues))}
+	queuedJobsCount := make(map[string]int, len(queues))
+	for _, queue := range queues {
+		provider.queueStates[queue.Name] = &queueState{
+			queuedJobRecorder:  commonmetrics.NewJobMetricsRecorder(),
+			runningJobRecorder: commonmetrics.NewJobMetricsRecorder(),
+		}
+		queuedJobsCount[queue.Name] = 0
 	}
 
 	err = c.poolAssigner.Refresh(ctx)
 	if err != nil {
-		return err
-	}
-
-	ms := metricsState{
-		queues:      queues,
-		queueStates: map[string]*queueState{},
-	}
-	for _, queue := range queues {
-		ms.queueStates[queue.Name] = &queueState{
-			queuedJobRecorder:  commonmetrics.NewJobMetricsRecorder(),
-			runningJobRecorder: commonmetrics.NewJobMetricsRecorder(),
-		}
+		return nil, err
 	}
 
 	currentTime := c.clock.Now()
-	txn := c.jobDb.ReadTxn()
-	for _, job := range c.jobDb.GetAll(txn) {
+	for _, job := range c.jobDb.GetAll(c.jobDb.ReadTxn()) {
 		// Don't calculate metrics for dead jobs
 		if job.InTerminalState() {
 			continue
 		}
-		qs, ok := ms.queueStates[job.Queue()]
+		qs, ok := provider.queueStates[job.Queue()]
 		if !ok {
 			log.Warnf("Job %s is in queue %s, but this queue does not exist.  Skipping", job.Id(), job.Queue())
 			continue
@@ -165,7 +160,7 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 
 		pool, err := c.poolAssigner.AssignPool(job)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		priorityClass := job.JobSchedulingInfo().PriorityClassName
@@ -180,7 +175,7 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 		if job.Queued() {
 			recorder = qs.queuedJobRecorder
 			timeInState = currentTime.Sub(time.Unix(0, job.Created()))
-			qs.numQueuedJobs++
+			queuedJobsCount[job.Queue()]++
 		} else if job.HasRuns() {
 			run := job.LatestRun()
 			timeInState = currentTime.Sub(time.Unix(0, run.Created()))
@@ -192,20 +187,27 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 		recorder.RecordResources(pool, priorityClass, jobResources)
 	}
 
-	queueMetrics := commonmetrics.CollectQueueMetrics(ms.numQueuedJobs(), ms)
+	queueMetrics := commonmetrics.CollectQueueMetrics(queuedJobsCount, provider)
+	return queueMetrics, nil
+}
 
+func (c *MetricsCollector) updateClusterMetrics(ctx context.Context) ([]prometheus.Metric, error) {
 	type phaseKey struct {
 		cluster   string
 		pool      string
 		queueName string
 		phase     string
-		nodeType  string
+	}
+
+	executors, err := c.executorRepository.GetExecutors(ctx)
+	if err != nil {
+		return nil, err
 	}
 	countsByKey := map[phaseKey]int{}
 	for _, executor := range executors {
 		for _, node := range executor.Nodes {
 			for runId, jobRunState := range node.StateByJobRunId {
-				job := c.jobDb.GetByRunId(txn, uuid.MustParse(runId))
+				job := c.jobDb.GetByRunId(c.jobDb.ReadTxn(), uuid.MustParse(runId))
 				if job != nil {
 					phase := schedulerobjects.JobRunState_name[int32(jobRunState)]
 					key := phaseKey{
@@ -213,7 +215,6 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 						pool:      executor.Pool,
 						queueName: job.Queue(),
 						phase:     phase,
-						nodeType:  "",
 					}
 					countsByKey[key]++
 				}
@@ -221,7 +222,9 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 		}
 	}
 
-	c.state.Store(ms)
-	log.Debugf("Refreshed prometheus metrics in %s", time.Since(start))
-	return nil
+	clusterMetrics := make([]prometheus.Metric, 0, len(countsByKey))
+	for k, v := range countsByKey {
+		clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueLeasedPodCount(float64(v), k.cluster, k.pool, k.queueName, k.phase, ""))
+	}
+	return clusterMetrics, nil
 }
