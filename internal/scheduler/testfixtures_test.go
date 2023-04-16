@@ -174,6 +174,11 @@ func withNodeSelectorPodReqs(selector map[string]string, reqs []*schedulerobject
 	return reqs
 }
 
+func withNodeSelectorPodReq(selector map[string]string, req *schedulerobjects.PodRequirements) *schedulerobjects.PodRequirements {
+	req.NodeSelector = maps.Clone(selector)
+	return req
+}
+
 func withNodeAffinityPodReqs(nodeSelectorTerms []v1.NodeSelectorTerm, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
 	for _, req := range reqs {
 		if req.Affinity == nil {

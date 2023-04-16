@@ -21,6 +21,17 @@ func (d *DbOperationsWithMessageIds) GetMessageIDs() []pulsar.MessageID {
 
 type JobRunFailed struct {
 	LeaseReturned bool
+	RunAttempted  bool
+}
+
+type JobSchedulingInfoUpdate struct {
+	JobSchedulingInfo        []byte
+	JobSchedulingInfoVersion int32
+}
+
+type JobQueuedStateUpdate struct {
+	Queued             bool
+	QueuedStateVersion int32
 }
 
 // DbOperation captures a generic batch database operation.
@@ -97,6 +108,8 @@ type (
 	MarkJobsSucceeded          map[string]bool
 	MarkJobsFailed             map[string]bool
 	UpdateJobPriorities        map[string]int64
+	UpdateJobSchedulingInfo    map[string]*JobSchedulingInfoUpdate
+	UpdateJobQueuedState       map[string]*JobQueuedStateUpdate
 	MarkRunsSucceeded          map[uuid.UUID]bool
 	MarkRunsFailed             map[uuid.UUID]*JobRunFailed
 	MarkRunsRunning            map[uuid.UUID]bool
@@ -138,6 +151,42 @@ func (a MarkJobSetsCancelRequested) Merge(b DbOperation) bool {
 
 func (a MarkJobsCancelRequested) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
+}
+
+func (a UpdateJobSchedulingInfo) Merge(b DbOperation) bool {
+	switch op := b.(type) {
+	case UpdateJobSchedulingInfo:
+		for key, value := range op {
+			aValue, present := a[key]
+			if !present {
+				a[key] = value
+			} else {
+				if value.JobSchedulingInfoVersion > aValue.JobSchedulingInfoVersion {
+					a[key] = value
+				}
+			}
+		}
+		return true
+	}
+	return false
+}
+
+func (a UpdateJobQueuedState) Merge(b DbOperation) bool {
+	switch op := b.(type) {
+	case UpdateJobQueuedState:
+		for key, value := range op {
+			currentValue, present := a[key]
+			if !present {
+				a[key] = value
+			} else {
+				if value.QueuedStateVersion > currentValue.QueuedStateVersion {
+					a[key] = value
+				}
+			}
+		}
+		return true
+	}
+	return false
 }
 
 func (a MarkJobsCancelled) Merge(b DbOperation) bool {
@@ -251,6 +300,14 @@ func (a MarkJobsFailed) CanBeAppliedBefore(b DbOperation) bool {
 }
 
 func (a MarkJobsCancelled) CanBeAppliedBefore(b DbOperation) bool {
+	return !definesJob(a, b)
+}
+
+func (a UpdateJobSchedulingInfo) CanBeAppliedBefore(b DbOperation) bool {
+	return !definesJob(a, b)
+}
+
+func (a UpdateJobQueuedState) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b)
 }
 
