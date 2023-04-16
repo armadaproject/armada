@@ -2,7 +2,6 @@ package scheduleringester
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
