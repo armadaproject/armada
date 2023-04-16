@@ -33,7 +33,6 @@ type Job struct {
 	Failed                  bool      `db:"failed"`
 	SubmitMessage           []byte    `db:"submit_message"`
 	SchedulingInfo          []byte    `db:"scheduling_info"`
-	PodRequirementsHash     []byte    `db:"pod_requirements_hash"`
 	SchedulingInfoVersion   int32     `db:"scheduling_info_version"`
 	Serial                  int64     `db:"serial"`
 	LastModified            time.Time `db:"last_modified"`

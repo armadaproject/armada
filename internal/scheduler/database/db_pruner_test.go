@@ -242,7 +242,6 @@ func populateRequiredJobFields(job Job) Job {
 	job.Submitted = 0
 	job.SubmitMessage = []byte{}
 	job.SchedulingInfo = []byte{}
-	job.PodRequirementsHash = []byte{}
 	return job
 }
 

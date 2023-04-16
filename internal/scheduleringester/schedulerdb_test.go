@@ -168,12 +168,10 @@ func TestWriteOps(t *testing.T) {
 			UpdateJobSchedulingInfo{
 				jobIds[0]: &JobSchedulingInfoUpdate{
 					JobSchedulingInfo:        []byte("job-0 info update"),
-					PodRequirementsHash:      []byte("job-0 hash update"),
 					JobSchedulingInfoVersion: 1,
 				},
 				jobIds[1]: &JobSchedulingInfoUpdate{
 					JobSchedulingInfo:        []byte("job-1 info update"),
-					PodRequirementsHash:      []byte("job-1 hash update"),
 					JobSchedulingInfoVersion: 2,
 				},
 			},
@@ -273,7 +271,6 @@ func addDefaultValues(op DbOperation) DbOperation {
 			job.Groups = make([]byte, 0)
 			job.SubmitMessage = make([]byte, 0)
 			job.SchedulingInfo = make([]byte, 0)
-			job.PodRequirementsHash = make([]byte, 0)
 		}
 	case InsertRuns:
 	case UpdateJobSetPriorities:

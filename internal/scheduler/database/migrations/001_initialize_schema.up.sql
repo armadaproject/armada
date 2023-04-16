@@ -30,8 +30,6 @@ CREATE TABLE jobs (
     submit_message bytea NOT NULL,
     -- JobSchedulingInfo message stored as a proto buffer.
     scheduling_info bytea NOT NULL,
-    -- Hash of the pod requirements stored in the JobSchedulingInfo
-    pod_requirements_hash bytea NOT NULL,
     -- The current version of the JobSchedulingInfo, used to prevent JobSchedulingInfo state going backwards on even replay
     scheduling_info_version integer NOT NULL default 0,
     serial bigserial NOT NULL,
