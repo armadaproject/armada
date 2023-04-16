@@ -27,8 +27,6 @@ func TestWriteOps(t *testing.T) {
 	for i := range runIds {
 		runIds[i] = uuid.New()
 	}
-	v := &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"}
-	fmt.Println(v)
 	tests := map[string]struct {
 		Ops []DbOperation
 	}{
