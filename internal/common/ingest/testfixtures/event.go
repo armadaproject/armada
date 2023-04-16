@@ -289,12 +289,11 @@ var JobRequeued = &armadaevents.EventSequence_Event{
 		JobRequeued: &armadaevents.JobRequeued{
 			JobId: JobIdProto,
 			SchedulingInfo: &schedulerobjects.JobSchedulingInfo{
-				Lifetime:            0,
-				AtMostOnce:          true,
-				Preemptible:         true,
-				ConcurrencySafe:     true,
-				Version:             0,
-				PodRequirementsHash: []byte("place holder value for tests"),
+				Lifetime:        0,
+				AtMostOnce:      true,
+				Preemptible:     true,
+				ConcurrencySafe: true,
+				Version:         0,
 				ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 					{
 						Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
