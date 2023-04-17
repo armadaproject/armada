@@ -30,6 +30,8 @@ type Job struct {
 	// True if the job is currently queued.
 	// If this is set then the job will not be considered for scheduling
 	queued bool
+	// The current version of the queued state
+	queuedVersion int32
 	// Scheduling requirements of this job.
 	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo
 	// True if the user has requested this job be cancelled
@@ -61,6 +63,8 @@ func NewJob(
 	queue string,
 	priority uint32,
 	schedulingInfo *schedulerobjects.JobSchedulingInfo,
+	queued bool,
+	queuedVersion int32,
 	cancelRequested bool,
 	cancelByJobsetRequested bool,
 	cancelled bool,
@@ -70,7 +74,8 @@ func NewJob(
 		id:                      jobId,
 		jobset:                  jobset,
 		queue:                   queue,
-		queued:                  true,
+		queued:                  queued,
+		queuedVersion:           queuedVersion,
 		priority:                priority,
 		requestedPriority:       priority,
 		jobSchedulingInfo:       schedulingInfo,
@@ -159,6 +164,18 @@ func (job *Job) Queued() bool {
 func (job *Job) WithQueued(queued bool) *Job {
 	j := copyJob(*job)
 	j.queued = queued
+	return j
+}
+
+// QueuedVersion returns current queued state version.
+func (job *Job) QueuedVersion() int32 {
+	return job.queuedVersion
+}
+
+// WithQueuedVersion returns a copy of the job with the queued version updated.
+func (job *Job) WithQueuedVersion(version int32) *Job {
+	j := copyJob(*job)
+	j.queuedVersion = version
 	return j
 }
 
@@ -287,6 +304,23 @@ func (job *Job) NumReturned() uint {
 	return returned
 }
 
+// NumAttempts returns the number of times the executors tried to run this job
+// Note that this is O(N) on Runs, but this should be fine as the number of runs should be small.
+func (job *Job) NumAttempts() uint {
+	attempts := uint(0)
+	for _, run := range job.runsById {
+		if run.runAttempted {
+			attempts++
+		}
+	}
+	return attempts
+}
+
+// AllRuns returns all runs associated with job.
+func (job *Job) AllRuns() []*JobRun {
+	return maps.Values(job.runsById)
+}
+
 // LatestRun returns the currently active job run or nil if there are no runs yet.
 // Callers should either guard against nil values explicitly or via HasRuns.
 func (job *Job) LatestRun() *JobRun {
@@ -319,7 +353,7 @@ func (job *Job) WithCreated(created int64) *Job {
 	return j
 }
 
-// WithJobSchedulingInfo returns a copy of the job with the creation time updated.
+// WithJobSchedulingInfo returns a copy of the job with the job scheduling info updated.
 func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSchedulingInfo) *Job {
 	j := copyJob(*job)
 	j.jobSchedulingInfo = jobSchedulingInfo
