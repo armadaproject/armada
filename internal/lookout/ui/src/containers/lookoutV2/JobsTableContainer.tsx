@@ -47,7 +47,15 @@ import { IGetRunErrorService } from "services/lookoutV2/GetRunErrorService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { JobsTablePreferencesService } from "services/lookoutV2/JobsTablePreferencesService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
-import { ColumnId, JobTableColumn, StandardColumnId, toColId } from "utils/jobsTableColumns"
+import {
+  ColumnId,
+  createAnnotationColumn,
+  getAnnotationKeyCols,
+  JOB_COLUMNS,
+  JobTableColumn,
+  StandardColumnId,
+  toColId,
+} from "utils/jobsTableColumns"
 import {
   diffOfKeys,
   updaterToValue,
@@ -93,7 +101,9 @@ export const JobsTableContainer = ({
   const initialPrefs = useMemo(() => jobsTablePreferencesService.getUserPrefs(), [])
 
   // Columns
-  const [allColumns, setAllColumns] = useState<JobTableColumn[]>(initialPrefs.allColumnsInfo)
+  const [allColumns, setAllColumns] = useState<JobTableColumn[]>(
+    JOB_COLUMNS.concat(...initialPrefs.annotationColumnKeys.map(createAnnotationColumn)),
+  )
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(initialPrefs.visibleColumns)
   const visibleColumnIds = useMemo(
     () =>
@@ -183,7 +193,7 @@ export const JobsTableContainer = ({
       sortingState: sorting,
       columnSizing: columnSizing,
       filterState: columnFilterState,
-      allColumnsInfo: allColumns,
+      annotationColumnKeys: getAnnotationKeyCols(allColumns),
       visibleColumns: columnVisibility,
       sidebarJobId: sidebarJobId,
       sidebarWidth: sidebarWidth,

@@ -53,6 +53,11 @@ export type AnnotationColumnId = `annotation_${string}`
 
 export type ColumnId = StandardColumnId | AnnotationColumnId
 
+export const toAnnotationColId = (annotationKey: string): AnnotationColumnId =>
+  `${ANNOTATION_COLUMN_PREFIX}${annotationKey}`
+
+export const fromAnnotationColId = (colId: AnnotationColumnId): string => colId.slice(ANNOTATION_COLUMN_PREFIX.length)
+
 export const toColId = (columnId: string | undefined) => columnId as ColumnId
 
 export const getColumnMetadata = (column: JobTableColumn) => (column.meta ?? {}) as JobTableColumnMetadata
@@ -66,6 +71,7 @@ interface AccessorColumnHelperArgs {
   additionalOptions?: Partial<Parameters<typeof columnHelper.accessor>[1]>
   additionalMetadata?: Partial<JobTableColumnMetadata>
 }
+
 const accessorColumn = ({
   id,
   accessor,
@@ -297,7 +303,7 @@ export const DEFAULT_GROUPING: ColumnId[] = [StandardColumnId.Queue, StandardCol
 
 export const createAnnotationColumn = (annotationKey: string): JobTableColumn => {
   return accessorColumn({
-    id: `${ANNOTATION_COLUMN_PREFIX}${annotationKey}`,
+    id: toAnnotationColId(annotationKey),
     accessor: (jobTableRow) => jobTableRow.annotations?.[annotationKey],
     displayName: annotationKey,
     additionalOptions: {
@@ -311,4 +317,10 @@ export const createAnnotationColumn = (annotationKey: string): JobTableColumn =>
       defaultMatchType: Match.StartsWith,
     },
   })
+}
+
+export const getAnnotationKeyCols = (cols: JobTableColumn[]): string[] => {
+  return cols
+    .filter((col) => col.id?.startsWith(ANNOTATION_COLUMN_PREFIX))
+    .map((col) => fromAnnotationColId(col.id as AnnotationColumnId))
 }

@@ -149,7 +149,7 @@ describe("JobsTablePreferencesService", () => {
     it("includes annotation columns", () => {
       savePrefWithDefaults({
         visibleColumns: { queue: true, jobSet: false, annotation_test: true, annotation_otherTest: false },
-        allColumnsInfo: [...JOB_COLUMNS, createAnnotationColumn("test"), createAnnotationColumn("otherTest")],
+        annotationColumnKeys: ["test", "otherTest"],
       })
       expect(router.location.search).toContain("vCols[0]=queue&vCols[1]=annotation_test")
       expect(service.getUserPrefs().visibleColumns).toMatchObject({
@@ -163,10 +163,10 @@ describe("JobsTablePreferencesService", () => {
 
   describe("Annotation columns", () => {
     it("round-trips user-added columns", () => {
-      savePrefWithDefaults({ allColumnsInfo: [...JOB_COLUMNS, createAnnotationColumn("myAnnotation")] })
+      savePrefWithDefaults({ annotationColumnKeys: ["myAnnotation"] })
       expect(router.location.search).toContain("aCols[0]=myAnnotation")
-      const cols = service.getUserPrefs().allColumnsInfo
-      expect(cols.filter(({ id }) => id === "annotation_myAnnotation").length).toStrictEqual(1)
+      const cols = service.getUserPrefs().annotationColumnKeys
+      expect(cols.filter((col) => col === "myAnnotation").length).toStrictEqual(1)
     })
   })
 
