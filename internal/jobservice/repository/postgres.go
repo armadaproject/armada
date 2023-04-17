@@ -22,31 +22,26 @@ type JSRepoPostgres struct {
 	dbpool           *pgxpool.Pool
 }
 
-func NewJSRepoPostgres(cfg *configuration.JobServiceConfiguration, log *log.Entry) *JSRepoPostgres {
+func NewJSRepoPostgres(cfg *configuration.JobServiceConfiguration, log *log.Entry) (*JSRepoPostgres, func()) {
 	log.Info("using postgres")
 
 	poolCfg, err := pgxpool.ParseConfig(database.CreateConnectionString(cfg.PostgresConfig.Connection))
 	if err != nil {
 		log.Error(errors.Wrap(err, "cannot parse Postgres connection config"))
-		return nil
+		return nil, func() {}
 	}
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), poolCfg)
 	if err != nil {
 		log.Error(errors.Wrap(err, "cannot create Postgres connection pool"))
-		return nil
+		return nil, func() {}
 	}
 
-	return &JSRepoPostgres{jobServiceConfig: cfg, dbpool: pool}
+	return &JSRepoPostgres{jobServiceConfig: cfg, dbpool: pool}, func() {}
 }
 
-// Call on a newly created JSRepoPostgres object to setup the DB for use.
+// Set up the DB for use, create tables
 func (s *JSRepoPostgres) Setup(ctx context.Context) {
-	s.CreateTable(ctx)
-}
-
-// Create a Table from a hard-coded schema.
-func (s *JSRepoPostgres) CreateTable(ctx context.Context) {
 	_, err := s.dbpool.Exec(ctx, "DROP TABLE IF EXISTS jobservice")
 	if err != nil {
 		panic(err)

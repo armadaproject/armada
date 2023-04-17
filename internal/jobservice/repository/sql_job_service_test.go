@@ -459,7 +459,11 @@ func WithSqlServiceRepo(action func(r SQLJobService)) {
 
 	log := log.WithField("JobService", "Startup")
 
-	repo = NewSQLJobService(config, log)
+	repo, dbCallbackFn := NewSQLJobService(config, log)
+	defer (func() {
+		dbCallbackFn()
+	})()
+
 	repo.Setup(context.Background())
 	action(repo)
 

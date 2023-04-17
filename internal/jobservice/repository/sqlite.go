@@ -24,10 +24,8 @@ type JSRepoSQLite struct {
 	lock             sync.RWMutex
 }
 
-func NewJSRepoSQLite(config *configuration.JobServiceConfiguration, log *log.Entry) *JSRepoSQLite {
-	var db *sql.DB
+func NewJSRepoSQLite(config *configuration.JobServiceConfiguration, log *log.Entry) (*JSRepoSQLite, func()) {
 	var err error
-
 	log.Info("using sqlite")
 
 	dbDir := filepath.Dir(config.DatabasePath)
@@ -37,28 +35,20 @@ func NewJSRepoSQLite(config *configuration.JobServiceConfiguration, log *log.Ent
 		}
 	}
 
-	sqlLiteDb, err := sql.Open("sqlite", config.DatabasePath)
+	sqliteDb, err := sql.Open("sqlite", config.DatabasePath)
 	if err != nil {
 		log.Fatalf("error opening sqlite DB from %s %v", config.DatabasePath, err)
 	}
 
-	// XXX TODO return this func as a callback for the caller to invoke via defer()
-	defer func() {
-		if err := sqlLiteDb.Close(); err != nil {
+	return &JSRepoSQLite{jobServiceConfig: config, db: sqliteDb}, func() {
+		if err := sqliteDb.Close(); err != nil {
 			log.Warnf("error closing database: %v", err)
 		}
-	}()
-
-	return &JSRepoSQLite{jobServiceConfig: config, db: db}
+	}
 }
 
-// Call on a newly created JSRepoSQLite object to setup the DB for use.
+// Set up the DB for use, create tables
 func (s *JSRepoSQLite) Setup(ctx context.Context) {
-	s.useWAL()
-	s.CreateTable(ctx)
-}
-
-func (s *JSRepoSQLite) useWAL() {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -66,17 +56,12 @@ func (s *JSRepoSQLite) useWAL() {
 	if err != nil {
 		panic(err)
 	}
-}
 
-// Create a Table from a hard-coded schema.
-func (s *JSRepoSQLite) CreateTable(ctx context.Context) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	_, err := s.db.Exec("DROP TABLE IF EXISTS jobservice")
+	_, err = s.db.Exec("DROP TABLE IF EXISTS jobservice")
 	if err != nil {
 		panic(err)
 	}
+
 	_, err = s.db.Exec(`
 		CREATE TABLE jobservice (
 		Queue TEXT,
@@ -90,6 +75,7 @@ func (s *JSRepoSQLite) CreateTable(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
+
 	_, errIndex := s.db.Exec(`CREATE INDEX idx_job_set_queue ON jobservice (Queue, JobSetId)`)
 	if errIndex != nil {
 		panic(errIndex)

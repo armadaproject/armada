@@ -28,7 +28,6 @@ type SQLJobService interface {
 	AddMessageIdAndClearSubscriptionError(ctx context.Context, queue string, jobSet string, fromMessageId string) error
 	CheckToUnSubscribe(ctx context.Context, queue string, jobSet string, configTimeWithoutUpdates int64) (bool, error)
 	CleanupJobSetAndJobs(ctx context.Context, queue string, jobSet string) (int64, error)
-	CreateTable(ctx context.Context)
 	DeleteJobsInJobSet(ctx context.Context, queue string, jobSet string) (int64, error)
 	GetJobStatus(ctx context.Context, jobId string) (*js.JobServiceResponse, error)
 	GetSubscribedJobSets(ctx context.Context) ([]SubscribedTuple, error)
@@ -43,14 +42,14 @@ type SQLJobService interface {
 	UpdateJobSetDb(ctx context.Context, queue string, jobSet string, fromMessageId string) error
 }
 
-func NewSQLJobService(cfg *configuration.JobServiceConfiguration, log *log.Entry) SQLJobService {
+func NewSQLJobService(cfg *configuration.JobServiceConfiguration, log *log.Entry) (SQLJobService, func()) {
 	if cfg.DatabaseType == "postgres" {
 		return NewJSRepoPostgres(cfg, log)
 	} else if cfg.DatabaseType == "sqlite" {
 		return NewJSRepoSQLite(cfg, log)
 	}
 
-	return nil
+	return nil, func() {}
 }
 
 type SubscribedTuple struct {
