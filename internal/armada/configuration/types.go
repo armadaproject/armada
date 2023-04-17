@@ -183,6 +183,9 @@ type SchedulingConfig struct {
 	// then all pods requesting a non-zero amount of gpu and don't explicitly set activeDeadlineSeconds
 	// will have activeDeadlineSeconds set to 1. Trumps DefaultActiveDeadline.
 	DefaultActiveDeadlineByResourceRequest map[string]time.Duration
+	// Maximum number of jobs that can be assigned to a executor but not yet acknowledged, before
+	// the scheduler is excluded from consideration by the scheduler.
+	MaxUnacknowledgedJobsPerExecutor uint
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.

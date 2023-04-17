@@ -37,6 +37,8 @@ func TestConvertSequence(t *testing.T) {
 				UserID:        f.UserId,
 				Groups:        compress.MustCompressStringArray(f.Groups, compressor),
 				Queue:         f.Queue,
+				Queued:        true,
+				QueuedVersion: 0,
 				Priority:      int64(f.Priority),
 				Submitted:     f.BaseTime.UnixNano(),
 				SubmitMessage: protoutil.MustMarshallAndCompress(f.Submit.GetSubmitJob(), compressor),
@@ -45,6 +47,7 @@ func TestConvertSequence(t *testing.T) {
 					AtMostOnce:      true,
 					Preemptible:     true,
 					ConcurrencySafe: true,
+					Version:         0,
 					ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 						{
 							Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
@@ -76,13 +79,19 @@ func TestConvertSequence(t *testing.T) {
 		},
 		"job run leased": {
 			events: []*armadaevents.EventSequence_Event{f.Leased},
-			expected: []DbOperation{InsertRuns{f.RunIdUuid: &schedulerdb.Run{
-				RunID:    f.RunIdUuid,
-				JobID:    f.JobIdString,
-				JobSet:   f.JobSetName,
-				Executor: f.ExecutorId,
-				Node:     f.NodeName,
-			}}},
+			expected: []DbOperation{
+				InsertRuns{f.RunIdUuid: &schedulerdb.Run{
+					RunID:    f.RunIdUuid,
+					JobID:    f.JobIdString,
+					JobSet:   f.JobSetName,
+					Executor: f.ExecutorId,
+					Node:     f.NodeName,
+				}},
+				UpdateJobQueuedState{f.JobIdString: &JobQueuedStateUpdate{
+					Queued:             false,
+					QueuedStateVersion: 1,
+				}},
+			},
 		},
 		"job run running": {
 			events:   []*armadaevents.EventSequence_Event{f.Running},
@@ -100,7 +109,7 @@ func TestConvertSequence(t *testing.T) {
 					JobID: f.JobIdString,
 					Error: protoutil.MustMarshallAndCompress(f.LeaseReturned.GetJobRunErrors().Errors[0], compressor),
 				}},
-				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: true}},
+				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: true, RunAttempted: true}},
 			},
 		},
 		"job failed": {
@@ -111,7 +120,7 @@ func TestConvertSequence(t *testing.T) {
 					JobID: f.JobIdString,
 					Error: protoutil.MustMarshallAndCompress(f.JobRunFailed.GetJobRunErrors().Errors[0], compressor),
 				}},
-				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: false}},
+				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: false, RunAttempted: true}},
 			},
 		},
 		"job errors terminal": {
@@ -154,6 +163,19 @@ func TestConvertSequence(t *testing.T) {
 			events: []*armadaevents.EventSequence_Event{f.JobCancelled},
 			expected: []DbOperation{
 				MarkJobsCancelled{f.JobIdString: true},
+			},
+		},
+		"JobRequeued": {
+			events: []*armadaevents.EventSequence_Event{f.JobRequeued},
+			expected: []DbOperation{
+				UpdateJobQueuedState{f.JobIdString: &JobQueuedStateUpdate{
+					Queued:             true,
+					QueuedStateVersion: f.JobRequeued.GetJobRequeued().UpdateSequenceNumber,
+				}},
+				UpdateJobSchedulingInfo{f.JobIdString: &JobSchedulingInfoUpdate{
+					JobSchedulingInfo:        protoutil.MustMarshall(f.JobRequeued.GetJobRequeued().SchedulingInfo),
+					JobSchedulingInfoVersion: int32(f.JobRequeued.GetJobRequeued().SchedulingInfo.Version),
+				}},
 			},
 		},
 		"PositionMarker": {
