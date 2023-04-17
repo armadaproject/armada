@@ -8,7 +8,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
-	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 )
 
 func (node *Node) AvailableQuantityByPriorityAndResource(priority int32, resourceType string) resource.Quantity {
@@ -24,7 +23,8 @@ func (node *Node) DominantQueue() string {
 	dominantQueue := ""
 	dominantQueueCombinedResources := 0.0
 	for queue, rl := range node.AllocatedByQueue {
-		v := armadaresource.QuantityAsFloat64(rl.Get("cpu"))
+		r := rl.Get("cpu")
+		v := r.AsApproximateFloat64()
 		if dominantQueue == "" || v > dominantQueueCombinedResources || (v == dominantQueueCombinedResources && queue < dominantQueue) {
 			dominantQueue = queue
 			dominantQueueCombinedResources = v

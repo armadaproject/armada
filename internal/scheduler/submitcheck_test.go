@@ -20,6 +20,76 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
+func TestSubmitChecker_CheckPodRequirements(t *testing.T) {
+	defaultTimeout := 15 * time.Minute
+	baseTime = time.Now().UTC()
+	expiredTime := baseTime.Add(-defaultTimeout).Add(-1 * time.Second)
+
+	tests := map[string]struct {
+		executorTimout time.Duration
+		config         configuration.SchedulingConfig
+		executors      []*schedulerobjects.Executor
+		podRequirement *schedulerobjects.PodRequirements
+		expectPass     bool
+	}{
+		"one job schedules": {
+			executorTimout: defaultTimeout,
+			config:         testSchedulingConfig(),
+			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
+			podRequirement: testSmallCpuJob("queue", 1),
+			expectPass:     true,
+		},
+		"no jobs schedule due to resources": {
+			executorTimout: defaultTimeout,
+			config:         testSchedulingConfig(),
+			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
+			podRequirement: testLargeCpuJob("queue", 1),
+			expectPass:     false,
+		},
+		"no jobs schedule due to selector": {
+			executorTimout: defaultTimeout,
+			config:         testSchedulingConfig(),
+			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
+			podRequirement: withNodeSelectorPodReq(map[string]string{"foo": "bar"}, testSmallCpuJob("queue", 1)),
+			expectPass:     false,
+		},
+		"no jobs schedule due to executor timeout": {
+			executorTimout: defaultTimeout,
+			config:         testSchedulingConfig(),
+			executors:      []*schedulerobjects.Executor{testExecutor(expiredTime)},
+			podRequirement: testSmallCpuJob("queue", 1),
+			expectPass:     false,
+		},
+		"multiple executors, 1 expired": {
+			executorTimout: defaultTimeout,
+			config:         testSchedulingConfig(),
+			executors:      []*schedulerobjects.Executor{testExecutor(expiredTime), testExecutor(baseTime)},
+			podRequirement: testSmallCpuJob("queue", 1),
+			expectPass:     true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			ctrl := gomock.NewController(t)
+			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
+			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
+			fakeClock := clock.NewFakeClock(baseTime)
+			submitCheck := NewSubmitChecker(tc.executorTimout, tc.config, mockExecutorRepo)
+			submitCheck.clock = fakeClock
+			submitCheck.updateExecutors(ctx)
+			result, msg := submitCheck.CheckPodRequirements(tc.podRequirement)
+			assert.Equal(t, tc.expectPass, result)
+			if !tc.expectPass {
+				assert.NotEqual(t, "", msg)
+			}
+			logrus.Info(msg)
+		})
+	}
+}
+
 func TestSubmitChecker_TestCheckApiJobs(t *testing.T) {
 	defaultTimeout := 15 * time.Minute
 	baseTime = time.Now().UTC()

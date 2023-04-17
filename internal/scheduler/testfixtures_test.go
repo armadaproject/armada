@@ -3,6 +3,7 @@ package scheduler
 // This file contains test fixtures to be used throughout the tests for this package.
 import (
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/google/uuid"
@@ -63,9 +64,15 @@ func testSchedulingConfig() configuration.SchedulingConfig {
 			PriorityClasses:      maps.Clone(testPriorityClasses),
 			DefaultPriorityClass: testDefaultPriorityClass,
 		},
-		IndexedResources: []string{"cpu", "memory"},
-		ExecutorTimeout:  15 * time.Minute,
+		IndexedResources:                 []string{"cpu", "memory"},
+		ExecutorTimeout:                  15 * time.Minute,
+		MaxUnacknowledgedJobsPerExecutor: math.MaxInt,
 	}
+}
+
+func withMaxUnacknowledgedJobsPerExecutor(i uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.MaxUnacknowledgedJobsPerExecutor = i
+	return config
 }
 
 func withNodeEvictionProbabilityConfig(p float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
@@ -165,6 +172,11 @@ func withNodeSelectorPodReqs(selector map[string]string, reqs []*schedulerobject
 		req.NodeSelector = maps.Clone(selector)
 	}
 	return reqs
+}
+
+func withNodeSelectorPodReq(selector map[string]string, req *schedulerobjects.PodRequirements) *schedulerobjects.PodRequirements {
+	req.NodeSelector = maps.Clone(selector)
+	return req
 }
 
 func withNodeAffinityPodReqs(nodeSelectorTerms []v1.NodeSelectorTerm, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
