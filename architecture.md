@@ -54,7 +54,7 @@ Here, we outline the sequence of actions resulting from submitting a job.
 
 Armada does not maintain a user-queryable database of the current state of the system. This is by design to avoid overloading the system with connections. For example, say there is one million active jobs in the system and that there are clients who want to track the state of all of those jobs. With a current-state-of-the-world database, those client would need to resort to polling that database to catch any updates, thus opening a total of one million connections to the database, which, while not impossible to manage, would pose significant challenges.
 
-Instead, users are expected to be notified of updates to their jobs via an event stream (i.e., the streams API), where a client opens a single connection for all jobs in a so-called job set over which all state transitions are streamed as they happen. This approach is highly scalable since data is only sent when something happens and since a single connection that contain updates for thousands of jobs. Users who want to maintain a view of their jobs are thus responsible for maintaining that view themselves by subscribing to events (e.g., DogeFarm does this).
+Instead, users are expected to be notified of updates to their jobs via an event stream (i.e., the streams API), where a client opens a single connection for all jobs in a so-called job set over which all state transitions are streamed as they happen. This approach is highly scalable since data is only sent when something happens and since a single connection that contain updates for thousands of jobs. Users who want to maintain a view of their jobs are thus responsible for maintaining that view themselves by subscribing to events.
 
 ## Notes on consistency
 
