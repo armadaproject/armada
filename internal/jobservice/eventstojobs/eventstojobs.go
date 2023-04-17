@@ -42,7 +42,6 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 }
 
 func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, timeout int64, fromMessageId string) error {
-	// XXX shadowing of passed-in ctx?
 	ctx, cancel := context.WithCancel(ctx)
 	g, _ := errgroup.WithContext(ctx)
 	expiresAt := time.Now().Add(time.Duration(timeout) * time.Second)
