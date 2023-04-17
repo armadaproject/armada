@@ -24,7 +24,7 @@ var _ JobTableUpdater = &JobTableUpdaterMock{}
 //			GetSubscriptionErrorFunc: func(ctx context.Context, queue string, jobSet string) (string, error) {
 //				panic("mock out the GetSubscriptionError method")
 //			},
-//			IsJobSetSubscribedFunc: func(queue string, jobSet string) (bool, string, error) {
+//			IsJobSetSubscribedFunc: func(ctx context.Context, queue string, jobSet string) (bool, string, error) {
 //				panic("mock out the IsJobSetSubscribed method")
 //			},
 //			SetSubscriptionErrorFunc: func(ctx context.Context, queue string, jobSet string, err string, fromMessageId string) error {
@@ -56,7 +56,7 @@ type JobTableUpdaterMock struct {
 	GetSubscriptionErrorFunc func(ctx context.Context, queue string, jobSet string) (string, error)
 
 	// IsJobSetSubscribedFunc mocks the IsJobSetSubscribed method.
-	IsJobSetSubscribedFunc func(queue string, jobSet string) (bool, string, error)
+	IsJobSetSubscribedFunc func(ctx context.Context, queue string, jobSet string) (bool, string, error)
 
 	// SetSubscriptionErrorFunc mocks the SetSubscriptionError method.
 	SetSubscriptionErrorFunc func(ctx context.Context, queue string, jobSet string, err string, fromMessageId string) error
@@ -97,6 +97,8 @@ type JobTableUpdaterMock struct {
 		}
 		// IsJobSetSubscribed holds details about calls to the IsJobSetSubscribed method.
 		IsJobSetSubscribed []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
 			// Queue is the queue argument value.
 			Queue string
 			// JobSet is the jobSet argument value.
@@ -249,21 +251,23 @@ func (mock *JobTableUpdaterMock) GetSubscriptionErrorCalls() []struct {
 }
 
 // IsJobSetSubscribed calls IsJobSetSubscribedFunc.
-func (mock *JobTableUpdaterMock) IsJobSetSubscribed(queue string, jobSet string) (bool, string, error) {
+func (mock *JobTableUpdaterMock) IsJobSetSubscribed(ctx context.Context, queue string, jobSet string) (bool, string, error) {
 	if mock.IsJobSetSubscribedFunc == nil {
 		panic("JobTableUpdaterMock.IsJobSetSubscribedFunc: method is nil but JobTableUpdater.IsJobSetSubscribed was just called")
 	}
 	callInfo := struct {
+		Ctx    context.Context
 		Queue  string
 		JobSet string
 	}{
+		Ctx:    ctx,
 		Queue:  queue,
 		JobSet: jobSet,
 	}
 	mock.lockIsJobSetSubscribed.Lock()
 	mock.calls.IsJobSetSubscribed = append(mock.calls.IsJobSetSubscribed, callInfo)
 	mock.lockIsJobSetSubscribed.Unlock()
-	return mock.IsJobSetSubscribedFunc(queue, jobSet)
+	return mock.IsJobSetSubscribedFunc(ctx, queue, jobSet)
 }
 
 // IsJobSetSubscribedCalls gets all the calls that were made to IsJobSetSubscribed.
@@ -271,10 +275,12 @@ func (mock *JobTableUpdaterMock) IsJobSetSubscribed(queue string, jobSet string)
 //
 //	len(mockedJobTableUpdater.IsJobSetSubscribedCalls())
 func (mock *JobTableUpdaterMock) IsJobSetSubscribedCalls() []struct {
+	Ctx    context.Context
 	Queue  string
 	JobSet string
 } {
 	var calls []struct {
+		Ctx    context.Context
 		Queue  string
 		JobSet string
 	}

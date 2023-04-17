@@ -14,7 +14,7 @@ import (
 
 type JobTableUpdater interface {
 	SubscribeJobSet(ctx context.Context, queue string, jobSet string, fromMessageId string) error
-	IsJobSetSubscribed(queue string, jobSet string) (bool, string, error)
+	IsJobSetSubscribed(ctx context.Context, queue string, jobSet string) (bool, string, error)
 	UpdateJobServiceDb(ctx context.Context, jobTable *JobStatus) error
 	UpdateJobSetDb(ctx context.Context, queue string, jobSet string, fromMessageId string) error
 	SetSubscriptionError(ctx context.Context, queue string, jobSet string, err string, fromMessageId string) error

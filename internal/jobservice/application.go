@@ -41,7 +41,8 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		[]authorization.AuthService{&authorization.AnonymousAuthService{}},
 	)
 
-	sqlJobRepo := repository.NewSQLJobService(config)
+	sqlJobRepo, dbCallbackFn := repository.NewSQLJobService(config, log)
+	defer dbCallbackFn()
 	sqlJobRepo.Setup(ctx)
 	jobService := server.NewJobService(config, sqlJobRepo)
 	js.RegisterJobServiceServer(grpcServer, jobService)
@@ -52,14 +53,14 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	}
 
 	g.Go(func() error {
-		PurgeJobSets(log, config.PurgeJobSetTime, sqlJobRepo)
+		PurgeJobSets(ctx, log, config.PurgeJobSetTime, sqlJobRepo)
 		return nil
 	})
 	g.Go(func() error {
 		ticker := time.NewTicker(10 * time.Second)
 		for range ticker.C {
 
-			jobSets, err := sqlJobRepo.GetSubscribedJobSets()
+			jobSets, err := sqlJobRepo.GetSubscribedJobSets(ctx)
 			log.Infof("job service has %d subscribed job sets", len(jobSets))
 			if err != nil {
 				logging.WithStacktrace(log, err).Warn("error getting jobsets")
@@ -96,26 +97,28 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	return nil
 }
 
-func PurgeJobSets(log *log.Entry, purgeJobSetTime int64, sqlJobRepo *repository.SQLJobService) {
+func PurgeJobSets(ctx context.Context, log *log.Entry, purgeJobSetTime int64,
+	sqlJobRepo repository.SQLJobService) {
+
 	log.Info("duration config: ", purgeJobSetTime)
 	ticker := time.NewTicker(time.Duration(purgeJobSetTime) * time.Second)
 	for range ticker.C {
-		jobSets, err := sqlJobRepo.GetSubscribedJobSets()
+		jobSets, err := sqlJobRepo.GetSubscribedJobSets(ctx)
 		if err != nil {
 			logging.WithStacktrace(log, err).Warn("error getting jobsets")
 		}
 		for _, value := range jobSets {
 			log.Infof("subscribed job sets : %s", value)
-			unsubscribe, err := sqlJobRepo.CheckToUnSubscribe(value.Queue, value.JobSet, purgeJobSetTime)
+			unsubscribe, err := sqlJobRepo.CheckToUnSubscribe(ctx, value.Queue, value.JobSet, purgeJobSetTime)
 			if err != nil {
 				log.WithError(err).Errorf("Unable to unsubscribe from queue/jobset %s/%s", value.Queue, value.JobSet)
 			}
 			if unsubscribe {
-				_, err := sqlJobRepo.CleanupJobSetAndJobs(value.Queue, value.JobSet)
+				_, err := sqlJobRepo.CleanupJobSetAndJobs(ctx, value.Queue, value.JobSet)
 				if err != nil {
 					logging.WithStacktrace(log, err).Warn("error cleaning up jobs")
 				}
-				_, err = sqlJobRepo.UnsubscribeJobSet(value.Queue, value.JobSet)
+				_, err = sqlJobRepo.UnsubscribeJobSet(ctx, value.Queue, value.JobSet)
 				if err != nil {
 					log.WithError(err).Errorf("unable to delete queue/jobset %s/%s", value.Queue, value.JobSet)
 				}
