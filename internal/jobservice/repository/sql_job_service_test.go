@@ -466,6 +466,10 @@ func WithSqlServiceRepo(action func(r SQLJobService)) {
 	action(repo)
 
 	if config.DatabaseType == "sqlite" {
-		os.Remove("test.db")
+		// Besides the base sqlite storage file (e.g. "test.db"), there
+		// are also two others to be removed ("test.db-shm", "test.db-wal")
+		for _, suffix := range []string{"", "-shm", "-wal"} {
+			os.Remove(config.DatabasePath + suffix)
+		}
 	}
 }
