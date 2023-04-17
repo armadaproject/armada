@@ -98,8 +98,8 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 }
 
 func PurgeJobSets(ctx context.Context, log *log.Entry, purgeJobSetTime int64,
-	sqlJobRepo repository.SQLJobService) {
-
+	sqlJobRepo repository.SQLJobService,
+) {
 	log.Info("duration config: ", purgeJobSetTime)
 	ticker := time.NewTicker(time.Duration(purgeJobSetTime) * time.Second)
 	for range ticker.C {

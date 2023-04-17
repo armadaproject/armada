@@ -8,13 +8,14 @@ import (
 
 	_ "modernc.org/sqlite"
 
-	"github.com/armadaproject/armada/internal/common/database"
-	"github.com/armadaproject/armada/internal/jobservice/configuration"
-	js "github.com/armadaproject/armada/pkg/api/jobservice"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/jobservice/configuration"
+	js "github.com/armadaproject/armada/pkg/api/jobservice"
 )
 
 type JSRepoPostgres struct {
@@ -181,15 +182,15 @@ func (s *JSRepoPostgres) IsJobSetSubscribed(ctx context.Context, queue string, j
 
 // Clear subscription error if present
 func (s *JSRepoPostgres) AddMessageIdAndClearSubscriptionError(ctx context.Context, queue string,
-	jobSet string, fromMessageId string) error {
-
+	jobSet string, fromMessageId string,
+) error {
 	return s.SetSubscriptionError(ctx, queue, jobSet, "", fromMessageId)
 }
 
 // Set subscription error if present
 func (s *JSRepoPostgres) SetSubscriptionError(ctx context.Context, queue string, jobSet string,
-	connErr string, fromMessageId string) error {
-
+	connErr string, fromMessageId string,
+) error {
 	sqlStmt := `INSERT INTO jobsets (Queue, JobSetId, Timestamp, ConnectionError, FromMessageId)
 			VALUES ($1, $2, $3, $4, $5) ON CONFLICT (Queue, JobSetId) DO UPDATE SET
 			(Timestamp, ConnectionError, FromMessageId) =
@@ -223,8 +224,8 @@ func (s *JSRepoPostgres) GetSubscriptionError(ctx context.Context, queue string,
 // Mark our JobSet as being subscribed
 // SubscribeTable contains Queue, JobSet and time when it was created.
 func (s *JSRepoPostgres) SubscribeJobSet(ctx context.Context, queue string, jobSet string,
-	fromMessageId string) error {
-
+	fromMessageId string,
+) error {
 	sqlStmt := `INSERT INTO jobsets (Queue, JobSetId, Timestamp, ConnectionError, FromMessageId)
 			VALUES ($1, $2, $3, $4, $5) ON CONFLICT (Queue, JobSetId) DO UPDATE SET
 			(Timestamp, ConnectionError, FromMessageId) =
@@ -250,8 +251,8 @@ func (s *JSRepoPostgres) CleanupJobSetAndJobs(ctx context.Context, queue string,
 // We allow unsubscribing if the jobset hasn't been updated in configTime
 // TODO implement this
 func (s *JSRepoPostgres) CheckToUnSubscribe(ctx context.Context, queue string, jobSet string,
-	configTimeWithoutUpdates int64) (bool, error) {
-
+	configTimeWithoutUpdates int64,
+) (bool, error) {
 	jobSetFound, _, err := s.IsJobSetSubscribed(ctx, queue, jobSet)
 	if err != nil {
 		return false, nil

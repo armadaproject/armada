@@ -7,9 +7,10 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
 	js "github.com/armadaproject/armada/pkg/api/jobservice"
-	log "github.com/sirupsen/logrus"
 )
 
 type JobTableUpdater interface {

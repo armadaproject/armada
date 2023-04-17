@@ -12,9 +12,10 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
 	js "github.com/armadaproject/armada/pkg/api/jobservice"
-	log "github.com/sirupsen/logrus"
 )
 
 // JSRepoSQLite for persisting to DB.
@@ -213,15 +214,15 @@ func (s *JSRepoSQLite) IsJobSetSubscribed(ctx context.Context, queue string, job
 
 // Clear subscription error if present
 func (s *JSRepoSQLite) AddMessageIdAndClearSubscriptionError(ctx context.Context, queue string,
-	jobSet string, fromMessageId string) error {
-
+	jobSet string, fromMessageId string,
+) error {
 	return s.SetSubscriptionError(ctx, queue, jobSet, "", fromMessageId)
 }
 
 // Set subscription error if present
 func (s *JSRepoSQLite) SetSubscriptionError(ctx context.Context, queue string, jobSet string,
-	connErr string, fromMessageId string) error {
-
+	connErr string, fromMessageId string,
+) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -290,8 +291,8 @@ func (s *JSRepoSQLite) CleanupJobSetAndJobs(ctx context.Context, queue string, j
 // We allow unsubscribing if the jobset hasn't been updated in configTime
 // TODO implement this
 func (s *JSRepoSQLite) CheckToUnSubscribe(ctx context.Context, queue string, jobSet string,
-	configTimeWithoutUpdates int64) (bool, error) {
-
+	configTimeWithoutUpdates int64,
+) (bool, error) {
 	jobSetFound, _, err := s.IsJobSetSubscribed(ctx, queue, jobSet)
 	if err != nil {
 		return false, nil
