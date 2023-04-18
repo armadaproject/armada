@@ -2,6 +2,24 @@ project_name: armada
 
 dist: "dist"
 
+env:
+  - GOPROXY={{ if index .Env "GOPROXY"  }}{{ .Env.GOPROXY }}{{ else }}https://proxy.golang.org,direct{{ end }}
+  - GOSUMDB={{ if index .Env "GOSUMDB"  }}{{ .Env.GOSUMDB }}{{ else }}sum.golang.org{{ end }}
+  # If set, BASE_IMAGE determines the base image used for all containers.
+  - BASE_IMAGE_ARG={{ if index .Env "BASE_IMAGE"  }}BASE_IMAGE={{ .Env.BASE_IMAGE }}{{ else }}{{ end }}
+  - DOCKER_REPO={{ if index .Env "DOCKER_REPO"  }}{{ .Env.DOCKER_REPO }}/{{ else }}gresearch/{{ end }}
+  # Goreleaser always uses the docker buildx builder with name "default"; see
+  # https://github.com/goreleaser/goreleaser/pull/3199
+  # To use a builder other than "default", set this variable.
+  # Necessary for, e.g., GitHub actions cache integration.
+  - DOCKER_BUILDX_BUILDER={{ if index .Env "DOCKER_BUILDX_BUILDER"  }}{{ .Env.DOCKER_BUILDX_BUILDER }}{{ else }}default{{ end }}
+  # Setup to enable Docker to use, e.g., the GitHub actions cache; see
+  # https://docs.docker.com/build/building/cache/backends/
+  # https://github.com/moby/buildkit#export-cache
+  - DOCKER_BUILDX_CACHE_FROM={{ if index .Env "DOCKER_BUILDX_CACHE_FROM"  }}{{ .Env.DOCKER_BUILDX_CACHE_FROM }}{{ else }}type=registry{{ end }}
+  - DOCKER_BUILDX_CACHE_TO={{ if index .Env "DOCKER_BUILDX_CACHE_TO"  }}{{ .Env.DOCKER_BUILDX_CACHE_TO }}{{ else }}type=inline{{ end }}
+
+
 builds:
   - env: [CGO_ENABLED=0]
     id: server
@@ -112,23 +130,6 @@ universal_binaries:
   - replace: true
     id: armadactl
     name_template: 'armadactl'
-
-env:
-  - GOPROXY={{ if index .Env "GOPROXY"  }}{{ .Env.GOPROXY }}{{ else }}https://proxy.golang.org,direct{{ end }}
-  - GOSUMDB={{ if index .Env "GOSUMDB"  }}{{ .Env.GOSUMDB }}{{ else }}sum.golang.org{{ end }}
-  # If set, BASE_IMAGE determines the base image used for all containers.
-  - BASE_IMAGE_ARG={{ if index .Env "BASE_IMAGE"  }}BASE_IMAGE={{ .Env.BASE_IMAGE }}{{ else }}{{ end }}
-  - DOCKER_REPO={{ if index .Env "DOCKER_REPO"  }}{{ .Env.DOCKER_REPO }}/{{ else }}gresearch/{{ end }}
-  # Goreleaser always uses the docker buildx builder with name "default"; see
-  # https://github.com/goreleaser/goreleaser/pull/3199
-  # To use a builder other than "default", set this variable.
-  # Necessary for, e.g., GitHub actions cache integration.
-  - DOCKER_BUILDX_BUILDER={{ if index .Env "DOCKER_BUILDX_BUILDER"  }}{{ .Env.DOCKER_BUILDX_BUILDER }}{{ else }}default{{ end }}
-  # Setup to enable Docker to use, e.g., the GitHub actions cache; see
-  # https://docs.docker.com/build/building/cache/backends/
-  # https://github.com/moby/buildkit#export-cache
-  - DOCKER_BUILDX_CACHE_FROM={{ if index .Env "DOCKER_BUILDX_CACHE_FROM"  }}{{ .Env.DOCKER_BUILDX_CACHE_FROM }}{{ else }}type=registry{{ end }}
-  - DOCKER_BUILDX_CACHE_TO={{ if index .Env "DOCKER_BUILDX_CACHE_TO"  }}{{ .Env.DOCKER_BUILDX_CACHE_TO }}{{ else }}type=inline{{ end }}
 
 dockers:
   - id: bundle
@@ -373,6 +374,9 @@ dockers:
 
 checksum:
   name_template: "checksums.txt"
+
+publish:
+  disable: true
 
 snapshot:
   name_template: "{{ .Version }}"
