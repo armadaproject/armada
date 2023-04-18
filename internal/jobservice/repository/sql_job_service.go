@@ -3,6 +3,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	_ "modernc.org/sqlite"
@@ -43,14 +44,14 @@ type SQLJobService interface {
 	UpdateJobSetDb(ctx context.Context, queue string, jobSet string, fromMessageId string) error
 }
 
-func NewSQLJobService(cfg *configuration.JobServiceConfiguration, log *log.Entry) (SQLJobService, func()) {
+func NewSQLJobService(cfg *configuration.JobServiceConfiguration, log *log.Entry) (error, SQLJobService, func()) {
 	if cfg.DatabaseType == "postgres" {
 		return NewJSRepoPostgres(cfg, log)
 	} else if cfg.DatabaseType == "sqlite" {
 		return NewJSRepoSQLite(cfg, log)
 	}
 
-	return nil, func() {}
+	return errors.New("database type must be either 'postgres' or 'sqlite'"), nil, func() {}
 }
 
 type SubscribedTuple struct {

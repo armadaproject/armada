@@ -4,6 +4,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,23 +26,24 @@ type JSRepoSQLite struct {
 	lock             sync.RWMutex
 }
 
-func NewJSRepoSQLite(config *configuration.JobServiceConfiguration, log *log.Entry) (*JSRepoSQLite, func()) {
+func NewJSRepoSQLite(config *configuration.JobServiceConfiguration, log *log.Entry) (error, *JSRepoSQLite, func()) {
 	var err error
-	log.Info("using sqlite")
 
 	dbDir := filepath.Dir(config.DatabasePath)
 	if _, err := os.Stat(dbDir); os.IsNotExist(err) {
 		if errMkDir := os.Mkdir(dbDir, 0o755); errMkDir != nil {
-			log.Fatalf("error: could not make directory at %s for sqlite db: %v", dbDir, errMkDir)
+			errMsg := fmt.Sprintf("error: could not make directory at %s for sqlite db: %v", dbDir, errMkDir)
+			return errors.New(errMsg), nil, func() {}
 		}
 	}
 
 	sqliteDb, err := sql.Open("sqlite", config.DatabasePath)
 	if err != nil {
-		log.Fatalf("error opening sqlite DB from %s %v", config.DatabasePath, err)
+		errMsg := fmt.Sprintf("error opening sqlite DB from %s %v", config.DatabasePath, err)
+		return errors.New(errMsg), nil, func() {}
 	}
 
-	return &JSRepoSQLite{jobServiceConfig: config, db: sqliteDb}, func() {
+	return nil, &JSRepoSQLite{jobServiceConfig: config, db: sqliteDb}, func() {
 		if err := sqliteDb.Close(); err != nil {
 			log.Warnf("error closing database: %v", err)
 		}

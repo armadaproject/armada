@@ -23,22 +23,18 @@ type JSRepoPostgres struct {
 	dbpool           *pgxpool.Pool
 }
 
-func NewJSRepoPostgres(cfg *configuration.JobServiceConfiguration, log *log.Entry) (*JSRepoPostgres, func()) {
-	log.Info("using postgres")
-
+func NewJSRepoPostgres(cfg *configuration.JobServiceConfiguration, log *log.Entry) (error, *JSRepoPostgres, func()) {
 	poolCfg, err := pgxpool.ParseConfig(database.CreateConnectionString(cfg.PostgresConfig.Connection))
 	if err != nil {
-		log.Error(errors.Wrap(err, "cannot parse Postgres connection config"))
-		return nil, func() {}
+		return errors.Wrap(err, "cannot parse Postgres connection config"), nil, func() {}
 	}
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), poolCfg)
 	if err != nil {
-		log.Error(errors.Wrap(err, "cannot create Postgres connection pool"))
-		return nil, func() {}
+		return errors.Wrap(err, "cannot create Postgres connection pool"), nil, func() {}
 	}
 
-	return &JSRepoPostgres{jobServiceConfig: cfg, dbpool: pool}, func() {}
+	return nil, &JSRepoPostgres{jobServiceConfig: cfg, dbpool: pool}, func() {}
 }
 
 // Set up the DB for use, create tables

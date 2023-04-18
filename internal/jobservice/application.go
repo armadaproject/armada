@@ -41,7 +41,10 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		[]authorization.AuthService{&authorization.AnonymousAuthService{}},
 	)
 
-	sqlJobRepo, dbCallbackFn := repository.NewSQLJobService(config, log)
+	err, sqlJobRepo, dbCallbackFn := repository.NewSQLJobService(config, log)
+	if err != nil {
+		panic(err)
+	}
 	defer dbCallbackFn()
 	sqlJobRepo.Setup(ctx)
 	jobService := server.NewJobService(config, sqlJobRepo)

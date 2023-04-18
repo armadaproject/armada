@@ -430,17 +430,12 @@ func TestConcurrentJobStatusUpdating(t *testing.T) {
 func WithSqlServiceRepo(action func(r SQLJobService)) {
 	var repo SQLJobService
 	config := &configuration.JobServiceConfiguration{}
+	log := log.WithField("JobService", "Startup")
 
-	// If JSDBTYPE is not specified in the environment, default to 'sqlite'
-	jsDatabase := "sqlite"
-	if os.Getenv("JSDBTYPE") == "postgres" {
-		jsDatabase = "postgres"
-	}
-
-	if jsDatabase == "sqlite" {
+	if os.Getenv("JSDBTYPE") == "sqlite" {
 		config.DatabaseType = "sqlite"
 		config.DatabasePath = "test.db"
-	} else if jsDatabase == "postgres" {
+	} else if os.Getenv("JSDBTYPE") == "postgres" {
 		config.DatabaseType = "postgres"
 		config.PostgresConfig = configuration.PostgresConfig{
 			PoolMaxOpenConns:    20,
@@ -457,9 +452,10 @@ func WithSqlServiceRepo(action func(r SQLJobService)) {
 		}
 	}
 
-	log := log.WithField("JobService", "Startup")
-
-	repo, dbCallbackFn := NewSQLJobService(config, log)
+	err, repo, dbCallbackFn := NewSQLJobService(config, log)
+	if err != nil {
+		panic(err)
+	}
 	defer dbCallbackFn()
 
 	repo.Setup(context.Background())
