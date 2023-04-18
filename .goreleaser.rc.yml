@@ -19,7 +19,6 @@ env:
   - DOCKER_BUILDX_CACHE_FROM={{ if index .Env "DOCKER_BUILDX_CACHE_FROM"  }}{{ .Env.DOCKER_BUILDX_CACHE_FROM }}{{ else }}type=registry{{ end }}
   - DOCKER_BUILDX_CACHE_TO={{ if index .Env "DOCKER_BUILDX_CACHE_TO"  }}{{ .Env.DOCKER_BUILDX_CACHE_TO }}{{ else }}type=inline{{ end }}
 
-
 builds:
   - env: [CGO_ENABLED=0]
     id: server
@@ -88,6 +87,24 @@ builds:
     id: eventingester
     binary: eventingester
     main: ./cmd/eventingester/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: scheduler
+    binary: scheduler
+    main: ./cmd/scheduler/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: scheduleringester
+    binary: scheduleringester
+    main: ./cmd/scheduleringester/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
     goos:
       - linux
@@ -207,6 +224,8 @@ dockers:
       - lookoutingester
       - lookoutingesterv2
       - eventingester
+      - scheduler
+      - scheduleringester
       - jobservice
     extra_files:
       - config/armada/config.yaml
@@ -217,6 +236,8 @@ dockers:
       - config/lookoutingester/config.yaml
       - config/lookoutv2/config.yaml
       - config/lookoutingesterv2/config.yaml
+      - config/scheduler/config.yaml
+      - config/scheduleringester/config.yaml
       - config/jobservice/config.yaml
       - internal/lookout/ui
       - pkg/api/api.swagger.json
@@ -345,6 +366,34 @@ dockers:
     extra_files:
       - config/binoculars/config.yaml
     dockerfile: ./build_goreleaser/binoculars/Dockerfile
+
+  - id: scheduler
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-scheduler:{{ .Version }}"
+      - "{{ .Env.DOCKER_REPO }}armada-scheduler:latest"
+    build_flag_templates: *BUILD_FLAG_TEMPLATES
+    ids:
+      - scheduler
+    extra_files:
+      - config/scheduler/config.yaml
+    dockerfile: ./build_goreleaser/scheduler/Dockerfile
+
+  - id: scheduleringester
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-scheduleringester:{{ .Version }}"
+      - "{{ .Env.DOCKER_REPO }}armada-scheduleringester:latest"
+    build_flag_templates: *BUILD_FLAG_TEMPLATES
+    ids:
+      - scheduleringester
+    extra_files:
+      - config/scheduleringester/config.yaml
+    dockerfile: ./build_goreleaser/scheduleringester/Dockerfile
 
   - id: jobservice
     use: buildx
