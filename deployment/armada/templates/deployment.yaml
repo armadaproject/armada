@@ -24,9 +24,10 @@ spec:
     spec:
       terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
       serviceAccountName: {{ .Values.customServiceAccount | default (include "armada.name" .) }}
+      {{- if .Values.podSecurityContext }}
       securityContext:
-        runAsUser: 1000
-        runAsGroup: 2000
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- end }}
       containers:
         - name: armada
           imagePullPolicy: IfNotPresent
@@ -34,9 +35,15 @@ spec:
           args:
             - --config
             - /config/application_config.yaml
-          {{- if .Values.env }}
+          {{- if or (include "armada.gomemlimit" .) .Values.env}}
           env:
-            {{- toYaml .Values.env | nindent 12 -}}
+            {{- with include "armada.gomemlimit" . }}
+            - name: GOMEMLIMIT
+              value: {{ quote . }}
+            {{- end }}
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 -}}
+            {{- end }}
           {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
@@ -68,8 +75,10 @@ spec:
             {{- if .Values.additionalVolumeMounts }}
             {{- toYaml .Values.additionalVolumeMounts | nindent 12 -}}
             {{- end }}
+          {{- if .Values.containerSecurityContext }}
           securityContext:
-            allowPrivilegeEscalation: false
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          {{- end }}
           readinessProbe:
             httpGet:
               path: /health
@@ -103,7 +112,7 @@ spec:
         {{- if .Values.applicationConfig.pulsar.authenticationEnabled }}
         - name: pulsar-token
           secret:
-            secretName: {{ .Values.applicationConfig.pulsar.authenticationSecret | default "armada-pulsar-token-armada-admin" | quote }}
+            secretName: {{ .Values.applicationConfig.pulsar.authenticationSecret | quote }}
             items:
               - key: TOKEN
                 path: pulsar-token
@@ -111,7 +120,7 @@ spec:
         {{- if .Values.applicationConfig.pulsar.tlsEnabled }}
         - name: pulsar-ca
           secret:
-            secretName: {{ .Values.applicationConfig.pulsar.cacert | default "armada-pulsar-ca-tls" | quote }}
+            secretName: {{ .Values.applicationConfig.pulsar.cacert | quote }}
             items:
               - key: ca.crt
                 path: ca.crt
