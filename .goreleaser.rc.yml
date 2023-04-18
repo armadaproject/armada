@@ -424,7 +424,7 @@ dockers:
 checksum:
   name_template: "checksums.txt"
 
-publish:
+release:
   disable: true
 
 snapshot:
