@@ -18,6 +18,7 @@ var baseJobRun = CreateRun(
 	false,
 	false,
 	false,
+	false,
 )
 
 // Test methods that only have getters
@@ -53,9 +54,15 @@ func TestJobRun_TestCancelled(t *testing.T) {
 }
 
 func TestJobRun_TestReturned(t *testing.T) {
-	cancelledRun := baseJobRun.WithReturned(true)
+	returnedRun := baseJobRun.WithReturned(true)
 	assert.False(t, baseJobRun.Returned())
-	assert.True(t, cancelledRun.Returned())
+	assert.True(t, returnedRun.Returned())
+}
+
+func TestJobRun_TestRunAttempted(t *testing.T) {
+	attemptedRun := baseJobRun.WithAttempted(true)
+	assert.False(t, baseJobRun.RunAttempted())
+	assert.True(t, attemptedRun.RunAttempted())
 }
 
 func TestDeepCopy(t *testing.T) {
@@ -70,6 +77,7 @@ func TestDeepCopy(t *testing.T) {
 		true,
 		true,
 		true,
+		true,
 	)
 	expected := CreateRun(
 		run.id,
@@ -77,6 +85,7 @@ func TestDeepCopy(t *testing.T) {
 		1,
 		"executor",
 		"node",
+		true,
 		true,
 		true,
 		true,

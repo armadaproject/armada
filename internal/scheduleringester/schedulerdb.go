@@ -2,6 +2,8 @@ package scheduleringester
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -81,6 +83,52 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 				return errors.WithStack(err)
 			}
 		}
+	case UpdateJobSchedulingInfo:
+		args := make([]interface{}, 0, len(o)*3)
+		argMarkers := make([]string, 0, len(o))
+
+		currentIndex := 1
+		for key, value := range o {
+			args = append(args, key)
+			args = append(args, value.JobSchedulingInfo)
+			args = append(args, value.JobSchedulingInfoVersion)
+			argMarkers = append(argMarkers, fmt.Sprintf("($%d, $%d::bytea, $%d::int)", currentIndex, currentIndex+1, currentIndex+2))
+			currentIndex += 3
+		}
+
+		argMarkersString := strings.Join(argMarkers, ",")
+		updateJobInfoSqlStatement := fmt.Sprintf(
+			`update jobs as j set  scheduling_info = updated.scheduling_info, scheduling_info_version = updated.scheduling_info_version
+				 from (values %s) as updated(job_id, scheduling_info, scheduling_info_version)
+                 where j.job_id = updated.job_id and updated.scheduling_info_version > j.scheduling_info_version`, argMarkersString)
+
+		_, err := s.db.Exec(ctx, updateJobInfoSqlStatement, args...)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	case UpdateJobQueuedState:
+		args := make([]interface{}, 0, len(o)*3)
+		argMarkers := make([]string, 0, len(o))
+
+		currentIndex := 1
+		for key, value := range o {
+			args = append(args, key)
+			args = append(args, value.Queued)
+			args = append(args, value.QueuedStateVersion)
+			argMarkers = append(argMarkers, fmt.Sprintf("($%d, $%d::bool, $%d::int)", currentIndex, currentIndex+1, currentIndex+2))
+			currentIndex += 3
+		}
+
+		argMarkersString := strings.Join(argMarkers, ",")
+		updateQueuedStateSqlStatement := fmt.Sprintf(
+			`update jobs as j set  queued = updated.queued, queued_version = updated.queued_version
+				 from (values %s) as updated(job_id, queued, queued_version)
+				 where j.job_id = updated.job_id and updated.queued_version > j.queued_version`, argMarkersString)
+
+		_, err := s.db.Exec(ctx, updateQueuedStateSqlStatement, args...)
+		if err != nil {
+			return errors.WithStack(err)
+		}
 	case MarkJobSetsCancelRequested:
 		jobSets := maps.Keys(o)
 		err := queries.MarkJobsCancelRequestedBySets(ctx, jobSets)
@@ -132,9 +180,13 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 	case MarkRunsFailed:
 		runIds := maps.Keys(o)
 		returned := make([]uuid.UUID, 0, len(runIds))
+		runAttempted := make([]uuid.UUID, 0, len(runIds))
 		for k, v := range o {
 			if v.LeaseReturned {
 				returned = append(returned, k)
+			}
+			if v.RunAttempted {
+				runAttempted = append(runAttempted, k)
 			}
 		}
 		err := queries.MarkJobRunsFailedById(ctx, runIds)
@@ -142,6 +194,10 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			return errors.WithStack(err)
 		}
 		err = queries.MarkJobRunsReturnedById(ctx, returned)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		err = queries.MarkJobRunsAttemptedById(ctx, runAttempted)
 		if err != nil {
 			return errors.WithStack(err)
 		}
