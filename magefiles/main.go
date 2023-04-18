@@ -111,6 +111,7 @@ func BuildCICluster() {
 // run integration test
 func CiIntegrationTests() {
 	mg.Deps(BuildCICluster)
+	time.Sleep(120 * time.Second)
 	mg.Deps(ciRunTests)
 }
 

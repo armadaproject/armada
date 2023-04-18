@@ -57,7 +57,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 			case <-ctx.Done():
 				return nil
 			case t := <-ticker.C:
-				jobSetFound, oldMessageId, err := eventToJobService.jobServiceRepository.IsJobSetSubscribed(eventToJobService.queue, eventToJobService.jobSetId)
+				jobSetFound, oldMessageId, err := eventToJobService.jobServiceRepository.IsJobSetSubscribed(ctx, eventToJobService.queue, eventToJobService.jobSetId)
 				if err != nil {
 					return errors.Errorf("unsubscribe jobsets: %v", err)
 				}
@@ -104,7 +104,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 				if err != nil {
 					log.WithError(err).Error("could not obtain job set event message, retrying")
 					settingSubscribeErr := eventToJobService.jobServiceRepository.SetSubscriptionError(
-						eventToJobService.queue, eventToJobService.jobSetId, err.Error(), fromMessageId)
+						ctx, eventToJobService.queue, eventToJobService.jobSetId, err.Error(), fromMessageId)
 					if settingSubscribeErr != nil {
 						log.WithError(settingSubscribeErr).Error("could not set error field in job set table")
 					}
@@ -112,7 +112,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 					continue
 				}
 				errClear := eventToJobService.jobServiceRepository.AddMessageIdAndClearSubscriptionError(
-					eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
+					ctx, eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
 				if errClear != nil {
 					log.WithError(errClear).Error("could not clear subscription error from job set table")
 				}
@@ -123,7 +123,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 						log.WithFields(requestFields).Infof("fromMessageId: %s JobId: %s State: %s", fromMessageId, currentJobId, jobStatus.GetState().String())
 					}
 					jobStatus := repository.NewJobStatus(eventToJobService.queue, eventToJobService.jobSetId, currentJobId, *jobStatus)
-					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(jobStatus)
+					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(ctx, jobStatus)
 					if err != nil {
 						log.WithError(err).Error("could not update job status, retrying")
 						time.Sleep(5 * time.Second)
