@@ -376,7 +376,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		for _, job := range jobs {
 			nodeIdByJobId[job.Id] = node.Id
 		}
-
 		nodes = append(nodes, node)
 	}
 	indexedResources := q.schedulingConfig.IndexedResources

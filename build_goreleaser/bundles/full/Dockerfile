@@ -3,9 +3,9 @@ ARG OPENAPI_BUILD_IMAGE=openapitools/openapi-generator-cli:v5.4.0
 ARG BASE_IMAGE=alpine:3.17.0
 
 FROM ${OPENAPI_BUILD_IMAGE} AS OPENAPI
-LABEL org.opencontainers.image.title=demo-bundle
-LABEL org.opencontainers.image.description="Demo Bundle"
-LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/demo-bundle
+LABEL org.opencontainers.image.title=armada-full-bundle
+LABEL org.opencontainers.image.description="Armada Full Bundle"
+LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-full-bundle
 COPY internal/lookout/ui /project/internal/lookout/ui
 COPY pkg/api/lookout/*.swagger.json /project/pkg/api/lookout/
 COPY pkg/api/*.swagger.json /project/pkg/api/
@@ -23,7 +23,7 @@ RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
 USER armada
 COPY --from=NODE /ui/build/ /app/internal/lookout/ui/build
 
-COPY server executor binoculars lookout lookoutingester eventingester lookoutingesterv2 lookoutv2 jobservice /app/
+COPY server executor binoculars lookout lookoutingester eventingester lookoutingesterv2 lookoutv2 jobservice armadactl /app/
 COPY config/ /app/config/
 
 WORKDIR /app
