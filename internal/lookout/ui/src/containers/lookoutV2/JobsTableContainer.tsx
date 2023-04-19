@@ -40,7 +40,7 @@ import { Sidebar } from "components/lookoutV2/sidebar/Sidebar"
 import { columnIsAggregatable, useFetchJobsTableData } from "hooks/useJobsTableData"
 import _ from "lodash"
 import { JobTableRow, isJobGroupRow, JobRow } from "models/jobsTableModels"
-import { Job, JobFilter, JobId } from "models/lookoutV2Models"
+import { Job, JobFilter, JobId, Match, SortDirection } from "models/lookoutV2Models"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGetRunErrorService } from "services/lookoutV2/GetRunErrorService"
@@ -50,6 +50,7 @@ import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import {
   ColumnId,
   createAnnotationColumn,
+  DEFAULT_COLUMN_MATCHES,
   getAnnotationKeyCols,
   JOB_COLUMNS,
   JobTableColumn,
@@ -81,6 +82,63 @@ interface JobsTableContainerProps {
   jobSpecService: IGetJobSpecService
   logService: ILogService
   debug: boolean
+}
+
+export type LookoutColumnFilter = {
+  id: string
+  value: string | number | string[] | number[]
+  match: Match
+}
+
+export type LookoutColumnOrder = {
+  id: string
+  direction: SortDirection
+}
+
+function toLookoutFilter(columnFilterState: ColumnFiltersState, matchTypes: Map<string, Match>): LookoutColumnFilter[] {
+  return columnFilterState.map((colFilter) => {
+    let match: Match = Match.StartsWith // base case if undefined (annotations)
+    if (DEFAULT_COLUMN_MATCHES.has(colFilter.id)) {
+      match = DEFAULT_COLUMN_MATCHES.get(colFilter.id) as Match
+    }
+    if (matchTypes.has(colFilter.id)) {
+      match = matchTypes.get(colFilter.id) as Match
+    }
+    return {
+      id: colFilter.id,
+      value: colFilter.value as string | number | string[] | number[],
+      match: match,
+    }
+  })
+}
+
+function fromLookoutFilters(lookoutFilters: LookoutColumnFilter[]): ColumnFiltersState {
+  return lookoutFilters.map((lookoutFilter) => ({
+    id: lookoutFilter.id,
+    value: lookoutFilter.value,
+  }))
+}
+
+function toLookoutOrder(sortingState: SortingState): LookoutColumnOrder {
+  if (sortingState.length === 0) {
+    return {
+      id: StandardColumnId.JobID,
+      direction: "DESC",
+    }
+  }
+  return {
+    id: sortingState[0].id,
+    direction: sortingState[0].desc ? "DESC" : "ASC",
+  }
+}
+
+function fromLookoutOrder(lookoutOrder: LookoutColumnOrder): SortingState {
+  return [
+    {
+      id: lookoutOrder.id,
+      desc: lookoutOrder.direction === "DESC",
+    },
+  ]
 }
 
 export const JobsTableContainer = ({
@@ -137,10 +195,12 @@ export const JobsTableContainer = ({
   const { pageIndex, pageSize } = useMemo(() => pagination, [pagination])
 
   // Filtering
-  const [columnFilterState, setColumnFilterState] = useState<ColumnFiltersState>(initialPrefs.filterState)
+  const [lookoutFilters, setLookoutFilters] = useState<LookoutColumnFilter[]>(initialPrefs.filters)
+  const [columnFilterState, setColumnFilterState] = useState<ColumnFiltersState>(fromLookoutFilters(lookoutFilters))
 
   // Sorting
-  const [sorting, setSorting] = useState<SortingState>(initialPrefs.sortingState)
+  const [lookoutOrder, setLookoutOrder] = useState<LookoutColumnOrder>(initialPrefs.order)
+  const [sorting, setSorting] = useState<SortingState>(fromLookoutOrder(lookoutOrder))
 
   // Data
   const { data, jobInfoMap, pageCount, rowsToFetch, setRowsToFetch, totalRowCount } = useFetchJobsTableData({
@@ -148,8 +208,8 @@ export const JobsTableContainer = ({
     visibleColumns: visibleColumnIds,
     expandedState: expanded,
     paginationState: pagination,
-    sortingState: sorting,
-    columnFilters: columnFilterState,
+    lookoutOrder: lookoutOrder,
+    lookoutFilters: lookoutFilters,
     allColumns,
     selectedRows,
     updateSelectedRows: setSelectedRows,
@@ -190,9 +250,9 @@ export const JobsTableContainer = ({
       expandedState: expanded,
       pageIndex,
       pageSize,
-      sortingState: sorting,
+      order: lookoutOrder,
       columnSizing: columnSizing,
-      filterState: columnFilterState,
+      filters: lookoutFilters,
       annotationColumnKeys: getAnnotationKeyCols(allColumns),
       visibleColumns: columnVisibility,
       sidebarJobId: sidebarJobId,
@@ -306,27 +366,22 @@ export const JobsTableContainer = ({
     setLastSelectedRow(row)
   }
 
-  const onFilterChange = useCallback(
-    (updater: Updater<ColumnFiltersState>) => {
-      const newFilterState = updaterToValue(updater, columnFilterState)
-      setColumnFilterState(newFilterState)
-      setSelectedRows({})
-      setSidebarJobId(undefined)
-      setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
-    },
-    [columnFilterState, expanded, data, pageSize],
-  )
+  const onFilterChange = (updater: Updater<ColumnFiltersState>) => {
+    const newFilterState = updaterToValue(updater, columnFilterState)
+    setLookoutFilters(toLookoutFilter(newFilterState, DEFAULT_COLUMN_MATCHES))
+    setColumnFilterState(newFilterState)
+    setSelectedRows({})
+    setSidebarJobId(undefined)
+    setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
+  }
 
-  const onSortingChange = useCallback(
-    (updater: Updater<SortingState>) => {
-      const newSortingState = updaterToValue(updater, sorting)
-      setSorting(newSortingState)
-
-      // Refetch any expanded subgroups, and root data with updated sorting params
-      setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
-    },
-    [sorting, expanded, pageIndex, pageSize, data],
-  )
+  const onSortingChange = (updater: Updater<SortingState>) => {
+    const newSortingState = updaterToValue(updater, sorting)
+    setLookoutOrder(toLookoutOrder(newSortingState))
+    setSorting(newSortingState)
+    // Refetch any expanded subgroups, and root data with updated sorting params
+    setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
+  }
 
   const onColumnSizingChange = useCallback(
     (updater: Updater<ColumnSizingState>) => {
@@ -347,9 +402,9 @@ export const JobsTableContainer = ({
   const selectedItemsFilters: JobFilter[][] = useMemo(() => {
     return Object.keys(selectedRows).map((rowId) => {
       const { rowIdPartsPath } = fromRowId(rowId as RowId)
-      return getFiltersForRows(columnFilterState, allColumns, rowIdPartsPath)
+      return getFiltersForRows(lookoutFilters, rowIdPartsPath)
     })
-  }, [selectedRows, columnFilterState, allColumns])
+  }, [selectedRows, columnFilterState, lookoutFilters, allColumns])
 
   const table = useReactTable({
     data: data ?? [],

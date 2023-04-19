@@ -137,13 +137,15 @@ export function getMatch(match: Match): (a: any, b: any) => boolean {
       return (a, b) => a === b
     case "startsWith":
       return (a, b) => isString(a) && isString(b) && a.startsWith(b)
-    case "greater":
+    case "contains":
+      return (a, b) => isString(a) && isString(b) && a.includes(b)
+    case "greaterThan":
       return (a, b) => a > b
-    case "less":
+    case "lessThan":
       return (a, b) => a < b
-    case "greaterOrEqual":
+    case "greaterThanOrEqualTo":
       return (a, b) => a >= b
-    case "lessOrEqual":
+    case "lessThanOrEqualTo":
       return (a, b) => a <= b
     case "anyOf":
       return (a, b) => b.includes(a)

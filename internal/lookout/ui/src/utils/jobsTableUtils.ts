@@ -1,11 +1,12 @@
-import { ColumnFiltersState, ExpandedStateList, Updater } from "@tanstack/react-table"
+import { ExpandedStateList, Updater } from "@tanstack/react-table"
 import _ from "lodash"
 import { JobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobGroup, JobOrder, Match } from "models/lookoutV2Models"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 
-import { ColumnId, getColumnMetadata, JobTableColumn } from "./jobsTableColumns"
+import { LookoutColumnFilter } from "../containers/lookoutV2/JobsTableContainer"
+import { AnnotationColumnId, ColumnId, fromAnnotationColId, isStandardColId } from "./jobsTableColumns"
 import { findRowInData, RowId, RowIdParts, toRowId } from "./reactTableUtils"
 
 export interface PendingData {
@@ -40,25 +41,23 @@ export const pendingDataForAllVisibleData = (
   return [rootData].concat(expandedGroups)
 }
 
-export function getFiltersForRows(
-  filters: ColumnFiltersState,
-  columns: JobTableColumn[],
-  expandedRowIdParts: RowIdParts[],
-): JobFilter[] {
+export function getFiltersForRows(filters: LookoutColumnFilter[], expandedRowIdParts: RowIdParts[]): JobFilter[] {
   const filterColumnsIndexes = new Map<string, number>()
-  const jobFilters = filters.map(({ id, value }, i) => {
+  const jobFilters = filters.map(({ id, value, match }, i) => {
     const isArray = _.isArray(value)
-    const columnInfo = columns.find((col) => col.id === id)
-    const metadata = columnInfo ? getColumnMetadata(columnInfo) : undefined
-    const field = metadata?.annotation?.annotationKey ?? id
+    const isAnnotation = !isStandardColId(id)
+    let field = id
+    if (isAnnotation) {
+      field = fromAnnotationColId(id as AnnotationColumnId)
+    }
 
     filterColumnsIndexes.set(field, i)
 
     return {
-      isAnnotation: Boolean(metadata?.annotation),
+      isAnnotation: isAnnotation,
       field: field,
       value: isArray ? (value as string[]) : (value as string),
-      match: metadata?.defaultMatchType ?? (isArray ? Match.AnyOf : Match.StartsWith),
+      match: match,
     }
   })
 
