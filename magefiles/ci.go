@@ -18,7 +18,16 @@ func ciSetup() error {
 
 	mg.Deps(CheckForPulsarRunning)
 
-	err = dockerComposeRun("up", "-d", "server", "executor")
+	// By starting the executor first,
+	// we can ensure that the server will be able to connect to it
+	// on its first attempt.
+	err = dockerComposeRun("up", "-d", "executor")
+	if err != nil {
+		return err
+	}
+	time.Sleep(15 * time.Second)
+
+	err = dockerComposeRun("up", "-d", "server")
 	if err != nil {
 		return err
 	}
@@ -27,8 +36,6 @@ func ciSetup() error {
 	if err != nil {
 		return err
 	}
-
-	time.Sleep(15 * time.Second)
 
 	return nil
 }
