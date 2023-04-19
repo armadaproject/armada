@@ -1,21 +1,25 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react"
 
 import {
-  TableContainer,
+  Box,
+  Button,
+  CircularProgress,
   Paper,
   Table,
-  TableHead,
-  TableRow,
-  TableCell,
   TableBody,
-  CircularProgress,
-  TablePagination,
+  TableCell,
+  TableContainer,
   TableFooter,
-  Button,
-  Box,
+  TableHead,
+  TablePagination,
+  TableRow,
 } from "@mui/material"
 import {
   ColumnDef,
+  ColumnFiltersState,
+  ColumnResizeMode,
+  ColumnSizingState,
+  ExpandedState,
   ExpandedStateList,
   getCoreRowModel,
   getExpandedRowModel,
@@ -24,14 +28,10 @@ import {
   PaginationState,
   Row,
   RowSelectionState,
-  useReactTable,
-  Updater,
-  ExpandedState,
-  ColumnFiltersState,
   SortingState,
+  Updater,
+  useReactTable,
   VisibilityState,
-  ColumnResizeMode,
-  ColumnSizingState,
 } from "@tanstack/react-table"
 import { JobsTableActionBar } from "components/lookoutV2/JobsTableActionBar"
 import { HeaderCell } from "components/lookoutV2/JobsTableCell"
@@ -39,7 +39,7 @@ import { JobsTableRow } from "components/lookoutV2/JobsTableRow"
 import { Sidebar } from "components/lookoutV2/sidebar/Sidebar"
 import { columnIsAggregatable, useFetchJobsTableData } from "hooks/useJobsTableData"
 import _ from "lodash"
-import { JobTableRow, isJobGroupRow, JobRow } from "models/jobsTableModels"
+import { isJobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobId, Match, SortDirection } from "models/lookoutV2Models"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
@@ -55,14 +55,15 @@ import {
   JOB_COLUMNS,
   JobTableColumn,
   StandardColumnId,
+  toAnnotationColId,
   toColId,
 } from "utils/jobsTableColumns"
 import {
   diffOfKeys,
-  updaterToValue,
-  pendingDataForAllVisibleData,
-  PendingData,
   getFiltersForRows,
+  PendingData,
+  pendingDataForAllVisibleData,
+  updaterToValue,
 } from "utils/jobsTableUtils"
 import { fromRowId, RowId } from "utils/reactTableUtils"
 
@@ -278,23 +279,66 @@ export const JobsTableContainer = ({
     setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
   }, [expanded, data, pageSize, pageIndex])
 
-  const onColumnVisibilityChange = useCallback(
-    (colIdToToggle: ColumnId) => {
-      // Refresh if we make a new aggregate column visible
-      let shouldRefresh = false
-      if (columnIsAggregatable(colIdToToggle) && grouping.length > 0 && !visibleColumnIds.includes(colIdToToggle)) {
-        shouldRefresh = true
+  const onColumnVisibilityChange = (colIdToToggle: ColumnId) => {
+    // Refresh if we make a new aggregate column visible
+    let shouldRefresh = false
+    if (columnIsAggregatable(colIdToToggle) && grouping.length > 0 && !visibleColumnIds.includes(colIdToToggle)) {
+      shouldRefresh = true
+    }
+    setColumnVisibility({
+      ...columnVisibility,
+      [colIdToToggle]: !columnVisibility[colIdToToggle],
+    })
+    if (shouldRefresh) {
+      setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
+    }
+  }
+
+  const colIsVisible = (column: ColumnId): boolean => {
+    return column in columnVisibility && columnVisibility[column]
+  }
+
+  const addAnnotationCol = (annotationKey: string) => {
+    for (const col of allColumns) {
+      if (col.id === toAnnotationColId(annotationKey)) {
+        throw new Error(`annotation column "${annotationKey}" already exists`)
       }
-      setColumnVisibility({
-        ...columnVisibility,
-        [colIdToToggle]: !columnVisibility[colIdToToggle],
-      })
-      if (shouldRefresh) {
-        setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
+    }
+
+    const annotationCol = createAnnotationColumn(annotationKey)
+    const newCols = allColumns.concat([annotationCol])
+    setAllColumns(newCols)
+    if (annotationCol.id) {
+    }
+    if (!colIsVisible(toColId(annotationCol.id))) {
+      onColumnVisibilityChange(toColId(annotationCol.id))
+    }
+  }
+
+  const removeAnnotationCol = (colId: ColumnId) => {
+    const filtered = allColumns.filter((col) => col.id !== colId)
+    if (filtered.length === allColumns.length) {
+      throw new Error(`column "${colId}" was not removed`)
+    }
+    setAllColumns(filtered)
+    onFilterChange((columnFilters) => {
+      return columnFilters.filter((columnFilter) => columnFilter.id !== colId)
+    })
+  }
+
+  const editAnnotationCol = (colId: ColumnId, annotationKey: string) => {
+    let index = -1
+    for (let i = 0; i < allColumns.length; i++) {
+      if (allColumns[i].id === colId) {
+        index = i
       }
-    },
-    [columnVisibility],
-  )
+    }
+    if (index === -1) {
+      throw new Error(`column "${colId}" not found`)
+    }
+    allColumns[index] = createAnnotationColumn(annotationKey)
+    setAllColumns([...allColumns])
+  }
 
   const onGroupingChange = useCallback(
     (newGroups: ColumnId[]) => {
@@ -489,7 +533,9 @@ export const JobsTableContainer = ({
           visibleColumns={visibleColumnIds}
           selectedItemFilters={selectedItemsFilters}
           onRefresh={onRefresh}
-          onColumnsChanged={setAllColumns}
+          onAddAnnotationColumn={addAnnotationCol}
+          onRemoveAnnotationColumn={removeAnnotationCol}
+          onEditAnnotationColumn={editAnnotationCol}
           onGroupsChanged={onGroupingChange}
           toggleColumnVisibility={onColumnVisibilityChange}
           getJobsService={getJobsService}
