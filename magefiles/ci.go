@@ -2,6 +2,8 @@ package main
 
 import (
 	"os"
+	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/magefile/mage/mg"
@@ -25,8 +27,6 @@ func ciSetup() error {
 	if err != nil {
 		return err
 	}
-	time.Sleep(15 * time.Second)
-
 	err = dockerComposeRun("up", "-d", "server")
 	if err != nil {
 		return err
@@ -42,6 +42,9 @@ func ciSetup() error {
 
 // Build images, spin up a test environment, and run the integration tests against it.
 func ciRunTests() error {
+
+	mg.Deps(checkforArmadaRunning)
+
 	err := goRun("run", "cmd/testsuite/main.go", "test",
 		"--tests", "testsuite/testcases/basic/*",
 		"--junit", "junit.xml",
@@ -49,5 +52,21 @@ func ciRunTests() error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+// Use this command to test when the server is ready
+func checkforArmadaRunning() error {
+	// switch to using os exec to hide stdout
+	outbytes, _ := exec.Command(goBinary(), "run", "cmd/armadactl/main.go", "submit", "./testsuite/testcases/basic/failure_1x1.yaml").Output()
+	out := string(outbytes)
+
+	// wait until connection refused does not appear in out
+	for strings.Contains(out, "connection refused") {
+		time.Sleep(5 * time.Second)
+		outbytes, _ = exec.Command(goBinary(), "run", "cmd/armadactl/main.go", "submit", "./testsuite/testcases/basic/failure_1x1.yaml").Output()
+		out = string(outbytes)
+	}
+
 	return nil
 }
