@@ -1,0 +1,14 @@
+{
+    "image": "mcr.microsoft.com/devcontainers/universal:2",
+    "features": {
+      "ghcr.io/mpriscella/features/kind:1": {}
+    },
+    "postAttachCommand": "sh ./start.sh",
+    "extensions": [
+      "golang.go",
+      "ms-python.python"
+    ],
+    // Open workspace in .devcontainer/demo folder
+    "workspaceFolder": "/workspaces/armada/.devcontainer/demo",
+    "name": "Demo"
+  }
