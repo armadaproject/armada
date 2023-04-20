@@ -7,38 +7,54 @@ import (
 	"time"
 
 	"golang.org/x/exp/maps"
-	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-// SchedulingContext captures the decisions made by the scheduler during one invocation.
+// SchedulingContext contains information necessary for scheduling and records what happened in a scheduling round.
 type SchedulingContext struct {
 	// Time at which the scheduling cycle started.
 	Started time.Time
 	// Time at which the scheduling cycle finished.
 	Finished time.Time
-	// ExecutorId for which the scheduler was invoked.
+	// Executor for which we're currently scheduling jobs.
 	ExecutorId string
+	// Resource pool of this executor.
+	Pool string
+	// Allowed priority classes.
+	PriorityClasses map[string]configuration.PriorityClass
+	// Default priority class.
+	DefaultPriorityClass string
+	// Weights used when computing total resource usage.
+	ResourceScarcity map[string]float64
 	// Per-queue scheduling contexts.
 	QueueSchedulingContexts map[string]*QueueSchedulingContext
 	// Total resources across all clusters available at the start of the scheduling cycle.
 	TotalResources schedulerobjects.ResourceList
 	// Resources assigned across all queues during this scheduling cycle.
 	ScheduledResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
-	// Total number of jobs successfully scheduled in this round.
+	// Resources evicted across all queues during this scheduling cycle.
+	EvictedResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
+	// Total number of successfully scheduled jobs.
 	NumScheduledJobs int
+	// Total number of successfully scheduled gangs.
+	NumScheduledGangs int
 	// Reason for why the scheduling round finished.
 	TerminationReason string
 }
 
 func NewSchedulingContext(
 	executorId string,
-	totalResources schedulerobjects.ResourceList,
+	pool string,
+	priorityClasses map[string]configuration.PriorityClass,
+	defaultPriorityClass string,
+	resourceScarcity map[string]float64,
 	priorityFactorByQueue map[string]float64,
+	totalResources schedulerobjects.ResourceList,
 	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 ) *SchedulingContext {
 	queueSchedulingContexts := make(map[string]*QueueSchedulingContext)
@@ -47,15 +63,21 @@ func NewSchedulingContext(
 			queue,
 			executorId,
 			priorityFactorByQueue[queue],
+			priorityClasses,
 			initialResourcesByQueueAndPriority[queue],
 		)
 	}
 	return &SchedulingContext{
 		Started:                      time.Now(),
 		ExecutorId:                   executorId,
+		Pool:                         pool,
+		PriorityClasses:              priorityClasses,
+		DefaultPriorityClass:         defaultPriorityClass,
+		ResourceScarcity:             resourceScarcity,
 		QueueSchedulingContexts:      queueSchedulingContexts,
 		TotalResources:               totalResources.DeepCopy(),
 		ScheduledResourcesByPriority: make(schedulerobjects.QuantityByPriorityAndResourceType),
+		EvictedResourcesByPriority:   make(schedulerobjects.QuantityByPriorityAndResourceType),
 	}
 }
 
@@ -85,19 +107,51 @@ func (sctx *SchedulingContext) String() string {
 	return sb.String()
 }
 
+func (sctx *SchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingContext) bool {
+	allJobsEvictedInThisRound := true
+	for _, jctx := range gctx.JobSchedulingContexts {
+		evictedInThisRound := sctx.AddJobSchedulingContext(jctx)
+		allJobsEvictedInThisRound = allJobsEvictedInThisRound && evictedInThisRound
+	}
+	if !allJobsEvictedInThisRound {
+		sctx.NumScheduledGangs++
+	}
+	return allJobsEvictedInThisRound
+}
+
 // AddJobSchedulingContext adds a job scheduling context.
 // Automatically updates scheduled resources
-func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContext, isEvictedJob bool) {
-	if !isEvictedJob && jctx.UnschedulableReason == "" {
-		sctx.ScheduledResourcesByPriority.AddResourceList(
-			jctx.Req.Priority,
-			schedulerobjects.ResourceListFromV1ResourceList(jctx.Req.ResourceRequirements.Requests),
-		)
-		sctx.NumScheduledJobs++
+func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContext) bool {
+	qctx, ok := sctx.QueueSchedulingContexts[jctx.Job.GetQueue()]
+	if !ok {
+		panic(fmt.Sprintf("failed adding job %s to scheduling context: no context for queue %s", jctx.JobId, jctx.Job.GetQueue()))
 	}
-	if qctx := sctx.QueueSchedulingContexts[jctx.Job.GetQueue()]; qctx != nil {
-		qctx.AddJobSchedulingContext(jctx, isEvictedJob)
+	evictedInThisRound := qctx.AddJobSchedulingContext(jctx)
+	if jctx.IsSuccessful() {
+		rl := schedulerobjects.ResourceListFromV1ResourceList(jctx.Req.ResourceRequirements.Requests)
+		if evictedInThisRound {
+			sctx.EvictedResourcesByPriority.SubResourceList(jctx.Req.Priority, rl)
+		} else {
+			sctx.ScheduledResourcesByPriority.AddResourceList(jctx.Req.Priority, rl)
+			sctx.NumScheduledJobs++
+		}
 	}
+	return evictedInThisRound
+}
+
+func (sctx *SchedulingContext) EvictJob(job interfaces.LegacySchedulerJob) bool {
+	qctx, ok := sctx.QueueSchedulingContexts[job.GetQueue()]
+	if !ok {
+		panic(fmt.Sprintf("failed evicting job %s from scheduling context: no context for queue %s", job.GetId(), job.GetQueue()))
+	}
+	scheduledInThisRound := qctx.EvictJob(job)
+	priority, rl := priorityAndRequestsFromLegacySchedulerJob(job, sctx.PriorityClasses)
+	if scheduledInThisRound {
+		sctx.ScheduledResourcesByPriority.SubResourceList(priority, rl)
+	} else {
+		sctx.EvictedResourcesByPriority.AddResourceList(priority, rl)
+	}
+	return scheduledInThisRound
 }
 
 // ClearJobSpecs zeroes out job specs to reduce memory usage.
@@ -117,6 +171,20 @@ func (sctx *SchedulingContext) SuccessfulJobSchedulingContexts() []*JobSchedulin
 	return jctxs
 }
 
+// AllocatedByQueueAndPriority returns map from queue name and priority to resources allocated.
+func (sctx *SchedulingContext) AllocatedByQueueAndPriority() map[string]schedulerobjects.QuantityByPriorityAndResourceType {
+	rv := make(
+		map[string]schedulerobjects.QuantityByPriorityAndResourceType,
+		len(sctx.QueueSchedulingContexts),
+	)
+	for queue, qctx := range sctx.QueueSchedulingContexts {
+		if len(qctx.ResourcesByPriority) > 0 {
+			rv[queue] = qctx.ResourcesByPriority.DeepCopy()
+		}
+	}
+	return rv
+}
+
 // QueueSchedulingContext captures the decisions made by the scheduler during one invocation
 // for a particular queue.
 type QueueSchedulingContext struct {
@@ -128,18 +196,31 @@ type QueueSchedulingContext struct {
 	Queue string
 	// These factors influence the fraction of resources assigned to each queue.
 	PriorityFactor float64
+	// Allowed priority classes.
+	PriorityClasses map[string]configuration.PriorityClass
 	// Total resources assigned to the queue across all clusters.
 	// Including jobs scheduled during this invocation of the scheduler.
+	//
+	// TODO: Rename to AllocatedByPriority.
 	ResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
 	// Resources assigned to this queue during this scheduling cycle.
 	ScheduledResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
+	EvictedResourcesByPriority   schedulerobjects.QuantityByPriorityAndResourceType
 	// Job scheduling contexts associated with successful scheduling attempts.
 	SuccessfulJobSchedulingContexts map[string]*JobSchedulingContext
 	// Job scheduling contexts associated with unsuccessful scheduling attempts.
 	UnsuccessfulJobSchedulingContexts map[string]*JobSchedulingContext
+	// Jobs evicted in this round.
+	EvictedJobsById map[string]interfaces.LegacySchedulerJob
 }
 
-func NewQueueSchedulingContext(queue, executorId string, priorityFactor float64, initialResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType) *QueueSchedulingContext {
+func NewQueueSchedulingContext(
+	queue,
+	executorId string,
+	priorityFactor float64,
+	priorityClasses map[string]configuration.PriorityClass,
+	initialResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType,
+) *QueueSchedulingContext {
 	if initialResourcesByPriority == nil {
 		initialResourcesByPriority = make(schedulerobjects.QuantityByPriorityAndResourceType)
 	} else {
@@ -147,18 +228,22 @@ func NewQueueSchedulingContext(queue, executorId string, priorityFactor float64,
 	}
 	return &QueueSchedulingContext{
 		Created:                           time.Now(),
-		Queue:                             queue,
 		ExecutorId:                        executorId,
+		Queue:                             queue,
 		PriorityFactor:                    priorityFactor,
+		PriorityClasses:                   priorityClasses,
 		ResourcesByPriority:               initialResourcesByPriority,
 		ScheduledResourcesByPriority:      make(schedulerobjects.QuantityByPriorityAndResourceType),
+		EvictedResourcesByPriority:        make(schedulerobjects.QuantityByPriorityAndResourceType),
 		SuccessfulJobSchedulingContexts:   make(map[string]*JobSchedulingContext),
 		UnsuccessfulJobSchedulingContexts: make(map[string]*JobSchedulingContext),
+		EvictedJobsById:                   make(map[string]interfaces.LegacySchedulerJob),
 	}
 }
 
 const maxPrintedJobIdsByReason = 1
 
+// TODO: Update with preemptions.
 func (qctx *QueueSchedulingContext) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
@@ -209,33 +294,74 @@ func (qctx *QueueSchedulingContext) String() string {
 	return sb.String()
 }
 
-func (qctx *QueueSchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingContext, isEvictedGang bool) {
+func (qctx *QueueSchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingContext) {
 	for _, jctx := range gctx.JobSchedulingContexts {
-		qctx.AddJobSchedulingContext(jctx, isEvictedGang)
+		qctx.AddJobSchedulingContext(jctx)
 	}
 }
 
 // AddJobSchedulingContext adds a job scheduling context.
 // Automatically updates scheduled resources.
-func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContext, isEvictedJob bool) {
-	if jctx.UnschedulableReason == "" {
+func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContext) bool {
+	if _, ok := qctx.SuccessfulJobSchedulingContexts[jctx.JobId]; ok {
+		panic(fmt.Sprintf("failed adding job %s to queue: job already marked successful", jctx.JobId))
+	}
+	if _, ok := qctx.UnsuccessfulJobSchedulingContexts[jctx.JobId]; ok {
+		panic(fmt.Sprintf("failed adding job %s to queue: job already marked unsuccessful", jctx.JobId))
+	}
+	rl := schedulerobjects.ResourceListFromV1ResourceList(jctx.Req.ResourceRequirements.Requests)
+	_, evictedInThisRound := qctx.EvictedJobsById[jctx.JobId]
+	if jctx.IsSuccessful() {
 		// Always update ResourcesByPriority.
 		// Since ResourcesByPriority is used to order queues by fraction of fair share.
-		rl := qctx.ResourcesByPriority[jctx.Req.Priority]
-		rl.Add(schedulerobjects.ResourceListFromV1ResourceList(jctx.Req.ResourceRequirements.Requests))
-		qctx.ResourcesByPriority[jctx.Req.Priority] = rl
+		qctx.ResourcesByPriority.AddResourceList(jctx.Req.Priority, rl)
 
 		// Only if the job is not evicted, update ScheduledResourcesByPriority.
 		// Since ScheduledResourcesByPriority is used to control per-round scheduling constraints.
-		if !isEvictedJob {
+		if evictedInThisRound {
+			delete(qctx.EvictedJobsById, jctx.JobId)
+			qctx.EvictedResourcesByPriority.SubResourceList(jctx.Req.Priority, rl)
+		} else {
 			qctx.SuccessfulJobSchedulingContexts[jctx.JobId] = jctx
-			rl := qctx.ScheduledResourcesByPriority[jctx.Req.Priority]
-			rl.Add(schedulerobjects.ResourceListFromV1ResourceList(jctx.Req.ResourceRequirements.Requests))
-			qctx.ScheduledResourcesByPriority[jctx.Req.Priority] = rl
+			qctx.ScheduledResourcesByPriority.AddResourceList(jctx.Req.Priority, rl)
 		}
 	} else {
 		qctx.UnsuccessfulJobSchedulingContexts[jctx.JobId] = jctx
 	}
+	return evictedInThisRound
+}
+
+func (qctx *QueueSchedulingContext) EvictJob(job interfaces.LegacySchedulerJob) bool {
+	jobId := job.GetId()
+	priority, rl := priorityAndRequestsFromLegacySchedulerJob(job, qctx.PriorityClasses)
+	if _, ok := qctx.UnsuccessfulJobSchedulingContexts[jobId]; ok {
+		panic(fmt.Sprintf("failed evicting job %s from queue: job already marked unsuccessful", jobId))
+	}
+	if _, ok := qctx.EvictedJobsById[jobId]; ok {
+		panic(fmt.Sprintf("failed evicting job %s from queue: job already marked evicted", jobId))
+	}
+	_, scheduledInThisRound := qctx.SuccessfulJobSchedulingContexts[jobId]
+	if scheduledInThisRound {
+		qctx.ScheduledResourcesByPriority.SubResourceList(priority, rl)
+		delete(qctx.SuccessfulJobSchedulingContexts, jobId)
+	} else {
+		qctx.EvictedResourcesByPriority.AddResourceList(priority, rl)
+		qctx.EvictedJobsById[jobId] = job
+	}
+	qctx.ResourcesByPriority.SubResourceList(priority, rl)
+	return scheduledInThisRound
+}
+
+func priorityAndRequestsFromLegacySchedulerJob(job interfaces.LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) (int32, schedulerobjects.ResourceList) {
+	req := job.GetRequirements(priorityClasses)
+	for _, r := range req.ObjectRequirements {
+		podReqs := r.GetPodRequirements()
+		if podReqs == nil {
+			continue
+		}
+		return podReqs.Priority, schedulerobjects.ResourceListFromV1ResourceList(podReqs.ResourceRequirements.Requests)
+	}
+	return 0, schedulerobjects.ResourceList{}
 }
 
 // ClearJobSpecs zeroes out job specs to reduce memory usage.
@@ -250,7 +376,51 @@ func (qctx *QueueSchedulingContext) ClearJobSpecs() {
 
 type GangSchedulingContext struct {
 	Created               time.Time
+	Queue                 string
+	PriorityClassName     string
 	JobSchedulingContexts []*JobSchedulingContext
+	TotalResourceRequests schedulerobjects.ResourceList
+}
+
+func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingContext {
+	queue := ""
+	for _, jctx := range jctxs {
+		queue = jctx.Job.GetQueue()
+		break
+	}
+	priorityClassName := ""
+	totalResourceRequests := schedulerobjects.ResourceList{}
+	for _, jctx := range jctxs {
+		job := jctx.Job
+		jobReqs := job.GetRequirements(nil)
+		if jobReqs == nil {
+			continue
+		}
+		for _, reqs := range jobReqs.GetObjectRequirements() {
+			totalResourceRequests.Add(
+				schedulerobjects.ResourceListFromV1ResourceList(
+					reqs.GetPodRequirements().ResourceRequirements.Requests,
+				),
+			)
+		}
+		priorityClassName = job.GetRequirements(nil).PriorityClassName
+	}
+
+	return &GangSchedulingContext{
+		Created:               time.Now(),
+		Queue:                 queue,
+		PriorityClassName:     priorityClassName,
+		JobSchedulingContexts: jctxs,
+		TotalResourceRequests: totalResourceRequests,
+	}
+}
+
+func (gctx GangSchedulingContext) PodRequirements() []*schedulerobjects.PodRequirements {
+	rv := make([]*schedulerobjects.PodRequirements, len(gctx.JobSchedulingContexts))
+	for i, jctx := range gctx.JobSchedulingContexts {
+		rv[i] = jctx.Req
+	}
+	return rv
 }
 
 // JobSchedulingContext is created by the scheduler and contains information
@@ -273,7 +443,7 @@ type JobSchedulingContext struct {
 	// Empty if the job was scheduled successfully.
 	UnschedulableReason string
 	// Pod scheduling contexts for the individual pods that make up the job.
-	PodSchedulingContexts []*PodSchedulingContext
+	PodSchedulingContext *PodSchedulingContext
 }
 
 func (jctx *JobSchedulingContext) String() string {
@@ -287,12 +457,15 @@ func (jctx *JobSchedulingContext) String() string {
 	} else {
 		fmt.Fprint(w, "UnschedulableReason:\tnone\n")
 	}
-	for _, pctx := range jctx.PodSchedulingContexts {
-		fmt.Fprint(w, "---\n")
-		fmt.Fprint(w, pctx.String())
+	if jctx.PodSchedulingContext != nil {
+		fmt.Fprint(w, jctx.PodSchedulingContext.String())
 	}
 	w.Flush()
 	return sb.String()
+}
+
+func (jctx *JobSchedulingContext) IsSuccessful() bool {
+	return jctx.UnschedulableReason == ""
 }
 
 // PodSchedulingContext is returned by SelectAndBindNodeToPod and
@@ -300,15 +473,13 @@ func (jctx *JobSchedulingContext) String() string {
 type PodSchedulingContext struct {
 	// Time at which this context was created.
 	Created time.Time
-	// Pod scheduling requirements.
-	Req *schedulerobjects.PodRequirements
 	// Resource type determined by the scheduler to be the hardest to satisfy
 	// the scheduling requirements for.
 	DominantResourceType string
 	// Node the pod was assigned to.
-	// If nil, the pod could not be assigned to any Node.
+	// If nil, the pod could not be assigned to any node.
 	Node *schedulerobjects.Node
-	// Score indicates how well the pod fits on the selected Node.
+	// Score indicates how well the pod fits on the selected node.
 	Score int
 	// Node types on which this pod could be scheduled.
 	MatchingNodeTypes []*schedulerobjects.NodeType
@@ -316,8 +487,6 @@ type PodSchedulingContext struct {
 	NumNodes int
 	// Number of nodes excluded by reason.
 	NumExcludedNodesByReason map[string]int
-	// Set if an error occurred while attempting to schedule this pod.
-	Err error
 }
 
 func (pctx *PodSchedulingContext) String() string {
@@ -328,14 +497,6 @@ func (pctx *PodSchedulingContext) String() string {
 	} else {
 		fmt.Fprint(w, "Node:\tnone\n")
 	}
-	requestForDominantResourceType := pctx.Req.ResourceRequirements.Requests[v1.ResourceName(pctx.DominantResourceType)]
-	fmt.Fprintf(
-		w,
-		"Node filter:\tnodes with %s %s allocatable at priority %d\n",
-		requestForDominantResourceType.String(),
-		pctx.DominantResourceType,
-		pctx.Req.Priority,
-	)
 	if len(pctx.NumExcludedNodesByReason) == 0 {
 		fmt.Fprint(w, "Excluded nodes:\tnone\n")
 	} else {
@@ -343,9 +504,6 @@ func (pctx *PodSchedulingContext) String() string {
 		for reason, count := range pctx.NumExcludedNodesByReason {
 			fmt.Fprintf(w, "\t%d:\t%s\n", count, reason)
 		}
-	}
-	if pctx.Err != nil {
-		fmt.Fprintf(w, "Error:\t%s\n", pctx.Err)
 	}
 	w.Flush()
 	return sb.String()

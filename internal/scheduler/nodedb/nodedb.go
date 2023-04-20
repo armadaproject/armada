@@ -26,6 +26,14 @@ import (
 // This helps avoid scheduling new jobs onto nodes that make it impossible to re-schedule evicted jobs.
 const evictedPriority int32 = -1
 
+type NodeDbJob interface {
+	GetId() string
+	GetQueue() string
+	GetJobSet() string
+	GetPriorityClassName() string
+	GetRequests() schedulerobjects.ResourceList
+}
+
 // NodeDb is the scheduler-internal system for storing node information.
 // It's used to efficiently find nodes on which a pod can be scheduled.
 type NodeDb struct {
@@ -248,6 +256,11 @@ func (nodeDb *NodeDb) ScheduleMany(reqs []*schedulerobjects.PodRequirements) ([]
 	if ok && err == nil {
 		// All pods can be scheduled; commit the transaction.
 		txn.Commit()
+	} else {
+		// On failure, clear the node binding.
+		for _, pctx := range pctxs {
+			pctx.Node = nil
+		}
 	}
 	return pctxs, ok, err
 }
@@ -333,7 +346,6 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	// Create a pctx to be returned to the caller.
 	pctx := &schedulercontext.PodSchedulingContext{
 		Created:                  time.Now(),
-		Req:                      req,
 		DominantResourceType:     dominantResourceType,
 		MatchingNodeTypes:        matchingNodeTypes,
 		NumNodes:                 nodeDb.numNodes,
@@ -363,6 +375,8 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 
 	// If the targetNodeIdAnnocation is set, consider only that node,
 	// and schedule onto that node even if it requires preempting other jobs.
+	//
+	// TODO: No need to even use the NodeDb here. For evicted jobs we can just get the node outside the NodeDb.
 	if nodeId, ok := req.Annotations[schedulerconfig.TargetNodeIdAnnotation]; ok {
 		if it, err := txn.Get("nodes", "id", nodeId); err != nil {
 			return nil, errors.WithStack(err)
@@ -517,6 +531,141 @@ func (nodeDb *NodeDb) selectNodeForPodWithIt(
 	pctx.Node = selectedNode
 	pctx.Score = selectedNodeScore
 	return selectedNode, nil
+}
+
+// BindPodToNode returns a copy of node with req bound to it.
+func (nodeDb *NodeDb) BindJobToNode(job NodeDbJob, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
+	jobId := job.GetId()
+	queue := job.GetQueue()
+	requests := job.GetRequests()
+	priorityClassName := job.GetPriorityClassName()
+	priority := nodeDb.priorityClasses[priorityClassName].Priority
+	_, isEvicted := node.EvictedJobRunIds[jobId]
+	node = node.DeepCopy()
+
+	if !isEvicted {
+		if node.AllocatedByJobId == nil {
+			node.AllocatedByJobId = make(map[string]schedulerobjects.ResourceList)
+		}
+		if allocatedToJob, ok := node.AllocatedByJobId[jobId]; ok {
+			return nil, errors.Errorf("job %s already has resources allocated on node %s", jobId, node.Id)
+		} else {
+			allocatedToJob.Add(requests)
+			node.AllocatedByJobId[jobId] = allocatedToJob
+		}
+		if node.AllocatedByQueue == nil {
+			node.AllocatedByQueue = make(map[string]schedulerobjects.ResourceList)
+		}
+		allocatedToQueue := node.AllocatedByQueue[queue]
+		allocatedToQueue.Add(requests)
+		node.AllocatedByQueue[queue] = allocatedToQueue
+	}
+	delete(node.EvictedJobRunIds, jobId)
+
+	if isEvicted {
+		schedulerobjects.AllocatableByPriorityAndResourceType(
+			node.AllocatableByPriorityAndResource,
+		).MarkAllocatable(evictedPriority, requests)
+	}
+	schedulerobjects.AllocatableByPriorityAndResourceType(
+		node.AllocatableByPriorityAndResource,
+	).MarkAllocated(priority, requests)
+	if !node.AllocatableByPriorityAndResource[priority].IsStrictlyNonNegative() {
+		return nil, errors.Errorf("can not bind job %s to node %s: insufficient resources available", jobId, node.Id)
+	}
+	return node, nil
+}
+
+// EvictPodFromNode returns a copy of node with req evicted from it. Specifically:
+// - The job is marked as evicted on the node.
+// - AllocatedByJobId and AllocatedByQueue are not updated.
+// - Resources requested by the evicted pod are marked as allocated at priority evictedPriority.
+func (nodeDb *NodeDb) EvictJobFromNode(job NodeDbJob, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
+	jobId := job.GetId()
+	queue := job.GetQueue()
+	requests := job.GetRequests()
+	priorityClassName := job.GetPriorityClassName()
+	priority := nodeDb.priorityClasses[priorityClassName].Priority
+	node = node.DeepCopy()
+
+	if _, ok := node.AllocatedByJobId[jobId]; !ok {
+		return nil, errors.Errorf("job %s has no resources allocated on node %s", jobId, node.Id)
+	}
+	if _, ok := node.AllocatedByQueue[queue]; !ok {
+		return nil, errors.Errorf("queue %s has no resources allocated on node %s", queue, node.Id)
+	}
+	if node.EvictedJobRunIds == nil {
+		node.EvictedJobRunIds = make(map[string]bool)
+	}
+	if _, ok := node.EvictedJobRunIds[jobId]; ok {
+		// TODO: We're using run ids instead of job ids for now.
+		return nil, errors.Errorf("job %s is already evicted from node %s", jobId, node.Id)
+	} else {
+		node.EvictedJobRunIds[jobId] = true
+	}
+
+	schedulerobjects.AllocatableByPriorityAndResourceType(
+		node.AllocatableByPriorityAndResource,
+	).MarkAllocatable(priority, requests)
+	schedulerobjects.AllocatableByPriorityAndResourceType(
+		node.AllocatableByPriorityAndResource,
+	).MarkAllocated(evictedPriority, requests)
+	return node, nil
+}
+
+// UnbindPodsFromNode returns a node with all reqs unbound from it.
+func (nodeDb *NodeDb) UnbindPodsFromNode(jobs []NodeDbJob, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
+	node = node.DeepCopy()
+	for _, job := range jobs {
+		if err := nodeDb.unbindJobFromNodeInPlace(job, node); err != nil {
+			return nil, err
+		}
+	}
+	return node, nil
+}
+
+// UnbindPodFromNode returns a copy of node with req unbound from it.
+func (nodeDb *NodeDb) UnbindPodFromNode(job NodeDbJob, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
+	node = node.DeepCopy()
+	if err := nodeDb.unbindJobFromNodeInPlace(job, node); err != nil {
+		return nil, err
+	}
+	return node, nil
+}
+
+// unbindPodFromNodeInPlace is like UnbindPodFromNode, but doesn't make a copy of the node.
+func (nodeDb *NodeDb) unbindJobFromNodeInPlace(job NodeDbJob, node *schedulerobjects.Node) error {
+	jobId := job.GetId()
+	queue := job.GetQueue()
+	requests := job.GetRequests()
+	priorityClassName := job.GetPriorityClassName()
+	priority := nodeDb.priorityClasses[priorityClassName].Priority
+	_, isEvicted := node.EvictedJobRunIds[jobId]
+
+	if _, ok := node.AllocatedByJobId[jobId]; !ok {
+		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.Id)
+	} else {
+		delete(node.AllocatedByJobId, jobId)
+	}
+	if allocatedToQueue, ok := node.AllocatedByQueue[queue]; !ok {
+		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.Id)
+	} else {
+		allocatedToQueue.Sub(requests)
+		if allocatedToQueue.Equal(schedulerobjects.ResourceList{}) {
+			delete(node.AllocatedByQueue, queue)
+		} else {
+			node.AllocatedByQueue[queue] = allocatedToQueue
+		}
+	}
+	delete(node.EvictedJobRunIds, jobId)
+
+	if isEvicted {
+		priority = evictedPriority
+	}
+	schedulerobjects.AllocatableByPriorityAndResourceType(
+		node.AllocatableByPriorityAndResource,
+	).MarkAllocatable(priority, requests)
+	return nil
 }
 
 // BindPodToNode returns a copy of node with req bound to it.
@@ -764,6 +913,8 @@ func (nodeDb *NodeDb) Upsert(node *schedulerobjects.Node) error {
 	return nil
 }
 
+// TODO: Let's auto-add a label to each node with the id of the node.
+// For efficiency, we'd also need a special index on labels for which there are very few node per label value (maybe even unique).
 func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node) error {
 	// Mutating the node once inserted is forbidden.
 	node = node.DeepCopy()

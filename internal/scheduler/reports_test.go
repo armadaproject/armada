@@ -206,7 +206,7 @@ func withSuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingContext
 	}
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
-		qctx = schedulercontext.NewQueueSchedulingContext(queue, sctx.ExecutorId, 1.0, make(schedulerobjects.QuantityByPriorityAndResourceType))
+		qctx = schedulercontext.NewQueueSchedulingContext(queue, sctx.ExecutorId, 1.0, nil, make(schedulerobjects.QuantityByPriorityAndResourceType))
 		qctx.Created = time.Time{}
 		sctx.QueueSchedulingContexts[queue] = qctx
 	}
@@ -235,7 +235,7 @@ func withUnsuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingConte
 	}
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
-		qctx = schedulercontext.NewQueueSchedulingContext(queue, sctx.ExecutorId, 1.0, make(schedulerobjects.QuantityByPriorityAndResourceType))
+		qctx = schedulercontext.NewQueueSchedulingContext(queue, sctx.ExecutorId, 1.0, nil, make(schedulerobjects.QuantityByPriorityAndResourceType))
 		qctx.Created = time.Time{}
 		sctx.QueueSchedulingContexts[queue] = qctx
 	}
@@ -248,7 +248,16 @@ func withUnsuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingConte
 }
 
 func testSchedulingContext(executorId string) *schedulercontext.SchedulingContext {
-	sctx := schedulercontext.NewSchedulingContext(executorId, schedulerobjects.ResourceList{}, nil, nil)
+	sctx := schedulercontext.NewSchedulingContext(
+		executorId,
+		"",
+		nil,
+		"",
+		nil,
+		nil,
+		schedulerobjects.ResourceList{},
+		nil,
+	)
 	sctx.Started = time.Time{}
 	sctx.Finished = time.Time{}
 	return sctx

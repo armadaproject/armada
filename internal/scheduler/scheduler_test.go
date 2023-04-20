@@ -692,7 +692,7 @@ func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb
 	if err := jobDb.Upsert(txn, scheduledJobs); err != nil {
 		return nil, err
 	}
-	return NewSchedulerResult(preemptedJobs, scheduledJobs, nil, nil), nil
+	return NewSchedulerResult(preemptedJobs, scheduledJobs, nil), nil
 }
 
 type testPublisher struct {

@@ -60,6 +60,27 @@ func Flatten[S ~[]E, E any](s []S) S {
 	return rv
 }
 
+// Concatenate returns a single slice created by concatenating the input slices.
+func Concatenate[S ~[]E, E any](s ...S) S {
+	return Flatten(s)
+}
+
+// Unique returns a copy of s with duplicate elements removed, keeping only the first occurence.
+func Unique[S ~[]E, E comparable](s S) S {
+	if s == nil {
+		return nil
+	}
+	rv := make(S, 0)
+	seen := make(map[E]bool)
+	for _, v := range s {
+		if !seen[v] {
+			rv = append(rv, v)
+			seen[v] = true
+		}
+	}
+	return rv
+}
+
 // GroupByFunc groups the elements e_1, ..., e_n of s into separate slices by keyFunc(e).
 func GroupByFunc[S ~[]E, E any, K comparable](s S, keyFunc func(E) K) map[K]S {
 	rv := make(map[K]S)

@@ -15,6 +15,8 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/util"
+	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -124,7 +126,7 @@ func (l *LegacySchedulingAlgo) Schedule(
 	for _, executor := range executors {
 		log.Infof("attempting to schedule jobs on %s", executor.Id)
 		totalResourceUsageByQueue := resourceUsagebyPool[executor.Pool]
-		schedulerResult, err := l.scheduleOnExecutor(
+		schedulerResult, sctx, err := l.scheduleOnExecutor(
 			ctx,
 			executor,
 			jobsByExecutor[executor.Id],
@@ -148,8 +150,7 @@ func (l *LegacySchedulingAlgo) Schedule(
 		overallSchedulerResult.PreemptedJobs = append(overallSchedulerResult.PreemptedJobs, schedulerResult.PreemptedJobs...)
 		overallSchedulerResult.ScheduledJobs = append(overallSchedulerResult.ScheduledJobs, schedulerResult.ScheduledJobs...)
 		maps.Copy(overallSchedulerResult.NodeIdByJobId, schedulerResult.NodeIdByJobId)
-
-		resourceUsagebyPool[executor.Pool] = schedulerResult.AllocatedByQueueAndPriority
+		resourceUsagebyPool[executor.Pool] = sctx.AllocatedByQueueAndPriority()
 	}
 
 	return overallSchedulerResult, nil
@@ -177,30 +178,37 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	priorityFactorByQueue map[string]float64,
 	db *jobdb.JobDb,
 	txn *jobdb.Txn,
-) (*SchedulerResult, error) {
+) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	nodeDb, err := l.constructNodeDb(executor.Nodes, leasedJobs, l.config.Preemption.PriorityClasses)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	constraints := SchedulingConstraintsFromSchedulingConfig(
+	sctx := schedulercontext.NewSchedulingContext(
 		executor.Id,
 		executor.Pool,
+		l.config.Preemption.PriorityClasses,
+		l.config.Preemption.DefaultPriorityClass,
+		l.config.ResourceScarcity,
+		priorityFactorByQueue,
+		totalCapacity,
+		allocatedByQueueAndPriority,
+	)
+	constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 		executor.MinimumJobSize,
 		l.config,
-		totalCapacity,
 	)
 	scheduler := NewRescheduler(
-		*constraints,
-		l.config,
+		sctx,
+		constraints,
+		l.config.Preemption.NodeEvictionProbability,
+		l.config.Preemption.NodeOversubscriptionEvictionProbability,
 		&schedulerJobRepositoryAdapter{
 			txn: txn,
 			db:  db,
 		},
 		nodeDb,
-		priorityFactorByQueue,
-		allocatedByQueueAndPriority,
 		// TODO: Add missing maps to enable gang preemption.
 		nil,
 		nil,
@@ -211,7 +219,7 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 	}
 	result, err := scheduler.Schedule(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// TODO: Add a repo to enable querying for scheduler reports.
 
@@ -220,7 +228,7 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 		if run := jobDbJob.LatestRun(); run != nil {
 			jobDbJob = jobDbJob.WithUpdatedRun(run.WithFailed(true))
 		} else {
-			return nil, errors.Errorf("attempting to preempt job %s with no associated runs", jobDbJob.Id())
+			return nil, nil, errors.Errorf("attempting to preempt job %s with no associated runs", jobDbJob.Id())
 		}
 		result.ScheduledJobs[i] = jobDbJob.WithQueued(false).WithFailed(true)
 	}
@@ -228,15 +236,15 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 		jobDbJob := job.(*jobdb.Job)
 		nodeId := result.NodeIdByJobId[jobDbJob.GetId()]
 		if nodeId == "" {
-			return nil, errors.Errorf("job %s not mapped to any node", jobDbJob.GetId())
+			return nil, nil, errors.Errorf("job %s not mapped to any node", jobDbJob.GetId())
 		}
 		if node, err := nodeDb.GetNode(nodeId); err != nil {
-			return nil, err
+			return nil, nil, err
 		} else {
 			result.ScheduledJobs[i] = jobDbJob.WithQueued(false).WithNewRun(executor.Id, node.Name)
 		}
 	}
-	return result, nil
+	return result, sctx, nil
 }
 
 // Adapter to make jobDb implement the JobRepository interface.

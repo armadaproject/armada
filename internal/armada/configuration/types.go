@@ -102,6 +102,8 @@ type SchedulingConfig struct {
 	MaximalResourceFractionPerQueue map[string]float64
 	// Max number of jobs to scheduler per lease jobs call.
 	MaximumJobsToSchedule uint
+	// Max number of gangs to scheduler per lease jobs call.
+	MaximumGangsToSchedule uint
 	// Armada stores contexts associated with recent job scheduling attempts.
 	// This setting limits the number of such contexts to store.
 	// Contexts associated with the most recent scheduling attempt for each queue and cluster are always stored.

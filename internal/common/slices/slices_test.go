@@ -164,3 +164,37 @@ func TestSubtract(t *testing.T) {
 		})
 	}
 }
+
+func TestUnique(t *testing.T) {
+	tests := map[string]struct {
+		s        []int
+		expected []int
+	}{
+		"nil": {
+			s:        nil,
+			expected: nil,
+		},
+		"empty": {
+			s:        make([]int, 0),
+			expected: make([]int, 0),
+		},
+		"no duplicates": {
+			s:        []int{1, 2, 3},
+			expected: []int{1, 2, 3},
+		},
+		"consecutive duplicates": {
+			s:        []int{1, 2, 3, 3},
+			expected: []int{1, 2, 3},
+		},
+		"non-consecutive duplicates": {
+			s:        []int{3, 1, 2, 3},
+			expected: []int{3, 1, 2},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, Unique(tc.s))
+		})
+	}
+
+}
