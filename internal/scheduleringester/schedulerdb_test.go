@@ -2,6 +2,7 @@ package scheduleringester
 
 import (
 	"context"
+	"github.com/jackc/pgx/v4"
 	"testing"
 	"time"
 
@@ -288,7 +289,14 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 	defer cancel()
 
 	// Apply the op to the database.
-	err := schedulerDb.WriteDbOp(ctx, op)
+	err := schedulerDb.db.BeginTxFunc(ctx, pgx.TxOptions{
+		IsoLevel:       pgx.ReadCommitted,
+		AccessMode:     pgx.ReadWrite,
+		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		return schedulerDb.WriteDbOp(ctx, tx, op)
+	})
+
 	if err != nil {
 		return err
 	}

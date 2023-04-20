@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 )
 
@@ -36,20 +35,7 @@ import (
 //
 // )
 // I.e., it should omit everything before and after the "(" and ")", respectively.
-func Upsert[T any](ctx context.Context, db *pgxpool.Pool, tableName string, records []T) error {
-	if len(records) == 0 {
-		return nil
-	}
-	return db.BeginTxFunc(ctx, pgx.TxOptions{
-		IsoLevel:       pgx.ReadCommitted,
-		AccessMode:     pgx.ReadWrite,
-		DeferrableMode: pgx.Deferrable,
-	}, func(tx pgx.Tx) error {
-		return CopyProtocolUpsert(ctx, tx, tableName, records)
-	})
-}
-
-func CopyProtocolUpsert[T any](ctx context.Context, tx pgx.Tx, tableName string, records []T) error {
+func Upsert[T any](ctx context.Context, tx pgx.Tx, tableName string, records []T) error {
 	if len(records) < 1 {
 		return nil
 	}

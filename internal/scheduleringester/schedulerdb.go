@@ -3,6 +3,7 @@ package scheduleringester
 import (
 	"context"
 	"fmt"
+	"github.com/jackc/pgx/v4"
 	"strings"
 	"time"
 
@@ -33,20 +34,26 @@ func NewSchedulerDb(db *pgxpool.Pool, metrics *metrics.Metrics, initialBackOff t
 }
 
 func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithMessageIds) error {
-	var result *multierror.Error = nil
-	for _, dbOp := range instructions.Ops {
-		err := ingest.WithRetry(func() (bool, error) {
-			err := s.WriteDbOp(ctx, dbOp)
-			shouldRetry := armadaerrors.IsNetworkError(err) || armadaerrors.IsRetryablePostgresError(err)
-			return shouldRetry, err
-		}, s.initialBackOff, s.maxBackOff)
-		result = multierror.Append(result, err)
-	}
-	return result.ErrorOrNil()
+	return s.db.BeginTxFunc(ctx, pgx.TxOptions{
+		IsoLevel:       pgx.ReadCommitted,
+		AccessMode:     pgx.ReadWrite,
+		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		var result *multierror.Error = nil
+		for _, dbOp := range instructions.Ops {
+			err := ingest.WithRetry(func() (bool, error) {
+				err := s.WriteDbOp(ctx, tx, dbOp)
+				shouldRetry := armadaerrors.IsNetworkError(err) || armadaerrors.IsRetryablePostgresError(err)
+				return shouldRetry, err
+			}, s.initialBackOff, s.maxBackOff)
+			result = multierror.Append(result, err)
+		}
+		return result.ErrorOrNil()
+	})
 }
 
-func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
-	queries := schedulerdb.New(s.db)
+func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) error {
+	queries := schedulerdb.New(tx)
 	switch o := op.(type) {
 	case InsertJobs:
 		records := make([]any, len(o))
@@ -55,7 +62,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		err := database.Upsert(ctx, s.db, "jobs", records)
+		err := database.Upsert(ctx, tx, "jobs", records)
 		if err != nil {
 			return err
 		}
@@ -66,7 +73,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		err := database.Upsert(ctx, s.db, "runs", records)
+		err := database.Upsert(ctx, tx, "runs", records)
 		if err != nil {
 			return err
 		}
@@ -214,7 +221,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		return database.Upsert(ctx, s.db, "job_run_errors", records)
+		return database.Upsert(ctx, tx, "job_run_errors", records)
 	case *InsertPartitionMarker:
 		for _, marker := range o.markers {
 			err := queries.InsertMarker(ctx, schedulerdb.InsertMarkerParams{
