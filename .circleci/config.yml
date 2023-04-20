@@ -243,6 +243,24 @@ jobs:
             docker tag armada-full-bundle gresearchdev/armada-full-bundle-dev:${TAG}
             docker push gresearchdev/armada-full-bundle-dev:${TAG}
 
+  test-release-fix:
+    machine:
+      docker_layer_caching: true
+      image: ubuntu-2204:2023.02.1
+      resource_class: large
+      # resource_class: xlarge
+    environment:
+      GO111MODULE: "on"
+      GOPATH: "/home/circleci/go"
+      GOCACHE: "/home/circleci/go/cache"
+    working_directory: ~/go/src/github.com/armadaproject/armada
+    steps:
+      - checkout
+
+      - restore_cache: # restore dependencies
+          keys:
+            - go-mod-v3-{{ checksum "go.sum" }}
+
 
   release-armadactl:
     machine:
@@ -420,6 +438,7 @@ workflows:
   build_and_deploy:
     jobs:
       -  build_and_integration_tests
+      - test-release-fix
       - release-armadactl:
           filters:
             tags:
