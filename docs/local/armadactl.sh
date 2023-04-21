@@ -1,10 +1,10 @@
-#!/bin/bash
+#!/bin/sh -ex
 
 echo "Downloading armadactl for your platform"
 
 # Determine Platform
 SYSTEM=$(uname | sed 's/MINGW.*/windows/' | tr A-Z a-z)
-if [ $SYSTEM == "windows" ]; then
+if [ "$SYSTEM" = "windows" ]; then
   ARCHIVE_TYPE=zip
   UNARCHIVE="zcat > armadactl.exe"
 else
@@ -14,7 +14,10 @@ fi
 
 # Find the latest Armada version
 LATEST_GH_URL=$(curl -fsSLI -o /dev/null -w %{url_effective} https://github.com/armadaproject/armada/releases/latest)
-ARMADA_VERSION=${LATEST_GH_URL##*/}
+
+# Hard version set required until https://github.com/armadaproject/armada/pull/2384 is released
+# ARMADA_VERSION=${LATEST_GH_URL##*/}
+ARMADA_VERSION="v0.3.61"
 ARMADACTL_URL="https://github.com/armadaproject/armada/releases/download/$ARMADA_VERSION/armadactl-$ARMADA_VERSION-$SYSTEM-amd64.$ARCHIVE_TYPE"
 
 # Download and untar/unzip armadactl
