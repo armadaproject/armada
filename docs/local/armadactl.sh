@@ -1,4 +1,4 @@
-#!/bin/sh -ex
+#!/bin/bash
 
 echo "Downloading armadactl for your platform"
 
