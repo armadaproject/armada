@@ -240,58 +240,6 @@ Returns the information needed to reconstruct this Trigger.
 
 
 
-### _class_ armada.operators.armada_deferrable.ArmadaSubmitJobTrigger(armada_channel_args, job_service_channel_args, run_id, armada_queue, job_request_items)
-Bases: `BaseTrigger`
-
-
-* **Parameters**
-
-    
-    * **armada_channel_args** (*dict*) – 
-
-
-    * **job_service_channel_args** (*dict*) – 
-
-
-    * **run_id** (*str*) – 
-
-
-    * **armada_queue** (*str*) – 
-
-
-
-#### _async_ run()
-Runs the trigger in an asynchronous context.
-
-The trigger should yield an Event whenever it wants to fire off
-an event, and return None if it is finished. Single-event triggers
-should thus yield and then immediately return.
-
-If it yields, it is likely that it will be resumed very quickly,
-but it may not be (e.g. if the workload is being moved to another
-triggerer process, or a multi-event trigger was being used for a
-single-event task defer).
-
-In either case, Trigger classes should assume they will be persisted,
-and then rely on cleanup() being called when they are no longer needed.
-
-
-#### serialize()
-Returns the information needed to reconstruct this Trigger.
-
-
-* **Returns**
-
-    Tuple of (class path, keyword arguments needed to re-instantiate).
-
-
-
-* **Return type**
-
-    tuple
-
-
-
 ### _class_ armada.operators.armada_deferrable.GrpcChannelArguments(target, credentials=None, options=None, compression=None)
 Bases: `object`
 
