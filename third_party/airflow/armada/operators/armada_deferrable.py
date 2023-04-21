@@ -216,12 +216,7 @@ class ArmadaSubmitJobTrigger(BaseTrigger):
         # Health Check
         self.log.info("ArmadaSubmitJobTrigger.run() doing health check.")
 
-        class DummyHealth(object):
-            def __init__(self, status):
-                self.status = status
-
-        # health = await job_service_client.health()
-        health = DummyHealth(jobservice_pb2.HealthCheckResponse.SERVING)
+        health = await job_service_client.health()
         if health.status != jobservice_pb2.HealthCheckResponse.SERVING:
             self.log.warn("Armada Job Service is not healthy")
 
@@ -229,7 +224,7 @@ class ArmadaSubmitJobTrigger(BaseTrigger):
         self.log.info("ArmadaSubmitJobTrigger.run() jobservice healthy.")
 
         armada_client = ArmadaAsyncIOClient(
-            channel=self.armada_channel_args.aio__channel()
+            channel=self.armada_channel_args.aio_channel()
         )
 
         self.log.info("ArmadaSubmitJobTrigger.run() submitting jobs.")
