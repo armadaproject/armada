@@ -1,4 +1,5 @@
 from concurrent import futures
+import logging
 
 import grpc
 import pytest
@@ -15,7 +16,7 @@ from armada.jobservice import jobservice_pb2_grpc, jobservice_pb2
 def server_mock():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     jobservice_pb2_grpc.add_JobServiceServicer_to_server(JobService(), server)
-    server.add_insecure_port("[::]:50099")
+    server.add_insecure_port("[::]:50100")
     server.start()
     yield
     server.stop(False)
@@ -24,7 +25,7 @@ def server_mock():
 @pytest_asyncio.fixture(scope="function")
 async def js_aio_client(server_mock):
     channel = grpc.aio.insecure_channel(
-        target="127.0.0.1:50099",
+        target="127.0.0.1:50100",
         options={
             "grpc.keepalive_time_ms": 30000,
         }.items(),
@@ -44,6 +45,7 @@ async def test_failed_event(js_aio_client):
         job_set_id="test",
         job_service_client=js_aio_client,
         time_out_for_failure=5,
+        log=logging.getLogger(),
     )
     assert job_complete[0] == JobState.FAILED
     assert (
@@ -61,6 +63,7 @@ async def test_successful_event(js_aio_client):
         job_set_id="test",
         job_service_client=js_aio_client,
         time_out_for_failure=5,
+        log=logging.getLogger(),
     )
     assert job_complete[0] == JobState.SUCCEEDED
     assert job_complete[1] == "Armada test:test_succeeded succeeded"
@@ -75,6 +78,7 @@ async def test_cancelled_event(js_aio_client):
         job_set_id="test",
         job_service_client=js_aio_client,
         time_out_for_failure=5,
+        log=logging.getLogger(),
     )
     assert job_complete[0] == JobState.CANCELLED
     assert job_complete[1] == "Armada test:test_cancelled cancelled"
@@ -89,6 +93,7 @@ async def test_job_id_not_found(js_aio_client):
         job_set_id="test",
         time_out_for_failure=5,
         job_service_client=js_aio_client,
+        log=logging.getLogger(),
     )
     assert job_complete[0] == JobState.JOB_ID_NOT_FOUND
     assert (

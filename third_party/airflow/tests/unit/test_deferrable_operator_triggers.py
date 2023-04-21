@@ -7,17 +7,14 @@ import pytest_asyncio
 from server_mock import EventService, SubmitService
 from job_service_mock import JobService
 
-from armada_client.armada import event_pb2_grpc, submit_pb2_grpc, submit_pb2, health_pb2
+from armada_client.armada import event_pb2_grpc, submit_pb2_grpc, submit_pb2
 from armada_client.asyncio_client import ArmadaAsyncIOClient
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
     generated_pb2 as api_resource,
 )
 
-from armada_client.permissions import Permissions, Subject
-from armada_client.typings import JobState
-
-from armada.jobservice import jobservice_pb2_grpc, jobservice_pb2
+from armada.jobservice import jobservice_pb2_grpc
 
 
 from armada.operators.armada_deferrable import ArmadaSubmitJobTrigger
@@ -131,11 +128,5 @@ async def test_submit_job_trigger(
         job_request_items=[request_item],
     )
 
-    print("test")
-
-    i = 0
     async for event in trigger.run():
-        i += 1
-        print(f"{i}:{event}\n")
-
-    assert False
+        assert event.payload["job"].job_response_items[0].job_id == "job-1"
