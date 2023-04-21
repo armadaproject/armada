@@ -212,6 +212,7 @@ async def search_for_job_complete_async(
     airflow_task_name: str,
     job_id: str,
     job_service_client: JobServiceAsyncIOClient,
+    log,
     time_out_for_failure: int = 7200,
 ) -> Tuple[JobState, str]:
     """
@@ -244,7 +245,7 @@ async def search_for_job_complete_async(
         )
 
         job_state = job_state_from_pb(job_status_return.state)
-        armada_logger.debug(f"Got job state '{job_state.name}' for job {job_id}")
+        log.debug(f"Got job state '{job_state.name}' for job {job_id}")
 
         await asyncio.sleep(3)
 
@@ -265,7 +266,7 @@ async def search_for_job_complete_async(
                 f"Armada {airflow_task_name}:{job_id} connection error (will retry)"
                 f"failed with reason {job_status_return.error}"
             )
-            armada_logger.warning(log_messages)
+            log.warning(log_messages)
             continue
 
         if job_state == JobState.JOB_ID_NOT_FOUND:

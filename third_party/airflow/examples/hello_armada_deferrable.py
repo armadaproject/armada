@@ -24,8 +24,8 @@ def submit_sleep_job():
         containers=[
             core_v1.Container(
                 name="sleep",
-                image="busybox",
-                args=["sleep", "10s"],
+                image="localhost:5051/busybox",
+                args=["sleep", "20s"],
                 securityContext=core_v1.SecurityContext(runAsUser=1000),
                 resources=core_v1.ResourceRequirements(
                     requests={

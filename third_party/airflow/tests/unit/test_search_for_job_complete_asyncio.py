@@ -8,14 +8,14 @@ from job_service_mock import JobService
 
 from armada.operators.jobservice_asyncio import JobServiceAsyncIOClient
 from armada.operators.utils import JobState, search_for_job_complete_async
-from armada.jobservice import jobservice_pb2_grpc
+from armada.jobservice import jobservice_pb2_grpc, jobservice_pb2
 
 
 @pytest.fixture
 def server_mock():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     jobservice_pb2_grpc.add_JobServiceServicer_to_server(JobService(), server)
-    server.add_insecure_port("[::]:50051")
+    server.add_insecure_port("[::]:50099")
     server.start()
     yield
     server.stop(False)
@@ -24,7 +24,7 @@ def server_mock():
 @pytest_asyncio.fixture(scope="function")
 async def js_aio_client(server_mock):
     channel = grpc.aio.insecure_channel(
-        target="127.0.0.1:50051",
+        target="127.0.0.1:50099",
         options={
             "grpc.keepalive_time_ms": 30000,
         }.items(),
@@ -94,3 +94,9 @@ async def test_job_id_not_found(js_aio_client):
     assert (
         job_complete[1] == "Armada test:id could not find a job id and\nhit a timeout"
     )
+
+
+@pytest.mark.asyncio
+async def test_healthy(js_aio_client):
+    health = await js_aio_client.health()
+    assert health.status == jobservice_pb2.HealthCheckResponse.SERVING

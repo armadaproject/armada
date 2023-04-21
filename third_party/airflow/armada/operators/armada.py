@@ -54,7 +54,7 @@ class ArmadaOperator(BaseOperator):
         "https://lookout.armada.domain/jobs?job_id=<job_id>" where <job_id> will
         be replaced with the actual job ID.
 
-    :return: a job service client instance
+    :return: an armada operator instance
     """
 
     def __init__(
