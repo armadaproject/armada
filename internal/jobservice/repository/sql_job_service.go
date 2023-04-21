@@ -25,8 +25,8 @@ type JobTableUpdater interface {
 	UnsubscribeJobSet(ctx context.Context, queue string, jobSet string) (int64, error)
 }
 
-// SQLJobService for persisting to DB.
-type SQLJobService interface {
+// Repository for persisting to DB.
+type Repository interface {
 	AddMessageIdAndClearSubscriptionError(ctx context.Context, queue string, jobSet string, fromMessageId string) error
 	CheckToUnSubscribe(ctx context.Context, queue string, jobSet string, configTimeWithoutUpdates int64) (bool, error)
 	CleanupJobSetAndJobs(ctx context.Context, queue string, jobSet string) (int64, error)
@@ -44,11 +44,11 @@ type SQLJobService interface {
 	UpdateJobSetDb(ctx context.Context, queue string, jobSet string, fromMessageId string) error
 }
 
-func NewSQLJobService(cfg *configuration.JobServiceConfiguration, log *log.Entry) (error, SQLJobService, func()) {
+func NewRepository(cfg *configuration.JobServiceConfiguration, log *log.Entry) (error, Repository, func()) {
 	if cfg.DatabaseType == "postgres" {
-		return NewJSRepoPostgres(cfg, log)
+		return NewRepoPostgres(cfg, log)
 	} else if cfg.DatabaseType == "sqlite" {
-		return NewJSRepoSQLite(cfg, log)
+		return NewRepoSQLite(cfg, log)
 	}
 
 	return errors.New("database type must be either 'postgres' or 'sqlite'"), nil, func() {}

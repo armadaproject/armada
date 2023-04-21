@@ -17,7 +17,7 @@ import (
 )
 
 func TestConstructInMemoryDoesNotExist(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		responseExpected := &jobservice.JobServiceResponse{
 			State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND,
@@ -33,7 +33,7 @@ func TestConstructInMemoryDoesNotExist(t *testing.T) {
 }
 
 func TestSubscriptionError(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		err := r.SubscribeJobSet(ctx, "queue-1", "job-set-1", "")
 		require.NoError(t, err)
@@ -46,7 +46,7 @@ func TestSubscriptionError(t *testing.T) {
 }
 
 func TestUpdateJobSetDb(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		err := r.SubscribeJobSet(ctx, "test", "job-set-1", "test")
 		require.NoError(t, err)
@@ -56,7 +56,7 @@ func TestUpdateJobSetDb(t *testing.T) {
 }
 
 func TestConstructInMemoryServiceFailed(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		responseExpected := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
 		jobStatus := NewJobStatus("test", "job-set-1", "job-id", *responseExpected)
@@ -71,7 +71,7 @@ func TestConstructInMemoryServiceFailed(t *testing.T) {
 }
 
 func TestConstructInMemoryServiceNoJob(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		responseExpected := &jobservice.JobServiceResponse{
 			State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND,
@@ -83,7 +83,7 @@ func TestConstructInMemoryServiceNoJob(t *testing.T) {
 }
 
 func TestIsJobSubscribed(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		resp, _, err := r.IsJobSetSubscribed(ctx, "queue-1", "job-set-1")
 		require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestIsJobSubscribed(t *testing.T) {
 }
 
 func TestSubscribeList(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		err := r.SubscribeJobSet(ctx, "queue", "job-set-1", "")
 		require.NoError(t, err)
@@ -123,7 +123,7 @@ func TestSubscribeList(t *testing.T) {
 }
 
 func TestCleanupJobSetAndJobsIfNonExist(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		rowsAffected, err := r.CleanupJobSetAndJobs(ctx, "queue", "job-set-1")
 		require.NoError(t, err)
@@ -136,7 +136,7 @@ func TestCleanupJobSetAndJobsIfNonExist(t *testing.T) {
 }
 
 func TestCleanupJobSetAndJobsHappy(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		err := r.SubscribeJobSet(ctx, "queue", "job-set-1", "")
 		require.NoError(t, err)
@@ -151,7 +151,7 @@ func TestCleanupJobSetAndJobsHappy(t *testing.T) {
 }
 
 func TestDeleteJobsInJobSet(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		responseExpected1 := &jobservice.JobServiceResponse{
 			State: jobservice.JobServiceResponse_FAILED, Error: "TestFail",
@@ -183,7 +183,7 @@ func TestDeleteJobsInJobSet(t *testing.T) {
 }
 
 func TestCheckToUnSubscribe(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		responseExpected1 := &jobservice.JobServiceResponse{
 			State: jobservice.JobServiceResponse_FAILED, Error: "TestFail",
@@ -209,7 +209,7 @@ func TestCheckToUnSubscribe(t *testing.T) {
 }
 
 func TestCheckToUnSubscribeWithoutSubscribing(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		responseExpected1 := &jobservice.JobServiceResponse{
 			State: jobservice.JobServiceResponse_FAILED, Error: "TestFail",
@@ -236,7 +236,7 @@ func TestCheckToUnSubscribeWithoutSubscribing(t *testing.T) {
 }
 
 func TestUnsubscribe(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		err := r.SubscribeJobSet(ctx, "test", "testjobset", "")
 		require.NoError(t, err)
@@ -250,7 +250,7 @@ func TestUnsubscribe(t *testing.T) {
 }
 
 func TestUpdateJobSetTime(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		err := r.SubscribeJobSet(ctx, "test", "job-set-1", "")
 		require.NoError(t, err)
@@ -260,7 +260,7 @@ func TestUpdateJobSetTime(t *testing.T) {
 }
 
 func TestUpdateJobSetTimeWithoutSubscribe(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		updateErr := r.UpdateJobSetDb(ctx, "test", "job-set-1", "")
 		assert.EqualError(t, updateErr, "queue test jobSet job-set-1 is already unsubscribed")
@@ -268,7 +268,7 @@ func TestUpdateJobSetTimeWithoutSubscribe(t *testing.T) {
 }
 
 func TestGetJobStatusAllStates(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		responseFailed := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
 		responseSuccess := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
@@ -327,7 +327,7 @@ func TestGetJobStatusAllStates(t *testing.T) {
 }
 
 func TestDeleteJobsBeforePersistingRaceError(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		responseSuccess := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
 		noExist := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
@@ -350,7 +350,7 @@ func TestDeleteJobsBeforePersistingRaceError(t *testing.T) {
 }
 
 func TestGetJobStatusAfterPersisting(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		responseSuccess := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
 
@@ -364,7 +364,7 @@ func TestGetJobStatusAfterPersisting(t *testing.T) {
 }
 
 func TestDuplicateIdDatabaseInsert(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		responseRunning := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_RUNNING}
 		responseSuccess := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
@@ -385,7 +385,7 @@ func TestDuplicateIdDatabaseInsert(t *testing.T) {
 }
 
 func TestHealthCheck(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		healthCheck, err := r.HealthCheck(context.Background())
 		assert.True(t, healthCheck)
 		require.NoError(t, err)
@@ -395,7 +395,7 @@ func TestHealthCheck(t *testing.T) {
 // This test will fail if sqlite writes are not serialised somehow due to
 // SQLITE_BUSY errors.
 func TestConcurrentJobStatusUpdating(t *testing.T) {
-	WithSqlServiceRepo(func(r SQLJobService) {
+	WithRepository(func(r Repository) {
 		ctx := context.Background()
 		responseRunning := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_RUNNING}
 
@@ -427,16 +427,17 @@ func TestConcurrentJobStatusUpdating(t *testing.T) {
 	})
 }
 
-func WithSqlServiceRepo(action func(r SQLJobService)) {
-	var repo SQLJobService
+func WithRepository(action func(r Repository)) {
+	var repo Repository
 	config := &configuration.JobServiceConfiguration{}
-	log := log.WithField("JobService", "Startup")
+	logger := log.WithField("JobService", "Startup")
 
 	if os.Getenv("JSDBTYPE") == "sqlite" {
 		config.DatabaseType = "sqlite"
 		config.DatabasePath = "test.db"
 	} else if os.Getenv("JSDBTYPE") == "postgres" {
 		config.DatabaseType = "postgres"
+		config.TablesPrefix = "test_"
 		config.PostgresConfig = configuration.PostgresConfig{
 			PoolMaxOpenConns:    20,
 			PoolMaxIdleConns:    5,
@@ -452,7 +453,7 @@ func WithSqlServiceRepo(action func(r SQLJobService)) {
 		}
 	}
 
-	err, repo, dbCallbackFn := NewSQLJobService(config, log)
+	err, repo, dbCallbackFn := NewRepository(config, logger)
 	if err != nil {
 		panic(err)
 	}
@@ -465,7 +466,10 @@ func WithSqlServiceRepo(action func(r SQLJobService)) {
 		// Besides the base sqlite storage file (e.g. "test.db"), there
 		// are also two others to be removed ("test.db-shm", "test.db-wal")
 		for _, suffix := range []string{"", "-shm", "-wal"} {
-			os.Remove(config.DatabasePath + suffix)
+			filepath := config.DatabasePath + suffix
+			if err := os.Remove(filepath); err != nil {
+				logger.Errorf("could not remove SQLite file %s: %v", filepath, err)
+			}
 		}
 	}
 }

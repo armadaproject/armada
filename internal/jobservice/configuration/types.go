@@ -29,6 +29,11 @@ type JobServiceConfiguration struct {
 	PurgeJobSetTime int64
 	// Type of database used - must be either 'postgres' or 'sqlite'
 	DatabaseType string
+
+	// Optional prefix to be prepended to all default table names, to avoid
+	// possible collisions in colocated services on the same database
+	TablesPrefix string
+
 	// Absolute or relative path for sqlite database and must include the db name
 	// This field is only read when DatabaseType is 'sqlite'
 	DatabasePath string

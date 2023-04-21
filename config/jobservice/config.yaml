@@ -4,6 +4,8 @@ purgeJobSetTime: 1000
 subscribeJobSetTime: 100
 # databaseType can be either 'postgres' or 'sqlite'
 databaseType: "postgres"
+# prepend all database table names with this string
+tablesPrefix: ""
 # databasePath specifies the location of the back-end
 # storage file when using database type 'sqlite'
 databasePath: "/var/jobservice.db"

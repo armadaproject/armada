@@ -2,12 +2,12 @@ package repository
 
 import "time"
 
-type SubscribeTable struct {
+type Subscription struct {
 	queue                string
 	jobSet               string
 	lastRequestTimeStamp int64
 }
 
-func NewSubscribeTable(queue string, jobSet string) *SubscribeTable {
-	return &SubscribeTable{queue: queue, jobSet: jobSet, lastRequestTimeStamp: time.Now().Unix()}
+func NewSubscription(queue string, jobSet string) *Subscription {
+	return &Subscription{queue: queue, jobSet: jobSet, lastRequestTimeStamp: time.Now().Unix()}
 }
