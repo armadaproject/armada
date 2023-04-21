@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -42,30 +43,37 @@ func ciSetup() error {
 
 // Build images, spin up a test environment, and run the integration tests against it.
 func ciRunTests() error {
-	mg.Deps(checkforArmadaRunning)
+	mg.Deps(CheckForArmadaRunning)
 
-	err := goRun("run", "cmd/testsuite/main.go", "test",
+	out, err := goOutput("run", "cmd/testsuite/main.go", "test",
 		"--tests", "testsuite/testcases/basic/*",
 		"--junit", "junit.xml",
 	)
+	fmt.Println(out)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-// Use this command to test when the server is ready
-func checkforArmadaRunning() error {
-	// switch to using os exec to hide stdout
-	outbytes, _ := exec.Command(goBinary(), "run", "cmd/armadactl/main.go", "submit", "./testsuite/testcases/basic/failure_1x1.yaml").Output()
-	out := string(outbytes)
-
-	// wait until connection refused does not appear in out
-	for strings.Contains(out, "connection refused") {
-		time.Sleep(5 * time.Second)
-		outbytes, _ = exec.Command(goBinary(), "run", "cmd/armadactl/main.go", "submit", "./testsuite/testcases/basic/failure_1x1.yaml").Output()
-		out = string(outbytes)
+func CheckForArmadaRunning() error {
+	timeout := time.After(1 * time.Minute)
+	tick := time.Tick(1 * time.Second)
+	seconds := 0
+	for {
+		select {
+		case <-timeout:
+			return fmt.Errorf("timed out waiting for Armada to start")
+		case <-tick:
+			outbytes, _ := exec.Command(goBinary(), "run", "cmd/armadactl/main.go", "submit", "./developer/config/job.yaml").CombinedOutput()
+			out := string(outbytes)
+			if !strings.Contains(out, "no executor clusters available") && !strings.Contains(out, "connection refused") {
+				// Sleep for 1 second to allow Armada to fully start
+				time.Sleep(1 * time.Second)
+				fmt.Printf("\nArmada took %d seconds to start!\n\n", seconds)
+				return nil
+			}
+			seconds++
+		}
 	}
-
-	return nil
 }
