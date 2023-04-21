@@ -42,7 +42,6 @@ func ciSetup() error {
 
 // Build images, spin up a test environment, and run the integration tests against it.
 func ciRunTests() error {
-
 	mg.Deps(checkforArmadaRunning)
 
 	err := goRun("run", "cmd/testsuite/main.go", "test",

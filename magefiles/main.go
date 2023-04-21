@@ -81,7 +81,6 @@ func Kind() {
 
 // Build images, spin up a test environment, and run the integration tests against it.
 func CiRunTests() error {
-
 	mg.Deps(checkforArmadaRunning)
 
 	err := goRun("run", "cmd/testsuite/main.go", "test",
