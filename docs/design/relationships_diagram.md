@@ -4,6 +4,8 @@
 
 This diagram shows the high-level relationships between components of Armada and third-party softwares.
 
+For a more detailed view of Armada, see the [Scheduler Architecture Doc](../architecture.md).
+
 ### Armada Client
 
 This is the comonent that is used by users to submit jobs to Armada, using gRPC. Current languages supported are:
