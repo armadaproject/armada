@@ -276,7 +276,6 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
         self.airflow_task_name = airflow_task_name
 
     def serialize(self) -> tuple:
-        self.log.info("ArmadaJobCompleteTrigger.serialize called")
         return (
             "armada.operators.armada_deferrable.ArmadaJobCompleteTrigger",
             {
