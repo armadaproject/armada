@@ -5,13 +5,12 @@ import (
 	"testing"
 
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-
-	"github.com/stretchr/testify/assert"
-
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func Test_ValidateJobSubmitRequestItem(t *testing.T) {
@@ -107,8 +106,6 @@ func Test_ValidateJobSubmitRequestItem_WithPortRepeatedInSeperateConfig(t *testi
 }
 
 func TestValidateGangs(t *testing.T) {
-	gangIdAnnotation := "gangId"
-	gangCardinalityAnnotation := "gangCardinality"
 	tests := map[string]struct {
 		Jobs          []*api.Job
 		ExpectSuccess bool
@@ -121,8 +118,8 @@ func TestValidateGangs(t *testing.T) {
 			Jobs: []*api.Job{
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "foo",
-						gangCardinalityAnnotation: strconv.Itoa(1),
+						configuration.GangIdAnnotation:          "foo",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(1),
 					},
 				},
 			},
@@ -132,8 +129,8 @@ func TestValidateGangs(t *testing.T) {
 			Jobs: []*api.Job{
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "",
-						gangCardinalityAnnotation: strconv.Itoa(1),
+						configuration.GangIdAnnotation:          "",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(1),
 					},
 				},
 			},
@@ -143,20 +140,20 @@ func TestValidateGangs(t *testing.T) {
 			Jobs: []*api.Job{
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "foo",
-						gangCardinalityAnnotation: strconv.Itoa(3),
+						configuration.GangIdAnnotation:          "foo",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "foo",
-						gangCardinalityAnnotation: strconv.Itoa(3),
+						configuration.GangIdAnnotation:          "foo",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "foo",
-						gangCardinalityAnnotation: strconv.Itoa(3),
+						configuration.GangIdAnnotation:          "foo",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 			},
@@ -166,32 +163,32 @@ func TestValidateGangs(t *testing.T) {
 			Jobs: []*api.Job{
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "bar",
-						gangCardinalityAnnotation: strconv.Itoa(2),
+						configuration.GangIdAnnotation:          "bar",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "foo",
-						gangCardinalityAnnotation: strconv.Itoa(3),
+						configuration.GangIdAnnotation:          "foo",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "foo",
-						gangCardinalityAnnotation: strconv.Itoa(3),
+						configuration.GangIdAnnotation:          "foo",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "foo",
-						gangCardinalityAnnotation: strconv.Itoa(3),
+						configuration.GangIdAnnotation:          "foo",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "bar",
-						gangCardinalityAnnotation: strconv.Itoa(2),
+						configuration.GangIdAnnotation:          "bar",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 				},
 			},
@@ -201,26 +198,26 @@ func TestValidateGangs(t *testing.T) {
 			Jobs: []*api.Job{
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "bar",
-						gangCardinalityAnnotation: strconv.Itoa(2),
+						configuration.GangIdAnnotation:          "bar",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "foo",
-						gangCardinalityAnnotation: strconv.Itoa(3),
+						configuration.GangIdAnnotation:          "foo",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "foo",
-						gangCardinalityAnnotation: strconv.Itoa(3),
+						configuration.GangIdAnnotation:          "foo",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "bar",
-						gangCardinalityAnnotation: strconv.Itoa(2),
+						configuration.GangIdAnnotation:          "bar",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 				},
 			},
@@ -230,13 +227,13 @@ func TestValidateGangs(t *testing.T) {
 			Jobs: []*api.Job{
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "bar",
-						gangCardinalityAnnotation: strconv.Itoa(2),
+						configuration.GangIdAnnotation:          "bar",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation: "bar",
+						configuration.GangIdAnnotation: "bar",
 					},
 				},
 			},
@@ -246,13 +243,13 @@ func TestValidateGangs(t *testing.T) {
 			Jobs: []*api.Job{
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "bar",
-						gangCardinalityAnnotation: "not an int",
+						configuration.GangIdAnnotation:          "bar",
+						configuration.GangCardinalityAnnotation: "not an int",
 					},
 				},
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation: "not an int",
+						configuration.GangIdAnnotation: "not an int",
 					},
 				},
 			},
@@ -262,8 +259,8 @@ func TestValidateGangs(t *testing.T) {
 			Jobs: []*api.Job{
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "bar",
-						gangCardinalityAnnotation: "0",
+						configuration.GangIdAnnotation:          "bar",
+						configuration.GangCardinalityAnnotation: "0",
 					},
 				},
 			},
@@ -273,8 +270,8 @@ func TestValidateGangs(t *testing.T) {
 			Jobs: []*api.Job{
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "bar",
-						gangCardinalityAnnotation: "-1",
+						configuration.GangIdAnnotation:          "bar",
+						configuration.GangCardinalityAnnotation: "-1",
 					},
 				},
 			},
@@ -284,32 +281,32 @@ func TestValidateGangs(t *testing.T) {
 			Jobs: []*api.Job{
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "bar",
-						gangCardinalityAnnotation: strconv.Itoa(2),
+						configuration.GangIdAnnotation:          "bar",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "foo",
-						gangCardinalityAnnotation: strconv.Itoa(3),
+						configuration.GangIdAnnotation:          "foo",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "foo",
-						gangCardinalityAnnotation: strconv.Itoa(3),
+						configuration.GangIdAnnotation:          "foo",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(3),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "bar",
-						gangCardinalityAnnotation: strconv.Itoa(2),
+						configuration.GangIdAnnotation:          "bar",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 				},
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "foo",
-						gangCardinalityAnnotation: strconv.Itoa(2),
+						configuration.GangIdAnnotation:          "foo",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 				},
 			},
@@ -319,8 +316,8 @@ func TestValidateGangs(t *testing.T) {
 			Jobs: []*api.Job{
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation:          "bar",
-						gangCardinalityAnnotation: strconv.Itoa(2),
+						configuration.GangIdAnnotation:          "bar",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 					PodSpec: &v1.PodSpec{
 						PriorityClassName: "baz",
@@ -328,7 +325,7 @@ func TestValidateGangs(t *testing.T) {
 				},
 				{
 					Annotations: map[string]string{
-						gangIdAnnotation: "bar",
+						configuration.GangIdAnnotation: "bar",
 					},
 					PodSpec: &v1.PodSpec{
 						PriorityClassName: "zab",
@@ -340,7 +337,7 @@ func TestValidateGangs(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := validateGangs(tc.Jobs, gangIdAnnotation, gangCardinalityAnnotation)
+			err := validateGangs(tc.Jobs)
 			if tc.ExpectSuccess {
 				assert.NoError(t, err)
 			} else {

@@ -956,6 +956,9 @@
         },
         "reason": {
           "type": "string"
+        },
+        "runAttempted": {
+          "type": "boolean"
         }
       }
     },
@@ -1260,7 +1263,10 @@
       "enum": [
         "QUEUED",
         "PENDING",
-        "RUNNING"
+        "RUNNING",
+        "SUCCEEDED",
+        "FAILED",
+        "UNKNOWN"
       ]
     },
     "apiJobSubmitRequest": {

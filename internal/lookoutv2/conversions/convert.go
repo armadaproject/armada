@@ -5,8 +5,8 @@ import (
 
 	"github.com/go-openapi/strfmt"
 
-	"github.com/G-Research/armada/internal/lookoutv2/gen/models"
-	"github.com/G-Research/armada/internal/lookoutv2/model"
+	"github.com/armadaproject/armada/internal/lookoutv2/gen/models"
+	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
 func ToSwaggerJob(job *model.Job) *models.Job {

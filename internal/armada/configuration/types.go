@@ -3,12 +3,14 @@ package configuration
 import (
 	"time"
 
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/internal/common"
-	authconfig "github.com/G-Research/armada/internal/common/auth/configuration"
-	grpcconfig "github.com/G-Research/armada/internal/common/grpc/configuration"
+	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
+	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 )
 
 type ArmadaConfig struct {
@@ -22,30 +24,25 @@ type ArmadaConfig struct {
 
 	Grpc grpcconfig.GrpcConfig
 
-	PriorityHalfTime      time.Duration
-	CancelJobsBatchSize   int
-	Redis                 redis.UniversalOptions
-	Events                EventsConfig
-	EventsNats            NatsConfig
-	EventsRedis           redis.UniversalOptions
-	EventsApiRedis        redis.UniversalOptions
-	DefaultToLegacyEvents bool
-	ForceNewEvents        bool
-
-	Scheduling        SchedulingConfig
-	NewScheduler      NewSchedulerConfig
-	QueueManagement   QueueManagementConfig
-	DatabaseRetention DatabaseRetentionPolicy
-	EventRetention    EventRetentionPolicy
-	Pulsar            PulsarConfig
-	Postgres          PostgresConfig // Used for Pulsar submit API deduplication
-	EventApi          EventApiConfig
-	Metrics           MetricsConfig
+	PriorityHalfTime                  time.Duration
+	CancelJobsBatchSize               int
+	Redis                             redis.UniversalOptions
+	EventsApiRedis                    redis.UniversalOptions
+	Scheduling                        SchedulingConfig
+	NewScheduler                      NewSchedulerConfig
+	QueueManagement                   QueueManagementConfig
+	Pulsar                            PulsarConfig
+	Postgres                          PostgresConfig // Used for Pulsar submit API deduplication
+	EventApi                          EventApiConfig
+	Metrics                           MetricsConfig
+	IgnoreJobSubmitChecks             bool // Temporary flag to stop us rejecting jobs on switch over
+	PulsarSchedulerEnabled            bool
+	ProbabilityOfUsingPulsarScheduler float64
 }
 
 type PulsarConfig struct {
 	// Pulsar URL
-	URL string
+	URL string `validate:"required"`
 	// Path to the trusted TLS certificate file (must exist)
 	TLSTrustCertsFilePath string
 	// Whether Pulsar client accept untrusted TLS certificate from broker
@@ -63,9 +60,9 @@ type PulsarConfig struct {
 	JobsetEventsTopic           string
 	RedisFromPulsarSubscription string
 	// Compression to use.  Valid values are "None", "LZ4", "Zlib", "Zstd".  Default is "None"
-	CompressionType string
+	CompressionType pulsar.CompressionType
 	// Compression Level to use.  Valid values are "Default", "Better", "Faster".  Default is "Default"
-	CompressionLevel string
+	CompressionLevel pulsar.CompressionLevel
 	// Used to construct an executorconfig.IngressConfiguration,
 	// which is used when converting Armada-specific IngressConfig and ServiceConfig objects into k8s objects.
 	HostnameSuffix string
@@ -85,13 +82,11 @@ type PulsarConfig struct {
 }
 
 type SchedulingConfig struct {
-	Preemption                                PreemptionConfig
-	UseProbabilisticSchedulingForAllResources bool
+	// Set to true to enable scheduler assertions. This results in some performance loss.
+	EnableAssertions bool
+	Preemption       PreemptionConfig
 	// Number of jobs to load from the database at a time.
 	QueueLeaseBatchSize uint
-	// Minimum resources to schedule per request from an executor.
-	// Applies to the old scheduler.
-	MinimumResourceToSchedule common.ComputeResourcesFloat
 	// Maximum total size in bytes of all jobs returned in a single lease jobs call.
 	// Applies to the old scheduler. But is not necessary since we now stream job leases.
 	MaximumLeasePayloadSizeBytes int
@@ -107,20 +102,18 @@ type SchedulingConfig struct {
 	MaximalResourceFractionPerQueue map[string]float64
 	// Max number of jobs to scheduler per lease jobs call.
 	MaximumJobsToSchedule uint
-	// The scheduler stores reports about scheduling decisions for each queue.
-	// These can be queried by users. To limit memory usage, old reports are deleted
-	// to keep the number of stored reports within this limit.
-	MaxQueueReportsToStore int
-	// The scheduler stores reports about scheduling decisions for each job.
-	// These can be queried by users. To limit memory usage, old reports are deleted
-	// to keep the number of stored reports within this limit.
-	MaxJobReportsToStore int
-	Lease                LeaseSettings
-	DefaultJobLimits     common.ComputeResources
+	// Armada stores contexts associated with recent job scheduling attempts.
+	// This setting limits the number of such contexts to store.
+	// Contexts associated with the most recent scheduling attempt for each queue and cluster are always stored.
+	MaxJobSchedulingContextsPerExecutor uint
+	Lease                               LeaseSettings
+	DefaultJobLimits                    armadaresource.ComputeResources
 	// Set of tolerations added to all submitted pods.
 	DefaultJobTolerations []v1.Toleration
 	// Set of tolerations added to all submitted pods of a given priority class.
 	DefaultJobTolerationsByPriorityClass map[string][]v1.Toleration
+	// Set of tolerations added to all submitted pods with a given resource request.
+	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
 	// Weights used when computing fair share.
@@ -131,6 +124,12 @@ type SchedulingConfig struct {
 	PoolResourceScarcity map[string]map[string]float64
 	MaxPodSpecSizeBytes  uint
 	MinJobResources      v1.ResourceList
+	// Once a node has been found on which a pod can be scheduled,
+	// the scheduler will consider up to the next maxExtraNodesToConsider nodes.
+	// The scheduler selects the node with the best score out of the considered nodes.
+	// In particular, the score expresses whether preemption is necessary to schedule a pod.
+	// Hence, a larger MaxExtraNodesToConsider would reduce the expected number of preemptions.
+	MaxExtraNodesToConsider uint
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
 	// for which the scheduler creates indexes for efficient lookup.
 	// Applies only to the new scheduler.
@@ -173,12 +172,20 @@ type SchedulingConfig struct {
 	// Should normally not be set greater than single-digit minutes,
 	// since cancellation and preemption may need to wait for this amount of time.
 	MaxTerminationGracePeriod time.Duration
-	// Jobs with equal value for this annotation make up a gang.
-	// All jobs in a gang are guaranteed to be scheduled onto the same cluster at the same time.
-	GangIdAnnotation string
-	// All jobs in a gang must specify the total number of jobs in the gang via this annotation.
-	// The cardinality should be expressed as an integer, e.g., "3".
-	GangCardinalityAnnotation string
+	// If an executor hasn't heartbeated in this time period, it will be considered stale
+	ExecutorTimeout time.Duration
+	// Default activeDeadline for all pods that don't explicitly set activeDeadlineSeconds.
+	// Is trumped by DefaultActiveDeadlineByResourceRequest.
+	DefaultActiveDeadline time.Duration
+	// Default activeDeadline for pods with at least one container requesting a given resource.
+	// For example, if
+	// DefaultActiveDeadlineByResourceRequest: map[string]time.Duration{"gpu": time.Second},
+	// then all pods requesting a non-zero amount of gpu and don't explicitly set activeDeadlineSeconds
+	// will have activeDeadlineSeconds set to 1. Trumps DefaultActiveDeadline.
+	DefaultActiveDeadlineByResourceRequest map[string]time.Duration
+	// Maximum number of jobs that can be assigned to a executor but not yet acknowledged, before
+	// the scheduler is excluded from consideration by the scheduler.
+	MaxUnacknowledgedJobsPerExecutor uint
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.
@@ -189,11 +196,30 @@ type NewSchedulerConfig struct {
 
 // TODO: Remove. Move PriorityClasses and DefaultPriorityClass into SchedulingConfig.
 type PreemptionConfig struct {
+	// TODO: We should remove the enabled flag. Disabling it makes no sense now.
 	// If true, Armada will:
 	// 1. Validate that submitted pods specify no or a valid priority class.
 	// 2. Assign a default priority class to submitted pods that do not specify a priority class.
 	// 3. Assign jobs to executors that may preempt currently running jobs.
 	Enabled bool
+	// Whether to preempt jobs with a balanced priority class to divide resources more fairly.
+	PreemptToFairShare bool
+	// If using PreemptToFairShare,
+	// the probability of evicting jobs on a node to balance resource usage.
+	NodeEvictionProbability float64
+	// If using PreemptToFairShare,
+	// the probability of evicting jobs on oversubscribed nodes, i.e.,
+	// nodes on which the total resource requests are greater than the available resources.
+	NodeOversubscriptionEvictionProbability float64
+	// If true, the Armada scheduler will add to scheduled pods a node selector
+	// NodeIdLabel: <value of label on node selected by scheduler>.
+	// If true, NodeIdLabel must be non-empty.
+	SetNodeIdSelector bool
+	// Label used with SetNodeIdSelector. Must be non-empty if SetNodeIdSelector is true.
+	NodeIdLabel string
+	// If true, the Armada scheduler will set the node name of the selected node directly on scheduled pods,
+	// thus bypassing kube-scheduler entirely.
+	SetNodeName bool
 	// Map from priority class names to priority classes.
 	// Must be consistent with Kubernetes priority classes.
 	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
@@ -201,10 +227,14 @@ type PreemptionConfig struct {
 	// Priority class assigned to pods that do not specify one.
 	// Must be an entry in PriorityClasses above.
 	DefaultPriorityClass string
+	// If set, override the priority class name of pods with this value when sending to an executor.
+	PriorityClassNameOverride *string
 }
 
 type PriorityClass struct {
 	Priority int32
+	// If true, Armada will may preempt jobs of this class to improve fairness.
+	Preemptible bool
 	// Max fraction of resources assigned to jobs of this priority or lower.
 	// Must be non-increasing with higher priority.
 	//
@@ -220,13 +250,29 @@ type PriorityClass struct {
 	MaximalResourceFractionPerQueue map[string]float64
 }
 
-type DatabaseRetentionPolicy struct {
-	JobRetentionDuration time.Duration
+func (p PreemptionConfig) PriorityByPriorityClassName() map[string]int32 {
+	return PriorityByPriorityClassName(p.PriorityClasses)
 }
 
-type EventRetentionPolicy struct {
-	ExpiryEnabled     bool
-	RetentionDuration time.Duration
+func PriorityByPriorityClassName(priorityClasses map[string]PriorityClass) map[string]int32 {
+	rv := make(map[string]int32, len(priorityClasses))
+	for name, pc := range priorityClasses {
+		rv[name] = pc.Priority
+	}
+	return rv
+}
+
+func (p PreemptionConfig) AllowedPriorities() []int32 {
+	return AllowedPriorities(p.PriorityClasses)
+}
+
+func AllowedPriorities(priorityClasses map[string]PriorityClass) []int32 {
+	rv := make([]int32, 0, len(priorityClasses))
+	for _, v := range priorityClasses {
+		rv = append(rv, v.Priority)
+	}
+	slices.Sort(rv)
+	return slices.Compact(rv)
 }
 
 type LeaseSettings struct {
@@ -234,27 +280,11 @@ type LeaseSettings struct {
 	ExpiryLoopInterval time.Duration
 }
 
-type EventsConfig struct {
-	StoreQueue     string // Queue group for event storage processors
-	JobStatusQueue string // Queue group for running job status processor
-
-	ProcessorBatchSize             int           // Maximum event batch size
-	ProcessorMaxTimeBetweenBatches time.Duration // Maximum time between batches
-	ProcessorTimeout               time.Duration // Timeout for reporting event or stopping batcher before erroring out
-}
-
 type PostgresConfig struct {
 	MaxOpenConns    int
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
 	Connection      map[string]string
-}
-
-type NatsConfig struct {
-	Servers   []string
-	ClusterID string
-	Subject   string
-	Timeout   time.Duration // Timeout for receiving a reply back from the stan server for PublishAsync
 }
 
 type QueueManagementConfig struct {

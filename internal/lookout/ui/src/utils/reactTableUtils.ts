@@ -13,7 +13,8 @@ export type RowIdParts = {
   parentRowId?: RowId
 }
 export const toRowId = ({ type, value, parentRowId }: RowIdParts): RowId => {
-  const rowIdSegment: RowIdSegment = `${type}:${value}`
+  const encodedValue = encodeURIComponent(value)
+  const rowIdSegment: RowIdSegment = `${type}:${encodedValue}`
   return parentRowId ? `${parentRowId}>${rowIdSegment}` : rowIdSegment
 }
 
@@ -28,11 +29,13 @@ export type RowIdInfo = {
   // E.g. ["queue:queue-2", "queue:queue-2>jobSet:job-set-2"]
   rowIdPathFromRoot: RowId[]
 }
+
 export const fromRowId = (rowId: RowId): RowIdInfo => {
   const rowIdSegments: RowIdSegment[] = rowId.split(">") as RowIdSegment[]
 
   const rowIdPartsPath = rowIdSegments.map((segment) => {
-    const [type, value] = segment.split(":")
+    const [type, encodedValue] = segment.split(":")
+    const value = decodeURIComponent(encodedValue)
     return { type, value }
   })
 

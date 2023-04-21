@@ -7,43 +7,35 @@ updates:
   - package-ecosystem: "npm"
     # Look for `package.json` and `lock` files in the `internal/lookout` directory
     directory: "./internal/lookout"
-    # Check the npm registry for updates every day (weekdays)
+    # Check the npm registry for updates monthly
     schedule:
-      interval: "daily"
-
-  # Enable version updates for yarn
-  - package-ecosystem: "yarn"
-    # Look for `package.json` and `lock` files in the `internal/lookout` directory
-    directory: "./internal/lookout"
-    # Check the yarn registry for updates every day (weekdays)
-    schedule:
-      interval: "daily"
+      interval: "monthly"
 
   # Maintain dependencies for Golang
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      # Check for updates managed by Composer once a week
-      interval: "daily"
+      # Check for updates managed by Composer once a month
+      interval: "monthly"
 
   # Enable version updates for Docker
   - package-ecosystem: "docker"
     # Look for a `Dockerfile` in the `build` directory
     directory: "./build"
-    # Check for updates once a week
+    # Check for updates once a month
     schedule:
-      interval: "daily"
+      interval: "monthly"
 
   # Enable version updates for pip -- client/python dir
   - package-ecosystem: "pip"
     directory: "./client/python"
-    # Check the pip registry for updates every day (weekdays)
+    # Check the pip registry for updates monthly
     schedule:
-      interval: "daily"
+      interval: "monthly"
 
   # Enable version updates for pip -- third_party/airflow dir
   - package-ecosystem: "pip"
     directory: "./third_party/airflow"
-    # Check the pip registry for updates every day (weekdays)
+    # Check the pip registry for updates monthly
     schedule:
-      interval: "daily"
+      interval: "monthly"

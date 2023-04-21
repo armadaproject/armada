@@ -4,10 +4,10 @@
     <PackageId>ArmadaProject.Io.Client</PackageId>
     <Version>0.0.1</Version>
     <Authors>G-Research</Authors>
-    <Company>G-Research</Company>    
+    <Company>G-Research</Company>
     <Description>ArmadaProject.Io.Client is a .NET core library for communicating with Armada server implemented in C#</Description>
     <Copyright>Copyright G-Research 2022</Copyright>
-    <PackageProjectUrl>https://github.com/G-Research/armada</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/armadaproject/armada</PackageProjectUrl>
     <PackageTags>armada armadaproject.io .net c# dotnet</PackageTags>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <RootNamespace>ArmadaProject.Io.Client</RootNamespace>
@@ -20,8 +20,27 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Protobuf Include="../../../proto/**/*.proto" Exclude="../../../proto/google/protobuf/*.proto" ProtoRoot="../../../proto/" GrpcServices="None" />
-    <Protobuf Include="../../../pkg/**/*.proto" AdditionalProtocArguments="--proto_path=../../../proto" ProtoRoot="../../../" GrpcServices="Client" />
+    <Protobuf
+      Include="
+        ../../../proto/k8s.io/apimachinery/pkg/api/resource/generated.proto;
+        ../../../proto/k8s.io/apimachinery/pkg/apis/meta/v1/generated.proto;
+        ../../../proto/k8s.io/apimachinery/pkg/runtime/generated.proto;
+        ../../../proto/k8s.io/apimachinery/pkg/runtime/schema/generated.proto;
+        ../../../proto/k8s.io/apimachinery/pkg/util/intstr/generated.proto;
+        ../../../proto/k8s.io/api/networking/v1/generated.proto;
+        ../../../proto/k8s.io/api/core/v1/generated.proto;
+        ../../../proto/github.com/gogo/protobuf/gogoproto/gogo.proto;
+        ../../../proto/google/api/*.proto
+      "
+      ProtoRoot="../../../proto/"
+      GrpcServices="None"
+    />
+    <Protobuf
+      Include="../../../pkg/api/*.proto"
+      AdditionalProtocArguments="--proto_path=../../../proto"
+      ProtoRoot="../../../"
+      GrpcServices="Client"
+    />
   </ItemGroup>
 
 </Project>

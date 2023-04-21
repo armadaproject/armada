@@ -33,7 +33,7 @@ jobs:
       fail-fast: false
       matrix:
         language: [ 'csharp', 'go', 'javascript' ]
-        go: [ '1.18' ]
+        go: [ '1.20' ]
         # CodeQL supports [ 'cpp', 'csharp', 'go', 'java', 'javascript', 'python' ]
         # Learn more:
         # https://docs.github.com/en/free-pro-team@latest/github/finding-security-vulnerabilities-and-errors-in-your-code/configuring-code-scanning#changing-the-languages-that-are-analyzed
@@ -41,8 +41,12 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
-
     # The ArmadaProject.Io.Client needs the generated proto files
+    - name: Install Protoc
+      uses: arduino/setup-protoc@v1
+      with:
+        version: '3.17.3'
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
     - uses: ./.github/workflows/go-setup
     - name: Make Proto
       run: make proto

@@ -1,21 +1,21 @@
 package utilisation
 
 import (
-	"context"
+	"net/http"
 	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
-	"github.com/G-Research/armada/internal/common"
-	commonUtil "github.com/G-Research/armada/internal/common/util"
-	cluster_context "github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/node"
-	"github.com/G-Research/armada/internal/executor/util"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	commonUtil "github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	clusterContext "github.com/armadaproject/armada/internal/executor/context"
+	cluster_context "github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/node"
+	"github.com/armadaproject/armada/internal/executor/util"
 )
 
 const inactivePodGracePeriod = 3 * time.Minute
@@ -24,26 +24,39 @@ type PodUtilisationService interface {
 	GetPodUtilisation(pod *v1.Pod) *domain.UtilisationData
 }
 
-type KubeletPodUtilisationService struct {
+type PodUtilisationServiceImpl struct {
 	clusterContext     cluster_context.ClusterContext
+	fetchers           []podUtilisationFetcher
 	nodeInfoService    node.NodeInfoService
 	podUtilisationData map[string]*domain.UtilisationData
 	dataAccessMutex    sync.Mutex
 }
 
-func NewMetricsServerQueueUtilisationService(
+type podUtilisationFetcher interface {
+	fetch(nodes []*v1.Node, podNameToUtilisationData map[string]*domain.UtilisationData, clusterContext clusterContext.ClusterContext)
+}
+
+func NewPodUtilisationService(
 	clusterContext cluster_context.ClusterContext,
 	nodeInfoService node.NodeInfoService,
-) *KubeletPodUtilisationService {
-	return &KubeletPodUtilisationService{
+	customConfigs []configuration.CustomUsageMetrics,
+	httpClient *http.Client,
+) *PodUtilisationServiceImpl {
+	fetchers := []podUtilisationFetcher{newPodUtilisationKubeletMetrics()}
+	for _, customConfig := range customConfigs {
+		fetchers = append(fetchers, newPodUtilisationCustomMetrics(httpClient, &customConfig))
+	}
+
+	return &PodUtilisationServiceImpl{
 		clusterContext:     clusterContext,
+		fetchers:           fetchers,
 		nodeInfoService:    nodeInfoService,
 		podUtilisationData: map[string]*domain.UtilisationData{},
 		dataAccessMutex:    sync.Mutex{},
 	}
 }
 
-func (q *KubeletPodUtilisationService) GetPodUtilisation(pod *v1.Pod) *domain.UtilisationData {
+func (q *PodUtilisationServiceImpl) GetPodUtilisation(pod *v1.Pod) *domain.UtilisationData {
 	if pod.Status.Phase == v1.PodSucceeded || pod.Status.Phase == v1.PodFailed {
 		return domain.EmptyUtilisationData()
 	}
@@ -56,13 +69,13 @@ func (q *KubeletPodUtilisationService) GetPodUtilisation(pod *v1.Pod) *domain.Ut
 	return utilisation.DeepCopy()
 }
 
-func (q *KubeletPodUtilisationService) updatePodUtilisation(name string, utilisationData *domain.UtilisationData) {
+func (q *PodUtilisationServiceImpl) updatePodUtilisation(name string, utilisationData *domain.UtilisationData) {
 	q.dataAccessMutex.Lock()
 	defer q.dataAccessMutex.Unlock()
 	q.podUtilisationData[name] = utilisationData
 }
 
-func (q *KubeletPodUtilisationService) removeFinishedPods(podNames map[string]bool) {
+func (q *PodUtilisationServiceImpl) removeFinishedPods(podNames map[string]bool) {
 	q.dataAccessMutex.Lock()
 	defer q.dataAccessMutex.Unlock()
 	for name := range q.podUtilisationData {
@@ -72,7 +85,7 @@ func (q *KubeletPodUtilisationService) removeFinishedPods(podNames map[string]bo
 	}
 }
 
-func (q *KubeletPodUtilisationService) RefreshUtilisationData() {
+func (q *PodUtilisationServiceImpl) RefreshUtilisationData() {
 	pods, err := q.clusterContext.GetActiveBatchPods()
 	if err != nil {
 		log.Errorf("Failed to retrieve pods from context: %s", err)
@@ -98,38 +111,25 @@ func (q *KubeletPodUtilisationService) RefreshUtilisationData() {
 	// Remove NotReady nodes, as it means the kubelet is unlikely to respond
 	nodes = util.FilterNodes(nodes, util.IsReady)
 
-	podNames := commonUtil.StringListToSet(util.ExtractNames(pods))
+	podNames := util.ExtractNames(pods)
 
-	summaries := make(chan *v1alpha1.Summary, len(nodes))
-	wg := sync.WaitGroup{}
-	for _, n := range nodes {
-		wg.Add(1)
-		go func(node *v1.Node) {
-			defer wg.Done()
-			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*15)
-			defer cancelFunc()
-			summary, err := q.clusterContext.GetNodeStatsSummary(ctx, node)
-			if err != nil {
-				log.Errorf("Error when getting stats for node %s: %s", node.Name, err)
-				return
-			}
-			summaries <- summary
-		}(n)
-	}
-	go func() {
-		wg.Wait()
-		close(summaries)
-	}()
-
-	for s := range summaries {
-		for _, pod := range s.Pods {
-			if podNames[pod.PodRef.Name] {
-				q.updatePodStats(&pod)
-			}
+	podNameToUtilisationData := map[string]*domain.UtilisationData{}
+	for _, podName := range podNames {
+		podNameToUtilisationData[podName] = &domain.UtilisationData{
+			CurrentUsage:    armadaresource.ComputeResources{},
+			CumulativeUsage: armadaresource.ComputeResources{},
 		}
 	}
 
-	q.removeFinishedPods(podNames)
+	for _, fetcher := range q.fetchers {
+		fetcher.fetch(nodes, podNameToUtilisationData, q.clusterContext)
+	}
+
+	for podName, utilisationData := range podNameToUtilisationData {
+		q.updatePodUtilisation(podName, utilisationData)
+	}
+
+	q.removeFinishedPods(commonUtil.StringListToSet(podNames))
 }
 
 // We define an active pod as:
@@ -164,48 +164,4 @@ func getNodesHostingActiveManagedPods(pods []*v1.Pod, nodes []*v1.Node) []*v1.No
 		}
 	}
 	return nodesWithActiveManagedPods
-}
-
-func (q *KubeletPodUtilisationService) updatePodStats(podStats *v1alpha1.PodStats) {
-	currentUsage := common.ComputeResources{}
-	cumulativeUsage := common.ComputeResources{}
-
-	if podStats.CPU != nil && podStats.CPU.UsageNanoCores != nil {
-		currentUsage["cpu"] = *resource.NewScaledQuantity(int64(*podStats.CPU.UsageNanoCores), -9)
-	}
-	if podStats.CPU != nil && podStats.CPU.UsageCoreNanoSeconds != nil {
-		cumulativeUsage["cpu"] = *resource.NewScaledQuantity(int64(*podStats.CPU.UsageCoreNanoSeconds), -9)
-	}
-	if podStats.Memory != nil && podStats.Memory.WorkingSetBytes != nil {
-		currentUsage["memory"] = *resource.NewQuantity(int64(*podStats.Memory.WorkingSetBytes), resource.BinarySI)
-	}
-	if podStats.EphemeralStorage != nil && podStats.EphemeralStorage.UsedBytes != nil {
-		currentUsage["ephemeral-storage"] = *resource.NewQuantity(int64(*podStats.EphemeralStorage.UsedBytes), resource.BinarySI)
-	}
-
-	var (
-		acceleratorDutyCycles int64
-		acceleratorUsedMemory int64
-		accelerator           bool
-	)
-
-	// add custom metrics for gpu
-	for _, c := range podStats.Containers {
-		for _, a := range c.Accelerators {
-			accelerator = true
-			acceleratorDutyCycles += int64(a.DutyCycle)
-			acceleratorUsedMemory += int64(a.MemoryUsed)
-		}
-	}
-
-	if accelerator {
-		currentUsage[domain.AcceleratorDutyCycle] = *resource.NewScaledQuantity(acceleratorDutyCycles, -2)
-		currentUsage[domain.AcceleratorMemory] = *resource.NewScaledQuantity(acceleratorUsedMemory, -2)
-	}
-
-	utilisationData := &domain.UtilisationData{
-		CurrentUsage:    currentUsage,
-		CumulativeUsage: cumulativeUsage,
-	}
-	q.updatePodUtilisation(podStats.PodRef.Name, utilisationData)
 }

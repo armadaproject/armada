@@ -1,32 +1,34 @@
 import { useEffect, useState } from "react"
 
 import {
-  SortingState,
   ColumnFiltersState,
-  RowSelectionState,
-  PaginationState,
+  ColumnSort,
   ExpandedStateList,
+  PaginationState,
+  RowSelectionState,
+  SortingState,
 } from "@tanstack/react-table"
-import { JobTableRow, JobRow, JobGroupRow } from "models/jobsTableModels"
-import { SnackbarProvider } from "notistack"
+import { JobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
+import { Job, JobId, JobOrder } from "models/lookoutV2Models"
+import { VariantType } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { getErrorMessage } from "utils"
-import { ColumnId, JobTableColumn } from "utils/jobsTableColumns"
+import { ColumnId, JobTableColumn, StandardColumnId } from "utils/jobsTableColumns"
 import {
-  PendingData,
-  FetchRowRequest,
-  convertRowPartsToFilters,
-  convertColumnFiltersToFilters,
-  fetchJobs,
-  jobsToRows,
   fetchJobGroups,
+  fetchJobs,
+  FetchRowRequest,
+  getFiltersForRows,
   groupsToRows,
+  jobsToRows,
+  PendingData,
 } from "utils/jobsTableUtils"
 import { fromRowId, mergeSubRows } from "utils/reactTableUtils"
 
 export interface UseFetchJobsTableDataArgs {
   groupedColumns: ColumnId[]
+  visibleColumns: ColumnId[]
   expandedState: ExpandedStateList
   sortingState: SortingState
   paginationState: PaginationState
@@ -36,17 +38,79 @@ export interface UseFetchJobsTableDataArgs {
   updateSelectedRows: (newState: RowSelectionState) => void
   getJobsService: IGetJobsService
   groupJobsService: IGroupJobsService
-  enqueueSnackbar: SnackbarProvider["enqueueSnackbar"]
+  openSnackbar: (message: string, variant: VariantType) => void
 }
+
 export interface UseFetchJobsTableDataResult {
   data: JobTableRow[]
+  jobInfoMap: Map<JobId, Job>
   pageCount: number
   rowsToFetch: PendingData[]
   setRowsToFetch: (toFetch: PendingData[]) => void
   totalRowCount: number
 }
+
+const aggregatableFields = new Map<ColumnId, string>([
+  [StandardColumnId.TimeSubmittedUtc, "submitted"],
+  [StandardColumnId.TimeSubmittedAgo, "submitted"],
+  [StandardColumnId.LastTransitionTimeUtc, "lastTransitionTime"],
+  [StandardColumnId.TimeInState, "lastTransitionTime"],
+])
+
+export function columnIsAggregatable(columnId: ColumnId): boolean {
+  return aggregatableFields.has(columnId)
+}
+
+const columnToJobSortFieldMap = new Map<ColumnId, string>([
+  [StandardColumnId.JobID, "jobId"],
+  [StandardColumnId.TimeSubmittedUtc, "submitted"],
+  [StandardColumnId.TimeSubmittedAgo, "submitted"],
+  [StandardColumnId.LastTransitionTimeUtc, "lastTransitionTime"],
+  [StandardColumnId.TimeInState, "lastTransitionTime"],
+])
+
+const columnToGroupSortFieldMap = new Map<ColumnId, string>([
+  [StandardColumnId.Count, "count"],
+  [StandardColumnId.TimeSubmittedUtc, "submitted"],
+  [StandardColumnId.TimeSubmittedAgo, "submitted"],
+  [StandardColumnId.LastTransitionTimeUtc, "lastTransitionTime"],
+  [StandardColumnId.TimeInState, "lastTransitionTime"],
+])
+
+// Return ordering to request to API based on column
+function getOrder(sortedField: ColumnSort, isJobFetch: boolean): JobOrder {
+  const defaultJobOrder: JobOrder = {
+    field: "jobId",
+    direction: "DESC",
+  }
+
+  const defaultGroupOrder: JobOrder = {
+    field: "count",
+    direction: "DESC",
+  }
+
+  let field = ""
+  if (isJobFetch) {
+    if (!columnToJobSortFieldMap.has(sortedField.id as ColumnId)) {
+      return defaultJobOrder
+    }
+    field = columnToJobSortFieldMap.get(sortedField.id as ColumnId) as string
+  } else {
+    if (!columnToGroupSortFieldMap.has(sortedField.id as ColumnId)) {
+      return defaultGroupOrder
+    }
+    field = columnToGroupSortFieldMap.get(sortedField.id as ColumnId) as string
+  }
+
+  return {
+    field: field,
+    direction: sortedField.desc ? "DESC" : "ASC",
+  }
+}
+
 export const useFetchJobsTableData = ({
   groupedColumns,
+  visibleColumns,
   expandedState,
   sortingState,
   paginationState,
@@ -56,10 +120,11 @@ export const useFetchJobsTableData = ({
   updateSelectedRows,
   getJobsService,
   groupJobsService,
-  enqueueSnackbar,
+  openSnackbar,
 }: UseFetchJobsTableDataArgs): UseFetchJobsTableDataResult => {
   const [data, setData] = useState<JobTableRow[]>([])
-  const [pendingData, setPendingData] = useState<PendingData[]>([{ parentRowId: "ROOT", skip: 0 }])
+  const [jobInfoMap, setJobInfoMap] = useState<Map<JobId, Job>>(new Map())
+  const [pendingData, setPendingData] = useState<PendingData[]>([])
   const [totalRowCount, setTotalRowCount] = useState(0)
   const [pageCount, setPageCount] = useState<number>(-1)
 
@@ -81,14 +146,12 @@ export const useFetchJobsTableData = ({
 
       const sortedField = sortingState[0]
 
+      const order = getOrder(sortedField, isJobFetch)
       const rowRequest: FetchRowRequest = {
-        filters: [
-          ...convertRowPartsToFilters(parentRowInfo?.rowIdPartsPath ?? []),
-          ...convertColumnFiltersToFilters(columnFilters, allColumns),
-        ],
+        filters: getFiltersForRows(columnFilters, allColumns, parentRowInfo?.rowIdPartsPath ?? []),
         skip: nextRequest.skip ?? 0,
         take: nextRequest.take ?? paginationState.pageSize,
-        order: { field: sortedField.id, direction: sortedField.desc ? "DESC" : "ASC" },
+        order: order,
       }
 
       let newData, totalCount
@@ -97,11 +160,15 @@ export const useFetchJobsTableData = ({
           const { jobs, count: totalJobs } = await fetchJobs(rowRequest, getJobsService, abortController.signal)
           newData = jobsToRows(jobs)
           totalCount = totalJobs
+
+          setJobInfoMap(new Map([...jobInfoMap.entries(), ...jobs.map((j): [JobId, Job] => [j.jobId, j])]))
         } else {
           const groupedCol = groupedColumns[expandedLevel]
 
-          // TODO: Wire in aggregatable+visible columns (maybe use column metadata?)
-          const colsToAggregate: string[] = []
+          const colsToAggregate = visibleColumns
+            .filter((col) => aggregatableFields.has(col))
+            .map((col) => aggregatableFields.get(col))
+            .filter((val) => val !== undefined) as string[]
           const { groups, count: totalGroups } = await fetchJobGroups(
             rowRequest,
             groupJobsService,
@@ -118,7 +185,7 @@ export const useFetchJobsTableData = ({
         }
 
         const errMsg = await getErrorMessage(err)
-        enqueueSnackbar("Failed to retrieve jobs. Error: " + errMsg, { variant: "error" })
+        openSnackbar("Failed to retrieve jobs. Error: " + errMsg, "error")
         return
       }
 
@@ -164,6 +231,7 @@ export const useFetchJobsTableData = ({
 
   return {
     data,
+    jobInfoMap,
     pageCount,
     rowsToFetch: pendingData,
     setRowsToFetch: setPendingData,

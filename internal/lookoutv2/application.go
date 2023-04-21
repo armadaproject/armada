@@ -7,14 +7,14 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/slices"
-	"github.com/G-Research/armada/internal/lookoutv2/configuration"
-	"github.com/G-Research/armada/internal/lookoutv2/conversions"
-	"github.com/G-Research/armada/internal/lookoutv2/gen/restapi"
-	"github.com/G-Research/armada/internal/lookoutv2/gen/restapi/operations"
-	"github.com/G-Research/armada/internal/lookoutv2/repository"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookoutv2/configuration"
+	"github.com/armadaproject/armada/internal/lookoutv2/conversions"
+	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi"
+	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi/operations"
+	"github.com/armadaproject/armada/internal/lookoutv2/repository"
 )
 
 func Serve(configuration configuration.LookoutV2Configuration) error {
@@ -46,7 +46,7 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 
 	api.GetJobsHandler = operations.GetJobsHandlerFunc(
 		func(params operations.GetJobsParams) middleware.Responder {
-			filters := slices.Map(params.GetJobsRequest.Filters, conversions.FromSwaggerFilter)
+			filters := util.Map(params.GetJobsRequest.Filters, conversions.FromSwaggerFilter)
 			order := conversions.FromSwaggerOrder(params.GetJobsRequest.Order)
 			skip := 0
 			if params.GetJobsRequest.Skip != nil {
@@ -63,14 +63,14 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 			}
 			return operations.NewGetJobsOK().WithPayload(&operations.GetJobsOKBody{
 				Count: int64(result.Count),
-				Jobs:  slices.Map(result.Jobs, conversions.ToSwaggerJob),
+				Jobs:  util.Map(result.Jobs, conversions.ToSwaggerJob),
 			})
 		},
 	)
 
 	api.GroupJobsHandler = operations.GroupJobsHandlerFunc(
 		func(params operations.GroupJobsParams) middleware.Responder {
-			filters := slices.Map(params.GroupJobsRequest.Filters, conversions.FromSwaggerFilter)
+			filters := util.Map(params.GroupJobsRequest.Filters, conversions.FromSwaggerFilter)
 			order := conversions.FromSwaggerOrder(params.GroupJobsRequest.Order)
 			skip := 0
 			if params.GroupJobsRequest.Skip != nil {
@@ -89,7 +89,7 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 			}
 			return operations.NewGroupJobsOK().WithPayload(&operations.GroupJobsOKBody{
 				Count:  int64(result.Count),
-				Groups: slices.Map(result.Groups, conversions.ToSwaggerGroup),
+				Groups: util.Map(result.Groups, conversions.ToSwaggerGroup),
 			})
 		},
 	)

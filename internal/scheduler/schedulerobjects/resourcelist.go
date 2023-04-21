@@ -4,8 +4,27 @@ import (
 	"fmt"
 	"strings"
 
-	resource "k8s.io/apimachinery/pkg/api/resource"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 )
+
+func ResourceListFromV1ResourceList(rl v1.ResourceList) ResourceList {
+	rv := ResourceList{
+		Resources: make(map[string]resource.Quantity),
+	}
+	for t, q := range rl {
+		rv.Resources[string(t)] = q
+	}
+	return rv
+}
+
+func V1ResourceListFromResourceList(rl ResourceList) v1.ResourceList {
+	rv := make(v1.ResourceList)
+	for t, q := range rl.Resources {
+		rv[v1.ResourceName(t)] = q.DeepCopy()
+	}
+	return rv
+}
 
 type QuantityByPriorityAndResourceType map[int32]ResourceList
 
@@ -34,43 +53,56 @@ func (a QuantityByPriorityAndResourceType) String() string {
 
 func (a QuantityByPriorityAndResourceType) Add(b QuantityByPriorityAndResourceType) {
 	for p, rlb := range b {
-		a.AddResouceList(p, rlb)
+		a.AddResourceList(p, rlb)
 	}
 }
 
-func (a QuantityByPriorityAndResourceType) AddResouceList(priority int32, rlb ResourceList) {
+func (a QuantityByPriorityAndResourceType) Sub(b QuantityByPriorityAndResourceType) {
+	for p, rlb := range b {
+		a.SubResourceList(p, rlb)
+	}
+}
+
+func (a QuantityByPriorityAndResourceType) AddResourceList(priority int32, rlb ResourceList) {
 	rla := a[priority]
 	rla.Add(rlb)
 	a[priority] = rla
 }
 
-func (a QuantityByPriorityAndResourceType) Sub(b QuantityByPriorityAndResourceType) {
-	for p, rsb := range b {
-		rsa := a[p]
-		rsa.Sub(rsb)
-	}
+func (a QuantityByPriorityAndResourceType) SubResourceList(priority int32, rlb ResourceList) {
+	rla := a[priority]
+	rla.Sub(rlb)
+	a[priority] = rla
 }
 
 func (a QuantityByPriorityAndResourceType) Equal(b QuantityByPriorityAndResourceType) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	if a == nil {
-		if b == nil {
-			return true
-		} else {
+	for p, rla := range a {
+		if !rla.Equal(b[p]) {
 			return false
 		}
 	}
-	if b == nil && a != nil {
-		return false
+	for p, rlb := range b {
+		if !rlb.Equal(a[p]) {
+			return false
+		}
 	}
-	for p, rla := range a {
-		if rlb, ok := b[p]; ok {
-			if !rla.Equal(rlb) {
-				return false
-			}
-		} else {
+	return true
+}
+
+// IsZero returns true if all quantities in a are zero.
+func (a QuantityByPriorityAndResourceType) IsZero() bool {
+	for _, rl := range a {
+		if !rl.IsZero() {
+			return false
+		}
+	}
+	return true
+}
+
+// IsStrictlyNonNegative returns true if there are no quantities in a with value less than zero.
+func (a QuantityByPriorityAndResourceType) IsStrictlyNonNegative() bool {
+	for _, rl := range a {
+		if !rl.IsStrictlyNonNegative() {
 			return false
 		}
 	}
@@ -85,6 +117,26 @@ func (a QuantityByPriorityAndResourceType) AggregateByResource() ResourceList {
 		rv.Add(rl)
 	}
 	return rv
+}
+
+// MaxAggregatedByResource updates a in-place such that for each resource type t
+// a[p1][t] + ... + a[pn][t] = max(a[p1][t] + ... + a[pn][t], rl[t]),
+// where p1, ..., pn are the priorities in a, for each resource set explicitly in rl.
+//
+// If necessary to add resources to make up the difference, those resources are added at priority p.
+func (a QuantityByPriorityAndResourceType) MaxAggregatedByResource(p int32, rl ResourceList) {
+	aggregate := a.AggregateByResource()
+	var difference ResourceList
+	for t, q := range rl.Resources {
+		q = q.DeepCopy()
+		q.Sub(aggregate.Get(t))
+		if q.Cmp(resource.Quantity{}) == 1 {
+			difference.AddQuantity(t, q)
+		}
+	}
+	if len(difference.Resources) > 0 {
+		a.AddResourceList(p, difference)
+	}
 }
 
 func (a *ResourceList) Get(resourceType string) resource.Quantity {
@@ -105,10 +157,15 @@ func (a *ResourceList) Add(b ResourceList) {
 	}
 }
 
+func (rl *ResourceList) AddQuantity(resourceType string, quantity resource.Quantity) {
+	rl.initialise()
+	q := rl.Resources[resourceType]
+	q.Add(quantity)
+	rl.Resources[resourceType] = q
+}
+
 func (a *ResourceList) Sub(b ResourceList) {
-	if a.Resources == nil {
-		a.Resources = make(map[string]resource.Quantity)
-	}
+	a.initialise()
 	for t, qb := range b.Resources {
 		qa := a.Resources[t]
 		qa.Sub(qb)
@@ -116,9 +173,19 @@ func (a *ResourceList) Sub(b ResourceList) {
 	}
 }
 
-func (rl *ResourceList) DeepCopy() ResourceList {
+func (rl *ResourceList) SubQuantity(resourceType string, quantity resource.Quantity) {
+	rl.initialise()
+	q := rl.Resources[resourceType]
+	q.Sub(quantity)
+	rl.Resources[resourceType] = q
+}
+
+func (rl ResourceList) DeepCopy() ResourceList {
+	if rl.Resources == nil {
+		return ResourceList{}
+	}
 	rv := ResourceList{
-		Resources: make(map[string]resource.Quantity),
+		Resources: make(map[string]resource.Quantity, len(rl.Resources)),
 	}
 	for t, q := range rl.Resources {
 		rv.Resources[t] = q.DeepCopy()
@@ -126,26 +193,33 @@ func (rl *ResourceList) DeepCopy() ResourceList {
 	return rv
 }
 
-func (a ResourceList) Equal(b ResourceList) bool {
-	if len(a.Resources) != len(b.Resources) {
-		return false
-	}
-	if a.Resources == nil {
-		if b.Resources == nil {
-			return true
-		} else {
+func (a ResourceList) IsZero() bool {
+	for _, q := range a.Resources {
+		if !q.IsZero() {
 			return false
 		}
 	}
-	if b.Resources == nil && a.Resources != nil {
-		return false
-	}
+	return true
+}
+
+func (a ResourceList) Equal(b ResourceList) bool {
 	for t, qa := range a.Resources {
-		if qb, ok := b.Resources[t]; ok {
-			if qa.Cmp(qb) != 0 {
-				return false
-			}
-		} else {
+		if qa.Cmp(b.Get(t)) != 0 {
+			return false
+		}
+	}
+	for t, qb := range b.Resources {
+		if qb.Cmp(a.Get(t)) != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// IsStrictlyNonNegative returns true if there are no quantities in a with value less than zero.
+func (a ResourceList) IsStrictlyNonNegative() bool {
+	for _, q := range a.Resources {
+		if q.Cmp(resource.Quantity{}) == -1 {
 			return false
 		}
 	}
@@ -168,25 +242,27 @@ func (rl ResourceList) CompactString() string {
 	return sb.String()
 }
 
+func (rl *ResourceList) initialise() {
+	if rl.Resources == nil {
+		rl.Resources = make(map[string]resource.Quantity)
+	}
+}
+
 // AllocatableByPriorityAndResourceType accounts for resources that can be allocated to pods of a given priority.
 // E.g., AllocatableByPriorityAndResourceType[5]["cpu"] is the amount of CPU available to pods with priority 5,
 // where alloctable resources = unused resources + resources allocated to lower-priority pods.
 type AllocatableByPriorityAndResourceType QuantityByPriorityAndResourceType
 
-func NewAllocatableByPriorityAndResourceType(priorities []int32, resources map[string]resource.Quantity) AllocatableByPriorityAndResourceType {
+func NewAllocatableByPriorityAndResourceType(priorities []int32, rl ResourceList) AllocatableByPriorityAndResourceType {
 	rv := make(AllocatableByPriorityAndResourceType)
 	for _, priority := range priorities {
-		m := make(map[string]resource.Quantity)
-		for t, q := range resources {
-			m[t] = q.DeepCopy()
-		}
-		rv[priority] = ResourceList{Resources: m}
+		rv[priority] = rl.DeepCopy()
 	}
 	return rv
 }
 
 func (m AllocatableByPriorityAndResourceType) DeepCopy() AllocatableByPriorityAndResourceType {
-	rv := make(AllocatableByPriorityAndResourceType)
+	rv := make(AllocatableByPriorityAndResourceType, len(m))
 	for priority, resourcesAtPriority := range m {
 		rv[priority] = resourcesAtPriority.DeepCopy()
 	}

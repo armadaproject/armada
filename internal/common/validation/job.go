@@ -3,16 +3,16 @@ package validation
 import (
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/scheduler"
+	"github.com/armadaproject/armada/internal/scheduler"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func ValidateApiJobs(jobs []*api.Job, config configuration.SchedulingConfig) error {
-	err := validateGangs(jobs, config.GangIdAnnotation, config.GangCardinalityAnnotation)
+	err := validateGangs(jobs)
 	if err != nil {
 		return err
 	}
@@ -24,7 +24,7 @@ func ValidateApiJobs(jobs []*api.Job, config configuration.SchedulingConfig) err
 	return nil
 }
 
-func validateGangs(jobs []*api.Job, gangIdAnnotation, gangCardinalityAnnotation string) error {
+func validateGangs(jobs []*api.Job) error {
 	gangDetailsByGangId := make(map[string]struct {
 		actualCardinality         int
 		expectedCardinality       int
@@ -32,7 +32,7 @@ func validateGangs(jobs []*api.Job, gangIdAnnotation, gangCardinalityAnnotation 
 	})
 	for i, job := range jobs {
 		annotations := job.Annotations
-		gangId, gangCardinality, isGangJob, err := scheduler.GangIdAndCardinalityFromAnnotations(annotations, gangIdAnnotation, gangCardinalityAnnotation)
+		gangId, gangCardinality, isGangJob, err := scheduler.GangIdAndCardinalityFromAnnotations(annotations)
 		if err != nil {
 			return errors.WithMessagef(err, "%d-th job with id %s in gang %s", i, job.Id, gangId)
 		}

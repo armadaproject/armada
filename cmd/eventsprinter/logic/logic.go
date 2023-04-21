@@ -9,7 +9,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func PrintEvents(url, topic, subscription string, verbose bool) error {
@@ -32,11 +32,6 @@ func PrintEvents(url, topic, subscription string, verbose bool) error {
 				continue
 			}
 			consumer.Ack(msg)
-
-			// We're only interested in control messages.
-			if !armadaevents.IsControlMessage(msg) {
-				continue
-			}
 
 			sequence := &armadaevents.EventSequence{}
 			err = proto.Unmarshal(msg.Payload(), sequence)

@@ -13,11 +13,11 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/duration"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/api/lookout"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api/lookout"
 )
 
 func (r *SQLJobRepository) GetJobs(ctx context.Context, opts *lookout.GetJobsRequest) ([]*lookout.JobInfo, error) {
@@ -355,10 +355,7 @@ func unmarshalJob(origJobSpec []byte) (*api.Job, error) {
 		return nil, errors.New("empty job spec provided")
 	}
 
-	decompressor, err := compress.NewZlibDecompressor()
-	if err != nil {
-		return nil, err
-	}
+	decompressor := compress.NewZlibDecompressor()
 	jobProto, err := decompressor.Decompress(origJobSpec)
 	if err != nil {
 		// possibly not compressed, so

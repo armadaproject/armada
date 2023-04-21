@@ -19,8 +19,8 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 // EventWatcher is a service for watching for events and forwarding those on C.
@@ -138,10 +138,6 @@ func (err *ErrUnexpectedEvent) Error() string {
 
 // AssertEvents compares the events received for each job with the expected events.
 func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[string]bool, expected []*api.EventMessage) error {
-	if len(expected) == 0 {
-		return nil
-	}
-
 	// terminatedByJobId indicates for which jobs we've received a terminal event.
 	// Initialise it by copying the jobIds map.
 	terminatedByJobId := maps.Clone(jobIds)
@@ -162,10 +158,16 @@ func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[stri
 				return errors.Errorf("test exited before receiving all expected events: %s", ctx.Err())
 			}
 		case actual := <-c:
+			if len(expected) == 0 {
+				// Run forever if expected events is empty.
+				break
+			}
+
 			actualJobId := api.JobIdFromApiEvent(actual)
 			_, ok := jobIds[actualJobId]
 			if !ok {
-				break // Unrecognised job id
+				// Unrecognised job id.
+				break
 			}
 
 			// Record terminated jobs.

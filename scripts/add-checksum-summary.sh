@@ -1,7 +1,7 @@
 API_TOKEN=$1
 RELEASE_TAG=$2
 
-RELEASE_INFO_REPLY=$(curl --fail -H "Authorization: token $API_TOKEN" https://api.github.com/repos/G-Research/armada/releases/tags/$RELEASE_TAG)
+RELEASE_INFO_REPLY=$(curl --fail -H "Authorization: token $API_TOKEN" https://api.github.com/repos/armadaproject/armada/releases/tags/$RELEASE_TAG)
 
 if [ $? -ne 0 ]; then
     echo "Failed to get release information from Github"
@@ -39,4 +39,4 @@ JSON_STRING="{\"body\" : \"$DETAILS\"}"
 echo "$JSON_STRING"
 
 
-curl -H "Authorization: token $API_TOKEN" -X PATCH https://api.github.com/repos/G-Research/armada/releases/$RELEASE_ID --data "$JSON_STRING"
+curl -H "Authorization: token $API_TOKEN" -X PATCH https://api.github.com/repos/armadaproject/armada/releases/$RELEASE_ID --data "$JSON_STRING"

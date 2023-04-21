@@ -17,9 +17,9 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/peer"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/auth/authorization/groups"
-	"github.com/G-Research/armada/internal/common/auth/configuration"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/auth/authorization/groups"
+	"github.com/armadaproject/armada/internal/common/auth/configuration"
 )
 
 // Partly reimplementing github.com/jcmturner/gokrb5/v8/spnego/http.go for GRPC

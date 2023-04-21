@@ -3,7 +3,7 @@ package pulsarrequestid
 import (
 	"github.com/apache/pulsar-client-go/pulsar"
 
-	"github.com/G-Research/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/internal/common/requestid"
 )
 
 // FromMessage attempts to extract a request id embedded in a Pulsar message.

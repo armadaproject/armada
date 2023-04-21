@@ -1,5 +1,17 @@
-databasePath: "/e2e/jobservice.db"
-subscribeJobSetTime: 100
+subscribeJobSetTime: 60
+purgeJobSetTime: 10000
+databaseType: "postgres"
+postgresConfig:
+  maxOpenConns: 50
+  maxIdleConns: 10
+  connMaxLifetime: 30m
+  connection:
+    host: postgres
+    port: 5432
+    user: postgres
+    password: psw
+    dbname: postgres
+    sslmode: disable
 apiConnection:
   armadaUrl: "server:50051"
   forceNoTls: true

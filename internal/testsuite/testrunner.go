@@ -9,15 +9,16 @@ import (
 
 	"github.com/jstemmer/go-junit-report/v2/junit"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/G-Research/armada/internal/testsuite/eventbenchmark"
-	"github.com/G-Research/armada/internal/testsuite/eventlogger"
-	"github.com/G-Research/armada/internal/testsuite/eventsplitter"
-	"github.com/G-Research/armada/internal/testsuite/eventwatcher"
-	"github.com/G-Research/armada/internal/testsuite/submitter"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/internal/testsuite/eventbenchmark"
+	"github.com/armadaproject/armada/internal/testsuite/eventlogger"
+	"github.com/armadaproject/armada/internal/testsuite/eventsplitter"
+	"github.com/armadaproject/armada/internal/testsuite/eventwatcher"
+	"github.com/armadaproject/armada/internal/testsuite/submitter"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 type TestRunner struct {
@@ -149,7 +150,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	g.Go(func() error { return splitter.Run(ctx) })
 
 	// Cancel the errgroup if there are no active jobs.
-	g.Go(func() error { return eventwatcher.ErrorOnNoActiveJobs(ctx, noActiveCh, jobIdMap) })
+	g.Go(func() error { return eventwatcher.ErrorOnNoActiveJobs(ctx, noActiveCh, maps.Clone(jobIdMap)) })
 
 	// Record time spent per job state. Used to benchmark jobs.
 	eventBenchmark := eventbenchmark.New(benchmarkCh)
@@ -164,7 +165,8 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 
 	// Assert that we get the right events for each job.
 	// Returns once we've received all events or when ctx is cancelled.
-	if err = eventwatcher.AssertEvents(ctx, assertCh, jobIdMap, srv.testSpec.ExpectedEvents); err != nil {
+	if err = eventwatcher.AssertEvents(ctx, assertCh, maps.Clone(jobIdMap), srv.testSpec.ExpectedEvents); err != nil {
+		cancel()
 		groupErr := g.Wait()
 		if groupErr != nil {
 			return errors.Errorf("%s: %s", err, groupErr)
@@ -191,6 +193,7 @@ func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.Api
 	switch {
 	case testSpec.Cancel == api.TestSpec_BY_ID:
 		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			time.Sleep(3 * time.Second)
 			for _, jobId := range jobIds {
 				req.JobId = jobId
 				_, err := sc.CancelJobs(ctx, req)
@@ -202,6 +205,7 @@ func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.Api
 		})
 	case testSpec.Cancel == api.TestSpec_BY_SET:
 		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			time.Sleep(3 * time.Second)
 			_, err := sc.CancelJobs(ctx, req)
 			if err != nil {
 				return errors.WithStack(err)
@@ -210,6 +214,7 @@ func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.Api
 		})
 	case testSpec.Cancel == api.TestSpec_BY_IDS:
 		return client.WithSubmitClient(conn, func(sc api.SubmitClient) error {
+			time.Sleep(3 * time.Second)
 			req.JobIds = jobIds
 			_, err := sc.CancelJobs(ctx, req)
 			if err != nil {

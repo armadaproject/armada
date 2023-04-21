@@ -3,7 +3,7 @@ package schema
 import (
 	"embed"
 
-	"github.com/G-Research/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/database"
 )
 
 //go:embed migrations/*.sql

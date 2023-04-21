@@ -1,19 +1,36 @@
 import { render, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { Job } from "models/lookoutV2Models"
-import { makeTestJobs } from "utils/fakeJobsUtils"
+import { SnackbarProvider } from "notistack"
+import { makeRandomJobs } from "utils/fakeJobsUtils"
 
+import FakeGetJobSpecService from "../../../services/lookoutV2/mocks/FakeGetJobSpecService"
+import { FakeGetRunErrorService } from "../../../services/lookoutV2/mocks/FakeGetRunErrorService"
+import { FakeLogService } from "../../../services/lookoutV2/mocks/FakeLogService"
 import { Sidebar } from "./Sidebar"
 
 describe("Sidebar", () => {
   let job: Job, onClose: () => undefined
 
   beforeEach(() => {
-    job = makeTestJobs(1, 1, 1, 1)[0]
+    job = makeRandomJobs(1, 1, 1, 1)[0]
     onClose = jest.fn()
   })
 
-  const renderComponent = () => render(<Sidebar job={job} onClose={onClose} />)
+  const renderComponent = () =>
+    render(
+      <SnackbarProvider>
+        <Sidebar
+          job={job}
+          runErrorService={new FakeGetRunErrorService()}
+          jobSpecService={new FakeGetJobSpecService()}
+          logService={new FakeLogService()}
+          sidebarWidth={600}
+          onClose={onClose}
+          onWidthChange={() => undefined}
+        />
+      </SnackbarProvider>,
+    )
 
   it("should show job details by default", () => {
     const { getByRole } = renderComponent()
@@ -31,28 +48,21 @@ describe("Sidebar", () => {
     // Switch to runs tab
     await userEvent.click(getByRole("tab", { name: /Runs/ }))
 
-    // Expand the first (and only) run
-    await userEvent.click(getByRole("button", { name: /Unable To Schedule/ }))
-
+    // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
     within(getByRole("row", { name: /Exit code/ })).getByText("17")
-    within(getByRole("row", { name: /Error info/ })).getByText("something bad might have happened?")
   })
 
   it("should handle runs with no errors", async () => {
     const { getByRole } = renderComponent()
     const run = job.runs[0]
     run.exitCode = undefined
-    run.error = undefined
 
     // Switch to runs tab
     await userEvent.click(getByRole("tab", { name: /Runs/ }))
 
-    // Expand the first (and only) run
-    await userEvent.click(getByRole("button", { name: /Unable To Schedule/ }))
-
+    // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
-    within(getByRole("row", { name: /Error info/ })).getByText("None")
   })
 
   it("should handle no runs", async () => {

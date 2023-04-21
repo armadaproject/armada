@@ -5,41 +5,51 @@ import (
 
 	"github.com/gogo/protobuf/types"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
 
-	"github.com/G-Research/armada/internal/jobservice/configuration"
-	"github.com/G-Research/armada/internal/jobservice/events"
-	"github.com/G-Research/armada/internal/jobservice/eventstojobs"
-	"github.com/G-Research/armada/internal/jobservice/repository"
+	"github.com/armadaproject/armada/internal/jobservice/configuration"
+	"github.com/armadaproject/armada/internal/jobservice/events"
+	"github.com/armadaproject/armada/internal/jobservice/repository"
 
-	js "github.com/G-Research/armada/pkg/api/jobservice"
+	js "github.com/armadaproject/armada/pkg/api/jobservice"
 )
 
 type JobServiceServer struct {
 	jobServiceConfig *configuration.JobServiceConfiguration
-	jobRepository    *repository.SQLJobService
+	jobRepository    repository.SQLJobService
 }
 
-func NewJobService(config *configuration.JobServiceConfiguration, sqlService *repository.SQLJobService) *JobServiceServer {
+func NewJobService(config *configuration.JobServiceConfiguration, sqlService repository.SQLJobService) *JobServiceServer {
 	return &JobServiceServer{jobServiceConfig: config, jobRepository: sqlService}
 }
 
 func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobServiceRequest) (*js.JobServiceResponse, error) {
-	g, _ := errgroup.WithContext(ctx)
-
-	if !s.jobRepository.IsJobSetSubscribed(opts.Queue, opts.JobSetId) {
-
-		eventClient := events.NewEventClient(&s.jobServiceConfig.ApiConnection)
-		eventJob := eventstojobs.NewEventsToJobService(opts.Queue, opts.JobSetId, opts.JobId, eventClient, s.jobRepository)
-		g.Go(func() error {
-			return eventJob.SubscribeToJobSetId(context.Background(), s.jobServiceConfig.SubscribeJobSetTime)
-		})
+	requestFields := log.Fields{
+		"job_id":     opts.JobId,
+		"job_set_id": opts.JobSetId,
+		"queue":      opts.Queue,
 	}
-	s.jobRepository.UpdateJobSetTime(opts.Queue, opts.JobSetId)
-	response, err := s.jobRepository.GetJobStatus(opts.JobId)
+
+	jobSetExists, fromMessageId, err := s.jobRepository.IsJobSetSubscribed(ctx, opts.Queue, opts.JobSetId)
 	if err != nil {
-		log.Warn(err)
+		log.Error("error checking if job is subscribed", err)
+	}
+	if !jobSetExists {
+		errsubscribe := s.jobRepository.SubscribeJobSet(ctx, opts.Queue, opts.JobSetId, fromMessageId)
+		if errsubscribe != nil {
+			log.Error("unable to subscribe job set", err)
+		}
+		log.Infof("Subscribing %s-%s", opts.Queue, opts.JobSetId)
+	}
+	if err := s.jobRepository.UpdateJobSetDb(ctx, opts.Queue, opts.JobSetId, fromMessageId); err != nil {
+		log.WithFields(requestFields).Warn(err)
+	}
+	response, err := s.jobRepository.GetJobStatus(ctx, opts.JobId)
+	if err != nil {
+		log.WithFields(requestFields).Error(err)
 		return nil, err
+	}
+	if response.State == js.JobServiceResponse_SUCCEEDED {
+		log.WithFields(requestFields).Info("job succeeded")
 	}
 
 	return response, err
@@ -49,7 +59,7 @@ func (s *JobServiceServer) Health(ctx context.Context, _ *types.Empty) (*js.Heal
 	eventClient := events.NewEventClient(&s.jobServiceConfig.ApiConnection)
 	_, err := eventClient.Health(context.Background(), &types.Empty{})
 	if err != nil {
-		log.Errorf("Health Check Failed for Events with %s", err)
+		log.Errorf("health check failed for events with %s", err)
 		return nil, err
 	}
 	return &js.HealthCheckResponse{Status: js.HealthCheckResponse_SERVING}, nil

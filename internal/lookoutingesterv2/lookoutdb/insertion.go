@@ -11,11 +11,11 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
 )
 
 type LookoutDb struct {
@@ -83,7 +83,7 @@ func (l *LookoutDb) UpdateJobs(ctx context.Context, instructions []*model.Update
 	if len(instructions) == 0 {
 		return
 	}
-	instructions = l.filterEventsForCancelledJobs(ctx, l.db, instructions, l.metrics)
+	instructions = l.filterEventsForTerminalJobs(ctx, l.db, instructions, l.metrics)
 	err := l.UpdateJobsBatch(ctx, instructions)
 	if err != nil {
 		log.WithError(err).Warn("Updating jobs via batch failed, will attempt to insert serially (this might be slow).")
@@ -130,7 +130,7 @@ func (l *LookoutDb) CreateJobsBatch(ctx context.Context, instructions []*model.C
 
 		createTmp := func(tx pgx.Tx) error {
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
-				CREATE TEMPORARY TABLE %s 
+				CREATE TEMPORARY TABLE %s
 				(
 					job_id 	                      varchar(32),
 					queue                        varchar(512),
@@ -700,23 +700,32 @@ func batchInsert(ctx context.Context, db *pgxpool.Pool, createTmp func(pgx.Tx) e
 }
 
 func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJobInstruction {
-	deref := func(p *int32) int32 {
+	isTerminal := func(p *int32) bool {
 		if p == nil {
-			return -1
+			return false
 		} else {
-			return *p
+			return *p == lookout.JobFailedOrdinal ||
+				*p == lookout.JobSucceededOrdinal ||
+				*p == lookout.JobCancelledOrdinal ||
+				*p == lookout.JobPreemptedOrdinal
 		}
 	}
 
 	updatesById := make(map[string]*model.UpdateJobInstruction)
 	for _, update := range updates {
 		existing, ok := updatesById[update.JobId]
-
-		// Unfortunately once a job has been cancelled we still get state updates for it e.g. we can get an event to
-		// say it's now "running".  We have to throw these away as cancelled is a terminal state.
 		if !ok {
 			updatesById[update.JobId] = update
-		} else if deref(existing.State) != int32(lookout.JobCancelledOrdinal) {
+			continue
+		}
+
+		// Unfortunately once a job has reached a terminal state we still get state updates for it e.g. we can get an event to
+		// say it's now "running".  We have to throw these away else we'll end up with a zombie job.
+		//
+		// Need to deal with preempted jobs separately
+		// We could get a JobFailed event (or another terminal event) after a JobPreempted event,
+		// but the job should still be marked as Preempted
+		if !isTerminal(existing.State) || (update.State != nil && *update.State == lookout.JobPreemptedOrdinal) {
 			if update.Priority != nil {
 				existing.Priority = update.Priority
 			}
@@ -786,14 +795,21 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 	return conflated
 }
 
-// filterEventsForCancelledJobs queries the database for any jobs that are in the cancelled state and removes them from the list of
-// instructions. This is necessary because Armada will generate event stauses even for jobs that have been cancelled
-// The proper solution here is to make it so once a job is cancelled, no more events are generated for it, but until
+// updateInstructionsForJob is used in filterEventsForTerminalJobs, and records a list of job updates for a single job,
+// along with whether it contains an instruction corresponding to a JobPreempted event
+type updateInstructionsForJob struct {
+	instructions      []*model.UpdateJobInstruction
+	containsPreempted bool
+}
+
+// filterEventsForTerminalJobs queries the database for any jobs that are in a terminal state and removes them from the list of
+// instructions.  This is necessary because Armada will generate event statuses even for jobs that have reached a terminal state
+// The proper solution here is to make it so once a job is terminal, no more events are generated for it, but until
 // that day we have to manually filter them out here.
 // NOTE: this function will retry querying the database for as long as possible in order to determine which jobs are
-// in the cancelling state. If, however, the database returns a non-retryable error it will give up and simply not
+// in the terminal state.  If, however, the database returns a non-retryable error it will give up and simply not
 // filter out any events as the job state is undetermined.
-func (l *LookoutDb) filterEventsForCancelledJobs(
+func (l *LookoutDb) filterEventsForTerminalJobs(
 	ctx context.Context,
 	db *pgxpool.Pool,
 	instructions []*model.UpdateJobInstruction,
@@ -805,7 +821,13 @@ func (l *LookoutDb) filterEventsForCancelledJobs(
 	}
 
 	rowsRaw, err := l.withDatabaseRetryQuery(func() (interface{}, error) {
-		return db.Query(ctx, "SELECT DISTINCT job_id FROM JOB where state = $1 AND job_id = any($2)", lookout.JobCancelledOrdinal, jobIds)
+		terminalStates := []int{
+			lookout.JobSucceededOrdinal,
+			lookout.JobFailedOrdinal,
+			lookout.JobCancelledOrdinal,
+			lookout.JobPreemptedOrdinal,
+		}
+		return db.Query(ctx, "SELECT DISTINCT job_id, state FROM JOB where state = any($1) AND job_id = any($2)", terminalStates, jobIds)
 	})
 	if err != nil {
 		m.RecordDBError(metrics.DBOperationRead)
@@ -814,22 +836,43 @@ func (l *LookoutDb) filterEventsForCancelledJobs(
 	}
 	rows := rowsRaw.(pgx.Rows)
 
-	cancelledJobs := make(map[string]bool)
+	terminalJobs := make(map[string]int)
 	for rows.Next() {
 		jobId := ""
-		err := rows.Scan(&jobId)
+		var state int16
+		err := rows.Scan(&jobId, &state)
 		if err != nil {
-			log.WithError(err).Warnf("Cannot retrieve jobId from row. Cancelled job will not be filtered out")
+			log.WithError(err).Warnf("Cannot retrieve jobId from row. Terminal jobs will not be filtered out")
 		} else {
-			cancelledJobs[jobId] = true
+			terminalJobs[jobId] = int(state)
 		}
 	}
 
-	if len(cancelledJobs) > 0 {
-		filtered := make([]*model.UpdateJobInstruction, 0, len(instructions))
+	if len(terminalJobs) > 0 {
+		jobInstructionMap := make(map[string]*updateInstructionsForJob)
 		for _, instruction := range instructions {
-			if !cancelledJobs[instruction.JobId] {
-				filtered = append(filtered, instruction)
+			data, ok := jobInstructionMap[instruction.JobId]
+			if !ok {
+				data = &updateInstructionsForJob{
+					instructions:      []*model.UpdateJobInstruction{},
+					containsPreempted: false,
+				}
+				jobInstructionMap[instruction.JobId] = data
+			}
+			data.instructions = append(data.instructions, instruction)
+			data.containsPreempted = instruction.State != nil && *instruction.State == lookout.JobPreemptedOrdinal
+		}
+
+		var filtered []*model.UpdateJobInstruction
+		for jobId, updateInstructions := range jobInstructionMap {
+			state, ok := terminalJobs[jobId]
+			// Need to record updates if either:
+			// * Job is not in a terminal state
+			// * Job is in succeeded, failed or cancelled, but job preempted event will be recorded
+			if !ok || ((state == lookout.JobSucceededOrdinal ||
+				state == lookout.JobFailedOrdinal ||
+				state == lookout.JobCancelledOrdinal) && updateInstructions.containsPreempted) {
+				filtered = append(filtered, updateInstructions.instructions...)
 			}
 		}
 		return filtered

@@ -1,6 +1,6 @@
 package lookout
 
-import "github.com/G-Research/armada/internal/common/util"
+import "github.com/armadaproject/armada/internal/common/util"
 
 type JobState string
 
@@ -13,6 +13,7 @@ const (
 	JobSucceeded JobState = "SUCCEEDED"
 	JobFailed    JobState = "FAILED"
 	JobCancelled JobState = "CANCELLED"
+	JobPreempted JobState = "PREEMPTED"
 
 	JobQueuedOrdinal    = 1
 	JobPendingOrdinal   = 2
@@ -20,6 +21,7 @@ const (
 	JobSucceededOrdinal = 4
 	JobFailedOrdinal    = 5
 	JobCancelledOrdinal = 6
+	JobPreemptedOrdinal = 7
 
 	JobRunPending          JobRunState = "RUN_PENDING"
 	JobRunRunning          JobRunState = "RUN_RUNNING"
@@ -52,6 +54,7 @@ var (
 		JobSucceededOrdinal: JobSucceeded,
 		JobFailedOrdinal:    JobFailed,
 		JobCancelledOrdinal: JobCancelled,
+		JobPreemptedOrdinal: JobPreempted,
 	}
 
 	JobStateOrdinalMap = util.InverseMap(JobStateMap)

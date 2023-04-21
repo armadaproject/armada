@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/sh -ex
 
 KIND_IMG="kindest/node:v1.21.10"
 CHART_VERSION_ARMADA="v0.3.20"
@@ -33,6 +33,10 @@ helm repo update
 printf "\n*******************************************************\n"
 printf "Deploying Armada server ..."
 printf "\n*******************************************************\n"
+if kind delete cluster --name quickstart-armada-server; then
+  printf "Deleting existing quickstart-armada-server ..."
+
+fi
 kind create cluster --name quickstart-armada-server --config ./docs/quickstart/kind/kind-config-server.yaml --image $KIND_IMG
 
 # Set cluster as current context
@@ -68,6 +72,10 @@ SERVER_IP=$(kubectl get nodes quickstart-armada-server-worker -o jsonpath='{.sta
 printf "\n*******************************************************\n"
 printf "Deploying first Armada executor cluster ..."
 printf "\n*******************************************************\n"
+if kind delete cluster --name quickstart-armada-executor-0; then
+  printf "Deleting existing quickstart-armada-executor-0  cluster ..."
+
+fi
 kind create cluster --name quickstart-armada-executor-0 --config ./docs/quickstart/kind/kind-config-executor.yaml --image $KIND_IMG
 
 # Set cluster as current context
@@ -90,6 +98,10 @@ EXECUTOR_0_IP=$(kubectl get nodes quickstart-armada-executor-0-worker -o jsonpat
 printf "\n*******************************************************\n"
 printf "Deploying second Armada executor cluster ..."
 printf "\n*******************************************************\n"
+if kind delete cluster --name quickstart-armada-executor-1; then
+  printf "Deleting existing quickstart-armada-executor-1  cluster ..."
+
+fi
 kind create cluster --name quickstart-armada-executor-1 --config ./docs/quickstart/kind/kind-config-executor.yaml --image $KIND_IMG
 
 # Set cluster as current context
@@ -163,9 +175,9 @@ else
 fi
 
 # Find the latest Armada version
-LATEST_GH_URL=$(curl -fsSLI -o /dev/null -w %{url_effective} https://github.com/G-Research/armada/releases/latest)
+LATEST_GH_URL=$(curl -fsSLI -o /dev/null -w %{url_effective} https://github.com/armadaproject/armada/releases/latest)
 ARMADA_VERSION=${LATEST_GH_URL##*/}
-ARMADACTL_URL="https://github.com/G-Research/armada/releases/download/$ARMADA_VERSION/armadactl-$ARMADA_VERSION-$SYSTEM-amd64.$ARCHIVE_TYPE"
+ARMADACTL_URL="https://github.com/armadaproject/armada/releases/download/$ARMADA_VERSION/armadactl-$ARMADA_VERSION-$SYSTEM-amd64.$ARCHIVE_TYPE"
 
 # Download and untar/unzip armadactl
 if curl -sL $ARMADACTL_URL | sh -c "$UNARCHIVE" ; then
@@ -173,6 +185,6 @@ if curl -sL $ARMADACTL_URL | sh -c "$UNARCHIVE" ; then
 else
 	echo "Something is amiss!"
 	echo "Please visit:"
-	echo "  - https://github.com/G-Research/armada/releases/latest"
+	echo "  - https://github.com/armadaproject/armada/releases/latest"
 	echo "to find the latest armadactl binary for your platform"
 fi

@@ -1,7 +1,9 @@
 import React from "react"
 
 import { AppBar, Tab, Tabs, Toolbar, Typography } from "@material-ui/core"
-import { Link, RouteComponentProps, withRouter } from "react-router-dom"
+import { Link } from "react-router-dom"
+
+import { PropsWithRouter, withRouter } from "../utils"
 
 import "./NavBar.css"
 
@@ -23,6 +25,10 @@ const PAGES: Page[] = [
     title: "Jobs",
     location: "/jobs",
   },
+  {
+    title: "V2",
+    location: "/v2",
+  },
 ]
 
 // Creates mapping from location to index of element in ordered navbar
@@ -43,8 +49,8 @@ function locationFromIndex(pages: Page[], index: number): string {
   return "/"
 }
 
-function NavBar(props: RouteComponentProps) {
-  const currentLocation = props.location.pathname
+function NavBar({ router }: PropsWithRouter) {
+  const currentLocation = router.location.pathname
   const currentValue = locationMap.has(currentLocation) ? locationMap.get(currentLocation) : 0
   return (
     <AppBar position="static">
@@ -60,7 +66,7 @@ function NavBar(props: RouteComponentProps) {
             value={currentValue}
             onChange={(event, newIndex) => {
               const newLocation = locationFromIndex(PAGES, newIndex)
-              props.history.push(newLocation)
+              router.navigate(newLocation)
             }}
           >
             {PAGES.map((page, idx) => (

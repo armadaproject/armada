@@ -5,7 +5,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 
-	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 
 // DbOperationsWithMessageIds bundles a sequence of schedulerdb ops with the ids of all Pulsar
@@ -17,6 +17,21 @@ type DbOperationsWithMessageIds struct {
 
 func (d *DbOperationsWithMessageIds) GetMessageIDs() []pulsar.MessageID {
 	return d.MessageIds
+}
+
+type JobRunFailed struct {
+	LeaseReturned bool
+	RunAttempted  bool
+}
+
+type JobSchedulingInfoUpdate struct {
+	JobSchedulingInfo        []byte
+	JobSchedulingInfoVersion int32
+}
+
+type JobQueuedStateUpdate struct {
+	Queued             bool
+	QueuedStateVersion int32
 }
 
 // DbOperation captures a generic batch database operation.
@@ -82,20 +97,26 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 	return rv
 }
 
-type InsertJobs map[uuid.UUID]*schedulerdb.Job
+type InsertJobs map[string]*schedulerdb.Job
 
 type (
-	InsertRuns             map[uuid.UUID]*schedulerdb.Run
-	InsertRunAssignments   map[uuid.UUID]*schedulerdb.JobRunAssignment
-	UpdateJobSetPriorities map[string]int64
-	MarkJobSetsCancelled   map[string]bool
-	MarkJobsCancelled      map[uuid.UUID]bool
-	MarkJobsSucceeded      map[uuid.UUID]bool
-	MarkJobsFailed         map[uuid.UUID]bool
-	UpdateJobPriorities    map[uuid.UUID]int64
-	MarkRunsSucceeded      map[uuid.UUID]bool
-	MarkRunsFailed         map[uuid.UUID]bool
-	MarkRunsRunning        map[uuid.UUID]bool
+	InsertRuns                 map[uuid.UUID]*schedulerdb.Run
+	UpdateJobSetPriorities     map[string]int64
+	MarkJobSetsCancelRequested map[string]bool
+	MarkJobsCancelRequested    map[string]bool
+	MarkJobsCancelled          map[string]bool
+	MarkJobsSucceeded          map[string]bool
+	MarkJobsFailed             map[string]bool
+	UpdateJobPriorities        map[string]int64
+	UpdateJobSchedulingInfo    map[string]*JobSchedulingInfoUpdate
+	UpdateJobQueuedState       map[string]*JobQueuedStateUpdate
+	MarkRunsSucceeded          map[uuid.UUID]bool
+	MarkRunsFailed             map[uuid.UUID]*JobRunFailed
+	MarkRunsRunning            map[uuid.UUID]bool
+	InsertJobRunErrors         map[uuid.UUID]*schedulerdb.JobRunError
+	InsertPartitionMarker      struct {
+		markers []*schedulerdb.Marker
+	}
 )
 
 type JobSetOperation interface {
@@ -107,7 +128,7 @@ func (a UpdateJobSetPriorities) AffectsJobSet(jobSet string) bool {
 	return ok
 }
 
-func (a MarkJobSetsCancelled) AffectsJobSet(jobSet string) bool {
+func (a MarkJobSetsCancelRequested) AffectsJobSet(jobSet string) bool {
 	_, ok := a[jobSet]
 	return ok
 }
@@ -120,16 +141,52 @@ func (a InsertRuns) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
 
-func (a InsertRunAssignments) Merge(b DbOperation) bool {
-	return mergeInMap(a, b)
-}
-
 func (a UpdateJobSetPriorities) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
 
-func (a MarkJobSetsCancelled) Merge(b DbOperation) bool {
+func (a MarkJobSetsCancelRequested) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
+}
+
+func (a MarkJobsCancelRequested) Merge(b DbOperation) bool {
+	return mergeInMap(a, b)
+}
+
+func (a UpdateJobSchedulingInfo) Merge(b DbOperation) bool {
+	switch op := b.(type) {
+	case UpdateJobSchedulingInfo:
+		for key, value := range op {
+			aValue, present := a[key]
+			if !present {
+				a[key] = value
+			} else {
+				if value.JobSchedulingInfoVersion > aValue.JobSchedulingInfoVersion {
+					a[key] = value
+				}
+			}
+		}
+		return true
+	}
+	return false
+}
+
+func (a UpdateJobQueuedState) Merge(b DbOperation) bool {
+	switch op := b.(type) {
+	case UpdateJobQueuedState:
+		for key, value := range op {
+			currentValue, present := a[key]
+			if !present {
+				a[key] = value
+			} else {
+				if value.QueuedStateVersion > currentValue.QueuedStateVersion {
+					a[key] = value
+				}
+			}
+		}
+		return true
+	}
+	return false
 }
 
 func (a MarkJobsCancelled) Merge(b DbOperation) bool {
@@ -160,8 +217,21 @@ func (a MarkRunsRunning) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
 
+func (a InsertJobRunErrors) Merge(b DbOperation) bool {
+	return mergeInMap(a, b)
+}
+
+func (a *InsertPartitionMarker) Merge(b DbOperation) bool {
+	switch op := b.(type) {
+	case *InsertPartitionMarker:
+		a.markers = append(a.markers, op.markers...)
+		return true
+	}
+	return false
+}
+
 // mergeInMap merges an op b into a, provided that b is of the same type as a.
-// For example, if a is of type MarkJobsCancelled, b is only merged if also of type MarkJobsCancelled.
+// For example, if a is of type MarkJobSetsCancelRequested, b is only merged if also of type MarkJobsCancelRequested.
 // Returns true if the ops were merged and false otherwise.
 func mergeInMap[M ~map[K]V, K comparable, V any](a M, b DbOperation) bool {
 	// Using a type switch here, since using a type assertion
@@ -208,22 +278,16 @@ func (a InsertRuns) CanBeAppliedBefore(b DbOperation) bool {
 	return true
 }
 
-func (a InsertRunAssignments) CanBeAppliedBefore(b DbOperation) bool {
-	// Inserting assignments before a run is defined is ok.
-	// We only require that assignments are written to the schedulerdb before the run is marked as running.
-	return true
-}
-
 func (a UpdateJobSetPriorities) CanBeAppliedBefore(b DbOperation) bool {
 	_, isUpdateJobPriorities := b.(UpdateJobPriorities)
 	return !isUpdateJobPriorities && !definesJobInSet(a, b)
 }
 
-func (a MarkJobSetsCancelled) CanBeAppliedBefore(b DbOperation) bool {
+func (a MarkJobSetsCancelRequested) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJobInSet(a, b) && !definesRunInSet(a, b)
 }
 
-func (a MarkJobsCancelled) CanBeAppliedBefore(b DbOperation) bool {
+func (a MarkJobsCancelRequested) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b) && !definesRunForJob(a, b)
 }
 
@@ -232,6 +296,18 @@ func (a MarkJobsSucceeded) CanBeAppliedBefore(b DbOperation) bool {
 }
 
 func (a MarkJobsFailed) CanBeAppliedBefore(b DbOperation) bool {
+	return !definesJob(a, b)
+}
+
+func (a MarkJobsCancelled) CanBeAppliedBefore(b DbOperation) bool {
+	return !definesJob(a, b)
+}
+
+func (a UpdateJobSchedulingInfo) CanBeAppliedBefore(b DbOperation) bool {
+	return !definesJob(a, b)
+}
+
+func (a UpdateJobQueuedState) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b)
 }
 
@@ -250,6 +326,17 @@ func (a MarkRunsFailed) CanBeAppliedBefore(b DbOperation) bool {
 
 func (a MarkRunsRunning) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesRun(a, b)
+}
+
+func (a *InsertPartitionMarker) CanBeAppliedBefore(b DbOperation) bool {
+	// Partition markers can never be brought forward
+	return false
+}
+
+func (a InsertJobRunErrors) CanBeAppliedBefore(_ DbOperation) bool {
+	// Inserting errors before a run has been marked as failed is ok.
+	// We only require that errors are written to the schedulerdb before the run is marked as failed.
+	return true
 }
 
 // definesJobInSet returns true if b is an InsertJobs operation
@@ -280,7 +367,7 @@ func definesRunInSet[M ~map[string]V, V any](a M, b DbOperation) bool {
 
 // definesJob returns true if b is an InsertJobs operation
 // that inserts at least one job with id equal to any of the keys of a.
-func definesJob[M ~map[uuid.UUID]V, V any](a M, b DbOperation) bool {
+func definesJob[M ~map[string]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertJobs); ok {
 		for _, job := range op {
 			if _, ok := a[job.JobID]; ok {
@@ -306,7 +393,7 @@ func definesRun[M ~map[uuid.UUID]V, V any](a M, b DbOperation) bool {
 
 // definesRunForJob returns true if b is an InsertRuns operation
 // that inserts at least one run with job id equal to any of the keys of a.
-func definesRunForJob[M ~map[uuid.UUID]V, V any](a M, b DbOperation) bool {
+func definesRunForJob[M ~map[string]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertRuns); ok {
 		for _, run := range op {
 			if _, ok := a[run.JobID]; ok {

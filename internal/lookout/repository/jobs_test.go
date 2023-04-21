@@ -8,8 +8,8 @@ import (
 	"github.com/doug-martin/goqu/v9"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api/lookout"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api/lookout"
 )
 
 func TestGetJobs_GetQueued(t *testing.T) {
@@ -1315,6 +1315,70 @@ func TestGetJobs_FilterBySingleAnnotation(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(jobInfos))
 		AssertJobsAreEquivalent(t, job.job, jobInfos[0].Job)
+	})
+}
+
+func TestGetJobs_FilterByJobSetWithBackslashes(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, "prefix/")
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
+
+		job := NewJobSimulator(t, jobStore).
+			CreateJobWithJobSet(queue, "some\\job\\set")
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithJobSet(queue, "other-job-set")
+
+		filters := []string{
+			"some\\job\\set",
+			"some\\job\\se*",
+		}
+		for _, filter := range filters {
+			jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+				JobSetIds: []string{
+					filter,
+				},
+				Take: 10,
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, 1, len(jobInfos))
+			AssertJobsAreEquivalent(t, job.job, jobInfos[0].Job)
+
+		}
+	})
+}
+
+func TestGetJobs_FilterByAnnotationWithBackslashes(t *testing.T) {
+	withDatabase(t, func(db *goqu.Database) {
+		jobStore := NewSQLJobStore(db, "prefix/")
+		jobRepo := NewSQLJobRepository(db, &util.DefaultClock{})
+
+		job := NewJobSimulator(t, jobStore).
+			CreateJobWithAnnotations(queue, map[string]string{
+				"prefix/a": "some\\annotation\\test",
+			})
+
+		NewJobSimulator(t, jobStore).
+			CreateJobWithAnnotations(queue, map[string]string{
+				"prefix/a": "other-annotation",
+			})
+
+		// Always starts with
+		filters := []string{
+			"some\\annotation\\test",
+			"some\\annotation\\te",
+		}
+		for _, filter := range filters {
+			jobInfos, err := jobRepo.GetJobs(ctx, &lookout.GetJobsRequest{
+				UserAnnotations: map[string]string{
+					"a": filter,
+				},
+				Take: 10,
+			})
+			assert.NoError(t, err)
+			assert.Equal(t, 1, len(jobInfos))
+			AssertJobsAreEquivalent(t, job.job, jobInfos[0].Job)
+		}
 	})
 }
 

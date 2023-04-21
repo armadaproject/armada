@@ -10,36 +10,44 @@ import (
 	"github.com/google/uuid"
 )
 
+type Executor struct {
+	ExecutorID  string    `db:"executor_id"`
+	LastRequest []byte    `db:"last_request"`
+	LastUpdated time.Time `db:"last_updated"`
+}
+
 type Job struct {
-	JobID          uuid.UUID `db:"job_id"`
-	JobSet         string    `db:"job_set"`
-	Queue          string    `db:"queue"`
-	UserID         string    `db:"user_id"`
-	Groups         []byte    `db:"groups"`
-	Priority       int64     `db:"priority"`
-	Cancelled      bool      `db:"cancelled"`
-	Succeeded      bool      `db:"succeeded"`
-	Failed         bool      `db:"failed"`
-	SubmitMessage  []byte    `db:"submit_message"`
-	SchedulingInfo []byte    `db:"scheduling_info"`
-	Serial         int64     `db:"serial"`
-	LastModified   time.Time `db:"last_modified"`
+	JobID                   string    `db:"job_id"`
+	JobSet                  string    `db:"job_set"`
+	Queue                   string    `db:"queue"`
+	UserID                  string    `db:"user_id"`
+	Submitted               int64     `db:"submitted"`
+	Groups                  []byte    `db:"groups"`
+	Priority                int64     `db:"priority"`
+	Queued                  bool      `db:"queued"`
+	QueuedVersion           int32     `db:"queued_version"`
+	CancelRequested         bool      `db:"cancel_requested"`
+	Cancelled               bool      `db:"cancelled"`
+	CancelByJobsetRequested bool      `db:"cancel_by_jobset_requested"`
+	Succeeded               bool      `db:"succeeded"`
+	Failed                  bool      `db:"failed"`
+	SubmitMessage           []byte    `db:"submit_message"`
+	SchedulingInfo          []byte    `db:"scheduling_info"`
+	SchedulingInfoVersion   int32     `db:"scheduling_info_version"`
+	Serial                  int64     `db:"serial"`
+	LastModified            time.Time `db:"last_modified"`
 }
 
-type JobRunAssignment struct {
-	RunID        uuid.UUID `db:"run_id"`
-	Assignment   []byte    `db:"assignment"`
-	Serial       int64     `db:"serial"`
-	LastModified time.Time `db:"last_modified"`
+type JobRunError struct {
+	RunID uuid.UUID `db:"run_id"`
+	JobID string    `db:"job_id"`
+	Error []byte    `db:"error"`
 }
 
-type Nodeinfo struct {
-	ExecutorNodeName string    `db:"executor_node_name"`
-	NodeName         string    `db:"node_name"`
-	Executor         string    `db:"executor"`
-	Message          []byte    `db:"message"`
-	Serial           int64     `db:"serial"`
-	LastModified     time.Time `db:"last_modified"`
+type Marker struct {
+	GroupID     uuid.UUID `db:"group_id"`
+	PartitionID int32     `db:"partition_id"`
+	Created     time.Time `db:"created"`
 }
 
 type Queue struct {
@@ -48,15 +56,18 @@ type Queue struct {
 }
 
 type Run struct {
-	RunID          uuid.UUID `db:"run_id"`
-	JobID          uuid.UUID `db:"job_id"`
-	JobSet         string    `db:"job_set"`
-	Executor       string    `db:"executor"`
-	SentToExecutor bool      `db:"sent_to_executor"`
-	Cancelled      bool      `db:"cancelled"`
-	Running        bool      `db:"running"`
-	Succeeded      bool      `db:"succeeded"`
-	Failed         bool      `db:"failed"`
-	Serial         int64     `db:"serial"`
-	LastModified   time.Time `db:"last_modified"`
+	RunID        uuid.UUID `db:"run_id"`
+	JobID        string    `db:"job_id"`
+	Created      int64     `db:"created"`
+	JobSet       string    `db:"job_set"`
+	Executor     string    `db:"executor"`
+	Node         string    `db:"node"`
+	Cancelled    bool      `db:"cancelled"`
+	Running      bool      `db:"running"`
+	Succeeded    bool      `db:"succeeded"`
+	Failed       bool      `db:"failed"`
+	Returned     bool      `db:"returned"`
+	RunAttempted bool      `db:"run_attempted"`
+	Serial       int64     `db:"serial"`
+	LastModified time.Time `db:"last_modified"`
 }

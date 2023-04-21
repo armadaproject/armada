@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -12,16 +13,16 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/instructions"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/lookoutdb"
-	"github.com/G-Research/armada/internal/lookoutv2/model"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutv2/model"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type JobSimulator struct {
@@ -426,7 +427,7 @@ func (js *JobSimulator) RunTerminated(runId string, cluster string, node string,
 				RunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(runId)),
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: true,
+						Terminal: false,
 						Reason: &armadaevents.Error_PodTerminated{
 							PodTerminated: &armadaevents.PodTerminated{
 								NodeName: node,
@@ -463,7 +464,7 @@ func (js *JobSimulator) RunUnschedulable(runId string, cluster string, node stri
 				RunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(runId)),
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: true,
+						Terminal: false,
 						Reason: &armadaevents.Error_PodUnschedulable{
 							PodUnschedulable: &armadaevents.PodUnschedulable{
 								NodeName: node,
@@ -614,4 +615,13 @@ func prefixAnnotations(prefix string, annotations map[string]string) map[string]
 		prefixed[fmt.Sprintf("%s%s", prefix, key)] = value
 	}
 	return prefixed
+}
+
+func logQuery(query *Query) {
+	log.Debug(removeNewlinesAndTabs(query.Sql))
+	log.Debugf("%v", query.Args)
+}
+
+func removeNewlinesAndTabs(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "\n", " "), "\t", "")
 }

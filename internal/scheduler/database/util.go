@@ -4,22 +4,30 @@ import (
 	"context"
 	"embed"
 	_ "embed"
+	"time"
 
 	"github.com/jackc/pgtype/pgxtype"
 	"github.com/jackc/pgx/v4/pgxpool"
+	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/database"
 )
 
 //go:embed migrations/*.sql
 var fs embed.FS
 
 func Migrate(ctx context.Context, db pgxtype.Querier) error {
+	start := time.Now()
 	migrations, err := database.ReadMigrations(fs, "migrations")
 	if err != nil {
 		return err
 	}
-	return database.UpdateDatabase(ctx, db, migrations)
+	err = database.UpdateDatabase(ctx, db, migrations)
+	if err != nil {
+		return err
+	}
+	log.Infof("Updated scheduler database in %s", time.Now().Sub(start))
+	return nil
 }
 
 func WithTestDb(action func(queries *Queries, db *pgxpool.Pool) error) error {

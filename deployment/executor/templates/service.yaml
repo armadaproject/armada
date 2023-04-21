@@ -12,3 +12,8 @@ spec:
     - name: metrics
       protocol: TCP
       port: 9001
+    {{- if .Values.healthcheck.enabled }}
+    - name: rest
+      protocol: TCP
+      port: {{ .Values.applicationConfig.httpPort }}
+    {{- end }}

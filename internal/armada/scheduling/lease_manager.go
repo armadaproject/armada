@@ -1,12 +1,13 @@
 package scheduling
 
 import (
+	"context"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type LeaseManager struct {
@@ -54,7 +55,7 @@ func (l *LeaseManager) ExpireLeases() {
 				if e != nil {
 					log.Error(e)
 				} else {
-					e := l.eventStore.ReportEvents([]*api.EventMessage{event})
+					e := l.eventStore.ReportEvents(context.Background(), []*api.EventMessage{event})
 					if e != nil {
 						log.Error(e)
 					}

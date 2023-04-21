@@ -10,7 +10,7 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type EventLogger struct {
@@ -64,7 +64,8 @@ func (srv *EventLogger) Run(ctx context.Context) error {
 			}
 			srv.mu.Lock()
 			jobId := api.JobIdFromApiEvent(e)
-			srv.jobSetIdByJobId[jobId] = api.JobSetIdFromApiEvent(e)
+			jobSet := api.JobSetIdFromApiEvent(e)
+			srv.jobSetIdByJobId[jobId] = jobSet
 			srv.intervalTransitionsByJobId[jobId] = append(srv.intervalTransitionsByJobId[jobId], e.ShortString())
 			srv.mu.Unlock()
 		}

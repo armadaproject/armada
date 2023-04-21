@@ -39,7 +39,7 @@ Airflow operators inherit from BaseOperator.
     * **job_request_items** – A PodSpec that is used by Armada for submitting a job
 
 
-    * **lookout_url_template** (*Optional**[**str**]*) – A URL template to be used to provide users
+    * **lookout_url_template** (*str** | **None*) – A URL template to be used to provide users
     a valid link to the related lookout job in this operator’s log.
     The format should be:
     “[https://lookout.armada.domain/jobs](https://lookout.armada.domain/jobs)?job_id=<job_id>” where <job_id> will
@@ -139,7 +139,7 @@ Implementation of gRPC stubs from JobService
     for more information.
 
 
-    * **max_workers** (*Optional**[**int**]*) – number of cores for thread pools, if unset, defaults
+    * **max_workers** (*int** | **None*) – number of cores for thread pools, if unset, defaults
     to number of CPUs
 
 
@@ -201,9 +201,17 @@ An enumeration.
 
 #### CANCELLED(_ = _ )
 
+#### CONNECTION_ERR(_ = _ )
+
+#### DUPLICATE_FOUND(_ = _ )
+
 #### FAILED(_ = _ )
 
 #### JOB_ID_NOT_FOUND(_ = _ )
+
+#### RUNNING(_ = _ )
+
+#### SUBMITTED(_ = _ )
 
 #### SUCCEEDED(_ = _ )
 
@@ -256,6 +264,14 @@ AirflowFailException tells Airflow Schedule to not reschedule the task
 
 
 
+### armada.operators.utils.job_state_from_pb(state)
+
+* **Return type**
+
+    *JobState*
+
+
+
 ### armada.operators.utils.search_for_job_complete(armada_queue, job_set_id, airflow_task_name, job_id, job_service_client=None, job_status_callable=<function default_job_status_callable>, time_out_for_failure=7200)
 Poll JobService cache until you get a terminated event.
 
@@ -277,7 +293,7 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
     * **job_id** (*str*) – The name of the job id that armada assigns to it
 
 
-    * **job_service_client** (*Optional**[**JobServiceClient**]*) – A JobServiceClient that is used for polling.
+    * **job_service_client** (*JobServiceClient** | **None*) – A JobServiceClient that is used for polling.
     It is optional only for testing
 
 

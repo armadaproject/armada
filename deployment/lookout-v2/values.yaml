@@ -1,5 +1,5 @@
 image:
-  repository: gresearchdev/armada-lookout
+  repository: gresearchdev/armada-lookout-v2-dev
   tag: LATEST
 resources:
   limits:
@@ -9,6 +9,9 @@ resources:
     memory: 512Mi
     cpu: 200m
 additionalLabels: {}
+additionalVolumeMounts: []
+additionalVolumes: []
+dbPruningEnabled: true
 terminationGracePeriodSeconds: 5
 replicas: 1
 strategy:

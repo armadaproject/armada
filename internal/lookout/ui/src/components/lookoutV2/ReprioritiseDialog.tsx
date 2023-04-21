@@ -1,4 +1,4 @@
-import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react"
+import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { Refresh, Dangerous } from "@mui/icons-material"
 import { LoadingButton } from "@mui/lab"
@@ -14,12 +14,12 @@ import {
 } from "@mui/material"
 import _ from "lodash"
 import { isTerminatedJobState, Job, JobFilter, JobId } from "models/lookoutV2Models"
-import { useSnackbar } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import { pl, waitMillis } from "utils"
 import { getUniqueJobsMatchingFilters } from "utils/jobsDialogUtils"
 
+import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
 
@@ -29,12 +29,14 @@ interface ReprioritiseDialogProps {
   getJobsService: IGetJobsService
   updateJobsService: UpdateJobsService
 }
+
 export const ReprioritiseDialog = ({
   onClose,
   selectedItemFilters,
   getJobsService,
   updateJobsService,
 }: ReprioritiseDialogProps) => {
+  const mounted = useRef(false)
   // State
   const [isLoadingJobs, setIsLoadingJobs] = useState(true)
   const [selectedJobs, setSelectedJobs] = useState<Job[]>([])
@@ -46,14 +48,22 @@ export const ReprioritiseDialog = ({
   const [newPriority, setNewPriority] = useState<number | undefined>(undefined)
   const [isReprioritising, setIsReprioritising] = useState(false)
   const [hasAttemptedReprioritise, setHasAttemptedReprioritise] = useState(false)
-  const { enqueueSnackbar } = useSnackbar()
+  const openSnackbar = useCustomSnackbar()
 
   // Actions
   const fetchSelectedJobs = useCallback(async () => {
+    if (!mounted.current) {
+      return
+    }
+
     setIsLoadingJobs(true)
 
     const uniqueJobsToReprioritise = await getUniqueJobsMatchingFilters(selectedItemFilters, getJobsService)
     const sortedJobs = _.orderBy(uniqueJobsToReprioritise, (job) => job.jobId, "desc")
+
+    if (!mounted.current) {
+      return
+    }
 
     setSelectedJobs(sortedJobs)
     setIsLoadingJobs(false)
@@ -66,18 +76,17 @@ export const ReprioritiseDialog = ({
 
     setIsReprioritising(true)
 
-    const jobIdsToReprioritise = reprioritisableJobs.map((job) => job.jobId)
-    const response = await updateJobsService.reprioritiseJobs(jobIdsToReprioritise, newPriority)
+    const response = await updateJobsService.reprioritiseJobs(reprioritisableJobs, newPriority)
 
     if (response.failedJobIds.length === 0) {
-      enqueueSnackbar(
+      openSnackbar(
         "Successfully changed priority. Jobs may take some time to reprioritise, but you may navigate away.",
-        { variant: "success" },
+        "success",
       )
     } else if (response.successfulJobIds.length === 0) {
-      enqueueSnackbar("All jobs failed to reprioritise. See table for error responses.", { variant: "error" })
+      openSnackbar("All jobs failed to reprioritise. See table for error responses.", "error")
     } else {
-      enqueueSnackbar("Some jobs failed to reprioritise. See table for error responses.", { variant: "warning" })
+      openSnackbar("Some jobs failed to reprioritise. See table for error responses.", "warning")
     }
 
     const newResponseStatus = { ...jobIdsToReprioritiseResponses }
@@ -91,7 +100,11 @@ export const ReprioritiseDialog = ({
 
   // On opening the dialog
   useEffect(() => {
+    mounted.current = true
     fetchSelectedJobs().catch(console.error)
+    return () => {
+      mounted.current = false
+    }
   }, [])
 
   // Event handlers

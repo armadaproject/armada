@@ -5,10 +5,9 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/eventutil"
-
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // FromEventSequence Converts internal messages to external api messages
@@ -54,7 +53,8 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 			convertedEvents, err = FromInternalJobRunPreempted(es.Queue, es.JobSetName, *event.Created, esEvent.JobRunPreempted)
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet,
 			*armadaevents.EventSequence_Event_CancelJobSet,
-			*armadaevents.EventSequence_Event_JobRunSucceeded:
+			*armadaevents.EventSequence_Event_JobRunSucceeded,
+			*armadaevents.EventSequence_Event_PartitionMarker:
 			// These events have no api analog right now, so we ignore
 			log.Debugf("Ignoring event")
 		default:
@@ -278,79 +278,78 @@ func FromInternalJobRunErrors(queueName string, jobSetName string, time time.Tim
 
 	events := make([]*api.EventMessage, 0)
 	for _, msgErr := range e.GetErrors() {
-		if msgErr.Terminal {
-			switch reason := msgErr.Reason.(type) {
-			case *armadaevents.Error_LeaseExpired:
-				event := &api.EventMessage{
-					Events: &api.EventMessage_LeaseExpired{
-						LeaseExpired: &api.JobLeaseExpiredEvent{
-							JobId:    jobId,
-							JobSetId: jobSetName,
-							Queue:    queueName,
-							Created:  time,
-						},
+		switch reason := msgErr.Reason.(type) {
+		case *armadaevents.Error_LeaseExpired:
+			event := &api.EventMessage{
+				Events: &api.EventMessage_LeaseExpired{
+					LeaseExpired: &api.JobLeaseExpiredEvent{
+						JobId:    jobId,
+						JobSetId: jobSetName,
+						Queue:    queueName,
+						Created:  time,
 					},
-				}
-				events = append(events, event)
-			case *armadaevents.Error_PodUnschedulable:
-				objectMeta := reason.PodUnschedulable.GetObjectMeta()
-				event := &api.EventMessage{
-					Events: &api.EventMessage_UnableToSchedule{
-						UnableToSchedule: &api.JobUnableToScheduleEvent{
-							JobId:        jobId,
-							ClusterId:    objectMeta.GetExecutorId(),
-							PodNamespace: objectMeta.GetNamespace(),
-							PodName:      objectMeta.GetName(),
-							KubernetesId: objectMeta.GetKubernetesId(),
-							Reason:       reason.PodUnschedulable.GetMessage(),
-							NodeName:     reason.PodUnschedulable.GetNodeName(),
-							PodNumber:    reason.PodUnschedulable.GetPodNumber(),
-							JobSetId:     jobSetName,
-							Queue:        queueName,
-							Created:      time,
-						},
-					},
-				}
-				events = append(events, event)
-			case *armadaevents.Error_PodLeaseReturned:
-				objectMeta := reason.PodLeaseReturned.GetObjectMeta()
-				event := &api.EventMessage{
-					Events: &api.EventMessage_LeaseReturned{
-						LeaseReturned: &api.JobLeaseReturnedEvent{
-							JobId:        jobId,
-							JobSetId:     jobSetName,
-							Queue:        queueName,
-							Created:      time,
-							ClusterId:    objectMeta.GetExecutorId(),
-							Reason:       reason.PodLeaseReturned.GetMessage(),
-							KubernetesId: objectMeta.GetKubernetesId(),
-							PodNumber:    reason.PodLeaseReturned.GetPodNumber(),
-						},
-					},
-				}
-				events = append(events, event)
-			case *armadaevents.Error_PodTerminated:
-				objectMeta := reason.PodTerminated.GetObjectMeta()
-				event := &api.EventMessage{
-					Events: &api.EventMessage_Terminated{
-						Terminated: &api.JobTerminatedEvent{
-							JobId:        jobId,
-							JobSetId:     jobSetName,
-							PodNamespace: objectMeta.GetNamespace(),
-							PodName:      objectMeta.GetName(),
-							Queue:        queueName,
-							Created:      time,
-							ClusterId:    objectMeta.GetExecutorId(),
-							Reason:       reason.PodTerminated.GetMessage(),
-							KubernetesId: objectMeta.GetKubernetesId(),
-							PodNumber:    reason.PodTerminated.GetPodNumber(),
-						},
-					},
-				}
-				events = append(events, event)
-			default:
-				log.Debugf("Ignoring event %T", reason)
+				},
 			}
+			events = append(events, event)
+		case *armadaevents.Error_PodUnschedulable:
+			objectMeta := reason.PodUnschedulable.GetObjectMeta()
+			event := &api.EventMessage{
+				Events: &api.EventMessage_UnableToSchedule{
+					UnableToSchedule: &api.JobUnableToScheduleEvent{
+						JobId:        jobId,
+						ClusterId:    objectMeta.GetExecutorId(),
+						PodNamespace: objectMeta.GetNamespace(),
+						PodName:      objectMeta.GetName(),
+						KubernetesId: objectMeta.GetKubernetesId(),
+						Reason:       reason.PodUnschedulable.GetMessage(),
+						NodeName:     reason.PodUnschedulable.GetNodeName(),
+						PodNumber:    reason.PodUnschedulable.GetPodNumber(),
+						JobSetId:     jobSetName,
+						Queue:        queueName,
+						Created:      time,
+					},
+				},
+			}
+			events = append(events, event)
+		case *armadaevents.Error_PodLeaseReturned:
+			objectMeta := reason.PodLeaseReturned.GetObjectMeta()
+			event := &api.EventMessage{
+				Events: &api.EventMessage_LeaseReturned{
+					LeaseReturned: &api.JobLeaseReturnedEvent{
+						JobId:        jobId,
+						JobSetId:     jobSetName,
+						Queue:        queueName,
+						Created:      time,
+						ClusterId:    objectMeta.GetExecutorId(),
+						Reason:       reason.PodLeaseReturned.GetMessage(),
+						KubernetesId: objectMeta.GetKubernetesId(),
+						PodNumber:    reason.PodLeaseReturned.GetPodNumber(),
+						RunAttempted: reason.PodLeaseReturned.GetRunAttempted(),
+					},
+				},
+			}
+			events = append(events, event)
+		case *armadaevents.Error_PodTerminated:
+			objectMeta := reason.PodTerminated.GetObjectMeta()
+			event := &api.EventMessage{
+				Events: &api.EventMessage_Terminated{
+					Terminated: &api.JobTerminatedEvent{
+						JobId:        jobId,
+						JobSetId:     jobSetName,
+						PodNamespace: objectMeta.GetNamespace(),
+						PodName:      objectMeta.GetName(),
+						Queue:        queueName,
+						Created:      time,
+						ClusterId:    objectMeta.GetExecutorId(),
+						Reason:       reason.PodTerminated.GetMessage(),
+						KubernetesId: objectMeta.GetKubernetesId(),
+						PodNumber:    reason.PodTerminated.GetPodNumber(),
+					},
+				},
+			}
+			events = append(events, event)
+		default:
+			log.Debugf("Ignoring event %T", reason)
 		}
 	}
 	return events, nil
@@ -361,32 +360,58 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 	if err != nil {
 		return nil, err
 	}
-
 	events := make([]*api.EventMessage, 0)
 	for _, msgErr := range e.GetErrors() {
-		if msgErr.Terminal {
-			switch reason := msgErr.Reason.(type) {
-			case *armadaevents.Error_PodError:
-				event := &api.EventMessage{
-					Events: &api.EventMessage_Failed{
-						Failed: makeJobFailed(jobId, queueName, jobSetName, time, reason),
-					},
-				}
-				events = append(events, event)
-			default:
-				log.Warnf("Unknown job error %T", reason)
-				event := &api.EventMessage{
-					Events: &api.EventMessage_Failed{
-						Failed: &api.JobFailedEvent{
-							JobId:    jobId,
-							JobSetId: jobSetName,
-							Queue:    queueName,
-							Created:  time,
-						},
-					},
-				}
-				events = append(events, event)
+		if !msgErr.Terminal {
+			continue
+		}
+		switch reason := msgErr.Reason.(type) {
+		case *armadaevents.Error_PodError:
+			event := &api.EventMessage{
+				Events: &api.EventMessage_Failed{
+					Failed: makeJobFailed(jobId, queueName, jobSetName, time, reason),
+				},
 			}
+			events = append(events, event)
+		case *armadaevents.Error_JobRunPreemptedError:
+			event := &api.EventMessage{
+				Events: &api.EventMessage_Failed{
+					Failed: &api.JobFailedEvent{
+						JobId:    jobId,
+						JobSetId: jobSetName,
+						Queue:    queueName,
+						Created:  time,
+						Reason:   "preempted",
+					},
+				},
+			}
+			events = append(events, event)
+		case *armadaevents.Error_MaxRunsExceeded:
+			event := &api.EventMessage{
+				Events: &api.EventMessage_Failed{
+					Failed: &api.JobFailedEvent{
+						JobId:    jobId,
+						JobSetId: jobSetName,
+						Queue:    queueName,
+						Created:  time,
+						Reason:   reason.MaxRunsExceeded.Message,
+					},
+				},
+			}
+			events = append(events, event)
+		default:
+			log.Warnf("unknown error %T for job %s", reason, jobId)
+			event := &api.EventMessage{
+				Events: &api.EventMessage_Failed{
+					Failed: &api.JobFailedEvent{
+						JobId:    jobId,
+						JobSetId: jobSetName,
+						Queue:    queueName,
+						Created:  time,
+					},
+				},
+			}
+			events = append(events, event)
 		}
 	}
 	return events, nil
@@ -469,13 +494,20 @@ func FromInternalJobRunPreempted(queueName string, jobSetName string, time time.
 		return nil, err
 	}
 
-	preemptiveJobId, err := armadaevents.UlidStringFromProtoUuid(e.PreemptiveJobId)
-	if err != nil {
-		return nil, err
+	preemptiveJobId := ""
+	preemptiveRunId := ""
+
+	if e.PreemptiveJobId != nil {
+		preemptiveJobId, err = armadaevents.UlidStringFromProtoUuid(e.PreemptiveJobId)
+		if err != nil {
+			return nil, err
+		}
 	}
-	preemptiveRunId, err := armadaevents.UuidStringFromProtoUuid(e.PreemptiveRunId)
-	if err != nil {
-		return nil, err
+	if e.PreemptiveRunId != nil {
+		preemptiveRunId, err = armadaevents.UuidStringFromProtoUuid(e.PreemptiveRunId)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	apiEvent := &api.JobPreemptedEvent{
@@ -556,36 +588,50 @@ func FromInternalStandaloneIngressInfo(queueName string, jobSetName string, time
 	}, nil
 }
 
-func makeJobFailed(jobId string, queueName string, jobSetName string, time time.Time, podError *armadaevents.Error_PodError) *api.JobFailedEvent {
+func makeJobFailed(jobId string, queueName string, jobSetName string, time time.Time, podErrorEvent *armadaevents.Error_PodError) *api.JobFailedEvent {
+	podError := podErrorEvent.PodError
 	event := &api.JobFailedEvent{
 		JobId:        jobId,
 		JobSetId:     jobSetName,
 		Queue:        queueName,
 		Created:      time,
-		ClusterId:    podError.PodError.GetObjectMeta().GetExecutorId(),
-		PodNamespace: podError.PodError.GetObjectMeta().GetNamespace(),
-		KubernetesId: podError.PodError.GetObjectMeta().GetKubernetesId(),
-		PodNumber:    podError.PodError.GetPodNumber(),
-		NodeName:     podError.PodError.GetNodeName(),
-		Reason:       podError.PodError.GetMessage(),
-		PodName:      podError.PodError.GetObjectMeta().GetName(),
+		ClusterId:    podError.GetObjectMeta().GetExecutorId(),
+		PodNamespace: podError.GetObjectMeta().GetNamespace(),
+		KubernetesId: podError.GetObjectMeta().GetKubernetesId(),
+		PodNumber:    podError.GetPodNumber(),
+		NodeName:     podError.GetNodeName(),
+		Reason:       podError.GetMessage(),
+		PodName:      podError.GetObjectMeta().GetName(),
 	}
+	switch podError.KubernetesReason {
+	case armadaevents.KubernetesReason_DeadlineExceeded:
+		event.Cause = api.Cause_DeadlineExceeded
+	case armadaevents.KubernetesReason_AppError:
+		event.Cause = api.Cause_Error
+	case armadaevents.KubernetesReason_Evicted:
+		event.Cause = api.Cause_Evicted
+	case armadaevents.KubernetesReason_OOM:
+		event.Cause = api.Cause_OOM
+	default:
+		log.Warnf("Unknown KubernetesReason of type %T", podError.KubernetesReason)
+	}
+
 	containerStatuses := make([]*api.ContainerStatus, 0)
-	for _, containerErr := range podError.PodError.ContainerErrors {
+	for _, containerErr := range podError.ContainerErrors {
 		containerStatus := &api.ContainerStatus{
 			Name:     containerErr.GetObjectMeta().GetName(),
 			ExitCode: containerErr.GetExitCode(),
 			Message:  containerErr.Message,
 			Reason:   containerErr.Reason,
 		}
-		switch containerErr.KubernetesReason.(type) {
-		case *armadaevents.ContainerError_DeadlineExceeded_:
+		switch containerErr.KubernetesReason {
+		case armadaevents.KubernetesReason_DeadlineExceeded:
 			containerStatus.Cause = api.Cause_DeadlineExceeded
-		case *armadaevents.ContainerError_Error:
+		case armadaevents.KubernetesReason_AppError:
 			containerStatus.Cause = api.Cause_Error
-		case *armadaevents.ContainerError_Evicted_:
+		case armadaevents.KubernetesReason_Evicted:
 			containerStatus.Cause = api.Cause_Evicted
-		case *armadaevents.ContainerError_OutOfMemory_:
+		case armadaevents.KubernetesReason_OOM:
 			containerStatus.Cause = api.Cause_OOM
 		default:
 			log.Warnf("Unknown KubernetesReason of type %T", containerErr.KubernetesReason)

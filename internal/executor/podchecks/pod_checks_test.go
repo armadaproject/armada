@@ -11,49 +11,77 @@ import (
 type podCheckTest struct {
 	eventAction          Action
 	containerStateAction Action
-	expectedResult       Action
+	expectedAction       Action
+	expectedCause        Cause
 }
 
 func Test_GetAction(t *testing.T) {
 	// ActionFail trumps ActionRetry trumps ActionWait
 	tests := []podCheckTest{
-		{eventAction: ActionWait, containerStateAction: ActionWait, expectedResult: ActionWait},
-		{eventAction: ActionWait, containerStateAction: ActionRetry, expectedResult: ActionRetry},
-		{eventAction: ActionWait, containerStateAction: ActionFail, expectedResult: ActionFail},
-		{eventAction: ActionRetry, containerStateAction: ActionWait, expectedResult: ActionRetry},
-		{eventAction: ActionRetry, containerStateAction: ActionRetry, expectedResult: ActionRetry},
-		{eventAction: ActionRetry, containerStateAction: ActionFail, expectedResult: ActionFail},
-		{eventAction: ActionFail, containerStateAction: ActionWait, expectedResult: ActionFail},
-		{eventAction: ActionFail, containerStateAction: ActionRetry, expectedResult: ActionFail},
-		{eventAction: ActionFail, containerStateAction: ActionFail, expectedResult: ActionFail},
+		{eventAction: ActionWait, containerStateAction: ActionWait, expectedAction: ActionWait, expectedCause: None},
+		{eventAction: ActionWait, containerStateAction: ActionRetry, expectedAction: ActionRetry, expectedCause: PodStartupIssue},
+		{eventAction: ActionWait, containerStateAction: ActionFail, expectedAction: ActionFail, expectedCause: PodStartupIssue},
+		{eventAction: ActionRetry, containerStateAction: ActionWait, expectedAction: ActionRetry, expectedCause: PodStartupIssue},
+		{eventAction: ActionRetry, containerStateAction: ActionRetry, expectedAction: ActionRetry, expectedCause: PodStartupIssue},
+		{eventAction: ActionRetry, containerStateAction: ActionFail, expectedAction: ActionFail, expectedCause: PodStartupIssue},
+		{eventAction: ActionFail, containerStateAction: ActionWait, expectedAction: ActionFail, expectedCause: PodStartupIssue},
+		{eventAction: ActionFail, containerStateAction: ActionRetry, expectedAction: ActionFail, expectedCause: PodStartupIssue},
+		{eventAction: ActionFail, containerStateAction: ActionFail, expectedAction: ActionFail, expectedCause: PodStartupIssue},
 	}
 
 	for _, test := range tests {
 		podChecks := podChecksWithMocks(test.eventAction, test.containerStateAction)
-		result, _ := podChecks.GetAction(basicPod(), []*v1.Event{{Message: "MockEvent", Type: "None"}}, time.Minute)
-		assert.Equal(t, test.expectedResult, result)
+		result, cause, _ := podChecks.GetAction(createBasicPod(true), []*v1.Event{{Message: "MockEvent", Type: "None"}}, time.Minute)
+		assert.Equal(t, test.expectedAction, result)
+		assert.Equal(t, test.expectedCause, cause)
 	}
 }
 
 func podChecksWithMocks(eventResult Action, containerStateResult Action) *PodChecks {
 	return &PodChecks{
-		eventChecks:          &mockEventChecks{result: eventResult, message: mockMessage(eventResult)},
-		containerStateChecks: &mockContainerStateChecks{result: containerStateResult, message: mockMessage(containerStateResult)},
+		eventChecks:               &mockEventChecks{result: eventResult, message: mockMessage(eventResult)},
+		containerStateChecks:      &mockContainerStateChecks{result: containerStateResult, message: mockMessage(containerStateResult)},
+		deadlineForUpdates:        time.Minute,
+		deadlineForNodeAssignment: time.Minute,
 	}
 }
 
-func Test_GetActionBadNode(t *testing.T) {
-	badPodCheck := PodChecks{eventChecks: nil, containerStateChecks: nil, deadlineForUpdates: time.Minute}
-	result, message := badPodCheck.GetAction(&v1.Pod{}, []*v1.Event{}, 10*time.Minute)
+func Test_GetAction_PodNotScheduled(t *testing.T) {
+	podChecks := podChecksWithMocks(ActionWait, ActionWait)
+
+	// No issue if pod isn't scheduled in less than deadlineForNodeAssignment
+	result, cause, _ := podChecks.GetAction(createBasicPod(false), []*v1.Event{{Message: "MockEvent", Type: "None"}}, 10*time.Second)
+	assert.Equal(t, result, ActionWait)
+	assert.Equal(t, cause, None)
+
+	// Issue if pod isn't scheduled for longer than deadlineForNodeAssignment
+	result, cause, _ = podChecks.GetAction(createBasicPod(false), []*v1.Event{{Message: "MockEvent", Type: "None"}}, 2*time.Minute)
 	assert.Equal(t, result, ActionRetry)
+	assert.Equal(t, cause, NoNodeAssigned)
+}
+
+func Test_GetAction_BadNode(t *testing.T) {
+	podChecks := podChecksWithMocks(ActionWait, ActionWait)
+	result, cause, message := podChecks.GetAction(createBasicPod(true), []*v1.Event{}, 10*time.Minute)
+	assert.Equal(t, result, ActionRetry)
+	assert.Equal(t, cause, NoStatusUpdates)
 	assert.Equal(t, message, "Pod status and pod events are both empty. Retrying")
 }
 
-func Test_GetActionBadNodeButUnderTimeLimit(t *testing.T) {
-	badPodCheck := PodChecks{eventChecks: nil, containerStateChecks: nil, deadlineForUpdates: time.Minute}
-	result, message := badPodCheck.GetAction(&v1.Pod{}, []*v1.Event{}, 10*time.Second)
+func Test_GetAction_BadNodeButUnderTimeLimit(t *testing.T) {
+	podChecks := podChecksWithMocks(ActionWait, ActionWait)
+	result, cause, message := podChecks.GetAction(createBasicPod(true), []*v1.Event{}, 10*time.Second)
 	assert.Equal(t, result, ActionWait)
+	assert.Equal(t, cause, NoStatusUpdates)
 	assert.Equal(t, message, "Pod status and pod events are both empty but we are under timelimit. Waiting")
+}
+
+func createBasicPod(scheduled bool) *v1.Pod {
+	pod := &v1.Pod{}
+	if scheduled {
+		pod.Spec = v1.PodSpec{NodeName: "node1"}
+	}
+	return pod
 }
 
 func mockMessage(result Action) string {

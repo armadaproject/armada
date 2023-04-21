@@ -9,8 +9,8 @@ import (
 
 	"github.com/gogo/protobuf/types"
 
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 // JobEventReader is the interface for retrieving job set event messages

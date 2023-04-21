@@ -1,14 +1,14 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func reportQueued(repository repository.EventStore, jobs []*api.Job) error {
@@ -27,7 +27,7 @@ func reportQueued(repository repository.EventStore, jobs []*api.Job) error {
 		events = append(events, event)
 	}
 
-	err := repository.ReportEvents(events)
+	err := repository.ReportEvents(context.Background(), events)
 	if err != nil {
 		return fmt.Errorf("[reportQueued] error reporting events: %w", err)
 	}
@@ -52,27 +52,11 @@ func reportDuplicateDetected(repository repository.EventStore, results []*reposi
 		events = append(events, event)
 	}
 
-	err := repository.ReportEvents(events)
+	err := repository.ReportEvents(context.Background(), events)
 	if err != nil {
 		return fmt.Errorf("[reportDuplicateDetected] error reporting events: %w", err)
 	}
 
-	return nil
-}
-
-func reportDuplicateFoundEvents(repository repository.EventStore, events []*api.JobDuplicateFoundEvent) error {
-	apiEvents := make([]*api.EventMessage, len(events))
-	for i, event := range events {
-		event, err := api.Wrap(event)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		apiEvents[i] = event
-	}
-	err := repository.ReportEvents(apiEvents)
-	if err != nil {
-		return errors.WithStack(err)
-	}
 	return nil
 }
 
@@ -93,7 +77,7 @@ func reportSubmitted(repository repository.EventStore, jobs []*api.Job) error {
 		events = append(events, event)
 	}
 
-	err := repository.ReportEvents(events)
+	err := repository.ReportEvents(context.Background(), events)
 	if err != nil {
 		return fmt.Errorf("[reportSubmitted] error reporting events: %w", err)
 	}
@@ -122,7 +106,7 @@ func reportJobsLeased(repository repository.EventStore, jobs []*api.Job, cluster
 		}
 	}
 
-	err := repository.ReportEvents(events)
+	err := repository.ReportEvents(context.Background(), events)
 	if err != nil {
 		err = fmt.Errorf("[reportJobsLeased] error reporting events: %w", err)
 		log.Error(err)
@@ -138,12 +122,13 @@ func reportJobLeaseReturned(repository repository.EventStore, job *api.Job, leas
 		ClusterId:    leaseReturnRequest.ClusterId,
 		Reason:       leaseReturnRequest.Reason,
 		KubernetesId: leaseReturnRequest.KubernetesId,
+		RunAttempted: leaseReturnRequest.JobRunAttempted,
 	})
 	if err != nil {
 		return fmt.Errorf("error wrapping event: %w", err)
 	}
 
-	err = repository.ReportEvents([]*api.EventMessage{event})
+	err = repository.ReportEvents(context.Background(), []*api.EventMessage{event})
 	if err != nil {
 		return fmt.Errorf("error reporting lease returned event: %w", err)
 	}
@@ -168,7 +153,7 @@ func reportJobsCancelling(repository repository.EventStore, requestorName string
 		events = append(events, event)
 	}
 
-	err := repository.ReportEvents(events)
+	err := repository.ReportEvents(context.Background(), events)
 	if err != nil {
 		return fmt.Errorf("[reportJobsCancelling] error reporting events: %w", err)
 	}
@@ -194,7 +179,7 @@ func reportJobsReprioritizing(repository repository.EventStore, requestorName st
 		events = append(events, event)
 	}
 
-	err := repository.ReportEvents(events)
+	err := repository.ReportEvents(context.Background(), events)
 	if err != nil {
 		return fmt.Errorf("[reportJobsReprioritizing] error reporting events: %w", err)
 	}
@@ -220,7 +205,7 @@ func reportJobsReprioritized(repository repository.EventStore, requestorName str
 		events = append(events, event)
 	}
 
-	err := repository.ReportEvents(events)
+	err := repository.ReportEvents(context.Background(), events)
 	if err != nil {
 		return fmt.Errorf("[reportJobsReprioritized] error reporting events: %w", err)
 	}
@@ -246,7 +231,7 @@ func reportJobsUpdated(repository repository.EventStore, requestorName string, j
 		events = append(events, event)
 	}
 
-	err := repository.ReportEvents(events)
+	err := repository.ReportEvents(context.Background(), events)
 	if err != nil {
 		return fmt.Errorf("[reportJobsUpdated] error reporting events: %w", err)
 	}
@@ -271,7 +256,7 @@ func reportJobsCancelled(repository repository.EventStore, requestorName string,
 		events = append(events, event)
 	}
 
-	err := repository.ReportEvents(events)
+	err := repository.ReportEvents(context.Background(), events)
 	if err != nil {
 		return fmt.Errorf("[reportJobsCancelled] error reporting events: %w", err)
 	}
@@ -305,7 +290,7 @@ func reportFailed(repository repository.EventStore, clusterId string, jobFailure
 		events = append(events, event)
 	}
 
-	err := repository.ReportEvents(events)
+	err := repository.ReportEvents(context.Background(), events)
 	if err != nil {
 		return fmt.Errorf("[reportFailed] error reporting events: %w", err)
 	}

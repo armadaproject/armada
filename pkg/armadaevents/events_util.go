@@ -5,7 +5,7 @@ import (
 	"errors"
 	time "time"
 
-	"github.com/G-Research/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type rawES_Event struct {
@@ -105,6 +105,12 @@ func (ev *EventSequence_Event) UnmarshalJSON(data []byte) error {
 				return err
 			}
 			ev.Event = &jobErrors
+		case "jobRequeued":
+			var jobRequeued EventSequence_Event_JobRequeued
+			if err = json.Unmarshal(rawEvent.EventBytes, &jobRequeued); err != nil {
+				return err
+			}
+			ev.Event = &jobRequeued
 		case "jobRunLeased":
 			var jobRunLeased EventSequence_Event_JobRunLeased
 			if err = json.Unmarshal(rawEvent.EventBytes, &jobRunLeased); err != nil {

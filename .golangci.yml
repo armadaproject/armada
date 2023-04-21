@@ -16,9 +16,10 @@ linters:
     - goimports
     - ineffassign
     - misspell
+    - errcheck
 
 linters-settings:
   lll:
     line-length: 261
   goimports:
-    local-prefixes: github.com/G-Research/armada
+    local-prefixes: github.com/armadaproject/armada

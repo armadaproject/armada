@@ -14,7 +14,7 @@ dependencies:
     condition: dependencies.postgresql
   - name: armada-lookout-migration
     version: v0.3.20
-    repository: https://g-research.github.io/charts/
+    repository: https://g-research.github.io/charts
     condition: dependencies.armada-lookout-migration
   - name: stan
     version: 0.13.0
@@ -26,21 +26,21 @@ dependencies:
     condition: dependencies.pulsar
   - name: armada
     version: v0.3.36
-    repository: https://g-research.github.io/charts/
+    repository: https://armadaproject.github.io/charts/
     condition: dependencies.armada-server
   - name: armada-executor
     version: v0.3.36
-    repository: https://g-research.github.io/charts/
+    repository: https://armadaproject.github.io/charts/
     condition: dependencies.armada-executor
   - name: armada-lookout
     version: v0.3.36
-    repository: https://g-research.github.io/charts/
+    repository: https://armadaproject.github.io/charts/
     condition: dependencies.armada-lookout
   - name: armada-lookout-ingester
     version: v0.3.36
-    repository: https://g-research.github.io/charts/
+    repository: https://armadaproject.github.io/charts/
     condition: dependencies.armada-lookout-ingester
   - name: executor-cluster-monitoring
     version: v0.1.9
-    repository: https://g-research.github.io/charts
+    repository: https://armadaproject.github.io/charts
     condition: dependencies.executor-cluster-monitoring

@@ -5,24 +5,14 @@ import (
 	"container/heap"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/scheduler/schedulerobjects"
-)
-
-var (
-	testPriorityClasses   = []configuration.PriorityClass{{0, nil}, {1, nil}, {2, nil}, {3, nil}}
-	testPriorities        = []int32{0, 1, 2, 3}
-	testResources         = []string{"cpu", "memory", "gpu"}
-	testIndexedTaints     = []string{"largeJobsOnly", "gpu"}
-	testIndexedNodeLabels = []string{"largeJobsOnly", "gpu"}
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func TestNodesIterator(t *testing.T) {
@@ -41,6 +31,10 @@ func TestNodesIterator(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			indexById := make(map[string]int)
+			for i, node := range tc.Nodes {
+				indexById[node.Id] = i
+			}
 			nodeDb, err := createNodeDb(tc.Nodes)
 			if !assert.NoError(t, err) {
 				return
@@ -50,18 +44,66 @@ func TestNodesIterator(t *testing.T) {
 				return
 			}
 
-			expected := slices.Clone(tc.Nodes)
-			slices.SortFunc(expected, func(a, b *schedulerobjects.Node) bool { return a.Id < b.Id })
-
-			actual := make([]*schedulerobjects.Node, 0)
-			for node := it.NextNode(); node != nil; node = it.NextNode() {
-				actual = append(actual, node)
+			sortedNodes := slices.Clone(tc.Nodes)
+			slices.SortFunc(sortedNodes, func(a, b *schedulerobjects.Node) bool { return a.Id < b.Id })
+			expected := make([]int, len(sortedNodes))
+			for i, node := range sortedNodes {
+				expected[i] = indexById[node.Id]
 			}
-			slices.SortFunc(actual, func(a, b *schedulerobjects.Node) bool { return a.Id < b.Id })
+
+			actual := make([]int, 0)
+			for node := it.NextNode(); node != nil; node = it.NextNode() {
+				actual = append(actual, indexById[node.Id])
+			}
 
 			assert.Equal(t, expected, actual)
 		})
 	}
+}
+
+func TestNodePairIterator(t *testing.T) {
+	nodes := testCluster()
+	for i, c := range []string{"A", "B", "C"} {
+		nodes[i].Id = c
+	}
+
+	db, err := memdb.NewMemDB(nodeDbSchema(testPriorities, testResources))
+	require.NoError(t, err)
+
+	txn := db.Txn(true)
+	require.NoError(t, txn.Insert("nodes", nodes[0]))
+	require.NoError(t, txn.Insert("nodes", nodes[1]))
+	txn.Commit()
+	txnA := db.Txn(false)
+
+	txn = db.Txn(true)
+	require.NoError(t, txn.Delete("nodes", nodes[0]))
+	require.NoError(t, txn.Insert("nodes", nodes[2]))
+	txn.Commit()
+	txnB := db.Txn(false)
+
+	it, err := NewNodePairIterator(txnA, txnB)
+	require.NoError(t, err)
+
+	actual := make([]*NodePairIteratorItem, 0)
+	for item := it.NextItem(); item != nil; item = it.NextItem() {
+		actual = append(actual, item)
+	}
+	expected := []*NodePairIteratorItem{
+		{
+			NodeA: nodes[0],
+			NodeB: nil,
+		},
+		{
+			NodeA: nodes[1],
+			NodeB: nodes[1],
+		},
+		{
+			NodeA: nil,
+			NodeB: nodes[2],
+		},
+	}
+	assert.Equal(t, expected, actual)
 }
 
 // The memdb internally uses bytes.Compare to compare keys.
@@ -190,34 +232,114 @@ func TestNodeTypesResourceIteratorPQ(t *testing.T) {
 
 func TestNodeTypeResourceIterator(t *testing.T) {
 	tests := map[string]struct {
+		DominantQueue          string
+		MaxActiveQueues        int
 		NodeTypeId             string
 		Resource               string
 		Priority               int32
 		RequiredResourceAmount resource.Quantity
-		Items                  []*schedulerobjects.Node
+		Nodes                  []*schedulerobjects.Node
 		ExpectedOrder          []int
 	}{
 		"NodeType foo": {
+			DominantQueue: "*",
 			NodeTypeId:    "foo",
 			Resource:      "cpu",
 			Priority:      1,
-			Items:         testNodeItems1(),
+			Nodes:         testCluster(),
 			ExpectedOrder: []int{0, 1},
 		},
 		"NodeType bar": {
+			DominantQueue: "*",
 			NodeTypeId:    "bar",
 			Resource:      "cpu",
 			Priority:      1,
-			Items:         testNodeItems1(),
+			Nodes:         testCluster(),
 			ExpectedOrder: []int{2},
 		},
 		"NodeType foo, cpu lower bound": {
+			DominantQueue:          "*",
 			NodeTypeId:             "foo",
 			Resource:               "cpu",
 			Priority:               2,
 			RequiredResourceAmount: resource.MustParse("6"),
-			Items:                  testNodeItems1(),
+			Nodes:                  testCluster(),
 			ExpectedOrder:          []int{1},
+		},
+		"dominantQueue": {
+			DominantQueue:          "A",
+			NodeTypeId:             "foo",
+			Resource:               "cpu",
+			Priority:               1,
+			RequiredResourceAmount: resource.MustParse("0"),
+			Nodes: withPodReqsNodes(
+				map[int][]*schedulerobjects.PodRequirements{
+					0: append(
+						testNSmallCpuJob("A", 0, 2),
+						testNSmallCpuJob("B", 0, 1)...,
+					),
+					1: append(
+						testNSmallCpuJob("A", 0, 3),
+						testNSmallCpuJob("B", 0, 3)...,
+					),
+				},
+				testCluster(),
+			),
+			ExpectedOrder: []int{0, 1},
+		},
+		"dominantQueue and maxActiveQueues": {
+			DominantQueue:          "A",
+			MaxActiveQueues:        1,
+			NodeTypeId:             "foo",
+			Resource:               "cpu",
+			Priority:               1,
+			RequiredResourceAmount: resource.MustParse("0"),
+			Nodes: withPodReqsNodes(
+				map[int][]*schedulerobjects.PodRequirements{
+					0: append(
+						testNSmallCpuJob("A", 0, 2),
+						testNSmallCpuJob("B", 0, 1)...,
+					),
+					1: testNSmallCpuJob("A", 0, 2),
+				},
+				testCluster(),
+			),
+			ExpectedOrder: []int{1},
+		},
+		"empty dominantQueue": {
+			DominantQueue:          "",
+			NodeTypeId:             "foo",
+			Resource:               "cpu",
+			Priority:               1,
+			RequiredResourceAmount: resource.MustParse("0"),
+			Nodes: withPodReqsNodes(
+				map[int][]*schedulerobjects.PodRequirements{
+					0: append(
+						testNSmallCpuJob("A", 0, 2),
+						testNSmallCpuJob("B", 0, 1)...,
+					),
+				},
+				testCluster(),
+			),
+			ExpectedOrder: []int{1},
+		},
+		"empty dominantQueue and maxActiveQueues": {
+			DominantQueue:          "",
+			MaxActiveQueues:        0,
+			NodeTypeId:             "foo",
+			Resource:               "cpu",
+			Priority:               1,
+			RequiredResourceAmount: resource.MustParse("0"),
+			Nodes: withPodReqsNodes(
+				map[int][]*schedulerobjects.PodRequirements{
+					0: append(
+						testNSmallCpuJob("A", 0, 2),
+						testNSmallCpuJob("B", 0, 1)...,
+					),
+				},
+				testCluster(),
+			),
+			ExpectedOrder: []int{1},
 		},
 	}
 	for name, tc := range tests {
@@ -226,14 +348,15 @@ func TestNodeTypeResourceIterator(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-			err = populateDatabase(db, tc.Items)
+			err = populateDatabase(db, tc.Nodes)
 			if !assert.NoError(t, err) {
 				return
 			}
-
 			txn := db.Txn(false)
 			it, err := NewNodeTypeResourceIterator(
 				txn,
+				tc.DominantQueue,
+				tc.MaxActiveQueues,
 				tc.Resource,
 				tc.Priority,
 				&schedulerobjects.NodeType{Id: tc.NodeTypeId},
@@ -242,65 +365,122 @@ func TestNodeTypeResourceIterator(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-			for _, i := range tc.ExpectedOrder {
-				item := it.NextNodeItem()
-				if !assert.Equal(t, tc.Items[i], item) {
-					return
-				}
+
+			indexById := make(map[string]int)
+			for i, node := range tc.Nodes {
+				indexById[node.Id] = i
 			}
-			item := it.NextNodeItem()
-			if !assert.Nil(t, item) {
-				return
+			actual := make([]int, 0, len(tc.ExpectedOrder))
+			for node := it.NextNodeItem(); node != nil; node = it.NextNodeItem() {
+				i, ok := indexById[node.Id]
+				require.True(t, ok)
+				actual = append(actual, i)
 			}
+			assert.Equal(t, tc.ExpectedOrder, actual)
 		})
 	}
 }
 
 func TestNodeTypesResourceIterator(t *testing.T) {
 	tests := map[string]struct {
+		DominantQueue          string
+		MaxActiveQueues        int
 		NodeTypes              []string
 		Resource               string
 		Priority               int32
 		RequiredResourceAmount resource.Quantity
-		Items                  []*schedulerobjects.Node
+		Nodes                  []*schedulerobjects.Node
 		ExpectedOrder          []int
 	}{
 		"NodeType foo": {
+			DominantQueue: "*",
 			NodeTypes:     []string{"foo"},
 			Resource:      "cpu",
 			Priority:      1,
-			Items:         testNodeItems1(),
+			Nodes:         testCluster(),
 			ExpectedOrder: []int{0, 1},
 		},
 		"NodeType bar": {
+			DominantQueue: "*",
 			NodeTypes:     []string{"bar"},
 			Resource:      "cpu",
 			Priority:      1,
-			Items:         testNodeItems1(),
+			Nodes:         testCluster(),
 			ExpectedOrder: []int{2},
 		},
 		"NodeType foo, cpu lower bound": {
+			DominantQueue:          "*",
 			NodeTypes:              []string{"foo"},
 			Resource:               "cpu",
 			Priority:               2,
 			RequiredResourceAmount: resource.MustParse("6"),
-			Items:                  testNodeItems1(),
+			Nodes:                  testCluster(),
 			ExpectedOrder:          []int{1},
 		},
 		"NodeType foo and bar": {
+			DominantQueue: "*",
 			NodeTypes:     []string{"foo", "bar"},
 			Resource:      "cpu",
 			Priority:      1,
-			Items:         testNodeItems1(),
+			Nodes:         testCluster(),
 			ExpectedOrder: []int{0, 1, 2},
 		},
 		"NodeType foo and bar, cpu lower bound": {
+			DominantQueue:          "*",
 			NodeTypes:              []string{"foo", "bar"},
 			Resource:               "cpu",
 			Priority:               2,
 			RequiredResourceAmount: resource.MustParse("6"),
-			Items:                  testNodeItems1(),
+			Nodes:                  testCluster(),
 			ExpectedOrder:          []int{1, 2},
+		},
+		"dominantQueue": {
+			DominantQueue:          "A",
+			NodeTypes:              []string{"foo", "bar"},
+			Resource:               "cpu",
+			Priority:               1,
+			RequiredResourceAmount: resource.MustParse("0"),
+			Nodes: withPodReqsNodes(
+				map[int][]*schedulerobjects.PodRequirements{
+					0: append(
+						testNSmallCpuJob("A", 0, 2),
+						testNSmallCpuJob("B", 0, 1)...,
+					),
+					1: append(
+						testNSmallCpuJob("A", 0, 3),
+						testNSmallCpuJob("B", 0, 3)...,
+					),
+					2: append(
+						testNSmallCpuJob("A", 0, 1),
+						testNSmallCpuJob("B", 0, 2)...,
+					),
+				},
+				testCluster(),
+			),
+			ExpectedOrder: []int{0, 1},
+		},
+		"dominantQueue and maxActiveQueues": {
+			DominantQueue:          "A",
+			MaxActiveQueues:        1,
+			NodeTypes:              []string{"foo", "bar"},
+			Resource:               "cpu",
+			Priority:               1,
+			RequiredResourceAmount: resource.MustParse("0"),
+			Nodes: withPodReqsNodes(
+				map[int][]*schedulerobjects.PodRequirements{
+					0: append(
+						testNSmallCpuJob("A", 0, 2),
+						testNSmallCpuJob("B", 0, 1)...,
+					),
+					1: testNSmallCpuJob("A", 0, 3),
+					2: append(
+						testNSmallCpuJob("A", 0, 1),
+						testNSmallCpuJob("B", 0, 2)...,
+					),
+				},
+				testCluster(),
+			),
+			ExpectedOrder: []int{1},
 		},
 	}
 	for name, tc := range tests {
@@ -309,7 +489,7 @@ func TestNodeTypesResourceIterator(t *testing.T) {
 			if !assert.NoError(t, err) {
 				return
 			}
-			err = populateDatabase(db, tc.Items)
+			err = populateDatabase(db, tc.Nodes)
 			if !assert.NoError(t, err) {
 				return
 			}
@@ -322,177 +502,27 @@ func TestNodeTypesResourceIterator(t *testing.T) {
 			txn := db.Txn(false)
 			it, err := NewNodeTypesResourceIterator(
 				txn,
+				tc.DominantQueue,
+				tc.MaxActiveQueues,
 				tc.Resource,
 				tc.Priority,
 				nodeTypes,
 				tc.RequiredResourceAmount,
 			)
-			if !assert.NoError(t, err) {
-				return
+			require.NoError(t, err)
+
+			indexById := make(map[string]int)
+			for i, node := range tc.Nodes {
+				indexById[node.Id] = i
 			}
-			for _, i := range tc.ExpectedOrder {
-				item := it.NextNodeItem()
-				if !assert.Equal(t, tc.Items[i], item) {
-					return
-				}
+			actual := make([]int, 0, len(tc.ExpectedOrder))
+			for node := it.NextNodeItem(); node != nil; node = it.NextNodeItem() {
+				i, ok := indexById[node.Id]
+				require.True(t, ok)
+				actual = append(actual, i)
 			}
-			item := it.NextNodeItem()
-			if !assert.Nil(t, item) {
-				return
-			}
+			assert.Equal(t, tc.ExpectedOrder, actual)
 		})
-	}
-}
-
-func testNodeItems1() []*schedulerobjects.Node {
-	return []*schedulerobjects.Node{
-		{
-			Id:         "node1",
-			NodeTypeId: "foo",
-			NodeType:   &schedulerobjects.NodeType{Id: "foo"},
-			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
-				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")}},
-				2: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("3"), "memory": resource.MustParse("3Gi")}},
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("3"),
-					"memory": resource.MustParse("3Gi"),
-				},
-			},
-		},
-		{
-			Id:         "node2",
-			NodeTypeId: "foo",
-			NodeType:   &schedulerobjects.NodeType{Id: "foo"},
-			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("4"), "memory": resource.MustParse("4Gi")}},
-				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}},
-				2: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("6"), "memory": resource.MustParse("6Gi")}},
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("6"),
-					"memory": resource.MustParse("6Gi"),
-				},
-			},
-		},
-		{
-			Id:         "node3",
-			NodeTypeId: "bar",
-			NodeType:   &schedulerobjects.NodeType{Id: "bar"},
-			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
-				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("7"), "memory": resource.MustParse("7Gi")}},
-				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("8"), "memory": resource.MustParse("8Gi")}},
-				2: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("9"), "memory": resource.MustParse("9Gi")}},
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("9"),
-					"memory": resource.MustParse("9Gi"),
-				},
-			},
-		},
-	}
-}
-
-func testNCpuNode(n int, priorities []int32) []*schedulerobjects.Node {
-	rv := make([]*schedulerobjects.Node, n)
-	for i := 0; i < n; i++ {
-		rv[i] = testCpuNode(priorities)
-	}
-	return rv
-}
-
-func testNTaintedCpuNode(n int, priorities []int32) []*schedulerobjects.Node {
-	rv := make([]*schedulerobjects.Node, n)
-	for i := 0; i < n; i++ {
-		rv[i] = testTaintedCpuNode(priorities)
-	}
-	return rv
-}
-
-func testNGpuNode(n int, priorities []int32) []*schedulerobjects.Node {
-	rv := make([]*schedulerobjects.Node, n)
-	for i := 0; i < n; i++ {
-		rv[i] = testGpuNode(priorities)
-	}
-	return rv
-}
-
-func testCpuNode(priorities []int32) *schedulerobjects.Node {
-	return &schedulerobjects.Node{
-		Id: uuid.NewString(),
-		TotalResources: schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
-			},
-		},
-		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
-			priorities,
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
-			},
-		),
-	}
-}
-
-func testTaintedCpuNode(priorities []int32) *schedulerobjects.Node {
-	taints := []v1.Taint{
-		{
-			Key:    "largeJobsOnly",
-			Value:  "true",
-			Effect: v1.TaintEffectNoSchedule,
-		},
-	}
-	labels := map[string]string{
-		"largeJobsOnly": "true",
-	}
-	return &schedulerobjects.Node{
-		Id:     uuid.NewString(),
-		Taints: taints,
-		Labels: labels,
-		TotalResources: schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
-			},
-		},
-		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
-			priorities,
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
-			},
-		),
-	}
-}
-
-func testGpuNode(priorities []int32) *schedulerobjects.Node {
-	labels := map[string]string{
-		"gpu": "true",
-	}
-	return &schedulerobjects.Node{
-		Id:     uuid.NewString(),
-		Labels: labels,
-		TotalResources: schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("64"),
-				"memory": resource.MustParse("1024Gi"),
-				"gpu":    resource.MustParse("8"),
-			},
-		},
-		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
-			priorities,
-			map[string]resource.Quantity{
-				"cpu":    resource.MustParse("64"),
-				"memory": resource.MustParse("1024Gi"),
-				"gpu":    resource.MustParse("8"),
-			},
-		),
 	}
 }
 

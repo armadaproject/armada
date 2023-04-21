@@ -10,11 +10,12 @@ import (
 
 	"github.com/avast/retry-go"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
 
-	"github.com/G-Research/armada/internal/armadactl"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client"
-	cq "github.com/G-Research/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/internal/armadactl"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
+	cq "github.com/armadaproject/armada/pkg/client/queue"
 )
 
 func TestVersion(t *testing.T) {
@@ -30,15 +31,11 @@ func TestVersion(t *testing.T) {
 	}
 
 	err := app.Version()
-	if err != nil {
-		t.Fatalf("expected no error, but got %s", err)
-	}
+	require.NoError(t, err)
 
 	out := buf.String()
 	for _, s := range []string{"Commit", "Go version", "Built"} {
-		if !strings.Contains(out, s) {
-			t.Fatalf("expected output to contain %s, but got %s", s, out)
-		}
+		require.True(t, strings.Contains(out, s), "expected output to contain %s, but got %s", s, out)
 	}
 }
 
@@ -71,9 +68,7 @@ func TestQueue(t *testing.T) {
 
 	// random queue name
 	name, err := uuidString()
-	if err != nil {
-		t.Fatalf("error creating UUID: string %s", err)
-	}
+	require.NoError(t, err, "error creating UUID: string %s", err)
 
 	queue, err := cq.NewQueue(&api.Queue{
 		Name:           name,
@@ -82,43 +77,31 @@ func TestQueue(t *testing.T) {
 		GroupOwners:    groups,
 		ResourceLimits: resourceLimits,
 	})
-	if err != nil {
-		t.Fatalf("failed to instantiate queue: %s", err)
-	}
+	require.NoError(t, err, "failed to instantiate queue: %s", err)
 
 	// create queue
 	err = app.CreateQueue(queue)
-	if err != nil {
-		t.Fatalf("expected no error, but got %s", err)
-	}
+	require.NoError(t, err)
 
 	out := buf.String()
 	buf.Reset()
 	for _, s := range []string{fmt.Sprintf("Created queue %s\n", name)} {
-		if !strings.Contains(out, s) {
-			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-		}
+		require.True(t, strings.Contains(out, s), "expected output to contain '%s', but got '%s'", s, out)
 	}
 
 	// describe
 	err = app.DescribeQueue(name)
-	if err != nil {
-		t.Fatalf("expected no error, but got %s", err)
-	}
+	require.NoError(t, err)
 
 	out = buf.String()
 	buf.Reset()
 	for _, s := range []string{fmt.Sprintf("Queue: %s\n", name), "No queued or running jobs\n"} {
-		if !strings.Contains(out, s) {
-			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-		}
+		require.True(t, strings.Contains(out, s), "expected output to contain '%s', but got '%s'", s, out)
 	}
 
 	// update
 	err = app.UpdateQueue(queue)
-	if err != nil {
-		t.Fatalf("expected no error, but got %s", err)
-	}
+	require.NoError(t, err)
 
 	out = buf.String()
 	buf.Reset()
@@ -130,16 +113,12 @@ func TestQueue(t *testing.T) {
 
 	// delete
 	err = app.DeleteQueue(name)
-	if err != nil {
-		t.Fatalf("expected no error, but got %s", err)
-	}
+	require.NoError(t, err)
 
 	out = buf.String()
 	buf.Reset()
 	for _, s := range []string{"Deleted", name, "\n"} {
-		if !strings.Contains(out, s) {
-			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-		}
+		require.True(t, strings.Contains(out, s), "expected output to contain '%s', but got '%s'", s, out)
 	}
 
 	// TODO armadactl returns empty output for non-existing queues
@@ -185,9 +164,7 @@ func TestJob(t *testing.T) {
 
 	// random queue name
 	name, err := uuidString()
-	if err != nil {
-		t.Fatalf("error creating UUID: string %s", err)
-	}
+	require.NoError(t, err, "error creating UUID: string %s", err)
 
 	// job parameters
 	jobData := []byte(fmt.Sprintf(`
@@ -217,15 +194,17 @@ jobs:
               cpu: 1`, name))
 	jobDir := t.TempDir()
 	jobFile, err := os.CreateTemp(jobDir, "test")
-	if err != nil {
-		t.Fatalf("error creating jobfile: %s", err)
-	}
+	require.NoError(t, err, "error creating jobfile")
+
 	jobPath := jobFile.Name()
-	jobFile.Write(jobData)
-	jobFile.Sync()
-	if err = jobFile.Close(); err != nil {
-		t.Fatalf("error closing temp. jobfile: %s", err)
-	}
+	_, err = jobFile.Write(jobData)
+	require.NoError(t, err)
+
+	err = jobFile.Sync()
+	require.NoError(t, err)
+
+	err = jobFile.Close()
+	require.NoError(t, err)
 
 	queue, err := cq.NewQueue(&api.Queue{
 		Name:           name,
@@ -234,29 +213,21 @@ jobs:
 		UserOwners:     owners,
 		GroupOwners:    groups,
 	})
-	if err != nil {
-		t.Fatalf("failed to instantiate queue: %s", err)
-	}
+	require.NoError(t, err, "failed to instantiate queue: %s", err)
 
 	// create a queue to use for the tests
 	err = app.CreateQueue(queue)
-	if err != nil {
-		t.Fatalf("error creating test queue: %s", err)
-	}
+	require.NoError(t, err, "error creating test queue: %s", err)
 	buf.Reset()
 
 	// submit
 	err = app.Submit(jobPath, false)
-	if err != nil {
-		t.Fatalf("expected no error, but got %s", err)
-	}
+	require.NoError(t, err)
 
 	out := buf.String()
 	buf.Reset()
 	for _, s := range []string{"Submitted job with id", "to job set set1\n"} {
-		if !strings.Contains(out, s) {
-			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-		}
+		require.True(t, strings.Contains(out, s), "expected output to contain '%s', but got '%s'", s, out)
 	}
 
 	// analyze
@@ -284,51 +255,36 @@ jobs:
 		},
 		retry.Attempts(100), // default retry delay is 100ms and it may take 10 seconds for the server to commit a job
 	)
-	if err != nil {
-		t.Fatalf("error on calling Analyze: %s", err)
-	}
-
+	require.NoError(t, err, "error on calling analyze")
 	// resources
 	// no need for retry since we can be sure the job has been committed to the db at this point
 	err = app.Resources(name, "set1")
-	if err != nil {
-		t.Fatalf("expected no error, but got %s", err)
-	}
+	require.NoError(t, err)
 
 	out = buf.String()
 	buf.Reset()
 	for _, s := range []string{"Job ID:", "maximum used resources:", "\n"} {
-		if !strings.Contains(out, s) {
-			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-		}
+		require.True(t, strings.Contains(out, s))
 	}
 
 	// reprioritize
 	err = app.Reprioritize("", name, "set1", 2)
-	if err != nil {
-		t.Fatalf("expected no error, but got %s", err)
-	}
+	require.NoError(t, err)
 
 	out = buf.String()
 	buf.Reset()
 	for _, s := range []string{"Reprioritized jobs with ID:\n"} {
-		if !strings.Contains(out, s) {
-			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-		}
+		require.True(t, strings.Contains(out, s))
 	}
 
 	// cancel
 	err = app.Cancel(name, "set1", "")
-	if err != nil {
-		t.Fatalf("expected no error, but got %s", err)
-	}
+	require.NoError(t, err)
 
 	out = buf.String()
 	buf.Reset()
 	for _, s := range []string{"Requested cancellation for jobs", "\n"} {
-		if !strings.Contains(out, s) {
-			t.Fatalf("expected output to contain '%s', but got '%s'", s, out)
-		}
+		require.True(t, strings.Contains(out, s))
 	}
 }
 

@@ -14,13 +14,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/executor/configuration"
-	"github.com/G-Research/armada/internal/executor/domain"
-	executorutil "github.com/G-Research/armada/internal/executor/util"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/configuration"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	executorutil "github.com/armadaproject/armada/internal/executor/util"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // UnmarshalEventSequence returns an EventSequence object contained in a byte buffer
@@ -200,22 +200,15 @@ func LogSubmitJobFromApiJob(job *api.Job) (*armadaevents.SubmitJob, error) {
 			Message: "Both PodSpec and PodSpecs are set",
 		})
 	}
-
 	jobId, err := armadaevents.ProtoUuidFromUlidString(job.GetId())
 	if err != nil {
 		return nil, err
 	}
-
-	priority, err := LogSubmitPriorityFromApiPriority(job.GetPriority())
-	if err != nil {
-		return nil, err
-	}
-
+	priority := LogSubmitPriorityFromApiPriority(job.GetPriority())
 	mainObject, objects, err := LogSubmitObjectsFromApiJob(job)
 	if err != nil {
 		return nil, err
 	}
-
 	return &armadaevents.SubmitJob{
 		JobId:           jobId,
 		DeduplicationId: job.GetClientId(),
@@ -338,7 +331,7 @@ func K8sServicesIngressesFromApiJob(job *api.Job, ingressConfig *configuration.I
 
 // LogSubmitPriorityFromApiPriority returns the uint32 representation of the priority included with a submitted job,
 // or an error if the conversion fails.
-func LogSubmitPriorityFromApiPriority(priority float64) (uint32, error) {
+func LogSubmitPriorityFromApiPriority(priority float64) uint32 {
 	if priority < 0 {
 		priority = 0
 	}
@@ -346,7 +339,7 @@ func LogSubmitPriorityFromApiPriority(priority float64) (uint32, error) {
 		priority = math.MaxUint32
 	}
 	priority = math.Round(priority)
-	return uint32(priority), nil
+	return uint32(priority)
 }
 
 func LogObjectMetaFromK8sObjectMeta(meta *metav1.ObjectMeta) *armadaevents.ObjectMeta {
@@ -387,7 +380,7 @@ func EventSequencesFromApiEvents(msgs []*api.EventMessage) ([]*armadaevents.Even
 }
 
 // CompactEventSequences converts a []*armadaevents.EventSequence into a []*armadaevents.EventSequence of minimal length.
-// In particular, it moves events with equal (queue, jobSetName, userId, groups) into a single sequence.
+// In particular, it moves events with equal (queue, jobSetName, userId, groups) into a single sequence
 // when doing so is possible without changing the order of events within job sets.
 //
 // For example, three sequences [A, B, C], [D, E], [F, G]
@@ -447,7 +440,8 @@ func CompactEventSequences(sequences []*armadaevents.EventSequence) []*armadaeve
 
 func groupsEqual(g1, g2 []string) bool {
 	if len(g1) == 0 && len(g2) == 0 {
-		return true // Consider make []string{} and nil equal.
+		// []string{} and nil are considered equal.
+		return true
 	}
 	if len(g1) != len(g2) {
 		return false
@@ -462,7 +456,7 @@ func groupsEqual(g1, g2 []string) bool {
 
 // LimitSequencesByteSize calls LimitSequenceByteSize for each of the provided sequences
 // and returns all resulting sequences.
-func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes int, strict bool) ([]*armadaevents.EventSequence, error) {
+func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes uint, strict bool) ([]*armadaevents.EventSequence, error) {
 	rv := make([]*armadaevents.EventSequence, 0, len(sequences))
 	for _, sequence := range sequences {
 		limitedSequences, err := LimitSequenceByteSize(sequence, sizeInBytes, strict)
@@ -476,18 +470,18 @@ func LimitSequencesByteSize(sequences []*armadaevents.EventSequence, sizeInBytes
 
 // LimitSequenceByteSize returns a slice of sequences produced by breaking up sequence.Events
 // into separate sequences, each of which is at most MAX_SEQUENCE_SIZE_IN_BYTES bytes in size.
-func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes int, strict bool) ([]*armadaevents.EventSequence, error) {
+func LimitSequenceByteSize(sequence *armadaevents.EventSequence, sizeInBytes uint, strict bool) ([]*armadaevents.EventSequence, error) {
 	// Compute the size of the sequence without events.
 	events := sequence.Events
 	sequence.Events = make([]*armadaevents.EventSequence_Event, 0)
-	headerSize := proto.Size(sequence)
+	headerSize := uint(proto.Size(sequence))
 	sequence.Events = events
 
 	// var currentSequence *armadaevents.EventSequence
 	sequences := make([]*armadaevents.EventSequence, 0, 1)
-	lastSequenceEventSize := 0
+	lastSequenceEventSize := uint(0)
 	for _, event := range sequence.Events {
-		eventSize := proto.Size(event)
+		eventSize := uint(proto.Size(event))
 		if eventSize+headerSize > sizeInBytes && strict {
 			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 				Name:  "sequence",
@@ -602,8 +596,9 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 										ExecutorId:   m.LeaseReturned.ClusterId,
 										KubernetesId: m.LeaseReturned.KubernetesId,
 									},
-									PodNumber: m.LeaseReturned.PodNumber,
-									Message:   m.LeaseReturned.Reason,
+									PodNumber:    m.LeaseReturned.PodNumber,
+									Message:      m.LeaseReturned.Reason,
+									RunAttempted: m.LeaseReturned.RunAttempted,
 								},
 							},
 						},
@@ -740,7 +735,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
-							Terminal: true, // EventMessage_UnableToSchedule indicates a failed job.
+							Terminal: false, // EventMessage_UnableToSchedule indicates an issue with job to start up - info only
 							Reason: &armadaevents.Error_PodUnschedulable{
 								PodUnschedulable: &armadaevents.PodUnschedulable{
 									ObjectMeta: &armadaevents.ObjectMeta{
@@ -793,24 +788,46 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 			}
 
 			// Legacy messages encode the reason as an enum, whereas Pulsar uses objects.
-			switch m.Failed.Cause {
+			switch st.Cause {
 			case api.Cause_DeadlineExceeded:
-				containerError.KubernetesReason = &armadaevents.ContainerError_DeadlineExceeded_{}
+				containerError.KubernetesReason = armadaevents.KubernetesReason_DeadlineExceeded
 			case api.Cause_Error:
-				containerError.KubernetesReason = &armadaevents.ContainerError_Error{}
+				containerError.KubernetesReason = armadaevents.KubernetesReason_AppError
 			case api.Cause_Evicted:
-				containerError.KubernetesReason = &armadaevents.ContainerError_Evicted_{}
+				containerError.KubernetesReason = armadaevents.KubernetesReason_Evicted
 			case api.Cause_OOM:
-				containerError.KubernetesReason = &armadaevents.ContainerError_OutOfMemory_{}
+				containerError.KubernetesReason = armadaevents.KubernetesReason_OOM
 			default:
-				return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-					Name:    "Cause",
-					Value:   m.Failed.Cause,
-					Message: "Unknown cause",
-				})
+				log.Warnf("unknown cause %s on container %s", st.Cause, st.Name)
 			}
 
 			containerErrors = append(containerErrors, containerError)
+		}
+
+		podError := &armadaevents.PodError{
+			ObjectMeta: &armadaevents.ObjectMeta{
+				ExecutorId:   m.Failed.ClusterId,
+				Namespace:    m.Failed.PodNamespace,
+				Name:         m.Failed.PodName,
+				KubernetesId: m.Failed.KubernetesId,
+			},
+			Message:         m.Failed.Reason,
+			NodeName:        m.Failed.NodeName,
+			PodNumber:       m.Failed.PodNumber,
+			ContainerErrors: containerErrors,
+		}
+
+		switch m.Failed.Cause {
+		case api.Cause_DeadlineExceeded:
+			podError.KubernetesReason = armadaevents.KubernetesReason_DeadlineExceeded
+		case api.Cause_Error:
+			podError.KubernetesReason = armadaevents.KubernetesReason_AppError
+		case api.Cause_Evicted:
+			podError.KubernetesReason = armadaevents.KubernetesReason_Evicted
+		case api.Cause_OOM:
+			podError.KubernetesReason = armadaevents.KubernetesReason_OOM
+		default:
+			log.Warnf("Unknown cause %s for job %s", m.Failed.Cause, m.Failed.JobId)
 		}
 
 		// Event indicating the job run failed.
@@ -824,18 +841,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 						{
 							Terminal: true,
 							Reason: &armadaevents.Error_PodError{
-								PodError: &armadaevents.PodError{
-									ObjectMeta: &armadaevents.ObjectMeta{
-										ExecutorId:   m.Failed.ClusterId,
-										Namespace:    m.Failed.PodNamespace,
-										Name:         m.Failed.PodName,
-										KubernetesId: m.Failed.KubernetesId,
-									},
-									Message:         m.Failed.Reason,
-									NodeName:        m.Failed.NodeName,
-									PodNumber:       m.Failed.PodNumber,
-									ContainerErrors: containerErrors,
-								},
+								PodError: podError,
 							},
 						},
 					},
@@ -853,18 +859,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 						{
 							Terminal: true,
 							Reason: &armadaevents.Error_PodError{
-								PodError: &armadaevents.PodError{
-									ObjectMeta: &armadaevents.ObjectMeta{
-										ExecutorId:   m.Failed.ClusterId,
-										Namespace:    m.Failed.PodNamespace,
-										Name:         m.Failed.PodName,
-										KubernetesId: m.Failed.KubernetesId,
-									},
-									Message:         m.Failed.Reason,
-									NodeName:        m.Failed.NodeName,
-									PodNumber:       m.Failed.PodNumber,
-									ContainerErrors: containerErrors,
-								},
+								PodError: podError,
 							},
 						},
 					},
@@ -942,17 +937,11 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 		sequence.Queue = m.Reprioritized.Queue
 		sequence.JobSetName = m.Reprioritized.JobSetId
 		sequence.UserId = m.Reprioritized.Requestor
-
 		jobId, err := armadaevents.ProtoUuidFromUlidString(m.Reprioritized.JobId)
 		if err != nil {
 			return nil, err
 		}
-
-		priority, err := LogSubmitPriorityFromApiPriority(m.Reprioritized.NewPriority)
-		if err != nil {
-			return nil, err
-		}
-
+		priority := LogSubmitPriorityFromApiPriority(m.Reprioritized.NewPriority)
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Created: &m.Reprioritized.Created,
 			Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
@@ -1004,7 +993,7 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 					JobId: jobId,
 					Errors: []*armadaevents.Error{
 						{
-							Terminal: true,
+							Terminal: false,
 							Reason: &armadaevents.Error_PodTerminated{
 								PodTerminated: &armadaevents.PodTerminated{
 									ObjectMeta: &armadaevents.ObjectMeta{

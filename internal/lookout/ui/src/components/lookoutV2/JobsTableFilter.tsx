@@ -111,18 +111,21 @@ const TextFilter = ({ currentFilter, label, onFilterChange }: TextFilterProps) =
   return (
     <DebouncedTextField
       debounceWaitMs={300}
-      debouncedOnChange={onFilterChange}
+      debouncedOnChange={(newFilter) => onFilterChange(newFilter.trim())}
       textFieldProps={{
         type: "text",
         size: "small",
         defaultValue: currentFilter,
-
         placeholder: label,
+        sx: {
+          width: "100%",
+        },
         inputProps: {
           "aria-label": label,
           sx: {
             padding: "3.5px 7px",
             height: "1em",
+            width: "100%",
           },
         },
       }}

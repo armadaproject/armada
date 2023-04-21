@@ -11,6 +11,7 @@ import (
 	math_bits "math/bits"
 
 	proto "github.com/gogo/protobuf/proto"
+	types "github.com/gogo/protobuf/types"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -27,6 +28,50 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
+type SchedulingReport struct {
+	Report string `protobuf:"bytes,1,opt,name=report,proto3" json:"report,omitempty"`
+}
+
+func (m *SchedulingReport) Reset()         { *m = SchedulingReport{} }
+func (m *SchedulingReport) String() string { return proto.CompactTextString(m) }
+func (*SchedulingReport) ProtoMessage()    {}
+func (*SchedulingReport) Descriptor() ([]byte, []int) {
+	return fileDescriptor_131a439a3ff6540b, []int{0}
+}
+func (m *SchedulingReport) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SchedulingReport) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SchedulingReport.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SchedulingReport) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SchedulingReport.Merge(m, src)
+}
+func (m *SchedulingReport) XXX_Size() int {
+	return m.Size()
+}
+func (m *SchedulingReport) XXX_DiscardUnknown() {
+	xxx_messageInfo_SchedulingReport.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SchedulingReport proto.InternalMessageInfo
+
+func (m *SchedulingReport) GetReport() string {
+	if m != nil {
+		return m.Report
+	}
+	return ""
+}
+
 type Queue struct {
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 }
@@ -35,7 +80,7 @@ func (m *Queue) Reset()         { *m = Queue{} }
 func (m *Queue) String() string { return proto.CompactTextString(m) }
 func (*Queue) ProtoMessage()    {}
 func (*Queue) Descriptor() ([]byte, []int) {
-	return fileDescriptor_131a439a3ff6540b, []int{0}
+	return fileDescriptor_131a439a3ff6540b, []int{1}
 }
 func (m *Queue) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -79,7 +124,7 @@ func (m *QueueReport) Reset()         { *m = QueueReport{} }
 func (m *QueueReport) String() string { return proto.CompactTextString(m) }
 func (*QueueReport) ProtoMessage()    {}
 func (*QueueReport) Descriptor() ([]byte, []int) {
-	return fileDescriptor_131a439a3ff6540b, []int{1}
+	return fileDescriptor_131a439a3ff6540b, []int{2}
 }
 func (m *QueueReport) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -123,7 +168,7 @@ func (m *JobId) Reset()         { *m = JobId{} }
 func (m *JobId) String() string { return proto.CompactTextString(m) }
 func (*JobId) ProtoMessage()    {}
 func (*JobId) Descriptor() ([]byte, []int) {
-	return fileDescriptor_131a439a3ff6540b, []int{2}
+	return fileDescriptor_131a439a3ff6540b, []int{3}
 }
 func (m *JobId) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -167,7 +212,7 @@ func (m *JobReport) Reset()         { *m = JobReport{} }
 func (m *JobReport) String() string { return proto.CompactTextString(m) }
 func (*JobReport) ProtoMessage()    {}
 func (*JobReport) Descriptor() ([]byte, []int) {
-	return fileDescriptor_131a439a3ff6540b, []int{3}
+	return fileDescriptor_131a439a3ff6540b, []int{4}
 }
 func (m *JobReport) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -204,6 +249,7 @@ func (m *JobReport) GetReport() string {
 }
 
 func init() {
+	proto.RegisterType((*SchedulingReport)(nil), "schedulerobjects.SchedulingReport")
 	proto.RegisterType((*Queue)(nil), "schedulerobjects.Queue")
 	proto.RegisterType((*QueueReport)(nil), "schedulerobjects.QueueReport")
 	proto.RegisterType((*JobId)(nil), "schedulerobjects.JobId")
@@ -215,22 +261,30 @@ func init() {
 }
 
 var fileDescriptor_131a439a3ff6540b = []byte{
-	// 233 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x32, 0xce, 0xcc, 0x2b, 0x49,
-	0x2d, 0xca, 0x4b, 0xcc, 0xd1, 0x2f, 0x4e, 0xce, 0x48, 0x4d, 0x29, 0xcd, 0x49, 0x2d, 0x42, 0xb0,
-	0xf2, 0x93, 0xb2, 0x52, 0x93, 0x4b, 0x8a, 0xf5, 0x8b, 0x52, 0x0b, 0xf2, 0x8b, 0x4a, 0x32, 0xf3,
-	0xd2, 0xf5, 0x0a, 0x8a, 0xf2, 0x4b, 0xf2, 0x85, 0x04, 0xd0, 0x55, 0x28, 0x49, 0x73, 0xb1, 0x06,
-	0x96, 0xa6, 0x96, 0xa6, 0x0a, 0x09, 0x71, 0xb1, 0xe4, 0x25, 0xe6, 0xa6, 0x4a, 0x30, 0x2a, 0x30,
-	0x6a, 0x70, 0x06, 0x81, 0xd9, 0x4a, 0xaa, 0x5c, 0xdc, 0x60, 0xc9, 0x20, 0xb0, 0x31, 0x42, 0x62,
-	0x5c, 0x6c, 0x10, 0x03, 0xa1, 0x8a, 0xa0, 0x3c, 0x25, 0x71, 0x2e, 0x56, 0xaf, 0xfc, 0x24, 0xcf,
-	0x14, 0x21, 0x3e, 0x2e, 0xa6, 0xcc, 0x14, 0xa8, 0x24, 0x53, 0x66, 0x8a, 0x92, 0x32, 0x17, 0xa7,
-	0x57, 0x7e, 0x12, 0x7e, 0xdd, 0x46, 0x4b, 0x18, 0xb9, 0x84, 0x82, 0x61, 0xce, 0x0a, 0x82, 0x39,
-	0x58, 0xc8, 0x83, 0x8b, 0xcf, 0x3d, 0xb5, 0x04, 0xd9, 0x7a, 0x71, 0x3d, 0x74, 0xd7, 0xeb, 0x81,
-	0xa5, 0xa5, 0x64, 0x71, 0x48, 0x40, 0xf5, 0xb9, 0x70, 0xf1, 0xb8, 0xa7, 0x96, 0x20, 0x1c, 0x82,
-	0xc5, 0x1c, 0xb0, 0xf3, 0xa5, 0xa4, 0xb1, 0x4a, 0x40, 0x74, 0x39, 0x49, 0x9c, 0x78, 0x24, 0xc7,
-	0x78, 0xe1, 0x91, 0x1c, 0xe3, 0x83, 0x47, 0x72, 0x8c, 0x13, 0x1e, 0xcb, 0x31, 0x5c, 0x78, 0x2c,
-	0xc7, 0x70, 0xe3, 0xb1, 0x1c, 0x43, 0x12, 0x1b, 0x38, 0x6c, 0x8d, 0x01, 0x01, 0x00, 0x00, 0xff,
-	0xff, 0x1b, 0x98, 0x50, 0x21, 0x92, 0x01, 0x00, 0x00,
+	// 356 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x92, 0xc1, 0x6a, 0xea, 0x40,
+	0x14, 0x86, 0x8d, 0x5c, 0x05, 0xcf, 0x15, 0x09, 0x73, 0x2f, 0xf7, 0x96, 0x48, 0xa3, 0x64, 0x51,
+	0x5a, 0x90, 0x19, 0xa8, 0xab, 0xd2, 0x4d, 0xb1, 0x2d, 0xb6, 0xee, 0xd4, 0x5d, 0xa1, 0x8b, 0xc4,
+	0x9c, 0xc6, 0x29, 0x26, 0x13, 0xc6, 0xc9, 0xa2, 0x6f, 0xd1, 0xc7, 0xea, 0xd2, 0x65, 0x57, 0x52,
+	0x74, 0xe7, 0x0b, 0x74, 0x5b, 0x9c, 0x44, 0x14, 0xb5, 0x50, 0xdc, 0x65, 0xf2, 0x9f, 0xef, 0x3f,
+	0xe4, 0xcb, 0x40, 0x93, 0x47, 0x0a, 0x65, 0xe4, 0x8e, 0xd8, 0x78, 0x30, 0x44, 0x3f, 0x19, 0xa1,
+	0x5c, 0x3f, 0x09, 0xef, 0x19, 0x07, 0x6a, 0xcc, 0x24, 0xc6, 0x42, 0x2a, 0x1e, 0x05, 0x34, 0x96,
+	0x42, 0x09, 0x62, 0x6e, 0x4f, 0x58, 0xd5, 0x40, 0x88, 0x60, 0x84, 0x4c, 0xe7, 0x5e, 0xf2, 0xc4,
+	0x30, 0x8c, 0xd5, 0x4b, 0x3a, 0xee, 0x5c, 0x81, 0xd9, 0x4f, 0x01, 0x1e, 0x05, 0x3d, 0xdd, 0x45,
+	0x1a, 0x50, 0x4c, 0x5b, 0x8f, 0x8c, 0xba, 0x71, 0x5a, 0x6a, 0xfd, 0x5d, 0x4c, 0x6b, 0x66, 0xfa,
+	0xa6, 0x21, 0x42, 0xae, 0x34, 0xdf, 0xcb, 0x66, 0x1c, 0x06, 0x85, 0x6e, 0x82, 0x09, 0x92, 0x13,
+	0xf8, 0x15, 0xb9, 0x21, 0x66, 0x10, 0x59, 0x4c, 0x6b, 0x95, 0xe5, 0x79, 0x03, 0xd1, 0xb9, 0x73,
+	0x09, 0xbf, 0x35, 0x70, 0xd0, 0xb6, 0x33, 0x28, 0x74, 0x84, 0x77, 0xef, 0x93, 0x3a, 0xe4, 0xb9,
+	0x9f, 0x21, 0xe6, 0x62, 0x5a, 0x2b, 0x73, 0x7f, 0x63, 0x3c, 0xcf, 0x7d, 0xe7, 0x02, 0x4a, 0x1d,
+	0xe1, 0x1d, 0xb2, 0xe5, 0xfc, 0xd3, 0x00, 0xd2, 0x5f, 0x79, 0xec, 0xad, 0x0c, 0x93, 0x2e, 0xfc,
+	0x69, 0xa3, 0xda, 0xf1, 0xf5, 0x8f, 0xa6, 0x86, 0xe9, 0xca, 0x30, 0xbd, 0x5d, 0xb6, 0x59, 0x0e,
+	0xdd, 0xfe, 0x17, 0x74, 0x87, 0xbd, 0x83, 0x4a, 0x1b, 0xd5, 0xa6, 0x8f, 0xff, 0xbb, 0x94, 0x8e,
+	0xad, 0xe3, 0x6f, 0x82, 0x8c, 0xbb, 0x81, 0x72, 0x1b, 0xd5, 0xfa, 0x8b, 0xf7, 0xf4, 0x68, 0x73,
+	0x56, 0x75, 0x6f, 0x90, 0x52, 0xad, 0xc7, 0xb7, 0x99, 0x6d, 0x4c, 0x66, 0xb6, 0xf1, 0x31, 0xb3,
+	0x8d, 0xd7, 0xb9, 0x9d, 0x9b, 0xcc, 0xed, 0xdc, 0xfb, 0xdc, 0xce, 0x3d, 0x5c, 0x07, 0x5c, 0x0d,
+	0x13, 0x8f, 0x0e, 0x44, 0xc8, 0x5c, 0x19, 0xba, 0xbe, 0x1b, 0x4b, 0xb1, 0xc4, 0xb3, 0x13, 0xfb,
+	0xc1, 0x6d, 0xf5, 0x8a, 0x5a, 0x51, 0xf3, 0x2b, 0x00, 0x00, 0xff, 0xff, 0xcd, 0xc1, 0x68, 0xdb,
+	0xdb, 0x02, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -245,14 +299,11 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type SchedulerReportingClient interface {
-	// Return the most recent report for a given queue.
-	// Returns not found if the scheduler has never considered this queue.
-	// Only a limited number of reports are stored.
+	// Return the most recent scheduling report for each executor.
+	GetSchedulingReport(ctx context.Context, in *types.Empty, opts ...grpc.CallOption) (*SchedulingReport, error)
+	// Return the most recent report scheduling for each executor for the given queue.
 	GetQueueReport(ctx context.Context, in *Queue, opts ...grpc.CallOption) (*QueueReport, error)
-	// Return the most recent scheduling report for a given job.
-	// Returns not found if the scheduler has never attempted to schedule this job.
-	// The total number of reports stored across all queues is limited, i.e.,
-	// the report for a scheduled job may have been deleted to make room for newer reports.
+	// Return the most recent scheduling report for each executor for the given job.
 	GetJobReport(ctx context.Context, in *JobId, opts ...grpc.CallOption) (*JobReport, error)
 }
 
@@ -262,6 +313,15 @@ type schedulerReportingClient struct {
 
 func NewSchedulerReportingClient(cc *grpc.ClientConn) SchedulerReportingClient {
 	return &schedulerReportingClient{cc}
+}
+
+func (c *schedulerReportingClient) GetSchedulingReport(ctx context.Context, in *types.Empty, opts ...grpc.CallOption) (*SchedulingReport, error) {
+	out := new(SchedulingReport)
+	err := c.cc.Invoke(ctx, "/schedulerobjects.SchedulerReporting/GetSchedulingReport", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 func (c *schedulerReportingClient) GetQueueReport(ctx context.Context, in *Queue, opts ...grpc.CallOption) (*QueueReport, error) {
@@ -284,14 +344,11 @@ func (c *schedulerReportingClient) GetJobReport(ctx context.Context, in *JobId, 
 
 // SchedulerReportingServer is the server API for SchedulerReporting service.
 type SchedulerReportingServer interface {
-	// Return the most recent report for a given queue.
-	// Returns not found if the scheduler has never considered this queue.
-	// Only a limited number of reports are stored.
+	// Return the most recent scheduling report for each executor.
+	GetSchedulingReport(context.Context, *types.Empty) (*SchedulingReport, error)
+	// Return the most recent report scheduling for each executor for the given queue.
 	GetQueueReport(context.Context, *Queue) (*QueueReport, error)
-	// Return the most recent scheduling report for a given job.
-	// Returns not found if the scheduler has never attempted to schedule this job.
-	// The total number of reports stored across all queues is limited, i.e.,
-	// the report for a scheduled job may have been deleted to make room for newer reports.
+	// Return the most recent scheduling report for each executor for the given job.
 	GetJobReport(context.Context, *JobId) (*JobReport, error)
 }
 
@@ -299,6 +356,9 @@ type SchedulerReportingServer interface {
 type UnimplementedSchedulerReportingServer struct {
 }
 
+func (*UnimplementedSchedulerReportingServer) GetSchedulingReport(ctx context.Context, req *types.Empty) (*SchedulingReport, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetSchedulingReport not implemented")
+}
 func (*UnimplementedSchedulerReportingServer) GetQueueReport(ctx context.Context, req *Queue) (*QueueReport, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetQueueReport not implemented")
 }
@@ -308,6 +368,24 @@ func (*UnimplementedSchedulerReportingServer) GetJobReport(ctx context.Context, 
 
 func RegisterSchedulerReportingServer(s *grpc.Server, srv SchedulerReportingServer) {
 	s.RegisterService(&_SchedulerReporting_serviceDesc, srv)
+}
+
+func _SchedulerReporting_GetSchedulingReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(types.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(SchedulerReportingServer).GetSchedulingReport(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/schedulerobjects.SchedulerReporting/GetSchedulingReport",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SchedulerReportingServer).GetSchedulingReport(ctx, req.(*types.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _SchedulerReporting_GetQueueReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -351,6 +429,10 @@ var _SchedulerReporting_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*SchedulerReportingServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "GetSchedulingReport",
+			Handler:    _SchedulerReporting_GetSchedulingReport_Handler,
+		},
+		{
 			MethodName: "GetQueueReport",
 			Handler:    _SchedulerReporting_GetQueueReport_Handler,
 		},
@@ -361,6 +443,36 @@ var _SchedulerReporting_serviceDesc = grpc.ServiceDesc{
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "internal/scheduler/schedulerobjects/reporting.proto",
+}
+
+func (m *SchedulingReport) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SchedulingReport) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SchedulingReport) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.Report) > 0 {
+		i -= len(m.Report)
+		copy(dAtA[i:], m.Report)
+		i = encodeVarintReporting(dAtA, i, uint64(len(m.Report)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *Queue) Marshal() (dAtA []byte, err error) {
@@ -494,6 +606,19 @@ func encodeVarintReporting(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return base
 }
+func (m *SchedulingReport) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Report)
+	if l > 0 {
+		n += 1 + l + sovReporting(uint64(l))
+	}
+	return n
+}
+
 func (m *Queue) Size() (n int) {
 	if m == nil {
 		return 0
@@ -551,6 +676,88 @@ func sovReporting(x uint64) (n int) {
 }
 func sozReporting(x uint64) (n int) {
 	return sovReporting(uint64((x << 1) ^ uint64((int64(x) >> 63))))
+}
+func (m *SchedulingReport) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowReporting
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SchedulingReport: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SchedulingReport: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Report", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReporting
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthReporting
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthReporting
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Report = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipReporting(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthReporting
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
 }
 func (m *Queue) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)

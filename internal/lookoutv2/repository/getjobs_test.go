@@ -11,13 +11,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/instructions"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/lookoutdb"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
-	"github.com/G-Research/armada/internal/lookoutv2/model"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
+	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
 const (
@@ -562,22 +562,22 @@ func TestGetJobsByJobSet(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+			Submit(queue, "job\\set\\1", owner, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		job2 := NewJobSimulator(converter, store).
-			Submit(queue, "job-set-2", owner, baseTime, basicJobOpts).
+			Submit(queue, "job\\set\\2", owner, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		job3 := NewJobSimulator(converter, store).
-			Submit(queue, "job-set-3", owner, baseTime, basicJobOpts).
+			Submit(queue, "job\\set\\3", owner, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		job4 := NewJobSimulator(converter, store).
-			Submit(queue, "other-job-set", owner, baseTime, basicJobOpts).
+			Submit(queue, "other-job\\set", owner, baseTime, basicJobOpts).
 			Build().
 			Job()
 
@@ -594,7 +594,7 @@ func TestGetJobsByJobSet(t *testing.T) {
 				[]*model.Filter{{
 					Field: "jobSet",
 					Match: model.MatchExact,
-					Value: jobSet,
+					Value: "job\\set\\1",
 				}},
 				&model.Order{},
 				0,
@@ -612,7 +612,7 @@ func TestGetJobsByJobSet(t *testing.T) {
 				[]*model.Filter{{
 					Field: "jobSet",
 					Match: model.MatchStartsWith,
-					Value: "job-set-",
+					Value: "job\\set\\",
 				}},
 				&model.Order{
 					Field:     "jobId",
@@ -635,7 +635,7 @@ func TestGetJobsByJobSet(t *testing.T) {
 				[]*model.Filter{{
 					Field: "jobSet",
 					Match: model.MatchContains,
-					Value: "job-set",
+					Value: "job\\set",
 				}},
 				&model.Order{
 					Field:     "jobId",
@@ -887,6 +887,16 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Build().
 			Job()
 
+		job2 := NewJobSimulator(converter, store).
+			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				Annotations: map[string]string{
+					"annotation-key-1": "annotation-value-6",
+					"annotation-key-2": "annotation-value-4",
+				},
+			}).
+			Build().
+			Job()
+
 		repo := NewSqlGetJobsRepository(db)
 
 		t.Run("exact", func(t *testing.T) {
@@ -933,6 +943,34 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			assert.Len(t, result.Jobs, 1)
 			assert.Equal(t, 1, result.Count)
 			assert.Equal(t, job, result.Jobs[0])
+		})
+
+		t.Run("startsWith, multiple annotations", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{
+					{
+						Field:        "annotation-key-1",
+						Match:        model.MatchStartsWith,
+						Value:        "annotation-value-",
+						IsAnnotation: true,
+					},
+					{
+						Field:        "annotation-key-2",
+						Match:        model.MatchStartsWith,
+						Value:        "annotation-value-",
+						IsAnnotation: true,
+					},
+				},
+				&model.Order{},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 2)
+			assert.Equal(t, 2, result.Count)
+			assert.Equal(t, job, result.Jobs[0])
+			assert.Equal(t, job2, result.Jobs[1])
 		})
 
 		return nil

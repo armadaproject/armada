@@ -8,11 +8,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/cache"
 
-	clusterContext "github.com/G-Research/armada/internal/executor/context"
-	"github.com/G-Research/armada/internal/executor/domain"
-	"github.com/G-Research/armada/internal/executor/reporter"
-	"github.com/G-Research/armada/internal/executor/util"
-	"github.com/G-Research/armada/pkg/api"
+	clusterContext "github.com/armadaproject/armada/internal/executor/context"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/executor/reporter"
+	"github.com/armadaproject/armada/internal/executor/util"
 )
 
 type UtilisationEventReporter struct {
@@ -23,6 +22,7 @@ type UtilisationEventReporter struct {
 	podInfo           map[string]*podUtilisationInfo
 	dataAccessMutex   sync.Mutex
 	reportingInterval time.Duration
+	legacyMode        bool
 }
 
 type podUtilisationInfo struct {
@@ -36,6 +36,7 @@ func NewUtilisationEventReporter(
 	podUtilisation PodUtilisationService,
 	eventReporter reporter.EventReporter,
 	reportingPeriod time.Duration,
+	legacyMode bool,
 ) *UtilisationEventReporter {
 	r := &UtilisationEventReporter{
 		clusterContext:    clusterContext,
@@ -43,6 +44,7 @@ func NewUtilisationEventReporter(
 		eventReporter:     eventReporter,
 		reportingInterval: reportingPeriod,
 		podInfo:           map[string]*podUtilisationInfo{},
+		legacyMode:        legacyMode,
 	}
 
 	clusterContext.AddPodEventHandler(cache.ResourceEventHandlerFuncs{
@@ -50,6 +52,9 @@ func NewUtilisationEventReporter(
 			pod, ok := obj.(*v1.Pod)
 			if !ok {
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
+				return
+			}
+			if util.IsLegacyManagedPod(pod) != legacyMode {
 				return
 			}
 			go r.updatePod(pod)
@@ -60,12 +65,18 @@ func NewUtilisationEventReporter(
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", newObj)
 				return
 			}
+			if util.IsLegacyManagedPod(newPod) != legacyMode {
+				return
+			}
 			go r.updatePod(newPod)
 		},
 		DeleteFunc: func(obj interface{}) {
 			pod, ok := obj.(*v1.Pod)
 			if !ok {
 				log.Errorf("Failed to process pod event due to it being an unexpected type. Failed to process %+v", obj)
+				return
+			}
+			if util.IsLegacyManagedPod(pod) != legacyMode {
 				return
 			}
 			go r.deletePod(pod)
@@ -134,11 +145,11 @@ func (r *UtilisationEventReporter) reportUsage(info *podUtilisationInfo) bool {
 		return false
 	}
 	event := reporter.CreateJobUtilisationEvent(info.pod, info.utilisationMax, r.clusterContext.GetClusterId())
-	r.queueEventWithRetry(event, 3)
+	r.queueEventWithRetry(reporter.EventMessage{Event: event, JobRunId: util.ExtractJobRunId(info.pod)}, 3)
 	return true
 }
 
-func (r *UtilisationEventReporter) queueEventWithRetry(event api.Event, retry int) {
+func (r *UtilisationEventReporter) queueEventWithRetry(event reporter.EventMessage, retry int) {
 	var callback func(e error)
 	callback = func(e error) {
 		if e != nil {

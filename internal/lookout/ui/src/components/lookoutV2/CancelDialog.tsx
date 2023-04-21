@@ -1,17 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { Refresh, Dangerous } from "@mui/icons-material"
 import { LoadingButton } from "@mui/lab"
 import { Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Alert } from "@mui/material"
 import _ from "lodash"
 import { isTerminatedJobState, Job, JobFilter, JobId } from "models/lookoutV2Models"
-import { useSnackbar } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import { pl, waitMillis } from "utils"
 import { getUniqueJobsMatchingFilters } from "utils/jobsDialogUtils"
 import { formatJobState } from "utils/jobsTableFormatters"
 
+import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
 
@@ -21,12 +21,14 @@ interface CancelDialogProps {
   getJobsService: IGetJobsService
   updateJobsService: UpdateJobsService
 }
+
 export const CancelDialog = ({
   onClose,
   selectedItemFilters,
   getJobsService,
   updateJobsService,
 }: CancelDialogProps) => {
+  const mounted = useRef(false)
   // State
   const [isLoadingJobs, setIsLoadingJobs] = useState(true)
   const [selectedJobs, setSelectedJobs] = useState<Job[]>([])
@@ -34,14 +36,22 @@ export const CancelDialog = ({
   const cancellableJobs = useMemo(() => selectedJobs.filter((job) => !isTerminatedJobState(job.state)), [selectedJobs])
   const [isCancelling, setIsCancelling] = useState(false)
   const [hasAttemptedCancel, setHasAttemptedCancel] = useState(false)
-  const { enqueueSnackbar } = useSnackbar()
+  const openSnackbar = useCustomSnackbar()
 
   // Actions
   const fetchSelectedJobs = useCallback(async () => {
+    if (!mounted.current) {
+      return
+    }
+
     setIsLoadingJobs(true)
 
     const uniqueJobsToCancel = await getUniqueJobsMatchingFilters(selectedItemFilters, getJobsService)
     const sortedJobs = _.orderBy(uniqueJobsToCancel, (job) => job.jobId, "desc")
+
+    if (!mounted.current) {
+      return
+    }
 
     setSelectedJobs(sortedJobs)
     setIsLoadingJobs(false)
@@ -51,18 +61,17 @@ export const CancelDialog = ({
   const cancelSelectedJobs = useCallback(async () => {
     setIsCancelling(true)
 
-    const jobIdsToCancel = cancellableJobs.map((job) => job.jobId)
-    const response = await updateJobsService.cancelJobs(jobIdsToCancel)
+    const response = await updateJobsService.cancelJobs(cancellableJobs)
 
     if (response.failedJobIds.length === 0) {
-      enqueueSnackbar(
+      openSnackbar(
         "Successfully began cancellation. Jobs may take some time to cancel, but you may navigate away.",
-        { variant: "success" },
+        "success",
       )
     } else if (response.successfulJobIds.length === 0) {
-      enqueueSnackbar("All jobs failed to cancel. See table for error responses.", { variant: "error" })
+      openSnackbar("All jobs failed to cancel. See table for error responses.", "error")
     } else {
-      enqueueSnackbar("Some jobs failed to cancel. See table for error responses.", { variant: "warning" })
+      openSnackbar("Some jobs failed to cancel. See table for error responses.", "warning")
     }
 
     const newResponseStatus = { ...jobIdsToCancelResponses }
@@ -76,7 +85,11 @@ export const CancelDialog = ({
 
   // On dialog open
   useEffect(() => {
+    mounted.current = true
     fetchSelectedJobs().catch(console.error)
+    return () => {
+      mounted.current = false
+    }
   }, [])
 
   // Event handlers

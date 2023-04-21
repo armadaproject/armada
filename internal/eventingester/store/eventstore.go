@@ -9,9 +9,9 @@ import (
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/eventingester/configuration"
-	"github.com/G-Research/armada/internal/eventingester/model"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/eventingester/configuration"
+	"github.com/armadaproject/armada/internal/eventingester/model"
 )
 
 const (
@@ -87,24 +87,25 @@ func (repo *RedisEventStore) doStore(update []*model.Event) error {
 		uniqueJobSets[key] = true
 	}
 
-	pipe := repo.db.Pipeline()
-	for _, e := range data {
-		pipe.XAdd(&redis.XAddArgs{
-			Stream: e.key,
-			Values: map[string]interface{}{
-				dataKey: e.data,
-			},
-		})
-	}
-
-	if repo.eventRetention.ExpiryEnabled {
-		for key := range uniqueJobSets {
-			pipe.Expire(key, repo.eventRetention.RetentionDuration)
-		}
-	}
-
 	return ingest.WithRetry(func() (bool, error) {
+		pipe := repo.db.Pipeline()
+		for _, e := range data {
+			pipe.XAdd(&redis.XAddArgs{
+				Stream: e.key,
+				Values: map[string]interface{}{
+					dataKey: e.data,
+				},
+			})
+		}
+
+		if repo.eventRetention.ExpiryEnabled {
+			for key := range uniqueJobSets {
+				pipe.Expire(key, repo.eventRetention.RetentionDuration)
+			}
+		}
+
 		_, err := pipe.Exec()
+
 		if err == nil {
 			return false, nil
 		} else {

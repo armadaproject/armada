@@ -13,20 +13,21 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/common/logging"
-	"github.com/G-Research/armada/internal/common/pulsarutils/pulsarrequestid"
-	"github.com/G-Research/armada/internal/common/requestid"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/pulsarutils/pulsarrequestid"
+	"github.com/armadaproject/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/internal/common/schedulers"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // SubmitFromLog is a service that reads messages from Pulsar and updates the state of the Armada server accordingly
-// (in particular, it writes to Redis and Nats).
+// (in particular, it writes to Redis).
 // Calls into an embedded Armada submit server object.
 type SubmitFromLog struct {
 	SubmitServer *SubmitServer
@@ -47,7 +48,11 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 		if err := recover(); err != nil {
 			log.WithField("error", err).Error("unexpected panic; restarting")
 			time.Sleep(time.Second)
-			go srv.Run(ctx)
+			go func() {
+				if err := srv.Run(ctx); err != nil {
+					logging.WithStacktrace(log, err).Error("service failure")
+				}
+			}()
 		} else {
 			// An expected shutdown.
 			log.Info("service stopped")
@@ -75,7 +80,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 					"errored":       numErrored,
 					"interval":      logInterval,
 					"lastMessageId": lastMessageId,
-					"timeLag":       time.Now().Sub(lastPublishTime),
+					"timeLag":       time.Since(lastPublishTime),
 				},
 			).Info("message statistics")
 			numReceived = 0
@@ -90,8 +95,9 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 		default:
 
 			// Get a message from Pulsar, which consists of a sequence of events (i.e., state transitions).
-			ctxWithTimeout, _ := context.WithTimeout(ctx, 10*time.Second)
+			ctxWithTimeout, cancel := context.WithTimeout(ctx, 10*time.Second)
 			msg, err := srv.Consumer.Receive(ctxWithTimeout)
+			cancel()
 			if errors.Is(err, context.DeadlineExceeded) {
 				break // expected
 			}
@@ -101,6 +107,13 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			if err != nil {
 				logging.WithStacktrace(log, err).WithField("lastMessageId", lastMessageId).Warnf("Pulsar receive failed; backing off")
 				time.Sleep(100 * time.Millisecond)
+				break
+			}
+
+			// If this message isn't for us we can simply ack it
+			// and go to the next message
+			if !schedulers.ForLegacyScheduler(msg) {
+				srv.Consumer.Ack(msg)
 				break
 			}
 
@@ -233,8 +246,14 @@ func (srv *SubmitFromLog) ProcessSubSequence(ctx context.Context, i int, sequenc
 			j = i + len(es)
 		}
 	case *armadaevents.EventSequence_Event_JobRunRunning:
-		es := collectJobRunRunningEvents(ctx, i, sequence)
+		es := collectEvents[*armadaevents.EventSequence_Event_JobRunRunning](ctx, i, sequence)
 		ok, err = srv.UpdateJobStartTimes(ctx, es)
+		if ok {
+			j = i + len(es)
+		}
+	case *armadaevents.EventSequence_Event_JobErrors:
+		es := collectEvents[*armadaevents.EventSequence_Event_JobErrors](ctx, i, sequence)
+		ok, err = srv.DeleteFailedJobs(ctx, es)
 		if ok {
 			j = i + len(es)
 		}
@@ -313,10 +332,10 @@ func collectReprioritiseJobSetEvents(ctx context.Context, i int, sequence *armad
 	return result
 }
 
-func collectJobRunRunningEvents(ctx context.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.EventSequence_Event {
+func collectEvents[T any](ctx context.Context, i int, sequence *armadaevents.EventSequence) []*armadaevents.EventSequence_Event {
 	events := make([]*armadaevents.EventSequence_Event, 0)
 	for j := i; j < len(sequence.Events); j++ {
-		if _, ok := sequence.Events[j].Event.(*armadaevents.EventSequence_Event_JobRunRunning); ok {
+		if _, ok := sequence.Events[j].Event.(T); ok {
 			events = append(events, sequence.Events[j])
 		} else {
 			break
@@ -347,15 +366,11 @@ func (srv *SubmitFromLog) SubmitJobs(
 	jobSetName string,
 	es []*armadaevents.SubmitJob,
 ) (bool, error) {
-	// Filter out jobs not indented for this scheduler.
-	// This is the default scheduler, which is indicated by the empty string.
-	schedulerJobs := selectJobsForLegacyScheduler(es)
-
 	// Convert Pulsar jobs to legacy api jobs.
 	// We can't report job failure on error here, since the job failure message bundles the job struct.
 	// Hence, if an error occurs here, the job disappears from the point of view of the user.
 	// However, this code path is exercised when jobs are submitted to the log so errors should be rare.
-	jobs, err := eventutil.ApiJobsFromLogSubmitJobs(userId, groups, queueName, jobSetName, time.Now(), schedulerJobs)
+	jobs, err := eventutil.ApiJobsFromLogSubmitJobs(userId, groups, queueName, jobSetName, time.Now(), es)
 	if err != nil {
 		return true, err
 	}
@@ -436,7 +451,7 @@ func (srv *SubmitFromLog) SubmitJobs(
 
 // CancelJobs cancels all jobs specified by the provided events in a single operation.
 func (srv *SubmitFromLog) CancelJobs(ctx context.Context, userId string, es []*armadaevents.CancelJob) (bool, error) {
-	jobIds := make([]string, len(es), len(es))
+	jobIds := make([]string, len(es))
 	for i, e := range es {
 		id, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 		if err != nil {
@@ -538,7 +553,7 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, e
 		return true, nil
 	}
 
-	jobIds := make([]string, len(es), len(es))
+	jobIds := make([]string, len(es))
 	for i, e := range es {
 		id, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 		if err != nil {
@@ -580,11 +595,42 @@ func (srv *SubmitFromLog) ReprioritizeJobs(ctx context.Context, userId string, e
 	return true, nil
 }
 
+func (srv *SubmitFromLog) DeleteFailedJobs(ctx context.Context, es []*armadaevents.EventSequence_Event) (bool, error) {
+	jobIdsToDelete := make([]string, 0, len(es))
+	for _, event := range es {
+		jobErrors := event.GetJobErrors()
+		if jobErrors == nil {
+			continue
+		}
+		for _, err := range jobErrors.Errors {
+			if err.Terminal {
+				jobId, err := armadaevents.UlidStringFromProtoUuid(jobErrors.JobId)
+				if err != nil {
+					return false, err
+				}
+				jobIdsToDelete = append(jobIdsToDelete, jobId)
+			}
+		}
+	}
+
+	jobsToDelete, err := srv.SubmitServer.jobRepository.GetExistingJobsByIds(jobIdsToDelete)
+	if err != nil {
+		return false, err
+	}
+	if _, err := srv.SubmitServer.jobRepository.DeleteJobs(jobsToDelete); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // UpdateJobStartTimes records the start time (in Redis) of one of more jobs.
 func (srv *SubmitFromLog) UpdateJobStartTimes(ctx context.Context, es []*armadaevents.EventSequence_Event) (bool, error) {
 	jobStartsInfos := make([]*repository.JobStartInfo, 0, len(es))
 	for _, event := range es {
 		jobRun := event.GetJobRunRunning()
+		if jobRun == nil {
+			continue
+		}
 		jobId, err := armadaevents.UlidStringFromProtoUuid(jobRun.GetJobId())
 		if err != nil {
 			logrus.WithError(err).Warnf("Invalid job id received when processing jobRunRunning Message")

@@ -4,19 +4,18 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/pkg/errors"
-
-	"github.com/G-Research/armada/internal/common/app"
-
+	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/eventingester/configuration"
-	"github.com/G-Research/armada/internal/eventingester/convert"
-	"github.com/G-Research/armada/internal/eventingester/metrics"
-	"github.com/G-Research/armada/internal/eventingester/store"
+	"github.com/armadaproject/armada/internal/common/app"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/eventingester/configuration"
+	"github.com/armadaproject/armada/internal/eventingester/convert"
+	"github.com/armadaproject/armada/internal/eventingester/metrics"
+	"github.com/armadaproject/armada/internal/eventingester/store"
 )
 
 // Run will create a pipeline that will take Armada event messages from Pulsar and update the
@@ -50,10 +49,19 @@ func Run(config *configuration.EventIngesterConfiguration) {
 		log.Errorf("Error creating compressor for consumer")
 		panic(err)
 	}
-	converter := convert.NewEventConverter(compressor, config.BatchSize, metrics)
+	converter := convert.NewEventConverter(compressor, uint(config.BatchSize), metrics)
 
 	ingester := ingest.
-		NewIngestionPipeline(config.Pulsar, config.SubscriptionName, config.BatchSize, config.BatchDuration, converter, eventDb, config.Metrics, metrics)
+		NewIngestionPipeline(
+			config.Pulsar,
+			config.SubscriptionName,
+			config.BatchSize,
+			config.BatchDuration,
+			pulsar.KeyShared,
+			converter,
+			eventDb,
+			config.Metrics,
+			metrics)
 	err = ingester.Run(app.CreateContextWithShutdown())
 
 	if err != nil {

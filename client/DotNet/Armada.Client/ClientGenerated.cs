@@ -1459,6 +1459,9 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("reason", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public string Reason { get; set; }
     
+        [Newtonsoft.Json.JsonProperty("runAttempted", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public bool? RunAttempted { get; set; }
+    
     
     }
     
@@ -1752,6 +1755,15 @@ namespace GResearch.Armada.Client
     
         [System.Runtime.Serialization.EnumMember(Value = @"RUNNING")]
         RUNNING = 2,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"SUCCEEDED")]
+        SUCCEEDED = 3,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"FAILED")]
+        FAILED = 4,
+    
+        [System.Runtime.Serialization.EnumMember(Value = @"UNKNOWN")]
+        UNKNOWN = 5,
     
     }
     

@@ -5,18 +5,16 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
-
-	"github.com/G-Research/armada/internal/common"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/domain"
 )
 
 var managedPodSelector labels.Selector
@@ -107,6 +105,30 @@ func ExtractJobIds(pods []*v1.Pod) []string {
 
 func ExtractJobId(pod *v1.Pod) string {
 	return pod.Labels[domain.JobId]
+}
+
+func ExtractQueue(pod *v1.Pod) string {
+	return pod.Labels[domain.Queue]
+}
+
+func ExtractJobSet(pod *v1.Pod) string {
+	return pod.Annotations[domain.JobSetId]
+}
+
+func ExtractJobRunIds(pods []*v1.Pod) []string {
+	runIds := make([]string, 0, len(pods))
+
+	for _, pod := range pods {
+		if runId := ExtractJobRunId(pod); runId != "" {
+			runIds = append(runIds, runId)
+		}
+	}
+
+	return runIds
+}
+
+func ExtractJobRunId(pod *v1.Pod) string {
+	return pod.Labels[domain.JobRunId]
 }
 
 func ExtractPodNumber(pod *v1.Pod) int {
@@ -251,6 +273,11 @@ func IsReportedDone(pod *v1.Pod) bool {
 	return exists
 }
 
+func IsReportedPreempted(pod *v1.Pod) bool {
+	_, exists := pod.Annotations[domain.JobPreemptedAnnotation]
+	return exists
+}
+
 // GetDeletionGracePeriodOrDefault returns the pod's DeletionGracePeriodSeconds seconds (if populated) or the K8s
 // default value of 30 seconds (if it isn't)
 func GetDeletionGracePeriodOrDefault(pod *v1.Pod) time.Duration {
@@ -350,27 +377,11 @@ func GroupByQueue(pods []*v1.Pod) map[string][]*v1.Pod {
 	return podsByQueue
 }
 
-func ProcessPodsWithThreadPool(pods []*v1.Pod, maxThreadCount int, processPod func(*v1.Pod)) {
-	wg := &sync.WaitGroup{}
-	processChannel := make(chan *v1.Pod)
-
-	for i := 0; i < util.Min(len(pods), maxThreadCount); i++ {
-		wg.Add(1)
-		go threadPoolWorker(wg, processChannel, processPod)
+func IsLegacyManagedPod(pod *v1.Pod) bool {
+	if !IsManagedPod(pod) {
+		return false
 	}
+	runId := ExtractJobRunId(pod)
 
-	for _, pod := range pods {
-		processChannel <- pod
-	}
-
-	close(processChannel)
-	wg.Wait()
-}
-
-func threadPoolWorker(wg *sync.WaitGroup, podsToProcess chan *v1.Pod, processPod func(*v1.Pod)) {
-	defer wg.Done()
-
-	for pod := range podsToProcess {
-		processPod(pod)
-	}
+	return runId == ""
 }

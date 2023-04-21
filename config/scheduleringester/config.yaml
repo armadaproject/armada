@@ -22,3 +22,10 @@ pulsar:
 subscriptionName: "scheduler-ingester"
 batchSize: 10000
 batchDuration: 500ms
+priorityClasses:
+  armada-default:
+    priority: 1000
+  armada-preemptible:
+    priority: 900
+
+

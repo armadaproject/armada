@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/armada/configuration"
 )
 
 func CreateConnectionString(values map[string]string) string {
@@ -23,6 +23,15 @@ func CreateConnectionString(values map[string]string) string {
 		result += k + "='" + replacer.Replace(v) + "'"
 	}
 	return result
+}
+
+func OpenPgxConn(config configuration.PostgresConfig) (*pgx.Conn, error) {
+	db, err := pgx.Connect(context.Background(), CreateConnectionString(config.Connection))
+	if err != nil {
+		return nil, err
+	}
+	err = db.Ping(context.Background())
+	return db, err
 }
 
 func OpenPgxPool(config configuration.PostgresConfig) (*pgxpool.Pool, error) {

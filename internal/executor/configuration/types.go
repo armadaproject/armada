@@ -5,9 +5,9 @@ import (
 
 	"google.golang.org/grpc/keepalive"
 
-	"github.com/G-Research/armada/internal/common"
-	"github.com/G-Research/armada/internal/executor/configuration/podchecks"
-	"github.com/G-Research/armada/pkg/client"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/executor/configuration/podchecks"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 type ApplicationConfiguration struct {
@@ -16,6 +16,8 @@ type ApplicationConfiguration struct {
 	SubmitConcurrencyLimit int
 	UpdateConcurrencyLimit int
 	DeleteConcurrencyLimit int
+	UseExecutorApi         bool
+	UseLegacyApi           bool
 }
 
 type PodDefaults struct {
@@ -41,6 +43,7 @@ type KubernetesConfiguration struct {
 	QPS                       float32
 	Burst                     int
 	Etcd                      EtcdConfiguration
+	NodeIdLabel               string
 	TrackedNodeLabels         []string
 	AvoidNodeLabelsOnRetry    []string
 	ToleratedTaints           []string
@@ -48,14 +51,19 @@ type KubernetesConfiguration struct {
 	StuckTerminatingPodExpiry time.Duration
 	FailedPodExpiry           time.Duration
 	MaxTerminatedPods         int
-	MinimumJobSize            common.ComputeResources
+	MinimumJobSize            armadaresource.ComputeResources
 	PodDefaults               *PodDefaults
 	PendingPodChecks          *podchecks.Checks
 	FatalPodSubmissionErrors  []string
-	// NodeReservedResources config is used to factor in reserved resources on each node
-	// when validating can a job be scheduled on a node during job submit (i.e. factor in resources for daemonset pods)
-	NodeReservedResources common.ComputeResources
-	PodKillTimeout        time.Duration
+	// Minimum amount of resources marked as allocated to non-Armada pods on each node.
+	// I.e., if the total resources allocated to non-Armada pods on some node drops below this value,
+	// the executor adds a fictional allocation to make up the difference, such that the total is at least this.
+	// Hence, specifying can ensure that, e.g., if a deamonset pod restarts, those resources are not considered for scheduling.
+	MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode armadaresource.ComputeResources
+	// When adding a fictional allocation to ensure resources allocated to non-Armada pods is at least
+	// MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode, those resources are marked allocated at this priority.
+	MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority int32
+	PodKillTimeout                                                time.Duration
 }
 
 type EtcdConfiguration struct {
@@ -76,24 +84,51 @@ type TaskConfiguration struct {
 	MissingJobEventReconciliationInterval time.Duration
 	JobLeaseRenewalInterval               time.Duration
 	AllocateSpareClusterCapacityInterval  time.Duration
+	PodIssueHandlingInterval              time.Duration
 	PodDeletionInterval                   time.Duration
 	QueueUsageDataRefreshInterval         time.Duration
 	UtilisationEventProcessingInterval    time.Duration
 	UtilisationEventReportingInterval     time.Duration
 	ResourceCleanupInterval               time.Duration
+	StateProcessorInterval                time.Duration
 }
 
 type MetricConfiguration struct {
 	Port                    uint16
 	ExposeQueueUsageMetrics bool
+	CustomUsageMetrics      []CustomUsageMetrics
 }
 
+type CustomUsageMetrics struct {
+	Namespace                  string
+	EndpointSelectorLabelName  string
+	EndpointSelectorLabelValue string
+	Metrics                    []CustomUsageMetric
+}
+
+type CustomUsageMetric struct {
+	Name                   string
+	PrometheusMetricName   string
+	PrometheusPodNameLabel string
+	AggregateType          AggregateType
+	Multiplier             float64
+}
+
+type AggregateType string
+
+const (
+	Sum  AggregateType = "Sum"
+	Mean               = "Mean"
+)
+
 type ExecutorConfiguration struct {
-	Metric        MetricConfiguration
-	Application   ApplicationConfiguration
-	ApiConnection client.ApiConnectionDetails
-	Client        ClientConfiguration
-	GRPC          keepalive.ClientParameters
+	HttpPort              uint16
+	Metric                MetricConfiguration
+	Application           ApplicationConfiguration
+	ApiConnection         client.ApiConnectionDetails
+	ExecutorApiConnection client.ApiConnectionDetails
+	Client                ClientConfiguration
+	GRPC                  keepalive.ClientParameters
 
 	Kubernetes KubernetesConfiguration
 	Task       TaskConfiguration

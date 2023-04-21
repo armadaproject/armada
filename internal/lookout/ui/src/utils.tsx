@@ -1,3 +1,5 @@
+import { Location, NavigateFunction, Params, useLocation, useNavigate, useParams } from "react-router-dom"
+
 interface UIConfig {
   armadaApiBaseUrl: string
   userAnnotationPrefix: string
@@ -56,7 +58,7 @@ export async function getUIConfig(): Promise<UIConfig> {
   return config
 }
 
-export function reverseMap<K, V>(map: Map<K, V>): Map<V, K> {
+export function inverseMap<K, V>(map: Map<K, V>): Map<V, K> {
   return new Map(Array.from(map.entries()).map(([k, v]) => [v, k]))
 }
 
@@ -118,8 +120,17 @@ export function selectItem<V>(key: string, item: V, selectedMap: Map<string, V>,
 }
 
 export async function getErrorMessage(error: any): Promise<string> {
-  let basicMessage = (error?.status ?? "") + " " + (error?.statusText ?? "")
-  basicMessage = basicMessage != " " ? basicMessage : "Unknown error"
+  if (error === undefined) {
+    return "Unknown error"
+  }
+  let basicMessage = (error.status ?? "") + " " + (error.statusText ?? "")
+  if (basicMessage === " ") {
+    if (error.toString() !== undefined && typeof error.toString === "function") {
+      basicMessage = error.toString()
+    } else {
+      basicMessage = "Unknown error"
+    }
+  }
   try {
     const json = await error.json()
     const errorMessage = json.message
@@ -181,4 +192,24 @@ export function pl(itemsOrCount: unknown[] | number, singularForm: string, plura
 
 export async function waitMillis(millisToWait: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, millisToWait))
+}
+
+export interface Router {
+  location: Location
+  navigate: NavigateFunction
+  params: Readonly<Params>
+}
+
+export interface PropsWithRouter {
+  router: Router
+}
+
+export function withRouter<T extends PropsWithRouter>(Component: React.FC<T>): React.FC<Omit<T, "router">> {
+  function ComponentWithRouterProp(props: T) {
+    const location = useLocation()
+    const navigate = useNavigate()
+    const params = useParams()
+    return <Component {...props} router={{ location, navigate, params }} />
+  }
+  return ComponentWithRouterProp as React.FC<Omit<T, "router">>
 }

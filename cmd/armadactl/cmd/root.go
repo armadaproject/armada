@@ -3,8 +3,8 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/G-Research/armada/internal/armadactl"
-	"github.com/G-Research/armada/pkg/client"
+	"github.com/armadaproject/armada/internal/armadactl"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 // RootCmd is the root Cobra command that gets called from the main func.
@@ -41,6 +41,7 @@ The location of this file can be passed in using --config argument or picked fro
 		submitCmd(),
 		versionCmd(),
 		watchCmd(),
+		getSchedulingReportCmd(armadactl.New()),
 		getQueueSchedulingReportCmd(armadactl.New()),
 		getJobSchedulingReportCmd(armadactl.New()),
 	)

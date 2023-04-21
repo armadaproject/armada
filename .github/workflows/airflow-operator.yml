@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        go: [ '1.18' ]
+        go: [ '1.20' ]
         python: [ '3.8', '3.9', '3.10' ]
         include:
           - tox-env: 'py38'
@@ -55,9 +55,57 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: ./.github/workflows/go-setup
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.17.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
       - run: make airflow-operator
       - uses: ./.github/workflows/python-tests
         with:
           python-version: ${{ matrix.python }}
           tox-env: ${{ matrix.tox-env }}
           path: third_party/airflow
+          github-token: ${{secrets.GITHUB_TOKEN}}
+  airflow-integration-tests:
+    if: github.repository_owner == 'armadaproject'
+    strategy:
+      fail-fast: false
+      matrix:
+        # WARN(JayF): If we begin attempting to support >1 golang version,
+        # we'll have to ensure that we don't use the same artifact name for
+        # both versions in the matrix -- this will lead to them overwriting
+        # each other.
+        go: [ '1.20' ]
+    # As of December 2022, using 8vcpu runners is slower overall,
+    # due to longer queue times.
+    runs-on: ubuntu-22.04
+    env:
+      ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
+      ARMADA_EXECUTOR_INGRESS_PORT: 5001
+      # Cache Docker layers in the Github actions cache.
+      # These variables are picked up by the goreleaser config.
+      DOCKER_BUILDX_CACHE_FROM: "type=gha"
+      DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
+      DOCKER_BUILDX_BUILDER: "builder"
+    steps:
+      - uses: actions/checkout@v3
+      - run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
+      - run: docker buildx install
+      - uses: actions/setup-go@v3
+        with:
+          go-version: ${{ matrix.go }}
+          cache: true
+      - name: Setup and integration tests
+        run: |
+          # Manually create folders to ensure perms are correct.
+          mkdir -p .kube/internal
+          mkdir -p .kube/external
+          go run github.com/magefile/mage@v1.14.0 -v BuildCICluster
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v1
+        with:
+          version: '3.17.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: make tests-e2e-airflow
+

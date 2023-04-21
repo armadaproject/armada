@@ -8,14 +8,17 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/G-Research/armada/internal/common"
-	util2 "github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/executor/domain"
+	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	util2 "github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/executor/domain"
+	"github.com/armadaproject/armada/pkg/api"
 )
+
+const nodeIdLabel = "node-id"
 
 func TestCreateReportsOfQueueUsages(t *testing.T) {
 	utilisationService := &ClusterUtilisationService{
-		queueUtilisationService: NewMetricsServerQueueUtilisationService(nil, nil),
+		queueUtilisationService: NewPodUtilisationService(nil, nil, nil, nil),
 	}
 
 	var priority int32
@@ -39,7 +42,7 @@ func TestCreateReportsOfQueueUsages(t *testing.T) {
 
 func TestCreateReportsOfQueueUsages_WhenAllPending(t *testing.T) {
 	utilisationService := &ClusterUtilisationService{
-		queueUtilisationService: NewMetricsServerQueueUtilisationService(nil, nil),
+		queueUtilisationService: NewPodUtilisationService(nil, nil, nil, nil),
 	}
 
 	var priority int32
@@ -202,7 +205,7 @@ func TestGetUsageByQueue_AggregatesPodResourcesInAQueue(t *testing.T) {
 	pods := []*v1.Pod{&queue1Pod1, &queue1Pod2}
 
 	expectedResource := makeResourceList(4, 100)
-	expectedResult := map[string]common.ComputeResources{"queue1": common.FromResourceList(expectedResource)}
+	expectedResult := map[string]armadaresource.ComputeResources{"queue1": armadaresource.FromResourceList(expectedResource)}
 
 	result := GetAllocationByQueue(pods)
 	assert.Equal(t, result, expectedResult)
@@ -252,9 +255,9 @@ func TestGetAllocationByQueueAndPriority_AggregatesPodResourcesInAQueue(t *testi
 	pods := []*v1.Pod{&queue1Pod1, &queue1Pod2}
 
 	expectedResource := makeResourceList(4, 100)
-	expectedResult := map[string]map[int32]common.ComputeResources{
+	expectedResult := map[string]map[int32]armadaresource.ComputeResources{
 		"queue1": {
-			priority: common.FromResourceList(expectedResource),
+			priority: armadaresource.FromResourceList(expectedResource),
 		},
 	}
 
@@ -289,19 +292,121 @@ func TestGetAllocationByQueueAndPriority_AggregatesResources(t *testing.T) {
 	}
 
 	expectedResource := makeResourceList(4, 100)
-	expectedResult := map[string]map[int32]common.ComputeResources{
+	expectedResult := map[string]map[int32]armadaresource.ComputeResources{
 		"queue1": {
-			priority1: common.FromResourceList(expectedResource),
-			priority2: common.FromResourceList(expectedResource),
+			priority1: armadaresource.FromResourceList(expectedResource),
+			priority2: armadaresource.FromResourceList(expectedResource),
 		},
 		"queue2": {
-			priority1: common.FromResourceList(expectedResource),
-			priority2: common.FromResourceList(expectedResource),
+			priority1: armadaresource.FromResourceList(expectedResource),
+			priority2: armadaresource.FromResourceList(expectedResource),
 		},
 	}
 
 	result := GetAllocationByQueueAndPriority(pods)
 	assert.Equal(t, result, expectedResult)
+}
+
+func TestGetRunIdsByNode(t *testing.T) {
+	utilisationService := &ClusterUtilisationService{
+		nodeIdLabel: nodeIdLabel,
+	}
+	node1 := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-1", Labels: map[string]string{nodeIdLabel: "node-1-id"}}}
+	node2 := &v1.Node{ObjectMeta: metav1.ObjectMeta{Name: "node-2", Labels: map[string]string{nodeIdLabel: "node-2-id"}}}
+
+	tests := map[string]struct {
+		inputPods      []*v1.Pod
+		legacyIds      bool
+		expectedOutput map[string]map[string]api.JobState
+	}{
+		"MatchesOnNodeName": {
+			inputPods: []*v1.Pod{
+				createPodOnNode("job-1", "run-1", v1.PodRunning, "node-1", ""),
+				createPodOnNode("job-2", "run-2", v1.PodRunning, "node-1", ""),
+				createPodOnNode("job-3", "run-3", v1.PodRunning, "node-2", ""),
+			},
+			expectedOutput: map[string]map[string]api.JobState{
+				"node-1": {"run-1": api.JobState_RUNNING, "run-2": api.JobState_RUNNING},
+				"node-2": {"run-3": api.JobState_RUNNING},
+			},
+		},
+		"LegacyGivesJobIds": {
+			inputPods: []*v1.Pod{
+				createPodOnNode("job-1", "", v1.PodRunning, "node-1", ""),
+				createPodOnNode("job-2", "", v1.PodRunning, "node-2", ""),
+			},
+			expectedOutput: map[string]map[string]api.JobState{
+				"node-1": {"job-1": api.JobState_RUNNING},
+				"node-2": {"job-2": api.JobState_RUNNING},
+			},
+			legacyIds: true,
+		},
+		"HandlesAllPodPhases": {
+			inputPods: []*v1.Pod{
+				createPodOnNode("job-1", "run-1", v1.PodPending, "node-1", ""),
+				createPodOnNode("job-2", "run-2", v1.PodRunning, "node-1", ""),
+				createPodOnNode("job-3", "run-3", v1.PodSucceeded, "node-1", ""),
+				createPodOnNode("job-4", "run-4", v1.PodFailed, "node-1", ""),
+			},
+			expectedOutput: map[string]map[string]api.JobState{
+				"node-1": {"run-1": api.JobState_PENDING, "run-2": api.JobState_RUNNING, "run-3": api.JobState_SUCCEEDED, "run-4": api.JobState_FAILED},
+			},
+		},
+		"PodWithNodeSelectorTargetingNode": {
+			inputPods: []*v1.Pod{
+				// Node selector matches node-1 label
+				createPodOnNode("job-1", "run-1", v1.PodPending, "", "node-1-id"),
+			},
+			expectedOutput: map[string]map[string]api.JobState{
+				"node-1": {"run-1": api.JobState_PENDING},
+			},
+		},
+		"PodWithNodeSelectorTargetingInvalidNode": {
+			inputPods: []*v1.Pod{
+				// Node selector does not match any node
+				createPodOnNode("job-1", "run-1", v1.PodPending, "", "node-3-id"),
+			},
+			// No matches
+			expectedOutput: map[string]map[string]api.JobState{},
+		},
+		"Mixed": {
+			inputPods: []*v1.Pod{
+				createPodOnNode("job-1", "run-1", v1.PodRunning, "node-1", ""),
+				createPodOnNode("job-2", "run-2", v1.PodPending, "", "node-1-id"),
+			},
+			expectedOutput: map[string]map[string]api.JobState{
+				"node-1": {"run-1": api.JobState_RUNNING, "run-2": api.JobState_PENDING},
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := utilisationService.getRunIdsByNode([]*v1.Node{node1, node2}, tc.inputPods, tc.legacyIds)
+			assert.Equal(t, tc.expectedOutput, result)
+		})
+	}
+}
+
+func createPodOnNode(jobId string, runId string, phase v1.PodPhase, nodeName string, nodeIdSelector string) *v1.Pod {
+	pod := &v1.Pod{
+		Status: v1.PodStatus{
+			Phase: phase,
+		},
+		Spec: v1.PodSpec{
+			NodeName: nodeName,
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				domain.JobId:    jobId,
+				domain.JobRunId: runId,
+			},
+		},
+	}
+	if nodeIdSelector != "" {
+		pod.Spec.NodeSelector = map[string]string{nodeIdLabel: nodeIdSelector}
+	}
+	return pod
 }
 
 func TestGetAllocationByQueueAndPriority_HandlesEmptyList(t *testing.T) {
@@ -325,9 +430,9 @@ func TestGetAllocatedResourceByNodeName(t *testing.T) {
 	pods := []*v1.Pod{&pod1, &pod2, &pod3}
 
 	allocatedResource := getAllocatedResourceByNodeName(pods)
-	assert.Equal(t, map[string]common.ComputeResources{
-		"node1": common.FromResourceList(makeResourceList(2, 50)),
-		"node2": common.FromResourceList(makeResourceList(4, 100)),
+	assert.Equal(t, map[string]armadaresource.ComputeResources{
+		"node1": armadaresource.FromResourceList(makeResourceList(2, 50)),
+		"node2": armadaresource.FromResourceList(makeResourceList(4, 100)),
 	}, allocatedResource)
 }
 
@@ -335,12 +440,6 @@ func hasKey[K comparable, V any](m map[K]V, key K) bool {
 	_, ok := m[key]
 	return ok
 }
-
-// TODO: Remove
-// func hasKey(value map[string]common.ComputeResources, key string) bool {
-// 	_, ok := value[key]
-// 	return ok
-// }
 
 func makeResourceList(cores int64, gigabytesRam int64) v1.ResourceList {
 	cpuResource := resource.NewQuantity(cores, resource.DecimalSI)
@@ -404,7 +503,7 @@ func TestGetCordonedResource(t *testing.T) {
 
 	resources := getCordonedResource(nodes, pods)
 
-	expected := common.ComputeResources{
+	expected := armadaresource.ComputeResources{
 		"cpu":    resource.MustParse("3"),
 		"memory": resource.MustParse("12Gi"),
 	}

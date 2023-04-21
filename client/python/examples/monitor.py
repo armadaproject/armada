@@ -71,9 +71,8 @@ def watch_job_set(client: ArmadaClient, queue: str, job_set_id, no_of_jobs):
 
             # For each event, check if it is one we are interested in
             # and print out the message if it is
-            for event in event_stream:
-
-                event = client.unmarshal_event_response(event)
+            for event_grpc in event_stream:
+                event = client.unmarshal_event_response(event_grpc)
 
                 print(f"Job {event.message.job_id} - {event.type}")
 

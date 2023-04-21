@@ -1,36 +1,72 @@
 syntax = 'proto3';
 package schedulerobjects;
+option go_package = "github.com/armadaproject/armada/internal/scheduler/schedulerobjects";
 
 import "google/protobuf/timestamp.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
+// Executor represents an executor running on a worker cluster
+message Executor {
+    // Name of the executor.
+    string id = 1;
+    // Pool that the executor belongs to.
+    string pool = 2;
+    // The nodes available for scheduling via this executor.
+    repeated Node nodes = 3;
+    // Minimum resources which a job must request in order to be considered for scheduling on this executor.
+    ResourceList minimumJobSize = 4  [(gogoproto.nullable) = false];
+    // Last time the executor provided a heartbeat to say it was still accepting job.
+    google.protobuf.Timestamp lastUpdateTime = 5 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    // Jobs that are owned by the cluster but are not assigned to any node.
+    repeated string unassigned_job_runs = 9;
+}
+
 // Node represents a node in a worker cluster.
 message Node {
-	// Unique name associated with the node.
-	// Only used internally by the scheduler.
-	string Id = 1;
-	// Time at which this node was last updated.
-	// Used to garbage collect nodes that have been removed.
-    google.protobuf.Timestamp LastSeen = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
-	// The node type captures scheduling requirements of the node;
-	// it's computed from the taints and labels associated with the node.
+    // Id associated with the node. Must be unique across all clusters.
+    string id = 1;
+    // Kubernetes node name. Not guaranteed to be unique across clusters.
+    string name = 12;
+    // Time at which this node was last updated.
+    // Used to garbage collect nodes that have been removed.
+    google.protobuf.Timestamp last_seen = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
+    // The node type captures scheduling requirements of the node;
+    // it's computed from the taints and labels associated with the node.
     // This field is set automatically by the NodeDb on inserting the node.
-	NodeType nodeType = 3;
-	// We store the NodeType.id here to simplify indexing.
+    NodeType node_type = 3;
+    // We store NodeType.id here to simplify indexing.
     // This field is set automatically by the NodeDb on inserting the node.
-	string NodeTypeId = 4;
+    string node_type_id = 4;
     // Kubernetes taints.
     repeated k8s.io.api.core.v1.Taint taints = 5 [(gogoproto.nullable) = false];
     // Kubernetes labels.
     map<string, string> labels = 6;
     // Total resources on this node.
-    ResourceList TotalResources = 7 [(gogoproto.nullable) = false];
-	// Resources available for jobs of a given priority.
-	// E.g., AvailableResources[5]["cpu"] is the amount of CPU available to jobs with priority 5,
-	// where available resources = unused resources + resources assigned to lower-priority jobs.
-    map<int32, ResourceList> AllocatableByPriorityAndResource = 8 [(gogoproto.nullable) = false];
+    ResourceList total_resources = 7 [(gogoproto.nullable) = false];
+    // Resources available for jobs of a given priority.
+    // E.g., AvailableResources[5]["cpu"] is the amount of CPU available to jobs with priority 5,
+    // where available resources = unused resources + resources assigned to lower-priority jobs.
+    map<int32, ResourceList> allocatable_by_priority_and_resource = 8 [(gogoproto.nullable) = false];
+    // Ids of the job runs currently assigned to this node and their current state.
+    map<string, JobRunState> state_by_job_run_id = 9 [(gogoproto.nullable) = false];
+    // Resource allocated to jobs on this node.
+    map<string, ResourceList> allocated_by_job_id = 10 [(gogoproto.nullable) = false];
+    // Resource allocated to queues on this node.
+    map<string, ResourceList> allocated_by_queue = 11 [(gogoproto.nullable) = false];
+    // Ids of all runs evicted on this node.
+    map<string, bool> evicted_job_run_ids = 14 [(gogoproto.nullable) = false];
+    // Resource allocated to non-Armada pods on this node.
+    map<int32, ResourceList> non_armada_allocated_resources = 13 [(gogoproto.nullable) = false];
+}
+
+enum JobRunState {
+    UNKNOWN = 0;
+    PENDING = 1;
+    RUNNING= 2;
+    SUCCEEDED = 3;
+    FAILED = 4;
 }
 
 // NodeType represents a particular combination of taints and labels.
@@ -40,11 +76,11 @@ message NodeType {
     // Unique identifier. Used for map lookup.
     string Id = 1;
     // Kubernetes taints.
-    // To reduce the number of distinct node types, 
+    // To reduce the number of distinct node types,
     // may contain only a subset of the taints of the node the node type is created from.
     repeated k8s.io.api.core.v1.Taint taints = 2 [(gogoproto.nullable) = false];
     // Kubernetes labels.
-    // To reduce the number of distinct node types, 
+    // To reduce the number of distinct node types,
     // may contain only a subset of the labels of the node the node type is created from.
     map<string, string> labels = 3;
     // Well-known labels not set by this node type.
@@ -77,11 +113,16 @@ message ResourceList {
 // Minimal job representation used by the scheduler.
 message JobSchedulingInfo {
     uint32 lifetime = 1;
-    bool atMostOnce = 2;
+    bool at_most_once = 2;
     bool preemptible = 3;
-    bool concurrencySafe = 4;
+    bool concurrency_safe = 4;
+    string priority_class_name = 6;
+    google.protobuf.Timestamp submit_time = 7 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+    // In-queue priority. I.e., not the priority class priority.
+    uint32 priority = 8;
     // Kubernetes objects that make up this job and their respective scheduling requirements.
-    repeated ObjectRequirements objectRequirements = 5;
+    repeated ObjectRequirements object_requirements = 5;
+    uint32 version = 9;
 }
 
 // Message capturing the scheduling requirements of a particular Kubernetes object.
@@ -108,4 +149,12 @@ message PodRequirements {
     string preemptionPolicy = 5;
     // Sum of the resource requirements for all containers that make up this pod.
     k8s.io.api.core.v1.ResourceRequirements resourceRequirements = 6 [(gogoproto.nullable) = false];
+}
+
+// Used to store details about pulsar scheduler jobs in Redis
+// Can be removed once we deprecate the legacy scheduler
+message PulsarSchedulerJobDetails  {
+    string JobId = 1;
+    string Queue = 2;
+    string JobSet = 3;
 }

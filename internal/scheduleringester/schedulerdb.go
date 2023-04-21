@@ -2,18 +2,21 @@ package scheduleringester
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 
-	"github.com/G-Research/armada/internal/common/armadaerrors"
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
-	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 
 // SchedulerDb writes DbOperations into postgres.
@@ -37,7 +40,7 @@ func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithM
 			shouldRetry := armadaerrors.IsNetworkError(err) || armadaerrors.IsRetryablePostgresError(err)
 			return shouldRetry, err
 		}, s.initialBackOff, s.maxBackOff)
-		multierror.Append(result, err)
+		result = multierror.Append(result, err)
 	}
 	return result.ErrorOrNil()
 }
@@ -67,17 +70,6 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 		if err != nil {
 			return err
 		}
-	case InsertRunAssignments:
-		records := make([]any, len(o))
-		i := 0
-		for _, v := range o {
-			records[i] = *v
-			i++
-		}
-		err := database.Upsert(ctx, s.db, "job_run_assignments", records)
-		if err != nil {
-			return err
-		}
 	case UpdateJobSetPriorities:
 		for jobSet, priority := range o {
 			err := queries.UpdateJobPriorityByJobSet(
@@ -91,23 +83,67 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 				return errors.WithStack(err)
 			}
 		}
-	case MarkJobSetsCancelled:
-		jobSets := maps.Keys(o)
-		err := queries.MarkJobsCancelledBySets(ctx, jobSets)
+	case UpdateJobSchedulingInfo:
+		args := make([]interface{}, 0, len(o)*3)
+		argMarkers := make([]string, 0, len(o))
+
+		currentIndex := 1
+		for key, value := range o {
+			args = append(args, key)
+			args = append(args, value.JobSchedulingInfo)
+			args = append(args, value.JobSchedulingInfoVersion)
+			argMarkers = append(argMarkers, fmt.Sprintf("($%d, $%d::bytea, $%d::int)", currentIndex, currentIndex+1, currentIndex+2))
+			currentIndex += 3
+		}
+
+		argMarkersString := strings.Join(argMarkers, ",")
+		updateJobInfoSqlStatement := fmt.Sprintf(
+			`update jobs as j set  scheduling_info = updated.scheduling_info, scheduling_info_version = updated.scheduling_info_version
+				 from (values %s) as updated(job_id, scheduling_info, scheduling_info_version)
+                 where j.job_id = updated.job_id and updated.scheduling_info_version > j.scheduling_info_version`, argMarkersString)
+
+		_, err := s.db.Exec(ctx, updateJobInfoSqlStatement, args...)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		err = queries.MarkJobRunsCancelledBySets(ctx, jobSets)
+	case UpdateJobQueuedState:
+		args := make([]interface{}, 0, len(o)*3)
+		argMarkers := make([]string, 0, len(o))
+
+		currentIndex := 1
+		for key, value := range o {
+			args = append(args, key)
+			args = append(args, value.Queued)
+			args = append(args, value.QueuedStateVersion)
+			argMarkers = append(argMarkers, fmt.Sprintf("($%d, $%d::bool, $%d::int)", currentIndex, currentIndex+1, currentIndex+2))
+			currentIndex += 3
+		}
+
+		argMarkersString := strings.Join(argMarkers, ",")
+		updateQueuedStateSqlStatement := fmt.Sprintf(
+			`update jobs as j set  queued = updated.queued, queued_version = updated.queued_version
+				 from (values %s) as updated(job_id, queued, queued_version)
+				 where j.job_id = updated.job_id and updated.queued_version > j.queued_version`, argMarkersString)
+
+		_, err := s.db.Exec(ctx, updateQueuedStateSqlStatement, args...)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	case MarkJobSetsCancelRequested:
+		jobSets := maps.Keys(o)
+		err := queries.MarkJobsCancelRequestedBySets(ctx, jobSets)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+	case MarkJobsCancelRequested:
+		jobIds := maps.Keys(o)
+		err := queries.MarkJobsCancelRequestedById(ctx, jobIds)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 	case MarkJobsCancelled:
 		jobIds := maps.Keys(o)
 		err := queries.MarkJobsCancelledById(ctx, jobIds)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		err = queries.MarkJobRunsCancelledByJobId(ctx, jobIds)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -143,7 +179,25 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 		}
 	case MarkRunsFailed:
 		runIds := maps.Keys(o)
+		returned := make([]uuid.UUID, 0, len(runIds))
+		runAttempted := make([]uuid.UUID, 0, len(runIds))
+		for k, v := range o {
+			if v.LeaseReturned {
+				returned = append(returned, k)
+			}
+			if v.RunAttempted {
+				runAttempted = append(runAttempted, k)
+			}
+		}
 		err := queries.MarkJobRunsFailedById(ctx, runIds)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		err = queries.MarkJobRunsReturnedById(ctx, returned)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		err = queries.MarkJobRunsAttemptedById(ctx, runAttempted)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -153,6 +207,26 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 		if err != nil {
 			return errors.WithStack(err)
 		}
+	case InsertJobRunErrors:
+		records := make([]any, len(o))
+		i := 0
+		for _, v := range o {
+			records[i] = *v
+			i++
+		}
+		return database.Upsert(ctx, s.db, "job_run_errors", records)
+	case *InsertPartitionMarker:
+		for _, marker := range o.markers {
+			err := queries.InsertMarker(ctx, schedulerdb.InsertMarkerParams{
+				GroupID:     marker.GroupID,
+				PartitionID: marker.PartitionID,
+				Created:     marker.Created,
+			})
+			if err != nil {
+				return errors.Wrapf(err, "error inserting partition marker")
+			}
+		}
+		return nil
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
 	}

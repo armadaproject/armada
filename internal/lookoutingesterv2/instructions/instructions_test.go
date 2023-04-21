@@ -2,25 +2,28 @@ package instructions
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/golang/protobuf/proto"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/common/ingest/testfixtures"
-	"github.com/G-Research/armada/internal/common/pulsarutils"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
+	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const (
@@ -106,20 +109,19 @@ var expectedFailedRun = model.UpdateJobRunInstruction{
 	ExitCode:    pointer.Int32(testfixtures.ExitCode),
 }
 
-var expectedTerminated = model.UpdateJobRunInstruction{
-	RunId:       testfixtures.RunIdString,
-	Node:        pointer.String(testfixtures.NodeName),
-	Finished:    &testfixtures.BaseTime,
-	JobRunState: pointer.Int32(lookout.JobRunTerminatedOrdinal),
-	Error:       []byte(testfixtures.TerminatedMsg),
+var expectedPreempted = model.UpdateJobInstruction{
+	JobId:                     testfixtures.JobIdString,
+	State:                     pointer.Int32(lookout.JobPreemptedOrdinal),
+	LastTransitionTime:        &testfixtures.BaseTime,
+	LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
+	LatestRunId:               pointer.String(testfixtures.RunIdString),
 }
 
-var expectedUnschedulable = model.UpdateJobRunInstruction{
+var expectedPreemptedRun = model.UpdateJobRunInstruction{
 	RunId:       testfixtures.RunIdString,
-	Node:        pointer.String(testfixtures.NodeName),
 	Finished:    &testfixtures.BaseTime,
-	JobRunState: pointer.Int32(lookout.JobRunUnableToScheduleOrdinal),
-	Error:       []byte(testfixtures.UnschedulableMsg),
+	JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
+	Error:       []byte("preempted by non armada pod"),
 }
 
 func TestConvert(t *testing.T) {
@@ -140,7 +142,6 @@ func TestConvert(t *testing.T) {
 	assert.NoError(t, err)
 	jobProto, err := proto.Marshal(job)
 	assert.NoError(t, err)
-
 	expectedSubmit := &model.CreateJobInstruction{
 		JobId:                     testfixtures.JobIdString,
 		Queue:                     testfixtures.Queue,
@@ -158,6 +159,24 @@ func TestConvert(t *testing.T) {
 		JobProto:                  jobProto,
 		PriorityClass:             pointer.String(priorityClass),
 	}
+
+	otherJobIdUlid := util.ULID()
+	otherJobId := util.StringFromUlid(otherJobIdUlid)
+	otherJobIdProto := armadaevents.ProtoUuidFromUlid(otherJobIdUlid)
+
+	otherRunIdUuid, err := uuid.NewUUID()
+	assert.NoError(t, err)
+	otherRunIdProto := armadaevents.ProtoUuidFromUuid(otherRunIdUuid)
+
+	preempted, err := testfixtures.DeepCopy(testfixtures.JobPreempted)
+	assert.NoError(t, err)
+	preempted.GetJobRunPreempted().PreemptiveJobId = otherJobIdProto
+	preempted.GetJobRunPreempted().PreemptiveRunId = otherRunIdProto
+
+	preemptedWithPrempteeWithZeroId, err := testfixtures.DeepCopy(testfixtures.JobPreempted)
+	assert.NoError(t, err)
+	preemptedWithPrempteeWithZeroId.GetJobRunPreempted().PreemptiveJobId = &armadaevents.Uuid{}
+	preemptedWithPrempteeWithZeroId.GetJobRunPreempted().PreemptiveRunId = &armadaevents.Uuid{}
 
 	tests := map[string]struct {
 		events   *ingest.EventSequencesWithIds
@@ -271,8 +290,7 @@ func TestConvert(t *testing.T) {
 				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedTerminated},
-				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"unschedulable": {
@@ -281,8 +299,59 @@ func TestConvert(t *testing.T) {
 				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedUnschedulable},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"duplicate submit is ignored": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.SubmitDuplicate)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"preempted": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobPreempted)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate:    []*model.UpdateJobInstruction{&expectedPreempted},
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedPreemptedRun},
 				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"preempted with preemptee": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(preempted)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{&expectedPreempted},
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
+					RunId:       testfixtures.RunIdString,
+					Finished:    &testfixtures.BaseTime,
+					JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
+					Error:       []byte(fmt.Sprintf("preempted by job %s", otherJobId)),
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"preempted with zeroed preemptee id": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(preemptedWithPrempteeWithZeroId)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{&expectedPreempted},
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
+					RunId:       testfixtures.RunIdString,
+					Finished:    &testfixtures.BaseTime,
+					JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
+					Error:       []byte("preempted by non armada pod"),
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"invalid event without job id or run id": {

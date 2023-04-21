@@ -4,17 +4,19 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/instructions"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/lookoutdb"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/metrics"
-	"github.com/G-Research/armada/internal/lookoutv2/model"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/pointer"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/metrics"
+	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
 func TestGroupByQueue(t *testing.T) {
@@ -22,9 +24,18 @@ func TestGroupByQueue(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		manyJobs(10, "queue-1", jobSet, lookout.JobQueued, make(map[string]string), converter, store)
-		manyJobs(5, "queue-2", jobSet, lookout.JobQueued, make(map[string]string), converter, store)
-		manyJobs(3, "queue-3", jobSet, lookout.JobQueued, make(map[string]string), converter, store)
+		manyJobs(10, &createJobsOpts{
+			queue:  "queue-1",
+			jobSet: jobSet,
+		}, converter, store)
+		manyJobs(5, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: jobSet,
+		}, converter, store)
+		manyJobs(3, &createJobsOpts{
+			queue:  "queue-3",
+			jobSet: jobSet,
+		}, converter, store)
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
@@ -69,9 +80,18 @@ func TestGroupByJobSet(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		manyJobs(10, queue, "job-set-1", lookout.JobQueued, make(map[string]string), converter, store)
-		manyJobs(5, queue, "job-set-2", lookout.JobQueued, make(map[string]string), converter, store)
-		manyJobs(3, queue, "job-set-3", lookout.JobQueued, make(map[string]string), converter, store)
+		manyJobs(10, &createJobsOpts{
+			queue:  queue,
+			jobSet: "job-set-1",
+		}, converter, store)
+		manyJobs(5, &createJobsOpts{
+			queue:  queue,
+			jobSet: "job-set-2",
+		}, converter, store)
+		manyJobs(3, &createJobsOpts{
+			queue:  queue,
+			jobSet: "job-set-3",
+		}, converter, store)
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
@@ -116,10 +136,26 @@ func TestGroupByState(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		manyJobs(10, queue, jobSet, lookout.JobQueued, make(map[string]string), converter, store)
-		manyJobs(5, queue, jobSet, lookout.JobPending, make(map[string]string), converter, store)
-		manyJobs(3, queue, jobSet, lookout.JobRunning, make(map[string]string), converter, store)
-		manyJobs(2, queue, jobSet, lookout.JobFailed, make(map[string]string), converter, store)
+		manyJobs(10, &createJobsOpts{
+			queue:  queue,
+			jobSet: jobSet,
+			state:  lookout.JobQueued,
+		}, converter, store)
+		manyJobs(5, &createJobsOpts{
+			queue:  queue,
+			jobSet: jobSet,
+			state:  lookout.JobPending,
+		}, converter, store)
+		manyJobs(3, &createJobsOpts{
+			queue:  queue,
+			jobSet: jobSet,
+			state:  lookout.JobRunning,
+		}, converter, store)
+		manyJobs(2, &createJobsOpts{
+			queue:  queue,
+			jobSet: jobSet,
+			state:  lookout.JobFailed,
+		}, converter, store)
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
@@ -174,25 +210,114 @@ func TestGroupByWithFilters(t *testing.T) {
 			"key-2": "val-2",
 		}
 
-		manyJobs(10, queue, jobSet, lookout.JobQueued, testAnnotations, converter, store)
-		manyJobs(5, queue, jobSet, lookout.JobPending, testAnnotations, converter, store)
-		manyJobs(3, queue, jobSet, lookout.JobRunning, testAnnotations, converter, store)
-		manyJobs(2, queue, jobSet, lookout.JobFailed, testAnnotations, converter, store)
+		manyJobs(10, &createJobsOpts{
+			queue:       queue,
+			jobSet:      jobSet,
+			state:       lookout.JobQueued,
+			annotations: testAnnotations,
+		}, converter, store)
+		manyJobs(5, &createJobsOpts{
+			queue:       queue,
+			jobSet:      jobSet,
+			state:       lookout.JobPending,
+			annotations: testAnnotations,
+		}, converter, store)
+		manyJobs(3, &createJobsOpts{
+			queue:       queue,
+			jobSet:      jobSet,
+			state:       lookout.JobRunning,
+			annotations: testAnnotations,
+		}, converter, store)
+		manyJobs(2, &createJobsOpts{
+			queue:       queue,
+			jobSet:      jobSet,
+			state:       lookout.JobFailed,
+			annotations: testAnnotations,
+		}, converter, store)
 
-		manyJobs(11, queue, jobSet, lookout.JobQueued, make(map[string]string), converter, store)
-		manyJobs(6, queue, jobSet, lookout.JobPending, make(map[string]string), converter, store)
-		manyJobs(4, queue, jobSet, lookout.JobRunning, make(map[string]string), converter, store)
-		manyJobs(3, queue, jobSet, lookout.JobFailed, make(map[string]string), converter, store)
+		manyJobs(11, &createJobsOpts{
+			queue:  queue,
+			jobSet: jobSet,
+			state:  lookout.JobQueued,
+		}, converter, store)
+		manyJobs(6, &createJobsOpts{
+			queue:  queue,
+			jobSet: jobSet,
+			state:  lookout.JobPending,
+		}, converter, store)
+		manyJobs(4, &createJobsOpts{
+			queue:  queue,
+			jobSet: jobSet,
+			state:  lookout.JobRunning,
+		}, converter, store)
+		manyJobs(3, &createJobsOpts{
+			queue:  queue,
+			jobSet: jobSet,
+			state:  lookout.JobFailed,
+		}, converter, store)
 
-		manyJobs(12, "queue-2", jobSet, lookout.JobQueued, make(map[string]string), converter, store)
-		manyJobs(7, queue, "queue-2", lookout.JobPending, make(map[string]string), converter, store)
-		manyJobs(5, queue, "queue-2", lookout.JobRunning, make(map[string]string), converter, store)
-		manyJobs(4, queue, "queue-2", lookout.JobFailed, make(map[string]string), converter, store)
+		manyJobs(12, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: jobSet,
+			state:  lookout.JobQueued,
+		}, converter, store)
+		manyJobs(7, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: jobSet,
+			state:  lookout.JobPending,
+		}, converter, store)
+		manyJobs(5, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: jobSet,
+			state:  lookout.JobRunning,
+		}, converter, store)
+		manyJobs(4, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: jobSet,
+			state:  lookout.JobFailed,
+		}, converter, store)
 
-		manyJobs(13, queue, "job-set-2", lookout.JobQueued, make(map[string]string), converter, store)
-		manyJobs(8, queue, "job-set-2", lookout.JobPending, make(map[string]string), converter, store)
-		manyJobs(6, queue, "job-set-2", lookout.JobRunning, make(map[string]string), converter, store)
-		manyJobs(5, queue, "job-set-2", lookout.JobFailed, make(map[string]string), converter, store)
+		manyJobs(12, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: jobSet,
+			state:  lookout.JobQueued,
+		}, converter, store)
+		manyJobs(7, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: jobSet,
+			state:  lookout.JobPending,
+		}, converter, store)
+		manyJobs(5, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: jobSet,
+			state:  lookout.JobRunning,
+		}, converter, store)
+		manyJobs(4, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: jobSet,
+			state:  lookout.JobFailed,
+		}, converter, store)
+
+		manyJobs(13, &createJobsOpts{
+			queue:  queue,
+			jobSet: "job-set-2",
+			state:  lookout.JobQueued,
+		}, converter, store)
+		manyJobs(8, &createJobsOpts{
+			queue:  queue,
+			jobSet: "job-set-2",
+			state:  lookout.JobPending,
+		}, converter, store)
+		manyJobs(6, &createJobsOpts{
+			queue:  queue,
+			jobSet: "job-set-2",
+			state:  lookout.JobRunning,
+		}, converter, store)
+		manyJobs(5, &createJobsOpts{
+			queue:  queue,
+			jobSet: "job-set-2",
+			state:  lookout.JobFailed,
+		}, converter, store)
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
@@ -260,6 +385,335 @@ func TestGroupByWithFilters(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+
+		manyJobs(5, &createJobsOpts{
+			queue:         queue,
+			jobSet:        "job-set-1",
+			submittedTime: pointer.Time(baseTime.Add(-2 * time.Minute)),
+		}, converter, store)
+		manyJobs(5, &createJobsOpts{
+			queue:         queue,
+			jobSet:        "job-set-1",
+			submittedTime: pointer.Time(baseTime.Add(-1 * time.Minute)),
+		}, converter, store)
+		manyJobs(5, &createJobsOpts{
+			queue:         queue,
+			jobSet:        "job-set-1",
+			submittedTime: pointer.Time(baseTime),
+		}, converter, store)
+
+		manyJobs(4, &createJobsOpts{
+			queue:         queue,
+			jobSet:        "job-set-2",
+			submittedTime: pointer.Time(baseTime.Add(-6 * time.Minute)),
+		}, converter, store)
+		manyJobs(4, &createJobsOpts{
+			queue:         queue,
+			jobSet:        "job-set-2",
+			submittedTime: pointer.Time(baseTime.Add(-5 * time.Minute)),
+		}, converter, store)
+		manyJobs(4, &createJobsOpts{
+			queue:         queue,
+			jobSet:        "job-set-2",
+			submittedTime: pointer.Time(baseTime.Add(-4 * time.Minute)),
+		}, converter, store)
+
+		manyJobs(6, &createJobsOpts{
+			queue:         queue,
+			jobSet:        "job-set-3",
+			submittedTime: pointer.Time(baseTime.Add(-9 * time.Minute)),
+		}, converter, store)
+		manyJobs(6, &createJobsOpts{
+			queue:         queue,
+			jobSet:        "job-set-3",
+			submittedTime: pointer.Time(baseTime.Add(-8 * time.Minute)),
+		}, converter, store)
+		manyJobs(6, &createJobsOpts{
+			queue:         queue,
+			jobSet:        "job-set-3",
+			submittedTime: pointer.Time(baseTime.Add(-7 * time.Minute)),
+		}, converter, store)
+
+		repo := NewSqlGroupJobsRepository(db)
+		result, err := repo.GroupBy(
+			context.TODO(),
+			[]*model.Filter{},
+			&model.Order{
+				Field:     "submitted",
+				Direction: "DESC",
+			},
+			"jobSet",
+			[]string{"submitted"},
+			0,
+			10,
+		)
+		assert.NoError(t, err)
+		assert.Len(t, result.Groups, 3)
+		assert.Equal(t, 3, result.Count)
+		assert.Equal(t, []*model.JobGroup{
+			{
+				Name:  "job-set-1",
+				Count: 15,
+				Aggregates: map[string]string{
+					"submitted": baseTime.Format(time.RFC3339),
+				},
+			},
+			{
+				Name:  "job-set-2",
+				Count: 12,
+				Aggregates: map[string]string{
+					"submitted": baseTime.Add(-4 * time.Minute).Format(time.RFC3339),
+				},
+			},
+			{
+				Name:  "job-set-3",
+				Count: 18,
+				Aggregates: map[string]string{
+					"submitted": baseTime.Add(-7 * time.Minute).Format(time.RFC3339),
+				},
+			},
+		}, result.Groups)
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+
+		manyJobs(5, &createJobsOpts{
+			queue:         "queue-1",
+			jobSet:        "job-set-1",
+			submittedTime: pointer.Time(baseTime.Add(-2 * time.Minute)),
+		}, converter, store)
+		manyJobs(5, &createJobsOpts{
+			queue:         "queue-1",
+			jobSet:        "job-set-2",
+			submittedTime: pointer.Time(baseTime.Add(-1 * time.Minute)),
+		}, converter, store)
+		manyJobs(5, &createJobsOpts{
+			queue:         "queue-1",
+			jobSet:        "job-set-3",
+			submittedTime: pointer.Time(baseTime),
+		}, converter, store)
+
+		manyJobs(4, &createJobsOpts{
+			queue:         "queue-2",
+			jobSet:        "job-set-1",
+			submittedTime: pointer.Time(baseTime.Add(-6 * time.Minute)),
+		}, converter, store)
+		manyJobs(4, &createJobsOpts{
+			queue:         "queue-2",
+			jobSet:        "job-set-2",
+			submittedTime: pointer.Time(baseTime.Add(-5 * time.Minute)),
+		}, converter, store)
+		manyJobs(4, &createJobsOpts{
+			queue:         "queue-2",
+			jobSet:        "job-set-3",
+			submittedTime: pointer.Time(baseTime.Add(-4 * time.Minute)),
+		}, converter, store)
+
+		manyJobs(6, &createJobsOpts{
+			queue:         "queue-3",
+			jobSet:        "job-set-1",
+			submittedTime: pointer.Time(baseTime.Add(-9 * time.Minute)),
+		}, converter, store)
+		manyJobs(6, &createJobsOpts{
+			queue:         "queue-3",
+			jobSet:        "job-set-2",
+			submittedTime: pointer.Time(baseTime.Add(-8 * time.Minute)),
+		}, converter, store)
+		manyJobs(6, &createJobsOpts{
+			queue:         "queue-3",
+			jobSet:        "job-set-3",
+			submittedTime: pointer.Time(baseTime.Add(-7 * time.Minute)),
+		}, converter, store)
+
+		repo := NewSqlGroupJobsRepository(db)
+		result, err := repo.GroupBy(
+			context.TODO(),
+			[]*model.Filter{},
+			&model.Order{
+				Field:     "lastTransitionTime",
+				Direction: "ASC",
+			},
+			"queue",
+			[]string{"lastTransitionTime"},
+			0,
+			10,
+		)
+		assert.NoError(t, err)
+		assert.Len(t, result.Groups, 3)
+		assert.Equal(t, 3, result.Count)
+		assert.Equal(t, []*model.JobGroup{
+			{
+				Name:  "queue-3",
+				Count: 18,
+				Aggregates: map[string]string{
+					"lastTransitionTime": baseTime.Add(-8 * time.Minute).Format(time.RFC3339),
+				},
+			},
+			{
+				Name:  "queue-2",
+				Count: 12,
+				Aggregates: map[string]string{
+					"lastTransitionTime": baseTime.Add(-5 * time.Minute).Format(time.RFC3339),
+				},
+			},
+			{
+				Name:  "queue-1",
+				Count: 15,
+				Aggregates: map[string]string{
+					"lastTransitionTime": baseTime.Add(-1 * time.Minute).Format(time.RFC3339),
+				},
+			},
+		}, result.Groups)
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestGroupJobsComplex(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+
+		testAnnotations := map[string]string{
+			"key-1": "val-1",
+			"key-2": "val-23",
+		}
+
+		manyJobs(5, &createJobsOpts{
+			queue:         queue,
+			jobSet:        "job-set-1",
+			state:         lookout.JobQueued,
+			annotations:   testAnnotations,
+			submittedTime: pointer.Time(baseTime),
+		}, converter, store)
+		manyJobs(5, &createJobsOpts{
+			queue:              queue,
+			jobSet:             "job-set-1",
+			state:              lookout.JobPending,
+			annotations:        testAnnotations,
+			submittedTime:      pointer.Time(baseTime.Add(1 * time.Minute)),
+			lastTransitionTime: pointer.Time(baseTime.Add(10 * time.Minute)),
+		}, converter, store)
+		manyJobs(5, &createJobsOpts{
+			queue:              queue,
+			jobSet:             "job-set-1",
+			state:              lookout.JobRunning,
+			annotations:        testAnnotations,
+			submittedTime:      pointer.Time(baseTime.Add(3 * time.Minute)),
+			lastTransitionTime: pointer.Time(baseTime.Add(5 * time.Minute)),
+		}, converter, store)
+		manyJobs(2, &createJobsOpts{
+			queue:              queue,
+			jobSet:             "job-set-2",
+			state:              lookout.JobPending,
+			annotations:        testAnnotations,
+			submittedTime:      pointer.Time(baseTime.Add(20 * time.Minute)),
+			lastTransitionTime: pointer.Time(baseTime.Add(50 * time.Minute)),
+		}, converter, store)
+
+		manyJobs(11, &createJobsOpts{
+			queue:  queue,
+			jobSet: jobSet,
+			state:  lookout.JobQueued,
+		}, converter, store)
+
+		manyJobs(7, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: jobSet,
+			state:  lookout.JobPending,
+		}, converter, store)
+
+		manyJobs(5, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: jobSet,
+			state:  lookout.JobRunning,
+		}, converter, store)
+
+		manyJobs(5, &createJobsOpts{
+			queue:  queue,
+			jobSet: "job-set-2",
+			state:  lookout.JobFailed,
+		}, converter, store)
+
+		repo := NewSqlGroupJobsRepository(db)
+		result, err := repo.GroupBy(
+			context.TODO(),
+			[]*model.Filter{
+				{
+					Field: "queue",
+					Match: model.MatchExact,
+					Value: queue,
+				},
+				{
+					Field: "state",
+					Match: model.MatchAnyOf,
+					Value: []string{
+						string(lookout.JobQueued),
+						string(lookout.JobPending),
+						string(lookout.JobRunning),
+					},
+				},
+				{
+					Field:        "key-1",
+					Match:        model.MatchExact,
+					Value:        "val-1",
+					IsAnnotation: true,
+				},
+				{
+					Field:        "key-2",
+					Match:        model.MatchStartsWith,
+					Value:        "val-2",
+					IsAnnotation: true,
+				},
+			},
+			&model.Order{
+				Field:     "lastTransitionTime",
+				Direction: "DESC",
+			},
+			"jobSet",
+			[]string{
+				"submitted",
+				"lastTransitionTime",
+			},
+			0,
+			10,
+		)
+		assert.NoError(t, err)
+		assert.Len(t, result.Groups, 2)
+		assert.Equal(t, 2, result.Count)
+		assert.Equal(t, result.Groups, []*model.JobGroup{
+			{
+				Name:  "job-set-2",
+				Count: 2,
+				Aggregates: map[string]string{
+					"submitted":          baseTime.Add(20 * time.Minute).Format(time.RFC3339),
+					"lastTransitionTime": baseTime.Add(50 * time.Minute).Format(time.RFC3339),
+				},
+			},
+			{
+				Name:  "job-set-1",
+				Count: 15,
+				Aggregates: map[string]string{
+					"submitted":          baseTime.Add(3 * time.Minute).Format(time.RFC3339),
+					"lastTransitionTime": baseTime.Add(5 * time.Minute).Format(time.RFC3339),
+				},
+			},
+		})
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
 func TestGroupJobsSkip(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
@@ -267,7 +721,11 @@ func TestGroupJobsSkip(t *testing.T) {
 
 		nGroups := 15
 		for i := 0; i < nGroups; i++ {
-			manyJobs(i+1, fmt.Sprintf("queue-%d", i+1), jobSet, lookout.JobQueued, make(map[string]string), converter, store)
+			manyJobs(i+1, &createJobsOpts{
+				queue:  fmt.Sprintf("queue-%d", i+1),
+				jobSet: jobSet,
+				state:  lookout.JobQueued,
+			}, converter, store)
 		}
 
 		queueGroup := func(i int) *model.JobGroup {
@@ -363,12 +821,21 @@ func TestGroupJobsSkip(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-type createJobsFn func(queue, jobSet string, annotations map[string]string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb)
+type createJobsOpts struct {
+	queue              string
+	jobSet             string
+	state              lookout.JobState
+	annotations        map[string]string
+	submittedTime      *time.Time
+	lastTransitionTime *time.Time
+}
 
-func manyJobs(n int, queue, jobSet string, state lookout.JobState, annotations map[string]string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
-	fn := getCreateJobsFn(state)
+type createJobsFn func(opts *createJobsOpts, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb)
+
+func manyJobs(n int, opts *createJobsOpts, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
+	fn := getCreateJobsFn(opts.state)
 	for i := 0; i < n; i++ {
-		fn(queue, jobSet, annotations, converter, store)
+		fn(opts, converter, store)
 	}
 }
 
@@ -387,43 +854,74 @@ func getCreateJobsFn(state lookout.JobState) createJobsFn {
 	}
 }
 
-func makeQueued(queue, jobSet string, annotations map[string]string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
+func makeQueued(opts *createJobsOpts, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
+	tSubmit := baseTime
+	if opts.submittedTime != nil {
+		tSubmit = *opts.submittedTime
+	}
+	if opts.lastTransitionTime != nil {
+		tSubmit = *opts.lastTransitionTime
+	}
 	NewJobSimulator(converter, store).
-		Submit(queue, jobSet, owner, baseTime, &JobOptions{
-			Annotations: annotations,
+		Submit(opts.queue, opts.jobSet, owner, tSubmit, &JobOptions{
+			Annotations: opts.annotations,
 		}).
 		Build()
 }
 
-func makePending(queue, jobSet string, annotations map[string]string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
+func makePending(opts *createJobsOpts, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
+	tSubmit := baseTime
+	if opts.submittedTime != nil {
+		tSubmit = *opts.submittedTime
+	}
+	lastTransitionTime := baseTime
+	if opts.lastTransitionTime != nil {
+		lastTransitionTime = *opts.lastTransitionTime
+	}
 	NewJobSimulator(converter, store).
-		Submit(queue, jobSet, owner, baseTime, &JobOptions{
-			Annotations: annotations,
+		Submit(opts.queue, opts.jobSet, owner, tSubmit, &JobOptions{
+			Annotations: opts.annotations,
 		}).
-		Pending(uuid.NewString(), cluster, baseTime).
+		Pending(uuid.NewString(), cluster, lastTransitionTime).
 		Build()
 }
 
-func makeRunning(queue, jobSet string, annotations map[string]string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
+func makeRunning(opts *createJobsOpts, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
+	tSubmit := baseTime
+	if opts.submittedTime != nil {
+		tSubmit = *opts.submittedTime
+	}
+	lastTransitionTime := baseTime
+	if opts.lastTransitionTime != nil {
+		lastTransitionTime = *opts.lastTransitionTime
+	}
 	runId := uuid.NewString()
 	NewJobSimulator(converter, store).
-		Submit(queue, jobSet, owner, baseTime, &JobOptions{
-			Annotations: annotations,
+		Submit(opts.queue, opts.jobSet, owner, tSubmit, &JobOptions{
+			Annotations: opts.annotations,
 		}).
-		Pending(runId, cluster, baseTime).
-		Running(runId, cluster, baseTime).
+		Pending(runId, cluster, lastTransitionTime.Add(-1*time.Minute)).
+		Running(runId, cluster, lastTransitionTime).
 		Build()
 }
 
-func makeFailed(queue, jobSet string, annotations map[string]string, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
+func makeFailed(opts *createJobsOpts, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
+	tSubmit := baseTime
+	if opts.submittedTime != nil {
+		tSubmit = *opts.submittedTime
+	}
+	lastTransitionTime := baseTime
+	if opts.lastTransitionTime != nil {
+		lastTransitionTime = *opts.lastTransitionTime
+	}
 	runId := uuid.NewString()
 	NewJobSimulator(converter, store).
-		Submit(queue, jobSet, owner, baseTime, &JobOptions{
-			Annotations: annotations,
+		Submit(opts.queue, opts.jobSet, owner, tSubmit, &JobOptions{
+			Annotations: opts.annotations,
 		}).
-		Pending(runId, cluster, baseTime).
-		Running(runId, cluster, baseTime).
-		RunFailed(runId, node, 1, "error", baseTime).
-		Failed(node, 1, "error", baseTime).
+		Pending(runId, cluster, lastTransitionTime.Add(-2*time.Minute)).
+		Running(runId, cluster, lastTransitionTime.Add(-1*time.Minute)).
+		RunFailed(runId, node, 1, "error", lastTransitionTime).
+		Failed(node, 1, "error", lastTransitionTime).
 		Build()
 }

@@ -6,6 +6,7 @@ export enum JobState {
   Succeeded = "SUCCEEDED",
   Failed = "FAILED",
   Cancelled = "CANCELLED",
+  Preempted = "PREEMPTED",
 }
 
 export const jobStateDisplayInfo: Record<JobState, ColoredState> = {
@@ -15,9 +16,10 @@ export const jobStateDisplayInfo: Record<JobState, ColoredState> = {
   [JobState.Succeeded]: { displayName: "Succeeded", color: "#0000ff" },
   [JobState.Failed]: { displayName: "Failed", color: "#ff0000" },
   [JobState.Cancelled]: { displayName: "Cancelled", color: "#999999" },
+  [JobState.Preempted]: { displayName: "Preempted", color: "#f8bbd0" },
 }
 
-const terminatedJobStates = new Set([JobState.Succeeded, JobState.Failed, JobState.Cancelled])
+const terminatedJobStates = new Set([JobState.Succeeded, JobState.Failed, JobState.Cancelled, JobState.Preempted])
 export const isTerminatedJobState = (state: JobState) => terminatedJobStates.has(state)
 
 export enum JobRunState {
@@ -43,7 +45,7 @@ export const jobRunStateDisplayInfo: Record<JobRunState, { displayName: string }
   [JobRunState.RunLeaseReturned]: { displayName: "Lease Returned" },
   [JobRunState.RunPreempted]: { displayName: "Preempted" },
   [JobRunState.RunLeaseExpired]: { displayName: "Lease Expired" },
-  [JobRunState.RunMaxRunsExceeded]: { displayName: "Max Runs Expired" },
+  [JobRunState.RunMaxRunsExceeded]: { displayName: "Max Runs Exceeded" },
 }
 
 type ColoredState = {
@@ -82,7 +84,6 @@ export type JobRun = {
   started?: string
   finished?: string
   jobRunState: JobRunState
-  error?: string
   exitCode?: number
 }
 
@@ -97,6 +98,7 @@ export enum Match {
 }
 
 export type JobFilter = {
+  isAnnotation?: boolean
   field: string
   value: string | number | string[] | number[]
   match: Match

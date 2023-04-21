@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
@@ -14,14 +14,14 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/utils/pointer"
 
-	"github.com/G-Research/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookout/repository"
-	"github.com/G-Research/armada/internal/lookoutingester/model"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookout/repository"
+	"github.com/armadaproject/armada/internal/lookoutingester/model"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type HasNodeName interface {
@@ -87,6 +87,7 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence, u
 			*armadaevents.EventSequence_Event_ReprioritiseJobSet,
 			*armadaevents.EventSequence_Event_CancelJobSet,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
+			*armadaevents.EventSequence_Event_PartitionMarker,
 			*armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			log.Debugf("Ignoring event type %T", event)
 		default:
@@ -111,6 +112,10 @@ func (c *InstructionConverter) handleSubmitJob(
 	if err != nil {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
+	}
+	if event.IsDuplicate {
+		log.Debugf("job %s is a duplicate, ignoring", jobId)
+		return nil
 	}
 
 	// Try and marshall the job Json. This shouldn't go wrong but if it does, it'c not a fatal error

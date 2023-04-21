@@ -2,6 +2,7 @@ package instructions
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"time"
@@ -13,15 +14,15 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/pointer"
 
-	"github.com/G-Research/armada/internal/common/compress"
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/common/eventutil"
-	"github.com/G-Research/armada/internal/common/ingest"
-	"github.com/G-Research/armada/internal/common/ingest/metrics"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/internal/lookoutingesterv2/model"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookoutingesterv2/model"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const (
@@ -102,13 +103,15 @@ func (c *InstructionConverter) convertSequence(
 			err = c.handleJobRunErrors(ts, event.GetJobRunErrors(), update)
 		case *armadaevents.EventSequence_Event_JobDuplicateDetected:
 			err = c.handleJobDuplicateDetected(ts, event.GetJobDuplicateDetected(), update)
+		case *armadaevents.EventSequence_Event_JobRunPreempted:
+			err = c.handleJobRunPreempted(ts, event.GetJobRunPreempted(), update)
 		case *armadaevents.EventSequence_Event_CancelJob:
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
 		case *armadaevents.EventSequence_Event_ResourceUtilisation:
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:
-		case *armadaevents.EventSequence_Event_JobRunPreempted:
+		case *armadaevents.EventSequence_Event_PartitionMarker:
 			log.Debugf("Ignoring event type %T", event)
 		default:
 			log.Warnf("Ignoring unknown event type %T", event)
@@ -132,6 +135,10 @@ func (c *InstructionConverter) handleSubmitJob(
 	if err != nil {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
+	}
+	if event.IsDuplicate {
+		log.Debugf("job %s is a duplicate, ignoring", jobId)
+		return nil
 	}
 
 	// Try and marshall the job proto. This shouldn't go wrong but if it does, it's not a fatal error
@@ -478,6 +485,64 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 		}
 	}
 	return nil
+}
+
+func (c *InstructionConverter) handleJobRunPreempted(ts time.Time, event *armadaevents.JobRunPreempted, update *model.InstructionSet) error {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(event.PreemptedJobId)
+	if err != nil {
+		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		return err
+	}
+
+	runId, err := armadaevents.UuidStringFromProtoUuid(event.PreemptedRunId)
+	if err != nil {
+		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		return err
+	}
+
+	// Update Job
+	job := model.UpdateJobInstruction{
+		JobId:                     jobId,
+		State:                     pointer.Int32(int32(lookout.JobPreemptedOrdinal)),
+		LastTransitionTime:        &ts,
+		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
+		LatestRunId:               &runId,
+	}
+
+	update.JobsToUpdate = append(update.JobsToUpdate, &job)
+
+	// Update job run
+	errorString := "preempted by non armada pod"
+	preemptiveJobId, err := parseUlidString(event.PreemptiveJobId)
+	if err != nil {
+		log.WithError(err).Debug("failed to convert preemptive job id")
+	} else {
+		errorString = fmt.Sprintf("preempted by job %s", preemptiveJobId)
+	}
+
+	jobRun := model.UpdateJobRunInstruction{
+		RunId:       runId,
+		JobRunState: pointer.Int32(lookout.JobRunPreemptedOrdinal),
+		Finished:    &ts,
+		Error:       tryCompressError(jobId, errorString, c.compressor),
+	}
+	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
+	return nil
+}
+
+func parseUlidString(id *armadaevents.Uuid) (string, error) {
+	if id == nil {
+		return "", errors.New("uuid is nil")
+	}
+	// Likely wrong if it is zeroed
+	if id.High64 == 0 && id.Low64 == 0 {
+		return "", errors.New("")
+	}
+	stringId, err := armadaevents.UlidStringFromProtoUuid(id)
+	if err != nil {
+		return "", errors.Wrap(err, "could not convert non-nil preemptive job id")
+	}
+	return stringId, nil
 }
 
 func tryCompressError(jobId string, errorString string, compressor compress.Compressor) []byte {

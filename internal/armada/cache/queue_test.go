@@ -11,11 +11,10 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/G-Research/armada/internal/armada/configuration"
-	"github.com/G-Research/armada/internal/armada/repository"
-	"github.com/G-Research/armada/internal/common/util"
-	"github.com/G-Research/armada/pkg/api"
-	"github.com/G-Research/armada/pkg/client/queue"
+	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 func TestCalculateRunningJobStats(t *testing.T) {
@@ -249,7 +248,7 @@ func TestGetQueuedJobMetrics_SkipsWhenJobOnInactiveCluster(t *testing.T) {
 }
 
 func createQueueCache(redisClient redis.UniversalClient, clock util.Clock) *QueueCache {
-	jobRepo := repository.NewRedisJobRepository(redisClient, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
+	jobRepo := repository.NewRedisJobRepository(redisClient)
 	queueRepo := repository.NewRedisQueueRepository(redisClient)
 	schedulingInfoRepo := repository.NewRedisSchedulingInfoRepository(redisClient)
 
@@ -298,10 +297,10 @@ func addQueue(t *testing.T, r repository.QueueRepository, queueName string) *que
 
 func addRunningJob(t *testing.T, r repository.JobRepository, job *api.Job, cluster string, startTime time.Time) *api.Job {
 	job = addJob(t, r, job)
-	leased, e := r.TryLeaseJobs(cluster, job.Queue, []*api.Job{job})
+	leased, e := r.TryLeaseJobs(cluster, map[string][]string{job.Queue: {job.Id}})
 	assert.NoError(t, e)
 	assert.Equal(t, 1, len(leased))
-	assert.Equal(t, job.Id, leased[0].Id)
+	assert.Equal(t, job.Id, leased[job.Queue][0])
 	jobErrors, e := r.UpdateStartTime([]*repository.JobStartInfo{{
 		JobId:     job.Id,
 		ClusterId: cluster,

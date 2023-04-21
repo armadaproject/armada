@@ -9,15 +9,18 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/constraints"
+	"golang.org/x/exp/maps"
 
-	schedulerdb "github.com/G-Research/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/common/util"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
 
 func TestWriteOps(t *testing.T) {
-	jobIds := make([]uuid.UUID, 10)
+	jobIds := make([]string, 10)
 	for i := range jobIds {
-		jobIds[i] = uuid.New()
+		jobIds[i] = util.ULID().String()
 	}
 	runIds := make([]uuid.UUID, 10)
 	for i := range runIds {
@@ -51,6 +54,12 @@ func TestWriteOps(t *testing.T) {
 				runIds[2]: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]},
 				runIds[3]: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]},
 			},
+			UpdateJobQueuedState{
+				jobIds[0]: &JobQueuedStateUpdate{Queued: false, QueuedStateVersion: 1},
+				jobIds[1]: &JobQueuedStateUpdate{Queued: false, QueuedStateVersion: 1},
+				jobIds[2]: &JobQueuedStateUpdate{Queued: false, QueuedStateVersion: 1},
+				jobIds[3]: &JobQueuedStateUpdate{Queued: false, QueuedStateVersion: 1},
+			},
 		}},
 		"UpdateJobSetPriorities": {Ops: []DbOperation{
 			InsertJobs{
@@ -73,20 +82,26 @@ func TestWriteOps(t *testing.T) {
 				jobIds[1]: 3,
 			},
 		}},
-		"MarkJobSetsCancelled": {Ops: []DbOperation{
+		"MarkJobSetsCancelRequested": {Ops: []DbOperation{
 			InsertJobs{
 				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
 				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
 				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"},
 				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
-			InsertRuns{
-				runIds[0]: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0], JobSet: "set1"},
-				runIds[1]: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1], JobSet: "set2"},
-				runIds[2]: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2], JobSet: "set1"},
-				runIds[3]: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3], JobSet: "set2"},
+			MarkJobSetsCancelRequested{"set1": true},
+		}},
+		"MarkJobsCancelRequested": {Ops: []DbOperation{
+			InsertJobs{
+				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
+				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
+				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"},
+				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
-			MarkJobSetsCancelled{"set1": true},
+			MarkJobsCancelRequested{
+				jobIds[0]: true,
+				jobIds[1]: true,
+			},
 		}},
 		"MarkJobsCancelled": {Ops: []DbOperation{
 			InsertJobs{
@@ -94,12 +109,6 @@ func TestWriteOps(t *testing.T) {
 				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
 				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"},
 				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
-			},
-			InsertRuns{
-				runIds[0]: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]},
-				runIds[1]: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]},
-				runIds[2]: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]},
-				runIds[3]: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]},
 			},
 			MarkJobsCancelled{
 				jobIds[0]: true,
@@ -148,6 +157,36 @@ func TestWriteOps(t *testing.T) {
 				runIds[1]: true,
 			},
 		}},
+		"UpdateJobSchedulingInfo": {Ops: []DbOperation{
+			InsertJobs{
+				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
+				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
+			},
+			UpdateJobSchedulingInfo{
+				jobIds[0]: &JobSchedulingInfoUpdate{
+					JobSchedulingInfo:        []byte("job-0 info update"),
+					JobSchedulingInfoVersion: 1,
+				},
+				jobIds[1]: &JobSchedulingInfoUpdate{
+					JobSchedulingInfo:        []byte("job-1 info update"),
+					JobSchedulingInfoVersion: 2,
+				},
+			},
+		}},
+		"Insert JobRunErrors": {Ops: []DbOperation{
+			InsertJobRunErrors{
+				runIds[0]: &schedulerdb.JobRunError{
+					RunID: runIds[0],
+					JobID: jobIds[0],
+					Error: []byte{0x1},
+				},
+				runIds[1]: &schedulerdb.JobRunError{
+					RunID: runIds[1],
+					JobID: jobIds[1],
+					Error: []byte{0x2},
+				},
+			},
+		}},
 		"MarkRunsFailed": {Ops: []DbOperation{
 			InsertJobs{
 				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
@@ -162,8 +201,9 @@ func TestWriteOps(t *testing.T) {
 				runIds[3]: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]},
 			},
 			MarkRunsFailed{
-				runIds[0]: true,
-				runIds[1]: true,
+				runIds[0]: &JobRunFailed{LeaseReturned: true},
+				runIds[1]: &JobRunFailed{LeaseReturned: true, RunAttempted: true},
+				runIds[2]: &JobRunFailed{LeaseReturned: false},
 			},
 		}},
 		"MarkRunsRunning": {Ops: []DbOperation{
@@ -184,12 +224,22 @@ func TestWriteOps(t *testing.T) {
 				runIds[1]: true,
 			},
 		}},
-		"InsertRunAssignments": {Ops: []DbOperation{
-			InsertRunAssignments{
-				runIds[0]: &schedulerdb.JobRunAssignment{RunID: runIds[0]},
-			},
-			InsertRunAssignments{
-				runIds[1]: &schedulerdb.JobRunAssignment{RunID: runIds[1]},
+		"Insert PositionMarkers": {Ops: []DbOperation{
+			&InsertPartitionMarker{
+				markers: []*schedulerdb.Marker{
+					{
+						GroupID:     uuid.New(),
+						PartitionID: 1,
+					},
+					{
+						GroupID:     uuid.New(),
+						PartitionID: 3,
+					},
+					{
+						GroupID:     uuid.New(),
+						PartitionID: 2,
+					},
+				},
 			},
 		}},
 	}
@@ -220,13 +270,9 @@ func addDefaultValues(op DbOperation) DbOperation {
 			job.SchedulingInfo = make([]byte, 0)
 		}
 	case InsertRuns:
-	case InsertRunAssignments:
-		for _, v := range o {
-			v.Assignment = make([]byte, 0)
-		}
 	case UpdateJobSetPriorities:
-	case MarkJobSetsCancelled:
-	case MarkJobsCancelled:
+	case MarkJobSetsCancelRequested:
+	case MarkJobsCancelRequested:
 	case MarkJobsSucceeded:
 	case MarkJobsFailed:
 	case UpdateJobPriorities:
@@ -249,9 +295,12 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 
 	// Read back the state from the db to compare.
 	queries := schedulerdb.New(schedulerDb.db)
+	selectNewJobs := func(ctx context.Context, serial int64) ([]schedulerdb.Job, error) {
+		return queries.SelectNewJobs(ctx, schedulerdb.SelectNewJobsParams{Serial: serial, Limit: 1000})
+	}
 	switch expected := op.(type) {
 	case InsertJobs:
-		jobs, err := queries.SelectNewJobs(ctx, serials["jobs"])
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -265,13 +314,15 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 				v.LastModified = job.LastModified
 			}
 		}
-		assert.Equal(t, expected, actual)
+		for k, v := range expected {
+			assert.Equal(t, v, actual[k])
+		}
 	case InsertRuns:
-		jobs, err := queries.SelectNewJobs(ctx, 0)
+		jobs, err := selectNewJobs(ctx, 0)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		jobIds := make([]uuid.UUID, 0)
+		jobIds := make([]string, 0)
 		for _, job := range jobs {
 			jobIds = append(jobIds, job.JobID)
 		}
@@ -294,24 +345,36 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			}
 		}
 		assert.Equal(t, expected, actual)
-	case InsertRunAssignments:
-		as, err := queries.SelectNewRunAssignments(ctx, serials["assignments"])
+	case UpdateJobQueuedState:
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		actual := make(InsertRunAssignments)
-		for _, a := range as {
-			a := a
-			actual[a.RunID] = &a
-			serials["assignments"] = max(serials["assignments"], a.Serial)
-			if e, ok := expected[a.RunID]; ok {
-				e.Serial = a.Serial
-				e.LastModified = a.LastModified
+		numChanged := 0
+		for _, job := range jobs {
+			if e, ok := expected[job.JobID]; ok {
+				assert.Equal(t, e.Queued, job.Queued)
+				assert.Equal(t, e.QueuedStateVersion, job.QueuedVersion)
+				numChanged++
 			}
 		}
-		assert.Equal(t, expected, actual)
+		assert.Greater(t, numChanged, 0)
+	case UpdateJobSchedulingInfo:
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		numChanged := 0
+		for _, job := range jobs {
+			if e, ok := expected[job.JobID]; ok {
+				assert.Equal(t, e.JobSchedulingInfoVersion, job.SchedulingInfoVersion)
+				assert.Equal(t, e.JobSchedulingInfo, job.SchedulingInfo)
+				numChanged++
+			}
+		}
+		assert.Greater(t, numChanged, 0)
 	case UpdateJobSetPriorities:
-		jobs, err := queries.SelectNewJobs(ctx, serials["jobs"])
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -323,40 +386,43 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			}
 		}
 		assert.Greater(t, numChanged, 0)
-	case MarkJobSetsCancelled:
-		jobs, err := queries.SelectNewJobs(ctx, serials["jobs"])
+	case MarkJobSetsCancelRequested:
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		numChanged := 0
-		jobIds := make([]uuid.UUID, 0)
+		jobIds := make([]string, 0)
 		for _, job := range jobs {
 			if _, ok := expected[job.JobSet]; ok {
-				assert.True(t, job.Cancelled)
+				assert.True(t, job.CancelByJobsetRequested)
 				numChanged++
 				jobIds = append(jobIds, job.JobID)
 			}
 		}
 		assert.Greater(t, numChanged, 0)
-
-		runs, err := queries.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{
-			Serial: serials["runs"],
-			JobIds: jobIds,
-		})
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		assert.Greater(t, len(runs), 0)
-		for _, run := range runs {
-			assert.True(t, run.Cancelled)
-		}
-	case MarkJobsCancelled:
-		jobs, err := queries.SelectNewJobs(ctx, serials["jobs"])
+	case MarkJobsCancelRequested:
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
 			return errors.WithStack(err)
 		}
 		numChanged := 0
-		jobIds := make([]uuid.UUID, 0)
+		jobIds := make([]string, 0)
+		for _, job := range jobs {
+			if _, ok := expected[job.JobID]; ok {
+				assert.True(t, job.CancelRequested)
+				numChanged++
+				jobIds = append(jobIds, job.JobID)
+			}
+		}
+		assert.Equal(t, len(expected), numChanged)
+	case MarkJobsCancelled:
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		numChanged := 0
+		jobIds := make([]string, 0)
 		for _, job := range jobs {
 			if _, ok := expected[job.JobID]; ok {
 				assert.True(t, job.Cancelled)
@@ -364,21 +430,8 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 				jobIds = append(jobIds, job.JobID)
 			}
 		}
-		assert.Equal(t, len(expected), numChanged)
-
-		runs, err := queries.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{
-			Serial: serials["runs"],
-			JobIds: jobIds,
-		})
-		if err != nil {
-			return errors.WithStack(err)
-		}
-		assert.Greater(t, len(runs), 0)
-		for _, run := range runs {
-			assert.True(t, run.Cancelled)
-		}
 	case MarkJobsSucceeded:
-		jobs, err := queries.SelectNewJobs(ctx, serials["jobs"])
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -391,7 +444,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		}
 		assert.Equal(t, len(expected), numChanged)
 	case MarkJobsFailed:
-		jobs, err := queries.SelectNewJobs(ctx, serials["jobs"])
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -404,7 +457,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		}
 		assert.Equal(t, len(expected), numChanged)
 	case UpdateJobPriorities:
-		jobs, err := queries.SelectNewJobs(ctx, serials["jobs"])
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -417,11 +470,11 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		}
 		assert.Equal(t, len(expected), numChanged)
 	case MarkRunsSucceeded:
-		jobs, err := queries.SelectNewJobs(ctx, 0)
+		jobs, err := selectNewJobs(ctx, 0)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		jobIds := make([]uuid.UUID, 0)
+		jobIds := make([]string, 0)
 		for _, job := range jobs {
 			jobIds = append(jobIds, job.JobID)
 		}
@@ -442,11 +495,11 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		}
 		assert.Equal(t, len(expected), len(runs))
 	case MarkRunsFailed:
-		jobs, err := queries.SelectNewJobs(ctx, 0)
+		jobs, err := selectNewJobs(ctx, 0)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		jobIds := make([]uuid.UUID, 0)
+		jobIds := make([]string, 0)
 		for _, job := range jobs {
 			jobIds = append(jobIds, job.JobID)
 		}
@@ -460,18 +513,20 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		}
 		numChanged := 0
 		for _, run := range runs {
-			if _, ok := expected[run.RunID]; ok {
+			if expectedRun, ok := expected[run.RunID]; ok {
 				assert.True(t, run.Failed)
+				assert.Equal(t, expectedRun.LeaseReturned, run.Returned)
+				assert.Equal(t, expectedRun.RunAttempted, run.RunAttempted)
 				numChanged++
 			}
 		}
 		assert.Equal(t, len(expected), len(runs))
 	case MarkRunsRunning:
-		jobs, err := queries.SelectNewJobs(ctx, 0)
+		jobs, err := selectNewJobs(ctx, 0)
 		if err != nil {
 			return errors.WithStack(err)
 		}
-		jobIds := make([]uuid.UUID, 0)
+		jobIds := make([]string, 0)
 		for _, job := range jobs {
 			jobIds = append(jobIds, job.JobID)
 		}
@@ -491,6 +546,31 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			}
 		}
 		assert.Equal(t, len(expected), len(runs))
+	case InsertJobRunErrors:
+		expectedIds := maps.Keys(expected)
+		as, err := queries.SelectRunErrorsById(ctx, expectedIds)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		actual := make(InsertJobRunErrors, len(as))
+		for _, a := range as {
+			actual[a.RunID] = &schedulerdb.JobRunError{
+				RunID: a.RunID,
+				JobID: a.JobID,
+				Error: a.Error,
+			}
+		}
+		assert.Equal(t, expected, actual)
+	case *InsertPartitionMarker:
+		actual, err := queries.SelectAllMarkers(ctx)
+		require.NoError(t, err)
+		require.Equal(t, len(expected.markers), len(actual))
+		for i, expectedMarker := range actual {
+			actualMarker := actual[i]
+			assert.Equal(t, expectedMarker.GroupID, actualMarker.GroupID)
+			assert.Equal(t, expectedMarker.PartitionID, actualMarker.PartitionID)
+			assert.Equal(t, expectedMarker.Created, actualMarker.Created)
+		}
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
 	}

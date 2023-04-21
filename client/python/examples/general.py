@@ -54,7 +54,7 @@ def wait_for_job_event(client, event_stream, job_id: str, event_state: EventType
 
     Will automatically return if the event is considered terminal.
     A list of terminal events can be found here:
-    https://github.com/G-Research/armada/blob/master/internal/jobservice/eventstojobs/event_job_response_test.go
+    https://github.com/armadaproject/armada/blob/master/internal/jobservice/eventstojobs/event_job_response_test.go
 
     Please note that this is shown for demonstration purposes only.
     Subscribing to events like this to watch individual events like
@@ -69,7 +69,6 @@ def wait_for_job_event(client, event_stream, job_id: str, event_state: EventType
 
     # Contains all the possible message types
     for event in event_stream:
-
         event = client.unmarshal_event_response(event)
         if event.message.job_id == job_id:
             if event.type == event_state:
@@ -131,7 +130,6 @@ def creating_queues_example(client, queue):
     except grpc.RpcError as e:
         code = e.code()
         if code == grpc.StatusCode.ALREADY_EXISTS:
-
             print(f"Queue {queue} already exists")
             queue_req = client.create_queue_request(name=queue, priority_factor=1)
             client.update_queue(queue_req)

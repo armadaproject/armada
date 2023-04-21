@@ -10,13 +10,13 @@ import (
 
 func TestNodeSchedulingRequirementsMet(t *testing.T) {
 	tests := map[string]struct {
-		Node          *Node
-		Req           *PodRequirements
-		ExpectSuccess bool
+		node          *Node
+		req           *PodRequirements
+		expectSuccess bool
 	}{
 		"nil taints and labels": {
-			Node: &Node{},
-			Req: &PodRequirements{
+			node: &Node{},
+			req: &PodRequirements{
 				Tolerations: []v1.Toleration{{Key: "foo", Value: "foo"}},
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
@@ -36,14 +36,14 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 					},
 				},
 			},
-			ExpectSuccess: false,
+			expectSuccess: false,
 		},
 		"no taints or labels": {
-			Node: &Node{
+			node: &Node{
 				Taints: make([]v1.Taint, 0),
 				Labels: make(map[string]string),
 			},
-			Req: &PodRequirements{
+			req: &PodRequirements{
 				Tolerations: []v1.Toleration{{Key: "foo", Value: "foo"}},
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
@@ -63,32 +63,32 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 					},
 				},
 			},
-			ExpectSuccess: false,
+			expectSuccess: false,
 		},
 		"tolerated taints": {
-			Node: &Node{
+			node: &Node{
 				Taints: []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 				Labels: nil,
 			},
-			Req: &PodRequirements{
+			req: &PodRequirements{
 				Tolerations: []v1.Toleration{{Key: "foo", Value: "foo"}},
 			},
-			ExpectSuccess: true,
+			expectSuccess: true,
 		},
 		"untolerated taints": {
-			Node: &Node{
+			node: &Node{
 				Taints: []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 				Labels: nil,
 			},
-			Req:           &PodRequirements{},
-			ExpectSuccess: false,
+			req:           &PodRequirements{},
+			expectSuccess: false,
 		},
 		"matched node affinity": {
-			Node: &Node{
+			node: &Node{
 				Taints: nil,
 				Labels: map[string]string{"bar": "bar"},
 			},
-			Req: &PodRequirements{
+			req: &PodRequirements{
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
@@ -107,11 +107,11 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 					},
 				},
 			},
-			ExpectSuccess: true,
+			expectSuccess: true,
 		},
 		"unmatched node affinity": {
-			Node: &Node{},
-			Req: &PodRequirements{
+			node: &Node{},
+			req: &PodRequirements{
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
@@ -130,14 +130,14 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 					},
 				},
 			},
-			ExpectSuccess: false,
+			expectSuccess: false,
 		},
 		"tolerated taints and matched node affinity": {
-			Node: &Node{
+			node: &Node{
 				Taints: []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 				Labels: map[string]string{"bar": "bar"},
 			},
-			Req: &PodRequirements{
+			req: &PodRequirements{
 				Tolerations: []v1.Toleration{{Key: "foo", Value: "foo"}},
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
@@ -157,14 +157,14 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 					},
 				},
 			},
-			ExpectSuccess: true,
+			expectSuccess: true,
 		},
 		"untolerated taints and matched node affinity": {
-			Node: &Node{
+			node: &Node{
 				Taints: []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 				Labels: map[string]string{"bar": "bar"},
 			},
-			Req: &PodRequirements{
+			req: &PodRequirements{
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
@@ -183,14 +183,14 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 					},
 				},
 			},
-			ExpectSuccess: false,
+			expectSuccess: false,
 		},
 		"tolerated taints and unmatched node affinity": {
-			Node: &Node{
+			node: &Node{
 				Taints: []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 				Labels: nil,
 			},
-			Req: &PodRequirements{
+			req: &PodRequirements{
 				Tolerations: []v1.Toleration{{Key: "foo", Value: "foo"}},
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
@@ -210,59 +210,59 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 					},
 				},
 			},
-			ExpectSuccess: false,
+			expectSuccess: false,
 		},
 		"matched node selector": {
-			Node: &Node{
+			node: &Node{
 				Taints: nil,
 				Labels: map[string]string{"bar": "bar"},
 			},
-			Req: &PodRequirements{
+			req: &PodRequirements{
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
-			ExpectSuccess: true,
+			expectSuccess: true,
 		},
 		"unmatched node selector": {
-			Node: &Node{},
-			Req: &PodRequirements{
+			node: &Node{},
+			req: &PodRequirements{
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
-			ExpectSuccess: false,
+			expectSuccess: false,
 		},
 		"tolerated taints and matched node selector": {
-			Node: &Node{
+			node: &Node{
 				Taints: []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 				Labels: map[string]string{"bar": "bar"},
 			},
-			Req: &PodRequirements{
+			req: &PodRequirements{
 				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
-			ExpectSuccess: true,
+			expectSuccess: true,
 		},
 		"untolerated taints and matched node selector": {
-			Node: &Node{
+			node: &Node{
 				Taints: []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 				Labels: map[string]string{"bar": "bar"},
 			},
-			Req: &PodRequirements{
+			req: &PodRequirements{
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
-			ExpectSuccess: false,
+			expectSuccess: false,
 		},
 		"tolerated taints and unmatched node selector": {
-			Node: &Node{
+			node: &Node{
 				Taints: []v1.Taint{{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule}},
 				Labels: nil,
 			},
-			Req: &PodRequirements{
+			req: &PodRequirements{
 				Tolerations:  []v1.Toleration{{Key: "foo", Value: "foo"}},
 				NodeSelector: map[string]string{"bar": "bar"},
 			},
-			ExpectSuccess: false,
+			expectSuccess: false,
 		},
 		"sufficient cpu": {
-			Node: &Node{
+			node: &Node{
 				AllocatableByPriorityAndResource: AllocatableByPriorityAndResourceType{
 					0: ResourceList{
 						Resources: map[string]resource.Quantity{
@@ -276,7 +276,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 					},
 				},
 			},
-			Req: &PodRequirements{
+			req: &PodRequirements{
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: v1.ResourceList{
 						"cpu": resource.MustParse("1"),
@@ -284,10 +284,10 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 				},
 				Priority: 0,
 			},
-			ExpectSuccess: true,
+			expectSuccess: true,
 		},
 		"insufficient cpu": {
-			Node: &Node{
+			node: &Node{
 				AllocatableByPriorityAndResource: AllocatableByPriorityAndResourceType{
 					0: ResourceList{
 						Resources: map[string]resource.Quantity{
@@ -301,7 +301,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 					},
 				},
 			},
-			Req: &PodRequirements{
+			req: &PodRequirements{
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: v1.ResourceList{
 						"cpu": resource.MustParse("1"),
@@ -309,10 +309,10 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 				},
 				Priority: 0,
 			},
-			ExpectSuccess: false,
+			expectSuccess: false,
 		},
 		"sufficient cpu at priority": {
-			Node: &Node{
+			node: &Node{
 				AllocatableByPriorityAndResource: AllocatableByPriorityAndResourceType{
 					0: ResourceList{
 						Resources: map[string]resource.Quantity{
@@ -331,7 +331,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 					},
 				},
 			},
-			Req: &PodRequirements{
+			req: &PodRequirements{
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: v1.ResourceList{
 						"cpu": resource.MustParse("1"),
@@ -339,10 +339,10 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 				},
 				Priority: 1,
 			},
-			ExpectSuccess: true,
+			expectSuccess: true,
 		},
 		"insufficient cpu at priority": {
-			Node: &Node{
+			node: &Node{
 				AllocatableByPriorityAndResource: AllocatableByPriorityAndResourceType{
 					0: ResourceList{
 						Resources: map[string]resource.Quantity{
@@ -361,7 +361,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 					},
 				},
 			},
-			Req: &PodRequirements{
+			req: &PodRequirements{
 				ResourceRequirements: v1.ResourceRequirements{
 					Requests: v1.ResourceList{
 						"cpu": resource.MustParse("1"),
@@ -369,14 +369,14 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 				},
 				Priority: 0,
 			},
-			ExpectSuccess: false,
+			expectSuccess: false,
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			matches, _, reason, err := tc.Node.PodRequirementsMet(tc.Req)
+			matches, _, reason, err := tc.node.PodRequirementsMet(tc.req.Priority, tc.req)
 			assert.NoError(t, err)
-			if tc.ExpectSuccess { // TODO: Test score set correctly.
+			if tc.expectSuccess { // TODO: Test score set correctly.
 				assert.True(t, matches)
 				assert.Nil(t, reason)
 			} else {

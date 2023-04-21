@@ -14,8 +14,8 @@ import (
 	"github.com/jcmturner/gokrb5/v8/spnego"
 	"google.golang.org/grpc"
 
-	protoutil "github.com/G-Research/armada/internal/common/grpc/protoutils"
-	"github.com/G-Research/armada/internal/common/util"
+	protoutil "github.com/armadaproject/armada/internal/common/grpc/protoutils"
+	"github.com/armadaproject/armada/internal/common/util"
 )
 
 // CreateGatewayHandler configures the gRPC API gateway

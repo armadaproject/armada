@@ -12,9 +12,9 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/G-Research/armada/internal/common/database"
-	"github.com/G-Research/armada/internal/common/database/lookout"
-	"github.com/G-Research/armada/internal/lookoutv2/model"
+	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
 type GetJobsRepository interface {
@@ -90,6 +90,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 		if err != nil {
 			return err
 		}
+		logQuery(countQuery)
 		rows, err := tx.Query(ctx, countQuery.Sql, countQuery.Args...)
 		if err != nil {
 			return err
@@ -100,6 +101,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 		}
 
 		createTempTableQuery, tempTableName := NewQueryBuilder(r.lookoutTables).CreateTempTable()
+		logQuery(createTempTableQuery)
 		_, err = tx.Exec(ctx, createTempTableQuery.Sql, createTempTableQuery.Args...)
 		if err != nil {
 			return err
@@ -109,6 +111,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 		if err != nil {
 			return err
 		}
+		logQuery(createTempTableQuery)
 		_, err = tx.Exec(ctx, insertQuery.Sql, insertQuery.Args...)
 		if err != nil {
 			return err

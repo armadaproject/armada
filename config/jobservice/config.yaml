@@ -1,7 +1,24 @@
 grpcPort: 60003
 httpPort: 8090
-subscribeJobSetTime: 10000
-databasePath: "jobservice/jobservice.db"
+purgeJobSetTime: 1000
+subscribeJobSetTime: 100
+# databaseType can be either 'postgres' or 'sqlite'
+databaseType: "postgres"
+# databasePath specifies the location of the back-end
+# storage file when using database type 'sqlite'
+databasePath: "/var/jobservice.db"
+# Connection details when using database type 'postgres'
+postgresConfig:
+  poolMaxConns: 50
+  poolMinConns: 10
+  poolMaxConnLifetime: 30m
+  connection:
+    host: postgres
+    port: 5432
+    user: postgres
+    password: psw
+    dbname: postgres
+    sslmode: disable
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m
@@ -12,4 +29,3 @@ grpc:
     permitWithoutStream: false
 apiConnection:
   armadaUrl: "server:50051"
-  forceNoTls: true
