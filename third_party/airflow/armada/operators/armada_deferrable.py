@@ -28,7 +28,6 @@ from airflow.models import BaseOperator
 from airflow.triggers.base import BaseTrigger, TriggerEvent
 
 from armada_client.client import ArmadaClient
-from armada_client.asyncio_client import ArmadaAsyncIOClient
 from armada.operators.jobservice import JobServiceClient
 from armada.operators.jobservice_asyncio import JobServiceAsyncIOClient
 
@@ -174,68 +173,6 @@ class ArmadaDeferrableOperator(BaseOperator):
         if self.lookout_url_template is None:
             return ""
         return self.lookout_url_template.replace("<job_id>", job_id)
-
-
-# TODO: Document
-# TODO: Not sure if this is necessary, or even desirable.
-class ArmadaSubmitJobTrigger(BaseTrigger):
-    def __init__(
-        self,
-        armada_channel_args: dict,
-        job_service_channel_args: dict,
-        run_id: str,
-        armada_queue: str,
-        job_request_items,
-    ) -> None:
-        super().__init__()
-        self.armada_channel_args = GrpcChannelArguments(**armada_channel_args)
-        self.job_service_channel_args = GrpcChannelArguments(**job_service_channel_args)
-        self.run_id = run_id
-        self.armada_queue = armada_queue
-        self.job_request_items = job_request_items
-        self.log.info("ArmadaSubmitJobTrigger.__init__ done")
-
-    def serialize(self) -> tuple:
-        self.log.info("ArmadaSubmitJobTrigger.serialize() called")
-        return (
-            "armada.operators.armada_deferrable.ArmadaSubmitJobTrigger",
-            {
-                "armada_channel_args": self.armada_channel_args.serialize(),
-                "job_service_channel_args": self.job_service_channel_args.serialize(),
-                "run_id": self.run_id,
-                "armada_queue": self.armada_queue,
-                "job_request_items": self.job_request_items,
-            },
-        )
-
-    async def run(self):
-        job_service_client = JobServiceAsyncIOClient(
-            channel=self.job_service_channel_args.aio_channel()
-        )
-
-        # Health Check
-        self.log.info("ArmadaSubmitJobTrigger.run() doing health check.")
-
-        health = await job_service_client.health()
-        if health.status != jobservice_pb2.HealthCheckResponse.SERVING:
-            self.log.warn("Armada Job Service is not healthy")
-
-        await asyncio.sleep(1)
-        self.log.info("ArmadaSubmitJobTrigger.run() jobservice healthy.")
-
-        armada_client = ArmadaAsyncIOClient(
-            channel=self.armada_channel_args.aio_channel()
-        )
-
-        self.log.info("ArmadaSubmitJobTrigger.run() submitting jobs.")
-        # This allows us to use a unique id from airflow
-        # and have all jobs in a dag correspond to same jobset
-        job = await armada_client.submit_jobs(
-            queue=self.armada_queue,
-            job_set_id=self.run_id,
-            job_request_items=self.job_request_items,
-        )
-        yield TriggerEvent({"job": job})
 
 
 class ArmadaJobCompleteTrigger(BaseTrigger):
