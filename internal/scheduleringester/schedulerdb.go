@@ -8,12 +8,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/go-multierror"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 
-	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
@@ -31,42 +29,61 @@ type SchedulerDb struct {
 }
 
 func NewSchedulerDb(
-	db *pgxpool.Pool, metrics *metrics.Metrics, initialBackOff time.Duration, maxBackOff time.Duration, lockTimeout time.Duration,
+	db *pgxpool.Pool,
+	metrics *metrics.Metrics,
+	initialBackOff time.Duration,
+	maxBackOff time.Duration,
+	lockTimeout time.Duration,
 ) ingest.Sink[*DbOperationsWithMessageIds] {
 	return &SchedulerDb{
-		db: db, metrics: metrics, initialBackOff: initialBackOff, maxBackOff: maxBackOff, lockTimeout: lockTimeout,
+		db:             db,
+		metrics:        metrics,
+		initialBackOff: initialBackOff,
+		maxBackOff:     maxBackOff,
+		lockTimeout:    lockTimeout,
 	}
 }
 
+// Store persists all operations in the database.  Note that:
+//   - this function will retry until it either succeeds or a terminal error is encountered
+//   - this function weill take out a postgres lock to ensure that other ingesters are not writing to the database
+//     at the same time (for details, see acquireLock())
 func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithMessageIds) error {
-	return s.db.BeginTxFunc(ctx, pgx.TxOptions{
-		IsoLevel:       pgx.ReadCommitted,
-		AccessMode:     pgx.ReadWrite,
-		DeferrableMode: pgx.Deferrable,
-	}, func(tx pgx.Tx) error {
-		// First acquire the write lock
-		lockCtx, cancel := context.WithTimeout(ctx, s.lockTimeout)
-		defer cancel()
-		haveLock, err := s.acquireLock(lockCtx, tx)
-		if err != nil {
-			return err
-		}
-		if !haveLock {
-			return fmt.Errorf("could not obtain lock")
-		}
-		var result *multierror.Error = nil
-		for _, dbOp := range instructions.Ops {
-			err := ingest.WithRetry(func() (bool, error) {
+	return ingest.WithRetry(func() (bool, error) {
+		err := s.db.BeginTxFunc(ctx, pgx.TxOptions{
+			IsoLevel:       pgx.ReadCommitted,
+			AccessMode:     pgx.ReadWrite,
+			DeferrableMode: pgx.Deferrable,
+		}, func(tx pgx.Tx) error {
+			// First acquire the write lock
+			lockCtx, cancel := context.WithTimeout(ctx, s.lockTimeout)
+			defer cancel()
+			haveLock, err := s.acquireLock(lockCtx, tx)
+			if err != nil {
+				return err
+			}
+			if !haveLock {
+				return fmt.Errorf("could not obtain lock")
+			}
+			// Now insert the ops
+			for _, dbOp := range instructions.Ops {
 				err := s.WriteDbOp(ctx, tx, dbOp)
-				shouldRetry := armadaerrors.IsNetworkError(err) || armadaerrors.IsRetryablePostgresError(err)
-				return shouldRetry, err
-			}, s.initialBackOff, s.maxBackOff)
-			result = multierror.Append(result, err)
-		}
-		return result.ErrorOrNil()
-	})
+				if err != nil {
+					return err
+				}
+			}
+			return err
+		})
+		return true, err
+	}, s.initialBackOff, s.maxBackOff)
 }
 
+// acquireLock acquires the armada_scheduleringester_lock, which prevents two ingesters writing to the db at the same
+// time.  This is necessary because:
+// - when rows are inserted into the database they are stamped with a sequence number
+// - the scheduler relies on this sequence number increasing to ensure it has fetched all updated rows
+// - concurrent transactions will result in sequence numbers being interleaved across transactions.
+// - the interleaved sequences may result in the scheduler seeing sequence numbers that do not strictly increase over time.
 func (s *SchedulerDb) acquireLock(ctx context.Context, tx pgx.Tx) (bool, error) {
 	const tableLockKey = "armada_scheduleringester_lock"
 	acquired, err := tx.Query(ctx, "SELECT pg_try_advisory_lock($1)", tableLockKey)
