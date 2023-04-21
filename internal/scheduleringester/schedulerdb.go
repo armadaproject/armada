@@ -27,10 +27,15 @@ type SchedulerDb struct {
 	metrics        *metrics.Metrics
 	initialBackOff time.Duration
 	maxBackOff     time.Duration
+	lockTimeout    time.Duration
 }
 
-func NewSchedulerDb(db *pgxpool.Pool, metrics *metrics.Metrics, initialBackOff time.Duration, maxBackOff time.Duration) ingest.Sink[*DbOperationsWithMessageIds] {
-	return &SchedulerDb{db: db, metrics: metrics, initialBackOff: initialBackOff, maxBackOff: maxBackOff}
+func NewSchedulerDb(
+	db *pgxpool.Pool, metrics *metrics.Metrics, initialBackOff time.Duration, maxBackOff time.Duration, lockTimeout time.Duration,
+) ingest.Sink[*DbOperationsWithMessageIds] {
+	return &SchedulerDb{
+		db: db, metrics: metrics, initialBackOff: initialBackOff, maxBackOff: maxBackOff, lockTimeout: lockTimeout,
+	}
 }
 
 func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithMessageIds) error {
@@ -39,6 +44,16 @@ func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithM
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
+		// First acquire the write lock
+		lockCtx, cancel := context.WithTimeout(ctx, s.lockTimeout)
+		defer cancel()
+		haveLock, err := s.acquireLock(lockCtx, tx)
+		if err != nil {
+			return err
+		}
+		if !haveLock {
+			return fmt.Errorf("could not obtain lock")
+		}
 		var result *multierror.Error = nil
 		for _, dbOp := range instructions.Ops {
 			err := ingest.WithRetry(func() (bool, error) {
@@ -50,6 +65,20 @@ func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithM
 		}
 		return result.ErrorOrNil()
 	})
+}
+
+func (s *SchedulerDb) acquireLock(ctx context.Context, tx pgx.Tx) (bool, error) {
+	const tableLockKey = "armada_scheduleringester_lock"
+	acquired, err := tx.Query(ctx, "SELECT pg_try_advisory_lock($1)", tableLockKey)
+	if err != nil {
+		return false, errors.Wrapf(err, "error acquiring lock")
+	}
+	defer acquired.Close()
+	var lockAcquired bool
+	if err := acquired.Scan(&lockAcquired); err != nil {
+		return false, errors.Wrapf(err, "error acquiring lock")
+	}
+	return lockAcquired, nil
 }
 
 func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) error {
