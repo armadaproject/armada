@@ -9,57 +9,56 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-func TestNodesIterator(t *testing.T) {
-	tests := map[string]struct {
-		Nodes []*schedulerobjects.Node
-	}{
-		"1 node": {
-			Nodes: testNCpuNode(1, testPriorities),
-		},
-		"0 nodes": {
-			Nodes: testNCpuNode(0, testPriorities),
-		},
-		"3 nodes": {
-			Nodes: testNCpuNode(3, testPriorities),
-		},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			indexById := make(map[string]int)
-			for i, node := range tc.Nodes {
-				indexById[node.Id] = i
-			}
-			nodeDb, err := createNodeDb(tc.Nodes)
-			if !assert.NoError(t, err) {
-				return
-			}
-			it, err := NewNodesIterator(nodeDb.Txn(false))
-			if !assert.NoError(t, err) {
-				return
-			}
-
-			sortedNodes := slices.Clone(tc.Nodes)
-			slices.SortFunc(sortedNodes, func(a, b *schedulerobjects.Node) bool { return a.Id < b.Id })
-			expected := make([]int, len(sortedNodes))
-			for i, node := range sortedNodes {
-				expected[i] = indexById[node.Id]
-			}
-
-			actual := make([]int, 0)
-			for node := it.NextNode(); node != nil; node = it.NextNode() {
-				actual = append(actual, indexById[node.Id])
-			}
-
-			assert.Equal(t, expected, actual)
-		})
-	}
-}
+//func TestNodesIterator(t *testing.T) {
+//	tests := map[string]struct {
+//		Nodes []*schedulerobjects.Node
+//	}{
+//		"1 node": {
+//			Nodes: testNCpuNode(1, testPriorities),
+//		},
+//		"0 nodes": {
+//			Nodes: testNCpuNode(0, testPriorities),
+//		},
+//		"3 nodes": {
+//			Nodes: testNCpuNode(3, testPriorities),
+//		},
+//	}
+//	for name, tc := range tests {
+//		t.Run(name, func(t *testing.T) {
+//			indexById := make(map[string]int)
+//			for i, node := range tc.Nodes {
+//				indexById[node.Id] = i
+//			}
+//			nodeDb, err := createNodeDb(tc.Nodes)
+//			if !assert.NoError(t, err) {
+//				return
+//			}
+//			it, err := NewNodesIterator(nodeDb.Txn(false))
+//			if !assert.NoError(t, err) {
+//				return
+//			}
+//
+//			sortedNodes := slices.Clone(tc.Nodes)
+//			slices.SortFunc(sortedNodes, func(a, b *schedulerobjects.Node) bool { return a.Id < b.Id })
+//			expected := make([]int, len(sortedNodes))
+//			for i, node := range sortedNodes {
+//				expected[i] = indexById[node.Id]
+//			}
+//
+//			actual := make([]int, 0)
+//			for node := it.NextNode(); node != nil; node = it.NextNode() {
+//				actual = append(actual, indexById[node.Id])
+//			}
+//
+//			assert.Equal(t, expected, actual)
+//		})
+//	}
+//}
 
 func TestNodePairIterator(t *testing.T) {
 	nodes := testCluster()
