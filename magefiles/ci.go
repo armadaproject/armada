@@ -1,10 +1,7 @@
 package main
 
 import (
-	"fmt"
 	"os"
-	"os/exec"
-	"strings"
 	"time"
 
 	"github.com/magefile/mage/mg"
@@ -21,14 +18,7 @@ func ciSetup() error {
 
 	mg.Deps(CheckForPulsarRunning)
 
-	// By starting the executor first,
-	// we can ensure that the server will be able to connect to it
-	// on its first attempt.
-	err = dockerComposeRun("up", "-d", "executor")
-	if err != nil {
-		return err
-	}
-	err = dockerComposeRun("up", "-d", "server")
+	err = dockerComposeRun("up", "-d", "server", "executor")
 	if err != nil {
 		return err
 	}
@@ -38,42 +28,19 @@ func ciSetup() error {
 		return err
 	}
 
+	time.Sleep(15 * time.Second)
+
 	return nil
 }
 
 // Build images, spin up a test environment, and run the integration tests against it.
 func ciRunTests() error {
-	mg.Deps(CheckForArmadaRunning)
-
-	out, err := goOutput("run", "cmd/testsuite/main.go", "test",
+	err := goRun("run", "cmd/testsuite/main.go", "test",
 		"--tests", "testsuite/testcases/basic/*",
 		"--junit", "junit.xml",
 	)
-	fmt.Println(out)
 	if err != nil {
 		return err
 	}
 	return nil
-}
-
-func CheckForArmadaRunning() error {
-	timeout := time.After(1 * time.Minute)
-	tick := time.Tick(1 * time.Second)
-	seconds := 0
-	for {
-		select {
-		case <-timeout:
-			return fmt.Errorf("timed out waiting for Armada to start")
-		case <-tick:
-			outbytes, _ := exec.Command(goBinary(), "run", "cmd/armadactl/main.go", "submit", "./developer/config/job.yaml").CombinedOutput()
-			out := string(outbytes)
-			if !strings.Contains(out, "no executor clusters available") && !strings.Contains(out, "connection refused") {
-				// Sleep for 1 second to allow Armada to fully start
-				time.Sleep(1 * time.Second)
-				fmt.Printf("\nArmada took %d seconds to start!\n\n", seconds)
-				return nil
-			}
-			seconds++
-		}
-	}
 }

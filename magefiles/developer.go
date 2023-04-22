@@ -72,9 +72,9 @@ func CheckForPulsarRunning() error {
 				return err
 			}
 			if strings.Contains(out, "alive") {
-				// Sleep for 1 second to allow Pulsar to fully start
-				time.Sleep(1 * time.Second)
-				fmt.Printf("\nPulsar took %d seconds to start!\n\n", seconds)
+				// Sleep for 5 seconds to allow Pulsar to fully start
+				time.Sleep(5 * time.Second)
+				fmt.Printf("\nPulsar took %d seconds to start!\n\n", seconds+5)
 				return nil
 			}
 			seconds++
