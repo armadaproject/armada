@@ -5,7 +5,7 @@ redis:
   db: 1
   poolSize: 1000
 pulsar:
-  URL: pulsar://pulsar:6650
+  URL: pulsar://localhost:6650
   jobsetEventsTopic: events
   receiveTimeout: 5s
   backoffTime: 1s

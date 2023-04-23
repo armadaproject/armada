@@ -13,7 +13,7 @@ metrics:
   port: 9000
 pulsar:
   enabled: true
-  URL: "pulsar://pulsar:6650"
+  URL: "pulsar://localhost:6650"
   jobsetEventsTopic: "events"
   receiveTimeout: 5s
   backoffTime: 1s

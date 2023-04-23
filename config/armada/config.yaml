@@ -116,7 +116,7 @@ eventRetention:
 metrics:
   refreshInterval: 5m
 pulsar:
-  URL: "pulsar://pulsar:6650"
+  URL: "pulsar://localhost:6650"
   jobsetEventsTopic: "events"
   redisFromPulsarSubscription: "RedisFromPulsar"
   hostnameSuffix: "svc"

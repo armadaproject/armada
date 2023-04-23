@@ -7,7 +7,7 @@ metrics:
   port: 9000
   refreshInterval: 30s
 pulsar:
-  URL: "pulsar://pulsar:6650"
+  URL: "pulsar://localhost:6650"
   jobsetEventsTopic: "events"
   maxConnectionsPerBroker: 1
   compressionType: zlib
