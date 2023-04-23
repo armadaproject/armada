@@ -1,6 +1,6 @@
 redis:
   addrs:
-    - redis:6379
+    - localhost:6379
   password: ""
   db: 1
   poolSize: 1000

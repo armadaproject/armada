@@ -15,7 +15,7 @@ pulsar:
   maxAllowedMessageSize: 4194304 #4Mi
 redis:
   addrs:
-    - redis:6379
+    - localhost:6379
   password: ""
   db: 0
   poolSize: 1000

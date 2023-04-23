@@ -1,6 +1,6 @@
 redis:
   addrs:
-    - "redis:6379"
+    - "localhost:6379"
 eventsRedis:
   addrs:
-    - "redis:6379"
+    - "localhost:6379"
