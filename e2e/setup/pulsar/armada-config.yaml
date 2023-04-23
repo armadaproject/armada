@@ -14,7 +14,7 @@ postgres:
   maxIdleConns: 25
   connMaxLifetime: 30m
   connection:
-    host: postgres
+    host: localhost
     port: 5432
     user: postgres
     password: psw

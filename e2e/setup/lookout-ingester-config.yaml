@@ -3,7 +3,7 @@ postgres:
   maxIdleConns: 25
   connMaxLifetime: 30m
   connection:
-    host: postgres
+    host: localhost
     port: 5432
     user: postgres
     password: psw
@@ -16,12 +16,12 @@ pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
   receiveTimeout: 5s
-  backoffTime: 1s 
+  backoffTime: 1s
 
 paralellism: 1
 subscriptionName: "lookout-ingester"
 batchSize: 10000
-batchDuration: 500ms  
+batchDuration: 500ms
 minJobSpecCompressionSize: 1024
 userAnnotationPrefix: "armadaproject.io/"
 
