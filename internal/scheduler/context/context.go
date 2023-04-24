@@ -473,9 +473,6 @@ func (jctx *JobSchedulingContext) IsSuccessful() bool {
 type PodSchedulingContext struct {
 	// Time at which this context was created.
 	Created time.Time
-	// Resource type determined by the scheduler to be the hardest to satisfy
-	// the scheduling requirements for.
-	DominantResourceType string
 	// Node the pod was assigned to.
 	// If nil, the pod could not be assigned to any node.
 	Node *schedulerobjects.Node
