@@ -3,9 +3,10 @@ package scheduleringester
 import (
 	"context"
 	"fmt"
-	"github.com/jackc/pgx/v4"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v4"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"

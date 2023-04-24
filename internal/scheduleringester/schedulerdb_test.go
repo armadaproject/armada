@@ -2,12 +2,11 @@ package scheduleringester
 
 import (
 	"context"
-	"github.com/armadaproject/armada/internal/common/ingest/metrics"
-	"github.com/jackc/pgx/v4"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -15,6 +14,7 @@ import (
 	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/maps"
 
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
@@ -297,7 +297,6 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 	}, func(tx pgx.Tx) error {
 		return schedulerDb.WriteDbOp(ctx, tx, op)
 	})
-
 	if err != nil {
 		return err
 	}
@@ -615,6 +614,7 @@ func TestStore(t *testing.T) {
 		require.Equal(t, []string{jobId}, jobIds)
 
 		runIds, err := q.SelectAllRunIds(ctx)
+		require.NoError(t, err)
 		require.Equal(t, []uuid.UUID{runId}, runIds)
 
 		return nil
