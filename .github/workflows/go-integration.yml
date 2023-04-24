@@ -1,9 +1,9 @@
 name: Go End to End
 
 on:
-  push:
-    branches-ignore:
-      - master
+  # push:
+  #   branches-ignore:
+  #     - master
   pull_request:
     branches-ignore:
       - gh-pages
