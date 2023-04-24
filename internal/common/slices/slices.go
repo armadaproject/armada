@@ -3,6 +3,7 @@ package slices
 import (
 	"fmt"
 	"math"
+	"math/rand"
 
 	goslices "golang.org/x/exp/slices"
 )
@@ -63,6 +64,11 @@ func Flatten[S ~[]E, E any](s []S) S {
 // Concatenate returns a single slice created by concatenating the input slices.
 func Concatenate[S ~[]E, E any](s ...S) S {
 	return Flatten(s)
+}
+
+// Shuffle shuffles s.
+func Shuffle[S ~[]E, E any](s ...S) {
+	rand.Shuffle(len(s), func(i, j int) { s[i], s[j] = s[j], s[i] })
 }
 
 // Unique returns a copy of s with duplicate elements removed, keeping only the first occurence.

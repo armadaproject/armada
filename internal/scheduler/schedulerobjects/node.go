@@ -12,9 +12,6 @@ import (
 )
 
 func (node *Node) AvailableQuantityByPriorityAndResource(priority int32, resourceType string) resource.Quantity {
-	if node.AllocatableByPriorityAndResource == nil {
-		return resource.Quantity{}
-	}
 	return AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).Get(priority, resourceType)
 }
 

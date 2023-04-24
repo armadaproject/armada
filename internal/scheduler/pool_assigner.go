@@ -116,7 +116,7 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	// Otherwise iterate through each pool and detect the first one the job is potentially schedulable on
 	for pool, executors := range p.executorsByPool {
 		for _, e := range executors {
-			minReqsMet, _ := jobIsLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(
+			minReqsMet, _ := requestIsLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(
 				req.GetResourceRequirements().Requests,
 			), e.minimumJobSize)
 			if minReqsMet {

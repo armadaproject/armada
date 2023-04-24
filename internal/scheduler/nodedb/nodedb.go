@@ -2,6 +2,7 @@ package nodedb
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"text/tabwriter"
@@ -60,7 +61,9 @@ type NodeDb struct {
 	prioritiesToTryAssigningAt []int32
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
 	// for which indexes are created to enable efficient lookup.
-	indexedResources map[string]interface{}
+	indexedResources []string
+	// Like indexedResources, but stored as a map for efficient lookup.
+	indexedResourcesSet map[string]interface{}
 	// Taint keys that to create indexes for.
 	// Should include taints frequently used for scheduling.
 	// Since the NodeDb can efficiently sort out nodes with taints not tolerated
@@ -136,7 +139,8 @@ func NewNodeDb(
 		priorityClasses:            priorityClasses,
 		prioritiesToTryAssigningAt: prioritiesToTryAssigningAt,
 		maxExtraNodesToConsider:    maxExtraNodesToConsider,
-		indexedResources:           mapFromSlice(indexedResources),
+		indexedResources:           slices.Clone(indexedResources),
+		indexedResourcesSet:        mapFromSlice(indexedResources),
 		indexedTaints:              mapFromSlice(indexedTaints),
 		indexedNodeLabels:          mapFromSlice(indexedNodeLabels),
 		nodeTypes:                  make(map[string]*schedulerobjects.NodeType),
@@ -150,7 +154,7 @@ func (nodeDb *NodeDb) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	fmt.Fprintf(w, "Priorities:\t%v\n", configuration.AllowedPriorities(nodeDb.priorityClasses))
-	fmt.Fprintf(w, "Indexed resources:\t%v\n", maps.Keys(nodeDb.indexedResources))
+	fmt.Fprintf(w, "Indexed resources:\t%v\n", nodeDb.indexedResources)
 	fmt.Fprintf(w, "Indexed taints:\t%v\n", maps.Keys(nodeDb.indexedTaints))
 	fmt.Fprintf(w, "Indexed node labels:\t%v\n", maps.Keys(nodeDb.indexedNodeLabels))
 	if len(nodeDb.nodeTypes) == 0 {
@@ -375,9 +379,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 
 	// If the targetNodeIdAnnocation is set, consider only that node,
 	// and schedule onto that node even if it requires preempting other jobs.
-	//
-	// TODO: No need to even use the NodeDb here. For evicted jobs we can just get the node outside the NodeDb.
-	if nodeId, ok := req.Annotations[schedulerconfig.TargetNodeIdAnnotation]; ok {
+	if nodeId, ok := req.NodeSelector[schedulerconfig.NodeIdLabel]; ok {
 		if it, err := txn.Get("nodes", "id", nodeId); err != nil {
 			return nil, errors.WithStack(err)
 		} else {
@@ -389,9 +391,8 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		}
 	}
 
-	// Otherwise, try to schedule this pod normally.
-	// To, when possible, avoid preempting running jobs,
-	// try to schedule at each available priority class priority from lowest to highest.
+	// Try to schedule this pod normally.
+	// To avoid preempting running jobs, try scheduling at each available priority from lowest to highest.
 	for _, priority := range nodeDb.prioritiesToTryAssigningAt {
 		if priority > req.Priority {
 			break
@@ -428,66 +429,25 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	priority int32,
 	req *schedulerobjects.PodRequirements,
 ) (*schedulerobjects.Node, error) {
-	// So we can later reset pctx.NumExcludedNodesByReason if necessary.
-	numExcludedNodesByReason := maps.Clone(pctx.NumExcludedNodesByReason)
+	nodeTypeIds := make([]string, len(pctx.MatchingNodeTypes))
+	for i, nodeType := range pctx.MatchingNodeTypes {
+		nodeTypeIds[i] = nodeType.Id
+	}
 
-	// First try to schedule onto a node with jobs only from this queue.
-	queue, err := QueueFromPodRequirements(req)
+	indexResourceRequests := make([]resource.Quantity, len(nodeDb.indexedResources))
+	for i, t := range nodeDb.indexedResources {
+		indexResourceRequests[i] = req.ResourceRequirements.Requests[v1.ResourceName(t)]
+	}
+
+	it, err := NewNodeTypesIterator(txn, nodeTypeIds, priority, nodeDb.indexedResources, indexResourceRequests)
 	if err != nil {
 		return nil, err
 	}
-	if it, err := NewNodeTypesResourceIterator(
-		txn,
-		queue, 1,
-		pctx.DominantResourceType, priority,
-		pctx.MatchingNodeTypes,
-		req.ResourceRequirements.Requests[v1.ResourceName(pctx.DominantResourceType)],
-	); err != nil {
-		return nil, err
-	} else {
-		if node, err := nodeDb.selectNodeForPodWithIt(pctx, it, priority, req); err != nil {
-			return nil, err
-		} else if node != nil {
-			return node, nil
-		}
-	}
 
-	// Then try to schedule onto an empty node.
-	if it, err := NewNodeTypesResourceIterator(
-		txn,
-		"", 0,
-		pctx.DominantResourceType, priority,
-		pctx.MatchingNodeTypes,
-		req.ResourceRequirements.Requests[v1.ResourceName(pctx.DominantResourceType)],
-	); err != nil {
+	if node, err := nodeDb.selectNodeForPodWithIt(pctx, it, priority, req); err != nil {
 		return nil, err
-	} else {
-		if node, err := nodeDb.selectNodeForPodWithIt(pctx, it, priority, req); err != nil {
-			return nil, err
-		} else if node != nil {
-			return node, nil
-		}
-	}
-
-	// Finally, try to schedule onto any node.
-	// Reset NumExcludedNodesByReason to avoid double-counting nodes
-	// (this step may consider nodes again).
-	// TODO: We could avoid needing to reset by having a smarter iterator.
-	pctx.NumExcludedNodesByReason = numExcludedNodesByReason
-	if it, err := NewNodeTypesResourceIterator(
-		txn,
-		NodeDominantQueueWildcard, 0,
-		pctx.DominantResourceType, priority,
-		pctx.MatchingNodeTypes,
-		req.ResourceRequirements.Requests[v1.ResourceName(pctx.DominantResourceType)],
-	); err != nil {
-		return nil, err
-	} else {
-		if node, err := nodeDb.selectNodeForPodWithIt(pctx, it, priority, req); err != nil {
-			return nil, err
-		} else if node != nil {
-			return node, nil
-		}
+	} else if node != nil {
+		return node, nil
 	}
 
 	return nil, nil
@@ -729,6 +689,17 @@ func EvictPodFromNode(req *schedulerobjects.PodRequirements, node *schedulerobje
 	node = node.DeepCopy()
 	requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
 
+	// Ensure we track allocated resources at evictedPriority.
+	if _, ok := node.AllocatableByPriorityAndResource[evictedPriority]; !ok {
+		pMin := int32(math.MaxInt32)
+		for p, _ := range node.AllocatableByPriorityAndResource {
+			if p < pMin {
+				pMin = p
+			}
+		}
+		node.AllocatableByPriorityAndResource[evictedPriority] = node.AllocatableByPriorityAndResource[pMin].DeepCopy()
+	}
+
 	if _, ok := node.AllocatedByJobId[jobId]; !ok {
 		return nil, errors.Errorf("job %s has no resources allocated on node %s", jobId, node.Id)
 	}
@@ -867,7 +838,7 @@ func (nodeDb *NodeDb) dominantResource(req *schedulerobjects.PodRequirements) st
 	dominantResourceFraction := 0.0
 	for t, q := range req.ResourceRequirements.Requests {
 		// Skip any resource types that are not indexed.
-		if _, ok := nodeDb.indexedResources[string(t)]; !ok {
+		if _, ok := nodeDb.indexedResourcesSet[string(t)]; !ok {
 			continue
 		}
 		available, ok := nodeDb.totalResources.Resources[string(t)]
@@ -919,8 +890,32 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node)
 	// Mutating the node once inserted is forbidden.
 	node = node.DeepCopy()
 
-	// Compute the node type of the node
-	// and update the node with the node accordingly.
+	// Add an evictedPriority record to the node.
+	// TODO: We should make NodeDb responsible for creating new nodes and add this record at creation instead of upsert.
+	if len(node.EvictedJobRunIds) != 0 {
+		q := schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).Get(evictedPriority, "cpu")
+		if q.Cmp(node.TotalResources.Get("cpu")) == 0 {
+			return errors.Errorf("inconsistent node accounting: node %s has evicted jobs but no evicted resoruces", node.Id)
+		}
+	}
+	if _, ok := node.AllocatableByPriorityAndResource[evictedPriority]; !ok {
+		pMin := int32(math.MaxInt32)
+		for p, _ := range node.AllocatableByPriorityAndResource {
+			if p < pMin {
+				pMin = p
+			}
+		}
+		node.AllocatableByPriorityAndResource[evictedPriority] = node.AllocatableByPriorityAndResource[pMin].DeepCopy()
+	}
+
+	// Make sure nodes have a label containing the nodeId.
+	if node.Labels == nil {
+		node.Labels = map[string]string{schedulerconfig.NodeIdLabel: node.Id}
+	} else {
+		node.Labels[schedulerconfig.NodeIdLabel] = node.Id
+	}
+
+	// Compute the node type of the node.
 	nodeType := schedulerobjects.NewNodeType(
 		node.GetTaints(),
 		node.GetLabels(),
@@ -930,21 +925,19 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node)
 	node.NodeTypeId = nodeType.Id
 	node.NodeType = nodeType
 
-	// If this is a new node, increase the overall resource count.
-	// Note that nodeDb.totalResources isn't rolled back on txn abort.
+	// Add the node to the db.
 	isNewNode := false
 	if existingNode, err := nodeDb.GetNodeWithTxn(txn, node.Id); err != nil {
 		return err
 	} else if existingNode == nil {
 		isNewNode = true
 	}
-
-	// Add the node to the db.
 	if err := txn.Insert("nodes", node); err != nil {
 		return errors.WithStack(err)
 	}
 
-	// Record time of the most recent upsert and all unique node types.
+	// If this is a new node, update overall statistics.
+	// Note that these are not rolled back on txn abort.
 	nodeDb.mu.Lock()
 	if isNewNode {
 		nodeDb.numNodes++
@@ -1020,7 +1013,34 @@ func nodeDbSchema(priorities []int32, resources []string) *memdb.DBSchema {
 				},
 			}
 		}
+
+		resourceIndexes := []memdb.Indexer{
+			&memdb.StringFieldIndex{Field: "NodeTypeId"},
+		}
+		for _, resource := range resources {
+			resourceIndexes = append(
+				resourceIndexes,
+				&NodeAvailableResourceIndex{
+					Resource: resource,
+					Priority: priority,
+				},
+			)
+		}
+		// Tie-break by id.
+		resourceIndexes = append(
+			resourceIndexes,
+			&memdb.StringFieldIndex{Field: "Id"},
+		)
+		name := nodeResourceIndexName(priority)
+		indexes[name] = &memdb.IndexSchema{
+			Name:   name,
+			Unique: false,
+			Indexer: &memdb.CompoundIndex{
+				Indexes: resourceIndexes,
+			},
+		}
 	}
+
 	return &memdb.DBSchema{
 		Tables: map[string]*memdb.TableSchema{
 			"nodes": {
@@ -1037,4 +1057,8 @@ func nodeDominantQueueResourcePriorityIndexName(resource string, priority int32)
 
 func nodeResourcePriorityIndexName(resource string, priority int32) string {
 	return fmt.Sprintf("%d-%s", priority, resource)
+}
+
+func nodeResourceIndexName(priority int32) string {
+	return fmt.Sprintf("%d", priority)
 }

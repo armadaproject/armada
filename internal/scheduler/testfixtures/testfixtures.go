@@ -117,6 +117,11 @@ func WithMaxJobsToScheduleConfig(n uint, config configuration.SchedulingConfig) 
 	return config
 }
 
+func WithMaxGangsToScheduleConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.MaximumGangsToSchedule = n
+	return config
+}
+
 func WithMaxLookbackPerQueueConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	// For legacy reasons, it's called QueueLeaseBatchSize in config.
 	config.QueueLeaseBatchSize = n
@@ -141,6 +146,13 @@ func WithQueueLeaseBatchSizeConfig(queueLeasebatchSize uint, config configuratio
 func WithUsedResourcesNodes(p int32, rl schedulerobjects.ResourceList, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for _, node := range nodes {
 		schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).MarkAllocated(p, rl)
+	}
+	return nodes
+}
+
+func WithNodeTypeIdNodes(nodeTypeId string, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
+	for _, node := range nodes {
+		node.NodeTypeId = nodeTypeId
 	}
 	return nodes
 }
@@ -200,15 +212,6 @@ func WithGangAnnotationsPodReqs(reqs []*schedulerobjects.PodRequirements) []*sch
 	)
 }
 
-func WithGangAnnotationsJobs(jobs []*jobdb.Job) []*jobdb.Job {
-	gangId := uuid.NewString()
-	gangCardinality := fmt.Sprintf("%d", len(jobs))
-	return WithAnnotationsJobs(
-		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinality},
-		jobs,
-	)
-}
-
 func WithAnnotationsPodReqs(annotations map[string]string, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
 	for _, req := range reqs {
 		if req.Annotations == nil {
@@ -217,6 +220,15 @@ func WithAnnotationsPodReqs(annotations map[string]string, reqs []*schedulerobje
 		maps.Copy(req.Annotations, annotations)
 	}
 	return reqs
+}
+
+func WithGangAnnotationsJobs(jobs []*jobdb.Job) []*jobdb.Job {
+	gangId := uuid.NewString()
+	gangCardinality := fmt.Sprintf("%d", len(jobs))
+	return WithAnnotationsJobs(
+		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinality},
+		jobs,
+	)
 }
 
 func WithAnnotationsJobs(annotations map[string]string, jobs []*jobdb.Job) []*jobdb.Job {

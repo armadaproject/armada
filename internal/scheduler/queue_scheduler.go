@@ -5,8 +5,8 @@ import (
 	"context"
 	"math"
 	"reflect"
-	"time"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
@@ -62,12 +62,24 @@ func NewQueueScheduler(
 }
 
 func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, error) {
-	// TODO: Add context to iterators.
-	defer func() {
-		// TODO: Consider using the same scheduling context next level up too.
-		// In which case this shouldn't be set here.
-		sch.schedulingContext.Finished = time.Now()
-	}()
+	log := ctxlogrus.Extract(ctx)
+	if ResourceListAsWeightedApproximateFloat64(sch.schedulingContext.ResourceScarcity, sch.schedulingContext.TotalResources) == 0 {
+		// This refers to resources available across all clusters, i.e.,
+		// it may include resources not currently considered for scheduling.
+		log.Infof(
+			"no resources with non-zero weight available for scheduling on any cluster: resource scarcity %v, total resources %v",
+			sch.schedulingContext.ResourceScarcity, sch.schedulingContext.TotalResources,
+		)
+		return &SchedulerResult{}, nil
+	}
+	if ResourceListAsWeightedApproximateFloat64(sch.schedulingContext.ResourceScarcity, sch.gangScheduler.nodeDb.TotalResources()) == 0 {
+		// This refers to the resources currently considered for schedling.
+		log.Infof(
+			"no resources with non-zero weight available for scheduling in NodeDb: resource scarcity %v, total resources %v",
+			sch.schedulingContext.ResourceScarcity, sch.gangScheduler.nodeDb.TotalResources(),
+		)
+		return &SchedulerResult{}, nil
+	}
 	nodeIdByJobId := make(map[string]string)
 	scheduledJobs := make([]interfaces.LegacySchedulerJob, 0)
 	for {
@@ -354,21 +366,6 @@ func (it *CandidateGangIterator) Peek() (*schedulercontext.GangSchedulingContext
 			return nil, err
 		}
 		return gctx, nil
-
-		// if v, ok, err := it.f(gctx); err != nil {
-		// 	return nil, err
-		// } else if ok {
-		// 	if err := it.pushToPQ(item.queue, item.it); err != nil {
-		// 		return nil, err
-		// 	}
-		// 	return v, nil
-		// }
-		// if err := item.it.Clear(); err != nil {
-		// 	return nil, err
-		// }
-		// if err := it.pushToPQ(item.queue, item.it); err != nil {
-		// 	return nil, err
-		// }
 	}
 }
 
@@ -423,31 +420,3 @@ func (pq *QueueCandidateGangIteratorPQ) Pop() any {
 	*pq = old[0 : n-1]
 	return item
 }
-
-// func (it *CandidateGangIterator) f(gctx *schedulercontext.GangSchedulingContext) (*schedulercontext.GangSchedulingContext, bool, error) {
-// 	totalScheduledResources := it.SchedulingContext.ScheduledResourcesByPriority.AggregateByResource()
-// 	gangResourceRequests := schedulerobjects.ResourceList{}
-// 	for _, jctx := range gctx.JobSchedulingContexts {
-// 		if isEvictedJob(jctx.Job) {
-// 			// Evicted jobs don't count towards per-round scheduling limits.
-// 			continue
-// 		}
-// 		gangResourceRequests.Add(schedulerobjects.ResourceListFromV1ResourceList(jctx.Req.ResourceRequirements.Requests))
-// 	}
-// 	totalScheduledResources.Add(gangResourceRequests)
-// 	if exceeded, reason := exceedsResourceLimits(
-// 		nil,
-// 		totalScheduledResources,
-// 		it.SchedulingConstraints.TotalResources,
-// 		it.MaximalResourceFractionToSchedule,
-// 	); exceeded {
-// 		unschedulableReason := reason + " (overall per scheduling round limit)"
-// 		for _, jctx := range gctx.JobSchedulingContexts {
-// 			jctx.UnschedulableReason = unschedulableReason
-// 			it.SchedulingContext.AddJobSchedulingContext(jctx, false)
-// 		}
-// 		return gctx, false, nil
-// 	} else {
-// 		return gctx, true, nil
-// 	}
-// }

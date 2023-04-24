@@ -372,8 +372,16 @@ func encodeQuantity(val resource.Quantity) []byte {
 }
 
 func encodeInt(val int64) []byte {
-	buf := make([]byte, 8)
-	binary.BigEndian.PutUint64(buf, uint64(val))
+	size := 8
+	buf := make([]byte, size)
+
+	// This bit flips the sign bit on any sized signed twos-complement integer,
+	// which when truncated to a uint of the same size will bias the value such
+	// that the maximum negative int becomes 0, and the maximum positive int
+	// becomes the maximum positive uint.
+	scaled := val ^ int64(-1<<(size*8-1))
+
+	binary.BigEndian.PutUint64(buf, uint64(scaled))
 	return buf
 }
 
@@ -403,4 +411,223 @@ func (index *NodeDominantQueueIndex) FromObject(raw interface{}) (bool, []byte, 
 
 func encodeNodeDominantQueueIndexKey(dominantQueue string, numActiveQueues int) []byte {
 	return append([]byte(dominantQueue), encodeInt(int64(numActiveQueues))...)
+}
+
+type NodeTypesIterator struct {
+	priority                int32
+	indexedResources        []string
+	indexedResourceRequests []resource.Quantity
+	pq                      *nodeTypesIteratorPQ
+}
+
+func NewNodeTypesIterator(txn *memdb.Txn, nodeTypeIds []string, priority int32, indexedResources []string, indexedResourceRequests []resource.Quantity) (*NodeTypesIterator, error) {
+	pq := &nodeTypesIteratorPQ{
+		priority:         priority,
+		indexedResources: indexedResources,
+		items:            make([]*nodeTypesIteratorPQItem, 0, len(nodeTypeIds)),
+	}
+	for _, nodeTypeId := range nodeTypeIds {
+		it, err := NewNodeTypeIterator(txn, nodeTypeId, priority, indexedResources, indexedResourceRequests)
+		if err != nil {
+			return nil, err
+		}
+		node, err := it.NextNode()
+		if err != nil {
+			return nil, err
+		}
+		if node == nil {
+			continue
+		}
+		heap.Push(pq, &nodeTypesIteratorPQItem{
+			node: node,
+			it:   it,
+		})
+	}
+	return &NodeTypesIterator{
+		priority:                priority,
+		indexedResources:        indexedResources,
+		indexedResourceRequests: indexedResourceRequests,
+		pq:                      pq,
+	}, nil
+}
+
+func (it *NodeTypesIterator) WatchCh() <-chan struct{} {
+	panic("not implemented")
+}
+
+func (it *NodeTypesIterator) Next() interface{} {
+	v, err := it.NextNode()
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+func (it *NodeTypesIterator) NextNode() (*schedulerobjects.Node, error) {
+	if it.pq.Len() == 0 {
+		return nil, nil
+	}
+	pqItem := heap.Pop(it.pq).(*nodeTypesIteratorPQItem)
+	node := pqItem.node
+	nextNode, err := pqItem.it.NextNode()
+	if err != nil {
+		return nil, err
+	}
+	if nextNode != nil {
+		pqItem.node = nextNode
+		heap.Push(it.pq, pqItem)
+	}
+	return node, nil
+}
+
+type nodeTypesIteratorPQ struct {
+	priority         int32
+	indexedResources []string
+	items            []*nodeTypesIteratorPQItem
+}
+
+type nodeTypesIteratorPQItem struct {
+	node *schedulerobjects.Node
+	it   *NodeTypeIterator
+	// The index of the item in the heap. Maintained by the heap.Interface methods.
+	index int
+}
+
+func (pq *nodeTypesIteratorPQ) Len() int { return len(pq.items) }
+
+func (pq *nodeTypesIteratorPQ) Less(i, j int) bool {
+	return pq.less(pq.items[i].node, pq.items[j].node)
+}
+
+func (it *nodeTypesIteratorPQ) less(a, b *schedulerobjects.Node) bool {
+	allocatableByPriorityA := a.AllocatableByPriorityAndResource[it.priority]
+	allocatableByPriorityB := b.AllocatableByPriorityAndResource[it.priority]
+	for _, t := range it.indexedResources {
+		qa := allocatableByPriorityA.Get(t)
+		qb := allocatableByPriorityB.Get(t)
+		cmp := qa.Cmp(qb)
+		if cmp == -1 {
+			return true
+		} else if cmp == 1 {
+			return false
+		}
+	}
+	return a.Id < b.Id
+}
+
+func (pq *nodeTypesIteratorPQ) Swap(i, j int) {
+	pq.items[i], pq.items[j] = pq.items[j], pq.items[i]
+	pq.items[i].index = i
+	pq.items[j].index = j
+}
+
+func (pq *nodeTypesIteratorPQ) Push(x any) {
+	n := len(pq.items)
+	item := x.(*nodeTypesIteratorPQItem)
+	item.index = n
+	pq.items = append(pq.items, item)
+}
+
+func (pq *nodeTypesIteratorPQ) Pop() any {
+	old := pq.items
+	n := len(old)
+	item := old[n-1]
+	old[n-1] = nil  // avoid memory leak
+	item.index = -1 // for safety
+	pq.items = old[0 : n-1]
+	return item
+}
+
+type NodeTypeIterator struct {
+	txn                     *memdb.Txn
+	nodeTypeId              string
+	priority                int32
+	indexedResources        []string
+	indexedResourceRequests []resource.Quantity
+	lowerBound              []resource.Quantity
+	memdbIterator           memdb.ResultIterator
+}
+
+func NewNodeTypeIterator(txn *memdb.Txn, nodeTypeId string, priority int32, indexedResources []string, indexedResourceRequests []resource.Quantity) (*NodeTypeIterator, error) {
+	if len(indexedResources) != len(indexedResourceRequests) {
+		return nil, errors.Errorf("indexedResources and resourceRequirements are not of equal length")
+	}
+	memdbIterator, err := newNodeTypeIterator(txn, nodeTypeId, indexedResourceRequests, priority)
+	if err != nil {
+		return nil, err
+	}
+	return &NodeTypeIterator{
+		txn:                     txn,
+		nodeTypeId:              nodeTypeId,
+		priority:                priority,
+		indexedResources:        indexedResources,
+		indexedResourceRequests: indexedResourceRequests,
+		lowerBound:              make([]resource.Quantity, len(indexedResourceRequests)),
+		memdbIterator:           memdbIterator,
+	}, nil
+}
+
+func newNodeTypeIterator(txn *memdb.Txn, nodeTypeId string, resourceRequirements []resource.Quantity, priority int32) (memdb.ResultIterator, error) {
+	args := make([]interface{}, 2+len(resourceRequirements))
+	args[0] = nodeTypeId
+	for i, q := range resourceRequirements {
+		args[i+1] = q
+	}
+	args[len(args)-1] = ""
+	it, err := txn.LowerBound(
+		"nodes",
+		nodeResourceIndexName(priority),
+		args...,
+	)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	return it, nil
+}
+
+func (it *NodeTypeIterator) WatchCh() <-chan struct{} {
+	panic("not implemented")
+}
+
+func (it *NodeTypeIterator) Next() interface{} {
+	v, err := it.NextNode()
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
+func (it *NodeTypeIterator) NextNode() (*schedulerobjects.Node, error) {
+	for {
+		v := it.memdbIterator.Next()
+		if v == nil {
+			return nil, nil
+		}
+		node := v.(*schedulerobjects.Node)
+		if it.nodeTypeId != "" && node.NodeTypeId != it.nodeTypeId {
+			return nil, nil
+		}
+		allocatableByPriority := node.AllocatableByPriorityAndResource[it.priority]
+		for i, t := range it.indexedResources {
+			nodeQuantity := allocatableByPriority.Get(t)
+			requestQuantity := it.indexedResourceRequests[i]
+			it.lowerBound[i] = nodeQuantity
+
+			// If nodeQuantity < requestQuantity, replace the iterator using the lowerBound.
+			// If nodeQuantity >= requestQuantity for all resources, return the node.
+			if nodeQuantity.Cmp(requestQuantity) == -1 {
+				for j := i; j < len(it.indexedResources); j++ {
+					it.lowerBound[j] = it.indexedResourceRequests[j]
+				}
+				memdbIterator, err := newNodeTypeIterator(it.txn, it.nodeTypeId, it.lowerBound, it.priority)
+				if err != nil {
+					return nil, err
+				}
+				it.memdbIterator = memdbIterator
+				break
+			} else if i == len(it.indexedResources)-1 {
+				return node, nil
+			}
+		}
+	}
 }

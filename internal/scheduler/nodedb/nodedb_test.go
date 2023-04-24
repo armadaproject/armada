@@ -59,49 +59,50 @@ func TestTotalResources(t *testing.T) {
 	assert.True(t, expected.Equal(nodeDb.totalResources))
 }
 
-func TestSelectNodeForPod_TargetNodeIdAnnotation_Success(t *testing.T) {
-	nodes := testfixtures.TestNCpuNode(1, testfixtures.TestPriorities)
-	nodeId := nodes[0].Id
+func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {
+	nodes := testfixtures.TestNCpuNode(2, testfixtures.TestPriorities)
+	nodeId := nodes[1].Id
 	require.NotEmpty(t, nodeId)
 	db, err := createNodeDb(nodes)
 	require.NoError(t, err)
-	reqs := testfixtures.WithAnnotationsPodReqs(
-		map[string]string{schedulerconfig.TargetNodeIdAnnotation: nodeId},
+	reqs := testfixtures.WithNodeSelectorPodReqs(
+		map[string]string{schedulerconfig.NodeIdLabel: nodeId},
 		testfixtures.TestNSmallCpuJob("A", 0, 1),
 	)
 	for _, req := range reqs {
-		report, err := db.SelectNodeForPod(req)
+		pctx, err := db.SelectNodeForPod(req)
 		if !assert.NoError(t, err) {
 			continue
 		}
-		require.NotNil(t, report.Node)
-		assert.Equal(t, nodes[0].Id, report.Node.Id)
-		assert.Equal(t, 0, len(report.NumExcludedNodesByReason))
+		require.NotNil(t, pctx.Node)
+		assert.Equal(t, nodeId, pctx.Node.Id)
+		assert.Equal(t, 0, len(pctx.NumExcludedNodesByReason))
+		assert.Empty(t, pctx.NumExcludedNodesByReason)
 	}
 }
 
-func TestSelectNodeForPod_TargetNodeIdAnnotation_Failure(t *testing.T) {
+func TestSelectNodeForPod_NodeIdLabel_Failure(t *testing.T) {
 	nodes := testfixtures.TestNCpuNode(1, testfixtures.TestPriorities)
 	nodeId := nodes[0].Id
 	require.NotEmpty(t, nodeId)
 	db, err := createNodeDb(nodes)
 	require.NoError(t, err)
-	reqs := testfixtures.WithAnnotationsPodReqs(
-		map[string]string{schedulerconfig.TargetNodeIdAnnotation: "this node does not exist"},
+	reqs := testfixtures.WithNodeSelectorPodReqs(
+		map[string]string{schedulerconfig.NodeIdLabel: "this node does not exist"},
 		testfixtures.TestNSmallCpuJob("A", 0, 1),
 	)
 	for _, req := range reqs {
-		report, err := db.SelectNodeForPod(req)
+		pctx, err := db.SelectNodeForPod(req)
 		if !assert.NoError(t, err) {
 			continue
 		}
-		assert.Nil(t, report.Node)
-		assert.Equal(t, 1, len(report.NumExcludedNodesByReason))
+		assert.Nil(t, pctx.Node)
+		assert.Equal(t, 1, len(pctx.NumExcludedNodesByReason))
 	}
 }
 
 func TestNodeBindingEvictionUnbinding(t *testing.T) {
-	node := testfixtures.TestGpuNode(testfixtures.TestPriorities)
+	node := testfixtures.TestGpuNode(append(testfixtures.TestPriorities, evictedPriority))
 	req := testfixtures.TestNGpuJob("A", 0, 1)[0]
 	request := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
 	jobId, err := JobIdFromPodRequirements(req)
@@ -504,26 +505,50 @@ func benchmarkSelectAndBindNodeToPod(nodes []*schedulerobjects.Node, reqs []*sch
 	}
 }
 
-func BenchmarkSelectAndBindNodeToPodOneCpuNode(b *testing.B) {
+func BenchmarkSelectAndBindNodeToPod10CpuNodes320SmallJobs(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(
 		testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-		testfixtures.TestNSmallCpuJob("A", 0, 32),
-		b,
-	)
-}
-
-func BenchmarkSelectAndBindNodeToPod100CpuNodes(b *testing.B) {
-	benchmarkSelectAndBindNodeToPod(
-		testfixtures.TestNCpuNode(100, testfixtures.TestPriorities),
 		testfixtures.TestNSmallCpuJob("A", 0, 320),
 		b,
 	)
 }
 
-func BenchmarkSelectAndBindNodeToPod10000CpuNodes(b *testing.B) {
+func BenchmarkSelectAndBindNodeToPod10CpuNodes640SmallJobs(b *testing.B) {
 	benchmarkSelectAndBindNodeToPod(
-		testfixtures.TestNCpuNode(10000, testfixtures.TestPriorities),
+		testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+		testfixtures.TestNSmallCpuJob("A", 0, 640),
+		b,
+	)
+}
+
+func BenchmarkSelectAndBindNodeToPod100CpuNodes3200SmallJobs(b *testing.B) {
+	benchmarkSelectAndBindNodeToPod(
+		testfixtures.TestNCpuNode(100, testfixtures.TestPriorities),
+		testfixtures.TestNSmallCpuJob("A", 0, 3200),
+		b,
+	)
+}
+
+func BenchmarkSelectAndBindNodeToPod100CpuNodes6400SmallJobs(b *testing.B) {
+	benchmarkSelectAndBindNodeToPod(
+		testfixtures.TestNCpuNode(100, testfixtures.TestPriorities),
+		testfixtures.TestNSmallCpuJob("A", 0, 6400),
+		b,
+	)
+}
+
+func BenchmarkSelectAndBindNodeToPod1000CpuNodes32000SmallJobs(b *testing.B) {
+	benchmarkSelectAndBindNodeToPod(
+		testfixtures.TestNCpuNode(1000, testfixtures.TestPriorities),
 		testfixtures.TestNSmallCpuJob("A", 0, 32000),
+		b,
+	)
+}
+
+func BenchmarkSelectAndBindNodeToPod1000CpuNodes64000SmallJobs(b *testing.B) {
+	benchmarkSelectAndBindNodeToPod(
+		testfixtures.TestNCpuNode(1000, testfixtures.TestPriorities),
+		testfixtures.TestNSmallCpuJob("A", 0, 64000),
 		b,
 	)
 }
