@@ -4,6 +4,5 @@ ignore:
   - "**/*_moq.go"
 coverage:
   status:
-    project:
-      default:
-        informational: true
+    project: off
+    patch: off
