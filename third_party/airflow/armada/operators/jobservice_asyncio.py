@@ -1,24 +1,26 @@
 from armada.jobservice import jobservice_pb2_grpc, jobservice_pb2
 
+import grpc
+
 from google.protobuf import empty_pb2
 
 
-class JobServiceClient:
+class JobServiceAsyncIOClient:
     """
-    The JobService Client
+    The JobService AsyncIO Client
 
-    Implementation of gRPC stubs from JobService
+    AsyncIO implementation of gRPC stubs from JobService
 
-    :param channel: gRPC channel used for authentication. See
-                    https://grpc.github.io/grpc/python/grpc.html
+    :param channel: AsyncIO gRPC channel used for authentication. See
+                    https://grpc.github.io/grpc/python/grpc_asyncio.html
                     for more information.
-    :return: a job service client instance
+    :return: A job service client instance
     """
 
-    def __init__(self, channel):
+    def __init__(self, channel: grpc.aio.Channel) -> None:
         self.job_stub = jobservice_pb2_grpc.JobServiceStub(channel)
 
-    def get_job_status(
+    async def get_job_status(
         self, queue: str, job_set_id: str, job_id: str
     ) -> jobservice_pb2.JobServiceResponse:
         """Get job status of a given job in a queue and job_set_id.
@@ -33,8 +35,10 @@ class JobServiceClient:
         job_service_request = jobservice_pb2.JobServiceRequest(
             queue=queue, job_set_id=job_set_id, job_id=job_id
         )
-        return self.job_stub.GetJobStatus(job_service_request)
+        response = await self.job_stub.GetJobStatus(job_service_request)
+        return response
 
-    def health(self) -> jobservice_pb2.HealthCheckResponse:
+    async def health(self) -> jobservice_pb2.HealthCheckResponse:
         """Health Check for GRPC Request"""
-        return self.job_stub.Health(request=empty_pb2.Empty())
+        response = await self.job_stub.Health(request=empty_pb2.Empty())
+        return response
