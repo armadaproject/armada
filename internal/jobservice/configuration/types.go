@@ -8,10 +8,10 @@ import (
 )
 
 type PostgresConfig struct {
-	MaxOpenConns    int
-	MaxIdleConns    int
-	ConnMaxLifetime time.Duration
-	Connection      map[string]string
+	PoolMaxOpenConns    int
+	PoolMaxIdleConns    int
+	PoolMaxConnLifetime time.Duration
+	Connection          map[string]string
 }
 
 type JobServiceConfiguration struct {

@@ -1,35 +1,82 @@
 # armada
 
-![Version: LATEST](https://img.shields.io/badge/Version-LATEST-informational?style=flat-square) ![AppVersion: LATEST](https://img.shields.io/badge/AppVersion-LATEST-informational?style=flat-square)
+![Version: LATEST](https://img.shields.io/badge/Version-LATEST-informational?style=flat-square)
 
-A helm chart for armada API component
+Armada Server is the centralized Control Plane for Armada, the multi-cluster batch scheduler.
+
+## Prerequisites
+
+Armada Server requires the following components to be accessible and configured:
+* [Pulsar](https://pulsar.apache.org/) - open-source, distributed messaging and streaming platform built for the cloud.
+* [Redis](https://redis.io/) - open source, in-memory data store
+* [Postgres](https://www.postgresql.org/) - powerful, open source object-relational database
+* [cert-manager](https://cert-manager.io/) - Kubernetes certificate management controller
+
+## Install
+
+Add `gresearch` Helm repository and fetch latest charts info:
+
+```sh
+helm repo add gresearch https://g-research.github.io/charts
+helm repo update
+```
+
+Install `armada-server` using Helm:
+
+```sh
+helm install armada-server gresearch/armada \
+    --set ingress.enabled=false
+```
+
+## Uninstall
+
+Uninstall armada-server using Helm:
+
+```sh
+helm uninstall armada-server
+```
 
 ## Values
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| additionalLabels | object | `{}` |  |
-| applicationConfig.grpcPort | int | `50051` |  |
-| applicationConfig.httpPort | int | `8080` |  |
-| applicationConfig.pulsar | object | `{}` |  |
-| customServiceAccount | string | `nil` |  |
+| additionalLabels | object | `{}` | Additional labels for all Armada Server K8s resources |
+| additionalVolumeMounts | list | `[]` | Additional volume mounts for Armada Server Deployment resource |
+| additionalVolumes | list | `[]` | Additional volumes for Armada Server Deployment resource |
+| applicationConfig.grpcPort | int | `50051` | Armada Server gRPC port |
+| applicationConfig.httpPort | int | `8080` | Armada Server REST port |
+| applicationConfig.pulsar.authenticationEnabled | bool | `false` | Toggle whether to mount Pulsar Token secret |
+| applicationConfig.pulsar.authenticationSecret | string | `"armada-pulsar-token-armada-admin"` | Name of the secret which contains the Pulsar Token |
+| applicationConfig.pulsar.cacert | string | `"armada-pulsar-ca-tls"` | Name of the secret which contains the Pulsar CA certificate |
+| applicationConfig.pulsar.tlsEnabled | bool | `false` | Toggle whether to mount Pulsar CA certificate secret |
+| clusterIssuer | string | `""` | cert-manager's ClusterIssuer from which to request TLS certificate for the Ingres resources |
+| containerSecurityContext | object | `{"allowPrivilegeEscalation":false}` | Security Context for armada Container |
+| customServiceAccount | string | `""` | If specified, custom ServiceAccount name will be attached to Armada Server Deployment resource and the default ServiceAccount will not be created |
+| env | object | `{}` | Additional environment variables for Armada Server Deployment resource |
+| fullnameOverride | string | `""` |  |
+| hostnames | list | `[]` | Hostnames for which to create gRPC and REST Ingress rules |
 | image.repository | string | `"gresearchdev/armada-server"` |  |
 | image.tag | string | `"LATEST"` |  |
-| ingress.annotations | object | `{}` |  |
-| ingress.labels | object | `{}` |  |
-| ingress.nameOverride | string | `""` |  |
-| prometheus.enabled | bool | `false` |  |
-| prometheus.labels | object | `{}` |  |
-| prometheus.scrapeInterval | string | `"15s"` |  |
-| replicas | int | `1` |  |
+| ingress.annotations | object | `{}` | Additional annotations for Ingress resource |
+| ingress.enabled | bool | `true` | Toggle whether to create gRPC and HTTP Ingress for Armada Server |
+| ingress.labels | object | `{}` | Additional labels for Ingress resource |
+| ingress.nameOverride | string | `""` | Ingress resource name override |
+| ingressClass | string | `"nginx"` |  |
+| nameOverride | string | `""` |  |
+| podDisruptionBudget | object | `{}` |  |
+| podSecurityContext | object | `{}` | Pod Security Context |
+| prometheus.enabled | bool | `false` | Toggle whether to install ServiceMonitor and PrometheusRule for Armada Server monitoring |
+| prometheus.labels | object | `{}` | Additional labels for ServiceMonitor and PrometheusRule |
+| prometheus.scrapeInterval | string | `"15s"` | Prometheus scrape interval |
+| replicas | int | `1` | Armada Server replica count |
 | resources.limits.cpu | string | `"300m"` |  |
 | resources.limits.memory | string | `"1Gi"` |  |
 | resources.requests.cpu | string | `"200m"` |  |
 | resources.requests.memory | string | `"512Mi"` |  |
-| serviceAccount | string | `nil` |  |
+| serviceAccount | object | `{}` | Additional ServiceAccount properties (e.g. automountServiceAccountToken, imagePullSecrets, etc.) |
 | strategy.rollingUpdate.maxUnavailable | int | `1` |  |
 | strategy.type | string | `"RollingUpdate"` |  |
-| terminationGracePeriodSeconds | int | `30` |  |
+| terminationGracePeriodSeconds | int | `30` | Number of seconds to wait for Armada Server to gracefully shutdown |
 
 ----------------------------------------------
 Autogenerated from chart metadata using [helm-docs v1.11.0](https://github.com/norwoodj/helm-docs/releases/v1.11.0)
