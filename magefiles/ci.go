@@ -21,7 +21,7 @@ func ciSetup() error {
 		return err
 	}
 	delta := time.Since(start)
-	fmt.Printf("docker-compose took %s\n", delta)
+	fmt.Printf("Redis, Pulsar and Postgres took %s\n", delta)
 
 	mg.Deps(CheckForPulsarRunning)
 
@@ -43,7 +43,7 @@ func ciSetup() error {
 		return err
 	}
 	delta = time.Since(start)
-	fmt.Printf("docker-compose 2 + queue creation took %s\n", delta)
+	fmt.Printf("components + queue creation took %s\n", delta)
 
 	return nil
 }

@@ -112,7 +112,7 @@ func BuildCICluster() {
 	start = time.Now()
 	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind)
 	delta = time.Since(start)
-	fmt.Printf("goreleaserMinimalRelease took %s\n", delta)
+	fmt.Printf("goreleaserMinimalRelease + kind took %s\n", delta)
 
 	mg.Deps(ciSetup)
 }
