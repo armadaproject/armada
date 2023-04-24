@@ -1,13 +1,6 @@
 import { useEffect, useState } from "react"
 
-import {
-  ColumnFiltersState,
-  ColumnSort,
-  ExpandedStateList,
-  PaginationState,
-  RowSelectionState,
-  SortingState,
-} from "@tanstack/react-table"
+import { ExpandedStateList, PaginationState, RowSelectionState } from "@tanstack/react-table"
 import { JobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobId, JobOrder } from "models/lookoutV2Models"
 import { VariantType } from "notistack"

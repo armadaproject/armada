@@ -123,7 +123,9 @@ export function filterFn(filter: JobFilter): (job: Job) => boolean {
     const objectToFilter = filter.isAnnotation ? job.annotations : job
 
     if (!Object.prototype.hasOwnProperty.call(objectToFilter, filter.field)) {
-      console.error(`Unknown filter field provided: ${filter}`)
+      if (filter.isAnnotation === undefined || !filter.isAnnotation) {
+        console.error(`Unknown filter field provided: ${filter}`)
+      }
       return false
     }
     const matcher = getMatch(filter.match)

@@ -5,7 +5,7 @@ import { EnumFilterOption } from "components/lookoutV2/JobsTableFilter"
 import { isJobGroupRow, JobTableRow } from "models/jobsTableModels"
 import { JobState, Match } from "models/lookoutV2Models"
 
-import { LookoutColumnFilter, LookoutColumnOrder } from "../containers/lookoutV2/JobsTableContainer"
+import { LookoutColumnOrder } from "../containers/lookoutV2/JobsTableContainer"
 import { formatBytes, formatCPU, formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
 
 export type JobTableColumn = ColumnDef<JobTableRow, any>

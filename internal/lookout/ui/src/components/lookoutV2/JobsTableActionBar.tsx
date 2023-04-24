@@ -7,7 +7,7 @@ import GroupBySelect from "components/lookoutV2/GroupBySelect"
 import { JobFilter } from "models/lookoutV2Models"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
-import { ColumnId, createAnnotationColumn, JobTableColumn } from "utils/jobsTableColumns"
+import { ColumnId, JobTableColumn } from "utils/jobsTableColumns"
 
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { CancelDialog } from "./CancelDialog"
