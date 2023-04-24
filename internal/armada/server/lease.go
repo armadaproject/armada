@@ -37,6 +37,7 @@ import (
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
+	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulerinterfaces "github.com/armadaproject/armada/internal/scheduler/interfaces"
@@ -466,102 +467,56 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		ctx, cancel = context.WithDeadline(ctx, deadline.Add(-3*time.Second))
 		defer cancel()
 	}
-	constraints := scheduler.SchedulingConstraintsFromSchedulingConfig(
+
+	sctx := schedulercontext.NewSchedulingContext(
 		req.ClusterId,
 		req.Pool,
+		q.schedulingConfig.Preemption.PriorityClasses,
+		q.schedulingConfig.Preemption.DefaultPriorityClass,
+		q.schedulingConfig.ResourceScarcity,
+		// May need priority factors for inactive queues for rescheduling evicted jobs.
+		priorityFactorByQueue,
+		nodeDb.TotalResources(),
+		allocatedByQueueForPool,
+	)
+	constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 		schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
 		q.schedulingConfig,
-		schedulerobjects.ResourceList{Resources: totalCapacity},
 	)
-
-	var preemptedJobs []schedulerinterfaces.LegacySchedulerJob
-	var scheduledJobs []schedulerinterfaces.LegacySchedulerJob
-	var schedulingContext *schedulercontext.SchedulingContext
-	if q.schedulingConfig.Preemption.PreemptToFairShare {
-		rescheduler := scheduler.NewRescheduler(
-			*constraints,
-			q.schedulingConfig,
-			&SchedulerJobRepositoryAdapter{
-				r: q.jobRepository,
-			},
-			nodeDb,
-			// May need priority factors for inactive queues for rescheduling evicted jobs.
-			priorityFactorByQueue,
-			allocatedByQueueForPool,
-			nodeIdByJobId,
-			jobIdsByGangId,
-			gangIdByJobId,
-		)
-		if q.schedulingConfig.EnableAssertions {
-			rescheduler.EnableAssertions()
-		}
-		result, err := rescheduler.Schedule(ctx)
-		if err != nil {
-			return nil, err
-		}
-		preemptedJobs = result.PreemptedJobs
-		scheduledJobs = result.ScheduledJobs
-		nodeIdByJobId = result.NodeIdByJobId
-		schedulingContext = result.SchedulingContext
-	} else {
-		schedulerQueues := make([]*scheduler.Queue, len(activeQueues))
-		for i, apiQueue := range activeQueues {
-			jobIterator, err := scheduler.NewQueuedJobsIterator(
-				ctx,
-				apiQueue.Name,
-				&SchedulerJobRepositoryAdapter{
-					r: q.jobRepository,
-				},
-			)
-			if err != nil {
-				return nil, err
-			}
-			queue, err := scheduler.NewQueue(
-				apiQueue.Name,
-				priorityFactorByActiveQueue[apiQueue.Name],
-				jobIterator,
-			)
-			if err != nil {
-				return nil, err
-			}
-			schedulerQueues[i] = queue
-		}
-		sched, err := scheduler.NewLegacyScheduler(
-			ctx,
-			*constraints,
-			nodeDb,
-			schedulerQueues,
-			allocatedByQueueForPool,
-		)
-		if err != nil {
-			return nil, err
-		}
-
-		// Log initial scheduler state.
-		log.Info("LegacyScheduler:\n" + sched.String())
-
-		// Run the scheduler.
-		result, err := sched.Schedule(ctx)
-		if err != nil {
-			return nil, err
-		}
-		preemptedJobs = result.PreemptedJobs
-		scheduledJobs = result.ScheduledJobs
-		nodeIdByJobId = result.NodeIdByJobId
-		schedulingContext = result.SchedulingContext
+	sch := scheduler.NewPreemptingQueueScheduler(
+		sctx,
+		constraints,
+		q.schedulingConfig.Preemption.NodeEvictionProbability,
+		q.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
+		&SchedulerJobRepositoryAdapter{
+			r: q.jobRepository,
+		},
+		nodeDb,
+		nodeIdByJobId,
+		jobIdsByGangId,
+		gangIdByJobId,
+	)
+	result, err := sch.Schedule(
+		ctxlogrus.ToContext(
+			context.Background(),
+			logrus.NewEntry(logrus.New()),
+		),
+	)
+	if err != nil {
+		return nil, err
 	}
 
 	// Store the scheduling context for querying.
-	if q.SchedulingContextRepository != nil && schedulingContext != nil {
-		schedulingContext.ClearJobSpecs()
-		if err := q.SchedulingContextRepository.AddSchedulingContext(schedulingContext); err != nil {
+	if q.SchedulingContextRepository != nil {
+		sctx.ClearJobSpecs()
+		if err := q.SchedulingContextRepository.AddSchedulingContext(sctx); err != nil {
 			logging.WithStacktrace(log, err).Error("failed to store scheduling context")
 		}
 	}
 
 	// Publish preempted + failed messages.
-	sequences := make([]*armadaevents.EventSequence, len(preemptedJobs))
-	for i, job := range preemptedJobs {
+	sequences := make([]*armadaevents.EventSequence, len(result.PreemptedJobs))
+	for i, job := range result.PreemptedJobs {
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.GetId())
 		if err != nil {
 			return nil, err
@@ -606,7 +561,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	}
 
 	preemptedApiJobsById := make(map[string]*api.Job)
-	for _, job := range preemptedJobs {
+	for _, job := range result.PreemptedJobs {
 		if apiJob, ok := job.(*api.Job); ok {
 			preemptedApiJobsById[job.GetId()] = apiJob
 		} else {
@@ -614,7 +569,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		}
 	}
 	scheduledApiJobsById := make(map[string]*api.Job)
-	for _, job := range scheduledJobs {
+	for _, job := range result.ScheduledJobs {
 		if apiJob, ok := job.(*api.Job); ok {
 			scheduledApiJobsById[job.GetId()] = apiJob
 		} else {
@@ -655,7 +610,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if err != nil {
 		return nil, err
 	}
-	successfullyLeasedApiJobs := make([]*api.Job, 0, len(scheduledJobs))
+	successfullyLeasedApiJobs := make([]*api.Job, 0, len(result.ScheduledJobs))
 	for _, jobIds := range leasedJobIdsByQueue {
 		for _, jobId := range jobIds {
 			if apiJob, ok := scheduledApiJobsById[jobId]; ok {
@@ -669,7 +624,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	// Update resource cluster report to account for preempted/leased jobs and write it to Redis.
 	allocatedByQueueForCluster = scheduler.UpdateUsage(
 		allocatedByQueueForCluster,
-		preemptedJobs,
+		result.PreemptedJobs,
 		q.schedulingConfig.Preemption.PriorityClasses,
 		scheduler.Subtract,
 	)

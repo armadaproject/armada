@@ -1158,7 +1158,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 					tc.SchedulingConfig,
 				)
-				rescheduler := NewRescheduler(
+				rescheduler := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
 					tc.SchedulingConfig.Preemption.NodeEvictionProbability,
@@ -1430,7 +1430,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 			)
-			rescheduler := NewRescheduler(
+			rescheduler := NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
 				tc.SchedulingConfig.Preemption.NodeEvictionProbability,
@@ -1476,7 +1476,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					nodeDb.TotalResources(),
 					usageByQueue,
 				)
-				rescheduler := NewRescheduler(
+				rescheduler := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
 					tc.SchedulingConfig.Preemption.NodeEvictionProbability,

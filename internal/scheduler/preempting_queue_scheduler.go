@@ -46,7 +46,7 @@ type PreemptingQueueScheduler struct {
 	enableAssertions bool
 }
 
-func NewRescheduler(
+func NewPreemptingQueueScheduler(
 	sctx *schedulercontext.SchedulingContext,
 	constraints schedulerconstraints.SchedulingConstraints,
 	nodeEvictionProbability float64,
@@ -92,7 +92,7 @@ func (sch *PreemptingQueueScheduler) EnableAssertions() {
 // - schedules new jobs belonging to queues with total allocation less than their fair share.
 func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, error) {
 	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("function", "Reschedule")
+	log = log.WithField("service", "PreemptingQueueScheduler")
 	if ResourceListAsWeightedApproximateFloat64(sch.schedulingContext.ResourceScarcity, sch.schedulingContext.TotalResources) == 0 {
 		// This refers to resources available across all clusters, i.e.,
 		// it may include resources not currently considered for scheduling.
@@ -117,7 +117,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 	preemptedJobsById := make(map[string]interfaces.LegacySchedulerJob)
 	scheduledJobsById := make(map[string]interfaces.LegacySchedulerJob)
 	log.Infof(
-		"starting rescheduling with total resources %s",
+		"starting scheduling with total resources %s",
 		sch.schedulingContext.TotalResources.CompactString(),
 	)
 
@@ -202,7 +202,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 		schedulerResult, err = sch.schedule(
 			ctxlogrus.ToContext(
 				ctx,
-				log.WithField("stage", "reschedule after oversubscribed eviction"),
+				log.WithField("stage", "schedule after oversubscribed eviction"),
 			),
 			inMemoryJobRepo,
 			// Only evicted jobs should be scheduled in this round,
@@ -238,7 +238,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 		log.Infof("scheduling new jobs; %s", s)
 	}
 	if sch.enableAssertions {
-		err := sch.reschedulerAssertions(
+		err := sch.assertions(
 			ctxlogrus.ToContext(
 				ctx,
 				log.WithField("stage", "validate consistency"),
@@ -482,7 +482,7 @@ func (sch *PreemptingQueueScheduler) schedule(ctx context.Context, inMemoryJobRe
 		return nil, err
 	}
 	if s := JobsSummary(result.ScheduledJobs); s != "" {
-		log.Infof("rescheduled %d jobs; %s", len(result.ScheduledJobs), s)
+		log.Infof("re-scheduled %d jobs; %s", len(result.ScheduledJobs), s)
 	}
 	return result, nil
 }
@@ -549,7 +549,7 @@ func (sch *PreemptingQueueScheduler) updateGangAccounting(preemptedJobs, schedul
 //
 // Compare the nodedb.NodeJobDiff with expected preempted/scheduled jobs to ensure NodeDb is consistent.
 // This is only to validate that nothing unexpected happened during scheduling.
-func (sch *PreemptingQueueScheduler) reschedulerAssertions(
+func (sch *PreemptingQueueScheduler) assertions(
 	ctx context.Context,
 	snapshot *memdb.Txn,
 	preemptedJobsById,
@@ -812,7 +812,7 @@ func (evi *Evictor) Evict(ctx context.Context, it nodedb.NodeIterator) (*Evictor
 }
 
 // TODO: This is only necessary for jobs not scheduled in this cycle.
-// Since jobs scheduled in this cycle can be rescheduled onto another node without triggering a preemption.
+// Since jobs scheduled in this cycle can be re-scheduled onto another node without triggering a preemption.
 func defaultPostEvictFunc(ctx context.Context, job interfaces.LegacySchedulerJob, node *schedulerobjects.Node) {
 	// Add annotation indicating to the scheduler this this job was evicted.
 	annotations := job.GetAnnotations()

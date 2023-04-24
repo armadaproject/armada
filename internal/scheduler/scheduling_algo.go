@@ -199,7 +199,7 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 		executor.MinimumJobSize,
 		l.config,
 	)
-	scheduler := NewRescheduler(
+	scheduler := NewPreemptingQueueScheduler(
 		sctx,
 		constraints,
 		l.config.Preemption.NodeEvictionProbability,
