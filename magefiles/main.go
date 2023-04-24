@@ -103,8 +103,17 @@ func BootstrapProto() {
 }
 
 func BuildCICluster() {
+	// track the time between each step
+	start := time.Now()
 	mg.Deps(BootstrapTools)
+	delta := time.Since(start)
+	fmt.Printf("BootstrapTools took %s\n", delta)
+
+	start = time.Now()
 	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind)
+	delta = time.Since(start)
+	fmt.Printf("goreleaserMinimalRelease took %s\n", delta)
+
 	mg.Deps(ciSetup)
 }
 

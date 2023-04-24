@@ -14,13 +14,18 @@ func ciSetup() error {
 	if err := os.MkdirAll(".kube", os.ModeDir|0o755); err != nil {
 		return err
 	}
+
+	start := time.Now()
 	err := dockerComposeRun("up", "-d", "redis", "postgres", "pulsar")
 	if err != nil {
 		return err
 	}
+	delta := time.Since(start)
+	fmt.Printf("docker-compose took %s\n", delta)
 
 	mg.Deps(CheckForPulsarRunning)
 
+	start = time.Now()
 	// By starting the executor first,
 	// we can ensure that the server will be able to register the executor cluster
 	// on its first attempt.
@@ -37,6 +42,8 @@ func ciSetup() error {
 	if err != nil {
 		return err
 	}
+	delta = time.Since(start)
+	fmt.Printf("docker-compose 2 + queue creation took %s\n", delta)
 
 	return nil
 }
