@@ -2,6 +2,7 @@ package scheduleringester
 
 import (
 	"context"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/jackc/pgx/v4"
 	"testing"
 	"time"
@@ -583,6 +584,42 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		return errors.Errorf("received unexpected op %+v", op)
 	}
 	return nil
+}
+
+func TestStore(t *testing.T) {
+	jobId := util.ULID().String()
+	runId := uuid.New()
+	ops := []DbOperation{
+		InsertJobs{
+			jobId: &schedulerdb.Job{
+				JobID:          jobId,
+				JobSet:         "set1",
+				Groups:         make([]byte, 0),
+				SubmitMessage:  make([]byte, 0),
+				SchedulingInfo: make([]byte, 0),
+			},
+		},
+		InsertRuns{
+			runId: &schedulerdb.Run{JobID: jobId, RunID: runId},
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := schedulerdb.WithTestDb(func(q *schedulerdb.Queries, db *pgxpool.Pool) error {
+		schedulerDb := NewSchedulerDb(db, metrics.NewMetrics("test"), time.Second, time.Second, 10*time.Second)
+		err := schedulerDb.Store(ctx, &DbOperationsWithMessageIds{Ops: ops})
+		require.NoError(t, err)
+
+		jobIds, err := q.SelectAllJobIds(ctx)
+		require.NoError(t, err)
+		require.Equal(t, []string{jobId}, jobIds)
+
+		runIds, err := q.SelectAllRunIds(ctx)
+		require.Equal(t, []uuid.UUID{runId}, runIds)
+
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 func max[E constraints.Ordered](a, b E) E {

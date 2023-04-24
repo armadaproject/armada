@@ -58,12 +58,9 @@ func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithM
 			// First acquire the write lock
 			lockCtx, cancel := context.WithTimeout(ctx, s.lockTimeout)
 			defer cancel()
-			haveLock, err := s.acquireLock(lockCtx, tx)
+			err := s.acquireLock(lockCtx, tx)
 			if err != nil {
 				return err
-			}
-			if !haveLock {
-				return fmt.Errorf("could not obtain lock")
 			}
 			// Now insert the ops
 			for _, dbOp := range instructions.Ops {
@@ -84,18 +81,10 @@ func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithM
 // - the scheduler relies on this sequence number increasing to ensure it has fetched all updated rows
 // - concurrent transactions will result in sequence numbers being interleaved across transactions.
 // - the interleaved sequences may result in the scheduler seeing sequence numbers that do not strictly increase over time.
-func (s *SchedulerDb) acquireLock(ctx context.Context, tx pgx.Tx) (bool, error) {
-	const tableLockKey = "armada_scheduleringester_lock"
-	acquired, err := tx.Query(ctx, "SELECT pg_try_advisory_lock($1)", tableLockKey)
-	if err != nil {
-		return false, errors.Wrapf(err, "error acquiring lock")
-	}
-	defer acquired.Close()
-	var lockAcquired bool
-	if err := acquired.Scan(&lockAcquired); err != nil {
-		return false, errors.Wrapf(err, "error acquiring lock")
-	}
-	return lockAcquired, nil
+func (s *SchedulerDb) acquireLock(ctx context.Context, tx pgx.Tx) error {
+	const lockId = 8741339439634283896
+	_, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockId)
+	return errors.Wrapf(err, "Could not obtain lock")
 }
 
 func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) error {
