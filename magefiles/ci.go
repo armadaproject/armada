@@ -22,7 +22,7 @@ func ciSetup() error {
 	mg.Deps(CheckForPulsarRunning)
 
 	// By starting the executor first,
-	// we can ensure that the server will be able to connect to it
+	// we can ensure that the server will be able to register the executor cluster
 	// on its first attempt.
 	err = dockerComposeRun("up", "-d", "executor")
 	if err != nil {
