@@ -308,8 +308,6 @@ export const JobsTableContainer = ({
     const annotationCol = createAnnotationColumn(annotationKey)
     const newCols = allColumns.concat([annotationCol])
     setAllColumns(newCols)
-    if (annotationCol.id) {
-    }
     if (!colIsVisible(toColId(annotationCol.id))) {
       onColumnVisibilityChange(toColId(annotationCol.id))
     }
@@ -336,8 +334,16 @@ export const JobsTableContainer = ({
     if (index === -1) {
       throw new Error(`column "${colId}" not found`)
     }
+    // Make old column not visible
+    if (colIsVisible(toColId(allColumns[index].id))) {
+      onColumnVisibilityChange(toColId(allColumns[index].id))
+    }
     allColumns[index] = createAnnotationColumn(annotationKey)
+    // Make new column visible
     setAllColumns([...allColumns])
+    if (!colIsVisible(toColId(allColumns[index].id))) {
+      onColumnVisibilityChange(toColId(allColumns[index].id))
+    }
   }
 
   const onGroupingChange = useCallback(
