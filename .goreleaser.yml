@@ -2,8 +2,8 @@ project_name: armada
 
 dist: "dist"
 
-gomod:
-  proxy: true
+#gomod:
+#  proxy: true
 
 builds:
   - env: [CGO_ENABLED=0]
