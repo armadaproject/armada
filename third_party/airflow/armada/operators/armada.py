@@ -23,6 +23,7 @@ from airflow.models import BaseOperator
 from airflow.exceptions import AirflowException
 
 from armada_client.client import ArmadaClient
+from armada_client.k8s.io.api.core.v1 import generated_pb2 as armada_client_proto
 from armada.operators.jobservice import JobServiceClient
 
 from armada.operators.utils import (
@@ -63,7 +64,7 @@ class ArmadaOperator(BaseOperator):
         armada_client: ArmadaClient,
         job_service_client: JobServiceClient,
         armada_queue: str,
-        job_request_items,
+        job_request_items: armada_client_proto.PodSpec,
         lookout_url_template: Optional[str] = None,
         **kwargs,
     ) -> None:

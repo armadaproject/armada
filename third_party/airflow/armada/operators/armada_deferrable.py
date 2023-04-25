@@ -17,7 +17,7 @@
 # under the License.
 
 import logging
-from typing import Optional, Sequence, Tuple, Any
+from typing import Optional, Sequence, Tuple, Any, TypedDict
 
 import grpc
 
@@ -26,6 +26,7 @@ from airflow.models import BaseOperator
 from airflow.triggers.base import BaseTrigger, TriggerEvent
 
 from armada_client.client import ArmadaClient
+from armada_client.k8s.io.api.core.v1 import generated_pb2 as armada_client_proto
 from armada.operators.jobservice import JobServiceClient
 from armada.operators.jobservice_asyncio import JobServiceAsyncIOClient
 
@@ -71,10 +72,10 @@ class ArmadaDeferrableOperator(BaseOperator):
     def __init__(
         self,
         name: str,
-        armada_channel_args: dict,
-        job_service_channel_args: dict,
+        armada_channel_args: GrpcChannelArgsDict,
+        job_service_channel_args: GrpcChannelArgsDict,
         armada_queue: str,
-        job_request_items,
+        job_request_items: armada_client_proto.PodSpec,
         lookout_url_template: Optional[str] = None,
         **kwargs,
     ) -> None:
@@ -193,7 +194,7 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
     def __init__(
         self,
         job_id: str,
-        job_service_channel_args: dict,
+        job_service_channel_args: GrpcChannelArgsDict,
         armada_queue: str,
         job_set_id: str,
         airflow_task_name: str,
@@ -234,6 +235,17 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
             log=self.log,
         )
         yield TriggerEvent({"job_state": job_state, "job_message": job_message})
+
+
+class GrpcChannelArgsDict(TypedDict):
+    """
+    Helper class to provide stronger type checking on Grpc channel arugments.
+    """
+
+    target: str
+    credentials: Optional[grpc.ChannelCredentials] = None
+    options: Optional[Sequence[Tuple[str, Any]]] = None
+    compression: Optional[grpc.Compression] = None
 
 
 class GrpcChannelArguments(object):
