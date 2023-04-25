@@ -7,8 +7,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -252,4 +255,95 @@ func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
 	job, err := it.Next()
 	assert.Nil(t, job)
 	assert.NoError(t, err)
+}
+
+// TODO: Deprecate in favour of InMemoryRepo.
+type mockJobRepository struct {
+	jobsByQueue map[string][]*api.Job
+	jobsById    map[string]*api.Job
+	// Ids of all jobs hat were leased to an executor.
+	leasedJobs          map[string]bool
+	getQueueJobIdsDelay time.Duration
+}
+
+func newMockJobRepository() *mockJobRepository {
+	return &mockJobRepository{
+		jobsByQueue: make(map[string][]*api.Job),
+		jobsById:    make(map[string]*api.Job),
+		leasedJobs:  make(map[string]bool),
+	}
+}
+
+func (repo *mockJobRepository) EnqueueMany(jobs []*api.Job) {
+	for _, job := range jobs {
+		repo.Enqueue(job)
+	}
+}
+
+func (repo *mockJobRepository) Enqueue(job *api.Job) {
+	repo.jobsByQueue[job.Queue] = append(repo.jobsByQueue[job.Queue], job)
+	repo.jobsById[job.Id] = job
+}
+
+func (repo *mockJobRepository) GetJobIterator(ctx context.Context, queue string) (JobIterator, error) {
+	return NewQueuedJobsIterator(ctx, queue, repo)
+}
+
+func (repo *mockJobRepository) GetQueueJobIds(queue string) ([]string, error) {
+	time.Sleep(repo.getQueueJobIdsDelay)
+	if jobs, ok := repo.jobsByQueue[queue]; ok {
+		rv := make([]string, 0, len(jobs))
+		for _, job := range jobs {
+			if !repo.leasedJobs[job.Id] {
+				rv = append(rv, job.Id)
+			}
+		}
+		return rv, nil
+	} else {
+		return make([]string, 0), nil
+	}
+}
+
+func (repo *mockJobRepository) GetExistingJobsByIds(jobIds []string) ([]interfaces.LegacySchedulerJob, error) {
+	rv := make([]interfaces.LegacySchedulerJob, len(jobIds))
+	for i, jobId := range jobIds {
+		if job, ok := repo.jobsById[jobId]; ok {
+			rv[i] = job
+		}
+	}
+	return rv, nil
+}
+
+func (repo *mockJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
+	successfullyLeasedJobs := make([]*api.Job, 0, len(jobs))
+	for _, job := range jobs {
+		if !repo.leasedJobs[job.Id] {
+			successfullyLeasedJobs = append(successfullyLeasedJobs, job)
+			repo.leasedJobs[job.Id] = true
+		}
+	}
+	return successfullyLeasedJobs, nil
+}
+
+func apiJobFromPodSpec(queue string, podSpec *v1.PodSpec) *api.Job {
+	return &api.Job{
+		Id:      util.NewULID(),
+		PodSpec: podSpec,
+		Queue:   queue,
+	}
+}
+
+func podSpecFromPodRequirements(req *schedulerobjects.PodRequirements) *v1.PodSpec {
+	return &v1.PodSpec{
+		NodeSelector:     req.NodeSelector,
+		Affinity:         req.Affinity,
+		Tolerations:      req.Tolerations,
+		Priority:         &req.Priority,
+		PreemptionPolicy: (*v1.PreemptionPolicy)(&req.PreemptionPolicy),
+		Containers: []v1.Container{
+			{
+				Resources: req.ResourceRequirements,
+			},
+		},
+	}
 }

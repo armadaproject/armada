@@ -176,21 +176,6 @@ func jobSchedulingContextsFromJobs[T interfaces.LegacySchedulerJob](jobs []T, ex
 	return jctxs
 }
 
-func totalResourceRequestsFromGangSchedulingContext(gctx *schedulercontext.GangSchedulingContext, priorityClasses map[string]configuration.PriorityClass) schedulerobjects.ResourceList {
-	rv := schedulerobjects.ResourceList{}
-	for _, jctx := range gctx.JobSchedulingContexts {
-		job := jctx.Job
-		for _, reqs := range job.GetRequirements(priorityClasses).GetObjectRequirements() {
-			rv.Add(
-				schedulerobjects.ResourceListFromV1ResourceList(
-					reqs.GetPodRequirements().ResourceRequirements.Requests,
-				),
-			)
-		}
-	}
-	return rv
-}
-
 func isEvictedJob(job interfaces.LegacySchedulerJob) bool {
 	return job.GetAnnotations()[schedulerconfig.IsEvictedAnnotation] == "true"
 }

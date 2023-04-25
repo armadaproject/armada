@@ -25,6 +25,66 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
+func TestEvictOversubscribed(t *testing.T) {
+	nodes := testfixtures.TestNCpuNode(1, testfixtures.TestPriorities)
+	node := nodes[0]
+	var err error
+	jobs := append(
+		testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 20),
+		testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass1, 20)...,
+	)
+	reqs := PodRequirementsFromLegacySchedulerJobs(jobs, testfixtures.TestPriorityClasses)
+	for _, req := range reqs {
+		node, err = nodedb.BindPodToNode(req, node)
+		require.NoError(t, err)
+	}
+	nodes[0] = node
+
+	jobRepo := NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
+	for _, job := range jobs {
+		jobRepo.Enqueue(job)
+	}
+	evictor := NewOversubscribedEvictor(
+		jobRepo,
+		testfixtures.TestPriorityClasses,
+		1,
+	)
+	it := NewInMemoryNodeIterator(nodes)
+	result, err := evictor.Evict(context.Background(), it)
+	require.NoError(t, err)
+
+	prioritiesByName := configuration.PriorityByPriorityClassName(testfixtures.TestPriorityClasses)
+	priorities := maps.Values(prioritiesByName)
+	slices.Sort(priorities)
+	for nodeId, node := range result.AffectedNodesById {
+		for _, p := range priorities {
+			for resourceType, q := range node.AllocatableByPriorityAndResource[p].Resources {
+				assert.NotEqual(t, -1, q.Cmp(resource.Quantity{}), "resource %s oversubscribed by %s on node %s", resourceType, q.String(), nodeId)
+			}
+		}
+	}
+}
+
+type InMemoryNodeIterator struct {
+	i     int
+	nodes []*schedulerobjects.Node
+}
+
+func NewInMemoryNodeIterator(nodes []*schedulerobjects.Node) *InMemoryNodeIterator {
+	return &InMemoryNodeIterator{
+		nodes: slices.Clone(nodes),
+	}
+}
+
+func (it *InMemoryNodeIterator) NextNode() *schedulerobjects.Node {
+	if it.i >= len(it.nodes) {
+		return nil
+	}
+	v := it.nodes[it.i]
+	it.i++
+	return v
+}
+
 func TestPreemptingQueueScheduler(t *testing.T) {
 	type SchedulingRound struct {
 		// Map from queue name to pod requirements for that queue.
@@ -1320,11 +1380,19 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 	}
 }
 
+func jobIdsByQueueFromJobs(jobs []interfaces.LegacySchedulerJob) map[string][]string {
+	rv := make(map[string][]string)
+	for _, job := range jobs {
+		rv[job.GetQueue()] = append(rv[job.GetQueue()], job.GetId())
+	}
+	return rv
+}
+
 func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 	tests := map[string]struct {
 		SchedulingConfig  configuration.SchedulingConfig
 		Nodes             []*schedulerobjects.Node
-		PodReqFunc        func(queue string, priority int32, n int) []*schedulerobjects.PodRequirements
+		JobFunc           func(queue string, priorityClassName string, n int) []*jobdb.Job
 		NumQueues         int
 		NumJobsPerQueue   int
 		MinimumJobSize    map[string]resource.Quantity
@@ -1340,7 +1408,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				),
 			),
 			Nodes:             testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			PodReqFunc:        testfixtures.TestNSmallCpuJob,
+			JobFunc:           testfixtures.NSmallCpuJob,
 			NumQueues:         1,
 			NumJobsPerQueue:   32,
 			MinPriorityFactor: 1,
@@ -1352,7 +1420,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				testfixtures.TestSchedulingConfig(),
 			),
 			Nodes:             testfixtures.TestNCpuNode(10, testfixtures.TestPriorities),
-			PodReqFunc:        testfixtures.TestNSmallCpuJob,
+			JobFunc:           testfixtures.NSmallCpuJob,
 			NumQueues:         1,
 			NumJobsPerQueue:   320,
 			MinPriorityFactor: 1,
@@ -1364,7 +1432,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				testfixtures.TestSchedulingConfig(),
 			),
 			Nodes:             testfixtures.TestNCpuNode(100, testfixtures.TestPriorities),
-			PodReqFunc:        testfixtures.TestNSmallCpuJob,
+			JobFunc:           testfixtures.NSmallCpuJob,
 			NumQueues:         1,
 			NumJobsPerQueue:   3200,
 			MinPriorityFactor: 1,
@@ -1376,7 +1444,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				testfixtures.TestSchedulingConfig(),
 			),
 			Nodes:             testfixtures.TestNCpuNode(1000, testfixtures.TestPriorities),
-			PodReqFunc:        testfixtures.TestNSmallCpuJob,
+			JobFunc:           testfixtures.NSmallCpuJob,
 			NumQueues:         1,
 			NumJobsPerQueue:   32000,
 			MinPriorityFactor: 1,
@@ -1388,7 +1456,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				testfixtures.TestSchedulingConfig(),
 			),
 			Nodes:             testfixtures.TestNCpuNode(500, testfixtures.TestPriorities),
-			PodReqFunc:        testfixtures.TestNSmallCpuJob,
+			JobFunc:           testfixtures.NSmallCpuJob,
 			NumQueues:         100,
 			NumJobsPerQueue:   256,
 			MinPriorityFactor: 1,
@@ -1397,11 +1465,11 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 	}
 	for name, tc := range tests {
 		b.Run(name, func(b *testing.B) {
-			reqsByQueue := make(map[string][]*schedulerobjects.PodRequirements)
+			jobsByQueue := make(map[string][]*jobdb.Job)
 			priorityFactorByQueue := make(map[string]float64)
 			for i := 0; i < tc.NumQueues; i++ {
 				queue := fmt.Sprintf("%d", i)
-				reqsByQueue[queue] = tc.PodReqFunc(queue, 0, tc.NumJobsPerQueue)
+				jobsByQueue[queue] = tc.JobFunc(queue, testfixtures.PriorityClass0, tc.NumJobsPerQueue)
 				priorityFactorByQueue[queue] = float64(rand.Intn(tc.MaxPriorityFactor-tc.MinPriorityFactor+1) + tc.MinPriorityFactor)
 			}
 
@@ -1411,8 +1479,10 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			usageByQueue := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
 
 			jobs := make([]interfaces.LegacySchedulerJob, 0)
-			for queue, reqs := range reqsByQueue {
-				jobs = append(jobs, LegacySchedulerJobsFromPodReqs(queue, "", reqs)...)
+			for _, queueJobs := range jobsByQueue {
+				for _, job := range queueJobs {
+					jobs = append(jobs, job)
+				}
 			}
 			repo.EnqueueMany(jobs)
 

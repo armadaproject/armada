@@ -18,6 +18,7 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
@@ -716,4 +717,21 @@ func TestQueueScheduler(t *testing.T) {
 			assert.NotEmpty(t, sch.schedulingContext.TerminationReason)
 		})
 	}
+}
+
+func CreateNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
+	db, err := nodedb.NewNodeDb(
+		testfixtures.TestPriorityClasses,
+		testfixtures.TestMaxExtraNodesToConsider,
+		testfixtures.TestResources,
+		testfixtures.TestIndexedTaints,
+		testfixtures.TestIndexedNodeLabels,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.UpsertMany(nodes); err != nil {
+		return nil, err
+	}
+	return db, nil
 }
