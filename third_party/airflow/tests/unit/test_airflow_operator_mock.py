@@ -25,7 +25,7 @@ def server_mock():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     submit_pb2_grpc.add_SubmitServicer_to_server(SubmitService(), server)
     event_pb2_grpc.add_EventServicer_to_server(EventService(), server)
-    server.add_insecure_port("[::]:50052")
+    server.add_insecure_port("[::]:50099")
     server.start()
 
     yield
@@ -36,7 +36,7 @@ def server_mock():
 def job_service_mock():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     jobservice_pb2_grpc.add_JobServiceServicer_to_server(JobService(), server)
-    server.add_insecure_port("[::]:60008")
+    server.add_insecure_port("[::]:60081")
     server.start()
 
     yield
@@ -45,10 +45,10 @@ def job_service_mock():
 
 tester_client = ArmadaClient(
     grpc.insecure_channel(
-        target="127.0.0.1:50052",
+        target="127.0.0.1:50099",
     )
 )
-tester_jobservice = JobServiceClient(grpc.insecure_channel(target="127.0.0.1:60008"))
+tester_jobservice = JobServiceClient(grpc.insecure_channel(target="127.0.0.1:60081"))
 
 
 def sleep_job():
