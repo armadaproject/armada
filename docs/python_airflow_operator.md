@@ -240,8 +240,8 @@ Returns the information needed to reconstruct this Trigger.
 
 
 
-### _class_ armada.operators.armada_deferrable.GrpcChannelArgsDict(\*args, \*\*kwargs)
-Bases: `dict`
+### _class_ armada.operators.armada_deferrable.GrpcChannelArgsDict()
+Bases: `TypedDict`
 
 Helper class to provide stronger type checking on Grpc channel arugments.
 
@@ -498,10 +498,8 @@ Health Check for GRPC Request
 ## armada.operators.utils module
 
 
-### _class_ armada.operators.utils.JobState(value)
+### _class_ armada.operators.utils.JobState(value, names=None, \*, module=None, qualname=None, type=None, start=1, boundary=None)
 Bases: `Enum`
-
-An enumeration.
 
 
 #### CANCELLED(_ = _ )
