@@ -36,7 +36,7 @@ Airflow operators inherit from BaseOperator.
     * **armada_queue** (*str*) – The queue name for Armada.
 
 
-    * **job_request_items** – A PodSpec that is used by Armada for submitting a job
+    * **job_request_items** (*List**[**JobSubmitRequestItem**]*) – A PodSpec that is used by Armada for submitting a job
 
 
     * **lookout_url_template** (*str** | **None*) – A URL template to be used to provide users
@@ -99,18 +99,18 @@ Airflow operators inherit from BaseOperator.
     * **name** (*str*) – The name of the airflow task.
 
 
-    * **armada_channel_args** (*dict*) – GRPC channel arguments to be used when creating
+    * **armada_channel_args** (*GrpcChannelArgsDict*) – GRPC channel arguments to be used when creating
     a grpc channel to connect to the armada server instance.
 
 
-    * **job_service_channel_args** (*dict*) – GRPC channel arguments to be used when creating
+    * **job_service_channel_args** (*GrpcChannelArgsDict*) – GRPC channel arguments to be used when creating
     a grpc channel to connect to the job service instance.
 
 
     * **armada_queue** (*str*) – The queue name for Armada.
 
 
-    * **job_request_items** – A PodSpec that is used by Armada for submitting a job.
+    * **job_request_items** (*List**[**JobSubmitRequestItem**]*) – A PodSpec that is used by Armada for submitting a job.
 
 
     * **lookout_url_template** (*str** | **None*) – A URL template to be used to provide users
@@ -199,7 +199,7 @@ Triggers when the job is complete.
     * **job_id** (*str*) – The job ID to monitor.
 
 
-    * **job_service_channel_args** (*dict*) – GRPC channel arguments to be used when
+    * **job_service_channel_args** (*GrpcChannelArgsDict*) – GRPC channel arguments to be used when
     creating a grpc channel to connect to the job service instance.
 
 
@@ -239,6 +239,20 @@ Returns the information needed to reconstruct this Trigger.
     tuple
 
 
+
+### _class_ armada.operators.armada_deferrable.GrpcChannelArgsDict(\*args, \*\*kwargs)
+Bases: `dict`
+
+Helper class to provide stronger type checking on Grpc channel arugments.
+
+
+#### compression(_: Compression | Non_ _ = Non_ )
+
+#### credentials(_: ChannelCredentials | Non_ _ = Non_ )
+
+#### options(_: Sequence[Tuple[str, Any]] | Non_ _ = Non_ )
+
+#### target(_: st_ )
 
 ### _class_ armada.operators.armada_deferrable.GrpcChannelArguments(target, credentials=None, options=None, compression=None)
 Bases: `object`

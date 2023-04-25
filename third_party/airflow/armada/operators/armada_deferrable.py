@@ -17,7 +17,7 @@
 # under the License.
 
 import logging
-from typing import Optional, Sequence, Tuple, Any, TypedDict
+from typing import Optional, Sequence, Tuple, Any, TypedDict, List
 
 import grpc
 
@@ -25,11 +25,11 @@ from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator
 from airflow.triggers.base import BaseTrigger, TriggerEvent
 
+from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.client import ArmadaClient
-from armada_client.k8s.io.api.core.v1 import generated_pb2 as armada_client_proto
+
 from armada.operators.jobservice import JobServiceClient
 from armada.operators.jobservice_asyncio import JobServiceAsyncIOClient
-
 from armada.operators.utils import (
     airflow_error,
     search_for_job_complete_async,
@@ -39,6 +39,17 @@ from armada.jobservice import jobservice_pb2
 
 
 armada_logger = logging.getLogger("airflow.task")
+
+
+class GrpcChannelArgsDict(TypedDict):
+    """
+    Helper class to provide stronger type checking on Grpc channel arugments.
+    """
+
+    target: str
+    credentials: Optional[grpc.ChannelCredentials] = None
+    options: Optional[Sequence[Tuple[str, Any]]] = None
+    compression: Optional[grpc.Compression] = None
 
 
 class ArmadaDeferrableOperator(BaseOperator):
@@ -75,7 +86,7 @@ class ArmadaDeferrableOperator(BaseOperator):
         armada_channel_args: GrpcChannelArgsDict,
         job_service_channel_args: GrpcChannelArgsDict,
         armada_queue: str,
-        job_request_items: armada_client_proto.PodSpec,
+        job_request_items: List[JobSubmitRequestItem],
         lookout_url_template: Optional[str] = None,
         **kwargs,
     ) -> None:
@@ -235,17 +246,6 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
             log=self.log,
         )
         yield TriggerEvent({"job_state": job_state, "job_message": job_message})
-
-
-class GrpcChannelArgsDict(TypedDict):
-    """
-    Helper class to provide stronger type checking on Grpc channel arugments.
-    """
-
-    target: str
-    credentials: Optional[grpc.ChannelCredentials] = None
-    options: Optional[Sequence[Tuple[str, Any]]] = None
-    compression: Optional[grpc.Compression] = None
 
 
 class GrpcChannelArguments(object):
