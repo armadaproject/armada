@@ -532,7 +532,7 @@ func EvictPodFromNode(req *schedulerobjects.PodRequirements, node *schedulerobje
 	// Ensure we track allocated resources at evictedPriority.
 	if _, ok := node.AllocatableByPriorityAndResource[evictedPriority]; !ok {
 		pMin := int32(math.MaxInt32)
-		for p, _ := range node.AllocatableByPriorityAndResource {
+		for p := range node.AllocatableByPriorityAndResource {
 			if p < pMin {
 				pMin = p
 			}
@@ -711,12 +711,12 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node)
 	if len(node.EvictedJobRunIds) != 0 {
 		q := schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).Get(evictedPriority, "cpu")
 		if q.Cmp(node.TotalResources.Get("cpu")) == 0 {
-			return errors.Errorf("inconsistent node accounting: node %s has evicted jobs but no evicted resoruces", node.Id)
+			return errors.Errorf("inconsistent node accounting: node %s has evicted jobs but no evicted resources", node.Id)
 		}
 	}
 	if _, ok := node.AllocatableByPriorityAndResource[evictedPriority]; !ok {
 		pMin := int32(math.MaxInt32)
-		for p, _ := range node.AllocatableByPriorityAndResource {
+		for p := range node.AllocatableByPriorityAndResource {
 			if p < pMin {
 				pMin = p
 			}

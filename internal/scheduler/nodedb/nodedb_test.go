@@ -468,9 +468,11 @@ func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 func BenchmarkUpsert1(b *testing.B) {
 	benchmarkUpsert(testfixtures.TestNCpuNode(1, testfixtures.TestPriorities), b)
 }
+
 func BenchmarkUpsert1000(b *testing.B) {
 	benchmarkUpsert(testfixtures.TestNCpuNode(1000, testfixtures.TestPriorities), b)
 }
+
 func BenchmarkUpsert100000(b *testing.B) {
 	benchmarkUpsert(testfixtures.TestNCpuNode(100000, testfixtures.TestPriorities), b)
 }

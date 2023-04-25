@@ -496,7 +496,6 @@ func TestNodeTypeIterator(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			// Set monotonically increaseing node ids to ensure nodes appear in predictable order.
 			for i, node := range tc.nodes {
 				node.Id = fmt.Sprintf("%d", i)
@@ -863,7 +862,6 @@ func TestNodeTypesIterator(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			// Set monotonically increaseing node ids to ensure nodes appear in predictable order.
 			for i, node := range tc.nodes {
 				node.Id = fmt.Sprintf("%d", i)
