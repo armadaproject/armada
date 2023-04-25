@@ -504,5 +504,5 @@ snapshot:
 
 source:
   enabled: true
-  name_template: "{{ .ProjectName }}_{{ replace .Version "-" "_" }}_source"
+  name_template: '{{ .ProjectName }}_{{ replace .Version "-" "_" }}_source'
   format: "zip"
