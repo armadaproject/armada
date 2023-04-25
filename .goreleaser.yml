@@ -474,9 +474,18 @@ release:
     #### Armada Executor
     - `docker pull {{ .Env.DOCKER_REPO }}armada-executor:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-executor:latest`
+    #### Armada Lookout
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout:latest`
+    #### Armada Lookout V2
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutv2:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutv2:latest`
     #### Armada Lookout Ingester
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutingester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutingester:latest`
+    #### Armada Lookout Ingester V2
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:latest`
     #### Armada Event Ingester
     - `docker pull {{ .Env.DOCKER_REPO }}armada-eventingester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-eventingester:latest`

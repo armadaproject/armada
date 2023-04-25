@@ -27,7 +27,7 @@ runs:
       with:
         destination_container_repo: ${{ inputs.docker_owner }}/armada-bundle
         provider: ${{ inputs.docker_provider }}
-        short_description: 'Armada Bundle which contains server, executor, binoculars, scheduler, scheduleringester and eventingester'
+        short_description: 'Armada Bundle'
         readme_file: 'README.md'
 
     - name: Push Armada Lookout Bundle README
@@ -38,7 +38,7 @@ runs:
       with:
         destination_container_repo: ${{ inputs.docker_owner }}/armada-lookout-bundle
         provider: ${{ inputs.docker_provider }}
-        short_description: 'Armada Lookout Bundle which contains lookout, lookoutv2, lookoutingester and lookoutingesterv2'
+        short_description: 'Armada Lookout Bundle'
         readme_file: 'README.md'
 
     - name: Push Armada Full Bundle README.md
@@ -49,7 +49,7 @@ runs:
       with:
         destination_container_repo: ${{ inputs.docker_owner }}/armada-full-bundle
         provider: ${{ inputs.docker_provider }}
-        short_description: 'Armada Bundle which contains server, executor, binoculars, scheduler, scheduleringester, eventingester, lookout, lookoutv2, lookoutingester, lookoutingesterv2, jobservice and armadactl'
+        short_description: 'Armada Full Bundle'
         readme_file: 'README.md'
 
     - name: Push Armada Server README.md
@@ -60,7 +60,7 @@ runs:
       with:
         destination_container_repo: ${{ inputs.docker_owner }}/armada-server
         provider: ${{ inputs.docker_provider }}
-        short_description: 'Armada Server is the main component of Armada. It is responsible for managing the lifecycle of jobs and workflows.'
+        short_description: 'Armada Server serves as the Control Plane'
         readme_file: 'README.md'
 
     - name: Push Armada Executor README.md
@@ -71,7 +71,7 @@ runs:
       with:
         destination_container_repo: ${{ inputs.docker_owner }}/armada-executor
         provider: ${{ inputs.docker_provider }}
-        short_description: 'Armada Executor is the component of Armada that executes jobs and workflows in a Kubernetes cluster.'
+        short_description: 'Armada Executor executes jobs and workflows in a Kubernetes cluster'
         readme_file: 'README.md'
 
     - name: Push Armada Lookout README.md
@@ -82,7 +82,7 @@ runs:
       with:
         destination_container_repo: ${{ inputs.docker_owner }}/armada-lookout
         provider: ${{ inputs.docker_provider }}
-        short_description: 'Armada Lookout is the component of Armada that is responsible for monitoring the state of jobs and workflows.'
+        short_description: 'Armada Lookout is responsible for monitoring the state of jobs and workflows'
         readme_file: 'README.md'
 
     - name: Push Armada Lookout V2 README.md
@@ -93,7 +93,7 @@ runs:
       with:
         destination_container_repo: ${{ inputs.docker_owner }}/armada-lookoutv2
         provider: ${{ inputs.docker_provider }}
-        short_description: 'Armada Lookout V2 is the component of Armada that is responsible for monitoring the state of jobs and workflows.'
+        short_description: 'Armada Lookout V2 is responsible for monitoring the state of jobs and workflows'
         readme_file: 'README.md'
 
     - name: Push Armada Lookout Ingester README.md
@@ -104,7 +104,7 @@ runs:
       with:
         destination_container_repo: ${{ inputs.docker_owner }}/armada-lookoutingester
         provider: ${{ inputs.docker_provider }}
-        short_description: 'Armada Lookout Ingester is the component of Armada that is responsible for ingesting the state of jobs and workflows.'
+        short_description: 'Armada Lookout Ingester is responsible for ingesting the state of jobs and workflows'
         readme_file: 'README.md'
 
     - name: Push Armada Lookout Ingester V2 README.md
@@ -115,7 +115,7 @@ runs:
       with:
         destination_container_repo: ${{ inputs.docker_owner }}/armada-lookoutingesterv2
         provider: ${{ inputs.docker_provider }}
-        short_description: 'Armada Lookout Ingester V2 is the component of Armada that is responsible for ingesting the state of jobs and workflows.'
+        short_description: 'Armada Lookout Ingester V2 is responsible for ingesting the state of jobs and workflows'
         readme_file: 'README.md'
 
     - name: Push Armada Event Ingester README.md
@@ -126,7 +126,7 @@ runs:
       with:
         destination_container_repo: ${{ inputs.docker_owner }}/armada-eventingester
         provider: ${{ inputs.docker_provider }}
-        short_description: 'Armada Event Ingester is the component of Armada that is responsible for ingesting events from Kubernetes.'
+        short_description: 'Armada Event Ingester is responsible for ingesting events from Kubernetes'
         readme_file: 'README.md'
 
     - name: Push Armada Event Ingester V2 README.md
@@ -137,7 +137,7 @@ runs:
       with:
         destination_container_repo: ${{ inputs.docker_owner }}/armada-eventingesterv2
         provider: ${{ inputs.docker_provider }}
-        short_description: 'Armada Event Ingester V2 is the component of Armada that is responsible for ingesting events from Kubernetes.'
+        short_description: 'Armada Event Ingester V2 is responsible for ingesting events from Kubernetes'
         readme_file: 'README.md'
 
     - name: Push Armada Scheduler README.md
@@ -148,7 +148,7 @@ runs:
       with:
         destination_container_repo: ${{ inputs.docker_owner }}/armada-scheduler
         provider: ${{ inputs.docker_provider }}
-        short_description: 'Armada Scheduler is the component of Armada that is responsible for scheduling jobs and workflows.'
+        short_description: 'Armada Scheduler is responsible for scheduling jobs and workflows'
         readme_file: 'README.md'
 
     - name: Push Armada Scheduler Ingester README.md
@@ -159,7 +159,7 @@ runs:
       with:
         destination_container_repo: ${{ inputs.docker_owner }}/armada-scheduleringester
         provider: ${{ inputs.docker_provider }}
-        short_description: 'Armada Scheduler Ingester is the component of Armada that is responsible for ingesting the state of jobs and workflows.'
+        short_description: 'Armada Scheduler Ingester is responsible for ingesting the state of jobs and workflows'
         readme_file: 'README.md'
 
     - name: Push armadactl README.md
@@ -170,7 +170,7 @@ runs:
       with:
         destination_container_repo: ${{ inputs.docker_owner }}/armadactl
         provider: ${{ inputs.docker_provider }}
-        short_description: 'armadactl is the command line interface for Armada. It is used to interact with the Armada Server.'
+        short_description: 'armadactl is the command line interface for interacting with Armada Server'
         readme_file: 'README.md'
 
     - name: Push Job Service README.md
@@ -181,5 +181,5 @@ runs:
       with:
         destination_container_repo: ${{ inputs.docker_owner }}/armada-jobservice
         provider: ${{ inputs.docker_provider }}
-        short_description: 'Armada Job Service is the component of Armada that is responsible for executing jobs and workflows.'
+        short_description: 'Armada Job Service is responsible for executing jobs and workflows.'
         readme_file: 'README.md'
