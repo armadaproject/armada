@@ -23,7 +23,7 @@ import (
 
 func TestSubmitChecker_CheckPodRequirements(t *testing.T) {
 	defaultTimeout := 15 * time.Minute
-	baseTime = time.Now().UTC()
+	baseTime := time.Now().UTC()
 	expiredTime := baseTime.Add(-defaultTimeout).Add(-1 * time.Second)
 
 	tests := map[string]struct {
@@ -35,37 +35,37 @@ func TestSubmitChecker_CheckPodRequirements(t *testing.T) {
 	}{
 		"one job schedules": {
 			executorTimout: defaultTimeout,
-			config:         testSchedulingConfig(),
+			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
-			podRequirement: testSmallCpuJob("queue", 1),
+			podRequirement: testfixtures.TestSmallCpuJob("queue", 1),
 			expectPass:     true,
 		},
 		"no jobs schedule due to resources": {
 			executorTimout: defaultTimeout,
-			config:         testSchedulingConfig(),
+			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
-			podRequirement: testLargeCpuJob("queue", 1),
+			podRequirement: testfixtures.TestLargeCpuJob("queue", 1),
 			expectPass:     false,
 		},
 		"no jobs schedule due to selector": {
 			executorTimout: defaultTimeout,
-			config:         testSchedulingConfig(),
+			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
-			podRequirement: withNodeSelectorPodReq(map[string]string{"foo": "bar"}, testSmallCpuJob("queue", 1)),
+			podRequirement: testfixtures.WithNodeSelectorPodReq(map[string]string{"foo": "bar"}, testfixtures.TestSmallCpuJob("queue", 1)),
 			expectPass:     false,
 		},
 		"no jobs schedule due to executor timeout": {
 			executorTimout: defaultTimeout,
-			config:         testSchedulingConfig(),
+			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(expiredTime)},
-			podRequirement: testSmallCpuJob("queue", 1),
+			podRequirement: testfixtures.TestSmallCpuJob("queue", 1),
 			expectPass:     false,
 		},
 		"multiple executors, 1 expired": {
 			executorTimout: defaultTimeout,
-			config:         testSchedulingConfig(),
+			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(expiredTime), testExecutor(baseTime)},
-			podRequirement: testSmallCpuJob("queue", 1),
+			podRequirement: testfixtures.TestSmallCpuJob("queue", 1),
 			expectPass:     true,
 		},
 	}

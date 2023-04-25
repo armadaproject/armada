@@ -34,6 +34,7 @@ var queue = database.Queue{
 }
 
 func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
+	baseTime := time.Now().UTC()
 	queuedJobs := make([]*jobdb.Job, 10)
 	for i := 0; i < 10; i++ {
 		queuedJobs[i] = OneCpuJob(int64(i)) // ensure the queuedJobs are in the order we expect
@@ -154,7 +155,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				config = testfixtures.WithPerQueueLimitsConfig(tc.perQueueLimit, config)
 			}
 			if tc.maxUnacknowledgedJobsPerExecutor != 0 {
-				config = withMaxUnacknowledgedJobsPerExecutor(tc.maxUnacknowledgedJobsPerExecutor, config)
+				config = testfixtures.WithMaxUnacknowledgedJobsPerExecutor(tc.maxUnacknowledgedJobsPerExecutor, config)
 			}
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
