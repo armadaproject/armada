@@ -247,7 +247,7 @@ jobs:
   release-armadactl:
     machine:
       docker_layer_caching: true
-      image: ubuntu-2204:2022.07.1
+      image: ubuntu-2204:2023.02.1
       resource_class: large
       # resource_class: xlarge
     environment:
@@ -384,7 +384,7 @@ jobs:
   release-dotnet-client:
     machine:
       docker_layer_caching: true
-      image: ubuntu-2204:2022.07.1
+      image: ubuntu-2204:2023.02.1
       resource_class: large
       # resource_class: xlarge
     environment:

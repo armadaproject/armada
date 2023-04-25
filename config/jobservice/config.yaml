@@ -9,9 +9,9 @@ databaseType: "postgres"
 databasePath: "/var/jobservice.db"
 # Connection details when using database type 'postgres'
 postgresConfig:
-  maxOpenConns: 50
-  maxIdleConns: 10
-  connMaxLifetime: 30m
+  poolMaxConns: 50
+  poolMinConns: 10
+  poolMaxConnLifetime: 30m
   connection:
     host: postgres
     port: 5432
