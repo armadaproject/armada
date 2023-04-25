@@ -38,6 +38,9 @@ jobs:
           username: "${{ secrets.DOCKERHUB_USERNAME }}"
           password: "${{ secrets.DOCKERHUB_TOKEN }}"
 
+      - name: Set up Syft
+        run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v4
         with:
