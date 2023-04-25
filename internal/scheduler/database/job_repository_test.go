@@ -87,9 +87,9 @@ func TestFetchJobUpdates(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
 				// Set up db
-				err := database.Upsert(ctx, repo.db, "jobs", tc.dbJobs)
+				err := database.UpsertWithTransaction(ctx, repo.db, "jobs", tc.dbJobs)
 				require.NoError(t, err)
-				err = database.Upsert(ctx, repo.db, "runs", tc.dbRuns)
+				err = database.UpsertWithTransaction(ctx, repo.db, "runs", tc.dbRuns)
 				require.NoError(t, err)
 
 				// Fetch updates
@@ -189,7 +189,7 @@ func TestFetchJobRunErrors(t *testing.T) {
 			err := withJobRepository(func(repo *PostgresJobRepository) error {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				// Set up db
-				err := database.Upsert(ctx, repo.db, "job_run_errors", tc.errorsInDb)
+				err := database.UpsertWithTransaction(ctx, repo.db, "job_run_errors", tc.errorsInDb)
 				require.NoError(t, err)
 
 				// Fetch updates
@@ -360,7 +360,7 @@ func TestFindInactiveRuns(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), 500*time.Second)
 
 				// Set up db
-				err := database.Upsert(ctx, repo.db, "runs", tc.dbRuns)
+				err := database.UpsertWithTransaction(ctx, repo.db, "runs", tc.dbRuns)
 				require.NoError(t, err)
 
 				inactive, err := repo.FindInactiveRuns(ctx, tc.runsToCheck)
@@ -490,9 +490,9 @@ func TestFetchJobRunLeases(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
 				// Set up db
-				err := database.Upsert(ctx, repo.db, "jobs", tc.dbJobs)
+				err := database.UpsertWithTransaction(ctx, repo.db, "jobs", tc.dbJobs)
 				require.NoError(t, err)
-				err = database.Upsert(ctx, repo.db, "runs", tc.dbRuns)
+				err = database.UpsertWithTransaction(ctx, repo.db, "runs", tc.dbRuns)
 				require.NoError(t, err)
 
 				leases, err := repo.FetchJobRunLeases(ctx, tc.executor, tc.maxRowsToFetch, tc.excludedRuns)
