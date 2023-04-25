@@ -498,7 +498,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	)
 	result, err := sch.Schedule(
 		ctxlogrus.ToContext(
-			context.Background(),
+			ctx,
 			logrus.NewEntry(logrus.New()),
 		),
 	)

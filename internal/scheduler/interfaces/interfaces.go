@@ -6,8 +6,6 @@ import (
 )
 
 // LegacySchedulerJob is the job interface used throughout the scheduler.
-//
-// TODO: Rename to SchedulerJob.
 type LegacySchedulerJob interface {
 	GetId() string
 	GetQueue() string
