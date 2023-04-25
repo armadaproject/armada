@@ -1,6 +1,6 @@
 # armada-executor-cluster-monitoring
 
-![Version: LATEST](https://img.shields.io/badge/Version-LATEST-informational?style=flat-square)
+![Version: 0.0.0-latest](https://img.shields.io/badge/Version-0.0.0--latest-informational?style=flat-square)
 
 A helm chart for monitoring metrics of a cluster managed by a armada-executor component
 
