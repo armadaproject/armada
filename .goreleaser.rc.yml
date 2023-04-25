@@ -207,6 +207,43 @@ dockers:
       - config/lookoutingester/config.yaml
     dockerfile: ./build_goreleaser/bundles/lookout/Dockerfile
 
+  - id: full-bundle
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-lookout-bundle:{{ .Version }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookout-bundle:latest"
+    build_flag_templates: *BUILD_FLAG_TEMPLATES
+    ids:
+      - server
+      - executor
+      - binoculars
+      - eventingester
+      - jobservice
+      - armadactl
+      - lookout
+      - lookoutv2
+      - lookoutingester
+      - lookoutingesterv2
+    extra_files:
+      - config/armada/config.yaml
+      - config/executor/config.yaml
+      - config/binoculars/config.yaml
+      - config/eventingester/config.yaml
+      - config/lookout/config.yaml
+      - config/lookoutingester/config.yaml
+      - config/lookoutv2/config.yaml
+      - config/lookoutingesterv2/config.yaml
+      - config/jobservice/config.yaml
+      - internal/lookout/ui
+      - pkg/api/api.swagger.json
+      - pkg/api/lookout/api.swagger.json
+      - pkg/api/binoculars/api.swagger.json
+      - config/lookout/config.yaml
+      - config/lookoutingester/config.yaml
+    dockerfile: ./build_goreleaser/bundles/full/Dockerfile
+
   - id: server
     use: buildx
     goos: linux
