@@ -533,6 +533,25 @@ func TestConvertJobError(t *testing.T) {
 		},
 	}
 
+	maxRunsExceeded := &armadaevents.EventSequence_Event{
+		Created: &baseTime,
+		Event: &armadaevents.EventSequence_Event_JobErrors{
+			JobErrors: &armadaevents.JobErrors{
+				JobId: jobIdProto,
+				Errors: []*armadaevents.Error{
+					{
+						Terminal: true,
+						Reason: &armadaevents.Error_MaxRunsExceeded{
+							MaxRunsExceeded: &armadaevents.MaxRunsExceeded{
+								Message: "Max runs",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
 	expected := []*api.EventMessage{
 		{
 			Events: &api.EventMessage_Failed{
@@ -561,9 +580,21 @@ func TestConvertJobError(t *testing.T) {
 				},
 			},
 		},
+		{
+			Events: &api.EventMessage_Failed{
+				Failed: &api.JobFailedEvent{
+					JobId:    jobIdString,
+					Reason:   "Max runs",
+					JobSetId: jobSetName,
+					Queue:    queue,
+					Created:  baseTime,
+					Cause:    api.Cause_Error,
+				},
+			},
+		},
 	}
 
-	apiEvents, err := FromEventSequence(toEventSeq(errored))
+	apiEvents, err := FromEventSequence(toEventSeq(errored, maxRunsExceeded))
 	assert.NoError(t, err)
 	assert.Equal(t, expected, apiEvents)
 }

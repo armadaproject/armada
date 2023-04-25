@@ -33,6 +33,11 @@ type schedulingResult struct {
 
 const maxJobSchedulingResults = 10000
 
+type SubmitScheduleChecker interface {
+	CheckPodRequirements(podRequirement *schedulerobjects.PodRequirements) (bool, string)
+	CheckApiJobs(jobs []*api.Job) (bool, string)
+}
+
 type SubmitChecker struct {
 	executorTimeout           time.Duration
 	priorityClasses           map[string]configuration.PriorityClass
@@ -111,6 +116,14 @@ func (srv *SubmitChecker) updateExecutors(ctx context.Context) {
 
 	// Reset cache as the executors may have updated - changing what can be scheduled
 	srv.jobSchedulingResultsCache.Purge()
+}
+
+func (srv *SubmitChecker) CheckPodRequirements(podRequirement *schedulerobjects.PodRequirements) (bool, string) {
+	schedulingResult := srv.getSchedulingResult([]*schedulerobjects.PodRequirements{podRequirement})
+	if !schedulingResult.isSchedulable {
+		return schedulingResult.isSchedulable, fmt.Sprintf("requirements unschedulable:\n%s", schedulingResult.reason)
+	}
+	return true, ""
 }
 
 func (srv *SubmitChecker) CheckApiJobs(jobs []*api.Job) (bool, string) {

@@ -43,12 +43,14 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		OneCoreRunningJob(1, "executor1", "executor1-node"),
 	}
 	tests := map[string]struct {
-		executors     []*schedulerobjects.Executor
-		queues        []*database.Queue
-		queuedJobs    []*jobdb.Job
-		runningJobs   []*jobdb.Job
-		perQueueLimit map[string]float64
-		expectedJobs  map[string]string // map of jobId to name of executor on which it should be scheduled
+		executors                        []*schedulerobjects.Executor
+		queues                           []*database.Queue
+		queuedJobs                       []*jobdb.Job
+		runningJobs                      []*jobdb.Job
+		unacknowledgedJobs               []*jobdb.Job
+		perQueueLimit                    map[string]float64
+		maxUnacknowledgedJobsPerExecutor uint
+		expectedJobs                     map[string]string // map of jobId to name of executor on which it should be scheduled
 	}{
 		"fill up both clusters": {
 			executors: []*schedulerobjects.Executor{
@@ -74,6 +76,19 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			expectedJobs: map[string]string{
 				queuedJobs[0].Id(): "executor1",
 				queuedJobs[1].Id(): "executor1",
+			},
+		},
+		"one executor exceeds unacknowledged": {
+			executors: []*schedulerobjects.Executor{
+				TwoCoreExecutor("executor1", nil, baseTime),
+				TwoCoreExecutor("executor2", nil, baseTime),
+			},
+			queues:             []*database.Queue{&queue},
+			queuedJobs:         queuedJobs,
+			unacknowledgedJobs: []*jobdb.Job{runningJobs[0], runningJobs[1]},
+			expectedJobs: map[string]string{
+				queuedJobs[0].Id(): "executor2",
+				queuedJobs[1].Id(): "executor2",
 			},
 		},
 		"one executor full": {
@@ -105,10 +120,11 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				TwoCoreExecutor("executor1", []*jobdb.Job{runningJobs[0]}, testfixtures.BaseTime),
 				TwoCoreExecutor("executor2", nil, testfixtures.BaseTime),
 			},
-			queues:        []*database.Queue{&queue},
-			queuedJobs:    queuedJobs,
-			runningJobs:   []*jobdb.Job{runningJobs[0]},
-			perQueueLimit: map[string]float64{"cpu": 0.5},
+			queues:                           []*database.Queue{&queue},
+			queuedJobs:                       queuedJobs,
+			runningJobs:                      []*jobdb.Job{runningJobs[0]},
+			perQueueLimit:                    map[string]float64{"cpu": 0.5},
+			maxUnacknowledgedJobsPerExecutor: 1,
 			expectedJobs: map[string]string{
 				queuedJobs[0].Id(): "executor2",
 			},
@@ -137,6 +153,9 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			if tc.perQueueLimit != nil {
 				config = testfixtures.WithPerQueueLimitsConfig(tc.perQueueLimit, config)
 			}
+			if tc.maxUnacknowledgedJobsPerExecutor != 0 {
+				config = withMaxUnacknowledgedJobsPerExecutor(tc.maxUnacknowledgedJobsPerExecutor, config)
+			}
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockQueueRepo := schedulermocks.NewMockQueueRepository(ctrl)
@@ -156,7 +175,13 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			jobDb := jobdb.NewJobDb()
 
 			txn := jobDb.WriteTxn()
-			err := jobDb.Upsert(txn, append(tc.queuedJobs, tc.runningJobs...))
+			err := jobDb.Upsert(txn, tc.queuedJobs)
+			require.NoError(t, err)
+
+			err = jobDb.Upsert(txn, tc.unacknowledgedJobs)
+			require.NoError(t, err)
+
+			err = jobDb.Upsert(txn, tc.runningJobs)
 			require.NoError(t, err)
 
 			schedulerResult, err := algo.Schedule(ctx, txn, jobDb)
@@ -267,6 +292,8 @@ func OneCpuJob(creationTime int64) *jobdb.Job {
 		queueName,
 		0,
 		schedulingInfo,
+		true,
+		1,
 		false,
 		false,
 		false,

@@ -29,6 +29,42 @@ func TestMerge(t *testing.T) {
 	assert.Equal(t, MarkJobsCancelRequested{jobId1: false, jobId2: true, jobId3: true}, markJobsCancelled1)
 }
 
+func TestMerge_UpdateJobSchedulingInfo(t *testing.T) {
+	jobId1 := util.NewULID()
+	jobId2 := util.NewULID()
+	jobId3 := util.NewULID()
+	jobId4 := util.NewULID()
+	updateSchedulingInfo1 := UpdateJobSchedulingInfo{jobId1: &JobSchedulingInfoUpdate{[]byte("job 1"), 1}, jobId2: &JobSchedulingInfoUpdate{[]byte("job 2"), 1}, jobId3: &JobSchedulingInfoUpdate{[]byte("job 3 v2"), 2}}
+	updateSchedulingInfo2 := UpdateJobSchedulingInfo{jobId2: &JobSchedulingInfoUpdate{[]byte("job 2 v2"), 2}, jobId3: &JobSchedulingInfoUpdate{[]byte("job 3"), 1}, jobId4: &JobSchedulingInfoUpdate{[]byte("job 4"), 1}}
+	expectedResult := UpdateJobSchedulingInfo{
+		jobId1: &JobSchedulingInfoUpdate{[]byte("job 1"), 1},
+		jobId2: &JobSchedulingInfoUpdate{[]byte("job 2 v2"), 2},
+		jobId3: &JobSchedulingInfoUpdate{[]byte("job 3 v2"), 2},
+		jobId4: &JobSchedulingInfoUpdate{[]byte("job 4"), 1},
+	}
+	ok := updateSchedulingInfo1.Merge(updateSchedulingInfo2)
+	assert.True(t, ok)
+	assert.Equal(t, expectedResult, updateSchedulingInfo1)
+}
+
+func TestMerge_UpdateJobQueuedState(t *testing.T) {
+	jobId1 := util.NewULID()
+	jobId2 := util.NewULID()
+	jobId3 := util.NewULID()
+	jobId4 := util.NewULID()
+	updatedJobQueuedState1 := UpdateJobQueuedState{jobId1: &JobQueuedStateUpdate{true, 1}, jobId2: &JobQueuedStateUpdate{true, 1}, jobId3: &JobQueuedStateUpdate{false, 2}}
+	updateJobQueuedState2 := UpdateJobQueuedState{jobId2: &JobQueuedStateUpdate{false, 2}, jobId3: &JobQueuedStateUpdate{true, 1}, jobId4: &JobQueuedStateUpdate{true, 1}}
+	expectedResult := UpdateJobQueuedState{
+		jobId1: &JobQueuedStateUpdate{true, 1},
+		jobId2: &JobQueuedStateUpdate{false, 2},
+		jobId3: &JobQueuedStateUpdate{false, 2},
+		jobId4: &JobQueuedStateUpdate{true, 1},
+	}
+	ok := updatedJobQueuedState1.Merge(updateJobQueuedState2)
+	assert.True(t, ok)
+	assert.Equal(t, expectedResult, updatedJobQueuedState1)
+}
+
 func TestMerge_InsertPartitionMarker(t *testing.T) {
 	marker1 := &InsertPartitionMarker{markers: []*schedulerdb.Marker{
 		{
@@ -150,10 +186,10 @@ func TestDbOperationOptimisation(t *testing.T) {
 		"MarkRunsFailed": {N: 3, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                   // 1
 			InsertRuns{runIds[0]: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}}, // 2
-			MarkRunsFailed{runIds[0]: &JobRunFailed{true}},                              // 3
+			MarkRunsFailed{runIds[0]: &JobRunFailed{true, true}},                        // 3
 			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                   // 3
 			InsertRuns{runIds[1]: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}}, // 3
-			MarkRunsFailed{runIds[1]: &JobRunFailed{true}},                              // 3
+			MarkRunsFailed{runIds[1]: &JobRunFailed{true, true}},                        // 3
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                   // 3
 		}},
 		"MarkRunsRunning": {N: 3, Ops: []DbOperation{
@@ -170,6 +206,20 @@ func TestDbOperationOptimisation(t *testing.T) {
 			&InsertPartitionMarker{markers: []*schedulerdb.Marker{}},  // 2
 			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}}, // 1
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}}, // 1
+		}},
+		"UpdateJobSchedulingInfo": {N: 2, Ops: []DbOperation{
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}},                        // 1
+			UpdateJobSchedulingInfo{jobIds[0]: &JobSchedulingInfoUpdate{[]byte("job 1"), 1}}, // 2
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},                        // 1
+			UpdateJobSchedulingInfo{jobIds[1]: &JobSchedulingInfoUpdate{[]byte("job 2"), 1}}, // 2
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}},                        // 1
+			UpdateJobSchedulingInfo{jobIds[2]: &JobSchedulingInfoUpdate{[]byte("job 3"), 1}}, // 2
+		}},
+		"UpdateJobQueuedState": {N: 2, Ops: []DbOperation{
+			UpdateJobQueuedState{jobIds[0]: &JobQueuedStateUpdate{true, 1}},  // 2
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}},        // 1
+			UpdateJobQueuedState{jobIds[1]: &JobQueuedStateUpdate{false, 1}}, // 2
+			UpdateJobQueuedState{jobIds[2]: &JobQueuedStateUpdate{true, 3}},  // 2
 		}},
 	}
 	for name, tc := range tests {

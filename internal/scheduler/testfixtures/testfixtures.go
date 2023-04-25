@@ -3,6 +3,7 @@ package testfixtures
 // This file contains test fixtures to be used throughout the tests for this package.
 import (
 	"fmt"
+	"math"
 	"sync/atomic"
 	"time"
 
@@ -72,9 +73,15 @@ func TestSchedulingConfig() configuration.SchedulingConfig {
 			NodeEvictionProbability:                 1.0,
 			NodeOversubscriptionEvictionProbability: 1.0,
 		},
-		IndexedResources: []string{"cpu", "memory"},
-		ExecutorTimeout:  15 * time.Minute,
+		IndexedResources:                 []string{"cpu", "memory"},
+		ExecutorTimeout:                  15 * time.Minute,
+		MaxUnacknowledgedJobsPerExecutor: math.MaxInt,
 	}
+}
+
+func WithMaxUnacknowledgedJobsPerExecutor(i uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.MaxUnacknowledgedJobsPerExecutor = i
+	return config
 }
 
 func WithNodeEvictionProbabilityConfig(p float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
@@ -182,6 +189,11 @@ func WithNodeSelectorJobs(selector map[string]string, jobs []*jobdb.Job) []*jobd
 		}
 	}
 	return jobs
+}
+
+func WithNodeSelectorPodReq(selector map[string]string, req *schedulerobjects.PodRequirements) *schedulerobjects.PodRequirements {
+	req.NodeSelector = maps.Clone(selector)
+	return req
 }
 
 func WithNodeAffinityPodReqs(nodeSelectorTerms []v1.NodeSelectorTerm, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
@@ -315,6 +327,8 @@ func SmallCpuJob(queue string, priorityClassName string) *jobdb.Job {
 			},
 		},
 		false,
+		0,
+		false,
 		false,
 		false,
 		created,
@@ -364,6 +378,8 @@ func LargeCpuJob(queue string, priorityClassName string) *jobdb.Job {
 				},
 			},
 		},
+		false,
+		0,
 		false,
 		false,
 		false,
@@ -415,6 +431,8 @@ func GpuJob(queue string, priorityClassName string) *jobdb.Job {
 				},
 			},
 		},
+		false,
+		0,
 		false,
 		false,
 		false,

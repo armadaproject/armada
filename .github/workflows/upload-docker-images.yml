@@ -39,6 +39,8 @@ jobs:
           uploads['armada']='armada-server'
           uploads['armada-binoculars']='armada-binoculars'
           uploads['armada-event-ingester']='armada-event-ingester'
+          uploads['armada-scheduler']='armada-scheduler'
+          uploads['armada-scheduler-ingester']='armada-scheduler-ingester'
           uploads['armada-executor']='armada-executor'
           uploads['armada-jobservice']='armada-jobservice'
           uploads['armada-lookout']='armada-lookout'

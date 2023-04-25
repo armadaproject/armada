@@ -2,19 +2,14 @@ package jobservice
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"net"
-	"os"
-	"path/filepath"
 	"time"
 
-	_ "github.com/jackc/pgx/v4/stdlib"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
-	"github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
@@ -46,43 +41,12 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		[]authorization.AuthService{&authorization.AnonymousAuthService{}},
 	)
 
-	var db *sql.DB
-
-	if config.DatabaseType == "postgres" {
-		var err error
-		log.Info("using postgres")
-		db, err = sql.Open("pgx", database.CreateConnectionString(config.PostgresConfig.Connection))
-		if err != nil {
-			return err
-		}
-		db.SetMaxOpenConns(config.PostgresConfig.MaxOpenConns)
-		db.SetMaxIdleConns(config.PostgresConfig.MaxIdleConns)
-		db.SetConnMaxLifetime(config.PostgresConfig.ConnMaxLifetime)
-
-	} else if config.DatabaseType == "sqlite" {
-		log.Info("using sqlite")
-		var err error
-
-		dbDir := filepath.Dir(config.DatabasePath)
-		if _, err := os.Stat(dbDir); os.IsNotExist(err) {
-			if errMkDir := os.Mkdir(dbDir, 0o755); errMkDir != nil {
-				log.Fatalf("error: could not make directory at %s for sqlite db: %v", dbDir, errMkDir)
-			}
-		}
-
-		db, err = sql.Open("sqlite", config.DatabasePath)
-		if err != nil {
-			log.Fatalf("error opening sqlite DB from %s %v", config.DatabasePath, err)
-		}
-		defer func() {
-			if err := db.Close(); err != nil {
-				log.Warnf("error closing database: %v", err)
-			}
-		}()
+	err, sqlJobRepo, dbCallbackFn := repository.NewSQLJobService(config, log)
+	if err != nil {
+		panic(err)
 	}
-
-	sqlJobRepo := repository.NewSQLJobService(config, db)
-	sqlJobRepo.Setup()
+	defer dbCallbackFn()
+	sqlJobRepo.Setup(ctx)
 	jobService := server.NewJobService(config, sqlJobRepo)
 	js.RegisterJobServiceServer(grpcServer, jobService)
 
@@ -92,14 +56,14 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	}
 
 	g.Go(func() error {
-		PurgeJobSets(log, config.PurgeJobSetTime, sqlJobRepo)
+		PurgeJobSets(ctx, log, config.PurgeJobSetTime, sqlJobRepo)
 		return nil
 	})
 	g.Go(func() error {
 		ticker := time.NewTicker(10 * time.Second)
 		for range ticker.C {
 
-			jobSets, err := sqlJobRepo.GetSubscribedJobSets()
+			jobSets, err := sqlJobRepo.GetSubscribedJobSets(ctx)
 			log.Infof("job service has %d subscribed job sets", len(jobSets))
 			if err != nil {
 				logging.WithStacktrace(log, err).Warn("error getting jobsets")
@@ -136,26 +100,28 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	return nil
 }
 
-func PurgeJobSets(log *log.Entry, purgeJobSetTime int64, sqlJobRepo *repository.SQLJobService) {
+func PurgeJobSets(ctx context.Context, log *log.Entry, purgeJobSetTime int64,
+	sqlJobRepo repository.SQLJobService,
+) {
 	log.Info("duration config: ", purgeJobSetTime)
 	ticker := time.NewTicker(time.Duration(purgeJobSetTime) * time.Second)
 	for range ticker.C {
-		jobSets, err := sqlJobRepo.GetSubscribedJobSets()
+		jobSets, err := sqlJobRepo.GetSubscribedJobSets(ctx)
 		if err != nil {
 			logging.WithStacktrace(log, err).Warn("error getting jobsets")
 		}
 		for _, value := range jobSets {
 			log.Infof("subscribed job sets : %s", value)
-			unsubscribe, err := sqlJobRepo.CheckToUnSubscribe(value.Queue, value.JobSet, purgeJobSetTime)
+			unsubscribe, err := sqlJobRepo.CheckToUnSubscribe(ctx, value.Queue, value.JobSet, purgeJobSetTime)
 			if err != nil {
 				log.WithError(err).Errorf("Unable to unsubscribe from queue/jobset %s/%s", value.Queue, value.JobSet)
 			}
 			if unsubscribe {
-				_, err := sqlJobRepo.CleanupJobSetAndJobs(value.Queue, value.JobSet)
+				_, err := sqlJobRepo.CleanupJobSetAndJobs(ctx, value.Queue, value.JobSet)
 				if err != nil {
 					logging.WithStacktrace(log, err).Warn("error cleaning up jobs")
 				}
-				_, err = sqlJobRepo.UnsubscribeJobSet(value.Queue, value.JobSet)
+				_, err = sqlJobRepo.UnsubscribeJobSet(ctx, value.Queue, value.JobSet)
 				if err != nil {
 					log.WithError(err).Errorf("unable to delete queue/jobset %s/%s", value.Queue, value.JobSet)
 				}
