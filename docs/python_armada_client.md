@@ -15,20 +15,15 @@ For the api definitions:
 [https://armadaproject.io/api](https://armadaproject.io/api)
 
 
-### _class_ armada_client.client.ArmadaClient(channel, max_workers=None)
+### _class_ armada_client.client.ArmadaClient(channel)
 Client for accessing Armada over gRPC.
 
 
 * **Parameters**
 
-    
-    * **channel** – gRPC channel used for authentication. See
+    **channel** – gRPC channel used for authentication. See
     [https://grpc.github.io/grpc/python/grpc.html](https://grpc.github.io/grpc/python/grpc.html)
     for more information.
-
-
-    * **max_workers** (*int** | **None*) – number of cores for thread pools, if unset, defaults
-    to number of CPUs
 
 
 

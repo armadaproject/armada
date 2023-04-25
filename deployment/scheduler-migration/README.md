@@ -1,6 +1,6 @@
 # armada-scheduler-migration
 
-![Version: LATEST](https://img.shields.io/badge/Version-LATEST-informational?style=flat-square) ![AppVersion: LATEST](https://img.shields.io/badge/AppVersion-LATEST-informational?style=flat-square)
+![Version: 0.0.0-latest](https://img.shields.io/badge/Version-0.0.0--latest-informational?style=flat-square) ![AppVersion: 0.0.0-latest](https://img.shields.io/badge/AppVersion-0.0.0--latest-informational?style=flat-square)
 
 A Helm chart for the Armada Scheduler database migration
 
@@ -15,7 +15,7 @@ A Helm chart for the Armada Scheduler database migration
 | args.timeout | string | `"5m"` |  |
 | customServiceAccount | string | `nil` |  |
 | image.repository | string | `"gresearchdev/armada-scheduler"` |  |
-| image.tag | string | `"LATEST"` |  |
+| image.tag | string | `"0.0.0-latest"` |  |
 | resources.limits.cpu | string | `"200m"` |  |
 | resources.limits.memory | string | `"256Mi"` |  |
 | resources.requests.cpu | string | `"100m"` |  |
