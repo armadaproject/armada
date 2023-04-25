@@ -4,8 +4,9 @@ import (
 	"context"
 	"testing"
 
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/stretchr/testify/require"
+
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 )
 
 func TestConstraints(t *testing.T) {

@@ -196,5 +196,4 @@ func TestUnique(t *testing.T) {
 			assert.Equal(t, tc.expected, Unique(tc.s))
 		})
 	}
-
 }
