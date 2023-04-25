@@ -1,0 +1,42 @@
+{{ template "chart.header" . }}
+{{ template "chart.versionBadge" . }}
+
+{{ template "chart.description" . }}
+
+## Prerequisites
+
+Armada Server requires the following components to be accessible and configured:
+* [Pulsar](https://pulsar.apache.org/) - open-source, distributed messaging and streaming platform built for the cloud.
+* [Redis](https://redis.io/) - open source, in-memory data store
+* [Postgres](https://www.postgresql.org/) - powerful, open source object-relational database
+* [cert-manager](https://cert-manager.io/) - Kubernetes certificate management controller
+
+## Install
+
+Add `gresearch` Helm repository and fetch latest charts info:
+
+```sh
+helm repo add gresearch https://g-research.github.io/charts
+helm repo update
+```
+
+Install `armada-server` using Helm:
+
+```sh
+helm install armada-server gresearch/armada \
+    --set ingress.enabled=false
+```
+
+## Uninstall
+
+Uninstall armada-server using Helm:
+
+```sh
+helm uninstall armada-server
+```
+
+{{ template "chart.requirementsSection" . }}
+
+{{ template "chart.valuesSection" . }}
+
+{{ template "helm-docs.versionFooter" . }}

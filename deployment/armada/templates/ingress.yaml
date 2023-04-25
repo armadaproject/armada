@@ -1,3 +1,4 @@
+{{- if .Values.ingress.enabled }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -20,7 +21,7 @@ metadata:
 spec:
   rules:
   {{- $root := . -}}
-  {{  range required "A value is required for .Values.hostnames" .Values.hostnames }}
+  {{- range required "A value is required for .Values.hostnames" .Values.hostnames }}
   - host: {{ . }}
     http:
       paths:
@@ -31,8 +32,9 @@ spec:
               name: {{ include "armada.name" $root }}
               port:
                 number: {{ $root.Values.applicationConfig.grpcPort }}
-  {{ end }}
+  {{- end }}
   tls:
     - hosts:
       {{- toYaml .Values.hostnames  | nindent 8 }}
       secretName: armada-service-tls
+{{- end }}
