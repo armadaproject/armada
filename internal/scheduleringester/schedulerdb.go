@@ -47,7 +47,7 @@ func NewSchedulerDb(
 
 // Store persists all operations in the database.  Note that:
 //   - this function will retry until it either succeeds or a terminal error is encountered
-//   - this function weill take out a postgres lock to ensure that other ingesters are not writing to the database
+//   - this function will take out a postgres lock to ensure that other ingesters are not writing to the database
 //     at the same time (for details, see acquireLock())
 func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithMessageIds) error {
 	return ingest.WithRetry(func() (bool, error) {
