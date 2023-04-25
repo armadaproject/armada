@@ -181,10 +181,6 @@ func encodeInt(val int64) []byte {
 	return buf
 }
 
-func encodeNodeDominantQueueIndexKey(dominantQueue string, numActiveQueues int) []byte {
-	return append([]byte(dominantQueue), encodeInt(int64(numActiveQueues))...)
-}
-
 // NodeTypesIterator is an iterator over all nodes of the given nodeTypes
 // with at least some specified amount of resources allocatable at a given priority.
 // For example, all nodes of nodeType "foo" and "bar" with at least 2 cores and 1Gi memory allocatable at priority 2.

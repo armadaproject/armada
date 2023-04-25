@@ -927,16 +927,3 @@ func populateDatabase(db *memdb.MemDB, items []*schedulerobjects.Node) error {
 	txn.Commit()
 	return nil
 }
-
-func withPodReqsNodes(reqs map[int][]*schedulerobjects.PodRequirements, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
-	for i := range nodes {
-		for _, req := range reqs[i] {
-			node, err := BindPodToNode(req, nodes[i])
-			if err != nil {
-				panic(err)
-			}
-			nodes[i] = node
-		}
-	}
-	return nodes
-}
