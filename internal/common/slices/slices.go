@@ -71,7 +71,7 @@ func Shuffle[S ~[]E, E any](s ...S) {
 	rand.Shuffle(len(s), func(i, j int) { s[i], s[j] = s[j], s[i] })
 }
 
-// Unique returns a copy of s with duplicate elements removed, keeping only the first occurence.
+// Unique returns a copy of s with duplicate elements removed, keeping only the first occurrence.
 func Unique[S ~[]E, E comparable](s S) S {
 	if s == nil {
 		return nil

@@ -338,7 +338,7 @@ func validateCancelJobsBatchSizeConfig(config *configuration.ArmadaConfig) error
 }
 
 func validatePreemptionConfig(config configuration.PreemptionConfig) error {
-	// Chech that the default priority class is in the priority class map.
+	// Check that the default priority class is in the priority class map.
 	if config.DefaultPriorityClass != "" {
 		_, ok := config.PriorityClasses[config.DefaultPriorityClass]
 		if !ok {
