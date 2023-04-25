@@ -164,7 +164,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-bundle:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
     build_flag_templates: &BUILD_FLAG_TEMPLATES
       - --build-arg={{ .Env.BASE_IMAGE_ARG }}
       - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
@@ -233,6 +233,8 @@ dockers:
       - eventingester
       - jobservice
       - armadactl
+      - scheduler
+      - scheduleringester
       - lookout
       - lookoutv2
       - lookoutingester
@@ -242,6 +244,8 @@ dockers:
       - config/executor/config.yaml
       - config/binoculars/config.yaml
       - config/eventingester/config.yaml
+      - config/scheduler/config.yaml
+      - config/scheduleringester/config.yaml
       - config/lookout/config.yaml
       - config/lookoutingester/config.yaml
       - config/lookoutv2/config.yaml
@@ -447,14 +451,18 @@ checksum:
 
 release:
   draft: false
-  github:
-    owner: armadaproject
-    name: armada
   header: |
     ## Armada {{ .Version }}
 
-    Checkout the codebase at https://github.com/armadaproject/armada
     For more info, head over to the docs page at https://armadaproject.io
+
+    ### CLI
+
+    armadactl controls the Armada batch job queueing system and is used for interacting with the system.
+
+    The CLI can be downloaded for a specific OS & Architecture from the Assets section below.
+
+    NOTE: The OSX binary is packaged as an universal binary and should work on both Intel and Apple Silicon based Macs.
 
     ### Docker images
     #### Armada Bundle
@@ -484,7 +492,7 @@ release:
     #### Armada Job Service
     - `docker pull {{ .Env.DOCKER_REPO }}armada-jobservice:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-jobservice:latest`
-    #### Armada CLI
+    #### armadactl
     - `docker pull {{ .Env.DOCKER_REPO }}armadactl:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armadactl:latest`
   footer: |
