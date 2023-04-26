@@ -505,6 +505,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if err != nil {
 		return nil, err
 	}
+	nodeIdByJobId = result.NodeIdByJobId
 
 	// Store the scheduling context for querying.
 	if q.SchedulingContextRepository != nil {

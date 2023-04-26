@@ -329,11 +329,11 @@ func (m AllocatedByPriorityAndResourceType) MarkAllocatable(p int32, rs Resource
 	}
 }
 
-func (AllocatableByPriorityAndResourceType AllocatableByPriorityAndResourceType) Get(priority int32, resourceType string) resource.Quantity {
-	if AllocatableByPriorityAndResourceType == nil {
+func (allocatableByPriorityAndResourceType AllocatableByPriorityAndResourceType) Get(priority int32, resourceType string) resource.Quantity {
+	if allocatableByPriorityAndResourceType == nil {
 		return resource.Quantity{}
 	}
-	quantityByResourceType := AllocatableByPriorityAndResourceType[priority]
+	quantityByResourceType := allocatableByPriorityAndResourceType[priority]
 	return quantityByResourceType.Get(resourceType)
 }
 

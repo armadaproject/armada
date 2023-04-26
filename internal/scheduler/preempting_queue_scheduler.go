@@ -434,7 +434,12 @@ func (sch *PreemptingQueueScheduler) evictionAssertions(evictedJobsById map[stri
 				return errors.Errorf("node id %s targeted by job %s is not marked as affected", nodeId, job.GetId())
 			}
 		} else {
-			return errors.Errorf("evicted job %s is missing target node id: job annotations %v", job.GetId(), job.GetAnnotations())
+			req := PodRequirementFromLegacySchedulerJob(job, nil)
+			if req != nil {
+				return errors.Errorf("evicted job %s is missing target node id selector: job nodeSelector %v", job.GetId(), req.NodeSelector)
+			} else {
+				return errors.Errorf("evicted job %s is missing target node id selector: req is nil", job.GetId())
+			}
 		}
 	}
 	for gangId, evictedGangJobIds := range evictedJobIdsByGangId {
@@ -830,7 +835,8 @@ func defaultPostEvictFunc(ctx context.Context, job interfaces.LegacySchedulerJob
 	// Add node selector ensuring this job is only re-scheduled onto the node it was evicted from.
 	req := PodRequirementFromLegacySchedulerJob(job, nil)
 	if req.NodeSelector == nil {
-		req.NodeSelector = map[string]string{schedulerconfig.NodeIdLabel: node.Id}
+		log := ctxlogrus.Extract(ctx)
+		log.Errorf("error evicting job %s: nodeSelector not initialised", job.GetId())
 	} else {
 		req.NodeSelector[schedulerconfig.NodeIdLabel] = node.Id
 	}

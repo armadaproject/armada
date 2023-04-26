@@ -172,7 +172,7 @@ func jobSchedulingContextsFromJobs[T interfaces.LegacySchedulerJob](jobs []T, ex
 			ExecutorId: executorId,
 			JobId:      job.GetId(),
 			Job:        job,
-			Req:        PodRequirementFromJobSchedulingInfo(job.GetRequirements(priorityClasses)),
+			Req:        PodRequirementFromLegacySchedulerJob(job, priorityClasses),
 		}
 	}
 	return jctxs
