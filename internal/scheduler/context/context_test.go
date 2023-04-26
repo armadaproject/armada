@@ -31,25 +31,6 @@ func TestNewGangSchedulingContext(t *testing.T) {
 	)
 }
 
-func testNSmallCpuJobSchedulingContext(queue, priorityClassName string, n int) []*JobSchedulingContext {
-	rv := make([]*JobSchedulingContext, n)
-	for i := 0; i < n; i++ {
-		rv[i] = testSmallCpuJobSchedulingContext(queue, priorityClassName)
-	}
-	return rv
-}
-
-func testSmallCpuJobSchedulingContext(queue, priorityClassName string) *JobSchedulingContext {
-	job := testfixtures.SmallCpuJob(queue, priorityClassName)
-	return &JobSchedulingContext{
-		ExecutorId: "executor",
-		NumNodes:   1,
-		JobId:      job.GetId(),
-		Job:        job,
-		Req:        job.GetRequirements(nil).ObjectRequirements[0].GetPodRequirements(),
-	}
-}
-
 func TestSchedulingContextAccounting(t *testing.T) {
 	sctx := NewSchedulingContext(
 		"executor",
@@ -81,4 +62,23 @@ func TestSchedulingContextAccounting(t *testing.T) {
 		assert.True(t, expected[queue].Equal(actual[queue]))
 	}
 	sctx.AddGangSchedulingContext(gctx)
+}
+
+func testNSmallCpuJobSchedulingContext(queue, priorityClassName string, n int) []*JobSchedulingContext {
+	rv := make([]*JobSchedulingContext, n)
+	for i := 0; i < n; i++ {
+		rv[i] = testSmallCpuJobSchedulingContext(queue, priorityClassName)
+	}
+	return rv
+}
+
+func testSmallCpuJobSchedulingContext(queue, priorityClassName string) *JobSchedulingContext {
+	job := testfixtures.SmallCpuJob(queue, priorityClassName)
+	return &JobSchedulingContext{
+		ExecutorId: "executor",
+		NumNodes:   1,
+		JobId:      job.GetId(),
+		Job:        job,
+		Req:        job.GetRequirements(nil).ObjectRequirements[0].GetPodRequirements(),
+	}
 }
