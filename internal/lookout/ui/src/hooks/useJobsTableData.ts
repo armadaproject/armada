@@ -1,13 +1,6 @@
 import { useEffect, useState } from "react"
 
-import {
-  ColumnFiltersState,
-  ColumnSort,
-  ExpandedStateList,
-  PaginationState,
-  RowSelectionState,
-  SortingState,
-} from "@tanstack/react-table"
+import { ExpandedStateList, PaginationState, RowSelectionState } from "@tanstack/react-table"
 import { JobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobId, JobOrder } from "models/lookoutV2Models"
 import { VariantType } from "notistack"
@@ -26,13 +19,15 @@ import {
 } from "utils/jobsTableUtils"
 import { fromRowId, mergeSubRows } from "utils/reactTableUtils"
 
+import { LookoutColumnFilter, LookoutColumnOrder } from "../containers/lookoutV2/JobsTableContainer"
+
 export interface UseFetchJobsTableDataArgs {
   groupedColumns: ColumnId[]
   visibleColumns: ColumnId[]
   expandedState: ExpandedStateList
-  sortingState: SortingState
+  lookoutOrder: LookoutColumnOrder
+  lookoutFilters: LookoutColumnFilter[]
   paginationState: PaginationState
-  columnFilters: ColumnFiltersState
   allColumns: JobTableColumn[]
   selectedRows: RowSelectionState
   updateSelectedRows: (newState: RowSelectionState) => void
@@ -78,7 +73,7 @@ const columnToGroupSortFieldMap = new Map<ColumnId, string>([
 ])
 
 // Return ordering to request to API based on column
-function getOrder(sortedField: ColumnSort, isJobFetch: boolean): JobOrder {
+function getOrder(lookoutOrder: LookoutColumnOrder, isJobFetch: boolean): JobOrder {
   const defaultJobOrder: JobOrder = {
     field: "jobId",
     direction: "DESC",
@@ -91,20 +86,20 @@ function getOrder(sortedField: ColumnSort, isJobFetch: boolean): JobOrder {
 
   let field = ""
   if (isJobFetch) {
-    if (!columnToJobSortFieldMap.has(sortedField.id as ColumnId)) {
+    if (!columnToJobSortFieldMap.has(lookoutOrder.id as ColumnId)) {
       return defaultJobOrder
     }
-    field = columnToJobSortFieldMap.get(sortedField.id as ColumnId) as string
+    field = columnToJobSortFieldMap.get(lookoutOrder.id as ColumnId) as string
   } else {
-    if (!columnToGroupSortFieldMap.has(sortedField.id as ColumnId)) {
+    if (!columnToGroupSortFieldMap.has(lookoutOrder.id as ColumnId)) {
       return defaultGroupOrder
     }
-    field = columnToGroupSortFieldMap.get(sortedField.id as ColumnId) as string
+    field = columnToGroupSortFieldMap.get(lookoutOrder.id as ColumnId) as string
   }
 
   return {
     field: field,
-    direction: sortedField.desc ? "DESC" : "ASC",
+    direction: lookoutOrder.direction,
   }
 }
 
@@ -112,9 +107,9 @@ export const useFetchJobsTableData = ({
   groupedColumns,
   visibleColumns,
   expandedState,
-  sortingState,
+  lookoutOrder,
   paginationState,
-  columnFilters,
+  lookoutFilters,
   allColumns,
   selectedRows,
   updateSelectedRows,
@@ -144,11 +139,9 @@ export const useFetchJobsTableData = ({
       const expandedLevel = parentRowInfo ? parentRowInfo.rowIdPathFromRoot.length : 0
       const isJobFetch = expandedLevel === groupingLevel
 
-      const sortedField = sortingState[0]
-
-      const order = getOrder(sortedField, isJobFetch)
+      const order = getOrder(lookoutOrder, isJobFetch)
       const rowRequest: FetchRowRequest = {
-        filters: getFiltersForRows(columnFilters, allColumns, parentRowInfo?.rowIdPartsPath ?? []),
+        filters: getFiltersForRows(lookoutFilters, parentRowInfo?.rowIdPartsPath ?? []),
         skip: nextRequest.skip ?? 0,
         take: nextRequest.take ?? paginationState.pageSize,
         order: order,
@@ -227,7 +220,7 @@ export const useFetchJobsTableData = ({
     return () => {
       abortController.abort("Request is no longer needed")
     }
-  }, [pendingData, paginationState, groupedColumns, expandedState, columnFilters, sortingState, allColumns])
+  }, [pendingData, paginationState, groupedColumns, expandedState, lookoutFilters, lookoutOrder, allColumns])
 
   return {
     data,

@@ -29,6 +29,8 @@ var baseJob = NewJob(
 	"test-queue",
 	2,
 	schedulingInfo,
+	true,
+	0,
 	false,
 	false,
 	false,
@@ -75,6 +77,12 @@ func TestJob_TestQueued(t *testing.T) {
 	newJob := baseJob.WithQueued(false)
 	assert.Equal(t, true, baseJob.Queued())
 	assert.Equal(t, false, newJob.Queued())
+}
+
+func TestJob_QueuedVersion(t *testing.T) {
+	newJob := baseJob.WithQueuedVersion(1)
+	assert.Equal(t, int32(0), baseJob.QueuedVersion())
+	assert.Equal(t, int32(1), newJob.QueuedVersion())
 }
 
 func TestJob_TestCancelRequested(t *testing.T) {
@@ -215,6 +223,40 @@ func TestJob_TestNumReturned(t *testing.T) {
 	// two returned runs
 	returned3 := returned2.WithUpdatedRun(returnedRun())
 	assert.Equal(t, uint(2), returned3.NumReturned())
+}
+
+func TestJob_TestNumAttempts(t *testing.T) {
+	attemptedRun := func() *JobRun {
+		return &JobRun{
+			id:           uuid.New(),
+			created:      baseRun.created,
+			returned:     true,
+			runAttempted: true,
+		}
+	}
+
+	nonAttemptedRun := func() *JobRun {
+		return &JobRun{
+			id:           uuid.New(),
+			created:      baseRun.created,
+			returned:     true,
+			runAttempted: false,
+		}
+	}
+	// initial job has no runs
+	assert.Equal(t, uint(0), baseJob.NumAttempts())
+
+	// one returned run
+	returned1 := baseJob.WithUpdatedRun(attemptedRun())
+	assert.Equal(t, uint(1), returned1.NumAttempts())
+
+	// still one returned run
+	returned2 := returned1.WithUpdatedRun(nonAttemptedRun())
+	assert.Equal(t, uint(1), returned2.NumAttempts())
+
+	// two returned runs
+	returned3 := returned2.WithUpdatedRun(attemptedRun())
+	assert.Equal(t, uint(2), returned3.NumAttempts())
 }
 
 func TestJob_TestRunsById(t *testing.T) {

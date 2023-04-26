@@ -1,5 +1,5 @@
 import { Job, JobFilter, JobKey, JobOrder } from "models/lookoutV2Models"
-import { IGetJobsService, GetJobsResponse } from "services/lookoutV2/GetJobsService"
+import { GetJobsResponse, IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { compareValues, mergeFilters, simulateApiWait } from "utils/fakeJobsUtils"
 
 export default class FakeGetJobsService implements IGetJobsService {
@@ -17,11 +17,10 @@ export default class FakeGetJobsService implements IGetJobsService {
     }
 
     const filtered = this.jobs.filter(mergeFilters(filters)).sort(comparator(order))
-    const response: GetJobsResponse = {
+    return {
       count: filtered.length,
       jobs: filtered.slice(skip, skip + take),
     }
-    return response
   }
 }
 
