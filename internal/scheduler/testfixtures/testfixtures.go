@@ -314,6 +314,7 @@ func SmallCpuJob(queue string, priorityClassName string) *jobdb.Job {
 			schedulerconfig.JobIdAnnotation: jobId,
 			schedulerconfig.QueueAnnotation: queue,
 		},
+		NodeSelector: make(map[string]string),
 	}
 	created := jobTimestamp.Add(1)
 	submitTime := time.Time{}.Add(time.Millisecond * time.Duration(created))
@@ -366,6 +367,7 @@ func LargeCpuJob(queue string, priorityClassName string) *jobdb.Job {
 				Value: "true",
 			},
 		},
+		NodeSelector: make(map[string]string),
 	}
 	created := jobTimestamp.Add(1)
 	submitTime := time.Time{}.Add(time.Millisecond * time.Duration(created))
@@ -419,6 +421,7 @@ func GpuJob(queue string, priorityClassName string) *jobdb.Job {
 			schedulerconfig.JobIdAnnotation: jobId,
 			schedulerconfig.QueueAnnotation: queue,
 		},
+		NodeSelector: make(map[string]string),
 	}
 	created := jobTimestamp.Add(1)
 	submitTime := time.Time{}.Add(time.Millisecond * time.Duration(created))

@@ -272,6 +272,7 @@ func OneCpuJob(creationTime int64) *jobdb.Job {
 							schedulerconfig.JobIdAnnotation: uuid.NewString(),
 							schedulerconfig.QueueAnnotation: queueName,
 						},
+						NodeSelector: make(map[string]string),
 					},
 				},
 			},
@@ -288,7 +289,8 @@ func OneCpuJob(creationTime int64) *jobdb.Job {
 		false,
 		false,
 		false,
-		creationTime).WithQueued(true)
+		creationTime,
+	).WithQueued(true)
 }
 
 func OneCoreRunningJob(creationTime int64, executor string, node string) *jobdb.Job {
