@@ -1,6 +1,6 @@
 # armada
 
-![Version: LATEST](https://img.shields.io/badge/Version-LATEST-informational?style=flat-square)
+![Version: 0.0.0-latest](https://img.shields.io/badge/Version-0.0.0--latest-informational?style=flat-square)
 
 Armada Server is the centralized Control Plane for Armada, the multi-cluster batch scheduler.
 
@@ -56,7 +56,7 @@ helm uninstall armada-server
 | fullnameOverride | string | `""` |  |
 | hostnames | list | `[]` | Hostnames for which to create gRPC and REST Ingress rules |
 | image.repository | string | `"gresearchdev/armada-server"` |  |
-| image.tag | string | `"LATEST"` |  |
+| image.tag | string | `"0.0.0-latest"` |  |
 | ingress.annotations | object | `{}` | Additional annotations for Ingress resource |
 | ingress.enabled | bool | `true` | Toggle whether to create gRPC and HTTP Ingress for Armada Server |
 | ingress.labels | object | `{}` | Additional labels for Ingress resource |

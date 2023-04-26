@@ -29,8 +29,10 @@ const (
 	memoryCol             = "memory"
 	ephemeralStorageCol   = "ephemeral_storage"
 	gpuCol                = "gpu"
+	priorityCol           = "priority"
 	submittedCol          = "submitted"
 	lastTransitionTimeCol = "last_transition_time_seconds"
+	priorityClassCol      = "priority_class"
 
 	annotationKeyCol   = "key"
 	annotationValueCol = "value"
@@ -76,8 +78,10 @@ func NewTables() *LookoutTables {
 			"memory":             memoryCol,
 			"ephemeralStorage":   ephemeralStorageCol,
 			"gpu":                gpuCol,
+			"priority":           priorityCol,
 			"submitted":          submittedCol,
 			"lastTransitionTime": lastTransitionTimeCol,
+			"priorityClass":      priorityClassCol,
 		},
 		columnsTableMap: map[string]map[string]bool{
 			jobIdCol:              util.StringListToSet([]string{jobTable, jobRunTable, userAnnotationLookupTable}),
@@ -89,8 +93,10 @@ func NewTables() *LookoutTables {
 			memoryCol:             util.StringListToSet([]string{jobTable}),
 			ephemeralStorageCol:   util.StringListToSet([]string{jobTable}),
 			gpuCol:                util.StringListToSet([]string{jobTable}),
+			priorityCol:           util.StringListToSet([]string{jobTable}),
 			submittedCol:          util.StringListToSet([]string{jobTable}),
 			lastTransitionTimeCol: util.StringListToSet([]string{jobTable}),
+			priorityClassCol:      util.StringListToSet([]string{jobTable}),
 		},
 		orderableColumns: util.StringListToSet([]string{
 			jobIdCol,
@@ -107,6 +113,8 @@ func NewTables() *LookoutTables {
 			memoryCol:           util.StringListToSet([]string{model.MatchExact, model.MatchGreaterThan, model.MatchLessThan, model.MatchGreaterThanOrEqualTo, model.MatchLessThanOrEqualTo}),
 			ephemeralStorageCol: util.StringListToSet([]string{model.MatchExact, model.MatchGreaterThan, model.MatchLessThan, model.MatchGreaterThanOrEqualTo, model.MatchLessThanOrEqualTo}),
 			gpuCol:              util.StringListToSet([]string{model.MatchExact, model.MatchGreaterThan, model.MatchLessThan, model.MatchGreaterThanOrEqualTo, model.MatchLessThanOrEqualTo}),
+			priorityCol:         util.StringListToSet([]string{model.MatchExact, model.MatchGreaterThan, model.MatchLessThan, model.MatchGreaterThanOrEqualTo, model.MatchLessThanOrEqualTo}),
+			priorityClassCol:    util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains}),
 		},
 		tableAbbrevs: map[string]string{
 			jobTable:                  jobTableAbbrev,
