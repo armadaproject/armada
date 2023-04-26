@@ -55,7 +55,7 @@ func NewSchedulingContext(
 	resourceScarcity map[string]float64,
 	priorityFactorByQueue map[string]float64,
 	totalResources schedulerobjects.ResourceList,
-	initialResourcesByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
+	initialAllocatedByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType,
 ) *SchedulingContext {
 	queueSchedulingContexts := make(map[string]*QueueSchedulingContext)
 	for queue := range priorityFactorByQueue {
@@ -64,7 +64,7 @@ func NewSchedulingContext(
 			executorId,
 			priorityFactorByQueue[queue],
 			priorityClasses,
-			initialResourcesByQueueAndPriority[queue],
+			initialAllocatedByQueueAndPriority[queue],
 		)
 	}
 	return &SchedulingContext{
@@ -178,8 +178,8 @@ func (sctx *SchedulingContext) AllocatedByQueueAndPriority() map[string]schedule
 		len(sctx.QueueSchedulingContexts),
 	)
 	for queue, qctx := range sctx.QueueSchedulingContexts {
-		if len(qctx.ResourcesByPriority) > 0 {
-			rv[queue] = qctx.ResourcesByPriority.DeepCopy()
+		if len(qctx.AllocatedByPriority) > 0 {
+			rv[queue] = qctx.AllocatedByPriority.DeepCopy()
 		}
 	}
 	return rv
@@ -200,9 +200,7 @@ type QueueSchedulingContext struct {
 	PriorityClasses map[string]configuration.PriorityClass
 	// Total resources assigned to the queue across all clusters.
 	// Including jobs scheduled during this invocation of the scheduler.
-	//
-	// TODO: Rename to AllocatedByPriority.
-	ResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
+	AllocatedByPriority schedulerobjects.QuantityByPriorityAndResourceType
 	// Resources assigned to this queue during this scheduling cycle.
 	ScheduledResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
 	EvictedResourcesByPriority   schedulerobjects.QuantityByPriorityAndResourceType
@@ -219,12 +217,12 @@ func NewQueueSchedulingContext(
 	executorId string,
 	priorityFactor float64,
 	priorityClasses map[string]configuration.PriorityClass,
-	initialResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType,
+	initialAllocatedByPriority schedulerobjects.QuantityByPriorityAndResourceType,
 ) *QueueSchedulingContext {
-	if initialResourcesByPriority == nil {
-		initialResourcesByPriority = make(schedulerobjects.QuantityByPriorityAndResourceType)
+	if initialAllocatedByPriority == nil {
+		initialAllocatedByPriority = make(schedulerobjects.QuantityByPriorityAndResourceType)
 	} else {
-		initialResourcesByPriority = initialResourcesByPriority.DeepCopy()
+		initialAllocatedByPriority = initialAllocatedByPriority.DeepCopy()
 	}
 	return &QueueSchedulingContext{
 		Created:                           time.Now(),
@@ -232,7 +230,7 @@ func NewQueueSchedulingContext(
 		Queue:                             queue,
 		PriorityFactor:                    priorityFactor,
 		PriorityClasses:                   priorityClasses,
-		ResourcesByPriority:               initialResourcesByPriority,
+		AllocatedByPriority:               initialAllocatedByPriority,
 		ScheduledResourcesByPriority:      make(schedulerobjects.QuantityByPriorityAndResourceType),
 		EvictedResourcesByPriority:        make(schedulerobjects.QuantityByPriorityAndResourceType),
 		SuccessfulJobSchedulingContexts:   make(map[string]*JobSchedulingContext),
@@ -249,8 +247,8 @@ func (qctx *QueueSchedulingContext) String() string {
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	fmt.Fprintf(w, "Time:\t%s\n", qctx.Created)
 	fmt.Fprintf(w, "Queue:\t%s\n", qctx.Queue)
-	fmt.Fprintf(w, "Total allocated resources after scheduling:\t%s\n", qctx.ResourcesByPriority.AggregateByResource().CompactString())
-	fmt.Fprintf(w, "Total allocated resources after scheduling (by priority):\t%s\n", qctx.ResourcesByPriority.String())
+	fmt.Fprintf(w, "Total allocated resources after scheduling:\t%s\n", qctx.AllocatedByPriority.AggregateByResource().CompactString())
+	fmt.Fprintf(w, "Total allocated resources after scheduling (by priority):\t%s\n", qctx.AllocatedByPriority.String())
 	fmt.Fprintf(w, "Scheduled resources:\t%s\n", qctx.ScheduledResourcesByPriority.AggregateByResource().CompactString())
 	fmt.Fprintf(w, "Scheduled resources (by priority):\t%s\n", qctx.ScheduledResourcesByPriority.String())
 	fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", len(qctx.SuccessfulJobSchedulingContexts))
@@ -314,7 +312,7 @@ func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingC
 	if jctx.IsSuccessful() {
 		// Always update ResourcesByPriority.
 		// Since ResourcesByPriority is used to order queues by fraction of fair share.
-		qctx.ResourcesByPriority.AddResourceList(jctx.Req.Priority, rl)
+		qctx.AllocatedByPriority.AddResourceList(jctx.Req.Priority, rl)
 
 		// Only if the job is not evicted, update ScheduledResourcesByPriority.
 		// Since ScheduledResourcesByPriority is used to control per-round scheduling constraints.
@@ -348,7 +346,7 @@ func (qctx *QueueSchedulingContext) EvictJob(job interfaces.LegacySchedulerJob) 
 		qctx.EvictedResourcesByPriority.AddResourceList(priority, rl)
 		qctx.EvictedJobsById[jobId] = job
 	}
-	qctx.ResourcesByPriority.SubResourceList(priority, rl)
+	qctx.AllocatedByPriority.SubResourceList(priority, rl)
 	return scheduledInThisRound
 }
 

@@ -300,7 +300,7 @@ func (it *CandidateGangIterator) pushToPQ(queue string, queueIt *QueuedGangItera
 	if gctx == nil {
 		return nil
 	}
-	totalResourcesForQueue := it.SchedulingContext.QueueSchedulingContexts[queue].ResourcesByPriority
+	totalResourcesForQueue := it.SchedulingContext.QueueSchedulingContexts[queue].AllocatedByPriority
 	totalResourcesForQueueWithGang := totalResourcesForQueue.AggregateByResource()
 	totalResourcesForQueueWithGang.Add(gctx.TotalResourceRequests)
 	fairShare := it.weightByQueue[queue] / it.weightSum

@@ -413,8 +413,8 @@ func (sch *PreemptingQueueScheduler) setEvictedGangCardinality(evictedJobsById m
 
 func (sch *PreemptingQueueScheduler) evictionAssertions(evictedJobsById map[string]interfaces.LegacySchedulerJob, affectedNodesById map[string]*schedulerobjects.Node) error {
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
-		if !qctx.ResourcesByPriority.IsStrictlyNonNegative() {
-			return errors.Errorf("negative allocation for queue %s after eviction: %s", qctx.Queue, qctx.ResourcesByPriority)
+		if !qctx.AllocatedByPriority.IsStrictlyNonNegative() {
+			return errors.Errorf("negative allocation for queue %s after eviction: %s", qctx.Queue, qctx.AllocatedByPriority)
 		}
 	}
 	evictedJobIdsByGangId := make(map[string]map[string]bool)
@@ -734,6 +734,10 @@ func NewOversubscribedEvictor(
 		nodeFilter: func(_ context.Context, node *schedulerobjects.Node) bool {
 			overSubscribedPriorities = make(map[int32]bool)
 			for p, rl := range node.AllocatableByPriorityAndResource {
+				if p < 0 {
+					// Negative priorities correspond to already evicted jobs.
+					continue
+				}
 				for _, q := range rl.Resources {
 					if q.Cmp(resource.Quantity{}) == -1 {
 						overSubscribedPriorities[p] = true

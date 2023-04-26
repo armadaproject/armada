@@ -69,16 +69,18 @@ func ScheduledJobsFromSchedulerResult[T interfaces.LegacySchedulerJob](sr *Sched
 	return rv
 }
 
+// JobsSummary returns a string giving an overview of the provided jobs meant for logging.
+// For example: "affected queues [A, B]; resources {A: {cpu: 1}, B: {cpu: 2}}; jobs [jobAId, jobBId]".
 func JobsSummary(jobs []interfaces.LegacySchedulerJob) string {
 	if len(jobs) == 0 {
 		return ""
 	}
-	evictedJobsByQueue := armadaslices.GroupByFunc(
+	jobsByQueue := armadaslices.GroupByFunc(
 		jobs,
 		func(job interfaces.LegacySchedulerJob) string { return job.GetQueue() },
 	)
 	resourcesByQueue := armadamaps.MapValues(
-		evictedJobsByQueue,
+		jobsByQueue,
 		func(jobs []interfaces.LegacySchedulerJob) schedulerobjects.ResourceList {
 			rv := schedulerobjects.ResourceList{}
 			for _, job := range jobs {
@@ -93,7 +95,7 @@ func JobsSummary(jobs []interfaces.LegacySchedulerJob) string {
 		},
 	)
 	jobIdsByQueue := armadamaps.MapValues(
-		evictedJobsByQueue,
+		jobsByQueue,
 		func(jobs []interfaces.LegacySchedulerJob) []string {
 			rv := make([]string, len(jobs))
 			for i, job := range jobs {
@@ -104,7 +106,7 @@ func JobsSummary(jobs []interfaces.LegacySchedulerJob) string {
 	)
 	return fmt.Sprintf(
 		"affected queues %v; resources %v; jobs %v",
-		maps.Keys(evictedJobsByQueue),
+		maps.Keys(jobsByQueue),
 		armadamaps.MapValues(
 			resourcesByQueue,
 			func(rl schedulerobjects.ResourceList) string {
@@ -182,6 +184,9 @@ func isEvictedJob(job interfaces.LegacySchedulerJob) bool {
 
 func targetNodeIdFromLegacySchedulerJob(job interfaces.LegacySchedulerJob) (string, bool) {
 	req := PodRequirementFromLegacySchedulerJob(job, nil)
+	if req == nil {
+		return "", false
+	}
 	nodeId, ok := req.NodeSelector[schedulerconfig.NodeIdLabel]
 	return nodeId, ok
 }

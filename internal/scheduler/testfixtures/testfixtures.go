@@ -2,12 +2,15 @@ package testfixtures
 
 // This file contains test fixtures to be used throughout the tests for this package.
 import (
+	"context"
 	"fmt"
 	"math"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -62,6 +65,10 @@ func Repeat[T any](v T, n int) []T {
 		rv[i] = v
 	}
 	return rv
+}
+
+func ContextWithDefaultLogger(ctx context.Context) context.Context {
+	return ctxlogrus.ToContext(ctx, logrus.NewEntry(logrus.New()))
 }
 
 func TestSchedulingConfig() configuration.SchedulingConfig {

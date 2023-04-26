@@ -235,7 +235,7 @@ func (l *LegacySchedulingAlgo) scheduleOnExecutor(
 		} else {
 			return nil, nil, errors.Errorf("attempting to preempt job %s with no associated runs", jobDbJob.Id())
 		}
-		result.ScheduledJobs[i] = jobDbJob.WithQueued(false).WithFailed(true)
+		result.PreemptedJobs[i] = jobDbJob.WithQueued(false).WithFailed(true)
 	}
 	for i, job := range result.ScheduledJobs {
 		jobDbJob := job.(*jobdb.Job)

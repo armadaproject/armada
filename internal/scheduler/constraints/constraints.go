@@ -125,7 +125,7 @@ func (constraints *SchedulingConstraints) CheckPerQueueAndPriorityClassConstrain
 	// MaximalResourceFractionPerQueue check.
 	if exceeded, reason := exceedsResourceLimits(
 		ctx,
-		qctx.ResourcesByPriority.AggregateByResource(),
+		qctx.AllocatedByPriority.AggregateByResource(),
 		sctx.TotalResources,
 		constraints.MaximalResourceFractionPerQueue,
 	); exceeded {
@@ -136,7 +136,7 @@ func (constraints *SchedulingConstraints) CheckPerQueueAndPriorityClassConstrain
 	// MaximalCumulativeResourceFractionPerQueueAndPriority check.
 	if priorityClassConstraint, ok := constraints.PriorityClassSchedulingConstraintsByPriorityClassName[priorityClassName]; ok {
 		allocatedByPriorityAndResourceType := schedulerobjects.NewAllocatedByPriorityAndResourceType([]int32{priorityClassConstraint.PriorityClassPriority})
-		for p, rl := range qctx.ResourcesByPriority {
+		for p, rl := range qctx.AllocatedByPriority {
 			allocatedByPriorityAndResourceType.MarkAllocated(p, rl)
 		}
 		if exceeded, reason := exceedsResourceLimits(
