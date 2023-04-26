@@ -78,8 +78,6 @@ async def test_submit_job(aio_client):
     ingress = submit_pb2.IngressConfig()
     services = submit_pb2.ServiceConfig()
 
-    print(type(aio_client))
-
     request_item = aio_client.create_job_request_item(
         priority=1,
         pod_spec=pod,
