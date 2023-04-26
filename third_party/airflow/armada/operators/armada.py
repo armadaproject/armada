@@ -17,14 +17,15 @@
 # under the License.
 
 import logging
-from typing import Optional
+from typing import Optional, List
 
 from airflow.models import BaseOperator
 from airflow.exceptions import AirflowException
 
+from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.client import ArmadaClient
-from armada.operators.jobservice import JobServiceClient
 
+from armada.operators.jobservice import JobServiceClient
 from armada.operators.utils import (
     airflow_error,
     search_for_job_complete,
@@ -63,7 +64,7 @@ class ArmadaOperator(BaseOperator):
         armada_client: ArmadaClient,
         job_service_client: JobServiceClient,
         armada_queue: str,
-        job_request_items,
+        job_request_items: List[JobSubmitRequestItem],
         lookout_url_template: Optional[str] = None,
         **kwargs,
     ) -> None:

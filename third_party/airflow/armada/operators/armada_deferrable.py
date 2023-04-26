@@ -17,7 +17,7 @@
 # under the License.
 
 import logging
-from typing import Optional, Sequence, Tuple, Any
+from typing import Optional, Sequence, Tuple, Any, TypedDict, List
 
 import grpc
 
@@ -25,10 +25,11 @@ from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator
 from airflow.triggers.base import BaseTrigger, TriggerEvent
 
+from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.client import ArmadaClient
+
 from armada.operators.jobservice import JobServiceClient
 from armada.operators.jobservice_asyncio import JobServiceAsyncIOClient
-
 from armada.operators.utils import (
     airflow_error,
     search_for_job_complete_async,
@@ -38,6 +39,17 @@ from armada.jobservice import jobservice_pb2
 
 
 armada_logger = logging.getLogger("airflow.task")
+
+
+class GrpcChannelArgsDict(TypedDict):
+    """
+    Helper class to provide stronger type checking on Grpc channel arugments.
+    """
+
+    target: str
+    credentials: Optional[grpc.ChannelCredentials] = None
+    options: Optional[Sequence[Tuple[str, Any]]] = None
+    compression: Optional[grpc.Compression] = None
 
 
 class ArmadaDeferrableOperator(BaseOperator):
@@ -71,10 +83,10 @@ class ArmadaDeferrableOperator(BaseOperator):
     def __init__(
         self,
         name: str,
-        armada_channel_args: dict,
-        job_service_channel_args: dict,
+        armada_channel_args: GrpcChannelArgsDict,
+        job_service_channel_args: GrpcChannelArgsDict,
         armada_queue: str,
-        job_request_items,
+        job_request_items: List[JobSubmitRequestItem],
         lookout_url_template: Optional[str] = None,
         **kwargs,
     ) -> None:
@@ -193,7 +205,7 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
     def __init__(
         self,
         job_id: str,
-        job_service_channel_args: dict,
+        job_service_channel_args: GrpcChannelArgsDict,
         armada_queue: str,
         job_set_id: str,
         airflow_task_name: str,
