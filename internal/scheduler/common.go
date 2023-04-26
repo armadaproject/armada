@@ -207,6 +207,7 @@ func GangIdAndCardinalityFromLegacySchedulerJob(job interfaces.LegacySchedulerJo
 	return GangIdAndCardinalityFromAnnotations(podReqs.Annotations)
 }
 
+// GangIdAndCardinalityFromAnnotations returns a tuple (gangId, gangCardinality, isGangJob, error).
 func GangIdAndCardinalityFromAnnotations(annotations map[string]string) (string, int, bool, error) {
 	if annotations == nil {
 		return "", 0, false, nil
