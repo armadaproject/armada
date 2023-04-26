@@ -216,7 +216,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 }
 
 func twoCoreNode(name string, jobs []*jobdb.Job) *schedulerobjects.Node {
-	// TODO: This is wrong. We shouldn't bind pods to nodes here. The scheduling_algo binds pods during setup.
+	// TODO: This is wrong. We shouldn't bind pods to nodes here. The scheduling_algo binds pods too.
 	usedCpu := resource.MustParse("0")
 	for _, job := range jobs {
 		cpuReq := job.
