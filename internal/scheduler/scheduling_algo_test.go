@@ -104,9 +104,6 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				queuedJobs[1].Id(): "executor2",
 			},
 		},
-		// TODO: This test doesn't pass due to faulty test logic.
-		// Specifically, the test code binds pods to nodes, before binding the same pods again during the scheduling logic.
-		//
 		"user is at usage cap before scheduling": {
 			executors: []*schedulerobjects.Executor{
 				TwoCoreExecutor("executor1", runningJobs, testfixtures.BaseTime),
@@ -215,7 +212,6 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 	}
 }
 
-// TODO: Remove jobs argument.
 func twoCoreNode(name string) *schedulerobjects.Node {
 	id := uuid.NewString()
 	return &schedulerobjects.Node{
@@ -231,7 +227,6 @@ func twoCoreNode(name string) *schedulerobjects.Node {
 			[]int32{0},
 			schedulerobjects.ResourceList{
 				Resources: map[string]resource.Quantity{
-					// "cpu":    allocatableCpu,
 					"cpu":    resource.MustParse("2"),
 					"memory": resource.MustParse("256Gi"),
 				},
