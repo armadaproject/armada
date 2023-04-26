@@ -1,11 +1,11 @@
 import { Checkbox } from "@mui/material"
-import { ColumnFiltersState } from "@tanstack/react-table"
 import { ColumnDef, createColumnHelper, VisibilityState } from "@tanstack/table-core"
 import { JobStateLabel } from "components/lookoutV2/JobStateLabel"
 import { EnumFilterOption } from "components/lookoutV2/JobsTableFilter"
 import { isJobGroupRow, JobTableRow } from "models/jobsTableModels"
 import { JobState, Match } from "models/lookoutV2Models"
 
+import { LookoutColumnOrder } from "../containers/lookoutV2/JobsTableContainer"
 import { formatBytes, formatCPU, formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
 
 export type JobTableColumn = ColumnDef<JobTableRow, any>
@@ -53,7 +53,14 @@ export type AnnotationColumnId = `annotation_${string}`
 
 export type ColumnId = StandardColumnId | AnnotationColumnId
 
+export const toAnnotationColId = (annotationKey: string): AnnotationColumnId =>
+  `${ANNOTATION_COLUMN_PREFIX}${annotationKey}`
+
+export const fromAnnotationColId = (colId: AnnotationColumnId): string => colId.slice(ANNOTATION_COLUMN_PREFIX.length)
+
 export const toColId = (columnId: string | undefined) => columnId as ColumnId
+
+export const isStandardColId = (columnId: string) => (Object.values(StandardColumnId) as string[]).includes(columnId)
 
 export const getColumnMetadata = (column: JobTableColumn) => (column.meta ?? {}) as JobTableColumnMetadata
 
@@ -66,6 +73,7 @@ interface AccessorColumnHelperArgs {
   additionalOptions?: Partial<Parameters<typeof columnHelper.accessor>[1]>
   additionalMetadata?: Partial<JobTableColumnMetadata>
 }
+
 const accessorColumn = ({
   id,
   accessor,
@@ -78,7 +86,7 @@ const accessorColumn = ({
     header: displayName,
     enableHiding: true,
     enableSorting: false,
-    size: 140,
+    size: 300,
     minSize: 80,
     ...additionalOptions,
     meta: {
@@ -92,7 +100,7 @@ const accessorColumn = ({
 export const JOB_COLUMNS: JobTableColumn[] = [
   columnHelper.display({
     id: StandardColumnId.SelectorCol,
-    size: 35,
+    size: 50,
     aggregatedCell: undefined,
     enableColumnFilter: false,
     enableSorting: false,
@@ -128,7 +136,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalOptions: {
       enableGrouping: true,
       enableColumnFilter: true,
-      size: 120,
+      size: 300,
     },
     additionalMetadata: {
       filterType: FilterType.Text,
@@ -142,7 +150,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalOptions: {
       enableGrouping: true,
       enableColumnFilter: true,
-      size: 120,
+      size: 400,
     },
     additionalMetadata: {
       filterType: FilterType.Text,
@@ -156,7 +164,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalOptions: {
       enableColumnFilter: true,
       enableSorting: true,
-      size: 180,
+      size: 300,
     },
     additionalMetadata: {
       filterType: FilterType.Text,
@@ -170,7 +178,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     additionalOptions: {
       enableGrouping: true,
       enableColumnFilter: true,
-      size: 100,
+      size: 300,
       cell: (cell) => (
         <JobStateLabel state={cell.getValue() as JobState}>{formatJobState(cell.getValue() as JobState)}</JobStateLabel>
       ),
@@ -194,7 +202,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     },
     displayName: "Count",
     additionalOptions: {
-      size: 100,
+      size: 200,
       enableSorting: true,
     },
     additionalMetadata: {
@@ -228,7 +236,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     accessor: (jobTableRow) => formatBytes(jobTableRow.memory),
     displayName: "Memory",
     additionalOptions: {
-      size: 40,
+      size: 200,
     },
   }),
   accessorColumn({
@@ -250,7 +258,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     displayName: "Time In State",
     additionalOptions: {
       enableSorting: true,
-      size: 120,
+      size: 200,
     },
   }),
   accessorColumn({
@@ -289,15 +297,19 @@ export const DEFAULT_COLUMN_VISIBILITY: VisibilityState = Object.values(Standard
   {},
 )
 
-export const DEFAULT_FILTERS: ColumnFiltersState = [
-  { id: StandardColumnId.State, value: [JobState.Queued, JobState.Pending, JobState.Running] },
-]
+export const DEFAULT_COLUMN_ORDER: LookoutColumnOrder = { id: "jobId", direction: "DESC" }
 
-export const DEFAULT_GROUPING: ColumnId[] = [StandardColumnId.Queue, StandardColumnId.JobSet]
+export const DEFAULT_COLUMN_MATCHES: Map<string, Match> = new Map([
+  [StandardColumnId.Queue, Match.StartsWith],
+  [StandardColumnId.JobSet, Match.StartsWith],
+  [StandardColumnId.JobID, Match.Exact],
+  [StandardColumnId.State, Match.AnyOf],
+  [StandardColumnId.Owner, Match.StartsWith],
+])
 
 export const createAnnotationColumn = (annotationKey: string): JobTableColumn => {
   return accessorColumn({
-    id: `${ANNOTATION_COLUMN_PREFIX}${annotationKey}`,
+    id: toAnnotationColId(annotationKey),
     accessor: (jobTableRow) => jobTableRow.annotations?.[annotationKey],
     displayName: annotationKey,
     additionalOptions: {
@@ -311,4 +323,10 @@ export const createAnnotationColumn = (annotationKey: string): JobTableColumn =>
       defaultMatchType: Match.StartsWith,
     },
   })
+}
+
+export const getAnnotationKeyCols = (cols: JobTableColumn[]): string[] => {
+  return cols
+    .filter((col) => col.id?.startsWith(ANNOTATION_COLUMN_PREFIX))
+    .map((col) => fromAnnotationColId(col.id as AnnotationColumnId))
 }
