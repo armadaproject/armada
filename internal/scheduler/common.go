@@ -191,6 +191,7 @@ func targetNodeIdFromLegacySchedulerJob(job interfaces.LegacySchedulerJob) (stri
 	return nodeId, ok
 }
 
+// GangIdAndCardinalityFromLegacySchedulerJob returns a tuple (gangId, gangCardinality, isGangJob, error).
 func GangIdAndCardinalityFromLegacySchedulerJob(job interfaces.LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) (string, int, bool, error) {
 	reqs := job.GetRequirements(priorityClasses)
 	if reqs == nil {
