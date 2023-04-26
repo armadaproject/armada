@@ -1267,34 +1267,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					)
 				}
 
-				// TODO: Re-enable. This should be tests in the context package instead.
-				//
-				// for queue, allocated := range rescheduler.schedulingContext.AllocatedByQueueAndPriority() {
-				// 	// Filter out explicit zeros to enable comparing with expected allocation.
-				// 	// TODO: Can we use the equals method instead?
-				// 	result.AllocatedByQueueAndPriority[queue] = armadamaps.Filter(
-				// 		allocated,
-				// 		func(_ int32, rl schedulerobjects.ResourceList) bool {
-				// 			return !rl.IsZero()
-				// 		},
-				// 	)
-				// }
-				// assert.Equal(
-				// 	t,
-				// 	armadamaps.Filter(
-				// 		allocatedByQueueAndPriority,
-				// 		func(_ string, allocated schedulerobjects.QuantityByPriorityAndResourceType) bool {
-				// 			return !allocated.IsZero()
-				// 		},
-				// 	),
-				// 	armadamaps.Filter(
-				// 		result.AllocatedByQueueAndPriority,
-				// 		func(_ string, allocated schedulerobjects.QuantityByPriorityAndResourceType) bool {
-				// 			return !allocated.IsZero()
-				// 		},
-				// 	),
-				// )
-
 				// Test that jobs are mapped to nodes correctly.
 				for _, job := range result.PreemptedJobs {
 					nodeId, ok := result.NodeIdByJobId[job.GetId()]

@@ -395,15 +395,16 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 			continue
 		}
 		for _, reqs := range jobReqs.GetObjectRequirements() {
-			totalResourceRequests.Add(
-				schedulerobjects.ResourceListFromV1ResourceList(
-					reqs.GetPodRequirements().ResourceRequirements.Requests,
-				),
-			)
+			if podReq := reqs.GetPodRequirements(); podReq != nil {
+				totalResourceRequests.Add(
+					schedulerobjects.ResourceListFromV1ResourceList(
+						podReq.ResourceRequirements.Requests,
+					),
+				)
+			}
 		}
 		priorityClassName = job.GetRequirements(nil).PriorityClassName
 	}
-
 	return &GangSchedulingContext{
 		Created:               time.Now(),
 		Queue:                 queue,
