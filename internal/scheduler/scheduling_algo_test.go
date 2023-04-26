@@ -107,31 +107,31 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		// TODO: This test doesn't pass due to faulty test logic.
 		// Specifically, the test code binds pods to nodes, before binding the same pods again during the scheduling logic.
 		//
-		// "user is at usage cap before scheduling": {
-		// 	executors: []*schedulerobjects.Executor{
-		// 		TwoCoreExecutor("executor1", runningJobs, testfixtures.BaseTime),
-		// 		TwoCoreExecutor("executor2", nil, testfixtures.BaseTime),
-		// 	},
-		// 	queues:        []*database.Queue{&queue},
-		// 	queuedJobs:    queuedJobs,
-		// 	runningJobs:   []*jobdb.Job{runningJobs[0], runningJobs[1]},
-		// 	perQueueLimit: map[string]float64{"cpu": 0.5},
-		// 	expectedJobs:  map[string]string{},
-		// },
-		// "user hits usage cap during scheduling": {
-		// 	executors: []*schedulerobjects.Executor{
-		// 		TwoCoreExecutor("executor1", []*jobdb.Job{runningJobs[0]}, testfixtures.BaseTime),
-		// 		TwoCoreExecutor("executor2", nil, testfixtures.BaseTime),
-		// 	},
-		// 	queues:                           []*database.Queue{&queue},
-		// 	queuedJobs:                       queuedJobs,
-		// 	runningJobs:                      []*jobdb.Job{runningJobs[0]},
-		// 	perQueueLimit:                    map[string]float64{"cpu": 0.5},
-		// 	maxUnacknowledgedJobsPerExecutor: 1,
-		// 	expectedJobs: map[string]string{
-		// 		queuedJobs[0].Id(): "executor2",
-		// 	},
-		// },
+		"user is at usage cap before scheduling": {
+			executors: []*schedulerobjects.Executor{
+				TwoCoreExecutor("executor1", runningJobs, testfixtures.BaseTime),
+				TwoCoreExecutor("executor2", nil, testfixtures.BaseTime),
+			},
+			queues:        []*database.Queue{&queue},
+			queuedJobs:    queuedJobs,
+			runningJobs:   []*jobdb.Job{runningJobs[0], runningJobs[1]},
+			perQueueLimit: map[string]float64{"cpu": 0.5},
+			expectedJobs:  map[string]string{},
+		},
+		"user hits usage cap during scheduling": {
+			executors: []*schedulerobjects.Executor{
+				TwoCoreExecutor("executor1", []*jobdb.Job{runningJobs[0]}, testfixtures.BaseTime),
+				TwoCoreExecutor("executor2", nil, testfixtures.BaseTime),
+			},
+			queues:                           []*database.Queue{&queue},
+			queuedJobs:                       queuedJobs,
+			runningJobs:                      []*jobdb.Job{runningJobs[0]},
+			perQueueLimit:                    map[string]float64{"cpu": 0.5},
+			maxUnacknowledgedJobsPerExecutor: 1,
+			expectedJobs: map[string]string{
+				queuedJobs[0].Id(): "executor1",
+			},
+		},
 		"no queuedJobs to schedule": {
 			executors: []*schedulerobjects.Executor{
 				TwoCoreExecutor("executor1", nil, testfixtures.BaseTime),
@@ -215,24 +215,9 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 	}
 }
 
-func twoCoreNode(name string, jobs []*jobdb.Job) *schedulerobjects.Node {
-	// TODO: This is wrong. We shouldn't bind pods to nodes here. The scheduling_algo binds pods too.
-	usedCpu := resource.MustParse("0")
-	for _, job := range jobs {
-		cpuReq := job.
-			JobSchedulingInfo().
-			ObjectRequirements[0].
-			GetPodRequirements().
-			GetResourceRequirements().Limits["cpu"]
-		usedCpu.Add(cpuReq)
-	}
-	allocatableCpu := resource.MustParse("2")
-	(&allocatableCpu).Sub(usedCpu)
+// TODO: Remove jobs argument.
+func twoCoreNode(name string) *schedulerobjects.Node {
 	id := uuid.NewString()
-	jobRunsByState := make(map[string]schedulerobjects.JobRunState, len(jobs))
-	for _, job := range jobs {
-		jobRunsByState[job.LatestRun().Id().String()] = schedulerobjects.JobRunState_RUNNING
-	}
 	return &schedulerobjects.Node{
 		Id:   id,
 		Name: name,
@@ -242,28 +227,33 @@ func twoCoreNode(name string, jobs []*jobdb.Job) *schedulerobjects.Node {
 				"memory": resource.MustParse("256Gi"),
 			},
 		},
-		Labels: map[string]string{
-			testfixtures.TestHostnameLabel: id,
-		},
 		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			[]int32{0},
 			schedulerobjects.ResourceList{
 				Resources: map[string]resource.Quantity{
-					"cpu":    allocatableCpu,
+					// "cpu":    allocatableCpu,
+					"cpu":    resource.MustParse("2"),
 					"memory": resource.MustParse("256Gi"),
 				},
 			},
 		),
-		StateByJobRunId: jobRunsByState,
+		Labels: map[string]string{
+			testfixtures.TestHostnameLabel: id,
+		},
 	}
 }
 
 func TwoCoreExecutor(name string, jobs []*jobdb.Job, updateTime time.Time) *schedulerobjects.Executor {
+	jobRunIds := make([]string, len(jobs))
+	for i, job := range jobs {
+		jobRunIds[i] = job.LatestRun().Id().String()
+	}
 	return &schedulerobjects.Executor{
-		Id:             name,
-		Pool:           poolName,
-		Nodes:          []*schedulerobjects.Node{twoCoreNode(fmt.Sprintf("%s-node", name), jobs)},
-		LastUpdateTime: updateTime,
+		Id:                name,
+		Pool:              poolName,
+		Nodes:             []*schedulerobjects.Node{twoCoreNode(fmt.Sprintf("%s-node", name))},
+		LastUpdateTime:    updateTime,
+		UnassignedJobRuns: jobRunIds,
 	}
 }
 

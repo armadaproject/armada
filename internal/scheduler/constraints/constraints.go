@@ -133,7 +133,7 @@ func (constraints *SchedulingConstraints) CheckPerQueueAndPriorityClassConstrain
 		return false, unschedulableReason, nil
 	}
 
-	// MaximalCumulativeResourceFractionPerQueueAndPriority check.
+	// PriorityClassSchedulingConstraintsByPriorityClassName check.
 	if priorityClassConstraint, ok := constraints.PriorityClassSchedulingConstraintsByPriorityClassName[priorityClassName]; ok {
 		allocatedByPriorityAndResourceType := schedulerobjects.NewAllocatedByPriorityAndResourceType([]int32{priorityClassConstraint.PriorityClassPriority})
 		for p, rl := range qctx.AllocatedByPriority {
