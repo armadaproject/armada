@@ -1594,6 +1594,7 @@ func createJobRequestItems(numberOfJobs int) []*api.JobSubmitRequestItem {
 						},
 					},
 				},
+				NodeSelector: make(map[string]string),
 			}},
 			Priority: 0,
 		}
