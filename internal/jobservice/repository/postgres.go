@@ -76,6 +76,27 @@ func (s *JSRepoPostgres) Setup(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
+	// cleanup trigger
+	_, err = s.dbpool.Exec(ctx, `
+		CREATE FUNCTION delete_expired_jobsets() RETURNS trigger
+		    LANGUAGE plpgsql
+		    AS $$
+		    DECLARE
+		      row_count int;
+		    BEGIN
+		      DELETE FROM jobsets WHERE Timestamp < (extract(epoch from now()) - $1);
+		      IF found THEN
+			GET DIAGNOSTICS row_count = ROW_COUNT;
+			RAISE NOTICE 'DELETEd % row(s) FROM jobsets', row_count;
+		      END IF;
+		      RETURN NULL;
+		    END;
+		CREATE TRIGGER trigger_delete_expired_jobsets
+		    AFTER INSERT ON jobsets
+		    EXECUTE PROCEDURE delete_expired_jobsets();`, s.jobServiceConfig.PurgeJobSetTime)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // Get the JobStatus given the jodId
