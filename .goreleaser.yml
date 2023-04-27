@@ -524,4 +524,3 @@ release:
     - `docker pull {{ .Env.DOCKER_REPO }}armadactl:latest`
   footer: |
     **Full Changelog**: https://github.com/armadaproject/armada/compare/{{ .PreviousTag }}...{{ .Tag }}
-
