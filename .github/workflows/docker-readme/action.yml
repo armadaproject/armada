@@ -129,17 +129,6 @@ runs:
         short_description: 'Armada Event Ingester is responsible for ingesting events from Kubernetes'
         readme_file: 'README.md'
 
-    - name: Push Armada Event Ingester V2 README.md
-      uses: christian-korneck/update-container-description-action@v1
-      env:
-        DOCKER_USER: ${{ inputs.docker_user }}
-        DOCKER_PASS: ${{ inputs.docker_pwd }}
-      with:
-        destination_container_repo: ${{ inputs.docker_owner }}/armada-eventingesterv2
-        provider: ${{ inputs.docker_provider }}
-        short_description: 'Armada Event Ingester V2 is responsible for ingesting events from Kubernetes'
-        readme_file: 'README.md'
-
     - name: Push Armada Scheduler README.md
       uses: christian-korneck/update-container-description-action@v1
       env:
