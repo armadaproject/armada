@@ -11,7 +11,6 @@ import (
 	"github.com/armadaproject/armada/internal/jobservice/events"
 	"github.com/armadaproject/armada/internal/jobservice/repository"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/api/jobservice"
 )
 
 // Service that subscribes to events and stores JobStatus in the repository.
@@ -38,11 +37,23 @@ func NewEventsToJobService(
 
 // Subscribes to a JobSet from jobsetid. Will retry until there is a successful exit, up to the TTL
 func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context.Context, ttlSecs int64, fromMessageId string) error {
-	return eventToJobService.streamCommon(context, ttlSecs, fromMessageId)
+	err := eventToJobService.streamCommon(context, ttlSecs, fromMessageId)
+	if err != nil {
+		log.Infof("subscribeToJobSetId ended for %s/%s with error %v", eventToJobService.queue, eventToJobService.jobSetId, err)
+		if err != nil {
+			log.Error("unable to unsubscribe database due to ", err)
+		}
+		return err
+	}
+	_, err = eventToJobService.jobServiceRepository.UnsubscribeJobSet(context, eventToJobService.queue, eventToJobService.jobSetId)
+	if err != nil {
+		log.Error("unable to unsubscribe database due to ", err)
+	}
+	return nil
 }
 
-func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, timeout int64, fromMessageId string) error {
-	ctx, cancel := context.WithCancel(ctx)
+func (eventToJobService *EventsToJobService) streamCommon(inCtx context.Context, timeout int64, fromMessageId string) error {
+	ctx, cancel := context.WithCancel(inCtx)
 	g, _ := errgroup.WithContext(ctx)
 	expiresAt := time.Now().Add(time.Duration(timeout) * time.Second)
 	g.Go(func() error {
@@ -57,7 +68,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 			case <-ctx.Done():
 				return nil
 			case t := <-ticker.C:
-				jobSetFound, oldMessageId, err := eventToJobService.jobServiceRepository.IsJobSetSubscribed(ctx, eventToJobService.queue, eventToJobService.jobSetId)
+				jobSetFound, oldMessageId, err := eventToJobService.jobServiceRepository.IsJobSetSubscribed(inCtx, eventToJobService.queue, eventToJobService.jobSetId)
 				if err != nil {
 					return errors.Errorf("unsubscribe jobsets: %v", err)
 				}
@@ -66,7 +77,8 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 				}
 				if t.After(expiresAt) {
 					log.Infof("JobSet %s/%s unsubcribing and messageId is %s", eventToJobService.queue, eventToJobService.jobSetId, oldMessageId)
-					return errors.Errorf("stream subscription ttl exceeded: %v", timeout)
+					log.Infof("stream subscription ttl exceeded: %v", timeout)
+					return nil
 				}
 			}
 		}
@@ -89,12 +101,8 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 				log.Errorf("context is done on %s/%s", eventToJobService.queue, eventToJobService.jobSetId)
 				return nil
 			default:
-				requestFields := log.Fields{
-					"job_set_id": eventToJobService.jobSetId,
-					"queue":      eventToJobService.queue,
-				}
 
-				msg, err := eventToJobService.eventClient.GetJobEventMessage(ctx, &api.JobSetRequest{
+				msg, err := eventToJobService.eventClient.GetJobEventMessage(inCtx, &api.JobSetRequest{
 					Id:             eventToJobService.jobSetId,
 					Queue:          eventToJobService.queue,
 					Watch:          true,
@@ -104,7 +112,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 				if err != nil {
 					log.WithError(err).Error("could not obtain job set event message, retrying")
 					settingSubscribeErr := eventToJobService.jobServiceRepository.SetSubscriptionError(
-						ctx, eventToJobService.queue, eventToJobService.jobSetId, err.Error(), fromMessageId)
+						inCtx, eventToJobService.queue, eventToJobService.jobSetId, err.Error(), fromMessageId)
 					if settingSubscribeErr != nil {
 						log.WithError(settingSubscribeErr).Error("could not set error field in job set table")
 					}
@@ -112,25 +120,20 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 					continue
 				}
 				errClear := eventToJobService.jobServiceRepository.AddMessageIdAndClearSubscriptionError(
-					ctx, eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
+					inCtx, eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
 				if errClear != nil {
 					log.WithError(errClear).Error("could not clear subscription error from job set table")
 				}
 				currentJobId := api.JobIdFromApiEvent(msg.Message)
 				jobStatus := EventsToJobResponse(*msg.Message)
 				if jobStatus != nil {
-					if jobStatus.State != jobservice.JobServiceResponse_SUCCEEDED {
-						log.WithFields(requestFields).Infof("fromMessageId: %s JobId: %s State: %s", fromMessageId, currentJobId, jobStatus.GetState().String())
-					}
 					jobStatus := repository.NewJobStatus(eventToJobService.queue, eventToJobService.jobSetId, currentJobId, *jobStatus)
-					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(ctx, jobStatus)
+					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(inCtx, jobStatus)
 					if err != nil {
 						log.WithError(err).Error("could not update job status, retrying")
 						time.Sleep(5 * time.Second)
 						continue
 					}
-				} else {
-					log.WithFields(requestFields).Infof("JobId: %s", currentJobId)
 				}
 				// advance the message id for next loop
 				fromMessageId = msg.GetId()

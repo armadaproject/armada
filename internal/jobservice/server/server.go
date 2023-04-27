@@ -48,9 +48,6 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 		log.WithFields(requestFields).Error(err)
 		return nil, err
 	}
-	if response.State == js.JobServiceResponse_SUCCEEDED {
-		log.WithFields(requestFields).Info("job succeeded")
-	}
 
 	return response, err
 }

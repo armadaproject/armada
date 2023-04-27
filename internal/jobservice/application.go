@@ -55,6 +55,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		return err
 	}
 
+	// TODO: Bug on cleanup
 	g.Go(func() error {
 		PurgeJobSets(ctx, log, config.PurgeJobSetTime, sqlJobRepo)
 		return nil
@@ -69,7 +70,6 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 				logging.WithStacktrace(log, err).Warn("error getting jobsets")
 			}
 			for _, value := range jobSets {
-				log.Infof("subscribing to %s-%s for %d s", value.Queue, value.JobSet, config.SubscribeJobSetTime)
 				eventClient := events.NewEventClient(&config.ApiConnection)
 				eventJob := eventstojobs.NewEventsToJobService(value.Queue, value.JobSet, eventClient, sqlJobRepo)
 				go func(value repository.SubscribedTuple) {
