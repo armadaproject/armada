@@ -83,7 +83,7 @@ commands:
         command: |
           RELEASE_TAG=${CIRCLE_TAG}
           echo release version is $RELEASE_TAG
-          find . \( -name "Chart.yaml" -o -name "values.yaml" \) -exec sed -i s/LATEST/$RELEASE_TAG/ {} +
+          find . \( -name "Chart.yaml" -o -name "values.yaml" \) -exec sed -i s/0.0.0-latest/$RELEASE_TAG/ {} +
 
     - run:
         name: Build new packages and index.yaml
@@ -247,7 +247,7 @@ jobs:
   release-armadactl:
     machine:
       docker_layer_caching: true
-      image: ubuntu-2204:2022.07.1
+      image: ubuntu-2204:2023.02.1
       resource_class: large
       # resource_class: xlarge
     environment:
@@ -384,7 +384,7 @@ jobs:
   release-dotnet-client:
     machine:
       docker_layer_caching: true
-      image: ubuntu-2204:2022.07.1
+      image: ubuntu-2204:2023.02.1
       resource_class: large
       # resource_class: xlarge
     environment:

@@ -194,6 +194,14 @@ export async function waitMillis(millisToWait: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, millisToWait))
 }
 
+export function removeUndefined(obj: Record<string, any>) {
+  return Object.keys(obj).forEach((key) => {
+    if (obj[key] === undefined) {
+      delete obj[key]
+    }
+  })
+}
+
 export interface Router {
   location: Location
   navigate: NavigateFunction

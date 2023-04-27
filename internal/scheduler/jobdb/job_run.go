@@ -26,6 +26,8 @@ type JobRun struct {
 	cancelled bool
 	// True if the job has been returned by the executor.
 	returned bool
+	// True if the job has been returned and the job was given a chance to run.
+	runAttempted bool
 }
 
 func MinimalRun(id uuid.UUID, creationTime int64) *JobRun {
@@ -47,18 +49,20 @@ func CreateRun(
 	failed bool,
 	cancelled bool,
 	returned bool,
+	runAttempted bool,
 ) *JobRun {
 	return &JobRun{
-		id:        id,
-		jobId:     jobId,
-		created:   creationTime,
-		executor:  executor,
-		node:      node,
-		running:   running,
-		succeeded: succeeded,
-		failed:    failed,
-		cancelled: cancelled,
-		returned:  returned,
+		id:           id,
+		jobId:        jobId,
+		created:      creationTime,
+		executor:     executor,
+		node:         node,
+		running:      running,
+		succeeded:    succeeded,
+		failed:       failed,
+		cancelled:    cancelled,
+		returned:     returned,
+		runAttempted: runAttempted,
 	}
 }
 
@@ -135,10 +139,21 @@ func (run *JobRun) Returned() bool {
 	return run.returned
 }
 
-// WithReturned returns a copy of the job run with the returned status updated.
 func (run *JobRun) WithReturned(returned bool) *JobRun {
 	run = run.DeepCopy()
 	run.returned = returned
+	return run
+}
+
+// RunAttempted Returns true if the executor has attempted to run the job.
+func (run *JobRun) RunAttempted() bool {
+	return run.runAttempted
+}
+
+// WithAttempted returns a copy of the job run with the runAttempted status updated.
+func (run *JobRun) WithAttempted(attempted bool) *JobRun {
+	run = run.DeepCopy()
+	run.runAttempted = attempted
 	return run
 }
 

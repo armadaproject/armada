@@ -145,6 +145,18 @@ func Run(config Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating string interner")
 	}
+
+	submitChecker := NewSubmitChecker(
+		30*time.Minute,
+		config.Scheduling,
+		executorRepository,
+	)
+	services = append(services, func() error {
+		return submitChecker.Run(ctx)
+	})
+	if err != nil {
+		return errors.WithMessage(err, "error creating submit checker")
+	}
 	schedulingAlgo := NewLegacySchedulingAlgo(config.Scheduling, executorRepository, queueRepository)
 	scheduler, err := NewScheduler(
 		jobRepository,
@@ -153,9 +165,11 @@ func Run(config Configuration) error {
 		leaderController,
 		pulsarPublisher,
 		stringInterner,
+		submitChecker,
 		config.CyclePeriod,
 		config.ExecutorTimeout,
-		config.Scheduling.MaxRetries,
+		config.Scheduling.MaxRetries+1,
+		config.Scheduling.Preemption.NodeIdLabel,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")

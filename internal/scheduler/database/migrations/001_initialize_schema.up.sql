@@ -12,6 +12,10 @@ CREATE TABLE jobs (
     submitted bigint NOT NULL,
     groups bytea, -- compressed
     priority bigint NOT NULL,
+    -- Indicates if the job is queued
+    queued boolean NOT NULL default false,
+    -- The current version of the queued column, used to prevent queued state going backwards on event replay
+    queued_version integer NOT NULL default 0,
     -- Indicates that the user has requested the job be cancelled
     cancel_requested boolean NOT NULL DEFAULT false,
     -- Indicates if this job has been cancelled
@@ -26,6 +30,8 @@ CREATE TABLE jobs (
     submit_message bytea NOT NULL,
     -- JobSchedulingInfo message stored as a proto buffer.
     scheduling_info bytea NOT NULL,
+    -- The current version of the JobSchedulingInfo, used to prevent JobSchedulingInfo state going backwards even on replay
+    scheduling_info_version integer NOT NULL default 0,
     serial bigserial NOT NULL,
     last_modified timestamptz NOT NULL
 );
@@ -55,6 +61,8 @@ CREATE TABLE runs (
     failed boolean NOT NULL DEFAULT false,
     -- Set to true when the lease is returned by the executor.
     returned boolean NOT NULL DEFAULT false,
+    -- Set to true when the returned job run was given a chance to run. i.e unscheduled jobs will be false, image pull failure would be true
+    run_attempted boolean NOT NULL DEFAULT false,
     serial bigserial NOT NULL,
     last_modified timestamptz NOT NULL
 );
