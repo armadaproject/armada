@@ -21,8 +21,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: "Set up Go"
-        uses: "actions/setup-go@v4"
+      - name: Setup Golang with Cache
+        uses: magnetikonline/action-golang-cache@v4
         with:
           go-version: "1.20"
 

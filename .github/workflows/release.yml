@@ -24,8 +24,8 @@ jobs:
       - name: Fetch Git tags
         run: git fetch --force --tags
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      - name: Setup Golang with Cache
+        uses: magnetikonline/action-golang-cache@v4
         with:
           go-version: "1.20"
 
@@ -41,6 +41,9 @@ jobs:
 
       - name: Set up Syft
         run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Set GORELEASER_PREVIOUS_TAG # Workaround, GoReleaser uses 'git-describe' to determine a previous tag.
+        run: echo "GORELEASER_PREVIOUS_TAG=$(git -c 'versionsort.suffix=-rc' tag --list --sort=version:refname | grep -Eo '^v[0-9]{1,}.[0-9]{1,}.[0-9]{1,}$' | tail -n 2 | head -n 1)" >> $GITHUB_ENV
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v4
