@@ -103,7 +103,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 		return &SchedulerResult{}, nil
 	}
 	if ResourceListAsWeightedApproximateFloat64(sch.schedulingContext.ResourceScarcity, sch.nodeDb.TotalResources()) == 0 {
-		// This refers to the resources currently considered for schedling.
+		// This refers to the resources currently considered for scheduling.
 		log.Infof(
 			"no resources with non-zero weight available for scheduling in NodeDb: resource scarcity %v, total resources %v",
 			sch.schedulingContext.ResourceScarcity, sch.nodeDb.TotalResources(),

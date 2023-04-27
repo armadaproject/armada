@@ -216,7 +216,7 @@ func (a ResourceList) Equal(b ResourceList) bool {
 	return true
 }
 
-// IsStrictlyNonNegative returns true if there is no quantity in a less than zero.
+// IsStrictlyNonNegative returns true if there is no quantity less than zero.
 func (a ResourceList) IsStrictlyNonNegative() bool {
 	for _, q := range a.Resources {
 		if q.Cmp(resource.Quantity{}) == -1 {
