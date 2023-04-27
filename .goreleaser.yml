@@ -463,8 +463,6 @@ checksum:
   algorithm: sha256
 
 release:
-  prerelease: auto
-  draft: false
   header: |
     ## Armada v{{ .Version }}
 
