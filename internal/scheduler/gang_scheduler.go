@@ -35,14 +35,13 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 	defer func() {
 		// If any job in a gang fails to schedule, set the unschedulableReason for all jobs in the gang,
 		// and remove it from the scheduling context.
-		if unschedulableReason == "" {
-			return
+		if err == nil && !ok {
+			for _, jctx := range gctx.JobSchedulingContexts {
+				sch.schedulingContext.EvictJob(jctx.Job)
+				jctx.UnschedulableReason = unschedulableReason
+			}
+			sch.schedulingContext.AddGangSchedulingContext(gctx)
 		}
-		for _, jctx := range gctx.JobSchedulingContexts {
-			sch.schedulingContext.EvictJob(jctx.Job)
-			jctx.UnschedulableReason = unschedulableReason
-		}
-		sch.schedulingContext.AddGangSchedulingContext(gctx)
 	}()
 	sch.schedulingContext.AddGangSchedulingContext(gctx)
 	if !allGangsJobsEvicted(gctx) {
@@ -54,13 +53,11 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 		}
 	}
 	if ok, unschedulableReason, err = sch.constraints.CheckGlobalConstraints(
-		ctx,
 		sch.schedulingContext,
 	); err != nil || !ok {
 		return
 	}
 	if ok, unschedulableReason, err = sch.constraints.CheckPerQueueAndPriorityClassConstraints(
-		ctx,
 		sch.schedulingContext,
 		gctx.Queue,
 		gctx.PriorityClassName,

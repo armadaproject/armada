@@ -48,6 +48,7 @@ func TestEvictOversubscribed(t *testing.T) {
 		jobRepo,
 		testfixtures.TestPriorityClasses,
 		1,
+		nil,
 	)
 	it := NewInMemoryNodeIterator(nodes)
 	result, err := evictor.Evict(context.Background(), it)

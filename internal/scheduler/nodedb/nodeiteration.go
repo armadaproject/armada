@@ -13,8 +13,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-const NodeDominantQueueWildcard = "*"
-
 type NodeIterator interface {
 	NextNode() *schedulerobjects.Node
 }

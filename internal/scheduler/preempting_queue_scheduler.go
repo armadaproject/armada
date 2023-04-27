@@ -136,6 +136,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 			sch.schedulingContext.PriorityClasses,
 			sch.schedulingContext.DefaultPriorityClass,
 			sch.nodeEvictionProbability,
+			nil,
 		),
 	)
 	if err != nil {
@@ -175,6 +176,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 			sch.jobRepo,
 			sch.schedulingContext.PriorityClasses,
 			sch.nodeOversubscriptionEvictionProbability,
+			nil,
 		),
 	)
 	if err != nil {
@@ -645,16 +647,20 @@ func NewStochasticEvictor(
 	priorityClasses map[string]configuration.PriorityClass,
 	defaultPriorityClass string,
 	perNodeEvictionProbability float64,
+	random *rand.Rand,
 ) *Evictor {
 	if perNodeEvictionProbability <= 0 {
 		return nil
+	}
+	if random == nil {
+		random = rand.New(rand.NewSource(int64(time.Now().Nanosecond())))
 	}
 	return NewPreemptibleEvictor(
 		jobRepo,
 		priorityClasses,
 		defaultPriorityClass,
 		func(_ context.Context, node *schedulerobjects.Node) bool {
-			return len(node.AllocatedByJobId) > 0 && rand.Float64() < perNodeEvictionProbability
+			return len(node.AllocatedByJobId) > 0 && random.Float64() < perNodeEvictionProbability
 		},
 	)
 }
@@ -724,9 +730,13 @@ func NewOversubscribedEvictor(
 	jobRepo JobRepository,
 	priorityClasses map[string]configuration.PriorityClass,
 	perNodeEvictionProbability float64,
+	random *rand.Rand,
 ) *Evictor {
 	if perNodeEvictionProbability <= 0 {
 		return nil
+	}
+	if random == nil {
+		random = rand.New(rand.NewSource(int64(time.Now().Nanosecond())))
 	}
 	// Populating overSubscribedPriorities relies on
 	// - nodeFilter being called once before all calls to jobFilter and
@@ -750,7 +760,7 @@ func NewOversubscribedEvictor(
 					}
 				}
 			}
-			return len(overSubscribedPriorities) > 0 && rand.Float64() < perNodeEvictionProbability
+			return len(overSubscribedPriorities) > 0 && random.Float64() < perNodeEvictionProbability
 		},
 		jobFilter: func(ctx context.Context, job interfaces.LegacySchedulerJob) bool {
 			if job.GetAnnotations() == nil {

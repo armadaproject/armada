@@ -532,12 +532,16 @@ func EvictPodFromNode(req *schedulerobjects.PodRequirements, node *schedulerobje
 	// Ensure we track allocated resources at evictedPriority.
 	if _, ok := node.AllocatableByPriorityAndResource[evictedPriority]; !ok {
 		pMin := int32(math.MaxInt32)
+		ok := false
 		for p := range node.AllocatableByPriorityAndResource {
 			if p < pMin {
 				pMin = p
+				ok = true
 			}
 		}
-		node.AllocatableByPriorityAndResource[evictedPriority] = node.AllocatableByPriorityAndResource[pMin].DeepCopy()
+		if ok {
+			node.AllocatableByPriorityAndResource[evictedPriority] = node.AllocatableByPriorityAndResource[pMin].DeepCopy()
+		}
 	}
 
 	if _, ok := node.AllocatedByJobId[jobId]; !ok {
@@ -714,14 +718,20 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node)
 			return errors.Errorf("inconsistent node accounting: node %s has evicted jobs but no evicted resources", node.Id)
 		}
 	}
+
+	// Ensure we track allocated resources at evictedPriority.
 	if _, ok := node.AllocatableByPriorityAndResource[evictedPriority]; !ok {
 		pMin := int32(math.MaxInt32)
+		ok := false
 		for p := range node.AllocatableByPriorityAndResource {
 			if p < pMin {
 				pMin = p
+				ok = true
 			}
 		}
-		node.AllocatableByPriorityAndResource[evictedPriority] = node.AllocatableByPriorityAndResource[pMin].DeepCopy()
+		if ok {
+			node.AllocatableByPriorityAndResource[evictedPriority] = node.AllocatableByPriorityAndResource[pMin].DeepCopy()
+		}
 	}
 
 	// Make sure nodes have a label containing the nodeId.

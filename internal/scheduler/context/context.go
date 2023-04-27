@@ -381,12 +381,14 @@ type GangSchedulingContext struct {
 }
 
 func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingContext {
+	// We assume that all jobs in a gang are in the same queue and have the same priority class
+	// (which we enforce at job submission).
 	queue := ""
-	for _, jctx := range jctxs {
-		queue = jctx.Job.GetQueue()
-		break
-	}
 	priorityClassName := ""
+	if len(jctxs) > 0 {
+		queue = jctxs[0].Job.GetQueue()
+		priorityClassName = jctxs[0].Job.GetRequirements(nil).PriorityClassName
+	}
 	totalResourceRequests := schedulerobjects.ResourceList{}
 	for _, jctx := range jctxs {
 		job := jctx.Job
@@ -403,7 +405,6 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 				)
 			}
 		}
-		priorityClassName = job.GetRequirements(nil).PriorityClassName
 	}
 	return &GangSchedulingContext{
 		Created:               time.Now(),

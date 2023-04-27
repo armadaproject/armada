@@ -1,7 +1,6 @@
 package constraints
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -76,7 +75,7 @@ func SchedulingConstraintsFromSchedulingConfig(
 	}
 }
 
-func (constraints *SchedulingConstraints) CheckGlobalConstraints(ctx context.Context, sctx *schedulercontext.SchedulingContext) (bool, string, error) {
+func (constraints *SchedulingConstraints) CheckGlobalConstraints(sctx *schedulercontext.SchedulingContext) (bool, string, error) {
 	if constraints.MaximumJobsToSchedule != 0 && sctx.NumScheduledJobs > int(constraints.MaximumJobsToSchedule) {
 		return false, UnschedulableReasonMaximumNumberOfJobsScheduled, nil
 	}
@@ -87,7 +86,6 @@ func (constraints *SchedulingConstraints) CheckGlobalConstraints(ctx context.Con
 	// MaximalResourceFractionToSchedule check.
 	totalScheduledResources := sctx.ScheduledResourcesByPriority.AggregateByResource()
 	if exceeded, reason := exceedsResourceLimits(
-		ctx,
 		totalScheduledResources,
 		sctx.TotalResources,
 		constraints.MaximalResourceFractionToSchedule,
@@ -100,12 +98,10 @@ func (constraints *SchedulingConstraints) CheckGlobalConstraints(ctx context.Con
 }
 
 func (constraints *SchedulingConstraints) CheckPerQueueAndPriorityClassConstraints(
-	ctx context.Context,
 	sctx *schedulercontext.SchedulingContext,
 	queue string,
 	priorityClassName string,
 ) (bool, string, error) {
-	// We assume that all jobs in a gang have the same priority class (which we enforce at job submission).
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
 		return false, "", errors.Errorf("no QueueSchedulingContext for queue %s", queue)
@@ -113,7 +109,6 @@ func (constraints *SchedulingConstraints) CheckPerQueueAndPriorityClassConstrain
 
 	// MaximalResourceFractionToSchedulePerQueue check.
 	if exceeded, reason := exceedsResourceLimits(
-		ctx,
 		qctx.ScheduledResourcesByPriority.AggregateByResource(),
 		sctx.TotalResources,
 		constraints.MaximalResourceFractionToSchedulePerQueue,
@@ -124,7 +119,6 @@ func (constraints *SchedulingConstraints) CheckPerQueueAndPriorityClassConstrain
 
 	// MaximalResourceFractionPerQueue check.
 	if exceeded, reason := exceedsResourceLimits(
-		ctx,
 		qctx.AllocatedByPriority.AggregateByResource(),
 		sctx.TotalResources,
 		constraints.MaximalResourceFractionPerQueue,
@@ -140,7 +134,6 @@ func (constraints *SchedulingConstraints) CheckPerQueueAndPriorityClassConstrain
 			allocatedByPriorityAndResourceType.MarkAllocated(p, rl)
 		}
 		if exceeded, reason := exceedsResourceLimits(
-			ctx,
 			schedulerobjects.QuantityByPriorityAndResourceType(allocatedByPriorityAndResourceType).AggregateByResource(),
 			sctx.TotalResources,
 			priorityClassConstraint.MaximumCumulativeResourceFractionPerQueue,
@@ -155,7 +148,7 @@ func (constraints *SchedulingConstraints) CheckPerQueueAndPriorityClassConstrain
 
 // exceedsResourceLimits returns true if used/total > limits for some resource t,
 // and, if that is the case, a string indicating which resource limit was exceeded.
-func exceedsResourceLimits(_ context.Context, used, total schedulerobjects.ResourceList, limits map[string]float64) (bool, string) {
+func exceedsResourceLimits(used, total schedulerobjects.ResourceList, limits map[string]float64) (bool, string) {
 	for resourceType, limit := range limits {
 		totalAmount := total.Get(resourceType)
 		usedAmount := used.Get(resourceType)
