@@ -61,7 +61,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		return nil
 	})
 	g.Go(func() error {
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(time.Duration(config.SubscribeJobSetTime) * time.Second)
 		for range ticker.C {
 
 			jobSets, err := sqlJobRepo.GetSubscribedJobSets(ctx)
