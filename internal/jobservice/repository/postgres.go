@@ -33,6 +33,7 @@ func NewJSRepoPostgres(cfg *configuration.JobServiceConfiguration, log *log.Entr
 	if err != nil {
 		return errors.Wrap(err, "cannot create Postgres connection pool"), nil, func() {}
 	}
+	log.Info("postgres connection setup")
 
 	return nil, &JSRepoPostgres{jobServiceConfig: cfg, dbpool: pool}, func() {}
 }
@@ -198,7 +199,7 @@ func (s *JSRepoPostgres) SetSubscriptionError(ctx context.Context, queue string,
 	if jobSetErr != nil {
 		return jobSetErr
 	}
-	return jobSetErr
+	return nil
 }
 
 // Get subscription error if present

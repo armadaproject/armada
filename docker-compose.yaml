@@ -19,7 +19,7 @@ services:
 
   postgres:
     container_name: postgres
-    image: postgres:12.13-alpine
+    image: postgres:15.2-alpine
     environment:
       - POSTGRES_PASSWORD=psw
     ports:

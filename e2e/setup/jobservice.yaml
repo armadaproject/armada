@@ -1,5 +1,5 @@
 subscribeJobSetTime: 60
-purgeJobSetTime: 10000
+purgeJobSetTime: 100
 databaseType: "postgres"
 postgresConfig:
   maxOpenConns: 50
