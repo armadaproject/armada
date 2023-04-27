@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/hash"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	f "github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
@@ -256,7 +257,7 @@ func assertErrorMessagesEqual(t *testing.T, expectedBytes []byte, actualBytes []
 func mustCalculatePodRequirementsHash(t *testing.T, schedulingInfo *schedulerobjects.JobSchedulingInfo) []byte {
 	podRequirements := scheduler.PodRequirementFromJobSchedulingInfo(schedulingInfo)
 	require.NotNil(t, podRequirements)
-	podRequirementsHash, err := schedulerobjects.CalculateHashFromPodRequirements(podRequirements)
+	podRequirementsHash, err := hash.CalculatePodRequirementsHash(podRequirements)
 	require.NoError(t, err)
 	return podRequirementsHash
 }

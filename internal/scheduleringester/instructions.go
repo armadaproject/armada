@@ -10,6 +10,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/hash"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
@@ -365,7 +366,7 @@ func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaeven
 			schedulingInfo.ObjectRequirements,
 			&schedulerobjects.ObjectRequirements{Requirements: requirements},
 		)
-		podRequirementsHash, err := schedulerobjects.CalculateHashFromPodRequirements(requirements.PodRequirements)
+		podRequirementsHash, err := hash.CalculatePodRequirementsHash(requirements.PodRequirements)
 		if err != nil {
 			return nil, err
 		}

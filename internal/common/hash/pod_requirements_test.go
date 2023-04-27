@@ -1,0 +1,35 @@
+package hash
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+)
+
+func TestCalculatePodRequirementsHash(t *testing.T) {
+	podReqs := &schedulerobjects.PodRequirements{
+		Priority: 1,
+	}
+	expectedHash, err := protoutil.Hash(podReqs)
+	assert.NoError(t, err)
+
+	result, err := CalculatePodRequirementsHash(podReqs)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedHash, result)
+
+	podReqs.Annotations = map[string]string{"test": "value"}
+	result, err = CalculatePodRequirementsHash(podReqs)
+	assert.NoError(t, err)
+	// The has should be calculated ignoring annotations
+	assert.Equal(t, expectedHash, result)
+}
+
+func TestCalculatePodRequirementsHash_NilInput(t *testing.T) {
+	result, err := CalculatePodRequirementsHash(nil)
+
+	assert.Error(t, err)
+	assert.Equal(t, []byte{}, result)
+}
