@@ -124,8 +124,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 			}
 		}
 	case UpdateJobSchedulingInfo:
-		updateJobInfoSqlStatement :=
-			"update jobs set scheduling_info = $1::bytea, scheduling_info_version = $2::int where job_id = $3 and $2::int > scheduling_info_version"
+		updateJobInfoSqlStatement := "update jobs set scheduling_info = $1::bytea, scheduling_info_version = $2::int where job_id = $3 and $2::int > scheduling_info_version"
 
 		batch := &pgx.Batch{}
 		for key, value := range o {
