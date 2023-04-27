@@ -1,9 +1,14 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+
 project_name: armada
 
 dist: "dist"
 
 #gomod:
 #  proxy: true
+
+snapshot:
+  name_template: "{{ .Tag }}"
 
 env:
   - GOPROXY={{ if index .Env "GOPROXY"  }}{{ .Env.GOPROXY }}{{ else }}https://proxy.golang.org,direct{{ end }}
@@ -135,6 +140,11 @@ builds:
       - amd64
       - arm64
 
+source:
+  enabled: true
+  name_template: '{{ .ProjectName }}_{{ replace .Version "-" "_" }}_source'
+  format: "zip"
+
 archives:
   - id: armadactl
     builds:
@@ -144,6 +154,8 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
+    files:
+      - LICENSE
 
 # macOS Universal Binaries-*
 universal_binaries:
@@ -151,12 +163,12 @@ universal_binaries:
     id: armadactl
     name_template: 'armadactl'
 
+sboms:
+  - artifacts: archive
+
 # TODO: Enable once we have CI setup for it. See https://goreleaser.com/customization/sign/
 # signs:
 #   - artifacts: checksum
-
-sboms:
-  - artifacts: archive
 
 dockers:
   - id: bundle
@@ -448,26 +460,34 @@ changelog:
 
 checksum:
   name_template: "checksums.txt"
+  algorithm: sha256
 
 release:
+  prerelease: auto
   draft: false
   header: |
-    ## Armada {{ .Version }}
+    ## Armada v{{ .Version }}
 
     For more info, head over to the docs page at https://armadaproject.io
 
-    ### CLI
+    ### Armada CLI
 
-    armadactl controls the Armada batch job queueing system and is used for interacting with the system.
+    `armadactl` controls the Armada batch job queueing system and is used for interacting with the system.
 
     The CLI can be downloaded for a specific OS & Architecture from the Assets section below.
 
-    NOTE: The OSX binary is packaged as an universal binary and should work on both Intel and Apple Silicon based Macs.
+    _NOTE: The OSX binary is packaged as an universal binary and should work on both Intel and Apple Silicon based Macs._
 
     ### Docker images
     #### Armada Bundle
     - `docker pull {{ .Env.DOCKER_REPO }}armada:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada:latest`
+    #### Armada Lookout Bundle
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-bundle:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-bundle:latest`
+    #### Armada Full Bundle
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-full-bundle:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-full-bundle:latest`
     #### Armada Server
     - `docker pull {{ .Env.DOCKER_REPO }}armada-server:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-server:latest`
@@ -504,13 +524,4 @@ release:
     #### armadactl
     - `docker pull {{ .Env.DOCKER_REPO }}armadactl:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armadactl:latest`
-  footer: |
-    **Full Changelog**: https://github.com/armadaproject/armada/compare/{{ .PreviousTag }}...{{ .Tag }}
 
-snapshot:
-  name_template: "{{ .Tag }}"
-
-source:
-  enabled: true
-  name_template: '{{ .ProjectName }}_{{ replace .Version "-" "_" }}_source'
-  format: "zip"

@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+
 project_name: armada
 
 dist: "dist"
@@ -18,6 +20,9 @@ env:
   # https://github.com/moby/buildkit#export-cache
   - DOCKER_BUILDX_CACHE_FROM={{ if index .Env "DOCKER_BUILDX_CACHE_FROM"  }}{{ .Env.DOCKER_BUILDX_CACHE_FROM }}{{ else }}type=registry{{ end }}
   - DOCKER_BUILDX_CACHE_TO={{ if index .Env "DOCKER_BUILDX_CACHE_TO"  }}{{ .Env.DOCKER_BUILDX_CACHE_TO }}{{ else }}type=inline{{ end }}
+
+snapshot:
+  name_template: "{{ .Version }}"
 
 builds:
   - env: [CGO_ENABLED=0]
@@ -154,7 +159,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-bundle:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-bundle:{{ .Version }}"
     build_flag_templates: &BUILD_FLAG_TEMPLATES
       - --build-arg={{ .Env.BASE_IMAGE_ARG }}
       - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
@@ -189,7 +194,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-lookout-bundle:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookout-bundle:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - lookout
@@ -214,7 +219,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-full-bundle:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-full-bundle:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - server
@@ -427,7 +432,6 @@ checksum:
   name_template: "checksums.txt"
 
 release:
-  disable: true
+  draft: true
+  prerelease: auto
 
-snapshot:
-  name_template: "{{ .Version }}"
