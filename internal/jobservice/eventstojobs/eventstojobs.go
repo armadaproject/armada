@@ -103,8 +103,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 					if settingSubscribeErr != nil {
 						log.WithError(settingSubscribeErr).Error("could not set error field in job set table")
 					}
-					time.Sleep(5 * time.Second)
-					continue
+					return err
 				}
 				errClear := eventToJobService.jobServiceRepository.AddMessageIdAndClearSubscriptionError(
 					ctx, eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
@@ -118,8 +117,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(ctx, jobStatus)
 					if err != nil {
 						log.WithError(err).Error("could not update job status, retrying")
-						time.Sleep(5 * time.Second)
-						continue
+						return err
 					}
 				}
 				// advance the message id for next loop

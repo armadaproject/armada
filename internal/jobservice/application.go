@@ -58,14 +58,13 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	g.Go(func() error {
 		purgeTicker := time.NewTicker(60 * time.Second)
 		for range purgeTicker.C {
-			log.Info("HERE I AM")
 			log.Infof("job service checking jobset list every %d seconds", config.PurgeJobSetTime)
 			go PurgeJobSets(ctx, log, config.PurgeJobSetTime, sqlJobRepo)
 		}
 		return nil
 	})
 	g.Go(func() error {
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(60 * time.Second)
 		for range ticker.C {
 
 			jobSets, err := sqlJobRepo.GetSubscribedJobSets(ctx)
