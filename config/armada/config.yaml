@@ -32,8 +32,6 @@ eventsApiRedis:
 scheduling:
   enableAssertions: true
   preemption:
-    enabled: true
-    preemptToFairShare: true
     nodeEvictionProbability: 1.0
     nodeOversubscriptionEvictionProbability: 1.0
     setNodeIdSelector: true
