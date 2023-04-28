@@ -99,6 +99,7 @@ func TestMetricsCollector_TestCollect(t *testing.T) {
 			collector := NewMetricsCollector(
 				jobDb,
 				queueRepository,
+				nil,
 				poolAssigner,
 				2*time.Second,
 			)

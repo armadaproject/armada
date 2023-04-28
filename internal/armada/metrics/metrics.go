@@ -223,7 +223,7 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 
 			for resourceType, value := range report.ClusterAvailableCapacity {
 				metrics <- prometheus.MustNewConstMetric(
-					commonmetrics.ClusterAvailableCapacity,
+					commonmetrics.ClusterAvailableCapacityDesc,
 					prometheus.GaugeValue,
 					armadaresource.QuantityAsFloat64(value),
 					cluster,
