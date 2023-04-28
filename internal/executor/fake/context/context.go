@@ -346,7 +346,7 @@ func (c *FakeClusterContext) trySchedule(pod *v1.Pod) (scheduled bool, removed b
 		return false, true
 	}
 
-	// Use node index if node is targeting a node based on nodeIdLabe
+	// Use node index if job is targeting a node based on nodeIdLabe
 	// This will likely account for all pods, as the armada scheduler now sets the selector
 	nodes := c.nodes
 	if selectedNode, exists := pod.Spec.NodeSelector[c.nodeIdLabel]; exists {
