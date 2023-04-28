@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
-
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	discovery "k8s.io/api/discovery/v1"
@@ -51,6 +51,7 @@ var DefaultNodeSpec = []*NodeSpec{
 
 type FakeClusterContext struct {
 	clusterId             string
+	nodeIdLabel           string
 	pool                  string
 	podEventHandlers      []*cache.ResourceEventHandlerFuncs
 	clusterEventHandlers  []*cache.ResourceEventHandlerFuncs
@@ -58,14 +59,21 @@ type FakeClusterContext struct {
 	pods                  map[string]*v1.Pod
 	events                map[string]*v1.Event
 	nodes                 []*v1.Node
+	nodesByNodeId         map[string]*v1.Node
 	nodeAvailableResource map[string]armadaresource.ComputeResources
 }
 
-func NewFakeClusterContext(appConfig configuration.ApplicationConfiguration, nodeSpecs []*NodeSpec) cluster_context.ClusterContext {
+func NewFakeClusterContext(appConfig configuration.ApplicationConfiguration, nodeIdLabel string, nodeSpecs []*NodeSpec) cluster_context.ClusterContext {
+	if nodeIdLabel == "" {
+		panic("nodeIdLabel must be set")
+	}
 	c := &FakeClusterContext{
 		clusterId:             appConfig.ClusterId,
+		nodeIdLabel:           nodeIdLabel,
 		pool:                  appConfig.Pool,
 		pods:                  map[string]*v1.Pod{},
+		nodes:                 []*v1.Node{},
+		nodesByNodeId:         map[string]*v1.Node{},
 		nodeAvailableResource: map[string]armadaresource.ComputeResources{},
 	}
 	if nodeSpecs == nil {
@@ -226,9 +234,6 @@ func (c *FakeClusterContext) updateStatus(saved *v1.Pod, phase v1.PodPhase, stat
 }
 
 func (c *FakeClusterContext) extractSleepTime(pod *v1.Pod) float32 {
-	c.rwLock.Lock()
-	defer c.rwLock.Unlock()
-
 	command := append(pod.Spec.Containers[0].Command, pod.Spec.Containers[0].Args...)
 	commandString := strings.Join(command, " ")
 
@@ -310,10 +315,13 @@ func (c *FakeClusterContext) GetNodeStatsSummary(ctx context.Context, node *v1.N
 func (c *FakeClusterContext) addNodes(specs []*NodeSpec) {
 	for _, s := range specs {
 		for i := 0; i < s.Count; i++ {
+			name := c.clusterId + "-" + s.Name + "-" + strconv.Itoa(i)
+			labels := util.DeepCopy(s.Labels)
+			labels[c.nodeIdLabel] = name
 			node := &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:   c.clusterId + "-" + s.Name + "-" + strconv.Itoa(i),
-					Labels: s.Labels,
+					Name:   name,
+					Labels: labels,
 				},
 				Spec: v1.NodeSpec{
 					Taints:        s.Taints,
@@ -324,6 +332,7 @@ func (c *FakeClusterContext) addNodes(specs []*NodeSpec) {
 				},
 			}
 			c.nodes = append(c.nodes, node)
+			c.nodesByNodeId[name] = node
 			c.nodeAvailableResource[node.Name] = armadaresource.FromResourceList(s.Allocatable)
 		}
 	}
@@ -337,8 +346,20 @@ func (c *FakeClusterContext) trySchedule(pod *v1.Pod) (scheduled bool, removed b
 		return false, true
 	}
 
+	// Use node index if node is targeting a node based on nodeIdLabe
+	// This will likely account for all pods, as the armada scheduler now sets the selector
+	nodes := c.nodes
+	if selectedNode, exists := pod.Spec.NodeSelector[c.nodeIdLabel]; exists {
+		if node, ok := c.nodesByNodeId[selectedNode]; ok {
+			nodes = []*v1.Node{node}
+		} else {
+			log.Warnf("pod %s is targetting node (%s) that does not exist.", pod.Name, selectedNode)
+			return false, true
+		}
+	}
+
 	// fill more busy nodes first
-	sort.Slice(c.nodes, func(i, j int) bool {
+	sort.Slice(nodes, func(i, j int) bool {
 		node1 := c.nodes[i]
 		node2 := c.nodes[j]
 		node1Resource := c.nodeAvailableResource[node1.Name]
@@ -348,7 +369,7 @@ func (c *FakeClusterContext) trySchedule(pod *v1.Pod) (scheduled bool, removed b
 		return node2Resource.Dominates(node1Resource)
 	})
 
-	for _, n := range c.nodes {
+	for _, n := range nodes {
 		if c.isSchedulableOn(pod, n) {
 			resources := armadaresource.TotalPodResourceRequest(&pod.Spec)
 			c.nodeAvailableResource[n.Name].Sub(resources)
