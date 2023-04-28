@@ -23,7 +23,7 @@ func TestCalculatePodRequirementsHash(t *testing.T) {
 	podReqs.Annotations = map[string]string{"test": "value"}
 	result, err = CalculatePodRequirementsHash(podReqs)
 	assert.NoError(t, err)
-	// The has should be calculated ignoring annotations
+	// The hash should be calculated ignoring annotations and therefore same as the original objects hash
 	assert.Equal(t, expectedHash, result)
 }
 
