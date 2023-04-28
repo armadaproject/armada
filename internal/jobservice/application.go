@@ -62,7 +62,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		return nil
 	})
 	g.Go(func() error {
-		ticker := time.NewTicker(time.Duration(config.SubscribeJobSetTime) * time.Second)
+		ticker := time.NewTicker(30 * time.Second)
 		eventClient := events.NewEventClient(&config.ApiConnection)
 		var subscribeMap sync.Map
 		for range ticker.C {
@@ -82,6 +82,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 						if err != nil {
 							log.Error("error on subscribing", err)
 						}
+						subscribeMap.Delete(queueJobSet)
 					}(value)
 				}
 			}

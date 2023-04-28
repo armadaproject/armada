@@ -38,6 +38,7 @@ func NewEventsToJobService(
 
 // Subscribes to a JobSet from jobsetid. Will retry until there is a successful exit, up to the TTL
 func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context.Context, ttlSecs int64, fromMessageId string) error {
+	log.Infof("subscribeToJobSetId start for %s/%s with messageId %s", eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
 	err := eventToJobService.streamCommon(context, ttlSecs, fromMessageId)
 	if err != nil {
 		log.Infof("subscribeToJobSetId ended for %s/%s with error %v", eventToJobService.queue, eventToJobService.jobSetId, err)
@@ -47,7 +48,7 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 		return err
 	}
 	jobSetDeleted, err := eventToJobService.jobServiceRepository.UnsubscribeJobSet(context, eventToJobService.queue, eventToJobService.jobSetId)
-	log.Info("subscribeToJobSetId ended for %s/%s and %d job set was deleted", eventToJobService.queue, eventToJobService.jobSetId, jobSetDeleted)
+	log.Infof("subscribeToJobSetId ended for %s/%s and %d job set was deleted", eventToJobService.queue, eventToJobService.jobSetId, jobSetDeleted)
 	if err != nil {
 		log.Error("unable to unsubscribe database due to ", err)
 	}
@@ -122,13 +123,16 @@ func (eventToJobService *EventsToJobService) streamCommon(inCtx context.Context,
 					if settingSubscribeErr != nil {
 						log.WithError(settingSubscribeErr).Error("could not set error field in job set table")
 					}
-					time.Sleep(5 * time.Second)
-					continue
+					//					time.Sleep(5 * time.Second)
+					//					continue
+					ctx.Done()
+					return nil
 				}
 				errClear := eventToJobService.jobServiceRepository.AddMessageIdAndClearSubscriptionError(
 					inCtx, eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
 				if errClear != nil {
 					log.WithError(errClear).Error("could not clear subscription error from job set table")
+					return nil
 				}
 				currentJobId := api.JobIdFromApiEvent(msg.Message)
 				jobStatus := EventsToJobResponse(*msg.Message)
@@ -140,9 +144,8 @@ func (eventToJobService *EventsToJobService) streamCommon(inCtx context.Context,
 					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(inCtx, jobStatus)
 
 					if err != nil {
-						log.WithError(err).Error("could not update job status, retrying")
-						time.Sleep(5 * time.Second)
-						continue
+						log.WithError(err).Error("could not update job status, retry on next subscription")
+						return nil
 					}
 				}
 				// advance the message id for next loop
