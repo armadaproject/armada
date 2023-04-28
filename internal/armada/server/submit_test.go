@@ -1594,6 +1594,7 @@ func createJobRequestItems(numberOfJobs int) []*api.JobSubmitRequestItem {
 						},
 					},
 				},
+				NodeSelector: make(map[string]string),
 			}},
 			Priority: 0,
 		}
@@ -1635,7 +1636,6 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 		},
 		MaxPodSpecSizeBytes: 65535,
 		Preemption: configuration.PreemptionConfig{
-			Enabled:              true,
 			DefaultPriorityClass: "high",
 			PriorityClasses:      map[string]configuration.PriorityClass{"high": {0, false, nil}},
 		},
