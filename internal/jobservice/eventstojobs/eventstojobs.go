@@ -47,11 +47,6 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 		}
 		return err
 	}
-	jobSetDeleted, err := eventToJobService.jobServiceRepository.UnsubscribeJobSet(context, eventToJobService.queue, eventToJobService.jobSetId)
-	log.Infof("subscribeToJobSetId ended for %s/%s and %d job set was deleted", eventToJobService.queue, eventToJobService.jobSetId, jobSetDeleted)
-	if err != nil {
-		log.Error("unable to unsubscribe database due to ", err)
-	}
 	return nil
 }
 
@@ -105,7 +100,15 @@ func (eventToJobService *EventsToJobService) streamCommon(inCtx context.Context,
 		for {
 			select {
 			case <-ctx.Done():
-				log.Errorf("context is done on %s/%s", eventToJobService.queue, eventToJobService.jobSetId)
+				log.Infof("context is done on %s/%s and we are leaving StreamCommon", eventToJobService.queue, eventToJobService.jobSetId)
+				log.Infof("Messageid: %s", fromMessageId)
+
+				errClear := eventToJobService.jobServiceRepository.AddMessageIdAndClearSubscriptionError(
+					inCtx, eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
+				if errClear != nil {
+					log.WithError(errClear).Error("could not clear subscription error from job set table")
+					return errClear
+				}
 				return nil
 			default:
 
@@ -123,9 +126,6 @@ func (eventToJobService *EventsToJobService) streamCommon(inCtx context.Context,
 					if settingSubscribeErr != nil {
 						log.WithError(settingSubscribeErr).Error("could not set error field in job set table")
 					}
-					//					time.Sleep(5 * time.Second)
-					//					continue
-					ctx.Done()
 					return nil
 				}
 				errClear := eventToJobService.jobServiceRepository.AddMessageIdAndClearSubscriptionError(
