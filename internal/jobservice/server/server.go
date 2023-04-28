@@ -38,10 +38,11 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 		if errsubscribe != nil {
 			log.Error("unable to subscribe job set", err)
 		}
-		log.Infof("Subscribing %s-%s", opts.Queue, opts.JobSetId)
-	}
-	if err := s.jobRepository.UpdateJobSetDb(ctx, opts.Queue, opts.JobSetId, fromMessageId); err != nil {
-		log.WithFields(requestFields).Warn(err)
+		log.Infof("Subscribing %s-%s with messageId %s", opts.Queue, opts.JobSetId, fromMessageId)
+	} else {
+		if err := s.jobRepository.UpdateJobSetDb(ctx, opts.Queue, opts.JobSetId, fromMessageId); err != nil {
+			log.WithFields(requestFields).Warn(err)
+		}
 	}
 	response, err := s.jobRepository.GetJobStatus(ctx, opts.JobId)
 	if err != nil {

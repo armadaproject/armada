@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -62,6 +63,8 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	})
 	g.Go(func() error {
 		ticker := time.NewTicker(time.Duration(config.SubscribeJobSetTime) * time.Second)
+		eventClient := events.NewEventClient(&config.ApiConnection)
+		var subscribeMap sync.Map
 		for range ticker.C {
 
 			jobSets, err := sqlJobRepo.GetSubscribedJobSets(ctx)
@@ -70,14 +73,17 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 				logging.WithStacktrace(log, err).Warn("error getting jobsets")
 			}
 			for _, value := range jobSets {
-				eventClient := events.NewEventClient(&config.ApiConnection)
-				eventJob := eventstojobs.NewEventsToJobService(value.Queue, value.JobSet, eventClient, sqlJobRepo)
-				go func(value repository.SubscribedTuple) {
-					err := eventJob.SubscribeToJobSetId(context.Background(), config.SubscribeJobSetTime, value.FromMessageId)
-					if err != nil {
-						log.Error("error on subscribing", err)
-					}
-				}(value)
+				queueJobSet := value.Queue + value.JobSet
+				_, ok := subscribeMap.LoadOrStore(queueJobSet, true)
+				if !ok {
+					eventJob := eventstojobs.NewEventsToJobService(value.Queue, value.JobSet, eventClient, sqlJobRepo)
+					go func(value repository.SubscribedTuple) {
+						err := eventJob.SubscribeToJobSetId(context.Background(), config.SubscribeJobSetTime, value.FromMessageId)
+						if err != nil {
+							log.Error("error on subscribing", err)
+						}
+					}(value)
+				}
 			}
 		}
 		return nil

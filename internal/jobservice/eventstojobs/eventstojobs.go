@@ -11,6 +11,7 @@ import (
 	"github.com/armadaproject/armada/internal/jobservice/events"
 	"github.com/armadaproject/armada/internal/jobservice/repository"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/api/jobservice"
 )
 
 // Service that subscribes to events and stores JobStatus in the repository.
@@ -45,7 +46,8 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 		}
 		return err
 	}
-	_, err = eventToJobService.jobServiceRepository.UnsubscribeJobSet(context, eventToJobService.queue, eventToJobService.jobSetId)
+	jobSetDeleted, err := eventToJobService.jobServiceRepository.UnsubscribeJobSet(context, eventToJobService.queue, eventToJobService.jobSetId)
+	log.Info("subscribeToJobSetId ended for %s/%s and %d job set was deleted", eventToJobService.queue, eventToJobService.jobSetId, jobSetDeleted)
 	if err != nil {
 		log.Error("unable to unsubscribe database due to ", err)
 	}
@@ -93,6 +95,10 @@ func (eventToJobService *EventsToJobService) streamCommon(inCtx context.Context,
 				cancel()
 			}
 		}()
+		requestFields := log.Fields{
+			"job_set_id": eventToJobService.jobSetId,
+			"queue":      eventToJobService.queue,
+		}
 
 		// this loop will run until the context is canceled
 		for {
@@ -116,8 +122,8 @@ func (eventToJobService *EventsToJobService) streamCommon(inCtx context.Context,
 					if settingSubscribeErr != nil {
 						log.WithError(settingSubscribeErr).Error("could not set error field in job set table")
 					}
-					// time.Sleep(5 * time.Second)
-					// continue
+					time.Sleep(5 * time.Second)
+					continue
 				}
 				errClear := eventToJobService.jobServiceRepository.AddMessageIdAndClearSubscriptionError(
 					inCtx, eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
@@ -127,12 +133,16 @@ func (eventToJobService *EventsToJobService) streamCommon(inCtx context.Context,
 				currentJobId := api.JobIdFromApiEvent(msg.Message)
 				jobStatus := EventsToJobResponse(*msg.Message)
 				if jobStatus != nil {
+					if jobStatus.State != jobservice.JobServiceResponse_SUCCEEDED {
+						log.WithFields(requestFields).Infof("fromMessageId: %s JobId: %s State: %s", fromMessageId, currentJobId, jobStatus.GetState().String())
+					}
 					jobStatus := repository.NewJobStatus(eventToJobService.queue, eventToJobService.jobSetId, currentJobId, *jobStatus)
 					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(inCtx, jobStatus)
+
 					if err != nil {
 						log.WithError(err).Error("could not update job status, retrying")
-						// time.Sleep(5 * time.Second)
-						// continue
+						time.Sleep(5 * time.Second)
+						continue
 					}
 				}
 				// advance the message id for next loop
