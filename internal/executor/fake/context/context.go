@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -25,6 +24,7 @@ import (
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	cluster_context "github.com/armadaproject/armada/internal/executor/context"
 )
