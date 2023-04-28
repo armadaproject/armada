@@ -204,7 +204,8 @@ func (c *MetricsCollector) updateClusterMetrics(ctx context.Context) ([]promethe
 		cluster   string
 		pool      string
 		queueName string
-		phase     string
+		// TODO phase display name (example: RUNNING -> Running)
+		phase string
 	}
 
 	type clusterKey struct {
