@@ -353,7 +353,7 @@ func (c *FakeClusterContext) trySchedule(pod *v1.Pod) (scheduled bool, removed b
 		if node, ok := c.nodesByNodeId[selectedNode]; ok {
 			nodes = []*v1.Node{node}
 		} else {
-			log.Warnf("pod %s is targetting node (%s) that does not exist.", pod.Name, selectedNode)
+			log.Warnf("pod %s is targeting node (%s) that does not exist.", pod.Name, selectedNode)
 			return false, true
 		}
 	}
