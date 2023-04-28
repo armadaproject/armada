@@ -41,6 +41,7 @@ function makeTestJobs(
       memory: 8192,
       owner: queue,
       priority: 1000,
+      priorityClass: "armada-preemptible",
       queue: queue,
       runs: [],
       state: state,

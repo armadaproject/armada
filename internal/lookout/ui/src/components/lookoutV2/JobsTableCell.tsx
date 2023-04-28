@@ -5,6 +5,7 @@ import { JobRow } from "models/jobsTableModels"
 import { Match } from "models/lookoutV2Models"
 import { getColumnMetadata, toColId } from "utils/jobsTableColumns"
 
+import { matchForColumn } from "../../utils/jobsTableUtils"
 import styles from "./JobsTableCell.module.css"
 import { JobsTableFilter } from "./JobsTableFilter"
 
@@ -24,9 +25,17 @@ export interface HeaderCellProps {
   header: Header<JobRow, unknown>
   columnResizeMode: ColumnResizeMode
   deltaOffset: number
+  columnMatches: Record<string, Match>
+  onColumnMatchChange: (columnId: string, newMatch: Match) => void
 }
 
-export function HeaderCell({ header, columnResizeMode, deltaOffset }: HeaderCellProps) {
+export function HeaderCell({
+  header,
+  columnResizeMode,
+  deltaOffset,
+  columnMatches,
+  onColumnMatchChange,
+}: HeaderCellProps) {
   const id = toColId(header.id)
   const columnDef = header.column.columnDef
 
@@ -40,6 +49,8 @@ export function HeaderCell({ header, columnResizeMode, deltaOffset }: HeaderCell
   const resizerWidth = 5
   const borderWidth = 1
   const remainingWidth = totalWidth - resizerWidth - borderWidth
+
+  const match = matchForColumn(header.id, columnMatches)
 
   if (header.isPlaceholder) {
     return (
@@ -144,9 +155,10 @@ export function HeaderCell({ header, columnResizeMode, deltaOffset }: HeaderCell
               id={header.id}
               currentFilter={header.column.getFilterValue() as string | string[]}
               filterType={metadata.filterType}
-              matchType={metadata.defaultMatchType ?? Match.Exact}
+              matchType={match}
               enumFilterValues={metadata.enumFilterValues}
               onFilterChange={header.column.setFilterValue}
+              onColumnMatchChange={onColumnMatchChange}
             />
           )}
         </div>

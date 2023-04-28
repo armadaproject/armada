@@ -107,13 +107,13 @@ describe("JobsTablePreferencesService", () => {
 
   describe("Column filters", () => {
     it("round-trips column filters", () => {
-      savePartialPrefs({ filters: [{ id: "queue", value: "test", match: Match.StartsWith }] })
+      savePartialPrefs({ filters: [{ id: "queue", value: "test" }] })
       expect(router.location.search).toContain("f[0][id]=queue&f[0][value]=test&f[0][match]=startsWith")
-      expect(service.getUserPrefs().filters).toStrictEqual([{ id: "queue", value: "test", match: Match.StartsWith }])
+      expect(service.getUserPrefs().filters).toStrictEqual([{ id: "queue", value: "test" }])
     })
 
     it("round-trips state filter", () => {
-      savePartialPrefs({ filters: [{ id: "state", value: ["QUEUED", "PENDING", "RUNNING"], match: Match.AnyOf }] })
+      savePartialPrefs({ filters: [{ id: "state", value: ["QUEUED", "PENDING", "RUNNING"] }] })
       expect(router.location.search).toContain(
         "f[0][id]=state&f[0][value][0]=QUEUED&f[0][value][1]=PENDING&f[0][value][2]=RUNNING&f[0][match]=anyOf",
       )
@@ -123,7 +123,7 @@ describe("JobsTablePreferencesService", () => {
     })
 
     it("round-trips special characters", () => {
-      savePartialPrefs({ filters: [{ id: "queue", value: "test & why / do $ this", match: Match.StartsWith }] })
+      savePartialPrefs({ filters: [{ id: "queue", value: "test & why / do $ this" }] })
       expect(router.location.search).toContain(
         "f[0][id]=queue&f[0][value]=test%20%26%20why%20%2F%20do%20%24%20this&f[0][match]=startsWith",
       )
@@ -255,7 +255,8 @@ describe("JobsTablePreferencesService", () => {
       const localStorageParams: JobsTablePreferences = {
         annotationColumnKeys: ["hello"],
         expandedState: { foo: true },
-        filters: [{ id: "jobId", value: "112233", match: Match.Exact }],
+        filters: [{ id: "jobId", value: "112233" }],
+        columnMatches: { jobId: Match.Exact },
         groupedColumns: ["queue" as ColumnId, "jobSet" as ColumnId],
         order: { id: "timeInState", direction: "ASC" },
         pageIndex: 5,
@@ -295,7 +296,8 @@ describe("JobsTablePreferencesService", () => {
       const localStorageParams: JobsTablePreferences = {
         annotationColumnKeys: ["key"],
         expandedState: { foo: true },
-        filters: [{ id: "jobId", value: "112233", match: Match.Exact }],
+        filters: [{ id: "jobId", value: "112233" }],
+        columnMatches: { jobId: Match.Exact },
         groupedColumns: ["queue" as ColumnId, "jobSet" as ColumnId],
         order: { id: "timeInState", direction: "ASC" },
         pageIndex: 5,

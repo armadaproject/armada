@@ -37,7 +37,9 @@ export enum StandardColumnId {
   Owner = "owner",
   CPU = "cpu",
   Memory = "memory",
+  EphemeralStorage = "ephemeralStorage",
   GPU = "gpu",
+  PriorityClass = "priorityClass",
   TimeSubmittedUtc = "timeSubmittedUtc",
   TimeSubmittedAgo = "timeSubmittedAgo",
   LastTransitionTimeUtc = "lastTransitionTimeUtc",
@@ -240,9 +242,19 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     },
   }),
   accessorColumn({
+    id: StandardColumnId.EphemeralStorage,
+    accessor: "ephemeralStorage",
+    displayName: "Ephemeral Storage",
+  }),
+  accessorColumn({
     id: StandardColumnId.GPU,
     accessor: "gpu",
     displayName: "GPUs",
+  }),
+  accessorColumn({
+    id: StandardColumnId.PriorityClass,
+    accessor: "priorityClass",
+    displayName: "Priority Class",
   }),
   accessorColumn({
     id: StandardColumnId.LastTransitionTimeUtc,
@@ -299,13 +311,57 @@ export const DEFAULT_COLUMN_VISIBILITY: VisibilityState = Object.values(Standard
 
 export const DEFAULT_COLUMN_ORDER: LookoutColumnOrder = { id: "jobId", direction: "DESC" }
 
-export const DEFAULT_COLUMN_MATCHES: Map<string, Match> = new Map([
-  [StandardColumnId.Queue, Match.StartsWith],
-  [StandardColumnId.JobSet, Match.StartsWith],
-  [StandardColumnId.JobID, Match.Exact],
-  [StandardColumnId.State, Match.AnyOf],
-  [StandardColumnId.Owner, Match.StartsWith],
-])
+export const DEFAULT_COLUMN_MATCHES: Record<string, Match> = {
+  [StandardColumnId.Queue]: Match.StartsWith,
+  [StandardColumnId.JobSet]: Match.StartsWith,
+  [StandardColumnId.JobID]: Match.Exact,
+  [StandardColumnId.State]: Match.AnyOf,
+  [StandardColumnId.Owner]: Match.StartsWith,
+}
+
+export const VALID_COLUMN_MATCHES: Record<string, Match[]> = {
+  [StandardColumnId.JobID]: [Match.Exact],
+  [StandardColumnId.Queue]: [Match.Exact, Match.StartsWith, Match.Contains],
+  [StandardColumnId.JobSet]: [Match.Exact, Match.StartsWith, Match.Contains],
+  [StandardColumnId.Owner]: [Match.Exact, Match.StartsWith, Match.Contains],
+  [StandardColumnId.State]: [Match.AnyOf],
+  [StandardColumnId.CPU]: [
+    Match.Exact,
+    Match.GreaterThan,
+    Match.LessThan,
+    Match.GreaterThanOrEqual,
+    Match.LessThanOrEqual,
+  ],
+  [StandardColumnId.Memory]: [
+    Match.Exact,
+    Match.GreaterThan,
+    Match.LessThan,
+    Match.GreaterThanOrEqual,
+    Match.LessThanOrEqual,
+  ],
+  [StandardColumnId.EphemeralStorage]: [
+    Match.Exact,
+    Match.GreaterThan,
+    Match.LessThan,
+    Match.GreaterThanOrEqual,
+    Match.LessThanOrEqual,
+  ],
+  [StandardColumnId.GPU]: [
+    Match.Exact,
+    Match.GreaterThan,
+    Match.LessThan,
+    Match.GreaterThanOrEqual,
+    Match.LessThanOrEqual,
+  ],
+  [StandardColumnId.Priority]: [
+    Match.Exact,
+    Match.GreaterThan,
+    Match.LessThan,
+    Match.GreaterThanOrEqual,
+    Match.LessThanOrEqual,
+  ],
+  [StandardColumnId.PriorityClass]: [Match.Exact, Match.StartsWith, Match.Contains],
+}
 
 export const createAnnotationColumn = (annotationKey: string): JobTableColumn => {
   return accessorColumn({

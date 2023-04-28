@@ -8,11 +8,13 @@ import { removeUndefined, Router } from "../../utils"
 import {
   AnnotationColumnId,
   ColumnId,
+  DEFAULT_COLUMN_MATCHES,
   DEFAULT_COLUMN_ORDER,
   DEFAULT_COLUMN_VISIBILITY,
   fromAnnotationColId,
   isStandardColId,
 } from "../../utils/jobsTableColumns"
+import { matchForColumn } from "../../utils/jobsTableUtils"
 
 export interface JobsTablePreferences {
   annotationColumnKeys: string[]
@@ -24,6 +26,7 @@ export interface JobsTablePreferences {
   order: LookoutColumnOrder
   columnSizing?: Record<string, number>
   filters: LookoutColumnFilter[]
+  columnMatches: Record<string, Match>
   sidebarJobId: JobId | undefined
   sidebarWidth?: number
 }
@@ -33,6 +36,7 @@ export const DEFAULT_PREFERENCES: JobsTablePreferences = {
   annotationColumnKeys: [],
   visibleColumns: DEFAULT_COLUMN_VISIBILITY,
   filters: [],
+  columnMatches: DEFAULT_COLUMN_MATCHES,
   groupedColumns: [],
   expandedState: {},
   pageIndex: 0,
@@ -81,11 +85,13 @@ const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs => {
   return {
     page: prefs.pageIndex.toString(),
     g: prefs.groupedColumns,
-    f: prefs.filters.map((filter) => ({
-      id: filter.id,
-      value: filter.value as string | string[],
-      match: filter.match,
-    })),
+    f: prefs.filters.map((filter) => {
+      return {
+        id: filter.id,
+        value: filter.value as string | string[],
+        match: matchForColumn(filter.id, prefs.columnMatches),
+      }
+    }),
     sort: {
       id: prefs.order.id,
       desc: String(prefs.order.direction === SortDirection.DESC),
@@ -99,13 +105,18 @@ const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs => {
 }
 
 const lookoutFiltersFromQueryStringFilters = (f: QueryStringJobFilter[]): LookoutColumnFilter[] => {
-  return f
-    .filter((queryFilter) => isValidMatch(queryFilter.match))
-    .map((queryFilter) => ({
-      id: queryFilter.id,
-      value: queryFilter.value,
-      match: queryFilter.match as Match,
-    }))
+  return f.map((queryFilter) => ({
+    id: queryFilter.id,
+    value: queryFilter.value,
+  }))
+}
+
+const columnMatchesFromQueryStringFilters = (f: QueryStringJobFilter[]): Record<string, Match> => {
+  const columnMatches: Record<string, Match> = {}
+  f.filter((queryFilter) => isValidMatch(queryFilter.match)).forEach((queryFilter) => {
+    columnMatches[queryFilter.id] = queryFilter.match as Match
+  })
+  return columnMatches
 }
 
 const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partial<JobsTablePreferences> => {
@@ -119,6 +130,7 @@ const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partia
       order: { id: sort.id, direction: sort.desc.toLowerCase() === "true" ? SortDirection.DESC : SortDirection.ASC },
     }),
     ...(f && { filters: lookoutFiltersFromQueryStringFilters(f) }),
+    ...(f && { columnMatches: columnMatchesFromQueryStringFilters(f) }),
     ...(sb && { sidebarJobId: sb }),
   }
 }
@@ -127,6 +139,21 @@ const ensureVisible = (visibilityState: VisibilityState, columns: string[]) => {
   for (const col of columns) {
     visibilityState[col] = true
   }
+}
+
+// Only field that gets merged from queryParams rather than being completely overridden. This is because we want the
+// columns specified in the query params to use the correct column matches, but we do not wish to override the user
+// specified column matches for other columns not used in the filters
+const mergeColumnMatches = (
+  baseColumnMatches: Record<string, Match>,
+  newColumnMatches: Record<string, Match> | undefined,
+) => {
+  if (newColumnMatches === undefined) {
+    return
+  }
+  Object.entries(newColumnMatches).forEach(([id, match]) => {
+    baseColumnMatches[id] = match
+  })
 }
 
 // Use local storage prefs, but if query prefs are defined update all fields managed by query params with their
@@ -145,6 +172,10 @@ const mergeQueryParamsAndLocalStorage = (
     mergedPrefs.order = queryParamPrefs.order
     mergedPrefs.filters = queryParamPrefs.filters
     mergedPrefs.sidebarJobId = queryParamPrefs.sidebarJobId
+    if (mergedPrefs.columnMatches === undefined) {
+      mergedPrefs.columnMatches = {}
+    }
+    mergeColumnMatches(mergedPrefs.columnMatches, queryParamPrefs.columnMatches)
   }
   return mergedPrefs
 }

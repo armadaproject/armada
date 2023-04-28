@@ -50,7 +50,6 @@ import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import {
   ColumnId,
   createAnnotationColumn,
-  DEFAULT_COLUMN_MATCHES,
   getAnnotationKeyCols,
   JOB_COLUMNS,
   JobTableColumn,
@@ -88,7 +87,6 @@ interface JobsTableContainerProps {
 export type LookoutColumnFilter = {
   id: string
   value: string | number | string[] | number[]
-  match: Match
 }
 
 export type LookoutColumnOrder = {
@@ -96,19 +94,11 @@ export type LookoutColumnOrder = {
   direction: SortDirection
 }
 
-function toLookoutFilter(columnFilterState: ColumnFiltersState, matchTypes: Map<string, Match>): LookoutColumnFilter[] {
+function toLookoutFilter(columnFilterState: ColumnFiltersState): LookoutColumnFilter[] {
   return columnFilterState.map((colFilter) => {
-    let match: Match = Match.StartsWith // base case if undefined (annotations)
-    if (DEFAULT_COLUMN_MATCHES.has(colFilter.id)) {
-      match = DEFAULT_COLUMN_MATCHES.get(colFilter.id) as Match
-    }
-    if (matchTypes.has(colFilter.id)) {
-      match = matchTypes.get(colFilter.id) as Match
-    }
     return {
       id: colFilter.id,
       value: colFilter.value as string | number | string[] | number[],
-      match: match,
     }
   })
 }
@@ -198,6 +188,7 @@ export const JobsTableContainer = ({
   // Filtering
   const [lookoutFilters, setLookoutFilters] = useState<LookoutColumnFilter[]>(initialPrefs.filters)
   const [columnFilterState, setColumnFilterState] = useState<ColumnFiltersState>(fromLookoutFilters(lookoutFilters))
+  const [columnMatches, setColumnMatches] = useState<Record<string, Match>>(initialPrefs.columnMatches)
 
   // Sorting
   const [lookoutOrder, setLookoutOrder] = useState<LookoutColumnOrder>(initialPrefs.order)
@@ -211,6 +202,7 @@ export const JobsTableContainer = ({
     paginationState: pagination,
     lookoutOrder: lookoutOrder,
     lookoutFilters: lookoutFilters,
+    columnMatches: columnMatches,
     allColumns,
     selectedRows,
     updateSelectedRows: setSelectedRows,
@@ -254,6 +246,7 @@ export const JobsTableContainer = ({
       order: lookoutOrder,
       columnSizing: columnSizing,
       filters: lookoutFilters,
+      columnMatches: columnMatches,
       annotationColumnKeys: getAnnotationKeyCols(allColumns),
       visibleColumns: columnVisibility,
       sidebarJobId: sidebarJobId,
@@ -267,6 +260,7 @@ export const JobsTableContainer = ({
     sorting,
     columnSizing,
     columnFilterState,
+    columnMatches,
     allColumns,
     columnVisibility,
     selectedRows,
@@ -418,11 +412,20 @@ export const JobsTableContainer = ({
 
   const onFilterChange = (updater: Updater<ColumnFiltersState>) => {
     const newFilterState = updaterToValue(updater, columnFilterState)
-    setLookoutFilters(toLookoutFilter(newFilterState, DEFAULT_COLUMN_MATCHES))
+    setLookoutFilters(toLookoutFilter(newFilterState))
     setColumnFilterState(newFilterState)
     setSelectedRows({})
     setSidebarJobId(undefined)
     setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
+  }
+
+  const onColumnMatchChange = (columnId: string, newMatch: Match) => {
+    const newColumnMatches: Record<string, Match> = {
+      ...columnMatches,
+      [columnId]: newMatch,
+    }
+    setColumnMatches(newColumnMatches)
+    onFilterChange([...columnFilterState])
   }
 
   const onSortingChange = (updater: Updater<SortingState>) => {
@@ -452,7 +455,7 @@ export const JobsTableContainer = ({
   const selectedItemsFilters: JobFilter[][] = useMemo(() => {
     return Object.keys(selectedRows).map((rowId) => {
       const { rowIdPartsPath } = fromRowId(rowId as RowId)
-      return getFiltersForRows(lookoutFilters, rowIdPartsPath)
+      return getFiltersForRows(lookoutFilters, columnMatches, rowIdPartsPath)
     })
   }, [selectedRows, columnFilterState, lookoutFilters, allColumns])
 
@@ -565,6 +568,8 @@ export const JobsTableContainer = ({
                       key={header.id}
                       columnResizeMode={columnResizeMode}
                       deltaOffset={table.getState().columnSizingInfo.deltaOffset ?? 0}
+                      columnMatches={columnMatches}
+                      onColumnMatchChange={onColumnMatchChange}
                     />
                   ))}
                 </TableRow>

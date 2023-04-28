@@ -1,7 +1,12 @@
-import { Select, OutlinedInput, MenuItem, Checkbox, ListItemText, Box } from "@mui/material"
+import React, { useState } from "react"
+
+import MoreVert from "@material-ui/icons/MoreVert"
+import { Check } from "@mui/icons-material"
+import { Select, OutlinedInput, MenuItem, Checkbox, ListItemText, Box, InputAdornment, IconButton } from "@mui/material"
+import Menu from "@mui/material/Menu"
 import { DebouncedTextField } from "components/lookoutV2/DebouncedTextField"
-import { Match } from "models/lookoutV2Models"
-import { FilterType } from "utils/jobsTableColumns"
+import { Match, MATCH_DISPLAY_STRINGS } from "models/lookoutV2Models"
+import { FilterType, VALID_COLUMN_MATCHES } from "utils/jobsTableColumns"
 
 const ELLIPSIS = "\u2026"
 
@@ -23,13 +28,17 @@ export interface JobsTableFilterProps {
   enumFilterValues?: EnumFilterOption[]
   id: string
   onFilterChange: (newFilter: string | string[] | undefined) => void
+  onColumnMatchChange: (columnId: string, newMatch: Match) => void
 }
+
 export const JobsTableFilter = ({
+  id,
   currentFilter,
   filterType,
   matchType,
   enumFilterValues,
   onFilterChange,
+  onColumnMatchChange,
 }: JobsTableFilterProps) => {
   const label = FILTER_TYPE_DISPLAY_STRINGS[matchType]
   return (
@@ -42,7 +51,14 @@ export const JobsTableFilter = ({
           onFilterChange={onFilterChange}
         />
       ) : (
-        <TextFilter currentFilter={(currentFilter ?? "") as string} label={label} onFilterChange={onFilterChange} />
+        <TextFilter
+          columnId={id}
+          currentFilter={(currentFilter ?? "") as string}
+          label={label}
+          match={matchType}
+          onFilterChange={onFilterChange}
+          onColumnMatchChange={onColumnMatchChange}
+        />
       )}
     </Box>
   )
@@ -106,11 +122,26 @@ const EnumFilter = ({ currentFilter, enumFilterValues, label, onFilterChange }: 
 }
 
 interface TextFilterProps {
+  columnId: string
   currentFilter: string
   label: string
+  match: Match
   onFilterChange: JobsTableFilterProps["onFilterChange"]
+  onColumnMatchChange: (columnId: string, newMatch: Match) => void
 }
-const TextFilter = ({ currentFilter, label, onFilterChange }: TextFilterProps) => {
+
+const TextFilter = ({
+  columnId,
+  currentFilter,
+  label,
+  match,
+  onFilterChange,
+  onColumnMatchChange,
+}: TextFilterProps) => {
+  let possibleMatches = [Match.Exact]
+  if (columnId in VALID_COLUMN_MATCHES) {
+    possibleMatches = VALID_COLUMN_MATCHES[columnId]
+  }
   return (
     <DebouncedTextField
       debounceWaitMs={300}
@@ -131,7 +162,101 @@ const TextFilter = ({ currentFilter, label, onFilterChange }: TextFilterProps) =
             width: "100%",
           },
         },
+        InputProps: {
+          style: {
+            paddingRight: 0,
+          },
+          endAdornment: (
+            <InputAdornment position="end">
+              <MatchSelect
+                possibleMatches={possibleMatches}
+                currentMatch={match}
+                onSelect={(newMatch) => {
+                  onColumnMatchChange(columnId, newMatch)
+                }}
+              />
+            </InputAdornment>
+          ),
+        },
       }}
     />
+  )
+}
+
+interface MatchSelectProps {
+  possibleMatches: Match[]
+  currentMatch: Match
+  onSelect: (newMatch: Match) => void
+}
+
+const MatchSelect = ({ possibleMatches, currentMatch, onSelect }: MatchSelectProps) => {
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+  const open = Boolean(anchorEl)
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setAnchorEl(event.currentTarget)
+  }
+  const handleClose = () => {
+    setAnchorEl(null)
+  }
+  return (
+    <>
+      <IconButton
+        size="small"
+        style={{
+          height: "22px",
+          width: "22px",
+        }}
+        onClick={handleClick}
+      >
+        <MoreVert />
+      </IconButton>
+      <Menu open={open} onClose={handleClose} anchorEl={anchorEl}>
+        {possibleMatches.map((match, i) => {
+          const matchStr = MATCH_DISPLAY_STRINGS[match]
+          return (
+            <MenuItem
+              key={i}
+              onClick={() => {
+                onSelect(match)
+                handleClose()
+              }}
+              style={{
+                paddingLeft: "7px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  height: "100%",
+                  gap: "5px",
+                }}
+              >
+                <div
+                  style={{
+                    width: "25px",
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {currentMatch === match && (
+                    <Check
+                      style={{
+                        width: "20px",
+                        height: "20px",
+                      }}
+                    />
+                  )}
+                </div>
+                <div>{matchStr}</div>
+              </div>
+            </MenuItem>
+          )
+        })}
+      </Menu>
+    </>
   )
 }

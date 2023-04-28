@@ -70,6 +70,7 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
       jobSet: jobSets[i % jobSets.length],
       state: state ? state : randomProperty(JobState, rand),
       lastTransitionTime: randomDate(new Date("2022-12-13T12:19:14.956Z"), new Date("2022-12-31T11:57:25.733Z")),
+      priorityClass: "armada-preemptible",
     })
   }
 
@@ -192,6 +193,7 @@ export function makeTestJob(queue: string, jobSet: string, jobId: string, state:
     state: state,
     runs: [],
     annotations: {},
+    priorityClass: "armada-preemptible",
   }
 }
 
