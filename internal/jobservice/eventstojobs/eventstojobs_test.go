@@ -69,7 +69,7 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 			isJobSetSubscribedFn: func(context.Context, string, string) (bool, string, error) {
 				return false, "", nil
 			},
-			wantErr: false,
+			wantErr:         false,
 			highConcurrency: true,
 		},
 	}
@@ -94,7 +94,7 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 				concurrency = 50
 			}
 			wg := sync.WaitGroup{}
-			for i :=0; i < concurrency; i++ {
+			for i := 0; i < concurrency; i++ {
 				go func() {
 					wg.Add(1)
 					defer wg.Done()
