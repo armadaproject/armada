@@ -136,6 +136,7 @@ func TestCleanupJobSetAndJobsIfNonExist(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
 func TestCleanupTrigger(t *testing.T) {
 	// only need to test PG
 	if os.Getenv("JSDBTYPE") == "postgres" {
@@ -143,6 +144,7 @@ func TestCleanupTrigger(t *testing.T) {
 		WithSqlServiceRepo(realPurgeTime, func(r SQLJobService) {
 			ctx := context.Background()
 			err := r.SubscribeJobSet(ctx, "queue", "job-set-1", "")
+			require.NoError(t, err)
 			subscribe, _, err := r.IsJobSetSubscribed(ctx, "queue", "job-set-1")
 			require.True(t, subscribe)
 			require.NoError(t, err)
