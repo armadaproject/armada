@@ -2,6 +2,8 @@ package eventstojobs
 
 import (
 	"context"
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -13,6 +15,8 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/api/jobservice"
 )
+
+var subscribeMap *sync.Map
 
 // Service that subscribes to events and stores JobStatus in the repository.
 type EventsToJobService struct {
@@ -28,6 +32,9 @@ func NewEventsToJobService(
 	eventClient events.JobEventReader,
 	jobServiceRepository repository.JobTableUpdater,
 ) *EventsToJobService {
+	if subscribeMap == nil {
+		subscribeMap = &sync.Map{}
+	}
 	return &EventsToJobService{
 		queue:                queue,
 		jobSetId:             jobSetId,
@@ -42,10 +49,18 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 }
 
 func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, timeout int64, fromMessageId string) error {
+	subKey := fmt.Sprintf("%v-%v", eventToJobService.queue, eventToJobService.jobSetId)
+	if _, ok := subscribeMap.Load(subKey); ok {
+		// do nothing if we have an existing subscription
+		log.Info("skipping new subscription to subkey: " + subKey)
+		return nil
+	}
+	subscribeMap.LoadOrStore(subKey, true)
 	ctx, cancel := context.WithCancel(ctx)
 	g, _ := errgroup.WithContext(ctx)
 	expiresAt := time.Now().Add(time.Duration(timeout) * time.Second)
 	g.Go(func() error {
+		defer subscribeMap.Delete(subKey)
 		defer cancel()
 
 		// Once we unsubscribed from the job-set, we need to close the GRPC connection.
