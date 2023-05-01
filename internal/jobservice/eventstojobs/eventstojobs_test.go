@@ -31,7 +31,7 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 			isJobSetSubscribedFn: func(context.Context, string, string) (bool, string, error) {
 				return true, "", nil
 			},
-			wantErr: false,
+			wantErr: true,
 		},
 		{
 			name:    "it exits with error if client errors and sets subscription error",
