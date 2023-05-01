@@ -45,6 +45,8 @@ func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context
 			log.Error("unable to unsubscribe database due to ", err)
 		}
 		return err
+	} else {
+		log.Infof("subscribeToJobSetId ended for %s/%s", eventToJobService.queue, eventToJobService.jobSetId)
 	}
 	return nil
 }
