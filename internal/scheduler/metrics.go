@@ -301,6 +301,12 @@ func (c *MetricsCollector) updateClusterMetrics(ctx context.Context) ([]promethe
 			clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueAllocated(resource.QuantityAsFloat64(resourceValue), k.queueName, k.cluster, k.pool, resourceKey, k.nodeType))
 		}
 	}
+
+	for k, r := range usedResourceByQueueKey {
+		for resourceKey, resourceValue := range r.Resources {
+			clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueUsed(resource.QuantityAsFloat64(resourceValue), k.queueName, k.cluster, k.pool, resourceKey, k.nodeType))
+		}
+	}
 	for k, r := range availableResourceByClusterKey {
 		for resourceKey, resourceValue := range r.Resources {
 			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterAvailableCapacity(resource.QuantityAsFloat64(resourceValue), k.cluster, k.pool, resourceKey, k.nodeType))

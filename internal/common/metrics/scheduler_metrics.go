@@ -330,13 +330,19 @@ func NewMedianQueueAllocated(value float64, pool string, priorityClass string, q
 func NewQueueLeasedPodCount(value float64, cluster string, pool string, queue string, phase string, nodeType string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(QueueLeasedPodCountDesc, prometheus.GaugeValue, value, cluster, pool, queue, phase, nodeType)
 }
+
 func NewClusterAvailableCapacity(value float64, cluster string, pool string, resource string, nodeType string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(ClusterAvailableCapacityDesc, prometheus.GaugeValue, value, cluster, pool, resource, nodeType)
 }
+
 func NewClusterTotalCapacity(value float64, cluster string, pool string, resource string, nodeType string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(ClusterCapacityDesc, prometheus.GaugeValue, value, cluster, pool, resource, nodeType)
 }
 
 func NewQueueAllocated(value float64, queue string, cluster string, pool string, resource string, nodeType string) prometheus.Metric {
 	return prometheus.MustNewConstMetric(QueueAllocatedDesc, prometheus.GaugeValue, value, cluster, pool, queue, resource, nodeType)
+}
+
+func NewQueueUsed(value float64, queue string, cluster string, pool string, resource string, nodeType string) prometheus.Metric {
+	return prometheus.MustNewConstMetric(QueueUsedDesc, prometheus.GaugeValue, value, cluster, pool, queue, resource, nodeType)
 }

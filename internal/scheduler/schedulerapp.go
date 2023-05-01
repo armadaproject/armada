@@ -185,7 +185,7 @@ func Run(config schedulerconfig.Configuration) error {
 	metricsCollector := NewMetricsCollector(
 		scheduler.jobDb,
 		queueRepository,
-		nil,
+		executorRepository,
 		poolAssigner,
 		config.Metrics.RefreshInterval)
 	prometheus.MustRegister(metricsCollector)
