@@ -129,7 +129,6 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 					}
 				} else {
 					log.WithFields(requestFields).Debugf("JobId: %s Message: %v", currentJobId, msg.Message)
-
 				}
 				// advance the message id for next loop
 				fromMessageId = msg.GetId()
