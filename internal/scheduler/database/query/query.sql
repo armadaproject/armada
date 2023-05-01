@@ -58,6 +58,9 @@ UPDATE runs SET run_attempted = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[
 -- name: MarkJobRunsRunningById :exec
 UPDATE runs SET running = true WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
 
+-- name: MarkRunsCancelledByJobId :exec
+UPDATE runs SET cancelled = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
+
 -- name: SelectJobsForExecutor :many
 SELECT jr.run_id, j.queue, j.job_set, j.user_id, j.groups, j.submit_message
 FROM runs jr
