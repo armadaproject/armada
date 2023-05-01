@@ -91,6 +91,9 @@ message NodeInfo {
     map<string, JobState>  run_ids_by_state = 8 [(gogoproto.nullable) = false];
     // The amount of resource allocated to non-armada pods by priority
     map<int32, ComputeResource> non_armada_allocated_resources = 9 [(gogoproto.nullable) = false];
+    // This should only be used for metrics
+    // An aggregated real usage of jobs by queue
+    map<string, ComputeResource> resource_usage_by_queue = 10;
 }
 
 // The Armada scheduler must account for taints, labels, and available resources.

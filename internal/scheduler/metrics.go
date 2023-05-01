@@ -220,6 +220,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx context.Context) ([]promethe
 	}
 	countsByKey := map[podPhaseKey]int{}
 	allocatedResourceByQueueKey := map[queueKey]schedulerobjects.ResourceList{}
+	usedResourceByQueueKey := map[queueKey]schedulerobjects.ResourceList{}
 	availableResourceByClusterKey := map[clusterKey]schedulerobjects.ResourceList{}
 	totalResourceByClusterKey := map[clusterKey]schedulerobjects.ResourceList{}
 	txn := c.jobDb.ReadTxn()
@@ -242,6 +243,22 @@ func (c *MetricsCollector) updateClusterMetrics(ctx context.Context) ([]promethe
 			total := totalResourceByClusterKey[clusterKey]
 			total.Add(node.TotalResources)
 			totalResourceByClusterKey[clusterKey] = total
+
+			for queueName, resourceUsage := range node.ResourceUsageByQueue {
+				queueKey := queueKey{
+					cluster:   executor.Id,
+					pool:      executor.Pool,
+					queueName: queueName,
+					nodeType:  "default",
+				}
+				if _, exists := usedResourceByQueueKey[queueKey]; !exists {
+					usedResourceByQueueKey[queueKey] = schedulerobjects.ResourceList{}
+				}
+
+				used := usedResourceByQueueKey[queueKey]
+				used.Add(*resourceUsage)
+				usedResourceByQueueKey[queueKey] = used
+			}
 
 			for runId, jobRunState := range node.StateByJobRunId {
 				job := c.jobDb.GetByRunId(txn, uuid.MustParse(runId))

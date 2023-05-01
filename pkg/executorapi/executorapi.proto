@@ -32,9 +32,6 @@ message LeaseRequest{
   repeated api.NodeInfo nodes = 5;
   // Run Ids of jobs owned by the executor but not currently assigned to a node.
   repeated armadaevents.Uuid unassigned_job_run_ids = 6 [(gogoproto.nullable) = false];
-  // This should only be used for metrics
-  // An aggregated real usage of jobs by queue
-  map<string, ResourceUsage> resource_usage_by_queue = 7;
 }
 
 message ResourceUsage {

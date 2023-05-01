@@ -148,6 +148,9 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(legacy bool) (
 		available.Sub(nodesUsage[node.Name])
 
 		runningNodePods := runningPodsByNode[node.Name]
+		runningNodePodsArmada := util.FilterPods(runningNodePods, func(pod *v1.Pod) bool {
+			return util.IsManagedPod(pod)
+		})
 		runningNodePodsNonArmada := util.FilterPods(runningNodePods, func(pod *v1.Pod) bool {
 			return !util.IsManagedPod(pod)
 		})
@@ -157,6 +160,12 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(legacy bool) (
 			cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
 			schedulerobjects.ResourceList{Resources: cls.minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode},
 		)
+
+		usageByQueue := cls.getPodUtilisationByQueue(runningNodePodsArmada)
+		resourceUsageByQueue := make(map[string]*api.ComputeResource)
+		for queueName, resourceUsage := range usageByQueue {
+			resourceUsageByQueue[queueName] = &api.ComputeResource{Resources: resourceUsage}
+		}
 
 		nodeAllocatedResources := make(map[int32]api.ComputeResource)
 		for p, rl := range allocatedByPriority {
@@ -176,6 +185,7 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(legacy bool) (
 			AllocatedResources:          nodeAllocatedResources,
 			RunIdsByState:               runIdsByNode[node.Name],
 			NonArmadaAllocatedResources: nodeNonArmadaAllocatedResources,
+			ResourceUsageByQueue:        resourceUsageByQueue,
 		})
 	}
 
@@ -399,6 +409,16 @@ func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, processingN
 	}
 
 	return podsUsingResourceOnProcessingNodes
+}
+
+func (clusterUtilisationService *ClusterUtilisationService) getPodUtilisationByQueue(pods []*v1.Pod) map[string]armadaresource.ComputeResources {
+	podsByQueue := util.GroupByQueue(pods)
+	result := make(map[string]armadaresource.ComputeResources, len(podsByQueue))
+	for queueName, queuePods := range podsByQueue {
+		resourceUsed := clusterUtilisationService.getTotalPodUtilisation(queuePods)
+		result[queueName] = resourceUsed
+	}
+	return result
 }
 
 func (clusterUtilisationService *ClusterUtilisationService) createReportsOfQueueUsages(pods []*v1.Pod) []*api.QueueReport {

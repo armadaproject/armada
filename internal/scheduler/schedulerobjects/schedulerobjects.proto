@@ -59,6 +59,9 @@ message Node {
     map<string, bool> evicted_job_run_ids = 14 [(gogoproto.nullable) = false];
     // Resource allocated to non-Armada pods on this node.
     map<int32, ResourceList> non_armada_allocated_resources = 13 [(gogoproto.nullable) = false];
+    // This should only be used for metrics
+    // An aggregated real usage of jobs by queue
+    map<string, ResourceList> resource_usage_by_queue = 15;
 }
 
 enum JobRunState {
