@@ -76,8 +76,7 @@ func (eventToJobService *EventsToJobService) streamCommon(inCtx context.Context,
 				}
 				if t.After(expiresAt) {
 					log.Infof("JobSet %s/%s unsubcribing and messageId is %s", eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
-					log.Infof("stream subscription ttl exceeded: %v", timeout)
-					return nil
+					return errors.Errorf("stream subscription ttl exceeded: %v", timeout)
 				}
 			}
 		}
@@ -127,13 +126,15 @@ func (eventToJobService *EventsToJobService) streamCommon(inCtx context.Context,
 					if settingSubscribeErr != nil {
 						log.WithError(settingSubscribeErr).Error("could not set error field in job set table")
 					}
-					return nil
+					time.Sleep(10 * time.Second)
+					continue
 				}
 				errClear := eventToJobService.jobServiceRepository.AddMessageIdAndClearSubscriptionError(
 					inCtx, eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
 				if errClear != nil {
 					log.WithError(errClear).Error("could not clear subscription error from job set table")
-					return nil
+					time.Sleep(10 * time.Second)
+					continue
 				}
 				currentJobId := api.JobIdFromApiEvent(msg.Message)
 				jobStatus := EventsToJobResponse(*msg.Message)
@@ -143,7 +144,8 @@ func (eventToJobService *EventsToJobService) streamCommon(inCtx context.Context,
 					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(inCtx, jobStatus)
 					if err != nil {
 						log.WithError(err).Error("could not update job status, retry on next subscription")
-						return nil
+						time.Sleep(10 * time.Second)
+						continue
 					}
 				} else {
 					log.WithFields(requestFields).Infof("message %v", msg.Message)
