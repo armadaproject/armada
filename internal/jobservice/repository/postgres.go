@@ -109,7 +109,6 @@ func (s *JSRepoPostgres) Setup(ctx context.Context) {
 		if err != nil {
 			panic(err)
 		}
-		time.Sleep(time.Duration(1500000))
 	}
 }
 
