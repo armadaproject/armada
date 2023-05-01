@@ -55,10 +55,13 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		return err
 	}
 
-	g.Go(func() error {
-		PurgeJobSets(ctx, log, config.PurgeJobSetTime, sqlJobRepo)
-		return nil
-	})
+	if config.DatabaseType != "postgres" {
+		g.Go(func() error {
+			PurgeJobSets(ctx, log, config.PurgeJobSetTime, sqlJobRepo)
+			return nil
+		})
+	}
+
 	g.Go(func() error {
 		ticker := time.NewTicker(10 * time.Second)
 		for range ticker.C {
