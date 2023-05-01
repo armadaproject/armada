@@ -86,13 +86,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 		for {
 			select {
 			case <-ctx.Done():
-				log.Errorf("context is done on %s/%s and we are leaving StreamCommon", eventToJobService.queue, eventToJobService.jobSetId)
-
-				errClear := eventToJobService.jobServiceRepository.AddMessageIdAndClearSubscriptionError(
-					ctx, eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
-				if errClear != nil {
-					log.WithError(errClear).Error("could not clear subscription error from job set table")
-				}
+				log.Errorf("context is done on %s/%s", eventToJobService.queue, eventToJobService.jobSetId)
 				return nil
 			default:
 				requestFields := log.Fields{
