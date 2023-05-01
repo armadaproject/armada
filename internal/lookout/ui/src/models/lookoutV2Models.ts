@@ -90,12 +90,15 @@ export type JobRun = {
 export enum Match {
   Exact = "exact",
   StartsWith = "startsWith",
-  GreaterThan = "greater",
-  LessThan = "less",
-  GreaterThanOrEqual = "greaterOrEqual",
-  LessThanOrEqual = "lessOrEqual",
+  Contains = "contains",
+  GreaterThan = "greaterThan",
+  LessThan = "lessThan",
+  GreaterThanOrEqual = "greaterThanOrEqualTo",
+  LessThanOrEqual = "lessThanOrEqualTo",
   AnyOf = "anyOf",
 }
+
+export const isValidMatch = (match: string): match is Match => (Object.values(Match) as string[]).includes(match)
 
 export type JobFilter = {
   isAnnotation?: boolean
