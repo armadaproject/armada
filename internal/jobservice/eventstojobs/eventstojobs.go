@@ -81,16 +81,12 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 				cancel()
 			}
 		}()
-		requestFields := log.Fields{
-			"job_set_id": eventToJobService.jobSetId,
-			"queue":      eventToJobService.queue,
-		}
 
 		// this loop will run until the context is canceled
 		for {
 			select {
 			case <-ctx.Done():
-				log.Infof("context is done on %s/%s and we are leaving StreamCommon", eventToJobService.queue, eventToJobService.jobSetId)
+				log.Errorf("context is done on %s/%s and we are leaving StreamCommon", eventToJobService.queue, eventToJobService.jobSetId)
 
 				errClear := eventToJobService.jobServiceRepository.AddMessageIdAndClearSubscriptionError(
 					ctx, eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
@@ -99,6 +95,10 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 				}
 				return nil
 			default:
+				requestFields := log.Fields{
+					"job_set_id": eventToJobService.jobSetId,
+					"queue":      eventToJobService.queue,
+				}
 
 				msg, err := eventToJobService.eventClient.GetJobEventMessage(ctx, &api.JobSetRequest{
 					Id:             eventToJobService.jobSetId,
