@@ -140,7 +140,7 @@ def test_parallel_execution(client: ArmadaClient, jobservice: JobServiceClient):
         thread.join()
 
 
-# @pytest.mark.skip(reason="we should not test performance in the CI.")
+@pytest.mark.skip(reason="we should not test performance in the CI.")
 def test_parallel_execution_large(client: ArmadaClient, jobservice: JobServiceClient):
     threads = []
     success_job(client=client, jobservice=jobservice)

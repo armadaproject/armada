@@ -11,7 +11,6 @@ import (
 	"github.com/armadaproject/armada/internal/jobservice/events"
 	"github.com/armadaproject/armada/internal/jobservice/repository"
 	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/api/jobservice"
 )
 
 // Service that subscribes to events and stores JobStatus in the repository.
@@ -137,15 +136,15 @@ func (eventToJobService *EventsToJobService) streamCommon(inCtx context.Context,
 				currentJobId := api.JobIdFromApiEvent(msg.Message)
 				jobStatus := EventsToJobResponse(*msg.Message)
 				if jobStatus != nil {
-					if jobStatus.State != jobservice.JobServiceResponse_SUCCEEDED {
-						log.WithFields(requestFields).Infof("fromMessageId: %s JobId: %s State: %s", fromMessageId, currentJobId, jobStatus.GetState().String())
-					}
+					log.WithFields(requestFields).Infof("fromMessageId: %s JobId: %s State: %s", fromMessageId, currentJobId, jobStatus.GetState().String())
 					jobStatus := repository.NewJobStatus(eventToJobService.queue, eventToJobService.jobSetId, currentJobId, *jobStatus)
 					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(inCtx, jobStatus)
 					if err != nil {
 						log.WithError(err).Error("could not update job status, retry on next subscription")
 						return nil
 					}
+				} else {
+					log.WithFields(requestFields).Infof("message %v", msg.Message)
 				}
 				// advance the message id for next loop
 				fromMessageId = msg.GetId()
