@@ -744,6 +744,139 @@ func TestResourceListIsStrictlyNonNegative(t *testing.T) {
 	}
 }
 
+func TestResourceListIsStrictlyLessOrEqual(t *testing.T) {
+	tests := map[string]struct {
+		a        ResourceList
+		b        ResourceList
+		expected bool
+	}{
+		"both empty": {
+			a:        ResourceList{},
+			b:        ResourceList{},
+			expected: true,
+		},
+		"both empty maps": {
+			a: ResourceList{
+				Resources: make(map[string]resource.Quantity),
+			},
+			b: ResourceList{
+				Resources: make(map[string]resource.Quantity),
+			},
+			expected: true,
+		},
+		"one empty map": {
+			a: ResourceList{
+				Resources: make(map[string]resource.Quantity),
+			},
+			b:        ResourceList{},
+			expected: true,
+		},
+		"zero equals empty": {
+			a: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("0"),
+				},
+			},
+			b:        ResourceList{},
+			expected: true,
+		},
+		"zero and missing is equal": {
+			a: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+					"bar": resource.MustParse("0"),
+				},
+			},
+			b: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+				},
+			},
+			expected: true,
+		},
+		"simple equal": {
+			a: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("1"),
+					"memory": resource.MustParse("2"),
+					"foo":    resource.MustParse("3"),
+				},
+			},
+			b: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("1"),
+					"memory": resource.MustParse("2"),
+					"foo":    resource.MustParse("3"),
+				},
+			},
+			expected: true,
+		},
+		"simple true": {
+			a: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+					"bar": resource.MustParse("2"),
+				},
+			},
+			b: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+					"bar": resource.MustParse("3"),
+				},
+			},
+			expected: true,
+		},
+		"simple false": {
+			a: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+					"bar": resource.MustParse("3"),
+				},
+			},
+			b: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+					"bar": resource.MustParse("2"),
+				},
+			},
+			expected: false,
+		},
+		"present in a missing in b true": {
+			a: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+					"bar": resource.MustParse("2"),
+				},
+			},
+			b: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+				},
+			},
+			expected: true,
+		},
+		"missing in a present in b true": {
+			a: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+				},
+			},
+			b: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+					"bar": resource.MustParse("2"),
+				},
+			},
+			expected: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.a.IsStrictlyLessOrEqual(tc.b))
+		})
+	}
+}
+
 func TestV1ResourceListConversion(t *testing.T) {
 	rl := ResourceList{
 		Resources: map[string]resource.Quantity{

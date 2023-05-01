@@ -315,18 +315,25 @@ func (repo *RedisJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, 
 	for _, jobResult := range jobResults {
 		var errJobNotFound *ErrJobNotFound
 		var errNotFound *armadaerrors.ErrNotFound
-		if errors.As(jobResult.Error, &errJobNotFound) {
-			continue
-		} else if errors.As(jobResult.Error, &errNotFound) {
+		if errors.As(jobResult.Error, &errJobNotFound) || errors.As(jobResult.Error, &errNotFound) {
 			continue
 		} else if jobResult.Error != nil {
 			err = errors.WithMessagef(jobResult.Error, "error getting job with id %s from database", jobResult.JobId)
 			result = multierror.Append(result, err)
+			continue
 		}
-		// Ensure job.GetAnnotations() returns a pointer to an initialised map.
-		// Necessary to use the annotations to set flags when scheduling the job.
+		// Ensure job.GetAnnotations and podSpec.NodeSelector are initialised.
+		// Necessary to mutate these in-place during scheduling.
 		if jobResult.Job.Annotations == nil {
 			jobResult.Job.Annotations = make(map[string]string)
+		}
+		if jobResult.Job.PodSpec != nil && jobResult.Job.PodSpec.NodeSelector == nil {
+			jobResult.Job.PodSpec.NodeSelector = make(map[string]string)
+		}
+		for _, podSpec := range jobResult.Job.PodSpecs {
+			if podSpec != nil && podSpec.NodeSelector == nil {
+				jobResult.Job.PodSpec.NodeSelector = make(map[string]string)
+			}
 		}
 		jobs = append(jobs, jobResult.Job)
 	}
@@ -1093,13 +1100,13 @@ local clientId = ARGV[4]
 
 
 local jobExists = redis.call('EXISTS', jobExistsKey)
-if jobExists == 1 then 
+if jobExists == 1 then
 	return '-1'
 end
 
 if clientId ~= '' then
 	local existingJobId = redis.call('GET', jobClientIdKey)
-	if existingJobId then 
+	if existingJobId then
 		return existingJobId
 	end
 	redis.call('SET', jobClientIdKey, jobId, 'EX', 14400)
@@ -1135,13 +1142,13 @@ local currentTime = ARGV[3]
 
 local exists = redis.call('ZREM', queue, jobId)
 
-if exists == 1 then 
+if exists == 1 then
 	redis.call('HSET', clusterAssociation, jobId, clusterId)
 	return redis.call('ZADD', leasedJobsSet, currentTime, jobId)
 else
 	local currentClusterId = redis.call('HGET', clusterAssociation, jobId)
 	local score = redis.call('ZSCORE', leasedJobsSet, jobId)
-	
+
 	if currentClusterId ~= clusterId then
 		return -42
 	end

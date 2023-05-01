@@ -232,6 +232,9 @@ func setupServerApiComponents(
 	nodeInfoService node.NodeInfoService,
 	podUtilisationService utilisation.PodUtilisationService,
 ) func() {
+	if !config.Application.UseLegacyApi {
+		return func() {}
+	}
 	conn, err := createConnectionToApi(config.ApiConnection, config.Client.MaxMessageSizeBytes, config.GRPC)
 	if err != nil {
 		log.Errorf("Failed to connect to API because: %s", err)

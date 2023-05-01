@@ -2,17 +2,14 @@ package scheduleringester
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hashicorp/go-multierror"
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 
-	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
@@ -26,27 +23,70 @@ type SchedulerDb struct {
 	metrics        *metrics.Metrics
 	initialBackOff time.Duration
 	maxBackOff     time.Duration
+	lockTimeout    time.Duration
 }
 
-func NewSchedulerDb(db *pgxpool.Pool, metrics *metrics.Metrics, initialBackOff time.Duration, maxBackOff time.Duration) ingest.Sink[*DbOperationsWithMessageIds] {
-	return &SchedulerDb{db: db, metrics: metrics, initialBackOff: initialBackOff, maxBackOff: maxBackOff}
-}
-
-func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithMessageIds) error {
-	var result *multierror.Error = nil
-	for _, dbOp := range instructions.Ops {
-		err := ingest.WithRetry(func() (bool, error) {
-			err := s.WriteDbOp(ctx, dbOp)
-			shouldRetry := armadaerrors.IsNetworkError(err) || armadaerrors.IsRetryablePostgresError(err)
-			return shouldRetry, err
-		}, s.initialBackOff, s.maxBackOff)
-		result = multierror.Append(result, err)
+func NewSchedulerDb(
+	db *pgxpool.Pool,
+	metrics *metrics.Metrics,
+	initialBackOff time.Duration,
+	maxBackOff time.Duration,
+	lockTimeout time.Duration,
+) ingest.Sink[*DbOperationsWithMessageIds] {
+	return &SchedulerDb{
+		db:             db,
+		metrics:        metrics,
+		initialBackOff: initialBackOff,
+		maxBackOff:     maxBackOff,
+		lockTimeout:    lockTimeout,
 	}
-	return result.ErrorOrNil()
 }
 
-func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
-	queries := schedulerdb.New(s.db)
+// Store persists all operations in the database.  Note that:
+//   - this function will retry until it either succeeds or a terminal error is encountered
+//   - this function will take out a postgres lock to ensure that other ingesters are not writing to the database
+//     at the same time (for details, see acquireLock())
+func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithMessageIds) error {
+	return ingest.WithRetry(func() (bool, error) {
+		err := s.db.BeginTxFunc(ctx, pgx.TxOptions{
+			IsoLevel:       pgx.ReadCommitted,
+			AccessMode:     pgx.ReadWrite,
+			DeferrableMode: pgx.Deferrable,
+		}, func(tx pgx.Tx) error {
+			// First acquire the write lock
+			lockCtx, cancel := context.WithTimeout(ctx, s.lockTimeout)
+			defer cancel()
+			err := s.acquireLock(lockCtx, tx)
+			if err != nil {
+				return err
+			}
+			// Now insert the ops
+			for _, dbOp := range instructions.Ops {
+				err := s.WriteDbOp(ctx, tx, dbOp)
+				if err != nil {
+					return err
+				}
+			}
+			return err
+		})
+		return true, err
+	}, s.initialBackOff, s.maxBackOff)
+}
+
+// acquireLock acquires the armada_scheduleringester_lock, which prevents two ingesters writing to the db at the same
+// time.  This is necessary because:
+// - when rows are inserted into the database they are stamped with a sequence number
+// - the scheduler relies on this sequence number increasing to ensure it has fetched all updated rows
+// - concurrent transactions will result in sequence numbers being interleaved across transactions.
+// - the interleaved sequences may result in the scheduler seeing sequence numbers that do not strictly increase over time.
+func (s *SchedulerDb) acquireLock(ctx context.Context, tx pgx.Tx) error {
+	const lockId = 8741339439634283896
+	_, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockId)
+	return errors.Wrapf(err, "Could not obtain lock")
+}
+
+func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) error {
+	queries := schedulerdb.New(tx)
 	switch o := op.(type) {
 	case InsertJobs:
 		records := make([]any, len(o))
@@ -55,7 +95,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		err := database.Upsert(ctx, s.db, "jobs", records)
+		err := database.Upsert(ctx, tx, "jobs", records)
 		if err != nil {
 			return err
 		}
@@ -66,7 +106,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		err := database.Upsert(ctx, s.db, "runs", records)
+		err := database.Upsert(ctx, tx, "runs", records)
 		if err != nil {
 			return err
 		}
@@ -84,48 +124,26 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			}
 		}
 	case UpdateJobSchedulingInfo:
-		args := make([]interface{}, 0, len(o)*3)
-		argMarkers := make([]string, 0, len(o))
+		updateJobInfoSqlStatement := "update jobs set scheduling_info = $1::bytea, scheduling_info_version = $2::int where job_id = $3 and $2::int > scheduling_info_version"
 
-		currentIndex := 1
+		batch := &pgx.Batch{}
 		for key, value := range o {
-			args = append(args, key)
-			args = append(args, value.JobSchedulingInfo)
-			args = append(args, value.JobSchedulingInfoVersion)
-			argMarkers = append(argMarkers, fmt.Sprintf("($%d, $%d::bytea, $%d::int)", currentIndex, currentIndex+1, currentIndex+2))
-			currentIndex += 3
+			batch.Queue(updateJobInfoSqlStatement, value.JobSchedulingInfo, value.JobSchedulingInfoVersion, key)
 		}
 
-		argMarkersString := strings.Join(argMarkers, ",")
-		updateJobInfoSqlStatement := fmt.Sprintf(
-			`update jobs as j set  scheduling_info = updated.scheduling_info, scheduling_info_version = updated.scheduling_info_version
-				 from (values %s) as updated(job_id, scheduling_info, scheduling_info_version)
-                 where j.job_id = updated.job_id and updated.scheduling_info_version > j.scheduling_info_version`, argMarkersString)
-
-		_, err := s.db.Exec(ctx, updateJobInfoSqlStatement, args...)
+		err := s.execBatch(ctx, batch)
 		if err != nil {
 			return errors.WithStack(err)
 		}
 	case UpdateJobQueuedState:
-		args := make([]interface{}, 0, len(o)*3)
-		argMarkers := make([]string, 0, len(o))
+		updateQueuedStateSqlStatement := "update jobs set queued = $1::bool, queued_version = $2::int where job_id = $3 and $2::int > queued_version"
 
-		currentIndex := 1
+		batch := &pgx.Batch{}
 		for key, value := range o {
-			args = append(args, key)
-			args = append(args, value.Queued)
-			args = append(args, value.QueuedStateVersion)
-			argMarkers = append(argMarkers, fmt.Sprintf("($%d, $%d::bool, $%d::int)", currentIndex, currentIndex+1, currentIndex+2))
-			currentIndex += 3
+			batch.Queue(updateQueuedStateSqlStatement, value.Queued, value.QueuedStateVersion, key)
 		}
 
-		argMarkersString := strings.Join(argMarkers, ",")
-		updateQueuedStateSqlStatement := fmt.Sprintf(
-			`update jobs as j set  queued = updated.queued, queued_version = updated.queued_version
-				 from (values %s) as updated(job_id, queued, queued_version)
-				 where j.job_id = updated.job_id and updated.queued_version > j.queued_version`, argMarkersString)
-
-		_, err := s.db.Exec(ctx, updateQueuedStateSqlStatement, args...)
+		err := s.execBatch(ctx, batch)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -214,7 +232,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 			records[i] = *v
 			i++
 		}
-		return database.Upsert(ctx, s.db, "job_run_errors", records)
+		return database.Upsert(ctx, tx, "job_run_errors", records)
 	case *InsertPartitionMarker:
 		for _, marker := range o.markers {
 			err := queries.InsertMarker(ctx, schedulerdb.InsertMarkerParams{
@@ -229,6 +247,22 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, op DbOperation) error {
 		return nil
 	default:
 		return errors.Errorf("received unexpected op %+v", op)
+	}
+	return nil
+}
+
+func (s *SchedulerDb) execBatch(ctx context.Context, batch *pgx.Batch) error {
+	result := s.db.SendBatch(ctx, batch)
+	for i := 0; i < batch.Len(); i++ {
+		_, err := result.Exec()
+		if err != nil {
+			return err
+		}
+	}
+
+	err := result.Close()
+	if err != nil {
+		return err
 	}
 	return nil
 }

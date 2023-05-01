@@ -17,23 +17,24 @@
 # under the License.
 
 import logging
-import os
-from typing import List, Optional
+from typing import Optional, List
 
 from airflow.models import BaseOperator
 from airflow.exceptions import AirflowException
 
+from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.client import ArmadaClient
-from armada_client.armada import submit_pb2
-from armada.operators.jobservice import JobServiceClient
 
-from armada.operators.utils import airflow_error, search_for_job_complete
+from armada.operators.jobservice import JobServiceClient
+from armada.operators.utils import (
+    airflow_error,
+    search_for_job_complete,
+    annotate_job_request_items,
+)
 from armada.jobservice import jobservice_pb2
 
 
 armada_logger = logging.getLogger("airflow.task")
-
-ANNOTATION_KEY_PREFIX = "armadaproject.io/"
 
 
 class ArmadaOperator(BaseOperator):
@@ -54,7 +55,7 @@ class ArmadaOperator(BaseOperator):
         "https://lookout.armada.domain/jobs?job_id=<job_id>" where <job_id> will
         be replaced with the actual job ID.
 
-    :return: a job service client instance
+    :return: an armada operator instance
     """
 
     def __init__(
@@ -63,7 +64,7 @@ class ArmadaOperator(BaseOperator):
         armada_client: ArmadaClient,
         job_service_client: JobServiceClient,
         armada_queue: str,
-        job_request_items,
+        job_request_items: List[JobSubmitRequestItem],
         lookout_url_template: Optional[str] = None,
         **kwargs,
     ) -> None:
@@ -127,43 +128,3 @@ class ArmadaOperator(BaseOperator):
         if self.lookout_url_template is None:
             return ""
         return self.lookout_url_template.replace("<job_id>", job_id)
-
-
-def annotate_job_request_items(
-    context, job_request_items: List[submit_pb2.JobSubmitRequestItem]
-) -> List[submit_pb2.JobSubmitRequestItem]:
-    """
-    Annotates the inbound job request items with Airflow context elements
-
-    :param context: The airflow context.
-
-    :param job_request_items: The job request items to be sent to armada
-
-    :return: annotated job request items for armada
-    """
-    task_instance = context["ti"]
-    task_id = task_instance.task_id
-    run_id = context["run_id"]
-    dag_id = context["dag"].dag_id
-
-    for item in job_request_items:
-        item.annotations[get_annotation_key_prefix() + "taskId"] = task_id
-        item.annotations[get_annotation_key_prefix() + "taskRunId"] = run_id
-        item.annotations[get_annotation_key_prefix() + "dagId"] = dag_id
-
-    return job_request_items
-
-
-def get_annotation_key_prefix() -> str:
-    """
-    Provides the annotation key perfix,
-    which can be specified in env var ANNOTATION_KEY_PREFIX.
-    A default is provided if the env var is not defined
-
-    :return: string annotation key prefix
-    """
-    env_var_name = "ANNOTATION_KEY_PREFIX"
-    if env_var_name in os.environ:
-        return f"{os.environ.get(env_var_name)}"
-    else:
-        return ANNOTATION_KEY_PREFIX

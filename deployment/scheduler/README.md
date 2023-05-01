@@ -15,7 +15,7 @@ A helm chart for Armada Scheduler component
 | ingester.applicationConfig.pulsar | object | `{}` |  |
 | ingester.customServiceAccount | string | `nil` |  |
 | ingester.image.repository | string | `"gresearchdev/armada-scheduler-ingester"` |  |
-| ingester.image.tag | string | `"LATEST"` |  |
+| ingester.image.tag | string | `"0.0.0-latest"` |  |
 | ingester.replicas | int | `1` |  |
 | ingester.resources.limits.cpu | string | `"300m"` |  |
 | ingester.resources.limits.memory | string | `"1Gi"` |  |
@@ -42,7 +42,7 @@ A helm chart for Armada Scheduler component
 | scheduler.customServiceAccount | string | `nil` |  |
 | scheduler.hostnames[0] | string | `"test"` |  |
 | scheduler.image.repository | string | `"gresearchdev/armada-scheduler"` |  |
-| scheduler.image.tag | string | `"LATEST"` |  |
+| scheduler.image.tag | string | `"0.0.0-latest"` |  |
 | scheduler.ingress.annotations | object | `{}` |  |
 | scheduler.ingress.labels | object | `{}` |  |
 | scheduler.ingress.nameOverride | string | `""` |  |

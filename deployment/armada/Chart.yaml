@@ -5,8 +5,8 @@ home: https://armadaproject.io
 sources:
   - https://github.com/armadaproject/armada
 icon: https://armadaproject.io/assets/img/Armada-favicon.png
-version: LATEST
-appVersion: LATEST
+version: 0.0.0-latest
+appVersion: 0.0.0-latest
 keywords:
   - multi-cluster
   - batch-scheduler
