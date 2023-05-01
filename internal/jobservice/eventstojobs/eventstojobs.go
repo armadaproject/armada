@@ -121,8 +121,6 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 					ctx, eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
 				if errClear != nil {
 					log.WithError(errClear).Error("could not clear subscription error from job set table")
-					time.Sleep(5 * time.Second)
-					continue
 				}
 				currentJobId := api.JobIdFromApiEvent(msg.Message)
 				jobStatus := EventsToJobResponse(*msg.Message)
@@ -136,7 +134,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 						continue
 					}
 				} else {
-					log.WithFields(requestFields).Infof("message %v", msg.Message)
+					log.WithFields(requestFields).Debugf("JobId: %s", currentJobId)
 				}
 				// advance the message id for next loop
 				fromMessageId = msg.GetId()

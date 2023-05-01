@@ -42,7 +42,7 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 			isJobSetSubscribedFn: func(context.Context, string, string) (bool, string, error) {
 				return true, "", nil
 			},
-			wantErr:             false,
+			wantErr:             true,
 			wantSubscriptionErr: true,
 		},
 		{
