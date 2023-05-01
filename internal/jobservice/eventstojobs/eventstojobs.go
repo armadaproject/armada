@@ -65,7 +65,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 					return nil
 				}
 				if t.After(expiresAt) {
-					log.Infof("JobSet %s/%s unsubcribing and messageId is %s", eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
+					log.Infof("JobSet %s/%s unsubscribing and messageId is %s", eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
 					return errors.Errorf("stream subscription ttl exceeded: %v", timeout)
 				}
 			}
