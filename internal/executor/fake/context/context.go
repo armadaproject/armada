@@ -317,6 +317,9 @@ func (c *FakeClusterContext) addNodes(specs []*NodeSpec) {
 		for i := 0; i < s.Count; i++ {
 			name := c.clusterId + "-" + s.Name + "-" + strconv.Itoa(i)
 			labels := util.DeepCopy(s.Labels)
+			if labels == nil {
+				labels = map[string]string{}
+			}
 			labels[c.nodeIdLabel] = name
 			node := &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{
