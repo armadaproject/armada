@@ -57,10 +57,15 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	}
 
 	// TODO: Bug on cleanup
+	// We should just utilize triggers to delete data after a certain point.
 	g.Go(func() error {
 		PurgeJobSets(ctx, log, config.PurgeJobSetTime, sqlJobRepo)
 		return nil
 	})
+	// This function runs in the background every 30 seconds
+	// We will loop over the subscribed jobsets
+	// And we check if we have already subscribed via subscribeMap
+	// If we have then we skip that jobset
 	g.Go(func() error {
 		ticker := time.NewTicker(30 * time.Second)
 		eventClient := events.NewEventClient(&config.ApiConnection)
@@ -114,7 +119,6 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 func PurgeJobSets(ctx context.Context, log *log.Entry, purgeJobSetTime int64,
 	sqlJobRepo repository.SQLJobService,
 ) {
-	log.Info("duration config: ", purgeJobSetTime)
 	ticker := time.NewTicker(time.Duration(purgeJobSetTime) * time.Second)
 	for range ticker.C {
 		jobSets, err := sqlJobRepo.GetSubscribedJobSets(ctx)

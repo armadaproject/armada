@@ -55,7 +55,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 		for {
 			select {
 			case <-ctx.Done():
-				return nil
+				return errors.Errorf("context done")
 			case t := <-ticker.C:
 				jobSetFound, _, err := eventToJobService.jobServiceRepository.IsJobSetSubscribed(ctx, eventToJobService.queue, eventToJobService.jobSetId)
 				if err != nil {
@@ -128,7 +128,8 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 						continue
 					}
 				} else {
-					log.WithFields(requestFields).Debugf("JobId: %s", currentJobId)
+					log.WithFields(requestFields).Debugf("JobId: %s Message: %v", currentJobId, msg.Message)
+
 				}
 				// advance the message id for next loop
 				fromMessageId = msg.GetId()
