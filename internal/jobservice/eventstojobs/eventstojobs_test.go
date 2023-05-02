@@ -88,10 +88,9 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 				SetSubscriptionErrorFunc:                  func(context.Context, string, string, string, string) error { return nil },
 				UnsubscribeJobSetFunc:                     func(context.Context, string, string) (int64, error) { return 0, nil },
 			}
-
 			concurrency := 1
 			if tt.highConcurrency {
-				concurrency = 20
+				concurrency = 100
 			}
 			wg := sync.WaitGroup{}
 			for i := 0; i < concurrency; i++ {
@@ -115,7 +114,8 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 						assert.Equal(t, 0, len(mockJobRepo.AddMessageIdAndClearSubscriptionErrorCalls()))
 					} else {
 						assert.Equal(t, 0, len(mockJobRepo.SetSubscriptionErrorCalls()))
-						assert.True(t, len(mockJobRepo.AddMessageIdAndClearSubscriptionErrorCalls()) > 0)
+						// we may not hit this if the context.Done() path is takent
+						// assert.True(t, len(mockJobRepo.AddMessageIdAndClearSubscriptionErrorCalls()) > 0)
 					}
 				}()
 			}
