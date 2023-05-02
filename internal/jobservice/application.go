@@ -56,12 +56,6 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		return err
 	}
 
-	// TODO: Bug on cleanup
-	// We should just utilize triggers to delete data after a certain point.
-	g.Go(func() error {
-		PurgeJobSets(ctx, log, config.PurgeJobSetTime, sqlJobRepo)
-		return nil
-	})
 	// This function runs in the background every 30 seconds
 	// We will loop over the subscribed jobsets
 	// And we check if we have already subscribed via subscribeMap
