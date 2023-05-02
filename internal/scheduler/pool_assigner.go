@@ -10,7 +10,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -99,19 +98,14 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	if !j.Queued() && j.HasRuns() {
 		return p.poolByExecutorId[j.LatestRun().Executor()], nil
 	}
-
-	req := PodRequirementFromJobSchedulingInfo(j.JobSchedulingInfo())
-	req = p.clearAnnotations(req)
-
 	// See if we have this set of reqs cached
-	reqsHash, err := protoutil.Hash(req)
-	if err != nil {
-		return "", err
-	}
-	cachedPool, ok := p.poolCache.Get(string(reqsHash))
+	cachedPool, ok := p.poolCache.Get(string(j.JobSchedulingInfo().PodRequirementsHash))
 	if ok {
 		return cachedPool.(string), nil
 	}
+
+	req := PodRequirementFromJobSchedulingInfo(j.JobSchedulingInfo())
+	req = p.clearAnnotations(req)
 
 	// Otherwise iterate through each pool and detect the first one the job is potentially schedulable on
 	for pool, executors := range p.executorsByPool {
@@ -128,7 +122,7 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 					return "", errors.WithMessagef(err, "error selecting node for job %s", j.Id())
 				}
 				if report.Node != nil {
-					p.poolCache.Add(string(reqsHash), pool)
+					p.poolCache.Add(string(j.JobSchedulingInfo().GetPodRequirementsHash()), pool)
 					return pool, nil
 				}
 			}

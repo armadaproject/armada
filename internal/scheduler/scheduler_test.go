@@ -14,6 +14,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/hash"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -61,6 +62,21 @@ var (
 	}
 	updatedSchedulingInfoBytes = protoutil.MustMarshall(updatedSchedulingInfo)
 )
+
+func init() {
+	podRequirementsHash, err := hash.CalculatePodRequirementsHash(schedulingInfo.GetObjectRequirements()[0].GetPodRequirements())
+	if err != nil {
+		panic(err)
+	}
+	schedulingInfo.PodRequirementsHash = podRequirementsHash
+	schedulingInfoBytes = protoutil.MustMarshall(schedulingInfo)
+	updatedPodRequirementsHash, err := hash.CalculatePodRequirementsHash(updatedSchedulingInfo.GetObjectRequirements()[0].GetPodRequirements())
+	if err != nil {
+		panic(err)
+	}
+	updatedSchedulingInfo.PodRequirementsHash = updatedPodRequirementsHash
+	updatedSchedulingInfoBytes = protoutil.MustMarshall(updatedSchedulingInfo)
+}
 
 var queuedJob = jobdb.NewJob(
 	util.NewULID(),
@@ -511,6 +527,12 @@ func TestScheduler_TestCycle(t *testing.T) {
 					expectedAffinity := createAntiAffinity(t, nodeIdLabel, tc.expectedNodeAntiAffinities)
 					assert.Equal(t, expectedAffinity, affinity)
 				}
+				podRequirements := PodRequirementFromJobSchedulingInfo(job.JobSchedulingInfo())
+				assert.NotNil(t, podRequirements)
+				expectedPodRequirementsHash, err := hash.CalculatePodRequirementsHash(podRequirements)
+				assert.NoError(t, err)
+				assert.Equal(t, expectedPodRequirementsHash, job.JobSchedulingInfo().PodRequirementsHash)
+
 				expectedQueuedVersion := int32(1)
 				if tc.expectedQueuedVersion != 0 {
 					expectedQueuedVersion = tc.expectedQueuedVersion

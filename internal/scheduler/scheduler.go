@@ -13,6 +13,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/hash"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -328,6 +329,11 @@ func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job
 		}
 	}
 	podSchedulingRequirement.Affinity = newAffinity
+	newRequirementsHash, err := hash.CalculatePodRequirementsHash(podSchedulingRequirement)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	newSchedulingInfo.PodRequirementsHash = newRequirementsHash
 	return newSchedulingInfo, nil
 }
 
