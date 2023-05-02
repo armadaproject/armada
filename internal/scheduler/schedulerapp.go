@@ -68,10 +68,10 @@ func Run(config schedulerconfig.Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	log.Infof("Setting up Pulsar connectivity")
 	pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
-	defer pulsarClient.Close()
 	if err != nil {
 		return errors.WithMessage(err, "Error creating pulsar client")
 	}
+	defer pulsarClient.Close()
 	pulsarPublisher, err := NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
 		Name:             fmt.Sprintf("armada-scheduler-%s", uuid.NewString()),
 		CompressionType:  config.Pulsar.CompressionType,
@@ -156,7 +156,7 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating submit checker")
 	}
-	schedulingAlgo := NewLegacySchedulingAlgo(config.Scheduling, executorRepository, queueRepository)
+	schedulingAlgo := NewFairSchedulingAlgo(config.Scheduling, executorRepository, queueRepository)
 	scheduler, err := NewScheduler(
 		jobRepository,
 		executorRepository,
