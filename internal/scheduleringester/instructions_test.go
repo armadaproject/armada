@@ -10,9 +10,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/hash"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	f "github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -32,45 +34,17 @@ func TestConvertSequence(t *testing.T) {
 		"submit": {
 			events: []*armadaevents.EventSequence_Event{f.Submit},
 			expected: []DbOperation{InsertJobs{f.JobIdString: &schedulerdb.Job{
-				JobID:         f.JobIdString,
-				JobSet:        f.JobSetName,
-				UserID:        f.UserId,
-				Groups:        compress.MustCompressStringArray(f.Groups, compressor),
-				Queue:         f.Queue,
-				Queued:        true,
-				QueuedVersion: 0,
-				Priority:      int64(f.Priority),
-				Submitted:     f.BaseTime.UnixNano(),
-				SubmitMessage: protoutil.MustMarshallAndCompress(f.Submit.GetSubmitJob(), compressor),
-				SchedulingInfo: protoutil.MustMarshall(&schedulerobjects.JobSchedulingInfo{
-					Lifetime:        0,
-					AtMostOnce:      true,
-					Preemptible:     true,
-					ConcurrencySafe: true,
-					Version:         0,
-					ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-						{
-							Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-								PodRequirements: &schedulerobjects.PodRequirements{
-									NodeSelector:     f.NodeSelector,
-									Tolerations:      f.Tolerations,
-									PreemptionPolicy: "PreemptLowerPriority",
-									Priority:         f.PriorityClassValue,
-									ResourceRequirements: v1.ResourceRequirements{
-										Limits: map[v1.ResourceName]resource.Quantity{
-											"memory": resource.MustParse("64Mi"),
-											"cpu":    resource.MustParse("150m"),
-										},
-										Requests: map[v1.ResourceName]resource.Quantity{
-											"memory": resource.MustParse("64Mi"),
-											"cpu":    resource.MustParse("150m"),
-										},
-									},
-								},
-							},
-						},
-					},
-				}),
+				JobID:          f.JobIdString,
+				JobSet:         f.JobSetName,
+				UserID:         f.UserId,
+				Groups:         compress.MustCompressStringArray(f.Groups, compressor),
+				Queue:          f.Queue,
+				Queued:         true,
+				QueuedVersion:  0,
+				Priority:       int64(f.Priority),
+				Submitted:      f.BaseTime.UnixNano(),
+				SubmitMessage:  protoutil.MustMarshallAndCompress(f.Submit.GetSubmitJob(), compressor),
+				SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
 			}}},
 		},
 		"ignores duplicate submit": {
@@ -278,4 +252,48 @@ func assertErrorMessagesEqual(t *testing.T, expectedBytes []byte, actualBytes []
 	expectedError, err := protoutil.DecompressAndUnmarshall(expectedBytes, &armadaevents.Error{}, decompressor)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedError, actualError)
+}
+
+func mustCalculatePodRequirementsHash(t *testing.T, schedulingInfo *schedulerobjects.JobSchedulingInfo) []byte {
+	podRequirements := scheduler.PodRequirementFromJobSchedulingInfo(schedulingInfo)
+	require.NotNil(t, podRequirements)
+	podRequirementsHash, err := hash.CalculatePodRequirementsHash(podRequirements)
+	require.NoError(t, err)
+	return podRequirementsHash
+}
+
+func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobSchedulingInfo {
+	expectedSubmitSchedulingInfo := &schedulerobjects.JobSchedulingInfo{
+		Lifetime:        0,
+		AtMostOnce:      true,
+		Preemptible:     true,
+		ConcurrencySafe: true,
+		Version:         0,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						NodeSelector:     f.NodeSelector,
+						Tolerations:      f.Tolerations,
+						PreemptionPolicy: "PreemptLowerPriority",
+						Priority:         f.PriorityClassValue,
+						ResourceRequirements: v1.ResourceRequirements{
+							Limits: map[v1.ResourceName]resource.Quantity{
+								"memory": resource.MustParse("64Mi"),
+								"cpu":    resource.MustParse("150m"),
+							},
+							Requests: map[v1.ResourceName]resource.Quantity{
+								"memory": resource.MustParse("64Mi"),
+								"cpu":    resource.MustParse("150m"),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	expectedRequirementsHash := mustCalculatePodRequirementsHash(t, expectedSubmitSchedulingInfo)
+	expectedSubmitSchedulingInfo.PodRequirementsHash = expectedRequirementsHash
+	return expectedSubmitSchedulingInfo
 }
