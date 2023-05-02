@@ -150,7 +150,7 @@ func (job *Job) JobSchedulingInfo() *schedulerobjects.JobSchedulingInfo {
 }
 
 // GetRequirements  returns the scheduling requirements associated with the job.
-// this is needed for compatibility with LegacySchedulerJob
+// this is needed for compatibility with interfaces.LegacySchedulerJob
 func (job *Job) GetRequirements(_ map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
 	return job.JobSchedulingInfo()
 }
@@ -245,7 +245,7 @@ func (job *Job) Created() int64 {
 }
 
 // GetAnnotations returns the annotations on the job.
-// This is needed for compatibility with LegacySchedulerJob
+// This is needed for compatibility with interfaces.LegacySchedulerJob
 func (job *Job) GetAnnotations() map[string]string {
 	requirements := job.jobSchedulingInfo.GetObjectRequirements()
 	if len(requirements) == 0 {

@@ -322,10 +322,18 @@ func (repo *RedisJobRepository) GetExistingJobsByIds(ids []string) ([]*api.Job, 
 			result = multierror.Append(result, err)
 			continue
 		}
-		// Ensure job.GetAnnotations() returns a pointer to an initialised map.
-		// Necessary to use the annotations to set flags when scheduling the job.
+		// Ensure job.GetAnnotations and podSpec.NodeSelector are initialised.
+		// Necessary to mutate these in-place during scheduling.
 		if jobResult.Job.Annotations == nil {
 			jobResult.Job.Annotations = make(map[string]string)
+		}
+		if jobResult.Job.PodSpec != nil && jobResult.Job.PodSpec.NodeSelector == nil {
+			jobResult.Job.PodSpec.NodeSelector = make(map[string]string)
+		}
+		for _, podSpec := range jobResult.Job.PodSpecs {
+			if podSpec != nil && podSpec.NodeSelector == nil {
+				jobResult.Job.PodSpec.NodeSelector = make(map[string]string)
+			}
 		}
 		jobs = append(jobs, jobResult.Job)
 	}

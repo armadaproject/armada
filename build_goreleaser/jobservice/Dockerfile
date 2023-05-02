@@ -13,4 +13,4 @@ COPY config/jobservice/config.yaml /app/config/jobservice/config.yaml
 
 WORKDIR /app
 
-ENTRYPOINT ["./jobservice"]
+ENTRYPOINT ["./jobservice", "run"]
