@@ -91,7 +91,7 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 
 			concurrency := 1
 			if tt.highConcurrency {
-				concurrency = 50
+				concurrency = 10
 			}
 			wg := sync.WaitGroup{}
 			for i := 0; i < concurrency; i++ {

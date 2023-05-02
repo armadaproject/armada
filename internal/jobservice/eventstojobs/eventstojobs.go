@@ -17,6 +17,7 @@ import (
 )
 
 var subscribeMap *sync.Map
+var subscribeMux = sync.Mutex{}
 
 // Service that subscribes to events and stores JobStatus in the repository.
 type EventsToJobService struct {
@@ -32,9 +33,13 @@ func NewEventsToJobService(
 	eventClient events.JobEventReader,
 	jobServiceRepository repository.JobTableUpdater,
 ) *EventsToJobService {
+
+	subscribeMux.Lock() 
 	if subscribeMap == nil {
 		subscribeMap = &sync.Map{}
 	}
+	subscribeMux.Unlock()	
+
 	return &EventsToJobService{
 		queue:                queue,
 		jobSetId:             jobSetId,
