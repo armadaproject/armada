@@ -305,19 +305,19 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
 		},
 		"Job cancelled": {
-			initialJobs: []*jobdb.Job{queuedJob},
+			initialJobs: []*jobdb.Job{leasedJob},
 			jobUpdates: []database.Job{
 				{
-					JobID:           queuedJob.Id(),
+					JobID:           leasedJob.Id(),
 					JobSet:          "testJobSet",
 					Queue:           "testQueue",
 					CancelRequested: true,
 					Serial:          1,
 				},
 			},
-			expectedJobCancelled:  []string{queuedJob.Id()},
-			expectedTerminal:      []string{queuedJob.Id()},
-			expectedQueuedVersion: queuedJob.QueuedVersion(),
+			expectedJobCancelled:  []string{leasedJob.Id()},
+			expectedTerminal:      []string{leasedJob.Id()},
+			expectedQueuedVersion: leasedJob.QueuedVersion(),
 		},
 		"Job reprioritised": {
 			initialJobs: []*jobdb.Job{queuedJob},
@@ -500,6 +500,13 @@ func TestScheduler_TestCycle(t *testing.T) {
 				if job.InTerminalState() {
 					_, ok := remainingTerminal[job.Id()]
 					assert.True(t, ok)
+					allRunsTerminal := true
+					for _, run := range job.AllRuns() {
+						if !run.InTerminalState() {
+							allRunsTerminal = false
+						}
+					}
+					assert.True(t, allRunsTerminal)
 					delete(remainingTerminal, job.Id())
 				} else if job.Queued() {
 					_, ok := remainingQueued[job.Id()]
@@ -938,7 +945,7 @@ func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb
 	if err := jobDb.Upsert(txn, scheduledJobs); err != nil {
 		return nil, err
 	}
-	return NewSchedulerResult(preemptedJobs, scheduledJobs, nil, nil), nil
+	return NewSchedulerResult(preemptedJobs, scheduledJobs, nil), nil
 }
 
 type testPublisher struct {

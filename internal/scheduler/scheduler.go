@@ -495,6 +495,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 	origJob := job
 	// Has the job been requested cancelled. If so, cancel the job
 	if job.CancelRequested() {
+		for _, run := range job.AllRuns() {
+			job = job.WithUpdatedRun(run.WithCancelled(true))
+		}
 		job = job.WithCancelled(true).WithQueued(false)
 		cancel := &armadaevents.EventSequence_Event{
 			Created: s.now(),
@@ -504,6 +507,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 		}
 		events = append(events, cancel)
 	} else if job.CancelByJobsetRequested() {
+		for _, run := range job.AllRuns() {
+			job = job.WithUpdatedRun(run.WithCancelled(true))
+		}
 		job = job.WithCancelled(true).WithQueued(false)
 		cancelRequest := &armadaevents.EventSequence_Event{
 			Created: s.now(),
@@ -673,7 +679,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx context.Context, txn *jobdb.Txn) (
 		run := job.LatestRun()
 		if run != nil && !job.Queued() && staleExecutors[run.Executor()] {
 			log.Warnf("Cancelling job %s as it is running on lost executor %s", job.Id(), run.Executor())
-			jobsToUpdate = append(jobsToUpdate, job.WithQueued(false).WithFailed(true))
+			jobsToUpdate = append(jobsToUpdate, job.WithQueued(false).WithFailed(true).WithUpdatedRun(run.WithFailed(true)))
 
 			jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
 			if err != nil {

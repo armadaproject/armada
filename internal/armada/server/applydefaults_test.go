@@ -20,7 +20,6 @@ func TestApplyDefaultsToPodSpec(t *testing.T) {
 		"DefaultPriorityClassName": {
 			Config: configuration.SchedulingConfig{
 				Preemption: configuration.PreemptionConfig{
-					Enabled:              true,
 					DefaultPriorityClass: "pc",
 				},
 			},
@@ -168,7 +167,6 @@ func TestApplyDefaultsToPodSpec(t *testing.T) {
 		"DefaultPriorityClassName + DefaultJobTolerationsByPriorityClass": {
 			Config: configuration.SchedulingConfig{
 				Preemption: configuration.PreemptionConfig{
-					Enabled:              true,
 					DefaultPriorityClass: "pc",
 				},
 				DefaultJobTolerationsByPriorityClass: map[string][]v1.Toleration{

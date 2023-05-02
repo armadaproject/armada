@@ -11,4 +11,4 @@ COPY ./config/ /app/config/jobservice
 
 WORKDIR /app
 
-ENTRYPOINT ["./jobservice"]
+ENTRYPOINT ["./jobservice", "run"]
