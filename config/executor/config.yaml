@@ -18,7 +18,7 @@ task:
   queueUsageDataRefreshInterval: 5s
   utilisationEventProcessingInterval: 1s
   utilisationEventReportingInterval: 5m
-  stateProcessorInterval: 5s
+  stateProcessorInterval: 1s
 # The executor api section should only be needed until we migrate to it fully - then we go back to just using apiConnection
 executorApiConnection:
   armadaUrl: "server:50052"

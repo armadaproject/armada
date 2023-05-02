@@ -14,6 +14,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/hash"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -61,6 +62,21 @@ var (
 	}
 	updatedSchedulingInfoBytes = protoutil.MustMarshall(updatedSchedulingInfo)
 )
+
+func init() {
+	podRequirementsHash, err := hash.CalculatePodRequirementsHash(schedulingInfo.GetObjectRequirements()[0].GetPodRequirements())
+	if err != nil {
+		panic(err)
+	}
+	schedulingInfo.PodRequirementsHash = podRequirementsHash
+	schedulingInfoBytes = protoutil.MustMarshall(schedulingInfo)
+	updatedPodRequirementsHash, err := hash.CalculatePodRequirementsHash(updatedSchedulingInfo.GetObjectRequirements()[0].GetPodRequirements())
+	if err != nil {
+		panic(err)
+	}
+	updatedSchedulingInfo.PodRequirementsHash = updatedPodRequirementsHash
+	updatedSchedulingInfoBytes = protoutil.MustMarshall(updatedSchedulingInfo)
+}
 
 var queuedJob = jobdb.NewJob(
 	util.NewULID(),
@@ -289,19 +305,19 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
 		},
 		"Job cancelled": {
-			initialJobs: []*jobdb.Job{queuedJob},
+			initialJobs: []*jobdb.Job{leasedJob},
 			jobUpdates: []database.Job{
 				{
-					JobID:           queuedJob.Id(),
+					JobID:           leasedJob.Id(),
 					JobSet:          "testJobSet",
 					Queue:           "testQueue",
 					CancelRequested: true,
 					Serial:          1,
 				},
 			},
-			expectedJobCancelled:  []string{queuedJob.Id()},
-			expectedTerminal:      []string{queuedJob.Id()},
-			expectedQueuedVersion: queuedJob.QueuedVersion(),
+			expectedJobCancelled:  []string{leasedJob.Id()},
+			expectedTerminal:      []string{leasedJob.Id()},
+			expectedQueuedVersion: leasedJob.QueuedVersion(),
 		},
 		"Job reprioritised": {
 			initialJobs: []*jobdb.Job{queuedJob},
@@ -484,6 +500,13 @@ func TestScheduler_TestCycle(t *testing.T) {
 				if job.InTerminalState() {
 					_, ok := remainingTerminal[job.Id()]
 					assert.True(t, ok)
+					allRunsTerminal := true
+					for _, run := range job.AllRuns() {
+						if !run.InTerminalState() {
+							allRunsTerminal = false
+						}
+					}
+					assert.True(t, allRunsTerminal)
 					delete(remainingTerminal, job.Id())
 				} else if job.Queued() {
 					_, ok := remainingQueued[job.Id()]
@@ -504,6 +527,12 @@ func TestScheduler_TestCycle(t *testing.T) {
 					expectedAffinity := createAntiAffinity(t, nodeIdLabel, tc.expectedNodeAntiAffinities)
 					assert.Equal(t, expectedAffinity, affinity)
 				}
+				podRequirements := PodRequirementFromJobSchedulingInfo(job.JobSchedulingInfo())
+				assert.NotNil(t, podRequirements)
+				expectedPodRequirementsHash, err := hash.CalculatePodRequirementsHash(podRequirements)
+				assert.NoError(t, err)
+				assert.Equal(t, expectedPodRequirementsHash, job.JobSchedulingInfo().PodRequirementsHash)
+
 				expectedQueuedVersion := int32(1)
 				if tc.expectedQueuedVersion != 0 {
 					expectedQueuedVersion = tc.expectedQueuedVersion
@@ -916,7 +945,7 @@ func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb
 	if err := jobDb.Upsert(txn, scheduledJobs); err != nil {
 		return nil, err
 	}
-	return NewSchedulerResult(preemptedJobs, scheduledJobs, nil, nil), nil
+	return NewSchedulerResult(preemptedJobs, scheduledJobs, nil), nil
 }
 
 type testPublisher struct {

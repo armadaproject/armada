@@ -10,9 +10,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -24,7 +24,7 @@ type PoolAssigner interface {
 }
 
 type executor struct {
-	nodeDb         *NodeDb
+	nodeDb         *nodedb.NodeDb
 	minimumJobSize schedulerobjects.ResourceList
 }
 
@@ -98,36 +98,31 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	if !j.Queued() && j.HasRuns() {
 		return p.poolByExecutorId[j.LatestRun().Executor()], nil
 	}
-
-	req := PodRequirementFromJobSchedulingInfo(j.JobSchedulingInfo())
-	req = p.clearAnnotations(req)
-
 	// See if we have this set of reqs cached
-	reqsHash, err := protoutil.Hash(req)
-	if err != nil {
-		return "", err
-	}
-	cachedPool, ok := p.poolCache.Get(string(reqsHash))
+	cachedPool, ok := p.poolCache.Get(string(j.JobSchedulingInfo().PodRequirementsHash))
 	if ok {
 		return cachedPool.(string), nil
 	}
 
+	req := PodRequirementFromJobSchedulingInfo(j.JobSchedulingInfo())
+	req = p.clearAnnotations(req)
+
 	// Otherwise iterate through each pool and detect the first one the job is potentially schedulable on
 	for pool, executors := range p.executorsByPool {
 		for _, e := range executors {
-			minReqsMet, _ := jobIsLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(
+			minReqsMet, _ := requestIsLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(
 				req.GetResourceRequirements().Requests,
 			), e.minimumJobSize)
 			if minReqsMet {
 				nodeDb := e.nodeDb
-				txn := nodeDb.db.Txn(true)
+				txn := nodeDb.Txn(true)
 				report, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
 				txn.Abort()
 				if err != nil {
 					return "", errors.WithMessagef(err, "error selecting node for job %s", j.Id())
 				}
 				if report.Node != nil {
-					p.poolCache.Add(string(reqsHash), pool)
+					p.poolCache.Add(string(j.JobSchedulingInfo().GetPodRequirementsHash()), pool)
 					return pool, nil
 				}
 			}
@@ -136,9 +131,9 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	return "", nil
 }
 
-func (p *DefaultPoolAssigner) constructNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
+func (p *DefaultPoolAssigner) constructNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
 	// Nodes to be considered by the scheduler.
-	nodeDb, err := NewNodeDb(
+	nodeDb, err := nodedb.NewNodeDb(
 		p.priorityClasses,
 		0,
 		p.indexedResources,

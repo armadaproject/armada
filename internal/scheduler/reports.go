@@ -17,6 +17,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -25,7 +26,7 @@ import (
 // Hence, reads concurrent with writes are safe and don't need locking.
 // A mutex protects against concurrent writes.
 type SchedulingContextRepository struct {
-	// Maps executor id to *SchedulingContext.
+	// Maps executor id to *schedulercontext.SchedulingContext.
 	// The most recent attempt.
 	mostRecentSchedulingContextByExecutorP atomic.Pointer[SchedulingContextByExecutor]
 	// The most recent attempt where a non-zero amount of resources were scheduled.
@@ -48,9 +49,9 @@ type SchedulingContextRepository struct {
 }
 
 type (
-	SchedulingContextByExecutor      map[string]*SchedulingContext
-	QueueSchedulingContextByExecutor map[string]*QueueSchedulingContext
-	JobSchedulingContextByExecutor   map[string]*JobSchedulingContext
+	SchedulingContextByExecutor      map[string]*schedulercontext.SchedulingContext
+	QueueSchedulingContextByExecutor map[string]*schedulercontext.QueueSchedulingContext
+	JobSchedulingContextByExecutor   map[string]*schedulercontext.JobSchedulingContext
 )
 
 func NewSchedulingContextRepository(maxJobSchedulingContextsPerExecutor uint) (*SchedulingContextRepository, error) {
@@ -83,7 +84,7 @@ func NewSchedulingContextRepository(maxJobSchedulingContextsPerExecutor uint) (*
 //
 // Job contexts are stored first, then queue contexts, and finally the scheduling context itself.
 // This avoids having a stored scheduling (queue) context referring to a queue (job) context that isn't stored yet.
-func (repo *SchedulingContextRepository) AddSchedulingContext(sctx *SchedulingContext) error {
+func (repo *SchedulingContextRepository) AddSchedulingContext(sctx *schedulercontext.SchedulingContext) error {
 	queueSchedulingContextByQueue, jobSchedulingContextByJobId := extractQueueAndJobContexts(sctx)
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
@@ -117,7 +118,7 @@ func (repo *SchedulingContextRepository) addExecutorId(executorId string) error 
 }
 
 // Should only be called from AddSchedulingContext to avoid dirty writes.
-func (repo *SchedulingContextRepository) addSchedulingContext(sctx *SchedulingContext) error {
+func (repo *SchedulingContextRepository) addSchedulingContext(sctx *schedulercontext.SchedulingContext) error {
 	mostRecentSchedulingContextByExecutor := *repo.mostRecentSchedulingContextByExecutorP.Load()
 	mostRecentSchedulingContextByExecutor = maps.Clone(mostRecentSchedulingContextByExecutor)
 	mostRecentSuccessfulSchedulingContextByExecutor := *repo.mostRecentSuccessfulSchedulingContextByExecutorP.Load()
@@ -132,7 +133,7 @@ func (repo *SchedulingContextRepository) addSchedulingContext(sctx *SchedulingCo
 }
 
 // Should only be called from AddSchedulingContext to avoid dirty writes.
-func (repo *SchedulingContextRepository) addQueueSchedulingContexts(qctxs []*QueueSchedulingContext) error {
+func (repo *SchedulingContextRepository) addQueueSchedulingContexts(qctxs []*schedulercontext.QueueSchedulingContext) error {
 	mostRecentQueueSchedulingContextByExecutorByQueue := *repo.mostRecentQueueSchedulingContextByExecutorByQueueP.Load()
 	mostRecentQueueSchedulingContextByExecutorByQueue = maps.Clone(mostRecentQueueSchedulingContextByExecutorByQueue)
 	mostRecentSuccessfulQueueSchedulingContextByExecutorByQueue := *repo.mostRecentSuccessfulQueueSchedulingContextByExecutorByQueueP.Load()
@@ -179,7 +180,7 @@ func (repo *SchedulingContextRepository) addQueueSchedulingContexts(qctxs []*Que
 }
 
 // Should only be called from AddSchedulingContext to avoid dirty writes.
-func (repo *SchedulingContextRepository) addJobSchedulingContext(jctx *JobSchedulingContext) error {
+func (repo *SchedulingContextRepository) addJobSchedulingContext(jctx *schedulercontext.JobSchedulingContext) error {
 	if jctx.ExecutorId == "" {
 		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "ExecutorId",
@@ -208,9 +209,9 @@ func (repo *SchedulingContextRepository) addJobSchedulingContext(jctx *JobSchedu
 
 // extractQueueAndJobContexts extracts the job and queue scheduling contexts from the scheduling context,
 // and returns those separately.
-func extractQueueAndJobContexts(sctx *SchedulingContext) (map[string]*QueueSchedulingContext, map[string]*JobSchedulingContext) {
-	queueSchedulingContextByQueue := make(map[string]*QueueSchedulingContext)
-	jobSchedulingContextByJobId := make(map[string]*JobSchedulingContext)
+func extractQueueAndJobContexts(sctx *schedulercontext.SchedulingContext) (map[string]*schedulercontext.QueueSchedulingContext, map[string]*schedulercontext.JobSchedulingContext) {
+	queueSchedulingContextByQueue := make(map[string]*schedulercontext.QueueSchedulingContext)
+	jobSchedulingContextByJobId := make(map[string]*schedulercontext.JobSchedulingContext)
 	for queue, qctx := range sctx.QueueSchedulingContexts {
 		for jobId, jctx := range qctx.SuccessfulJobSchedulingContexts {
 			jobSchedulingContextByJobId[jobId] = jctx
