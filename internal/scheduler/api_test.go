@@ -200,6 +200,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				[]int32{1000, 2000},
 				maxJobsPerCall,
 				"kubernetes.io/hostname",
+				nil,
 			)
 			require.NoError(t, err)
 			server.clock = testClock
@@ -326,6 +327,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 				[]int32{1000, 2000},
 				100,
 				"kubernetes.io/hostname",
+				nil,
 			)
 
 			require.NoError(t, err)
