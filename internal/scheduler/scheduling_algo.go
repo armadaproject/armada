@@ -81,7 +81,7 @@ func NewFairSchedulingAlgo(
 func (l *FairSchedulingAlgo) Schedule(
 	ctx context.Context,
 	txn *jobdb.Txn,
-	jobDb *jobdb.JobDb, // TODO: Why is JobDb an argument? Doesn't make sense.
+	jobDb *jobdb.JobDb,
 ) (*SchedulerResult, error) {
 	log := ctxlogrus.Extract(ctx)
 	accounting, err := l.newFairSchedulingAlgoContext(ctx, txn, jobDb)
@@ -113,7 +113,8 @@ func (l *FairSchedulingAlgo) Schedule(
 		preemptedJobs := PreemptedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
 		scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
 		if err := jobDb.Upsert(txn, preemptedJobs); err != nil {
-			return nil, err // TODO: Will this correctly mark jobs as prempted?
+			// TODO: We need to do something here to mark the jobs as preempted in the jobDb.
+			return nil, err
 		}
 		if err := jobDb.Upsert(txn, scheduledJobs); err != nil {
 			return nil, err
@@ -240,7 +241,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 	accounting *fairSchedulingAlgoContext,
 	txn *jobdb.Txn,
 	executor *schedulerobjects.Executor,
-	db *jobdb.JobDb, // TODO: Move to l.
+	db *jobdb.JobDb,
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
