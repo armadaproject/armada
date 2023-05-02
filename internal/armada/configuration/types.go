@@ -102,6 +102,8 @@ type SchedulingConfig struct {
 	MaximalResourceFractionPerQueue map[string]float64
 	// Max number of jobs to scheduler per lease jobs call.
 	MaximumJobsToSchedule uint
+	// Max number of gangs to scheduler per lease jobs call.
+	MaximumGangsToSchedule uint
 	// Armada stores contexts associated with recent job scheduling attempts.
 	// This setting limits the number of such contexts to store.
 	// Contexts associated with the most recent scheduling attempt for each queue and cluster are always stored.
@@ -196,14 +198,6 @@ type NewSchedulerConfig struct {
 
 // TODO: Remove. Move PriorityClasses and DefaultPriorityClass into SchedulingConfig.
 type PreemptionConfig struct {
-	// TODO: We should remove the enabled flag. Disabling it makes no sense now.
-	// If true, Armada will:
-	// 1. Validate that submitted pods specify no or a valid priority class.
-	// 2. Assign a default priority class to submitted pods that do not specify a priority class.
-	// 3. Assign jobs to executors that may preempt currently running jobs.
-	Enabled bool
-	// Whether to preempt jobs with a balanced priority class to divide resources more fairly.
-	PreemptToFairShare bool
 	// If using PreemptToFairShare,
 	// the probability of evicting jobs on a node to balance resource usage.
 	NodeEvictionProbability float64
@@ -233,20 +227,14 @@ type PreemptionConfig struct {
 
 type PriorityClass struct {
 	Priority int32
-	// If true, Armada will may preempt jobs of this class to improve fairness.
+	// If true, Armada may preempt jobs of this class to improve fairness.
 	Preemptible bool
-	// Max fraction of resources assigned to jobs of this priority or lower.
-	// Must be non-increasing with higher priority.
+	// Limits resources assigned to jobs of priority equal to or lower than that of this priority class.
+	// Specifically, jobs of this priority class are only scheduled if doing so does not exceed this limit.
 	//
-	// For example, the following examples are valid configurations.
-	// A:
-	// - 2: 10%
-	// - 1: 100%
-	//
-	// B:
-	// - 9: 10%
-	// - 5: 50%
-	// - 3: 80%
+	// For example, if priority is 10 and MaximalResourceFractionPerQueue is map[string]float64{"cpu": 0.3},
+	// jobs of this priority class are not scheduled if doing so would cause the total resources assigned
+	// to jobs of priority 10 or lower from the same queue to exceed 30% of the total.
 	MaximalResourceFractionPerQueue map[string]float64
 }
 

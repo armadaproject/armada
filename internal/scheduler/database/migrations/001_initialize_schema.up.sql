@@ -30,7 +30,7 @@ CREATE TABLE jobs (
     submit_message bytea NOT NULL,
     -- JobSchedulingInfo message stored as a proto buffer.
     scheduling_info bytea NOT NULL,
-    -- The current version of the JobSchedulingInfo, used to prevent JobSchedulingInfo state going backwards on even replay
+    -- The current version of the JobSchedulingInfo, used to prevent JobSchedulingInfo state going backwards even on replay
     scheduling_info_version integer NOT NULL default 0,
     serial bigserial NOT NULL,
     last_modified timestamptz NOT NULL

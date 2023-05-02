@@ -12,6 +12,7 @@ import (
 	v1 "k8s.io/api/coordination/v1"
 	"k8s.io/utils/pointer"
 
+	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 )
 
@@ -151,8 +152,8 @@ func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 	}
 }
 
-func testLeaderConfig() LeaderConfig {
-	return LeaderConfig{
+func testLeaderConfig() schedulerconfig.LeaderConfig {
+	return schedulerconfig.LeaderConfig{
 		LeaseLockName:      lockName,
 		LeaseLockNamespace: lockNamespace,
 		LeaseDuration:      100 * time.Millisecond,

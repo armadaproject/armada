@@ -7,8 +7,9 @@ import GroupBySelect from "components/lookoutV2/GroupBySelect"
 import { JobFilter } from "models/lookoutV2Models"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
-import { ColumnId, createAnnotationColumn, JobTableColumn } from "utils/jobsTableColumns"
+import { ColumnId, JobTableColumn } from "utils/jobsTableColumns"
 
+import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { CancelDialog } from "./CancelDialog"
 import styles from "./JobsTableActionBar.module.css"
 import { ReprioritiseDialog } from "./ReprioritiseDialog"
@@ -20,7 +21,9 @@ export interface JobsTableActionBarProps {
   visibleColumns: ColumnId[]
   selectedItemFilters: JobFilter[][]
   onRefresh: () => void
-  onColumnsChanged: (newColumns: JobTableColumn[]) => void
+  onAddAnnotationColumn: (annotationKey: string) => void
+  onRemoveAnnotationColumn: (colId: ColumnId) => void
+  onEditAnnotationColumn: (colId: ColumnId, annotationKey: string) => void
   toggleColumnVisibility: (columnId: ColumnId) => void
   onGroupsChanged: (newGroups: ColumnId[]) => void
   getJobsService: IGetJobsService
@@ -35,7 +38,9 @@ export const JobsTableActionBar = memo(
     visibleColumns,
     selectedItemFilters,
     onRefresh,
-    onColumnsChanged,
+    onAddAnnotationColumn,
+    onRemoveAnnotationColumn,
+    onEditAnnotationColumn,
     toggleColumnVisibility,
     onGroupsChanged,
     getJobsService,
@@ -43,26 +48,9 @@ export const JobsTableActionBar = memo(
   }: JobsTableActionBarProps) => {
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
     const [reprioritiseDialogOpen, setReprioritiseDialogOpen] = useState(false)
+    const openSnackbar = useCustomSnackbar()
 
     const selectableColumns = useMemo(() => allColumns.filter((col) => col.enableHiding !== false), [allColumns])
-
-    function addAnnotationColumn(name: string, existingColumns = allColumns) {
-      const annotationCol = createAnnotationColumn(name)
-      const newColumns = existingColumns.concat([annotationCol])
-      onColumnsChanged(newColumns)
-      toggleColumnVisibility(annotationCol.id as ColumnId)
-    }
-
-    function removeAnnotationColumn(key: ColumnId) {
-      const filtered = allColumns.filter((col) => col.id !== key)
-      onColumnsChanged(filtered)
-      return filtered
-    }
-
-    function renameAnnotationColumn(key: ColumnId, newName: string) {
-      const remainingCols = removeAnnotationColumn(key)
-      addAnnotationColumn(newName, remainingCols)
-    }
 
     const numSelectedItems = selectedItemFilters.length
 
@@ -96,10 +84,34 @@ export const JobsTableActionBar = memo(
             selectableColumns={selectableColumns}
             groupedColumns={groupedColumns}
             visibleColumns={visibleColumns}
-            onAddAnnotation={addAnnotationColumn}
+            onAddAnnotation={(annotationKey) => {
+              try {
+                onAddAnnotationColumn(annotationKey)
+              } catch (e) {
+                const err = e as Error
+                console.error(err.message)
+                openSnackbar(`Failed to create annotation column: ${err.message}`, "error")
+              }
+            }}
+            onRemoveAnnotation={(columnId) => {
+              try {
+                onRemoveAnnotationColumn(columnId)
+              } catch (e) {
+                const err = e as Error
+                console.error(err.message)
+                openSnackbar(`Failed to remove annotation column: ${err.message}`, "error")
+              }
+            }}
+            onEditAnnotation={(columnId, annotationKey) => {
+              try {
+                onEditAnnotationColumn(columnId, annotationKey)
+              } catch (e) {
+                const err = e as Error
+                console.error(err.message)
+                openSnackbar(`Failed to edit annotation column: ${err.message}`, "error")
+              }
+            }}
             onToggleColumn={toggleColumnVisibility}
-            onEditAnnotation={renameAnnotationColumn}
-            onRemoveAnnotation={removeAnnotationColumn}
           />
           <Divider orientation="vertical" />
           <Button variant="contained" disabled={numSelectedItems === 0} onClick={() => setCancelDialogOpen(true)}>

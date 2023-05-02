@@ -312,7 +312,7 @@ func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job
 	newSchedulingInfo.Version = job.JobSchedulingInfo().Version + 1
 	podSchedulingRequirement := PodRequirementFromJobSchedulingInfo(newSchedulingInfo)
 	if podSchedulingRequirement == nil {
-		return nil, fmt.Errorf("no pod scheduling requirement found for job %s", job.GetId())
+		return nil, errors.Errorf("no pod scheduling requirement found for job %s", job.GetId())
 	}
 	newAffinity := podSchedulingRequirement.Affinity
 	if newAffinity == nil {
@@ -338,7 +338,7 @@ func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job *jobd
 	}
 	podSchedulingRequirement := PodRequirementFromJobSchedulingInfo(schedulingInfoWithNodeAntiAffinity)
 	if podSchedulingRequirement == nil {
-		return nil, false, fmt.Errorf("no pod scheduling requirement found for job %s", job.GetId())
+		return nil, false, errors.Errorf("no pod scheduling requirement found for job %s", job.GetId())
 	}
 	isSchedulable, _ := s.submitChecker.CheckPodRequirements(podSchedulingRequirement)
 	return job.WithJobSchedulingInfo(schedulingInfoWithNodeAntiAffinity), isSchedulable, nil
@@ -544,7 +544,6 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 			}
 
 			if requeueJob {
-				job = job.WithUpdatedRun(lastRun.WithFailed(false))
 				job = job.WithQueued(true)
 				job = job.WithQueuedVersion(job.QueuedVersion() + 1)
 

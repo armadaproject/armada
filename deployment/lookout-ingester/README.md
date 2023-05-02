@@ -1,6 +1,6 @@
 # armada-lookout-ingester
 
-![Version: LATEST](https://img.shields.io/badge/Version-LATEST-informational?style=flat-square) ![AppVersion: LATEST](https://img.shields.io/badge/AppVersion-LATEST-informational?style=flat-square)
+![Version: 0.0.0-latest](https://img.shields.io/badge/Version-0.0.0--latest-informational?style=flat-square) ![AppVersion: 0.0.0-latest](https://img.shields.io/badge/AppVersion-0.0.0--latest-informational?style=flat-square)
 
 A helm chart for Armada Lookout Ingester component
 
@@ -12,7 +12,7 @@ A helm chart for Armada Lookout Ingester component
 | applicationConfig.pulsar.authenticationEnabled | bool | `false` |  |
 | customServiceAccount | string | `nil` |  |
 | image.repository | string | `"gresearchdev/armada-lookout-ingester"` |  |
-| image.tag | string | `"LATEST"` |  |
+| image.tag | string | `"0.0.0-latest"` |  |
 | replicas | int | `1` |  |
 | resources.limits.cpu | string | `"300m"` |  |
 | resources.limits.memory | string | `"1Gi"` |  |
