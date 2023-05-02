@@ -1,0 +1,24 @@
+queue: test
+jobSetId: job-set-1
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: sleep
+          imagePullPolicy: IfNotPresent
+          image: alpine:latest
+          command:
+            - sh
+            - -c
+          args:
+            - sleep $(( (RANDOM % 30) + 30 ))
+          resources:
+            limits:
+              memory: 64Mi
+              cpu: 150m
+            requests:
+              memory: 64Mi
+              cpu: 150m

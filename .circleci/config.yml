@@ -83,7 +83,7 @@ commands:
         command: |
           RELEASE_TAG=${CIRCLE_TAG}
           echo release version is $RELEASE_TAG
-          find . \( -name "Chart.yaml" -o -name "values.yaml" \) -exec sed -i s/LATEST/$RELEASE_TAG/ {} +
+          find . \( -name "Chart.yaml" -o -name "values.yaml" \) -exec sed -i s/0.0.0-latest/$RELEASE_TAG/ {} +
 
     - run:
         name: Build new packages and index.yaml

@@ -1,4 +1,4 @@
-package scheduler
+package configuration
 
 import (
 	"time"
@@ -10,9 +10,6 @@ import (
 )
 
 const (
-	// TargetNodeIdAnnotation if set on a pod, the value of this annotation is interpreted as the id of a node
-	// and only the node with that id will be considered for scheduling the pod.
-	TargetNodeIdAnnotation = "armadaproject.io/targetNodeId"
 	// IsEvictedAnnotation, indicates a pod was evicted in this round and is currently running.
 	// Used by the scheduler to differentiate between pods from running and queued jobs.
 	IsEvictedAnnotation = "armadaproject.io/isEvicted"
@@ -20,10 +17,11 @@ const (
 	JobIdAnnotation = "armadaproject.io/jobId"
 	// QueueAnnotation if set on a pod, indicates which queue this pod is part of.
 	QueueAnnotation = "armadaproject.io/queue"
+	// IdNodeLabel is automatically added to nodes in the NodeDb.
+	NodeIdLabel = "armadaproject.io/nodeId"
 )
 
 var ArmadaSchedulerManagedAnnotations = []string{
-	TargetNodeIdAnnotation,
 	IsEvictedAnnotation,
 	JobIdAnnotation,
 	QueueAnnotation,
