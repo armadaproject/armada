@@ -15,8 +15,10 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-var subscribeMap *sync.Map
-var subscribeMux = sync.Mutex{}
+var (
+	subscribeMap *sync.Map
+	subscribeMux = sync.Mutex{}
+)
 
 // Service that subscribes to events and stores JobStatus in the repository.
 type EventsToJobService struct {
@@ -32,12 +34,11 @@ func NewEventsToJobService(
 	eventClient events.JobEventReader,
 	jobServiceRepository repository.JobTableUpdater,
 ) *EventsToJobService {
-
-	subscribeMux.Lock() 
+	subscribeMux.Lock()
 	if subscribeMap == nil {
 		subscribeMap = &sync.Map{}
 	}
-	subscribeMux.Unlock()	
+	subscribeMux.Unlock()
 
 	return &EventsToJobService{
 		queue:                queue,

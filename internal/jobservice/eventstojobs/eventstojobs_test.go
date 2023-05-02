@@ -61,7 +61,7 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 		},
 		{
 			name:    "it behaves well with high latency and concurrency",
-			ttlSecs: int64(1),
+			ttlSecs: int64(2),
 			jobEventMessageFn: func(context.Context, *api.JobSetRequest) (*api.EventStreamMessage, error) {
 				time.Sleep(10 * time.Millisecond)
 				return &api.EventStreamMessage{Message: &api.EventMessage{}}, nil
@@ -91,7 +91,7 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 
 			concurrency := 1
 			if tt.highConcurrency {
-				concurrency = 10
+				concurrency = 20
 			}
 			wg := sync.WaitGroup{}
 			for i := 0; i < concurrency; i++ {
