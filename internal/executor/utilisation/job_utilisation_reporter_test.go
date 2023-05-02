@@ -31,7 +31,7 @@ var testPodResources = domain.UtilisationData{
 
 func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 	reportingPeriod := 100 * time.Millisecond
-	clusterContext := fakeContext.NewFakeClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}, nil)
+	clusterContext := fakeContext.NewFakeClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}, "kubernetes.io/hostname", nil)
 	fakeEventReporter := &mocks.FakeEventReporter{}
 	fakeUtilisationService := &fakePodUtilisationService{data: &testPodResources}
 
@@ -64,7 +64,7 @@ func TestUtilisationEventReporter_ReportUtilisationEvents(t *testing.T) {
 
 func TestUtilisationEventReporter_ReportUtilisationEvents_WhenNoUtilisationData(t *testing.T) {
 	reportingPeriod := 100 * time.Millisecond
-	clusterContext := fakeContext.NewFakeClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}, nil)
+	clusterContext := fakeContext.NewFakeClusterContext(configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}, "kubernetes.io/hostname", nil)
 	fakeEventReporter := &mocks.FakeEventReporter{}
 	fakeUtilisationService := &fakePodUtilisationService{data: domain.EmptyUtilisationData()}
 
