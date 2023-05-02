@@ -123,8 +123,8 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 					jobStatus := repository.NewJobStatus(eventToJobService.queue, eventToJobService.jobSetId, currentJobId, *jobStatus)
 					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(ctx, jobStatus)
 					if err != nil {
-						log.WithError(err).Error("could not update job status, retry on next subscription")
-						time.Sleep(10 * time.Second)
+						log.WithError(err).Error("could not update job status, retrying")
+						time.Sleep(5 * time.Second)
 						continue
 					}
 				} else {
