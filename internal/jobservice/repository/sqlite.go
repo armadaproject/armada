@@ -107,7 +107,7 @@ func (s *JSRepoSQLite) Setup(ctx context.Context) {
 	}
 	if s.jobServiceConfig.PurgeJobSetTime > 0 {
 		_, err = s.db.Exec(fmt.Sprintf(`
-                     CREATE TRIGGER trigger_delete_expired_jobsets AFTER INSERT ON jobsets 
+		     CREATE TRIGGER trigger_delete_expired_jobsets AFTER INSERT ON jobsets
 		     BEGIN
 			   DELETE FROM jobsets WHERE Timestamp < (UNIXEPOCH() - %d);
 			   DELETE FROM jobservice WHERE Timestamp < (UNIXEPOCH() - %d);
