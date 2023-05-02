@@ -10,6 +10,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/hash"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
@@ -365,6 +366,11 @@ func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaeven
 			schedulingInfo.ObjectRequirements,
 			&schedulerobjects.ObjectRequirements{Requirements: requirements},
 		)
+		podRequirementsHash, err := hash.CalculatePodRequirementsHash(requirements.PodRequirements)
+		if err != nil {
+			return nil, err
+		}
+		schedulingInfo.PodRequirementsHash = podRequirementsHash
 	default:
 		return nil, errors.Errorf("unsupported object type %T", object)
 	}

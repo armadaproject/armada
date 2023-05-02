@@ -22,7 +22,7 @@ const (
 var testAppConfig = configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
 
 func TestIsRecoverable_ArbitraryErrorIsNotRecoverable(t *testing.T) {
-	clusterContext := context.NewFakeClusterContext(testAppConfig, []*context.NodeSpec{})
+	clusterContext := context.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", []*context.NodeSpec{})
 	submitter := NewSubmitter(clusterContext, &configuration.PodDefaults{}, 1, []string{
 		AdmissionWebhookRegex,
 		HelloRegex,
@@ -34,7 +34,7 @@ func TestIsRecoverable_ArbitraryErrorIsNotRecoverable(t *testing.T) {
 }
 
 func TestIsRecoverable_KubernetesStatusInvalidIsUnrecoverable(t *testing.T) {
-	clusterContext := context.NewFakeClusterContext(testAppConfig, []*context.NodeSpec{})
+	clusterContext := context.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", []*context.NodeSpec{})
 	submitter := NewSubmitter(clusterContext, &configuration.PodDefaults{}, 1, []string{})
 
 	recoverable := submitter.isRecoverable(newK8sApiError("", metav1.StatusReasonInvalid))
@@ -42,7 +42,7 @@ func TestIsRecoverable_KubernetesStatusInvalidIsUnrecoverable(t *testing.T) {
 }
 
 func TestIsRecoverable_KubernetesStatusForbiddenIsUnrecoverable(t *testing.T) {
-	clusterContext := context.NewFakeClusterContext(testAppConfig, []*context.NodeSpec{})
+	clusterContext := context.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", []*context.NodeSpec{})
 	submitter := NewSubmitter(clusterContext, &configuration.PodDefaults{}, 1, []string{})
 
 	recoverable := submitter.isRecoverable(newK8sApiError("", metav1.StatusReasonForbidden))
@@ -50,7 +50,7 @@ func TestIsRecoverable_KubernetesStatusForbiddenIsUnrecoverable(t *testing.T) {
 }
 
 func TestIsRecoverable_K8sApiMatchingRegexIsUnrecoverable(t *testing.T) {
-	clusterContext := context.NewFakeClusterContext(testAppConfig, []*context.NodeSpec{})
+	clusterContext := context.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", []*context.NodeSpec{})
 	submitter := NewSubmitter(clusterContext, &configuration.PodDefaults{}, 1, []string{
 		AdmissionWebhookRegex,
 		HelloRegex,
@@ -71,7 +71,7 @@ func TestIsRecoverable_K8sApiMatchingRegexIsUnrecoverable(t *testing.T) {
 }
 
 func TestIsRecoverable_ArmadaErrCreateResourceIsRecoverable(t *testing.T) {
-	clusterContext := context.NewFakeClusterContext(testAppConfig, []*context.NodeSpec{})
+	clusterContext := context.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", []*context.NodeSpec{})
 	submitter := NewSubmitter(clusterContext, &configuration.PodDefaults{}, 1, []string{})
 
 	recoverable := submitter.isRecoverable(newArmadaErrCreateResource())
