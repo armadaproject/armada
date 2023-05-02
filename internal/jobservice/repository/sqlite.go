@@ -99,6 +99,24 @@ func (s *JSRepoSQLite) Setup(ctx context.Context) {
 	if err != nil {
 		panic(err)
 	}
+
+	// cleanup trigger
+	_, err = s.db.Exec("DROP TRIGGER IF EXISTS trigger_delete_expired_jobsets")
+	if err != nil {
+		panic(err)
+	}
+	if s.jobServiceConfig.PurgeJobSetTime > 0 {
+		_, err = s.db.Exec(fmt.Sprintf(`
+                     CREATE TRIGGER trigger_delete_expired_jobsets AFTER INSERT ON jobsets 
+		     BEGIN
+			   DELETE FROM jobsets WHERE Timestamp < (UNIXEPOCH() - %d);
+			   DELETE FROM jobservice WHERE Timestamp < (UNIXEPOCH() - %d);
+		     END;
+		     `, s.jobServiceConfig.PurgeJobSetTime, s.jobServiceConfig.PurgeJobSetTime))
+		if err != nil {
+			panic(err)
+		}
+	}
 }
 
 // Get the JobStatus given the jodId

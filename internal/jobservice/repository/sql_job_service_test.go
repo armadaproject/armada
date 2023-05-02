@@ -138,25 +138,22 @@ func TestCleanupJobSetAndJobsIfNonExist(t *testing.T) {
 }
 
 func TestCleanupTrigger(t *testing.T) {
-	// only need to test PG
-	if os.Getenv("JSDBTYPE") == "postgres" {
-		realPurgeTime := int64(1)
-		WithSqlServiceRepo(realPurgeTime, func(r SQLJobService) {
-			ctx := context.Background()
-			err := r.SubscribeJobSet(ctx, "queue", "job-set-1", "")
-			require.NoError(t, err)
-			subscribe, _, err := r.IsJobSetSubscribed(ctx, "queue", "job-set-1")
-			require.True(t, subscribe)
-			require.NoError(t, err)
-			time.Sleep(time.Duration(1000 * time.Millisecond))
-			// insert of job-set-2 should cleanup expired job-set-1
-			err = r.SubscribeJobSet(ctx, "queue", "job-set-2", "")
-			require.NoError(t, err)
-			subscribe, _, err = r.IsJobSetSubscribed(ctx, "queue", "job-set-1")
-			require.False(t, subscribe)
-			require.NoError(t, err)
-		})
-	}
+	realPurgeTime := int64(1)
+	WithSqlServiceRepo(realPurgeTime, func(r SQLJobService) {
+		ctx := context.Background()
+		err := r.SubscribeJobSet(ctx, "queue", "job-set-1", "")
+		require.NoError(t, err)
+		subscribe, _, err := r.IsJobSetSubscribed(ctx, "queue", "job-set-1")
+		require.True(t, subscribe)
+		require.NoError(t, err)
+		time.Sleep(time.Duration(2000 * time.Millisecond))
+		// insert of job-set-2 should cleanup expired job-set-1
+		err = r.SubscribeJobSet(ctx, "queue", "job-set-2", "")
+		require.NoError(t, err)
+		subscribe, _, err = r.IsJobSetSubscribed(ctx, "queue", "job-set-1")
+		require.False(t, subscribe)
+		require.NoError(t, err)
+	})
 }
 
 func TestCleanupJobSetAndJobsHappy(t *testing.T) {
