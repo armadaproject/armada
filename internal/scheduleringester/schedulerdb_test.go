@@ -112,6 +112,12 @@ func TestWriteOps(t *testing.T) {
 				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"},
 				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
+			InsertRuns{
+				runIds[0]: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]},
+				runIds[1]: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]},
+				runIds[2]: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]},
+				runIds[3]: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]},
+			},
 			MarkJobsCancelled{
 				jobIds[0]: true,
 				jobIds[1]: true,
@@ -438,6 +444,23 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 				jobIds = append(jobIds, job.JobID)
 			}
 		}
+		assert.Equal(t, len(expected), numChanged)
+
+		runs, err := queries.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{
+			Serial: serials["runs"],
+			JobIds: jobIds,
+		})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		runsChanged := 0
+		for _, run := range runs {
+			if _, ok := expected[run.JobID]; ok {
+				assert.True(t, run.Cancelled)
+				runsChanged++
+			}
+		}
+		assert.Equal(t, len(expected), runsChanged)
 	case MarkJobsSucceeded:
 		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
