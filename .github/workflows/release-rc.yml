@@ -1,11 +1,10 @@
-name: Release RC
+name: Release Armada components - RC
 
 on:
   push:
     branches:
       - main
       - master
-      - develop
 
 permissions:
   contents: write
@@ -33,8 +32,8 @@ jobs:
       - name: "Docker login"
         uses: "docker/login-action@v2"
         with:
-          username: "${{ secrets.DOCKERHUB_USERNAME }}"
-          password: "${{ secrets.DOCKERHUB_TOKEN }}"
+          username: "${{ secrets.DOCKERHUB_USER }}"
+          password: "${{ secrets.DOCKERHUB_PASS }}"
 
       - name: Install GitVersion
         uses: gittools/actions/gitversion/setup@v0
@@ -74,7 +73,7 @@ jobs:
           version: "v1.17.2"
           args: "-f ./.goreleaser.yml release --skip-publish --skip-sbom --skip-sign --clean"
         env:
-          DOCKER_REPO: "dpejcev"
+          DOCKER_REPO: "gresearch"
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           DOCKER_BUILDX_BUILDER: "${{ steps.buildx.outputs.name }}"
           DOCKER_BUILDX_CACHE_FROM: "type=gha"
