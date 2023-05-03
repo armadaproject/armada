@@ -4,9 +4,10 @@ import (
 	"io"
 	"testing"
 
-	"github.com/armadaproject/armada/internal/armadactl"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
+	
+	"github.com/armadaproject/armada/internal/armadactl"
 )
 
 func TestCancel(t *testing.T) {
