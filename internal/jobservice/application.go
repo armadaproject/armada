@@ -34,9 +34,39 @@ func New() *App {
 	return &App{}
 }
 
+// Returns a non-nil error if mis-configuration is unrecoverable.
+func CheckConfig(config *configuration.JobServiceConfiguration) error {
+	logger := log.WithField("JobService", "CheckConfig")
+
+	// Grpc Pool
+	if config.GrpcPool.InitialConnections <= 0 {
+		defIC := 5
+		logger.WithFields(log.Fields{
+			"default":    defIC,
+			"configured": config.GrpcPool.InitialConnections,
+		}).Warn("config.GrpcPool.InitialConnections invalid, using default instead")
+		config.GrpcPool.InitialConnections = 5
+	}
+	if config.GrpcPool.Capacity <= 0 {
+		defaultCapacity := 5
+		logger.WithFields(log.Fields{
+			"default":    defaultCapacity,
+			"configured": config.GrpcPool.Capacity,
+		}).Warn("config.GrpcPool.Capacity invalid, using default instead")
+		config.GrpcPool.Capacity = defaultCapacity
+	}
+
+	return nil
+}
+
 func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfiguration) error {
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, _ := errgroup.WithContext(ctx)
+
+	err := CheckConfig(config)
+	if err != nil {
+		panic(err)
+	}
 
 	log := log.WithField("JobService", "Startup")
 	grpcServer := grpcCommon.CreateGrpcServer(
@@ -64,7 +94,10 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	}
 
 	// Start a pool
-	pool, err := grpcpool.NewWithContext(ctx, connFactory, 1, 1, 0)
+	pool, err := grpcpool.NewWithContext(ctx, connFactory,
+		config.GrpcPool.InitialConnections,
+		config.GrpcPool.Capacity,
+		0)
 	if err != nil {
 		return err
 	}
