@@ -164,7 +164,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
 			mockQueueRepo.EXPECT().GetAllQueues().Return(tc.queues, nil).AnyTimes()
 
-			algo := NewLegacySchedulingAlgo(
+			algo := NewFairSchedulingAlgo(
 				config,
 				mockExecutorRepo,
 				mockQueueRepo,
