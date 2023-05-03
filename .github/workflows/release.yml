@@ -49,7 +49,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v4
         with:
           distribution: goreleaser
-          version: v1.16.2
+          version: v1.17.2
           args: "-f ./.goreleaser.yml release --clean"
         env:
           DOCKER_REPO: "dpejcev"

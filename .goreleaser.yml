@@ -176,7 +176,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-bundle:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-bundle:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-bundle:{{ .Version }}"
     build_flag_templates: &BUILD_FLAG_TEMPLATES
       - --build-arg={{ .Env.BASE_IMAGE_ARG }}
       - --builder={{ .Env.DOCKER_BUILDX_BUILDER }}
@@ -211,7 +212,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-lookout-bundle:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookout-bundle:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-lookout-bundle:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - lookout
@@ -236,7 +238,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-full-bundle:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-full-bundle:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-full-bundle:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - server
@@ -276,7 +279,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-server:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-server:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-server:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - server
@@ -289,7 +293,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-executor:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-executor:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-executor:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - executor
@@ -302,7 +307,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-lookoutingester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookoutingester:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-lookoutingester:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - lookoutingester
@@ -315,7 +321,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - lookoutingesterv2
@@ -328,7 +335,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-lookout:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookout:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-lookout:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - lookout
@@ -347,7 +355,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-lookoutv2:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookoutv2:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-lookoutv2:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - lookoutv2
@@ -362,7 +371,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-eventingester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-eventingester:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-eventingester:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - eventingester
@@ -375,7 +385,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-scheduler:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-scheduler:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-scheduler:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - scheduler
@@ -388,7 +399,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-scheduleringester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-scheduleringester:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-scheduleringester:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - scheduleringester
@@ -401,7 +413,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-binoculars:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-binoculars:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-binoculars:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - binoculars
@@ -414,7 +427,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-jobservice:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armada-jobservice:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-jobservice:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - jobservice
@@ -427,7 +441,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armadactl:{{ .Major }}.{{ .Minor }}.{{ .Patch }}"
+      - "{{ .Env.DOCKER_REPO }}armadactl:latest"
+      - "{{ .Env.DOCKER_REPO }}armadactl:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - armadactl
@@ -478,49 +493,49 @@ release:
 
     ### Docker images
     #### Armada Bundle
-    - `docker pull {{ .Env.DOCKER_REPO }}armada:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada:latest`
     #### Armada Lookout Bundle
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-bundle:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-bundle:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-bundle:latest`
     #### Armada Full Bundle
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-full-bundle:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-full-bundle:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-full-bundle:latest`
     #### Armada Server
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-server:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-server:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-server:latest`
     #### Armada Executor
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-executor:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-executor:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-executor:latest`
     #### Armada Lookout
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout:latest`
     #### Armada Lookout V2
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutv2:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutv2:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutv2:latest`
     #### Armada Lookout Ingester
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutingester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutingester:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutingester:latest`
     #### Armada Lookout Ingester V2
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:latest`
     #### Armada Event Ingester
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-eventingester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-eventingester:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-eventingester:latest`
     #### Armada Scheduler
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-scheduler:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-scheduler:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-scheduler:latest`
     #### Armada Scheduler Ingester
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-scheduleringester:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-scheduleringester:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-scheduleringester:latest`
     #### Armada Binoculars
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-binoculars:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-binoculars:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-binoculars:latest`
     #### Armada Job Service
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-jobservice:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-jobservice:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-jobservice:latest`
     #### armadactl
-    - `docker pull {{ .Env.DOCKER_REPO }}armadactl:{{ .Major }}.{{ .Minor }}.{{ .Patch }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armadactl:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armadactl:latest`
   footer: |
     **Full Changelog**: https://github.com/armadaproject/armada/compare/{{ .PreviousTag }}...{{ .Tag }}
