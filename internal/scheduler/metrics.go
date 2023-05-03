@@ -6,9 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/google/uuid"
-
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
@@ -17,6 +15,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // Metrics Recorders associated with a queue
@@ -127,7 +126,6 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 }
 
 func (c *MetricsCollector) updateQueueMetrics(ctx context.Context) ([]prometheus.Metric, error) {
-
 	queues, err := c.queueRepository.GetAllQueues()
 	if err != nil {
 		return nil, err
