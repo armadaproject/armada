@@ -210,7 +210,7 @@ type PreemptionConfig struct {
 	// If true, NodeIdLabel must be non-empty.
 	SetNodeIdSelector bool
 	// Label used with SetNodeIdSelector. Must be non-empty if SetNodeIdSelector is true.
-	NodeIdLabel string
+	NodeIdLabel string `validate:"required"`
 	// If true, the Armada scheduler will set the node name of the selected node directly on scheduled pods,
 	// thus bypassing kube-scheduler entirely.
 	SetNodeName bool

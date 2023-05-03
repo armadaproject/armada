@@ -15,7 +15,7 @@ func StartUp(config configuration.ExecutorConfiguration, nodes []*context.NodeSp
 	wg.Add(1)
 	return executor.StartUpWithContext(
 		config,
-		context.NewFakeClusterContext(config.Application, nodes),
+		context.NewFakeClusterContext(config.Application, config.Kubernetes.NodeIdLabel, nodes),
 		nil,
 		task.NewBackgroundTaskManager(metrics.ArmadaExecutorMetricsPrefix),
 		wg,
