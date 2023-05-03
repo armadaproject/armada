@@ -204,6 +204,7 @@ type queuePhaseMetricKey struct {
 	cluster   string
 	pool      string
 	queueName string
+	nodeType  string
 	phase     string
 }
 
@@ -254,6 +255,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx context.Context) ([]promethe
 						cluster:   executor.Id,
 						pool:      executor.Pool,
 						queueName: job.Queue(),
+						nodeType:  node.ReportingNodeType,
 						// Convert to string with first letter capitalised
 						phase: strings.Title(strings.ToLower(phase)),
 					}
@@ -276,7 +278,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx context.Context) ([]promethe
 
 	clusterMetrics := make([]prometheus.Metric, 0, len(phaseCountByQueue))
 	for k, v := range phaseCountByQueue {
-		clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueLeasedPodCount(float64(v), k.cluster, k.pool, k.queueName, k.phase, ""))
+		clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueLeasedPodCount(float64(v), k.cluster, k.pool, k.queueName, k.phase, k.nodeType))
 	}
 	for k, r := range allocatedResourceByQueue {
 		for resourceKey, resourceValue := range r.Resources {
