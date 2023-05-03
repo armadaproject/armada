@@ -34,12 +34,6 @@ message LeaseRequest{
   repeated armadaevents.Uuid unassigned_job_run_ids = 6 [(gogoproto.nullable) = false];
 }
 
-message ResourceUsage {
-  // Total resources currently being used by all pods from this queue.
-  // This is real usage and not just the allocated value
-  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources_used = 1 [(gogoproto.nullable) = false];
-}
-
 // Indicates that a job run is now leased.
 message JobRunLease{
   armadaevents.Uuid job_run_id = 1;
