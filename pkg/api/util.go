@@ -78,6 +78,7 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		NonArmadaAllocatedResources:      nonArmadaAllocatedResources,
 		StateByJobRunId:                  jobRunsByState,
 		ResourceUsageByQueue:             resourceUsageByQueue,
+		ReportingNodeType:                nodeInfo.NodeType,
 	}, nil
 }
 

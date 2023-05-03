@@ -62,6 +62,9 @@ message Node {
     // This should only be used for metrics
     // An aggregated real usage of jobs by queue
     map<string, ResourceList> resource_usage_by_queue = 15;
+    // This should only be used for metrics
+    // This is the type the node should be reported as. It is simple a label to categorise the group the node belongs to
+    string reporting_node_type = 16;
 }
 
 enum JobRunState {

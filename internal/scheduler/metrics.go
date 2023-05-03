@@ -231,7 +231,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx context.Context) ([]promethe
 			clusterKey := clusterMetricKey{
 				cluster:  executor.Id,
 				pool:     executor.Pool,
-				nodeType: "default",
+				nodeType: node.ReportingNodeType,
 			}
 			addToResourceListMap(availableResourceByCluster, clusterKey, node.AvailableArmadaResource())
 			addToResourceListMap(totalResourceByCluster, clusterKey, node.TotalResources)
@@ -241,7 +241,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx context.Context) ([]promethe
 					cluster:   executor.Id,
 					pool:      executor.Pool,
 					queueName: queueName,
-					nodeType:  "default",
+					nodeType:  node.ReportingNodeType,
 				}
 				addToResourceListMap(usedResourceByQueue, queueKey, *resourceUsage)
 			}
@@ -265,7 +265,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx context.Context) ([]promethe
 							cluster:   executor.Id,
 							pool:      executor.Pool,
 							queueName: job.Queue(),
-							nodeType:  "default",
+							nodeType:  node.ReportingNodeType,
 						}
 						addToResourceListMap(allocatedResourceByQueue, queueKey, schedulerobjects.ResourceListFromV1ResourceList(podRequirements.ResourceRequirements.Requests))
 					}
