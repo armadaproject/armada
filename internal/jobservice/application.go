@@ -122,15 +122,15 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 				_, ok := subscribeMap.LoadOrStore(queueJobSet, true)
 				if !ok {
 					eventJob := eventstojobs.NewEventsToJobService(value.Queue, value.JobSet, eventClient, sqlJobRepo)
-					go func(value repository.SubscribedTuple, subscribe sync.Map) {
+					go func(value repository.SubscribedTuple) {
 						err := eventJob.SubscribeToJobSetId(context.Background(), config.SubscribeJobSetTime, value.FromMessageId)
 						if err != nil {
 							log.Error("error on subscribing", err)
 						}
 						queueJobSet := value.Queue + value.JobSet
 						log.Infof("deleting %s from map", queueJobSet)
-						subscribe.Delete(queueJobSet)
-					}(value, subscribeMap)
+						subscribeMap.Delete(queueJobSet)
+					}(value)
 				} else {
 					log.Infof("job set %s/%s is subscribed", value.Queue, value.JobSet)
 				}
