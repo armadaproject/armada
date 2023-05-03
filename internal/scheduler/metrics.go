@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -192,130 +193,119 @@ func (c *MetricsCollector) updateQueueMetrics(ctx context.Context) ([]prometheus
 	return queueMetrics, nil
 }
 
+type queueMetricKey struct {
+	cluster   string
+	pool      string
+	queueName string
+	nodeType  string
+}
+
+type queuePhaseMetricKey struct {
+	cluster   string
+	pool      string
+	queueName string
+	phase     string
+}
+
+type clusterMetricKey struct {
+	cluster  string
+	pool     string
+	nodeType string
+}
+
 func (c *MetricsCollector) updateClusterMetrics(ctx context.Context) ([]prometheus.Metric, error) {
-	type queueKey struct {
-		cluster   string
-		pool      string
-		queueName string
-		nodeType  string
-	}
-
-	type podPhaseKey struct {
-		cluster   string
-		pool      string
-		queueName string
-		// TODO phase display name (example: RUNNING -> Running)
-		phase string
-	}
-
-	type clusterKey struct {
-		cluster  string
-		pool     string
-		nodeType string
-	}
-
 	executors, err := c.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		return nil, err
 	}
-	countsByKey := map[podPhaseKey]int{}
-	allocatedResourceByQueueKey := map[queueKey]schedulerobjects.ResourceList{}
-	usedResourceByQueueKey := map[queueKey]schedulerobjects.ResourceList{}
-	availableResourceByClusterKey := map[clusterKey]schedulerobjects.ResourceList{}
-	totalResourceByClusterKey := map[clusterKey]schedulerobjects.ResourceList{}
+
+	phaseCountByQueue := map[queuePhaseMetricKey]int{}
+	allocatedResourceByQueue := map[queueMetricKey]schedulerobjects.ResourceList{}
+	usedResourceByQueue := map[queueMetricKey]schedulerobjects.ResourceList{}
+	availableResourceByCluster := map[clusterMetricKey]schedulerobjects.ResourceList{}
+	totalResourceByCluster := map[clusterMetricKey]schedulerobjects.ResourceList{}
+
 	txn := c.jobDb.ReadTxn()
 	for _, executor := range executors {
 		for _, node := range executor.Nodes {
-			clusterKey := clusterKey{
+			clusterKey := clusterMetricKey{
 				cluster:  executor.Id,
 				pool:     executor.Pool,
 				nodeType: "default",
 			}
-			if _, exists := availableResourceByClusterKey[clusterKey]; !exists {
-				availableResourceByClusterKey[clusterKey] = schedulerobjects.ResourceList{}
-			}
-			if _, exists := totalResourceByClusterKey[clusterKey]; !exists {
-				totalResourceByClusterKey[clusterKey] = schedulerobjects.ResourceList{}
-			}
-			available := availableResourceByClusterKey[clusterKey]
-			available.Add(node.AvailableArmadaResource())
-			availableResourceByClusterKey[clusterKey] = available
-			total := totalResourceByClusterKey[clusterKey]
-			total.Add(node.TotalResources)
-			totalResourceByClusterKey[clusterKey] = total
+			addToResourceListMap(availableResourceByCluster, clusterKey, node.AvailableArmadaResource())
+			addToResourceListMap(totalResourceByCluster, clusterKey, node.TotalResources)
 
 			for queueName, resourceUsage := range node.ResourceUsageByQueue {
-				queueKey := queueKey{
+				queueKey := queueMetricKey{
 					cluster:   executor.Id,
 					pool:      executor.Pool,
 					queueName: queueName,
 					nodeType:  "default",
 				}
-				if _, exists := usedResourceByQueueKey[queueKey]; !exists {
-					usedResourceByQueueKey[queueKey] = schedulerobjects.ResourceList{}
-				}
-
-				used := usedResourceByQueueKey[queueKey]
-				used.Add(*resourceUsage)
-				usedResourceByQueueKey[queueKey] = used
+				addToResourceListMap(usedResourceByQueue, queueKey, *resourceUsage)
 			}
 
 			for runId, jobRunState := range node.StateByJobRunId {
 				job := c.jobDb.GetByRunId(txn, uuid.MustParse(runId))
 				if job != nil {
 					phase := schedulerobjects.JobRunState_name[int32(jobRunState)]
-					key := podPhaseKey{
+					key := queuePhaseMetricKey{
 						cluster:   executor.Id,
 						pool:      executor.Pool,
 						queueName: job.Queue(),
-						phase:     phase,
+						// Convert to string with first letter capitalised
+						phase: strings.Title(strings.ToLower(phase)),
 					}
-					countsByKey[key]++
+					phaseCountByQueue[key]++
+
 					podRequirements := PodRequirementFromJobSchedulingInfo(job.JobSchedulingInfo())
 					if podRequirements != nil {
-						queueKey := queueKey{
+						queueKey := queueMetricKey{
 							cluster:   executor.Id,
 							pool:      executor.Pool,
 							queueName: job.Queue(),
 							nodeType:  "default",
 						}
-						if _, exists := allocatedResourceByQueueKey[queueKey]; !exists {
-							allocatedResourceByQueueKey[queueKey] = schedulerobjects.ResourceList{}
-						}
-
-						allocated := allocatedResourceByQueueKey[queueKey]
-						allocated.Add(schedulerobjects.ResourceListFromV1ResourceList(podRequirements.ResourceRequirements.Requests))
-						allocatedResourceByQueueKey[queueKey] = allocated
+						addToResourceListMap(allocatedResourceByQueue, queueKey, schedulerobjects.ResourceListFromV1ResourceList(podRequirements.ResourceRequirements.Requests))
 					}
 				}
 			}
 		}
 	}
 
-	clusterMetrics := make([]prometheus.Metric, 0, len(countsByKey))
-	for k, v := range countsByKey {
+	clusterMetrics := make([]prometheus.Metric, 0, len(phaseCountByQueue))
+	for k, v := range phaseCountByQueue {
 		clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueLeasedPodCount(float64(v), k.cluster, k.pool, k.queueName, k.phase, ""))
 	}
-	for k, r := range allocatedResourceByQueueKey {
+	for k, r := range allocatedResourceByQueue {
 		for resourceKey, resourceValue := range r.Resources {
 			clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueAllocated(resource.QuantityAsFloat64(resourceValue), k.queueName, k.cluster, k.pool, resourceKey, k.nodeType))
 		}
 	}
-
-	for k, r := range usedResourceByQueueKey {
+	for k, r := range usedResourceByQueue {
 		for resourceKey, resourceValue := range r.Resources {
 			clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueUsed(resource.QuantityAsFloat64(resourceValue), k.queueName, k.cluster, k.pool, resourceKey, k.nodeType))
 		}
 	}
-	for k, r := range availableResourceByClusterKey {
+	for k, r := range availableResourceByCluster {
 		for resourceKey, resourceValue := range r.Resources {
 			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterAvailableCapacity(resource.QuantityAsFloat64(resourceValue), k.cluster, k.pool, resourceKey, k.nodeType))
 		}
 	}
-	for k, r := range totalResourceByClusterKey {
+	for k, r := range totalResourceByCluster {
 		for resourceKey, resourceValue := range r.Resources {
 			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterTotalCapacity(resource.QuantityAsFloat64(resourceValue), k.cluster, k.pool, resourceKey, k.nodeType))
 		}
 	}
 	return clusterMetrics, nil
+}
+
+func addToResourceListMap[K comparable](m map[K]schedulerobjects.ResourceList, key K, value schedulerobjects.ResourceList) {
+	if _, exists := m[key]; !exists {
+		m[key] = schedulerobjects.ResourceList{}
+	}
+	newValue := m[key]
+	newValue.Add(value)
+	m[key] = newValue
 }

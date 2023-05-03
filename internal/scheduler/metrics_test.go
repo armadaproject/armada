@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/golang/mock/gomock"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
@@ -17,7 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
-func TestMetricsCollector_TestCollect(t *testing.T) {
+func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 	gb := float64(1024 * 1024 * 1024)
 	queuedJobs := make([]*jobdb.Job, 3)
 	runningJobs := make([]*jobdb.Job, 3)
@@ -97,10 +98,83 @@ func TestMetricsCollector_TestCollect(t *testing.T) {
 			queueRepository.EXPECT().GetAllQueues().Return(tc.queues, nil).Times(1)
 			poolAssigner := &MockPoolAssigner{tc.defaultPool, tc.poolMappings}
 
+			executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+			executorRepository.EXPECT().GetExecutors(ctx).Return([]*schedulerobjects.Executor{}, nil)
+
 			collector := NewMetricsCollector(
 				jobDb,
 				queueRepository,
-				nil,
+				executorRepository,
+				poolAssigner,
+				2*time.Second,
+			)
+			collector.clock = testClock
+			err = collector.refresh(ctx)
+			require.NoError(t, err)
+			metricChan := make(chan prometheus.Metric, 1000) // large buffer so we don't block
+			collector.Collect(metricChan)
+			close(metricChan)
+			actual := make([]prometheus.Metric, 0)
+			for m := range metricChan {
+				actual = append(actual, m)
+			}
+			require.NoError(t, err)
+			for i := 0; i < len(tc.expected); i++ {
+				a1 := actual[i]
+				e1 := tc.expected[i]
+				require.Equal(t, e1, a1)
+			}
+		})
+	}
+}
+
+func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
+
+	tests := map[string]struct {
+		initialJobs  []*jobdb.Job
+		defaultPool  string
+		poolMappings map[string]string
+		queues       []*database.Queue
+		expected     []prometheus.Metric
+	}{
+		"queued metrics": {
+			initialJobs: []*jobdb.Job{},
+			queues:      []*database.Queue{testfixtures.TestDbQueue()},
+			defaultPool: testfixtures.TestPool,
+			expected:    []prometheus.Metric{},
+		},
+		"running metrics": {
+			initialJobs: []*jobdb.Job{},
+			queues:      []*database.Queue{testfixtures.TestDbQueue()},
+			defaultPool: testfixtures.TestPool,
+			expected:    []prometheus.Metric{},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctrl := gomock.NewController(t)
+			testClock := clock.NewFakeClock(testfixtures.BaseTime)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			// set up job db with initial jobs
+			jobDb := jobdb.NewJobDb()
+			txn := jobDb.WriteTxn()
+			err := jobDb.Upsert(txn, tc.initialJobs)
+			require.NoError(t, err)
+			txn.Commit()
+
+			queueRepository := schedulermocks.NewMockQueueRepository(ctrl)
+			queueRepository.EXPECT().GetAllQueues().Return([]*database.Queue{}, nil).Times(1)
+			poolAssigner := &MockPoolAssigner{tc.defaultPool, tc.poolMappings}
+
+			executorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
+			executorRepository.EXPECT().GetExecutors(ctx).Return([]*schedulerobjects.Executor{}, nil)
+
+			collector := NewMetricsCollector(
+				jobDb,
+				queueRepository,
+				executorRepository,
 				poolAssigner,
 				2*time.Second,
 			)
