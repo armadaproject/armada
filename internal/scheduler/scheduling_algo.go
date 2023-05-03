@@ -111,9 +111,9 @@ func (l *FairSchedulingAlgo) Schedule(
 
 		// Update jobDb.
 		preemptedJobs := PreemptedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
+		preemptedJobs = util.Map(preemptedJobs, func(job *jobdb.Job) *jobdb.Job { return job.WithFailed(true) })
 		scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
 		if err := jobDb.Upsert(txn, preemptedJobs); err != nil {
-			// TODO: We need to do something here to mark the jobs as preempted in the jobDb.
 			return nil, err
 		}
 		if err := jobDb.Upsert(txn, scheduledJobs); err != nil {
