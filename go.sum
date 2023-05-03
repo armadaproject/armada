@@ -63,8 +63,6 @@ github.com/Azure/go-ntlmssp v0.0.0-20220621081337-cb9428e4ac1e h1:NeAW1fUYUEWhft
 github.com/Azure/go-ntlmssp v0.0.0-20220621081337-cb9428e4ac1e/go.mod h1:chxPXzSsl7ZWRAuOIE23GDNzjWuZquvFlgA8xmpunjU=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
-github.com/ClifHouck/grpc-go-pool v0.0.0-20230502172610-c6a0f72dd3f5 h1:vUk1/CafOKKP/ypLXyphmIy59KyFTUfbKAX4q0jv33c=
-github.com/ClifHouck/grpc-go-pool v0.0.0-20230502172610-c6a0f72dd3f5/go.mod h1:+idWNDbxBRB7ULKT9+lt9/XWGrSB5uBB1ohxCAZUrXU=
 github.com/ClifHouck/grpc-go-pool v0.1.0 h1:YlG2qlfB/eEfM87Jv1FxfEeiuNiDFyABla0rRR4qFI4=
 github.com/ClifHouck/grpc-go-pool v0.1.0/go.mod h1:+idWNDbxBRB7ULKT9+lt9/XWGrSB5uBB1ohxCAZUrXU=
 github.com/DATA-DOG/go-sqlmock v1.5.0 h1:Shsta01QNfFxHCfpW6YH2STWB0MudeXXEWMr20OEh60=
