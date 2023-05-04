@@ -13,6 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
+	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
 	"github.com/armadaproject/armada/internal/jobservice/events"
@@ -34,26 +35,32 @@ func New() *App {
 	return &App{}
 }
 
+var DefaultConfiguration = &configuration.JobServiceConfiguration{
+	GrpcPool: grpcconfig.GrpcPoolConfig{
+		InitialConnections: 5,
+		Capacity:           5,
+	},
+}
+
+// Mutates config where possible to correct mis-configurations.
 // Returns a non-nil error if mis-configuration is unrecoverable.
-func CheckConfig(config *configuration.JobServiceConfiguration) error {
-	logger := log.WithField("JobService", "CheckConfig")
+func RectifyConfig(config *configuration.JobServiceConfiguration) error {
+	logger := log.WithField("JobService", "RectifyConfig")
 
 	// Grpc Pool
 	if config.GrpcPool.InitialConnections <= 0 {
-		defIC := 5
 		logger.WithFields(log.Fields{
-			"default":    defIC,
+			"default":    DefaultConfiguration.GrpcPool.InitialConnections,
 			"configured": config.GrpcPool.InitialConnections,
 		}).Warn("config.GrpcPool.InitialConnections invalid, using default instead")
-		config.GrpcPool.InitialConnections = 5
+		config.GrpcPool.InitialConnections = DefaultConfiguration.GrpcPool.InitialConnections
 	}
 	if config.GrpcPool.Capacity <= 0 {
-		defaultCapacity := 5
 		logger.WithFields(log.Fields{
-			"default":    defaultCapacity,
+			"default":    DefaultConfiguration.GrpcPool.Capacity,
 			"configured": config.GrpcPool.Capacity,
 		}).Warn("config.GrpcPool.Capacity invalid, using default instead")
-		config.GrpcPool.Capacity = defaultCapacity
+		config.GrpcPool.Capacity = DefaultConfiguration.GrpcPool.Capacity
 	}
 
 	return nil
@@ -63,7 +70,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, _ := errgroup.WithContext(ctx)
 
-	err := CheckConfig(config)
+	err := RectifyConfig(config)
 	if err != nil {
 		panic(err)
 	}
