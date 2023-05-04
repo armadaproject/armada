@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	_ "modernc.org/sqlite"
-
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/jobservice/configuration"

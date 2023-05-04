@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -55,12 +56,14 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		return err
 	}
 
+	// This function runs in the background every 30 seconds
+	// We will loop over the subscribed jobsets
+	// And we check if we have already subscribed via subscribeMap
+	// If we have then we skip that jobset
 	g.Go(func() error {
-		PurgeJobSets(ctx, log, config.PurgeJobSetTime, sqlJobRepo)
-		return nil
-	})
-	g.Go(func() error {
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(30 * time.Second)
+		eventClient := events.NewEventClient(&config.ApiConnection)
+		var subscribeMap sync.Map
 		for range ticker.C {
 
 			jobSets, err := sqlJobRepo.GetSubscribedJobSets(ctx)
@@ -69,15 +72,22 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 				logging.WithStacktrace(log, err).Warn("error getting jobsets")
 			}
 			for _, value := range jobSets {
-				log.Infof("subscribing to %s-%s for %d s", value.Queue, value.JobSet, config.SubscribeJobSetTime)
-				eventClient := events.NewEventClient(&config.ApiConnection)
-				eventJob := eventstojobs.NewEventsToJobService(value.Queue, value.JobSet, eventClient, sqlJobRepo)
-				go func(value repository.SubscribedTuple) {
-					err := eventJob.SubscribeToJobSetId(context.Background(), config.SubscribeJobSetTime, value.FromMessageId)
-					if err != nil {
-						log.Error("error on subscribing", err)
-					}
-				}(value)
+				queueJobSet := value.Queue + value.JobSet
+				_, ok := subscribeMap.LoadOrStore(queueJobSet, true)
+				if !ok {
+					eventJob := eventstojobs.NewEventsToJobService(value.Queue, value.JobSet, eventClient, sqlJobRepo)
+					go func(value repository.SubscribedTuple, subscribe sync.Map) {
+						err := eventJob.SubscribeToJobSetId(context.Background(), config.SubscribeJobSetTime, value.FromMessageId)
+						if err != nil {
+							log.Error("error on subscribing", err)
+						}
+						queueJobSet := value.Queue + value.JobSet
+						log.Infof("deleting %s from map", queueJobSet)
+						subscribe.Delete(queueJobSet)
+					}(value, subscribeMap)
+				} else {
+					log.Infof("job set %s/%s is subscribed", value.Queue, value.JobSet)
+				}
 			}
 		}
 		return nil
@@ -98,35 +108,4 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	}
 
 	return nil
-}
-
-func PurgeJobSets(ctx context.Context, log *log.Entry, purgeJobSetTime int64,
-	sqlJobRepo repository.SQLJobService,
-) {
-	log.Info("duration config: ", purgeJobSetTime)
-	ticker := time.NewTicker(time.Duration(purgeJobSetTime) * time.Second)
-	for range ticker.C {
-		jobSets, err := sqlJobRepo.GetSubscribedJobSets(ctx)
-		if err != nil {
-			logging.WithStacktrace(log, err).Warn("error getting jobsets")
-		}
-		for _, value := range jobSets {
-			log.Infof("subscribed job sets : %s", value)
-			unsubscribe, err := sqlJobRepo.CheckToUnSubscribe(ctx, value.Queue, value.JobSet, purgeJobSetTime)
-			if err != nil {
-				log.WithError(err).Errorf("Unable to unsubscribe from queue/jobset %s/%s", value.Queue, value.JobSet)
-			}
-			if unsubscribe {
-				_, err := sqlJobRepo.CleanupJobSetAndJobs(ctx, value.Queue, value.JobSet)
-				if err != nil {
-					logging.WithStacktrace(log, err).Warn("error cleaning up jobs")
-				}
-				_, err = sqlJobRepo.UnsubscribeJobSet(ctx, value.Queue, value.JobSet)
-				if err != nil {
-					log.WithError(err).Errorf("unable to delete queue/jobset %s/%s", value.Queue, value.JobSet)
-				}
-				log.Infof("deleted queue/jobset %s/%s", value.Queue, value.JobSet)
-			}
-		}
-	}
 }

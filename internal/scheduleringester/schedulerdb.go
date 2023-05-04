@@ -165,6 +165,10 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 		if err != nil {
 			return errors.WithStack(err)
 		}
+		err = queries.MarkRunsCancelledByJobId(ctx, jobIds)
+		if err != nil {
+			return errors.WithStack(err)
+		}
 	case MarkJobsSucceeded:
 		jobIds := maps.Keys(o)
 		err := queries.MarkJobsSucceededById(ctx, jobIds)

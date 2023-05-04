@@ -25,7 +25,7 @@ type JobServiceConfiguration struct {
 	// Configurable value that translates to number of seconds
 	// This is the amount of time since the last job in job-set has been updated.
 	SubscribeJobSetTime int64
-	// Purging JobSets
+	// Purge jobSets if not updated in this number of seconds
 	PurgeJobSetTime int64
 	// Type of database used - must be either 'postgres' or 'sqlite'
 	DatabaseType string
