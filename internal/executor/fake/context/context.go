@@ -392,6 +392,7 @@ func (c *FakeClusterContext) trySchedule(pod *v1.Pod) (scheduled bool, removed b
 	}
 	return false, false
 }
+
 func (c *FakeClusterContext) deallocate(pod *v1.Pod) {
 	c.rwLock.Lock()
 	defer c.rwLock.Unlock()
