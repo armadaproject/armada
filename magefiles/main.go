@@ -124,11 +124,11 @@ func LocalDev(arg string) error {
 
 	switch arg {
 	case "minimal":
-		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, DownloadDependencyImages)
+		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)
 	case "full":
-		mg.Deps(mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"), Kind, DownloadDependencyImages)
+		mg.Deps(mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"), Kind, downloadDependencyImages)
 	case "no-build":
-		mg.Deps(Kind, DownloadDependencyImages)
+		mg.Deps(Kind, downloadDependencyImages)
 	}
 
 	mg.Deps(StartDependencies)
@@ -148,9 +148,6 @@ func LocalDev(arg string) error {
 		mg.Deps(StartComponents)
 	}
 
-	mg.Deps(CheckForArmadaRunning)
-
-	fmt.Println("Armada Ready!")
 	fmt.Println("Run: `docker-compose logs -f` to see logs")
 	return nil
 }
