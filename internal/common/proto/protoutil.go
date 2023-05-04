@@ -84,7 +84,6 @@ func Hash(msg proto.Message) ([]byte, error) {
 // HashMany produces a 160 bit hash of the supplied proto objects
 func HashMany[T proto.Message](msgs []T) ([]byte, error) {
 	h := sha1.New()
-	sha1.Sum(nil)
 	for _, msg := range msgs {
 		b, err := json.Marshal(msg)
 		if err != nil {
