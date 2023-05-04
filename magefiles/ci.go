@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -10,40 +9,14 @@ import (
 	"github.com/magefile/mage/mg"
 )
 
-func ciSetup() error {
-	if err := os.MkdirAll(".kube", os.ModeDir|0o755); err != nil {
-		return err
-	}
-	err := dockerComposeRun("up", "-d", "redis", "postgres", "pulsar")
-	if err != nil {
-		return err
-	}
-
-	mg.Deps(CheckForPulsarRunning)
-
-	// By starting the executor first,
-	// we can ensure that the server will be able to register the executor cluster
-	// on its first attempt.
-	err = dockerComposeRun("up", "-d", "executor")
-	if err != nil {
-		return err
-	}
-	err = dockerComposeRun("up", "-d", "server")
-	if err != nil {
-		return err
-	}
-
-	err = goRun("run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // Build images, spin up a test environment, and run the integration tests against it.
-func ciRunTests() error {
+func TestSuite() error {
 	mg.Deps(CheckForArmadaRunning)
+
+	err := goRun("run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
+	if err != nil {
+		return err
+	}
 
 	out, err := goOutput("run", "cmd/testsuite/main.go", "test",
 		"--tests", "testsuite/testcases/basic/*",
@@ -57,7 +30,7 @@ func ciRunTests() error {
 }
 
 func CheckForArmadaRunning() error {
-	timeout := time.After(1 * time.Minute)
+	timeout := time.After(2 * time.Minute)
 	tick := time.Tick(1 * time.Second)
 	seconds := 0
 	for {

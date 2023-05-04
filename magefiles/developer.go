@@ -81,3 +81,12 @@ func CheckForPulsarRunning() error {
 		}
 	}
 }
+
+// Download Dependency Images using Docker
+func DownloadDependencyImages() error {
+	if err := dockerComposeRun("pull", "--ignore-pull-failures"); err != nil {
+		return err
+	}
+
+	return nil
+}

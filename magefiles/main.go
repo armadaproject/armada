@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/magefile/mage/mg"
 	"github.com/pkg/errors"
@@ -102,18 +101,6 @@ func BootstrapProto() {
 	mg.Deps(protoInstallProtocArmadaPlugin, protoPrepareThirdPartyProtos)
 }
 
-func BuildCICluster() {
-	mg.Deps(BootstrapTools)
-	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind)
-	mg.Deps(ciSetup)
-}
-
-// run integration test
-func CiIntegrationTests() {
-	mg.Deps(BuildCICluster)
-	mg.Deps(ciRunTests)
-}
-
 func BuildDockers(arg string) error {
 	dockerIds := make([]string, 0)
 	for _, s := range strings.Split(arg, ",") {
@@ -125,33 +112,47 @@ func BuildDockers(arg string) error {
 	return nil
 }
 
-// Build Dependencies for Armada
-func Build() {
-	mg.Deps(BootstrapTools)
-	mg.Deps(Proto)
-	mg.Deps(mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"))
-}
-
-func BuildMinimal() {
-	mg.Deps(BootstrapTools)
-	mg.Deps(Proto)
-	mg.Deps(mg.F(BuildDockers, "bundle"))
-}
-
 // Create a Local Armada Cluster
-func LocalDev() error {
-	mg.Deps(Kind)
+func LocalDev(arg string) error {
+	mg.Deps(BootstrapTools)
+
+	validArgs := []string{"minimal", "full", "no-build"}
+
+	if !strings.Contains(strings.Join(validArgs, ","), arg) {
+		return errors.Errorf("invalid argument: %s", arg)
+	}
+
+	switch arg {
+	case "minimal":
+		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, DownloadDependencyImages)
+	case "full":
+		mg.Deps(mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"), Kind, DownloadDependencyImages)
+	case "no-build":
+		mg.Deps(Kind, DownloadDependencyImages)
+	}
 
 	mg.Deps(StartDependencies)
 	fmt.Println("Waiting for dependencies to start...")
-	err := CheckForPulsarRunning()
-	mg.Deps(StartComponents)
+	mg.Deps(CheckForPulsarRunning)
 
-	fmt.Println("Waiting for components to start...")
-	time.Sleep(15 * time.Second)
+	if arg == "minimal" {
+		err := dockerComposeRun("up", "-d", "executor")
+		if err != nil {
+			return err
+		}
+		err = dockerComposeRun("up", "-d", "server")
+		if err != nil {
+			return err
+		}
+	} else {
+		mg.Deps(StartComponents)
+	}
 
+	mg.Deps(CheckForArmadaRunning)
+
+	fmt.Println("Armada Ready!")
 	fmt.Println("Run: `docker-compose logs -f` to see logs")
-	return err
+	return nil
 }
 
 // Stop Local Armada Cluster
