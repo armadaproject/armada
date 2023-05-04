@@ -176,6 +176,7 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 			recorder = qs.runningJobRecorder
 		} else {
 			log.Warnf("Job %s is marked as leased but has no runs", job.Id())
+			break
 		}
 		recorder.RecordJobRuntime(pool, priorityClass, timeInState)
 		recorder.RecordResources(pool, priorityClass, jobResources)
