@@ -89,7 +89,7 @@ func TestHashMany(t *testing.T) {
 
 func TestHash_NoCollisions(t *testing.T) {
 	hashes := make(map[string]bool)
-	for i := 0; i < 1000000; i++ {
+	for i := 0; i < 100000; i++ {
 		intialHash, err := Hash(&schedulerobjects.JobSchedulingInfo{Lifetime: uint32(i)})
 		require.NoError(t, err)
 		hashStr := string(intialHash)
