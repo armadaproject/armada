@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"time"
 
 	goreleaserConfig "github.com/goreleaser/goreleaser/pkg/config"
 	"github.com/magefile/mage/sh"
@@ -28,12 +27,10 @@ func goreleaserRun(args ...string) error {
 }
 
 func goreleaserMinimalRelease(dockerIds ...string) error {
-	timeTaken := time.Now()
 	if err := goreleaserWriteMinimalReleaseConfig(dockerIds...); err != nil {
 		return err
 	}
 
-	fmt.Println("Time to write minimal goreleaser config:", time.Since(timeTaken))
 	return goreleaserRun("release", "--snapshot", "--rm-dist", "-f", GORELEASER_MINIMAL_CONFIG_PATH)
 }
 
