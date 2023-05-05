@@ -6,8 +6,10 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -36,8 +38,10 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 		// If any job in a gang fails to schedule, set the unschedulableReason for all jobs in the gang,
 		// and remove it from the scheduling context.
 		if err == nil && !ok {
+			jobs := util.Map(gctx.JobSchedulingContexts, func(jctx *schedulercontext.JobSchedulingContext) interfaces.LegacySchedulerJob { return jctx.Job })
+			sch.schedulingContext.EvictGang(jobs)
 			for _, jctx := range gctx.JobSchedulingContexts {
-				sch.schedulingContext.EvictJob(jctx.Job)
+				// sch.schedulingContext.EvictJob(jctx.Job)
 				jctx.UnschedulableReason = unschedulableReason
 			}
 			sch.schedulingContext.AddGangSchedulingContext(gctx)

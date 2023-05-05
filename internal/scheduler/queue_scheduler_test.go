@@ -86,13 +86,25 @@ func TestQueueScheduler(t *testing.T) {
 			PriorityFactorByQueue:    map[string]float64{"A": 1},
 			ExpectedScheduledIndices: []int{0, 11},
 		},
+		// "MaximumJobsToSchedule": {
+		// 	SchedulingConfig:              testfixtures.WithMaxJobsToScheduleConfig(2, testfixtures.TestSchedulingConfig()),
+		// 	Nodes:                         testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+		// 	Jobs:                          testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 5),
+		// 	PriorityFactorByQueue:         map[string]float64{"A": 1},
+		// 	ExpectedScheduledIndices:      []int{0, 1},
+		// 	ExpectedNeverAttemptedIndices: []int{3, 4},
+		// },
 		"MaximumJobsToSchedule": {
-			SchedulingConfig:              testfixtures.WithMaxJobsToScheduleConfig(2, testfixtures.TestSchedulingConfig()),
-			Nodes:                         testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Jobs:                          testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 5),
+			SchedulingConfig: testfixtures.WithMaxJobsToScheduleConfig(2, testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Jobs: armadaslices.Concatenate(
+				testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1),
+				testfixtures.NLargeCpuJob("A", testfixtures.PriorityClass0, 10),
+				testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 3),
+			),
 			PriorityFactorByQueue:         map[string]float64{"A": 1},
-			ExpectedScheduledIndices:      []int{0, 1},
-			ExpectedNeverAttemptedIndices: []int{3, 4},
+			ExpectedScheduledIndices:      []int{0, 11},
+			ExpectedNeverAttemptedIndices: []int{13},
 		},
 		"MaximumGangsToSchedule": {
 			SchedulingConfig: testfixtures.WithMaxGangsToScheduleConfig(2, testfixtures.TestSchedulingConfig()),
@@ -100,6 +112,12 @@ func TestQueueScheduler(t *testing.T) {
 			Jobs: armadaslices.Concatenate(
 				testfixtures.WithGangAnnotationsJobs(
 					testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 2),
+				),
+				testfixtures.WithGangAnnotationsJobs(
+					testfixtures.NLargeCpuJob("A", testfixtures.PriorityClass0, 2),
+				),
+				testfixtures.WithGangAnnotationsJobs(
+					testfixtures.NLargeCpuJob("A", testfixtures.PriorityClass0, 2),
 				),
 				testfixtures.WithGangAnnotationsJobs(
 					testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 2),
@@ -111,9 +129,10 @@ func TestQueueScheduler(t *testing.T) {
 					testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 2),
 				),
 			),
-			PriorityFactorByQueue:         map[string]float64{"A": 1},
-			ExpectedScheduledIndices:      testfixtures.IntRange(0, 3),
-			ExpectedNeverAttemptedIndices: []int{6, 7},
+			PriorityFactorByQueue:    map[string]float64{"A": 1},
+			ExpectedScheduledIndices: []int{0, 2, 7, 8},
+			// ExpectedScheduledIndices:      testfixtures.IntRange(0, 3),
+			ExpectedNeverAttemptedIndices: []int{10, 11},
 		},
 		"round limits": {
 			SchedulingConfig: testfixtures.WithRoundLimitsConfig(
@@ -606,7 +625,7 @@ func TestQueueScheduler(t *testing.T) {
 				)
 			}
 			slices.Sort(actualScheduledIndices)
-			assert.Equal(t, tc.ExpectedScheduledIndices, actualScheduledIndices)
+			assert.Equal(t, tc.ExpectedScheduledIndices, actualScheduledIndices, "actual scheduled indices does not match expected")
 
 			// Check that the right job scheduling contexts were created.
 			expectedScheduledIndicesByQueue := armadaslices.GroupByFunc(
@@ -638,8 +657,7 @@ func TestQueueScheduler(t *testing.T) {
 			queues := armadaslices.Unique(append(
 				maps.Keys(sctx.QueueSchedulingContexts),
 				maps.Keys(tc.PriorityFactorByQueue)...,
-			),
-			)
+			))
 			for _, queue := range queues {
 				qctx := sctx.QueueSchedulingContexts[queue]
 				require.NotNil(t, queue)
@@ -666,8 +684,8 @@ func TestQueueScheduler(t *testing.T) {
 					actualUnsuccessfulIndicesByQueue[queue] = is
 				}
 			}
-			assert.Equal(t, expectedScheduledIndicesByQueue, actualSuccessfulIndicesByQueue)
-			assert.Equal(t, expectedUnsuccessfulIndicesByQueue, actualUnsuccessfulIndicesByQueue)
+			assert.Equal(t, expectedScheduledIndicesByQueue, actualSuccessfulIndicesByQueue, "actual successful scheduling contexts does not match expected")
+			assert.Equal(t, expectedUnsuccessfulIndicesByQueue, actualUnsuccessfulIndicesByQueue, "actual unsuccessful scheduling contexts does not match expected")
 
 			// Check that job scheduling contexts contain a node if and only if successful.
 			// This node must be the same as in the result.
