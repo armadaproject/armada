@@ -41,7 +41,6 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 			jobs := util.Map(gctx.JobSchedulingContexts, func(jctx *schedulercontext.JobSchedulingContext) interfaces.LegacySchedulerJob { return jctx.Job })
 			sch.schedulingContext.EvictGang(jobs)
 			for _, jctx := range gctx.JobSchedulingContexts {
-				// sch.schedulingContext.EvictJob(jctx.Job)
 				jctx.UnschedulableReason = unschedulableReason
 			}
 			sch.schedulingContext.AddGangSchedulingContext(gctx)
