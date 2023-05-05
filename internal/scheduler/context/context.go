@@ -109,11 +109,13 @@ func (sctx *SchedulingContext) String() string {
 
 func (sctx *SchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingContext) bool {
 	allJobsEvictedInThisRound := true
+	allJobsSuccessful := true
 	for _, jctx := range gctx.JobSchedulingContexts {
 		evictedInThisRound := sctx.AddJobSchedulingContext(jctx)
 		allJobsEvictedInThisRound = allJobsEvictedInThisRound && evictedInThisRound
+		allJobsSuccessful = allJobsSuccessful && jctx.IsSuccessful()
 	}
-	if !allJobsEvictedInThisRound {
+	if !allJobsEvictedInThisRound && allJobsSuccessful {
 		sctx.NumScheduledGangs++
 	}
 	return allJobsEvictedInThisRound

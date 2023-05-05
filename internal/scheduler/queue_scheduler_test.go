@@ -86,14 +86,6 @@ func TestQueueScheduler(t *testing.T) {
 			PriorityFactorByQueue:    map[string]float64{"A": 1},
 			ExpectedScheduledIndices: []int{0, 11},
 		},
-		// "MaximumJobsToSchedule": {
-		// 	SchedulingConfig:              testfixtures.WithMaxJobsToScheduleConfig(2, testfixtures.TestSchedulingConfig()),
-		// 	Nodes:                         testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-		// 	Jobs:                          testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 5),
-		// 	PriorityFactorByQueue:         map[string]float64{"A": 1},
-		// 	ExpectedScheduledIndices:      []int{0, 1},
-		// 	ExpectedNeverAttemptedIndices: []int{3, 4},
-		// },
 		"MaximumJobsToSchedule": {
 			SchedulingConfig: testfixtures.WithMaxJobsToScheduleConfig(2, testfixtures.TestSchedulingConfig()),
 			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
@@ -129,9 +121,8 @@ func TestQueueScheduler(t *testing.T) {
 					testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 2),
 				),
 			),
-			PriorityFactorByQueue:    map[string]float64{"A": 1},
-			ExpectedScheduledIndices: []int{0, 2, 7, 8},
-			// ExpectedScheduledIndices:      testfixtures.IntRange(0, 3),
+			PriorityFactorByQueue:         map[string]float64{"A": 1},
+			ExpectedScheduledIndices:      []int{0, 1, 6, 7},
 			ExpectedNeverAttemptedIndices: []int{10, 11},
 		},
 		"round limits": {
