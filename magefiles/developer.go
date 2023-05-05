@@ -85,6 +85,9 @@ func CheckForPulsarRunning() error {
 // Download Dependency Images using Docker
 // Ensure there is no error returned so that CI doesn't fail.
 func downloadDependencyImages() error {
-	dockerComposeRun("pull", "--ignore-pull-failures")
+	err := dockerComposeRun("pull", "--ignore-pull-failures")
+	if err != nil {
+		return nil
+	}
 	return nil
 }

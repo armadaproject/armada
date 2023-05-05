@@ -11,7 +11,6 @@ import (
 
 // Build images, spin up a test environment, and run the integration tests against it.
 func TestSuite() error {
-
 	outbytes, err := exec.Command(goBinary(), "run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue").CombinedOutput()
 	out := string(outbytes)
 	// check if err text contains "already exists" and ignore if it does
