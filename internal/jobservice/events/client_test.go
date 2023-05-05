@@ -16,11 +16,10 @@ import (
 type DummyEventServer struct{}
 
 func (des *DummyEventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
-	stream.Send(&api.EventStreamMessage{
+	return stream.Send(&api.EventStreamMessage{
 		Id:      "1",
 		Message: &api.EventMessage{},
 	})
-	return nil
 }
 
 func (des *DummyEventServer) Health(ctx context.Context, cont_ *types.Empty) (*api.HealthCheckResponse, error) {

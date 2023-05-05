@@ -3,9 +3,10 @@ package jobservice
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
-	"github.com/stretchr/testify/require"
 )
 
 var knownGoodConfig = &configuration.JobServiceConfiguration{
