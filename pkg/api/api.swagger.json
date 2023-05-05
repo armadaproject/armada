@@ -735,6 +735,9 @@
         },
         "queue": {
           "type": "string"
+        },
+        "reason": {
+          "type": "string"
         }
       }
     },
@@ -773,6 +776,9 @@
           "type": "string"
         },
         "queue": {
+          "type": "string"
+        },
+        "reason": {
           "type": "string"
         },
         "requestor": {
@@ -1197,6 +1203,9 @@
           "type": "string"
         },
         "queue": {
+          "type": "string"
+        },
+        "reason": {
           "type": "string"
         }
       }
