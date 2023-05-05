@@ -316,9 +316,9 @@ describe("JobsTablePreferencesService", () => {
           {
             id: StandardColumnId.State,
             value: ["QUEUED", "PENDING", "RUNNING"],
-            match: Match.AnyOf,
           },
         ],
+        columnMatches: { [StandardColumnId.State]: Match.AnyOf },
         groupedColumns: ["jobSet"],
         order: { id: "timeInState", direction: "ASC" },
         pageIndex: 0,

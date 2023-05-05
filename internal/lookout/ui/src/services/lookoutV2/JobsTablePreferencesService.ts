@@ -1,4 +1,4 @@
-import { ExpandedStateList, VisibilityState } from "@tanstack/react-table"
+import { ColumnFiltersState, ExpandedStateList, VisibilityState } from "@tanstack/react-table"
 import { isValidMatch, JobId, Match } from "models/lookoutV2Models"
 import qs from "qs"
 import { SortDirection } from "react-virtualized"
@@ -25,7 +25,7 @@ export interface JobsTablePreferences {
   pageSize: number
   order: LookoutColumnOrder
   columnSizing?: Record<string, number>
-  filters: LookoutColumnFilter[]
+  filters: ColumnFiltersState
   columnMatches: Record<string, Match>
   sidebarJobId: JobId | undefined
   sidebarWidth?: number

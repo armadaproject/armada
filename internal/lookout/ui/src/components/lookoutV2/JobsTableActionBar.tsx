@@ -28,6 +28,7 @@ export interface JobsTableActionBarProps {
   onGroupsChanged: (newGroups: ColumnId[]) => void
   getJobsService: IGetJobsService
   updateJobsService: UpdateJobsService
+  onClearFilters: () => void
 }
 
 export const JobsTableActionBar = memo(
@@ -45,6 +46,7 @@ export const JobsTableActionBar = memo(
     onGroupsChanged,
     getJobsService,
     updateJobsService,
+    onClearFilters,
   }: JobsTableActionBarProps) => {
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
     const [reprioritiseDialogOpen, setReprioritiseDialogOpen] = useState(false)
@@ -79,6 +81,9 @@ export const JobsTableActionBar = memo(
         </div>
 
         <div className={styles.actionGroup}>
+          <Button variant="contained" onClick={onClearFilters}>
+            Clear Filters
+          </Button>
           <RefreshButton isLoading={isLoading} onClick={onRefresh} />
           <ColumnSelect
             selectableColumns={selectableColumns}

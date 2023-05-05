@@ -6,7 +6,6 @@ import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 
 import { LookoutColumnFilter } from "../containers/lookoutV2/JobsTableContainer"
-import { columnIsAggregatable } from "../hooks/useJobsTableData"
 import {
   AnnotationColumnId,
   ColumnId,

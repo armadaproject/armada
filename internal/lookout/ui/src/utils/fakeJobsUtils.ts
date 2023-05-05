@@ -62,15 +62,15 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
       runs: runs,
       submitted: randomDate(new Date("2022-12-13T11:57:25.733Z"), new Date("2022-12-27T11:57:25.733Z")),
       cpu: randomInt(2, 200, rand) * 100,
-      ephemeralStorage: 34359738368,
-      memory: 134217728,
+      ephemeralStorage: randomInt(2, 2048, rand) * 1024 ** 3,
+      memory: randomInt(2, 1024, rand) * 1024 ** 2,
       queue: queues[i % queues.length],
       annotations: createAnnotations(annotationKeys, uuid),
       jobId: jobId,
       jobSet: jobSets[i % jobSets.length],
       state: state ? state : randomProperty(JobState, rand),
       lastTransitionTime: randomDate(new Date("2022-12-13T12:19:14.956Z"), new Date("2022-12-31T11:57:25.733Z")),
-      priorityClass: "armada-preemptible",
+      priorityClass: rand() > 0.5 ? "armada-preemptible" : "armada-default",
     })
   }
 

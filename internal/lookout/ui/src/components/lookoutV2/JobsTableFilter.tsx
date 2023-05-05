@@ -1,12 +1,14 @@
-import React, { useState } from "react"
+import React, { RefObject, useEffect, useRef, useState } from "react"
 
 import MoreVert from "@material-ui/icons/MoreVert"
 import { Check } from "@mui/icons-material"
-import { Select, OutlinedInput, MenuItem, Checkbox, ListItemText, Box, InputAdornment, IconButton } from "@mui/material"
+import { Box, Checkbox, IconButton, InputAdornment, ListItemText, MenuItem, OutlinedInput, Select } from "@mui/material"
 import Menu from "@mui/material/Menu"
 import { DebouncedTextField } from "components/lookoutV2/DebouncedTextField"
 import { Match, MATCH_DISPLAY_STRINGS } from "models/lookoutV2Models"
 import { FilterType, VALID_COLUMN_MATCHES } from "utils/jobsTableColumns"
+
+import { EmptyInputError, formatBytes, formatCpu, parseBytes, parseCpu, ParseError } from "../../utils/resourceUtils"
 
 const ELLIPSIS = "\u2026"
 
@@ -22,13 +24,15 @@ const FILTER_TYPE_DISPLAY_STRINGS: Record<Match, string> = {
 }
 
 export interface JobsTableFilterProps {
-  currentFilter?: string | string[]
+  currentFilter?: string | string[] | number
   filterType: FilterType
   matchType: Match
   enumFilterValues?: EnumFilterOption[]
   id: string
-  onFilterChange: (newFilter: string | string[] | undefined) => void
+  parseError: string | undefined
+  onFilterChange: (newFilter: string | string[] | number | undefined) => void
   onColumnMatchChange: (columnId: string, newMatch: Match) => void
+  onSetTextFieldRef: (ref: RefObject<HTMLInputElement>) => void
 }
 
 export const JobsTableFilter = ({
@@ -36,32 +40,41 @@ export const JobsTableFilter = ({
   currentFilter,
   filterType,
   matchType,
+  parseError,
   enumFilterValues,
   onFilterChange,
   onColumnMatchChange,
+  onSetTextFieldRef,
 }: JobsTableFilterProps) => {
   const label = FILTER_TYPE_DISPLAY_STRINGS[matchType]
-  return (
-    <Box sx={{ display: "block", width: "100%" }}>
-      {filterType === FilterType.Enum ? (
-        <EnumFilter
-          currentFilter={(currentFilter ?? []) as string[]}
-          enumFilterValues={enumFilterValues ?? []}
-          label={label}
-          onFilterChange={onFilterChange}
-        />
-      ) : (
-        <TextFilter
-          columnId={id}
-          currentFilter={(currentFilter ?? "") as string}
-          label={label}
-          match={matchType}
-          onFilterChange={onFilterChange}
-          onColumnMatchChange={onColumnMatchChange}
-        />
-      )}
-    </Box>
-  )
+  const possibleMatches = id in VALID_COLUMN_MATCHES ? VALID_COLUMN_MATCHES[id] : [Match.Exact]
+  let filter = <></>
+  if (filterType === FilterType.Enum) {
+    filter = (
+      <EnumFilter
+        currentFilter={(currentFilter ?? []) as string[]}
+        enumFilterValues={enumFilterValues ?? []}
+        label={label}
+        onFilterChange={onFilterChange}
+      />
+    )
+  } else {
+    filter = (
+      <TextFilter
+        defaultValue={(currentFilter as string | undefined) ?? ""}
+        label={label}
+        match={matchType}
+        possibleMatches={possibleMatches}
+        parseError={parseError}
+        onChange={onFilterChange}
+        onColumnMatchChange={(newMatch) => {
+          onColumnMatchChange(id, newMatch)
+        }}
+        onSetTextFieldRef={onSetTextFieldRef}
+      />
+    )
+  }
+  return <Box sx={{ display: "block", width: "100%" }}>{filter}</Box>
 }
 
 export interface EnumFilterOption {
@@ -122,31 +135,265 @@ const EnumFilter = ({ currentFilter, enumFilterValues, label, onFilterChange }: 
 }
 
 interface TextFilterProps {
+  defaultValue: string
+  label: string
+  match: Match
+  possibleMatches: Match[]
+  parseError: string | undefined
+  onChange: (newVal: string) => void
+  onColumnMatchChange: (newMatch: Match) => void
+  onSetTextFieldRef: (ref: RefObject<HTMLInputElement>) => void
+}
+
+const TextFilter = ({
+  defaultValue,
+  label,
+  match,
+  possibleMatches,
+  parseError,
+  onChange,
+  onColumnMatchChange,
+  onSetTextFieldRef,
+}: TextFilterProps) => {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    onSetTextFieldRef(ref)
+    // if (ref.current) {
+    //   ref.current.value = "HELP ME"
+    // }
+  }, [ref])
+  return (
+    <DebouncedTextField
+      debouncedOnChange={onChange}
+      debounceWaitMs={300}
+      textFieldProps={{
+        inputRef: ref,
+        type: "text",
+        size: "small",
+        defaultValue: defaultValue,
+        error: parseError !== undefined,
+        placeholder: label,
+        sx: {
+          width: "100%",
+        },
+        inputProps: {
+          "aria-label": label,
+          sx: {
+            padding: "3.5px 7px",
+            height: "1em",
+            width: "100%",
+          },
+        },
+        InputProps: {
+          style: {
+            paddingRight: 0,
+          },
+          endAdornment: (
+            <InputAdornment position="end">
+              <MatchSelect possibleMatches={possibleMatches} currentMatch={match} onSelect={onColumnMatchChange} />
+            </InputAdornment>
+          ),
+        },
+      }}
+    />
+  )
+}
+
+interface BytesFilterProps {
   columnId: string
-  currentFilter: string
+  currentFilter: number | undefined
   label: string
   match: Match
   onFilterChange: JobsTableFilterProps["onFilterChange"]
   onColumnMatchChange: (columnId: string, newMatch: Match) => void
 }
 
-const TextFilter = ({
+const BytesFilter = ({
   columnId,
   currentFilter,
   label,
   match,
   onFilterChange,
   onColumnMatchChange,
-}: TextFilterProps) => {
+}: BytesFilterProps) => {
   let possibleMatches = [Match.Exact]
   if (columnId in VALID_COLUMN_MATCHES) {
     possibleMatches = VALID_COLUMN_MATCHES[columnId]
   }
+  const [parseError, setParseError] = useState<string | undefined>(undefined)
+
+  const changeFilter = (newFilter: string) => {
+    try {
+      const value = parseBytes(newFilter.trim())
+      setParseError(undefined)
+      onFilterChange(value)
+    } catch (e) {
+      if (e instanceof EmptyInputError) {
+        onFilterChange(undefined)
+        setParseError(undefined)
+      } else if (e instanceof ParseError) {
+        console.error(e)
+        onFilterChange(undefined)
+        setParseError(e.message)
+      }
+    }
+  }
+
   return (
     <DebouncedTextField
       debounceWaitMs={300}
-      debouncedOnChange={(newFilter) => onFilterChange(newFilter.trim())}
+      debouncedOnChange={changeFilter}
       textFieldProps={{
+        error: parseError !== undefined,
+        type: "text",
+        size: "small",
+        defaultValue: currentFilter === undefined ? "" : formatBytes(currentFilter),
+        placeholder: label,
+        sx: {
+          width: "100%",
+        },
+        inputProps: {
+          "aria-label": label,
+          sx: {
+            padding: "3.5px 7px",
+            height: "1em",
+            width: "100%",
+          },
+        },
+        InputProps: {
+          style: {
+            paddingRight: 0,
+          },
+          endAdornment: (
+            <InputAdornment position="end">
+              <MatchSelect
+                possibleMatches={possibleMatches}
+                currentMatch={match}
+                onSelect={(newMatch) => {
+                  onColumnMatchChange(columnId, newMatch)
+                }}
+              />
+            </InputAdornment>
+          ),
+        },
+      }}
+    />
+  )
+}
+
+interface CpuFilterProps {
+  columnId: string
+  currentFilter: number | undefined
+  label: string
+  match: Match
+  onFilterChange: JobsTableFilterProps["onFilterChange"]
+  onColumnMatchChange: (columnId: string, newMatch: Match) => void
+}
+
+const CpuFilter = ({ columnId, currentFilter, label, match, onFilterChange, onColumnMatchChange }: CpuFilterProps) => {
+  let possibleMatches = [Match.Exact]
+  if (columnId in VALID_COLUMN_MATCHES) {
+    possibleMatches = VALID_COLUMN_MATCHES[columnId]
+  }
+  const [parseError, setParseError] = useState<string | undefined>(undefined)
+
+  const changeFilter = (newFilter: string) => {
+    try {
+      const value = parseCpu(newFilter.trim())
+      setParseError(undefined)
+      onFilterChange(value)
+    } catch (e) {
+      if (e instanceof EmptyInputError) {
+        onFilterChange(undefined)
+        setParseError(undefined)
+      } else if (e instanceof ParseError) {
+        console.error(e)
+        onFilterChange(undefined)
+        setParseError(e.message)
+      }
+    }
+  }
+
+  return (
+    <DebouncedTextField
+      debounceWaitMs={300}
+      debouncedOnChange={changeFilter}
+      textFieldProps={{
+        error: parseError !== undefined,
+        type: "text",
+        size: "small",
+        defaultValue: currentFilter === undefined ? "" : formatCpu(currentFilter),
+        placeholder: label,
+        sx: {
+          width: "100%",
+        },
+        inputProps: {
+          "aria-label": label,
+          sx: {
+            padding: "3.5px 7px",
+            height: "1em",
+            width: "100%",
+          },
+        },
+        InputProps: {
+          style: {
+            paddingRight: 0,
+          },
+          endAdornment: (
+            <InputAdornment position="end">
+              <MatchSelect
+                possibleMatches={possibleMatches}
+                currentMatch={match}
+                onSelect={(newMatch) => {
+                  onColumnMatchChange(columnId, newMatch)
+                }}
+              />
+            </InputAdornment>
+          ),
+        },
+      }}
+    />
+  )
+}
+
+interface IntFilterProps {
+  columnId: string
+  currentFilter: number | undefined
+  label: string
+  match: Match
+  onFilterChange: JobsTableFilterProps["onFilterChange"]
+  onColumnMatchChange: (columnId: string, newMatch: Match) => void
+}
+
+const IntFilter = ({ columnId, currentFilter, label, match, onFilterChange, onColumnMatchChange }: IntFilterProps) => {
+  let possibleMatches = [Match.Exact]
+  if (columnId in VALID_COLUMN_MATCHES) {
+    possibleMatches = VALID_COLUMN_MATCHES[columnId]
+  }
+  const [parseError, setParseError] = useState<string | undefined>(undefined)
+
+  const changeFilter = (newFilter: string) => {
+    const trimmed = newFilter.trim()
+    if (trimmed.length === 0) {
+      setParseError(undefined)
+      onFilterChange(undefined)
+      return
+    } else if (trimmed.match(/^\d+$/)) {
+      setParseError(undefined)
+      onFilterChange(parseInt(trimmed))
+      return
+    } else {
+      setParseError("failed to parse int")
+      onFilterChange(undefined)
+    }
+  }
+
+  return (
+    <DebouncedTextField
+      debounceWaitMs={300}
+      debouncedOnChange={changeFilter}
+      textFieldProps={{
+        error: parseError !== undefined,
         type: "text",
         size: "small",
         defaultValue: currentFilter,
