@@ -85,9 +85,11 @@ func CheckForPulsarRunning() error {
 // Download Dependency Images using Docker
 // Ensure there is no error returned so that CI doesn't fail.
 func downloadDependencyImages() error {
+	timeTaken := time.Now()
 	err := dockerComposeRun("pull", "--ignore-pull-failures")
 	if err != nil {
 		return nil
 	}
+	fmt.Printf("Time to download images: %s\n\n", time.Since(timeTaken))
 	return nil
 }

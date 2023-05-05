@@ -11,6 +11,9 @@ import (
 
 // Build images, spin up a test environment, and run the integration tests against it.
 func TestSuite() error {
+
+	timeTaken := time.Now()
+
 	outbytes, err := exec.Command(goBinary(), "run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue").CombinedOutput()
 	out := string(outbytes)
 	// check if err text contains "already exists" and ignore if it does
@@ -18,6 +21,8 @@ func TestSuite() error {
 		fmt.Println(out)
 		return err
 	}
+
+	fmt.Printf("Time to create queue: %s\n\n", time.Since(timeTaken))
 
 	mg.Deps(CheckForArmadaRunning)
 

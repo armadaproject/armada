@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/magefile/mage/mg"
 	"github.com/pkg/errors"
@@ -73,9 +74,11 @@ func Clean() {
 
 // setup kind and wait for it to be ready
 func Kind() {
+	timeTaken := time.Now()
 	mg.Deps(kindCheck)
 	mg.Deps(kindSetup)
 	mg.Deps(kindWaitUntilReady)
+	fmt.Println("Time to setup kind:", time.Since(timeTaken))
 }
 
 // teardown kind
@@ -124,7 +127,9 @@ func LocalDev(arg string) error {
 
 	switch arg {
 	case "minimal":
+		timeTaken := time.Now()
 		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)
+		fmt.Printf("Time to build, setup kind and download images: %s\n", time.Since(timeTaken))
 	case "full":
 		mg.Deps(mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"), Kind, downloadDependencyImages)
 	case "no-build":
