@@ -68,34 +68,34 @@ func schedulingKeyFromPodRequirements(req *PodRequirements) [SchedulingKeySize]b
 	slices.Sort(nodeSelectorKeys)
 	for _, key := range nodeSelectorKeys {
 		value := req.NodeSelector[key]
-		io.WriteString(h, key)
-		io.WriteString(h, "=")
-		io.WriteString(h, value)
-		io.WriteString(h, "$")
+		_, _ = io.WriteString(h, key)
+		_, _ = io.WriteString(h, "=")
+		_, _ = io.WriteString(h, value)
+		_, _ = io.WriteString(h, "$")
 	}
-	io.WriteString(h, "&")
+	_, _ = io.WriteString(h, "&")
 
 	if req.Affinity != nil {
-		io.WriteString(h, req.Affinity.String())
+		_, _ = io.WriteString(h, req.Affinity.String())
 	}
-	io.WriteString(h, "&")
+	_, _ = io.WriteString(h, "&")
 
 	tolerations := slices.Clone(req.Tolerations)
 	slices.SortFunc(tolerations, lessToleration)
 	for _, toleration := range tolerations {
-		io.WriteString(h, toleration.Key)
-		io.WriteString(h, "=")
-		io.WriteString(h, toleration.Value)
-		io.WriteString(h, ":")
-		io.WriteString(h, string(toleration.Operator))
-		io.WriteString(h, ":")
-		io.WriteString(h, string(toleration.Effect))
-		io.WriteString(h, "$")
+		_, _ = io.WriteString(h, toleration.Key)
+		_, _ = io.WriteString(h, "=")
+		_, _ = io.WriteString(h, toleration.Value)
+		_, _ = io.WriteString(h, ":")
+		_, _ = io.WriteString(h, string(toleration.Operator))
+		_, _ = io.WriteString(h, ":")
+		_, _ = io.WriteString(h, string(toleration.Effect))
+		_, _ = io.WriteString(h, "$")
 	}
-	io.WriteString(h, "&")
+	_, _ = io.WriteString(h, "&")
 
-	io.WriteString(h, strconv.Itoa(int(req.Priority)))
-	io.WriteString(h, "&")
+	_, _ = io.WriteString(h, strconv.Itoa(int(req.Priority)))
+	_, _ = io.WriteString(h, "&")
 
 	requestKeys := maps.Keys(req.ResourceRequirements.Requests)
 	requestKeys = armadaslices.Filter(
@@ -108,10 +108,10 @@ func schedulingKeyFromPodRequirements(req *PodRequirements) [SchedulingKeySize]b
 	slices.Sort(requestKeys)
 	for _, key := range requestKeys {
 		value := req.ResourceRequirements.Requests[key]
-		io.WriteString(h, string(key))
-		io.WriteString(h, "=")
-		h.Write(EncodeQuantity(value))
-		io.WriteString(h, "$")
+		_, _ = io.WriteString(h, string(key))
+		_, _ = io.WriteString(h, "=")
+		_, _ = h.Write(EncodeQuantity(value))
+		_, _ = io.WriteString(h, "$")
 	}
 
 	return [SchedulingKeySize]byte(h.Sum(nil))
