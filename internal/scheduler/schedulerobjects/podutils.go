@@ -50,7 +50,7 @@ func (jobSchedulingInfo *JobSchedulingInfo) SchedulingKey() ([SchedulingKeySize]
 // The hash is of size SchedulingKeySize and is guaranteed to always be the same for equivalent requirements,
 // unless Affinity is used, in which case they may differ as a result of unordered map keys.
 func (req *PodRequirements) SchedulingKey() [SchedulingKeySize]byte {
-	if req.CachedSchedulingKey != nil {
+	if req.CachedSchedulingKey == nil {
 		// Cache the key such that the next invocation returns a pre-computed key.
 		schedulingKey := schedulingKeyFromPodRequirements(req)
 		req.CachedSchedulingKey = schedulingKey[:]
@@ -88,7 +88,7 @@ func schedulingKeyFromPodRequirements(req *PodRequirements) [SchedulingKeySize]b
 		io.WriteString(h, "=")
 		io.WriteString(h, toleration.Value)
 		io.WriteString(h, ":")
-		io.WriteString(h, string(toleration.Effect))
+		io.WriteString(h, string(toleration.Operator))
 		io.WriteString(h, ":")
 		io.WriteString(h, string(toleration.Effect))
 		io.WriteString(h, "$")
@@ -99,7 +99,7 @@ func schedulingKeyFromPodRequirements(req *PodRequirements) [SchedulingKeySize]b
 	io.WriteString(h, "&")
 
 	requestKeys := maps.Keys(req.ResourceRequirements.Requests)
-	armadaslices.Filter(
+	requestKeys = armadaslices.Filter(
 		requestKeys,
 		func(key v1.ResourceName) bool {
 			q := req.ResourceRequirements.Requests[key]
