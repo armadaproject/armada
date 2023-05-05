@@ -1,12 +1,9 @@
-package hash
+package schedulerobjects
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func TestCalculatePodRequirementsHash(t *testing.T) {

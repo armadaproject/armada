@@ -42,7 +42,8 @@ type SchedulingContext struct {
 	// Total number of successfully scheduled jobs.
 	NumScheduledJobs int
 	// Total number of successfully scheduled gangs.
-	NumScheduledGangs int
+	NumScheduledGangs           int
+	FailedPodRequirementsHashes map[[16]byte]bool
 	// Reason for why the scheduling round finished.
 	TerminationReason string
 }
@@ -120,7 +121,7 @@ func (sctx *SchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingCont
 }
 
 // AddJobSchedulingContext adds a job scheduling context.
-// Automatically updates scheduled resources
+// Automatically updates scheduled resources.
 func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContext) bool {
 	qctx, ok := sctx.QueueSchedulingContexts[jctx.Job.GetQueue()]
 	if !ok {

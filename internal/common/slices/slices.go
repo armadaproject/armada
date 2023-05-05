@@ -126,3 +126,16 @@ func Subtract[T comparable](list []T, toRemove []T) []T {
 	}
 	return out
 }
+
+func Filter[S ~[]E, E any](s S, predicate func(e E) bool) S {
+	if s == nil {
+		return nil
+	}
+	out := make(S, 0, len(s))
+	for _, e := range s {
+		if predicate(e) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
