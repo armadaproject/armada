@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
@@ -76,7 +77,7 @@ func schedulingKeyFromPodRequirements(req *PodRequirements) [SchedulingKeySize]b
 	_, _ = io.WriteString(h, "&")
 
 	if req.Affinity != nil {
-		_, _ = io.WriteString(h, req.Affinity.String())
+		_ = (&jsonpb.Marshaler{EnumsAsInts: true, OrigName: true}).Marshal(h, req.Affinity)
 	}
 	_, _ = io.WriteString(h, "&")
 
