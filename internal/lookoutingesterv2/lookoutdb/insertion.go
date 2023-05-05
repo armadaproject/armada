@@ -345,7 +345,7 @@ func (l *LookoutDb) UpdateJobsBatch(ctx context.Context, instructions []*model.U
 						last_transition_time_seconds = coalesce(tmp.last_transition_time_seconds, job.last_transition_time_seconds),
 						duplicate                    = coalesce(tmp.duplicate, job.duplicate),
 						latest_run_id                = coalesce(tmp.latest_run_id, job.latest_run_id),
-						cancel_reason                = coalesce(tmp.cancel_reason, job.cancel_reason),
+						cancel_reason                = coalesce(tmp.cancel_reason, job.cancel_reason)
 					FROM %s as tmp WHERE tmp.job_id = job.job_id`, tmpTable),
 			)
 			if err != nil {
