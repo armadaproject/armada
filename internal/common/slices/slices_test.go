@@ -197,3 +197,47 @@ func TestUnique(t *testing.T) {
 		})
 	}
 }
+
+func TestFilter(t *testing.T) {
+	includeOver5 := func(val int) bool { return val > 5 }
+	input := []int{1, 3, 5, 7, 9}
+	expectedOutput := []int{7, 9}
+
+	output := Filter(input, includeOver5)
+	assert.Equal(t, expectedOutput, output)
+}
+
+func TestFilter_ExcludeAllFilter(t *testing.T) {
+	excludeAll := func(val int) bool { return false }
+	input := []int{1, 3, 5, 7, 9}
+	expectedOutput := []int{}
+	output := Filter(input, excludeAll)
+	assert.Equal(t, expectedOutput, output)
+}
+
+func TestFilter_IncludeAllFilter(t *testing.T) {
+	includeAll := func(val int) bool { return true }
+	input := []int{1, 3, 5, 7, 9}
+	expectedOutput := input
+
+	output := Filter(input, includeAll)
+	assert.Equal(t, expectedOutput, output)
+}
+
+func TestFilter_Empty(t *testing.T) {
+	includeAll := func(val int) bool { return true }
+	input := []int{}
+	expectedOutput := input
+
+	output := Filter(input, includeAll)
+	assert.Equal(t, expectedOutput, output)
+}
+
+func TestFilter_Nil(t *testing.T) {
+	includeAll := func(val int) bool { return true }
+	var input []int = nil
+	expectedOutput := input
+
+	output := Filter(input, includeAll)
+	assert.Equal(t, expectedOutput, output)
+}

@@ -11,5 +11,5 @@ export ARMADA_IMAGE_TAG=a08830b4911c6784d67d1227367f8505243fd167
 go install github.com/magefile/mage@latest
 
 # Run the demo
-mage localdev
+mage localdev no-build
 
