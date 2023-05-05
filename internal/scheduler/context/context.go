@@ -42,8 +42,7 @@ type SchedulingContext struct {
 	// Total number of successfully scheduled jobs.
 	NumScheduledJobs int
 	// Total number of successfully scheduled gangs.
-	NumScheduledGangs           int
-	FailedPodRequirementsHashes map[[16]byte]bool
+	NumScheduledGangs int
 	// Reason for why the scheduling round finished.
 	TerminationReason string
 }
