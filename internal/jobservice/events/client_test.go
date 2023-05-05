@@ -5,12 +5,13 @@ import (
 	"net"
 	"testing"
 
-	"github.com/armadaproject/armada/internal/common/grpc/grpcpool"
-	"github.com/armadaproject/armada/pkg/api"
-	"github.com/armadaproject/armada/pkg/client"
 	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+
+	"github.com/armadaproject/armada/internal/common/grpc/grpcpool"
+	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 type DummyEventServer struct{}
