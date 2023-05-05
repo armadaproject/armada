@@ -5,7 +5,7 @@ import (
 	"net"
 	"testing"
 
-	grpcpool "github.com/ClifHouck/grpc-go-pool"
+	"github.com/armadaproject/armada/internal/common/grpc/grpcpool"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/gogo/protobuf/types"

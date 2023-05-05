@@ -9,10 +9,9 @@ import (
 
 	"github.com/gogo/protobuf/types"
 
+	"github.com/armadaproject/armada/internal/common/grpc/grpcpool"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
-
-	grpcpool "github.com/ClifHouck/grpc-go-pool"
 )
 
 // JobEventReader is the interface for retrieving job set event messages

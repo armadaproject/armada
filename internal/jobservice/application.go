@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	"github.com/armadaproject/armada/internal/common/grpc/grpcpool"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
 	"github.com/armadaproject/armada/internal/jobservice/events"
@@ -22,8 +23,6 @@ import (
 	"github.com/armadaproject/armada/internal/jobservice/server"
 	js "github.com/armadaproject/armada/pkg/api/jobservice"
 	"github.com/armadaproject/armada/pkg/client"
-
-	grpcpool "github.com/ClifHouck/grpc-go-pool"
 )
 
 type App struct {
