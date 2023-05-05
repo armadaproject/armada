@@ -96,7 +96,7 @@ func TestTimeout(t *testing.T) {
 	}
 
 	// We want to fetch a second one, with a timeout. If the timeout was
-	// ommitted, the pool would wait indefinitely as it'd wait for another
+	// omitted, the pool would wait indefinitely as it'd wait for another
 	// client to get back into the queue
 	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(10*time.Millisecond))
 	_, err2 := p.Get(ctx)
@@ -264,7 +264,7 @@ func TestGetContextFactoryTimeout(t *testing.T) {
 		t.Errorf("The pool returned an error: %s", err.Error())
 	}
 
-	// mark as unhealty the available conn
+	// mark as unhealthy the available conn
 	c, err := p.Get(context.Background())
 	if err != nil {
 		t.Errorf("Get returned an error: %s", err.Error())
