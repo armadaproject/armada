@@ -78,8 +78,8 @@ func schedulingKeyFromPodRequirements(req *PodRequirements) [SchedulingKeySize]b
 
 	if req.Affinity != nil {
 		_ = (&jsonpb.Marshaler{EnumsAsInts: true, OrigName: true}).Marshal(h, req.Affinity)
+		_, _ = io.WriteString(h, "&")
 	}
-	_, _ = io.WriteString(h, "&")
 
 	tolerations := slices.Clone(req.Tolerations)
 	slices.SortFunc(tolerations, lessToleration)
