@@ -19,6 +19,7 @@ export const SidebarTabJobDetails = ({ job }: SidebarTabJobDetailsProps) => {
           { key: "Owner", value: job.owner },
           { key: "Priority", value: job.priority.toString() },
           { key: "Run Count", value: job.runs.length.toString() },
+          { key: "Cancel Reason", value: job.cancelReason || "" },
         ]}
       />
 

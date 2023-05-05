@@ -174,6 +174,7 @@ func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotati
 			Runs:               []*model.Run{},
 			State:              string(lookout.JobStateMap[row.state]),
 			Submitted:          row.submitted,
+			CancelReason:       database.ParseNullString(row.cancelReason),
 		}
 		jobMap[row.jobId] = job
 		orderedJobIds[i] = row.jobId

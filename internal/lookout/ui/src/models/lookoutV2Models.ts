@@ -71,6 +71,7 @@ export type Job = {
   runs: JobRun[]
   lastActiveRunId?: string
   lastTransitionTime: string
+  cancelReason?: string
 }
 
 export type JobKey = keyof Job
