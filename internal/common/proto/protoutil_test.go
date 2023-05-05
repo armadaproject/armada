@@ -70,6 +70,35 @@ func TestMustMarshallAndCompress(t *testing.T) {
 	assert.Equal(t, compressedMsg, bytes)
 }
 
+func TestHashMany(t *testing.T) {
+	input1 := &schedulerobjects.JobSchedulingInfo{Lifetime: 1}
+	input2 := &schedulerobjects.JobSchedulingInfo{Lifetime: 2}
+	input3 := &schedulerobjects.JobSchedulingInfo{Lifetime: 3}
+	hash1, err := HashMany([]*schedulerobjects.JobSchedulingInfo{input1, input2})
+	require.NoError(t, err)
+	require.Equal(t, 20, len(hash1))
+	hash2, err := HashMany([]*schedulerobjects.JobSchedulingInfo{input1, input2})
+	require.NoError(t, err)
+	require.Equal(t, 20, len(hash2))
+	hash3, err := HashMany([]*schedulerobjects.JobSchedulingInfo{input1, input3})
+	require.NoError(t, err)
+	require.Equal(t, 20, len(hash3))
+	assert.Equal(t, hash1, hash2)
+	assert.NotEqual(t, hash1, hash3)
+}
+
+func TestHash_NoCollisions(t *testing.T) {
+	hashes := make(map[string]bool)
+	for i := 0; i < 100000; i++ {
+		intialHash, err := Hash(&schedulerobjects.JobSchedulingInfo{Lifetime: uint32(i)})
+		require.NoError(t, err)
+		hashStr := string(intialHash)
+		_, ok := hashes[hashStr]
+		require.False(t, ok, "Hash collision detected for %d", i)
+		hashes[hashStr] = true
+	}
+}
+
 func TestHash_TestConsistent(t *testing.T) {
 	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
 		Lifetime:          1,
