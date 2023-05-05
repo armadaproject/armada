@@ -1,6 +1,6 @@
 module github.com/armadaproject/armada
 
-go 1.20
+go 1.19
 
 // athenz@v1.10.5 and onwards bundle encrypted signing keys with the source code.
 // Because corporate proxies may block go get commands that pull in encrypted data,
@@ -8,7 +8,6 @@ go 1.20
 replace github.com/AthenZ/athenz v1.10.39 => github.com/AthenZ/athenz v1.10.4
 
 require (
-	github.com/ClifHouck/grpc-go-pool v0.1.0
 	github.com/alexbrainman/sspi v0.0.0-20180613141037-e580b900e9f5
 	github.com/alicebob/miniredis v2.5.0+incompatible
 	github.com/apache/pulsar-client-go v0.8.1-0.20220429133321-5ee63303d43e
