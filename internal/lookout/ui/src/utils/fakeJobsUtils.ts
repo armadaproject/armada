@@ -177,21 +177,35 @@ function randomDate(start: Date, end: Date): string {
   return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime())).toISOString()
 }
 
-export function makeTestJob(queue: string, jobSet: string, jobId: string, state: JobState): Job {
+type Resources = {
+  cpu: number
+  memory: number
+  ephemeralStorage: number
+  gpu: number
+}
+
+export function makeTestJob(
+  queue: string,
+  jobSet: string,
+  jobId: string,
+  state: JobState,
+  resources?: Resources,
+  runs?: JobRun[],
+): Job {
   return {
     queue: queue,
     jobSet: jobSet,
     jobId: jobId,
     owner: queue,
     priority: 10,
-    cpu: 1,
-    memory: 1024,
-    ephemeralStorage: 1024,
-    gpu: 1,
+    cpu: resources?.cpu ?? 1,
+    memory: resources?.memory ?? 1024,
+    ephemeralStorage: resources?.ephemeralStorage ?? 1024,
+    gpu: resources?.gpu ?? 1,
     submitted: new Date().toISOString(),
     lastTransitionTime: new Date().toISOString(),
     state: state,
-    runs: [],
+    runs: runs ?? [],
     annotations: {},
     priorityClass: "armada-preemptible",
   }

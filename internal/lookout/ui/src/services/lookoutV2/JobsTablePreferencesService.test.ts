@@ -117,9 +117,8 @@ describe("JobsTablePreferencesService", () => {
       expect(router.location.search).toContain(
         "f[0][id]=state&f[0][value][0]=QUEUED&f[0][value][1]=PENDING&f[0][value][2]=RUNNING&f[0][match]=anyOf",
       )
-      expect(service.getUserPrefs().filters).toStrictEqual([
-        { id: "state", value: ["QUEUED", "PENDING", "RUNNING"], match: Match.AnyOf },
-      ])
+      expect(service.getUserPrefs().filters).toStrictEqual([{ id: "state", value: ["QUEUED", "PENDING", "RUNNING"] }])
+      expect(service.getUserPrefs().columnMatches["state"] === Match.AnyOf)
     })
 
     it("round-trips special characters", () => {
@@ -127,9 +126,8 @@ describe("JobsTablePreferencesService", () => {
       expect(router.location.search).toContain(
         "f[0][id]=queue&f[0][value]=test%20%26%20why%20%2F%20do%20%24%20this&f[0][match]=startsWith",
       )
-      expect(service.getUserPrefs().filters).toStrictEqual([
-        { id: "queue", value: "test & why / do $ this", match: Match.StartsWith },
-      ])
+      expect(service.getUserPrefs().filters).toStrictEqual([{ id: "queue", value: "test & why / do $ this" }])
+      expect(service.getUserPrefs().columnMatches["queue"] === Match.StartsWith)
     })
 
     it("round-trips empty list", () => {

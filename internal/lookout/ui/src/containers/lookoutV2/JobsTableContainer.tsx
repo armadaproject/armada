@@ -1,4 +1,4 @@
-import React, { Ref, RefObject, useCallback, useEffect, useMemo, useState } from "react"
+import React, { RefObject, useCallback, useEffect, useMemo, useState } from "react"
 
 import {
   Box,
@@ -25,7 +25,6 @@ import {
   getExpandedRowModel,
   getGroupedRowModel,
   getPaginationRowModel,
-  Header,
   PaginationState,
   Row,
   RowSelectionState,
@@ -52,7 +51,6 @@ import {
   COLUMN_PARSE_TYPES,
   ColumnId,
   createAnnotationColumn,
-  FilterType,
   getAnnotationKeyCols,
   INPUT_PROCESSORS,
   JOB_COLUMNS,
@@ -87,17 +85,6 @@ interface JobsTableContainerProps {
   jobSpecService: IGetJobSpecService
   logService: ILogService
   debug: boolean
-}
-
-export interface TextFieldState {
-  text: string
-  changeCallback: (v: any) => void
-  filterType: FilterType | undefined
-}
-
-export interface ParsedTextField {
-  value: string | string[] | number
-  parseError: string | undefined
 }
 
 export type LookoutColumnFilter = {

@@ -81,7 +81,7 @@ export const JobsTableActionBar = memo(
         </div>
 
         <div className={styles.actionGroup}>
-          <Button variant="contained" onClick={onClearFilters}>
+          <Button variant="text" onClick={onClearFilters} color="secondary">
             Clear Filters
           </Button>
           <RefreshButton isLoading={isLoading} onClick={onRefresh} />

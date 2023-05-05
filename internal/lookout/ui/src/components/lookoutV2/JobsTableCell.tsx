@@ -7,7 +7,6 @@ import { JobRow } from "models/jobsTableModels"
 import { Match } from "models/lookoutV2Models"
 import { getColumnMetadata, toColId } from "utils/jobsTableColumns"
 
-import { ParsedTextField, TextFieldState } from "../../containers/lookoutV2/JobsTableContainer"
 import { matchForColumn } from "../../utils/jobsTableUtils"
 import styles from "./JobsTableCell.module.css"
 import { JobsTableFilter } from "./JobsTableFilter"

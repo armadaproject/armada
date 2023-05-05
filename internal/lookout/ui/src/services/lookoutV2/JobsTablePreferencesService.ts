@@ -173,7 +173,7 @@ const mergeQueryParamsAndLocalStorage = (
     mergedPrefs.filters = queryParamPrefs.filters
     mergedPrefs.sidebarJobId = queryParamPrefs.sidebarJobId
     if (mergedPrefs.columnMatches === undefined) {
-      mergedPrefs.columnMatches = {}
+      mergedPrefs.columnMatches = DEFAULT_COLUMN_MATCHES
     }
     mergeColumnMatches(mergedPrefs.columnMatches, queryParamPrefs.columnMatches)
   }
