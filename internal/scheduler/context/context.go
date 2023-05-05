@@ -110,11 +110,13 @@ func (sctx *SchedulingContext) String() string {
 
 func (sctx *SchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingContext) bool {
 	allJobsEvictedInThisRound := true
+	allJobsSuccessful := true
 	for _, jctx := range gctx.JobSchedulingContexts {
 		evictedInThisRound := sctx.AddJobSchedulingContext(jctx)
 		allJobsEvictedInThisRound = allJobsEvictedInThisRound && evictedInThisRound
+		allJobsSuccessful = allJobsSuccessful && jctx.IsSuccessful()
 	}
-	if !allJobsEvictedInThisRound {
+	if !allJobsEvictedInThisRound && allJobsSuccessful {
 		sctx.NumScheduledGangs++
 	}
 	return allJobsEvictedInThisRound
@@ -140,6 +142,17 @@ func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContex
 	return evictedInThisRound
 }
 
+func (sctx *SchedulingContext) EvictGang(jobs []interfaces.LegacySchedulerJob) bool {
+	allJobsScheduledInThisRound := true
+	for _, job := range jobs {
+		allJobsScheduledInThisRound = allJobsScheduledInThisRound && sctx.EvictJob(job)
+	}
+	if allJobsScheduledInThisRound {
+		sctx.NumScheduledGangs--
+	}
+	return allJobsScheduledInThisRound
+}
+
 func (sctx *SchedulingContext) EvictJob(job interfaces.LegacySchedulerJob) bool {
 	qctx, ok := sctx.QueueSchedulingContexts[job.GetQueue()]
 	if !ok {
@@ -149,6 +162,7 @@ func (sctx *SchedulingContext) EvictJob(job interfaces.LegacySchedulerJob) bool 
 	priority, rl := priorityAndRequestsFromLegacySchedulerJob(job, sctx.PriorityClasses)
 	if scheduledInThisRound {
 		sctx.ScheduledResourcesByPriority.SubResourceList(priority, rl)
+		sctx.NumScheduledJobs--
 	} else {
 		sctx.EvictedResourcesByPriority.AddResourceList(priority, rl)
 	}
