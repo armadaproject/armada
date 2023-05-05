@@ -131,7 +131,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 			batch.Queue(updateJobInfoSqlStatement, value.JobSchedulingInfo, value.JobSchedulingInfoVersion, key)
 		}
 
-		err := s.execBatch(ctx, batch)
+		err := execBatch(ctx, tx, batch)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -143,7 +143,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 			batch.Queue(updateQueuedStateSqlStatement, value.Queued, value.QueuedStateVersion, key)
 		}
 
-		err := s.execBatch(ctx, batch)
+		err := execBatch(ctx, tx, batch)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -162,6 +162,10 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 	case MarkJobsCancelled:
 		jobIds := maps.Keys(o)
 		err := queries.MarkJobsCancelledById(ctx, jobIds)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		err = queries.MarkRunsCancelledByJobId(ctx, jobIds)
 		if err != nil {
 			return errors.WithStack(err)
 		}
@@ -251,8 +255,8 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 	return nil
 }
 
-func (s *SchedulerDb) execBatch(ctx context.Context, batch *pgx.Batch) error {
-	result := s.db.SendBatch(ctx, batch)
+func execBatch(ctx context.Context, tx pgx.Tx, batch *pgx.Batch) error {
+	result := tx.SendBatch(ctx, batch)
 	for i := 0; i < batch.Len(); i++ {
 		_, err := result.Exec()
 		if err != nil {
