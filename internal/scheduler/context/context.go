@@ -122,7 +122,7 @@ func (sctx *SchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingCont
 }
 
 // AddJobSchedulingContext adds a job scheduling context.
-// Automatically updates scheduled resources
+// Automatically updates scheduled resources.
 func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContext) bool {
 	qctx, ok := sctx.QueueSchedulingContexts[jctx.Job.GetQueue()]
 	if !ok {

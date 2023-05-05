@@ -850,4 +850,7 @@ func defaultPostEvictFunc(ctx context.Context, job interfaces.LegacySchedulerJob
 	} else {
 		req.NodeSelector[schedulerconfig.NodeIdLabel] = node.Id
 	}
+
+	// We've changed the scheduling requirements and must clear any cached key.
+	req.ClearCachedSchedulingKey()
 }

@@ -98,10 +98,12 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	if !j.Queued() && j.HasRuns() {
 		return p.poolByExecutorId[j.LatestRun().Executor()], nil
 	}
-	// See if we have this set of reqs cached
-	cachedPool, ok := p.poolCache.Get(string(j.JobSchedulingInfo().PodRequirementsHash))
-	if ok {
-		return cachedPool.(string), nil
+
+	// See if we have this set of reqs cached.
+	if schedulingKey, ok := j.JobSchedulingInfo().SchedulingKey(); ok {
+		if cachedPool, ok := p.poolCache.Get(schedulingKey); ok {
+			return cachedPool.(string), nil
+		}
 	}
 
 	req := PodRequirementFromJobSchedulingInfo(j.JobSchedulingInfo())
@@ -122,7 +124,9 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 					return "", errors.WithMessagef(err, "error selecting node for job %s", j.Id())
 				}
 				if report.Node != nil {
-					p.poolCache.Add(string(j.JobSchedulingInfo().GetPodRequirementsHash()), pool)
+					if schedulingKey, ok := j.JobSchedulingInfo().SchedulingKey(); ok {
+						p.poolCache.Add(schedulingKey, pool)
+					}
 					return pool, nil
 				}
 			}
