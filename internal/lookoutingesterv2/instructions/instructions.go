@@ -88,7 +88,7 @@ func (c *InstructionConverter) convertSequence(
 		case *armadaevents.EventSequence_Event_ReprioritisedJob:
 			err = c.handleReprioritiseJob(ts, event.GetReprioritisedJob(), update)
 		case *armadaevents.EventSequence_Event_CancelledJob:
-			err = c.handleCancelJob(ts, event.GetCancelledJob(), update)
+			err = c.handleCancelledJob(ts, event.GetCancelledJob(), update)
 		case *armadaevents.EventSequence_Event_JobSucceeded:
 			err = c.handleJobSucceeded(ts, event.GetJobSucceeded(), update)
 		case *armadaevents.EventSequence_Event_JobErrors:
@@ -106,6 +106,7 @@ func (c *InstructionConverter) convertSequence(
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
 			err = c.handleJobRunPreempted(ts, event.GetJobRunPreempted(), update)
 		case *armadaevents.EventSequence_Event_CancelJob:
+			err = c.handleCancelJob(ts, event.GetCancelJob(), update)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
@@ -254,7 +255,26 @@ func (c *InstructionConverter) handleJobDuplicateDetected(ts time.Time, event *a
 	return nil
 }
 
-func (c *InstructionConverter) handleCancelJob(ts time.Time, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleCancelJob(ts time.Time, event *armadaevents.CancelJob, update *model.InstructionSet) error {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
+	if err != nil {
+		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		return err
+	}
+	reason := event.GetReason()
+	if len(reason) > 512 {
+		reason = reason[:512]
+	}
+
+	jobUpdate := model.UpdateJobInstruction{
+		JobId:        jobId,
+		CancelReason: &reason,
+	}
+	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
+	return nil
+}
+
+func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)

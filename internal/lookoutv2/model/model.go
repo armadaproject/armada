@@ -37,6 +37,7 @@ type Job struct {
 	Runs               []*Run
 	State              string
 	Submitted          time.Time
+	CancelReason       *string
 }
 
 type Run struct {

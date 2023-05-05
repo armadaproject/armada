@@ -293,7 +293,8 @@ func (l *LookoutDb) UpdateJobsBatch(ctx context.Context, instructions []*model.U
 					last_transition_time         timestamp,
 					last_transition_time_seconds bigint,
 					duplicate                    bool,
-					latest_run_id                varchar(36)
+					latest_run_id                varchar(36),
+					cancel_reason                varchar(512)
 				) ON COMMIT DROP;`, tmpTable))
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationCreateTempTable)
@@ -313,6 +314,7 @@ func (l *LookoutDb) UpdateJobsBatch(ctx context.Context, instructions []*model.U
 					"last_transition_time_seconds",
 					"duplicate",
 					"latest_run_id",
+					"cancel_reason",
 				},
 				pgx.CopyFromSlice(len(instructions), func(i int) ([]interface{}, error) {
 					return []interface{}{
@@ -324,6 +326,7 @@ func (l *LookoutDb) UpdateJobsBatch(ctx context.Context, instructions []*model.U
 						instructions[i].LastTransitionTimeSeconds,
 						instructions[i].Duplicate,
 						instructions[i].LatestRunId,
+						instructions[i].CancelReason,
 					}, nil
 				}),
 			)
@@ -341,7 +344,8 @@ func (l *LookoutDb) UpdateJobsBatch(ctx context.Context, instructions []*model.U
 						last_transition_time         = coalesce(tmp.last_transition_time, job.last_transition_time),
 						last_transition_time_seconds = coalesce(tmp.last_transition_time_seconds, job.last_transition_time_seconds),
 						duplicate                    = coalesce(tmp.duplicate, job.duplicate),
-						latest_run_id                = coalesce(tmp.latest_run_id, job.latest_run_id)
+						latest_run_id                = coalesce(tmp.latest_run_id, job.latest_run_id),
+						cancel_reason                = coalesce(tmp.cancel_reason, job.cancel_reason),
 					FROM %s as tmp WHERE tmp.job_id = job.job_id`, tmpTable),
 			)
 			if err != nil {
@@ -363,7 +367,8 @@ func (l *LookoutDb) UpdateJobsScalar(ctx context.Context, instructions []*model.
 			last_transition_time         = coalesce($5, job.last_transition_time),
 			last_transition_time_seconds = coalesce($6, job.last_transition_time_seconds),
 			duplicate                    = coalesce($7, duplicate),
-			latest_run_id                = coalesce($8, job.latest_run_id)
+			latest_run_id                = coalesce($8, job.latest_run_id),
+			cancel_reason                = coalesce($9, job.cancel_reason)
 		WHERE job_id = $1`
 	for _, i := range instructions {
 		err := l.withDatabaseRetryInsert(func() error {
@@ -375,7 +380,8 @@ func (l *LookoutDb) UpdateJobsScalar(ctx context.Context, instructions []*model.
 				i.LastTransitionTime,
 				i.LastTransitionTimeSeconds,
 				i.Duplicate,
-				i.LatestRunId)
+				i.LatestRunId,
+				i.CancelReason)
 			if err != nil {
 				l.metrics.RecordDBError(metrics.DBOperationUpdate)
 			}
