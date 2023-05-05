@@ -1,11 +1,10 @@
 package schedulerobjects
 
 import (
+	"crypto/sha1"
 	"io"
 	"strconv"
 	"strings"
-
-	"crypto/sha1"
 
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
