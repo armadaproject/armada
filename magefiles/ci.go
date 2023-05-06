@@ -25,6 +25,7 @@ func TestSuite() error {
 
 	mg.Deps(CheckForArmadaRunning)
 
+	timeTaken = time.Now()
 	out, err2 := goOutput("run", "cmd/testsuite/main.go", "test",
 		"--tests", "testsuite/testcases/basic/*",
 		"--junit", "junit.xml",
@@ -32,6 +33,7 @@ func TestSuite() error {
 	if err2 != nil {
 		return err2
 	}
+	fmt.Printf("(Real) Time to run tests: %s\n\n", time.Since(timeTaken))
 
 	fmt.Println(out)
 	return nil
