@@ -33,7 +33,7 @@ func goreleaserMinimalRelease(dockerIds ...string) error {
 	}
 
 	timeTaken := time.Now()
-	err := goreleaserRun("release", "--snapshot", "--rm-dist", "-f", GORELEASER_MINIMAL_CONFIG_PATH)
+	err := goreleaserRun("release", "--snapshot", "-f", GORELEASER_MINIMAL_CONFIG_PATH)
 	fmt.Println("Time to build dockers:", time.Since(timeTaken))
 
 	return err
