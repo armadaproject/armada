@@ -3,7 +3,6 @@ package nodedb
 import (
 	"bytes"
 	"container/heap"
-	"encoding/binary"
 	"fmt"
 
 	"github.com/hashicorp/go-memdb"
@@ -147,7 +146,7 @@ func (index *NodeAvailableResourceIndex) FromArgs(args ...interface{}) ([]byte, 
 	if !ok {
 		return nil, errors.Errorf("expected Quantity, but got %T", args[0])
 	}
-	return encodeQuantity(q), nil
+	return schedulerobjects.EncodeQuantity(q), nil
 }
 
 // FromObject extracts the index key from a *schedulerobjects.Node.
@@ -157,26 +156,7 @@ func (index *NodeAvailableResourceIndex) FromObject(raw interface{}) (bool, []by
 		return false, nil, errors.Errorf("expected *Node, but got %T", raw)
 	}
 	q := node.AvailableQuantityByPriorityAndResource(index.Priority, index.Resource)
-	return true, encodeQuantity(q), nil
-}
-
-func encodeQuantity(val resource.Quantity) []byte {
-	// We assume that any quantity we want to compare can be represented as an int64.
-	return encodeInt(val.MilliValue())
-}
-
-func encodeInt(val int64) []byte {
-	size := 8
-	buf := make([]byte, size)
-
-	// This bit flips the sign bit on any sized signed twos-complement integer,
-	// which when truncated to a uint of the same size will bias the value such
-	// that the maximum negative int becomes 0, and the maximum positive int
-	// becomes the maximum positive uint.
-	scaled := val ^ int64(-1<<(size*8-1))
-
-	binary.BigEndian.PutUint64(buf, uint64(scaled))
-	return buf
+	return true, schedulerobjects.EncodeQuantity(q), nil
 }
 
 // NodeTypesIterator is an iterator over all nodes of the given nodeTypes
