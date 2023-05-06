@@ -4,7 +4,7 @@ description: "Sets up go environment and installs deps for go testing of armada"
 runs:
   using: "composite"
   steps:
-    - uses: actions/setup-go@v4
+    - uses: magnetikonline/action-golang-cache@v4
       post-if: always()
       with:
         go-version: ${{ matrix.go }}
