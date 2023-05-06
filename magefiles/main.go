@@ -149,7 +149,6 @@ func LocalDev(arg string) error {
 		if err != nil {
 			return err
 		}
-		time.Sleep(15)
 		err = dockerComposeRun("up", "-d", "server")
 		if err != nil {
 			return err
