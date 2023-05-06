@@ -5,7 +5,6 @@ runs:
   using: "composite"
   steps:
     - uses: magnetikonline/action-golang-cache@v4
-      post-if: always()
       with:
         go-version: ${{ matrix.go }}
     - name: Setup dependencies
