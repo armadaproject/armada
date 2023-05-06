@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"time"
 
 	goreleaserConfig "github.com/goreleaser/goreleaser/pkg/config"
 	"github.com/magefile/mage/sh"
@@ -31,7 +32,11 @@ func goreleaserMinimalRelease(dockerIds ...string) error {
 		return err
 	}
 
-	return goreleaserRun("release", "--snapshot", "--rm-dist", "-f", GORELEASER_MINIMAL_CONFIG_PATH)
+	timeTaken := time.Now()
+	err := goreleaserRun("release", "--snapshot", "--rm-dist", "-f", GORELEASER_MINIMAL_CONFIG_PATH)
+	fmt.Println("Time to build dockers:", time.Since(timeTaken))
+
+	return err
 }
 
 // Write a minimal goreleaser config containing only the subset of targets
