@@ -84,7 +84,7 @@ require (
 	github.com/go-openapi/validate v0.22.1
 	github.com/go-playground/validator/v10 v10.11.1
 	github.com/golang/mock v1.6.0
-	github.com/goreleaser/goreleaser v1.11.5
+	github.com/goreleaser/goreleaser v1.18.1
 	github.com/jackc/pgx/v5 v5.3.1
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/magefile/mage v1.14.0

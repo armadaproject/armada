@@ -2,18 +2,20 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/magefile/mage/mg"
+	"github.com/magefile/mage/sh"
 )
 
 // Build images, spin up a test environment, and run the integration tests against it.
 func TestSuite() error {
 	timeTaken := time.Now()
 
-	outbytes, err := exec.Command(goBinary(), "run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue").CombinedOutput()
+	outbytes, err := exec.Command(armadaCtl(), "create", "queue", "e2e-test-queue").CombinedOutput()
 	out := string(outbytes)
 	// check if err text contains "already exists" and ignore if it does
 	if err != nil && !strings.Contains(out, "already exists") {
@@ -47,7 +49,7 @@ func CheckForArmadaRunning() error {
 		case <-timeout:
 			return fmt.Errorf("timed out waiting for Armada to start")
 		case <-tick:
-			outbytes, _ := exec.Command(goBinary(), "run", "cmd/armadactl/main.go", "submit", "./developer/config/job.yaml").CombinedOutput()
+			outbytes, _ := exec.Command(armadaCtl(), "submit", "./developer/config/job.yaml").CombinedOutput()
 			out := string(outbytes)
 			if strings.Contains(out, "Submitted job with id") {
 				// Sleep for 1 second to allow Armada to fully start
@@ -58,4 +60,14 @@ func CheckForArmadaRunning() error {
 			seconds++
 		}
 	}
+}
+
+func armadaCtl() string {
+	if _, err := os.Stat("./armadactl"); os.IsNotExist(err) {
+		err = sh.Run("sh", "./docs/local/armadactl.sh")
+		if err != nil {
+			return ""
+		}
+	}
+	return "./armadactl"
 }
