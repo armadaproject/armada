@@ -35,6 +35,7 @@ jobs:
       - run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
       - run: docker buildx install
       - uses: actions/setup-go@v4
+        post-if: always()
         with:
           go-version: ${{ matrix.go }}
       - name: Setup and integration tests

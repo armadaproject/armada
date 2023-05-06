@@ -5,6 +5,7 @@ runs:
   using: "composite"
   steps:
     - uses: actions/setup-go@v4
+      post-if: always()
       with:
         go-version: ${{ matrix.go }}
     - name: Setup dependencies
