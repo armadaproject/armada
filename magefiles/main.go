@@ -117,9 +117,9 @@ func BuildDockers(arg string) error {
 
 // Create a Local Armada Cluster
 func LocalDev(arg string) error {
-	timeTaken := time.Now()
-	mg.Deps(BootstrapTools)
-	fmt.Println("Time to bootstrap tools:", time.Since(timeTaken))
+	// timeTaken := time.Now()
+	// mg.Deps(BootstrapTools)
+	// fmt.Println("Time to bootstrap tools:", time.Since(timeTaken))
 
 	validArgs := []string{"minimal", "full", "no-build"}
 
