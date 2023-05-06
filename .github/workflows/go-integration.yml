@@ -37,12 +37,16 @@ jobs:
       - uses: magnetikonline/action-golang-cache@v4
         with:
           go-version: ${{ matrix.go }}
+      - run: |
+          ls $(go env GOCACHE)
       - name: Setup and integration tests
         run: |
           # Manually create folders to ensure perms are correct.
           mkdir -p .kube/internal
           mkdir -p .kube/external
           go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
+      - run: |
+          ls $(go env GOCACHE)
       - name: Upload JUnit report artifact
         uses: actions/upload-artifact@v3.1.1
         with:
