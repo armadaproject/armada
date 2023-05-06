@@ -37,11 +37,6 @@ jobs:
       - uses: magnetikonline/action-golang-cache@v4
         with:
           go-version: ${{ matrix.go }}
-      - name: Cache Binaries
-        uses: actions/cache@v3
-        with:
-          path: dist
-          key: ${{ runner.os }}-dist
       - name: Setup and integration tests
         run: |
           # Manually create folders to ensure perms are correct.
