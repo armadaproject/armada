@@ -104,13 +104,12 @@ func kindInitCluster() error {
 func kindSetup() error {
 	mg.Deps(kindInitCluster, kindGetImages)
 
-	// for _, image := range images {
-	// 	err := kindRun("load", "docker-image", image, "--name", KIND_NAME)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// }
-
+	for _, image := range images {
+		err := kindRun("load", "docker-image", image, "--name", KIND_NAME)
+		if err != nil {
+			return err
+		}
+	}
 	// Resources to create in the Kind cluster.
 	resources := []string{
 		"e2e/setup/ingress-nginx.yaml",
