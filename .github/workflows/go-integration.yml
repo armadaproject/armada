@@ -43,12 +43,6 @@ jobs:
           mkdir -p .kube/internal
           mkdir -p .kube/external
           go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
-      - name: Testing
-        run: |
-          go run github.com/magefile/mage@v1.14.0 -v localdevstop
-      - name: Testing 2
-        run: |
-          go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
       - name: Upload JUnit report artifact
         uses: actions/upload-artifact@v3.1.1
         with:
