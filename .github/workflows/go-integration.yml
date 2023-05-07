@@ -43,7 +43,6 @@ jobs:
           cache: false
       - run: |
           ls $(go env GOCACHE)
-          ls $(go env GOMODCACHE)
       - name: Setup and integration tests
         run: |
           # Manually create folders to ensure perms are correct.
