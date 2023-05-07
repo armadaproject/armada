@@ -37,8 +37,6 @@ jobs:
       # - uses: magnetikonline/action-golang-cache@v4
       #   with:
       #     go-version: ${{ matrix.go }}
-      - run: |
-          ls $(go env GOMODCACHE)
       - uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go }}
