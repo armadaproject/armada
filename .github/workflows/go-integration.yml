@@ -40,9 +40,9 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go }}
-          cache: false
       - run: |
           ls $(go env GOCACHE)
+          ls $(go env GOMODCACHE)
       - name: Setup and integration tests
         run: |
           # Manually create folders to ensure perms are correct.
