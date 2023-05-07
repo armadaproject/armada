@@ -30,16 +30,30 @@ jobs:
       DOCKER_BUILDX_CACHE_FROM: "type=gha"
       DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
       DOCKER_BUILDX_BUILDER: "builder"
+      GOCACHE: "/home/runner/.cache/go-build"
+      GOPATH: "/home/runner/go"
+      GOBIN: "/home/runner/go/bin"
     steps:
       - uses: actions/checkout@v3
       - run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
       - run: docker buildx install
-      - uses: magnetikonline/action-golang-cache@v4
-        with:
-          go-version: ${{ matrix.go }}
-      # - uses: actions/setup-go@v4
+      # - uses: magnetikonline/action-golang-cache@v4
       #   with:
       #     go-version: ${{ matrix.go }}
+      - uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go }}
+          cache: false
+      - name: Setup Golang caches
+        uses: actions/cache@v3
+        with:
+          path: |
+            /home/runner/.cache/go-build
+            /home/runner/go
+            /home/runner/go/bin
+          key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-golang-
       - name: Setup and integration tests
         run: |
           # Manually create folders to ensure perms are correct.
