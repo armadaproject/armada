@@ -38,7 +38,6 @@ jobs:
       #   with:
       #     go-version: ${{ matrix.go }}
       - run: |
-          ls $(go env GOCACHE)
           ls $(go env GOMODCACHE)
       - uses: actions/setup-go@v4
         with:
