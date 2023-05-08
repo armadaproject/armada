@@ -12,6 +12,7 @@ import (
 	v1 "k8s.io/api/coordination/v1"
 	"k8s.io/utils/pointer"
 
+	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 )
 
@@ -67,7 +68,7 @@ func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 
 			lease := &v1.Lease{}
 			idx := 0
-			// update holderIdentity every 100 milliseconds
+			// update holderIdentity every 200 milliseconds
 			// the sleep here should be fine because the client is polling every 10 millis
 			go func() {
 				var holderIdentity string
@@ -85,7 +86,7 @@ func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 						},
 					}
 					idx++
-					time.Sleep(100 * time.Millisecond)
+					time.Sleep(200 * time.Millisecond)
 				}
 			}()
 
@@ -151,8 +152,8 @@ func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 	}
 }
 
-func testLeaderConfig() LeaderConfig {
-	return LeaderConfig{
+func testLeaderConfig() schedulerconfig.LeaderConfig {
+	return schedulerconfig.LeaderConfig{
 		LeaseLockName:      lockName,
 		LeaseLockNamespace: lockNamespace,
 		LeaseDuration:      100 * time.Millisecond,

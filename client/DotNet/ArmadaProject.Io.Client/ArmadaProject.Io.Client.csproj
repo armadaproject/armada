@@ -36,7 +36,7 @@
       GrpcServices="None"
     />
     <Protobuf
-      Include="../../../pkg/**/*.proto"
+      Include="../../../pkg/api/*.proto"
       AdditionalProtocArguments="--proto_path=../../../proto"
       ProtoRoot="../../../"
       GrpcServices="Client"

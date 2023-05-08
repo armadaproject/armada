@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -13,6 +14,7 @@ import (
 	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/maps"
 
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
@@ -53,6 +55,12 @@ func TestWriteOps(t *testing.T) {
 			InsertRuns{
 				runIds[2]: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]},
 				runIds[3]: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]},
+			},
+			UpdateJobQueuedState{
+				jobIds[0]: &JobQueuedStateUpdate{Queued: false, QueuedStateVersion: 1},
+				jobIds[1]: &JobQueuedStateUpdate{Queued: false, QueuedStateVersion: 1},
+				jobIds[2]: &JobQueuedStateUpdate{Queued: false, QueuedStateVersion: 1},
+				jobIds[3]: &JobQueuedStateUpdate{Queued: false, QueuedStateVersion: 1},
 			},
 		}},
 		"UpdateJobSetPriorities": {Ops: []DbOperation{
@@ -104,6 +112,12 @@ func TestWriteOps(t *testing.T) {
 				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"},
 				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
+			InsertRuns{
+				runIds[0]: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]},
+				runIds[1]: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]},
+				runIds[2]: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]},
+				runIds[3]: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]},
+			},
 			MarkJobsCancelled{
 				jobIds[0]: true,
 				jobIds[1]: true,
@@ -151,6 +165,22 @@ func TestWriteOps(t *testing.T) {
 				runIds[1]: true,
 			},
 		}},
+		"UpdateJobSchedulingInfo": {Ops: []DbOperation{
+			InsertJobs{
+				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
+				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
+			},
+			UpdateJobSchedulingInfo{
+				jobIds[0]: &JobSchedulingInfoUpdate{
+					JobSchedulingInfo:        []byte("job-0 info update"),
+					JobSchedulingInfoVersion: 1,
+				},
+				jobIds[1]: &JobSchedulingInfoUpdate{
+					JobSchedulingInfo:        []byte("job-1 info update"),
+					JobSchedulingInfoVersion: 2,
+				},
+			},
+		}},
 		"Insert JobRunErrors": {Ops: []DbOperation{
 			InsertJobRunErrors{
 				runIds[0]: &schedulerdb.JobRunError{
@@ -180,7 +210,8 @@ func TestWriteOps(t *testing.T) {
 			},
 			MarkRunsFailed{
 				runIds[0]: &JobRunFailed{LeaseReturned: true},
-				runIds[1]: &JobRunFailed{LeaseReturned: false},
+				runIds[1]: &JobRunFailed{LeaseReturned: true, RunAttempted: true},
+				runIds[2]: &JobRunFailed{LeaseReturned: false},
 			},
 		}},
 		"MarkRunsRunning": {Ops: []DbOperation{
@@ -265,7 +296,13 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 	defer cancel()
 
 	// Apply the op to the database.
-	err := schedulerDb.WriteDbOp(ctx, op)
+	err := schedulerDb.db.BeginTxFunc(ctx, pgx.TxOptions{
+		IsoLevel:       pgx.ReadCommitted,
+		AccessMode:     pgx.ReadWrite,
+		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		return schedulerDb.WriteDbOp(ctx, tx, op)
+	})
 	if err != nil {
 		return err
 	}
@@ -322,6 +359,34 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			}
 		}
 		assert.Equal(t, expected, actual)
+	case UpdateJobQueuedState:
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		numChanged := 0
+		for _, job := range jobs {
+			if e, ok := expected[job.JobID]; ok {
+				assert.Equal(t, e.Queued, job.Queued)
+				assert.Equal(t, e.QueuedStateVersion, job.QueuedVersion)
+				numChanged++
+			}
+		}
+		assert.Greater(t, numChanged, 0)
+	case UpdateJobSchedulingInfo:
+		jobs, err := selectNewJobs(ctx, serials["jobs"])
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		numChanged := 0
+		for _, job := range jobs {
+			if e, ok := expected[job.JobID]; ok {
+				assert.Equal(t, e.JobSchedulingInfoVersion, job.SchedulingInfoVersion)
+				assert.Equal(t, e.JobSchedulingInfo, job.SchedulingInfo)
+				numChanged++
+			}
+		}
+		assert.Greater(t, numChanged, 0)
 	case UpdateJobSetPriorities:
 		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
@@ -379,6 +444,23 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 				jobIds = append(jobIds, job.JobID)
 			}
 		}
+		assert.Equal(t, len(expected), numChanged)
+
+		runs, err := queries.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{
+			Serial: serials["runs"],
+			JobIds: jobIds,
+		})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		runsChanged := 0
+		for _, run := range runs {
+			if _, ok := expected[run.JobID]; ok {
+				assert.True(t, run.Cancelled)
+				runsChanged++
+			}
+		}
+		assert.Equal(t, len(expected), runsChanged)
 	case MarkJobsSucceeded:
 		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
@@ -465,6 +547,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 			if expectedRun, ok := expected[run.RunID]; ok {
 				assert.True(t, run.Failed)
 				assert.Equal(t, expectedRun.LeaseReturned, run.Returned)
+				assert.Equal(t, expectedRun.RunAttempted, run.RunAttempted)
 				numChanged++
 			}
 		}
@@ -523,6 +606,43 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		return errors.Errorf("received unexpected op %+v", op)
 	}
 	return nil
+}
+
+func TestStore(t *testing.T) {
+	jobId := util.ULID().String()
+	runId := uuid.New()
+	ops := []DbOperation{
+		InsertJobs{
+			jobId: &schedulerdb.Job{
+				JobID:          jobId,
+				JobSet:         "set1",
+				Groups:         make([]byte, 0),
+				SubmitMessage:  make([]byte, 0),
+				SchedulingInfo: make([]byte, 0),
+			},
+		},
+		InsertRuns{
+			runId: &schedulerdb.Run{JobID: jobId, RunID: runId},
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := schedulerdb.WithTestDb(func(q *schedulerdb.Queries, db *pgxpool.Pool) error {
+		schedulerDb := NewSchedulerDb(db, metrics.NewMetrics("test"), time.Second, time.Second, 10*time.Second)
+		err := schedulerDb.Store(ctx, &DbOperationsWithMessageIds{Ops: ops})
+		require.NoError(t, err)
+
+		jobIds, err := q.SelectAllJobIds(ctx)
+		require.NoError(t, err)
+		require.Equal(t, []string{jobId}, jobIds)
+
+		runIds, err := q.SelectAllRunIds(ctx)
+		require.NoError(t, err)
+		require.Equal(t, []uuid.UUID{runId}, runIds)
+
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 func max[E constraints.Ordered](a, b E) E {

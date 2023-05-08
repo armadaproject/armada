@@ -32,42 +32,17 @@ func TestConvertSequence(t *testing.T) {
 		"submit": {
 			events: []*armadaevents.EventSequence_Event{f.Submit},
 			expected: []DbOperation{InsertJobs{f.JobIdString: &schedulerdb.Job{
-				JobID:         f.JobIdString,
-				JobSet:        f.JobSetName,
-				UserID:        f.UserId,
-				Groups:        compress.MustCompressStringArray(f.Groups, compressor),
-				Queue:         f.Queue,
-				Priority:      int64(f.Priority),
-				Submitted:     f.BaseTime.UnixNano(),
-				SubmitMessage: protoutil.MustMarshallAndCompress(f.Submit.GetSubmitJob(), compressor),
-				SchedulingInfo: protoutil.MustMarshall(&schedulerobjects.JobSchedulingInfo{
-					Lifetime:        0,
-					AtMostOnce:      true,
-					Preemptible:     true,
-					ConcurrencySafe: true,
-					ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-						{
-							Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-								PodRequirements: &schedulerobjects.PodRequirements{
-									NodeSelector:     f.NodeSelector,
-									Tolerations:      f.Tolerations,
-									PreemptionPolicy: "PreemptLowerPriority",
-									Priority:         f.PriorityClassValue,
-									ResourceRequirements: v1.ResourceRequirements{
-										Limits: map[v1.ResourceName]resource.Quantity{
-											"memory": resource.MustParse("64Mi"),
-											"cpu":    resource.MustParse("150m"),
-										},
-										Requests: map[v1.ResourceName]resource.Quantity{
-											"memory": resource.MustParse("64Mi"),
-											"cpu":    resource.MustParse("150m"),
-										},
-									},
-								},
-							},
-						},
-					},
-				}),
+				JobID:          f.JobIdString,
+				JobSet:         f.JobSetName,
+				UserID:         f.UserId,
+				Groups:         compress.MustCompressStringArray(f.Groups, compressor),
+				Queue:          f.Queue,
+				Queued:         true,
+				QueuedVersion:  0,
+				Priority:       int64(f.Priority),
+				Submitted:      f.BaseTime.UnixNano(),
+				SubmitMessage:  protoutil.MustMarshallAndCompress(f.Submit.GetSubmitJob(), compressor),
+				SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
 			}}},
 		},
 		"ignores duplicate submit": {
@@ -76,13 +51,19 @@ func TestConvertSequence(t *testing.T) {
 		},
 		"job run leased": {
 			events: []*armadaevents.EventSequence_Event{f.Leased},
-			expected: []DbOperation{InsertRuns{f.RunIdUuid: &schedulerdb.Run{
-				RunID:    f.RunIdUuid,
-				JobID:    f.JobIdString,
-				JobSet:   f.JobSetName,
-				Executor: f.ExecutorId,
-				Node:     f.NodeName,
-			}}},
+			expected: []DbOperation{
+				InsertRuns{f.RunIdUuid: &schedulerdb.Run{
+					RunID:    f.RunIdUuid,
+					JobID:    f.JobIdString,
+					JobSet:   f.JobSetName,
+					Executor: f.ExecutorId,
+					Node:     f.NodeName,
+				}},
+				UpdateJobQueuedState{f.JobIdString: &JobQueuedStateUpdate{
+					Queued:             false,
+					QueuedStateVersion: 1,
+				}},
+			},
 		},
 		"job run running": {
 			events:   []*armadaevents.EventSequence_Event{f.Running},
@@ -100,7 +81,7 @@ func TestConvertSequence(t *testing.T) {
 					JobID: f.JobIdString,
 					Error: protoutil.MustMarshallAndCompress(f.LeaseReturned.GetJobRunErrors().Errors[0], compressor),
 				}},
-				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: true}},
+				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: true, RunAttempted: true}},
 			},
 		},
 		"job failed": {
@@ -111,7 +92,7 @@ func TestConvertSequence(t *testing.T) {
 					JobID: f.JobIdString,
 					Error: protoutil.MustMarshallAndCompress(f.JobRunFailed.GetJobRunErrors().Errors[0], compressor),
 				}},
-				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: false}},
+				MarkRunsFailed{f.RunIdUuid: &JobRunFailed{LeaseReturned: false, RunAttempted: true}},
 			},
 		},
 		"job errors terminal": {
@@ -154,6 +135,19 @@ func TestConvertSequence(t *testing.T) {
 			events: []*armadaevents.EventSequence_Event{f.JobCancelled},
 			expected: []DbOperation{
 				MarkJobsCancelled{f.JobIdString: true},
+			},
+		},
+		"JobRequeued": {
+			events: []*armadaevents.EventSequence_Event{f.JobRequeued},
+			expected: []DbOperation{
+				UpdateJobQueuedState{f.JobIdString: &JobQueuedStateUpdate{
+					Queued:             true,
+					QueuedStateVersion: f.JobRequeued.GetJobRequeued().UpdateSequenceNumber,
+				}},
+				UpdateJobSchedulingInfo{f.JobIdString: &JobSchedulingInfoUpdate{
+					JobSchedulingInfo:        protoutil.MustMarshall(f.JobRequeued.GetJobRequeued().SchedulingInfo),
+					JobSchedulingInfoVersion: int32(f.JobRequeued.GetJobRequeued().SchedulingInfo.Version),
+				}},
 			},
 		},
 		"PositionMarker": {
@@ -256,4 +250,38 @@ func assertErrorMessagesEqual(t *testing.T, expectedBytes []byte, actualBytes []
 	expectedError, err := protoutil.DecompressAndUnmarshall(expectedBytes, &armadaevents.Error{}, decompressor)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedError, actualError)
+}
+
+func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobSchedulingInfo {
+	expectedSubmitSchedulingInfo := &schedulerobjects.JobSchedulingInfo{
+		Lifetime:        0,
+		AtMostOnce:      true,
+		Preemptible:     true,
+		ConcurrencySafe: true,
+		Version:         0,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						NodeSelector:     f.NodeSelector,
+						Tolerations:      f.Tolerations,
+						PreemptionPolicy: "PreemptLowerPriority",
+						Priority:         f.PriorityClassValue,
+						ResourceRequirements: v1.ResourceRequirements{
+							Limits: map[v1.ResourceName]resource.Quantity{
+								"memory": resource.MustParse("64Mi"),
+								"cpu":    resource.MustParse("150m"),
+							},
+							Requests: map[v1.ResourceName]resource.Quantity{
+								"memory": resource.MustParse("64Mi"),
+								"cpu":    resource.MustParse("150m"),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	_, _ = expectedSubmitSchedulingInfo.SchedulingKey()
+	return expectedSubmitSchedulingInfo
 }

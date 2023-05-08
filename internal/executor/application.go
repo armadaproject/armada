@@ -155,8 +155,8 @@ func setupExecutorApiComponents(
 		nil,
 		config.Kubernetes.TrackedNodeLabels,
 		config.Kubernetes.NodeIdLabel,
-		config.Kubernetes.NodeReservedResources,
-		config.Kubernetes.NodeReservedResourcesPriority,
+		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
+		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
 	)
 
 	eventReporter, stopReporter := reporter.NewJobEventReporter(
@@ -232,6 +232,9 @@ func setupServerApiComponents(
 	nodeInfoService node.NodeInfoService,
 	podUtilisationService utilisation.PodUtilisationService,
 ) func() {
+	if !config.Application.UseLegacyApi {
+		return func() {}
+	}
 	conn, err := createConnectionToApi(config.ApiConnection, config.Client.MaxMessageSizeBytes, config.GRPC)
 	if err != nil {
 		log.Errorf("Failed to connect to API because: %s", err)
@@ -261,8 +264,8 @@ func setupServerApiComponents(
 		usageClient,
 		config.Kubernetes.TrackedNodeLabels,
 		config.Kubernetes.NodeIdLabel,
-		config.Kubernetes.NodeReservedResources,
-		config.Kubernetes.NodeReservedResourcesPriority,
+		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
+		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
 	)
 
 	jobLeaseService := service.NewJobLeaseService(
@@ -286,7 +289,6 @@ func setupServerApiComponents(
 		clusterUtilisationService,
 		submitter,
 		etcdHealthMonitor,
-		config.Kubernetes.NodeReservedResources,
 	)
 
 	jobManager := service.NewJobManager(

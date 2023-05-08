@@ -150,12 +150,15 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx context.Context, jobSerial i
 				Queue:                   row.Queue,
 				Priority:                row.Priority,
 				Submitted:               row.Submitted,
+				Queued:                  row.Queued,
+				QueuedVersion:           row.QueuedVersion,
 				CancelRequested:         row.CancelRequested,
 				Cancelled:               row.Cancelled,
 				CancelByJobsetRequested: row.CancelByJobsetRequested,
 				Succeeded:               row.Succeeded,
 				Failed:                  row.Failed,
 				SchedulingInfo:          row.SchedulingInfo,
+				SchedulingInfoVersion:   row.SchedulingInfoVersion,
 				Serial:                  row.Serial,
 			}
 		}
@@ -194,8 +197,8 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx context.Context, runIds []u
 		FROM %s as tmp
 		LEFT JOIN runs ON (tmp.run_id = runs.run_id)
 		WHERE runs.run_id IS NULL
-		OR runs.succeeded = true 
- 		OR runs.failed = true 
+		OR runs.succeeded = true
+ 		OR runs.failed = true
 		OR runs.cancelled = true;`
 
 		rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable))
@@ -233,13 +236,13 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx context.Context, executor 
 		query := `
 				SELECT jr.run_id, jr.node, j.queue, j.job_set, j.user_id, j.groups, j.submit_message
 				FROM runs jr
-				LEFT JOIN %s as tmp ON (tmp.run_id = jr.run_id)    
+				LEFT JOIN %s as tmp ON (tmp.run_id = jr.run_id)
 			    JOIN jobs j
 			    ON jr.job_id = j.job_id
 				WHERE jr.executor = $1
 			    AND tmp.run_id IS NULL
-				AND jr.succeeded = false 
-				AND jr.failed = false 
+				AND jr.succeeded = false
+				AND jr.failed = false
 				AND jr.cancelled = false
 				LIMIT %d;
 `

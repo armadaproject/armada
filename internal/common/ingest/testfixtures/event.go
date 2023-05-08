@@ -10,6 +10,8 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -32,7 +34,24 @@ var (
 	PriorityClasses             = map[string]configuration.PriorityClass{PriorityClassName: {Priority: PriorityClassValue}}
 	Groups                      = []string{"group1", "group2"}
 	NodeSelector                = map[string]string{"foo": "bar"}
-	Tolerations                 = []v1.Toleration{{
+	Affinity                    = &v1.Affinity{
+		NodeAffinity: &v1.NodeAffinity{
+			RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+				NodeSelectorTerms: []v1.NodeSelectorTerm{
+					{
+						MatchExpressions: []v1.NodeSelectorRequirement{
+							{
+								Key:      "noode-name",
+								Operator: v1.NodeSelectorOpNotIn,
+								Values:   []string{"node-1"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	Tolerations = []v1.Toleration{{
 		Key:      "fish",
 		Operator: "exists",
 	}}
@@ -59,7 +78,7 @@ const (
 )
 
 var Submit = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_SubmitJob{
 		SubmitJob: &armadaevents.SubmitJob{
 			JobId:           JobIdProto,
@@ -105,7 +124,7 @@ var Submit = &armadaevents.EventSequence_Event{
 }
 
 var SubmitDuplicate = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_SubmitJob{
 		SubmitJob: &armadaevents.SubmitJob{
 			IsDuplicate:     true,
@@ -152,7 +171,7 @@ var SubmitDuplicate = &armadaevents.EventSequence_Event{
 }
 
 var Assigned = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunAssigned{
 		JobRunAssigned: &armadaevents.JobRunAssigned{
 			RunId: RunIdProto,
@@ -177,19 +196,20 @@ var Assigned = &armadaevents.EventSequence_Event{
 }
 
 var Leased = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunLeased{
 		JobRunLeased: &armadaevents.JobRunLeased{
-			RunId:      RunIdProto,
-			JobId:      JobIdProto,
-			ExecutorId: ExecutorId,
-			NodeId:     NodeName,
+			RunId:                RunIdProto,
+			JobId:                JobIdProto,
+			ExecutorId:           ExecutorId,
+			NodeId:               NodeName,
+			UpdateSequenceNumber: 1,
 		},
 	},
 }
 
 var Running = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunRunning{
 		JobRunRunning: &armadaevents.JobRunRunning{
 			RunId: RunIdProto,
@@ -209,7 +229,7 @@ var Running = &armadaevents.EventSequence_Event{
 }
 
 var JobRunSucceeded = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunSucceeded{
 		JobRunSucceeded: &armadaevents.JobRunSucceeded{
 			RunId: RunIdProto,
@@ -219,7 +239,7 @@ var JobRunSucceeded = &armadaevents.EventSequence_Event{
 }
 
 var LeaseReturned = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{
 		JobRunErrors: &armadaevents.JobRunErrors{
 			JobId: JobIdProto,
@@ -229,7 +249,8 @@ var LeaseReturned = &armadaevents.EventSequence_Event{
 					Terminal: true,
 					Reason: &armadaevents.Error_PodLeaseReturned{
 						PodLeaseReturned: &armadaevents.PodLeaseReturned{
-							Message: LeaseReturnedMsg,
+							Message:      LeaseReturnedMsg,
+							RunAttempted: true,
 						},
 					},
 				},
@@ -239,7 +260,7 @@ var LeaseReturned = &armadaevents.EventSequence_Event{
 }
 
 var JobCancelRequested = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_CancelJob{
 		CancelJob: &armadaevents.CancelJob{
 			JobId: JobIdProto,
@@ -248,14 +269,14 @@ var JobCancelRequested = &armadaevents.EventSequence_Event{
 }
 
 var JobSetCancelRequested = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_CancelJobSet{
 		CancelJobSet: &armadaevents.CancelJobSet{},
 	},
 }
 
 var JobCancelled = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_CancelledJob{
 		CancelledJob: &armadaevents.CancelledJob{
 			JobId: JobIdProto,
@@ -263,8 +284,48 @@ var JobCancelled = &armadaevents.EventSequence_Event{
 	},
 }
 
-var PartitionMarker = &armadaevents.EventSequence_Event{
+var JobRequeued = &armadaevents.EventSequence_Event{
 	Created: &BaseTime,
+	Event: &armadaevents.EventSequence_Event_JobRequeued{
+		JobRequeued: &armadaevents.JobRequeued{
+			JobId: JobIdProto,
+			SchedulingInfo: &schedulerobjects.JobSchedulingInfo{
+				Lifetime:        0,
+				AtMostOnce:      true,
+				Preemptible:     true,
+				ConcurrencySafe: true,
+				Version:         0,
+				ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+					{
+						Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+							PodRequirements: &schedulerobjects.PodRequirements{
+								NodeSelector:     NodeSelector,
+								Tolerations:      Tolerations,
+								PreemptionPolicy: "PreemptLowerPriority",
+								Priority:         PriorityClassValue,
+								Affinity:         Affinity,
+								ResourceRequirements: v1.ResourceRequirements{
+									Limits: map[v1.ResourceName]resource.Quantity{
+										"memory": resource.MustParse("64Mi"),
+										"cpu":    resource.MustParse("150m"),
+									},
+									Requests: map[v1.ResourceName]resource.Quantity{
+										"memory": resource.MustParse("64Mi"),
+										"cpu":    resource.MustParse("150m"),
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			UpdateSequenceNumber: 2,
+		},
+	},
+}
+
+var PartitionMarker = &armadaevents.EventSequence_Event{
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_PartitionMarker{
 		PartitionMarker: &armadaevents.PartitionMarker{
 			GroupId:   PartitionMarkerGroupIdProto,
@@ -274,7 +335,7 @@ var PartitionMarker = &armadaevents.EventSequence_Event{
 }
 
 var JobReprioritiseRequested = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_ReprioritiseJob{
 		ReprioritiseJob: &armadaevents.ReprioritiseJob{
 			JobId:    JobIdProto,
@@ -284,7 +345,7 @@ var JobReprioritiseRequested = &armadaevents.EventSequence_Event{
 }
 
 var JobSetReprioritiseRequested = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_ReprioritiseJobSet{
 		ReprioritiseJobSet: &armadaevents.ReprioritiseJobSet{
 			Priority: NewPriority,
@@ -293,7 +354,7 @@ var JobSetReprioritiseRequested = &armadaevents.EventSequence_Event{
 }
 
 var JobReprioritised = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_ReprioritisedJob{
 		ReprioritisedJob: &armadaevents.ReprioritisedJob{
 			JobId:    JobIdProto,
@@ -303,7 +364,7 @@ var JobReprioritised = &armadaevents.EventSequence_Event{
 }
 
 var JobPreempted = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 		JobRunPreempted: &armadaevents.JobRunPreempted{
 			PreemptedJobId: JobIdProto,
@@ -313,7 +374,7 @@ var JobPreempted = &armadaevents.EventSequence_Event{
 }
 
 var JobRunFailed = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{
 		JobRunErrors: &armadaevents.JobRunErrors{
 			JobId: JobIdProto,
@@ -337,14 +398,14 @@ var JobRunFailed = &armadaevents.EventSequence_Event{
 }
 
 var JobRunTerminated = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{
 		JobRunErrors: &armadaevents.JobRunErrors{
 			JobId: JobIdProto,
 			RunId: RunIdProto,
 			Errors: []*armadaevents.Error{
 				{
-					Terminal: true,
+					Terminal: false,
 					Reason: &armadaevents.Error_PodTerminated{
 						PodTerminated: &armadaevents.PodTerminated{
 							NodeName: NodeName,
@@ -361,14 +422,14 @@ var JobRunTerminated = &armadaevents.EventSequence_Event{
 }
 
 var JobRunUnschedulable = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{
 		JobRunErrors: &armadaevents.JobRunErrors{
 			JobId: JobIdProto,
 			RunId: RunIdProto,
 			Errors: []*armadaevents.Error{
 				{
-					Terminal: true,
+					Terminal: false,
 					Reason: &armadaevents.Error_PodUnschedulable{
 						PodUnschedulable: &armadaevents.PodUnschedulable{
 							NodeName: NodeName,
@@ -385,7 +446,7 @@ var JobRunUnschedulable = &armadaevents.EventSequence_Event{
 }
 
 var JobFailed = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobErrors{
 		JobErrors: &armadaevents.JobErrors{
 			JobId: JobIdProto,
@@ -408,7 +469,7 @@ var JobFailed = &armadaevents.EventSequence_Event{
 }
 
 var JobLeaseReturned = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunErrors{
 		JobRunErrors: &armadaevents.JobRunErrors{
 			JobId: JobIdProto,
@@ -431,7 +492,7 @@ var JobLeaseReturned = &armadaevents.EventSequence_Event{
 }
 
 var JobSucceeded = &armadaevents.EventSequence_Event{
-	Created: &BaseTime,
+	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobSucceeded{
 		JobSucceeded: &armadaevents.JobSucceeded{
 			JobId: JobIdProto,

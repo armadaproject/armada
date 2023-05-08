@@ -3,14 +3,17 @@ import { DebouncedTextField } from "components/lookoutV2/DebouncedTextField"
 import { Match } from "models/lookoutV2Models"
 import { FilterType } from "utils/jobsTableColumns"
 
+const ELLIPSIS = "\u2026"
+
 const FILTER_TYPE_DISPLAY_STRINGS: Record<Match, string> = {
-  [Match.Exact]: "Matches...",
-  [Match.StartsWith]: "Starts with...",
-  [Match.GreaterThan]: "Greater than...",
-  [Match.LessThan]: "Less than...",
-  [Match.GreaterThanOrEqual]: "Greater than...",
-  [Match.LessThanOrEqual]: "Less than...",
-  [Match.AnyOf]: "Filter...",
+  [Match.Exact]: `Matches${ELLIPSIS}`,
+  [Match.StartsWith]: `Starts with${ELLIPSIS}`,
+  [Match.Contains]: `Contains${ELLIPSIS}`,
+  [Match.GreaterThan]: `Greater than${ELLIPSIS}`,
+  [Match.LessThan]: `Less than${ELLIPSIS}`,
+  [Match.GreaterThanOrEqual]: `Greater than${ELLIPSIS}`,
+  [Match.LessThanOrEqual]: `Less than${ELLIPSIS}`,
+  [Match.AnyOf]: `Filter${ELLIPSIS}`,
 }
 
 export interface JobsTableFilterProps {

@@ -30,6 +30,7 @@ func goreleaserMinimalRelease(dockerIds ...string) error {
 	if err := goreleaserWriteMinimalReleaseConfig(dockerIds...); err != nil {
 		return err
 	}
+
 	return goreleaserRun("release", "--snapshot", "--rm-dist", "-f", GORELEASER_MINIMAL_CONFIG_PATH)
 }
 

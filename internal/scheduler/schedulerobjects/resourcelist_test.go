@@ -146,6 +146,171 @@ func TestQuantityByPriorityAndResourceTypeSub(t *testing.T) {
 	}
 }
 
+func TestQuantityByPriorityAndResourceTypeEqual(t *testing.T) {
+	tests := map[string]struct {
+		a        QuantityByPriorityAndResourceType
+		b        QuantityByPriorityAndResourceType
+		expected bool
+	}{
+		"both empty": {
+			a:        QuantityByPriorityAndResourceType{},
+			b:        QuantityByPriorityAndResourceType{},
+			expected: true,
+		},
+		"both with an empty map": {
+			a: QuantityByPriorityAndResourceType{
+				0: ResourceList{},
+			},
+			b: QuantityByPriorityAndResourceType{
+				0: ResourceList{},
+			},
+			expected: true,
+		},
+		"one empty map": {
+			a: QuantityByPriorityAndResourceType{
+				0: ResourceList{},
+			},
+			b:        QuantityByPriorityAndResourceType{},
+			expected: true,
+		},
+		"zero equals empty": {
+			a: QuantityByPriorityAndResourceType{
+				0: ResourceList{
+					Resources: map[string]resource.Quantity{
+						"foo": resource.MustParse("0"),
+					},
+				},
+			},
+			b: QuantityByPriorityAndResourceType{
+				0: ResourceList{},
+			},
+			expected: true,
+		},
+		"zero equals missing": {
+			a: QuantityByPriorityAndResourceType{
+				0: ResourceList{},
+			},
+			b:        QuantityByPriorityAndResourceType{},
+			expected: true,
+		},
+		"zero equals missing with empty ResourceList": {
+			a: QuantityByPriorityAndResourceType{
+				0: ResourceList{
+					Resources: map[string]resource.Quantity{
+						"foo": resource.MustParse("0"),
+					},
+				},
+			},
+			b:        QuantityByPriorityAndResourceType{},
+			expected: true,
+		},
+		"simple equal": {
+			a: QuantityByPriorityAndResourceType{
+				0: ResourceList{
+					Resources: map[string]resource.Quantity{
+						"cpu":    resource.MustParse("1"),
+						"memory": resource.MustParse("2"),
+						"foo":    resource.MustParse("3"),
+					},
+				},
+			},
+			b: QuantityByPriorityAndResourceType{
+				0: ResourceList{
+					Resources: map[string]resource.Quantity{
+						"cpu":    resource.MustParse("1"),
+						"memory": resource.MustParse("2"),
+						"foo":    resource.MustParse("3"),
+					},
+				},
+			},
+			expected: true,
+		},
+		"equal with two priorities": {
+			a: QuantityByPriorityAndResourceType{
+				0: ResourceList{
+					Resources: map[string]resource.Quantity{
+						"cpu":    resource.MustParse("1"),
+						"memory": resource.MustParse("2"),
+						"foo":    resource.MustParse("3"),
+					},
+				},
+				1: ResourceList{
+					Resources: map[string]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"foo":    resource.MustParse("6"),
+					},
+				},
+			},
+			b: QuantityByPriorityAndResourceType{
+				0: ResourceList{
+					Resources: map[string]resource.Quantity{
+						"cpu":    resource.MustParse("1"),
+						"memory": resource.MustParse("2"),
+						"foo":    resource.MustParse("3"),
+					},
+				},
+				1: ResourceList{
+					Resources: map[string]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"foo":    resource.MustParse("6"),
+					},
+				},
+			},
+			expected: true,
+		},
+		"simple unequal": {
+			a: QuantityByPriorityAndResourceType{
+				0: ResourceList{
+					Resources: map[string]resource.Quantity{
+						"cpu":    resource.MustParse("1"),
+						"memory": resource.MustParse("2"),
+						"foo":    resource.MustParse("3"),
+					},
+				},
+			},
+			b: QuantityByPriorityAndResourceType{
+				0: ResourceList{
+					Resources: map[string]resource.Quantity{
+						"cpu":    resource.MustParse("1"),
+						"memory": resource.MustParse("2"),
+						"foo":    resource.MustParse("4"),
+					},
+				},
+			},
+			expected: false,
+		},
+		"unequal differing priority": {
+			a: QuantityByPriorityAndResourceType{
+				0: ResourceList{
+					Resources: map[string]resource.Quantity{
+						"cpu":    resource.MustParse("1"),
+						"memory": resource.MustParse("2"),
+						"foo":    resource.MustParse("3"),
+					},
+				},
+			},
+			b: QuantityByPriorityAndResourceType{
+				1: ResourceList{
+					Resources: map[string]resource.Quantity{
+						"cpu":    resource.MustParse("1"),
+						"memory": resource.MustParse("2"),
+						"foo":    resource.MustParse("3"),
+					},
+				},
+			},
+			expected: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.a.Equal(tc.b))
+			assert.Equal(t, tc.expected, tc.b.Equal(tc.a))
+		})
+	}
+}
+
 func TestQuantityByPriorityAndResourceTypeIsStrictlyNonNegative(t *testing.T) {
 	tests := map[string]struct {
 		m        QuantityByPriorityAndResourceType
@@ -182,6 +347,93 @@ func TestQuantityByPriorityAndResourceTypeIsStrictlyNonNegative(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, tc.m.IsStrictlyNonNegative())
+		})
+	}
+}
+
+func TestQuantityByPriorityAndResourceTypeMaxAggregatedByResource(t *testing.T) {
+	tests := map[string]struct {
+		q        QuantityByPriorityAndResourceType
+		p        int32
+		rl       ResourceList
+		expected QuantityByPriorityAndResourceType
+	}{
+		"no change": {
+			q: QuantityByPriorityAndResourceType{
+				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+			},
+			p:  1,
+			rl: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+			expected: QuantityByPriorityAndResourceType{
+				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+			},
+		},
+		"empty": {
+			q:  QuantityByPriorityAndResourceType{},
+			p:  0,
+			rl: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+			expected: QuantityByPriorityAndResourceType{
+				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+			},
+		},
+		"add same resource at same priority": {
+			q: QuantityByPriorityAndResourceType{
+				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+			},
+			p:  0,
+			rl: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("2")}},
+			expected: QuantityByPriorityAndResourceType{
+				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("2")}},
+			},
+		},
+		"add different resource at same priority": {
+			q: QuantityByPriorityAndResourceType{
+				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+			},
+			p:  0,
+			rl: ResourceList{Resources: map[string]resource.Quantity{"memory": resource.MustParse("1Gi")}},
+			expected: QuantityByPriorityAndResourceType{
+				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
+			},
+		},
+		"add same resource at different priority": {
+			q: QuantityByPriorityAndResourceType{
+				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+			},
+			p:  1,
+			rl: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("2")}},
+			expected: QuantityByPriorityAndResourceType{
+				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+				1: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+			},
+		},
+		"add different resource at different priority": {
+			q: QuantityByPriorityAndResourceType{
+				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+			},
+			p:  1,
+			rl: ResourceList{Resources: map[string]resource.Quantity{"memory": resource.MustParse("1Gi")}},
+			expected: QuantityByPriorityAndResourceType{
+				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+				1: ResourceList{Resources: map[string]resource.Quantity{"memory": resource.MustParse("1Gi")}},
+			},
+		},
+		"multiple resources": {
+			q: QuantityByPriorityAndResourceType{
+				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("100m"), "memory": resource.MustParse("50Mi")}},
+			},
+			p:  1,
+			rl: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("10"), "memory": resource.MustParse("4000Mi")}},
+			expected: QuantityByPriorityAndResourceType{
+				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("100m"), "memory": resource.MustParse("50Mi")}},
+				1: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("9900m"), "memory": resource.MustParse("3950Mi")}},
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			tc.q.MaxAggregatedByResource(tc.p, tc.rl)
+			assert.True(t, tc.expected.Equal(tc.q), "expected %s, but got %s", tc.expected.String(), tc.q.String())
 		})
 	}
 }
@@ -488,6 +740,139 @@ func TestResourceListIsStrictlyNonNegative(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			assert.Equal(t, tc.expected, tc.rl.IsStrictlyNonNegative())
+		})
+	}
+}
+
+func TestResourceListIsStrictlyLessOrEqual(t *testing.T) {
+	tests := map[string]struct {
+		a        ResourceList
+		b        ResourceList
+		expected bool
+	}{
+		"both empty": {
+			a:        ResourceList{},
+			b:        ResourceList{},
+			expected: true,
+		},
+		"both empty maps": {
+			a: ResourceList{
+				Resources: make(map[string]resource.Quantity),
+			},
+			b: ResourceList{
+				Resources: make(map[string]resource.Quantity),
+			},
+			expected: true,
+		},
+		"one empty map": {
+			a: ResourceList{
+				Resources: make(map[string]resource.Quantity),
+			},
+			b:        ResourceList{},
+			expected: true,
+		},
+		"zero equals empty": {
+			a: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("0"),
+				},
+			},
+			b:        ResourceList{},
+			expected: true,
+		},
+		"zero and missing is equal": {
+			a: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+					"bar": resource.MustParse("0"),
+				},
+			},
+			b: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+				},
+			},
+			expected: true,
+		},
+		"simple equal": {
+			a: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("1"),
+					"memory": resource.MustParse("2"),
+					"foo":    resource.MustParse("3"),
+				},
+			},
+			b: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"cpu":    resource.MustParse("1"),
+					"memory": resource.MustParse("2"),
+					"foo":    resource.MustParse("3"),
+				},
+			},
+			expected: true,
+		},
+		"simple true": {
+			a: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+					"bar": resource.MustParse("2"),
+				},
+			},
+			b: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+					"bar": resource.MustParse("3"),
+				},
+			},
+			expected: true,
+		},
+		"simple false": {
+			a: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+					"bar": resource.MustParse("3"),
+				},
+			},
+			b: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+					"bar": resource.MustParse("2"),
+				},
+			},
+			expected: false,
+		},
+		"present in a missing in b true": {
+			a: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+					"bar": resource.MustParse("2"),
+				},
+			},
+			b: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+				},
+			},
+			expected: true,
+		},
+		"missing in a present in b true": {
+			a: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+				},
+			},
+			b: ResourceList{
+				Resources: map[string]resource.Quantity{
+					"foo": resource.MustParse("1"),
+					"bar": resource.MustParse("2"),
+				},
+			},
+			expected: true,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, tc.a.IsStrictlyLessOrEqual(tc.b))
 		})
 	}
 }

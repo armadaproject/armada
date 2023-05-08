@@ -57,13 +57,18 @@ armadactl version [flags]
 ```bash
 armadactl watch [deployment_name] [flags]
 ```
-- getQueueSchedulingReport : This subcommand retrieves a report of the current scheduling status of all queues in the Armada cluster.
+- queue-report : This subcommand retrieves a report of the current scheduling status of all queues in the Armada cluster.
 ```bash
-armadactl getQueueSchedulingReport
+armadactl queue-report
 ```
-- getJobSchedulingReport : This subcommand retrieves a report of the current scheduling status of all jobs in the Armada cluster.
+- job-report : This subcommand retrieves a report of the current scheduling status of all jobs in the Armada cluster.
 ```bash
-armadactl getJobSchedulingReport
+armadactl job-report
+```
+
+- scheduling-report : This subcommand retrieves a report of the current scheduling status in the Armada cluster.
+```bash
+armadactl scheduling-report
 ```
 
 For a full list of subcommands and options, you can run **armadactl --help**.

@@ -75,13 +75,13 @@ func TestNamesValuesFromRecordPointer(t *testing.T) {
 	assert.Equal(t, []interface{}{r.Id, r.Value, r.Message, r.Serial}, values)
 }
 
-func TestUpsert(t *testing.T) {
+func TestUpsertWithTransaction(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Hour)
 	defer cancel()
 	err := withDb(func(db *pgxpool.Pool) error {
 		// Insert rows, read them back, and compare.
 		expected := makeRecords(10)
-		err := Upsert(ctx, db, TABLE_NAME, expected)
+		err := UpsertWithTransaction(ctx, db, TABLE_NAME, expected)
 		if !assert.NoError(t, err) {
 			return nil
 		}
@@ -96,7 +96,7 @@ func TestUpsert(t *testing.T) {
 
 		// Change one record, upsert, read back, and compare.
 		expected[0].Message = "foo"
-		err = Upsert(ctx, db, TABLE_NAME, expected)
+		err = UpsertWithTransaction(ctx, db, TABLE_NAME, expected)
 		if !assert.NoError(t, err) {
 			return nil
 		}
@@ -120,7 +120,7 @@ func TestConcurrency(t *testing.T) {
 			expected := makeRecords(10)
 			executor := fmt.Sprintf("executor-%d", i)
 			setMessageToExecutor(expected, executor)
-			err := Upsert(ctx, db, TABLE_NAME, expected)
+			err := UpsertWithTransaction(ctx, db, TABLE_NAME, expected)
 			if !assert.NoError(t, err) {
 				return nil
 			}
@@ -151,7 +151,7 @@ func TestAutoIncrement(t *testing.T) {
 	err := withDb(func(db *pgxpool.Pool) error {
 		// Insert two rows. These should automatically get auto-incrementing serial numbers.
 		records := makeRecords(2)
-		err := Upsert(ctx, db, TABLE_NAME, records)
+		err := UpsertWithTransaction(ctx, db, TABLE_NAME, records)
 		if !assert.NoError(t, err) {
 			return nil
 		}
@@ -172,7 +172,7 @@ func TestAutoIncrement(t *testing.T) {
 			records[1],
 		}
 
-		err = Upsert(ctx, db, TABLE_NAME, records)
+		err = UpsertWithTransaction(ctx, db, TABLE_NAME, records)
 		if !assert.NoError(t, err) {
 			return nil
 		}
@@ -256,7 +256,7 @@ func withDb(action func(db *pgxpool.Pool) error) error {
 				RETURN NEW;
 				END
 				$func$;
-			
+
 				CREATE TRIGGER next_serial
 				BEFORE INSERT or UPDATE ON %s
 				FOR EACH ROW

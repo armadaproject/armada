@@ -1,177 +1,198 @@
-import { ExpandedStateList, ColumnFiltersState, SortingState, VisibilityState } from "@tanstack/react-table"
-import { JobId } from "models/lookoutV2Models"
+import { ExpandedStateList, VisibilityState } from "@tanstack/react-table"
+import { isValidMatch, JobId, Match } from "models/lookoutV2Models"
 import qs from "qs"
+import { SortDirection } from "react-virtualized"
 
-import { Router } from "../../utils"
+import { LookoutColumnFilter, LookoutColumnOrder } from "../../containers/lookoutV2/JobsTableContainer"
+import { removeUndefined, Router } from "../../utils"
 import {
-  ANNOTATION_COLUMN_PREFIX,
+  AnnotationColumnId,
   ColumnId,
-  createAnnotationColumn,
+  DEFAULT_COLUMN_ORDER,
   DEFAULT_COLUMN_VISIBILITY,
-  DEFAULT_GROUPING,
-  JobTableColumn,
-  JOB_COLUMNS,
-  DEFAULT_FILTERS,
+  fromAnnotationColId,
+  isStandardColId,
 } from "../../utils/jobsTableColumns"
 
 export interface JobsTablePreferences {
-  allColumnsInfo: JobTableColumn[]
+  annotationColumnKeys: string[]
   visibleColumns: VisibilityState
   groupedColumns: ColumnId[]
   expandedState: ExpandedStateList
   pageIndex: number
   pageSize: number
-  sortingState: SortingState
+  order: LookoutColumnOrder
   columnSizing?: Record<string, number>
-  filterState: ColumnFiltersState
+  filters: LookoutColumnFilter[]
   sidebarJobId: JobId | undefined
   sidebarWidth?: number
 }
 
 // Need two 'defaults'
-export const BLANK_PREFERENCES: JobsTablePreferences = {
-  allColumnsInfo: JOB_COLUMNS,
+export const DEFAULT_PREFERENCES: JobsTablePreferences = {
+  annotationColumnKeys: [],
   visibleColumns: DEFAULT_COLUMN_VISIBILITY,
-  filterState: [],
+  filters: [],
   groupedColumns: [],
   expandedState: {},
   pageIndex: 0,
   pageSize: 50,
-  sortingState: [{ id: "jobId", desc: true }],
+  order: DEFAULT_COLUMN_ORDER,
   sidebarJobId: undefined,
-  columnSizing: {},
-}
-
-export const DEFAULT_QUERY_PARAM_PREFERENCES: Partial<JobsTablePreferences> = {
-  filterState: DEFAULT_FILTERS,
-  groupedColumns: DEFAULT_GROUPING,
-}
-
-export const DEFAULT_LOCAL_STORAGE_PREFERENCES: Partial<JobsTablePreferences> = {
   sidebarWidth: 600,
+  columnSizing: {},
 }
 
 const KEY_PREFIX = "lookoutV2"
 const COLUMN_SIZING_KEY = `${KEY_PREFIX}ColumnSizing`
 const SIDEBAR_WIDTH_KEY = `${KEY_PREFIX}SidebarWidth`
+export const PREFERENCES_KEY = `${KEY_PREFIX}JobTablePreferences`
+
+type QueryStringJobFilter = {
+  id: string
+  value: string | string[]
+  match: string
+}
 
 // Reflects the type of data stored in the URL query params
 // Keys are shortened to keep URL size lower
-interface QueryStringSafePrefs {
-  // Visible columns
-  vCols: string[]
-
-  // Annotation keys added
-  aCols: string[]
-
+export interface QueryStringPrefs {
   // Grouped columns
   g: string[] | [null]
-
   // Expanded rows
   e: string[]
-
   // Current page number
   page: string
-
   // Page size
-  pS: string
-
+  ps: string
   // Sorting information
   sort: {
     id: string
     desc: string // boolean
-  }[]
-
-  // Column filters
-  f: {
-    id: string
-    value: string
-  }[]
-
+  }
+  // Job filters
+  f: QueryStringJobFilter[]
   // Sidebar job ID
   sb: string | undefined
 }
 
-const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringSafePrefs => {
-  // QS lib will remove params with empty array values unless they explicitly have a null value
-  // This is useful where the default value is non-empty
-  const padEmptyArrayWithNull = <T>(arr: T[]): T[] | [null] => (arr.length === 0 ? [null] : arr)
-
+const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs => {
   // The order of these keys are the order they'll show in the URL bar (in modern browsers)
   return {
     page: prefs.pageIndex.toString(),
-
-    g: padEmptyArrayWithNull(prefs.groupedColumns),
-
-    f: prefs.filterState.map(({ id, value }) => ({ id, value: value as string })),
-
-    sort: prefs.sortingState.map(({ id, desc }) => ({ id, desc: desc.toString() })),
-
-    vCols: Object.entries(prefs.visibleColumns)
-      .filter(([_, visible]) => visible)
-      .map(([columnId]) => columnId),
-
-    aCols: prefs.allColumnsInfo
-      .filter((col) => col.id?.startsWith(ANNOTATION_COLUMN_PREFIX))
-      .map((col) => col.id?.slice(ANNOTATION_COLUMN_PREFIX.length))
-      .filter((annotationKey): annotationKey is string => annotationKey !== undefined),
-
+    g: prefs.groupedColumns,
+    f: prefs.filters.map((filter) => ({
+      id: filter.id,
+      value: filter.value as string | string[],
+      match: filter.match,
+    })),
+    sort: {
+      id: prefs.order.id,
+      desc: String(prefs.order.direction === SortDirection.DESC),
+    },
     e: Object.entries(prefs.expandedState)
       .filter(([_, expanded]) => expanded)
       .map(([rowId, _]) => rowId),
-
-    pS: prefs.pageSize.toString(),
-
+    ps: prefs.pageSize.toString(),
     sb: prefs.sidebarJobId,
   }
 }
 
-const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringSafePrefs>): Partial<JobsTablePreferences> => {
-  const stripNullArrays = <T>(arr: T[] | [null]): T[] => (arr.length === 1 && arr[0] === null ? [] : (arr as T[]))
+const lookoutFiltersFromQueryStringFilters = (f: QueryStringJobFilter[]): LookoutColumnFilter[] => {
+  return f
+    .filter((queryFilter) => isValidMatch(queryFilter.match))
+    .map((queryFilter) => ({
+      id: queryFilter.id,
+      value: queryFilter.value,
+      match: queryFilter.match as Match,
+    }))
+}
 
-  const { aCols, vCols, g, e, page, pS, sort, f, sb } = serializedPrefs
-  const allColumns = JOB_COLUMNS.concat((aCols ?? []).map((annotationKey) => createAnnotationColumn(annotationKey)))
-
+const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partial<JobsTablePreferences> => {
+  const { g, e, page, ps, sort, f, sb } = serializedPrefs
   return {
-    ...(aCols && { allColumnsInfo: allColumns }),
-
-    ...(vCols && {
-      visibleColumns: Object.fromEntries(allColumns.map(({ id }) => [id, vCols.includes(id as string)])),
-    }),
-
-    ...(g && { groupedColumns: stripNullArrays(g) as ColumnId[] }),
-
+    ...(g && { groupedColumns: g as ColumnId[] }),
     ...(e && { expandedState: Object.fromEntries(e.map((rowId) => [rowId, true])) }),
-
     ...(page !== undefined && { pageIndex: Number(page) }),
-
-    ...(pS !== undefined && { pageSize: Number(pS) }),
-
-    ...(sort && { sortingState: sort.map((field) => ({ id: field.id, desc: field.desc === "true" })) }),
-
-    ...(f && { filterState: f }),
-
+    ...(ps !== undefined && { pageSize: Number(ps) }),
+    ...(sort && {
+      order: { id: sort.id, direction: sort.desc.toLowerCase() === "true" ? SortDirection.DESC : SortDirection.ASC },
+    }),
+    ...(f && { filters: lookoutFiltersFromQueryStringFilters(f) }),
     ...(sb && { sidebarJobId: sb }),
   }
+}
+
+const ensureVisible = (visibilityState: VisibilityState, columns: string[]) => {
+  for (const col of columns) {
+    visibilityState[col] = true
+  }
+}
+
+// Use local storage prefs, but if query prefs are defined update all fields managed by query params with their
+// corresponding query param ones (even if undefined for some fields)
+const mergeQueryParamsAndLocalStorage = (
+  queryParamPrefs: Partial<JobsTablePreferences>,
+  localStoragePrefs: Partial<JobsTablePreferences>,
+): Partial<JobsTablePreferences> => {
+  const mergedPrefs: Partial<JobsTablePreferences> = localStoragePrefs
+  if (!allFieldsAreUndefined(queryParamPrefs)) {
+    // Need to do one by one, as assignment using `keyof` won't be recognized as the same key by Typescript
+    mergedPrefs.groupedColumns = queryParamPrefs.groupedColumns
+    mergedPrefs.expandedState = queryParamPrefs.expandedState
+    mergedPrefs.pageIndex = queryParamPrefs.pageIndex
+    mergedPrefs.pageSize = queryParamPrefs.pageSize
+    mergedPrefs.order = queryParamPrefs.order
+    mergedPrefs.filters = queryParamPrefs.filters
+    mergedPrefs.sidebarJobId = queryParamPrefs.sidebarJobId
+  }
+  return mergedPrefs
+}
+
+// Make sure annotations referenced in filters exist, make sure columns referenced in objects are visible
+const ensurePreferencesAreConsistent = (preferences: JobsTablePreferences) => {
+  // Make sure annotation columns referenced in filters exist
+  if (preferences.annotationColumnKeys === undefined) {
+    preferences.annotationColumnKeys = []
+  }
+  const annotationKeysSet = new Set<string>(preferences.annotationColumnKeys)
+  for (const filter of preferences.filters) {
+    if (!isStandardColId(filter.id)) {
+      const annotationKey = fromAnnotationColId(filter.id as AnnotationColumnId)
+      if (!annotationKeysSet.has(annotationKey)) {
+        preferences.annotationColumnKeys.push(annotationKey)
+        annotationKeysSet.add(annotationKey)
+      }
+    }
+  }
+
+  // Make sure grouped columns, order columns, and filtered columns are visible
+  ensureVisible(preferences.visibleColumns, preferences.groupedColumns ?? [])
+  ensureVisible(preferences.visibleColumns, preferences.order === undefined ? [] : [preferences.order.id])
+  ensureVisible(preferences.visibleColumns, preferences.filters?.map((filter) => filter.id) ?? [])
+}
+
+export const stringifyQueryParams = (paramObj: any): string => {
+  return qs.stringify(paramObj, {
+    encodeValuesOnly: true,
+    strictNullHandling: true,
+  })
 }
 
 export class JobsTablePreferencesService {
   constructor(private router: Router) {}
 
   getUserPrefs(): JobsTablePreferences {
-    let queryParamPrefs = this.getPrefsFromQueryParams()
-    let localStoragePrefs = this.getPrefsFromLocalStorage()
-    if (allFieldsAreUndefined(queryParamPrefs)) {
-      queryParamPrefs = DEFAULT_QUERY_PARAM_PREFERENCES
+    const queryParamPrefs = this.getPrefsFromQueryParams()
+    const localStoragePrefs = this.getPrefsFromLocalStorage()
+    const merged = mergeQueryParamsAndLocalStorage(queryParamPrefs, localStoragePrefs)
+    removeUndefined(merged)
+    const prefs = {
+      ...DEFAULT_PREFERENCES,
+      ...merged,
     }
-    if (allFieldsAreUndefined(localStoragePrefs)) {
-      localStoragePrefs = DEFAULT_LOCAL_STORAGE_PREFERENCES
-    }
-    return {
-      ...BLANK_PREFERENCES,
-      ...queryParamPrefs,
-      ...localStoragePrefs,
-    }
+    ensurePreferencesAreConsistent(prefs)
+    return prefs
   }
 
   saveNewPrefs(newPrefs: JobsTablePreferences) {
@@ -183,18 +204,15 @@ export class JobsTablePreferencesService {
     try {
       // Avoids overwriting existing unrelated query params
       const existingQueryParams = qs.parse(this.router.location.search, { ignoreQueryPrefix: true })
-      const prefsQueryParams = toQueryStringSafe(newPrefs)
+      const newQueryParams = toQueryStringSafe(newPrefs)
       const mergedQueryParams = {
         ...existingQueryParams,
-        ...prefsQueryParams,
+        ...newQueryParams,
       }
 
       this.router.navigate({
         pathname: this.router.location.pathname,
-        search: qs.stringify(mergedQueryParams, {
-          encodeValuesOnly: true,
-          strictNullHandling: true,
-        }),
+        search: stringifyQueryParams(mergedQueryParams),
       })
     } catch (e) {
       console.warn("Unable to update URL query params with table state:", e)
@@ -202,21 +220,7 @@ export class JobsTablePreferencesService {
   }
 
   private savePrefsToLocalStorage(newPrefs: JobsTablePreferences) {
-    this.saveColumnSizingToLocalStorage(newPrefs.columnSizing)
-    this.saveSidebarWidthToLocalStorage(newPrefs.sidebarWidth)
-  }
-
-  private saveColumnSizingToLocalStorage(columnSizing?: Record<string, number>) {
-    if (columnSizing) {
-      localStorage.setItem(COLUMN_SIZING_KEY, JSON.stringify(columnSizing))
-    }
-  }
-
-  private saveSidebarWidthToLocalStorage(sidebarWidth?: number) {
-    if (sidebarWidth === undefined || sidebarWidth === 0) {
-      localStorage.removeItem(SIDEBAR_WIDTH_KEY)
-    }
-    localStorage.setItem(SIDEBAR_WIDTH_KEY, JSON.stringify(sidebarWidth))
+    localStorage.setItem(PREFERENCES_KEY, JSON.stringify(newPrefs))
   }
 
   private getPrefsFromQueryParams(): Partial<JobsTablePreferences> {
@@ -233,10 +237,25 @@ export class JobsTablePreferencesService {
   }
 
   private getPrefsFromLocalStorage(): Partial<JobsTablePreferences> {
-    return {
-      columnSizing: this.getColumnSizingFromLocalStorage(),
-      sidebarWidth: this.getSidebarWidthFromLocalStorage(),
+    const json = localStorage.getItem(PREFERENCES_KEY)
+    if (stringIsInvalid(json)) {
+      return {}
     }
+
+    const obj = tryParseJson(json as string) as Partial<JobsTablePreferences>
+    if (!obj) {
+      return {}
+    }
+
+    // TODO: needed for backwards compatibility, remove when all users upgraded
+    if (obj.columnSizing === undefined || Object.keys(obj.columnSizing).length === 0) {
+      obj.columnSizing = this.getColumnSizingFromLocalStorage()
+    }
+    if (obj.sidebarWidth === undefined || obj.sidebarWidth === 0) {
+      obj.sidebarWidth = this.getSidebarWidthFromLocalStorage()
+    }
+
+    return obj
   }
 
   private getColumnSizingFromLocalStorage(): Record<string, number> | undefined {

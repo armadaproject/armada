@@ -46,9 +46,9 @@ grpc:
     permitWithoutStream: true
 scheduling:
   executorTimeout: 10m
-  nodeIdLabel: kubernetes.io/hostname
   preemption:
     enabled: true
+    nodeIdLabel: kubernetes.io/hostname
     priorityClasses:
       armada-default:
         priority: 1000
@@ -75,6 +75,7 @@ scheduling:
     memory: 1.0
     cpu: 1.0
   maximumJobsToSchedule: 5000
+  maxUnacknowledgedJobsPerExecutor: 2500
   maxQueueReportsToStore: 1000
   MaxJobReportsToStore: 10000
   defaultJobLimits:
