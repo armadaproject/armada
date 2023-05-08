@@ -496,6 +496,12 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		jobIdsByGangId,
 		gangIdByJobId,
 	)
+	if q.schedulingConfig.AlwaysAttemptScheduling {
+		sch.SkipUnsuccessfulSchedulingKeyCheck()
+	}
+	if q.schedulingConfig.EnableAssertions {
+		sch.EnableAssertions()
+	}
 	result, err := sch.Schedule(
 		ctxlogrus.ToContext(
 			ctx,
