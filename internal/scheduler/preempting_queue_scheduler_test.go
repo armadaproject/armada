@@ -1219,7 +1219,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 					tc.SchedulingConfig,
 				)
-				rescheduler := NewPreemptingQueueScheduler(
+				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
 					tc.SchedulingConfig.Preemption.NodeEvictionProbability,
@@ -1230,11 +1230,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					jobIdsByGangId,
 					gangIdByJobId,
 				)
-				rescheduler.EnableAssertions()
-				result, err := rescheduler.Schedule(ctxlogrus.ToContext(context.Background(), log))
+				sch.EnableAssertions()
+				result, err := sch.Schedule(ctxlogrus.ToContext(context.Background(), log))
 				require.NoError(t, err)
-				jobIdsByGangId = rescheduler.jobIdsByGangId
-				gangIdByJobId = rescheduler.gangIdByJobId
+				jobIdsByGangId = sch.jobIdsByGangId
+				gangIdByJobId = sch.gangIdByJobId
 
 				// Test resource accounting.
 				for _, job := range result.PreemptedJobs {
@@ -1473,7 +1473,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 			)
-			rescheduler := NewPreemptingQueueScheduler(
+			sch := NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
 				tc.SchedulingConfig.Preemption.NodeEvictionProbability,
@@ -1484,7 +1484,8 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nil,
 				nil,
 			)
-			result, err := rescheduler.Schedule(
+			sch.SkipUnsuccessfulSchedulingKeyCheck()
+			result, err := sch.Schedule(
 				ctxlogrus.ToContext(
 					context.Background(),
 					logrus.NewEntry(logrus.New()),
