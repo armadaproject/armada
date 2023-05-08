@@ -11,7 +11,7 @@ import (
 )
 
 func TestSchedulingKey(t *testing.T) {
-	defaultN := 10 // Runt the check several times to check for consistency.
+	defaultN := 10 // Run the check several times to check for consistency.
 	tests := map[string]struct {
 		a     *PodRequirements
 		b     *PodRequirements
