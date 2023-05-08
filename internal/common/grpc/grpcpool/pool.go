@@ -32,7 +32,6 @@ type FactoryWithContext func(context.Context) (*grpc.ClientConn, error)
 
 // Pool is the grpc client pool
 type Pool struct {
-	// clients         chan *ClientConn
 	clients         *ring.Ring
 	factory         FactoryWithContext
 	idleTimeout     time.Duration
