@@ -81,31 +81,6 @@ func TestNew(t *testing.T) {
 	}
 }
 
-/* NOTE(Clif): This test is no longer relevant
-func TestTimeout(t *testing.T) {
-	p, err := New(func() (*grpc.ClientConn, error) {
-		return grpc.Dial("example.com", grpc.WithInsecure())
-	}, 1, 1, 0)
-	if err != nil {
-		t.Errorf("The pool returned an error: %s", err.Error())
-	}
-
-	_, err = p.Get(context.Background())
-	if err != nil {
-		t.Errorf("Get returned an error: %s", err.Error())
-	}
-
-	// We want to fetch a second one, with a timeout. If the timeout was
-	// omitted, the pool would wait indefinitely as it'd wait for another
-	// client to get back into the queue
-	ctx, _ := context.WithDeadline(context.Background(), time.Now().Add(10*time.Millisecond))
-	_, err2 := p.Get(ctx)
-	if err2 != ErrTimeout {
-		t.Errorf("Expected error \"%s\" but got \"%s\"", ErrTimeout, err2.Error())
-	}
-}
-*/
-
 func TestMaxLifeDuration(t *testing.T) {
 	p, err := New(func() (*grpc.ClientConn, error) {
 		return grpc.Dial("example.com", grpc.WithInsecure())
@@ -224,30 +199,6 @@ func TestContextTimeout(t *testing.T) {
 		t.Errorf("Returned error was not context.DeadlineExceeded, but the context was timed out before the initialization")
 	}
 }
-
-/* NOTE(Clif) No longer relevant
-func TestGetContextTimeout(t *testing.T) {
-	p, err := New(func() (*grpc.ClientConn, error) {
-		return grpc.Dial("example.com", grpc.WithInsecure())
-	}, 1, 1, 0)
-	if err != nil {
-		t.Errorf("The pool returned an error: %s", err.Error())
-	}
-
-	// keep busy the available conn
-	_, _ = p.Get(context.Background())
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Microsecond)
-	defer cancel()
-
-	// wait for the deadline to pass
-	time.Sleep(time.Millisecond)
-	_, err = p.Get(ctx)
-	if err != ErrTimeout { // it should be context.DeadlineExceeded
-		t.Errorf("Returned error was not ErrTimeout, but the context was timed out before the Get invocation")
-	}
-}
-*/
 
 func TestGetContextFactoryTimeout(t *testing.T) {
 	p, err := NewWithContext(context.Background(), func(ctx context.Context) (*grpc.ClientConn, error) {
