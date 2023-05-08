@@ -25,7 +25,7 @@ runs:
         DOCKER_USER: ${{ inputs.docker_user }}
         DOCKER_PASS: ${{ inputs.docker_pwd }}
       with:
-        destination_container_repo: ${{ inputs.docker_owner }}/armada-bundle
+        destination_container_repo: ${{ inputs.docker_owner }}/armada
         provider: ${{ inputs.docker_provider }}
         short_description: 'Armada Bundle'
         readme_file: 'README.md'
