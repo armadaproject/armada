@@ -6,33 +6,32 @@ import (
 	"strings"
 	"time"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-	"github.com/prometheus/client_golang/prometheus"
-	"k8s.io/client-go/tools/clientcmd"
-
-	"github.com/armadaproject/armada/internal/common"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/auth"
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
+	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 // Run sets up a Scheduler application and runs it until a SIGTERM is received
-func Run(config Configuration) error {
+func Run(config schedulerconfig.Configuration) error {
 	g, ctx := errgroup.WithContext(app.CreateContextWithShutdown())
 	logrusLogger := log.NewEntry(log.StandardLogger())
 	ctx = ctxlogrus.ToContext(ctx, logrusLogger)
@@ -69,10 +68,10 @@ func Run(config Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	log.Infof("Setting up Pulsar connectivity")
 	pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
-	defer pulsarClient.Close()
 	if err != nil {
 		return errors.WithMessage(err, "Error creating pulsar client")
 	}
+	defer pulsarClient.Close()
 	pulsarPublisher, err := NewPulsarPublisher(pulsarClient, pulsar.ProducerOptions{
 		Name:             fmt.Sprintf("armada-scheduler-%s", uuid.NewString()),
 		CompressionType:  config.Pulsar.CompressionType,
@@ -126,7 +125,9 @@ func Run(config Configuration) error {
 		legacyExecutorRepository,
 		allowedPcs,
 		config.Scheduling.MaximumJobsToSchedule,
-		config.Scheduling.Preemption.NodeIdLabel)
+		config.Scheduling.Preemption.NodeIdLabel,
+		config.Scheduling.Preemption.PriorityClassNameOverride,
+	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating executorApi")
 	}
@@ -157,7 +158,7 @@ func Run(config Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating submit checker")
 	}
-	schedulingAlgo := NewLegacySchedulingAlgo(config.Scheduling, executorRepository, queueRepository)
+	schedulingAlgo := NewFairSchedulingAlgo(config.Scheduling, executorRepository, queueRepository)
 	scheduler, err := NewScheduler(
 		jobRepository,
 		executorRepository,
@@ -201,7 +202,7 @@ func Run(config Configuration) error {
 	return g.Wait()
 }
 
-func createLeaderController(config LeaderConfig) (LeaderController, error) {
+func createLeaderController(config schedulerconfig.LeaderConfig) (LeaderController, error) {
 	switch mode := strings.ToLower(config.Mode); mode {
 	case "standalone":
 		log.Infof("Scheduler will run in standalone mode")

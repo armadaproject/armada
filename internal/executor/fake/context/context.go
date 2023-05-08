@@ -11,9 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 	discovery "k8s.io/api/discovery/v1"
@@ -25,6 +24,7 @@ import (
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	cluster_context "github.com/armadaproject/armada/internal/executor/context"
 )
@@ -49,24 +49,37 @@ var DefaultNodeSpec = []*NodeSpec{
 	},
 }
 
-type FakeClusterContext struct {
-	clusterId             string
-	pool                  string
-	podEventHandlers      []*cache.ResourceEventHandlerFuncs
-	clusterEventHandlers  []*cache.ResourceEventHandlerFuncs
-	rwLock                sync.RWMutex
-	pods                  map[string]*v1.Pod
-	events                map[string]*v1.Event
-	nodes                 []*v1.Node
-	nodeAvailableResource map[string]armadaresource.ComputeResources
+type nodeAllocation struct {
+	availableResource armadaresource.ComputeResources
+	allocatedPods     map[string]bool
 }
 
-func NewFakeClusterContext(appConfig configuration.ApplicationConfiguration, nodeSpecs []*NodeSpec) cluster_context.ClusterContext {
+type FakeClusterContext struct {
+	clusterId            string
+	nodeIdLabel          string
+	pool                 string
+	podEventHandlers     []*cache.ResourceEventHandlerFuncs
+	clusterEventHandlers []*cache.ResourceEventHandlerFuncs
+	rwLock               sync.RWMutex
+	pods                 map[string]*v1.Pod
+	events               map[string]*v1.Event
+	nodes                []*v1.Node
+	nodesByNodeId        map[string]*v1.Node
+	nodeAllocation       map[string]nodeAllocation
+}
+
+func NewFakeClusterContext(appConfig configuration.ApplicationConfiguration, nodeIdLabel string, nodeSpecs []*NodeSpec) cluster_context.ClusterContext {
+	if nodeIdLabel == "" {
+		panic("nodeIdLabel must be set")
+	}
 	c := &FakeClusterContext{
-		clusterId:             appConfig.ClusterId,
-		pool:                  appConfig.Pool,
-		pods:                  map[string]*v1.Pod{},
-		nodeAvailableResource: map[string]armadaresource.ComputeResources{},
+		clusterId:      appConfig.ClusterId,
+		nodeIdLabel:    nodeIdLabel,
+		pool:           appConfig.Pool,
+		pods:           map[string]*v1.Pod{},
+		nodes:          []*v1.Node{},
+		nodesByNodeId:  map[string]*v1.Node{},
+		nodeAllocation: map[string]nodeAllocation{},
 	}
 	if nodeSpecs == nil {
 		nodeSpecs = DefaultNodeSpec
@@ -226,9 +239,6 @@ func (c *FakeClusterContext) updateStatus(saved *v1.Pod, phase v1.PodPhase, stat
 }
 
 func (c *FakeClusterContext) extractSleepTime(pod *v1.Pod) float32 {
-	c.rwLock.Lock()
-	defer c.rwLock.Unlock()
-
 	command := append(pod.Spec.Containers[0].Command, pod.Spec.Containers[0].Args...)
 	commandString := strings.Join(command, " ")
 
@@ -291,6 +301,7 @@ func (c *FakeClusterContext) DeletePods(pods []*v1.Pod) {
 
 		for _, p := range pods {
 			delete(c.pods, p.Name)
+			c.deallocateNoLock(p)
 		}
 	}()
 }
@@ -310,10 +321,16 @@ func (c *FakeClusterContext) GetNodeStatsSummary(ctx context.Context, node *v1.N
 func (c *FakeClusterContext) addNodes(specs []*NodeSpec) {
 	for _, s := range specs {
 		for i := 0; i < s.Count; i++ {
+			name := c.clusterId + "-" + s.Name + "-" + strconv.Itoa(i)
+			labels := util.DeepCopy(s.Labels)
+			if labels == nil {
+				labels = map[string]string{}
+			}
+			labels[c.nodeIdLabel] = name
 			node := &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:   c.clusterId + "-" + s.Name + "-" + strconv.Itoa(i),
-					Labels: s.Labels,
+					Name:   name,
+					Labels: labels,
 				},
 				Spec: v1.NodeSpec{
 					Taints:        s.Taints,
@@ -324,7 +341,11 @@ func (c *FakeClusterContext) addNodes(specs []*NodeSpec) {
 				},
 			}
 			c.nodes = append(c.nodes, node)
-			c.nodeAvailableResource[node.Name] = armadaresource.FromResourceList(s.Allocatable)
+			c.nodesByNodeId[name] = node
+			c.nodeAllocation[name] = nodeAllocation{
+				allocatedPods:     map[string]bool{},
+				availableResource: armadaresource.FromResourceList(s.Allocatable),
+			}
 		}
 	}
 }
@@ -337,21 +358,34 @@ func (c *FakeClusterContext) trySchedule(pod *v1.Pod) (scheduled bool, removed b
 		return false, true
 	}
 
+	// Use node index if job is targeting a node based on nodeIdLabe
+	// This will likely account for all pods, as the armada scheduler now sets the selector
+	nodes := c.nodes
+	if selectedNode, exists := pod.Spec.NodeSelector[c.nodeIdLabel]; exists {
+		if node, ok := c.nodesByNodeId[selectedNode]; ok {
+			nodes = []*v1.Node{node}
+		} else {
+			log.Warnf("pod %s is targeting node (%s) that does not exist.", pod.Name, selectedNode)
+			return false, true
+		}
+	}
+
 	// fill more busy nodes first
-	sort.Slice(c.nodes, func(i, j int) bool {
+	sort.Slice(nodes, func(i, j int) bool {
 		node1 := c.nodes[i]
 		node2 := c.nodes[j]
-		node1Resource := c.nodeAvailableResource[node1.Name]
-		node2Resource := c.nodeAvailableResource[node2.Name]
+		node1Resource := c.nodeAllocation[node1.Name].availableResource
+		node2Resource := c.nodeAllocation[node2.Name].availableResource
 
 		// returns true if node1 should be considered before node2
 		return node2Resource.Dominates(node1Resource)
 	})
 
-	for _, n := range c.nodes {
+	for _, n := range nodes {
 		if c.isSchedulableOn(pod, n) {
 			resources := armadaresource.TotalPodResourceRequest(&pod.Spec)
-			c.nodeAvailableResource[n.Name].Sub(resources)
+			c.nodeAllocation[n.Name].availableResource.Sub(resources)
+			c.nodeAllocation[n.Name].allocatedPods[pod.Name] = true
 			pod.Spec.NodeName = n.Name
 			return true, false
 		}
@@ -363,13 +397,24 @@ func (c *FakeClusterContext) deallocate(pod *v1.Pod) {
 	c.rwLock.Lock()
 	defer c.rwLock.Unlock()
 
-	resources := armadaresource.TotalPodResourceRequest(&pod.Spec)
-	c.nodeAvailableResource[pod.Spec.NodeName].Add(resources)
+	c.deallocateNoLock(pod)
+}
+
+func (c *FakeClusterContext) deallocateNoLock(pod *v1.Pod) {
+	if pod.Spec.NodeName == "" {
+		return
+	}
+
+	if c.nodeAllocation[pod.Spec.NodeName].allocatedPods[pod.Name] {
+		resources := armadaresource.TotalPodResourceRequest(&pod.Spec)
+		c.nodeAllocation[pod.Spec.NodeName].availableResource.Add(resources)
+		delete(c.nodeAllocation[pod.Spec.NodeName].allocatedPods, pod.Name)
+	}
 }
 
 func (c *FakeClusterContext) isSchedulableOn(pod *v1.Pod, n *v1.Node) bool {
 	requiredResource := armadaresource.TotalPodResourceRequest(&pod.Spec)
-	availableResource := c.nodeAvailableResource[n.Name].DeepCopy()
+	availableResource := c.nodeAllocation[n.Name].availableResource.DeepCopy()
 	availableResource.Sub(requiredResource)
 
 	// resources

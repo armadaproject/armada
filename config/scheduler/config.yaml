@@ -46,9 +46,9 @@ grpc:
     permitWithoutStream: true
 scheduling:
   executorTimeout: 10m
-  nodeIdLabel: kubernetes.io/hostname
   preemption:
     enabled: true
+    nodeIdLabel: kubernetes.io/hostname
     priorityClasses:
       armada-default:
         priority: 1000

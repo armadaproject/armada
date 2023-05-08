@@ -13,7 +13,6 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/armadaproject/armada/internal/armada/cache"
@@ -40,14 +39,9 @@ import (
 
 func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
 	log.Info("Armada server starting")
+	log.Infof("Armada priority classes: %v", config.Scheduling.Preemption.PriorityClasses)
+	log.Infof("Default priority class: %s", config.Scheduling.Preemption.DefaultPriorityClass)
 	defer log.Info("Armada server shutting down")
-	if config.Scheduling.Preemption.Enabled {
-		log.Info("Armada Job preemption is enabled")
-		log.Infof("Armada priority classes: %v", config.Scheduling.Preemption.PriorityClasses)
-		log.Infof("Default priority class: %s", config.Scheduling.Preemption.DefaultPriorityClass)
-	} else {
-		log.Info("Armada Job preemption is disabled")
-	}
 
 	// We call startupCompleteCheck.MarkComplete() when all services have been started.
 	startupCompleteCheck := health.NewStartupCompleteChecker()
@@ -344,63 +338,12 @@ func validateCancelJobsBatchSizeConfig(config *configuration.ArmadaConfig) error
 }
 
 func validatePreemptionConfig(config configuration.PreemptionConfig) error {
-	if !config.Enabled {
-		return nil
-	}
-
-	// validate that the default priority class is in the priority class map
+	// Check that the default priority class is in the priority class map.
 	if config.DefaultPriorityClass != "" {
 		_, ok := config.PriorityClasses[config.DefaultPriorityClass]
 		if !ok {
 			return errors.WithStack(fmt.Errorf("default priority class was set to %s, but no such priority class has been configured", config.DefaultPriorityClass))
 		}
-	}
-
-	// validate that as priority increase, the limit decreases
-	type priorityClass struct {
-		name     string
-		priority int32
-		limits   map[string]float64
-	}
-	priorityClasses := make([]priorityClass, 0, len(config.PriorityClasses))
-	for k, pc := range config.PriorityClasses {
-		priorityClasses = append(priorityClasses, priorityClass{
-			name:     k,
-			priority: pc.Priority,
-			limits:   pc.MaximalResourceFractionPerQueue,
-		})
-	}
-
-	slices.SortFunc(priorityClasses, func(a priorityClass, b priorityClass) bool {
-		return a.priority > b.priority
-	})
-
-	var prevLimits map[string]float64 = nil
-	prevPriorityName := ""
-	for i, pc := range priorityClasses {
-		if i != 0 {
-			// check that the limit exists and that it is greater than the previous limit
-			for k, v := range prevLimits {
-				limit, ok := pc.limits[k]
-				if !ok {
-					return errors.WithStack(fmt.Errorf("invalid priority class configuration: Limit for resource %s missing at priority %s", k, pc.name))
-				}
-				if limit < v {
-					return errors.WithStack(
-						fmt.Errorf("invalid priority class configuration: Limit for resource %s at priority %s [%.3f] is lower than at priority %s [%.3f] ", k, pc.name, limit, prevPriorityName, v))
-				}
-			}
-
-			// Check that we don't have a limit for some new resource defined
-			for k := range pc.limits {
-				_, ok := prevLimits[k]
-				if !ok {
-					return errors.WithStack(fmt.Errorf("invalid priority class configuration: Limit for resource %s missing at priority %s", k, prevPriorityName))
-				}
-			}
-		}
-		prevLimits = pc.limits
-		prevPriorityName = pc.name
 	}
 
 	return nil

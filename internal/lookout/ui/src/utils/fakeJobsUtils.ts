@@ -123,7 +123,9 @@ export function filterFn(filter: JobFilter): (job: Job) => boolean {
     const objectToFilter = filter.isAnnotation ? job.annotations : job
 
     if (!Object.prototype.hasOwnProperty.call(objectToFilter, filter.field)) {
-      console.error(`Unknown filter field provided: ${filter}`)
+      if (filter.isAnnotation === undefined || !filter.isAnnotation) {
+        console.error(`Unknown filter field provided: ${filter}`)
+      }
       return false
     }
     const matcher = getMatch(filter.match)
@@ -137,13 +139,15 @@ export function getMatch(match: Match): (a: any, b: any) => boolean {
       return (a, b) => a === b
     case "startsWith":
       return (a, b) => isString(a) && isString(b) && a.startsWith(b)
-    case "greater":
+    case "contains":
+      return (a, b) => isString(a) && isString(b) && a.includes(b)
+    case "greaterThan":
       return (a, b) => a > b
-    case "less":
+    case "lessThan":
       return (a, b) => a < b
-    case "greaterOrEqual":
+    case "greaterThanOrEqualTo":
       return (a, b) => a >= b
-    case "lessOrEqual":
+    case "lessThanOrEqualTo":
       return (a, b) => a <= b
     case "anyOf":
       return (a, b) => b.includes(a)

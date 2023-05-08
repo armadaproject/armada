@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -28,7 +29,7 @@ func TestExtractQueueAndJobContexts(t *testing.T) {
 	)
 	assert.Equal(
 		t,
-		map[string]*JobSchedulingContext{
+		map[string]*schedulercontext.JobSchedulingContext{
 			"success": {
 				ExecutorId: "executor",
 				JobId:      "success",
@@ -199,17 +200,17 @@ func TestTestAddGetSchedulingContextConcurrency(t *testing.T) {
 	<-ctx.Done()
 }
 
-func withSuccessfulJobSchedulingContext(sctx *SchedulingContext, queue, jobId string) *SchedulingContext {
+func withSuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingContext, queue, jobId string) *schedulercontext.SchedulingContext {
 	if sctx.QueueSchedulingContexts == nil {
-		sctx.QueueSchedulingContexts = make(map[string]*QueueSchedulingContext)
+		sctx.QueueSchedulingContexts = make(map[string]*schedulercontext.QueueSchedulingContext)
 	}
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
-		qctx = NewQueueSchedulingContext(queue, sctx.ExecutorId, 1.0, make(schedulerobjects.QuantityByPriorityAndResourceType))
+		qctx = schedulercontext.NewQueueSchedulingContext(queue, sctx.ExecutorId, 1.0, nil, make(schedulerobjects.QuantityByPriorityAndResourceType))
 		qctx.Created = time.Time{}
 		sctx.QueueSchedulingContexts[queue] = qctx
 	}
-	qctx.SuccessfulJobSchedulingContexts[jobId] = &JobSchedulingContext{
+	qctx.SuccessfulJobSchedulingContexts[jobId] = &schedulercontext.JobSchedulingContext{
 		ExecutorId: sctx.ExecutorId,
 		JobId:      jobId,
 	}
@@ -228,17 +229,17 @@ func withSuccessfulJobSchedulingContext(sctx *SchedulingContext, queue, jobId st
 	return sctx
 }
 
-func withUnsuccessfulJobSchedulingContext(sctx *SchedulingContext, queue, jobId string) *SchedulingContext {
+func withUnsuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingContext, queue, jobId string) *schedulercontext.SchedulingContext {
 	if sctx.QueueSchedulingContexts == nil {
-		sctx.QueueSchedulingContexts = make(map[string]*QueueSchedulingContext)
+		sctx.QueueSchedulingContexts = make(map[string]*schedulercontext.QueueSchedulingContext)
 	}
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
-		qctx = NewQueueSchedulingContext(queue, sctx.ExecutorId, 1.0, make(schedulerobjects.QuantityByPriorityAndResourceType))
+		qctx = schedulercontext.NewQueueSchedulingContext(queue, sctx.ExecutorId, 1.0, nil, make(schedulerobjects.QuantityByPriorityAndResourceType))
 		qctx.Created = time.Time{}
 		sctx.QueueSchedulingContexts[queue] = qctx
 	}
-	qctx.UnsuccessfulJobSchedulingContexts[jobId] = &JobSchedulingContext{
+	qctx.UnsuccessfulJobSchedulingContexts[jobId] = &schedulercontext.JobSchedulingContext{
 		ExecutorId:          sctx.ExecutorId,
 		JobId:               jobId,
 		UnschedulableReason: "unknown",
@@ -246,8 +247,17 @@ func withUnsuccessfulJobSchedulingContext(sctx *SchedulingContext, queue, jobId 
 	return sctx
 }
 
-func testSchedulingContext(executorId string) *SchedulingContext {
-	sctx := NewSchedulingContext(executorId, schedulerobjects.ResourceList{}, nil, nil)
+func testSchedulingContext(executorId string) *schedulercontext.SchedulingContext {
+	sctx := schedulercontext.NewSchedulingContext(
+		executorId,
+		"",
+		nil,
+		"",
+		nil,
+		nil,
+		schedulerobjects.ResourceList{},
+		nil,
+	)
 	sctx.Started = time.Time{}
 	sctx.Finished = time.Time{}
 	return sctx

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -13,6 +14,7 @@ import (
 	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/maps"
 
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
@@ -109,6 +111,12 @@ func TestWriteOps(t *testing.T) {
 				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], JobSet: "set2"},
 				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], JobSet: "set1"},
 				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
+			},
+			InsertRuns{
+				runIds[0]: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]},
+				runIds[1]: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]},
+				runIds[2]: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]},
+				runIds[3]: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]},
 			},
 			MarkJobsCancelled{
 				jobIds[0]: true,
@@ -288,7 +296,13 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 	defer cancel()
 
 	// Apply the op to the database.
-	err := schedulerDb.WriteDbOp(ctx, op)
+	err := schedulerDb.db.BeginTxFunc(ctx, pgx.TxOptions{
+		IsoLevel:       pgx.ReadCommitted,
+		AccessMode:     pgx.ReadWrite,
+		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		return schedulerDb.WriteDbOp(ctx, tx, op)
+	})
 	if err != nil {
 		return err
 	}
@@ -430,6 +444,23 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 				jobIds = append(jobIds, job.JobID)
 			}
 		}
+		assert.Equal(t, len(expected), numChanged)
+
+		runs, err := queries.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{
+			Serial: serials["runs"],
+			JobIds: jobIds,
+		})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		runsChanged := 0
+		for _, run := range runs {
+			if _, ok := expected[run.JobID]; ok {
+				assert.True(t, run.Cancelled)
+				runsChanged++
+			}
+		}
+		assert.Equal(t, len(expected), runsChanged)
 	case MarkJobsSucceeded:
 		jobs, err := selectNewJobs(ctx, serials["jobs"])
 		if err != nil {
@@ -575,6 +606,43 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		return errors.Errorf("received unexpected op %+v", op)
 	}
 	return nil
+}
+
+func TestStore(t *testing.T) {
+	jobId := util.ULID().String()
+	runId := uuid.New()
+	ops := []DbOperation{
+		InsertJobs{
+			jobId: &schedulerdb.Job{
+				JobID:          jobId,
+				JobSet:         "set1",
+				Groups:         make([]byte, 0),
+				SubmitMessage:  make([]byte, 0),
+				SchedulingInfo: make([]byte, 0),
+			},
+		},
+		InsertRuns{
+			runId: &schedulerdb.Run{JobID: jobId, RunID: runId},
+		},
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err := schedulerdb.WithTestDb(func(q *schedulerdb.Queries, db *pgxpool.Pool) error {
+		schedulerDb := NewSchedulerDb(db, metrics.NewMetrics("test"), time.Second, time.Second, 10*time.Second)
+		err := schedulerDb.Store(ctx, &DbOperationsWithMessageIds{Ops: ops})
+		require.NoError(t, err)
+
+		jobIds, err := q.SelectAllJobIds(ctx)
+		require.NoError(t, err)
+		require.Equal(t, []string{jobId}, jobIds)
+
+		runIds, err := q.SelectAllRunIds(ctx)
+		require.NoError(t, err)
+		require.Equal(t, []uuid.UUID{runId}, runIds)
+
+		return nil
+	})
+	require.NoError(t, err)
 }
 
 func max[E constraints.Ordered](a, b E) E {

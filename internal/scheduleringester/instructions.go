@@ -368,5 +368,9 @@ func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaeven
 	default:
 		return nil, errors.Errorf("unsupported object type %T", object)
 	}
+
+	// Call SchedulingKey() to trigger computing and caching the key.
+	_, _ = schedulingInfo.SchedulingKey()
+
 	return schedulingInfo, nil
 }
