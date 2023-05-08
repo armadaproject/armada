@@ -27,6 +27,10 @@ grpc:
   keepaliveEnforcementPolicy:
     minTime: 5m
     permitWithoutStream: false
+# gRPC connection pool to armada server configuration.
+grpcPool:
+  initialConnections: 5
+  capacity: 5
 apiConnection:
   armadaUrl: "server:50051"
   forceNoTls: true
