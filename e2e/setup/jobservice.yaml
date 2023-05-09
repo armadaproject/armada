@@ -12,6 +12,9 @@ postgresConfig:
     password: psw
     dbname: postgres
     sslmode: disable
+grpcPool:
+  initialConnections: 5
+  capacity: 5
 apiConnection:
   armadaUrl: "server:50051"
   forceNoTls: true
