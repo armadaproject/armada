@@ -1,5 +1,7 @@
-import { memo, useCallback, useMemo, useState } from "react"
+import React, { memo, useCallback, useMemo, useState } from "react"
 
+import { IconButton } from "@material-ui/core"
+import { Settings } from "@mui/icons-material"
 import { Divider, Button } from "@mui/material"
 import RefreshButton from "components/RefreshButton"
 import ColumnSelect from "components/lookoutV2/ColumnSelect"
@@ -11,6 +13,7 @@ import { ColumnId, JobTableColumn } from "utils/jobsTableColumns"
 
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { CancelDialog } from "./CancelDialog"
+import { CustomViewPicker } from "./CustomViewPicker"
 import styles from "./JobsTableActionBar.module.css"
 import { ReprioritiseDialog } from "./ReprioritiseDialog"
 
@@ -85,6 +88,7 @@ export const JobsTableActionBar = memo(
             Clear Filters
           </Button>
           <RefreshButton isLoading={isLoading} onClick={onRefresh} />
+          <CustomViewPicker />
           <ColumnSelect
             selectableColumns={selectableColumns}
             groupedColumns={groupedColumns}

@@ -159,7 +159,7 @@ export function updateArray<T>(array: T[], newValues: T[], start: number) {
   }
 }
 
-export function tryParseJson(json: string): Record<string, unknown> | undefined {
+export function tryParseJson(json: string): Record<string, unknown> | unknown[] | undefined {
   try {
     return JSON.parse(json) as Record<string, unknown>
   } catch (e: unknown) {

@@ -47,7 +47,7 @@ export const DEFAULT_PREFERENCES: JobsTablePreferences = {
   columnSizing: {},
 }
 
-const KEY_PREFIX = "lookoutV2"
+export const KEY_PREFIX = "lookoutV2"
 const COLUMN_SIZING_KEY = `${KEY_PREFIX}ColumnSizing`
 const SIDEBAR_WIDTH_KEY = `${KEY_PREFIX}SidebarWidth`
 export const PREFERENCES_KEY = `${KEY_PREFIX}JobTablePreferences`
@@ -181,7 +181,7 @@ const mergeQueryParamsAndLocalStorage = (
 }
 
 // Make sure annotations referenced in filters exist, make sure columns referenced in objects are visible
-const ensurePreferencesAreConsistent = (preferences: JobsTablePreferences) => {
+export const ensurePreferencesAreConsistent = (preferences: JobsTablePreferences) => {
   // Make sure annotation columns referenced in filters exist
   if (preferences.annotationColumnKeys === undefined) {
     preferences.annotationColumnKeys = []
@@ -324,7 +324,7 @@ export class JobsTablePreferencesService {
   }
 }
 
-function stringIsInvalid(s: string | undefined | null): boolean {
+export function stringIsInvalid(s: string | undefined | null): boolean {
   return s === undefined || s === null || s.length === 0 || s === "undefined"
 }
 

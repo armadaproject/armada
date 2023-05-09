@@ -1,0 +1,7 @@
+.customViewPickerContainer {
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+  max-width: 500px;
+  padding: 1em;
+}
