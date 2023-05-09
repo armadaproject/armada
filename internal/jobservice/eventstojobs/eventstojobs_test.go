@@ -14,16 +14,16 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-type MockEventClient struct{
+type MockEventClient struct {
 	eventStreamMessage *api.EventStreamMessage
-	err error
+	err                error
 }
 
 func (m MockEventClient) Recv() (*api.EventStreamMessage, error) {
 	msg := m.eventStreamMessage
 	if msg == nil {
 		msg = &api.EventStreamMessage{
-			Id: "msgID",
+			Id:      "msgID",
 			Message: &api.EventMessage{},
 		}
 	}
@@ -34,7 +34,7 @@ func (m MockEventClient) CloseSend() error {
 	return nil
 }
 
-func (m MockEventClient) Context() context.Context{
+func (m MockEventClient) Context() context.Context {
 	return context.Background()
 }
 
