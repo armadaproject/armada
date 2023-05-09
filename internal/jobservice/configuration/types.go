@@ -19,7 +19,8 @@ type JobServiceConfiguration struct {
 	GrpcPort    uint16
 	MetricsPort uint16
 
-	Grpc grpcconfig.GrpcConfig
+	Grpc     grpcconfig.GrpcConfig
+	GrpcPool grpcconfig.GrpcPoolConfig
 	// Connection details that we obtain from client
 	ApiConnection client.ApiConnectionDetails
 	// Configurable value that translates to number of seconds
