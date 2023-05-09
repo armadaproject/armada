@@ -3,7 +3,7 @@ import { isValidMatch, JobId, Match } from "models/lookoutV2Models"
 import qs from "qs"
 import { SortDirection } from "react-virtualized"
 
-import { LookoutColumnFilter, LookoutColumnOrder } from "../../containers/lookoutV2/JobsTableContainer"
+import { LookoutColumnOrder } from "../../containers/lookoutV2/JobsTableContainer"
 import { removeUndefined, Router } from "../../utils"
 import {
   AnnotationColumnId,
@@ -104,7 +104,7 @@ const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs => {
   }
 }
 
-const lookoutFiltersFromQueryStringFilters = (f: QueryStringJobFilter[]): LookoutColumnFilter[] => {
+const columnFiltersFromQueryStringFilters = (f: QueryStringJobFilter[]): ColumnFiltersState => {
   return f.map((queryFilter) => ({
     id: queryFilter.id,
     value: queryFilter.value,
@@ -129,7 +129,7 @@ const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partia
     ...(sort && {
       order: { id: sort.id, direction: sort.desc.toLowerCase() === "true" ? SortDirection.DESC : SortDirection.ASC },
     }),
-    ...(f && { filters: lookoutFiltersFromQueryStringFilters(f) }),
+    ...(f && { filters: columnFiltersFromQueryStringFilters(f) }),
     ...(f && { columnMatches: columnMatchesFromQueryStringFilters(f) }),
     ...(sb && { sidebarJobId: sb }),
   }
