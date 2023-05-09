@@ -436,6 +436,7 @@ export const VALID_COLUMN_MATCHES: Record<string, Match[]> = {
     Match.LessThanOrEqual,
   ],
   [StandardColumnId.PriorityClass]: [Match.Exact, Match.StartsWith, Match.Contains],
+  [ANNOTATION_COLUMN_PREFIX]: [Match.Exact, Match.StartsWith, Match.Contains],
 }
 
 export const createAnnotationColumn = (annotationKey: string): JobTableColumn => {

@@ -554,14 +554,13 @@ export const JobsTableContainer = ({
 
   const clearFilters = () => {
     table.resetColumnFilters(true)
-    console.log(textFieldRefs)
-    for (const [id, ref] of Object.entries(textFieldRefs)) {
-      console.log(id, ref)
+    for (const [, ref] of Object.entries(textFieldRefs)) {
       if (ref.current) {
         ref.current.value = ""
       }
     }
     onFilterChange([])
+    setParseErrors({})
   }
 
   const onShiftClickRow = async (row: Row<JobTableRow>) => {

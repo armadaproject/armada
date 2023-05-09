@@ -6,7 +6,7 @@ import { Box, Checkbox, IconButton, InputAdornment, ListItemText, MenuItem, Outl
 import Menu from "@mui/material/Menu"
 import { DebouncedTextField } from "components/lookoutV2/DebouncedTextField"
 import { Match, MATCH_DISPLAY_STRINGS } from "models/lookoutV2Models"
-import { FilterType, VALID_COLUMN_MATCHES } from "utils/jobsTableColumns"
+import { ANNOTATION_COLUMN_PREFIX, FilterType, isStandardColId, VALID_COLUMN_MATCHES } from "utils/jobsTableColumns"
 
 const ELLIPSIS = "\u2026"
 
@@ -45,7 +45,10 @@ export const JobsTableFilter = ({
   onSetTextFieldRef,
 }: JobsTableFilterProps) => {
   const label = FILTER_TYPE_DISPLAY_STRINGS[matchType]
-  const possibleMatches = id in VALID_COLUMN_MATCHES ? VALID_COLUMN_MATCHES[id] : [Match.Exact]
+  let possibleMatches = id in VALID_COLUMN_MATCHES ? VALID_COLUMN_MATCHES[id] : [Match.Exact]
+  if (!isStandardColId(id)) {
+    possibleMatches = VALID_COLUMN_MATCHES[ANNOTATION_COLUMN_PREFIX]
+  }
   let filter = <></>
   if (filterType === FilterType.Enum) {
     filter = (
