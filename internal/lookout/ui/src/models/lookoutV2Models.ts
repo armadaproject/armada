@@ -66,6 +66,7 @@ export type Job = {
   ephemeralStorage: number
   gpu: number
   priority: number
+  priorityClass: string
   submitted: string
   annotations: Record<string, string>
   runs: JobRun[]
@@ -96,6 +97,17 @@ export enum Match {
   GreaterThanOrEqual = "greaterThanOrEqualTo",
   LessThanOrEqual = "lessThanOrEqualTo",
   AnyOf = "anyOf",
+}
+
+export const MATCH_DISPLAY_STRINGS: Record<Match, string> = {
+  [Match.Exact]: "Exact",
+  [Match.StartsWith]: "Starts with",
+  [Match.Contains]: "Contains",
+  [Match.GreaterThan]: "Greater than",
+  [Match.LessThan]: "Less than",
+  [Match.GreaterThanOrEqual]: "Greater than or equal to",
+  [Match.LessThanOrEqual]: "Less than or equal to",
+  [Match.AnyOf]: "Any of",
 }
 
 export const isValidMatch = (match: string): match is Match => (Object.values(Match) as string[]).includes(match)

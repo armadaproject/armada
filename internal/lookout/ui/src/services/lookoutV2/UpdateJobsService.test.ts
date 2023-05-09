@@ -98,6 +98,7 @@ function createManyJobs(queue: string, jobSet: string, n: number): Job[] {
       runs: [],
       state: JobState.Running,
       submitted: "",
+      priorityClass: "armada-preemptible",
     })
   }
   return result
