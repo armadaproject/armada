@@ -5,10 +5,9 @@ on:
     branches:
       - main
       - master
-      - develop
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   release:
