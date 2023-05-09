@@ -478,7 +478,7 @@ checksum:
   algorithm: sha256
 
 release:
-  disable: '{{ if index .Env "FULL_RELEASE" }}true{{ else }}false{{ end }}'
+  disable: '{{ if index .Env "FULL_RELEASE" }}false{{ else }}true{{ end }}'
   header: |
     ## Armada v{{ .Version }}
 
