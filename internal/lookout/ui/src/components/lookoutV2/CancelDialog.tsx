@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { Refresh, Dangerous } from "@mui/icons-material"
+import { Checkbox } from "@material-ui/core"
 import { LoadingButton } from "@mui/lab"
 import { Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Alert } from "@mui/material"
 import _ from "lodash"
@@ -36,6 +37,7 @@ export const CancelDialog = ({
   const cancellableJobs = useMemo(() => selectedJobs.filter((job) => !isTerminatedJobState(job.state)), [selectedJobs])
   const [isCancelling, setIsCancelling] = useState(false)
   const [hasAttemptedCancel, setHasAttemptedCancel] = useState(false)
+  const [isPlatformCancel, setIsPlatformCancel] = useState(false)
   const openSnackbar = useCustomSnackbar()
 
   // Actions
@@ -61,7 +63,8 @@ export const CancelDialog = ({
   const cancelSelectedJobs = useCallback(async () => {
     setIsCancelling(true)
 
-    const response = await updateJobsService.cancelJobs(cancellableJobs)
+    const reason =  isPlatformCancel ? "Platform" : ""
+    const response = await updateJobsService.cancelJobs(cancellableJobs, reason)
 
     if (response.failedJobIds.length === 0) {
       openSnackbar(
@@ -155,6 +158,14 @@ export const CancelDialog = ({
 
       <DialogActions>
         <Button onClick={onClose}>Close</Button>
+        <div>
+          <label>Is Platform error?</label>
+            <Checkbox
+              checked={isPlatformCancel}
+              disabled={isLoadingJobs || hasAttemptedCancel || cancellableJobs.length === 0}
+              onClick={()=>setIsPlatformCancel(!isPlatformCancel)}
+            />
+          </div>
         <Button
           onClick={handleRefetch}
           disabled={isLoadingJobs || isCancelling}
