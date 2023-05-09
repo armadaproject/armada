@@ -89,9 +89,6 @@ export function parseCpu(str: string): number {
 }
 
 export function formatCpu(cpu: number): string {
-  if (cpu % 1000 === 0) {
-    return `${cpu / 1000}`
-  }
   if (cpu < 1000) {
     return `${Math.round(cpu)}m`
   }
