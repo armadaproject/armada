@@ -62,6 +62,12 @@ export function inverseMap<K, V>(map: Map<K, V>): Map<V, K> {
   return new Map(Array.from(map.entries()).map(([k, v]) => [v, k]))
 }
 
+export function inverseRecord<K extends string | number | symbol, V extends string | number | symbol>(
+  record: Record<K, V>,
+): Record<V, K> {
+  return Object.fromEntries(Object.entries(record).map(([k, v]) => [v, k]))
+}
+
 export function debounced(fn: (...args: any[]) => Promise<any>, delay: number): (...args: any[]) => Promise<any> {
   let timerId: NodeJS.Timeout | null
   return function (...args: any[]): Promise<any> {
