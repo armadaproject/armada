@@ -82,6 +82,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 			}
 		}()
 
+		log.Infof("GetJobEventMessage for %s/%s with id %s", eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
 		stream, err := eventToJobService.eventClient.GetJobEventMessage(ctx, &api.JobSetRequest{
 			Id:            eventToJobService.jobSetId,
 			Queue:         eventToJobService.queue,
