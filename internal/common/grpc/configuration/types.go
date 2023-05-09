@@ -7,3 +7,8 @@ type GrpcConfig struct {
 	KeepaliveParams            keepalive.ServerParameters
 	KeepaliveEnforcementPolicy keepalive.EnforcementPolicy
 }
+
+type GrpcPoolConfig struct {
+	InitialConnections int
+	Capacity           int
+}
