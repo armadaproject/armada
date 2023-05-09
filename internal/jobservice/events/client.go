@@ -9,6 +9,7 @@ import (
 
 	"github.com/gogo/protobuf/types"
 
+	"github.com/armadaproject/armada/internal/common/grpc/grpcpool"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -94,3 +95,48 @@ func (ec *EventClient) ensureApiConnection() error {
 
 	return nil
 }
+
+type PooledEventClient struct {
+	pool *grpcpool.Pool
+}
+
+func NewPooledEventClient(pool *grpcpool.Pool) *PooledEventClient {
+	return &PooledEventClient{
+		pool: pool,
+	}
+}
+
+// GetJobEventMessage performs all the steps for obtaining an event message
+func (pec *PooledEventClient) GetJobEventMessage(ctx context.Context, jobReq *api.JobSetRequest) (*api.EventStreamMessage, error) {
+	cc, err := pec.pool.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer cc.Close()
+	eventClient := api.NewEventClient(cc.ClientConn)
+
+	stream, err := eventClient.GetJobSetEvents(ctx, jobReq)
+	if err != nil {
+		cc.Unhealthy()
+		return nil, err
+	}
+	return stream.Recv()
+}
+
+func (pec *PooledEventClient) Health(ctx context.Context, empty *types.Empty) (*api.HealthCheckResponse, error) {
+	cc, err := pec.pool.Get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer cc.Close()
+	eventClient := api.NewEventClient(cc.ClientConn)
+
+	health, err := eventClient.Health(ctx, empty)
+	if err != nil {
+		cc.Unhealthy()
+		return nil, err
+	}
+	return health, err
+}
+
+func (ec *PooledEventClient) Close() {}
