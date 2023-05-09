@@ -116,6 +116,9 @@ func (pec *PooledEventClient) GetJobEventMessage(ctx context.Context, jobReq *ap
 	eventClient := api.NewEventClient(cc.ClientConn)
 
 	stream, err := eventClient.GetJobSetEvents(ctx, jobReq)
+	if err != nil {
+		return nil, err
+	}
 	return stream, nil
 }
 
