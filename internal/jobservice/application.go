@@ -125,8 +125,8 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 			}
 			for _, value := range jobSets {
 				queueJobSet := value.Queue + value.JobSet
-				_, ok := subscribeMap.LoadOrStore(queueJobSet, true)
-				if !ok {
+				_, loaded := subscribeMap.LoadOrStore(queueJobSet, true)
+				if loaded {
 					eventJob := eventstojobs.NewEventsToJobService(value.Queue, value.JobSet, eventClient, sqlJobRepo)
 					go func(value repository.SubscribedTuple) {
 						err := eventJob.SubscribeToJobSetId(context.Background(), config.SubscribeJobSetTime, value.FromMessageId)
