@@ -31,6 +31,9 @@ grpc:
 grpcPool:
   initialConnections: 5
   capacity: 5
+# These connections can be used in production if not explicity overridden.
+# Do not add ForceNoTls as that can cause silent failures
+# If you want that for local testing, then use an override.
 apiConnection:
   armadaUrl: "server:50051"
-  forceNoTls: true
+
