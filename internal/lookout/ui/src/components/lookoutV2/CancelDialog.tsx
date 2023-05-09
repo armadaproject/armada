@@ -63,7 +63,7 @@ export const CancelDialog = ({
   const cancelSelectedJobs = useCallback(async () => {
     setIsCancelling(true)
 
-    const reason =  isPlatformCancel ? "Platform" : ""
+    const reason =  isPlatformCancel ? "Platform error marked by user" : ""
     const response = await updateJobsService.cancelJobs(cancellableJobs, reason)
 
     if (response.failedJobIds.length === 0) {
@@ -84,7 +84,7 @@ export const CancelDialog = ({
     setJobIdsToCancelResponses(newResponseStatus)
     setIsCancelling(false)
     setHasAttemptedCancel(true)
-  }, [cancellableJobs, jobIdsToCancelResponses])
+  }, [cancellableJobs, jobIdsToCancelResponses, isPlatformCancel])
 
   // On dialog open
   useEffect(() => {
