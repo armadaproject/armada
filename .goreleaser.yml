@@ -11,7 +11,6 @@ snapshot:
   name_template: "{{ .Tag }}"
 
 env:
-  - FULL_RELEASE={{ if index .Env "FULL_RELEASE" }}{{ .Env.FULL_RELEASE }}{{ else }}false{{ end }}
   - GOPROXY={{ if index .Env "GOPROXY"  }}{{ .Env.GOPROXY }}{{ else }}https://proxy.golang.org,direct{{ end }}
   - GOSUMDB={{ if index .Env "GOSUMDB"  }}{{ .Env.GOSUMDB }}{{ else }}sum.golang.org{{ end }}
   # If set, BASE_IMAGE determines the base image used for all containers.
@@ -479,7 +478,7 @@ checksum:
   algorithm: sha256
 
 release:
-  disable: "{{ if .Env.FULL_RELEASE }}false{{ else }}true{{ end }}"
+  disable: '{{ if index .Env "FULL_RELEASE" }}true{{ else }}false{{ end }}'
   header: |
     ## Armada v{{ .Version }}
 
