@@ -231,7 +231,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
 	// separate code path for multiple jobs
 	if len(req.JobIds) > 0 {
-		return srv.cancelJobsByIdsQueueJobset(ctx, req.JobIds, req.Queue, req.JobSetId)
+		return srv.cancelJobsByIdsQueueJobset(ctx, req.JobIds, req.Queue, req.JobSetId, req.Reason)
 	}
 
 	// Another separate code path for cancelling an entire job set
@@ -312,7 +312,7 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 }
 
 // Assumes all Job IDs are in the queue and job set provided
-func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(ctx context.Context, jobIds []string, q, jobSet string) (*api.CancellationResult, error) {
+func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(ctx context.Context, jobIds []string, q, jobSet string, reason string) (*api.CancellationResult, error) {
 	if q == "" {
 		return nil, &armadaerrors.ErrInvalidArgument{
 			Name:    "Queue",
@@ -332,7 +332,7 @@ func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(ctx context.Context, j
 		return nil, err
 	}
 	var cancelledIds []string
-	sequence, cancelledIds := eventSequenceForJobIds(jobIds, q, jobSet, userId, groups)
+	sequence, cancelledIds := eventSequenceForJobIds(jobIds, q, jobSet, userId, groups, reason)
 	// send the message to both schedulers because jobs may be on either
 	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, schedulers.All)
 	if err != nil {
@@ -345,7 +345,7 @@ func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(ctx context.Context, j
 }
 
 // Returns event sequence along with all valid job ids in the sequence
-func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []string) (*armadaevents.EventSequence, []string) {
+func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []string, reason string) (*armadaevents.EventSequence, []string) {
 	sequence := &armadaevents.EventSequence{
 		Queue:      q,
 		JobSetName: jobSet,
@@ -364,7 +364,7 @@ func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Created: pointer.Now(),
 			Event: &armadaevents.EventSequence_Event_CancelJob{
-				CancelJob: &armadaevents.CancelJob{JobId: jobId},
+				CancelJob: &armadaevents.CancelJob{JobId: jobId, Reason: reason},
 			},
 		})
 	}

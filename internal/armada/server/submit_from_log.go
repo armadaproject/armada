@@ -516,7 +516,7 @@ func (srv *SubmitFromLog) CancelJobsById(ctx context.Context, userId string, job
 		return nil, err
 	}
 
-	err = reportJobsCancelling(srv.SubmitServer.eventStore, userId, jobs)
+	err = reportJobsCancelling(srv.SubmitServer.eventStore, userId, jobs, "")
 	if err != nil {
 		return nil, err
 	}

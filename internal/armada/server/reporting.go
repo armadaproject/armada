@@ -136,7 +136,7 @@ func reportJobLeaseReturned(repository repository.EventStore, job *api.Job, leas
 	return nil
 }
 
-func reportJobsCancelling(repository repository.EventStore, requestorName string, jobs []*api.Job) error {
+func reportJobsCancelling(repository repository.EventStore, requestorName string, jobs []*api.Job, reason string) error {
 	events := []*api.EventMessage{}
 	now := time.Now()
 	for _, job := range jobs {
@@ -146,6 +146,7 @@ func reportJobsCancelling(repository repository.EventStore, requestorName string
 			JobSetId:  job.JobSetId,
 			Created:   now,
 			Requestor: requestorName,
+			Reason:    reason,
 		})
 		if err != nil {
 			return fmt.Errorf("[reportJobsCancelling] error wrapping event: %w", err)
