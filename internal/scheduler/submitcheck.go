@@ -14,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -163,31 +162,20 @@ func GroupJobsByAnnotation(annotation string, jobs []*api.Job) map[string][]*api
 }
 
 func (srv *SubmitChecker) getSchedulingResult(reqs []*schedulerobjects.PodRequirements) schedulingResult {
-	overwriteAnnotations(reqs)
-	reqsHash, err := protoutil.HashMany(reqs)
-	if err != nil {
-		return schedulingResult{isSchedulable: false, reason: err.Error()}
-	}
-	cachedResult, cacheExists := srv.jobSchedulingResultsCache.Get(string(reqsHash))
-	result, castSuccess := cachedResult.(schedulingResult)
-
-	if !cacheExists || !castSuccess {
-		result = srv.check(reqs)
-		srv.jobSchedulingResultsCache.Add(string(reqsHash), result)
-	}
-
-	return result
-}
-
-// overwriteAnnotations This sets all annotations to a constant value
-// This is needed to reduce the cardinality of PodRequirements - so they hash more consistently
-// To allow our caching to work effectively
-func overwriteAnnotations(reqs []*schedulerobjects.PodRequirements) {
 	for _, req := range reqs {
-		for key := range req.GetAnnotations() {
-			req.Annotations[key] = "submission-check"
+		schedulingKey := req.SchedulingKey()
+		var result schedulingResult
+		if obj, ok := srv.jobSchedulingResultsCache.Get(schedulingKey); ok {
+			result = obj.(schedulingResult)
+		} else {
+			result = srv.check(reqs)
+			srv.jobSchedulingResultsCache.Add(schedulingKey, result)
+		}
+		if !result.isSchedulable {
+			return result
 		}
 	}
+	return schedulingResult{isSchedulable: true}
 }
 
 // Check if a set of pods can be scheduled onto some cluster.

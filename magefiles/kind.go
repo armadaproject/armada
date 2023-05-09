@@ -3,10 +3,10 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 
 	semver "github.com/Masterminds/semver/v3"
+	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
 	"github.com/pkg/errors"
 )
@@ -17,6 +17,15 @@ const (
 	KIND_CONFIG_EXTERNAL    = ".kube/external/config"
 	KIND_NAME               = "armada-test"
 )
+
+// TODO: find suitable kubectl image for arm64
+var images = []string{
+	"alpine:3.10",
+	"nginx:1.21.6",
+	"registry.k8s.io/ingress-nginx/controller:v1.4.0",
+	"registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343",
+	"bitnami/kubectl:1.24.8",
+}
 
 func kindBinary() string {
 	return binaryWithExt("kind")
@@ -61,7 +70,20 @@ func kindCheck() error {
 	return nil
 }
 
-func kindSetup() error {
+// Images that need to be available in the Kind cluster,
+// e.g., images required for e2e tests.
+func kindGetImages() error {
+	for _, image := range images {
+		err := dockerRun("pull", image)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func kindInitCluster() error {
 	out, err := kindOutput("get", "clusters")
 	if err != nil {
 		return err
@@ -76,32 +98,18 @@ func kindSetup() error {
 	if err := kindWriteKubeConfig(); err != nil {
 		return err
 	}
+	return nil
+}
 
-	// Images that need to be available in the Kind cluster,
-	// e.g., images required for e2e tests.
-	images := []string{
-		"alpine:3.10",
-		"nginx:1.21.6",
-		"registry.k8s.io/ingress-nginx/controller:v1.4.0",
-		"registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343",
-	}
-	if !isAppleSilicon() {
-		// TODO: find suitable kubectl image for arm64
-		images = append(images, "bitnami/kubectl:1.24.8")
-	}
-	for _, image := range images {
-		err := dockerRun("pull", image)
-		if err != nil {
-			return err
-		}
-	}
+func kindSetup() error {
+	mg.Deps(kindInitCluster, kindGetImages)
+
 	for _, image := range images {
 		err := kindRun("load", "docker-image", image, "--name", KIND_NAME)
 		if err != nil {
 			return err
 		}
 	}
-
 	// Resources to create in the Kind cluster.
 	resources := []string{
 		"e2e/setup/ingress-nginx.yaml",
@@ -167,8 +175,4 @@ func kindWaitUntilReady() error {
 
 func kindTeardown() error {
 	return kindRun("delete", "cluster", "--name", KIND_NAME)
-}
-
-func isAppleSilicon() bool {
-	return runtime.GOOS == "darwin" && runtime.GOARCH == "arm64"
 }
