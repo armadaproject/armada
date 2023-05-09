@@ -80,7 +80,10 @@ func TestPooledEventClient(t *testing.T) {
 
 		eventMessage, err := client.GetJobEventMessage(context.Background(), &api.JobSetRequest{})
 		require.NoError(t, err)
-		require.Equal(t, "1", eventMessage.Id)
-		require.NotNil(t, eventMessage.Message)
+		for {
+			msg, err := eventMessage.Recv()
+			require.Equal(t, msg.Id, "1")
+			require.NoError(t, err)
+		}
 	}
 }

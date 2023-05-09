@@ -82,6 +82,16 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 			}
 		}()
 
+		stream, err := eventToJobService.eventClient.GetJobEventMessage(ctx, &api.JobSetRequest{
+			Id:            eventToJobService.jobSetId,
+			Queue:         eventToJobService.queue,
+			Watch:         true,
+			FromMessageId: fromMessageId,
+		})
+		if err != nil {
+			return err
+		}
+
 		// this loop will run until the context is canceled
 		for {
 			select {
@@ -93,14 +103,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 					"job_set_id": eventToJobService.jobSetId,
 					"queue":      eventToJobService.queue,
 				}
-
-				msg, err := eventToJobService.eventClient.GetJobEventMessage(ctx, &api.JobSetRequest{
-					Id:             eventToJobService.jobSetId,
-					Queue:          eventToJobService.queue,
-					Watch:          true,
-					FromMessageId:  fromMessageId,
-					ErrorIfMissing: true,
-				})
+				msg, err := stream.Recv()
 				if err != nil {
 					log.WithError(err).Error("could not obtain job set event message, retrying")
 					settingSubscribeErr := eventToJobService.jobServiceRepository.SetSubscriptionError(
