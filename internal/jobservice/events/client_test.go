@@ -64,26 +64,26 @@ func getTestPool() (*grpcpool.Pool, error) {
 	return grpcpool.New(connFactory, 5, 5, 0)
 }
 
-// TODO: Fix me
-// func TestPooledEventClient(t *testing.T) {
-// 	_ = startTestGrpcServer(t)
+func TestPooledEventClient(t *testing.T) {
+	_ = startTestGrpcServer(t)
 
-// 	pool, err := getTestPool()
-// 	require.NoError(t, err)
+	pool, err := getTestPool()
+	require.NoError(t, err)
 
-// 	client := NewPooledEventClient(pool)
+	client := NewPooledEventClient(pool)
 
-// 	// This ensures the pooled client will cycle through every connection in the pool.
-// 	for i := 0; i < 10; i++ {
-// 		response, err := client.Health(context.Background(), &types.Empty{})
-// 		require.NoError(t, err)
-// 		require.Equal(t, &api.HealthCheckResponse{}, response)
+	// This ensures the pooled client will cycle through every connection in the pool.
+	for i := 0; i < 10; i++ {
+		response, err := client.Health(context.Background(), &types.Empty{})
+		require.NoError(t, err)
+		require.Equal(t, &api.HealthCheckResponse{}, response)
 
-// 		eventMessage, err := client.GetJobEventMessage(context.Background(), &api.JobSetRequest{})
-// 		require.NoError(t, err)
-// 		for {
-// 			_, err := eventMessage.Recv()
-// 			require.NoError(t, err)
-// 		}
-// 	}
-// }
+		_, err = client.GetJobEventMessage(context.Background(), &api.JobSetRequest{})
+		require.NoError(t, err)
+		// TODO: Fix me
+		// for {
+		// 	_, err := eventMessage.Recv()
+		// 	require.NoError(t, err)
+		// }
+	}
+}
