@@ -29,7 +29,7 @@ func goreleaserMinimalRelease(dockerIds ...string) error {
 		return err
 	}
 
-	return goreleaserRun("release", "--snapshot", "--rm-dist", "-f", GORELEASER_MINIMAL_CONFIG_PATH)
+	return goreleaserRun("release", "--snapshot", "--clean", "-f", GORELEASER_MINIMAL_CONFIG_PATH)
 }
 
 // Write a minimal goreleaser config containing only the subset of targets
