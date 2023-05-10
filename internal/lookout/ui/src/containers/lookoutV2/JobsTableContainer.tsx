@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { RefObject, useCallback, useEffect, useMemo, useState } from "react"
 
 import {
   Box,
@@ -48,10 +48,11 @@ import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { JobsTablePreferencesService } from "services/lookoutV2/JobsTablePreferencesService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import {
+  COLUMN_PARSE_TYPES,
   ColumnId,
   createAnnotationColumn,
-  DEFAULT_COLUMN_MATCHES,
   getAnnotationKeyCols,
+  INPUT_PROCESSORS,
   JOB_COLUMNS,
   JobTableColumn,
   StandardColumnId,
@@ -71,6 +72,7 @@ import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
 import { ILogService } from "../../services/lookoutV2/LogService"
 import { waitMillis } from "../../utils"
+import { EmptyInputError, ParseError } from "../../utils/resourceUtils"
 import styles from "./JobsTableContainer.module.css"
 
 const PAGE_SIZE_OPTIONS = [5, 25, 50, 100]
@@ -88,36 +90,11 @@ interface JobsTableContainerProps {
 export type LookoutColumnFilter = {
   id: string
   value: string | number | string[] | number[]
-  match: Match
 }
 
 export type LookoutColumnOrder = {
   id: string
   direction: SortDirection
-}
-
-function toLookoutFilter(columnFilterState: ColumnFiltersState, matchTypes: Map<string, Match>): LookoutColumnFilter[] {
-  return columnFilterState.map((colFilter) => {
-    let match: Match = Match.StartsWith // base case if undefined (annotations)
-    if (DEFAULT_COLUMN_MATCHES.has(colFilter.id)) {
-      match = DEFAULT_COLUMN_MATCHES.get(colFilter.id) as Match
-    }
-    if (matchTypes.has(colFilter.id)) {
-      match = matchTypes.get(colFilter.id) as Match
-    }
-    return {
-      id: colFilter.id,
-      value: colFilter.value as string | number | string[] | number[],
-      match: match,
-    }
-  })
-}
-
-function fromLookoutFilters(lookoutFilters: LookoutColumnFilter[]): ColumnFiltersState {
-  return lookoutFilters.map((lookoutFilter) => ({
-    id: lookoutFilter.id,
-    value: lookoutFilter.value,
-  }))
 }
 
 function toLookoutOrder(sortingState: SortingState): LookoutColumnOrder {
@@ -196,8 +173,11 @@ export const JobsTableContainer = ({
   const { pageIndex, pageSize } = useMemo(() => pagination, [pagination])
 
   // Filtering
-  const [lookoutFilters, setLookoutFilters] = useState<LookoutColumnFilter[]>(initialPrefs.filters)
-  const [columnFilterState, setColumnFilterState] = useState<ColumnFiltersState>(fromLookoutFilters(lookoutFilters))
+  const [columnFilterState, setColumnFilterState] = useState<ColumnFiltersState>(initialPrefs.filters)
+  const [lookoutFilters, setLookoutFilters] = useState<LookoutColumnFilter[]>([]) // Parsed later
+  const [columnMatches, setColumnMatches] = useState<Record<string, Match>>(initialPrefs.columnMatches)
+  const [parseErrors, setParseErrors] = useState<Record<string, string | undefined>>({})
+  const [textFieldRefs, setTextFieldRefs] = useState<Record<string, RefObject<HTMLInputElement>>>({})
 
   // Sorting
   const [lookoutOrder, setLookoutOrder] = useState<LookoutColumnOrder>(initialPrefs.order)
@@ -211,6 +191,7 @@ export const JobsTableContainer = ({
     paginationState: pagination,
     lookoutOrder: lookoutOrder,
     lookoutFilters: lookoutFilters,
+    columnMatches: columnMatches,
     allColumns,
     selectedRows,
     updateSelectedRows: setSelectedRows,
@@ -253,7 +234,8 @@ export const JobsTableContainer = ({
       pageSize,
       order: lookoutOrder,
       columnSizing: columnSizing,
-      filters: lookoutFilters,
+      filters: columnFilterState,
+      columnMatches: columnMatches,
       annotationColumnKeys: getAnnotationKeyCols(allColumns),
       visibleColumns: columnVisibility,
       sidebarJobId: sidebarJobId,
@@ -267,6 +249,7 @@ export const JobsTableContainer = ({
     sorting,
     columnSizing,
     columnFilterState,
+    columnMatches,
     allColumns,
     columnVisibility,
     selectedRows,
@@ -416,13 +399,73 @@ export const JobsTableContainer = ({
     setLastSelectedRow(row)
   }
 
+  const setParseError = (colId: string, error: string | undefined) => {
+    setParseErrors((old) => {
+      const newParseErrors = { ...old }
+      newParseErrors[colId] = error
+      return newParseErrors
+    })
+  }
+
+  const parseLookoutFilters = (state: ColumnFiltersState): LookoutColumnFilter[] => {
+    const lookoutFilters: LookoutColumnFilter[] = []
+    for (const columnFilter of state) {
+      if (!(columnFilter.id in COLUMN_PARSE_TYPES)) {
+        lookoutFilters.push({
+          id: columnFilter.id,
+          value: columnFilter.value as string | string[] | number | number[],
+        })
+        continue
+      }
+      const parseType = COLUMN_PARSE_TYPES[columnFilter.id]
+      const processor = INPUT_PROCESSORS[parseType]
+      const raw = columnFilter.value as string
+      try {
+        const value = processor.parser(raw.trim())
+        setParseError(columnFilter.id, undefined)
+        lookoutFilters.push({
+          id: columnFilter.id,
+          value: value,
+        })
+      } catch (e) {
+        if (e instanceof EmptyInputError) {
+          setParseError(columnFilter.id, undefined)
+        } else if (e instanceof ParseError) {
+          setParseError(columnFilter.id, e.message)
+        }
+      }
+    }
+    return lookoutFilters
+  }
+
+  useEffect(() => {
+    setLookoutFilters(parseLookoutFilters(columnFilterState))
+  }, [])
+
+  const setTextFieldRef = (columnId: string, ref: RefObject<HTMLInputElement>) => {
+    setTextFieldRefs((old) => {
+      const newState = { ...old }
+      newState[columnId] = ref
+      return newState
+    })
+  }
+
   const onFilterChange = (updater: Updater<ColumnFiltersState>) => {
     const newFilterState = updaterToValue(updater, columnFilterState)
-    setLookoutFilters(toLookoutFilter(newFilterState, DEFAULT_COLUMN_MATCHES))
+    setLookoutFilters(parseLookoutFilters(newFilterState))
     setColumnFilterState(newFilterState)
     setSelectedRows({})
     setSidebarJobId(undefined)
     setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
+  }
+
+  const onColumnMatchChange = (columnId: string, newMatch: Match) => {
+    const newColumnMatches: Record<string, Match> = {
+      ...columnMatches,
+      [columnId]: newMatch,
+    }
+    setColumnMatches(newColumnMatches)
+    onFilterChange([...columnFilterState])
   }
 
   const onSortingChange = (updater: Updater<SortingState>) => {
@@ -452,7 +495,7 @@ export const JobsTableContainer = ({
   const selectedItemsFilters: JobFilter[][] = useMemo(() => {
     return Object.keys(selectedRows).map((rowId) => {
       const { rowIdPartsPath } = fromRowId(rowId as RowId)
-      return getFiltersForRows(lookoutFilters, rowIdPartsPath)
+      return getFiltersForRows(lookoutFilters, columnMatches, rowIdPartsPath)
     })
   }, [selectedRows, columnFilterState, lookoutFilters, allColumns])
 
@@ -509,6 +552,17 @@ export const JobsTableContainer = ({
     onColumnSizingChange: onColumnSizingChange,
   })
 
+  const clearFilters = () => {
+    table.resetColumnFilters(true)
+    for (const [, ref] of Object.entries(textFieldRefs)) {
+      if (ref.current) {
+        ref.current.value = ""
+      }
+    }
+    onFilterChange([])
+    setParseErrors({})
+  }
+
   const onShiftClickRow = async (row: Row<JobTableRow>) => {
     if (lastSelectedRow === undefined || row.depth !== lastSelectedRow.depth) {
       return
@@ -546,6 +600,7 @@ export const JobsTableContainer = ({
           toggleColumnVisibility={onColumnVisibilityChange}
           getJobsService={getJobsService}
           updateJobsService={updateJobsService}
+          onClearFilters={clearFilters}
         />
         <TableContainer component={Paper}>
           <Table
@@ -563,8 +618,14 @@ export const JobsTableContainer = ({
                     <HeaderCell
                       header={header}
                       key={header.id}
+                      parseError={header.id in parseErrors ? parseErrors[header.id] : undefined}
                       columnResizeMode={columnResizeMode}
                       deltaOffset={table.getState().columnSizingInfo.deltaOffset ?? 0}
+                      columnMatches={columnMatches}
+                      onColumnMatchChange={onColumnMatchChange}
+                      onSetTextFieldRef={(ref) => {
+                        setTextFieldRef(header.id, ref)
+                      }}
                     />
                   ))}
                 </TableRow>
