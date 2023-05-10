@@ -83,7 +83,7 @@ def search_for_job_complete(
     job_set_id: str,
     airflow_task_name: str,
     job_id: str,
-    poll_interval: int,
+    poll_interval: int = 30,
     job_service_client: Optional[JobServiceClient] = None,
     job_status_callable=default_job_status_callable,
     time_out_for_failure: int = 7200,
