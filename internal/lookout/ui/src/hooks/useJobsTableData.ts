@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 
 import { ExpandedStateList, PaginationState, RowSelectionState } from "@tanstack/react-table"
 import { JobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
-import { Job, JobId, JobOrder } from "models/lookoutV2Models"
+import { Job, JobId, JobOrder, Match } from "models/lookoutV2Models"
 import { VariantType } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
@@ -27,6 +27,7 @@ export interface UseFetchJobsTableDataArgs {
   expandedState: ExpandedStateList
   lookoutOrder: LookoutColumnOrder
   lookoutFilters: LookoutColumnFilter[]
+  columnMatches: Record<string, Match>
   paginationState: PaginationState
   allColumns: JobTableColumn[]
   selectedRows: RowSelectionState
@@ -110,6 +111,7 @@ export const useFetchJobsTableData = ({
   lookoutOrder,
   paginationState,
   lookoutFilters,
+  columnMatches,
   allColumns,
   selectedRows,
   updateSelectedRows,
@@ -141,7 +143,7 @@ export const useFetchJobsTableData = ({
 
       const order = getOrder(lookoutOrder, isJobFetch)
       const rowRequest: FetchRowRequest = {
-        filters: getFiltersForRows(lookoutFilters, parentRowInfo?.rowIdPartsPath ?? []),
+        filters: getFiltersForRows(lookoutFilters, columnMatches, parentRowInfo?.rowIdPartsPath ?? []),
         skip: nextRequest.skip ?? 0,
         take: nextRequest.take ?? paginationState.pageSize,
         order: order,
