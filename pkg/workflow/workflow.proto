@@ -10,109 +10,154 @@ import "google/protobuf/timestamp.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
-// A workflow describes an orchestrated set of components with a shared life cycle.
-// Specifically, it contains the root of a tree of WorkflowNodes, each with an embedded job, and
-// - rules for when the WorkflowNode is considered schedulable, succeeded, or failed, and
-// - constraints for scheduling the embedded Job.
-message Workflow {
+// TODO:
+//
+// Replace Job everywhere with pod template.
+// Each node in the tree should consist of a pod template and the max cardinality of copies of that pod.
+//
+// Add the headless service stuff from the JobSet API.
+//
+// Let's call this the TaskOrchestration API.
+// The entire thing is referred to as a job. Each node in the tree is a task.
+//
+// Make sure indexed jobs are well-supported.
+//
+// There should be something that controls which children fails etc.
+
+// Another cool idea is to let people submitting TaskTrees provide an existing parent.
+// That way they could attach new branches to the tree as they go.
+// Like adding more workers. That could be a nightmare in terms of scheduling constraints tho.
+// It's probably better to 
+
+// TaskTree represents an orchestrated set of tasks organised as a tree,
+// where each node in the tree consists of a task, in turn is composed of 
+// - a pod template with associated metadata,
+// - scheduling constraints controlling when a task is considered schedulable, and
+// - policies determining when a task is considered succeeded or failed.
+//
+// A task is schedulable when the embedded pod is schedulable and all scheduling constraints of that task are met.
+//
+// If a task succeeds (fails), all children of that task are also considered succeeded (failed) and will be deleted.
+message TaskTree {
     // Standard object's metadata.
     // More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
     k8s.io.apimachinery.pkg.apis.meta.v1.ObjectMeta metadata = 1;
-    WorkflowNode root = 2;
+    Task root = 2;
+    // TODO: Add an id.
+    // If set, this TaskTree is the child of another TaskTree.
+    // TODO: Make more like regular k8s owner references?
+    string owner = 3;
 }
 
-// A WorkflowNode contains a Job, a set of child WorkflowNodes, and constraints/policies for scheduling, success, and failure.
+// Task represents a node in a TaskTree.
 //
 // A WorkflowNode is schedulable when the embedded job is schedulable and all taskSchedulingPolicy rules are met.
 //
-// A WorkflowNode is always considered succed (failed) if the embedded job succeeds (fails).
+// A WorkflowNode is always considered succeeded (failed) if the embedded job succeeds (fails).
 // It may also be considered succeeded (failed) if, e.g., child jobs succeed (fail), depending on the embedded success (failure) policy.
 //
 // On success (failure), all children are also considered to have succeeded (failed) and may be deleted.
-message WorkflowNode {
+message Task {
     // Standard object's metadata.
     // More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
     k8s.io.apimachinery.pkg.apis.meta.v1.ObjectMeta metadata = 1;
-    WorkflowNodeSpec spec = 2;
+    TaskSpec spec = 2;
 }
 
-message WorkflowNodeSpec {
-    // Job specification. If empty, success and failure is determined by the success and failure of children.
-    JobTemplateSpec spec = 2;
-    // Child nodes. Each WorkflowNode is either a leaf or the root of a tree of WorkflowNode.
-    repeated WorkflowNode children = 3;
+message TaskSpec {
+    // Describes the pod that will be created when executing a task.
+    // The only allowed template.spec.restartPolicy values are "Never" or "OnFailure".
+    // More info: https://kubernetes.io/docs/concepts/workloads/controllers/jobs-run-to-completion/
+    k8s.io.api.core.v1.PodTemplateSpec template = 1;
+    // Child tasks.
+    repeated Task children = 2;    
     // Specifies the number of retries before marking this task as failed.
     // Defaults to 0.
-    uint32 backoffLimit = 4;
+    int32 backoffLimit = 3;
+    // Specifies the minimum number of replicas of the embedded pod template that must be running.
+    // Defaults to 1.
+    int32 minParallelism = 4;
+    // Specifies the minimum number of replicas of the embedded pod that must be schedulable to schedule the job.
+    int32 minSchedulableParallelism = 5;
+    // Specifies the maximum number of replicas of the embedded pod that should ever be running.    
+    // Defaults to minParallelism.
+    int32 maxParallelism = 5;
     // Constrains the conditions under which the embedded is schedulable,
     // e.g., by constraining the minimum number of pods that must be schedulable.
     JobSchedulingConstraints jobSchedulingContraints = 5;
     // Contains rules regarding when this WorkflowNode is schedulable.
     // E.g., it may require that all children are also schedulable.
-    WorkflowSchedulingPolicy WorkflowSchedulingPolicy = 6;
+    WorkflowSchedulingPolicy WorkflowSchedulingPolicy = 6;    
     // A WorkflowNode may succeed before the embedded job has succeeded,
     // e.g., if all children have succeeded. This policy specifies all such scenarios.
     WorkflowSuccessPolicy WorkflowSuccessPolicy = 7;
     // A WorkflowNode may fail even if the embedded job has not,
     // e.g., if a child fails. This policy specifies all such scenarios.
-    WorkflowFailurePolicy WorkflowFailurePolicy = 8;
+    WorkflowFailurePolicy WorkflowFailurePolicy = 8;    
 }
 
-// JobTemplateSpec describes the data a pod should have when created from a template.
-message JobTemplateSpec {
-  // Standard object's metadata.
-  // More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
-  k8s.io.apimachinery.pkg.apis.meta.v1.ObjectMeta metadata = 1;
-  // Specification of the desired behavior of the job.
-  // More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
-  k8s.io.api.batch.v1.JobSpec spec = 2;
-}
+// // JobTemplateSpec describes the data a pod should have when created from a template.
+// message JobTemplateSpec {
+//   // Standard object's metadata.
+//   // More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+//   k8s.io.apimachinery.pkg.apis.meta.v1.ObjectMeta metadata = 1;
+//   // Specification of the desired behavior of the job.
+//   // More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status
+//   k8s.io.api.batch.v1.JobSpec spec = 2;
+// }
 
-// JobSchedulingConstraints contains rules constraining the conditions under which the embedded job is schedulable.
+// TaskSchedulingConstraints contains rules constraining the conditions under which the embedded job is schedulable.
 // E.g., by constraining the minimum number of pods that must be schedulable.
-message JobSchedulingConstraints {
-    repeated JobSchedulingConstraint constraints = 1;
+message TaskSchedulingConstraints {
+    repeated TaskSchedulingConstraintLabelUniformity taskSchedulingConstraintLabelUniformity = 1;
+    // repeated TaskSchedulingConstraint constraints = 1;
 }
 
-message JobSchedulingConstraint {
+message TaskSchedulingConstraint {
     oneof constraint {
-        JobSchedulingConstraintMinPodsSchedulable jobSchedulingConstraintMinPodsSchedulable = 1;
-        JobSchedulingConstraintLabelUniformity jobSchedulingConstraintLabelUniformity = 2;
+        // JobSchedulingConstraintMinPodsSchedulable jobSchedulingConstraintMinPodsSchedulable = 1;
+        TaskSchedulingConstraintLabelUniformity taskSchedulingConstraintLabelUniformity = 2;
     }
 }
 
-// Expresses a co-scheduling constraint,
-// such that the embedded job is only scheduled if at least minPodsSchedulable pods are schedulable.
-message JobSchedulingConstraintMinPodsSchedulable {
-    uint32 minPodsSchedulable = 1;
-}
+// // Expresses a co-scheduling constraint,
+// // such that the embedded job is only scheduled if at least minPodsSchedulable pods are schedulable.
+// message JobSchedulingConstraintMinPodsSchedulable {
+//     uint32 minPodsSchedulable = 1;
+// }
 
-// Expresses a node uniformity constraint.
-// Specifically, all pods in the embedded job must be scheduled onto nodes for which the node label "label" has equal value.
-// If group is set, all pods across the workflow affected by a JobSchedulingConstraintLabelUniformity for which group has the same value
+// TaskSchedulingConstraintLabelUniformity expresses a node label uniformity constraint, 
+// such that all pods in this task must be scheduled onto nodes for which the node label "label" has equal value.
+//
+// If group is set, child tasks (and children thereof) for which group has equal value 
 // must be scheduled onto nodes for which the node label "label" has equal value.
-message JobSchedulingConstraintLabelUniformity {
+message TaskSchedulingConstraintLabelUniformity {
     string label = 1;
     string group = 2;
 }
 
 // Specifies when a workflow can be scheduled.
 // E.g., when all children can be scheduled.
-message WorkflowSchedulingPolicy {
-    repeated WorkflowSchedulingPolicyRule rules = 1;
+//
+// TODO: Add a mask to indicate exactly which tasks must be schedulable.
+message TaskChildSchedulingPolicy {
+    // Minimum number of children that must be schedulable.
+    // Defaults to the total number of children.
+    int32 minChildrenSchedulable = 1;
+    // repeated WorkflowSchedulingPolicyRule rules = 1;
 }
 
-// Defaults to a single WorkflowSchedulingPolicyRuleMinChildrenSchedulable with the min equal to the total
-// if no rules are provided.
-message WorkflowSchedulingPolicyRule {
-    oneof rule {
-        WorkflowSchedulingPolicyRuleMinChildrenSchedulable workflowSchedulingPolicyRuleMinChildrenSchedulable = 1;
-    }
-}
+// // Defaults to a single WorkflowSchedulingPolicyRuleMinChildrenSchedulable with the min equal to the total
+// // if no rules are provided.
+// message WorkflowSchedulingPolicyRule {
+//     oneof rule {
+//         WorkflowSchedulingPolicyRuleMinChildrenSchedulable workflowSchedulingPolicyRuleMinChildrenSchedulable = 1;
+//     }
+// }
 
-message WorkflowSchedulingPolicyRuleMinChildrenSchedulable {
-    uint32 minChildrenSchedulable = 1;
-}
+// message WorkflowSchedulingPolicyRuleMinChildrenSchedulable {
+//     uint32 minChildrenSchedulable = 1;
+// }
 
 // Specifies when a Workflow should be considered to have failed.
 // E.g., when all children have succeeded.
@@ -127,7 +172,7 @@ message WorkflowSuccessPolicyRule {
 }
 
 message WorkflowSuccessPolicyMinSChildSuccesses {
-    uint32 minSChildSuccesses = 1;
+    uint32 minChildSuccesses = 1;
 }
 
 // Specifies when a workflow should be considered failed.
