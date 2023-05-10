@@ -27,6 +27,9 @@ func TestSuite() error {
 
 	mg.Deps(CheckForArmadaRunning)
 
+	os.Setenv("ARMADA_EXECUTOR_INGRESS_URL", "http://localhost")
+	os.Setenv("ARMADA_EXECUTOR_INGRESS_PORT", "5001")
+
 	timeTaken = time.Now()
 	out, err2 := goOutput("run", "cmd/testsuite/main.go", "test",
 		"--tests", "testsuite/testcases/basic/*",

@@ -64,8 +64,6 @@ jobs:
     # due to longer queue times.
     runs-on: ubuntu-22.04
     env:
-      ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
-      ARMADA_EXECUTOR_INGRESS_PORT: 5001
       # Cache Docker layers in the Github actions cache.
       # These variables are picked up by the goreleaser config.
       DOCKER_BUILDX_CACHE_FROM: "type=gha"
