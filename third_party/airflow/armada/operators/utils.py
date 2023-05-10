@@ -83,6 +83,7 @@ def search_for_job_complete(
     job_set_id: str,
     airflow_task_name: str,
     job_id: str,
+    poll_interval: int,
     job_service_client: Optional[JobServiceClient] = None,
     job_status_callable=default_job_status_callable,
     time_out_for_failure: int = 7200,
@@ -96,6 +97,7 @@ def search_for_job_complete(
     :param armada_queue: The queue for armada
     :param job_set_id: Your job_set_id
     :param airflow_task_name: The name of your armada job
+    :param poll_interval: Polling interval for jobservice to get status.
     :param job_id: The name of the job id that armada assigns to it
     :param job_service_client: A JobServiceClient that is used for polling.
                                 It is optional only for testing
@@ -128,7 +130,7 @@ def search_for_job_complete(
         job_state = job_state_from_pb(job_status_return.state)
         armada_logger.debug(f"Got job state '{job_state.name}' for job {job_id}")
 
-        time.sleep(3)
+        time.sleep(poll_interval)
         if job_state == JobState.SUCCEEDED:
             job_message = f"Armada {airflow_task_name}:{job_id} succeeded"
             break
