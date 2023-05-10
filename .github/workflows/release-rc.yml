@@ -13,6 +13,7 @@ jobs:
   release:
     name: Release
     runs-on: "ubuntu-22.04"
+    environment: armada-dockerhub
 
     steps:
       - name: "Checkout"
