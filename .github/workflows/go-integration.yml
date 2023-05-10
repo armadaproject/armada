@@ -1,6 +1,9 @@
 name: Go End to End
 
 on:
+  # The Push runners always seem to be slower.
+  # Seems to be due to hitting cache limits and only one runner
+  # being able to access the cache at a time.
   # push:
   #   branches-ignore:
   #     - master
@@ -30,6 +33,8 @@ jobs:
       DOCKER_BUILDX_CACHE_FROM: "type=gha"
       DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
       DOCKER_BUILDX_BUILDER: "builder"
+      # Seems that for optimal performance, we need to set these
+      # explicitly - including GOBIN.
       GOCACHE: "/home/runner/.cache/go-build"
       GOPATH: "/home/runner/go"
       GOBIN: "/home/runner/go/bin"

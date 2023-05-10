@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -86,7 +87,7 @@ func CheckForPulsarRunning() error {
 // Ensure there is no error returned so that CI doesn't fail.
 func downloadDependencyImages() error {
 	timeTaken := time.Now()
-	err := dockerComposeRun("pull", "--ignore-pull-failures")
+	_, err := exec.Command(dockerComposeBinary(), "pull", "--ignore-pull-failures").CombinedOutput()
 	if err != nil {
 		return nil
 	}
