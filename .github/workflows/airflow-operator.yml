@@ -92,16 +92,26 @@ jobs:
       - uses: actions/checkout@v3
       - run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
       - run: docker buildx install
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go }}
-          cache: true
+          cache: false
+      - name: Setup Golang caches
+        uses: actions/cache@v3
+        with:
+          path: |
+            /home/runner/.cache/go-build
+            /home/runner/go
+            /home/runner/go/bin
+          key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-golang-
       - name: Setup and integration tests
         run: |
           # Manually create folders to ensure perms are correct.
           mkdir -p .kube/internal
           mkdir -p .kube/external
-          go run github.com/magefile/mage@v1.14.0 -v Kind
+          go run github.com/magefile/mage@v1.14.0 -v localdev minimal
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
         with:
