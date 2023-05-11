@@ -408,7 +408,7 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 	if request.JobId != "" {
 		return server.cancelJobsById(ctx, request.JobId, request.Reason)
 	} else if request.JobSetId != "" && request.Queue != "" {
-		return server.cancelJobsByQueueAndSet(ctx, request.Queue, request.JobSetId, nil)
+		return server.cancelJobsByQueueAndSet(ctx, request.Queue, request.JobSetId, nil, request.Reason)
 	}
 	return nil, status.Errorf(codes.InvalidArgument, "[CancelJobs] specify either job ID or both queue name and job set ID")
 }
@@ -418,7 +418,7 @@ func (server *SubmitServer) CancelJobSet(ctx context.Context, request *api.JobSe
 	if err != nil {
 		return nil, err
 	}
-	_, err = server.cancelJobsByQueueAndSet(ctx, request.Queue, request.JobSetId, createJobSetFilter(request.Filter))
+	_, err = server.cancelJobsByQueueAndSet(ctx, request.Queue, request.JobSetId, createJobSetFilter(request.Filter), request.Reason)
 	return &types.Empty{}, err
 }
 
@@ -470,6 +470,7 @@ func (server *SubmitServer) cancelJobsByQueueAndSet(
 	queue string,
 	jobSetId string,
 	filter *repository.JobSetFilter,
+	reason string,
 ) (*api.CancellationResult, error) {
 	ids, err := server.jobRepository.GetJobSetJobIds(queue, jobSetId, filter)
 	if err != nil {
@@ -487,7 +488,7 @@ func (server *SubmitServer) cancelJobsByQueueAndSet(
 			return result, status.Errorf(codes.Internal, "[cancelJobsBySetAndQueue] error getting jobs: %s", err)
 		}
 
-		result, err := server.cancelJobs(ctx, jobs, "")
+		result, err := server.cancelJobs(ctx, jobs, reason)
 		var e *ErrUnauthorized
 		if errors.As(err, &e) {
 			return nil, status.Errorf(codes.PermissionDenied, "[cancelJobsBySetAndQueue] error canceling jobs: %s", e)

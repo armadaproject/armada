@@ -420,7 +420,7 @@ func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSet
 		legacySchedulerSequence.Events = append(legacySchedulerSequence.Events, &armadaevents.EventSequence_Event{
 			Created: pointer.Now(),
 			Event: &armadaevents.EventSequence_Event_CancelJob{
-				CancelJob: &armadaevents.CancelJob{JobId: jobId},
+				CancelJob: &armadaevents.CancelJob{JobId: jobId, Reason: req.Reason},
 			},
 		})
 	}
@@ -454,6 +454,7 @@ func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSet
 					Event: &armadaevents.EventSequence_Event_CancelJobSet{
 						CancelJobSet: &armadaevents.CancelJobSet{
 							States: states,
+							Reason: req.Reason,
 						},
 					},
 				},
