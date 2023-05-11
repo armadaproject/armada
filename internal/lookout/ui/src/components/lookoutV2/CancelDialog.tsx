@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
-import { Refresh, Dangerous } from "@mui/icons-material"
 import { Checkbox } from "@material-ui/core"
+import { Refresh, Dangerous } from "@mui/icons-material"
 import { LoadingButton } from "@mui/lab"
 import { Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Alert } from "@mui/material"
 import _ from "lodash"
 import { isTerminatedJobState, Job, JobFilter, JobId } from "models/lookoutV2Models"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
-import { pl, waitMillis } from "utils"
+import { pl, waitMillis, PlatformCancelReason } from "utils"
 import { getUniqueJobsMatchingFilters } from "utils/jobsDialogUtils"
 import { formatJobState } from "utils/jobsTableFormatters"
 
@@ -63,7 +63,7 @@ export const CancelDialog = ({
   const cancelSelectedJobs = useCallback(async () => {
     setIsCancelling(true)
 
-    const reason =  isPlatformCancel ? "Platform error marked by user" : ""
+    const reason = isPlatformCancel ? PlatformCancelReason : ""
     const response = await updateJobsService.cancelJobs(cancellableJobs, reason)
 
     if (response.failedJobIds.length === 0) {
@@ -160,12 +160,12 @@ export const CancelDialog = ({
         <Button onClick={onClose}>Close</Button>
         <div>
           <label>Is Platform error?</label>
-            <Checkbox
-              checked={isPlatformCancel}
-              disabled={isLoadingJobs || hasAttemptedCancel || cancellableJobs.length === 0}
-              onClick={()=>setIsPlatformCancel(!isPlatformCancel)}
-            />
-          </div>
+          <Checkbox
+            checked={isPlatformCancel}
+            disabled={isLoadingJobs || hasAttemptedCancel || cancellableJobs.length === 0}
+            onChange={(event) => setIsPlatformCancel(event.target.checked)}
+          />
+        </div>
         <Button
           onClick={handleRefetch}
           disabled={isLoadingJobs || isCancelling}

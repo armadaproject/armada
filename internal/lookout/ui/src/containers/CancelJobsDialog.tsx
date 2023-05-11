@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogTitle } from "@material-ui/core"
 import CancelJobs from "../components/jobs/cancel-jobs/CancelJobs"
 import CancelJobsOutcome from "../components/jobs/cancel-jobs/CancelJobsOutcome"
 import { JobService, CancelJobsResponse, Job } from "../services/JobService"
-import { ApiResult, RequestStatus } from "../utils"
+import { ApiResult, RequestStatus, PlatformCancelReason } from "../utils"
 import { CANCELLABLE_JOB_STATES } from "./JobsContainer"
 
 import "../components/Dialog.css"
@@ -27,6 +27,7 @@ export default function CancelJobsDialog(props: CancelJobsProps) {
     failedJobCancellations: [],
   })
   const [requestStatus, setRequestStatus] = useState<RequestStatus>("Idle")
+  const [isPlatformCancel, setIsPlatformCancel] = useState(false)
 
   const jobsToCancel = props.selectedJobs.filter((job) => CANCELLABLE_JOB_STATES.includes(job.jobState))
 
@@ -36,7 +37,8 @@ export default function CancelJobsDialog(props: CancelJobsProps) {
     }
 
     setRequestStatus("Loading")
-    const cancelJobsResponse = await props.jobService.cancelJobs(jobsToCancel)
+    const reason = isPlatformCancel ? PlatformCancelReason : ""
+    const cancelJobsResponse = await props.jobService.cancelJobs(jobsToCancel, reason)
     setRequestStatus("Idle")
 
     setResponse(cancelJobsResponse)
@@ -72,13 +74,21 @@ export default function CancelJobsDialog(props: CancelJobsProps) {
       <DialogTitle id="cancel-jobs-dialog-title">Cancel Jobs</DialogTitle>
       <DialogContent className="lookout-dialog">
         {state === "CancelJobs" && (
-          <CancelJobs jobsToCancel={jobsToCancel} isLoading={requestStatus == "Loading"} onCancelJobs={cancelJobs} />
+          <CancelJobs
+            jobsToCancel={jobsToCancel}
+            isLoading={requestStatus == "Loading"}
+            onCancelJobs={cancelJobs}
+            isPlatformCancel={isPlatformCancel}
+            setIsPlatformCancel={setIsPlatformCancel}
+          />
         )}
         {state === "CancelJobsResult" && (
           <CancelJobsOutcome
             cancelJobsResponse={response}
             isLoading={requestStatus == "Loading"}
             onCancelJobs={cancelJobs}
+            isPlatformCancel={isPlatformCancel}
+            setIsPlatformCancel={setIsPlatformCancel}
           />
         )}
       </DialogContent>
