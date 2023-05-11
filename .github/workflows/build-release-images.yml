@@ -55,8 +55,3 @@ jobs:
           name: docker-images
           path: docker-images.tar.gz
           if-no-files-found: error
-  invoke-image-push:
-    name: Push Docker Image artifacts to Docker Hub
-    needs: test-and-build-images
-    uses: ./.github/workflows/upload-docker-images.yml
-    secrets: inherit
