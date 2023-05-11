@@ -22,9 +22,31 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-// evictedPriority is the priority class priority resources consumed by evicted jobs are accounted for at.
-// This helps avoid scheduling new jobs onto nodes that make it impossible to re-schedule evicted jobs.
-const evictedPriority int32 = -1
+const (
+	// evictedPriority is the priority class priority resources consumed by evicted jobs are accounted for at.
+	// This helps avoid scheduling new jobs onto nodes that make it impossible to re-schedule evicted jobs.
+	evictedPriority          int32          = -1
+	unschedulableTaintKey    string         = "armadaproject.io/unschedulable"
+	unschedulableTaintValue  string         = "true"
+	unschedulableTaintEffect v1.TaintEffect = v1.TaintEffectNoSchedule
+)
+
+// UnschedulableTaint returns the taint automatically added to unschedulable nodes on inserting into the nodeDb.
+func UnschedulableTaint() v1.Taint {
+	return v1.Taint{
+		Key:    unschedulableTaintKey,
+		Value:  unschedulableTaintValue,
+		Effect: unschedulableTaintEffect,
+	}
+}
+
+// UnschedulableToleration returns a toleration that tolerates UnschedulableTaint().
+func UnschedulableToleration() v1.Toleration {
+	return v1.Toleration{
+		Key:   unschedulableTaintKey,
+		Value: unschedulableTaintValue,
+	}
+}
 
 // NodeDb is the scheduler-internal system for storing node information.
 // It's used to efficiently find nodes on which a pod can be scheduled.
@@ -739,6 +761,13 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node)
 		node.Labels = map[string]string{schedulerconfig.NodeIdLabel: node.Id}
 	} else {
 		node.Labels[schedulerconfig.NodeIdLabel] = node.Id
+	}
+
+	// Add a special taint to unschedulable nodes before inserting.
+	// Adding a corresponding toleration to evicted pods ensures they can be re-scheduled.
+	// To prevent scheduling new pods onto cordoned nodes, only evicted pods should have this toleration.
+	if node.IsUnschedulable() {
+		node.Taints = append(node.Taints, UnschedulableTaint())
 	}
 
 	// Compute the node type of the node.
