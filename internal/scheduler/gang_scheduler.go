@@ -136,6 +136,7 @@ func (sch *GangScheduler) trySchedule(ctx context.Context, gctx *schedulercontex
 	}
 	for i, pctx := range pctxs {
 		gctx.JobSchedulingContexts[i].PodSchedulingContext = pctx
+		gctx.JobSchedulingContexts[i].NumNodes = pctx.NumNodes
 	}
 	if !ok {
 		unschedulableReason := ""

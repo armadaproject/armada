@@ -425,17 +425,15 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	allocatedByQueueForPool := q.aggregateUsage(reportsByExecutor, req.Pool)
 	log.Infof("allocated resources per queue for pool %s before scheduling: %v", req.Pool, allocatedByQueueForPool)
 
-	// Store the executor details in redis so that they can be used by
-	// submit check and the new scheduler.
-	err = q.executorRepository.StoreExecutor(ctx, &schedulerobjects.Executor{
+	// Store executor details in Redis so they can be used by submit checks and the new scheduler.
+	if err := q.executorRepository.StoreExecutor(ctx, &schedulerobjects.Executor{
 		Id:             req.ClusterId,
 		Pool:           req.Pool,
 		Nodes:          nodes,
 		MinimumJobSize: schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
 		LastUpdateTime: time.Now(),
-	})
-	if err != nil {
-		// This is not fatal because we can still schedule if it doesn't happen.
+	}); err != nil {
+		// This is not fatal; we can still schedule if it doesn't happen.
 		log.WithError(err).Warnf("could not store executor details for cluster %s", req.ClusterId)
 	}
 
@@ -476,7 +474,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		q.schedulingConfig.ResourceScarcity,
 		// May need priority factors for inactive queues for rescheduling evicted jobs.
 		priorityFactorByQueue,
-		nodeDb.TotalResources(),
+		schedulerobjects.ResourceList{Resources: totalCapacity},
 		allocatedByQueueForPool,
 	)
 	constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(

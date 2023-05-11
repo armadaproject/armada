@@ -1,6 +1,6 @@
 import { JobState } from "models/lookoutV2Models"
 
-import { formatBytes, formatCPU, formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
+import { formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
 
 describe("JobsTableFormatters", () => {
   beforeEach(() => {
@@ -10,16 +10,6 @@ describe("JobsTableFormatters", () => {
   afterEach(() => {
     jest.runOnlyPendingTimers()
     jest.useRealTimers()
-  })
-
-  describe("formatCPU", () => {
-    it("formats CPU millis to CPU cores", () => {
-      expect(formatCPU(2500)).toBe("2.5")
-    })
-
-    it("formats undefined to empty string", () => {
-      expect(formatCPU(undefined)).toBe("")
-    })
   })
 
   describe("formatJobState", () => {
@@ -33,20 +23,6 @@ describe("JobsTableFormatters", () => {
 
     it("formats undefined to empty string", () => {
       expect(formatJobState(undefined)).toBe("")
-    })
-  })
-
-  describe("formatBytes", () => {
-    it("formats bytes to human readable", () => {
-      expect(formatBytes(2500)).toBe("2.44 kiB")
-    })
-
-    it("formats byte counts using binary numbers", () => {
-      expect(formatBytes(5 * 1024 * 1024)).toBe("5 MiB")
-    })
-
-    it("formats undefined to empty string", () => {
-      expect(formatBytes(undefined)).toBe("")
     })
   })
 

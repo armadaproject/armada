@@ -16,7 +16,7 @@ import (
 
 // JobEventReader is the interface for retrieving job set event messages
 type JobEventReader interface {
-	GetJobEventMessage(ctx context.Context, jobReq *api.JobSetRequest) (*api.EventStreamMessage, error)
+	GetJobEventMessage(ctx context.Context, jobReq *api.JobSetRequest) (api.Event_GetJobSetEventsClient, error)
 	Health(ctx context.Context, empty *types.Empty) (*api.HealthCheckResponse, error)
 	Close()
 }
@@ -37,7 +37,7 @@ func NewEventClient(config *client.ApiConnectionDetails) *EventClient {
 }
 
 // GetJobEventMessage performs all the steps for obtaining an event message
-func (ec *EventClient) GetJobEventMessage(ctx context.Context, jobReq *api.JobSetRequest) (*api.EventStreamMessage, error) {
+func (ec *EventClient) GetJobEventMessage(ctx context.Context, jobReq *api.JobSetRequest) (api.Event_GetJobSetEventsClient, error) {
 	err := ec.ensureApiConnection()
 	if err != nil {
 		return nil, err
@@ -48,7 +48,7 @@ func (ec *EventClient) GetJobEventMessage(ctx context.Context, jobReq *api.JobSe
 	if err != nil {
 		return nil, err
 	}
-	return stream.Recv()
+	return stream, nil
 }
 
 func (ec *EventClient) Health(ctx context.Context, empty *types.Empty) (*api.HealthCheckResponse, error) {
@@ -107,7 +107,7 @@ func NewPooledEventClient(pool *grpcpool.Pool) *PooledEventClient {
 }
 
 // GetJobEventMessage performs all the steps for obtaining an event message
-func (pec *PooledEventClient) GetJobEventMessage(ctx context.Context, jobReq *api.JobSetRequest) (*api.EventStreamMessage, error) {
+func (pec *PooledEventClient) GetJobEventMessage(ctx context.Context, jobReq *api.JobSetRequest) (api.Event_GetJobSetEventsClient, error) {
 	cc, err := pec.pool.Get(ctx)
 	if err != nil {
 		return nil, err
@@ -117,10 +117,9 @@ func (pec *PooledEventClient) GetJobEventMessage(ctx context.Context, jobReq *ap
 
 	stream, err := eventClient.GetJobSetEvents(ctx, jobReq)
 	if err != nil {
-		cc.Unhealthy()
 		return nil, err
 	}
-	return stream.Recv()
+	return stream, nil
 }
 
 func (pec *PooledEventClient) Health(ctx context.Context, empty *types.Empty) (*api.HealthCheckResponse, error) {

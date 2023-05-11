@@ -12,7 +12,7 @@ func Batch(elements []string, batchSize int) [][]string {
 		totalBatches++
 	}
 
-	batches := make([][]string, totalBatches, totalBatches)
+	batches := make([][]string, totalBatches)
 
 	for i := 0; i < totalFullBatches; i++ {
 		batches[i] = elements[i*batchSize : (i+1)*batchSize]
