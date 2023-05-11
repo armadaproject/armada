@@ -241,6 +241,7 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 		_, err := srv.CancelJobSet(ctx, &api.JobSetCancelRequest{
 			Queue:    req.Queue,
 			JobSetId: req.JobSetId,
+			Reason:   req.Reason,
 		})
 		if err != nil {
 			return nil, err
@@ -292,7 +293,7 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 			{
 				Created: pointer.Now(),
 				Event: &armadaevents.EventSequence_Event_CancelJob{
-					CancelJob: &armadaevents.CancelJob{JobId: jobId},
+					CancelJob: &armadaevents.CancelJob{JobId: jobId, Reason: req.Reason},
 				},
 			},
 		},
