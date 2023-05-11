@@ -268,7 +268,6 @@ message CancelJobSet {
 // One such message is generated per job that was cancelled.
 message CancelledJob {
     Uuid job_id = 1;
-    string reason = 2;
 }
 
 message JobSucceeded {
