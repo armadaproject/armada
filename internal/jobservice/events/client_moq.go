@@ -40,8 +40,7 @@ type JobEventReaderMock struct {
 	CloseFunc func()
 
 	// GetJobEventMessageFunc mocks the GetJobEventMessage method.
-	GetJobEventMessageFunc func(ctx context.Context, jobReq *api.JobSetRequest) (*api.EventStreamMessage, error)
-
+	GetJobEventMessageFunc func(ctx context.Context, jobReq *api.JobSetRequest) (api.Event_GetJobSetEventsClient, error)
 	// HealthFunc mocks the Health method.
 	HealthFunc func(ctx context.Context, empty *types.Empty) (*api.HealthCheckResponse, error)
 
@@ -98,7 +97,7 @@ func (mock *JobEventReaderMock) CloseCalls() []struct {
 }
 
 // GetJobEventMessage calls GetJobEventMessageFunc.
-func (mock *JobEventReaderMock) GetJobEventMessage(ctx context.Context, jobReq *api.JobSetRequest) (*api.EventStreamMessage, error) {
+func (mock *JobEventReaderMock) GetJobEventMessage(ctx context.Context, jobReq *api.JobSetRequest) (api.Event_GetJobSetEventsClient, error) {
 	if mock.GetJobEventMessageFunc == nil {
 		panic("JobEventReaderMock.GetJobEventMessageFunc: method is nil but JobEventReader.GetJobEventMessage was just called")
 	}

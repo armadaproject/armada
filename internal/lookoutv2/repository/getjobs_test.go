@@ -973,6 +973,34 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			assert.Equal(t, job2, result.Jobs[1])
 		})
 
+		t.Run("contains, multiple annotations", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{
+					{
+						Field:        "annotation-key-1",
+						Match:        model.MatchContains,
+						Value:        "value",
+						IsAnnotation: true,
+					},
+					{
+						Field:        "annotation-key-2",
+						Match:        model.MatchContains,
+						Value:        "value",
+						IsAnnotation: true,
+					},
+				},
+				&model.Order{},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 2)
+			assert.Equal(t, 2, result.Count)
+			assert.Equal(t, job, result.Jobs[0])
+			assert.Equal(t, job2, result.Jobs[1])
+		})
+
 		return nil
 	})
 	assert.NoError(t, err)
