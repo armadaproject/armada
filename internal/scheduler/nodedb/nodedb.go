@@ -22,31 +22,9 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-const (
-	// evictedPriority is the priority class priority resources consumed by evicted jobs are accounted for at.
-	// This helps avoid scheduling new jobs onto nodes that make it impossible to re-schedule evicted jobs.
-	evictedPriority          int32          = -1
-	unschedulableTaintKey    string         = "armadaproject.io/unschedulable"
-	unschedulableTaintValue  string         = "true"
-	unschedulableTaintEffect v1.TaintEffect = v1.TaintEffectNoSchedule
-)
-
-// UnschedulableTaint returns the taint automatically added to unschedulable nodes on inserting into the nodeDb.
-func UnschedulableTaint() v1.Taint {
-	return v1.Taint{
-		Key:    unschedulableTaintKey,
-		Value:  unschedulableTaintValue,
-		Effect: unschedulableTaintEffect,
-	}
-}
-
-// UnschedulableToleration returns a toleration that tolerates UnschedulableTaint().
-func UnschedulableToleration() v1.Toleration {
-	return v1.Toleration{
-		Key:   unschedulableTaintKey,
-		Value: unschedulableTaintValue,
-	}
-}
+// evictedPriority is the priority class priority resources consumed by evicted jobs are accounted for at.
+// This helps avoid scheduling new jobs onto nodes that make it impossible to re-schedule evicted jobs.
+const evictedPriority int32 = -1
 
 // NodeDb is the scheduler-internal system for storing node information.
 // It's used to efficiently find nodes on which a pod can be scheduled.
