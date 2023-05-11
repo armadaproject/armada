@@ -82,6 +82,7 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
       cancelledJobSets: [],
       failedJobSetCancellations: [],
     })
+    setIsPlatformCancel(false)
   }
 
   return (
