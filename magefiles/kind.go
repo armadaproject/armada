@@ -180,6 +180,7 @@ func kindWaitUntilReady() error {
 		"--for=condition=ready", "pod",
 		"--selector=app.kubernetes.io/component=controller",
 		"--timeout=2m",
+		"--context", "kind-armada-test",
 	)
 }
 
