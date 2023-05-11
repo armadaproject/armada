@@ -42,6 +42,8 @@ type PreemptingQueueScheduler struct {
 	jobIdsByGangId map[string]map[string]bool
 	// Maps job ids of gang jobs to the id of that gang.
 	gangIdByJobId map[string]string
+	// If true, the unsuccessfulSchedulingKeys check of gangScheduler is omitted.
+	skipUnsuccessfulSchedulingKeyCheck bool
 	// If true, asserts that the nodeDb state is consistent with expected changes.
 	enableAssertions bool
 }
@@ -85,6 +87,10 @@ func NewPreemptingQueueScheduler(
 
 func (sch *PreemptingQueueScheduler) EnableAssertions() {
 	sch.enableAssertions = true
+}
+
+func (sch *PreemptingQueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
+	sch.skipUnsuccessfulSchedulingKeyCheck = true
 }
 
 // Schedule
@@ -477,6 +483,9 @@ func (sch *PreemptingQueueScheduler) schedule(ctx context.Context, inMemoryJobRe
 	)
 	if err != nil {
 		return nil, err
+	}
+	if sch.skipUnsuccessfulSchedulingKeyCheck {
+		sched.SkipUnsuccessfulSchedulingKeyCheck()
 	}
 	result, err := sched.Schedule(ctx)
 	if err != nil {

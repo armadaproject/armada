@@ -281,6 +281,9 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 		accounting.jobIdsByGangId,
 		accounting.gangIdByJobId,
 	)
+	if l.config.AlwaysAttemptScheduling {
+		scheduler.SkipUnsuccessfulSchedulingKeyCheck()
+	}
 	if l.config.EnableAssertions {
 		scheduler.EnableAssertions()
 	}
