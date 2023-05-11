@@ -1,33 +1,54 @@
 import React, { useRef, useState } from "react"
 
-import { IconButton } from "@material-ui/core"
-import { Settings } from "@mui/icons-material"
-import { Button, Popover, TextField, Typography } from "@mui/material"
+import { Delete, Settings } from "@mui/icons-material"
+import {
+  Button,
+  Popover,
+  TextField,
+  Typography,
+  IconButton,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemButton,
+} from "@mui/material"
 
 import styles from "./CustomViewPicker.module.css"
 
-export const CustomViewPicker = () => {
+interface CustomViewPickerProps {
+  customViews: string[]
+  onAddCustomView: (name: string) => void
+  onDeleteCustomView: (name: string) => void
+  onLoadCustomView: (name: string) => void
+}
+
+export const CustomViewPicker = ({
+  customViews,
+  onAddCustomView,
+  onDeleteCustomView,
+  onLoadCustomView,
+}: CustomViewPickerProps) => {
   const anchorElRef = useRef<HTMLDivElement>(null)
   const [isOpen, setIsOpen] = useState<boolean>(false)
   const [creatingCustomView, setCreatingCustomView] = useState<boolean>(false)
   const [newCustomViewName, setNewCustomViewName] = useState<string>("")
 
-  const clearAddAnnotation = () => {
+  const clearAddCustomView = () => {
     setCreatingCustomView(false)
     setNewCustomViewName("")
   }
 
+  const addCustomView = () => {
+    if (newCustomViewName === "") {
+      return
+    }
+    onAddCustomView(newCustomViewName)
+    clearAddCustomView()
+  }
+
   return (
     <>
-      <div
-        style={{
-          minWidth: "50px",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-        ref={anchorElRef}
-      >
+      <div className={styles.settingsButton} ref={anchorElRef}>
         <IconButton title={"Customize"} color={"primary"} size="small" onClick={() => setIsOpen(!isOpen)}>
           <Settings />
         </IconButton>
@@ -47,10 +68,10 @@ export const CustomViewPicker = () => {
       >
         <div className={styles.customViewPickerContainer}>
           <div className={styles.createCustomViewContainer}>
-            <Typography display="block" variant="caption" sx={{ width: "100%" }}>
+            <Typography display="block" variant="caption" sx={{ width: "100%", paddingBottom: "10px" }}>
               Click here to create a custom view with your current configuration.
             </Typography>
-            <div className={styles.addColumnButton}>
+            <div className={styles.addCustomViewButton}>
               {creatingCustomView ? (
                 <>
                   <TextField
@@ -69,15 +90,15 @@ export const CustomViewPicker = () => {
                       }
                     }}
                   />
-                  <div className={styles.addAnnotationButtons}>
-                    <div className={styles.addAnnotationAction}>
-                      <Button variant="outlined" onClick={clearAddAnnotation}>
-                        Cancel
+                  <div className={styles.addCustomViewActions}>
+                    <div className={styles.addCustomViewAction}>
+                      <Button variant="contained" onClick={addCustomView}>
+                        Save
                       </Button>
                     </div>
-                    <div className={styles.addAnnotationAction}>
-                      <Button variant="contained" onClick={() => console.log("saving")}>
-                        Save
+                    <div className={styles.addCustomViewAction}>
+                      <Button variant="outlined" onClick={clearAddCustomView}>
+                        Cancel
                       </Button>
                     </div>
                   </div>
@@ -88,6 +109,28 @@ export const CustomViewPicker = () => {
                 </Button>
               )}
             </div>
+          </div>
+          <div>
+            <List>
+              {customViews
+                .slice()
+                .reverse()
+                .map((name) => (
+                  <ListItem
+                    disablePadding
+                    key={name}
+                    secondaryAction={
+                      <IconButton edge="end" aria-label="delete" onClick={() => onDeleteCustomView(name)}>
+                        <Delete />
+                      </IconButton>
+                    }
+                  >
+                    <ListItemButton onClick={() => onLoadCustomView(name)}>
+                      <ListItemText>{name}</ListItemText>
+                    </ListItemButton>
+                  </ListItem>
+                ))}
+            </List>
           </div>
         </div>
       </Popover>

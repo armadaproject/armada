@@ -1,7 +1,38 @@
+.settingsButton {
+  min-width: 50px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
 .customViewPickerContainer {
   display: flex;
   flex-direction: column;
   max-height: 80vh;
   max-width: 500px;
   padding: 1em;
+}
+
+.createCustomViewContainer {
+  gap: 5px;
+}
+
+.addCustomViewButton {
+  display: flex;
+  flex-direction: row;
+  gap: 5px;
+  height: 40px;
+}
+
+.addCustomViewActions {
+  display: flex;
+  flex-direction: row;
+  gap: 5px;
+}
+
+.addCustomViewAction {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
 }

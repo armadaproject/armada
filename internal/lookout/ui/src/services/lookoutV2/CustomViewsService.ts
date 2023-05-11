@@ -8,7 +8,7 @@ import {
 } from "./JobsTablePreferencesService"
 
 const CUSTOM_KEY_PREFIX = `${KEY_PREFIX}CustomPrefs_`
-const CUSTOM_PREFS_LIST_KEY = `${KEY_PREFIX}ListCustomPrefs`
+const CUSTOM_VIEWS_LIST_KEY = `${KEY_PREFIX}ListCustomPrefs`
 
 const getKey = (name: string): string => {
   return `${CUSTOM_KEY_PREFIX}${name}`
@@ -21,18 +21,18 @@ export class CustomConfigError extends Error {
   }
 }
 
-export class CustomPreferencesService {
-  savePrefs(name: string, prefs: JobsTablePreferences) {
+export class CustomViewsService {
+  saveView(name: string, prefs: JobsTablePreferences) {
     const key = getKey(name)
-    const existingPrefs = this.getAllPrefNames()
-    if (!existingPrefs.includes(name)) {
-      existingPrefs.push(name)
-      localStorage.setItem(CUSTOM_PREFS_LIST_KEY, JSON.stringify(existingPrefs))
+    const allViews = this.getAllViews()
+    if (!allViews.includes(name)) {
+      allViews.push(name)
+      localStorage.setItem(CUSTOM_VIEWS_LIST_KEY, JSON.stringify(allViews))
     }
     localStorage.setItem(key, JSON.stringify(prefs))
   }
 
-  loadPrefs(name: string): JobsTablePreferences {
+  getView(name: string): JobsTablePreferences {
     const key = getKey(name)
     const json = localStorage.getItem(key)
     if (stringIsInvalid(json)) {
@@ -45,25 +45,25 @@ export class CustomPreferencesService {
     }
     const prefs = {
       ...DEFAULT_PREFERENCES,
-      obj,
+      ...obj,
     }
     ensurePreferencesAreConsistent(prefs)
     return prefs
   }
 
-  deletePrefs(name: string) {
+  deleteView(name: string) {
     const key = getKey(name)
     localStorage.removeItem(key)
-    const existingPrefs = this.getAllPrefNames()
-    const index = existingPrefs.indexOf(name)
+    const allViews = this.getAllViews()
+    const index = allViews.indexOf(name)
     if (index > -1) {
-      existingPrefs.splice(index, 1)
-      localStorage.setItem(CUSTOM_PREFS_LIST_KEY, JSON.stringify(existingPrefs))
+      allViews.splice(index, 1)
+      localStorage.setItem(CUSTOM_VIEWS_LIST_KEY, JSON.stringify(allViews))
     }
   }
 
-  getAllPrefNames(): string[] {
-    const json = localStorage.getItem(CUSTOM_PREFS_LIST_KEY)
+  getAllViews(): string[] {
+    const json = localStorage.getItem(CUSTOM_VIEWS_LIST_KEY)
     if (stringIsInvalid(json)) {
       return []
     }
