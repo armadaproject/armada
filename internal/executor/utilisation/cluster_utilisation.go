@@ -131,21 +131,21 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(legacy bool) (
 
 	allPodsRequiringResource := getAllPodsRequiringResourceOnNodes(allPods, allNodes)
 	allNonCompletePodsRequiringResource := util.FilterNonCompletedPods(allPodsRequiringResource)
-
-	totalNodeResource := armadaresource.CalculateTotalResource(allNodes)
-	totalPodResource := armadaresource.CalculateTotalResourceRequest(allNonCompletePodsRequiringResource)
-
-	availableResource := totalNodeResource.DeepCopy()
-	availableResource.Sub(totalPodResource)
-
 	nodesUsage := getAllocatedResourceByNodeName(allNonCompletePodsRequiringResource)
 	runningPodsByNode := groupPodsByNodes(allNonCompletePodsRequiringResource)
-	nodes := make([]api.NodeInfo, 0, len(allNodes))
 	runIdsByNode := cls.getRunIdsByNode(allNodes, allPods, legacy)
+
+	nodes := make([]api.NodeInfo, 0, len(allNodes))
+	totalAvailable := armadaresource.ComputeResources{}
 	for _, node := range allNodes {
+		isSchedulable := cls.nodeInfoService.IsAvailableProcessingNode(node)
 		allocatable := armadaresource.FromResourceList(node.Status.Allocatable)
 		available := allocatable.DeepCopy()
 		available.Sub(nodesUsage[node.Name])
+
+		if isSchedulable {
+			totalAvailable.Add(available)
+		}
 
 		runningNodePods := runningPodsByNode[node.Name]
 		runningNodePodsNonArmada := util.FilterPods(runningNodePods, func(pod *v1.Pod) bool {
@@ -176,12 +176,12 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(legacy bool) (
 			AllocatedResources:          nodeAllocatedResources,
 			RunIdsByState:               runIdsByNode[node.Name],
 			NonArmadaAllocatedResources: nodeNonArmadaAllocatedResources,
-			Unschedulable:               !cls.nodeInfoService.IsAvailableProcessingNode(node),
+			Unschedulable:               !isSchedulable,
 		})
 	}
 
 	return &ClusterAvailableCapacityReport{
-		AvailableCapacity: &availableResource, // TODO: This should be the total - max job priority resources.
+		AvailableCapacity: &totalAvailable, // TODO: This should be the total - max job priority resources.
 		Nodes:             nodes,
 	}, nil
 }
