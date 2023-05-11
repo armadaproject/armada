@@ -17,6 +17,8 @@ import (
 
 const SchedulingKeySize = 20
 
+type SchedulingKey [SchedulingKeySize]byte
+
 func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
 	affinity := req.Affinity
 	if affinity == nil {
@@ -33,7 +35,7 @@ func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
 //
 // The hash is of size SchedulingKeySize and is guaranteed to always be the same for equivalent requirements,
 // unless Affinity is used, in which case they may differ as a result of unordered map keys.
-func (jobSchedulingInfo *JobSchedulingInfo) SchedulingKey() ([SchedulingKeySize]byte, bool) {
+func (jobSchedulingInfo *JobSchedulingInfo) SchedulingKey() (SchedulingKey, bool) {
 	if jobSchedulingInfo == nil {
 		return [SchedulingKeySize]byte{}, false
 	}
@@ -42,23 +44,23 @@ func (jobSchedulingInfo *JobSchedulingInfo) SchedulingKey() ([SchedulingKeySize]
 			return req.SchedulingKey(), true
 		}
 	}
-	return [SchedulingKeySize]byte{}, false
+	return SchedulingKey{}, false
 }
 
 // SchedulingKey returns the canonical hash of the scheduling requirements of a pod.
 //
 // The hash is of size SchedulingKeySize and is guaranteed to always be the same for equivalent requirements,
 // unless Affinity is used, in which case they may differ as a result of unordered map keys.
-func (req *PodRequirements) SchedulingKey() [SchedulingKeySize]byte {
+func (req *PodRequirements) SchedulingKey() SchedulingKey {
 	if req.CachedSchedulingKey == nil {
 		// Cache the key such that the next invocation returns a pre-computed key.
 		schedulingKey := schedulingKeyFromPodRequirements(req)
 		req.CachedSchedulingKey = schedulingKey[:]
 	}
-	return [SchedulingKeySize]byte(req.CachedSchedulingKey)
+	return SchedulingKey(req.CachedSchedulingKey)
 }
 
-func schedulingKeyFromPodRequirements(req *PodRequirements) [SchedulingKeySize]byte {
+func schedulingKeyFromPodRequirements(req *PodRequirements) SchedulingKey {
 	// We separate taints/labels by $, labels and values by =, and and groups by &,
 	// since these characters are not allowed in taints and labels; see
 	// https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
@@ -115,7 +117,7 @@ func schedulingKeyFromPodRequirements(req *PodRequirements) [SchedulingKeySize]b
 		_, _ = io.WriteString(h, "$")
 	}
 
-	return [SchedulingKeySize]byte(h.Sum(nil))
+	return SchedulingKey(h.Sum(nil))
 }
 
 // ClearCachedSchedulingKey clears any cached scheduling keys.

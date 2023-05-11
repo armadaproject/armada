@@ -813,8 +813,8 @@ func TestSchedulingKey(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			schedulingKeyA := tc.a.SchedulingKey()
 			schedulingKeyB := tc.b.SchedulingKey()
-			var prevSchedulingKeyA [SchedulingKeySize]byte
-			var prevSchedulingKeyB [SchedulingKeySize]byte
+			var prevSchedulingKeyA SchedulingKey
+			var prevSchedulingKeyB SchedulingKey
 			n := defaultN
 			if tc.n != 0 {
 				n = tc.n

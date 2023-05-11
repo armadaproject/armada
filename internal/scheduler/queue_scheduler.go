@@ -61,6 +61,10 @@ func NewQueueScheduler(
 	}, nil
 }
 
+func (sch *QueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
+	sch.gangScheduler.SkipUnsuccessfulSchedulingKeyCheck()
+}
+
 func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, error) {
 	log := ctxlogrus.Extract(ctx)
 	if ResourceListAsWeightedApproximateFloat64(sch.schedulingContext.ResourceScarcity, sch.schedulingContext.TotalResources) == 0 {
