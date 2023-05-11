@@ -176,7 +176,7 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(legacy bool) (
 			AllocatedResources:          nodeAllocatedResources,
 			RunIdsByState:               runIdsByNode[node.Name],
 			NonArmadaAllocatedResources: nodeNonArmadaAllocatedResources,
-			Unschedulable:               node.Spec.Unschedulable,
+			Unschedulable:               !cls.nodeInfoService.IsAvailableProcessingNode(node),
 		})
 	}
 
