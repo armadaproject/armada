@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
 func TestMetricsCollector_TestCollect(t *testing.T) {
@@ -21,9 +22,9 @@ func TestMetricsCollector_TestCollect(t *testing.T) {
 	queuedJobs := make([]*jobdb.Job, 3)
 	runningJobs := make([]*jobdb.Job, 3)
 	for i := 0; i < len(queuedJobs); i++ {
-		startTime := baseTime.Add(-time.Duration(100*i) * time.Second).UnixNano()
-		queuedJobs[i] = testQueuedJobDbJob().WithCreated(startTime)
-		runningJobs[i] = testRunningJobDbJob(startTime)
+		startTime := testfixtures.BaseTime.Add(-time.Duration(100*i) * time.Second).UnixNano()
+		queuedJobs[i] = testfixtures.TestQueuedJobDbJob().WithCreated(startTime)
+		runningJobs[i] = testfixtures.TestRunningJobDbJob(startTime)
 	}
 
 	tests := map[string]struct {
@@ -35,53 +36,53 @@ func TestMetricsCollector_TestCollect(t *testing.T) {
 	}{
 		"queued metrics": {
 			initialJobs: queuedJobs,
-			queues:      []*database.Queue{testDbQueue()},
-			defaultPool: testPool,
+			queues:      []*database.Queue{testfixtures.TestDbQueue()},
+			defaultPool: testfixtures.TestPool,
 			expected: []prometheus.Metric{
-				commonmetrics.NewQueueSizeMetric(3.0, testQueue),
+				commonmetrics.NewQueueSizeMetric(3.0, testfixtures.TestQueue),
 				commonmetrics.NewQueueDuration(3, 300,
 					map[float64]uint64{60: 1, 600: 3, 1800: 3, 3600: 3, 10800: 3, 43200: 3, 86400: 3, 172800: 3, 604800: 3},
-					testPool, testDefaultPriorityClass, testQueue),
-				commonmetrics.NewMinQueueDuration(0, testPool, testDefaultPriorityClass, testQueue),
-				commonmetrics.NewMaxQueueDuration(200, testPool, testDefaultPriorityClass, testQueue),
-				commonmetrics.NewMedianQueueDuration(100, testPool, testDefaultPriorityClass, testQueue),
-				commonmetrics.NewQueueResources(3, testPool, testDefaultPriorityClass, testQueue, "cpu"),
-				commonmetrics.NewMinQueueResources(1, testPool, testDefaultPriorityClass, testQueue, "cpu"),
-				commonmetrics.NewMaxQueueResources(1, testPool, testDefaultPriorityClass, testQueue, "cpu"),
-				commonmetrics.NewMedianQueueResources(1, testPool, testDefaultPriorityClass, testQueue, "cpu"),
-				commonmetrics.NewCountQueueResources(3, testPool, testDefaultPriorityClass, testQueue, "cpu"),
-				commonmetrics.NewQueueResources(3*gb, testPool, testDefaultPriorityClass, testQueue, "memory"),
-				commonmetrics.NewMinQueueResources(gb, testPool, testDefaultPriorityClass, testQueue, "memory"),
-				commonmetrics.NewMaxQueueResources(gb, testPool, testDefaultPriorityClass, testQueue, "memory"),
-				commonmetrics.NewMedianQueueResources(gb, testPool, testDefaultPriorityClass, testQueue, "memory"),
-				commonmetrics.NewCountQueueResources(3, testPool, testDefaultPriorityClass, testQueue, "memory"),
+					testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMinQueueDuration(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMaxQueueDuration(200, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMedianQueueDuration(100, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewQueueResources(3, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "cpu"),
+				commonmetrics.NewMinQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "cpu"),
+				commonmetrics.NewMaxQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "cpu"),
+				commonmetrics.NewMedianQueueResources(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "cpu"),
+				commonmetrics.NewCountQueueResources(3, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "cpu"),
+				commonmetrics.NewQueueResources(3*gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
+				commonmetrics.NewMinQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
+				commonmetrics.NewMaxQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
+				commonmetrics.NewMedianQueueResources(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
+				commonmetrics.NewCountQueueResources(3, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
 			},
 		},
 		"running metrics": {
 			initialJobs: runningJobs,
-			queues:      []*database.Queue{testDbQueue()},
-			defaultPool: testPool,
+			queues:      []*database.Queue{testfixtures.TestDbQueue()},
+			defaultPool: testfixtures.TestPool,
 			expected: []prometheus.Metric{
-				commonmetrics.NewQueueSizeMetric(0.0, testQueue),
+				commonmetrics.NewQueueSizeMetric(0.0, testfixtures.TestQueue),
 				commonmetrics.NewJobRunRunDuration(3, 300,
 					map[float64]uint64{60: 1, 600: 3, 1800: 3, 3600: 3, 10800: 3, 43200: 3, 86400: 3, 172800: 3, 604800: 3},
-					testPool, testDefaultPriorityClass, testQueue),
-				commonmetrics.NewMinJobRunDuration(0, testPool, testDefaultPriorityClass, testQueue),
-				commonmetrics.NewMaxJobRunDuration(200, testPool, testDefaultPriorityClass, testQueue),
-				commonmetrics.NewMedianJobRunDuration(100, testPool, testDefaultPriorityClass, testQueue),
-				commonmetrics.NewMinQueueAllocated(1, testPool, testDefaultPriorityClass, testQueue, "cpu"),
-				commonmetrics.NewMaxQueueAllocated(1, testPool, testDefaultPriorityClass, testQueue, "cpu"),
-				commonmetrics.NewMedianQueueAllocated(1, testPool, testDefaultPriorityClass, testQueue, "cpu"),
-				commonmetrics.NewMinQueueAllocated(gb, testPool, testDefaultPriorityClass, testQueue, "memory"),
-				commonmetrics.NewMaxQueueAllocated(gb, testPool, testDefaultPriorityClass, testQueue, "memory"),
-				commonmetrics.NewMedianQueueAllocated(gb, testPool, testDefaultPriorityClass, testQueue, "memory"),
+					testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMinJobRunDuration(0, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMaxJobRunDuration(200, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMedianJobRunDuration(100, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue),
+				commonmetrics.NewMinQueueAllocated(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "cpu"),
+				commonmetrics.NewMaxQueueAllocated(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "cpu"),
+				commonmetrics.NewMedianQueueAllocated(1, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "cpu"),
+				commonmetrics.NewMinQueueAllocated(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
+				commonmetrics.NewMaxQueueAllocated(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
+				commonmetrics.NewMedianQueueAllocated(gb, testfixtures.TestPool, testfixtures.TestDefaultPriorityClass, testfixtures.TestQueue, "memory"),
 			},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			testClock := clock.NewFakeClock(baseTime)
+			testClock := clock.NewFakeClock(testfixtures.BaseTime)
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 

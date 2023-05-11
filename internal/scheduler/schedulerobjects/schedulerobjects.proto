@@ -7,6 +7,8 @@ import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
+// option (gogoproto.stable_marshaler) = true;
+
 // Executor represents an executor running on a worker cluster
 message Executor {
     // Name of the executor.
@@ -112,6 +114,7 @@ message ResourceList {
 
 // Minimal job representation used by the scheduler.
 message JobSchedulingInfo {
+    option (gogoproto.stable_marshaler) = true;
     uint32 lifetime = 1;
     bool at_most_once = 2;
     bool preemptible = 3;
@@ -149,6 +152,10 @@ message PodRequirements {
     string preemptionPolicy = 5;
     // Sum of the resource requirements for all containers that make up this pod.
     k8s.io.api.core.v1.ResourceRequirements resourceRequirements = 6 [(gogoproto.nullable) = false];
+    // This key is a hash of the scheduling requirements.
+    // The hash is 20 bytes in size and is guaranteed to be the same for equivalent PodRequirements,
+    // unless Affinity is used, in which case they may differ as a result of unordered map keys.
+    bytes cachedSchedulingKey = 8;
 }
 
 // Used to store details about pulsar scheduler jobs in Redis

@@ -19,13 +19,14 @@ type JobServiceConfiguration struct {
 	GrpcPort    uint16
 	MetricsPort uint16
 
-	Grpc grpcconfig.GrpcConfig
+	Grpc     grpcconfig.GrpcConfig
+	GrpcPool grpcconfig.GrpcPoolConfig
 	// Connection details that we obtain from client
 	ApiConnection client.ApiConnectionDetails
 	// Configurable value that translates to number of seconds
 	// This is the amount of time since the last job in job-set has been updated.
 	SubscribeJobSetTime int64
-	// Purging JobSets
+	// Purge jobSets if not updated in this number of seconds
 	PurgeJobSetTime int64
 	// Type of database used - must be either 'postgres' or 'sqlite'
 	DatabaseType string

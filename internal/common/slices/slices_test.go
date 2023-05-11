@@ -164,3 +164,80 @@ func TestSubtract(t *testing.T) {
 		})
 	}
 }
+
+func TestUnique(t *testing.T) {
+	tests := map[string]struct {
+		s        []int
+		expected []int
+	}{
+		"nil": {
+			s:        nil,
+			expected: nil,
+		},
+		"empty": {
+			s:        make([]int, 0),
+			expected: make([]int, 0),
+		},
+		"no duplicates": {
+			s:        []int{1, 2, 3},
+			expected: []int{1, 2, 3},
+		},
+		"consecutive duplicates": {
+			s:        []int{1, 2, 3, 3},
+			expected: []int{1, 2, 3},
+		},
+		"non-consecutive duplicates": {
+			s:        []int{3, 1, 2, 3},
+			expected: []int{3, 1, 2},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, Unique(tc.s))
+		})
+	}
+}
+
+func TestFilter(t *testing.T) {
+	includeOver5 := func(val int) bool { return val > 5 }
+	input := []int{1, 3, 5, 7, 9}
+	expectedOutput := []int{7, 9}
+
+	output := Filter(input, includeOver5)
+	assert.Equal(t, expectedOutput, output)
+}
+
+func TestFilter_ExcludeAllFilter(t *testing.T) {
+	excludeAll := func(val int) bool { return false }
+	input := []int{1, 3, 5, 7, 9}
+	expectedOutput := []int{}
+	output := Filter(input, excludeAll)
+	assert.Equal(t, expectedOutput, output)
+}
+
+func TestFilter_IncludeAllFilter(t *testing.T) {
+	includeAll := func(val int) bool { return true }
+	input := []int{1, 3, 5, 7, 9}
+	expectedOutput := input
+
+	output := Filter(input, includeAll)
+	assert.Equal(t, expectedOutput, output)
+}
+
+func TestFilter_Empty(t *testing.T) {
+	includeAll := func(val int) bool { return true }
+	input := []int{}
+	expectedOutput := input
+
+	output := Filter(input, includeAll)
+	assert.Equal(t, expectedOutput, output)
+}
+
+func TestFilter_Nil(t *testing.T) {
+	includeAll := func(val int) bool { return true }
+	var input []int = nil
+	expectedOutput := input
+
+	output := Filter(input, includeAll)
+	assert.Equal(t, expectedOutput, output)
+}

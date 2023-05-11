@@ -74,9 +74,11 @@ func Clean() {
 
 // setup kind and wait for it to be ready
 func Kind() {
+	timeTaken := time.Now()
 	mg.Deps(kindCheck)
 	mg.Deps(kindSetup)
 	mg.Deps(kindWaitUntilReady)
+	fmt.Println("Time to setup kind:", time.Since(timeTaken))
 }
 
 // teardown kind
@@ -125,33 +127,48 @@ func BuildDockers(arg string) error {
 	return nil
 }
 
-// Build Dependencies for Armada
-func Build() {
-	mg.Deps(BootstrapTools)
-	mg.Deps(Proto)
-	mg.Deps(mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"))
-}
-
-func BuildMinimal() {
-	mg.Deps(BootstrapTools)
-	mg.Deps(Proto)
-	mg.Deps(mg.F(BuildDockers, "bundle"))
-}
-
 // Create a Local Armada Cluster
-func LocalDev() error {
-	mg.Deps(Kind)
+func LocalDev(arg string) error {
+	timeTaken := time.Now()
+	mg.Deps(BootstrapTools)
+	fmt.Println("Time to bootstrap tools:", time.Since(timeTaken))
+
+	validArgs := []string{"minimal", "full", "no-build"}
+
+	if !strings.Contains(strings.Join(validArgs, ","), arg) {
+		return errors.Errorf("invalid argument: %s", arg)
+	}
+
+	switch arg {
+	case "minimal":
+		timeTaken := time.Now()
+		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)
+		fmt.Printf("Time to build, setup kind and download images: %s\n", time.Since(timeTaken))
+	case "full":
+		mg.Deps(mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"), Kind, downloadDependencyImages)
+	case "no-build":
+		mg.Deps(Kind, downloadDependencyImages)
+	}
 
 	mg.Deps(StartDependencies)
 	fmt.Println("Waiting for dependencies to start...")
-	err := CheckForPulsarRunning()
-	mg.Deps(StartComponents)
+	mg.Deps(CheckForPulsarRunning)
 
-	fmt.Println("Waiting for components to start...")
-	time.Sleep(15 * time.Second)
+	if arg == "minimal" {
+		err := dockerComposeRun("up", "-d", "executor")
+		if err != nil {
+			return err
+		}
+		err = dockerComposeRun("up", "-d", "server")
+		if err != nil {
+			return err
+		}
+	} else {
+		mg.Deps(StartComponents)
+	}
 
 	fmt.Println("Run: `docker-compose logs -f` to see logs")
-	return err
+	return nil
 }
 
 // Stop Local Armada Cluster

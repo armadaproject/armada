@@ -6,7 +6,13 @@ import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 
 import { LookoutColumnFilter } from "../containers/lookoutV2/JobsTableContainer"
-import { AnnotationColumnId, ColumnId, fromAnnotationColId, isStandardColId } from "./jobsTableColumns"
+import {
+  AnnotationColumnId,
+  ColumnId,
+  DEFAULT_COLUMN_MATCHES,
+  fromAnnotationColId,
+  isStandardColId,
+} from "./jobsTableColumns"
 import { findRowInData, RowId, RowIdParts, toRowId } from "./reactTableUtils"
 
 export interface PendingData {
@@ -41,18 +47,32 @@ export const pendingDataForAllVisibleData = (
   return [rootData].concat(expandedGroups)
 }
 
-export function getFiltersForRows(filters: LookoutColumnFilter[], expandedRowIdParts: RowIdParts[]): JobFilter[] {
+export const matchForColumn = (columnId: string, columnMatches: Record<string, Match>) => {
+  let match: Match = Match.StartsWith // base case if undefined (annotations)
+  if (columnId in DEFAULT_COLUMN_MATCHES) {
+    match = DEFAULT_COLUMN_MATCHES[columnId]
+  }
+  if (columnId in columnMatches) {
+    match = columnMatches[columnId]
+  }
+  return match
+}
+
+export function getFiltersForRows(
+  filters: LookoutColumnFilter[],
+  columnMatches: Record<string, Match>,
+  expandedRowIdParts: RowIdParts[],
+): JobFilter[] {
   const filterColumnsIndexes = new Map<string, number>()
-  const jobFilters = filters.map(({ id, value, match }, i) => {
+  const jobFilters = filters.map(({ id, value }, i) => {
     const isArray = _.isArray(value)
     const isAnnotation = !isStandardColId(id)
     let field = id
     if (isAnnotation) {
       field = fromAnnotationColId(id as AnnotationColumnId)
     }
-
     filterColumnsIndexes.set(field, i)
-
+    const match = matchForColumn(id, columnMatches)
     return {
       isAnnotation: isAnnotation,
       field: field,
