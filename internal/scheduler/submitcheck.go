@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -78,7 +79,18 @@ func NewSubmitChecker(
 
 func (srv *SubmitChecker) Run(ctx context.Context) error {
 	srv.updateExecutors(ctx)
-	ticker := time.NewTicker(1 * time.Minute)
+
+	var ticker *time.Ticker
+	intervalStr, set := os.LookupEnv("EXECUTOR_UPDATE_INTERVAL")
+	if !set {
+		intervalStr = "1m"
+	}
+
+	interval, err := time.ParseDuration(strings.TrimSpace(intervalStr))
+	if err != nil {
+		return err
+	}
+	ticker = time.NewTicker(interval)
 	for {
 		select {
 		case <-ctx.Done():
@@ -185,7 +197,7 @@ func (srv *SubmitChecker) check(reqs []*schedulerobjects.PodRequirements) schedu
 	}
 
 	// Make a shallow copy to avoid holding the lock and
-	// preventing updating NodeDbs while checking if jobs can be scheduled.
+	// preventing updating NodeDbs while checking if jobs can be scheduled
 	srv.mu.Lock()
 	executorById := maps.Clone(srv.executorById)
 	srv.mu.Unlock()
