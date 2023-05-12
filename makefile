@@ -259,7 +259,13 @@ build-lookoutv2:
 build-lookoutingesterv2:
 	$(GO_CMD) $(gobuild) -o ./bin/lookoutingesterv2 cmd/lookoutingesterv2/main.go
 
-build: build-lookoutingesterv2 build-lookoutv2 build-lookout build-jobservice build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-event-ingester
+build-scheduler:
+	$(GO_CMD) $(gobuild) -o ./bin/scheduler cmd/scheduler/main.go
+
+build-scheduler-ingester:
+	$(GO_CMD) $(gobuild) -o ./bin/scheduleringester cmd/scheduleringester/main.go
+
+build: build-lookoutingesterv2 build-lookoutv2 build-lookout build-jobservice build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-event-ingester build-scheduler build-scheduler-ingester
 
 build-docker-server:
 	mkdir -p .build/server
@@ -357,6 +363,8 @@ build-docker-full-bundle: build
 	cp -a ./bin/executor ./executor
 	cp -a ./bin/lookoutingester ./lookoutingester
 	cp -a ./bin/lookoutingesterv2 ./lookoutingesterv2
+	cp -a ./bin/scheduler ./scheduler
+	cp -a ./bin/scheduleringester ./scheduleringester
 	cp -a ./bin/eventingester ./eventingester
 	cp -a ./bin/binoculars ./binoculars
 	cp -a ./bin/jobservice ./jobservice

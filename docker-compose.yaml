@@ -45,7 +45,7 @@ services:
   #
   server:
     container_name: server
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
@@ -64,7 +64,7 @@ services:
 
   executor:
     container_name: executor
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
@@ -81,7 +81,7 @@ services:
 
   binoculars:
     container_name: binoculars
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
@@ -96,7 +96,7 @@ services:
 
   eventingester:
     container_name: eventingester
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     depends_on:

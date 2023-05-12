@@ -188,6 +188,8 @@ type SchedulingConfig struct {
 	// Maximum number of jobs that can be assigned to a executor but not yet acknowledged, before
 	// the scheduler is excluded from consideration by the scheduler.
 	MaxUnacknowledgedJobsPerExecutor uint
+	// If true, do not during scheduling skip jobs with requirements known to be impossible to meet.
+	AlwaysAttemptScheduling bool
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.

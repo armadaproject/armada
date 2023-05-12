@@ -13,6 +13,7 @@ import (
 )
 
 type NodeInfoService interface {
+	IsAvailableProcessingNode(*v1.Node) bool
 	GetAllAvailableProcessingNodes() ([]*v1.Node, error)
 	GetAllNodes() ([]*v1.Node, error)
 	GroupNodesByType(nodes []*v1.Node) []*NodeGroup
@@ -98,14 +99,14 @@ func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetAllAvailableProce
 		return []*v1.Node{}, err
 	}
 
-	return util2.FilterNodes(allNodes, kubernetesNodeInfoService.isAvailableProcessingNode), nil
+	return util2.FilterNodes(allNodes, kubernetesNodeInfoService.IsAvailableProcessingNode), nil
 }
 
 func (kubernetesNodeInfoService *KubernetesNodeInfoService) GetAllNodes() ([]*v1.Node, error) {
 	return kubernetesNodeInfoService.clusterContext.GetNodes()
 }
 
-func (kubernetesNodeInfoService *KubernetesNodeInfoService) isAvailableProcessingNode(node *v1.Node) bool {
+func (kubernetesNodeInfoService *KubernetesNodeInfoService) IsAvailableProcessingNode(node *v1.Node) bool {
 	if node.Spec.Unschedulable {
 		return false
 	}
