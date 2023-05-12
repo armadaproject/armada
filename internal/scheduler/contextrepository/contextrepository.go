@@ -72,31 +72,6 @@ func NewSchedulingContextRepository(maxJobSchedulingContextsPerExecutor uint) (*
 	return rv, nil
 }
 
-// func (repo *SchedulingContextRepository) GetSchedulingContexts() *schedulingContexts {
-// 	r := *(repo.mostRecentSchedulingContexts.Load())
-// 	r.mostRecentSchedulingContextByExecutor = maps.Clone(r.mostRecentSchedulingContextByExecutor)
-// 	r.mostRecentSuccessfulSchedulingContextByExecutor = maps.Clone(r.mostRecentSuccessfulSchedulingContextByExecutor)
-// 	r.mostRecentPreemptingSchedulingContextByExecutor = maps.Clone(r.mostRecentPreemptingSchedulingContextByExecutor)
-// 	r.mostRecentSchedulingContextByExecutorAndQueue = maps.Clone(r.mostRecentSchedulingContextByExecutorAndQueue)
-// 	r.mostRecentSuccessfulSchedulingContextByExecutorAndQueue = maps.Clone(r.mostRecentSuccessfulSchedulingContextByExecutorAndQueue)
-// 	r.mostRecentPreemptingSchedulingContextByExecutorAndQueue = maps.Clone(r.mostRecentPreemptingSchedulingContextByExecutorAndQueue)
-// 	if r.mostRecentSchedulingContextByExecutorAndQueue == nil {
-// 		r.mostRecentSchedulingContextByExecutorAndQueue = make(map[string]SchedulingContextByExecutor)
-// 	}
-// 	if r.mostRecentSuccessfulSchedulingContextByExecutorAndQueue == nil {
-// 		r.mostRecentSuccessfulSchedulingContextByExecutorAndQueue = make(map[string]SchedulingContextByExecutor)
-// 	}
-// 	if r.mostRecentPreemptingSchedulingContextByExecutorAndQueue == nil {
-// 		r.mostRecentPreemptingSchedulingContextByExecutorAndQueue = make(map[string]SchedulingContextByExecutor)
-// 	}
-// 	r.executorIds = maps.Clone(r.executorIds)
-// 	if r.executorIds == nil {
-// 		r.executorIds = make(map[string]bool)
-// 	}
-// 	r.sortedExecutorIds = slices.Clone(r.sortedExecutorIds)
-// 	return &r
-// }
-
 // AddSchedulingContext adds a scheduling context to the repo.
 // It also extracts the queue and job scheduling contexts it contains and stores those separately.
 //
