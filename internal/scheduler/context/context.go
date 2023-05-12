@@ -212,9 +212,12 @@ type QueueSchedulingContext struct {
 	PriorityFactor float64
 	// Allowed priority classes.
 	PriorityClasses map[string]configuration.PriorityClass
-	// Total resources assigned to the queue across all clusters.
-	// Including jobs scheduled during this invocation of the scheduler.
+	// Total resources assigned to the queue across all clusters by priority class priority.
+	// Includes jobs scheduled during this invocation of the scheduler.
 	AllocatedByPriority schedulerobjects.QuantityByPriorityAndResourceType
+	// Total resources assigned to the queue across all clusters by priority class name.
+	// Includes jobs scheduled during this invocation of the scheduler.
+	AllocatedByPriorityClassName map[string]schedulerobjects.ResourceList
 	// Resources assigned to this queue during this scheduling cycle.
 	ScheduledResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
 	EvictedResourcesByPriority   schedulerobjects.QuantityByPriorityAndResourceType
@@ -232,11 +235,17 @@ func NewQueueSchedulingContext(
 	priorityFactor float64,
 	priorityClasses map[string]configuration.PriorityClass,
 	initialAllocatedByPriority schedulerobjects.QuantityByPriorityAndResourceType,
+	initialAllocatedByPriorityClassName map[string]schedulerobjects.ResourceList,
 ) *QueueSchedulingContext {
 	if initialAllocatedByPriority == nil {
 		initialAllocatedByPriority = make(schedulerobjects.QuantityByPriorityAndResourceType)
 	} else {
 		initialAllocatedByPriority = initialAllocatedByPriority.DeepCopy()
+	}
+	if initialAllocatedByPriorityClassName == nil {
+		initialAllocatedByPriorityClassName = make(map[string]schedulerobjects.ResourceList)
+	} else {
+		initialAllocatedByPriorityClassName = armadamaps.DeepCopy(initialAllocatedByPriorityClassName)
 	}
 	return &QueueSchedulingContext{
 		Created:                           time.Now(),
@@ -245,6 +254,7 @@ func NewQueueSchedulingContext(
 		PriorityFactor:                    priorityFactor,
 		PriorityClasses:                   priorityClasses,
 		AllocatedByPriority:               initialAllocatedByPriority,
+		AllocatedByPriorityClassName:      initialAllocatedByPriorityClassName,
 		ScheduledResourcesByPriority:      make(schedulerobjects.QuantityByPriorityAndResourceType),
 		EvictedResourcesByPriority:        make(schedulerobjects.QuantityByPriorityAndResourceType),
 		SuccessfulJobSchedulingContexts:   make(map[string]*JobSchedulingContext),
@@ -327,6 +337,9 @@ func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingC
 		// Always update ResourcesByPriority.
 		// Since ResourcesByPriority is used to order queues by fraction of fair share.
 		qctx.AllocatedByPriority.AddResourceList(jctx.Req.Priority, rl)
+		if jobSchedulingInfo := jctx.Job.GetRequirements(nil); jobSchedulingInfo != nil {
+			qctx.AllocatedByPriorityClassName
+		}
 
 		// Only if the job is not evicted, update ScheduledResourcesByPriority.
 		// Since ScheduledResourcesByPriority is used to control per-round scheduling constraints.
