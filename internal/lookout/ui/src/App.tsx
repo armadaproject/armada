@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useEffect } from "react"
 
 import { ThemeProvider as ThemeProviderV4, createTheme as createThemeV4, StylesProvider } from "@material-ui/core"
 import { createGenerateClassName } from "@material-ui/core/styles"
@@ -61,6 +61,7 @@ const themeV4 = createThemeV4(theme)
 const themeV5 = createThemeV5(theme)
 
 type AppProps = {
+  customTitle: string
   jobService: JobService
   v2GetJobsService: IGetJobsService
   v2GroupJobsService: IGroupJobsService
@@ -76,6 +77,11 @@ type AppProps = {
 }
 
 export function App(props: AppProps) {
+  useEffect(() => {
+    if (props.customTitle) {
+      document.title = `${props.customTitle} - Armada Lookout`
+    }
+  }, [props.customTitle])
   return (
     <StylesProvider generateClassName={generateClassName}>
       <ThemeProviderV4 theme={themeV4}>
@@ -87,7 +93,7 @@ export function App(props: AppProps) {
           >
             <BrowserRouter>
               <div className="app-container">
-                <NavBar />
+                <NavBar customTitle={props.customTitle} />
                 <div className="app-content">
                   <Routes>
                     <Route path="/" element={<OverviewContainer {...props} />} />

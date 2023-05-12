@@ -3,7 +3,7 @@ import React from "react"
 import { AppBar, Tab, Tabs, Toolbar, Typography } from "@material-ui/core"
 import { Link } from "react-router-dom"
 
-import { PropsWithRouter, withRouter } from "../utils"
+import { PropsWithRouter, Router, withRouter } from "../utils"
 
 import "./NavBar.css"
 
@@ -49,7 +49,12 @@ function locationFromIndex(pages: Page[], index: number): string {
   return "/"
 }
 
-function NavBar({ router }: PropsWithRouter) {
+interface NavBarProps {
+  customTitle: string
+  router: Router
+}
+
+function NavBar({ customTitle, router }: NavBarProps) {
   const currentLocation = router.location.pathname
   const currentValue = locationMap.has(currentLocation) ? locationMap.get(currentLocation) : 0
   return (
@@ -60,6 +65,11 @@ function NavBar({ router }: PropsWithRouter) {
           <Typography variant="h6" className="app-name">
             Lookout
           </Typography>
+          {customTitle && (
+            <Typography variant="h5" className="app-name" style={{ paddingLeft: "3em" }}>
+              {customTitle}
+            </Typography>
+          )}
         </a>
         <div className="nav-items">
           <Tabs
