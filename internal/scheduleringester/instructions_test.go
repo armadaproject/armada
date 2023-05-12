@@ -10,11 +10,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/internal/common/hash"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	f "github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -254,14 +252,6 @@ func assertErrorMessagesEqual(t *testing.T, expectedBytes []byte, actualBytes []
 	assert.Equal(t, expectedError, actualError)
 }
 
-func mustCalculatePodRequirementsHash(t *testing.T, schedulingInfo *schedulerobjects.JobSchedulingInfo) []byte {
-	podRequirements := scheduler.PodRequirementFromJobSchedulingInfo(schedulingInfo)
-	require.NotNil(t, podRequirements)
-	podRequirementsHash, err := hash.CalculatePodRequirementsHash(podRequirements)
-	require.NoError(t, err)
-	return podRequirementsHash
-}
-
 func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobSchedulingInfo {
 	expectedSubmitSchedulingInfo := &schedulerobjects.JobSchedulingInfo{
 		Lifetime:        0,
@@ -292,8 +282,6 @@ func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobS
 			},
 		},
 	}
-
-	expectedRequirementsHash := mustCalculatePodRequirementsHash(t, expectedSubmitSchedulingInfo)
-	expectedSubmitSchedulingInfo.PodRequirementsHash = expectedRequirementsHash
+	_, _ = expectedSubmitSchedulingInfo.SchedulingKey()
 	return expectedSubmitSchedulingInfo
 }

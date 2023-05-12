@@ -91,12 +91,13 @@ message NodeInfo {
     map<string, JobState>  run_ids_by_state = 8 [(gogoproto.nullable) = false];
     // The amount of resource allocated to non-armada pods by priority
     map<int32, ComputeResource> non_armada_allocated_resources = 9 [(gogoproto.nullable) = false];
+    bool unschedulable = 10;
     // This should only be used for metrics
     // An aggregated real usage of jobs by queue
-    map<string, ComputeResource> resource_usage_by_queue = 10;
+    map<string, ComputeResource> resource_usage_by_queue = 11;
     // This should only be used for metrics
     // This is the type the node should be reported as. It is simple a label to categorise the group the node belongs to
-    string node_type = 11;
+    string node_type = 12;
 }
 
 // The Armada scheduler must account for taints, labels, and available resources.

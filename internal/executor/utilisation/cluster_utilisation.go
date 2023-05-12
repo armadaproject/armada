@@ -119,7 +119,7 @@ type ClusterAvailableCapacityReport struct {
 }
 
 func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(legacy bool) (*ClusterAvailableCapacityReport, error) {
-	processingNodes, err := cls.nodeInfoService.GetAllAvailableProcessingNodes()
+	allNodes, err := cls.nodeInfoService.GetAllNodes()
 	if err != nil {
 		return nil, errors.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
@@ -129,23 +129,23 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(legacy bool) (
 		return nil, errors.Errorf("Failed getting available cluster capacity due to: %s", err)
 	}
 
-	allPodsRequiringResource := getAllPodsRequiringResourceOnProcessingNodes(allPods, processingNodes)
+	allPodsRequiringResource := getAllPodsRequiringResourceOnNodes(allPods, allNodes)
 	allNonCompletePodsRequiringResource := util.FilterNonCompletedPods(allPodsRequiringResource)
-
-	totalNodeResource := armadaresource.CalculateTotalResource(processingNodes)
-	totalPodResource := armadaresource.CalculateTotalResourceRequest(allNonCompletePodsRequiringResource)
-
-	availableResource := totalNodeResource.DeepCopy()
-	availableResource.Sub(totalPodResource)
-
 	nodesUsage := getAllocatedResourceByNodeName(allNonCompletePodsRequiringResource)
 	runningPodsByNode := groupPodsByNodes(allNonCompletePodsRequiringResource)
-	nodes := make([]api.NodeInfo, 0, len(processingNodes))
-	runIdsByNode := cls.getRunIdsByNode(processingNodes, allPods, legacy)
-	for _, node := range processingNodes {
+	runIdsByNode := cls.getRunIdsByNode(allNodes, allPods, legacy)
+
+	nodes := make([]api.NodeInfo, 0, len(allNodes))
+	totalAvailable := armadaresource.ComputeResources{}
+	for _, node := range allNodes {
+		isSchedulable := cls.nodeInfoService.IsAvailableProcessingNode(node)
 		allocatable := armadaresource.FromResourceList(node.Status.Allocatable)
 		available := allocatable.DeepCopy()
 		available.Sub(nodesUsage[node.Name])
+
+		if isSchedulable {
+			totalAvailable.Add(available)
+		}
 
 		runningNodePods := runningPodsByNode[node.Name]
 		runningNodePodsArmada := util.FilterPods(runningNodePods, func(pod *v1.Pod) bool {
@@ -185,13 +185,14 @@ func (cls *ClusterUtilisationService) GetAvailableClusterCapacity(legacy bool) (
 			AllocatedResources:          nodeAllocatedResources,
 			RunIdsByState:               runIdsByNode[node.Name],
 			NonArmadaAllocatedResources: nodeNonArmadaAllocatedResources,
+			Unschedulable:               !isSchedulable,
 			ResourceUsageByQueue:        resourceUsageByQueue,
 			NodeType:                    cls.nodeInfoService.GetType(node).Id,
 		})
 	}
 
 	return &ClusterAvailableCapacityReport{
-		AvailableCapacity: &availableResource, // TODO: This should be the total - max job priority resources.
+		AvailableCapacity: &totalAvailable, // TODO: This should be the total - max job priority resources.
 		Nodes:             nodes,
 	}, nil
 }
@@ -393,16 +394,16 @@ func (clusterUtilisationService *ClusterUtilisationService) reportUsage(clusterU
 	return err
 }
 
-func getAllPodsRequiringResourceOnProcessingNodes(allPods []*v1.Pod, processingNodes []*v1.Node) []*v1.Pod {
+func getAllPodsRequiringResourceOnNodes(allPods []*v1.Pod, nodes []*v1.Node) []*v1.Pod {
 	podsUsingResourceOnProcessingNodes := make([]*v1.Pod, 0, len(allPods))
 
 	nodeMap := make(map[string]*v1.Node)
-	for _, processingNode := range processingNodes {
+	for _, processingNode := range nodes {
 		nodeMap[processingNode.Name] = processingNode
 	}
 
 	for _, pod := range allPods {
-		if _, presentOnProcessingNode := nodeMap[pod.Spec.NodeName]; presentOnProcessingNode {
+		if _, presentOnNode := nodeMap[pod.Spec.NodeName]; presentOnNode {
 			podsUsingResourceOnProcessingNodes = append(podsUsingResourceOnProcessingNodes, pod)
 		} else if util.IsManagedPod(pod) && pod.Spec.NodeName == "" {
 			podsUsingResourceOnProcessingNodes = append(podsUsingResourceOnProcessingNodes, pod)

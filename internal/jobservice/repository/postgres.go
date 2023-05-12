@@ -39,56 +39,33 @@ func NewJSRepoPostgres(cfg *configuration.JobServiceConfiguration, log *log.Entr
 
 // Set up the DB for use, create tables
 func (s *JSRepoPostgres) Setup(ctx context.Context) {
-	_, err := s.dbpool.Exec(ctx, "DROP TABLE IF EXISTS jobservice")
-	if err != nil {
-		panic(err)
-	}
-	_, err = s.dbpool.Exec(ctx, `
-		CREATE TABLE jobservice (
-		Queue TEXT,
-		JobSetId TEXT,
-		JobId TEXT,
-		JobResponseState TEXT,
-		JobResponseError TEXT,
-		Timestamp INTEGER,
-		PRIMARY KEY(JobId))`)
-
-	if err != nil {
-		panic(err)
-	}
-	_, errIndex := s.dbpool.Exec(ctx, `CREATE INDEX idx_job_set_queue ON jobservice (Queue, JobSetId)`)
-	if errIndex != nil {
-		panic(errIndex)
-	}
-	_, err = s.dbpool.Exec(ctx, "DROP TABLE IF EXISTS jobsets")
-	if err != nil {
-		panic(err)
-	}
-
-	_, err = s.dbpool.Exec(ctx, `
-		CREATE TABLE jobsets (
-		Queue TEXT,
-		JobSetId TEXT,
-		Timestamp INTEGER,
-		ConnectionError TEXT,
-		FromMessageId TEXT,
-		UNIQUE(Queue,JobSetId))`)
-	if err != nil {
-		panic(err)
-	}
-
-	// cleanup trigger
-	_, err = s.dbpool.Exec(ctx, "DROP TRIGGER IF EXISTS trigger_delete_expired_jobsets ON jobsets")
-	if err != nil {
-		panic(err)
-	}
-	_, err = s.dbpool.Exec(ctx, "DROP FUNCTION IF EXISTS delete_expired_jobsets")
-	if err != nil {
-		panic(err)
+	setupStmts := []string{
+		`DROP TABLE IF EXISTS jobservice`,
+		`CREATE TABLE jobservice (
+			Queue TEXT,
+			JobSetId TEXT,
+			JobId TEXT,
+			JobResponseState TEXT,
+			JobResponseError TEXT,
+			Timestamp INTEGER,
+			PRIMARY KEY(JobId))`,
+		`CREATE INDEX idx_job_set_queue ON jobservice (Queue, JobSetId)`,
+		`CREATE INDEX idx_jobservice_timestamp ON jobservice (Timestamp)`,
+		`DROP TABLE IF EXISTS jobsets`,
+		`CREATE TABLE jobsets (
+			Queue TEXT,
+			JobSetId TEXT,
+			Timestamp INTEGER,
+			ConnectionError TEXT,
+			FromMessageId TEXT,
+			UNIQUE(Queue,JobSetId))`,
+		`CREATE INDEX idx_jobsets_timestamp ON jobsets (Timestamp)`,
+		`DROP TRIGGER IF EXISTS trigger_delete_expired_jobsets ON jobsets`,
+		`DROP FUNCTION IF EXISTS delete_expired_jobsets`,
 	}
 
 	if s.jobServiceConfig.PurgeJobSetTime > 0 {
-		_, err = s.dbpool.Exec(ctx, fmt.Sprintf(`
+		setupStmts = append(setupStmts, fmt.Sprintf(`
 		     CREATE FUNCTION delete_expired_jobsets() RETURNS trigger
 			 LANGUAGE plpgsql
 			 AS '
@@ -98,14 +75,13 @@ func (s *JSRepoPostgres) Setup(ctx context.Context) {
 			   RETURN NULL;
 			 END
 			 ';`, s.jobServiceConfig.PurgeJobSetTime, s.jobServiceConfig.PurgeJobSetTime))
-		if err != nil {
-			panic(err)
-		}
 
-		_, err := s.dbpool.Exec(ctx, `
-		     CREATE TRIGGER trigger_delete_expired_jobsets
-			 AFTER INSERT ON jobsets
-			 EXECUTE PROCEDURE delete_expired_jobsets();`)
+		setupStmts = append(setupStmts, `CREATE TRIGGER trigger_delete_expired_jobsets
+			 AFTER INSERT ON jobsets EXECUTE PROCEDURE delete_expired_jobsets();`)
+	}
+
+	for _, stmt := range setupStmts {
+		_, err := s.dbpool.Exec(ctx, stmt)
 		if err != nil {
 			panic(err)
 		}

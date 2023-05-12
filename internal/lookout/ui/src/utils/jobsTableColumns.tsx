@@ -6,7 +6,8 @@ import { isJobGroupRow, JobTableRow } from "models/jobsTableModels"
 import { JobState, Match } from "models/lookoutV2Models"
 
 import { LookoutColumnOrder } from "../containers/lookoutV2/JobsTableContainer"
-import { formatBytes, formatCPU, formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
+import { formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
+import { formatBytes, formatCpu, parseBytes, parseCpu, parseInteger } from "./resourceUtils"
 
 export type JobTableColumn = ColumnDef<JobTableRow, any>
 
@@ -37,7 +38,9 @@ export enum StandardColumnId {
   Owner = "owner",
   CPU = "cpu",
   Memory = "memory",
+  EphemeralStorage = "ephemeralStorage",
   GPU = "gpu",
+  PriorityClass = "priorityClass",
   TimeSubmittedUtc = "timeSubmittedUtc",
   TimeSubmittedAgo = "timeSubmittedAgo",
   LastTransitionTimeUtc = "lastTransitionTimeUtc",
@@ -211,8 +214,14 @@ export const JOB_COLUMNS: JobTableColumn[] = [
   }),
   accessorColumn({
     id: StandardColumnId.Priority,
-    accessor: "priority",
+    accessor: (jobTableRow) => (jobTableRow.priority !== undefined ? `${jobTableRow.priority}` : ""),
     displayName: "Priority",
+    additionalOptions: {
+      enableColumnFilter: true,
+    },
+    additionalMetadata: {
+      filterType: FilterType.Text,
+    },
   }),
   accessorColumn({
     id: StandardColumnId.Owner,
@@ -228,21 +237,61 @@ export const JOB_COLUMNS: JobTableColumn[] = [
   }),
   accessorColumn({
     id: StandardColumnId.CPU,
-    accessor: (jobTableRow) => formatCPU(jobTableRow.cpu),
+    accessor: (jobTableRow) => (jobTableRow.cpu !== undefined ? formatCpu(jobTableRow.cpu) : ""),
     displayName: "CPUs",
+    additionalOptions: {
+      enableColumnFilter: true,
+    },
+    additionalMetadata: {
+      filterType: FilterType.Text,
+    },
   }),
   accessorColumn({
     id: StandardColumnId.Memory,
-    accessor: (jobTableRow) => formatBytes(jobTableRow.memory),
+    accessor: (jobTableRow) => (jobTableRow.memory !== undefined ? formatBytes(jobTableRow.memory) : ""),
     displayName: "Memory",
     additionalOptions: {
       size: 200,
+      enableColumnFilter: true,
+    },
+    additionalMetadata: {
+      filterType: FilterType.Text,
+    },
+  }),
+  accessorColumn({
+    id: StandardColumnId.EphemeralStorage,
+    accessor: (jobTableRow) =>
+      jobTableRow.ephemeralStorage !== undefined ? formatBytes(jobTableRow.ephemeralStorage) : "",
+    displayName: "Ephemeral Storage",
+    additionalOptions: {
+      size: 200,
+      enableColumnFilter: true,
+    },
+    additionalMetadata: {
+      filterType: FilterType.Text,
     },
   }),
   accessorColumn({
     id: StandardColumnId.GPU,
-    accessor: "gpu",
+    accessor: (jobTableRow) => (jobTableRow.gpu !== undefined ? `${jobTableRow.gpu}` : ""),
     displayName: "GPUs",
+    additionalOptions: {
+      enableColumnFilter: true,
+    },
+    additionalMetadata: {
+      filterType: FilterType.Text,
+    },
+  }),
+  accessorColumn({
+    id: StandardColumnId.PriorityClass,
+    accessor: "priorityClass",
+    displayName: "Priority Class",
+    additionalOptions: {
+      enableColumnFilter: true,
+    },
+    additionalMetadata: {
+      filterType: FilterType.Text,
+    },
   }),
   accessorColumn({
     id: StandardColumnId.LastTransitionTimeUtc,
@@ -299,13 +348,96 @@ export const DEFAULT_COLUMN_VISIBILITY: VisibilityState = Object.values(Standard
 
 export const DEFAULT_COLUMN_ORDER: LookoutColumnOrder = { id: "jobId", direction: "DESC" }
 
-export const DEFAULT_COLUMN_MATCHES: Map<string, Match> = new Map([
-  [StandardColumnId.Queue, Match.StartsWith],
-  [StandardColumnId.JobSet, Match.StartsWith],
-  [StandardColumnId.JobID, Match.Exact],
-  [StandardColumnId.State, Match.AnyOf],
-  [StandardColumnId.Owner, Match.StartsWith],
-])
+type Formatter = (val: number | string | string[]) => string
+
+interface InputProcessors {
+  formatter: Formatter
+  parser: (val: string) => number | string | string[]
+}
+
+type ParseType = "Cpu" | "Int" | "Bytes"
+
+export const COLUMN_PARSE_TYPES: Record<string, ParseType> = {
+  [StandardColumnId.CPU]: "Cpu",
+  [StandardColumnId.Memory]: "Bytes",
+  [StandardColumnId.EphemeralStorage]: "Bytes",
+  [StandardColumnId.GPU]: "Int",
+  [StandardColumnId.Priority]: "Int",
+}
+
+export const INPUT_PROCESSORS: Record<ParseType, InputProcessors> = {
+  ["Cpu"]: {
+    formatter: formatCpu as Formatter,
+    parser: parseCpu,
+  },
+  ["Int"]: {
+    formatter: (val) => `${val}`,
+    parser: parseInteger,
+  },
+  ["Bytes"]: {
+    formatter: formatBytes as Formatter,
+    parser: parseBytes,
+  },
+}
+
+export const DEFAULT_COLUMN_MATCHES: Record<string, Match> = {
+  [StandardColumnId.Queue]: Match.StartsWith,
+  [StandardColumnId.JobSet]: Match.StartsWith,
+  [StandardColumnId.JobID]: Match.Exact,
+  [StandardColumnId.State]: Match.AnyOf,
+  [StandardColumnId.Owner]: Match.StartsWith,
+  [StandardColumnId.CPU]: Match.Exact,
+  [StandardColumnId.Memory]: Match.Exact,
+  [StandardColumnId.EphemeralStorage]: Match.Exact,
+  [StandardColumnId.GPU]: Match.Exact,
+  [StandardColumnId.Priority]: Match.Exact,
+  [StandardColumnId.PriorityClass]: Match.Exact,
+}
+
+export const VALID_COLUMN_MATCHES: Record<string, Match[]> = {
+  [StandardColumnId.JobID]: [Match.Exact],
+  [StandardColumnId.Queue]: [Match.Exact, Match.StartsWith, Match.Contains],
+  [StandardColumnId.JobSet]: [Match.Exact, Match.StartsWith, Match.Contains],
+  [StandardColumnId.Owner]: [Match.Exact, Match.StartsWith, Match.Contains],
+  [StandardColumnId.State]: [Match.AnyOf],
+  [StandardColumnId.CPU]: [
+    Match.Exact,
+    Match.GreaterThan,
+    Match.LessThan,
+    Match.GreaterThanOrEqual,
+    Match.LessThanOrEqual,
+  ],
+  [StandardColumnId.Memory]: [
+    Match.Exact,
+    Match.GreaterThan,
+    Match.LessThan,
+    Match.GreaterThanOrEqual,
+    Match.LessThanOrEqual,
+  ],
+  [StandardColumnId.EphemeralStorage]: [
+    Match.Exact,
+    Match.GreaterThan,
+    Match.LessThan,
+    Match.GreaterThanOrEqual,
+    Match.LessThanOrEqual,
+  ],
+  [StandardColumnId.GPU]: [
+    Match.Exact,
+    Match.GreaterThan,
+    Match.LessThan,
+    Match.GreaterThanOrEqual,
+    Match.LessThanOrEqual,
+  ],
+  [StandardColumnId.Priority]: [
+    Match.Exact,
+    Match.GreaterThan,
+    Match.LessThan,
+    Match.GreaterThanOrEqual,
+    Match.LessThanOrEqual,
+  ],
+  [StandardColumnId.PriorityClass]: [Match.Exact, Match.StartsWith, Match.Contains],
+  [ANNOTATION_COLUMN_PREFIX]: [Match.Exact, Match.StartsWith, Match.Contains],
+}
 
 export const createAnnotationColumn = (annotationKey: string): JobTableColumn => {
   return accessorColumn({

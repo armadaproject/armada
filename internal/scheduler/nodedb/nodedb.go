@@ -741,6 +741,13 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node)
 		node.Labels[schedulerconfig.NodeIdLabel] = node.Id
 	}
 
+	// Add a special taint to unschedulable nodes before inserting.
+	// Adding a corresponding toleration to evicted pods ensures they can be re-scheduled.
+	// To prevent scheduling new pods onto cordoned nodes, only evicted pods should have this toleration.
+	if node.Unschedulable {
+		node.Taints = append(node.Taints, UnschedulableTaint())
+	}
+
 	// Compute the node type of the node.
 	nodeType := schedulerobjects.NewNodeType(
 		node.GetTaints(),

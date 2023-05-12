@@ -7,6 +7,8 @@ import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
+// option (gogoproto.stable_marshaler) = true;
+
 // Executor represents an executor running on a worker cluster
 message Executor {
     // Name of the executor.
@@ -59,12 +61,14 @@ message Node {
     map<string, bool> evicted_job_run_ids = 14 [(gogoproto.nullable) = false];
     // Resource allocated to non-Armada pods on this node.
     map<int32, ResourceList> non_armada_allocated_resources = 13 [(gogoproto.nullable) = false];
+    // If true, no new jobs should be scheduled onto this node, e.g., because the node has been cordoned.
+    bool unschedulable = 15;
     // This should only be used for metrics
     // An aggregated real usage of jobs by queue
-    map<string, ResourceList> resource_usage_by_queue = 15;
+    map<string, ResourceList> resource_usage_by_queue = 16;
     // This should only be used for metrics
     // This is the type the node should be reported as. It is simple a label to categorise the group the node belongs to
-    string reporting_node_type = 16;
+    string reporting_node_type = 17;
 }
 
 enum JobRunState {
@@ -118,6 +122,7 @@ message ResourceList {
 
 // Minimal job representation used by the scheduler.
 message JobSchedulingInfo {
+    option (gogoproto.stable_marshaler) = true;
     uint32 lifetime = 1;
     bool at_most_once = 2;
     bool preemptible = 3;
@@ -129,7 +134,6 @@ message JobSchedulingInfo {
     // Kubernetes objects that make up this job and their respective scheduling requirements.
     repeated ObjectRequirements object_requirements = 5;
     uint32 version = 9;
-    bytes podRequirementsHash = 10;
 }
 
 // Message capturing the scheduling requirements of a particular Kubernetes object.
@@ -156,6 +160,10 @@ message PodRequirements {
     string preemptionPolicy = 5;
     // Sum of the resource requirements for all containers that make up this pod.
     k8s.io.api.core.v1.ResourceRequirements resourceRequirements = 6 [(gogoproto.nullable) = false];
+    // This key is a hash of the scheduling requirements.
+    // The hash is 20 bytes in size and is guaranteed to be the same for equivalent PodRequirements,
+    // unless Affinity is used, in which case they may differ as a result of unordered map keys.
+    bytes cachedSchedulingKey = 8;
 }
 
 // Used to store details about pulsar scheduler jobs in Redis

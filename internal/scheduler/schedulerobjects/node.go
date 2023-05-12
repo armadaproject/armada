@@ -35,6 +35,7 @@ func (node *Node) DeepCopy() *Node {
 		AllocatedByQueue:            armadamaps.DeepCopy(node.AllocatedByQueue),
 		EvictedJobRunIds:            maps.Clone(node.EvictedJobRunIds),
 		NonArmadaAllocatedResources: armadamaps.DeepCopy(node.NonArmadaAllocatedResources),
+		Unschedulable:               node.Unschedulable,
 	}
 }
 

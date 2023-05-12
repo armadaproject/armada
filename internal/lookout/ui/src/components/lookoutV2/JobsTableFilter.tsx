@@ -1,7 +1,12 @@
-import { Select, OutlinedInput, MenuItem, Checkbox, ListItemText, Box } from "@mui/material"
+import React, { RefObject, useEffect, useRef, useState } from "react"
+
+import MoreVert from "@material-ui/icons/MoreVert"
+import { Check } from "@mui/icons-material"
+import { Box, Checkbox, IconButton, InputAdornment, ListItemText, MenuItem, OutlinedInput, Select } from "@mui/material"
+import Menu from "@mui/material/Menu"
 import { DebouncedTextField } from "components/lookoutV2/DebouncedTextField"
-import { Match } from "models/lookoutV2Models"
-import { FilterType } from "utils/jobsTableColumns"
+import { Match, MATCH_DISPLAY_STRINGS } from "models/lookoutV2Models"
+import { ANNOTATION_COLUMN_PREFIX, FilterType, isStandardColId, VALID_COLUMN_MATCHES } from "utils/jobsTableColumns"
 
 const ELLIPSIS = "\u2026"
 
@@ -17,35 +22,60 @@ const FILTER_TYPE_DISPLAY_STRINGS: Record<Match, string> = {
 }
 
 export interface JobsTableFilterProps {
-  currentFilter?: string | string[]
+  currentFilter?: string | string[] | number
   filterType: FilterType
   matchType: Match
   enumFilterValues?: EnumFilterOption[]
   id: string
-  onFilterChange: (newFilter: string | string[] | undefined) => void
+  parseError: string | undefined
+  onFilterChange: (newFilter: string | string[] | number | undefined) => void
+  onColumnMatchChange: (columnId: string, newMatch: Match) => void
+  onSetTextFieldRef: (ref: RefObject<HTMLInputElement>) => void
 }
+
 export const JobsTableFilter = ({
+  id,
   currentFilter,
   filterType,
   matchType,
+  parseError,
   enumFilterValues,
   onFilterChange,
+  onColumnMatchChange,
+  onSetTextFieldRef,
 }: JobsTableFilterProps) => {
   const label = FILTER_TYPE_DISPLAY_STRINGS[matchType]
-  return (
-    <Box sx={{ display: "block", width: "100%" }}>
-      {filterType === FilterType.Enum ? (
-        <EnumFilter
-          currentFilter={(currentFilter ?? []) as string[]}
-          enumFilterValues={enumFilterValues ?? []}
-          label={label}
-          onFilterChange={onFilterChange}
-        />
-      ) : (
-        <TextFilter currentFilter={(currentFilter ?? "") as string} label={label} onFilterChange={onFilterChange} />
-      )}
-    </Box>
-  )
+  let possibleMatches = id in VALID_COLUMN_MATCHES ? VALID_COLUMN_MATCHES[id] : [Match.Exact]
+  if (!isStandardColId(id)) {
+    possibleMatches = VALID_COLUMN_MATCHES[ANNOTATION_COLUMN_PREFIX]
+  }
+  let filter = <></>
+  if (filterType === FilterType.Enum) {
+    filter = (
+      <EnumFilter
+        currentFilter={(currentFilter ?? []) as string[]}
+        enumFilterValues={enumFilterValues ?? []}
+        label={label}
+        onFilterChange={onFilterChange}
+      />
+    )
+  } else {
+    filter = (
+      <TextFilter
+        defaultValue={(currentFilter as string | undefined) ?? ""}
+        label={label}
+        match={matchType}
+        possibleMatches={possibleMatches}
+        parseError={parseError}
+        onChange={onFilterChange}
+        onColumnMatchChange={(newMatch) => {
+          onColumnMatchChange(id, newMatch)
+        }}
+        onSetTextFieldRef={onSetTextFieldRef}
+      />
+    )
+  }
+  return <Box sx={{ display: "block", width: "100%" }}>{filter}</Box>
 }
 
 export interface EnumFilterOption {
@@ -106,19 +136,40 @@ const EnumFilter = ({ currentFilter, enumFilterValues, label, onFilterChange }: 
 }
 
 interface TextFilterProps {
-  currentFilter: string
+  defaultValue: string
   label: string
-  onFilterChange: JobsTableFilterProps["onFilterChange"]
+  match: Match
+  possibleMatches: Match[]
+  parseError: string | undefined
+  onChange: (newVal: string) => void
+  onColumnMatchChange: (newMatch: Match) => void
+  onSetTextFieldRef: (ref: RefObject<HTMLInputElement>) => void
 }
-const TextFilter = ({ currentFilter, label, onFilterChange }: TextFilterProps) => {
+
+const TextFilter = ({
+  defaultValue,
+  label,
+  match,
+  possibleMatches,
+  parseError,
+  onChange,
+  onColumnMatchChange,
+  onSetTextFieldRef,
+}: TextFilterProps) => {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    onSetTextFieldRef(ref)
+  }, [ref])
   return (
     <DebouncedTextField
+      debouncedOnChange={onChange}
       debounceWaitMs={300}
-      debouncedOnChange={(newFilter) => onFilterChange(newFilter.trim())}
       textFieldProps={{
+        inputRef: ref,
         type: "text",
         size: "small",
-        defaultValue: currentFilter,
+        defaultValue: defaultValue,
+        error: parseError !== undefined,
         placeholder: label,
         sx: {
           width: "100%",
@@ -131,7 +182,95 @@ const TextFilter = ({ currentFilter, label, onFilterChange }: TextFilterProps) =
             width: "100%",
           },
         },
+        InputProps: {
+          style: {
+            paddingRight: 0,
+          },
+          endAdornment: (
+            <InputAdornment position="end">
+              <MatchSelect possibleMatches={possibleMatches} currentMatch={match} onSelect={onColumnMatchChange} />
+            </InputAdornment>
+          ),
+        },
       }}
     />
+  )
+}
+
+interface MatchSelectProps {
+  possibleMatches: Match[]
+  currentMatch: Match
+  onSelect: (newMatch: Match) => void
+}
+
+const MatchSelect = ({ possibleMatches, currentMatch, onSelect }: MatchSelectProps) => {
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+  const open = Boolean(anchorEl)
+  const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setAnchorEl(event.currentTarget)
+  }
+  const handleClose = () => {
+    setAnchorEl(null)
+  }
+  return (
+    <>
+      <IconButton
+        size="small"
+        style={{
+          height: "22px",
+          width: "22px",
+        }}
+        onClick={handleClick}
+      >
+        <MoreVert />
+      </IconButton>
+      <Menu open={open} onClose={handleClose} anchorEl={anchorEl}>
+        {possibleMatches.map((match, i) => {
+          const matchStr = MATCH_DISPLAY_STRINGS[match]
+          return (
+            <MenuItem
+              key={i}
+              onClick={() => {
+                onSelect(match)
+                handleClose()
+              }}
+              style={{
+                paddingLeft: "7px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  height: "100%",
+                  gap: "5px",
+                }}
+              >
+                <div
+                  style={{
+                    width: "25px",
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  {currentMatch === match && (
+                    <Check
+                      style={{
+                        width: "20px",
+                        height: "20px",
+                      }}
+                    />
+                  )}
+                </div>
+                <div>{matchStr}</div>
+              </div>
+            </MenuItem>
+          )
+        })}
+      </Menu>
+    </>
   )
 }

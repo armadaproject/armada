@@ -77,6 +77,7 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		AllocatableByPriorityAndResource: allocatableByPriorityAndResource,
 		NonArmadaAllocatedResources:      nonArmadaAllocatedResources,
 		StateByJobRunId:                  jobRunsByState,
+		Unschedulable:                    nodeInfo.Unschedulable,
 		ResourceUsageByQueue:             resourceUsageByQueue,
 		ReportingNodeType:                nodeInfo.NodeType,
 	}, nil
@@ -113,12 +114,15 @@ func (job *Job) GetRequirements(priorityClasses map[string]configuration.Priorit
 		}
 		objectRequirements[i] = &schedulerobjects.ObjectRequirements{
 			Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-				PodRequirements: adapters.PodRequirementsFromPod(&v1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Annotations: job.Annotations,
+				PodRequirements: adapters.PodRequirementsFromPod(
+					&v1.Pod{
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations: job.Annotations,
+						},
+						Spec: *podSpec,
 					},
-					Spec: *podSpec,
-				}, priorityClasses),
+					priorityClasses,
+				),
 			},
 		}
 	}
