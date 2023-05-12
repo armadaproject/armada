@@ -129,6 +129,19 @@ class ArmadaOperator(BaseOperator):
         return self.lookout_url_template.replace("<job_id>", job_id)
 
 
+
+    def on_kill(self) -> None:
+            """
+            Stops the JobService from listening to the JobSet.
+            return None
+            """
+            if self.job_id is not None:
+                try:
+                    self.job_service.unsubscribe(self.queue, self.job_set_id, self.job_id)
+                except Exception as e:
+                    armada_logger.warning("Error unsubscribing from JobSet: %s", str(e))
+
+
 def annotate_job_request_items(
     context, job_request_items: List[submit_pb2.JobSubmitRequestItem]
 ) -> List[submit_pb2.JobSubmitRequestItem]:
