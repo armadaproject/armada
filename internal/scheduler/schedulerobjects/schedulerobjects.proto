@@ -61,6 +61,8 @@ message Node {
     map<string, bool> evicted_job_run_ids = 14 [(gogoproto.nullable) = false];
     // Resource allocated to non-Armada pods on this node.
     map<int32, ResourceList> non_armada_allocated_resources = 13 [(gogoproto.nullable) = false];
+    // If true, no new jobs should be scheduled onto this node, e.g., because the node has been cordoned.
+    bool unschedulable = 15;
 }
 
 enum JobRunState {

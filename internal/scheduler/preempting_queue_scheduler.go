@@ -861,7 +861,7 @@ func defaultPostEvictFunc(ctx context.Context, job interfaces.LegacySchedulerJob
 	}
 
 	// Add a toleration to allow the job to be re-scheduled even if node is unschedulable.
-	if node.IsUnschedulable() {
+	if node.Unschedulable {
 		req.Tolerations = append(req.Tolerations, nodedb.UnschedulableToleration())
 	}
 

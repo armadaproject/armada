@@ -10,11 +10,6 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 )
 
-func (node *Node) IsUnschedulable() bool {
-	// TODO: Use unschedulable flag on the job once added.
-	return false
-}
-
 func (node *Node) AvailableQuantityByPriorityAndResource(priority int32, resourceType string) resource.Quantity {
 	return AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).Get(priority, resourceType)
 }
@@ -40,6 +35,7 @@ func (node *Node) DeepCopy() *Node {
 		AllocatedByQueue:            armadamaps.DeepCopy(node.AllocatedByQueue),
 		EvictedJobRunIds:            maps.Clone(node.EvictedJobRunIds),
 		NonArmadaAllocatedResources: armadamaps.DeepCopy(node.NonArmadaAllocatedResources),
+		Unschedulable:               node.Unschedulable,
 	}
 }
 
