@@ -12,7 +12,7 @@ export interface KeyValuePairTable {
 }
 
 const ensureAbsoluteLink = (link: string): string => {
-  if (link.startsWith("//")) {
+  if (link.startsWith("//") || link.startsWith("http")) {
     return link
   }
   return "//" + link
