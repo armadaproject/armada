@@ -54,7 +54,7 @@ class ArmadaOperator(BaseOperator):
         The format should be:
         "https://lookout.armada.domain/jobs?job_id=<job_id>" where <job_id> will
         be replaced with the actual job ID.
-
+    :param poll_interval: How often to poll jobservice to get status.
     :return: an armada operator instance
     """
 
@@ -66,6 +66,7 @@ class ArmadaOperator(BaseOperator):
         armada_queue: str,
         job_request_items: List[JobSubmitRequestItem],
         lookout_url_template: Optional[str] = None,
+        poll_interval: int = 30,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -75,6 +76,7 @@ class ArmadaOperator(BaseOperator):
         self.armada_queue = armada_queue
         self.job_request_items = job_request_items
         self.lookout_url_template = lookout_url_template
+        self.poll_interval = poll_interval
 
     def execute(self, context) -> None:
         """
@@ -118,6 +120,7 @@ class ArmadaOperator(BaseOperator):
             job_set_id=job_set_id,
             airflow_task_name=self.name,
             job_id=job_id,
+            poll_interval=self.poll_interval,
         )
         armada_logger.info(
             "Armada Job finished with %s and message: %s", job_state, job_message

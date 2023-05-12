@@ -55,64 +55,43 @@ func (s *JSRepoSQLite) Setup(ctx context.Context) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	_, err := s.db.Exec("PRAGMA journal_mode=WAL")
-	if err != nil {
-		panic(err)
-	}
-
-	_, err = s.db.Exec("DROP TABLE IF EXISTS jobservice")
-	if err != nil {
-		panic(err)
-	}
-
-	_, err = s.db.Exec(`
-		CREATE TABLE jobservice (
-		Queue TEXT,
-		JobSetId TEXT,
-		JobId TEXT,
-		JobResponseState TEXT,
-		JobResponseError TEXT,
-		Timestamp INT,
-		PRIMARY KEY(JobId))`)
-
-	if err != nil {
-		panic(err)
-	}
-
-	_, errIndex := s.db.Exec(`CREATE INDEX idx_job_set_queue ON jobservice (Queue, JobSetId)`)
-	if errIndex != nil {
-		panic(errIndex)
-	}
-	_, err = s.db.Exec("DROP TABLE IF EXISTS jobsets")
-	if err != nil {
-		panic(err)
-	}
-
-	_, err = s.db.Exec(`
-		CREATE TABLE jobsets (
+	setupStmts := []string{
+		"PRAGMA journal_mode=WAL",
+		"DROP TABLE IF EXISTS jobservice",
+		`CREATE TABLE jobservice (
+			Queue TEXT,
+			JobSetId TEXT,
+			JobId TEXT,
+			JobResponseState TEXT,
+			JobResponseError TEXT,
+			Timestamp INT,
+			PRIMARY KEY(JobId))`,
+		`CREATE INDEX idx_job_set_queue ON jobservice (Queue, JobSetId)`,
+		`CREATE INDEX idx_jobservice_timestamp ON jobservice (Timestamp)`,
+		`DROP TABLE IF EXISTS jobsets`,
+		`CREATE TABLE jobsets (
 			Queue TEXT,
 			JobSetId TEXT,
 			Timestamp INT,
 			ConnectionError TEXT,
 			FromMessageId TEXT,
-			UNIQUE(Queue,JobSetId))`)
-	if err != nil {
-		panic(err)
+			UNIQUE(Queue,JobSetId))`,
+		`CREATE INDEX idx_jobsets_timestamp ON jobsets (Timestamp)`,
+		`DROP TRIGGER IF EXISTS trigger_delete_expired_jobsets`,
 	}
 
-	// cleanup trigger
-	_, err = s.db.Exec("DROP TRIGGER IF EXISTS trigger_delete_expired_jobsets")
-	if err != nil {
-		panic(err)
-	}
 	if s.jobServiceConfig.PurgeJobSetTime > 0 {
-		_, err = s.db.Exec(fmt.Sprintf(`
+		setupStmts = append(setupStmts, fmt.Sprintf(`
 		     CREATE TRIGGER trigger_delete_expired_jobsets AFTER INSERT ON jobsets
 		     BEGIN
 			   DELETE FROM jobsets WHERE Timestamp < (UNIXEPOCH() - %d);
 			   DELETE FROM jobservice WHERE Timestamp < (UNIXEPOCH() - %d);
 		     END;
 		     `, s.jobServiceConfig.PurgeJobSetTime, s.jobServiceConfig.PurgeJobSetTime))
+	}
+
+	for _, stmt := range setupStmts {
+		_, err := s.db.Exec(stmt)
 		if err != nil {
 			panic(err)
 		}

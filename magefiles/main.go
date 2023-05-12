@@ -104,26 +104,16 @@ func BootstrapProto() {
 	mg.Deps(protoInstallProtocArmadaPlugin, protoPrepareThirdPartyProtos)
 }
 
-func BuildCICluster() {
-	mg.Deps(BootstrapTools)
-	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind)
-	mg.Deps(ciSetup)
-}
-
-// run integration test
-func CiIntegrationTests() {
-	mg.Deps(BuildCICluster)
-	mg.Deps(ciRunTests)
-}
-
 func BuildDockers(arg string) error {
 	dockerIds := make([]string, 0)
+	timeTaken := time.Now()
 	for _, s := range strings.Split(arg, ",") {
 		dockerIds = append(dockerIds, strings.TrimSpace(s))
 	}
 	if err := goreleaserMinimalRelease(dockerIds...); err != nil {
 		return err
 	}
+	fmt.Println("Time to build dockers:", time.Since(timeTaken))
 	return nil
 }
 
