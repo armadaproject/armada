@@ -11,7 +11,6 @@ import (
 	math_bits "math/bits"
 
 	proto "github.com/gogo/protobuf/proto"
-	types "github.com/gogo/protobuf/types"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -28,6 +27,243 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
+type SchedulingReportRequest struct {
+	// Types that are valid to be assigned to Filter:
+	//
+	//	*SchedulingReportRequest_MostRecent_
+	//	*SchedulingReportRequest_MostRecentForQueue_
+	//	*SchedulingReportRequest_MostRecentForJob_
+	Filter    isSchedulingReportRequest_Filter `protobuf_oneof:"filter"`
+	Verbosity int32                            `protobuf:"varint,1,opt,name=verbosity,proto3" json:"verbosity,omitempty"`
+}
+
+func (m *SchedulingReportRequest) Reset()         { *m = SchedulingReportRequest{} }
+func (m *SchedulingReportRequest) String() string { return proto.CompactTextString(m) }
+func (*SchedulingReportRequest) ProtoMessage()    {}
+func (*SchedulingReportRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_131a439a3ff6540b, []int{0}
+}
+func (m *SchedulingReportRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SchedulingReportRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SchedulingReportRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SchedulingReportRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SchedulingReportRequest.Merge(m, src)
+}
+func (m *SchedulingReportRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *SchedulingReportRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_SchedulingReportRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SchedulingReportRequest proto.InternalMessageInfo
+
+type isSchedulingReportRequest_Filter interface {
+	isSchedulingReportRequest_Filter()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type SchedulingReportRequest_MostRecent_ struct {
+	MostRecent *SchedulingReportRequest_MostRecent `protobuf:"bytes,2,opt,name=mostRecent,proto3,oneof" json:"mostRecent,omitempty"`
+}
+type SchedulingReportRequest_MostRecentForQueue_ struct {
+	MostRecentForQueue *SchedulingReportRequest_MostRecentForQueue `protobuf:"bytes,3,opt,name=mostRecentForQueue,proto3,oneof" json:"mostRecentForQueue,omitempty"`
+}
+type SchedulingReportRequest_MostRecentForJob_ struct {
+	MostRecentForJob *SchedulingReportRequest_MostRecentForJob `protobuf:"bytes,4,opt,name=mostRecentForJob,proto3,oneof" json:"mostRecentForJob,omitempty"`
+}
+
+func (*SchedulingReportRequest_MostRecent_) isSchedulingReportRequest_Filter()         {}
+func (*SchedulingReportRequest_MostRecentForQueue_) isSchedulingReportRequest_Filter() {}
+func (*SchedulingReportRequest_MostRecentForJob_) isSchedulingReportRequest_Filter()   {}
+
+func (m *SchedulingReportRequest) GetFilter() isSchedulingReportRequest_Filter {
+	if m != nil {
+		return m.Filter
+	}
+	return nil
+}
+
+func (m *SchedulingReportRequest) GetMostRecent() *SchedulingReportRequest_MostRecent {
+	if x, ok := m.GetFilter().(*SchedulingReportRequest_MostRecent_); ok {
+		return x.MostRecent
+	}
+	return nil
+}
+
+func (m *SchedulingReportRequest) GetMostRecentForQueue() *SchedulingReportRequest_MostRecentForQueue {
+	if x, ok := m.GetFilter().(*SchedulingReportRequest_MostRecentForQueue_); ok {
+		return x.MostRecentForQueue
+	}
+	return nil
+}
+
+func (m *SchedulingReportRequest) GetMostRecentForJob() *SchedulingReportRequest_MostRecentForJob {
+	if x, ok := m.GetFilter().(*SchedulingReportRequest_MostRecentForJob_); ok {
+		return x.MostRecentForJob
+	}
+	return nil
+}
+
+func (m *SchedulingReportRequest) GetVerbosity() int32 {
+	if m != nil {
+		return m.Verbosity
+	}
+	return 0
+}
+
+// XXX_OneofWrappers is for the internal use of the proto package.
+func (*SchedulingReportRequest) XXX_OneofWrappers() []interface{} {
+	return []interface{}{
+		(*SchedulingReportRequest_MostRecent_)(nil),
+		(*SchedulingReportRequest_MostRecentForQueue_)(nil),
+		(*SchedulingReportRequest_MostRecentForJob_)(nil),
+	}
+}
+
+type SchedulingReportRequest_MostRecent struct {
+}
+
+func (m *SchedulingReportRequest_MostRecent) Reset()         { *m = SchedulingReportRequest_MostRecent{} }
+func (m *SchedulingReportRequest_MostRecent) String() string { return proto.CompactTextString(m) }
+func (*SchedulingReportRequest_MostRecent) ProtoMessage()    {}
+func (*SchedulingReportRequest_MostRecent) Descriptor() ([]byte, []int) {
+	return fileDescriptor_131a439a3ff6540b, []int{0, 0}
+}
+func (m *SchedulingReportRequest_MostRecent) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SchedulingReportRequest_MostRecent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SchedulingReportRequest_MostRecent.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SchedulingReportRequest_MostRecent) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SchedulingReportRequest_MostRecent.Merge(m, src)
+}
+func (m *SchedulingReportRequest_MostRecent) XXX_Size() int {
+	return m.Size()
+}
+func (m *SchedulingReportRequest_MostRecent) XXX_DiscardUnknown() {
+	xxx_messageInfo_SchedulingReportRequest_MostRecent.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SchedulingReportRequest_MostRecent proto.InternalMessageInfo
+
+type SchedulingReportRequest_MostRecentForQueue struct {
+	Queue string `protobuf:"bytes,1,opt,name=queue,proto3" json:"queue,omitempty"`
+}
+
+func (m *SchedulingReportRequest_MostRecentForQueue) Reset() {
+	*m = SchedulingReportRequest_MostRecentForQueue{}
+}
+func (m *SchedulingReportRequest_MostRecentForQueue) String() string {
+	return proto.CompactTextString(m)
+}
+func (*SchedulingReportRequest_MostRecentForQueue) ProtoMessage() {}
+func (*SchedulingReportRequest_MostRecentForQueue) Descriptor() ([]byte, []int) {
+	return fileDescriptor_131a439a3ff6540b, []int{0, 1}
+}
+func (m *SchedulingReportRequest_MostRecentForQueue) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SchedulingReportRequest_MostRecentForQueue) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SchedulingReportRequest_MostRecentForQueue.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SchedulingReportRequest_MostRecentForQueue) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SchedulingReportRequest_MostRecentForQueue.Merge(m, src)
+}
+func (m *SchedulingReportRequest_MostRecentForQueue) XXX_Size() int {
+	return m.Size()
+}
+func (m *SchedulingReportRequest_MostRecentForQueue) XXX_DiscardUnknown() {
+	xxx_messageInfo_SchedulingReportRequest_MostRecentForQueue.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SchedulingReportRequest_MostRecentForQueue proto.InternalMessageInfo
+
+func (m *SchedulingReportRequest_MostRecentForQueue) GetQueue() string {
+	if m != nil {
+		return m.Queue
+	}
+	return ""
+}
+
+type SchedulingReportRequest_MostRecentForJob struct {
+	JobId string `protobuf:"bytes,1,opt,name=jobId,proto3" json:"jobId,omitempty"`
+}
+
+func (m *SchedulingReportRequest_MostRecentForJob) Reset() {
+	*m = SchedulingReportRequest_MostRecentForJob{}
+}
+func (m *SchedulingReportRequest_MostRecentForJob) String() string { return proto.CompactTextString(m) }
+func (*SchedulingReportRequest_MostRecentForJob) ProtoMessage()    {}
+func (*SchedulingReportRequest_MostRecentForJob) Descriptor() ([]byte, []int) {
+	return fileDescriptor_131a439a3ff6540b, []int{0, 2}
+}
+func (m *SchedulingReportRequest_MostRecentForJob) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *SchedulingReportRequest_MostRecentForJob) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_SchedulingReportRequest_MostRecentForJob.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *SchedulingReportRequest_MostRecentForJob) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SchedulingReportRequest_MostRecentForJob.Merge(m, src)
+}
+func (m *SchedulingReportRequest_MostRecentForJob) XXX_Size() int {
+	return m.Size()
+}
+func (m *SchedulingReportRequest_MostRecentForJob) XXX_DiscardUnknown() {
+	xxx_messageInfo_SchedulingReportRequest_MostRecentForJob.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_SchedulingReportRequest_MostRecentForJob proto.InternalMessageInfo
+
+func (m *SchedulingReportRequest_MostRecentForJob) GetJobId() string {
+	if m != nil {
+		return m.JobId
+	}
+	return ""
+}
+
 type SchedulingReport struct {
 	Report string `protobuf:"bytes,1,opt,name=report,proto3" json:"report,omitempty"`
 }
@@ -36,7 +272,7 @@ func (m *SchedulingReport) Reset()         { *m = SchedulingReport{} }
 func (m *SchedulingReport) String() string { return proto.CompactTextString(m) }
 func (*SchedulingReport) ProtoMessage()    {}
 func (*SchedulingReport) Descriptor() ([]byte, []int) {
-	return fileDescriptor_131a439a3ff6540b, []int{0}
+	return fileDescriptor_131a439a3ff6540b, []int{1}
 }
 func (m *SchedulingReport) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -72,22 +308,23 @@ func (m *SchedulingReport) GetReport() string {
 	return ""
 }
 
-type Queue struct {
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+type QueueReportRequest struct {
+	Queue     string `protobuf:"bytes,1,opt,name=queue,proto3" json:"queue,omitempty"`
+	Verbosity int32  `protobuf:"varint,2,opt,name=verbosity,proto3" json:"verbosity,omitempty"`
 }
 
-func (m *Queue) Reset()         { *m = Queue{} }
-func (m *Queue) String() string { return proto.CompactTextString(m) }
-func (*Queue) ProtoMessage()    {}
-func (*Queue) Descriptor() ([]byte, []int) {
-	return fileDescriptor_131a439a3ff6540b, []int{1}
+func (m *QueueReportRequest) Reset()         { *m = QueueReportRequest{} }
+func (m *QueueReportRequest) String() string { return proto.CompactTextString(m) }
+func (*QueueReportRequest) ProtoMessage()    {}
+func (*QueueReportRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_131a439a3ff6540b, []int{2}
 }
-func (m *Queue) XXX_Unmarshal(b []byte) error {
+func (m *QueueReportRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *Queue) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *QueueReportRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_Queue.Marshal(b, m, deterministic)
+		return xxx_messageInfo_QueueReportRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -97,23 +334,30 @@ func (m *Queue) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
-func (m *Queue) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_Queue.Merge(m, src)
+func (m *QueueReportRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_QueueReportRequest.Merge(m, src)
 }
-func (m *Queue) XXX_Size() int {
+func (m *QueueReportRequest) XXX_Size() int {
 	return m.Size()
 }
-func (m *Queue) XXX_DiscardUnknown() {
-	xxx_messageInfo_Queue.DiscardUnknown(m)
+func (m *QueueReportRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_QueueReportRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_Queue proto.InternalMessageInfo
+var xxx_messageInfo_QueueReportRequest proto.InternalMessageInfo
 
-func (m *Queue) GetName() string {
+func (m *QueueReportRequest) GetQueue() string {
 	if m != nil {
-		return m.Name
+		return m.Queue
 	}
 	return ""
+}
+
+func (m *QueueReportRequest) GetVerbosity() int32 {
+	if m != nil {
+		return m.Verbosity
+	}
+	return 0
 }
 
 type QueueReport struct {
@@ -124,7 +368,7 @@ func (m *QueueReport) Reset()         { *m = QueueReport{} }
 func (m *QueueReport) String() string { return proto.CompactTextString(m) }
 func (*QueueReport) ProtoMessage()    {}
 func (*QueueReport) Descriptor() ([]byte, []int) {
-	return fileDescriptor_131a439a3ff6540b, []int{2}
+	return fileDescriptor_131a439a3ff6540b, []int{3}
 }
 func (m *QueueReport) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -160,22 +404,23 @@ func (m *QueueReport) GetReport() string {
 	return ""
 }
 
-type JobId struct {
-	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+type JobReportRequest struct {
+	JobId     string `protobuf:"bytes,1,opt,name=jobId,proto3" json:"jobId,omitempty"`
+	Verbosity int32  `protobuf:"varint,2,opt,name=verbosity,proto3" json:"verbosity,omitempty"`
 }
 
-func (m *JobId) Reset()         { *m = JobId{} }
-func (m *JobId) String() string { return proto.CompactTextString(m) }
-func (*JobId) ProtoMessage()    {}
-func (*JobId) Descriptor() ([]byte, []int) {
-	return fileDescriptor_131a439a3ff6540b, []int{3}
+func (m *JobReportRequest) Reset()         { *m = JobReportRequest{} }
+func (m *JobReportRequest) String() string { return proto.CompactTextString(m) }
+func (*JobReportRequest) ProtoMessage()    {}
+func (*JobReportRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_131a439a3ff6540b, []int{4}
 }
-func (m *JobId) XXX_Unmarshal(b []byte) error {
+func (m *JobReportRequest) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
 }
-func (m *JobId) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+func (m *JobReportRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	if deterministic {
-		return xxx_messageInfo_JobId.Marshal(b, m, deterministic)
+		return xxx_messageInfo_JobReportRequest.Marshal(b, m, deterministic)
 	} else {
 		b = b[:cap(b)]
 		n, err := m.MarshalToSizedBuffer(b)
@@ -185,23 +430,30 @@ func (m *JobId) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 		return b[:n], nil
 	}
 }
-func (m *JobId) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_JobId.Merge(m, src)
+func (m *JobReportRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_JobReportRequest.Merge(m, src)
 }
-func (m *JobId) XXX_Size() int {
+func (m *JobReportRequest) XXX_Size() int {
 	return m.Size()
 }
-func (m *JobId) XXX_DiscardUnknown() {
-	xxx_messageInfo_JobId.DiscardUnknown(m)
+func (m *JobReportRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_JobReportRequest.DiscardUnknown(m)
 }
 
-var xxx_messageInfo_JobId proto.InternalMessageInfo
+var xxx_messageInfo_JobReportRequest proto.InternalMessageInfo
 
-func (m *JobId) GetId() string {
+func (m *JobReportRequest) GetJobId() string {
 	if m != nil {
-		return m.Id
+		return m.JobId
 	}
 	return ""
+}
+
+func (m *JobReportRequest) GetVerbosity() int32 {
+	if m != nil {
+		return m.Verbosity
+	}
+	return 0
 }
 
 type JobReport struct {
@@ -212,7 +464,7 @@ func (m *JobReport) Reset()         { *m = JobReport{} }
 func (m *JobReport) String() string { return proto.CompactTextString(m) }
 func (*JobReport) ProtoMessage()    {}
 func (*JobReport) Descriptor() ([]byte, []int) {
-	return fileDescriptor_131a439a3ff6540b, []int{4}
+	return fileDescriptor_131a439a3ff6540b, []int{5}
 }
 func (m *JobReport) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -249,10 +501,14 @@ func (m *JobReport) GetReport() string {
 }
 
 func init() {
+	proto.RegisterType((*SchedulingReportRequest)(nil), "schedulerobjects.SchedulingReportRequest")
+	proto.RegisterType((*SchedulingReportRequest_MostRecent)(nil), "schedulerobjects.SchedulingReportRequest.MostRecent")
+	proto.RegisterType((*SchedulingReportRequest_MostRecentForQueue)(nil), "schedulerobjects.SchedulingReportRequest.MostRecentForQueue")
+	proto.RegisterType((*SchedulingReportRequest_MostRecentForJob)(nil), "schedulerobjects.SchedulingReportRequest.MostRecentForJob")
 	proto.RegisterType((*SchedulingReport)(nil), "schedulerobjects.SchedulingReport")
-	proto.RegisterType((*Queue)(nil), "schedulerobjects.Queue")
+	proto.RegisterType((*QueueReportRequest)(nil), "schedulerobjects.QueueReportRequest")
 	proto.RegisterType((*QueueReport)(nil), "schedulerobjects.QueueReport")
-	proto.RegisterType((*JobId)(nil), "schedulerobjects.JobId")
+	proto.RegisterType((*JobReportRequest)(nil), "schedulerobjects.JobReportRequest")
 	proto.RegisterType((*JobReport)(nil), "schedulerobjects.JobReport")
 }
 
@@ -261,30 +517,39 @@ func init() {
 }
 
 var fileDescriptor_131a439a3ff6540b = []byte{
-	// 356 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x92, 0xc1, 0x6a, 0xea, 0x40,
-	0x14, 0x86, 0x8d, 0x5c, 0x05, 0xcf, 0x15, 0x09, 0x73, 0x2f, 0xf7, 0x96, 0x48, 0xa3, 0x64, 0x51,
-	0x5a, 0x90, 0x19, 0xa8, 0xab, 0xd2, 0x4d, 0xb1, 0x2d, 0xb6, 0xee, 0xd4, 0x5d, 0xa1, 0x8b, 0xc4,
-	0x9c, 0xc6, 0x29, 0x26, 0x13, 0xc6, 0xc9, 0xa2, 0x6f, 0xd1, 0xc7, 0xea, 0xd2, 0x65, 0x57, 0x52,
-	0x74, 0xe7, 0x0b, 0x74, 0x5b, 0x9c, 0x44, 0x14, 0xb5, 0x50, 0xdc, 0x65, 0xf2, 0x9f, 0xef, 0x3f,
-	0xe4, 0xcb, 0x40, 0x93, 0x47, 0x0a, 0x65, 0xe4, 0x8e, 0xd8, 0x78, 0x30, 0x44, 0x3f, 0x19, 0xa1,
-	0x5c, 0x3f, 0x09, 0xef, 0x19, 0x07, 0x6a, 0xcc, 0x24, 0xc6, 0x42, 0x2a, 0x1e, 0x05, 0x34, 0x96,
-	0x42, 0x09, 0x62, 0x6e, 0x4f, 0x58, 0xd5, 0x40, 0x88, 0x60, 0x84, 0x4c, 0xe7, 0x5e, 0xf2, 0xc4,
-	0x30, 0x8c, 0xd5, 0x4b, 0x3a, 0xee, 0x5c, 0x81, 0xd9, 0x4f, 0x01, 0x1e, 0x05, 0x3d, 0xdd, 0x45,
-	0x1a, 0x50, 0x4c, 0x5b, 0x8f, 0x8c, 0xba, 0x71, 0x5a, 0x6a, 0xfd, 0x5d, 0x4c, 0x6b, 0x66, 0xfa,
-	0xa6, 0x21, 0x42, 0xae, 0x34, 0xdf, 0xcb, 0x66, 0x1c, 0x06, 0x85, 0x6e, 0x82, 0x09, 0x92, 0x13,
-	0xf8, 0x15, 0xb9, 0x21, 0x66, 0x10, 0x59, 0x4c, 0x6b, 0x95, 0xe5, 0x79, 0x03, 0xd1, 0xb9, 0x73,
-	0x09, 0xbf, 0x35, 0x70, 0xd0, 0xb6, 0x33, 0x28, 0x74, 0x84, 0x77, 0xef, 0x93, 0x3a, 0xe4, 0xb9,
-	0x9f, 0x21, 0xe6, 0x62, 0x5a, 0x2b, 0x73, 0x7f, 0x63, 0x3c, 0xcf, 0x7d, 0xe7, 0x02, 0x4a, 0x1d,
-	0xe1, 0x1d, 0xb2, 0xe5, 0xfc, 0xd3, 0x00, 0xd2, 0x5f, 0x79, 0xec, 0xad, 0x0c, 0x93, 0x2e, 0xfc,
-	0x69, 0xa3, 0xda, 0xf1, 0xf5, 0x8f, 0xa6, 0x86, 0xe9, 0xca, 0x30, 0xbd, 0x5d, 0xb6, 0x59, 0x0e,
-	0xdd, 0xfe, 0x17, 0x74, 0x87, 0xbd, 0x83, 0x4a, 0x1b, 0xd5, 0xa6, 0x8f, 0xff, 0xbb, 0x94, 0x8e,
-	0xad, 0xe3, 0x6f, 0x82, 0x8c, 0xbb, 0x81, 0x72, 0x1b, 0xd5, 0xfa, 0x8b, 0xf7, 0xf4, 0x68, 0x73,
-	0x56, 0x75, 0x6f, 0x90, 0x52, 0xad, 0xc7, 0xb7, 0x99, 0x6d, 0x4c, 0x66, 0xb6, 0xf1, 0x31, 0xb3,
-	0x8d, 0xd7, 0xb9, 0x9d, 0x9b, 0xcc, 0xed, 0xdc, 0xfb, 0xdc, 0xce, 0x3d, 0x5c, 0x07, 0x5c, 0x0d,
-	0x13, 0x8f, 0x0e, 0x44, 0xc8, 0x5c, 0x19, 0xba, 0xbe, 0x1b, 0x4b, 0xb1, 0xc4, 0xb3, 0x13, 0xfb,
-	0xc1, 0x6d, 0xf5, 0x8a, 0x5a, 0x51, 0xf3, 0x2b, 0x00, 0x00, 0xff, 0xff, 0xcd, 0xc1, 0x68, 0xdb,
-	0xdb, 0x02, 0x00, 0x00,
+	// 512 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x9c, 0x54, 0x5d, 0x6b, 0xd3, 0x50,
+	0x18, 0x6e, 0xea, 0x56, 0xec, 0xbb, 0xa1, 0xe1, 0x74, 0xb0, 0x10, 0x35, 0x29, 0xc1, 0x8b, 0x0d,
+	0x46, 0x0a, 0x9b, 0x5e, 0xf8, 0x85, 0x12, 0xc1, 0x6a, 0x41, 0xc4, 0x0c, 0x6f, 0x04, 0x2f, 0x9a,
+	0xf6, 0xb5, 0xcb, 0x68, 0x72, 0xd2, 0x93, 0x93, 0xc1, 0xfe, 0x81, 0x97, 0xfb, 0x0d, 0xfe, 0x1a,
+	0x2f, 0x77, 0xe9, 0x55, 0x90, 0xf6, 0x2e, 0xbf, 0xc0, 0x4b, 0x69, 0xd2, 0x36, 0x5f, 0x73, 0xcb,
+	0x7a, 0xd7, 0xbc, 0x3c, 0x5f, 0xe7, 0x39, 0x6f, 0x0f, 0x1c, 0xd9, 0x2e, 0x47, 0xe6, 0xf6, 0xc7,
+	0x1d, 0x7f, 0x70, 0x82, 0xc3, 0x60, 0x8c, 0x2c, 0xfd, 0x45, 0xad, 0x53, 0x1c, 0x70, 0xbf, 0xc3,
+	0xd0, 0xa3, 0x8c, 0xdb, 0xee, 0x48, 0xf7, 0x18, 0xe5, 0x94, 0x88, 0x45, 0x84, 0xf6, 0x77, 0x03,
+	0x76, 0x8f, 0x93, 0xa1, 0xed, 0x8e, 0xcc, 0x18, 0x6f, 0xe2, 0x24, 0x40, 0x9f, 0x13, 0x0f, 0xc0,
+	0xa1, 0x3e, 0x37, 0x71, 0x80, 0x2e, 0x97, 0xea, 0x6d, 0x61, 0x6f, 0xeb, 0xf0, 0x89, 0x5e, 0x94,
+	0xd0, 0xff, 0x43, 0xd7, 0x3f, 0xae, 0xb8, 0x86, 0x14, 0x85, 0xea, 0x4e, 0xaa, 0x75, 0x40, 0x1d,
+	0x9b, 0xa3, 0xe3, 0xf1, 0xf3, 0xf7, 0x35, 0x33, 0xe3, 0x41, 0x2e, 0x04, 0x20, 0xe9, 0xe7, 0x3b,
+	0xca, 0x3e, 0x07, 0x18, 0xa0, 0x74, 0x27, 0xb6, 0x7e, 0xb9, 0x8e, 0xf5, 0x52, 0xc3, 0x68, 0x47,
+	0xa1, 0xfa, 0xb0, 0xac, 0x9d, 0x8b, 0x72, 0x85, 0x37, 0xf9, 0x21, 0x80, 0x98, 0x1b, 0xf7, 0xa8,
+	0x25, 0x6d, 0xc4, 0x81, 0x9e, 0xaf, 0x19, 0xa8, 0x47, 0x2d, 0x43, 0x89, 0x42, 0x55, 0x2e, 0xea,
+	0xe6, 0xc2, 0x94, 0x5c, 0xc9, 0x53, 0x68, 0x9e, 0x21, 0xb3, 0xa8, 0x6f, 0xf3, 0x73, 0x49, 0x68,
+	0x0b, 0x7b, 0x9b, 0xc6, 0x6e, 0x14, 0xaa, 0xad, 0xd5, 0x30, 0xe5, 0x9b, 0x29, 0x52, 0xde, 0x06,
+	0x48, 0xed, 0xe5, 0xd7, 0x40, 0xca, 0xed, 0x90, 0x7d, 0xd8, 0x9c, 0xc4, 0x55, 0xcf, 0x65, 0x9b,
+	0x46, 0x2b, 0x0a, 0xd5, 0xfb, 0x93, 0x7c, 0x3f, 0x66, 0x82, 0x90, 0x5f, 0x81, 0x58, 0x3c, 0xcd,
+	0x9c, 0x7e, 0x4a, 0xad, 0x0f, 0xc3, 0x2c, 0x3d, 0x1e, 0x64, 0xe9, 0xf1, 0xc0, 0xb8, 0x0b, 0x8d,
+	0xef, 0xf6, 0x98, 0x23, 0xd3, 0xde, 0x80, 0x58, 0xac, 0x8b, 0x1c, 0x40, 0x23, 0xd9, 0xd9, 0x85,
+	0xd2, 0x4e, 0x14, 0xaa, 0x62, 0x32, 0xc9, 0x48, 0x2d, 0x30, 0xda, 0x19, 0x90, 0x38, 0x7e, 0x7e,
+	0x6d, 0xab, 0x9f, 0x25, 0xdf, 0x68, 0xbd, 0x6a, 0xa3, 0xda, 0x0b, 0xd8, 0xca, 0xf8, 0xde, 0x32,
+	0x34, 0x07, 0xb1, 0x47, 0xad, 0x52, 0xe4, 0x8a, 0xfd, 0xad, 0x1b, 0xf9, 0x19, 0x34, 0x57, 0xae,
+	0xb7, 0x0b, 0x7c, 0xf8, 0xb3, 0x0e, 0xe4, 0x78, 0xb9, 0xe8, 0xe6, 0xf2, 0x45, 0x21, 0x43, 0x68,
+	0x75, 0x91, 0x97, 0x6e, 0x70, 0xbf, 0xf2, 0x9f, 0x42, 0xd6, 0x6e, 0x86, 0x92, 0x2f, 0x70, 0xaf,
+	0x8b, 0x3c, 0xdb, 0xf6, 0xe3, 0x32, 0xab, 0xbc, 0x04, 0xf2, 0xa3, 0x6b, 0x51, 0xe4, 0x13, 0x6c,
+	0x77, 0x91, 0xa7, 0x8d, 0x5c, 0x11, 0xa5, 0x78, 0x49, 0xf2, 0x83, 0x6b, 0x30, 0xc6, 0xb7, 0x5f,
+	0x53, 0x45, 0xb8, 0x9c, 0x2a, 0xc2, 0x9f, 0xa9, 0x22, 0x5c, 0xcc, 0x94, 0xda, 0xe5, 0x4c, 0xa9,
+	0xfd, 0x9e, 0x29, 0xb5, 0xaf, 0x6f, 0x47, 0x36, 0x3f, 0x09, 0x2c, 0x7d, 0x40, 0x9d, 0x4e, 0x9f,
+	0x39, 0xfd, 0x61, 0xdf, 0x63, 0x74, 0x4e, 0x5f, 0x7c, 0x75, 0x2a, 0x3c, 0xe4, 0x56, 0x23, 0x7e,
+	0xbf, 0x8f, 0xfe, 0x05, 0x00, 0x00, 0xff, 0xff, 0xeb, 0x69, 0x09, 0x4f, 0xf6, 0x05, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -300,11 +565,11 @@ const _ = grpc.SupportPackageIsVersion4
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type SchedulerReportingClient interface {
 	// Return the most recent scheduling report for each executor.
-	GetSchedulingReport(ctx context.Context, in *types.Empty, opts ...grpc.CallOption) (*SchedulingReport, error)
+	GetSchedulingReport(ctx context.Context, in *SchedulingReportRequest, opts ...grpc.CallOption) (*SchedulingReport, error)
 	// Return the most recent report scheduling for each executor for the given queue.
-	GetQueueReport(ctx context.Context, in *Queue, opts ...grpc.CallOption) (*QueueReport, error)
+	GetQueueReport(ctx context.Context, in *QueueReportRequest, opts ...grpc.CallOption) (*QueueReport, error)
 	// Return the most recent scheduling report for each executor for the given job.
-	GetJobReport(ctx context.Context, in *JobId, opts ...grpc.CallOption) (*JobReport, error)
+	GetJobReport(ctx context.Context, in *JobReportRequest, opts ...grpc.CallOption) (*JobReport, error)
 }
 
 type schedulerReportingClient struct {
@@ -315,7 +580,7 @@ func NewSchedulerReportingClient(cc *grpc.ClientConn) SchedulerReportingClient {
 	return &schedulerReportingClient{cc}
 }
 
-func (c *schedulerReportingClient) GetSchedulingReport(ctx context.Context, in *types.Empty, opts ...grpc.CallOption) (*SchedulingReport, error) {
+func (c *schedulerReportingClient) GetSchedulingReport(ctx context.Context, in *SchedulingReportRequest, opts ...grpc.CallOption) (*SchedulingReport, error) {
 	out := new(SchedulingReport)
 	err := c.cc.Invoke(ctx, "/schedulerobjects.SchedulerReporting/GetSchedulingReport", in, out, opts...)
 	if err != nil {
@@ -324,7 +589,7 @@ func (c *schedulerReportingClient) GetSchedulingReport(ctx context.Context, in *
 	return out, nil
 }
 
-func (c *schedulerReportingClient) GetQueueReport(ctx context.Context, in *Queue, opts ...grpc.CallOption) (*QueueReport, error) {
+func (c *schedulerReportingClient) GetQueueReport(ctx context.Context, in *QueueReportRequest, opts ...grpc.CallOption) (*QueueReport, error) {
 	out := new(QueueReport)
 	err := c.cc.Invoke(ctx, "/schedulerobjects.SchedulerReporting/GetQueueReport", in, out, opts...)
 	if err != nil {
@@ -333,7 +598,7 @@ func (c *schedulerReportingClient) GetQueueReport(ctx context.Context, in *Queue
 	return out, nil
 }
 
-func (c *schedulerReportingClient) GetJobReport(ctx context.Context, in *JobId, opts ...grpc.CallOption) (*JobReport, error) {
+func (c *schedulerReportingClient) GetJobReport(ctx context.Context, in *JobReportRequest, opts ...grpc.CallOption) (*JobReport, error) {
 	out := new(JobReport)
 	err := c.cc.Invoke(ctx, "/schedulerobjects.SchedulerReporting/GetJobReport", in, out, opts...)
 	if err != nil {
@@ -345,24 +610,24 @@ func (c *schedulerReportingClient) GetJobReport(ctx context.Context, in *JobId, 
 // SchedulerReportingServer is the server API for SchedulerReporting service.
 type SchedulerReportingServer interface {
 	// Return the most recent scheduling report for each executor.
-	GetSchedulingReport(context.Context, *types.Empty) (*SchedulingReport, error)
+	GetSchedulingReport(context.Context, *SchedulingReportRequest) (*SchedulingReport, error)
 	// Return the most recent report scheduling for each executor for the given queue.
-	GetQueueReport(context.Context, *Queue) (*QueueReport, error)
+	GetQueueReport(context.Context, *QueueReportRequest) (*QueueReport, error)
 	// Return the most recent scheduling report for each executor for the given job.
-	GetJobReport(context.Context, *JobId) (*JobReport, error)
+	GetJobReport(context.Context, *JobReportRequest) (*JobReport, error)
 }
 
 // UnimplementedSchedulerReportingServer can be embedded to have forward compatible implementations.
 type UnimplementedSchedulerReportingServer struct {
 }
 
-func (*UnimplementedSchedulerReportingServer) GetSchedulingReport(ctx context.Context, req *types.Empty) (*SchedulingReport, error) {
+func (*UnimplementedSchedulerReportingServer) GetSchedulingReport(ctx context.Context, req *SchedulingReportRequest) (*SchedulingReport, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetSchedulingReport not implemented")
 }
-func (*UnimplementedSchedulerReportingServer) GetQueueReport(ctx context.Context, req *Queue) (*QueueReport, error) {
+func (*UnimplementedSchedulerReportingServer) GetQueueReport(ctx context.Context, req *QueueReportRequest) (*QueueReport, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetQueueReport not implemented")
 }
-func (*UnimplementedSchedulerReportingServer) GetJobReport(ctx context.Context, req *JobId) (*JobReport, error) {
+func (*UnimplementedSchedulerReportingServer) GetJobReport(ctx context.Context, req *JobReportRequest) (*JobReport, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetJobReport not implemented")
 }
 
@@ -371,7 +636,7 @@ func RegisterSchedulerReportingServer(s *grpc.Server, srv SchedulerReportingServ
 }
 
 func _SchedulerReporting_GetSchedulingReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(types.Empty)
+	in := new(SchedulingReportRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -383,13 +648,13 @@ func _SchedulerReporting_GetSchedulingReport_Handler(srv interface{}, ctx contex
 		FullMethod: "/schedulerobjects.SchedulerReporting/GetSchedulingReport",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SchedulerReportingServer).GetSchedulingReport(ctx, req.(*types.Empty))
+		return srv.(SchedulerReportingServer).GetSchedulingReport(ctx, req.(*SchedulingReportRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _SchedulerReporting_GetQueueReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Queue)
+	in := new(QueueReportRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -401,13 +666,13 @@ func _SchedulerReporting_GetQueueReport_Handler(srv interface{}, ctx context.Con
 		FullMethod: "/schedulerobjects.SchedulerReporting/GetQueueReport",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SchedulerReportingServer).GetQueueReport(ctx, req.(*Queue))
+		return srv.(SchedulerReportingServer).GetQueueReport(ctx, req.(*QueueReportRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _SchedulerReporting_GetJobReport_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(JobId)
+	in := new(JobReportRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -419,7 +684,7 @@ func _SchedulerReporting_GetJobReport_Handler(srv interface{}, ctx context.Conte
 		FullMethod: "/schedulerobjects.SchedulerReporting/GetJobReport",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SchedulerReportingServer).GetJobReport(ctx, req.(*JobId))
+		return srv.(SchedulerReportingServer).GetJobReport(ctx, req.(*JobReportRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -443,6 +708,189 @@ var _SchedulerReporting_serviceDesc = grpc.ServiceDesc{
 	},
 	Streams:  []grpc.StreamDesc{},
 	Metadata: "internal/scheduler/schedulerobjects/reporting.proto",
+}
+
+func (m *SchedulingReportRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SchedulingReportRequest) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SchedulingReportRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.Filter != nil {
+		{
+			size := m.Filter.Size()
+			i -= size
+			if _, err := m.Filter.MarshalTo(dAtA[i:]); err != nil {
+				return 0, err
+			}
+		}
+	}
+	if m.Verbosity != 0 {
+		i = encodeVarintReporting(dAtA, i, uint64(m.Verbosity))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *SchedulingReportRequest_MostRecent_) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SchedulingReportRequest_MostRecent_) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.MostRecent != nil {
+		{
+			size, err := m.MostRecent.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintReporting(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	return len(dAtA) - i, nil
+}
+func (m *SchedulingReportRequest_MostRecentForQueue_) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SchedulingReportRequest_MostRecentForQueue_) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.MostRecentForQueue != nil {
+		{
+			size, err := m.MostRecentForQueue.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintReporting(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	return len(dAtA) - i, nil
+}
+func (m *SchedulingReportRequest_MostRecentForJob_) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SchedulingReportRequest_MostRecentForJob_) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.MostRecentForJob != nil {
+		{
+			size, err := m.MostRecentForJob.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintReporting(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x22
+	}
+	return len(dAtA) - i, nil
+}
+func (m *SchedulingReportRequest_MostRecent) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SchedulingReportRequest_MostRecent) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SchedulingReportRequest_MostRecent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	return len(dAtA) - i, nil
+}
+
+func (m *SchedulingReportRequest_MostRecentForQueue) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SchedulingReportRequest_MostRecentForQueue) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SchedulingReportRequest_MostRecentForQueue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.Queue) > 0 {
+		i -= len(m.Queue)
+		copy(dAtA[i:], m.Queue)
+		i = encodeVarintReporting(dAtA, i, uint64(len(m.Queue)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *SchedulingReportRequest_MostRecentForJob) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *SchedulingReportRequest_MostRecentForJob) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *SchedulingReportRequest_MostRecentForJob) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if len(m.JobId) > 0 {
+		i -= len(m.JobId)
+		copy(dAtA[i:], m.JobId)
+		i = encodeVarintReporting(dAtA, i, uint64(len(m.JobId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
 }
 
 func (m *SchedulingReport) Marshal() (dAtA []byte, err error) {
@@ -475,7 +923,7 @@ func (m *SchedulingReport) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *Queue) Marshal() (dAtA []byte, err error) {
+func (m *QueueReportRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -485,20 +933,25 @@ func (m *Queue) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *Queue) MarshalTo(dAtA []byte) (int, error) {
+func (m *QueueReportRequest) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *Queue) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *QueueReportRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Name) > 0 {
-		i -= len(m.Name)
-		copy(dAtA[i:], m.Name)
-		i = encodeVarintReporting(dAtA, i, uint64(len(m.Name)))
+	if m.Verbosity != 0 {
+		i = encodeVarintReporting(dAtA, i, uint64(m.Verbosity))
+		i--
+		dAtA[i] = 0x10
+	}
+	if len(m.Queue) > 0 {
+		i -= len(m.Queue)
+		copy(dAtA[i:], m.Queue)
+		i = encodeVarintReporting(dAtA, i, uint64(len(m.Queue)))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -535,7 +988,7 @@ func (m *QueueReport) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *JobId) Marshal() (dAtA []byte, err error) {
+func (m *JobReportRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalToSizedBuffer(dAtA[:size])
@@ -545,20 +998,25 @@ func (m *JobId) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *JobId) MarshalTo(dAtA []byte) (int, error) {
+func (m *JobReportRequest) MarshalTo(dAtA []byte) (int, error) {
 	size := m.Size()
 	return m.MarshalToSizedBuffer(dAtA[:size])
 }
 
-func (m *JobId) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+func (m *JobReportRequest) MarshalToSizedBuffer(dAtA []byte) (int, error) {
 	i := len(dAtA)
 	_ = i
 	var l int
 	_ = l
-	if len(m.Id) > 0 {
-		i -= len(m.Id)
-		copy(dAtA[i:], m.Id)
-		i = encodeVarintReporting(dAtA, i, uint64(len(m.Id)))
+	if m.Verbosity != 0 {
+		i = encodeVarintReporting(dAtA, i, uint64(m.Verbosity))
+		i--
+		dAtA[i] = 0x10
+	}
+	if len(m.JobId) > 0 {
+		i -= len(m.JobId)
+		copy(dAtA[i:], m.JobId)
+		i = encodeVarintReporting(dAtA, i, uint64(len(m.JobId)))
 		i--
 		dAtA[i] = 0xa
 	}
@@ -606,6 +1064,92 @@ func encodeVarintReporting(dAtA []byte, offset int, v uint64) int {
 	dAtA[offset] = uint8(v)
 	return base
 }
+func (m *SchedulingReportRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Verbosity != 0 {
+		n += 1 + sovReporting(uint64(m.Verbosity))
+	}
+	if m.Filter != nil {
+		n += m.Filter.Size()
+	}
+	return n
+}
+
+func (m *SchedulingReportRequest_MostRecent_) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MostRecent != nil {
+		l = m.MostRecent.Size()
+		n += 1 + l + sovReporting(uint64(l))
+	}
+	return n
+}
+func (m *SchedulingReportRequest_MostRecentForQueue_) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MostRecentForQueue != nil {
+		l = m.MostRecentForQueue.Size()
+		n += 1 + l + sovReporting(uint64(l))
+	}
+	return n
+}
+func (m *SchedulingReportRequest_MostRecentForJob_) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.MostRecentForJob != nil {
+		l = m.MostRecentForJob.Size()
+		n += 1 + l + sovReporting(uint64(l))
+	}
+	return n
+}
+func (m *SchedulingReportRequest_MostRecent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	return n
+}
+
+func (m *SchedulingReportRequest_MostRecentForQueue) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Queue)
+	if l > 0 {
+		n += 1 + l + sovReporting(uint64(l))
+	}
+	return n
+}
+
+func (m *SchedulingReportRequest_MostRecentForJob) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.JobId)
+	if l > 0 {
+		n += 1 + l + sovReporting(uint64(l))
+	}
+	return n
+}
+
 func (m *SchedulingReport) Size() (n int) {
 	if m == nil {
 		return 0
@@ -619,15 +1163,18 @@ func (m *SchedulingReport) Size() (n int) {
 	return n
 }
 
-func (m *Queue) Size() (n int) {
+func (m *QueueReportRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	l = len(m.Name)
+	l = len(m.Queue)
 	if l > 0 {
 		n += 1 + l + sovReporting(uint64(l))
+	}
+	if m.Verbosity != 0 {
+		n += 1 + sovReporting(uint64(m.Verbosity))
 	}
 	return n
 }
@@ -645,15 +1192,18 @@ func (m *QueueReport) Size() (n int) {
 	return n
 }
 
-func (m *JobId) Size() (n int) {
+func (m *JobReportRequest) Size() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	l = len(m.Id)
+	l = len(m.JobId)
 	if l > 0 {
 		n += 1 + l + sovReporting(uint64(l))
+	}
+	if m.Verbosity != 0 {
+		n += 1 + sovReporting(uint64(m.Verbosity))
 	}
 	return n
 }
@@ -676,6 +1226,394 @@ func sovReporting(x uint64) (n int) {
 }
 func sozReporting(x uint64) (n int) {
 	return sovReporting(uint64((x << 1) ^ uint64((int64(x) >> 63))))
+}
+func (m *SchedulingReportRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowReporting
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: SchedulingReportRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: SchedulingReportRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Verbosity", wireType)
+			}
+			m.Verbosity = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReporting
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Verbosity |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MostRecent", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReporting
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthReporting
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthReporting
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &SchedulingReportRequest_MostRecent{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Filter = &SchedulingReportRequest_MostRecent_{v}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MostRecentForQueue", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReporting
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthReporting
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthReporting
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &SchedulingReportRequest_MostRecentForQueue{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Filter = &SchedulingReportRequest_MostRecentForQueue_{v}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field MostRecentForJob", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReporting
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthReporting
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthReporting
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &SchedulingReportRequest_MostRecentForJob{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Filter = &SchedulingReportRequest_MostRecentForJob_{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipReporting(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthReporting
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SchedulingReportRequest_MostRecent) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowReporting
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MostRecent: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MostRecent: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipReporting(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthReporting
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SchedulingReportRequest_MostRecentForQueue) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowReporting
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MostRecentForQueue: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MostRecentForQueue: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Queue", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReporting
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthReporting
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthReporting
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Queue = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipReporting(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthReporting
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *SchedulingReportRequest_MostRecentForJob) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowReporting
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: MostRecentForJob: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: MostRecentForJob: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field JobId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReporting
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthReporting
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthReporting
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.JobId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipReporting(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthReporting
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
 }
 func (m *SchedulingReport) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
@@ -759,7 +1697,7 @@ func (m *SchedulingReport) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *Queue) Unmarshal(dAtA []byte) error {
+func (m *QueueReportRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -782,15 +1720,15 @@ func (m *Queue) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: Queue: wiretype end group for non-group")
+			return fmt.Errorf("proto: QueueReportRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Queue: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: QueueReportRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Name", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field Queue", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -818,8 +1756,27 @@ func (m *Queue) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Name = string(dAtA[iNdEx:postIndex])
+			m.Queue = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Verbosity", wireType)
+			}
+			m.Verbosity = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReporting
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Verbosity |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipReporting(dAtA[iNdEx:])
@@ -923,7 +1880,7 @@ func (m *QueueReport) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *JobId) Unmarshal(dAtA []byte) error {
+func (m *JobReportRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -946,15 +1903,15 @@ func (m *JobId) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: JobId: wiretype end group for non-group")
+			return fmt.Errorf("proto: JobReportRequest: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: JobId: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: JobReportRequest: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Id", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field JobId", wireType)
 			}
 			var stringLen uint64
 			for shift := uint(0); ; shift += 7 {
@@ -982,8 +1939,27 @@ func (m *JobId) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.Id = string(dAtA[iNdEx:postIndex])
+			m.JobId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Verbosity", wireType)
+			}
+			m.Verbosity = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowReporting
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Verbosity |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipReporting(dAtA[iNdEx:])
