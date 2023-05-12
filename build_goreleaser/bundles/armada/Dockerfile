@@ -16,9 +16,15 @@ COPY config/executor/config.yaml /app/config/executor/config.yaml
 # Binoculars
 COPY config/binoculars/config.yaml /app/config/binoculars/config.yaml
 
+# Scheduler
+COPY config/scheduler/config.yaml /app/config/scheduler/config.yaml
+
+# Scheduler Ingester
+COPY config/scheduleringester/config.yaml /app/config/scheduleringester/config.yaml
+
 # Event ingester
 COPY config/eventingester/config.yaml /app/config/eventingester/config.yaml
 
-COPY server executor binoculars eventingester /app/
+COPY server executor binoculars eventingester scheduler scheduleringester /app/
 
 WORKDIR /app

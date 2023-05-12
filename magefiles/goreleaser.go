@@ -9,8 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"gopkg.in/yaml.v2"
-
-	"github.com/armadaproject/armada/pkg/client/util"
 )
 
 const (
@@ -31,7 +29,7 @@ func goreleaserMinimalRelease(dockerIds ...string) error {
 		return err
 	}
 
-	return goreleaserRun("release", "--snapshot", "--rm-dist", "-f", GORELEASER_MINIMAL_CONFIG_PATH)
+	return goreleaserRun("release", "--snapshot", "--clean", "-f", GORELEASER_MINIMAL_CONFIG_PATH)
 }
 
 // Write a minimal goreleaser config containing only the subset of targets
@@ -40,8 +38,8 @@ func goreleaserWriteMinimalReleaseConfig(dockerIds ...string) error {
 	if len(dockerIds) == 0 {
 		return nil
 	}
-	config := goreleaserConfig.Project{}
-	if err := util.BindJsonOrYaml(GORELEASER_CONFIG_PATH, &config); err != nil {
+	config, err := goreleaserConfig.Load(GORELEASER_CONFIG_PATH)
+	if err != nil {
 		return err
 	}
 
