@@ -258,7 +258,7 @@ export const JobsTableContainer = ({
     })
     setLookoutOrder(prefs.order)
     setSorting(fromLookoutOrder(prefs.order))
-    setColumnSizing(columnSizing)
+    setColumnSizing(prefs.columnSizing ?? {})
     setColumnFilterState(prefs.filters)
     setLookoutFilters(parseLookoutFilters(prefs.filters))
     setColumnMatches(prefs.columnMatches)
