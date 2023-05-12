@@ -3,7 +3,7 @@ import React from "react"
 import { AppBar, Tab, Tabs, Toolbar, Typography } from "@material-ui/core"
 import { Link } from "react-router-dom"
 
-import { PropsWithRouter, Router, withRouter } from "../utils"
+import { Router, withRouter } from "../utils"
 
 import "./NavBar.css"
 
