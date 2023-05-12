@@ -73,6 +73,7 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		AllocatableByPriorityAndResource: allocatableByPriorityAndResource,
 		NonArmadaAllocatedResources:      nonArmadaAllocatedResources,
 		StateByJobRunId:                  jobRunsByState,
+		Unschedulable:                    nodeInfo.Unschedulable,
 	}, nil
 }
 
