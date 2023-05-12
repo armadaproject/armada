@@ -95,17 +95,6 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go }}
-          cache: false
-      - name: Setup Golang caches
-        uses: actions/cache@v3
-        with:
-          path: |
-            /home/runner/.cache/go-build
-            /home/runner/go
-            /home/runner/go/bin
-          key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-golang-
       - name: Setup and integration tests
         run: |
           # Manually create folders to ensure perms are correct.
