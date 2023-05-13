@@ -17,7 +17,6 @@
 # under the License.
 
 import logging
-import openai
 import os
 from typing import List, Optional
 
@@ -143,18 +142,22 @@ class ArmadaOperator(BaseOperator):
                     armada_logger.warning("Error unsubscribing from JobSet: %s", str(e))
 
 
-    openai.api_key = os.getenv("OPENAI_API_KEY")
-    openai.organization = "org-id"
-    openai.api_base = "https://api.openai.com"
+    def cancel_jobs():
+        job_id = input("Enter job_id to cancel: ")
+        job_set_id = input("Enter job_set_id to cancel: ")
 
-    job_id = input("Enter the job ID to cancel: ")
+        if job_id:
+            response = client.cancel_job(jobId=job_id)
+            print(f"Job {job_id} has been cancelled.")
+        elif job_set_id:
+            response = client.cancel_job_set(jobSetId=job_set_id)
+            print(f"Job set {job_set_id} has been cancelled.")
+        else:
+            print("Please provide either a job_id or job_set_id to cancel.")
 
-    try:
-        job = openai.api_resources.Job.retrieve(job_id)
-        job.cancel()
-        print(f"Job {job_id} cancelled.")
-    except Exception as e:
-        print(f"Error cancelling job {job_id}: {str(e)}")
+
+
+
 
 
 def annotate_job_request_items(
