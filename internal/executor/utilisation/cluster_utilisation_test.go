@@ -80,7 +80,7 @@ func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldExcludePodsNotOnGivenNod
 	pods := []*v1.Pod{&podOnNode, &podNotOnNode}
 	nodes := []*v1.Node{&node}
 
-	result := getAllPodsRequiringResourceOnProcessingNodes(pods, nodes)
+	result := getAllPodsRequiringResourceOnNodes(pods, nodes)
 
 	assert.Equal(t, len(result), 1)
 	assert.Equal(t, result[0].Spec.NodeName, presentNodeName)
@@ -96,7 +96,7 @@ func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldHandleNoNodesProvided(t 
 	pods := []*v1.Pod{&podOnNode}
 	var nodes []*v1.Node
 
-	result := getAllPodsRequiringResourceOnProcessingNodes(pods, nodes)
+	result := getAllPodsRequiringResourceOnNodes(pods, nodes)
 
 	assert.Equal(t, len(result), 0)
 }
@@ -119,7 +119,7 @@ func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldIncludeManagedPodsOnNode
 	pods := []*v1.Pod{&podOnNode}
 	nodes := []*v1.Node{&node}
 
-	result := getAllPodsRequiringResourceOnProcessingNodes(pods, nodes)
+	result := getAllPodsRequiringResourceOnNodes(pods, nodes)
 
 	assert.Equal(t, len(result), 1)
 }
@@ -142,7 +142,7 @@ func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldIncludeManagedPodNotAssi
 	pods := []*v1.Pod{&podOnNode}
 	nodes := []*v1.Node{&node}
 
-	result := getAllPodsRequiringResourceOnProcessingNodes(pods, nodes)
+	result := getAllPodsRequiringResourceOnNodes(pods, nodes)
 
 	assert.Equal(t, len(result), 1)
 }
@@ -165,7 +165,7 @@ func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldExcludeManagedPodNotAssi
 	pods := []*v1.Pod{&podOnNode}
 	nodes := []*v1.Node{&node}
 
-	result := getAllPodsRequiringResourceOnProcessingNodes(pods, nodes)
+	result := getAllPodsRequiringResourceOnNodes(pods, nodes)
 
 	assert.Equal(t, len(result), 0)
 }

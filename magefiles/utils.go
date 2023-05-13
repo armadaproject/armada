@@ -43,5 +43,5 @@ func set[S ~[]E, E comparable](s S) map[E]bool {
 
 // Check if the user is on an arm system
 func onArm() bool {
-	return runtime.GOARCH == "arm"
+	return runtime.GOARCH == "arm64"
 }

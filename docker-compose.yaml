@@ -55,7 +55,7 @@ services:
   #
   server:
     container_name: server
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
@@ -72,11 +72,13 @@ services:
       - pulsar
       - eventingester
     working_dir: /app
+    env_file:
+      - ./developer/env/server.env
     command: ./server --config /config/insecure-armada.yaml
 
   executor:
     container_name: executor
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
@@ -97,7 +99,7 @@ services:
 
   binoculars:
     container_name: binoculars
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
@@ -116,7 +118,7 @@ services:
 
   eventingester:
     container_name: eventingester
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:

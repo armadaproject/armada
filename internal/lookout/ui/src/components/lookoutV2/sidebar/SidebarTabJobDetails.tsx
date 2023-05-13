@@ -1,7 +1,7 @@
 import { Typography } from "@mui/material"
 import { Job } from "models/lookoutV2Models"
-import { formatBytes, formatCPU } from "utils/jobsTableFormatters"
 
+import { formatBytes, formatCpu } from "../../../utils/resourceUtils"
 import { KeyValuePairTable } from "./KeyValuePairTable"
 
 export interface SidebarTabJobDetailsProps {
@@ -25,7 +25,7 @@ export const SidebarTabJobDetails = ({ job }: SidebarTabJobDetailsProps) => {
       <Typography variant="subtitle2">Requests:</Typography>
       <KeyValuePairTable
         data={[
-          { key: "CPUs", value: formatCPU(job.cpu) },
+          { key: "CPUs", value: formatCpu(job.cpu) },
           { key: "Memory", value: formatBytes(job.memory) },
           { key: "GPUs", value: job.gpu.toString() },
           { key: "Ephemeral storage", value: formatBytes(job.ephemeralStorage) },

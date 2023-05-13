@@ -98,6 +98,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		// For each queue, indices of jobs to unbind before scheduling, to, simulate jobs terminating.
 		// E.g., IndicesToUnbind["A"][0] is the indices of jobs declared for queue A in round 0.
 		IndicesToUnbind map[string]map[int][]int
+		// Indices of nodes that should be cordoned before scheduling.
+		NodeIndicesToCordon []int
 	}
 	tests := map[string]struct {
 		SchedulingConfig configuration.SchedulingConfig
@@ -1139,6 +1141,36 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"B": 1,
 			},
 		},
+		"Cordoning prevents scheduling new jobs but not re-scheduling running jobs": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass1, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 0),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass1, 1),
+					},
+					NodeIndicesToCordon: []int{0},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass1, 1),
+					},
+				},
+				{}, // Empty round to make sure nothing changes.
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -1200,6 +1232,16 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					}
 				}
 
+				// Cordon nodes.
+				for _, j := range round.NodeIndicesToCordon {
+					node, err := nodeDb.GetNode(tc.Nodes[j].Id)
+					require.NoError(t, err)
+					node = node.DeepCopy()
+					node.Unschedulable = true
+					err = nodeDb.Upsert(node)
+					require.NoError(t, err)
+				}
+
 				// If not provided, set total resources equal to the aggregate over tc.Nodes.
 				if tc.TotalResources.Resources == nil {
 					tc.TotalResources = nodeDb.TotalResources()
@@ -1219,7 +1261,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 					tc.SchedulingConfig,
 				)
-				rescheduler := NewPreemptingQueueScheduler(
+				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
 					tc.SchedulingConfig.Preemption.NodeEvictionProbability,
@@ -1230,11 +1272,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					jobIdsByGangId,
 					gangIdByJobId,
 				)
-				rescheduler.EnableAssertions()
-				result, err := rescheduler.Schedule(ctxlogrus.ToContext(context.Background(), log))
+				sch.EnableAssertions()
+				result, err := sch.Schedule(ctxlogrus.ToContext(context.Background(), log))
 				require.NoError(t, err)
-				jobIdsByGangId = rescheduler.jobIdsByGangId
-				gangIdByJobId = rescheduler.gangIdByJobId
+				jobIdsByGangId = sch.jobIdsByGangId
+				gangIdByJobId = sch.gangIdByJobId
 
 				// Test resource accounting.
 				for _, job := range result.PreemptedJobs {
@@ -1372,7 +1414,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 		MinPriorityFactor int
 		MaxPriorityFactor int
 	}{
-		"1 node 1 queue 32 jobs": {
+		"1 node 1 queue 320 jobs": {
 			SchedulingConfig: testfixtures.WithNodeOversubscriptionEvictionProbabilityConfig(
 				0,
 				testfixtures.WithNodeEvictionProbabilityConfig(
@@ -1383,11 +1425,11 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			Nodes:             testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			JobFunc:           testfixtures.NSmallCpuJob,
 			NumQueues:         1,
-			NumJobsPerQueue:   32,
+			NumJobsPerQueue:   320,
 			MinPriorityFactor: 1,
 			MaxPriorityFactor: 1,
 		},
-		"10 nodes 1 queue 320 jobs": {
+		"10 nodes 1 queue 3200 jobs": {
 			SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
 				0.1,
 				testfixtures.TestSchedulingConfig(),
@@ -1395,11 +1437,23 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			Nodes:             testfixtures.TestNCpuNode(10, testfixtures.TestPriorities),
 			JobFunc:           testfixtures.NSmallCpuJob,
 			NumQueues:         1,
-			NumJobsPerQueue:   320,
+			NumJobsPerQueue:   3200,
 			MinPriorityFactor: 1,
 			MaxPriorityFactor: 1,
 		},
-		"100 nodes 1 queue 3200 jobs": {
+		"10 nodes 10 queues 3200 jobs": {
+			SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
+				0.1,
+				testfixtures.TestSchedulingConfig(),
+			),
+			Nodes:             testfixtures.TestNCpuNode(10, testfixtures.TestPriorities),
+			JobFunc:           testfixtures.NSmallCpuJob,
+			NumQueues:         10,
+			NumJobsPerQueue:   3200,
+			MinPriorityFactor: 1,
+			MaxPriorityFactor: 1,
+		},
+		"100 nodes 1 queue 32000 jobs": {
 			SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
 				0.1,
 				testfixtures.TestSchedulingConfig(),
@@ -1407,11 +1461,11 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			Nodes:             testfixtures.TestNCpuNode(100, testfixtures.TestPriorities),
 			JobFunc:           testfixtures.NSmallCpuJob,
 			NumQueues:         1,
-			NumJobsPerQueue:   3200,
+			NumJobsPerQueue:   32000,
 			MinPriorityFactor: 1,
 			MaxPriorityFactor: 1,
 		},
-		"1000 nodes 1 queue 32000 jobs": {
+		"1000 nodes 1 queue 320000 jobs": {
 			SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
 				0.1,
 				testfixtures.TestSchedulingConfig(),
@@ -1419,21 +1473,9 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			Nodes:             testfixtures.TestNCpuNode(1000, testfixtures.TestPriorities),
 			JobFunc:           testfixtures.NSmallCpuJob,
 			NumQueues:         1,
-			NumJobsPerQueue:   32000,
+			NumJobsPerQueue:   320000,
 			MinPriorityFactor: 1,
 			MaxPriorityFactor: 1,
-		},
-		"mixed": {
-			SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
-				0.1,
-				testfixtures.TestSchedulingConfig(),
-			),
-			Nodes:             testfixtures.TestNCpuNode(500, testfixtures.TestPriorities),
-			JobFunc:           testfixtures.NSmallCpuJob,
-			NumQueues:         100,
-			NumJobsPerQueue:   256,
-			MinPriorityFactor: 1,
-			MaxPriorityFactor: 10,
 		},
 	}
 	for name, tc := range tests {
@@ -1473,7 +1515,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 			)
-			rescheduler := NewPreemptingQueueScheduler(
+			sch := NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
 				tc.SchedulingConfig.Preemption.NodeEvictionProbability,
@@ -1484,12 +1526,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nil,
 				nil,
 			)
-			result, err := rescheduler.Schedule(
-				ctxlogrus.ToContext(
-					context.Background(),
-					logrus.NewEntry(logrus.New()),
-				),
-			)
+			result, err := sch.Schedule(context.Background())
 			require.NoError(b, err)
 			require.Equal(b, 0, len(result.PreemptedJobs))
 
@@ -1519,7 +1556,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					nodeDb.TotalResources(),
 					usageByQueue,
 				)
-				rescheduler := NewPreemptingQueueScheduler(
+				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
 					tc.SchedulingConfig.Preemption.NodeEvictionProbability,
@@ -1530,12 +1567,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					nil,
 					nil,
 				)
-				result, err := rescheduler.Schedule(
-					ctxlogrus.ToContext(
-						context.Background(),
-						logrus.NewEntry(logrus.New()),
-					),
-				)
+				result, err := sch.Schedule(context.Background())
 				require.NoError(b, err)
 
 				// We expect the system to be in steady-state, i.e., no preempted/scheduled jobs.

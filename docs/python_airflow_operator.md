@@ -12,7 +12,7 @@ This class provides integration with Airflow and Armada
 ## armada.operators.armada module
 
 
-### _class_ armada.operators.armada.ArmadaOperator(name, armada_client, job_service_client, armada_queue, job_request_items, lookout_url_template=None, \*\*kwargs)
+### _class_ armada.operators.armada.ArmadaOperator(name, armada_client, job_service_client, armada_queue, job_request_items, lookout_url_template=None, poll_interval=30, \*\*kwargs)
 Bases: `BaseOperator`
 
 Implementation of an ArmadaOperator for airflow.
@@ -44,6 +44,9 @@ Airflow operators inherit from BaseOperator.
     The format should be:
     “[https://lookout.armada.domain/jobs](https://lookout.armada.domain/jobs)?job_id=<job_id>” where <job_id> will
     be replaced with the actual job ID.
+
+
+    * **poll_interval** (*int*) – How often to poll jobservice to get status.
 
 
 
@@ -621,7 +624,7 @@ A default is provided if the env var is not defined
 
 
 
-### armada.operators.utils.search_for_job_complete(armada_queue, job_set_id, airflow_task_name, job_id, job_service_client=None, job_status_callable=<function default_job_status_callable>, time_out_for_failure=7200)
+### armada.operators.utils.search_for_job_complete(armada_queue, job_set_id, airflow_task_name, job_id, poll_interval=30, job_service_client=None, job_status_callable=<function default_job_status_callable>, time_out_for_failure=7200)
 Poll JobService cache until you get a terminated event.
 
 A terminated event is SUCCEEDED, FAILED or CANCELLED
@@ -637,6 +640,9 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
 
 
     * **airflow_task_name** (*str*) – The name of your armada job
+
+
+    * **poll_interval** (*int*) – Polling interval for jobservice to get status.
 
 
     * **job_id** (*str*) – The name of the job id that armada assigns to it

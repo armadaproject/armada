@@ -105,12 +105,14 @@ func BootstrapProto() {
 
 func BuildDockers(arg string) error {
 	dockerIds := make([]string, 0)
+	timeTaken := time.Now()
 	for _, s := range strings.Split(arg, ",") {
 		dockerIds = append(dockerIds, strings.TrimSpace(s))
 	}
 	if err := goreleaserMinimalRelease(dockerIds...); err != nil {
 		return err
 	}
+	fmt.Println("Time to build dockers:", time.Since(timeTaken))
 	return nil
 }
 
