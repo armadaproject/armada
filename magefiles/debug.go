@@ -9,7 +9,7 @@ import (
 	"github.com/magefile/mage/mg"
 )
 
-var dlvString string = "dlv debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_server cmd/%s/main.go -- "
+var dlvString string = "dlv debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_server cmd/%s/main.go --"
 var migrateString string = "go run ./cmd/%s/main.go"
 var imageName string = "go-delve"
 
@@ -33,27 +33,25 @@ func CreateDelveCompose() error {
 	}
 
 	var binaryName string
+	var replaceName string
 
 	lines := strings.Split(string(data), "\n")
 	for i, line := range lines {
-		// If line is 2 spaces out, we know it's a service
 		if strings.HasPrefix(line, "  ") && !strings.HasPrefix(line, "    ") {
 			binaryName = strings.Split(strings.TrimPrefix(line, "  "), ":")[0]
+			replaceName = binaryName
 			if binaryName == "server" {
 				binaryName = "armada"
 			}
 		}
-		if strings.Contains(line, "image: ${ARMADA_IMAGE") {
-			lines[i] = "    image: " + imageName
-		}
 		if strings.HasPrefix(line, "    command: ./") {
-			lines[i] = strings.Replace(line, "./"+binaryName, fmt.Sprintf(dlvString, binaryName), 1)
+			lines[i] = strings.Replace(line, "./"+replaceName, fmt.Sprintf(dlvString, binaryName), 1)
 		}
 		if strings.HasPrefix(line, "    entrypoint: ") && strings.Contains(line, "./lookout") {
 			// This time, replace the first instance of ./lookout with the migrate command
-			lines[i] = strings.Replace(line, "./"+binaryName, fmt.Sprintf(migrateString, binaryName), 1)
+			lines[i] = strings.Replace(line, "./"+replaceName, fmt.Sprintf(migrateString, binaryName), 1)
 			// Then, replace the second instance of ./lookout with the dlv command
-			lines[i] = strings.Replace(lines[i], "./"+binaryName, fmt.Sprintf(dlvString, binaryName), 1)
+			lines[i] = strings.Replace(lines[i], "./"+replaceName, fmt.Sprintf(dlvString, binaryName), 1)
 		}
 	}
 
@@ -69,6 +67,8 @@ func CreateDelveCompose() error {
 
 func Debug() error {
 	mg.Deps(CreateDelveCompose, mg.F(LocalDev, "debug"))
+
+	os.Setenv("ARMADA_IMAGE", imageName)
 
 	return dockerRun("compose", "-f", "docker-compose.dev.yaml", "up", "--build")
 }

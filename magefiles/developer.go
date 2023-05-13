@@ -29,7 +29,7 @@ func StartDependencies() error {
 
 // Stops the dependencies
 func StopDependencies() error {
-	servicesArg := append([]string{"compose", "down", "-v"}, services...)
+	servicesArg := append([]string{"compose", "stop"}, services...)
 	if err := dockerRun(servicesArg...); err != nil {
 		return err
 	}
@@ -49,7 +49,7 @@ func StartComponents() error {
 
 // Stops the Armada Components
 func StopComponents() error {
-	componentsArg := append([]string{"compose", "down", "-v"}, components...)
+	componentsArg := append([]string{"compose", "stop"}, components...)
 	if err := dockerRun(componentsArg...); err != nil {
 		return err
 	}

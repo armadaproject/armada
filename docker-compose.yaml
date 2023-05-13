@@ -4,6 +4,16 @@ networks:
   kind:
     external: true
 
+volumes:
+  # shared gopath volume for armada services
+  # with this, modules do not need to be redundantly downloaded
+  # and persist through restarts
+  gopath:
+  # shared gocache volume for armada services
+  # with this, build artifacts do not need to be redundantly downloaded
+  # and persist through restarts
+  go-cache:
+
 services:
   #
   # Infrastructure services.
@@ -51,13 +61,17 @@ services:
     ports:
       - 50051:50051
       - 8080:8080
+      - 4000:4000
     volumes:
       - ./developer/config/insecure-armada.yaml:/config/insecure-armada.yaml
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gopath:/go:rw"
     depends_on:
       - redis
       - postgres
       - pulsar
       - eventingester
+    working_dir: /app
     command: ./server --config /config/insecure-armada.yaml
 
   executor:
@@ -67,14 +81,18 @@ services:
       - kind
     ports:
       - 9001:9001
+      - 4001:4000
     depends_on:
       - server
     volumes:
       - ./.kube/internal:/.kube
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gopath:/go:rw"
     environment:
       - KUBECONFIG=/.kube/config
     env_file:
       - ./developer/env/executor.env
+    working_dir: /app
     command: ./executor
 
   binoculars:
@@ -84,12 +102,16 @@ services:
       - kind
     ports:
       - 8082:8082
+      - 4002:4000
     depends_on:
       - server
     volumes:
       - ./.kube/internal:/.kube
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gopath:/go:rw"
     environment:
       - KUBECONFIG=/.kube/config
+    working_dir: /app
     command: ./binoculars
 
   eventingester:
@@ -97,8 +119,14 @@ services:
     image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
+    ports:
+      - 4003:4000
+    volumes:
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gopath:/go:rw"
     depends_on:
       - redis
+    working_dir: /app
     command: ./eventingester
 
   lookout:
@@ -108,13 +136,17 @@ services:
       - kind
     ports:
       - "8089:8080"
+      - "4004:4000"
     depends_on:
       - server
       - lookoutingester
     volumes:
       - ./internal/lookout/ui/build:/app/internal/lookout/ui/build
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gopath:/go:rw"
     env_file:
       - ./developer/env/lookout.env
+    working_dir: /app
     entrypoint: sh -c "./lookout --migrateDatabase && ./lookout"
 
   lookoutv2:
@@ -124,9 +156,13 @@ services:
       - kind
     ports:
       - "10000:10000"
+      - "4005:4000"
     depends_on:
       - server
       - lookoutingesterv2
+    volumes:
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gopath:/go:rw"
     env_file:
       - ./developer/env/lookoutv2.env
     working_dir: "/app"
@@ -135,6 +171,11 @@ services:
   lookoutingester:
     container_name: lookoutingester
     image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    ports:
+      - 4006:4000
+    volumes:
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gopath:/go:rw"
     networks:
       - kind
     command: ./lookoutingester
@@ -142,23 +183,34 @@ services:
   lookoutingesterv2:
     container_name: lookoutingesterv2
     image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    ports:
+      - 4007:4000
+    volumes:
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gopath:/go:rw"
     networks:
       - kind
     env_file:
       - ./developer/env/lookoutv2.env
+    working_dir: /app
     command: ./lookoutingesterv2
 
   jobservice:
     container_name: jobservice
     image: ${ARMADA_IMAGE:-gresearch/armada-jobservice}:${ARMADA_IMAGE_TAG:-latest}
+    volumes:
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gopath:/go:rw"
     networks:
       - kind
     ports:
       - 60003:60003
+      - 4008:4000
     depends_on:
       - server
     env_file:
       - ./developer/env/jobservice.env
+    working_dir: /app
     command: ./jobservice run
 
   airflow:
@@ -171,4 +223,4 @@ services:
     volumes:
       - ".:/app:rw"
     working_dir: "/app"
-    entrypoint: sh -c "localdev/scripts/airflow-start.sh"
+    entrypoint: sh -c "developer/dependencies/airflow-start.sh"

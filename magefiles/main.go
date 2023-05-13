@@ -120,7 +120,7 @@ func LocalDev(arg string) error {
 	mg.Deps(BootstrapTools)
 	fmt.Println("Time to bootstrap tools:", time.Since(timeTaken))
 
-	validArgs := []string{"minimal", "full", "no-build"}
+	validArgs := []string{"minimal", "full", "no-build", "debug"}
 
 	if !strings.Contains(strings.Join(validArgs, ","), arg) {
 		return errors.Errorf("invalid argument: %s", arg)
@@ -154,7 +154,7 @@ func LocalDev(arg string) error {
 		mg.Deps(StartComponents)
 	}
 
-	fmt.Println("Run: `docker-compose logs -f` to see logs")
+	fmt.Println("Run: `docker compose logs -f` to see logs")
 	return nil
 }
 
