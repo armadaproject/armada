@@ -15,6 +15,7 @@ jobservice.db-shm
 jobservice.db-wal
 /armadactl
 junit.xml
+docker-compose.dev.yaml
 
 # Build artifacts
 dist

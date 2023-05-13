@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 )
@@ -18,8 +19,8 @@ func StartDependencies() error {
 	}
 
 	// append "up", "-d" to the beginning of services
-	servicesArg := append([]string{"up", "-d"}, services...)
-	if err := dockerComposeRun(servicesArg...); err != nil {
+	servicesArg := append([]string{"compose", "up", "-d"}, services...)
+	if err := dockerRun(servicesArg...); err != nil {
 		return err
 	}
 
@@ -28,8 +29,8 @@ func StartDependencies() error {
 
 // Stops the dependencies
 func StopDependencies() error {
-	servicesArg := append([]string{"down", "-v"}, services...)
-	if err := dockerComposeRun(servicesArg...); err != nil {
+	servicesArg := append([]string{"compose", "down", "-v"}, services...)
+	if err := dockerRun(servicesArg...); err != nil {
 		return err
 	}
 
@@ -38,8 +39,8 @@ func StopDependencies() error {
 
 // Starts the Armada Components
 func StartComponents() error {
-	componentsArg := append([]string{"up", "-d"}, components...)
-	if err := dockerComposeRun(componentsArg...); err != nil {
+	componentsArg := append([]string{"compose", "up", "-d"}, components...)
+	if err := dockerRun(componentsArg...); err != nil {
 		return err
 	}
 
@@ -48,8 +49,8 @@ func StartComponents() error {
 
 // Stops the Armada Components
 func StopComponents() error {
-	componentsArg := append([]string{"down", "-v"}, components...)
-	if err := dockerComposeRun(componentsArg...); err != nil {
+	componentsArg := append([]string{"compose", "down", "-v"}, components...)
+	if err := dockerRun(componentsArg...); err != nil {
 		return err
 	}
 
@@ -67,7 +68,7 @@ func CheckForPulsarRunning() error {
 		case <-timeout:
 			return fmt.Errorf("timed out waiting for Pulsar to start")
 		case <-tick:
-			out, err := dockerComposeOutput("logs", "pulsar")
+			out, err := dockerOutput("compose", "logs", "pulsar")
 			if err != nil {
 				return err
 			}
@@ -86,7 +87,7 @@ func CheckForPulsarRunning() error {
 // Ensure there is no error returned so that CI doesn't fail.
 func downloadDependencyImages() error {
 	timeTaken := time.Now()
-	err := dockerComposeRun("pull", "--ignore-pull-failures")
+	_, err := exec.Command(dockerBinary(), "compose", "pull", "--ignore-pull-failures").CombinedOutput()
 	if err != nil {
 		return nil
 	}

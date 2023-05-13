@@ -41,7 +41,6 @@ func CheckDeps() error {
 		check func() error
 	}{
 		{"docker", dockerCheck},
-		{"docker-compose", dockerComposeCheck},
 		{"go", goCheck},
 		{"kind", kindCheck},
 		{"kubectl", kubectlCheck},
@@ -134,7 +133,7 @@ func LocalDev(arg string) error {
 		fmt.Printf("Time to build, setup kind and download images: %s\n", time.Since(timeTaken))
 	case "full":
 		mg.Deps(mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"), Kind, downloadDependencyImages)
-	case "no-build":
+	case "no-build", "debug":
 		mg.Deps(Kind, downloadDependencyImages)
 	}
 
@@ -142,16 +141,16 @@ func LocalDev(arg string) error {
 	fmt.Println("Waiting for dependencies to start...")
 	mg.Deps(CheckForPulsarRunning)
 
-	if arg == "minimal" {
-		err := dockerComposeRun("up", "-d", "executor")
+	switch arg {
+	case "minimal":
+		err := dockerRun("compose", "up", "-d", "executor", "server")
 		if err != nil {
 			return err
 		}
-		err = dockerComposeRun("up", "-d", "server")
-		if err != nil {
-			return err
-		}
-	} else {
+	case "debug":
+		fmt.Println("Dependencies started, ending localdev...")
+		return nil
+	default:
 		mg.Deps(StartComponents)
 	}
 
