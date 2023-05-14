@@ -17,6 +17,7 @@ Please see these documents for more information about the project structure:
 ## Other Useful Developer Docs
 
 * [Armada API](./developer/api.md)
+* [Running Armada in an EC2 Instance](./developer/aws-ec2.md)
 
 ## Pre-requisites
 
@@ -28,17 +29,19 @@ Mage is a build tool that we use to build Armada. It is similar to Make, but wri
 
 ## LocalDev Setup
 
-LocalDev provides a reliable and extendable way to install Armada as a developer. It runs the follwing steps:
+LocalDev provides a reliable and extendable way to install Armada as a developer. It runs the following steps:
 
 * Bootstrap the required tools from [tools.yaml](../tools.yaml)
 * Create a local Kubernetes cluster using [kind](https://kind.sigs.k8s.io/)
 * Start the dependencies of Armada, including Pulsar, Redis, and Postgres.
 
-It has the following options to customise further steps:
+**Note: If you edit a proto file, you will also need to run `mage proto` to regenerate the Go code.**
+
+It has the following options to customize further steps:
 
 * `mage localdev full` - Installs all components of Armada, including the UI.
 * `mage localdev minimal` - Installs only the core components of Armada, the server, executor and eventingester.
-* `mage localdev no-build` - skips the build step. Assumes that a seperate image has been set from `ARMADA_IMAGE` and `ARMADA_TAG` environment variables or it has already been built.
+* `mage localdev no-build` - skips the build step. Assumes that a separate image has been set from `ARMADA_IMAGE` and `ARMADA_TAG` environment variables or it has already been built.
 
 `mage localdev minimal` is what is used to test the CI pipeline, and is the recommended way to test changes to the core components of Armada.
 
@@ -46,35 +49,85 @@ It has the following options to customise further steps:
 
 Running `mage testsuite` will run the full test suite against the localdev cluster. This is the recommended way to test changes to the core components of Armada.
 
-### Debugging
+You can also run the same commands yourself:
 
-The mage target `mage debug` supports multiple methods for debugging, and runs the appropreiate parts of localdev as required.
+```bash
+go run cmd/armadactl/main.go create queue e2e-test-queue
+
+# To allow Ingress tests to pass
+export ARMADA_EXECUTOR_INGRESS_URL="http://localhost"
+export ARMADA_EXECUTOR_INGRESS_PORT=5001
+
+go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
+```
+
+### Running the UI
+
+In LocalDev, the UI is pre-built and served from the lookout component. To access it, open http://localhost:8089 in your browser.
+
+If you wish to run the UI locally, see the [UI Developer Guide](./developer/ui.md).
+
+## Debugging
+
+The mage target `mage debug` supports multiple methods for debugging, and runs the appropriate parts of localdev as required.
 
 **NOTE: We are actively accepting contributions for more debugging guides!**
 
 It supports the following commands:
 
-* `mage debug vscode` - Runs the server and executor in debug mode, and provides a launch.json file for VsCode.
+* `mage debug vscode` - Runs the server and executor in debug mode, and provides a launch.json file for VSCode.
 * `mage debug delve` - Runs the server and executor in debug mode, and starts the Delve debugger.
 
-### VsCode Debugging
+### VSCode Debugging
 
-For using VsCode debugging, see the [VsCode Debugging Guide](./debugging/vscode.md).
+After running `mage debug vscode`, you can attach to the running processes using VSCode.
+The launch.json file can be found [Here](../developer/debug/launch.json)
+
+For using VSCode debugging, see the [VSCode Debugging Guide](https://code.visualstudio.com/docs/editor/debugging).
 
 ### Delve Debugging
 
-For using Delve debugging, see the [Delve Debugging Guide](./debugging/delve.md).
+After running `mage debug delve`, you can attach to the running processes using Delve.
+
+```bash
+$ docker compose exec -it server bash
+root@3b5e4089edbb:/app# dlv connect :4000
+Type 'help' for list of commands.
+(dlv) b (*SubmitServer).CreateQueue
+Breakpoint 3 set at 0x1fb3800 for github.com/armadaproject/armada/internal/armada/server.(*SubmitServer).CreateQueue() ./internal/armada/server/submit.go:137
+(dlv) c
+> github.com/armadaproject/armada/internal/armada/server.(*SubmitServer).CreateQueue() ./internal/armada/server/submit.go:140 (PC: 0x1fb38a0)
+   135: }
+   136:
+=> 137: func (server *SubmitServer) CreateQueue(ctx context.Context, request *api.Queue) (*types.Empty, error) {
+   138:         err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
+   139:         var ep *ErrUnauthorized
+   140:         if errors.As(err, &ep) {
+   141:                 return nil, status.Errorf(codes.PermissionDenied, "[CreateQueue] error creating queue %s: %s", request.Name, ep)
+   142:         } else if err != nil {
+   143:                 return nil, status.Errorf(codes.Unavailable, "[CreateQueue] error checking permissions: %s", err)
+   144:         }
+   145:
+(dlv)
+```
+
+All outputs of delve can be found in the `./delve` directory.
 
 External Debug Port Mappings:
 
 |Armada service     |Debug host    |
 |-------------------|--------------|
-|Server             |localhost:4000|
-|Lookout            |localhost:4001|
-|Executor           |localhost:4002|
-|Binoculars         |localhost:4003|
-|Jobservice         |localhost:4004|
-|Lookout-ingester   |localhost:4005|
-|Lookout-ingesterv2 |localhost:4006|
-|Event-ingester     |localhost:4007|
-|Lookoutv2          |localhost:4008|
+|server             |localhost:4000|
+|executor           |localhost:4001|
+|binoculars         |localhost:4002|
+|eventingester      |localhost:4003|
+|lookout            |localhost:4004|
+|lookoutv2          |localhost:4005|
+|lookoutingester    |localhost:4006|
+|lookoutingesterv2  |localhost:4007|
+|jobservice         |localhost:4008|
+
+## Finer-Grain Control
+
+If you would like to run the individual mage targets yourself, you can do so.
+See the [Manually Running LocalDev](./developer/manual-localdev.md) guide for more information.

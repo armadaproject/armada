@@ -12,7 +12,7 @@ Note: As of June 2022, not all Armada dependencies reliably build on a Mac M1 us
 - During selection of instance, Add a large volume to your ec2 instance.   100 gb of storage is recommended.
 - When selecting the instance, you will have the opportunity to choose a security group. You may need to make a new one. Be sure to add a rule allowing inbound communication on port 22 so that you can access your server via SSH. We recommend that you restrict access to the IP address from which you access the Internet, or a small CIDR block containing it.
 
-If you want to use your browser to access Armada Lookout UI or other web-based interfaces, you will also need to grant access to their respective ports. For added security, consider using an [SSH tunnel](https://www.ssh.com/academy/ssh/tunneling/example) from your local machine to your development server instead of opening those ports. You can add LocalForward to your ssh config: `LocalForward 4000 localhost:3000`  
+If you want to use your browser to access Armada Lookout UI or other web-based interfaces, you will also need to grant access to their respective ports. For added security, consider using an [SSH tunnel](https://www.ssh.com/academy/ssh/tunneling/example) from your local machine to your development server instead of opening those ports. You can add LocalForward to your ssh config: `LocalForward 4000 localhost:3000`
 
 - ### Install [Docker](https://www.cyberciti.biz/faq/how-to-install-docker-on-amazon-linux-2/)
 
@@ -222,4 +222,4 @@ sudo yum install aspnetcore-runtime-7.0
 <img src = "https://user-images.githubusercontent.com/101946115/224552173-6a4e15f8-1db0-453f-9a9f-683d2c53c2a1.png" />
 </p>
 
-- ### Simplest way to setup development environment is to run docs/dev/setup.sh
+- ### Please see [Our Developer Docs](../developer.md) for more information on how to get started with the codebase.
