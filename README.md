@@ -36,16 +36,16 @@ Armada adheres to the CNCF [Code of Conduct](https://github.com/cncf/foundation/
 
 For an overview of the architecture and design of Armada, and instructions for submitting jobs, see:
 
-- [System overview](./docs/design.md)
+- [System overview](./docs/design/README.md)
 - [Components overview](./docs/design/relationships_diagram.md)
-- [Scheduler](./docs/scheduler.md)
-- [Architecture](./docs/architecture.md)
+- [Scheduler](./docs/design/scheduler.md)
+- [Architecture](./docs/design/architecture.md)
 - [User guide](./docs/user.md)
 - [Quickstart](./docs/quickstart/index.md)
 
 For a full developer guide, see:
 
-- [Development guide](./docs/developmer.md)
+- [Development guide](./docs/developer.md)
 
 For API reference, see:
 - [API Documentation](./docs/developer/api.md)

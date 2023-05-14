@@ -1,3 +1,3 @@
 # Developer Docs
 
-Please refer to the [developer documentation](./docs/d
+Please refer to the [developer documentation](../docs/developer.md)
