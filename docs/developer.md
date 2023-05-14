@@ -4,13 +4,13 @@
 
 This document is intended for developers who want to contribute to the project. It contains information about the project structure, how to build the project, and how to run the tests.
 
-## Project Structure
+## Design Docs
 
-Please see these documents for more information about the project structure:
+Please see these documents for more information about Armadas Design:
 
 * [Armada Components Diagram](./design/relationships_diagram.md)
 * [Armada Architecture](./design/architecture.md)
-* [Armada Design](./design/design.md)
+* [Armada Design](./design/index.md)
 * [How Priority Functions](./design/priority.md)
 * [Armada Scheduler Design](./design/scheduler.md)
 
