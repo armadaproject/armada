@@ -9,9 +9,11 @@ import (
 	"github.com/magefile/mage/mg"
 )
 
-var dlvString string = "dlv debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_server cmd/%s/main.go --"
-var migrateString string = "go run ./cmd/%s/main.go"
-var imageName string = "go-delve"
+var (
+	dlvString     string = "dlv debug --listen=:4000 --headless=true --log=true --accept-multiclient --api-version=2 --continue --output __debug_server cmd/%s/main.go --"
+	migrateString string = "go run ./cmd/%s/main.go"
+	imageName     string = "go-delve"
+)
 
 func createDelveImage() error {
 	dockerFile := "./developer/debug/Dockerfile"
@@ -90,7 +92,6 @@ func CreateDelveCompose() error {
 }
 
 func Debug(arg string) error {
-
 	switch arg {
 	case "delve":
 		mg.Deps(CreateDelveCompose, mg.F(LocalDev, "debug"))
@@ -113,18 +114,31 @@ func Debug(arg string) error {
 		mg.Deps(StopComponents)
 		mg.Deps(mg.F(LocalDev, "debug"))
 
-		fmt.Println("Please now see XXXX to run.")
+		fmt.Println("\nPlease now use the following launch.json configuration in VSCode:")
+		fmt.Println("./developer/debug/launch.json")
+		_, err := os.Stat("./.vscode/launch.json")
+		if os.IsNotExist(err) {
+			fmt.Println("\nCreating launch.json file automatically...")
+			err = os.MkdirAll("./.vscode", os.ModePerm)
+			if err != nil {
+				return err
+			}
+			bytes, err := os.ReadFile("./developer/debug/launch.json")
+			if err != nil {
+				return err
+			}
+			err = os.WriteFile("./.vscode/launch.json", bytes, os.ModePerm)
+			if err != nil {
+				return err
+			}
+		}
+
 	case "local":
 		mg.Deps(StopComponents)
 		mg.Deps(mg.F(LocalDev, "debug"))
 
-		// Print out the contents of ./developer/env/localhost_access.env
-		fmt.Println("Here are the Environment Variables for Local Access:\n ")
-		data, err := ioutil.ReadFile("./developer/env/localhost_access.env")
-		if err != nil {
-			return err
-		}
-		fmt.Println(string(data))
+		fmt.Println("\nPlease see the developer docs for more info: ./docs/developer.md")
+
 	default:
 		fmt.Println("Invalid argument. Please use 'delve' to debug.")
 	}
