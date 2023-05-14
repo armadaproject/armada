@@ -127,6 +127,13 @@ External Debug Port Mappings:
 |lookoutingesterv2  |localhost:4007|
 |jobservice         |localhost:4008|
 
+
+### Other Debugging Methods
+
+Run `mage debug local` to only spin up the dependencies of Armada, and then run the individual components yourself.
+
+For required enviromental variables, please see [The Enviromental Variables Guide](../developer/env/README.md).
+
 ## Finer-Grain Control
 
 If you would like to run the individual mage targets yourself, you can do so.

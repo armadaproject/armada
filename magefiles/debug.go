@@ -138,6 +138,7 @@ func Debug(arg string) error {
 		mg.Deps(mg.F(LocalDev, "debug"))
 
 		fmt.Println("\nPlease see the developer docs for more info: ./docs/developer.md")
+		fmt.Println("\n Also see ./developer/env/README.md for more info on the environment variables needed for running locally.")
 
 	default:
 		fmt.Println("Invalid argument. Please use 'delve' to debug.")
