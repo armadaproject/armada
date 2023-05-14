@@ -5,13 +5,7 @@ networks:
     external: true
 
 volumes:
-  # shared gopath volume for armada services
-  # with this, modules do not need to be redundantly downloaded
-  # and persist through restarts
-  gopath:
-  # shared gocache volume for armada services
-  # with this, build artifacts do not need to be redundantly downloaded
-  # and persist through restarts
+  gomod-cache:
   go-cache:
 
 services:
@@ -65,11 +59,8 @@ services:
     volumes:
       - ./developer/config/insecure-armada.yaml:/config/insecure-armada.yaml
       - "go-cache:/root/.cache/go-build:rw"
-      - "gopath:/go:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
     depends_on:
-      - redis
-      - postgres
-      - pulsar
       - eventingester
     working_dir: /app
     env_file:
@@ -89,7 +80,7 @@ services:
     volumes:
       - ./.kube/internal:/.kube
       - "go-cache:/root/.cache/go-build:rw"
-      - "gopath:/go:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
     environment:
       - KUBECONFIG=/.kube/config
     env_file:
@@ -110,7 +101,7 @@ services:
     volumes:
       - ./.kube/internal:/.kube
       - "go-cache:/root/.cache/go-build:rw"
-      - "gopath:/go:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
     environment:
       - KUBECONFIG=/.kube/config
     working_dir: /app
@@ -125,9 +116,7 @@ services:
       - 4003:4000
     volumes:
       - "go-cache:/root/.cache/go-build:rw"
-      - "gopath:/go:rw"
-    depends_on:
-      - redis
+      - "gomod-cache:/go/pkg/mod:rw"
     working_dir: /app
     command: ./eventingester
 
@@ -145,7 +134,7 @@ services:
     volumes:
       - ./internal/lookout/ui/build:/app/internal/lookout/ui/build
       - "go-cache:/root/.cache/go-build:rw"
-      - "gopath:/go:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
     env_file:
       - ./developer/env/lookout.env
     working_dir: /app
@@ -164,7 +153,7 @@ services:
       - lookoutingesterv2
     volumes:
       - "go-cache:/root/.cache/go-build:rw"
-      - "gopath:/go:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
     env_file:
       - ./developer/env/lookoutv2.env
     working_dir: "/app"
@@ -177,7 +166,7 @@ services:
       - 4006:4000
     volumes:
       - "go-cache:/root/.cache/go-build:rw"
-      - "gopath:/go:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
     networks:
       - kind
     command: ./lookoutingester
@@ -189,7 +178,7 @@ services:
       - 4007:4000
     volumes:
       - "go-cache:/root/.cache/go-build:rw"
-      - "gopath:/go:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
     networks:
       - kind
     env_file:
@@ -202,7 +191,7 @@ services:
     image: ${ARMADA_IMAGE:-gresearch/armada-jobservice}:${ARMADA_IMAGE_TAG:-latest}
     volumes:
       - "go-cache:/root/.cache/go-build:rw"
-      - "gopath:/go:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
     networks:
       - kind
     ports:

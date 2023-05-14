@@ -12,6 +12,13 @@ var services = []string{"pulsar", "postgres", "redis"}
 
 var components = []string{"server", "lookout", "lookoutingester", "lookoutv2", "lookoutingesterv2", "executor", "binoculars", "eventingester", "jobservice"}
 
+func getComposeFile() string {
+	if os.Getenv("COMPOSE_FILE") != "" {
+		return os.Getenv("COMPOSE_FILE")
+	}
+	return "docker-compose.yaml"
+}
+
 // Dependencies include pulsar, postgres (v1 and v2) as well as redis
 func StartDependencies() error {
 	if onArm() {
@@ -39,7 +46,9 @@ func StopDependencies() error {
 
 // Starts the Armada Components
 func StartComponents() error {
-	componentsArg := append([]string{"compose", "up", "-d"}, components...)
+	composeFile := getComposeFile()
+
+	componentsArg := append([]string{"compose", "-f", composeFile, "up", "-d"}, components...)
 	if err := dockerRun(componentsArg...); err != nil {
 		return err
 	}
@@ -49,7 +58,9 @@ func StartComponents() error {
 
 // Stops the Armada Components
 func StopComponents() error {
-	componentsArg := append([]string{"compose", "stop"}, components...)
+	composeFile := getComposeFile()
+
+	componentsArg := append([]string{"compose", "-f", composeFile, "stop"}, components...)
 	if err := dockerRun(componentsArg...); err != nil {
 		return err
 	}

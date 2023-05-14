@@ -122,12 +122,6 @@ func LocalDev(arg string) error {
 	mg.Deps(BootstrapTools)
 	fmt.Println("Time to bootstrap tools:", time.Since(timeTaken))
 
-	validArgs := []string{"minimal", "full", "no-build", "debug"}
-
-	if !strings.Contains(strings.Join(validArgs, ","), arg) {
-		return errors.Errorf("invalid argument: %s", arg)
-	}
-
 	switch arg {
 	case "minimal":
 		timeTaken := time.Now()
@@ -137,6 +131,8 @@ func LocalDev(arg string) error {
 		mg.Deps(mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"), Kind, downloadDependencyImages)
 	case "no-build", "debug":
 		mg.Deps(Kind, downloadDependencyImages)
+	default:
+		return errors.Errorf("invalid argument: %s", arg)
 	}
 
 	mg.Deps(StartDependencies)

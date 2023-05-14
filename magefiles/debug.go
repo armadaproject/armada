@@ -32,26 +32,50 @@ func CreateDelveCompose() error {
 		return err
 	}
 
+	var folderName string
 	var binaryName string
-	var replaceName string
+	var newService bool = false
 
 	lines := strings.Split(string(data), "\n")
 	for i, line := range lines {
+
+		// Ensures that the binary name is correct
 		if strings.HasPrefix(line, "  ") && !strings.HasPrefix(line, "    ") {
-			binaryName = strings.Split(strings.TrimPrefix(line, "  "), ":")[0]
-			replaceName = binaryName
-			if binaryName == "server" {
-				binaryName = "armada"
+			folderName = strings.Split(strings.TrimPrefix(line, "  "), ":")[0]
+			binaryName = folderName
+			// Deal with the edge case that the server binary
+			// Has a different config name
+			if folderName == "server" {
+				folderName = "armada"
 			}
+			newService = true
 		}
+
+		// Correctly inserts the delve command into the docker-compose file
 		if strings.HasPrefix(line, "    command: ./") {
-			lines[i] = strings.Replace(line, "./"+replaceName, fmt.Sprintf(dlvString, binaryName), 1)
+			lines[i] = strings.Replace(line, "./"+binaryName, fmt.Sprintf(dlvString, folderName), 1)
+			// Add quotes around the command
+			lines[i] = strings.Replace(lines[i], "command: ", "command: \"'", 1)
+			lines[i] = lines[i] + "'\""
+			// Add Delve output file.
+			lines[i] = strings.Replace(lines[i], "__debug_server", fmt.Sprintf("./delve/__debug_%s", folderName), 1)
 		}
+
+		// Inserts the delve command for the lookout services
+		// They have an extra migration step that doesn't need delve.
 		if strings.HasPrefix(line, "    entrypoint: ") && strings.Contains(line, "./lookout") {
 			// This time, replace the first instance of ./lookout with the migrate command
-			lines[i] = strings.Replace(line, "./"+replaceName, fmt.Sprintf(migrateString, binaryName), 1)
+			lines[i] = strings.Replace(line, "./"+binaryName, fmt.Sprintf(migrateString, folderName), 1)
 			// Then, replace the second instance of ./lookout with the dlv command
-			lines[i] = strings.Replace(lines[i], "./"+replaceName, fmt.Sprintf(dlvString, binaryName), 1)
+			lines[i] = strings.Replace(lines[i], "./"+binaryName, fmt.Sprintf(dlvString, folderName), 1)
+			// Add Delve output file.
+			lines[i] = strings.Replace(lines[i], "__debug_server", fmt.Sprintf("./delve/__debug_%s", folderName), 1)
+		}
+
+		// Add a new volume "./:/app" to the service
+		if newService && strings.HasPrefix(line, "    volumes:") {
+			lines[i] = lines[i] + "\n      - ./:/app:rw"
+			newService = false
 		}
 	}
 
@@ -65,10 +89,45 @@ func CreateDelveCompose() error {
 	return nil
 }
 
-func Debug() error {
-	mg.Deps(CreateDelveCompose, mg.F(LocalDev, "debug"))
+func Debug(arg string) error {
 
-	os.Setenv("ARMADA_IMAGE", imageName)
+	switch arg {
+	case "delve":
+		mg.Deps(CreateDelveCompose, mg.F(LocalDev, "debug"))
 
-	return dockerRun("compose", "-f", "docker-compose.dev.yaml", "up", "--build")
+		err := os.MkdirAll("./delve", os.ModePerm)
+		if err != nil {
+			return err
+		}
+
+		os.Setenv("ARMADA_IMAGE", imageName)
+		os.Setenv("COMPOSE_FILE", "docker-compose.dev.yaml")
+
+		err = StartComponents()
+		if err != nil {
+			return err
+		}
+
+		fmt.Println("Please give up to 5 minutes for compilation.")
+	case "vscode":
+		mg.Deps(StopComponents)
+		mg.Deps(mg.F(LocalDev, "debug"))
+
+		fmt.Println("Please now see XXXX to run.")
+	case "local":
+		mg.Deps(StopComponents)
+		mg.Deps(mg.F(LocalDev, "debug"))
+
+		// Print out the contents of ./developer/env/localhost_access.env
+		fmt.Println("Here are the Environment Variables for Local Access:\n ")
+		data, err := ioutil.ReadFile("./developer/env/localhost_access.env")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(data))
+	default:
+		fmt.Println("Invalid argument. Please use 'delve' to debug.")
+	}
+
+	return nil
 }
