@@ -264,7 +264,6 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaeve
 	if event.Reason != "" {
 		reason = &event.Reason
 	}
-	fmt.Println("HIT", reason, event.Reason)
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:                     jobId,
 		State:                     pointer.Int32(int32(lookout.JobCancelledOrdinal)),
