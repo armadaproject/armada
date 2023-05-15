@@ -9,20 +9,20 @@ export interface SidebarTabJobDetailsProps {
 }
 
 export const SidebarTabJobDetails = ({ job }: SidebarTabJobDetailsProps) => {
+  const details = [
+    { key: "Queue", value: job.queue },
+    { key: "Job Set", value: job.jobSet },
+    { key: "Owner", value: job.owner },
+    { key: "Priority", value: job.priority.toString() },
+    { key: "Run Count", value: job.runs.length.toString() },
+  ]
+  if (job.cancelReason && job.cancelReason !== "") {
+    details.push({ key: "Cancel Reason", value: job.cancelReason })
+  }
   return (
     <>
       <Typography variant="subtitle2">Info:</Typography>
-      <KeyValuePairTable
-        data={[
-          { key: "Queue", value: job.queue },
-          { key: "Job Set", value: job.jobSet },
-          { key: "Owner", value: job.owner },
-          { key: "Priority", value: job.priority.toString() },
-          { key: "Run Count", value: job.runs.length.toString() },
-          { key: "Cancel Reason", value: job.cancelReason || "" },
-        ]}
-      />
-
+      <KeyValuePairTable data={details} />
       <Typography variant="subtitle2">Requests:</Typography>
       <KeyValuePairTable
         data={[

@@ -86,6 +86,65 @@ func TestMultiple(t *testing.T) {
 	assert.Equal(t, expectedSequence.Events, es.Events)
 }
 
+// Cancellation reason should not be in event storage
+func TestCancelled(t *testing.T) {
+	msg := NewMsg(&armadaevents.EventSequence_Event{
+		Created: &baseTime,
+		Event: &armadaevents.EventSequence_Event_CancelJob{
+			CancelJob: &armadaevents.CancelJob{
+				JobId:  jobIdProto,
+				Reason: "some reason 1",
+			},
+		},
+	}, &armadaevents.EventSequence_Event{
+		Created: &baseTime,
+		Event: &armadaevents.EventSequence_Event_CancelJobSet{
+			CancelJobSet: &armadaevents.CancelJobSet{
+				Reason: "some reason 2",
+			},
+		},
+	}, &armadaevents.EventSequence_Event{
+		Created: &baseTime,
+		Event: &armadaevents.EventSequence_Event_CancelledJob{
+			CancelledJob: &armadaevents.CancelledJob{
+				JobId:  jobIdProto,
+				Reason: "some reason 3",
+			},
+		},
+	})
+	converter := simpleEventConverter()
+	batchUpdate := converter.Convert(context.Background(), msg)
+	assert.Equal(t, 1, len(batchUpdate.Events))
+	event := batchUpdate.Events[0]
+	es, err := extractEventSeq(event.Event)
+	assert.NoError(t, err)
+	expectedEvents := []*armadaevents.EventSequence_Event{
+		{
+			Created: &baseTime,
+			Event: &armadaevents.EventSequence_Event_CancelJob{
+				CancelJob: &armadaevents.CancelJob{
+					JobId: jobIdProto,
+				},
+			},
+		},
+		{
+			Created: &baseTime,
+			Event: &armadaevents.EventSequence_Event_CancelJobSet{
+				CancelJobSet: &armadaevents.CancelJobSet{},
+			},
+		},
+		{
+			Created: &baseTime,
+			Event: &armadaevents.EventSequence_Event_CancelledJob{
+				CancelledJob: &armadaevents.CancelledJob{
+					JobId: jobIdProto,
+				},
+			},
+		},
+	}
+	assert.Equal(t, expectedEvents, es.Events)
+}
+
 func NewMsg(event ...*armadaevents.EventSequence_Event) *ingest.EventSequencesWithIds {
 	seq := &armadaevents.EventSequence{
 		Queue:      queue,

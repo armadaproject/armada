@@ -125,7 +125,6 @@ func FromInternalCancel(userId string, queueName string, jobSetName string, time
 					Queue:     queueName,
 					Created:   time,
 					Requestor: userId,
-					Reason:    e.Reason,
 				},
 			},
 		},
