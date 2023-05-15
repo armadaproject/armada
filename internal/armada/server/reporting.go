@@ -245,7 +245,6 @@ func reportJobsCancelled(repository repository.EventStore, requestorName string,
 	now := time.Now()
 	for _, payload := range cancelledJobsPayloads {
 		job := payload.job
-		fmt.Println("HIT", payload)
 		event, err := api.Wrap(&api.JobCancelledEvent{
 			JobId:     job.Id,
 			Queue:     job.Queue,
