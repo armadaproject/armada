@@ -48,6 +48,8 @@ func onArm() bool {
 	return runtime.GOARCH == "arm64"
 }
 
+// Validates that arg is one of validArgs.
+// Returns nil if arg is valid, error otherwise.
 func validateArg(arg string, validArgs []string) error {
 	valid := false
 	for _, validArg := range validArgs {
