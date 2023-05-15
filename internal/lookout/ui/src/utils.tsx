@@ -1,3 +1,5 @@
+import { Location, NavigateFunction, Params, useLocation, useNavigate, useParams } from "react-router-dom"
+
 interface UIConfig {
   armadaApiBaseUrl: string
   userAnnotationPrefix: string
@@ -58,6 +60,12 @@ export async function getUIConfig(): Promise<UIConfig> {
 
 export function inverseMap<K, V>(map: Map<K, V>): Map<V, K> {
   return new Map(Array.from(map.entries()).map(([k, v]) => [v, k]))
+}
+
+export function inverseRecord<K extends string | number | symbol, V extends string | number | symbol>(
+  record: Record<K, V>,
+): Record<V, K> {
+  return Object.fromEntries(Object.entries(record).map(([k, v]) => [v, k]))
 }
 
 export function debounced(fn: (...args: any[]) => Promise<any>, delay: number): (...args: any[]) => Promise<any> {
@@ -190,4 +198,32 @@ export function pl(itemsOrCount: unknown[] | number, singularForm: string, plura
 
 export async function waitMillis(millisToWait: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, millisToWait))
+}
+
+export function removeUndefined(obj: Record<string, any>) {
+  return Object.keys(obj).forEach((key) => {
+    if (obj[key] === undefined) {
+      delete obj[key]
+    }
+  })
+}
+
+export interface Router {
+  location: Location
+  navigate: NavigateFunction
+  params: Readonly<Params>
+}
+
+export interface PropsWithRouter {
+  router: Router
+}
+
+export function withRouter<T extends PropsWithRouter>(Component: React.FC<T>): React.FC<Omit<T, "router">> {
+  function ComponentWithRouterProp(props: T) {
+    const location = useLocation()
+    const navigate = useNavigate()
+    const params = useParams()
+    return <Component {...props} router={{ location, navigate, params }} />
+  }
+  return ComponentWithRouterProp as React.FC<Omit<T, "router">>
 }

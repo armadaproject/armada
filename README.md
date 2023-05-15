@@ -1,7 +1,9 @@
+<div align="center">
 <img src="./logo.svg" width="200"/>
 
-[![CircleCI](https://circleci.com/gh/helm/helm.svg?style=shield)](https://circleci.com/gh/armadaproject/armada)
-[![Go Report Card](https://goreportcard.com/badge/github.com/armadaproject/armada)](https://goreportcard.com/report/github.com/armadaproject/armada)
+<p><a href="https://circleci.com/gh/armadaproject/armada"><img src="https://circleci.com/gh/helm/helm.svg?style=shield" alt="CircleCI"></a>
+<a href="https://goreportcard.com/report/github.com/armadaproject/armada"><img src="https://goreportcard.com/badge/github.com/armadaproject/armada" alt="Go Report Card"></a></p>
+</div>
 
 # Armada
 
@@ -35,6 +37,8 @@ Armada adheres to the CNCF [Code of Conduct](https://github.com/cncf/foundation/
 For an overview of the architecture and design of Armada, and instructions for submitting jobs, see:
 
 - [System overview](./docs/design.md)
+- [Scheduler](./docs/scheduler.md)
+- [Architecture](./docs/architecture.md)
 - [User guide](./docs/user.md)
 - [Quickstart](./docs/quickstart/index.md)
 

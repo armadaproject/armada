@@ -4,7 +4,7 @@ scheduler:
   replicas: 1
   image:
     repository: gresearchdev/armada-scheduler
-    tag: LATEST
+    tag: 0.0.0-latest
   resources:
     limits:
       memory: 1Gi
@@ -40,7 +40,7 @@ ingester:
   replicas: 1
   image:
     repository: gresearchdev/armada-scheduler-ingester
-    tag: LATEST
+    tag: 0.0.0-latest
   resources:
     limits:
       memory: 1Gi
@@ -76,3 +76,4 @@ pruner:
     timeout: 5m
     batchsize: 10000
     expireAfter: 2h
+  applicationConfig: {}

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { Accordion, AccordionSummary, Typography, AccordionDetails, CircularProgress } from "@material-ui/core"
 import { ExpandMore } from "@mui/icons-material"
@@ -12,17 +12,17 @@ import { CodeBlock } from "./CodeBlock"
 import { KeyValuePairTable } from "./KeyValuePairTable"
 import styles from "./SidebarTabJobRuns.module.css"
 
-export interface SidebarTabJobRuns {
+export interface SidebarTabJobRunsProps {
   job: Job
   runErrorService: IGetRunErrorService
 }
 
 type LoadState = "Idle" | "Loading"
 
-export const SidebarTabJobRuns = ({ job, runErrorService }: SidebarTabJobRuns) => {
+export const SidebarTabJobRuns = ({ job, runErrorService }: SidebarTabJobRunsProps) => {
   const mounted = useRef(false)
   const openSnackbar = useCustomSnackbar()
-  const runsNewestFirst = [...job.runs].reverse()
+  const runsNewestFirst = useMemo(() => [...job.runs].reverse(), [job])
   const [runErrorMap, setRunErrorMap] = useState<Map<string, string>>(new Map<string, string>())
   const [runErrorLoadingMap, setRunErrorLoadingMap] = useState<Map<string, LoadState>>(new Map<string, LoadState>())
 
@@ -78,10 +78,10 @@ export const SidebarTabJobRuns = ({ job, runErrorService }: SidebarTabJobRuns) =
   }, [job])
 
   return (
-    <>
-      {runsNewestFirst.map((run) => {
+    <div style={{ width: "100%", height: "100%" }}>
+      {runsNewestFirst.map((run, i) => {
         return (
-          <Accordion key={run.runId}>
+          <Accordion key={run.runId} defaultExpanded={i === 0}>
             <AccordionSummary expandIcon={<ExpandMore />} aria-controls="panel1a-content">
               <Typography>
                 {formatUtcDate(run.pending)} UTC ({formatJobRunState(run.jobRunState)})
@@ -118,6 +118,6 @@ export const SidebarTabJobRuns = ({ job, runErrorService }: SidebarTabJobRuns) =
         )
       })}
       {runsNewestFirst.length === 0 && <>This job has not run.</>}
-    </>
+    </div>
   )
 }

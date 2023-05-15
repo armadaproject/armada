@@ -26,14 +26,16 @@ import (
 
 // ExecutorApi is a gRPC service that exposes functionality required by the armada executors
 type ExecutorApi struct {
-	producer                 pulsar.Producer
-	jobRepository            database.JobRepository
-	executorRepository       database.ExecutorRepository
-	legacyExecutorRepository database.ExecutorRepository
-	allowedPriorities        []int32 // allowed priority classes
-	maxJobsPerCall           uint    // maximum number of jobs that will be leased in a single call
-	maxPulsarMessageSize     uint    // maximum sizer of pulsar messages produced
-	clock                    clock.Clock
+	producer                  pulsar.Producer
+	jobRepository             database.JobRepository
+	executorRepository        database.ExecutorRepository
+	legacyExecutorRepository  database.ExecutorRepository
+	allowedPriorities         []int32 // allowed priority classes
+	maxJobsPerCall            uint    // maximum number of jobs that will be leased in a single call
+	maxPulsarMessageSize      uint    // maximum sizer of pulsar messages produced
+	nodeIdLabel               string
+	priorityClassNameOverride *string
+	clock                     clock.Clock
 }
 
 func NewExecutorApi(producer pulsar.Producer,
@@ -42,6 +44,8 @@ func NewExecutorApi(producer pulsar.Producer,
 	legacyExecutorRepository database.ExecutorRepository,
 	allowedPriorities []int32,
 	maxJobsPerCall uint,
+	nodeIdLabel string,
+	priorityClassNameOverride *string,
 ) (*ExecutorApi, error) {
 	if len(allowedPriorities) == 0 {
 		return nil, errors.New("allowedPriorities cannot be empty")
@@ -49,16 +53,17 @@ func NewExecutorApi(producer pulsar.Producer,
 	if maxJobsPerCall == 0 {
 		return nil, errors.New("maxJobsPerCall cannot be 0")
 	}
-
 	return &ExecutorApi{
-		producer:                 producer,
-		jobRepository:            jobRepository,
-		executorRepository:       executorRepository,
-		legacyExecutorRepository: legacyExecutorRepository,
-		allowedPriorities:        allowedPriorities,
-		maxJobsPerCall:           maxJobsPerCall,
-		maxPulsarMessageSize:     1024 * 1024 * 2,
-		clock:                    clock.RealClock{},
+		producer:                  producer,
+		jobRepository:             jobRepository,
+		executorRepository:        executorRepository,
+		legacyExecutorRepository:  legacyExecutorRepository,
+		allowedPriorities:         allowedPriorities,
+		maxJobsPerCall:            maxJobsPerCall,
+		maxPulsarMessageSize:      1024 * 1024 * 2,
+		nodeIdLabel:               nodeIdLabel,
+		priorityClassNameOverride: priorityClassNameOverride,
+		clock:                     clock.RealClock{},
 	}, nil
 }
 
@@ -131,6 +136,10 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		if err != nil {
 			return err
 		}
+		if srv.priorityClassNameOverride != nil {
+			srv.setPriorityClassName(submitMsg, *srv.priorityClassNameOverride)
+		}
+		srv.addNodeSelector(submitMsg, lease.Node)
 
 		var groups []string
 		if len(lease.Groups) > 0 {
@@ -166,6 +175,48 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		return errors.WithStack(err)
 	}
 	return nil
+}
+
+func (srv *ExecutorApi) setPriorityClassName(job *armadaevents.SubmitJob, priorityClassName string) {
+	if job == nil {
+		return
+	}
+	if job.MainObject != nil {
+		switch typed := job.MainObject.Object.(type) {
+		case *armadaevents.KubernetesMainObject_PodSpec:
+			setPriorityClassName(typed.PodSpec, priorityClassName)
+		}
+	}
+}
+
+func (srv *ExecutorApi) addNodeSelector(job *armadaevents.SubmitJob, nodeId string) {
+	if job == nil || nodeId == "" {
+		return
+	}
+
+	if job.MainObject != nil {
+		switch typed := job.MainObject.Object.(type) {
+		case *armadaevents.KubernetesMainObject_PodSpec:
+			addNodeSelector(typed.PodSpec, srv.nodeIdLabel, nodeId)
+		}
+	}
+}
+
+func addNodeSelector(podSpec *armadaevents.PodSpecWithAvoidList, key string, value string) {
+	if podSpec == nil || podSpec.PodSpec == nil || key == "" || value == "" {
+		return
+	}
+	if podSpec.PodSpec.NodeSelector == nil {
+		podSpec.PodSpec.NodeSelector = make(map[string]string, 1)
+	}
+	podSpec.PodSpec.NodeSelector[key] = value
+}
+
+func setPriorityClassName(podSpec *armadaevents.PodSpecWithAvoidList, priorityClassName string) {
+	if podSpec == nil || podSpec.PodSpec == nil {
+		return
+	}
+	podSpec.PodSpec.PriorityClassName = priorityClassName
 }
 
 // ReportEvents publishes all events to pulsar. The events are compacted for more efficient publishing

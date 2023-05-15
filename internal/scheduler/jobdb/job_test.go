@@ -29,6 +29,8 @@ var baseJob = NewJob(
 	"test-queue",
 	2,
 	schedulingInfo,
+	true,
+	0,
 	false,
 	false,
 	false,
@@ -75,6 +77,12 @@ func TestJob_TestQueued(t *testing.T) {
 	newJob := baseJob.WithQueued(false)
 	assert.Equal(t, true, baseJob.Queued())
 	assert.Equal(t, false, newJob.Queued())
+}
+
+func TestJob_QueuedVersion(t *testing.T) {
+	newJob := baseJob.WithQueuedVersion(1)
+	assert.Equal(t, int32(0), baseJob.QueuedVersion())
+	assert.Equal(t, int32(1), newJob.QueuedVersion())
 }
 
 func TestJob_TestCancelRequested(t *testing.T) {
@@ -126,6 +134,7 @@ func TestJob_TestWithNewRun(t *testing.T) {
 	assert.NotNil(t, run)
 	assert.Equal(t, &JobRun{
 		id:       run.id,
+		jobId:    "test-job",
 		created:  run.created,
 		executor: "test-executor",
 		node:     "test-node",
@@ -216,6 +225,40 @@ func TestJob_TestNumReturned(t *testing.T) {
 	assert.Equal(t, uint(2), returned3.NumReturned())
 }
 
+func TestJob_TestNumAttempts(t *testing.T) {
+	attemptedRun := func() *JobRun {
+		return &JobRun{
+			id:           uuid.New(),
+			created:      baseRun.created,
+			returned:     true,
+			runAttempted: true,
+		}
+	}
+
+	nonAttemptedRun := func() *JobRun {
+		return &JobRun{
+			id:           uuid.New(),
+			created:      baseRun.created,
+			returned:     true,
+			runAttempted: false,
+		}
+	}
+	// initial job has no runs
+	assert.Equal(t, uint(0), baseJob.NumAttempts())
+
+	// one returned run
+	returned1 := baseJob.WithUpdatedRun(attemptedRun())
+	assert.Equal(t, uint(1), returned1.NumAttempts())
+
+	// still one returned run
+	returned2 := returned1.WithUpdatedRun(nonAttemptedRun())
+	assert.Equal(t, uint(1), returned2.NumAttempts())
+
+	// two returned runs
+	returned3 := returned2.WithUpdatedRun(attemptedRun())
+	assert.Equal(t, uint(2), returned3.NumAttempts())
+}
+
 func TestJob_TestRunsById(t *testing.T) {
 	runs := make([]*JobRun, 10)
 	job := baseJob
@@ -226,4 +269,57 @@ func TestJob_TestRunsById(t *testing.T) {
 	for i := 0; i < len(runs); i++ {
 		assert.Equal(t, runs[i], job.runsById[runs[i].id])
 	}
+}
+
+func TestJob_TestWithJobset(t *testing.T) {
+	newJob := baseJob.WithJobset("fish")
+	assert.Equal(t, "test-jobset", baseJob.Jobset())
+	assert.Equal(t, "fish", newJob.Jobset())
+}
+
+func TestJob_TestWithQueue(t *testing.T) {
+	newJob := baseJob.WithQueue("fish")
+	assert.Equal(t, "test-queue", baseJob.Queue())
+	assert.Equal(t, "fish", newJob.Queue())
+}
+
+func TestJob_TestWithCreated(t *testing.T) {
+	newJob := baseJob.WithCreated(456)
+	assert.Equal(t, int64(3), baseJob.Created())
+	assert.Equal(t, int64(456), newJob.Created())
+}
+
+func TestJob_TestWithJobSchedulingInfo(t *testing.T) {
+	newSchedInfo := &schedulerobjects.JobSchedulingInfo{
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						Annotations: map[string]string{
+							"fish": "chips",
+						},
+					},
+				},
+			},
+		},
+	}
+	newJob := baseJob.WithJobSchedulingInfo(newSchedInfo)
+	assert.Equal(t, schedulingInfo, baseJob.JobSchedulingInfo())
+	assert.Equal(t, newSchedInfo, newJob.JobSchedulingInfo())
+}
+
+func TestJobPriorityComparer(t *testing.T) {
+	job1 := &Job{
+		id:       "a",
+		priority: 10,
+		created:  5,
+	}
+
+	comparer := JobPriorityComparer{}
+
+	assert.Equal(t, 0, comparer.Compare(job1, job1))
+	assert.Equal(t, -1, comparer.Compare(job1, job1.WithPriority(9)))
+	assert.Equal(t, -1, comparer.Compare(job1, job1.WithCreated(6)))
+	assert.Equal(t, 1, comparer.Compare(job1, job1.WithPriority(11)))
+	assert.Equal(t, 1, comparer.Compare(job1, job1.WithCreated(4)))
 }

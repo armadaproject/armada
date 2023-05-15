@@ -1,11 +1,18 @@
-import { ColumnFiltersState, ExpandedStateList, Updater } from "@tanstack/react-table"
+import { ExpandedStateList, Updater } from "@tanstack/react-table"
 import _ from "lodash"
 import { JobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobGroup, JobOrder, Match } from "models/lookoutV2Models"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 
-import { ColumnId, getColumnMetadata, JobTableColumn } from "./jobsTableColumns"
+import { LookoutColumnFilter } from "../containers/lookoutV2/JobsTableContainer"
+import {
+  AnnotationColumnId,
+  ColumnId,
+  DEFAULT_COLUMN_MATCHES,
+  fromAnnotationColId,
+  isStandardColId,
+} from "./jobsTableColumns"
 import { findRowInData, RowId, RowIdParts, toRowId } from "./reactTableUtils"
 
 export interface PendingData {
@@ -40,26 +47,57 @@ export const pendingDataForAllVisibleData = (
   return [rootData].concat(expandedGroups)
 }
 
-export const convertRowPartsToFilters = (expandedRowIdParts: RowIdParts[]): JobFilter[] => {
-  return expandedRowIdParts.map(({ type, value }) => ({
-    field: type,
-    value,
-    match: Match.Exact,
-  }))
+export const matchForColumn = (columnId: string, columnMatches: Record<string, Match>) => {
+  let match: Match = Match.StartsWith // base case if undefined (annotations)
+  if (columnId in DEFAULT_COLUMN_MATCHES) {
+    match = DEFAULT_COLUMN_MATCHES[columnId]
+  }
+  if (columnId in columnMatches) {
+    match = columnMatches[columnId]
+  }
+  return match
 }
 
-export const convertColumnFiltersToFilters = (filters: ColumnFiltersState, columns: JobTableColumn[]): JobFilter[] => {
-  return filters.map(({ id, value }) => {
+export function getFiltersForRows(
+  filters: LookoutColumnFilter[],
+  columnMatches: Record<string, Match>,
+  expandedRowIdParts: RowIdParts[],
+): JobFilter[] {
+  const filterColumnsIndexes = new Map<string, number>()
+  const jobFilters = filters.map(({ id, value }, i) => {
     const isArray = _.isArray(value)
-    const columnInfo = columns.find((col) => col.id === id)
-    const metadata = columnInfo ? getColumnMetadata(columnInfo) : undefined
+    const isAnnotation = !isStandardColId(id)
+    let field = id
+    if (isAnnotation) {
+      field = fromAnnotationColId(id as AnnotationColumnId)
+    }
+    filterColumnsIndexes.set(field, i)
+    const match = matchForColumn(id, columnMatches)
     return {
-      isAnnotation: Boolean(metadata?.annotation),
-      field: metadata?.annotation?.annotationKey ?? id,
+      isAnnotation: isAnnotation,
+      field: field,
       value: isArray ? (value as string[]) : (value as string),
-      match: metadata?.defaultMatchType ?? (isArray ? Match.AnyOf : Match.StartsWith),
+      match: match,
     }
   })
+
+  // Overwrite for expanded groups
+  for (const rowIdParts of expandedRowIdParts) {
+    const filter = {
+      field: rowIdParts.type,
+      value: rowIdParts.value,
+      match: Match.Exact,
+      isAnnotation: false,
+    }
+    if (filterColumnsIndexes.has(rowIdParts.type)) {
+      const i = filterColumnsIndexes.get(rowIdParts.type) as number
+      jobFilters[i] = filter
+    } else {
+      jobFilters.push(filter)
+    }
+  }
+
+  return jobFilters
 }
 
 export interface FetchRowRequest {

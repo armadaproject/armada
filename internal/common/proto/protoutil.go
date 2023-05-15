@@ -20,13 +20,13 @@ func DecompressAndUnmarshall[T proto.Message](buf []byte, msg T, decompressor co
 	if err != nil {
 		return msg, err
 	}
-	return Unmarshall[T](decompressed, msg)
+	return Unmarshall(decompressed, msg)
 }
 
 // MustUnmarshall unmarshalls a proto message and panics if the unmarshall fails.  The main use case here is for unit tests.
 // Think carefully if you intend to use this elsewhere
 func MustUnmarshall[T proto.Message](buf []byte, msg T) T {
-	msg, err := Unmarshall[T](buf, msg)
+	msg, err := Unmarshall(buf, msg)
 	if err != nil {
 		panic(errors.Wrap(err, "Error unmarshalling object"))
 	}
@@ -36,7 +36,7 @@ func MustUnmarshall[T proto.Message](buf []byte, msg T) T {
 // MustDecompressAndUnmarshall first decompressed the message and then unmarshalls.  If either of these steps fail then it will panic.
 // The main use case here is for unit tests. Think carefully if you intend to use this elsewhere
 func MustDecompressAndUnmarshall[T proto.Message](buf []byte, msg T, decompressor compress.Decompressor) T {
-	msg, err := DecompressAndUnmarshall[T](buf, msg, decompressor)
+	msg, err := DecompressAndUnmarshall(buf, msg, decompressor)
 	if err != nil {
 		panic(errors.Wrap(err, "Error unmarshalling object"))
 	}

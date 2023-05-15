@@ -3,6 +3,7 @@ ARG OPENAPI_BUILD_IMAGE=openapitools/openapi-generator-cli:v5.4.0
 ARG BASE_IMAGE=alpine:3.17.0
 
 FROM ${OPENAPI_BUILD_IMAGE} AS OPENAPI
+
 COPY internal/lookout/ui /project/internal/lookout/ui
 COPY pkg/api/lookout/*.swagger.json /project/pkg/api/lookout/
 COPY pkg/api/*.swagger.json /project/pkg/api/
@@ -16,6 +17,9 @@ RUN yarn install --immutable
 RUN yarn run build
 
 FROM ${BASE_IMAGE}
+LABEL org.opencontainers.image.title=lookout
+LABEL org.opencontainers.image.description="Lookout"
+LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/lookout
 RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
 USER armada
 COPY --from=NODE /ui/build/ /app/internal/lookout/ui/build

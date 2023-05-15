@@ -4,20 +4,29 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/magefile/mage/mg"
 	"github.com/pkg/errors"
+	"sigs.k8s.io/yaml"
 )
 
-// install go tools
+// BootstrapTools installs all tools needed tobuild and release armada
+// For the list of tools this will install, see tools.yaml in the root directory
 func BootstrapTools() error {
 	mg.Deps(goCheck)
-	packages, err := goOutput("list", "-f", "{{range .Imports}}{{.}} {{end}}", "internal/tools/tools.go")
+	type ToolsList struct {
+		Tools []string
+	}
+
+	tools := &ToolsList{}
+	err := readYaml("tools.yaml", tools)
 	if err != nil {
 		return err
 	}
-	for _, p := range strings.Split(strings.TrimSpace(packages), " ") {
-		err := goRun("install", p)
+
+	for _, tool := range tools.Tools {
+		err := goRun("install", tool)
 		if err != nil {
 			return err
 		}
@@ -65,9 +74,11 @@ func Clean() {
 
 // setup kind and wait for it to be ready
 func Kind() {
+	timeTaken := time.Now()
 	mg.Deps(kindCheck)
 	mg.Deps(kindSetup)
 	mg.Deps(kindWaitUntilReady)
+	fmt.Println("Time to setup kind:", time.Since(timeTaken))
 }
 
 // teardown kind
@@ -93,20 +104,86 @@ func BootstrapProto() {
 	mg.Deps(protoInstallProtocArmadaPlugin, protoPrepareThirdPartyProtos)
 }
 
-// run integration test
-func CiIntegrationTests() {
-	mg.Deps(BootstrapTools)
-	mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind)
-	mg.Deps(ciRunTests)
-}
-
 func BuildDockers(arg string) error {
 	dockerIds := make([]string, 0)
+	timeTaken := time.Now()
 	for _, s := range strings.Split(arg, ",") {
 		dockerIds = append(dockerIds, strings.TrimSpace(s))
 	}
 	if err := goreleaserMinimalRelease(dockerIds...); err != nil {
 		return err
 	}
+	fmt.Println("Time to build dockers:", time.Since(timeTaken))
 	return nil
+}
+
+// Create a Local Armada Cluster
+func LocalDev(arg string) error {
+	timeTaken := time.Now()
+	mg.Deps(BootstrapTools)
+	fmt.Println("Time to bootstrap tools:", time.Since(timeTaken))
+
+	validArgs := []string{"minimal", "full", "no-build"}
+
+	if !strings.Contains(strings.Join(validArgs, ","), arg) {
+		return errors.Errorf("invalid argument: %s", arg)
+	}
+
+	switch arg {
+	case "minimal":
+		timeTaken := time.Now()
+		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)
+		fmt.Printf("Time to build, setup kind and download images: %s\n", time.Since(timeTaken))
+	case "full":
+		mg.Deps(mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"), Kind, downloadDependencyImages)
+	case "no-build":
+		mg.Deps(Kind, downloadDependencyImages)
+	}
+
+	mg.Deps(StartDependencies)
+	fmt.Println("Waiting for dependencies to start...")
+	mg.Deps(CheckForPulsarRunning)
+
+	if arg == "minimal" {
+		err := dockerComposeRun("up", "-d", "executor")
+		if err != nil {
+			return err
+		}
+		err = dockerComposeRun("up", "-d", "server")
+		if err != nil {
+			return err
+		}
+	} else {
+		mg.Deps(StartComponents)
+	}
+
+	fmt.Println("Run: `docker-compose logs -f` to see logs")
+	return nil
+}
+
+// Stop Local Armada Cluster
+func LocalDevStop() {
+	mg.Deps(StopComponents)
+	mg.Deps(StopDependencies)
+	mg.Deps(KindTeardown)
+}
+
+// Build the lookout UI from internal/lookout/ui
+func UI() error {
+	mg.Deps(yarnCheck)
+
+	mg.Deps(yarnInstall)
+	mg.Deps(yarnOpenAPI)
+	mg.Deps(yarnBuild)
+	return nil
+}
+
+// readYaml reads a yaml file and unmarshalls the result into out
+func readYaml(filename string, out interface{}) error {
+	bytes, err := os.ReadFile(filename)
+	if err != nil {
+		return err
+	}
+	err = yaml.Unmarshal(bytes, out)
+	return err
 }

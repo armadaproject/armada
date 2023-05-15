@@ -1594,6 +1594,7 @@ func createJobRequestItems(numberOfJobs int) []*api.JobSubmitRequestItem {
 						},
 					},
 				},
+				NodeSelector: make(map[string]string),
 			}},
 			Priority: 0,
 		}
@@ -1614,7 +1615,7 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 	// using real redis instance as miniredis does not support streams
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 
-	jobRepo := repository.NewRedisJobRepository(client, configuration.DatabaseRetentionPolicy{JobRetentionDuration: time.Hour})
+	jobRepo := repository.NewRedisJobRepository(client)
 	queueRepo := repository.NewRedisQueueRepository(client)
 	schedulingInfoRepository := repository.NewRedisSchedulingInfoRepository(client)
 	eventStore := &repository.TestEventStore{}
@@ -1635,7 +1636,6 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 		},
 		MaxPodSpecSizeBytes: 65535,
 		Preemption: configuration.PreemptionConfig{
-			Enabled:              true,
 			DefaultPriorityClass: "high",
 			PriorityClasses:      map[string]configuration.PriorityClass{"high": {0, false, nil}},
 		},

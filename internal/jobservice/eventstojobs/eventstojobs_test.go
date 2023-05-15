@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/armadaproject/armada/internal/jobservice/events"
 	"github.com/armadaproject/armada/internal/jobservice/eventstojobs"
@@ -13,11 +14,51 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
+type MockEventClient struct {
+	eventStreamMessage *api.EventStreamMessage
+	err                error
+}
+
+func (m MockEventClient) Recv() (*api.EventStreamMessage, error) {
+	msg := m.eventStreamMessage
+	if msg == nil {
+		msg = &api.EventStreamMessage{
+			Id:      "msgID",
+			Message: &api.EventMessage{},
+		}
+	}
+	return msg, m.err
+}
+
+func (m MockEventClient) CloseSend() error {
+	return nil
+}
+
+func (m MockEventClient) Context() context.Context {
+	return context.Background()
+}
+
+func (m MockEventClient) Header() (metadata.MD, error) {
+	return metadata.MD{}, nil
+}
+
+func (m MockEventClient) Trailer() metadata.MD {
+	return metadata.MD{}
+}
+
+func (m MockEventClient) SendMsg(msg interface{}) error {
+	return nil
+}
+
+func (m MockEventClient) RecvMsg(msg interface{}) error {
+	return nil
+}
+
 func Test_SubscribeToJobSetId(t *testing.T) {
 	tests := []struct {
 		name                 string
-		jobEventMessageFn    func(context.Context, *api.JobSetRequest) (*api.EventStreamMessage, error)
-		isJobSetSubscribedFn func(string, string) bool
+		jobEventMessageFn    func(context.Context, *api.JobSetRequest) (api.Event_GetJobSetEventsClient, error)
+		isJobSetSubscribedFn func(context.Context, string, string) (bool, string, error)
 		ttlSecs              int64
 		wantErr              bool
 		wantSubscriptionErr  bool
@@ -25,22 +66,22 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 		{
 			name:    "it exits with error after expiration even if messages are received",
 			ttlSecs: int64(1),
-			jobEventMessageFn: func(context.Context, *api.JobSetRequest) (*api.EventStreamMessage, error) {
-				return &api.EventStreamMessage{Message: &api.EventMessage{}}, nil
+			jobEventMessageFn: func(context.Context, *api.JobSetRequest) (api.Event_GetJobSetEventsClient, error) {
+				return MockEventClient{}, nil
 			},
-			isJobSetSubscribedFn: func(string, string) bool {
-				return true
+			isJobSetSubscribedFn: func(context.Context, string, string) (bool, string, error) {
+				return true, "", nil
 			},
 			wantErr: true,
 		},
 		{
 			name:    "it exits with error if client errors and sets subscription error",
 			ttlSecs: int64(1),
-			jobEventMessageFn: func(context.Context, *api.JobSetRequest) (*api.EventStreamMessage, error) {
-				return &api.EventStreamMessage{Message: &api.EventMessage{}}, errors.New("some error")
+			jobEventMessageFn: func(context.Context, *api.JobSetRequest) (api.Event_GetJobSetEventsClient, error) {
+				return MockEventClient{err: errors.New("some error")}, nil
 			},
-			isJobSetSubscribedFn: func(string, string) bool {
-				return true
+			isJobSetSubscribedFn: func(context.Context, string, string) (bool, string, error) {
+				return true, "", nil
 			},
 			wantErr:             true,
 			wantSubscriptionErr: true,
@@ -48,11 +89,11 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 		{
 			name:    "it exits without error when job unsubscribes",
 			ttlSecs: int64(1),
-			jobEventMessageFn: func(context.Context, *api.JobSetRequest) (*api.EventStreamMessage, error) {
-				return &api.EventStreamMessage{Message: &api.EventMessage{}}, nil
+			jobEventMessageFn: func(context.Context, *api.JobSetRequest) (api.Event_GetJobSetEventsClient, error) {
+				return MockEventClient{}, nil
 			},
-			isJobSetSubscribedFn: func(string, string) bool {
-				return false
+			isJobSetSubscribedFn: func(context.Context, string, string) (bool, string, error) {
+				return false, "", nil
 			},
 			wantErr: false,
 		},
@@ -66,20 +107,20 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 			}
 
 			mockJobRepo := repository.JobTableUpdaterMock{
-				IsJobSetSubscribedFunc:     tt.isJobSetSubscribedFn,
-				SubscribeJobSetFunc:        func(string, string) {},
-				ClearSubscriptionErrorFunc: func(string, string) {},
-				SetSubscriptionErrorFunc:   func(string, string, string) {},
+				IsJobSetSubscribedFunc:                    tt.isJobSetSubscribedFn,
+				SubscribeJobSetFunc:                       func(context.Context, string, string, string) error { return nil },
+				AddMessageIdAndClearSubscriptionErrorFunc: func(context.Context, string, string, string) error { return nil },
+				SetSubscriptionErrorFunc:                  func(context.Context, string, string, string, string) error { return nil },
+				UnsubscribeJobSetFunc:                     func(context.Context, string, string) (int64, error) { return 0, nil },
 			}
 
 			service := eventstojobs.NewEventsToJobService(
 				"somestring",
 				"someJobSetId",
-				"someJobId",
 				&mockJobEventReader,
 				&mockJobRepo,
 			)
-			result := service.SubscribeToJobSetId(context.Background(), tt.ttlSecs)
+			result := service.SubscribeToJobSetId(context.Background(), tt.ttlSecs, "")
 			if tt.wantErr {
 				assert.Error(t, result)
 			} else {
@@ -87,10 +128,10 @@ func Test_SubscribeToJobSetId(t *testing.T) {
 			}
 			if tt.wantSubscriptionErr {
 				assert.True(t, len(mockJobRepo.SetSubscriptionErrorCalls()) > 0)
-				assert.Equal(t, 0, len(mockJobRepo.ClearSubscriptionErrorCalls()))
+				assert.Equal(t, 0, len(mockJobRepo.AddMessageIdAndClearSubscriptionErrorCalls()))
 			} else {
 				assert.Equal(t, 0, len(mockJobRepo.SetSubscriptionErrorCalls()))
-				assert.True(t, len(mockJobRepo.ClearSubscriptionErrorCalls()) > 0)
+				assert.True(t, len(mockJobRepo.AddMessageIdAndClearSubscriptionErrorCalls()) > 0)
 			}
 		})
 	}

@@ -57,39 +57,52 @@ func (a QuantityByPriorityAndResourceType) Add(b QuantityByPriorityAndResourceTy
 	}
 }
 
+func (a QuantityByPriorityAndResourceType) Sub(b QuantityByPriorityAndResourceType) {
+	for p, rlb := range b {
+		a.SubResourceList(p, rlb)
+	}
+}
+
 func (a QuantityByPriorityAndResourceType) AddResourceList(priority int32, rlb ResourceList) {
 	rla := a[priority]
 	rla.Add(rlb)
 	a[priority] = rla
 }
 
-func (a QuantityByPriorityAndResourceType) Sub(b QuantityByPriorityAndResourceType) {
-	for p, rsb := range b {
-		rsa := a[p]
-		rsa.Sub(rsb)
-	}
+func (a QuantityByPriorityAndResourceType) SubResourceList(priority int32, rlb ResourceList) {
+	rla := a[priority]
+	rla.Sub(rlb)
+	a[priority] = rla
 }
 
 func (a QuantityByPriorityAndResourceType) Equal(b QuantityByPriorityAndResourceType) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	if a == nil {
-		if b == nil {
-			return true
-		} else {
+	for p, rla := range a {
+		if !rla.Equal(b[p]) {
 			return false
 		}
 	}
-	if b == nil && a != nil {
-		return false
+	for p, rlb := range b {
+		if !rlb.Equal(a[p]) {
+			return false
+		}
 	}
-	for p, rla := range a {
-		if rlb, ok := b[p]; ok {
-			if !rla.Equal(rlb) {
-				return false
-			}
-		} else {
+	return true
+}
+
+// IsZero returns true if all quantities in a are zero.
+func (a QuantityByPriorityAndResourceType) IsZero() bool {
+	for _, rl := range a {
+		if !rl.IsZero() {
+			return false
+		}
+	}
+	return true
+}
+
+// IsStrictlyNonNegative returns true if there are no quantities in a with value less than zero.
+func (a QuantityByPriorityAndResourceType) IsStrictlyNonNegative() bool {
+	for _, rl := range a {
+		if !rl.IsStrictlyNonNegative() {
 			return false
 		}
 	}
@@ -104,6 +117,26 @@ func (a QuantityByPriorityAndResourceType) AggregateByResource() ResourceList {
 		rv.Add(rl)
 	}
 	return rv
+}
+
+// MaxAggregatedByResource updates a in-place such that for each resource type t
+// a[p1][t] + ... + a[pn][t] = max(a[p1][t] + ... + a[pn][t], rl[t]),
+// where p1, ..., pn are the priorities in a, for each resource set explicitly in rl.
+//
+// If necessary to add resources to make up the difference, those resources are added at priority p.
+func (a QuantityByPriorityAndResourceType) MaxAggregatedByResource(p int32, rl ResourceList) {
+	aggregate := a.AggregateByResource()
+	var difference ResourceList
+	for t, q := range rl.Resources {
+		q = q.DeepCopy()
+		q.Sub(aggregate.Get(t))
+		if q.Cmp(resource.Quantity{}) == 1 {
+			difference.AddQuantity(t, q)
+		}
+	}
+	if len(difference.Resources) > 0 {
+		a.AddResourceList(p, difference)
+	}
 }
 
 func (a *ResourceList) Get(resourceType string) resource.Quantity {
@@ -124,15 +157,27 @@ func (a *ResourceList) Add(b ResourceList) {
 	}
 }
 
+func (rl *ResourceList) AddQuantity(resourceType string, quantity resource.Quantity) {
+	rl.initialise()
+	q := rl.Resources[resourceType]
+	q.Add(quantity)
+	rl.Resources[resourceType] = q
+}
+
 func (a *ResourceList) Sub(b ResourceList) {
-	if a.Resources == nil {
-		a.Resources = make(map[string]resource.Quantity)
-	}
+	a.initialise()
 	for t, qb := range b.Resources {
 		qa := a.Resources[t]
 		qa.Sub(qb)
 		a.Resources[t] = qa
 	}
+}
+
+func (rl *ResourceList) SubQuantity(resourceType string, quantity resource.Quantity) {
+	rl.initialise()
+	q := rl.Resources[resourceType]
+	q.Sub(quantity)
+	rl.Resources[resourceType] = q
 }
 
 func (rl ResourceList) DeepCopy() ResourceList {
@@ -171,6 +216,26 @@ func (a ResourceList) Equal(b ResourceList) bool {
 	return true
 }
 
+// IsStrictlyNonNegative returns true if there is no quantity less than zero.
+func (a ResourceList) IsStrictlyNonNegative() bool {
+	for _, q := range a.Resources {
+		if q.Cmp(resource.Quantity{}) == -1 {
+			return false
+		}
+	}
+	return true
+}
+
+// IsStrictlyLessOrEqual returns true if all quantities in a are strictly less or equal than those in b.
+func (a ResourceList) IsStrictlyLessOrEqual(b ResourceList) bool {
+	for t, q := range b.Resources {
+		if q.Cmp(a.Get(t)) == -1 {
+			return false
+		}
+	}
+	return true
+}
+
 func (rl ResourceList) CompactString() string {
 	var sb strings.Builder
 	sb.WriteString("{")
@@ -185,6 +250,12 @@ func (rl ResourceList) CompactString() string {
 	}
 	sb.WriteString("}")
 	return sb.String()
+}
+
+func (rl *ResourceList) initialise() {
+	if rl.Resources == nil {
+		rl.Resources = make(map[string]resource.Quantity)
+	}
 }
 
 // AllocatableByPriorityAndResourceType accounts for resources that can be allocated to pods of a given priority.
@@ -258,11 +329,11 @@ func (m AllocatedByPriorityAndResourceType) MarkAllocatable(p int32, rs Resource
 	}
 }
 
-func (AllocatableByPriorityAndResourceType AllocatableByPriorityAndResourceType) Get(priority int32, resourceType string) resource.Quantity {
-	if AllocatableByPriorityAndResourceType == nil {
+func (allocatableByPriorityAndResourceType AllocatableByPriorityAndResourceType) Get(priority int32, resourceType string) resource.Quantity {
+	if allocatableByPriorityAndResourceType == nil {
 		return resource.Quantity{}
 	}
-	quantityByResourceType := AllocatableByPriorityAndResourceType[priority]
+	quantityByResourceType := allocatableByPriorityAndResourceType[priority]
 	return quantityByResourceType.Get(resourceType)
 }
 

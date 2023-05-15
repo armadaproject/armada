@@ -1,11 +1,11 @@
-#!/bin/sh
+#!/bin/sh -ex
 
 KIND_IMG="kindest/node:v1.21.10"
 CHART_VERSION_ARMADA="v0.3.20"
 CHART_VERSION_ARMADA_EXECUTOR_MONITORING="v0.1.9"
 CHART_VERSION_KUBE_PROMETHEUS_STACK="13.0.0"
 CHART_VERSION_NATS="0.13.0"
-CHART_VERSION_POSTGRES="11.9.12"
+CHART_VERSION_POSTGRES="12.4.2"
 CHART_VERSION_PULSAR="2.9.4"
 CHART_VERSION_REDIS="4.22.3"
 
@@ -23,7 +23,7 @@ helm repo add dandydev https://dandydeveloper.github.io/charts
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo add nats https://nats-io.github.io/k8s/helm/charts
 helm repo add bitnami https://charts.bitnami.com/bitnami
-helm repo add gresearch https://armadaproject.github.io/charts
+helm repo add gresearch https://g-research.github.io/charts
 helm repo add apache https://pulsar.apache.org/charts
 helm repo update
 
@@ -33,6 +33,10 @@ helm repo update
 printf "\n*******************************************************\n"
 printf "Deploying Armada server ..."
 printf "\n*******************************************************\n"
+if kind delete cluster --name quickstart-armada-server; then
+  printf "Deleting existing quickstart-armada-server ..."
+
+fi
 kind create cluster --name quickstart-armada-server --config ./docs/quickstart/kind/kind-config-server.yaml --image $KIND_IMG
 
 # Set cluster as current context
@@ -68,6 +72,10 @@ SERVER_IP=$(kubectl get nodes quickstart-armada-server-worker -o jsonpath='{.sta
 printf "\n*******************************************************\n"
 printf "Deploying first Armada executor cluster ..."
 printf "\n*******************************************************\n"
+if kind delete cluster --name quickstart-armada-executor-0; then
+  printf "Deleting existing quickstart-armada-executor-0  cluster ..."
+
+fi
 kind create cluster --name quickstart-armada-executor-0 --config ./docs/quickstart/kind/kind-config-executor.yaml --image $KIND_IMG
 
 # Set cluster as current context
@@ -90,6 +98,10 @@ EXECUTOR_0_IP=$(kubectl get nodes quickstart-armada-executor-0-worker -o jsonpat
 printf "\n*******************************************************\n"
 printf "Deploying second Armada executor cluster ..."
 printf "\n*******************************************************\n"
+if kind delete cluster --name quickstart-armada-executor-1; then
+  printf "Deleting existing quickstart-armada-executor-1  cluster ..."
+
+fi
 kind create cluster --name quickstart-armada-executor-1 --config ./docs/quickstart/kind/kind-config-executor.yaml --image $KIND_IMG
 
 # Set cluster as current context
@@ -150,29 +162,4 @@ printf "\n\t* open %bhttp://localhost:8081%b in your browser" "$bs" "$be"
 printf "\n\t* use %badmin:prom-operator%b as default admin credentials for login" "$bs" "$be"
 printf "\n\t* open the %bArmada - Overview%b dashboard\n" "$bs" "$be"
 
-echo "Downloading armadactl for your platform"
-
-# Determine Platform
-SYSTEM=$(uname | sed 's/MINGW.*/windows/' | tr A-Z a-z)
-if [ $SYSTEM == "windows" ]; then
-  ARCHIVE_TYPE=zip
-  UNARCHIVE="zcat > armadactl.exe"
-else
-  ARCHIVE_TYPE=tar.gz
-  UNARCHIVE="tar xzf -"
-fi
-
-# Find the latest Armada version
-LATEST_GH_URL=$(curl -fsSLI -o /dev/null -w %{url_effective} https://github.com/armadaproject/armada/releases/latest)
-ARMADA_VERSION=${LATEST_GH_URL##*/}
-ARMADACTL_URL="https://github.com/armadaproject/armada/releases/download/$ARMADA_VERSION/armadactl-$ARMADA_VERSION-$SYSTEM-amd64.$ARCHIVE_TYPE"
-
-# Download and untar/unzip armadactl
-if curl -sL $ARMADACTL_URL | sh -c "$UNARCHIVE" ; then
-	echo "armadactl downloaded successfully"
-else
-	echo "Something is amiss!"
-	echo "Please visit:"
-	echo "  - https://github.com/armadaproject/armada/releases/latest"
-	echo "to find the latest armadactl binary for your platform"
-fi
+./docs/local/armadactl.sh

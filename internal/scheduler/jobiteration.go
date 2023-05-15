@@ -8,24 +8,25 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 )
 
 type JobIterator interface {
-	Next() (LegacySchedulerJob, error)
+	Next() (interfaces.LegacySchedulerJob, error)
 }
 
 type JobRepository interface {
 	GetQueueJobIds(queueName string) ([]string, error)
-	GetExistingJobsByIds(ids []string) ([]LegacySchedulerJob, error)
+	GetExistingJobsByIds(ids []string) ([]interfaces.LegacySchedulerJob, error)
 }
 
 type InMemoryJobIterator struct {
 	i    int
-	jobs []LegacySchedulerJob
+	jobs []interfaces.LegacySchedulerJob
 }
 
-func NewInMemoryJobIterator[S ~[]E, E LegacySchedulerJob](jobs S) *InMemoryJobIterator {
-	vs := make([]LegacySchedulerJob, len(jobs))
+func NewInMemoryJobIterator[S ~[]E, E interfaces.LegacySchedulerJob](jobs S) *InMemoryJobIterator {
+	vs := make([]interfaces.LegacySchedulerJob, len(jobs))
 	for i, job := range jobs {
 		vs[i] = job
 	}
@@ -34,7 +35,7 @@ func NewInMemoryJobIterator[S ~[]E, E LegacySchedulerJob](jobs S) *InMemoryJobIt
 	}
 }
 
-func (it *InMemoryJobIterator) Next() (LegacySchedulerJob, error) {
+func (it *InMemoryJobIterator) Next() (interfaces.LegacySchedulerJob, error) {
 	if it.i >= len(it.jobs) {
 		return nil, nil
 	}
@@ -44,20 +45,24 @@ func (it *InMemoryJobIterator) Next() (LegacySchedulerJob, error) {
 }
 
 type InMemoryJobRepository struct {
-	jobsByQueue     map[string][]LegacySchedulerJob
-	jobsById        map[string]LegacySchedulerJob
+	jobsByQueue     map[string][]interfaces.LegacySchedulerJob
+	jobsById        map[string]interfaces.LegacySchedulerJob
 	priorityClasses map[string]configuration.PriorityClass
+	// If true, jobs are sorted first by priority class priority.
+	// If false, priority class is ignored when ordering jobs.
+	sortByPriorityClass bool
 }
 
 func NewInMemoryJobRepository(priorityClasses map[string]configuration.PriorityClass) *InMemoryJobRepository {
 	return &InMemoryJobRepository{
-		jobsByQueue:     make(map[string][]LegacySchedulerJob),
-		jobsById:        make(map[string]LegacySchedulerJob),
-		priorityClasses: maps.Clone(priorityClasses),
+		jobsByQueue:         make(map[string][]interfaces.LegacySchedulerJob),
+		jobsById:            make(map[string]interfaces.LegacySchedulerJob),
+		priorityClasses:     maps.Clone(priorityClasses),
+		sortByPriorityClass: true,
 	}
 }
 
-func (repo *InMemoryJobRepository) EnqueueMany(jobs []LegacySchedulerJob) {
+func (repo *InMemoryJobRepository) EnqueueMany(jobs []interfaces.LegacySchedulerJob) {
 	updatedQueues := make(map[string]bool)
 	for _, job := range jobs {
 		queue := job.GetQueue()
@@ -70,7 +75,7 @@ func (repo *InMemoryJobRepository) EnqueueMany(jobs []LegacySchedulerJob) {
 	}
 }
 
-func (repo *InMemoryJobRepository) Enqueue(job LegacySchedulerJob) {
+func (repo *InMemoryJobRepository) Enqueue(job interfaces.LegacySchedulerJob) {
 	queue := job.GetQueue()
 	repo.jobsByQueue[queue] = append(repo.jobsByQueue[queue], job)
 	repo.jobsById[job.GetId()] = job
@@ -82,15 +87,17 @@ func (repo *InMemoryJobRepository) Enqueue(job LegacySchedulerJob) {
 // second by in-queue priority, with smaller values first, and
 // finally by submit time, with earlier submit times first.
 func (repo *InMemoryJobRepository) sortQueue(queue string) {
-	slices.SortFunc(repo.jobsByQueue[queue], func(a, b LegacySchedulerJob) bool {
+	slices.SortFunc(repo.jobsByQueue[queue], func(a, b interfaces.LegacySchedulerJob) bool {
 		infoa := a.GetRequirements(repo.priorityClasses)
 		infob := b.GetRequirements(repo.priorityClasses)
-		pca := repo.priorityClasses[infoa.PriorityClassName]
-		pcb := repo.priorityClasses[infob.PriorityClassName]
-		if pca.Priority > pcb.Priority {
-			return true
-		} else if pca.Priority < pcb.Priority {
-			return false
+		if repo.sortByPriorityClass {
+			pca := repo.priorityClasses[infoa.PriorityClassName]
+			pcb := repo.priorityClasses[infob.PriorityClassName]
+			if pca.Priority > pcb.Priority {
+				return true
+			} else if pca.Priority < pcb.Priority {
+				return false
+			}
 		}
 		if infoa.GetPriority() < infob.GetPriority() {
 			return true
@@ -110,8 +117,8 @@ func (repo *InMemoryJobRepository) GetQueueJobIds(queue string) ([]string, error
 	return rv, nil
 }
 
-func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) ([]LegacySchedulerJob, error) {
-	rv := make([]LegacySchedulerJob, 0, len(jobIds))
+func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) ([]interfaces.LegacySchedulerJob, error) {
+	rv := make([]interfaces.LegacySchedulerJob, 0, len(jobIds))
 	for _, jobId := range jobIds {
 		if job, ok := repo.jobsById[jobId]; ok {
 			rv = append(rv, job)
@@ -129,7 +136,7 @@ func (repo *InMemoryJobRepository) GetJobIterator(ctx context.Context, queue str
 type QueuedJobsIterator struct {
 	ctx context.Context
 	err error
-	c   chan LegacySchedulerJob
+	c   chan interfaces.LegacySchedulerJob
 }
 
 func NewQueuedJobsIterator(ctx context.Context, queue string, repo JobRepository) (*QueuedJobsIterator, error) {
@@ -137,7 +144,7 @@ func NewQueuedJobsIterator(ctx context.Context, queue string, repo JobRepository
 	g, ctx := errgroup.WithContext(ctx)
 	it := &QueuedJobsIterator{
 		ctx: ctx,
-		c:   make(chan LegacySchedulerJob, 2*batchSize), // 2x batchSize to load one batch async.
+		c:   make(chan interfaces.LegacySchedulerJob, 2*batchSize), // 2x batchSize to load one batch async.
 	}
 
 	jobIds, err := repo.GetQueueJobIds(queue)
@@ -150,7 +157,7 @@ func NewQueuedJobsIterator(ctx context.Context, queue string, repo JobRepository
 	return it, nil
 }
 
-func (it *QueuedJobsIterator) Next() (LegacySchedulerJob, error) {
+func (it *QueuedJobsIterator) Next() (interfaces.LegacySchedulerJob, error) {
 	// Once this function has returned error,
 	// it will return this error on every invocation.
 	if it.err != nil {
@@ -172,7 +179,7 @@ func (it *QueuedJobsIterator) Next() (LegacySchedulerJob, error) {
 
 // queuedJobsIteratorLoader loads jobs from Redis lazily.
 // Used with QueuedJobsIterator.
-func queuedJobsIteratorLoader(ctx context.Context, jobIds []string, ch chan LegacySchedulerJob, batchSize int, repo JobRepository) error {
+func queuedJobsIteratorLoader(ctx context.Context, jobIds []string, ch chan interfaces.LegacySchedulerJob, batchSize int, repo JobRepository) error {
 	defer close(ch)
 	batch := make([]string, batchSize)
 	for i, jobId := range jobIds {
@@ -210,7 +217,7 @@ func NewMultiJobsIterator(its ...JobIterator) *MultiJobsIterator {
 	}
 }
 
-func (it *MultiJobsIterator) Next() (LegacySchedulerJob, error) {
+func (it *MultiJobsIterator) Next() (interfaces.LegacySchedulerJob, error) {
 	if it.i >= len(it.its) {
 		return nil, nil
 	}

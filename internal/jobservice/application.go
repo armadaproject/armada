@@ -2,23 +2,27 @@ package jobservice
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"net"
-	"os"
-	"path/filepath"
+	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
+	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	"github.com/armadaproject/armada/internal/common/grpc/grpcpool"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
+	"github.com/armadaproject/armada/internal/jobservice/events"
+	"github.com/armadaproject/armada/internal/jobservice/eventstojobs"
 	"github.com/armadaproject/armada/internal/jobservice/repository"
 	"github.com/armadaproject/armada/internal/jobservice/server"
 	js "github.com/armadaproject/armada/pkg/api/jobservice"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 type App struct {
@@ -30,39 +34,59 @@ func New() *App {
 	return &App{}
 }
 
+var DefaultConfiguration = &configuration.JobServiceConfiguration{
+	GrpcPool: grpcconfig.GrpcPoolConfig{
+		InitialConnections: 5,
+		Capacity:           5,
+	},
+}
+
+// Mutates config where possible to correct mis-configurations.
+// Returns a non-nil error if mis-configuration is unrecoverable.
+func RectifyConfig(config *configuration.JobServiceConfiguration) error {
+	logger := log.WithField("JobService", "RectifyConfig")
+
+	// Grpc Pool
+	if config.GrpcPool.InitialConnections <= 0 {
+		logger.WithFields(log.Fields{
+			"default":    DefaultConfiguration.GrpcPool.InitialConnections,
+			"configured": config.GrpcPool.InitialConnections,
+		}).Warn("config.GrpcPool.InitialConnections invalid, using default instead")
+		config.GrpcPool.InitialConnections = DefaultConfiguration.GrpcPool.InitialConnections
+	}
+	if config.GrpcPool.Capacity <= 0 {
+		logger.WithFields(log.Fields{
+			"default":    DefaultConfiguration.GrpcPool.Capacity,
+			"configured": config.GrpcPool.Capacity,
+		}).Warn("config.GrpcPool.Capacity invalid, using default instead")
+		config.GrpcPool.Capacity = DefaultConfiguration.GrpcPool.Capacity
+	}
+
+	return nil
+}
+
 func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfiguration) error {
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, _ := errgroup.WithContext(ctx)
 
-	log := log.WithField("JobService", "Startup")
+	err := RectifyConfig(config)
+	if err != nil {
+		panic(err)
+	}
 
+	log := log.WithField("JobService", "Startup")
 	grpcServer := grpcCommon.CreateGrpcServer(
 		config.Grpc.KeepaliveParams,
 		config.Grpc.KeepaliveEnforcementPolicy,
 		[]authorization.AuthService{&authorization.AnonymousAuthService{}},
 	)
 
-	subscribedJobSets := make(map[string]*repository.SubscribeTable)
-	jobStatusMap := repository.NewJobSetSubscriptions(subscribedJobSets)
-
-	dbDir := filepath.Dir(config.DatabasePath)
-	if _, err := os.Stat(dbDir); os.IsNotExist(err) {
-		if errMkDir := os.Mkdir(dbDir, 0o755); errMkDir != nil {
-			log.Fatalf("error: could not make directory at %s for sqlite db: %v", dbDir, errMkDir)
-		}
-	}
-
-	db, err := sql.Open("sqlite", config.DatabasePath)
+	err, sqlJobRepo, dbCallbackFn := repository.NewSQLJobService(config, log)
 	if err != nil {
-		log.Fatalf("error opening sqlite DB from %s %v", config.DatabasePath, err)
+		panic(err)
 	}
-	defer func() {
-		if err := db.Close(); err != nil {
-			log.Warnf("error closing database: %v", err)
-		}
-	}()
-	sqlJobRepo := repository.NewSQLJobService(jobStatusMap, config, db)
-	sqlJobRepo.Setup()
+	defer dbCallbackFn()
+	sqlJobRepo.Setup(ctx)
 	jobService := server.NewJobService(config, sqlJobRepo)
 	js.RegisterJobServiceServer(grpcServer, jobService)
 
@@ -71,16 +95,50 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		return err
 	}
 
+	connFactory := func(ctx context.Context) (*grpc.ClientConn, error) {
+		return client.CreateApiConnection(&config.ApiConnection)
+	}
+
+	// Start a pool
+	pool, err := grpcpool.NewWithContext(ctx, connFactory,
+		config.GrpcPool.InitialConnections,
+		config.GrpcPool.Capacity,
+		0)
+	if err != nil {
+		return err
+	}
+
+	// This function runs in the background every 30 seconds
+	// We will loop over the subscribed jobsets
+	// And we check if we have already subscribed via subscribeMap
+	// If we have then we skip that jobset
 	g.Go(func() error {
-		ticker := time.NewTicker(time.Duration(config.SubscribeJobSetTime) * time.Second)
+		ticker := time.NewTicker(30 * time.Second)
+		eventClient := events.NewPooledEventClient(pool)
+		var subscribeMap sync.Map
 		for range ticker.C {
-			for _, value := range sqlJobRepo.GetSubscribedJobSets() {
-				log.Infof("subscribed job sets : %s", value)
-				if sqlJobRepo.CheckToUnSubscribe(value.Queue, value.JobSet, config.SubscribeJobSetTime) {
-					_, err := sqlJobRepo.CleanupJobSetAndJobs(value.Queue, value.JobSet)
-					if err != nil {
-						logging.WithStacktrace(log, err).Warn("error cleaning up jobs")
-					}
+
+			jobSets, err := sqlJobRepo.GetSubscribedJobSets(ctx)
+			log.Infof("job service has %d subscribed job sets", len(jobSets))
+			if err != nil {
+				logging.WithStacktrace(log, err).Warn("error getting jobsets")
+			}
+			for _, value := range jobSets {
+				queueJobSet := value.Queue + value.JobSet
+				_, ok := subscribeMap.LoadOrStore(queueJobSet, true)
+				if !ok {
+					eventJob := eventstojobs.NewEventsToJobService(value.Queue, value.JobSet, eventClient, sqlJobRepo)
+					go func(value repository.SubscribedTuple) {
+						err := eventJob.SubscribeToJobSetId(context.Background(), config.SubscribeJobSetTime, value.FromMessageId)
+						if err != nil {
+							log.Error("error on subscribing", err)
+						}
+						queueJobSet := value.Queue + value.JobSet
+						log.Infof("deleting %s from map", queueJobSet)
+						subscribeMap.Delete(queueJobSet)
+					}(value)
+				} else {
+					log.Infof("job set %s/%s is subscribed", value.Queue, value.JobSet)
 				}
 			}
 		}

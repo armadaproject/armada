@@ -3,8 +3,9 @@
 Here, we show how to setup Armada for local development.
 
 **Prerequisites:**
-* Golang >= 1.18 [https://golang.org/doc/install](https://golang.org/doc/install)
+* Golang >= 1.20 [https://golang.org/doc/install](https://golang.org/doc/install)
 * `kubectl` [https://kubernetes.io/docs/tasks/tools/install-kubectl/](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+* `mage` [https://magefile.org/](https://magefile.org/)
 * Docker installed and configured for the current user [https://docs.docker.com/engine/install/](https://docs.docker.com/engine/install/)
 * Dependencies and tooling installed via `make download`.
 
@@ -20,23 +21,18 @@ In addition, Armada relies on the following components for storage and communica
 - Redis: the main database of Armada; used, e.g., to store queued jobs.
 - PostgreSQL: used for auxilliary storage. In the future, PostgreSQL will be the main database, instead of Redis.
 
-All of these components can be started and initialised with `./localdev/run.sh` When the script completes, you will have a fully functional local deployment of armada via docker.
+All of these components can be started and initialised with `mage build ui localdev`
 
-Create a queue and submit a job:
+Create a queue and run the Test Suite:
+
 ```bash
-go run ./cmd/armadactl/main.go create queue test --priorityFactor 1
-go run ./cmd/armadactl/main.go submit ./example/jobs.yaml
-go run ./cmd/armadactl/main.go watch test job-set-1
-```
+go run cmd/armadactl/main.go create queue e2e-test-queue
 
-**Note:** In the default setup you should submit jobs to the kubernetes `personal-anonymous` namespace. See this job-spec snippet:
-```yaml
-queue: test
-jobSetId: job-set-1
-jobs:
-  - priority: 0
-    namespace: personal-anonymous
-    podSpec:
+# To allow Ingress tests to pass
+export ARMADA_EXECUTOR_INGRESS_URL="http://localhost"
+export ARMADA_EXECUTOR_INGRESS_PORT=5001
+
+go run cmd/testsuite/main.go test --tests "testsuite/testcases/basic/*" --junit junit.xml
 ```
 
 For more details on submitting jobs to Armada, see [the user guide](https://github.com/armadaproject/armada/blob/master/docs/user.md). Once you submit jobs, you should see pods appearing in your worker cluster(s).
@@ -46,25 +42,22 @@ For more details on submitting jobs to Armada, see [the user guide](https://gith
 kind load docker-image busybox:latest
 ```
 
-Armada uses proto files extensively. Code-generation based on these files is run via `make proto`.
+Armada uses proto files extensively. Code-generation based on these files is run via `mage proto`.
 
 ## Lookout - Armada web UI
 
-Armada bundles a web UI referred to as Lookout. Lookout requires PostgreSQL. Lookout is based on React and is built with:
-```bash
-cd ./internal/lookout/ui
-yarn install
-yarn run openapi
-yarn run build
-```
+Armada bundles a web UI referred to as Lookout. Lookout requires PostgreSQL. Lookout is based on React and is built from [./localdev/run.sh](https://github.com/armadaproject/armada/blob/master/localdev/run.sh)
 
 Once completed, the Lookout UI should be accessible through your browser at `http://localhost:8089`
 
-For UI development, you can also use the React development server and skip the build step. Note that the Lookout API service will 
+For UI development, you can also use the React development server and skip the build step. Note that the Lookout API service will
 still have to be running for this to work. Browse to `http://localhost:3000` with this.
 ```bash
+cd ./internal/lookout/ui
 yarn run start
 ```
+
+You can also get a production build of the UI by running `mage buildlookoutui` in the root of the repo.
 
 ## Debugging
 
@@ -102,15 +95,17 @@ Breakpoint 3 set at 0x1fb3800 for github.com/armadaproject/armada/internal/armad
 
 External debug port mappings:
 
-|Armada service   |Debug host    |
-|-----------------|--------------|
-|Server           |localhost:4000|
-|Lookout          |localhost:4001|
-|Executor         |localhost:4002|
-|Binoculars       |localhost:4003|
-|Jobservice       |localhost:4004|
-|Lookout-ingester |localhost:4005|
-|Event-ingester   |localhost:4006|
+|Armada service     |Debug host    |
+|-------------------|--------------|
+|Server             |localhost:4000|
+|Lookout            |localhost:4001|
+|Executor           |localhost:4002|
+|Binoculars         |localhost:4003|
+|Jobservice         |localhost:4004|
+|Lookout-ingester   |localhost:4005|
+|Lookout-ingesterv2 |localhost:4006|
+|Event-ingester     |localhost:4007|
+|Lookoutv2          |localhost:4008|
 
 ## Usage metrics
 
@@ -141,7 +136,7 @@ Setting up OIDC can be an art.  The [Okta Developer Program](https://developer.o
 2) Create a new App in the Okta UI.
     - Select OIDC - OpenID Connect.
     - Select Web Application.
-3) In grant type, make sure to select Client Credentials.  This has the advantage of requiring little interaction. 
+3) In grant type, make sure to select Client Credentials.  This has the advantage of requiring little interaction.
 4) Select 'Allow Everyone to Access'
 5) Deselect Federation Broker Mode.
 6) Click okay and generate a client secret.

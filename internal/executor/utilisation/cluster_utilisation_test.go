@@ -80,7 +80,7 @@ func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldExcludePodsNotOnGivenNod
 	pods := []*v1.Pod{&podOnNode, &podNotOnNode}
 	nodes := []*v1.Node{&node}
 
-	result := getAllPodsRequiringResourceOnProcessingNodes(pods, nodes)
+	result := getAllPodsRequiringResourceOnNodes(pods, nodes)
 
 	assert.Equal(t, len(result), 1)
 	assert.Equal(t, result[0].Spec.NodeName, presentNodeName)
@@ -96,7 +96,7 @@ func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldHandleNoNodesProvided(t 
 	pods := []*v1.Pod{&podOnNode}
 	var nodes []*v1.Node
 
-	result := getAllPodsRequiringResourceOnProcessingNodes(pods, nodes)
+	result := getAllPodsRequiringResourceOnNodes(pods, nodes)
 
 	assert.Equal(t, len(result), 0)
 }
@@ -119,7 +119,7 @@ func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldIncludeManagedPodsOnNode
 	pods := []*v1.Pod{&podOnNode}
 	nodes := []*v1.Node{&node}
 
-	result := getAllPodsRequiringResourceOnProcessingNodes(pods, nodes)
+	result := getAllPodsRequiringResourceOnNodes(pods, nodes)
 
 	assert.Equal(t, len(result), 1)
 }
@@ -142,7 +142,7 @@ func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldIncludeManagedPodNotAssi
 	pods := []*v1.Pod{&podOnNode}
 	nodes := []*v1.Node{&node}
 
-	result := getAllPodsRequiringResourceOnProcessingNodes(pods, nodes)
+	result := getAllPodsRequiringResourceOnNodes(pods, nodes)
 
 	assert.Equal(t, len(result), 1)
 }
@@ -165,7 +165,7 @@ func TestGetAllPodsUsingResourceOnProcessingNodes_ShouldExcludeManagedPodNotAssi
 	pods := []*v1.Pod{&podOnNode}
 	nodes := []*v1.Node{&node}
 
-	result := getAllPodsRequiringResourceOnProcessingNodes(pods, nodes)
+	result := getAllPodsRequiringResourceOnNodes(pods, nodes)
 
 	assert.Equal(t, len(result), 0)
 }
@@ -332,8 +332,8 @@ func TestGetRunIdsByNode(t *testing.T) {
 		},
 		"LegacyGivesJobIds": {
 			inputPods: []*v1.Pod{
-				createPodOnNode("job-1", "run-1", v1.PodRunning, "node-1", ""),
-				createPodOnNode("job-2", "run-2", v1.PodRunning, "node-2", ""),
+				createPodOnNode("job-1", "", v1.PodRunning, "node-1", ""),
+				createPodOnNode("job-2", "", v1.PodRunning, "node-2", ""),
 			},
 			expectedOutput: map[string]map[string]api.JobState{
 				"node-1": {"job-1": api.JobState_RUNNING},

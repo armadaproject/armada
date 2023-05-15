@@ -9,6 +9,13 @@ import (
 	"k8s.io/component-helpers/scheduling/corev1"
 )
 
+const (
+	// When checking if a pod fits on a node, this score indicates how well the pods fits.
+	// However, all nodes are currently given the same score.
+	SchedulableScore     = 0
+	SchedulableBestScore = SchedulableScore
+)
+
 type PodRequirementsNotMetReason interface {
 	fmt.Stringer
 }
@@ -54,12 +61,13 @@ type InsufficientResources struct {
 }
 
 func (err *InsufficientResources) String() string {
-	return fmt.Sprintf(
-		"pod requires %s %s, but only %s is available",
-		err.Required.String(),
-		err.Resource,
-		err.Available.String(),
-	)
+	// Note that the below is much faster than fmt.Sprintf().
+	// This is important as this gets called in a tight loop
+	return "pod requires " + err.Required.String() + " " + err.Resource + ", but only " +
+		err.Available.String() + " is available"
+
+	// TODO: this would be even faster
+	// return "insufficient " + err.Resource
 }
 
 // PodRequirementsMet determines whether a pod can be scheduled on nodes of this NodeType.
@@ -79,13 +87,12 @@ func (nodeType *NodeType) PodRequirementsMet(req *PodRequirements) (bool, PodReq
 // - 1: Pod can be scheduled without preempting any running pods.
 // If the requirements are not met, it returns the reason why.
 // If the requirements can't be parsed, an error is returned.
-func (node *Node) PodRequirementsMet(req *PodRequirements) (bool, int, PodRequirementsNotMetReason, error) {
+func (node *Node) PodRequirementsMet(priority int32, req *PodRequirements) (bool, int, PodRequirementsNotMetReason, error) {
 	matches, reason, err := node.StaticPodRequirementsMet(req)
 	if !matches || err != nil {
 		return matches, 0, reason, err
 	}
-
-	return node.DynamicPodRequirementsMet(req)
+	return node.DynamicPodRequirementsMet(priority, req)
 }
 
 // StaticPodRequirementsMet checks if a pod can be scheduled onto this node,
@@ -122,17 +129,9 @@ func (node *Node) StaticPodRequirementsMet(req *PodRequirements) (bool, PodRequi
 
 // DynamicPodRequirementsMet checks if a pod can be scheduled onto this node,
 // accounting for resources allocated to pods already assigned to this node.
-func (node *Node) DynamicPodRequirementsMet(req *PodRequirements) (bool, int, PodRequirementsNotMetReason, error) {
-	// Check if the pod can be scheduled without preemption,
-	// by checking if resource requirements are met at priority 0.
-	matches, reason, err := podResourceRequirementsMet(0, node.AllocatableByPriorityAndResource, req)
-	if matches || err != nil {
-		return matches, 1, reason, err
-	}
-
-	// Check if the pod can be scheduled with preemption.
-	matches, reason, err = podResourceRequirementsMet(req.GetPriority(), node.AllocatableByPriorityAndResource, req)
-	return matches, 0, reason, err
+func (node *Node) DynamicPodRequirementsMet(priority int32, req *PodRequirements) (bool, int, PodRequirementsNotMetReason, error) {
+	matches, reason, err := podResourceRequirementsMet(priority, node.AllocatableByPriorityAndResource, req)
+	return matches, SchedulableScore, reason, err
 }
 
 func podTolerationRequirementsMet(nodeTaints []v1.Taint, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
@@ -201,7 +200,7 @@ func podNodeAffinityRequirementsMet(nodeLabels map[string]string, req *PodRequir
 
 func podResourceRequirementsMet(priority int32, allocatableResources AllocatableByPriorityAndResourceType, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
 	for resource, required := range req.ResourceRequirements.Requests {
-		available := allocatableResources.Get(req.Priority, string(resource))
+		available := allocatableResources.Get(priority, string(resource))
 		if required.Cmp(available) == 1 {
 			return false, &InsufficientResources{
 				Resource:  string(resource),

@@ -9,6 +9,7 @@ import (
 
 var baseJobRun = CreateRun(
 	uuid.New(),
+	uuid.NewString(),
 	5,
 	"test-executor",
 	"test-node",
@@ -16,7 +17,9 @@ var baseJobRun = CreateRun(
 	false,
 	false,
 	false,
-	false)
+	false,
+	false,
+)
 
 // Test methods that only have getters
 func TestJobRun_TestGetter(t *testing.T) {
@@ -51,7 +54,46 @@ func TestJobRun_TestCancelled(t *testing.T) {
 }
 
 func TestJobRun_TestReturned(t *testing.T) {
-	cancelledRun := baseJobRun.WithReturned(true)
+	returnedRun := baseJobRun.WithReturned(true)
 	assert.False(t, baseJobRun.Returned())
-	assert.True(t, cancelledRun.Returned())
+	assert.True(t, returnedRun.Returned())
+}
+
+func TestJobRun_TestRunAttempted(t *testing.T) {
+	attemptedRun := baseJobRun.WithAttempted(true)
+	assert.False(t, baseJobRun.RunAttempted())
+	assert.True(t, attemptedRun.RunAttempted())
+}
+
+func TestDeepCopy(t *testing.T) {
+	run := CreateRun(
+		uuid.New(),
+		"job id",
+		1,
+		"executor",
+		"node",
+		true,
+		true,
+		true,
+		true,
+		true,
+		true,
+	)
+	expected := CreateRun(
+		run.id,
+		"job id",
+		1,
+		"executor",
+		"node",
+		true,
+		true,
+		true,
+		true,
+		true,
+		true,
+	)
+	actual := run.DeepCopy()
+	run.node = "new node"
+	run.executor = "new executor"
+	assert.Equal(t, expected, actual)
 }

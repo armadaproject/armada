@@ -30,6 +30,8 @@ type Job struct {
 	// True if the job is currently queued.
 	// If this is set then the job will not be considered for scheduling
 	queued bool
+	// The current version of the queued state
+	queuedVersion int32
 	// Scheduling requirements of this job.
 	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo
 	// True if the user has requested this job be cancelled
@@ -50,6 +52,10 @@ type Job struct {
 	activeRunTimestamp int64
 }
 
+func EmptyJob(id string) *Job {
+	return &Job{id: id, runsById: map[uuid.UUID]*JobRun{}}
+}
+
 // NewJob creates a new scheduler job
 func NewJob(
 	jobId string,
@@ -57,6 +63,8 @@ func NewJob(
 	queue string,
 	priority uint32,
 	schedulingInfo *schedulerobjects.JobSchedulingInfo,
+	queued bool,
+	queuedVersion int32,
 	cancelRequested bool,
 	cancelByJobsetRequested bool,
 	cancelled bool,
@@ -66,7 +74,8 @@ func NewJob(
 		id:                      jobId,
 		jobset:                  jobset,
 		queue:                   queue,
-		queued:                  true,
+		queued:                  queued,
+		queuedVersion:           queuedVersion,
 		priority:                priority,
 		requestedPriority:       priority,
 		jobSchedulingInfo:       schedulingInfo,
@@ -128,6 +137,7 @@ func (job *Job) WithPriority(priority uint32) *Job {
 	return j
 }
 
+// WithRequestedPriority returns a copy of the job with the priority updated.
 func (job *Job) WithRequestedPriority(priority uint32) *Job {
 	j := copyJob(*job)
 	j.requestedPriority = priority
@@ -140,7 +150,7 @@ func (job *Job) JobSchedulingInfo() *schedulerobjects.JobSchedulingInfo {
 }
 
 // GetRequirements  returns the scheduling requirements associated with the job.
-// this is needed for compatibility with LegacySchedulerJob
+// this is needed for compatibility with interfaces.LegacySchedulerJob
 func (job *Job) GetRequirements(_ map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
 	return job.JobSchedulingInfo()
 }
@@ -154,6 +164,18 @@ func (job *Job) Queued() bool {
 func (job *Job) WithQueued(queued bool) *Job {
 	j := copyJob(*job)
 	j.queued = queued
+	return j
+}
+
+// QueuedVersion returns current queued state version.
+func (job *Job) QueuedVersion() int32 {
+	return job.queuedVersion
+}
+
+// WithQueuedVersion returns a copy of the job with the queued version updated.
+func (job *Job) WithQueuedVersion(version int32) *Job {
+	j := copyJob(*job)
+	j.queuedVersion = version
 	return j
 }
 
@@ -223,7 +245,7 @@ func (job *Job) Created() int64 {
 }
 
 // GetAnnotations returns the annotations on the job.
-// This is needed for compatibility with LegacySchedulerJob
+// This is needed for compatibility with interfaces.LegacySchedulerJob
 func (job *Job) GetAnnotations() map[string]string {
 	requirements := job.jobSchedulingInfo.GetObjectRequirements()
 	if len(requirements) == 0 {
@@ -250,6 +272,7 @@ func (job *Job) HasRuns() bool {
 func (job *Job) WithNewRun(executor string, node string) *Job {
 	run := &JobRun{
 		id:       uuid.New(),
+		jobId:    job.id,
 		created:  time.Now().UnixNano(),
 		executor: executor,
 		node:     node,
@@ -281,6 +304,23 @@ func (job *Job) NumReturned() uint {
 	return returned
 }
 
+// NumAttempts returns the number of times the executors tried to run this job
+// Note that this is O(N) on Runs, but this should be fine as the number of runs should be small.
+func (job *Job) NumAttempts() uint {
+	attempts := uint(0)
+	for _, run := range job.runsById {
+		if run.runAttempted {
+			attempts++
+		}
+	}
+	return attempts
+}
+
+// AllRuns returns all runs associated with job.
+func (job *Job) AllRuns() []*JobRun {
+	return maps.Values(job.runsById)
+}
+
 // LatestRun returns the currently active job run or nil if there are no runs yet.
 // Callers should either guard against nil values explicitly or via HasRuns.
 func (job *Job) LatestRun() *JobRun {
@@ -292,7 +332,75 @@ func (job *Job) RunById(id uuid.UUID) *JobRun {
 	return job.runsById[id]
 }
 
+// WithJobset returns a copy of the job with the jobset updated.
+func (job *Job) WithJobset(jobset string) *Job {
+	j := copyJob(*job)
+	j.jobset = jobset
+	return j
+}
+
+// WithQueue returns a copy of the job with the queue updated.
+func (job *Job) WithQueue(queue string) *Job {
+	j := copyJob(*job)
+	j.queue = queue
+	return j
+}
+
+// WithCreated returns a copy of the job with the creation time updated.
+func (job *Job) WithCreated(created int64) *Job {
+	j := copyJob(*job)
+	j.created = created
+	return j
+}
+
+// WithJobSchedulingInfo returns a copy of the job with the job scheduling info updated.
+func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSchedulingInfo) *Job {
+	j := copyJob(*job)
+	j.jobSchedulingInfo = jobSchedulingInfo
+	return j
+}
+
 // copyJob makes a copy of the job
 func copyJob(j Job) *Job {
 	return &j
+}
+
+type JobPriorityComparer struct{}
+
+// Compare jobs first by priority then by created and finally by id.
+// returns -1 if a should come before b, 1 if a should come after b and 0 if the two jobs are equal
+func (j JobPriorityComparer) Compare(a, b *Job) int {
+	if a == b {
+		return 0
+	}
+
+	// Compare the jobs by priority
+	if a.priority != b.priority {
+		if a.priority > b.priority {
+			return -1
+		} else {
+			return 1
+		}
+	}
+
+	// If the jobs have the same priority, compare them by created timestamp
+	if a.created != b.created {
+		if a.created < b.created {
+			return -1
+		} else {
+			return 1
+		}
+	}
+
+	// If the jobs have the same priority and created timestamp, compare them by ID
+	if a.id != b.id {
+		if a.id < b.id {
+			return -1
+		} else {
+			return 1
+		}
+	}
+
+	// If the jobs have the same ID, return 0
+	return 0
 }

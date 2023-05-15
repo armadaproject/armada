@@ -5,11 +5,13 @@ import (
 	"sync/atomic"
 
 	"github.com/google/uuid"
-	log "github.com/sirupsen/logrus"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coordinationv1client "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
+
+	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 )
 
 // LeaderController is an interface to be implemented by structs that control which scheduler is leader
@@ -21,6 +23,28 @@ type LeaderController interface {
 	ValidateToken(tok LeaderToken) bool
 	// Run starts the controller.  This is a blocking call which will return when the provided context is cancelled
 	Run(ctx context.Context) error
+}
+
+// LeaderToken is a token handed out to schedulers which they can use to determine if they are leader
+type LeaderToken struct {
+	leader bool
+	id     uuid.UUID
+}
+
+// InvalidLeaderToken returns a LeaderToken indicating this instance is not leader.
+func InvalidLeaderToken() LeaderToken {
+	return LeaderToken{
+		leader: false,
+		id:     uuid.New(),
+	}
+}
+
+// NewLeaderToken returns a LeaderToken indicating this instance is the leader.
+func NewLeaderToken() LeaderToken {
+	return LeaderToken{
+		leader: true,
+		id:     uuid.New(),
+	}
 }
 
 // StandaloneLeaderController returns a token that always indicates you are leader
@@ -47,37 +71,36 @@ func (lc *StandaloneLeaderController) ValidateToken(tok LeaderToken) bool {
 }
 
 func (lc *StandaloneLeaderController) Run(ctx context.Context) error {
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		}
-	}
+	return nil
 }
 
-// LeaseListener  allows clients to listen for lease events
+// LeaseListener allows clients to listen for lease events.
 type LeaseListener interface {
-	// Called when the client has started leading
+	// Called when the client has started leading.
 	onStartedLeading(context.Context)
-	// Called when the client has stopped leading
+	// Called when the client has stopped leading,
 	onStoppedLeading()
 }
 
-// KubernetesLeaderController uses the Kubernetes Leader election mechanism to determine who is leader
-// This allows multiple instances of the scheduler to be run for HA.
+// KubernetesLeaderController uses the Kubernetes leader election mechanism to determine who is leader.
+// This allows multiple instances of the scheduler to be run for high availability.
+//
+// TODO: Move into package in common.
 type KubernetesLeaderController struct {
 	client   coordinationv1client.LeasesGetter
 	token    atomic.Value
-	config   LeaderConfig
+	config   schedulerconfig.LeaderConfig // TODO: Move necessary config into this struct.
 	listener LeaseListener
 }
 
-func NewKubernetesLeaderController(config LeaderConfig, client coordinationv1client.LeasesGetter) *KubernetesLeaderController {
-	return &KubernetesLeaderController{
+func NewKubernetesLeaderController(config schedulerconfig.LeaderConfig, client coordinationv1client.LeasesGetter) *KubernetesLeaderController {
+	controller := &KubernetesLeaderController{
 		client: client,
 		token:  atomic.Value{},
 		config: config,
 	}
+	controller.token.Store(InvalidLeaderToken())
+	return controller
 }
 
 func (lc *KubernetesLeaderController) GetToken() LeaderToken {
@@ -91,12 +114,15 @@ func (lc *KubernetesLeaderController) ValidateToken(tok LeaderToken) bool {
 	return false
 }
 
-// Run starts the controller.  This is a blocking call which will return when the provided context is cancelled
+// Run starts the controller.
+// This is a blocking call that returns when the provided context is cancelled.
 func (lc *KubernetesLeaderController) Run(ctx context.Context) error {
+	log := ctxlogrus.Extract(ctx)
+	log = log.WithField("service", "KubernetesLeaderController")
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return ctx.Err()
 		default:
 			lock := lc.getNewLock()
 			log.Infof("attempting to become leader")
@@ -139,27 +165,5 @@ func (lc *KubernetesLeaderController) getNewLock() *resourcelock.LeaseLock {
 		LockConfig: resourcelock.ResourceLockConfig{
 			Identity: lc.config.PodName,
 		},
-	}
-}
-
-// LeaderToken is a token handed out to schedulers which they can use to determine if they are leader
-type LeaderToken struct {
-	leader bool
-	id     uuid.UUID
-}
-
-// InvalidLeaderToken returns a LeaderToken which indicates the scheduler is not leader
-func InvalidLeaderToken() LeaderToken {
-	return LeaderToken{
-		leader: false,
-		id:     uuid.New(),
-	}
-}
-
-// NewLeaderToken returns a LeaderToken which indicates the scheduler is leader
-func NewLeaderToken() LeaderToken {
-	return LeaderToken{
-		leader: true,
-		id:     uuid.New(),
 	}
 }

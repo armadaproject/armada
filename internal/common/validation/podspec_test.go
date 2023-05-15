@@ -60,7 +60,6 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 func Test_ValidatePodSpec_terminationGracePeriod(t *testing.T) {
 	schedulingConfig := &configuration.SchedulingConfig{
 		Preemption: configuration.PreemptionConfig{
-			Enabled:              true,
 			DefaultPriorityClass: "high",
 			PriorityClasses:      map[string]configuration.PriorityClass{"high": {Priority: 0}},
 		},

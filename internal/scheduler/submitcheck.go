@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -14,14 +15,14 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
 type minimalExecutor struct {
-	nodeDb     *NodeDb
+	nodeDb     *nodedb.NodeDb
 	updateTime time.Time
 }
 
@@ -31,6 +32,11 @@ type schedulingResult struct {
 }
 
 const maxJobSchedulingResults = 10000
+
+type SubmitScheduleChecker interface {
+	CheckPodRequirements(podRequirement *schedulerobjects.PodRequirements) (bool, string)
+	CheckApiJobs(jobs []*api.Job) (bool, string)
+}
 
 type SubmitChecker struct {
 	executorTimeout           time.Duration
@@ -73,7 +79,18 @@ func NewSubmitChecker(
 
 func (srv *SubmitChecker) Run(ctx context.Context) error {
 	srv.updateExecutors(ctx)
-	ticker := time.NewTicker(1 * time.Minute)
+
+	var ticker *time.Ticker
+	intervalStr, set := os.LookupEnv("EXECUTOR_UPDATE_INTERVAL")
+	if !set {
+		intervalStr = "1m"
+	}
+
+	interval, err := time.ParseDuration(strings.TrimSpace(intervalStr))
+	if err != nil {
+		return err
+	}
+	ticker = time.NewTicker(interval)
 	for {
 		select {
 		case <-ctx.Done():
@@ -110,6 +127,14 @@ func (srv *SubmitChecker) updateExecutors(ctx context.Context) {
 
 	// Reset cache as the executors may have updated - changing what can be scheduled
 	srv.jobSchedulingResultsCache.Purge()
+}
+
+func (srv *SubmitChecker) CheckPodRequirements(podRequirement *schedulerobjects.PodRequirements) (bool, string) {
+	schedulingResult := srv.getSchedulingResult([]*schedulerobjects.PodRequirements{podRequirement})
+	if !schedulingResult.isSchedulable {
+		return schedulingResult.isSchedulable, fmt.Sprintf("requirements unschedulable:\n%s", schedulingResult.reason)
+	}
+	return true, ""
 }
 
 func (srv *SubmitChecker) CheckApiJobs(jobs []*api.Job) (bool, string) {
@@ -149,31 +174,20 @@ func GroupJobsByAnnotation(annotation string, jobs []*api.Job) map[string][]*api
 }
 
 func (srv *SubmitChecker) getSchedulingResult(reqs []*schedulerobjects.PodRequirements) schedulingResult {
-	overwriteAnnotations(reqs)
-	reqsHash, err := util.Hash(reqs, util.FormatV2, nil)
-	if err != nil {
-		return schedulingResult{isSchedulable: false, reason: err.Error()}
-	}
-	cachedResult, cacheExists := srv.jobSchedulingResultsCache.Get(reqsHash)
-	result, castSuccess := cachedResult.(schedulingResult)
-
-	if !cacheExists || !castSuccess {
-		result = srv.check(reqs)
-		srv.jobSchedulingResultsCache.Add(reqsHash, result)
-	}
-
-	return result
-}
-
-// overwriteAnnotations This sets all annotations to a constant value
-// This is needed to reduce the cardinality of PodRequirements - so they hash more consistently
-// To allow our caching to work effectively
-func overwriteAnnotations(reqs []*schedulerobjects.PodRequirements) {
 	for _, req := range reqs {
-		for key := range req.GetAnnotations() {
-			req.Annotations[key] = "submission-check"
+		schedulingKey := req.SchedulingKey()
+		var result schedulingResult
+		if obj, ok := srv.jobSchedulingResultsCache.Get(schedulingKey); ok {
+			result = obj.(schedulingResult)
+		} else {
+			result = srv.check(reqs)
+			srv.jobSchedulingResultsCache.Add(schedulingKey, result)
+		}
+		if !result.isSchedulable {
+			return result
 		}
 	}
+	return schedulingResult{isSchedulable: true}
 }
 
 // Check if a set of pods can be scheduled onto some cluster.
@@ -183,7 +197,7 @@ func (srv *SubmitChecker) check(reqs []*schedulerobjects.PodRequirements) schedu
 	}
 
 	// Make a shallow copy to avoid holding the lock and
-	// preventing updating NodeDbs while checking if jobs can be scheduled.
+	// preventing updating NodeDbs while checking if jobs can be scheduled
 	srv.mu.Lock()
 	executorById := maps.Clone(srv.executorById)
 	srv.mu.Unlock()
@@ -196,7 +210,7 @@ func (srv *SubmitChecker) check(reqs []*schedulerobjects.PodRequirements) schedu
 	var sb strings.Builder
 	for id, executor := range executorById {
 		nodeDb := executor.nodeDb
-		txn := nodeDb.db.Txn(true)
+		txn := nodeDb.Txn(true)
 		reports, ok, err := nodeDb.ScheduleManyWithTxn(txn, reqs)
 		txn.Abort()
 
@@ -241,10 +255,14 @@ func (srv *SubmitChecker) filterStaleNodeDbs(executorsById map[string]minimalExe
 	return rv
 }
 
-func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
+func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
 	// Nodes to be considered by the scheduler.
-	nodeDb, err := NewNodeDb(
+	// We just need to know if scheduling is possible;
+	// no need to try to find a good fit.
+	var maxExtraNodesToConsider uint = 0
+	nodeDb, err := nodedb.NewNodeDb(
 		srv.priorityClasses,
+		maxExtraNodesToConsider,
 		srv.indexedResources,
 		srv.indexedTaints,
 		srv.indexedNodeLabels,

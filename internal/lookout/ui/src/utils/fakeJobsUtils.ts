@@ -41,7 +41,7 @@ export async function simulateApiWait(abortSignal?: AbortSignal): Promise<void> 
   })
 }
 
-export function makeTestJobs(nJobs: number, seed: number, nQueues = 10, nJobSets = 100, state?: JobState): Job[] {
+export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSets = 100, state?: JobState): Job[] {
   const rand = mulberry32(seed)
   const uuid = seededUuid(rand)
   const annotationKeys = ["hyperparameter", "some/very/long/annotation/key/name/with/forward/slashes", "region"]
@@ -62,14 +62,15 @@ export function makeTestJobs(nJobs: number, seed: number, nQueues = 10, nJobSets
       runs: runs,
       submitted: randomDate(new Date("2022-12-13T11:57:25.733Z"), new Date("2022-12-27T11:57:25.733Z")),
       cpu: randomInt(2, 200, rand) * 100,
-      ephemeralStorage: 34359738368,
-      memory: 134217728,
+      ephemeralStorage: randomInt(2, 2048, rand) * 1024 ** 3,
+      memory: randomInt(2, 1024, rand) * 1024 ** 2,
       queue: queues[i % queues.length],
       annotations: createAnnotations(annotationKeys, uuid),
       jobId: jobId,
       jobSet: jobSets[i % jobSets.length],
       state: state ? state : randomProperty(JobState, rand),
       lastTransitionTime: randomDate(new Date("2022-12-13T12:19:14.956Z"), new Date("2022-12-31T11:57:25.733Z")),
+      priorityClass: rand() > 0.5 ? "armada-preemptible" : "armada-default",
     })
   }
 
@@ -123,7 +124,9 @@ export function filterFn(filter: JobFilter): (job: Job) => boolean {
     const objectToFilter = filter.isAnnotation ? job.annotations : job
 
     if (!Object.prototype.hasOwnProperty.call(objectToFilter, filter.field)) {
-      console.error(`Unknown filter field provided: ${filter}`)
+      if (filter.isAnnotation === undefined || !filter.isAnnotation) {
+        console.error(`Unknown filter field provided: ${filter}`)
+      }
       return false
     }
     const matcher = getMatch(filter.match)
@@ -137,13 +140,15 @@ export function getMatch(match: Match): (a: any, b: any) => boolean {
       return (a, b) => a === b
     case "startsWith":
       return (a, b) => isString(a) && isString(b) && a.startsWith(b)
-    case "greater":
+    case "contains":
+      return (a, b) => isString(a) && isString(b) && a.includes(b)
+    case "greaterThan":
       return (a, b) => a > b
-    case "less":
+    case "lessThan":
       return (a, b) => a < b
-    case "greaterOrEqual":
+    case "greaterThanOrEqualTo":
       return (a, b) => a >= b
-    case "lessOrEqual":
+    case "lessThanOrEqualTo":
       return (a, b) => a <= b
     case "anyOf":
       return (a, b) => b.includes(a)
@@ -170,4 +175,50 @@ export function compareValues(valueA: any, valueB: any, direction: SortDirection
 
 function randomDate(start: Date, end: Date): string {
   return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime())).toISOString()
+}
+
+type Resources = {
+  cpu: number
+  memory: number
+  ephemeralStorage: number
+  gpu: number
+}
+
+export function makeTestJob(
+  queue: string,
+  jobSet: string,
+  jobId: string,
+  state: JobState,
+  resources?: Resources,
+  runs?: JobRun[],
+): Job {
+  return {
+    queue: queue,
+    jobSet: jobSet,
+    jobId: jobId,
+    owner: queue,
+    priority: 10,
+    cpu: resources?.cpu ?? 1,
+    memory: resources?.memory ?? 1024,
+    ephemeralStorage: resources?.ephemeralStorage ?? 1024,
+    gpu: resources?.gpu ?? 1,
+    submitted: new Date().toISOString(),
+    lastTransitionTime: new Date().toISOString(),
+    state: state,
+    runs: runs ?? [],
+    annotations: {},
+    priorityClass: "armada-preemptible",
+  }
+}
+
+export function makeManyTestJobs(numJobs: number, numFinishedJobs: number): Job[] {
+  const jobs = []
+  for (let i = 0; i < numJobs; i++) {
+    let state = JobState.Queued
+    if (i < numFinishedJobs) {
+      state = JobState.Succeeded
+    }
+    jobs.push(makeTestJob(`queue-0`, `job-set-${i}`, `job-id-${i}`, state))
+  }
+  return jobs
 }

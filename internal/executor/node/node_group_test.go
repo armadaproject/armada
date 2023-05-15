@@ -14,7 +14,7 @@ import (
 var testAppConfig = configuration.ApplicationConfiguration{ClusterId: "test", Pool: "pool"}
 
 func TestGetType_WhenNodeHasNoTaint(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
 	nodeInfoService := NewKubernetesNodeInfoService(context, []string{"tolerated1", "tolerated2"})
 	node := createNodeWithTaints("node1")
 
@@ -24,7 +24,7 @@ func TestGetType_WhenNodeHasNoTaint(t *testing.T) {
 }
 
 func TestGetType_WhenNodeHasUntoleratedTaint(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
 	nodeInfoService := NewKubernetesNodeInfoService(context, []string{"tolerated1", "tolerated2"})
 	node := createNodeWithTaints("node1", "untolerated")
 
@@ -34,7 +34,7 @@ func TestGetType_WhenNodeHasUntoleratedTaint(t *testing.T) {
 }
 
 func TestGetType_WhenNodeHasToleratedTaint(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
 	nodeInfoService := NewKubernetesNodeInfoService(context, []string{"tolerated1", "tolerated2"})
 
 	node := createNodeWithTaints("node1", "tolerated1")
@@ -51,7 +51,7 @@ func TestGetType_WhenNodeHasToleratedTaint(t *testing.T) {
 }
 
 func TestGetType_WhenSomeNodeTaintsTolerated(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
 	nodeInfoService := NewKubernetesNodeInfoService(context, []string{"tolerated1", "tolerated2"})
 
 	node := createNodeWithTaints("node1", "tolerated1", "untolerated")
@@ -62,7 +62,7 @@ func TestGetType_WhenSomeNodeTaintsTolerated(t *testing.T) {
 }
 
 func TestGroupNodesByType(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
 	nodeInfoService := NewKubernetesNodeInfoService(context, []string{"tolerated1", "tolerated2"})
 
 	node1 := createNodeWithTaints("node1")
@@ -88,7 +88,7 @@ func TestGroupNodesByType(t *testing.T) {
 }
 
 func TestFilterAvailableProcessingNodes(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
 	nodeInfoService := NewKubernetesNodeInfoService(context, []string{})
 
 	node := v1.Node{
@@ -98,12 +98,12 @@ func TestFilterAvailableProcessingNodes(t *testing.T) {
 		},
 	}
 
-	result := nodeInfoService.isAvailableProcessingNode(&node)
+	result := nodeInfoService.IsAvailableProcessingNode(&node)
 	assert.True(t, result, 1)
 }
 
 func TestIsAvailableProcessingNode_IsFalse_UnschedulableNode(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
 	nodeInfoService := NewKubernetesNodeInfoService(context, []string{})
 
 	node := v1.Node{
@@ -113,12 +113,12 @@ func TestIsAvailableProcessingNode_IsFalse_UnschedulableNode(t *testing.T) {
 		},
 	}
 
-	result := nodeInfoService.isAvailableProcessingNode(&node)
+	result := nodeInfoService.IsAvailableProcessingNode(&node)
 	assert.False(t, result)
 }
 
 func TestFilterAvailableProcessingNodes_IsFalse_NodeWithNoScheduleTaint(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
 	nodeInfoService := NewKubernetesNodeInfoService(context, []string{})
 
 	taint := v1.Taint{
@@ -132,12 +132,12 @@ func TestFilterAvailableProcessingNodes_IsFalse_NodeWithNoScheduleTaint(t *testi
 		},
 	}
 
-	result := nodeInfoService.isAvailableProcessingNode(&node)
+	result := nodeInfoService.IsAvailableProcessingNode(&node)
 	assert.False(t, result)
 }
 
 func TestFilterAvailableProcessingNodes_IsTrue_NodeWithToleratedTaint(t *testing.T) {
-	context := fakeContext.NewFakeClusterContext(testAppConfig, nil)
+	context := fakeContext.NewFakeClusterContext(testAppConfig, "kubernetes.io/hostname", nil)
 	nodeInfoService := NewKubernetesNodeInfoService(context, []string{"taint"})
 
 	taint := v1.Taint{
@@ -151,7 +151,7 @@ func TestFilterAvailableProcessingNodes_IsTrue_NodeWithToleratedTaint(t *testing
 		},
 	}
 
-	result := nodeInfoService.isAvailableProcessingNode(&node)
+	result := nodeInfoService.IsAvailableProcessingNode(&node)
 	assert.True(t, result)
 }
 

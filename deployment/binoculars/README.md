@@ -1,6 +1,6 @@
 # armada-binoculars
 
-![Version: LATEST](https://img.shields.io/badge/Version-LATEST-informational?style=flat-square) ![AppVersion: LATEST](https://img.shields.io/badge/AppVersion-LATEST-informational?style=flat-square)
+![Version: 0.0.0-latest](https://img.shields.io/badge/Version-0.0.0--latest-informational?style=flat-square) ![AppVersion: 0.0.0-latest](https://img.shields.io/badge/AppVersion-0.0.0--latest-informational?style=flat-square)
 
 A helm chart for Armada Binoculars component
 
@@ -14,7 +14,7 @@ A helm chart for Armada Binoculars component
 | applicationConfig.metricsPort | int | `9000` |  |
 | customServiceAccount | string | `nil` |  |
 | image.repository | string | `"gresearchdev/armada-binoculars"` |  |
-| image.tag | string | `"LATEST"` |  |
+| image.tag | string | `"0.0.0-latest"` |  |
 | ingress.annotations | object | `{}` |  |
 | ingress.labels | object | `{}` |  |
 | prometheus.enabled | bool | `false` |  |

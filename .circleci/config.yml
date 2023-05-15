@@ -1,5 +1,8 @@
 version: 2.1
 
+orbs:
+  go: circleci/go@1.7.3
+
 commands:
   deploy-executor:
     parameters:
@@ -80,7 +83,7 @@ commands:
         command: |
           RELEASE_TAG=${CIRCLE_TAG}
           echo release version is $RELEASE_TAG
-          find . \( -name "Chart.yaml" -o -name "values.yaml" \) -exec sed -i s/LATEST/$RELEASE_TAG/ {} +
+          find . \( -name "Chart.yaml" -o -name "values.yaml" \) -exec sed -i s/0.0.0-latest/$RELEASE_TAG/ {} +
 
     - run:
         name: Build new packages and index.yaml
@@ -127,11 +130,11 @@ jobs:
     working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
-
+      - go/install:
+          version: '1.20.2'
       - restore_cache: # restore dependencies
           keys:
             - go-mod-v3-{{ checksum "go.sum" }}
-
       - run:
           name: Download dependencies
           command: |
@@ -142,7 +145,9 @@ jobs:
 
       - run:
           name: Build
-          command: make build-ci
+          command: |
+            make build-ci
+            make build-docker-full-bundle
 
       - run:
           name: e2e test environment setup
@@ -159,7 +164,7 @@ jobs:
       - run:
           name: e2e test environment teardown
           command: make tests-e2e-teardown
-          
+
       - run:
           name: Prepare reports
           command: make junit-report
@@ -228,18 +233,21 @@ jobs:
 
             docker tag armada-jobservice gresearchdev/armada-jobservice-dev:${TAG}
             docker push gresearchdev/armada-jobservice-dev:${TAG}
-            
+
             docker tag armada-scheduler gresearchdev/armada-scheduler-dev:${TAG}
             docker push gresearchdev/armada-scheduler-dev:${TAG}
-            
+
             docker tag armada-scheduler-ingester gresearchdev/armada-scheduler-ingester-dev:${TAG}
             docker push gresearchdev/armada-scheduler-ingester-dev:${TAG}
+
+            docker tag armada-full-bundle gresearchdev/armada-full-bundle-dev:${TAG}
+            docker push gresearchdev/armada-full-bundle-dev:${TAG}
 
 
   release-armadactl:
     machine:
       docker_layer_caching: true
-      image: ubuntu-2204:2022.07.1
+      image: ubuntu-2204:2023.02.1
       resource_class: large
       # resource_class: xlarge
     environment:
@@ -341,14 +349,18 @@ jobs:
             docker pull gresearchdev/armada-event-ingester-dev:${TAG}
             docker tag gresearchdev/armada-event-ingester-dev:${TAG} gresearchdev/armada-event-ingester:${RELEASE_TAG}
             docker push gresearchdev/armada-event-ingester:${RELEASE_TAG}
-            
+
             docker pull gresearchdev/armada-scheduler-dev:${TAG}
             docker tag gresearchdev/armada-scheduler-dev:${TAG} gresearchdev/armada-scheduler:${RELEASE_TAG}
             docker push gresearchdev/armada-scheduler:${RELEASE_TAG}
-            
+
             docker pull gresearchdev/armada-scheduler-ingester-dev:${TAG}
             docker tag gresearchdev/armada-scheduler-ingester-dev:${TAG} gresearchdev/armada-scheduler-ingester:${RELEASE_TAG}
             docker push gresearchdev/armada-scheduler-ingester:${RELEASE_TAG}
+
+            docker pull gresearchdev/armada-full-bundle-dev:${TAG}
+            docker tag gresearchdev/armada-full-bundle-dev:${TAG} gresearchdev/armada-full-bundle:${RELEASE_TAG}
+            docker push gresearchdev/armada-full-bundle:${RELEASE_TAG}
 
   release-charts:
     machine:
@@ -372,7 +384,7 @@ jobs:
   release-dotnet-client:
     machine:
       docker_layer_caching: true
-      image: ubuntu-2204:2022.07.1
+      image: ubuntu-2204:2023.02.1
       resource_class: large
       # resource_class: xlarge
     environment:
@@ -393,7 +405,7 @@ jobs:
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             chmod +x kubectl
             sudo mv kubectl /usr/local/bin/
-            make download # no-op if we restored from cache            
+            make download # no-op if we restored from cache
 
       - run:
           name: Push dotnet clients to nuget

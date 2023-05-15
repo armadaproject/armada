@@ -67,11 +67,15 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 
 	operations := make([]DbOperation, 0, len(es.Events))
 	for idx, event := range es.Events {
+		eventTime := time.Now().UTC()
+		if event.Created != nil {
+			eventTime = *event.Created
+		}
 		var err error = nil
 		var operationsFromEvent []DbOperation
 		switch eventType := event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
-			operationsFromEvent, err = c.handleSubmitJob(event.GetSubmitJob(), meta)
+			operationsFromEvent, err = c.handleSubmitJob(event.GetSubmitJob(), eventTime, meta)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 			operationsFromEvent, err = c.handleJobRunLeased(event.GetJobRunLeased(), meta)
 		case *armadaevents.EventSequence_Event_JobRunRunning:
@@ -94,6 +98,8 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 			operationsFromEvent, err = c.handleCancelJobSet(meta.jobset)
 		case *armadaevents.EventSequence_Event_CancelledJob:
 			operationsFromEvent, err = c.handleCancelledJob(event.GetCancelledJob())
+		case *armadaevents.EventSequence_Event_JobRequeued:
+			operationsFromEvent, err = c.handleJobRequeued(event.GetJobRequeued())
 		case *armadaevents.EventSequence_Event_PartitionMarker:
 			operationsFromEvent, err = c.handlePartitionMarker(event.GetPartitionMarker(), *event.Created)
 		case *armadaevents.EventSequence_Event_ReprioritisedJob,
@@ -118,7 +124,16 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 	return operations
 }
 
-func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, meta eventSequenceCommon) ([]DbOperation, error) {
+func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, submitTime time.Time, meta eventSequenceCommon) ([]DbOperation, error) {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(job.JobId)
+	if err != nil {
+		return nil, err
+	}
+	if job.IsDuplicate {
+		log.Debugf("job %s is a duplicate, ignoring", jobId)
+		return nil, nil
+	}
+
 	// Store the job submit message so that it can be sent to an executor.
 	submitJobBytes, err := proto.Marshal(job)
 	if err != nil {
@@ -145,19 +160,19 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, meta
 		return nil, err
 	}
 
-	jobId, err := armadaevents.UlidStringFromProtoUuid(job.JobId)
-	if err != nil {
-		return nil, err
-	}
 	return []DbOperation{InsertJobs{jobId: &schedulerdb.Job{
-		JobID:          jobId,
-		JobSet:         meta.jobset,
-		UserID:         meta.user,
-		Groups:         compressedGroups,
-		Queue:          meta.queue,
-		Priority:       int64(job.Priority),
-		SubmitMessage:  compressedSubmitJobBytes,
-		SchedulingInfo: schedulingInfoBytes,
+		JobID:                 jobId,
+		JobSet:                meta.jobset,
+		UserID:                meta.user,
+		Groups:                compressedGroups,
+		Queue:                 meta.queue,
+		Queued:                true,
+		QueuedVersion:         0,
+		Submitted:             submitTime.UnixNano(),
+		Priority:              int64(job.Priority),
+		SubmitMessage:         compressedSubmitJobBytes,
+		SchedulingInfo:        schedulingInfoBytes,
+		SchedulingInfoVersion: int32(schedulingInfo.Version),
 	}}}, nil
 }
 
@@ -167,12 +182,40 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 	if err != nil {
 		return nil, err
 	}
-	return []DbOperation{InsertRuns{runId: &schedulerdb.Run{
-		RunID:    runId,
-		JobID:    jobId,
-		JobSet:   meta.jobset,
-		Executor: jobRunLeased.GetExecutorId(),
-	}}}, nil
+	return []DbOperation{
+		InsertRuns{runId: &schedulerdb.Run{
+			RunID:    runId,
+			JobID:    jobId,
+			JobSet:   meta.jobset,
+			Executor: jobRunLeased.GetExecutorId(),
+			Node:     jobRunLeased.GetNodeId(),
+		}},
+		UpdateJobQueuedState{jobId: &JobQueuedStateUpdate{
+			Queued:             false,
+			QueuedStateVersion: jobRunLeased.UpdateSequenceNumber,
+		}},
+	}, nil
+}
+
+func (c *InstructionConverter) handleJobRequeued(jobRequeued *armadaevents.JobRequeued) ([]DbOperation, error) {
+	schedulingInfoBytes, err := proto.Marshal(jobRequeued.SchedulingInfo)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	jobId, err := armadaevents.UlidStringFromProtoUuid(jobRequeued.GetJobId())
+	if err != nil {
+		return nil, err
+	}
+	return []DbOperation{
+		UpdateJobQueuedState{jobId: &JobQueuedStateUpdate{
+			Queued:             true,
+			QueuedStateVersion: jobRequeued.UpdateSequenceNumber,
+		}},
+		UpdateJobSchedulingInfo{jobId: &JobSchedulingInfoUpdate{
+			JobSchedulingInfo:        schedulingInfoBytes,
+			JobSchedulingInfoVersion: int32(jobRequeued.SchedulingInfo.Version),
+		}},
+	}, nil
 }
 
 func (c *InstructionConverter) handleJobRunRunning(jobRunRunning *armadaevents.JobRunRunning) ([]DbOperation, error) {
@@ -205,7 +248,14 @@ func (c *InstructionConverter) handleJobRunErrors(jobRunErrors *armadaevents.Job
 				JobID: jobId,
 				Error: bytes,
 			}
-			markRunsFailed[runId] = &JobRunFailed{LeaseReturned: runError.GetPodLeaseReturned() != nil}
+			runAttempted := true
+			if runError.GetPodLeaseReturned() != nil {
+				runAttempted = runError.GetPodLeaseReturned().RunAttempted
+			}
+			markRunsFailed[runId] = &JobRunFailed{
+				LeaseReturned: runError.GetPodLeaseReturned() != nil,
+				RunAttempted:  runAttempted,
+			}
 			return []DbOperation{insertJobRunErrors, markRunsFailed}, nil
 		}
 	}
@@ -301,6 +351,7 @@ func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaeven
 		AtMostOnce:      submitJob.AtMostOnce,
 		Preemptible:     submitJob.Preemptible,
 		ConcurrencySafe: submitJob.ConcurrencySafe,
+		Version:         0,
 	}
 
 	// Scheduling requirements specific to the objects that make up this job.
@@ -317,5 +368,9 @@ func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaeven
 	default:
 		return nil, errors.Errorf("unsupported object type %T", object)
 	}
+
+	// Call SchedulingKey() to trigger computing and caching the key.
+	_, _ = schedulingInfo.SchedulingKey()
+
 	return schedulingInfo, nil
 }
