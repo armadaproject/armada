@@ -478,6 +478,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		allocatedByQueueForPool,
 	)
 	constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+		req.Pool,
 		schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
 		q.schedulingConfig,
 	)
