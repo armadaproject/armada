@@ -101,7 +101,8 @@ func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, erro
 		select {
 		case <-ctx.Done():
 			// TODO: Better to push ctx into next and have that control it.
-			sch.schedulingContext.TerminationReason = ctx.Err().Error()
+			err := ctx.Err()
+			sch.schedulingContext.TerminationReason = err.Error()
 			return nil, err
 		default:
 		}
