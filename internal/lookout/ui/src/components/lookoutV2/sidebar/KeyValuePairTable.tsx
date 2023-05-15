@@ -8,6 +8,7 @@ export interface KeyValuePairTable {
     value: string
   }[]
 }
+
 export const KeyValuePairTable = ({ data }: KeyValuePairTable) => {
   return (
     <Table size="small">
