@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha1"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/util"
 	"math/rand"
 	"strings"
 	"time"
@@ -293,7 +294,10 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 			{
 				Created: pointer.Now(),
 				Event: &armadaevents.EventSequence_Event_CancelJob{
-					CancelJob: &armadaevents.CancelJob{JobId: jobId, Reason: req.Reason},
+					CancelJob: &armadaevents.CancelJob{
+						JobId:  jobId,
+						Reason: util.Truncate(req.Reason, 512),
+					},
 				},
 			},
 		},
@@ -365,7 +369,10 @@ func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Created: pointer.Now(),
 			Event: &armadaevents.EventSequence_Event_CancelJob{
-				CancelJob: &armadaevents.CancelJob{JobId: jobId, Reason: reason},
+				CancelJob: &armadaevents.CancelJob{
+					JobId:  jobId,
+					Reason: util.Truncate(reason, 512),
+				},
 			},
 		})
 	}
@@ -421,7 +428,10 @@ func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSet
 		legacySchedulerSequence.Events = append(legacySchedulerSequence.Events, &armadaevents.EventSequence_Event{
 			Created: pointer.Now(),
 			Event: &armadaevents.EventSequence_Event_CancelJob{
-				CancelJob: &armadaevents.CancelJob{JobId: jobId, Reason: req.Reason},
+				CancelJob: &armadaevents.CancelJob{
+					JobId:  jobId,
+					Reason: util.Truncate(req.Reason, 512),
+				},
 			},
 		})
 	}
@@ -455,7 +465,7 @@ func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSet
 					Event: &armadaevents.EventSequence_Event_CancelJobSet{
 						CancelJobSet: &armadaevents.CancelJobSet{
 							States: states,
-							Reason: req.Reason,
+							Reason: util.Truncate(req.Reason, 512),
 						},
 					},
 				},

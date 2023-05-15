@@ -158,13 +158,23 @@ export const CancelDialog = ({
 
       <DialogActions>
         <Button onClick={onClose}>Close</Button>
-        <div>
-          <label>Is Platform error?</label>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "center",
+            padding: "0 10px 0 10px",
+          }}
+        >
           <Checkbox
+            style={{
+              padding: "3px",
+            }}
             checked={isPlatformCancel}
             disabled={isLoadingJobs || hasAttemptedCancel || cancellableJobs.length === 0}
             onChange={(event) => setIsPlatformCancel(event.target.checked)}
           />
+          <label>Platform error</label>
         </div>
         <Button
           onClick={handleRefetch}
