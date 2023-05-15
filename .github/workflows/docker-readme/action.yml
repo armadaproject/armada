@@ -102,7 +102,7 @@ runs:
         DOCKER_USER: ${{ inputs.docker_user }}
         DOCKER_PASS: ${{ inputs.docker_pwd }}
       with:
-        destination_container_repo: ${{ inputs.docker_owner }}/armada-lookoutingester
+        destination_container_repo: ${{ inputs.docker_owner }}/armada-lookout-ingester
         provider: ${{ inputs.docker_provider }}
         short_description: 'Armada Lookout Ingester is responsible for ingesting the state of jobs and workflows'
         readme_file: 'README.md'
@@ -113,7 +113,7 @@ runs:
         DOCKER_USER: ${{ inputs.docker_user }}
         DOCKER_PASS: ${{ inputs.docker_pwd }}
       with:
-        destination_container_repo: ${{ inputs.docker_owner }}/armada-lookoutingesterv2
+        destination_container_repo: ${{ inputs.docker_owner }}/armada-lookout-ingester-v2
         provider: ${{ inputs.docker_provider }}
         short_description: 'Armada Lookout Ingester V2 is responsible for ingesting the state of jobs and workflows'
         readme_file: 'README.md'
@@ -124,7 +124,7 @@ runs:
         DOCKER_USER: ${{ inputs.docker_user }}
         DOCKER_PASS: ${{ inputs.docker_pwd }}
       with:
-        destination_container_repo: ${{ inputs.docker_owner }}/armada-eventingester
+        destination_container_repo: ${{ inputs.docker_owner }}/armada-event-ingester
         provider: ${{ inputs.docker_provider }}
         short_description: 'Armada Event Ingester is responsible for ingesting events from Kubernetes'
         readme_file: 'README.md'
@@ -146,7 +146,7 @@ runs:
         DOCKER_USER: ${{ inputs.docker_user }}
         DOCKER_PASS: ${{ inputs.docker_pwd }}
       with:
-        destination_container_repo: ${{ inputs.docker_owner }}/armada-scheduleringester
+        destination_container_repo: ${{ inputs.docker_owner }}/armada-scheduler-ingester
         provider: ${{ inputs.docker_provider }}
         short_description: 'Armada Scheduler Ingester is responsible for ingesting the state of jobs and workflows'
         readme_file: 'README.md'

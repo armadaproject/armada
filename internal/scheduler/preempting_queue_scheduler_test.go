@@ -98,6 +98,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		// For each queue, indices of jobs to unbind before scheduling, to, simulate jobs terminating.
 		// E.g., IndicesToUnbind["A"][0] is the indices of jobs declared for queue A in round 0.
 		IndicesToUnbind map[string]map[int][]int
+		// Indices of nodes that should be cordoned before scheduling.
+		NodeIndicesToCordon []int
 	}
 	tests := map[string]struct {
 		SchedulingConfig configuration.SchedulingConfig
@@ -1139,6 +1141,36 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"B": 1,
 			},
 		},
+		"Cordoning prevents scheduling new jobs but not re-scheduling running jobs": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass1, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 0),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass1, 1),
+					},
+					NodeIndicesToCordon: []int{0},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass1, 1),
+					},
+				},
+				{}, // Empty round to make sure nothing changes.
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -1198,6 +1230,16 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							}
 						}
 					}
+				}
+
+				// Cordon nodes.
+				for _, j := range round.NodeIndicesToCordon {
+					node, err := nodeDb.GetNode(tc.Nodes[j].Id)
+					require.NoError(t, err)
+					node = node.DeepCopy()
+					node.Unschedulable = true
+					err = nodeDb.Upsert(node)
+					require.NoError(t, err)
 				}
 
 				// If not provided, set total resources equal to the aggregate over tc.Nodes.

@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   release:
+    if: github.repository_owner == 'armadaproject'
     name: Release
     runs-on: "ubuntu-22.04"
     environment: armada-dockerhub
@@ -62,7 +63,7 @@ jobs:
         id: "tag_create"
         with:
           tag: "v${{ steps.set_next_version.outputs.next_version }}"
-          tag_exists_error: true
+          force_push_tag: true
           message: "Armada Release Candidate for version v${{ steps.gitversion.outputs.majorMinorPatch }}"
 
       - name: "Run GoReleaser"
