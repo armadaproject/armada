@@ -58,6 +58,10 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 	for p, rl := range nodeInfo.NonArmadaAllocatedResources {
 		nonArmadaAllocatedResources[p] = schedulerobjects.ResourceList{Resources: rl.Resources}
 	}
+	resourceUsageByQueue := make(map[string]*schedulerobjects.ResourceList)
+	for queueName, resourceUsage := range nodeInfo.ResourceUsageByQueue {
+		resourceUsageByQueue[queueName] = &schedulerobjects.ResourceList{Resources: resourceUsage.Resources}
+	}
 
 	jobRunsByState := make(map[string]schedulerobjects.JobRunState)
 	for jobId, state := range nodeInfo.RunIdsByState {
@@ -74,6 +78,8 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		NonArmadaAllocatedResources:      nonArmadaAllocatedResources,
 		StateByJobRunId:                  jobRunsByState,
 		Unschedulable:                    nodeInfo.Unschedulable,
+		ResourceUsageByQueue:             resourceUsageByQueue,
+		ReportingNodeType:                nodeInfo.NodeType,
 	}, nil
 }
 

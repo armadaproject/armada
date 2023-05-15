@@ -67,7 +67,7 @@ message LeaseStreamMessage{
 }
 
 service ExecutorApi {
-  // Reports usage information to the scheduler. 
+  // Reports usage information to the scheduler.
   // In return, the scheduler provides:
   // - Slice of job runs that the executor is currently running that should be cancelled.
   // - Slice of job runs that the executor is currently running that should be preempted.
