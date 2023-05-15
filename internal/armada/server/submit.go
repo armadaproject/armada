@@ -537,7 +537,13 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, jobs []*api.Job, rea
 		}
 	}
 
-	err = reportJobsCancelled(server.eventStore, principal.GetName(), cancelled)
+	cancelledJobPayloads := util.Map(cancelled, func(job *api.Job) *CancelledJobPayload {
+		return &CancelledJobPayload{
+			job:    job,
+			reason: reason,
+		}
+	})
+	err = reportJobsCancelled(server.eventStore, principal.GetName(), cancelledJobPayloads)
 	if err != nil {
 		return nil, errors.Errorf("[cancelJobs] error reporting job cancellation: %v", err)
 	}

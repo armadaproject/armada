@@ -105,8 +105,6 @@ func (c *InstructionConverter) convertSequence(
 			err = c.handleJobDuplicateDetected(ts, event.GetJobDuplicateDetected(), update)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
 			err = c.handleJobRunPreempted(ts, event.GetJobRunPreempted(), update)
-		case *armadaevents.EventSequence_Event_CancelJob:
-			err = c.handleCancelJob(ts, event.GetCancelJob(), update)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
@@ -255,25 +253,6 @@ func (c *InstructionConverter) handleJobDuplicateDetected(ts time.Time, event *a
 	return nil
 }
 
-func (c *InstructionConverter) handleCancelJob(ts time.Time, event *armadaevents.CancelJob, update *model.InstructionSet) error {
-	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
-	if err != nil {
-		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-		return err
-	}
-	reason := event.GetReason()
-	if len(reason) > 512 {
-		reason = reason[:512]
-	}
-
-	jobUpdate := model.UpdateJobInstruction{
-		JobId:        jobId,
-		CancelReason: &reason,
-	}
-	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
-	return nil
-}
-
 func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
@@ -281,10 +260,16 @@ func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaeve
 		return err
 	}
 
+	var reason *string
+	if event.Reason != "" {
+		reason = &event.Reason
+	}
+	fmt.Println("HIT", reason, event.Reason)
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:                     jobId,
 		State:                     pointer.Int32(int32(lookout.JobCancelledOrdinal)),
 		Cancelled:                 &ts,
+		CancelReason:              reason,
 		LastTransitionTime:        &ts,
 		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
 	}

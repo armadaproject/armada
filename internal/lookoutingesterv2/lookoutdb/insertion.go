@@ -132,7 +132,7 @@ func (l *LookoutDb) CreateJobsBatch(ctx context.Context, instructions []*model.C
 			_, err := tx.Exec(ctx, fmt.Sprintf(`
 				CREATE TEMPORARY TABLE %s
 				(
-					job_id 	                      varchar(32),
+					job_id 	                     varchar(32),
 					queue                        varchar(512),
 					owner                        varchar(512),
 					jobset                       varchar(1024),

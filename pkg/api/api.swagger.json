@@ -757,6 +757,9 @@
         "queue": {
           "type": "string"
         },
+        "reason": {
+          "type": "string"
+        },
         "requestor": {
           "type": "string"
         }

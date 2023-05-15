@@ -768,6 +768,9 @@ func SwaggerJsonTemplate() string {
 		"        \"queue\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"reason\": {\n" +
+		"          \"type\": \"string\"\n" +
+		"        },\n" +
 		"        \"requestor\": {\n" +
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
