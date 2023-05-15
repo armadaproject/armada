@@ -4,10 +4,9 @@ description: "Sets up go environment and installs deps for go testing of armada"
 runs:
   using: "composite"
   steps:
-    - uses: actions/setup-go@v3
+    - uses: actions/setup-go@v4
       with:
         go-version: ${{ matrix.go }}
-        cache: true
     - name: Setup dependencies
       shell: bash
       run: make download

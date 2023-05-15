@@ -8,13 +8,14 @@ import (
 	"time"
 
 	"github.com/magefile/mage/mg"
+	"github.com/magefile/mage/sh"
 )
 
 // Build images, spin up a test environment, and run the integration tests against it.
 func TestSuite() error {
 	timeTaken := time.Now()
 
-	outbytes, err := exec.Command(goBinary(), "run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue").CombinedOutput()
+	outbytes, err := exec.Command(armadaCtl(), "create", "queue", "e2e-test-queue").CombinedOutput()
 	out := string(outbytes)
 	// check if err text contains "already exists" and ignore if it does
 	if err != nil && !strings.Contains(out, "already exists") {
@@ -26,6 +27,15 @@ func TestSuite() error {
 
 	mg.Deps(CheckForArmadaRunning)
 
+	// Only set these if they have not already been set
+	if os.Getenv("ARMADA_EXECUTOR_INGRESS_URL") == "" {
+		os.Setenv("ARMADA_EXECUTOR_INGRESS_URL", "http://localhost")
+	}
+	if os.Getenv("ARMADA_EXECUTOR_INGRESS_PORT") == "" {
+		os.Setenv("ARMADA_EXECUTOR_INGRESS_PORT", "5001")
+	}
+
+	timeTaken = time.Now()
 	out, err2 := goOutput("run", "cmd/testsuite/main.go", "test",
 		"--tests", "testsuite/testcases/basic/*",
 		"--junit", "junit.xml",
@@ -33,54 +43,9 @@ func TestSuite() error {
 	if err2 != nil {
 		return err2
 	}
+	fmt.Printf("(Real) Time to run tests: %s\n\n", time.Since(timeTaken))
 
 	fmt.Println(out)
-	return nil
-}
-
-func ciSetup() error {
-	if err := os.MkdirAll(".kube", os.ModeDir|0o755); err != nil {
-		return err
-	}
-	err := dockerComposeRun("up", "-d", "redis", "postgres", "pulsar")
-	if err != nil {
-		return err
-	}
-
-	mg.Deps(CheckForPulsarRunning)
-
-	// By starting the executor first,
-	// we can ensure that the server will be able to register the executor cluster
-	// on its first attempt.
-	err = dockerComposeRun("up", "-d", "executor")
-	if err != nil {
-		return err
-	}
-	err = dockerComposeRun("up", "-d", "server")
-	if err != nil {
-		return err
-	}
-
-	err = goRun("run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue")
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Build images, spin up a test environment, and run the integration tests against it.
-func ciRunTests() error {
-	mg.Deps(CheckForArmadaRunning)
-
-	out, err := goOutput("run", "cmd/testsuite/main.go", "test",
-		"--tests", "testsuite/testcases/basic/*",
-		"--junit", "junit.xml",
-	)
-	fmt.Println(out)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -94,7 +59,7 @@ func CheckForArmadaRunning() error {
 		case <-timeout:
 			return fmt.Errorf("timed out waiting for Armada to start")
 		case <-tick:
-			outbytes, _ := exec.Command(goBinary(), "run", "cmd/armadactl/main.go", "submit", "./developer/config/job.yaml").CombinedOutput()
+			outbytes, _ := exec.Command(armadaCtl(), "submit", "./developer/config/job.yaml").CombinedOutput()
 			out := string(outbytes)
 			if strings.Contains(out, "Submitted job with id") {
 				// Sleep for 1 second to allow Armada to fully start
@@ -105,4 +70,14 @@ func CheckForArmadaRunning() error {
 			seconds++
 		}
 	}
+}
+
+func armadaCtl() string {
+	if _, err := os.Stat("./armadactl"); os.IsNotExist(err) {
+		err = sh.Run("sh", "./docs/local/armadactl.sh")
+		if err != nil {
+			return ""
+		}
+	}
+	return "./armadactl"
 }
