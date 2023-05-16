@@ -45,7 +45,7 @@ func (sch *GangScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 }
 
 func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
-	// Exit immediately if this is a new gang we've hit any round limits. Otherwise, try scheduling the gang.
+	// Exit immediately if this is a new gang and we've hit any round limits.
 	if !gctx.AllJobsEvicted {
 		if ok, unschedulableReason, err = sch.constraints.CheckRoundConstraints(sch.schedulingContext); err != nil || !ok {
 			return
