@@ -26,7 +26,7 @@ type GangScheduler struct {
 	// If true, the unsuccessfulSchedulingKeys check is omitted.
 	skipUnsuccessfulSchedulingKeyCheck bool
 	// Name of the queue that was scheduled in the previous call to Schedule().
-	// Empty is no job was scheduled in the previous call to Schedule(), or if this is the first call.
+	// Empty if no job was scheduled in the previous call to Schedule(), or if this is the first call.
 	queueScheduledInPreviousCall string
 }
 
