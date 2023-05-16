@@ -25,6 +25,12 @@ type GangScheduler struct {
 	unsuccessfulSchedulingKeys map[schedulerobjects.SchedulingKey]*schedulercontext.JobSchedulingContext
 	// If true, the unsuccessfulSchedulingKeys check is omitted.
 	skipUnsuccessfulSchedulingKeyCheck bool
+<<<<<<< HEAD
+=======
+	// Name of the queue that was scheduled in the previous call to Schedule().
+	// Empty if no job was scheduled in the previous call to Schedule(), or if this is the first call.
+	queueScheduledInPreviousCall string
+>>>>>>> da17bd7c175c08ae395589df538a77ebf1c47d02
 }
 
 func NewGangScheduler(
