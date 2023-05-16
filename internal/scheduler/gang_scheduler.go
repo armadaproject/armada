@@ -25,9 +25,6 @@ type GangScheduler struct {
 	unsuccessfulSchedulingKeys map[schedulerobjects.SchedulingKey]*schedulercontext.JobSchedulingContext
 	// If true, the unsuccessfulSchedulingKeys check is omitted.
 	skipUnsuccessfulSchedulingKeyCheck bool
-	// Name of the queue that was scheduled in the previous call to Schedule().
-	// Empty is no job was scheduled in the previous call to Schedule(), or if this is the first call.
-	queueScheduledInPreviousCall string
 }
 
 func NewGangScheduler(
@@ -49,7 +46,7 @@ func (sch *GangScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 
 func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
 	// Exit immediately if this is a new gang we've hit any round limits. Otherwise, try scheduling the gang.
-	if !gctx.AllJobsEvicted && sch.queueScheduledInPreviousCall != "" {
+	if !gctx.AllJobsEvicted {
 		if ok, unschedulableReason, err = sch.constraints.CheckRoundConstraints(sch.schedulingContext); err != nil || !ok {
 			return
 		}
@@ -63,12 +60,7 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 		if err != nil {
 			return
 		}
-		if ok {
-			sch.queueScheduledInPreviousCall = gctx.Queue
-		} else {
-			// Clear the scheduled queue, since no job was scheduled in this call.
-			sch.queueScheduledInPreviousCall = ""
-
+		if !ok {
 			// Register the job as unschedulable. If the job was added to the context, remove it first.
 			if gangAddedToSchedulingContext {
 				jobs := util.Map(gctx.JobSchedulingContexts, func(jctx *schedulercontext.JobSchedulingContext) interfaces.LegacySchedulerJob { return jctx.Job })
