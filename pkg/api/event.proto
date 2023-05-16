@@ -203,6 +203,7 @@ message JobCancellingEvent {
     string queue = 3;
     google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     string requestor = 5;
+    string reason = 6;
 }
 
 message JobCancelledEvent {
@@ -211,6 +212,7 @@ message JobCancelledEvent {
     string queue = 3;
     google.protobuf.Timestamp created = 4 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     string requestor = 5;
+    string reason = 6;
 }
 
 message JobTerminatedEvent {
