@@ -152,7 +152,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			defer cancel()
 			config := testfixtures.TestSchedulingConfig()
 			if tc.perQueueLimit != nil {
-				config = testfixtures.WithPerQueueLimitsConfig(tc.perQueueLimit, config)
+				priorityClass := testfixtures.TestPriorityClasses[testfixtures.PriorityClass0]
+				config = testfixtures.WithPerPriorityLimitsConfig(map[int32]map[string]float64{priorityClass.Priority: tc.perQueueLimit}, config)
 			}
 			if tc.maxUnacknowledgedJobsPerExecutor != 0 {
 				config = testfixtures.WithMaxUnacknowledgedJobsPerExecutor(tc.maxUnacknowledgedJobsPerExecutor, config)
@@ -254,6 +255,7 @@ func TwoCoreExecutor(name string, jobs []*jobdb.Job, updateTime time.Time) *sche
 
 func OneCpuJob(creationTime int64) *jobdb.Job {
 	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
+		PriorityClassName: testfixtures.PriorityClass0,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{

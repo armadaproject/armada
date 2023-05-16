@@ -17,12 +17,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 )
 
-// If a job fails to schedule for one of these reasons, stop trying more jobs.
-var terminalUnschedulableReasons = []string{
-	schedulerconstraints.UnschedulableReasonMaximumNumberOfJobsScheduled,
-	schedulerconstraints.UnschedulableReasonMaximumNumberOfGangsScheduled,
-}
-
 // QueueScheduler is responsible for choosing the order in which to attempt scheduling queued gangs.
 // Relies on GangScheduler for scheduling once a gang is chosen.
 type QueueScheduler struct {
@@ -48,7 +42,7 @@ func NewQueueScheduler(
 	}
 	gangIteratorsByQueue := make(map[string]*QueuedGangIterator)
 	for queue, it := range jobIteratorByQueue {
-		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, constraints.MaxLookbackPerQueue)
+		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, constraints.MaxQueueLookback)
 	}
 	candidateGangIterator, err := NewCandidateGangIterator(sctx, gangIteratorsByQueue)
 	if err != nil {
@@ -115,18 +109,10 @@ func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, erro
 					nodeIdByJobId[jctx.JobId] = jctx.PodSchedulingContext.Node.Id
 				}
 			}
-		} else {
-			unschedulableReasonIsTerminal := false
-			for _, reason := range terminalUnschedulableReasons {
-				if unschedulableReason == reason {
-					unschedulableReasonIsTerminal = true
-					sch.schedulingContext.TerminationReason = reason
-					break
-				}
-			}
-			if unschedulableReasonIsTerminal {
-				break
-			}
+		} else if schedulerconstraints.IsTerminalUnschedulableReason(unschedulableReason) {
+			// If unschedulableReason indicates no more new jobs can be scheduled,
+			// instruct the underlying iterator to only yield evicted jobs from now on.
+			sch.candidateGangIterator.OnlyYieldEvicted()
 		}
 	}
 	if sch.schedulingContext.TerminationReason == "" {
@@ -204,8 +190,8 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 		if reflect.ValueOf(job).IsNil() {
 			return nil, nil
 		}
-		// Rescheduled jobs don't count towards the limit.
 		if !isEvictedJob(job) {
+			// Rescheduled jobs don't count towards the limit.
 			it.jobsSeen++
 		}
 		if it.hitLookbackLimit() {
@@ -259,6 +245,8 @@ func (it *QueuedGangIterator) hitLookbackLimit() bool {
 // where the fraction of fair share computation includes the yielded gang.
 type CandidateGangIterator struct {
 	SchedulingContext *schedulercontext.SchedulingContext
+	// If true, this iterator only yields gangs where all jobs are evicted.
+	onlyYieldEvicted bool
 	// For each queue, weight is the inverse of the priority factor.
 	weightByQueue map[string]float64
 	// Sum of all weights.
@@ -322,6 +310,10 @@ func (it *CandidateGangIterator) pushToPQ(queue string, queueIt *QueuedGangItera
 	return nil
 }
 
+func (it *CandidateGangIterator) OnlyYieldEvicted() {
+	it.onlyYieldEvicted = true
+}
+
 func (it *CandidateGangIterator) Next() (*schedulercontext.GangSchedulingContext, error) {
 	if v, err := it.Peek(); err != nil {
 		return nil, err
@@ -367,6 +359,11 @@ func (it *CandidateGangIterator) Peek() (*schedulercontext.GangSchedulingContext
 			continue
 		}
 		gctx := item.v // Cached value is guaranteed to be fresh here.
+		if it.onlyYieldEvicted && !gctx.AllJobsEvicted {
+			// We assume here that all evicted jobs appear before non-evicted jobs in the queue.
+			// Hence, it's safe to drop a queue once a non-evicted job has been seen.
+			continue
+		}
 		if err := it.pushToPQ(item.queue, item.it); err != nil {
 			return nil, err
 		}

@@ -96,7 +96,7 @@ func TestQueueScheduler(t *testing.T) {
 			),
 			PriorityFactorByQueue:         map[string]float64{"A": 1},
 			ExpectedScheduledIndices:      []int{0, 11},
-			ExpectedNeverAttemptedIndices: []int{13},
+			ExpectedNeverAttemptedIndices: []int{12, 13},
 		},
 		"MaximumGangsToSchedule": {
 			SchedulingConfig: testfixtures.WithMaxGangsToScheduleConfig(2, testfixtures.TestSchedulingConfig()),
@@ -123,96 +123,20 @@ func TestQueueScheduler(t *testing.T) {
 			),
 			PriorityFactorByQueue:         map[string]float64{"A": 1},
 			ExpectedScheduledIndices:      []int{0, 1, 6, 7},
-			ExpectedNeverAttemptedIndices: []int{10, 11},
+			ExpectedNeverAttemptedIndices: []int{8, 9, 10, 11},
 		},
-		"round limits": {
-			SchedulingConfig: testfixtures.WithRoundLimitsConfig(
-				map[string]float64{"cpu": 2.0 / 32.0},
-				testfixtures.TestSchedulingConfig(),
-			),
-			Nodes:                    testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Jobs:                     testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 5),
-			PriorityFactorByQueue:    map[string]float64{"A": 1},
-			ExpectedScheduledIndices: []int{0, 1},
-		},
-		"round per-queue limits": {
-			SchedulingConfig: testfixtures.WithPerQueueRoundLimitsConfig(map[string]float64{"cpu": 2.0 / 32.0}, testfixtures.TestSchedulingConfig()),
-			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Jobs:             armadaslices.Concatenate(testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 5), testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass0, 5)),
-			PriorityFactorByQueue: map[string]float64{
-				"A": 1,
-				"B": 1,
-			},
-			ExpectedScheduledIndices: []int{0, 1, 5, 6},
-		},
-		"overall per-queue limits": {
-			SchedulingConfig: testfixtures.WithPerQueueLimitsConfig(map[string]float64{"cpu": 2.0 / 32.0}, testfixtures.TestSchedulingConfig()),
-			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Jobs:             armadaslices.Concatenate(testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 5), testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass0, 5)),
-			PriorityFactorByQueue: map[string]float64{
-				"A": 1,
-				"B": 1,
-			},
-			ExpectedScheduledIndices: []int{0, 1, 5, 6},
-		},
-		"overall per-queue limits with large memory amount": {
-			SchedulingConfig: testfixtures.WithPerQueueLimitsConfig(
-				map[string]float64{
-					"cpu":    2.0 / 162975640.0,
-					"memory": 0.1,
-				},
-				testfixtures.TestSchedulingConfig()),
-			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Jobs:  armadaslices.Concatenate(testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 5), testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass0, 5)),
-			PriorityFactorByQueue: map[string]float64{
-				"A": 1,
-				"B": 1,
-			},
-			TotalResources: schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"memory": resource.MustParse("5188205838208Ki"),
-					"cpu":    resource.MustParse("162975640"),
-				},
-			},
-			ExpectedScheduledIndices: []int{0, 1, 5, 6},
-		},
-		"overall per-queue limits with initial usage": {
-			SchedulingConfig: testfixtures.WithPerQueueLimitsConfig(map[string]float64{"cpu": 2.0 / 32.0}, testfixtures.TestSchedulingConfig()),
-			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Jobs:             armadaslices.Concatenate(testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 5), testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass0, 5)),
-			PriorityFactorByQueue: map[string]float64{
-				"A": 1,
-				"B": 1,
-			},
-			InitialAllocationByQueue: map[string]schedulerobjects.QuantityByPriorityAndResourceType{
-				"A": {
-					0: schedulerobjects.ResourceList{
-						Resources: map[string]resource.Quantity{
-							"cpu": resource.MustParse("0"),
-						},
-					},
-				},
-				"B": {
-					0: schedulerobjects.ResourceList{
-						Resources: map[string]resource.Quantity{
-							"cpu": resource.MustParse("1"),
-						},
-					},
-				},
-			},
-			ExpectedScheduledIndices: []int{0, 1, 5},
-		},
-		"MaximalClusterFractionToSchedule": {
+		"MaximumResourceFractionToSchedule": {
 			SchedulingConfig: testfixtures.WithRoundLimitsConfig(
 				map[string]float64{"cpu": 0.5},
 				testfixtures.TestSchedulingConfig(),
 			),
-			PriorityFactorByQueue:    map[string]float64{"A": 1.0},
-			Nodes:                    testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Jobs:                     testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 32),
-			ExpectedScheduledIndices: testfixtures.IntRange(0, 15),
+			PriorityFactorByQueue:         map[string]float64{"A": 1.0},
+			Nodes:                         testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Jobs:                          testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 32),
+			ExpectedScheduledIndices:      testfixtures.IntRange(0, 16),
+			ExpectedNeverAttemptedIndices: testfixtures.IntRange(17, 31),
 		},
-		"per priority per-queue limits": {
+		"PerPriorityLimits": {
 			SchedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
 				map[int32]map[string]float64{
 					0: {"cpu": 1.0},
@@ -237,7 +161,7 @@ func TestQueueScheduler(t *testing.T) {
 				testfixtures.IntRange(18, 34),
 			),
 		},
-		"per priority per queue limits equal limits": {
+		"PerPriorityLimits equal MaximumResourceFractionToSchedule": {
 			SchedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
 				map[int32]map[string]float64{
 					0: {"cpu": 0.9}, // 28 cpu
@@ -494,8 +418,8 @@ func TestQueueScheduler(t *testing.T) {
 			PriorityFactorByQueue:    map[string]float64{"A": 1},
 			ExpectedScheduledIndices: []int{0},
 		},
-		"QueueLeaseBatchSize": {
-			SchedulingConfig: testfixtures.WithQueueLeaseBatchSizeConfig(3, testfixtures.TestSchedulingConfig()),
+		"MaxQueueLookback": {
+			SchedulingConfig: testfixtures.WithMaxQueueLookbackConfig(3, testfixtures.TestSchedulingConfig()),
 			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1),
@@ -542,22 +466,6 @@ func TestQueueScheduler(t *testing.T) {
 			PriorityFactorByQueue:    map[string]float64{"A": 1},
 			ExpectedScheduledIndices: []int{1},
 		},
-		"MaximalResourceFractionPerQueue non-consecutive gang": {
-			SchedulingConfig: testfixtures.WithPerQueueLimitsConfig(
-				map[string]float64{
-					"cpu": 2.0 / 32.0,
-				},
-				testfixtures.TestSchedulingConfig(),
-			),
-			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Jobs: armadaslices.Concatenate(
-				testfixtures.WithAnnotationsJobs(map[string]string{configuration.GangIdAnnotation: "my-gang", configuration.GangCardinalityAnnotation: "2"}, testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1)),
-				testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1),
-				testfixtures.WithAnnotationsJobs(map[string]string{configuration.GangIdAnnotation: "my-gang", configuration.GangCardinalityAnnotation: "2"}, testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1)),
-			),
-			PriorityFactorByQueue:    map[string]float64{"A": 1},
-			ExpectedScheduledIndices: []int{1},
-		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -592,6 +500,7 @@ func TestQueueScheduler(t *testing.T) {
 				tc.InitialAllocationByQueue,
 			)
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+				"pool",
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 			)
