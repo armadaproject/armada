@@ -649,17 +649,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"A": 1,
 			},
 		},
-		"rescheduled jobs don't count towards maxLookbackPerQueue": {
+		"rescheduled jobs don't count towards maxQueueLookback": {
 			SchedulingConfig: testfixtures.WithMaxLookbackPerQueueConfig(5, testfixtures.TestSchedulingConfig()),
 			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
-					// JobsByQueue: map[string][]*jobdb.Job{
-					// 	"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 10),
-					// },
-					// ExpectedScheduledIndices: map[string][]int{
-					// 	"A": testfixtures.IntRange(0, 4),
-					// },
 					JobsByQueue: map[string][]*jobdb.Job{
 						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 2),
 					},
@@ -680,37 +674,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"A": 1,
 			},
 		},
-		"rescheduled jobs don't count towards MaximalResourceFractionToSchedulePerQueue": {
-			SchedulingConfig: testfixtures.WithPerQueueRoundLimitsConfig(
-				map[string]float64{
-					"cpu": 5.0 / 32.0,
-				},
-				testfixtures.TestSchedulingConfig(),
-			),
-			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Rounds: []SchedulingRound{
-				{
-					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 10),
-					},
-					ExpectedScheduledIndices: map[string][]int{
-						"A": testfixtures.IntRange(0, 4),
-					},
-				},
-				{
-					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 10),
-					},
-					ExpectedScheduledIndices: map[string][]int{
-						"A": testfixtures.IntRange(0, 4),
-					},
-				},
-			},
-			PriorityFactorByQueue: map[string]float64{
-				"A": 1,
-			},
-		},
-		"rescheduled jobs don't count towards MaximalClusterFractionToSchedule": {
+		"rescheduled jobs don't count towards MaximumClusterFractionToSchedule": {
 			SchedulingConfig: testfixtures.WithRoundLimitsConfig(
 				map[string]float64{
 					"cpu": 5.0 / 32.0,
@@ -724,7 +688,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": testfixtures.IntRange(0, 4),
+						"A": testfixtures.IntRange(0, 5),
 					},
 				},
 				{
@@ -732,7 +696,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": testfixtures.IntRange(0, 4),
+						"A": testfixtures.IntRange(0, 5),
 					},
 				},
 			},
@@ -930,7 +894,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"MaximalClusterFractionToSchedule": {
 			SchedulingConfig: testfixtures.WithRoundLimitsConfig(
-				map[string]float64{"cpu": 0.25},
+				map[string]float64{"cpu": 15.0 / 64.0},
 				testfixtures.TestSchedulingConfig(),
 			),
 			Nodes: testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
@@ -976,80 +940,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 				"B": 1,
-			},
-		},
-		"MaximalResourceFractionToSchedulePerQueue": {
-			SchedulingConfig: testfixtures.WithPerQueueRoundLimitsConfig(
-				map[string]float64{"cpu": 0.25},
-				testfixtures.TestSchedulingConfig(),
-			),
-			Nodes: testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
-			Rounds: []SchedulingRound{
-				{
-					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 64),
-					},
-					ExpectedScheduledIndices: map[string][]int{
-						"A": testfixtures.IntRange(0, 15),
-					},
-				},
-				{
-					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 64),
-					},
-					ExpectedScheduledIndices: map[string][]int{
-						"A": testfixtures.IntRange(0, 15),
-					},
-				},
-				{
-					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 64),
-					},
-					ExpectedScheduledIndices: map[string][]int{
-						"A": testfixtures.IntRange(0, 15),
-					},
-				},
-				{
-					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 64),
-					},
-					ExpectedScheduledIndices: map[string][]int{
-						"A": testfixtures.IntRange(0, 15),
-					},
-				},
-				{
-					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 64),
-					},
-				},
-			},
-			PriorityFactorByQueue: map[string]float64{
-				"A": 1,
-			},
-		},
-		"MaximalResourceFractionPerQueue": {
-			SchedulingConfig: testfixtures.WithPerQueueLimitsConfig(
-				map[string]float64{"cpu": 0.5},
-				testfixtures.TestSchedulingConfig(),
-			),
-			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Rounds: []SchedulingRound{
-				{
-					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 32),
-					},
-					ExpectedScheduledIndices: map[string][]int{
-						"A": testfixtures.IntRange(0, 15),
-					},
-				},
-				{
-					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 32),
-					},
-				},
-			},
-			PriorityFactorByQueue: map[string]float64{
-				"A": 1,
 			},
 		},
 		"Queued jobs are not preempted cross queue": {
@@ -1258,6 +1148,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					allocatedByQueueAndPriority,
 				)
 				constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+					"pool",
 					schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 					tc.SchedulingConfig,
 				)
@@ -1512,6 +1403,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				usageByQueue,
 			)
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+				"pool",
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 			)
