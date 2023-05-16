@@ -12,9 +12,24 @@ import (
 )
 
 const (
+	UnschedulableReasonMaximumResourcesScheduled     = "maximum resources scheduled"
 	UnschedulableReasonMaximumNumberOfJobsScheduled  = "maximum number of jobs scheduled"
 	UnschedulableReasonMaximumNumberOfGangsScheduled = "maximum number of gangs scheduled"
 )
+
+// IsTerminalUnschedulableReason returns true if reason indicates it's not possible to schedule any more jobs in this round.
+func IsTerminalUnschedulableReason(reason string) bool {
+	if reason == UnschedulableReasonMaximumNumberOfJobsScheduled {
+		return true
+	}
+	if reason == UnschedulableReasonMaximumNumberOfJobsScheduled {
+		return true
+	}
+	if reason == UnschedulableReasonMaximumNumberOfGangsScheduled {
+		return true
+	}
+	return false
+}
 
 // SchedulingConstraints contains scheduling constraints, e.g., per-queue resource limits.
 type SchedulingConstraints struct {
@@ -23,21 +38,14 @@ type SchedulingConstraints struct {
 	// Max number of jobs to scheduler per lease jobs call.
 	MaximumGangsToSchedule uint
 	// Max number of jobs to consider for a queue before giving up.
-	MaxLookbackPerQueue uint
+	MaxQueueLookback uint
 	// Jobs leased to this executor must be at least this large.
 	// Used, e.g., to avoid scheduling CPU-only jobs onto clusters with GPUs.
 	MinimumJobSize schedulerobjects.ResourceList
-	// Per-queue resource limits.
-	// Map from resource type to the limit for that resource.
-	//
-	// TODO: Remove
-	MaximalResourceFractionPerQueue map[string]float64
 	// Scheduling constraints for specific priority classes.
 	PriorityClassSchedulingConstraintsByPriorityClassName map[string]PriorityClassSchedulingConstraints
-	// Max resources to schedule per queue at a time.
-	MaximalResourceFractionToSchedulePerQueue map[string]float64
-	// Max resources to schedule at a time.
-	MaximalResourceFractionToSchedule map[string]float64
+	// Limits fraction of total resources scheduled per invocation.
+	MaximumResourceFractionToSchedule map[string]float64
 }
 
 // PriorityClassSchedulingConstraints contains scheduling constraints that apply to jobs of a specific priority class.
@@ -52,6 +60,7 @@ type PriorityClassSchedulingConstraints struct {
 }
 
 func SchedulingConstraintsFromSchedulingConfig(
+	pool string,
 	minimumJobSize schedulerobjects.ResourceList,
 	config configuration.SchedulingConfig,
 ) SchedulingConstraints {
@@ -60,40 +69,43 @@ func SchedulingConstraintsFromSchedulingConfig(
 		priorityClassSchedulingConstraintsByPriorityClassName[name] = PriorityClassSchedulingConstraints{
 			PriorityClassName:                         name,
 			PriorityClassPriority:                     priorityClass.Priority,
-			MaximumCumulativeResourceFractionPerQueue: priorityClass.MaximalResourceFractionPerQueue,
+			MaximumCumulativeResourceFractionPerQueue: priorityClass.MaximumResourceFractionPerQueue,
 		}
 	}
+	maximumResourceFractionToSchedule := config.MaximumResourceFractionToSchedule
+	if limit, ok := config.MaximumResourceFractionToScheduleByPool[pool]; ok {
+		maximumResourceFractionToSchedule = limit
+	}
 	return SchedulingConstraints{
-		MaximumJobsToSchedule:           config.MaximumJobsToSchedule,
-		MaximumGangsToSchedule:          config.MaximumGangsToSchedule,
-		MaxLookbackPerQueue:             config.QueueLeaseBatchSize,
-		MinimumJobSize:                  minimumJobSize,
-		MaximalResourceFractionPerQueue: config.MaximalResourceFractionPerQueue,
+		MaximumJobsToSchedule:             config.MaximumJobsToSchedule,
+		MaximumGangsToSchedule:            config.MaximumGangsToSchedule,
+		MaxQueueLookback:                  config.MaxQueueLookback,
+		MinimumJobSize:                    minimumJobSize,
+		MaximumResourceFractionToSchedule: maximumResourceFractionToSchedule,
 		PriorityClassSchedulingConstraintsByPriorityClassName: priorityClassSchedulingConstraintsByPriorityClassName,
-		MaximalResourceFractionToSchedulePerQueue:             config.MaximalResourceFractionToSchedulePerQueue,
-		MaximalResourceFractionToSchedule:                     config.MaximalClusterFractionToSchedule,
 	}
 }
 
-func (constraints *SchedulingConstraints) CheckGlobalConstraints(sctx *schedulercontext.SchedulingContext) (bool, string, error) {
-	if constraints.MaximumJobsToSchedule != 0 && sctx.NumScheduledJobs > int(constraints.MaximumJobsToSchedule) {
+func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *schedulercontext.SchedulingContext) (bool, string, error) {
+	// MaximumJobsToSchedule check.
+	if constraints.MaximumJobsToSchedule != 0 && sctx.NumScheduledJobs == int(constraints.MaximumJobsToSchedule) {
 		return false, UnschedulableReasonMaximumNumberOfJobsScheduled, nil
 	}
-	if constraints.MaximumGangsToSchedule != 0 && sctx.NumScheduledGangs > int(constraints.MaximumGangsToSchedule) {
+
+	// MaximumGangsToSchedule check.
+	if constraints.MaximumGangsToSchedule != 0 && sctx.NumScheduledGangs == int(constraints.MaximumGangsToSchedule) {
 		return false, UnschedulableReasonMaximumNumberOfGangsScheduled, nil
 	}
 
-	// MaximalResourceFractionToSchedule check.
+	// MaximumResourceFractionToSchedule check.
 	totalScheduledResources := sctx.ScheduledResourcesByPriority.AggregateByResource()
-	if exceeded, reason := exceedsResourceLimits(
+	if exceeded, _ := exceedsResourceLimits(
 		totalScheduledResources,
 		sctx.TotalResources,
-		constraints.MaximalResourceFractionToSchedule,
+		constraints.MaximumResourceFractionToSchedule,
 	); exceeded {
-		unschedulableReason := reason + " (overall per scheduling round limit)"
-		return false, unschedulableReason, nil
+		return false, UnschedulableReasonMaximumResourcesScheduled, nil
 	}
-
 	return true, "", nil
 }
 
@@ -105,26 +117,6 @@ func (constraints *SchedulingConstraints) CheckPerQueueAndPriorityClassConstrain
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
 		return false, "", errors.Errorf("no QueueSchedulingContext for queue %s", queue)
-	}
-
-	// MaximalResourceFractionToSchedulePerQueue check.
-	if exceeded, reason := exceedsResourceLimits(
-		qctx.ScheduledResourcesByPriority.AggregateByResource(),
-		sctx.TotalResources,
-		constraints.MaximalResourceFractionToSchedulePerQueue,
-	); exceeded {
-		unschedulableReason := reason + " (per scheduling round limit for this queue)"
-		return false, unschedulableReason, nil
-	}
-
-	// MaximalResourceFractionPerQueue check.
-	if exceeded, reason := exceedsResourceLimits(
-		qctx.AllocatedByPriority.AggregateByResource(),
-		sctx.TotalResources,
-		constraints.MaximalResourceFractionPerQueue,
-	); exceeded {
-		unschedulableReason := reason + " (total limit for this queue)"
-		return false, unschedulableReason, nil
 	}
 
 	// PriorityClassSchedulingConstraintsByPriorityClassName check.
@@ -142,7 +134,6 @@ func (constraints *SchedulingConstraints) CheckPerQueueAndPriorityClassConstrain
 			return false, unschedulableReason, nil
 		}
 	}
-
 	return true, "", nil
 }
 

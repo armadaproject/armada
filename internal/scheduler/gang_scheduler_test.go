@@ -64,7 +64,7 @@ func TestGangScheduler(t *testing.T) {
 			},
 			ExpectedScheduledIndices: testfixtures.IntRange(0, 0),
 		},
-		"MaximalClusterFractionToSchedule": {
+		"MaximumResourceFractionToSchedule": {
 			SchedulingConfig: testfixtures.WithRoundLimitsConfig(
 				map[string]float64{"cpu": 0.5},
 				testfixtures.TestSchedulingConfig(),
@@ -75,9 +75,45 @@ func TestGangScheduler(t *testing.T) {
 				testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 16),
 				testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 8),
 			},
-			ExpectedScheduledIndices: []int{0, 2},
+			ExpectedScheduledIndices: []int{0, 1},
 		},
-		"per priority per-queue limits": {
+		"MaximumResourceFractionToScheduleByPool": {
+			SchedulingConfig: testfixtures.WithRoundLimitsConfig(
+				map[string]float64{"cpu": 0.5},
+				testfixtures.WithRoundLimitsPoolConfig(
+					map[string]map[string]float64{"pool": {"cpu": 2.0 / 32.0}},
+					testfixtures.TestSchedulingConfig(),
+				),
+			),
+			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Gangs: [][]*jobdb.Job{
+				testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1),
+				testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1),
+				testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1),
+				testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1),
+				testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1),
+			},
+			ExpectedScheduledIndices: []int{0, 1, 2},
+		},
+		"MaximumResourceFractionToScheduleByPool non-existing pool": {
+			SchedulingConfig: testfixtures.WithRoundLimitsConfig(
+				map[string]float64{"cpu": 3.0 / 32.0},
+				testfixtures.WithRoundLimitsPoolConfig(
+					map[string]map[string]float64{"this does not exist": {"cpu": 2.0 / 32.0}},
+					testfixtures.TestSchedulingConfig(),
+				),
+			),
+			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Gangs: [][]*jobdb.Job{
+				testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1),
+				testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1),
+				testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1),
+				testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1),
+				testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1),
+			},
+			ExpectedScheduledIndices: []int{0, 1, 2, 3},
+		},
+		"MaximumResourceFractionPerQueue": {
 			SchedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
 				map[int32]map[string]float64{
 					0: {"cpu": 1.0},
@@ -126,6 +162,7 @@ func TestGangScheduler(t *testing.T) {
 				nil,
 			)
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+				"pool",
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 			)

@@ -58,6 +58,8 @@ services:
       - postgres
       - pulsar
       - eventingester
+    env_file:
+      - ./developer/env/server.env
     command: ./server --config /config/insecure-armada.yaml
 
   executor:
