@@ -264,6 +264,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 		accounting.totalAllocationByPoolAndQueue[executor.Pool],
 	)
 	constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+		executor.Pool,
 		executor.MinimumJobSize,
 		l.config,
 	)
