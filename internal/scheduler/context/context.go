@@ -11,6 +11,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -392,6 +393,7 @@ type GangSchedulingContext struct {
 	PriorityClassName     string
 	JobSchedulingContexts []*JobSchedulingContext
 	TotalResourceRequests schedulerobjects.ResourceList
+	AllJobsEvicted        bool
 }
 
 func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingContext {
@@ -420,12 +422,19 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 			}
 		}
 	}
+
+	allJobsEvicted := true
+	for _, jctx := range jctxs {
+		allJobsEvicted = allJobsEvicted && isEvictedJob(jctx.Job)
+	}
+
 	return &GangSchedulingContext{
 		Created:               time.Now(),
 		Queue:                 queue,
 		PriorityClassName:     priorityClassName,
 		JobSchedulingContexts: jctxs,
 		TotalResourceRequests: totalResourceRequests,
+		AllJobsEvicted:        allJobsEvicted,
 	}
 }
 
@@ -435,6 +444,10 @@ func (gctx GangSchedulingContext) PodRequirements() []*schedulerobjects.PodRequi
 		rv[i] = jctx.Req
 	}
 	return rv
+}
+
+func isEvictedJob(job interfaces.LegacySchedulerJob) bool {
+	return job.GetAnnotations()[schedulerconfig.IsEvictedAnnotation] == "true"
 }
 
 // JobSchedulingContext is created by the scheduler and contains information

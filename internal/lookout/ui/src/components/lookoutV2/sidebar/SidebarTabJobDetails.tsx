@@ -38,6 +38,7 @@ export const SidebarTabJobDetails = ({ job }: SidebarTabJobDetailsProps) => {
           data={Object.keys(job.annotations).map((annotationKey) => ({
             key: annotationKey,
             value: job.annotations[annotationKey],
+            isAnnotation: true,
           }))}
         />
       ) : (
