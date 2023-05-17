@@ -55,7 +55,10 @@ We expect readers of the documentation to have a basic understanding of Docker a
 - [Kubernetes overview](https://kubernetes.io/docs/concepts/overview/)
 
 ## Contributions
-Thank you for considering contributing to Armada! We want everyone to feel that they can contribute to the Armada Project.Your contributions are valuable, whether it's fixing a bug, implementing a new feature, improving documentation, or suggesting enhancements. We appreciate your time and effort in helping make this project better for everyone.
+Thank you for considering contributing to Armada!  
+We want everyone to feel that they can contribute to the Armada Project.  
+Your contributions are valuable, whether it's fixing a bug, implementing a new feature, improving documentation, or suggesting enhancements.  
+We appreciate your time and effort in helping make this project better for everyone.
 For more information about contributing to Armada see [CONTRIBUTING.md](https://github.com/armadaproject/armada/blob/master/CONTRIBUTING.md) and before proceeding to contributions see [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 
 ## Discussion
