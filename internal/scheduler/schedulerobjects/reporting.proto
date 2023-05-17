@@ -1,22 +1,39 @@
 syntax = 'proto3';
 package schedulerobjects;
-import "google/protobuf/empty.proto";
 option go_package = "github.com/armadaproject/armada/internal/scheduler/schedulerobjects";
+
+message SchedulingReportRequest {
+    message MostRecent {}
+    message MostRecentForQueue {
+        string queue = 1;
+    }
+    message MostRecentForJob {
+        string jobId = 1;
+    }
+    oneof filter {
+        MostRecent mostRecent = 2;
+        MostRecentForQueue mostRecentForQueue = 3;
+        MostRecentForJob mostRecentForJob = 4;
+    }
+    int32 verbosity = 1;
+}
 
 message SchedulingReport {
     string report = 1;
 }
 
-message Queue {
-    string name = 1;
+message QueueReportRequest {
+    string queue = 1;
+    int32 verbosity = 2;
 }
 
 message QueueReport {
     string report = 1;
 }
 
-message JobId {
-    string id = 1;
+message JobReportRequest {
+    string jobId = 1;
+    int32 verbosity = 2;
 }
 
 message JobReport {
@@ -25,9 +42,9 @@ message JobReport {
 
 service SchedulerReporting {
     // Return the most recent scheduling report for each executor.
-    rpc GetSchedulingReport (google.protobuf.Empty) returns (SchedulingReport);
+    rpc GetSchedulingReport (SchedulingReportRequest) returns (SchedulingReport);
     // Return the most recent report scheduling for each executor for the given queue.
-    rpc GetQueueReport (Queue) returns (QueueReport);
+    rpc GetQueueReport (QueueReportRequest) returns (QueueReport);
     // Return the most recent scheduling report for each executor for the given job.
-    rpc GetJobReport (JobId) returns (JobReport);
+    rpc GetJobReport (JobReportRequest) returns (JobReport);
 }
