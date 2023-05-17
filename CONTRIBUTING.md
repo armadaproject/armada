@@ -64,6 +64,11 @@ Real-time interactions between Armada developers and users occurs primarily in C
 * If you already have an account on CNCF Slack, join #armada on [https://cloud-native.slack.com](https://cloud-native.slack.com).
 * If you need an inviation to CNCF Slack, you can get one at [https://slack.cncf.io](https://slack.cncf.io).
 
+## Finding Issues to Work On
+If you're new to the project and looking for a place to start, we recommend checking out the issues tagged with "good first". These issues are specifically curated for newcomers to the project, providing an opportunity to get familiar with the codebase and make meaningful contributions.
+
+You can view the list of ["good first"](https://github.com/armadaproject/armada/labels/good%20first%20issue) issues.
+
 ## Security
 
 Armada developers appreciate and encourage coordinated disclosure of security vulnerabilities. If you believe you have a vulnerability to report, please contact the security team at [security@gr-oss.io](mailto:security@gr-oss.io) for triage.
