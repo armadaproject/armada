@@ -138,15 +138,13 @@ func TestConvertSequence(t *testing.T) {
 			},
 		},
 		"JobSetCancelRequested - Pending only": {
-			events:   []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_PENDING)},
-			expected: []DbOperation{},
+			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_PENDING)},
+			expected: []DbOperation{
+				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: false, cancelLeased: true}},
+			},
 		},
 		"JobSetCancelRequested - Running only": {
-			events:   []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_RUNNING)},
-			expected: []DbOperation{},
-		},
-		"JobSetCancelRequested - Pending and Running": {
-			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_PENDING, armadaevents.JobState_RUNNING)},
+			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_RUNNING)},
 			expected: []DbOperation{
 				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: false, cancelLeased: true}},
 			},

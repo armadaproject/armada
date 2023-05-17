@@ -319,27 +319,8 @@ func (c *InstructionConverter) handleCancelJob(cancelJob *armadaevents.CancelJob
 }
 
 func (c *InstructionConverter) handleCancelJobSet(cancelJobSet *armadaevents.CancelJobSet, meta eventSequenceCommon) ([]DbOperation, error) {
-	cancelQueued := false
-	cancelLeased := false
-	if len(cancelJobSet.States) == 0 {
-		cancelQueued = true
-		cancelLeased = true
-	} else {
-		cancelQueued = slices.Contains(cancelJobSet.States, armadaevents.JobState_QUEUED)
-		containsPending := slices.Contains(cancelJobSet.States, armadaevents.JobState_PENDING)
-		containsRunning := slices.Contains(cancelJobSet.States, armadaevents.JobState_RUNNING)
-
-		// For now Armada only supports cancelling both pending and running together, so either both must be present or neither
-		if containsPending != containsRunning {
-			log.Warnf("skipping cancel jobset %s %s because an invalid combination of states was provided.",
-				meta.queue, meta.jobset)
-			return []DbOperation{}, nil
-		}
-
-		if containsPending && containsRunning {
-			cancelLeased = true
-		}
-	}
+	cancelQueued := len(cancelJobSet.States) == 0 || slices.Contains(cancelJobSet.States, armadaevents.JobState_QUEUED)
+	cancelLeased := len(cancelJobSet.States) == 0 || slices.Contains(cancelJobSet.States, armadaevents.JobState_PENDING) || slices.Contains(cancelJobSet.States, armadaevents.JobState_RUNNING)
 
 	return []DbOperation{MarkJobSetsCancelRequested{
 		JobSetKey{
