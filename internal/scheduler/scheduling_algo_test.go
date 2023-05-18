@@ -187,7 +187,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			err = jobDb.Upsert(txn, tc.runningJobs)
 			require.NoError(t, err)
 
-			schedulerResult, err := algo.Schedule(ctx, txn, jobDb)
+			schedulerResult, err := algo.Schedule(ctx, tc.executors, txn, jobDb)
 			require.NoError(t, err)
 
 			// check that we have scheduled the queuedJobs we expect

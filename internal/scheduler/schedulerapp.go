@@ -168,6 +168,8 @@ func Run(config schedulerconfig.Configuration) error {
 		stringInterner,
 		submitChecker,
 		config.CyclePeriod,
+		config.SchedulePeriod,
+		config.MaxSchedulingDuration,
 		config.ExecutorTimeout,
 		config.Scheduling.MaxRetries+1,
 		config.Scheduling.Preemption.NodeIdLabel,

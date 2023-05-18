@@ -30,7 +30,7 @@ import (
 type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes.
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided.
-	Schedule(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error)
+	Schedule(ctx context.Context, executorsToSchedule []*schedulerobjects.Executor, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error)
 }
 
 // FairSchedulingAlgo is a SchedulingAlgo based on PreemptingQueueScheduler.
@@ -80,6 +80,7 @@ func NewFairSchedulingAlgo(
 // Newly leased jobs are updated as such in the jobDb using the transaction provided and are also returned to the caller.
 func (l *FairSchedulingAlgo) Schedule(
 	ctx context.Context,
+	executorsToSchedule []*schedulerobjects.Executor,
 	txn *jobdb.Txn,
 	jobDb *jobdb.JobDb,
 ) (*SchedulerResult, error) {
@@ -91,7 +92,15 @@ func (l *FairSchedulingAlgo) Schedule(
 	overallSchedulerResult := &SchedulerResult{
 		NodeIdByJobId: make(map[string]string),
 	}
-	for _, executor := range accounting.executors {
+
+	for _, executorToSchedule := range executorsToSchedule {
+		executor := accounting.getExecutorById(executorToSchedule.Id)
+		if executor == nil {
+			log.Warnf("not scheduling on executor %s, executor with that id not found in scheduling algo accounting", executorToSchedule.Id)
+			overallSchedulerResult.ScheduledExecutors = append(overallSchedulerResult.ScheduledExecutors, executorToSchedule)
+			continue
+		}
+
 		log.Infof("scheduling on %s", executor.Id)
 		schedulerResult, sctx, err := l.scheduleOnExecutor(
 			ctx,
@@ -101,6 +110,10 @@ func (l *FairSchedulingAlgo) Schedule(
 			jobDb,
 		)
 		if err != nil {
+			if err == context.DeadlineExceeded {
+				// We've reached the scheduling time limit, exit gracefully
+				break
+			}
 			return nil, err
 		}
 		if l.schedulingContextRepository != nil {
@@ -127,6 +140,9 @@ func (l *FairSchedulingAlgo) Schedule(
 
 		// Update accounting.
 		accounting.totalAllocationByPoolAndQueue[executor.Pool] = sctx.AllocatedByQueueAndPriority()
+
+		// Update result to mark this executor as scheduled
+		overallSchedulerResult.ScheduledExecutors = append(overallSchedulerResult.ScheduledExecutors, executorToSchedule)
 	}
 	return overallSchedulerResult, nil
 }
@@ -152,6 +168,15 @@ type fairSchedulingAlgoContext struct {
 	gangIdByJobId                 map[string]string
 	totalAllocationByPoolAndQueue map[string]map[string]schedulerobjects.QuantityByPriorityAndResourceType
 	executors                     []*schedulerobjects.Executor
+}
+
+func (f *fairSchedulingAlgoContext) getExecutorById(id string) *schedulerobjects.Executor {
+	for _, executor := range f.executors {
+		if executor.Id == id {
+			return executor
+		}
+	}
+	return nil
 }
 
 func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*fairSchedulingAlgoContext, error) {
@@ -243,8 +268,6 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 	executor *schedulerobjects.Executor,
 	db *jobdb.JobDb,
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
 	nodeDb, err := l.constructNodeDb(
 		executor.Nodes,
 		accounting.jobsByExecutorId[executor.Id],

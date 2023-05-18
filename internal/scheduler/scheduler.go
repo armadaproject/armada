@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -10,6 +11,7 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
@@ -47,8 +49,12 @@ type Scheduler struct {
 	submitChecker SubmitScheduleChecker
 	// Responsible for publishing messages to Pulsar. Only the leader publishes.
 	publisher Publisher
-	// Minimum duration between scheduling cycles.
+	// Minimum duration between scheduler cycles.
 	cyclePeriod time.Duration
+	// Minimum duration between job scheduling cycles.
+	schedulingPeriod time.Duration
+	// Maximum amount of time to spend scheduling new jobs each round.
+	maxSchedulingDuration time.Duration
 	// Maximum number of times a job can be attempted before being considered failed.
 	maxAttemptedRuns uint
 	// The label used when setting node anti affinities.
@@ -69,6 +75,24 @@ type Scheduler struct {
 	onCycleCompleted func()
 }
 
+type schedulingContext struct {
+	// The time the previous scheduling round started
+	previousSchedulingRoundStart time.Time
+	// An ordered list of executors
+	// They are ordered in the order we want to schedule them in
+	// It may take multiple scheduling rounds to schedule them all
+	// On each round, any executors successfully scheduled on are removed from the list
+	// Once the list is empty - it is recreated again with all executors
+	executorsToSchedule []*schedulerobjects.Executor
+}
+
+func newSchedulingContext() *schedulingContext {
+	return &schedulingContext{
+		previousSchedulingRoundStart: time.Time{}, // This gives a zero value for time
+		executorsToSchedule:          []*schedulerobjects.Executor{},
+	}
+}
+
 func NewScheduler(
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
@@ -78,27 +102,31 @@ func NewScheduler(
 	stringInterner *stringinterner.StringInterner,
 	submitChecker SubmitScheduleChecker,
 	cyclePeriod time.Duration,
+	schedulePeriod time.Duration,
+	maxSchedulingDuration time.Duration,
 	executorTimeout time.Duration,
 	maxAttemptedRuns uint,
 	nodeIdLabel string,
 ) (*Scheduler, error) {
 	jobDb := jobdb.NewJobDb()
 	return &Scheduler{
-		jobRepository:      jobRepository,
-		executorRepository: executorRepository,
-		schedulingAlgo:     schedulingAlgo,
-		leaderController:   leaderController,
-		publisher:          publisher,
-		stringInterner:     stringInterner,
-		submitChecker:      submitChecker,
-		jobDb:              jobDb,
-		clock:              clock.RealClock{},
-		cyclePeriod:        cyclePeriod,
-		executorTimeout:    executorTimeout,
-		maxAttemptedRuns:   maxAttemptedRuns,
-		nodeIdLabel:        nodeIdLabel,
-		jobsSerial:         -1,
-		runsSerial:         -1,
+		jobRepository:         jobRepository,
+		executorRepository:    executorRepository,
+		schedulingAlgo:        schedulingAlgo,
+		leaderController:      leaderController,
+		publisher:             publisher,
+		stringInterner:        stringInterner,
+		submitChecker:         submitChecker,
+		jobDb:                 jobDb,
+		clock:                 clock.RealClock{},
+		cyclePeriod:           cyclePeriod,
+		schedulingPeriod:      schedulePeriod,
+		maxSchedulingDuration: maxSchedulingDuration,
+		executorTimeout:       executorTimeout,
+		maxAttemptedRuns:      maxAttemptedRuns,
+		nodeIdLabel:           nodeIdLabel,
+		jobsSerial:            -1,
+		runsSerial:            -1,
 	}, nil
 }
 
@@ -119,6 +147,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 
 	ticker := s.clock.NewTicker(s.cyclePeriod)
 	prevLeaderToken := InvalidLeaderToken()
+	schedulingContext := newSchedulingContext()
 	for {
 		select {
 		case <-ctx.Done():
@@ -151,7 +180,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			// and we must invalidate the held leader token to trigger flushing Pulsar at the next cycle.
 			//
 			// TODO: Once the Pulsar client supports transactions, we can guarantee consistency even in case of errors.
-			if err := s.cycle(ctx, fullUpdate, leaderToken); err != nil {
+			if err := s.cycle(ctx, fullUpdate, schedulingContext, leaderToken); err != nil {
 				logging.WithStacktrace(log, err).Error("scheduling cycle failure")
 				leaderToken = InvalidLeaderToken()
 			}
@@ -167,7 +196,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 // cycle is a single iteration of the main scheduling loop.
 // If updateAll is true, we generate events from all jobs in the jobDb.
 // Otherwise, we only generate events from jobs updated since the last cycle.
-func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken LeaderToken) error {
+func (s *Scheduler) cycle(ctx context.Context, updateAll bool, schedulingContext *schedulingContext, leaderToken LeaderToken) error {
 	// Update job state.
 	updatedJobs, err := s.syncState(ctx)
 	if err != nil {
@@ -200,17 +229,29 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	}
 	events = append(events, expirationEvents...)
 
-	// Schedule jobs.
-	overallSchedulerResult, err := s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
-	if err != nil {
-		return err
-	}
+	if s.clock.Now().Sub(schedulingContext.previousSchedulingRoundStart) > s.schedulingPeriod {
+		err := s.updateExecutorsToSchedule(ctx, schedulingContext)
+		if err != nil {
+			return err
+		}
 
-	resultEvents, err := s.eventsFromSchedulerResult(txn, overallSchedulerResult)
-	if err != nil {
-		return err
+		schedulingContext.previousSchedulingRoundStart = s.clock.Now()
+		sctx, cancel := context.WithTimeout(ctx, s.maxSchedulingDuration)
+		defer cancel()
+
+		// Schedule jobs.
+		overallSchedulerResult, err := s.schedulingAlgo.Schedule(sctx, schedulingContext.executorsToSchedule, txn, s.jobDb)
+		if err != nil {
+			return err
+		}
+
+		s.registerExecutorsScheduled(schedulingContext, overallSchedulerResult.ScheduledExecutors)
+		resultEvents, err := s.eventsFromSchedulerResult(txn, overallSchedulerResult)
+		if err != nil {
+			return err
+		}
+		events = append(events, resultEvents...)
 	}
-	events = append(events, resultEvents...)
 
 	// Publish to Pulsar.
 	isLeader := func() bool {
@@ -724,6 +765,37 @@ func (s *Scheduler) expireJobsIfNecessary(ctx context.Context, txn *jobdb.Txn) (
 		return nil, err
 	}
 	return events, nil
+}
+
+func (s *Scheduler) updateExecutorsToSchedule(ctx context.Context, schedulingContext *schedulingContext) error {
+	if len(schedulingContext.executorsToSchedule) > 0 {
+		return nil
+	}
+	executors, err := s.executorRepository.GetExecutors(ctx)
+	if err != nil {
+		return err
+	}
+
+	slices.SortStableFunc(executors, func(a, b *schedulerobjects.Executor) bool {
+		return strings.Compare(a.Id, b.Id) < 0
+	})
+	schedulingContext.executorsToSchedule = executors
+	return nil
+}
+
+func (s *Scheduler) registerExecutorsScheduled(schedulingContext *schedulingContext, scheduledExecutors []*schedulerobjects.Executor) {
+	scheduledExecutorsSet := make(map[string]bool)
+	for _, scheduledExecutor := range scheduledExecutors {
+		scheduledExecutorsSet[scheduledExecutor.Id] = true
+	}
+
+	remainingExecutorsToSchedule := []*schedulerobjects.Executor{}
+	for _, executor := range schedulingContext.executorsToSchedule {
+		if !scheduledExecutorsSet[executor.Id] {
+			remainingExecutorsToSchedule = append(remainingExecutorsToSchedule, executor)
+		}
+	}
+	schedulingContext.executorsToSchedule = remainingExecutorsToSchedule
 }
 
 // now is a convenience function for generating a pointer to a time.Time (as required by armadaevents).
