@@ -307,8 +307,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-lookoutingester:latest"
-      - "{{ .Env.DOCKER_REPO }}armada-lookoutingester:{{ .Version }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookout-ingester:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-lookout-ingester:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - lookoutingester
@@ -321,8 +321,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:latest"
-      - "{{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:{{ .Version }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookout-ingester-v2:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-lookout-ingester-v2:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - lookoutingesterv2
@@ -355,8 +355,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-lookoutv2:latest"
-      - "{{ .Env.DOCKER_REPO }}armada-lookoutv2:{{ .Version }}"
+      - "{{ .Env.DOCKER_REPO }}armada-lookout-v2:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-lookout-v2:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - lookoutv2
@@ -371,8 +371,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-eventingester:latest"
-      - "{{ .Env.DOCKER_REPO }}armada-eventingester:{{ .Version }}"
+      - "{{ .Env.DOCKER_REPO }}armada-event-ingester:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-event-ingester:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - eventingester
@@ -399,8 +399,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-scheduleringester:latest"
-      - "{{ .Env.DOCKER_REPO }}armada-scheduleringester:{{ .Version }}"
+      - "{{ .Env.DOCKER_REPO }}armada-scheduler-ingester:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-scheduler-ingester:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - scheduleringester
@@ -512,23 +512,23 @@ release:
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout:latest`
     #### Armada Lookout V2
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutv2:{{ .Version }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutv2:latest`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-v2:{{ .Version }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-v2:latest`
     #### Armada Lookout Ingester
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutingester:{{ .Version }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutingester:latest`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-ingester:{{ .Version }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-ingester:latest`
     #### Armada Lookout Ingester V2
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:{{ .Version }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookoutingesterv2:latest`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-ingester-v2:{{ .Version }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-ingester-v2:latest`
     #### Armada Event Ingester
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-eventingester:{{ .Version }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-eventingester:latest`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-event-ingester:{{ .Version }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-event-ingester:latest`
     #### Armada Scheduler
     - `docker pull {{ .Env.DOCKER_REPO }}armada-scheduler:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-scheduler:latest`
     #### Armada Scheduler Ingester
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-scheduleringester:{{ .Version }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-scheduleringester:latest`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-scheduler-ingester:{{ .Version }}`
+    - `docker pull {{ .Env.DOCKER_REPO }}armada-scheduler-ingester:latest`
     #### Armada Binoculars
     - `docker pull {{ .Env.DOCKER_REPO }}armada-binoculars:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-binoculars:latest`

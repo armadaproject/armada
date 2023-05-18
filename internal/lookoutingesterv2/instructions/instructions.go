@@ -88,7 +88,7 @@ func (c *InstructionConverter) convertSequence(
 		case *armadaevents.EventSequence_Event_ReprioritisedJob:
 			err = c.handleReprioritiseJob(ts, event.GetReprioritisedJob(), update)
 		case *armadaevents.EventSequence_Event_CancelledJob:
-			err = c.handleCancelJob(ts, event.GetCancelledJob(), update)
+			err = c.handleCancelledJob(ts, event.GetCancelledJob(), update)
 		case *armadaevents.EventSequence_Event_JobSucceeded:
 			err = c.handleJobSucceeded(ts, event.GetJobSucceeded(), update)
 		case *armadaevents.EventSequence_Event_JobErrors:
@@ -105,7 +105,6 @@ func (c *InstructionConverter) convertSequence(
 			err = c.handleJobDuplicateDetected(ts, event.GetJobDuplicateDetected(), update)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
 			err = c.handleJobRunPreempted(ts, event.GetJobRunPreempted(), update)
-		case *armadaevents.EventSequence_Event_CancelJob:
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
@@ -254,17 +253,22 @@ func (c *InstructionConverter) handleJobDuplicateDetected(ts time.Time, event *a
 	return nil
 }
 
-func (c *InstructionConverter) handleCancelJob(ts time.Time, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
+	var reason *string
+	if event.Reason != "" {
+		reason = &event.Reason
+	}
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:                     jobId,
 		State:                     pointer.Int32(int32(lookout.JobCancelledOrdinal)),
 		Cancelled:                 &ts,
+		CancelReason:              reason,
 		LastTransitionTime:        &ts,
 		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
 	}

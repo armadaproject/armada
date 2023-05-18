@@ -359,7 +359,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		if it, err := txn.Get("nodes", "id", nodeId); err != nil {
 			return nil, errors.WithStack(err)
 		} else {
-			if _, err := nodeDb.selectNodeForPodWithIt(pctx, it, req.Priority, req); err != nil {
+			if _, err := nodeDb.selectNodeForPodWithIt(pctx, it, req.Priority, req, true); err != nil {
 				return nil, err
 			} else {
 				return pctx, nil
@@ -419,7 +419,7 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 		return nil, err
 	}
 
-	if node, err := nodeDb.selectNodeForPodWithIt(pctx, it, priority, req); err != nil {
+	if node, err := nodeDb.selectNodeForPodWithIt(pctx, it, priority, req, false); err != nil {
 		return nil, err
 	} else if node != nil {
 		return node, nil
@@ -433,6 +433,7 @@ func (nodeDb *NodeDb) selectNodeForPodWithIt(
 	it memdb.ResultIterator,
 	priority int32,
 	req *schedulerobjects.PodRequirements,
+	onlyCheckDynamicRequirements bool,
 ) (*schedulerobjects.Node, error) {
 	var selectedNode *schedulerobjects.Node
 	var selectedNodeScore int
@@ -442,7 +443,15 @@ func (nodeDb *NodeDb) selectNodeForPodWithIt(
 		if node == nil {
 			return nil, nil
 		}
-		matches, score, reason, err := node.PodRequirementsMet(priority, req)
+		var matches bool
+		var score int
+		var reason schedulerobjects.PodRequirementsNotMetReason
+		var err error
+		if onlyCheckDynamicRequirements {
+			matches, score, reason, err = node.DynamicPodRequirementsMet(priority, req)
+		} else {
+			matches, score, reason, err = node.PodRequirementsMet(priority, req)
+		}
 		if err != nil {
 			return nil, err
 		} else if matches {
@@ -739,6 +748,13 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node)
 		node.Labels = map[string]string{schedulerconfig.NodeIdLabel: node.Id}
 	} else {
 		node.Labels[schedulerconfig.NodeIdLabel] = node.Id
+	}
+
+	// Add a special taint to unschedulable nodes before inserting.
+	// Adding a corresponding toleration to evicted pods ensures they can be re-scheduled.
+	// To prevent scheduling new pods onto cordoned nodes, only evicted pods should have this toleration.
+	if node.Unschedulable {
+		node.Taints = append(node.Taints, UnschedulableTaint())
 	}
 
 	// Compute the node type of the node.

@@ -178,6 +178,10 @@ func TestConvert(t *testing.T) {
 	preemptedWithPrempteeWithZeroId.GetJobRunPreempted().PreemptiveJobId = &armadaevents.Uuid{}
 	preemptedWithPrempteeWithZeroId.GetJobRunPreempted().PreemptiveRunId = &armadaevents.Uuid{}
 
+	cancelledWithReason, err := testfixtures.DeepCopy(testfixtures.JobCancelled)
+	assert.NoError(t, err)
+	cancelledWithReason.GetCancelledJob().Reason = "some reason"
+
 	tests := map[string]struct {
 		events   *ingest.EventSequencesWithIds
 		expected *model.InstructionSet
@@ -252,6 +256,23 @@ func TestConvert(t *testing.T) {
 			expected: &model.InstructionSet{
 				JobsToUpdate: []*model.UpdateJobInstruction{&expectedJobCancelled},
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
+		"cancelled with reason": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(cancelledWithReason)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{{
+					JobId:                     testfixtures.JobIdString,
+					State:                     pointer.Int32(lookout.JobCancelledOrdinal),
+					CancelReason:              pointer.String("some reason"),
+					Cancelled:                 &testfixtures.BaseTime,
+					LastTransitionTime:        &testfixtures.BaseTime,
+					LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"reprioritized": {

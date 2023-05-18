@@ -860,6 +860,14 @@ func defaultPostEvictFunc(ctx context.Context, job interfaces.LegacySchedulerJob
 		req.NodeSelector[schedulerconfig.NodeIdLabel] = node.Id
 	}
 
+	// Add a toleration to allow the job to be re-scheduled even if node is unschedulable.
+	//
+	// TODO: Because req is created with a new tolerations slice above, this toleration doesn't persist.
+	// In practice, this isn't an issue now since we don't check static requirements for evicted jobs.
+	if node.Unschedulable {
+		req.Tolerations = append(req.Tolerations, nodedb.UnschedulableToleration())
+	}
+
 	// We've changed the scheduling requirements and must clear any cached key.
 	req.ClearCachedSchedulingKey()
 }

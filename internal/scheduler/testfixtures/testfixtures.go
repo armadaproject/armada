@@ -42,7 +42,7 @@ var (
 		PriorityClass2: {2, true, nil},
 		PriorityClass3: {3, false, nil},
 	}
-	TestDefaultPriorityClass         = "priority-3"
+	TestDefaultPriorityClass         = PriorityClass3
 	TestPriorities                   = []int32{0, 1, 2, 3}
 	TestMaxExtraNodesToConsider uint = 1
 	TestResources                    = []string{"cpu", "memory", "gpu"}
@@ -102,12 +102,12 @@ func WithNodeOversubscriptionEvictionProbabilityConfig(p float64, config configu
 }
 
 func WithRoundLimitsConfig(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.MaximalClusterFractionToSchedule = limits
+	config.MaximumResourceFractionToSchedule = limits
 	return config
 }
 
-func WithPerQueueLimitsConfig(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.MaximalResourceFractionPerQueue = limits
+func WithRoundLimitsPoolConfig(limits map[string]map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.MaximumResourceFractionToScheduleByPool = limits
 	return config
 }
 
@@ -115,14 +115,10 @@ func WithPerPriorityLimitsConfig(limits map[int32]map[string]float64, config con
 	for k, v := range config.Preemption.PriorityClasses {
 		config.Preemption.PriorityClasses[k] = configuration.PriorityClass{
 			Priority:                        v.Priority,
-			MaximalResourceFractionPerQueue: limits[v.Priority],
+			Preemptible:                     v.Preemptible,
+			MaximumResourceFractionPerQueue: limits[v.Priority],
 		}
 	}
-	return config
-}
-
-func WithPerQueueRoundLimitsConfig(limits map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.MaximalResourceFractionToSchedulePerQueue = limits
 	return config
 }
 
@@ -138,7 +134,7 @@ func WithMaxGangsToScheduleConfig(n uint, config configuration.SchedulingConfig)
 
 func WithMaxLookbackPerQueueConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	// For legacy reasons, it's called QueueLeaseBatchSize in config.
-	config.QueueLeaseBatchSize = n
+	config.MaxQueueLookback = n
 	return config
 }
 
@@ -152,8 +148,8 @@ func WithIndexedNodeLabelsConfig(indexedNodeLabels []string, config configuratio
 	return config
 }
 
-func WithQueueLeaseBatchSizeConfig(queueLeasebatchSize uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.QueueLeaseBatchSize = queueLeasebatchSize
+func WithMaxQueueLookbackConfig(maxQueueLookback uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.MaxQueueLookback = maxQueueLookback
 	return config
 }
 
