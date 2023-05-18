@@ -49,7 +49,7 @@ type Scheduler struct {
 	publisher Publisher
 	// Minimum duration between scheduler cycles.
 	cyclePeriod time.Duration
-	// Minimum duration between job scheduling cycles.
+	// Minimum duration between Schedule() calls - calls that actually schedule new jobs.
 	schedulingPeriod time.Duration
 	// Maximum number of times a job can be attempted before being considered failed.
 	maxAttemptedRuns uint
