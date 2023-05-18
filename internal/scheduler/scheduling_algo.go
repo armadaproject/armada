@@ -110,16 +110,21 @@ func (l *FairSchedulingAlgo) Schedule(
 	schedCtx, cancel := context.WithTimeout(ctx, l.maxSchedulingDuration)
 	defer cancel()
 
+	allExecutorsConsidered := false
 	for i, executor := range executorsToSchedule {
-		// We sort clusters lexicographically and schedule them all in order - potentially over multiple scheduling rounds
-		// Skip any that have already been considered
-		if executor.Id < l.previousScheduleClusterId {
-			continue
-		}
-
 		if schedCtx.Err() != nil {
 			// We've reached the scheduling time limit, exit gracefully
 			break
+		}
+
+		if i+1 == len(executorsToSchedule) {
+			allExecutorsConsidered = true
+		}
+
+		// We sort clusters lexicographically and schedule them all in order - potentially over multiple scheduling rounds
+		// Skip any that have already been considered
+		if executor.Id <= l.previousScheduleClusterId {
+			continue
 		}
 
 		log.Infof("scheduling on %s", executor.Id)
@@ -164,11 +169,12 @@ func (l *FairSchedulingAlgo) Schedule(
 
 		// Update result to mark this executor as scheduled
 		l.previousScheduleClusterId = executor.Id
-		if i+1 == len(executorsToSchedule) {
-			// Reset variable once all clusters have been considered
-			l.previousScheduleClusterId = ""
-		}
 		l.onExecutorScheduled(executor)
+	}
+
+	if allExecutorsConsidered {
+		// Reset variable once all clusters have been considered
+		l.previousScheduleClusterId = ""
 	}
 	return overallSchedulerResult, nil
 }
