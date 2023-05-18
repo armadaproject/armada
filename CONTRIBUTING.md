@@ -65,7 +65,7 @@ Real-time interactions between Armada developers and users occurs primarily in C
 * If you need an inviation to CNCF Slack, you can get one at [https://slack.cncf.io](https://slack.cncf.io).
 
 ## Finding Issues to Work On
-If you're new to the project and looking for a place to start, we recommend checking out the issues tagged with "good first". These issues are specifically curated for newcomers to the project, providing an opportunity to get familiar with the codebase and make meaningful contributions.
+If you're new to the project and looking for a place to start, we recommend checking out the issues tagged with "good first issues". These issues are specifically curated for newcomers to the project, providing an opportunity to get familiar with the codebase and make meaningful contributions.
 
 You can view the list of [good first issues](https://github.com/armadaproject/armada/labels/good%20first%20issue) issues.
 
