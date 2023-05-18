@@ -424,7 +424,6 @@ func TestScheduler_TestCycle(t *testing.T) {
 				submitChecker,
 				1*time.Second,
 				5*time.Second,
-				3*time.Second,
 				clusterTimeout,
 				maxNumberOfAttempts,
 				nodeIdLabel,
@@ -441,7 +440,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 
 			// run a scheduler cycle
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			err = sched.cycle(ctx, false, newSchedulingContext(), sched.leaderController.GetToken())
+			err = sched.cycle(ctx, false, sched.leaderController.GetToken())
 			if tc.fetchError || tc.publishError || tc.scheduleError {
 				assert.Error(t, err)
 			} else {
@@ -589,7 +588,6 @@ func TestRun(t *testing.T) {
 		submitChecker,
 		1*time.Second,
 		5*time.Second,
-		3*time.Second,
 		1*time.Hour,
 		maxNumberOfAttempts,
 		nodeIdLabel)
@@ -787,7 +785,6 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				nil,
 				1*time.Second,
 				5*time.Second,
-				3*time.Second,
 				1*time.Hour,
 				maxNumberOfAttempts,
 				nodeIdLabel)
@@ -893,7 +890,7 @@ type testSchedulingAlgo struct {
 	shouldError    bool
 }
 
-func (t *testSchedulingAlgo) Schedule(ctx context.Context, executorsToSchedule []*schedulerobjects.Executor, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error) {
+func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error) {
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")
 	}

@@ -167,6 +167,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 
 			algo := NewFairSchedulingAlgo(
 				config,
+				time.Second*5,
 				mockExecutorRepo,
 				mockQueueRepo,
 			)
@@ -187,7 +188,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			err = jobDb.Upsert(txn, tc.runningJobs)
 			require.NoError(t, err)
 
-			schedulerResult, err := algo.Schedule(ctx, tc.executors, txn, jobDb)
+			schedulerResult, err := algo.Schedule(ctx, txn, jobDb)
 			require.NoError(t, err)
 
 			// check that we have scheduled the queuedJobs we expect
@@ -208,6 +209,124 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				dbJob := jobDb.GetById(txn, job.Id())
 				require.NoError(t, err)
 				assert.Equal(t, job, dbJob)
+			}
+		})
+	}
+}
+
+type executorOrderingTest struct {
+	executors []*schedulerobjects.Executor
+
+	onExecutorScheduled                 func()
+	expectedExecutorsScheduled          []string
+	expectedPreviousScheduledExecutorId string
+}
+
+func TestLegacySchedulingAlgo_TestSchedule_ExecutorOrdering(t *testing.T) {
+	tests := map[string]struct {
+		onExecutorScheduled func(executor *schedulerobjects.Executor)
+		maxScheduleDuration time.Duration
+		rounds              []struct {
+			executors                           []*schedulerobjects.Executor
+			expectedExecutorsScheduled          []string
+			expectedPreviousScheduledExecutorId string
+		}
+	}{
+		"considers all executors in order": {
+			onExecutorScheduled: func(executor *schedulerobjects.Executor) {},
+			maxScheduleDuration: time.Second * 1,
+			rounds: []struct {
+				executors                           []*schedulerobjects.Executor
+				expectedExecutorsScheduled          []string
+				expectedPreviousScheduledExecutorId string
+			}{
+				{
+					executors: []*schedulerobjects.Executor{
+						TwoCoreExecutor("executor1", nil, testfixtures.BaseTime),
+						TwoCoreExecutor("executor2", nil, testfixtures.BaseTime),
+					},
+					expectedExecutorsScheduled:          []string{"executor1", "executor2"},
+					expectedPreviousScheduledExecutorId: "",
+				},
+			},
+		},
+		"maintains state between schedule calls": {
+			onExecutorScheduled: func(executor *schedulerobjects.Executor) { time.Sleep(time.Millisecond * 200) },
+			maxScheduleDuration: time.Millisecond * 100,
+			rounds: []struct {
+				executors                           []*schedulerobjects.Executor
+				expectedExecutorsScheduled          []string
+				expectedPreviousScheduledExecutorId string
+			}{
+				{
+					executors: []*schedulerobjects.Executor{
+						TwoCoreExecutor("executor1", nil, testfixtures.BaseTime),
+						TwoCoreExecutor("executor2", nil, testfixtures.BaseTime),
+					},
+					expectedExecutorsScheduled:          []string{"executor1"},
+					expectedPreviousScheduledExecutorId: "executor1",
+				},
+				{
+					executors: []*schedulerobjects.Executor{
+						TwoCoreExecutor("executor1", nil, testfixtures.BaseTime),
+						TwoCoreExecutor("executor2", nil, testfixtures.BaseTime),
+					},
+					expectedExecutorsScheduled:          []string{"executor2"},
+					expectedPreviousScheduledExecutorId: "",
+				},
+			},
+		},
+		//"handles new executors between schedule calls": {
+		//	executors: []*schedulerobjects.Executor{
+		//		TwoCoreExecutor("executor1", nil, testfixtures.BaseTime),
+		//		TwoCoreExecutor("executor2", nil, testfixtures.BaseTime),
+		//	},
+		//	queues:             []*database.Queue{&queue},
+		//	queuedJobs:         queuedJobs,
+		//	unacknowledgedJobs: []*jobdb.Job{runningJobs[0], runningJobs[1]},
+		//	expectedJobs: map[string]string{
+		//		queuedJobs[0].Id(): "executor2",
+		//		queuedJobs[1].Id(): "executor2",
+		//	},
+		//},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx := testfixtures.ContextWithDefaultLogger(context.Background())
+			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+			config := testfixtures.TestSchedulingConfig()
+
+			ctrl := gomock.NewController(t)
+			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
+			mockQueueRepo := schedulermocks.NewMockQueueRepository(ctrl)
+			mockQueueRepo.EXPECT().GetAllQueues().Return([]*database.Queue{}, nil).AnyTimes()
+
+			algo := NewFairSchedulingAlgo(
+				config,
+				tc.maxScheduleDuration,
+				mockExecutorRepo,
+				mockQueueRepo,
+			)
+			scheduledExecutorsIds := []string{}
+			// Use a test clock so we can control time
+			algo.clock = clock.NewFakeClock(testfixtures.BaseTime)
+			algo.onExecutorScheduled = func(executor *schedulerobjects.Executor) {
+				scheduledExecutorsIds = append(scheduledExecutorsIds, executor.Id)
+				tc.onExecutorScheduled(executor)
+			}
+
+			// Set up JobDb
+			jobDb := jobdb.NewJobDb()
+
+			txn := jobDb.WriteTxn()
+			for _, round := range tc.rounds {
+				scheduledExecutorsIds = []string{}
+				mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(round.executors, nil).AnyTimes()
+				_, err := algo.Schedule(ctx, txn, jobDb)
+				require.NoError(t, err)
+				assert.Equal(t, scheduledExecutorsIds, round.expectedExecutorsScheduled)
+				assert.Equal(t, algo.previousScheduleClusterId, round.expectedPreviousScheduledExecutorId)
 			}
 		})
 	}
