@@ -456,6 +456,10 @@ func init() {
           },
           "x-nullable": false
         },
+        "cancelReason": {
+          "type": "string",
+          "x-nullable": true
+        },
         "cancelled": {
           "type": "string",
           "format": "date-time",
@@ -1076,6 +1080,10 @@ func init() {
             "type": "string"
           },
           "x-nullable": false
+        },
+        "cancelReason": {
+          "type": "string",
+          "x-nullable": true
         },
         "cancelled": {
           "type": "string",

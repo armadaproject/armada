@@ -48,6 +48,7 @@ type jobRow struct {
 	duplicate          bool
 	priorityClass      sql.NullString
 	latestRunId        sql.NullString
+	cancelReason       sql.NullString
 }
 
 type runRow struct {
@@ -173,6 +174,7 @@ func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotati
 			Runs:               []*model.Run{},
 			State:              string(lookout.JobStateMap[row.state]),
 			Submitted:          row.submitted,
+			CancelReason:       database.ParseNullString(row.cancelReason),
 		}
 		jobMap[row.jobId] = job
 		orderedJobIds[i] = row.jobId
@@ -238,7 +240,8 @@ func makeJobRows(ctx context.Context, tx pgx.Tx, tmpTableName string) ([]*jobRow
 			j.last_transition_time,
 			j.duplicate,
 			j.priority_class,
-			j.latest_run_id
+			j.latest_run_id,
+			j.cancel_reason
 		FROM %s AS t
 		INNER JOIN job AS j ON t.job_id = j.job_id
 	`, tmpTableName)
@@ -268,6 +271,7 @@ func makeJobRows(ctx context.Context, tx pgx.Tx, tmpTableName string) ([]*jobRow
 			&row.duplicate,
 			&row.priorityClass,
 			&row.latestRunId,
+			&row.cancelReason,
 		)
 		if err != nil {
 			log.WithError(err).Errorf("failed to scan job row at index %d", len(rows))

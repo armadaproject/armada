@@ -1,6 +1,6 @@
 import React from "react"
 
-import { Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@material-ui/core"
+import { Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Checkbox } from "@material-ui/core"
 
 import { Job } from "../../../services/JobService"
 import LoadingButton from "../LoadingButton"
@@ -14,6 +14,8 @@ type CancelJobsProps = {
   jobsToCancel: Job[]
   isLoading: boolean
   onCancelJobs: () => void
+  isPlatformCancel: boolean
+  setIsPlatformCancel: (x: boolean) => void
 }
 
 export default function CancelJobs(props: CancelJobsProps) {
@@ -44,6 +46,14 @@ export default function CancelJobs(props: CancelJobsProps) {
           </TableBody>
         </Table>
       </TableContainer>
+      <div>
+        <label>Is Platform error?</label>
+        <Checkbox
+          checked={props.isPlatformCancel}
+          disabled={props.isLoading}
+          onChange={(event) => props.setIsPlatformCancel(event.target.checked)}
+        />
+      </div>
       <div className="lookout-dialog-fixed lookout-dialog-centered">
         <LoadingButton content={"Cancel Jobs"} isLoading={props.isLoading} onClick={props.onCancelJobs} />
       </div>

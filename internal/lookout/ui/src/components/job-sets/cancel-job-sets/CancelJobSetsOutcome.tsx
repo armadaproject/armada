@@ -30,6 +30,8 @@ type CancelJobSetsOutcomeProps = {
   onCancelJobs: () => void
   onQueuedSelectedChange: (queuedSelected: boolean) => void
   onRunningSelectedChange: (runningSelected: boolean) => void
+  isPlatformCancel: boolean
+  setIsPlatformCancel: (x: boolean) => void
 }
 
 export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
@@ -81,6 +83,14 @@ export default function CancelJobSetsOutcome(props: CancelJobSetsOutcomeProps) {
               onChange={(event) => props.onRunningSelectedChange(event.target.checked)}
             />
             <label>Pending + Running</label>
+          </div>
+          <div>
+            <label>Is Platform error?</label>
+            <Checkbox
+              checked={props.isPlatformCancel}
+              disabled={props.isLoading}
+              onChange={(event) => props.setIsPlatformCancel(event.target.checked)}
+            />
           </div>
           <div className="lookout-dialog-centered lookout-dialog-fixed">
             <LoadingButton content={"Retry"} isLoading={props.isLoading} onClick={props.onCancelJobs} />
