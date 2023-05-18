@@ -249,6 +249,20 @@ export const JobsTableContainer = ({
     }
   }
 
+  const setTextFields = (filters: ColumnFiltersState) => {
+    const filterMap = Object.fromEntries(filters.map((f) => [f.id, f]))
+    for (const [id, ref] of Object.entries(textFieldRefs)) {
+      let value = ""
+      if (id in filterMap) {
+        const filter = filterMap[id]
+        value = filter.value as string
+      }
+      if (ref.current) {
+        ref.current.value = value
+      }
+    }
+  }
+
   const loadPrefs = (prefs: JobsTablePreferences) => {
     setGrouping(prefs.groupedColumns)
     setExpanded(prefs.expandedState)
@@ -270,20 +284,7 @@ export const JobsTableContainer = ({
     setSelectedRows({})
 
     // Have to manually set text fields to the filter values since they are uncontrolled
-    for (const filter of prefs.filters) {
-      const id = filter.id
-      const col = cols.find((c) => c.id === id)
-      if (!col) {
-        continue
-      }
-      const metadata = getColumnMetadata(col)
-      if (metadata.filterType === FilterType.Text && id in textFieldRefs) {
-        const ref = textFieldRefs[id]
-        if (ref.current) {
-          ref.current.value = filter.value as string
-        }
-      }
-    }
+    setTextFields(prefs.filters)
 
     // Load data
     setRowsToFetch(
