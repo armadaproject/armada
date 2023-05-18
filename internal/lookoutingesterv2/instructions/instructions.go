@@ -427,8 +427,6 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 	}
 
 	for _, e := range event.GetErrors() {
-		// We just interpret the first error
-
 		// Certain legacy events mean we don't have a valid run id
 		// In this case we have to invent a fake run
 		// TODO: remove this when the legacy messages go away!
