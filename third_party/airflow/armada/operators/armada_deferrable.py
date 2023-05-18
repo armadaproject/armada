@@ -76,7 +76,7 @@ class ArmadaDeferrableOperator(BaseOperator):
         The format should be:
         "https://lookout.armada.domain/jobs?job_id=<job_id>" where <job_id> will
         be replaced with the actual job ID.
-
+    :param poll_interval: How often to poll jobservice to get status.
     :return: A deferrable armada operator instance.
     """  # noqa
 

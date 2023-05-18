@@ -82,7 +82,7 @@ Runs an Armada job and calls the job_service_client for polling.
 ## armada.operators.armada_deferrable module
 
 
-### _class_ armada.operators.armada_deferrable.ArmadaDeferrableOperator(name, armada_channel_args, job_service_channel_args, armada_queue, job_request_items, lookout_url_template=None, \*\*kwargs)
+### _class_ armada.operators.armada_deferrable.ArmadaDeferrableOperator(name, armada_channel_args, job_service_channel_args, armada_queue, job_request_items, lookout_url_template=None, poll_interval=30,  \*\*kwargs)
 Bases: `BaseOperator`
 
 Implementation of a deferrable armada operator for airflow.
@@ -121,6 +121,8 @@ Airflow operators inherit from BaseOperator.
     The format should be:
     “[https://lookout.armada.domain/jobs](https://lookout.armada.domain/jobs)?job_id=<job_id>” where <job_id> will
     be replaced with the actual job ID.
+
+    * **poll_interval** (*int*) – How often to poll jobservice to get status.
 
 
 
