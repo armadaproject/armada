@@ -102,34 +102,21 @@ func (l *FairSchedulingAlgo) Schedule(
 		NodeIdByJobId: make(map[string]string),
 	}
 
-	executorsToSchedule := accounting.executors
-	slices.SortStableFunc(executorsToSchedule, func(a, b *schedulerobjects.Executor) bool {
-		return strings.Compare(a.Id, b.Id) < 1
-	})
-
-	schedCtx, cancel := context.WithTimeout(ctx, l.maxSchedulingDuration)
+	timeout, cancel := context.WithTimeout(ctx, l.maxSchedulingDuration)
 	defer cancel()
 
 	allExecutorsConsidered := false
+	executorsToSchedule := accounting.getExecutorsToSchedule(l.previousScheduleClusterId)
 	for i, executor := range executorsToSchedule {
-		if schedCtx.Err() != nil {
+		if timeout.Err() != nil {
 			// We've reached the scheduling time limit, exit gracefully
+			log.Infof("ending scheduling round early as we have hit the maximum scheduling duration")
 			break
-		}
-
-		if i+1 == len(executorsToSchedule) {
-			allExecutorsConsidered = true
-		}
-
-		// We sort clusters lexicographically and schedule them all in order - potentially over multiple scheduling rounds
-		// Skip any that have already been considered
-		if executor.Id <= l.previousScheduleClusterId {
-			continue
 		}
 
 		log.Infof("scheduling on %s", executor.Id)
 		schedulerResult, sctx, err := l.scheduleOnExecutor(
-			schedCtx,
+			timeout,
 			accounting,
 			txn,
 			executor,
@@ -137,6 +124,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		)
 		if err != nil {
 			if err == context.DeadlineExceeded {
+				log.Infof("stopped scheduling on %s early as we have hit the maximum scheduling duration", executor.Id)
 				// We've reached the scheduling time limit, exit gracefully
 				break
 			}
@@ -170,11 +158,13 @@ func (l *FairSchedulingAlgo) Schedule(
 		// Update result to mark this executor as scheduled
 		l.previousScheduleClusterId = executor.Id
 		l.onExecutorScheduled(executor)
-	}
 
+		if i+1 == len(executorsToSchedule) {
+			allExecutorsConsidered = true
+		}
+	}
 	if allExecutorsConsidered {
-		// Reset variable once all clusters have been considered
-		l.previousScheduleClusterId = ""
+		log.Infof("successfully scheduled on all executors")
 	}
 	return overallSchedulerResult, nil
 }
@@ -200,6 +190,38 @@ type fairSchedulingAlgoContext struct {
 	gangIdByJobId                 map[string]string
 	totalAllocationByPoolAndQueue map[string]map[string]schedulerobjects.QuantityByPriorityAndResourceType
 	executors                     []*schedulerobjects.Executor
+}
+
+// This function will return executors in the order they should be scheduled in
+// The order is lexicographical on executor id and adjusted to start with the id next after previousScheduledExecutorId
+// Example executors ids C, A, D, B
+// If previousScheduledExecutorId is blank
+//   - return executors in order A, B, C, D
+//
+// If previousScheduledExecutorId is B
+//   - return executors in order C, D, A, B
+func (f fairSchedulingAlgoContext) getExecutorsToSchedule(previousScheduledExecutorId string) []*schedulerobjects.Executor {
+	sortedExecutors := f.executors
+	slices.SortStableFunc(sortedExecutors, func(a, b *schedulerobjects.Executor) bool {
+		return strings.Compare(a.Id, b.Id) < 1
+	})
+
+	executorsToSchedule := make([]*schedulerobjects.Executor, 0, len(sortedExecutors))
+	if previousScheduledExecutorId == "" {
+		executorsToSchedule = sortedExecutors
+	} else {
+		for i, executor := range sortedExecutors {
+			if executor.Id > previousScheduledExecutorId {
+				executorsToSchedule = append(executorsToSchedule, sortedExecutors[i:]...)
+				executorsToSchedule = append(executorsToSchedule, sortedExecutors[:i]...)
+				break
+			} else if i+1 == len(sortedExecutors) {
+				// This means all executors ids are less than previousScheduleClusterId
+				executorsToSchedule = sortedExecutors
+			}
+		}
+	}
+	return executorsToSchedule
 }
 
 func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*fairSchedulingAlgoContext, error) {
