@@ -106,7 +106,6 @@ message QueueClusterResourceUsage {
     string queue = 2;
     string executorId = 3;
     map<int32, ResourceList> resourcesByPriority = 4 [(gogoproto.nullable) = false];
-    map<string, ResourceList> resourcesByPriorityClassName = 5 [(gogoproto.nullable) = false];
 }
 
 // A collection of QueueClusterResourceUsage

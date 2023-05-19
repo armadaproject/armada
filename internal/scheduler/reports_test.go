@@ -100,6 +100,8 @@ func TestAddGetSchedulingContext(t *testing.T) {
 
 	actualQueueSchedulingContextByExecutor, ok = repo.GetMostRecentQueueSchedulingContextByExecutor("A")
 	require.True(t, ok)
+	// p := actualQueueSchedulingContextByExecutor["foo"]
+	fmt.Println("===", actualQueueSchedulingContextByExecutor["foo"])
 	assert.Equal(
 		t,
 		QueueSchedulingContextByExecutor{
@@ -206,9 +208,12 @@ func withSuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingContext
 	}
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
-		qctx = schedulercontext.NewQueueSchedulingContext(queue, sctx.ExecutorId, 1.0, nil, make(schedulerobjects.QuantityByPriorityAndResourceType))
+		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByPriorityAndResourceType)); err != nil {
+			panic(err)
+		}
+		qctx = sctx.QueueSchedulingContexts[queue]
+		qctx.SchedulingContext = nil
 		qctx.Created = time.Time{}
-		sctx.QueueSchedulingContexts[queue] = qctx
 	}
 	qctx.SuccessfulJobSchedulingContexts[jobId] = &schedulercontext.JobSchedulingContext{
 		ExecutorId: sctx.ExecutorId,
@@ -235,9 +240,12 @@ func withUnsuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingConte
 	}
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
-		qctx = schedulercontext.NewQueueSchedulingContext(queue, sctx.ExecutorId, 1.0, nil, make(schedulerobjects.QuantityByPriorityAndResourceType))
+		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByPriorityAndResourceType)); err != nil {
+			panic(err)
+		}
+		qctx = sctx.QueueSchedulingContexts[queue]
+		qctx.SchedulingContext = nil
 		qctx.Created = time.Time{}
-		sctx.QueueSchedulingContexts[queue] = qctx
 	}
 	qctx.UnsuccessfulJobSchedulingContexts[jobId] = &schedulercontext.JobSchedulingContext{
 		ExecutorId:          sctx.ExecutorId,
@@ -254,9 +262,7 @@ func testSchedulingContext(executorId string) *schedulercontext.SchedulingContex
 		nil,
 		"",
 		nil,
-		nil,
 		schedulerobjects.ResourceList{},
-		nil,
 	)
 	sctx.Started = time.Time{}
 	sctx.Finished = time.Time{}

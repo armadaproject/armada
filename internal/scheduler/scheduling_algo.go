@@ -259,10 +259,17 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 		l.config.Preemption.PriorityClasses,
 		l.config.Preemption.DefaultPriorityClass,
 		l.config.ResourceScarcity,
-		accounting.priorityFactorByQueue,
 		accounting.totalCapacity,
-		accounting.totalAllocationByPoolAndQueue[executor.Pool],
 	)
+	for queue, priorityFactor := range accounting.priorityFactorByQueue {
+		var allocatedByPriority schedulerobjects.QuantityByPriorityAndResourceType
+		if allocatedByQueueAndPriority := accounting.totalAllocationByPoolAndQueue[executor.Pool]; allocatedByQueueAndPriority != nil {
+			allocatedByPriority = allocatedByQueueAndPriority[queue]
+		}
+		if err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByPriority); err != nil {
+			return nil, nil, err
+		}
+	}
 	constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 		executor.Pool,
 		executor.MinimumJobSize,

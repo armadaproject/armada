@@ -34,7 +34,7 @@ func TestQueueScheduler(t *testing.T) {
 		// Map from queue to the priority factor associated with that queue.
 		PriorityFactorByQueue map[string]float64
 		// Initial resource usage for all queues.
-		InitialAllocationByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType
+		InitialAllocatedByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType
 		// Nodes to be considered by the scheduler.
 		Nodes []*schedulerobjects.Node
 		// Jobs to try scheduling.
@@ -170,7 +170,7 @@ func TestQueueScheduler(t *testing.T) {
 			Nodes:                 testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			Jobs:                  armadaslices.Concatenate(testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 5), testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 5)),
 			PriorityFactorByQueue: map[string]float64{"A": 1},
-			InitialAllocationByQueue: map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+			InitialAllocatedByQueueAndPriority: map[string]schedulerobjects.QuantityByPriorityAndResourceType{
 				"A": {
 					0: schedulerobjects.ResourceList{
 						Resources: map[string]resource.Quantity{
@@ -195,7 +195,7 @@ func TestQueueScheduler(t *testing.T) {
 			Nodes:                 testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
 			Jobs:                  armadaslices.Concatenate(testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass1, 1), testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 5)),
 			PriorityFactorByQueue: map[string]float64{"A": 1},
-			InitialAllocationByQueue: map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+			InitialAllocatedByQueueAndPriority: map[string]schedulerobjects.QuantityByPriorityAndResourceType{
 				"A": {
 					0: schedulerobjects.ResourceList{
 						Resources: map[string]resource.Quantity{
@@ -283,7 +283,7 @@ func TestQueueScheduler(t *testing.T) {
 				"A": 1,
 				"B": 1,
 			},
-			InitialAllocationByQueue: map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+			InitialAllocatedByQueueAndPriority: map[string]schedulerobjects.QuantityByPriorityAndResourceType{
 				"A": {
 					0: schedulerobjects.ResourceList{
 						Resources: map[string]resource.Quantity{
@@ -495,10 +495,12 @@ func TestQueueScheduler(t *testing.T) {
 				tc.SchedulingConfig.Preemption.PriorityClasses,
 				tc.SchedulingConfig.Preemption.DefaultPriorityClass,
 				tc.SchedulingConfig.ResourceScarcity,
-				tc.PriorityFactorByQueue,
 				tc.TotalResources,
-				tc.InitialAllocationByQueue,
 			)
+			for queue, priorityFactor := range tc.PriorityFactorByQueue {
+				err := sctx.AddQueueSchedulingContext(queue, priorityFactor, tc.InitialAllocatedByQueueAndPriority[queue])
+				require.NoError(t, err)
+			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 				"pool",
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},

@@ -422,8 +422,8 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if err := q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, executorReport); err != nil {
 		return nil, errors.WithMessagef(err, "failed to update cluster usage for cluster %s", req.ClusterId)
 	}
-	allocatedByQueueAndPriorityClassName := q.aggregateAllocatedByQueueAndPriorityClassName(reportsByExecutor, req.Pool)
-	log.Infof("allocated resources per queue for pool %s before scheduling: %v", req.Pool, allocatedByQueueAndPriorityClassName)
+	allocatedByQueueForPool := q.aggregateUsage(reportsByExecutor, req.Pool)
+	log.Infof("allocated resources per queue for pool %s before scheduling: %v", req.Pool, allocatedByQueueForPool)
 
 	// Store executor details in Redis so they can be used by submit checks and the new scheduler.
 	if err := q.executorRepository.StoreExecutor(ctx, &schedulerobjects.Executor{
@@ -472,23 +472,11 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		q.schedulingConfig.Preemption.PriorityClasses,
 		q.schedulingConfig.Preemption.DefaultPriorityClass,
 		q.schedulingConfig.ResourceScarcity,
+		// May need priority factors for inactive queues for rescheduling evicted jobs.
+		priorityFactorByQueue,
 		schedulerobjects.ResourceList{Resources: totalCapacity},
+		allocatedByQueueForPool,
 	)
-	// sctx := schedulercontext.NewSchedulingContext(
-	// 	req.ClusterId,
-	// 	req.Pool,
-	// 	q.schedulingConfig.Preemption.PriorityClasses,
-	// 	q.schedulingConfig.Preemption.DefaultPriorityClass,
-	// 	q.schedulingConfig.ResourceScarcity,
-	// 	// May need priority factors for inactive queues for rescheduling evicted jobs.
-	// 	priorityFactorByQueue,
-	// 	schedulerobjects.ResourceList{Resources: totalCapacity},
-	// 	allocatedByQueueForPool,
-	// )
-	for queue, priorityFactor := range priorityFactorByQueue {
-		initialAllocatedByPriorityClassName := allocatedByQueueAndPriorityClassName[queue]
-		sctx.AddQueueSchedulingContext(queue, priorityFactor, initialAllocatedByPriorityClassName)
-	}
 	constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 		req.Pool,
 		schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
@@ -670,8 +658,8 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if err := q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, executorReport); err != nil {
 		logging.WithStacktrace(log, err).Errorf("failed to update cluster usage")
 	}
-	allocatedByQueueAndPriorityClassName = q.aggregateAllocatedByQueueAndPriorityClassName(reportsByExecutor, req.Pool)
-	log.Infof("allocated resources per queue for pool %s after scheduling: %v", req.Pool, allocatedByQueueAndPriorityClassName)
+	allocatedByQueueForPool = q.aggregateUsage(reportsByExecutor, req.Pool)
+	log.Infof("allocated resources per queue for pool %s after scheduling: %v", req.Pool, allocatedByQueueForPool)
 
 	// Optionally set node id selectors on scheduled jobs.
 	if q.schedulingConfig.Preemption.SetNodeIdSelector {
@@ -749,12 +737,12 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	return successfullyLeasedApiJobs, nil
 }
 
-// aggregateAllocatedByQueueAndPriorityClassName returns allocationByQueueAndPriorityClassName
-// aggregated across all non-stale clusters in the provided pool.
-func (q *AggregatedQueueServer) aggregateAllocatedByQueueAndPriorityClassName(reportsByCluster map[string]*schedulerobjects.ClusterResourceUsageReport, pool string) map[string]map[string]schedulerobjects.ResourceList {
+// aggregateUsage Creates a map of resource usage first by cluster and then by queue.
+// Clusters in pools other than pool are excluded.
+func (q *AggregatedQueueServer) aggregateUsage(reportsByCluster map[string]*schedulerobjects.ClusterResourceUsageReport, pool string) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
 	const activeClusterExpiry = 10 * time.Minute
 	now := q.clock.Now()
-	allocatedByQueueAndPriorityClassName := make(map[string]map[string]schedulerobjects.ResourceList)
+	aggregatedUsageByQueue := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
 	for _, clusterReport := range reportsByCluster {
 		if clusterReport.Pool != pool {
 			// Separate resource accounting per pool.
@@ -765,19 +753,15 @@ func (q *AggregatedQueueServer) aggregateAllocatedByQueueAndPriorityClassName(re
 			continue
 		}
 		for queue, report := range clusterReport.ResourcesByQueue {
-			allocatedByPriorityClassName, ok := allocatedByQueueAndPriorityClassName[queue]
+			quantityByPriorityAndResourceType, ok := aggregatedUsageByQueue[queue]
 			if !ok {
-				allocatedByPriorityClassName = make(map[string]schedulerobjects.ResourceList)
-				allocatedByQueueAndPriorityClassName[queue] = allocatedByPriorityClassName
+				quantityByPriorityAndResourceType = make(schedulerobjects.QuantityByPriorityAndResourceType)
+				aggregatedUsageByQueue[queue] = quantityByPriorityAndResourceType
 			}
-			for priorityClassName, allocatedForPriorityClassName := range report.ResourcesByPriorityClassName {
-				rl := allocatedByPriorityClassName[priorityClassName]
-				rl.Add(allocatedForPriorityClassName)
-				allocatedByPriorityClassName[priorityClassName] = rl
-			}
+			quantityByPriorityAndResourceType.Add(report.ResourcesByPriority)
 		}
 	}
-	return allocatedByQueueAndPriorityClassName
+	return aggregatedUsageByQueue
 }
 
 func (q *AggregatedQueueServer) decompressJobOwnershipGroups(jobs []*api.Job) error {

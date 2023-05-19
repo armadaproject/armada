@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -38,14 +39,19 @@ func TestSchedulingContextAccounting(t *testing.T) {
 		testfixtures.TestPriorityClasses,
 		testfixtures.TestDefaultPriorityClass,
 		map[string]float64{"cpu": 1},
-		map[string]float64{"A": 1, "B": 1},
 		schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
-		map[string]schedulerobjects.QuantityByPriorityAndResourceType{
-			"A": {
-				0: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
-			},
-		},
 	)
+	priorityFactorByQueue := map[string]float64{"A": 1, "B": 1}
+	allocatedByQueueAndPriority := map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+		"A": {
+			0: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+		},
+	}
+	for _, queue := range []string{"A", "B"} {
+		err := sctx.AddQueueSchedulingContext(queue, priorityFactorByQueue[queue], allocatedByQueueAndPriority[queue])
+		require.NoError(t, err)
+	}
+
 	expected := sctx.AllocatedByQueueAndPriority()
 	jctxs := testNSmallCpuJobSchedulingContext("A", testfixtures.TestDefaultPriorityClass, 2)
 	gctx := NewGangSchedulingContext(jctxs)
