@@ -103,7 +103,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 		records := make([]any, len(o))
 		i := 0
 		for _, v := range o {
-			records[i] = *v
+			records[i] = *v.dbRun
 			i++
 		}
 		err := database.Upsert(ctx, tx, "runs", records)
@@ -111,11 +111,12 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 			return err
 		}
 	case UpdateJobSetPriorities:
-		for jobSet, priority := range o {
+		for jobSetInfo, priority := range o {
 			err := queries.UpdateJobPriorityByJobSet(
 				ctx,
 				schedulerdb.UpdateJobPriorityByJobSetParams{
-					JobSet:   jobSet,
+					JobSet:   jobSetInfo.jobSet,
+					Queue:    jobSetInfo.queue,
 					Priority: priority,
 				},
 			)
@@ -148,10 +149,36 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 			return errors.WithStack(err)
 		}
 	case MarkJobSetsCancelRequested:
-		jobSets := maps.Keys(o)
-		err := queries.MarkJobsCancelRequestedBySets(ctx, jobSets)
-		if err != nil {
-			return errors.WithStack(err)
+		for jobSetInfo, cancelDetails := range o {
+			if !cancelDetails.cancelQueued && !cancelDetails.cancelLeased {
+				continue
+			}
+			if cancelDetails.cancelQueued && cancelDetails.cancelLeased {
+				err := queries.MarkJobsCancelRequestedBySet(
+					ctx,
+					schedulerdb.MarkJobsCancelRequestedBySetParams{
+						Queue:  jobSetInfo.queue,
+						JobSet: jobSetInfo.jobSet,
+					},
+				)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+			} else {
+				queuedStateToCancel := cancelDetails.cancelQueued
+				err := queries.MarkJobsCancelRequestedBySetAndState(
+					ctx,
+					schedulerdb.MarkJobsCancelRequestedBySetAndStateParams{
+						Queue:  jobSetInfo.queue,
+						JobSet: jobSetInfo.jobSet,
+						Queued: queuedStateToCancel,
+					},
+				)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+			}
+
 		}
 	case MarkJobsCancelRequested:
 		jobIds := maps.Keys(o)
