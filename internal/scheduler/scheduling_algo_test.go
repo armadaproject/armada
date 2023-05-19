@@ -214,6 +214,67 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 	}
 }
 
+func TestGetExecutorsToSchedule(t *testing.T) {
+	executorA := TwoCoreExecutor("a", nil, testfixtures.BaseTime)
+	executorA1 := TwoCoreExecutor("a1", nil, testfixtures.BaseTime)
+	executorB := TwoCoreExecutor("b", nil, testfixtures.BaseTime)
+	executorC := TwoCoreExecutor("c", nil, testfixtures.BaseTime)
+
+	tests := map[string]struct {
+		executors          []*schedulerobjects.Executor
+		expectedExecutors  []*schedulerobjects.Executor
+		previousExecutorId string
+	}{
+		"sorts executors lexographically": {
+			executors: []*schedulerobjects.Executor{
+				executorB,
+				executorA,
+				executorA1,
+			},
+			expectedExecutors: []*schedulerobjects.Executor{
+				executorA,
+				executorA1,
+				executorB,
+			},
+			previousExecutorId: "",
+		},
+		"adjusts order based on previous executor id": {
+			executors: []*schedulerobjects.Executor{
+				executorC,
+				executorB,
+				executorA,
+			},
+			expectedExecutors: []*schedulerobjects.Executor{
+				executorB,
+				executorC,
+				executorA,
+			},
+			previousExecutorId: "a",
+		},
+		"previous executor id greater than any known executor": {
+			executors: []*schedulerobjects.Executor{
+				executorC,
+				executorA,
+				executorB,
+			},
+			expectedExecutors: []*schedulerobjects.Executor{
+				executorA,
+				executorB,
+				executorC,
+			},
+			previousExecutorId: "d",
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			schedulingAlgoContext := fairSchedulingAlgoContext{executors: tc.executors}
+			result := schedulingAlgoContext.getExecutorsToSchedule(tc.previousExecutorId)
+			assert.Equal(t, tc.expectedExecutors, result)
+		})
+	}
+}
+
 type executorOrderingTest struct {
 	executors                           []*schedulerobjects.Executor
 	expectedExecutorsScheduled          []string
