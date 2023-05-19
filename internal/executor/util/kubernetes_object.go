@@ -334,12 +334,13 @@ func setRestartPolicyNever(podSpec *v1.PodSpec) {
 }
 
 func BuildKubernetesJobFromPod(pod *v1.Pod) batchv1.Job {
-
 	backoffLimit := int32(0)
+	ttlCleanup := int32(100)
 	return batchv1.Job{
 		ObjectMeta: pod.ObjectMeta,
 		Spec: batchv1.JobSpec{
-			BackoffLimit: &backoffLimit,
+			BackoffLimit:            &backoffLimit,
+			TTLSecondsAfterFinished: &ttlCleanup,
 			Template: v1.PodTemplateSpec{
 				Spec:       pod.Spec,
 				ObjectMeta: pod.ObjectMeta,
