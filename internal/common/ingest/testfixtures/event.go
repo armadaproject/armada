@@ -500,6 +500,17 @@ var JobSucceeded = &armadaevents.EventSequence_Event{
 	},
 }
 
+func JobSetCancelRequestedWithStateFilter(states ...armadaevents.JobState) *armadaevents.EventSequence_Event {
+	return &armadaevents.EventSequence_Event{
+		Created: &testfixtures.BaseTime,
+		Event: &armadaevents.EventSequence_Event_CancelJobSet{
+			CancelJobSet: &armadaevents.CancelJobSet{
+				States: states,
+			},
+		},
+	}
+}
+
 func DeepCopy(events *armadaevents.EventSequence_Event) (*armadaevents.EventSequence_Event, error) {
 	bytes, err := proto.Marshal(events)
 	if err != nil {

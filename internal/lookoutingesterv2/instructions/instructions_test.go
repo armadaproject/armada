@@ -138,6 +138,11 @@ var expectedFailedRun = model.UpdateJobRunInstruction{
 	ExitCode:    pointer.Int32(testfixtures.ExitCode),
 }
 
+var expectedUnschedulable = model.UpdateJobRunInstruction{
+	RunId: testfixtures.RunIdString,
+	Node:  pointer.String(testfixtures.NodeName),
+}
+
 var expectedPreempted = model.UpdateJobInstruction{
 	JobId:                     testfixtures.JobIdString,
 	State:                     pointer.Int32(lookout.JobPreemptedOrdinal),
@@ -426,7 +431,8 @@ func TestConvert(t *testing.T) {
 				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedUnschedulable},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			useLegacyEventConversion: true,
 		},

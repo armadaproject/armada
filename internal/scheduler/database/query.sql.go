@@ -126,12 +126,32 @@ func (q *Queries) MarkJobsCancelRequestedById(ctx context.Context, jobIds []stri
 	return err
 }
 
-const markJobsCancelRequestedBySets = `-- name: MarkJobsCancelRequestedBySets :exec
-UPDATE jobs SET cancel_by_jobset_requested = true WHERE job_set = ANY($1::text[])
+const markJobsCancelRequestedBySet = `-- name: MarkJobsCancelRequestedBySet :exec
+UPDATE jobs SET cancel_by_jobset_requested = true WHERE job_set =$1 and queue = $2
 `
 
-func (q *Queries) MarkJobsCancelRequestedBySets(ctx context.Context, jobSets []string) error {
-	_, err := q.db.Exec(ctx, markJobsCancelRequestedBySets, jobSets)
+type MarkJobsCancelRequestedBySetParams struct {
+	JobSet string `db:"job_set"`
+	Queue  string `db:"queue"`
+}
+
+func (q *Queries) MarkJobsCancelRequestedBySet(ctx context.Context, arg MarkJobsCancelRequestedBySetParams) error {
+	_, err := q.db.Exec(ctx, markJobsCancelRequestedBySet, arg.JobSet, arg.Queue)
+	return err
+}
+
+const markJobsCancelRequestedBySetAndState = `-- name: MarkJobsCancelRequestedBySetAndState :exec
+UPDATE jobs SET cancel_by_jobset_requested = true WHERE job_set = $1 and queue = $2 and queued = $3
+`
+
+type MarkJobsCancelRequestedBySetAndStateParams struct {
+	JobSet string `db:"job_set"`
+	Queue  string `db:"queue"`
+	Queued bool   `db:"queued"`
+}
+
+func (q *Queries) MarkJobsCancelRequestedBySetAndState(ctx context.Context, arg MarkJobsCancelRequestedBySetAndStateParams) error {
+	_, err := q.db.Exec(ctx, markJobsCancelRequestedBySetAndState, arg.JobSet, arg.Queue, arg.Queued)
 	return err
 }
 
@@ -611,46 +631,17 @@ func (q *Queries) UpdateJobPriorityById(ctx context.Context, arg UpdateJobPriori
 }
 
 const updateJobPriorityByJobSet = `-- name: UpdateJobPriorityByJobSet :exec
-UPDATE jobs SET priority = $1 WHERE job_set = $2
+UPDATE jobs SET priority = $1 WHERE job_set = $2 and queue = $3
 `
 
 type UpdateJobPriorityByJobSetParams struct {
 	Priority int64  `db:"priority"`
 	JobSet   string `db:"job_set"`
+	Queue    string `db:"queue"`
 }
 
 func (q *Queries) UpdateJobPriorityByJobSet(ctx context.Context, arg UpdateJobPriorityByJobSetParams) error {
-	_, err := q.db.Exec(ctx, updateJobPriorityByJobSet, arg.Priority, arg.JobSet)
-	return err
-}
-
-const updateJobQueued = `-- name: UpdateJobQueued :exec
-UPDATE jobs SET (queued, queued_version) = ($1, $2) WHERE job_id = $3 AND queued_version < $2
-`
-
-type UpdateJobQueuedParams struct {
-	Queued        bool   `db:"queued"`
-	QueuedVersion int32  `db:"queued_version"`
-	JobID         string `db:"job_id"`
-}
-
-func (q *Queries) UpdateJobQueued(ctx context.Context, arg UpdateJobQueuedParams) error {
-	_, err := q.db.Exec(ctx, updateJobQueued, arg.Queued, arg.QueuedVersion, arg.JobID)
-	return err
-}
-
-const updateJobSchedulingInfo = `-- name: UpdateJobSchedulingInfo :exec
-UPDATE jobs SET (scheduling_info, scheduling_info_version) = ($1, $2) WHERE job_id = $3 AND scheduling_info_version < $2
-`
-
-type UpdateJobSchedulingInfoParams struct {
-	SchedulingInfo        []byte `db:"scheduling_info"`
-	SchedulingInfoVersion int32  `db:"scheduling_info_version"`
-	JobID                 string `db:"job_id"`
-}
-
-func (q *Queries) UpdateJobSchedulingInfo(ctx context.Context, arg UpdateJobSchedulingInfoParams) error {
-	_, err := q.db.Exec(ctx, updateJobSchedulingInfo, arg.SchedulingInfo, arg.SchedulingInfoVersion, arg.JobID)
+	_, err := q.db.Exec(ctx, updateJobPriorityByJobSet, arg.Priority, arg.JobSet, arg.Queue)
 	return err
 }
 
