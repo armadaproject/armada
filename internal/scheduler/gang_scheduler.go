@@ -20,9 +20,6 @@ type GangScheduler struct {
 	constraints       schedulerconstraints.SchedulingConstraints
 	schedulingContext *schedulercontext.SchedulingContext
 	nodeDb            *nodedb.NodeDb
-	// Record of job scheduling requirements of jobs that previously failed to schedule.
-	// Used to immediately reject new jobs with identical reqirements.
-	unsuccessfulSchedulingKeys map[schedulerobjects.SchedulingKey]*schedulercontext.JobSchedulingContext
 	// If true, the unsuccessfulSchedulingKeys check is omitted.
 	skipUnsuccessfulSchedulingKeyCheck bool
 }
@@ -33,10 +30,9 @@ func NewGangScheduler(
 	nodeDb *nodedb.NodeDb,
 ) (*GangScheduler, error) {
 	return &GangScheduler{
-		constraints:                constraints,
-		schedulingContext:          sctx,
-		nodeDb:                     nodeDb,
-		unsuccessfulSchedulingKeys: make(map[schedulerobjects.SchedulingKey]*schedulercontext.JobSchedulingContext),
+		constraints:       constraints,
+		schedulingContext: sctx,
+		nodeDb:            nodeDb,
 	}, nil
 }
 
@@ -77,9 +73,9 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 			// Since a gang may be unschedulable even if all its members are individually schedulable.
 			if !sch.skipUnsuccessfulSchedulingKeyCheck {
 				if schedulingKey, jctx, ok := schedulingKeyIfSingleJobGang(gctx, sch.schedulingContext.PriorityClasses); ok {
-					if _, ok := sch.unsuccessfulSchedulingKeys[schedulingKey]; !ok {
-						// Keep the first jctx for each unique schedulingKey.
-						sch.unsuccessfulSchedulingKeys[schedulingKey] = jctx
+					if _, ok := sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; !ok {
+						// Keep the first jctx for each unfeasible schedulingKey.
+						sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey] = jctx
 					}
 				}
 			}
