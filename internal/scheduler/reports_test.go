@@ -100,8 +100,6 @@ func TestAddGetSchedulingContext(t *testing.T) {
 
 	actualQueueSchedulingContextByExecutor, ok = repo.GetMostRecentQueueSchedulingContextByExecutor("A")
 	require.True(t, ok)
-	// p := actualQueueSchedulingContextByExecutor["foo"]
-	fmt.Println("===", actualQueueSchedulingContextByExecutor["foo"])
 	assert.Equal(
 		t,
 		QueueSchedulingContextByExecutor{
