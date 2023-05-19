@@ -6,6 +6,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -15,7 +16,6 @@ import (
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	"github.com/pkg/errors"
 )
 
 // SchedulingContext contains information necessary for scheduling and records what happened in a scheduling round.
