@@ -338,9 +338,10 @@ func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingC
 	if _, ok := qctx.UnsuccessfulJobSchedulingContexts[jctx.JobId]; ok {
 		return false, errors.Errorf("failed adding job %s to queue: job already marked unsuccessful", jctx.JobId)
 	}
-	rl := schedulerobjects.ResourceListFromV1ResourceList(jctx.Req.ResourceRequirements.Requests)
 	_, evictedInThisRound := qctx.EvictedJobsById[jctx.JobId]
 	if jctx.IsSuccessful() {
+		rl := schedulerobjects.ResourceListFromV1ResourceList(jctx.Req.ResourceRequirements.Requests)
+
 		// Always update ResourcesByPriority.
 		// Since ResourcesByPriority is used to order queues by fraction of fair share.
 		qctx.AllocatedByPriority.AddResourceList(jctx.Req.Priority, rl)
