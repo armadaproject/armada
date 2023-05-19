@@ -150,35 +150,26 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 		}
 	case MarkJobSetsCancelRequested:
 		for jobSetInfo, cancelDetails := range o {
-			if !cancelDetails.cancelQueued && !cancelDetails.cancelLeased {
-				continue
+			queuedStatesToCancel := make([]bool, 0, 2)
+			if cancelDetails.cancelQueued {
+				// Cancel all jobs in a queued state
+				queuedStatesToCancel = append(queuedStatesToCancel, true)
 			}
-			if cancelDetails.cancelQueued && cancelDetails.cancelLeased {
-				err := queries.MarkJobsCancelRequestedBySet(
-					ctx,
-					schedulerdb.MarkJobsCancelRequestedBySetParams{
-						Queue:  jobSetInfo.queue,
-						JobSet: jobSetInfo.jobSet,
-					},
-				)
-				if err != nil {
-					return errors.WithStack(err)
-				}
-			} else {
-				queuedStateToCancel := cancelDetails.cancelQueued
-				err := queries.MarkJobsCancelRequestedBySetAndState(
-					ctx,
-					schedulerdb.MarkJobsCancelRequestedBySetAndStateParams{
-						Queue:  jobSetInfo.queue,
-						JobSet: jobSetInfo.jobSet,
-						Queued: queuedStateToCancel,
-					},
-				)
-				if err != nil {
-					return errors.WithStack(err)
-				}
+			if cancelDetails.cancelLeased {
+				// Cancel all jobs in a non-queued state
+				queuedStatesToCancel = append(queuedStatesToCancel, false)
 			}
-
+			err := queries.MarkJobsCancelRequestedBySetAndQueuedState(
+				ctx,
+				schedulerdb.MarkJobsCancelRequestedBySetAndQueuedStateParams{
+					Queue:        jobSetInfo.queue,
+					JobSet:       jobSetInfo.jobSet,
+					QueuedStates: queuedStatesToCancel,
+				},
+			)
+			if err != nil {
+				return errors.WithStack(err)
+			}
 		}
 	case MarkJobsCancelRequested:
 		jobIds := maps.Keys(o)
