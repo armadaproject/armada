@@ -86,27 +86,6 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 		}
 	}()
 
-	// If we've previously failed to schedule jobs with identical scheduling requirements,
-	// mark those jobs with the same failure reason as the previously attempted job.
-	// If any jobs were marked, set the unschedulableReason to that of the first unsuccessful job and return.
-	if !sch.skipUnsuccessfulSchedulingKeyCheck {
-		for _, jctx := range gctx.JobSchedulingContexts {
-			if schedulingKey, ok := schedulingKeyFromLegacySchedulerJob(jctx.Job, sch.schedulingContext.PriorityClasses); ok {
-				if unsuccessfulJctx, ok := sch.unsuccessfulSchedulingKeys[schedulingKey]; ok {
-					jctx.UnschedulableReason = unsuccessfulJctx.UnschedulableReason
-					jctx.PodSchedulingContext = unsuccessfulJctx.PodSchedulingContext
-				}
-			}
-		}
-		for _, jctx := range gctx.JobSchedulingContexts {
-			if jctx.UnschedulableReason != "" {
-				ok = false
-				unschedulableReason = jctx.UnschedulableReason
-				return
-			}
-		}
-	}
-
 	// Try scheduling the gang.
 	sch.schedulingContext.AddGangSchedulingContext(gctx)
 	gangAddedToSchedulingContext = true

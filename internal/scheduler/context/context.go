@@ -48,6 +48,10 @@ type SchedulingContext struct {
 	NumScheduledGangs int
 	// Reason for why the scheduling round finished.
 	TerminationReason string
+	// Record of job scheduling requirements known to be unfeasible.
+	// Used to immediately reject new jobs with identical reqirements.
+	// Maps to the JobSchedulingContext of a previous job attempted to schedule with the same key.
+	UnfeasibleSchedulingKeys map[schedulerobjects.SchedulingKey]*JobSchedulingContext
 }
 
 func NewSchedulingContext(
@@ -69,6 +73,7 @@ func NewSchedulingContext(
 		TotalResources:               totalResources.DeepCopy(),
 		ScheduledResourcesByPriority: make(schedulerobjects.QuantityByPriorityAndResourceType),
 		EvictedResourcesByPriority:   make(schedulerobjects.QuantityByPriorityAndResourceType),
+		UnfeasibleSchedulingKeys:     make(map[schedulerobjects.SchedulingKey]*JobSchedulingContext),
 	}
 }
 

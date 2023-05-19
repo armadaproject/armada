@@ -5,6 +5,7 @@ import (
 	"context"
 	"math"
 	"reflect"
+	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
@@ -197,6 +198,27 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 		if it.hitLookbackLimit() {
 			return nil, nil
 		}
+
+		// Skip this job if it's known to be unschedulable.
+		if len(it.schedulingContext.UnfeasibleSchedulingKeys) > 0 {
+			if schedulingKey, ok := schedulingKeyFromLegacySchedulerJob(job, it.schedulingContext.PriorityClasses); ok {
+				if unsuccessfulJctx, ok := it.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; ok {
+					jctx := &schedulercontext.JobSchedulingContext{
+						Created:              time.Now(),
+						ExecutorId:           it.schedulingContext.ExecutorId,
+						JobId:                job.GetId(),
+						Job:                  job,
+						UnschedulableReason:  unsuccessfulJctx.UnschedulableReason,
+						PodSchedulingContext: unsuccessfulJctx.PodSchedulingContext,
+					}
+					if _, err := it.schedulingContext.AddJobSchedulingContext(jctx); err != nil {
+						return nil, err
+					}
+					continue
+				}
+			}
+		}
+
 		gangId, gangCardinality, isGangJob, err := GangIdAndCardinalityFromAnnotations(
 			job.GetAnnotations(),
 		)
