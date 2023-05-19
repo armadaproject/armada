@@ -544,7 +544,8 @@ func init() {
             "SUCCEEDED",
             "FAILED",
             "CANCELLED",
-            "PREEMPTED"
+            "PREEMPTED",
+            "LEASED"
           ],
           "x-nullable": false
         },
@@ -614,7 +615,8 @@ func init() {
             "RUN_UNABLE_TO_SCHEDULE",
             "RUN_LEASE_RETURNED",
             "RUN_LEASE_EXPIRED",
-            "RUN_MAX_RUNS_EXCEEDED"
+            "RUN_MAX_RUNS_EXCEEDED",
+            "RUN_LEASED"
           ],
           "x-nullable": false
         },
@@ -1169,7 +1171,8 @@ func init() {
             "SUCCEEDED",
             "FAILED",
             "CANCELLED",
-            "PREEMPTED"
+            "PREEMPTED",
+            "LEASED"
           ],
           "x-nullable": false
         },
@@ -1239,7 +1242,8 @@ func init() {
             "RUN_UNABLE_TO_SCHEDULE",
             "RUN_LEASE_RETURNED",
             "RUN_LEASE_EXPIRED",
-            "RUN_MAX_RUNS_EXCEEDED"
+            "RUN_MAX_RUNS_EXCEEDED",
+            "RUN_LEASED"
           ],
           "x-nullable": false
         },
