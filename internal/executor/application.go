@@ -169,6 +169,7 @@ func setupExecutorApiComponents(
 		config.Kubernetes.PodDefaults,
 		config.Application.SubmitConcurrencyLimit,
 		config.Kubernetes.FatalPodSubmissionErrors,
+		config.Application.UseJobShim,
 	)
 
 	leaseRequester := service.NewJobLeaseRequester(
@@ -280,6 +281,7 @@ func setupServerApiComponents(
 		config.Kubernetes.PodDefaults,
 		config.Application.SubmitConcurrencyLimit,
 		config.Kubernetes.FatalPodSubmissionErrors,
+		config.Application.UseJobShim,
 	)
 
 	clusterAllocationService := service.NewLegacyClusterAllocationService(

@@ -28,6 +28,7 @@ type Submitter interface {
 type SubmitService struct {
 	clusterContext           context.ClusterContext
 	podDefaults              *configuration.PodDefaults
+	useJobShim               bool
 	submissionThreadCount    int
 	fatalPodSubmissionErrors []string
 }
@@ -37,12 +38,14 @@ func NewSubmitter(
 	podDefaults *configuration.PodDefaults,
 	submissionThreadCount int,
 	fatalPodSubmissionErrors []string,
+	useJobShim bool,
 ) *SubmitService {
 	return &SubmitService{
 		clusterContext:           clusterContext,
 		podDefaults:              podDefaults,
 		submissionThreadCount:    submissionThreadCount,
 		fatalPodSubmissionErrors: fatalPodSubmissionErrors,
+		useJobShim:               useJobShim,
 	}
 }
 
@@ -93,6 +96,7 @@ func (submitService *SubmitService) submitWorker(wg *sync.WaitGroup, jobsToSubmi
 
 	for job := range jobsToSubmitChannel {
 		jobPods := []*v1.Pod{}
+
 		pod, err := submitService.submitPod(job)
 		jobPods = append(jobPods, pod)
 
@@ -129,10 +133,22 @@ func (submitService *SubmitService) submitPod(job *SubmitJob) (*v1.Pod, error) {
 			domain.AssociatedIngressesCount: fmt.Sprintf("%d", len(job.Ingresses)),
 		})
 	}
-
-	submittedPod, err := submitService.clusterContext.SubmitPod(pod, job.Meta.Owner, job.Meta.OwnershipGroups)
-	if err != nil {
-		return pod, err
+	var submittedPod *v1.Pod
+	var err error
+	if submitService.useJobShim {
+		job, err := submitService.clusterContext.SubmitJob(pod, job.Meta.Owner, job.Meta.OwnershipGroups)
+		if err != nil {
+			return pod, err
+		}
+		submittedPod = &v1.Pod{
+			ObjectMeta: job.ObjectMeta,
+			Spec:       job.Spec.Template.Spec,
+		}
+	} else {
+		submittedPod, err = submitService.clusterContext.SubmitPod(pod, job.Meta.Owner, job.Meta.OwnershipGroups)
+		if err != nil {
+			return pod, err
+		}
 	}
 
 	for _, service := range job.Services {

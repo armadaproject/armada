@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	discovery "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"
@@ -171,6 +172,10 @@ func (c *FakeClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroups []
 	}()
 
 	return pod, nil
+}
+
+func (c *FakeClusterContext) SubmitJob(pod *v1.Pod, owner string, ownerGroups []string) (*batchv1.Job, error) {
+	return nil, nil
 }
 
 func (c *FakeClusterContext) savePod(pod *v1.Pod) *v1.Pod {

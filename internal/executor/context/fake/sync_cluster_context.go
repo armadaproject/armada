@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	discovery "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"
@@ -96,6 +97,10 @@ func (c *SyncFakeClusterContext) DeleteIngress(ingress *networking.Ingress) erro
 func (c *SyncFakeClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error) {
 	c.Pods[pod.Labels[domain.JobId]] = pod
 	return pod, nil
+}
+
+func (c *SyncFakeClusterContext) SubmitJob(pod *v1.Pod, owner string, ownerGroups []string) (*batchv1.Job, error) {
+	return nil, fmt.Errorf("SubmitJob not implemented in SyncFakeClusterContext")
 }
 
 func (c *SyncFakeClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
