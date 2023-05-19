@@ -77,6 +77,10 @@ func NewSchedulingContext(
 	}
 }
 
+func (sctx *SchedulingContext) ClearUnfeasibleSchedulingKeys() {
+	sctx.UnfeasibleSchedulingKeys = make(map[schedulerobjects.SchedulingKey]*JobSchedulingContext)
+}
+
 func (sctx *SchedulingContext) AddQueueSchedulingContext(queue string, priorityFactor float64, initialAllocatedByPriority schedulerobjects.QuantityByPriorityAndResourceType) error {
 	if _, ok := sctx.QueueSchedulingContexts[queue]; ok {
 		return errors.WithStack(&armadaerrors.ErrInvalidArgument{

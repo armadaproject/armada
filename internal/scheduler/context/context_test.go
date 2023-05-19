@@ -55,9 +55,11 @@ func TestSchedulingContextAccounting(t *testing.T) {
 	expected := sctx.AllocatedByQueueAndPriority()
 	jctxs := testNSmallCpuJobSchedulingContext("A", testfixtures.TestDefaultPriorityClass, 2)
 	gctx := NewGangSchedulingContext(jctxs)
-	sctx.AddGangSchedulingContext(gctx)
+	_, err := sctx.AddGangSchedulingContext(gctx)
+	require.NoError(t, err)
 	for _, jctx := range jctxs {
-		sctx.EvictJob(jctx.Job)
+		_, err := sctx.EvictJob(jctx.Job)
+		require.NoError(t, err)
 	}
 
 	actual := sctx.AllocatedByQueueAndPriority()
@@ -67,7 +69,8 @@ func TestSchedulingContextAccounting(t *testing.T) {
 	for _, queue := range queues {
 		assert.True(t, expected[queue].Equal(actual[queue]))
 	}
-	sctx.AddGangSchedulingContext(gctx)
+	_, err = sctx.AddGangSchedulingContext(gctx)
+	require.NoError(t, err)
 }
 
 func testNSmallCpuJobSchedulingContext(queue, priorityClassName string, n int) []*JobSchedulingContext {

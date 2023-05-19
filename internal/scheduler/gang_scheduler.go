@@ -60,12 +60,16 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 			// Register the job as unschedulable. If the job was added to the context, remove it first.
 			if gangAddedToSchedulingContext {
 				jobs := util.Map(gctx.JobSchedulingContexts, func(jctx *schedulercontext.JobSchedulingContext) interfaces.LegacySchedulerJob { return jctx.Job })
-				sch.schedulingContext.EvictGang(jobs)
+				if _, err = sch.schedulingContext.EvictGang(jobs); err != nil {
+					return
+				}
 			}
 			for _, jctx := range gctx.JobSchedulingContexts {
 				jctx.UnschedulableReason = unschedulableReason
 			}
-			sch.schedulingContext.AddGangSchedulingContext(gctx)
+			if _, err = sch.schedulingContext.AddGangSchedulingContext(gctx); err != nil {
+				return
+			}
 
 			// Register unfeasible scheduling keys.
 			//
@@ -83,7 +87,9 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 	}()
 
 	// Try scheduling the gang.
-	sch.schedulingContext.AddGangSchedulingContext(gctx)
+	if _, err = sch.schedulingContext.AddGangSchedulingContext(gctx); err != nil {
+		return
+	}
 	gangAddedToSchedulingContext = true
 	if !gctx.AllJobsEvicted {
 		// Check that the job is large enough for this executor.
