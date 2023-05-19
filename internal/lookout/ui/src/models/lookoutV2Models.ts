@@ -7,6 +7,7 @@ export enum JobState {
   Failed = "FAILED",
   Cancelled = "CANCELLED",
   Preempted = "PREEMPTED",
+  Leased = "LEASED",
 }
 
 export const jobStateDisplayInfo: Record<JobState, ColoredState> = {
@@ -17,6 +18,7 @@ export const jobStateDisplayInfo: Record<JobState, ColoredState> = {
   [JobState.Failed]: { displayName: "Failed", color: "#ff0000" },
   [JobState.Cancelled]: { displayName: "Cancelled", color: "#999999" },
   [JobState.Preempted]: { displayName: "Preempted", color: "#f8bbd0" },
+  [JobState.Leased]: { displayName: "Leased", color: "#f5c056" }
 }
 
 const terminatedJobStates = new Set([JobState.Succeeded, JobState.Failed, JobState.Cancelled, JobState.Preempted])
@@ -33,6 +35,7 @@ export enum JobRunState {
   RunLeaseReturned = "RUN_LEASE_RETURNED",
   RunLeaseExpired = "RUN_LEASE_EXPIRED",
   RunMaxRunsExceeded = "RUN_MAX_RUNS_EXCEEDED",
+  RunLeased = "RUN_LEASED",
 }
 
 export const jobRunStateDisplayInfo: Record<JobRunState, { displayName: string }> = {
@@ -46,6 +49,7 @@ export const jobRunStateDisplayInfo: Record<JobRunState, { displayName: string }
   [JobRunState.RunPreempted]: { displayName: "Preempted" },
   [JobRunState.RunLeaseExpired]: { displayName: "Lease Expired" },
   [JobRunState.RunMaxRunsExceeded]: { displayName: "Max Runs Exceeded" },
+  [JobRunState.RunLeased]: { displayName: "Leased" }
 }
 
 type ColoredState = {
