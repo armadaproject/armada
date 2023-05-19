@@ -50,7 +50,7 @@ type Scheduler struct {
 	// Minimum duration between scheduler cycles.
 	cyclePeriod time.Duration
 	// Minimum duration between Schedule() calls - calls that actually schedule new jobs.
-	schedulingPeriod time.Duration
+	schedulePeriod time.Duration
 	// Maximum number of times a job can be attempted before being considered failed.
 	maxAttemptedRuns uint
 	// The label used when setting node anti affinities.
@@ -99,7 +99,7 @@ func NewScheduler(
 		jobDb:                      jobDb,
 		clock:                      clock.RealClock{},
 		cyclePeriod:                cyclePeriod,
-		schedulingPeriod:           schedulePeriod,
+		schedulePeriod:             schedulePeriod,
 		previousSchedulingRoundEnd: time.Time{},
 		executorTimeout:            executorTimeout,
 		maxAttemptedRuns:           maxAttemptedRuns,
@@ -175,6 +175,8 @@ func (s *Scheduler) Run(ctx context.Context) error {
 // If updateAll is true, we generate events from all jobs in the jobDb.
 // Otherwise, we only generate events from jobs updated since the last cycle.
 func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken LeaderToken) error {
+	log := ctxlogrus.Extract(ctx)
+	log = log.WithField("function", "cycle")
 	// Update job state.
 	updatedJobs, err := s.syncState(ctx)
 	if err != nil {
@@ -207,7 +209,7 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	}
 	events = append(events, expirationEvents...)
 
-	if s.clock.Now().Sub(s.previousSchedulingRoundEnd) > s.schedulingPeriod {
+	if s.clock.Now().Sub(s.previousSchedulingRoundEnd) > s.schedulePeriod {
 		// Schedule jobs.
 		overallSchedulerResult, err := s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
 		if err != nil {
@@ -220,6 +222,8 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 		}
 		events = append(events, resultEvents...)
 		s.previousSchedulingRoundEnd = s.clock.Now()
+	} else {
+		log.Info("skipping scheduling new jobs as ran a scheduling round less than %s ago", s.schedulePeriod)
 	}
 
 	// Publish to Pulsar.

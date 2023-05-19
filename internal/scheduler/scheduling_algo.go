@@ -107,13 +107,14 @@ func (l *FairSchedulingAlgo) Schedule(
 		return strings.Compare(a.Id, b.Id) < 1
 	})
 
-	schedCtx, cancel := context.WithTimeout(ctx, l.maxSchedulingDuration)
+	timeout, cancel := context.WithTimeout(ctx, l.maxSchedulingDuration)
 	defer cancel()
 
 	allExecutorsConsidered := false
 	for i, executor := range executorsToSchedule {
-		if schedCtx.Err() != nil {
+		if timeout.Err() != nil {
 			// We've reached the scheduling time limit, exit gracefully
+			log.Infof("ending scheduling round early as we have hit the maximum scheduling duration")
 			break
 		}
 
@@ -124,12 +125,13 @@ func (l *FairSchedulingAlgo) Schedule(
 		// We sort clusters lexicographically and schedule them all in order - potentially over multiple scheduling rounds
 		// Skip any that have already been considered
 		if executor.Id <= l.previousScheduleClusterId {
+			log.Debugf("skipping scheduling on %s, as it's id is less than the current previous cluster id - %s", executor.Id, l.previousScheduleClusterId)
 			continue
 		}
 
 		log.Infof("scheduling on %s", executor.Id)
 		schedulerResult, sctx, err := l.scheduleOnExecutor(
-			schedCtx,
+			timeout,
 			accounting,
 			txn,
 			executor,
@@ -137,6 +139,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		)
 		if err != nil {
 			if err == context.DeadlineExceeded {
+				log.Infof("stopped scheduling on %s early as we have hit the maximum scheduling duration", executor.Id)
 				// We've reached the scheduling time limit, exit gracefully
 				break
 			}
