@@ -1,0 +1,31 @@
+queue: test
+jobSetId: nodeport
+jobs:
+  - priority: 1000
+    services:
+      - type: NodePort
+        ports:
+          - 5050
+    podSpec:
+      restartPolicy: Never
+      terminationGracePeriodSeconds: 0
+      containers:
+      - name: app
+        env:
+          - name: HTTP_PORT
+            value: "8888"
+        imagePullPolicy: IfNotPresent
+        image: mendhak/http-https-echo:28
+        securityContext:
+          runAsUser: 1000
+        resources:
+          limits:
+            memory: 1Gi
+            cpu: 1
+          requests:
+            memory: 1Gi
+            cpu: 1
+        ports:
+          - containerPort: 5050
+            protocol: TCP
+            name: http
