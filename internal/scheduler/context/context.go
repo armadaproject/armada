@@ -340,6 +340,9 @@ func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingC
 	}
 	_, evictedInThisRound := qctx.EvictedJobsById[jctx.JobId]
 	if jctx.IsSuccessful() {
+		if jctx.Req == nil {
+			return false, errors.Errorf("failed adding job %s to queue: job requirements are missing", jctx.JobId)
+		}
 		rl := schedulerobjects.ResourceListFromV1ResourceList(jctx.Req.ResourceRequirements.Requests)
 
 		// Always update ResourcesByPriority.
