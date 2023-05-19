@@ -7,6 +7,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -95,7 +96,7 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 		case *armadaevents.EventSequence_Event_CancelJob:
 			operationsFromEvent, err = c.handleCancelJob(event.GetCancelJob())
 		case *armadaevents.EventSequence_Event_CancelJobSet:
-			operationsFromEvent, err = c.handleCancelJobSet(meta.jobset)
+			operationsFromEvent, err = c.handleCancelJobSet(event.GetCancelJobSet(), meta)
 		case *armadaevents.EventSequence_Event_CancelledJob:
 			operationsFromEvent, err = c.handleCancelledJob(event.GetCancelledJob())
 		case *armadaevents.EventSequence_Event_JobRequeued:
@@ -183,12 +184,15 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 		return nil, err
 	}
 	return []DbOperation{
-		InsertRuns{runId: &schedulerdb.Run{
-			RunID:    runId,
-			JobID:    jobId,
-			JobSet:   meta.jobset,
-			Executor: jobRunLeased.GetExecutorId(),
-			Node:     jobRunLeased.GetNodeId(),
+		InsertRuns{runId: &JobRunDetails{
+			queue: meta.queue,
+			dbRun: &schedulerdb.Run{
+				RunID:    runId,
+				JobID:    jobId,
+				JobSet:   meta.jobset,
+				Executor: jobRunLeased.GetExecutorId(),
+				Node:     jobRunLeased.GetNodeId(),
+			},
 		}},
 		UpdateJobQueuedState{jobId: &JobQueuedStateUpdate{
 			Queued:             false,
@@ -300,7 +304,7 @@ func (c *InstructionConverter) handleReprioritiseJob(reprioritiseJob *armadaeven
 
 func (c *InstructionConverter) handleReprioritiseJobSet(reprioritiseJobSet *armadaevents.ReprioritiseJobSet, meta eventSequenceCommon) ([]DbOperation, error) {
 	return []DbOperation{UpdateJobSetPriorities{
-		meta.jobset: int64(reprioritiseJobSet.Priority),
+		JobSetKey{queue: meta.queue, jobSet: meta.jobset}: int64(reprioritiseJobSet.Priority),
 	}}, nil
 }
 
@@ -314,9 +318,18 @@ func (c *InstructionConverter) handleCancelJob(cancelJob *armadaevents.CancelJob
 	}}, nil
 }
 
-func (c *InstructionConverter) handleCancelJobSet(jobset string) ([]DbOperation, error) {
+func (c *InstructionConverter) handleCancelJobSet(cancelJobSet *armadaevents.CancelJobSet, meta eventSequenceCommon) ([]DbOperation, error) {
+	cancelQueued := len(cancelJobSet.States) == 0 || slices.Contains(cancelJobSet.States, armadaevents.JobState_QUEUED)
+	cancelLeased := len(cancelJobSet.States) == 0 || slices.Contains(cancelJobSet.States, armadaevents.JobState_PENDING) || slices.Contains(cancelJobSet.States, armadaevents.JobState_RUNNING)
+
 	return []DbOperation{MarkJobSetsCancelRequested{
-		jobset: true,
+		JobSetKey{
+			queue:  meta.queue,
+			jobSet: meta.jobset,
+		}: &JobSetCancelAction{
+			cancelQueued: cancelQueued,
+			cancelLeased: cancelLeased,
+		},
 	}}, nil
 }
 

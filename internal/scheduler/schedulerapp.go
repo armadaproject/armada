@@ -158,7 +158,7 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating submit checker")
 	}
-	schedulingAlgo := NewFairSchedulingAlgo(config.Scheduling, executorRepository, queueRepository)
+	schedulingAlgo := NewFairSchedulingAlgo(config.Scheduling, config.MaxSchedulingDuration, executorRepository, queueRepository)
 	scheduler, err := NewScheduler(
 		jobRepository,
 		executorRepository,
@@ -168,6 +168,7 @@ func Run(config schedulerconfig.Configuration) error {
 		stringInterner,
 		submitChecker,
 		config.CyclePeriod,
+		config.SchedulePeriod,
 		config.ExecutorTimeout,
 		config.Scheduling.MaxRetries+1,
 		config.Scheduling.Preemption.NodeIdLabel,
