@@ -223,7 +223,7 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 		events = append(events, resultEvents...)
 		s.previousSchedulingRoundEnd = s.clock.Now()
 	} else {
-		log.Info("skipping scheduling new jobs as ran a scheduling round less than %s ago", s.schedulePeriod)
+		log.Info("skipping scheduling new jobs this cycle as a scheduling round ran less than %s ago", s.schedulePeriod)
 	}
 
 	// Publish to Pulsar.
