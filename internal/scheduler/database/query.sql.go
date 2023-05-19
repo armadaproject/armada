@@ -126,32 +126,18 @@ func (q *Queries) MarkJobsCancelRequestedById(ctx context.Context, jobIds []stri
 	return err
 }
 
-const markJobsCancelRequestedBySet = `-- name: MarkJobsCancelRequestedBySet :exec
-UPDATE jobs SET cancel_by_jobset_requested = true WHERE job_set =$1 and queue = $2
+const markJobsCancelRequestedBySetAndQueuedState = `-- name: MarkJobsCancelRequestedBySetAndQueuedState :exec
+UPDATE jobs SET cancel_by_jobset_requested = true WHERE job_set = $1 and queue = $2 and queued = ANY($3::bool[])
 `
 
-type MarkJobsCancelRequestedBySetParams struct {
-	JobSet string `db:"job_set"`
-	Queue  string `db:"queue"`
+type MarkJobsCancelRequestedBySetAndQueuedStateParams struct {
+	JobSet       string `db:"job_set"`
+	Queue        string `db:"queue"`
+	QueuedStates []bool `db:"queued_states"`
 }
 
-func (q *Queries) MarkJobsCancelRequestedBySet(ctx context.Context, arg MarkJobsCancelRequestedBySetParams) error {
-	_, err := q.db.Exec(ctx, markJobsCancelRequestedBySet, arg.JobSet, arg.Queue)
-	return err
-}
-
-const markJobsCancelRequestedBySetAndState = `-- name: MarkJobsCancelRequestedBySetAndState :exec
-UPDATE jobs SET cancel_by_jobset_requested = true WHERE job_set = $1 and queue = $2 and queued = $3
-`
-
-type MarkJobsCancelRequestedBySetAndStateParams struct {
-	JobSet string `db:"job_set"`
-	Queue  string `db:"queue"`
-	Queued bool   `db:"queued"`
-}
-
-func (q *Queries) MarkJobsCancelRequestedBySetAndState(ctx context.Context, arg MarkJobsCancelRequestedBySetAndStateParams) error {
-	_, err := q.db.Exec(ctx, markJobsCancelRequestedBySetAndState, arg.JobSet, arg.Queue, arg.Queued)
+func (q *Queries) MarkJobsCancelRequestedBySetAndQueuedState(ctx context.Context, arg MarkJobsCancelRequestedBySetAndQueuedStateParams) error {
+	_, err := q.db.Exec(ctx, markJobsCancelRequestedBySetAndQueuedState, arg.JobSet, arg.Queue, arg.QueuedStates)
 	return err
 }
 
