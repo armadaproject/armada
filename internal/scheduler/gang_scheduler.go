@@ -20,9 +20,6 @@ type GangScheduler struct {
 	constraints       schedulerconstraints.SchedulingConstraints
 	schedulingContext *schedulercontext.SchedulingContext
 	nodeDb            *nodedb.NodeDb
-	// Record of job scheduling requirements of jobs that previously failed to schedule.
-	// Used to immediately reject new jobs with identical reqirements.
-	unsuccessfulSchedulingKeys map[schedulerobjects.SchedulingKey]*schedulercontext.JobSchedulingContext
 	// If true, the unsuccessfulSchedulingKeys check is omitted.
 	skipUnsuccessfulSchedulingKeyCheck bool
 }
@@ -33,10 +30,9 @@ func NewGangScheduler(
 	nodeDb *nodedb.NodeDb,
 ) (*GangScheduler, error) {
 	return &GangScheduler{
-		constraints:                constraints,
-		schedulingContext:          sctx,
-		nodeDb:                     nodeDb,
-		unsuccessfulSchedulingKeys: make(map[schedulerobjects.SchedulingKey]*schedulercontext.JobSchedulingContext),
+		constraints:       constraints,
+		schedulingContext: sctx,
+		nodeDb:            nodeDb,
 	}, nil
 }
 
@@ -64,12 +60,16 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 			// Register the job as unschedulable. If the job was added to the context, remove it first.
 			if gangAddedToSchedulingContext {
 				jobs := util.Map(gctx.JobSchedulingContexts, func(jctx *schedulercontext.JobSchedulingContext) interfaces.LegacySchedulerJob { return jctx.Job })
-				sch.schedulingContext.EvictGang(jobs)
+				if _, err = sch.schedulingContext.EvictGang(jobs); err != nil {
+					return
+				}
 			}
 			for _, jctx := range gctx.JobSchedulingContexts {
 				jctx.UnschedulableReason = unschedulableReason
 			}
-			sch.schedulingContext.AddGangSchedulingContext(gctx)
+			if _, err = sch.schedulingContext.AddGangSchedulingContext(gctx); err != nil {
+				return
+			}
 
 			// Register unfeasible scheduling keys.
 			//
@@ -77,38 +77,19 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 			// Since a gang may be unschedulable even if all its members are individually schedulable.
 			if !sch.skipUnsuccessfulSchedulingKeyCheck {
 				if schedulingKey, jctx, ok := schedulingKeyIfSingleJobGang(gctx, sch.schedulingContext.PriorityClasses); ok {
-					if _, ok := sch.unsuccessfulSchedulingKeys[schedulingKey]; !ok {
-						// Keep the first jctx for each unique schedulingKey.
-						sch.unsuccessfulSchedulingKeys[schedulingKey] = jctx
+					if _, ok := sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; !ok {
+						// Keep the first jctx for each unfeasible schedulingKey.
+						sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey] = jctx
 					}
 				}
 			}
 		}
 	}()
 
-	// If we've previously failed to schedule jobs with identical scheduling requirements,
-	// mark those jobs with the same failure reason as the previously attempted job.
-	// If any jobs were marked, set the unschedulableReason to that of the first unsuccessful job and return.
-	if !sch.skipUnsuccessfulSchedulingKeyCheck {
-		for _, jctx := range gctx.JobSchedulingContexts {
-			if schedulingKey, ok := schedulingKeyFromLegacySchedulerJob(jctx.Job, sch.schedulingContext.PriorityClasses); ok {
-				if unsuccessfulJctx, ok := sch.unsuccessfulSchedulingKeys[schedulingKey]; ok {
-					jctx.UnschedulableReason = unsuccessfulJctx.UnschedulableReason
-					jctx.PodSchedulingContext = unsuccessfulJctx.PodSchedulingContext
-				}
-			}
-		}
-		for _, jctx := range gctx.JobSchedulingContexts {
-			if jctx.UnschedulableReason != "" {
-				ok = false
-				unschedulableReason = jctx.UnschedulableReason
-				return
-			}
-		}
-	}
-
 	// Try scheduling the gang.
-	sch.schedulingContext.AddGangSchedulingContext(gctx)
+	if _, err = sch.schedulingContext.AddGangSchedulingContext(gctx); err != nil {
+		return
+	}
 	gangAddedToSchedulingContext = true
 	if !gctx.AllJobsEvicted {
 		// Check that the job is large enough for this executor.

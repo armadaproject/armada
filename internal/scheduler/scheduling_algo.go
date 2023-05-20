@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"math/rand"
+	"strings"
 	"time"
 
 	"github.com/benbjohnson/immutable"
@@ -11,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -42,11 +44,16 @@ type FairSchedulingAlgo struct {
 	priorityClassPriorities     []int32
 	indexedResources            []string
 	rand                        *rand.Rand // injected here for repeatable testing
+	previousScheduleClusterId   string
+	maxSchedulingDuration       time.Duration
 	clock                       clock.Clock
+	// Function that is called every time a executor is scheduled. Useful for testing.
+	onExecutorScheduled func(executor *schedulerobjects.Executor)
 }
 
 func NewFairSchedulingAlgo(
 	config configuration.SchedulingConfig,
+	maxSchedulingDuration time.Duration,
 	executorRepository database.ExecutorRepository,
 	queueRepository database.QueueRepository,
 ) *FairSchedulingAlgo {
@@ -70,13 +77,16 @@ func NewFairSchedulingAlgo(
 		queueRepository:         queueRepository,
 		priorityClassPriorities: priorities,
 		indexedResources:        indexedResources,
+		maxSchedulingDuration:   maxSchedulingDuration,
 		rand:                    util.NewThreadsafeRand(time.Now().UnixNano()),
 		clock:                   clock.RealClock{},
+		onExecutorScheduled:     func(executor *schedulerobjects.Executor) {},
 	}
 }
 
 // Schedule assigns jobs to nodes in the same way as the old lease call.
-// It iterates over each executor in turn (using a random order) and assigns the jobs using a LegacyScheduler, before moving onto the next executor
+// It iterates over each executor in turn (using lexicographical order) and assigns the jobs using a LegacyScheduler, before moving onto the next executor
+// It maintains state of which executors it has considered already and may take multiple Schedule() calls to consider all of the executors if scheduling is slow
 // Newly leased jobs are updated as such in the jobDb using the transaction provided and are also returned to the caller.
 func (l *FairSchedulingAlgo) Schedule(
 	ctx context.Context,
@@ -91,16 +101,33 @@ func (l *FairSchedulingAlgo) Schedule(
 	overallSchedulerResult := &SchedulerResult{
 		NodeIdByJobId: make(map[string]string),
 	}
-	for _, executor := range accounting.executors {
+
+	timeout, cancel := context.WithTimeout(ctx, l.maxSchedulingDuration)
+	defer cancel()
+
+	allExecutorsConsidered := false
+	executorsToSchedule := accounting.getExecutorsToSchedule(l.previousScheduleClusterId)
+	for i, executor := range executorsToSchedule {
+		if timeout.Err() != nil {
+			// We've reached the scheduling time limit, exit gracefully
+			log.Infof("ending scheduling round early as we have hit the maximum scheduling duration")
+			break
+		}
+
 		log.Infof("scheduling on %s", executor.Id)
 		schedulerResult, sctx, err := l.scheduleOnExecutor(
-			ctx,
+			timeout,
 			accounting,
 			txn,
 			executor,
 			jobDb,
 		)
 		if err != nil {
+			if err == context.DeadlineExceeded {
+				log.Infof("stopped scheduling on %s early as we have hit the maximum scheduling duration", executor.Id)
+				// We've reached the scheduling time limit, exit gracefully
+				break
+			}
 			return nil, err
 		}
 		if l.schedulingContextRepository != nil {
@@ -127,6 +154,17 @@ func (l *FairSchedulingAlgo) Schedule(
 
 		// Update accounting.
 		accounting.totalAllocationByPoolAndQueue[executor.Pool] = sctx.AllocatedByQueueAndPriority()
+
+		// Update result to mark this executor as scheduled
+		l.previousScheduleClusterId = executor.Id
+		l.onExecutorScheduled(executor)
+
+		if i+1 == len(executorsToSchedule) {
+			allExecutorsConsidered = true
+		}
+	}
+	if allExecutorsConsidered {
+		log.Infof("successfully scheduled on all executors")
 	}
 	return overallSchedulerResult, nil
 }
@@ -152,6 +190,38 @@ type fairSchedulingAlgoContext struct {
 	gangIdByJobId                 map[string]string
 	totalAllocationByPoolAndQueue map[string]map[string]schedulerobjects.QuantityByPriorityAndResourceType
 	executors                     []*schedulerobjects.Executor
+}
+
+// This function will return executors in the order they should be scheduled in
+// The order is lexicographical on executor id and adjusted to start with the id next after previousScheduledExecutorId
+// Example executors ids C, A, D, B
+// If previousScheduledExecutorId is blank
+//   - return executors in order A, B, C, D
+//
+// If previousScheduledExecutorId is B
+//   - return executors in order C, D, A, B
+func (f fairSchedulingAlgoContext) getExecutorsToSchedule(previousScheduledExecutorId string) []*schedulerobjects.Executor {
+	sortedExecutors := f.executors
+	slices.SortStableFunc(sortedExecutors, func(a, b *schedulerobjects.Executor) bool {
+		return strings.Compare(a.Id, b.Id) < 1
+	})
+
+	executorsToSchedule := make([]*schedulerobjects.Executor, 0, len(sortedExecutors))
+	if previousScheduledExecutorId == "" {
+		executorsToSchedule = sortedExecutors
+	} else {
+		for i, executor := range sortedExecutors {
+			if executor.Id > previousScheduledExecutorId {
+				executorsToSchedule = append(executorsToSchedule, sortedExecutors[i:]...)
+				executorsToSchedule = append(executorsToSchedule, sortedExecutors[:i]...)
+				break
+			} else if i+1 == len(sortedExecutors) {
+				// This means all executors ids are less than previousScheduleClusterId
+				executorsToSchedule = sortedExecutors
+			}
+		}
+	}
+	return executorsToSchedule
 }
 
 func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*fairSchedulingAlgoContext, error) {
@@ -243,8 +313,6 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 	executor *schedulerobjects.Executor,
 	db *jobdb.JobDb,
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
 	nodeDb, err := l.constructNodeDb(
 		executor.Nodes,
 		accounting.jobsByExecutorId[executor.Id],
@@ -259,10 +327,17 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 		l.config.Preemption.PriorityClasses,
 		l.config.Preemption.DefaultPriorityClass,
 		l.config.ResourceScarcity,
-		accounting.priorityFactorByQueue,
 		accounting.totalCapacity,
-		accounting.totalAllocationByPoolAndQueue[executor.Pool],
 	)
+	for queue, priorityFactor := range accounting.priorityFactorByQueue {
+		var allocatedByPriority schedulerobjects.QuantityByPriorityAndResourceType
+		if allocatedByQueueAndPriority := accounting.totalAllocationByPoolAndQueue[executor.Pool]; allocatedByQueueAndPriority != nil {
+			allocatedByPriority = allocatedByQueueAndPriority[queue]
+		}
+		if err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByPriority); err != nil {
+			return nil, nil, err
+		}
+	}
 	constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 		executor.Pool,
 		executor.MinimumJobSize,

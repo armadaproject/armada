@@ -47,8 +47,10 @@ type Scheduler struct {
 	submitChecker SubmitScheduleChecker
 	// Responsible for publishing messages to Pulsar. Only the leader publishes.
 	publisher Publisher
-	// Minimum duration between scheduling cycles.
+	// Minimum duration between scheduler cycles.
 	cyclePeriod time.Duration
+	// Minimum duration between Schedule() calls - calls that actually schedule new jobs.
+	schedulePeriod time.Duration
 	// Maximum number of times a job can be attempted before being considered failed.
 	maxAttemptedRuns uint
 	// The label used when setting node anti affinities.
@@ -56,6 +58,8 @@ type Scheduler struct {
 	// If an executor fails to report in for this amount of time,
 	// all jobs assigne to that executor are cancelled.
 	executorTimeout time.Duration
+	// The time the previous scheduling round ended
+	previousSchedulingRoundEnd time.Time
 	// Used for timing decisions (e.g., sleep).
 	// Injected here so that we can mock it out for testing.
 	clock clock.Clock
@@ -78,27 +82,30 @@ func NewScheduler(
 	stringInterner *stringinterner.StringInterner,
 	submitChecker SubmitScheduleChecker,
 	cyclePeriod time.Duration,
+	schedulePeriod time.Duration,
 	executorTimeout time.Duration,
 	maxAttemptedRuns uint,
 	nodeIdLabel string,
 ) (*Scheduler, error) {
 	jobDb := jobdb.NewJobDb()
 	return &Scheduler{
-		jobRepository:      jobRepository,
-		executorRepository: executorRepository,
-		schedulingAlgo:     schedulingAlgo,
-		leaderController:   leaderController,
-		publisher:          publisher,
-		stringInterner:     stringInterner,
-		submitChecker:      submitChecker,
-		jobDb:              jobDb,
-		clock:              clock.RealClock{},
-		cyclePeriod:        cyclePeriod,
-		executorTimeout:    executorTimeout,
-		maxAttemptedRuns:   maxAttemptedRuns,
-		nodeIdLabel:        nodeIdLabel,
-		jobsSerial:         -1,
-		runsSerial:         -1,
+		jobRepository:              jobRepository,
+		executorRepository:         executorRepository,
+		schedulingAlgo:             schedulingAlgo,
+		leaderController:           leaderController,
+		publisher:                  publisher,
+		stringInterner:             stringInterner,
+		submitChecker:              submitChecker,
+		jobDb:                      jobDb,
+		clock:                      clock.RealClock{},
+		cyclePeriod:                cyclePeriod,
+		schedulePeriod:             schedulePeriod,
+		previousSchedulingRoundEnd: time.Time{},
+		executorTimeout:            executorTimeout,
+		maxAttemptedRuns:           maxAttemptedRuns,
+		nodeIdLabel:                nodeIdLabel,
+		jobsSerial:                 -1,
+		runsSerial:                 -1,
 	}, nil
 }
 
@@ -168,6 +175,8 @@ func (s *Scheduler) Run(ctx context.Context) error {
 // If updateAll is true, we generate events from all jobs in the jobDb.
 // Otherwise, we only generate events from jobs updated since the last cycle.
 func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken LeaderToken) error {
+	log := ctxlogrus.Extract(ctx)
+	log = log.WithField("function", "cycle")
 	// Update job state.
 	updatedJobs, err := s.syncState(ctx)
 	if err != nil {
@@ -200,17 +209,22 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	}
 	events = append(events, expirationEvents...)
 
-	// Schedule jobs.
-	overallSchedulerResult, err := s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
-	if err != nil {
-		return err
-	}
+	if s.clock.Now().Sub(s.previousSchedulingRoundEnd) > s.schedulePeriod {
+		// Schedule jobs.
+		overallSchedulerResult, err := s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
+		if err != nil {
+			return err
+		}
 
-	resultEvents, err := s.eventsFromSchedulerResult(txn, overallSchedulerResult)
-	if err != nil {
-		return err
+		resultEvents, err := s.eventsFromSchedulerResult(txn, overallSchedulerResult)
+		if err != nil {
+			return err
+		}
+		events = append(events, resultEvents...)
+		s.previousSchedulingRoundEnd = s.clock.Now()
+	} else {
+		log.Infof("skipping scheduling new jobs this cycle as a scheduling round ran less than %s ago", s.schedulePeriod)
 	}
-	events = append(events, resultEvents...)
 
 	// Publish to Pulsar.
 	isLeader := func() bool {
