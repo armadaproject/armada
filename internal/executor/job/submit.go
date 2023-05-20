@@ -136,34 +136,49 @@ func (submitService *SubmitService) submitPod(job *SubmitJob) (*v1.Pod, error) {
 	var submittedPod *v1.Pod
 	var err error
 	if submitService.useJobShim {
-		job, err := submitService.clusterContext.SubmitJob(pod, job.Meta.Owner, job.Meta.OwnershipGroups)
+		k8Job, err := submitService.clusterContext.SubmitJob(pod, job.Meta.Owner, job.Meta.OwnershipGroups)
 		if err != nil {
 			return pod, err
 		}
 		submittedPod = &v1.Pod{
-			ObjectMeta: job.ObjectMeta,
-			Spec:       job.Spec.Template.Spec,
+			ObjectMeta: k8Job.ObjectMeta,
+			Spec:       k8Job.Spec.Template.Spec,
 		}
+		for _, service := range job.Services {
+			service.ObjectMeta.OwnerReferences = []metav1.OwnerReference{util2.CreateOwnerReference(submittedPod)}
+			_, err = submitService.clusterContext.SubmitService(service)
+			if err != nil {
+				return pod, err
+			}
+		}
+
+		for _, ingress := range job.Ingresses {
+			ingress.ObjectMeta.OwnerReferences = []metav1.OwnerReference{util2.CreateOwnerReference(submittedPod)}
+			_, err = submitService.clusterContext.SubmitIngress(ingress)
+			if err != nil {
+				return pod, err
+			}
+		}
+
 	} else {
 		submittedPod, err = submitService.clusterContext.SubmitPod(pod, job.Meta.Owner, job.Meta.OwnershipGroups)
 		if err != nil {
 			return pod, err
 		}
-	}
-
-	for _, service := range job.Services {
-		service.ObjectMeta.OwnerReferences = []metav1.OwnerReference{util2.CreateOwnerReference(submittedPod)}
-		_, err = submitService.clusterContext.SubmitService(service)
-		if err != nil {
-			return pod, err
+		for _, service := range job.Services {
+			service.ObjectMeta.OwnerReferences = []metav1.OwnerReference{util2.CreateOwnerReference(submittedPod)}
+			_, err = submitService.clusterContext.SubmitService(service)
+			if err != nil {
+				return pod, err
+			}
 		}
-	}
 
-	for _, ingress := range job.Ingresses {
-		ingress.ObjectMeta.OwnerReferences = []metav1.OwnerReference{util2.CreateOwnerReference(submittedPod)}
-		_, err = submitService.clusterContext.SubmitIngress(ingress)
-		if err != nil {
-			return pod, err
+		for _, ingress := range job.Ingresses {
+			ingress.ObjectMeta.OwnerReferences = []metav1.OwnerReference{util2.CreateOwnerReference(submittedPod)}
+			_, err = submitService.clusterContext.SubmitIngress(ingress)
+			if err != nil {
+				return pod, err
+			}
 		}
 	}
 
