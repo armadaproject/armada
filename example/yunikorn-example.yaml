@@ -1,0 +1,29 @@
+queue: e2e-test-queue
+jobSetId: job-set-1
+labels:
+  app: sleep
+  applicationId: "application-sleep-0001"
+  queue: "root.sandbox"
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      schedulerName: yunikorn
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      containers:
+        - name: sleep
+          imagePullPolicy: IfNotPresent
+          image: alpine:latest
+          command:
+            - sh
+            - -c
+          args:
+            - sleep $(( (RANDOM % 30) + 30 ))
+          resources:
+            limits:
+              memory: 64Mi
+              cpu: 150m
+            requests:
+              memory: 64Mi
+              cpu: 150m
