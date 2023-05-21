@@ -4,9 +4,9 @@ on:
   # The Push runners always seem to be slower.
   # Seems to be due to hitting cache limits and only one runner
   # being able to access the cache at a time.
-  # push:
-  #   branches-ignore:
-  #     - master
+  push:
+    branches-ignore:
+      - master
   pull_request:
     branches-ignore:
       - gh-pages

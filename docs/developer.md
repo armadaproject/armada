@@ -80,6 +80,15 @@ In LocalDev, the UI is pre-built and served from the lookout component. To acces
 
 If you wish to run the UI locally, see the [UI Developer Guide](./developer/ui.md).
 
+
+### Choosing components to run
+
+You can set the `ARMADA_COMPONENTS` environment variable to choose which components to run. It is a comma separated list of components to run. For example, to run only the server and executor, you can run:
+
+```bash
+export ARMADA_COMPONENTS="server,executor"
+```
+
 ## Debugging
 
 The mage target `mage debug` supports multiple methods for debugging, and runs the appropriate parts of localdev as required.

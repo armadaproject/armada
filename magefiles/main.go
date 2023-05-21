@@ -141,10 +141,8 @@ func LocalDev(arg string) error {
 
 	switch arg {
 	case "minimal":
-		err := dockerRun("compose", "up", "-d", "executor", "server")
-		if err != nil {
-			return err
-		}
+		os.Setenv("ARMADA_COMPONENTS", "executor,server")
+		mg.Deps(StartComponents)
 	case "debug":
 		fmt.Println("Dependencies started, ending localdev...")
 		return nil
