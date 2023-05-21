@@ -26,7 +26,7 @@ func getComponentsList() []string {
 	return strings.Split(componentsStr, ",")
 }
 
-// Dependencies include pulsar, postgres (v1 and v2) as well as redis
+// Dependencies include pulsar, postgres (v1 and v2) as well as redis.
 func StartDependencies() error {
 	if onArm() {
 		os.Setenv("PULSAR_IMAGE", "richgross/pulsar:2.11.0")
@@ -41,7 +41,7 @@ func StartDependencies() error {
 	return nil
 }
 
-// Stops the dependencies
+// Stops the dependencies.
 func StopDependencies() error {
 	servicesArg := append([]string{"compose", "stop"}, services...)
 	if err := dockerRun(servicesArg...); err != nil {
@@ -51,7 +51,7 @@ func StopDependencies() error {
 	return nil
 }
 
-// Starts the Armada Components
+// Starts the Armada Components. (Based on the ARMADA_COMPONENTS environment variable)
 func StartComponents() error {
 	composeFile := getComposeFile()
 	components := getComponentsList()
@@ -64,7 +64,7 @@ func StartComponents() error {
 	return nil
 }
 
-// Stops the Armada Components
+// Stops the Armada Components. (Based on the ARMADA_COMPONENTS environment variable)
 func StopComponents() error {
 	composeFile := getComposeFile()
 	components := getComponentsList()
@@ -77,8 +77,7 @@ func StopComponents() error {
 	return nil
 }
 
-// Repeatedly check logs until "alive": true is found.
-// Timeout after 1 minute
+// Repeatedly check logs until Pulsar is ready.
 func CheckForPulsarRunning() error {
 	timeout := time.After(1 * time.Minute)
 	tick := time.Tick(1 * time.Second)
@@ -103,8 +102,7 @@ func CheckForPulsarRunning() error {
 	}
 }
 
-// Download Dependency Images using Docker
-// Ensure there is no error returned so that CI doesn't fail.
+// Download Dependency Images for Docker Compose
 func downloadDependencyImages() error {
 	timeTaken := time.Now()
 	_, err := exec.Command(dockerBinary(), "compose", "pull", "--ignore-pull-failures").CombinedOutput()

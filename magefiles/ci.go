@@ -50,6 +50,7 @@ func TestSuite() error {
 	return nil
 }
 
+// Checks if Armada is ready to accept jobs.
 func CheckForArmadaRunning() error {
 	mg.Deps(createQueue)
 

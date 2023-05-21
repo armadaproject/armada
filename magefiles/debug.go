@@ -26,6 +26,7 @@ func createDelveImage() error {
 	return nil
 }
 
+// Creates a docker-compose file that runs Armada with Delve.
 func CreateDelveCompose() error {
 	mg.Deps(createDelveImage)
 
@@ -91,6 +92,7 @@ func CreateDelveCompose() error {
 	return nil
 }
 
+// Runs Armada with a range of debugging options.
 func Debug(arg string) error {
 	switch arg {
 	case "delve":
