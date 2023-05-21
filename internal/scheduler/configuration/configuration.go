@@ -46,6 +46,12 @@ type Configuration struct {
 	InternedStringsCacheSize uint32 `validate:"required"`
 	// How often the scheduling cycle should run
 	CyclePeriod time.Duration `validate:"required"`
+	// How often the job scheduling should run
+	// This is expected to be a greater value than CyclePeriod as we don't need to schedule every cycle
+	// This keeps the system more responsive as other operations happen in each cycle - such as state changes
+	SchedulePeriod time.Duration `validate:"required"`
+	// The maximum time allowed for a job scheduling round
+	MaxSchedulingDuration time.Duration `validate:"required"`
 	// How long after a heartbeat an executor will be considered lost
 	ExecutorTimeout time.Duration `validate:"required"`
 	// Maximum number of rows to fetch in a given query

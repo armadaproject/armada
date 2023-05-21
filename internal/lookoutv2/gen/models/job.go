@@ -25,6 +25,9 @@ type Job struct {
 	// Required: true
 	Annotations map[string]string `json:"annotations"`
 
+	// cancel reason
+	CancelReason *string `json:"cancelReason,omitempty"`
+
 	// cancelled
 	// Format: date-time
 	Cancelled *strfmt.DateTime `json:"cancelled,omitempty"`

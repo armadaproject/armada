@@ -16,25 +16,25 @@ var _ JobEventReader = &JobEventReaderMock{}
 
 // JobEventReaderMock is a mock implementation of JobEventReader.
 //
-// 	func TestSomethingThatUsesJobEventReader(t *testing.T) {
+//	func TestSomethingThatUsesJobEventReader(t *testing.T) {
 //
-// 		// make and configure a mocked JobEventReader
-// 		mockedJobEventReader := &JobEventReaderMock{
-// 			CloseFunc: func()  {
-// 				panic("mock out the Close method")
-// 			},
-// 			GetJobEventMessageFunc: func(ctx context.Context, jobReq *api.JobSetRequest) (*api.EventStreamMessage, error) {
-// 				panic("mock out the GetJobEventMessage method")
-// 			},
-// 			HealthFunc: func(ctx context.Context, empty *types.Empty) (*api.HealthCheckResponse, error) {
-// 				panic("mock out the Health method")
-// 			},
-// 		}
+//		// make and configure a mocked JobEventReader
+//		mockedJobEventReader := &JobEventReaderMock{
+//			CloseFunc: func()  {
+//				panic("mock out the Close method")
+//			},
+//			GetJobEventMessageFunc: func(ctx context.Context, jobReq *api.JobSetRequest) (*api.EventStreamMessage, error) {
+//				panic("mock out the GetJobEventMessage method")
+//			},
+//			HealthFunc: func(ctx context.Context, empty *types.Empty) (*api.HealthCheckResponse, error) {
+//				panic("mock out the Health method")
+//			},
+//		}
 //
-// 		// use mockedJobEventReader in code that requires JobEventReader
-// 		// and then make assertions.
+//		// use mockedJobEventReader in code that requires JobEventReader
+//		// and then make assertions.
 //
-// 	}
+//	}
 type JobEventReaderMock struct {
 	// CloseFunc mocks the Close method.
 	CloseFunc func()
@@ -84,7 +84,8 @@ func (mock *JobEventReaderMock) Close() {
 
 // CloseCalls gets all the calls that were made to Close.
 // Check the length with:
-//     len(mockedJobEventReader.CloseCalls())
+//
+//	len(mockedJobEventReader.CloseCalls())
 func (mock *JobEventReaderMock) CloseCalls() []struct {
 } {
 	var calls []struct {
@@ -115,7 +116,8 @@ func (mock *JobEventReaderMock) GetJobEventMessage(ctx context.Context, jobReq *
 
 // GetJobEventMessageCalls gets all the calls that were made to GetJobEventMessage.
 // Check the length with:
-//     len(mockedJobEventReader.GetJobEventMessageCalls())
+//
+//	len(mockedJobEventReader.GetJobEventMessageCalls())
 func (mock *JobEventReaderMock) GetJobEventMessageCalls() []struct {
 	Ctx    context.Context
 	JobReq *api.JobSetRequest
@@ -150,7 +152,8 @@ func (mock *JobEventReaderMock) Health(ctx context.Context, empty *types.Empty) 
 
 // HealthCalls gets all the calls that were made to Health.
 // Check the length with:
-//     len(mockedJobEventReader.HealthCalls())
+//
+//	len(mockedJobEventReader.HealthCalls())
 func (mock *JobEventReaderMock) HealthCalls() []struct {
 	Ctx   context.Context
 	Empty *types.Empty

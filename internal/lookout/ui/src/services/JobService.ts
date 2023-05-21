@@ -155,9 +155,9 @@ export interface JobService {
 
   getJobs(getJobsRequest: GetJobsRequest, signal: AbortSignal | undefined): Promise<Job[]>
 
-  cancelJobs(jobs: Job[]): Promise<CancelJobsResponse>
+  cancelJobs(jobs: Job[], reason: string): Promise<CancelJobsResponse>
 
-  cancelJobSets(queue: string, jobSets: JobSet[], states: ApiJobState[]): Promise<CancelJobSetsResponse>
+  cancelJobSets(queue: string, jobSets: JobSet[], states: ApiJobState[], reason: string): Promise<CancelJobSetsResponse>
 
   reprioritizeJobs(jobs: Job[], newPriority: number): Promise<ReprioritizeJobsResponse>
 
@@ -224,13 +224,14 @@ export class LookoutJobService implements JobService {
     return []
   }
 
-  async cancelJobs(jobs: Job[]): Promise<CancelJobsResponse> {
+  async cancelJobs(jobs: Job[], reason: string): Promise<CancelJobsResponse> {
     const response: CancelJobsResponse = { cancelledJobs: [], failedJobCancellations: [] }
     for (const job of jobs) {
       try {
         const apiResponse = await this.submitApi.cancelJobs({
           body: {
             jobId: job.jobId,
+            reason: reason,
           },
         })
 
@@ -252,7 +253,12 @@ export class LookoutJobService implements JobService {
     return response
   }
 
-  async cancelJobSets(queue: string, jobSets: JobSet[], states: ApiJobState[]): Promise<CancelJobSetsResponse> {
+  async cancelJobSets(
+    queue: string,
+    jobSets: JobSet[],
+    states: ApiJobState[],
+    reason: string,
+  ): Promise<CancelJobSetsResponse> {
     const response: CancelJobSetsResponse = { cancelledJobSets: [], failedJobSetCancellations: [] }
     for (const jobSet of jobSets) {
       try {
@@ -263,6 +269,7 @@ export class LookoutJobService implements JobService {
             filter: {
               states: states,
             },
+            reason: reason,
           },
         })
         response.cancelledJobSets.push(jobSet)
