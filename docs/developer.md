@@ -19,7 +19,7 @@ Please see these documents for more information about Armadas Design:
 * [Armada API](./developer/api.md)
 * [Running Armada in an EC2 Instance](./developer/aws-ec2.md)
 * [Armada UI](./developer/ui.md)
-* [Usage Metrics](./developer/usage-metrics.md)
+* [Usage Metrics](./developer/usage_metrics.md)
 * [Using OIDC with Armada](./developer/oidc.md)
 * [Building the Website](./developer/website.md)
 * [Using Localdev Manually](./developer/manual-localdev.md)
@@ -49,7 +49,7 @@ Mage is a build tool that we use to build Armada. It is similar to Make, but wri
 
 LocalDev provides a reliable and extendable way to install Armada as a developer. It runs the following steps:
 
-* Bootstrap the required tools from [tools.yaml](../tools.yaml)
+* Bootstrap the required tools from [tools.yaml](https://github.com/armadaproject/armada/blob/master/tools.yaml)
 * Create a local Kubernetes cluster using [kind](https://kind.sigs.k8s.io/)
 * Start the dependencies of Armada, including Pulsar, Redis, and Postgres.
 
@@ -114,7 +114,7 @@ For using VSCode debugging, see the [VSCode Debugging Guide](https://code.visual
 
 ### Delve Debugging
 
-The delve target creates a new docker-compose file: [./docker-compose.dev.yaml](../docker-compose.dev.yaml) with the correct volumes, commands and images for debugging.
+The delve target creates a new docker-compose file: `./docker-compose.dev.yaml` with the correct volumes, commands and images for debugging.
 
 If you would like to manually create the compose file and run it yourself, you can run the following commands:
 
@@ -170,7 +170,7 @@ External Debug Port Mappings:
 
 Run `mage debug local` to only spin up the dependencies of Armada, and then run the individual components yourself.
 
-For required enviromental variables, please see [The Enviromental Variables Guide](../developer/env/README.md).
+For required enviromental variables, please see [The Enviromental Variables Guide](https://github.com/armadaproject/armada/tree/master/developer/env/README.md).
 
 ## Finer-Grain Control
 
