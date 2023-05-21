@@ -10,6 +10,7 @@ on:
       - 'docs/developer'
       - 'docs/design'
       - '*.md'
+      - '.github/workflows/pages.yml'
 
 jobs:
   deploy-gh-pages:
