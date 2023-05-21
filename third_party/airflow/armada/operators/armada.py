@@ -38,7 +38,7 @@ class ArmadaOperator(BaseOperator):
     Implementation of an ArmadaOperator for Airflow.
     Airflow operators inherit from BaseOperator.
 
-    :param name: The name of the Airflow task
+    :param name: The name of the airflow task
     :param armada_client: The Armada Python GRPC client
                           used for interacting with Armada
     :param job_service_client: The JobServiceClient used for polling
@@ -139,7 +139,7 @@ class ArmadaOperator(BaseOperator):
                 armada_logger.info("Unsubscribed from JobSet: %s", self.job_set_id)
 
                 # Cancel the jobs using the Armada client
-                self.armada_client.cancel_job(jobId=self.job_id)
+                self.armada_client.cancel_job(job_set_id=self.job_set_id, queue=self.queue)
                 armada_logger.info("Job %s has been cancelled.", self.job_id)
         except Exception as e:
             armada_logger.warning("Error during job unsubscription and cancellation: %s", str(e))
