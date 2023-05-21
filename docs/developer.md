@@ -18,6 +18,11 @@ Please see these documents for more information about Armadas Design:
 
 * [Armada API](./developer/api.md)
 * [Running Armada in an EC2 Instance](./developer/aws-ec2.md)
+* [Armada UI](./developer/ui.md)
+* [Usage Metrics](./developer/usage-metrics.md)
+* [Using OIDC with Armada](./developer/oidc.md)
+* [Building the Website](./developer/website.md)
+* [Using Localdev Manually](./developer/manual-localdev.md)
 
 ## Pre-requisites
 
