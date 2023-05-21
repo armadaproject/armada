@@ -21,7 +21,20 @@ Please see these documents for more information about Armadas Design:
 
 ## Pre-requisites
 
-Before starting, please ensure you have installed [Go](https://go.dev/doc/install) (version 1.20 or later), gcc (for Windows, see, e.g., [tdm-gcc](https://jmeubank.github.io/tdm-gcc/)), [mage](https://magefile.org/), [docker](https://docs.docker.com/get-docker/), [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl), and, if you need to compile `.proto` files, [protoc](https://github.com/protocolbuffers/protobuf/releases).
+- [Go](https://go.dev/doc/install) (version 1.20 or later)
+- gcc (for Windows, see, e.g., [tdm-gcc](https://jmeubank.github.io/tdm-gcc/))
+- [mage](https://magefile.org/)
+- [docker](https://docs.docker.com/get-docker/)
+- [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl)
+- [protoc](https://github.com/protocolbuffers/protobuf/releases)
+
+## TLDR
+
+Want to quickly get Armada running and test it?
+
+```bash
+mage localdev minimal testsuite
+```
 
 ## Using Mage
 
@@ -86,6 +99,17 @@ The launch.json file can be found [Here](../developer/debug/launch.json)
 For using VSCode debugging, see the [VSCode Debugging Guide](https://code.visualstudio.com/docs/editor/debugging).
 
 ### Delve Debugging
+
+The delve target creates a new docker-compose file: [./docker-compose.dev.yaml](../docker-compose.dev.yaml) with the correct volumes, commands and images for debugging.
+
+If you would like to manually create the compose file and run it yourself, you can run the following commands:
+
+```bash
+mage createDelveCompose
+
+# You can then start components manually
+docker compose -f docker-compose.dev.yaml up -d server executor
+```
 
 After running `mage debug delve`, you can attach to the running processes using Delve.
 
