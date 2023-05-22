@@ -90,7 +90,10 @@ Implementation of a deferrable armada operator for airflow.
 Distinguished from ArmadaOperator by its ability to defer itself after
 submitting its job_request_items.
 
-See [https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html](https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html)
+See
+
+    [https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html](https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html)
+
 for more information about deferrable airflow operators.
 
 Airflow operators inherit from BaseOperator.
@@ -266,16 +269,20 @@ A Serializable GRPC Arguments Object.
 * **Parameters**
 
     
-    * **target** (*str*) – Target keyword argument used when instantiating a grpc channel.
+    * **target** (*str*) – Target keyword argument used
+    when instantiating a grpc channel.
 
 
-    * **credentials** (*ChannelCredentials** | **None*) – credentials keyword argument used when instantiating a grpc channel.
+    * **credentials** (*ChannelCredentials** | **None*) – credentials keyword argument used
+    when instantiating a grpc channel.
 
 
-    * **options** (*Sequence**[**Tuple**[**str**, **Any**]**] **| **None*) – options keyword argument used when instantiating a grpc channel.
+    * **options** (*Sequence**[**Tuple**[**str**, **Any**]**] **| **None*) – options keyword argument used
+    when instantiating a grpc channel.
 
 
-    * **compression** (*Compression** | **None*) – compression keyword argument used when instantiating a grpc channel.
+    * **compression** (*Compression** | **None*) – compression keyword argument used
+    when instantiating a grpc channel.
 
 
 

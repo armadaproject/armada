@@ -59,7 +59,8 @@ class ArmadaDeferrableOperator(BaseOperator):
     Distinguished from ArmadaOperator by its ability to defer itself after
     submitting its job_request_items.
 
-    See https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html
+    See
+        https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html
     for more information about deferrable airflow operators.
 
     Airflow operators inherit from BaseOperator.
@@ -250,10 +251,14 @@ class GrpcChannelArguments(object):
     """
     A Serializable GRPC Arguments Object.
 
-    :param target: Target keyword argument used when instantiating a grpc channel.
-    :param credentials: credentials keyword argument used when instantiating a grpc channel.
-    :param options: options keyword argument used when instantiating a grpc channel.
-    :param compression: compression keyword argument used when instantiating a grpc channel.
+    :param target: Target keyword argument used
+        when instantiating a grpc channel.
+    :param credentials: credentials keyword argument used
+        when instantiating a grpc channel.
+    :param options: options keyword argument used
+        when instantiating a grpc channel.
+    :param compression: compression keyword argument used
+        when instantiating a grpc channel.
     :return: a GrpcChannelArguments instance
     """
 
@@ -318,7 +323,7 @@ class GrpcChannelArguments(object):
         :return: A dict of keyword arguments used when calling
             a grpc channel or instantiating this object.
         """
-        
+
         return {
             "target": self.target,
             "credentials": self.credentials,
