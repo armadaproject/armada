@@ -47,8 +47,8 @@ kubernetes:
   stuckTerminatingPodExpiry: 1m
   podKillTimeout: 5m
   minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode:
-    cpu: 100m
-    memory: 50Mi
+    cpu: 1
+    memory: 200Mi
   minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority: 2000001000 # same priority as system-node-critical
   podDefaults:
     ingress:

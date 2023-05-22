@@ -406,9 +406,9 @@ func (server *SubmitServer) countQueuedJobs(q queue.Queue) (int64, error) {
 // If the request contains a queue name and a job set ID, all jobs matching those are cancelled.
 func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {
 	if request.JobId != "" {
-		return server.cancelJobsById(ctx, request.JobId)
+		return server.cancelJobsById(ctx, request.JobId, request.Reason)
 	} else if request.JobSetId != "" && request.Queue != "" {
-		return server.cancelJobsByQueueAndSet(ctx, request.Queue, request.JobSetId, nil)
+		return server.cancelJobsByQueueAndSet(ctx, request.Queue, request.JobSetId, nil, request.Reason)
 	}
 	return nil, status.Errorf(codes.InvalidArgument, "[CancelJobs] specify either job ID or both queue name and job set ID")
 }
@@ -418,7 +418,7 @@ func (server *SubmitServer) CancelJobSet(ctx context.Context, request *api.JobSe
 	if err != nil {
 		return nil, err
 	}
-	_, err = server.cancelJobsByQueueAndSet(ctx, request.Queue, request.JobSetId, createJobSetFilter(request.Filter))
+	_, err = server.cancelJobsByQueueAndSet(ctx, request.Queue, request.JobSetId, createJobSetFilter(request.Filter), request.Reason)
 	return &types.Empty{}, err
 }
 
@@ -444,7 +444,7 @@ func createJobSetFilter(filter *api.JobSetFilter) *repository.JobSetFilter {
 }
 
 // cancels a job with a given ID
-func (server *SubmitServer) cancelJobsById(ctx context.Context, jobId string) (*api.CancellationResult, error) {
+func (server *SubmitServer) cancelJobsById(ctx context.Context, jobId string, reason string) (*api.CancellationResult, error) {
 	jobs, err := server.jobRepository.GetExistingJobsByIds([]string{jobId})
 	if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "[cancelJobsById] error getting job with ID %s: %s", jobId, err)
@@ -453,7 +453,7 @@ func (server *SubmitServer) cancelJobsById(ctx context.Context, jobId string) (*
 		return nil, status.Errorf(codes.Internal, "[cancelJobsById] error getting job with ID %s: expected exactly one result, but got %v", jobId, jobs)
 	}
 
-	result, err := server.cancelJobs(ctx, jobs)
+	result, err := server.cancelJobs(ctx, jobs, reason)
 	var e *ErrUnauthorized
 	if errors.As(err, &e) {
 		return nil, status.Errorf(codes.PermissionDenied, "[cancelJobsById] error canceling job with ID %s: %s", jobId, e)
@@ -470,6 +470,7 @@ func (server *SubmitServer) cancelJobsByQueueAndSet(
 	queue string,
 	jobSetId string,
 	filter *repository.JobSetFilter,
+	reason string,
 ) (*api.CancellationResult, error) {
 	ids, err := server.jobRepository.GetJobSetJobIds(queue, jobSetId, filter)
 	if err != nil {
@@ -487,7 +488,7 @@ func (server *SubmitServer) cancelJobsByQueueAndSet(
 			return result, status.Errorf(codes.Internal, "[cancelJobsBySetAndQueue] error getting jobs: %s", err)
 		}
 
-		result, err := server.cancelJobs(ctx, jobs)
+		result, err := server.cancelJobs(ctx, jobs, reason)
 		var e *ErrUnauthorized
 		if errors.As(err, &e) {
 			return nil, status.Errorf(codes.PermissionDenied, "[cancelJobsBySetAndQueue] error canceling jobs: %s", e)
@@ -508,7 +509,7 @@ func (server *SubmitServer) cancelJobsByQueueAndSet(
 	return &api.CancellationResult{CancelledIds: cancelledIds}, nil
 }
 
-func (server *SubmitServer) cancelJobs(ctx context.Context, jobs []*api.Job) (*api.CancellationResult, error) {
+func (server *SubmitServer) cancelJobs(ctx context.Context, jobs []*api.Job, reason string) (*api.CancellationResult, error) {
 	principal := authorization.GetPrincipal(ctx)
 
 	err := server.checkCancelPerms(ctx, jobs)
@@ -516,7 +517,7 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, jobs []*api.Job) (*a
 		return nil, err
 	}
 
-	err = reportJobsCancelling(server.eventStore, principal.GetName(), jobs)
+	err = reportJobsCancelling(server.eventStore, principal.GetName(), jobs, reason)
 	if err != nil {
 		return nil, errors.Errorf("[cancelJobs] error reporting jobs marked as cancelled: %v", err)
 	}
@@ -536,7 +537,13 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, jobs []*api.Job) (*a
 		}
 	}
 
-	err = reportJobsCancelled(server.eventStore, principal.GetName(), cancelled)
+	cancelledJobPayloads := util.Map(cancelled, func(job *api.Job) *CancelledJobPayload {
+		return &CancelledJobPayload{
+			job:    job,
+			reason: reason,
+		}
+	})
+	err = reportJobsCancelled(server.eventStore, principal.GetName(), cancelledJobPayloads)
 	if err != nil {
 		return nil, errors.Errorf("[cancelJobs] error reporting job cancellation: %v", err)
 	}

@@ -20,9 +20,6 @@ type GangScheduler struct {
 	constraints       schedulerconstraints.SchedulingConstraints
 	schedulingContext *schedulercontext.SchedulingContext
 	nodeDb            *nodedb.NodeDb
-	// Record of job scheduling requirements of jobs that previously failed to schedule.
-	// Used to immediately reject new jobs with identical reqirements.
-	unsuccessfulSchedulingKeys map[schedulerobjects.SchedulingKey]*schedulercontext.JobSchedulingContext
 	// If true, the unsuccessfulSchedulingKeys check is omitted.
 	skipUnsuccessfulSchedulingKeyCheck bool
 }
@@ -33,10 +30,9 @@ func NewGangScheduler(
 	nodeDb *nodedb.NodeDb,
 ) (*GangScheduler, error) {
 	return &GangScheduler{
-		constraints:                constraints,
-		schedulingContext:          sctx,
-		nodeDb:                     nodeDb,
-		unsuccessfulSchedulingKeys: make(map[schedulerobjects.SchedulingKey]*schedulercontext.JobSchedulingContext),
+		constraints:       constraints,
+		schedulingContext: sctx,
+		nodeDb:            nodeDb,
 	}, nil
 }
 
@@ -45,77 +41,70 @@ func (sch *GangScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 }
 
 func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
+	// Exit immediately if this is a new gang and we've hit any round limits.
+	if !gctx.AllJobsEvicted {
+		if ok, unschedulableReason, err = sch.constraints.CheckRoundConstraints(sch.schedulingContext); err != nil || !ok {
+			return
+		}
+	}
+
+	// This deferred function ensures unschedulable jobs are registered as such
+	// and sets sch.queueScheduledInPreviousCall.
 	gangAddedToSchedulingContext := false
 	defer func() {
-		// If any job in a gang fails to schedule, set the unschedulableReason for all jobs in the gang,
-		// and remove it from the scheduling context.
-		if err == nil && !ok {
+		// Do nothing if an error occurred.
+		if err != nil {
+			return
+		}
+		if !ok {
+			// Register the job as unschedulable. If the job was added to the context, remove it first.
 			if gangAddedToSchedulingContext {
 				jobs := util.Map(gctx.JobSchedulingContexts, func(jctx *schedulercontext.JobSchedulingContext) interfaces.LegacySchedulerJob { return jctx.Job })
-				sch.schedulingContext.EvictGang(jobs)
+				if _, err = sch.schedulingContext.EvictGang(jobs); err != nil {
+					return
+				}
 			}
-
 			for _, jctx := range gctx.JobSchedulingContexts {
 				jctx.UnschedulableReason = unschedulableReason
 			}
-			sch.schedulingContext.AddGangSchedulingContext(gctx)
+			if _, err = sch.schedulingContext.AddGangSchedulingContext(gctx); err != nil {
+				return
+			}
 
+			// Register unfeasible scheduling keys.
+			//
 			// Only record unfeasible scheduling keys for single-job gangs.
 			// Since a gang may be unschedulable even if all its members are individually schedulable.
 			if !sch.skipUnsuccessfulSchedulingKeyCheck {
-				if schedulingKey, jctx, ok := schedulingKeyFromSingleJobGang(gctx, sch.schedulingContext.PriorityClasses); ok {
-					if _, ok := sch.unsuccessfulSchedulingKeys[schedulingKey]; !ok {
-						// Keep the first jctx for each unique schedulingKey.
-						sch.unsuccessfulSchedulingKeys[schedulingKey] = jctx
+				if schedulingKey, jctx, ok := schedulingKeyIfSingleJobGang(gctx, sch.schedulingContext.PriorityClasses); ok {
+					if _, ok := sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; !ok {
+						// Keep the first jctx for each unfeasible schedulingKey.
+						sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey] = jctx
 					}
 				}
 			}
 		}
 	}()
 
-	// If we've previously failed to schedule jobs with identical scheduling requirements,
-	// mark those jobs with the same failure reason as the previously attempted job.
-	// If any jobs were marked, set the unschedulableReason to that of the first unsuccessful job and return.
-	if !sch.skipUnsuccessfulSchedulingKeyCheck {
-		for _, jctx := range gctx.JobSchedulingContexts {
-			if schedulingKey, ok := schedulingKeyFromLegacySchedulerJob(jctx.Job, sch.schedulingContext.PriorityClasses); ok {
-				if unsuccessfulJctx, ok := sch.unsuccessfulSchedulingKeys[schedulingKey]; ok {
-					jctx.UnschedulableReason = unsuccessfulJctx.UnschedulableReason
-					jctx.PodSchedulingContext = unsuccessfulJctx.PodSchedulingContext
-				}
-			}
-		}
-		for _, jctx := range gctx.JobSchedulingContexts {
-			if jctx.UnschedulableReason != "" {
-				ok = false
-				unschedulableReason = jctx.UnschedulableReason
-				return
-			}
-		}
-	}
-
 	// Try scheduling the gang.
-	sch.schedulingContext.AddGangSchedulingContext(gctx)
+	if _, err = sch.schedulingContext.AddGangSchedulingContext(gctx); err != nil {
+		return
+	}
 	gangAddedToSchedulingContext = true
-	if !allGangsJobsEvicted(gctx) {
+	if !gctx.AllJobsEvicted {
 		// Check that the job is large enough for this executor.
 		// This check needs to be here, since it relates to a specific job.
-		// Omit limit checks for evicted jobs to avoid preempting jobs if, e.g., MinimumJobSize changes.
+		// Only perform limit checks for new jobs to avoid preempting jobs if, e.g., MinimumJobSize changes.
 		if ok, unschedulableReason = requestIsLargeEnough(gctx.TotalResourceRequests, sch.constraints.MinimumJobSize); !ok {
 			return
 		}
-	}
-	if ok, unschedulableReason, err = sch.constraints.CheckGlobalConstraints(
-		sch.schedulingContext,
-	); err != nil || !ok {
-		return
-	}
-	if ok, unschedulableReason, err = sch.constraints.CheckPerQueueAndPriorityClassConstraints(
-		sch.schedulingContext,
-		gctx.Queue,
-		gctx.PriorityClassName,
-	); err != nil || !ok {
-		return
+		if ok, unschedulableReason, err = sch.constraints.CheckPerQueueAndPriorityClassConstraints(
+			sch.schedulingContext,
+			gctx.Queue,
+			gctx.PriorityClassName,
+		); err != nil || !ok {
+			return
+		}
 	}
 	if ok, unschedulableReason, err = sch.trySchedule(ctx, gctx); err != nil || ok {
 		return
@@ -150,14 +139,6 @@ func (sch *GangScheduler) trySchedule(ctx context.Context, gctx *schedulercontex
 	return true, "", nil
 }
 
-func allGangsJobsEvicted(gctx *schedulercontext.GangSchedulingContext) bool {
-	rv := true
-	for _, jctx := range gctx.JobSchedulingContexts {
-		rv = rv && isEvictedJob(jctx.Job)
-	}
-	return rv
-}
-
 func requestIsLargeEnough(totalResourceRequests, minRequest schedulerobjects.ResourceList) (bool, string) {
 	if len(minRequest.Resources) == 0 {
 		return true, ""
@@ -171,7 +152,7 @@ func requestIsLargeEnough(totalResourceRequests, minRequest schedulerobjects.Res
 	return true, ""
 }
 
-func schedulingKeyFromSingleJobGang(
+func schedulingKeyIfSingleJobGang(
 	gctx *schedulercontext.GangSchedulingContext,
 	priorityClasses map[string]configuration.PriorityClass,
 ) (schedulerobjects.SchedulingKey, *schedulercontext.JobSchedulingContext, bool) {
@@ -180,7 +161,7 @@ func schedulingKeyFromSingleJobGang(
 		schedulingKey, ok := schedulingKeyFromLegacySchedulerJob(jctx.Job, priorityClasses)
 		return schedulingKey, jctx, ok
 	}
-	return [schedulerobjects.SchedulingKeySize]byte{}, nil, false
+	return schedulerobjects.SchedulingKey{}, nil, false
 }
 
 func schedulingKeyFromLegacySchedulerJob(job interfaces.LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) (schedulerobjects.SchedulingKey, bool) {

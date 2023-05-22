@@ -90,7 +90,8 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 			FromMessageId: fromMessageId,
 		})
 		if err != nil {
-			return err
+			log.Error("error from GetJobEventMessage", err)
+			cancel()
 		}
 
 		// this loop will run until the context is canceled
