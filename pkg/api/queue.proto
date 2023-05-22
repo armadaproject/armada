@@ -6,6 +6,7 @@ option csharp_namespace = "ArmadaProject.Io.Api";
 
 import "google/protobuf/timestamp.proto";
 import "k8s.io/api/core/v1/generated.proto";
+import "k8s.io/api/batch/v1/generated.proto";
 import "k8s.io/api/networking/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
@@ -41,6 +42,7 @@ message Job {
     // Indicates which scheduler should manage this job.
     // If empty, the default scheduler is used.
     string scheduler = 20;
+    k8s.io.api.batch.v1.JobSpec k8s_job_spec = 21;
 }
 
 // For the bidirectional streaming job lease request service.

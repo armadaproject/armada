@@ -187,6 +187,9 @@ func SwaggerJsonTemplate() string {
 		"            \"$ref\": \"#/definitions/v1Ingress\"\n" +
 		"          }\n" +
 		"        },\n" +
+		"        \"k8sJobSpec\": {\n" +
+		"          \"$ref\": \"#/definitions/v1JobSpec\"\n" +
+		"        },\n" +
 		"        \"k8sService\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +
@@ -842,6 +845,11 @@ func SwaggerJsonTemplate() string {
 		"          \"title\": \"timeoutSeconds specifies the seconds of ClientIP type session sticky time.\\nThe value must be \\u003e0 \\u0026\\u0026 \\u003c=86400(for 1 day) if ServiceAffinity == \\\"ClientIP\\\".\\nDefault value is 10800(for 3 hours).\\n+optional\"\n" +
 		"        }\n" +
 		"      }\n" +
+		"    },\n" +
+		"    \"v1CompletionMode\": {\n" +
+		"      \"type\": \"string\",\n" +
+		"      \"title\": \"CompletionMode specifies how Pod completions of a Job are tracked.\",\n" +
+		"      \"x-go-package\": \"k8s.io/api/batch/v1\"\n" +
 		"    },\n" +
 		"    \"v1Condition\": {\n" +
 		"      \"description\": \"// other fields\\n}\",\n" +
@@ -1915,6 +1923,62 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"v1JobSpec\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"JobSpec describes how the job execution will look like.\",\n" +
+		"      \"properties\": {\n" +
+		"        \"activeDeadlineSeconds\": {\n" +
+		"          \"description\": \"Specifies the duration in seconds relative to the startTime that the job\\nmay be continuously active before the system tries to terminate it; value\\nmust be positive integer. If a Job is suspended (at creation or through an\\nupdate), this timer will effectively be stopped and reset when the Job is\\nresumed again.\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\",\n" +
+		"          \"x-go-name\": \"ActiveDeadlineSeconds\"\n" +
+		"        },\n" +
+		"        \"backoffLimit\": {\n" +
+		"          \"description\": \"Specifies the number of retries before marking this job failed.\\nDefaults to 6\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\",\n" +
+		"          \"x-go-name\": \"BackoffLimit\"\n" +
+		"        },\n" +
+		"        \"completionMode\": {\n" +
+		"          \"$ref\": \"#/definitions/v1CompletionMode\"\n" +
+		"        },\n" +
+		"        \"completions\": {\n" +
+		"          \"description\": \"Specifies the desired number of successfully finished pods the\\njob should be run with.  Setting to nil means that the success of any\\npod signals the success of all pods, and allows parallelism to have any positive\\nvalue.  Setting to 1 means that parallelism is limited to 1 and the success of that\\npod signals the success of the job.\\nMore info: https://kubernetes.io/docs/concepts/workloads/controllers/jobs-run-to-completion/\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\",\n" +
+		"          \"x-go-name\": \"Completions\"\n" +
+		"        },\n" +
+		"        \"manualSelector\": {\n" +
+		"          \"description\": \"manualSelector controls generation of pod labels and pod selectors.\\nLeave `manualSelector` unset unless you are certain what you are doing.\\nWhen false or unset, the system pick labels unique to this job\\nand appends those labels to the pod template.  When true,\\nthe user is responsible for picking unique labels and specifying\\nthe selector.  Failure to pick a unique label may cause this\\nand other jobs to not function correctly.  However, You may see\\n`manualSelector=true` in jobs that were created with the old `extensions/v1beta1`\\nAPI.\\nMore info: https://kubernetes.io/docs/concepts/workloads/controllers/jobs-run-to-completion/#specifying-your-own-pod-selector\\n+optional\",\n" +
+		"          \"type\": \"boolean\",\n" +
+		"          \"x-go-name\": \"ManualSelector\"\n" +
+		"        },\n" +
+		"        \"parallelism\": {\n" +
+		"          \"description\": \"Specifies the maximum desired number of pods the job should\\nrun at any given time. The actual number of pods running in steady state will\\nbe less than this number when ((.spec.completions - .status.successful) \\u003c .spec.parallelism),\\ni.e. when the work left to do is less than max parallelism.\\nMore info: https://kubernetes.io/docs/concepts/workloads/controllers/jobs-run-to-completion/\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\",\n" +
+		"          \"x-go-name\": \"Parallelism\"\n" +
+		"        },\n" +
+		"        \"selector\": {\n" +
+		"          \"$ref\": \"#/definitions/v1LabelSelector\"\n" +
+		"        },\n" +
+		"        \"suspend\": {\n" +
+		"          \"description\": \"Suspend specifies whether the Job controller should create Pods or not. If\\na Job is created with suspend set to true, no Pods are created by the Job\\ncontroller. If a Job is suspended after creation (i.e. the flag goes from\\nfalse to true), the Job controller will delete all active Pods associated\\nwith this Job. Users must design their workload to gracefully handle this.\\nSuspending a Job will reset the StartTime field of the Job, effectively\\nresetting the ActiveDeadlineSeconds timer too. Defaults to false.\\n\\nThis field is beta-level, gated by SuspendJob feature flag (enabled by\\ndefault).\\n\\n+optional\",\n" +
+		"          \"type\": \"boolean\",\n" +
+		"          \"x-go-name\": \"Suspend\"\n" +
+		"        },\n" +
+		"        \"template\": {\n" +
+		"          \"$ref\": \"#/definitions/v1PodTemplateSpec\"\n" +
+		"        },\n" +
+		"        \"ttlSecondsAfterFinished\": {\n" +
+		"          \"description\": \"ttlSecondsAfterFinished limits the lifetime of a Job that has finished\\nexecution (either Complete or Failed). If this field is set,\\nttlSecondsAfterFinished after the Job finishes, it is eligible to be\\nautomatically deleted. When the Job is being deleted, its lifecycle\\nguarantees (e.g. finalizers) will be honored. If this field is unset,\\nthe Job won't be automatically deleted. If this field is set to zero,\\nthe Job becomes eligible to be deleted immediately after it finishes.\\nThis field is alpha-level and is only honored by servers that enable the\\nTTLAfterFinished feature.\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int32\",\n" +
+		"          \"x-go-name\": \"TTLSecondsAfterFinished\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/batch/v1\"\n" +
+		"    },\n" +
 		"    \"v1KeyToPath\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"Maps a string key to a path within a volume.\",\n" +
@@ -2934,6 +2998,107 @@ func SwaggerJsonTemplate() string {
 		"            \"$ref\": \"#/definitions/v1Volume\"\n" +
 		"          },\n" +
 		"          \"x-go-name\": \"Volumes\"\n" +
+		"        }\n" +
+		"      },\n" +
+		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
+		"    },\n" +
+		"    \"v1PodTemplateSpec\": {\n" +
+		"      \"description\": \"PodTemplateSpec describes the data a pod should have when created from a template\",\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"annotations\": {\n" +
+		"          \"description\": \"Annotations is an unstructured key value map stored with a resource that may be\\nset by external tools to store and retrieve arbitrary metadata. They are not\\nqueryable and should be preserved when modifying objects.\\nMore info: http://kubernetes.io/docs/user-guide/annotations\\n+optional\",\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Annotations\"\n" +
+		"        },\n" +
+		"        \"clusterName\": {\n" +
+		"          \"description\": \"The name of the cluster which the object belongs to.\\nThis is used to distinguish resources with same name and namespace in different clusters.\\nThis field is not set anywhere right now and apiserver is going to ignore it if set in create or update request.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"ClusterName\"\n" +
+		"        },\n" +
+		"        \"creationTimestamp\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Time\"\n" +
+		"        },\n" +
+		"        \"deletionGracePeriodSeconds\": {\n" +
+		"          \"description\": \"Number of seconds allowed for this object to gracefully terminate before\\nit will be removed from the system. Only set when deletionTimestamp is also set.\\nMay only be shortened.\\nRead-only.\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\",\n" +
+		"          \"x-go-name\": \"DeletionGracePeriodSeconds\"\n" +
+		"        },\n" +
+		"        \"deletionTimestamp\": {\n" +
+		"          \"$ref\": \"#/definitions/v1Time\"\n" +
+		"        },\n" +
+		"        \"finalizers\": {\n" +
+		"          \"description\": \"Must be empty before the object is deleted from the registry. Each entry\\nis an identifier for the responsible component that will remove the entry\\nfrom the list. If the deletionTimestamp of the object is non-nil, entries\\nin this list can only be removed.\\nFinalizers may be processed and removed in any order.  Order is NOT enforced\\nbecause it introduces significant risk of stuck finalizers.\\nfinalizers is a shared field, any actor with permission can reorder it.\\nIf the finalizer list is processed in order, then this can lead to a situation\\nin which the component responsible for the first finalizer in the list is\\nwaiting for a signal (field value, external system, or other) produced by a\\ncomponent responsible for a finalizer later in the list, resulting in a deadlock.\\nWithout enforced ordering finalizers are free to order amongst themselves and\\nare not vulnerable to ordering changes in the list.\\n+optional\\n+patchStrategy=merge\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Finalizers\"\n" +
+		"        },\n" +
+		"        \"generateName\": {\n" +
+		"          \"description\": \"GenerateName is an optional prefix, used by the server, to generate a unique\\nname ONLY IF the Name field has not been provided.\\nIf this field is used, the name returned to the client will be different\\nthan the name passed. This value will also be combined with a unique suffix.\\nThe provided value has the same validation rules as the Name field,\\nand may be truncated by the length of the suffix required to make the value\\nunique on the server.\\n\\nIf this field is specified and the generated name exists, the server will\\nNOT return a 409 - instead, it will either return 201 Created or 500 with Reason\\nServerTimeout indicating a unique name could not be found in the time allotted, and the client\\nshould retry (optionally after the time indicated in the Retry-After header).\\n\\nApplied only if Name is not specified.\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#idempotency\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"GenerateName\"\n" +
+		"        },\n" +
+		"        \"generation\": {\n" +
+		"          \"description\": \"A sequence number representing a specific generation of the desired state.\\nPopulated by the system. Read-only.\\n+optional\",\n" +
+		"          \"type\": \"integer\",\n" +
+		"          \"format\": \"int64\",\n" +
+		"          \"x-go-name\": \"Generation\"\n" +
+		"        },\n" +
+		"        \"labels\": {\n" +
+		"          \"description\": \"Map of string keys and values that can be used to organize and categorize\\n(scope and select) objects. May match selectors of replication controllers\\nand services.\\nMore info: http://kubernetes.io/docs/user-guide/labels\\n+optional\",\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"string\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"Labels\"\n" +
+		"        },\n" +
+		"        \"managedFields\": {\n" +
+		"          \"description\": \"ManagedFields maps workflow-id and version to the set of fields\\nthat are managed by that workflow. This is mostly for internal\\nhousekeeping, and users typically shouldn't need to set or\\nunderstand this field. A workflow can be the user's name, a\\ncontroller's name, or the name of a specific apply path like\\n\\\"ci-cd\\\". The set of fields is always in the version that the\\nworkflow used when modifying the object.\\n\\n+optional\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1ManagedFieldsEntry\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"ManagedFields\"\n" +
+		"        },\n" +
+		"        \"name\": {\n" +
+		"          \"description\": \"Name must be unique within a namespace. Is required when creating resources, although\\nsome resources may allow a client to request the generation of an appropriate name\\nautomatically. Name is primarily intended for creation idempotence and configuration\\ndefinition.\\nCannot be updated.\\nMore info: http://kubernetes.io/docs/user-guide/identifiers#names\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Name\"\n" +
+		"        },\n" +
+		"        \"namespace\": {\n" +
+		"          \"description\": \"Namespace defines the space within which each name must be unique. An empty namespace is\\nequivalent to the \\\"default\\\" namespace, but \\\"default\\\" is the canonical representation.\\nNot all objects are required to be scoped to a namespace - the value of this field for\\nthose objects will be empty.\\n\\nMust be a DNS_LABEL.\\nCannot be updated.\\nMore info: http://kubernetes.io/docs/user-guide/namespaces\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"Namespace\"\n" +
+		"        },\n" +
+		"        \"ownerReferences\": {\n" +
+		"          \"description\": \"List of objects depended by this object. If ALL objects in the list have\\nbeen deleted, this object will be garbage collected. If this object is managed by a controller,\\nthen an entry in this list will point to this controller, with the controller field set to true.\\nThere cannot be more than one managing controller.\\n+optional\\n+patchMergeKey=uid\\n+patchStrategy=merge\",\n" +
+		"          \"type\": \"array\",\n" +
+		"          \"items\": {\n" +
+		"            \"$ref\": \"#/definitions/v1OwnerReference\"\n" +
+		"          },\n" +
+		"          \"x-go-name\": \"OwnerReferences\"\n" +
+		"        },\n" +
+		"        \"resourceVersion\": {\n" +
+		"          \"description\": \"An opaque value that represents the internal version of this object that can\\nbe used by clients to determine when objects have changed. May be used for optimistic\\nconcurrency, change detection, and the watch operation on a resource or set of resources.\\nClients must treat these values as opaque and passed unmodified back to the server.\\nThey may only be valid for a particular resource or set of resources.\\n\\nPopulated by the system.\\nRead-only.\\nValue must be treated as opaque by clients and .\\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"ResourceVersion\"\n" +
+		"        },\n" +
+		"        \"selfLink\": {\n" +
+		"          \"description\": \"SelfLink is a URL representing this object.\\nPopulated by the system.\\nRead-only.\\n\\nDEPRECATED\\nKubernetes will stop propagating this field in 1.20 release and the field is planned\\nto be removed in 1.21 release.\\n+optional\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"x-go-name\": \"SelfLink\"\n" +
+		"        },\n" +
+		"        \"spec\": {\n" +
+		"          \"$ref\": \"#/definitions/v1PodSpec\"\n" +
+		"        },\n" +
+		"        \"uid\": {\n" +
+		"          \"$ref\": \"#/definitions/typesUID\"\n" +
 		"        }\n" +
 		"      },\n" +
 		"      \"x-go-package\": \"k8s.io/api/core/v1\"\n" +
