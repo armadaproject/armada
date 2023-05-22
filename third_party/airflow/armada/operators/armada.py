@@ -135,8 +135,6 @@ class ArmadaOperator(BaseOperator):
         """
         try:
             if self.job_set_id && self.queue:
-                
-
                 # Cancel the jobs using the Armada client
                 self.armada_client.cancel_job(job_set_id=self.job_set_id, queue=self.queue)
                 armada_logger.info("Queue %s and JobSetId %s has been cancelled.", self.queue, self.job_set_id)
