@@ -33,6 +33,7 @@ func ToSwaggerJob(job *model.Job) *models.Job {
 		Runs:               runs,
 		State:              job.State,
 		Submitted:          strfmt.DateTime(job.Submitted),
+		CancelReason:       job.CancelReason,
 	}
 }
 

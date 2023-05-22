@@ -207,6 +207,8 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 	// Re-schedule evicted jobs/schedule new jobs.
 	// Only necessary if a non-zero number of jobs were evicted.
 	if len(evictorResult.EvictedJobsById) > 0 {
+		// Since no new jobs are considered in this round, the scheduling key check brings no benefit.
+		sch.SkipUnsuccessfulSchedulingKeyCheck()
 		schedulerResult, err = sch.schedule(
 			ctxlogrus.ToContext(
 				ctx,
@@ -306,7 +308,9 @@ func (sch *PreemptingQueueScheduler) evict(ctx context.Context, evictor *Evictor
 	}
 	evictedJobs := maps.Values(result.EvictedJobsById)
 	for _, job := range evictedJobs {
-		sch.schedulingContext.EvictJob(job)
+		if _, err := sch.schedulingContext.EvictJob(job); err != nil {
+			return nil, nil, err
+		}
 	}
 	// TODO: Move gang accounting into context.
 	if err := sch.updateGangAccounting(evictedJobs, nil); err != nil {
@@ -475,6 +479,10 @@ func (sch *PreemptingQueueScheduler) schedule(ctx context.Context, inMemoryJobRe
 		}
 		jobIteratorByQueue[qctx.Queue] = NewMultiJobsIterator(evictedIt, queueIt)
 	}
+
+	// Reset the scheduling keys cache after evicting jobs.
+	sch.schedulingContext.ClearUnfeasibleSchedulingKeys()
+
 	sched, err := NewQueueScheduler(
 		sch.schedulingContext,
 		sch.constraints,
@@ -861,6 +869,9 @@ func defaultPostEvictFunc(ctx context.Context, job interfaces.LegacySchedulerJob
 	}
 
 	// Add a toleration to allow the job to be re-scheduled even if node is unschedulable.
+	//
+	// TODO: Because req is created with a new tolerations slice above, this toleration doesn't persist.
+	// In practice, this isn't an issue now since we don't check static requirements for evicted jobs.
 	if node.Unschedulable {
 		req.Tolerations = append(req.Tolerations, nodedb.UnschedulableToleration())
 	}

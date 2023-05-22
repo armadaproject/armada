@@ -12,6 +12,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/eventingester/model"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // EventConverter converts event sequences into events that we can store in Redis
@@ -49,6 +50,9 @@ func (ec *EventConverter) Convert(ctx context.Context, sequencesWithIds *ingest.
 		es.JobSetName = ""
 		es.Queue = ""
 
+		// Remove cancellation reason as it's not needed for public event store
+		clearCancellationReason(es)
+
 		bytes, err := proto.Marshal(es)
 		if err != nil {
 			ec.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
@@ -72,5 +76,20 @@ func (ec *EventConverter) Convert(ctx context.Context, sequencesWithIds *ingest.
 	return &model.BatchUpdate{
 		MessageIds: sequencesWithIds.MessageIds,
 		Events:     events,
+	}
+}
+
+// For each cancel event, remove the cancellation reason
+func clearCancellationReason(es *armadaevents.EventSequence) {
+	for _, e := range es.Events {
+		switch event := e.GetEvent().(type) {
+		case *armadaevents.EventSequence_Event_CancelJob:
+			event.CancelJob.Reason = ""
+		case *armadaevents.EventSequence_Event_CancelJobSet:
+			event.CancelJobSet.Reason = ""
+		case *armadaevents.EventSequence_Event_CancelledJob:
+			event.CancelledJob.Reason = ""
+		default:
+		}
 	}
 }

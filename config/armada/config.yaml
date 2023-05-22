@@ -41,29 +41,19 @@ scheduling:
       armada-default:
         priority: 1000
         preemptible: false
-        maximalResourceFractionPerQueue:
+        maximumResourceFractionPerQueue:
           memory: 0.99
           cpu: 0.99
       armada-preemptible:
-        priority: 900
+        priority: 1000
         preemptible: true
-        maximalResourceFractionPerQueue:
-          memory: 0.99
-          cpu: 0.99
     defaultPriorityClass: armada-default
     priorityClassNameOverride: armada-default
-  queueLeaseBatchSize: 1000
+  maxQueueLookback: 1000
   maxExtraNodesToConsider: 1
-  maximalResourceFractionToSchedulePerQueue:
+  maximumResourceFractionToSchedule:
     memory: 1.0
-    cpu: 1.0
-  maximalResourceFractionPerQueue:
-    memory: 1.0
-    cpu: 1.0
-  maximalClusterFractionToSchedule:
-    memory: 1.0
-    cpu: 1.0
-  maximumJobsToSchedule: 5000
+    cpu: 1.0    
   maxJobSchedulingContextsPerExecutor: 10000
   lease:
     expireAfter: 15m

@@ -2,7 +2,7 @@ package util
 
 import "math"
 
-func Batch(elements []string, batchSize int) [][]string {
+func Batch[T any](elements []T, batchSize int) [][]T {
 	total := len(elements)
 
 	totalFullBatches := int(math.Floor(float64(total) / float64(batchSize)))
@@ -12,7 +12,7 @@ func Batch(elements []string, batchSize int) [][]string {
 		totalBatches++
 	}
 
-	batches := make([][]string, totalBatches)
+	batches := make([][]T, totalBatches)
 
 	for i := 0; i < totalFullBatches; i++ {
 		batches[i] = elements[i*batchSize : (i+1)*batchSize]

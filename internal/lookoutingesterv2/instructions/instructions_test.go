@@ -109,6 +109,11 @@ var expectedFailedRun = model.UpdateJobRunInstruction{
 	ExitCode:    pointer.Int32(testfixtures.ExitCode),
 }
 
+var expectedUnschedulable = model.UpdateJobRunInstruction{
+	RunId: testfixtures.RunIdString,
+	Node:  pointer.String(testfixtures.NodeName),
+}
+
 var expectedPreempted = model.UpdateJobInstruction{
 	JobId:                     testfixtures.JobIdString,
 	State:                     pointer.Int32(lookout.JobPreemptedOrdinal),
@@ -177,6 +182,10 @@ func TestConvert(t *testing.T) {
 	assert.NoError(t, err)
 	preemptedWithPrempteeWithZeroId.GetJobRunPreempted().PreemptiveJobId = &armadaevents.Uuid{}
 	preemptedWithPrempteeWithZeroId.GetJobRunPreempted().PreemptiveRunId = &armadaevents.Uuid{}
+
+	cancelledWithReason, err := testfixtures.DeepCopy(testfixtures.JobCancelled)
+	assert.NoError(t, err)
+	cancelledWithReason.GetCancelledJob().Reason = "some reason"
 
 	tests := map[string]struct {
 		events   *ingest.EventSequencesWithIds
@@ -254,6 +263,23 @@ func TestConvert(t *testing.T) {
 				MessageIds:   []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
+		"cancelled with reason": {
+			events: &ingest.EventSequencesWithIds{
+				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(cancelledWithReason)},
+				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+			expected: &model.InstructionSet{
+				JobsToUpdate: []*model.UpdateJobInstruction{{
+					JobId:                     testfixtures.JobIdString,
+					State:                     pointer.Int32(lookout.JobCancelledOrdinal),
+					CancelReason:              pointer.String("some reason"),
+					Cancelled:                 &testfixtures.BaseTime,
+					LastTransitionTime:        &testfixtures.BaseTime,
+					LastTransitionTimeSeconds: pointer.Int64(testfixtures.BaseTime.Unix()),
+				}},
+				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+			},
+		},
 		"reprioritized": {
 			events: &ingest.EventSequencesWithIds{
 				EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobReprioritised)},
@@ -299,7 +325,8 @@ func TestConvert(t *testing.T) {
 				MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 			expected: &model.InstructionSet{
-				MessageIds: []pulsar.MessageID{pulsarutils.NewMessageId(1)},
+				JobRunsToUpdate: []*model.UpdateJobRunInstruction{&expectedUnschedulable},
+				MessageIds:      []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 			},
 		},
 		"duplicate submit is ignored": {
