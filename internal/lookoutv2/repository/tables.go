@@ -104,7 +104,7 @@ func NewTables() *LookoutTables {
 			lastTransitionTimeCol,
 		}),
 		filterableColumns: map[string]map[string]bool{
-			jobIdCol:            util.StringListToSet([]string{model.MatchExact}),
+			jobIdCol:            util.StringListToSet([]string{model.MatchExact, model.MatchGreaterThan, model.MatchLessThan, model.MatchGreaterThanOrEqualTo, model.MatchLessThanOrEqualTo}),
 			queueCol:            util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains}),
 			jobSetCol:           util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains}),
 			ownerCol:            util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains}),
