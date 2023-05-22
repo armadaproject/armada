@@ -18,8 +18,6 @@ spec:
         nominalQuota: 9
       - name: "memory"
         nominalQuota: 36Gi
-      - name: "ephemeral-storage"
-        nominalQuota: 10Gi
 ---
 apiVersion: kueue.x-k8s.io/v1beta1
 kind: LocalQueue
