@@ -230,3 +230,5 @@ export function withRouter<T extends PropsWithRouter>(Component: React.FC<T>): R
   }
   return ComponentWithRouterProp as React.FC<Omit<T, "router">>
 }
+
+export const PlatformCancelReason = "Platform error marked by user"

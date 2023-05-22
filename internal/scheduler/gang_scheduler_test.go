@@ -157,10 +157,12 @@ func TestGangScheduler(t *testing.T) {
 				tc.SchedulingConfig.Preemption.PriorityClasses,
 				tc.SchedulingConfig.Preemption.DefaultPriorityClass,
 				tc.SchedulingConfig.ResourceScarcity,
-				priorityFactorByQueue,
 				tc.TotalResources,
-				nil,
 			)
+			for queue, priorityFactor := range priorityFactorByQueue {
+				err := sctx.AddQueueSchedulingContext(queue, priorityFactor, nil)
+				require.NoError(t, err)
+			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 				"pool",
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
