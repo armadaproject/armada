@@ -1143,10 +1143,12 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					tc.SchedulingConfig.Preemption.PriorityClasses,
 					tc.SchedulingConfig.Preemption.DefaultPriorityClass,
 					tc.SchedulingConfig.ResourceScarcity,
-					tc.PriorityFactorByQueue,
 					tc.TotalResources,
-					allocatedByQueueAndPriority,
 				)
+				for queue, priorityFactor := range tc.PriorityFactorByQueue {
+					err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByQueueAndPriority[queue])
+					require.NoError(t, err)
+				}
 				constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 					"pool",
 					schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
@@ -1382,7 +1384,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			nodeDb, err := CreateNodeDb(tc.Nodes)
 			require.NoError(b, err)
 			repo := NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
-			usageByQueue := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
+			allocatedByQueueAndPriority := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
 
 			jobs := make([]interfaces.LegacySchedulerJob, 0)
 			for _, queueJobs := range jobsByQueue {
@@ -1398,10 +1400,12 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				tc.SchedulingConfig.Preemption.PriorityClasses,
 				tc.SchedulingConfig.Preemption.DefaultPriorityClass,
 				tc.SchedulingConfig.ResourceScarcity,
-				priorityFactorByQueue,
 				nodeDb.TotalResources(),
-				usageByQueue,
 			)
+			for queue, priorityFactor := range priorityFactorByQueue {
+				err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByQueueAndPriority[queue])
+				require.NoError(b, err)
+			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 				"pool",
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
@@ -1444,10 +1448,12 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					tc.SchedulingConfig.Preemption.PriorityClasses,
 					tc.SchedulingConfig.Preemption.DefaultPriorityClass,
 					tc.SchedulingConfig.ResourceScarcity,
-					priorityFactorByQueue,
 					nodeDb.TotalResources(),
-					usageByQueue,
 				)
+				for queue, priorityFactor := range priorityFactorByQueue {
+					err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByQueueAndPriority[queue])
+					require.NoError(b, err)
+				}
 				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
