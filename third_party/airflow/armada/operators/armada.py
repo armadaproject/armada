@@ -134,13 +134,12 @@ class ArmadaOperator(BaseOperator):
         :return: None
         """
         try:
-            if self.job_id:
-                self.job_service.unsubscribe(self.armada_queue, self.job_set_id, self.job_id)
-                armada_logger.info("Unsubscribed from JobSet: %s", self.job_set_id)
+            if self.job_set_id && self.queue:
+                
 
                 # Cancel the jobs using the Armada client
                 self.armada_client.cancel_job(job_set_id=self.job_set_id, queue=self.queue)
-                armada_logger.info("Job %s has been cancelled.", self.job_id)
+                armada_logger.info("Queue %s and JobSetId %s has been cancelled.", self.queue, self.job_set_id)
         except Exception as e:
             armada_logger.warning("Error during job unsubscription and cancellation: %s", str(e))
 
