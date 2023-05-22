@@ -252,11 +252,11 @@ Bases: `TypedDict`
 Helper class to provide stronger type checking on Grpc channel arugments.
 
 
-#### compression(_: Compression | Non_ _ = Non_ )
+#### compression(_: Compression | Non_ )
 
-#### credentials(_: ChannelCredentials | Non_ _ = Non_ )
+#### credentials(_: ChannelCredentials | Non_ )
 
-#### options(_: Sequence[Tuple[str, Any]] | Non_ _ = Non_ )
+#### options(_: Sequence[Tuple[str, Any]] | Non_ )
 
 #### target(_: st_ )
 

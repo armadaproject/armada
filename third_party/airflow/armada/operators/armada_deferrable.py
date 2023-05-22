@@ -47,9 +47,9 @@ class GrpcChannelArgsDict(TypedDict):
     """
 
     target: str
-    credentials: Optional[grpc.ChannelCredentials] = None
-    options: Optional[Sequence[Tuple[str, Any]]] = None
-    compression: Optional[grpc.Compression] = None
+    credentials: Optional[grpc.ChannelCredentials]
+    options: Optional[Sequence[Tuple[str, Any]]]
+    compression: Optional[grpc.Compression]
 
 
 class ArmadaDeferrableOperator(BaseOperator):
