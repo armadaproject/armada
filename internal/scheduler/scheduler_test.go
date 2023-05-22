@@ -423,6 +423,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				stringInterner,
 				submitChecker,
 				1*time.Second,
+				5*time.Second,
 				clusterTimeout,
 				maxNumberOfAttempts,
 				nodeIdLabel,
@@ -586,6 +587,7 @@ func TestRun(t *testing.T) {
 		stringInterner,
 		submitChecker,
 		1*time.Second,
+		15*time.Second,
 		1*time.Hour,
 		maxNumberOfAttempts,
 		nodeIdLabel)
@@ -616,16 +618,19 @@ func TestRun(t *testing.T) {
 	// fire a cycle and assert that we became leader and published
 	fireCycle()
 	assert.Equal(t, 1, len(publisher.events))
+	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 1)
 
 	// invalidate our leadership: we should not publish
 	leaderController.token = InvalidLeaderToken()
 	fireCycle()
 	assert.Equal(t, 0, len(publisher.events))
+	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 1)
 
 	// become master again: we should publish
 	leaderController.token = NewLeaderToken()
 	fireCycle()
 	assert.Equal(t, 1, len(publisher.events))
+	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 2)
 
 	cancel()
 }
@@ -782,6 +787,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				stringInterner,
 				nil,
 				1*time.Second,
+				5*time.Second,
 				1*time.Hour,
 				maxNumberOfAttempts,
 				nodeIdLabel)
@@ -882,12 +888,14 @@ func (t testExecutorRepository) StoreExecutor(ctx context.Context, executor *sch
 }
 
 type testSchedulingAlgo struct {
-	jobsToPreempt  []string
-	jobsToSchedule []string
-	shouldError    bool
+	numberOfScheduleCalls int
+	jobsToPreempt         []string
+	jobsToSchedule        []string
+	shouldError           bool
 }
 
 func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error) {
+	t.numberOfScheduleCalls++
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")
 	}
