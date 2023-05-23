@@ -86,23 +86,15 @@ type SchedulingConfig struct {
 	EnableAssertions bool
 	Preemption       PreemptionConfig
 	// Number of jobs to load from the database at a time.
-	QueueLeaseBatchSize uint
-	// Maximum total size in bytes of all jobs returned in a single lease jobs call.
-	// Applies to the old scheduler. But is not necessary since we now stream job leases.
-	MaximumLeasePayloadSizeBytes int
-	// Fraction of total resources across clusters that can be assigned in a single lease jobs call.
-	// Applies to both the old and new scheduler.
-	MaximalClusterFractionToSchedule map[string]float64
-	// Fraction of resources that can be assigned to any single queue,
-	// within a single lease jobs call.
-	// Applies to both the old and new scheduler.
-	MaximalResourceFractionToSchedulePerQueue map[string]float64
-	// Fraction of resources that can be assigned to any single queue.
-	// Applies to both the old and new scheduler.
-	MaximalResourceFractionPerQueue map[string]float64
-	// Max number of jobs to scheduler per lease jobs call.
+	MaxQueueLookback uint
+	// In each invocation of the scheduler, no more jobs are scheduled once this limit has been exceeded.
+	// Note that the total scheduled resources may be greater than this limit.
+	MaximumResourceFractionToSchedule map[string]float64
+	// Overrides MaximalClusterFractionToSchedule if set for the current pool.
+	MaximumResourceFractionToScheduleByPool map[string]map[string]float64
+	// Max number of jobs to schedule in each invocation of the scheduler.
 	MaximumJobsToSchedule uint
-	// Max number of gangs to scheduler per lease jobs call.
+	// Max number of gangs to schedule in each invocation of the scheduler.
 	MaximumGangsToSchedule uint
 	// Armada stores contexts associated with recent job scheduling attempts.
 	// This setting limits the number of such contexts to store.
@@ -234,10 +226,10 @@ type PriorityClass struct {
 	// Limits resources assigned to jobs of priority equal to or lower than that of this priority class.
 	// Specifically, jobs of this priority class are only scheduled if doing so does not exceed this limit.
 	//
-	// For example, if priority is 10 and MaximalResourceFractionPerQueue is map[string]float64{"cpu": 0.3},
+	// For example, if priority is 10 and MaximumResourceFractionPerQueue is map[string]float64{"cpu": 0.3},
 	// jobs of this priority class are not scheduled if doing so would cause the total resources assigned
 	// to jobs of priority 10 or lower from the same queue to exceed 30% of the total.
-	MaximalResourceFractionPerQueue map[string]float64
+	MaximumResourceFractionPerQueue map[string]float64
 }
 
 func (p PreemptionConfig) PriorityByPriorityClassName() map[string]int32 {

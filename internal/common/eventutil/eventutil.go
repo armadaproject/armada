@@ -967,7 +967,8 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 			Created: &m.Cancelled.Created,
 			Event: &armadaevents.EventSequence_Event_CancelledJob{
 				CancelledJob: &armadaevents.CancelledJob{
-					JobId: jobId,
+					JobId:  jobId,
+					Reason: m.Cancelled.Reason,
 				},
 			},
 		})

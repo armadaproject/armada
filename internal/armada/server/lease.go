@@ -472,12 +472,15 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		q.schedulingConfig.Preemption.PriorityClasses,
 		q.schedulingConfig.Preemption.DefaultPriorityClass,
 		q.schedulingConfig.ResourceScarcity,
-		// May need priority factors for inactive queues for rescheduling evicted jobs.
-		priorityFactorByQueue,
 		schedulerobjects.ResourceList{Resources: totalCapacity},
-		allocatedByQueueForPool,
 	)
+	for queue, priorityFactor := range priorityFactorByQueue {
+		if err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByQueueForPool[queue]); err != nil {
+			return nil, err
+		}
+	}
 	constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+		req.Pool,
 		schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
 		q.schedulingConfig,
 	)

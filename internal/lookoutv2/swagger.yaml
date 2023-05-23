@@ -106,6 +106,9 @@ definitions:
         items:
           $ref: "#/definitions/run"
         x-nullable: false
+      cancelReason:
+        type: string
+        x-nullable: true
   run:
     type: object
     required:

@@ -11,6 +11,7 @@ interface UIConfig {
   debugEnabled: boolean
   fakeDataEnabled: boolean
   lookoutV2ApiBaseUrl: string
+  customTitle: string
 }
 
 export type RequestStatus = "Loading" | "Idle"
@@ -38,6 +39,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     debugEnabled: queryParams.has("debug"),
     fakeDataEnabled: queryParams.has("fakeData"),
     lookoutV2ApiBaseUrl: "",
+    customTitle: "",
   }
 
   try {
@@ -51,6 +53,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     if (json.JobSetsAutoRefreshMs) config.jobSetsAutoRefreshMs = json.JobSetsAutoRefreshMs
     if (json.JobsAutoRefreshMs) config.jobsAutoRefreshMs = json.JobsAutoRefreshMs
     if (json.LookoutV2ApiBaseUrl) config.lookoutV2ApiBaseUrl = json.LookoutV2ApiBaseUrl
+    if (json.CustomTitle) config.customTitle = json.CustomTitle
   } catch (e) {
     console.error(e)
   }
@@ -227,3 +230,5 @@ export function withRouter<T extends PropsWithRouter>(Component: React.FC<T>): R
   }
   return ComponentWithRouterProp as React.FC<Omit<T, "router">>
 }
+
+export const PlatformCancelReason = "Platform error marked by user"

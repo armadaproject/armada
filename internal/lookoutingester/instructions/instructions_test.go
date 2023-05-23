@@ -618,6 +618,10 @@ func TestHandlePodUnschedulable(t *testing.T) {
 	msg := NewMsg(podUnschedulable)
 	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
+		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
+			RunId: runIdString,
+			Node:  pointer.String(nodeName),
+		}},
 		MessageIds: msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)

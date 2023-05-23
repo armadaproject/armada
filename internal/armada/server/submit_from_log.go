@@ -449,49 +449,72 @@ func (srv *SubmitFromLog) SubmitJobs(
 	return true, result.ErrorOrNil()
 }
 
+type CancelJobPayload struct {
+	JobId  string
+	Reason string
+}
+
 // CancelJobs cancels all jobs specified by the provided events in a single operation.
 func (srv *SubmitFromLog) CancelJobs(ctx context.Context, userId string, es []*armadaevents.CancelJob) (bool, error) {
-	jobIds := make([]string, len(es))
+	cancelJobPayloads := make([]*CancelJobPayload, len(es))
 	for i, e := range es {
 		id, err := armadaevents.UlidStringFromProtoUuid(e.JobId)
 		if err != nil {
 			// TODO: should we instead cancel the jobs we can here?
 			return false, err
 		}
-		jobIds[i] = id
+		cancelJobPayloads[i] = &CancelJobPayload{
+			JobId:  id,
+			Reason: e.Reason,
+		}
 	}
-	return srv.BatchedCancelJobsById(ctx, userId, jobIds)
+	return srv.BatchedCancelJobsById(ctx, userId, cancelJobPayloads)
 }
 
 // CancelJobSets processes several CancelJobSet events.
 // Because event sequences are specific to queue and job set, all CancelJobSet events in a sequence are equivalent,
 // and we only need to call CancelJobSet once.
-func (srv *SubmitFromLog) CancelJobSets(ctx context.Context, userId string,
-	queueName string, jobSetName string, _ []*armadaevents.CancelJobSet,
+func (srv *SubmitFromLog) CancelJobSets(
+	ctx context.Context,
+	userId string,
+	queueName string,
+	jobSetName string,
+	events []*armadaevents.CancelJobSet,
 ) (bool, error) {
-	return srv.CancelJobSet(ctx, userId, queueName, jobSetName)
+	// Get reason from first event
+	reason := ""
+	if len(events) > 0 {
+		reason = events[0].Reason
+	}
+	return srv.CancelJobSet(ctx, userId, queueName, jobSetName, reason)
 }
 
-func (srv *SubmitFromLog) CancelJobSet(ctx context.Context, userId string, queueName string, jobSetName string) (bool, error) {
+func (srv *SubmitFromLog) CancelJobSet(ctx context.Context, userId string, queueName string, jobSetName string, reason string) (bool, error) {
 	jobIds, err := srv.SubmitServer.jobRepository.GetActiveJobIds(queueName, jobSetName)
 	if armadaerrors.IsNetworkError(err) {
 		return false, err
 	} else if err != nil {
 		return true, err
 	}
-	return srv.BatchedCancelJobsById(ctx, userId, jobIds)
+	cancelJobPayloads := util.Map(jobIds, func(jobId string) *CancelJobPayload {
+		return &CancelJobPayload{
+			JobId:  jobId,
+			Reason: reason,
+		}
+	})
+	return srv.BatchedCancelJobsById(ctx, userId, cancelJobPayloads)
 }
 
-func (srv *SubmitFromLog) BatchedCancelJobsById(ctx context.Context, userId string, jobIds []string) (bool, error) {
+func (srv *SubmitFromLog) BatchedCancelJobsById(ctx context.Context, userId string, cancelJobPayloads []*CancelJobPayload) (bool, error) {
 	// Split IDs into batches and process one batch at a time.
 	// To reduce the number of jobs stored in memory.
 	//
 	// In case of network error, we indicate the events were not processed.
 	// Because some batches may have already been processed, retrying may cause jobs to be cancelled multiple times.
 	// However, that should be fine.
-	jobIdBatches := util.Batch(jobIds, srv.SubmitServer.cancelJobsBatchSize)
-	for _, jobIdBatch := range jobIdBatches {
-		_, err := srv.CancelJobsById(ctx, userId, jobIdBatch)
+	batches := util.Batch(cancelJobPayloads, srv.SubmitServer.cancelJobsBatchSize)
+	for _, batch := range batches {
+		_, err := srv.CancelJobsById(ctx, userId, batch)
 		if armadaerrors.IsNetworkError(err) {
 			return false, err
 		} else if err != nil {
@@ -509,14 +532,24 @@ func (srv *SubmitFromLog) BatchedCancelJobsById(ctx context.Context, userId stri
 	return true, nil
 }
 
+type CancelledJobPayload struct {
+	job    *api.Job
+	reason string
+}
+
 // CancelJobsById cancels all jobs with the specified ids.
-func (srv *SubmitFromLog) CancelJobsById(ctx context.Context, userId string, jobIds []string) ([]string, error) {
+func (srv *SubmitFromLog) CancelJobsById(ctx context.Context, userId string, cancelJobPayloads []*CancelJobPayload) ([]string, error) {
+	jobIdReasonMap := make(map[string]string)
+	jobIds := util.Map(cancelJobPayloads, func(payload *CancelJobPayload) string {
+		jobIdReasonMap[payload.JobId] = payload.Reason
+		return payload.JobId
+	})
 	jobs, err := srv.SubmitServer.jobRepository.GetExistingJobsByIds(jobIds)
 	if err != nil {
 		return nil, err
 	}
 
-	err = reportJobsCancelling(srv.SubmitServer.eventStore, userId, jobs)
+	err = reportJobsCancelling(srv.SubmitServer.eventStore, userId, jobs, "")
 	if err != nil {
 		return nil, err
 	}
@@ -529,13 +562,20 @@ func (srv *SubmitFromLog) CancelJobsById(ctx context.Context, userId string, job
 	// Check which jobs cancelled successfully.
 	// Collect any errors into a multierror.
 	var result *multierror.Error
-	cancelled := []*api.Job{}
-	cancelledIds := []string{}
+	var cancelled []*CancelledJobPayload
+	var cancelledIds []string
 	for job, err := range deletionResult {
 		if err != nil {
 			result = multierror.Append(result, err)
 		} else {
-			cancelled = append(cancelled, job)
+			reason := ""
+			if r, ok := jobIdReasonMap[job.Id]; ok {
+				reason = r
+			}
+			cancelled = append(cancelled, &CancelledJobPayload{
+				job:    job,
+				reason: reason,
+			})
 			cancelledIds = append(cancelledIds, job.Id)
 		}
 	}

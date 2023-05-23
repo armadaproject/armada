@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
+import { Checkbox } from "@material-ui/core"
 import { Refresh, Dangerous } from "@mui/icons-material"
 import { LoadingButton } from "@mui/lab"
 import { Button, CircularProgress, Dialog, DialogActions, DialogContent, DialogTitle, Alert } from "@mui/material"
@@ -7,7 +8,7 @@ import _ from "lodash"
 import { isTerminatedJobState, Job, JobFilter, JobId } from "models/lookoutV2Models"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
-import { pl, waitMillis } from "utils"
+import { pl, waitMillis, PlatformCancelReason } from "utils"
 import { getUniqueJobsMatchingFilters } from "utils/jobsDialogUtils"
 import { formatJobState } from "utils/jobsTableFormatters"
 
@@ -36,6 +37,7 @@ export const CancelDialog = ({
   const cancellableJobs = useMemo(() => selectedJobs.filter((job) => !isTerminatedJobState(job.state)), [selectedJobs])
   const [isCancelling, setIsCancelling] = useState(false)
   const [hasAttemptedCancel, setHasAttemptedCancel] = useState(false)
+  const [isPlatformCancel, setIsPlatformCancel] = useState(false)
   const openSnackbar = useCustomSnackbar()
 
   // Actions
@@ -61,7 +63,8 @@ export const CancelDialog = ({
   const cancelSelectedJobs = useCallback(async () => {
     setIsCancelling(true)
 
-    const response = await updateJobsService.cancelJobs(cancellableJobs)
+    const reason = isPlatformCancel ? PlatformCancelReason : ""
+    const response = await updateJobsService.cancelJobs(cancellableJobs, reason)
 
     if (response.failedJobIds.length === 0) {
       openSnackbar(
@@ -81,7 +84,7 @@ export const CancelDialog = ({
     setJobIdsToCancelResponses(newResponseStatus)
     setIsCancelling(false)
     setHasAttemptedCancel(true)
-  }, [cancellableJobs, jobIdsToCancelResponses])
+  }, [cancellableJobs, jobIdsToCancelResponses, isPlatformCancel])
 
   // On dialog open
   useEffect(() => {
@@ -155,6 +158,24 @@ export const CancelDialog = ({
 
       <DialogActions>
         <Button onClick={onClose}>Close</Button>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "center",
+            padding: "0 10px 0 10px",
+          }}
+        >
+          <Checkbox
+            style={{
+              padding: "3px",
+            }}
+            checked={isPlatformCancel}
+            disabled={isLoadingJobs || hasAttemptedCancel || cancellableJobs.length === 0}
+            onChange={(event) => setIsPlatformCancel(event.target.checked)}
+          />
+          <label>Platform error</label>
+        </div>
         <Button
           onClick={handleRefetch}
           disabled={isLoadingJobs || isCancelling}
