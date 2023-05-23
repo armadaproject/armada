@@ -35,7 +35,8 @@ type KubernetesCordonService struct {
 func NewKubernetesCordonService(
 	cordonConfig configuration.CordonConfiguration,
 	permissionsChecker authorization.PermissionChecker,
-	clientProvider cluster.KubernetesClientProvider) *KubernetesCordonService {
+	clientProvider cluster.KubernetesClientProvider,
+) *KubernetesCordonService {
 	return &KubernetesCordonService{
 		clientProvider:    clientProvider,
 		permissionChecker: permissionsChecker,

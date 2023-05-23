@@ -46,7 +46,6 @@ func TestCordonNode(t *testing.T) {
 			expectedPatch: &nodePatch{Spec: v1.NodeSpec{Unschedulable: true}},
 		},
 		"with additional labels": {
-
 			additionalLabels: map[string]string{
 				"armadaproject.io/cordon-reason": "test",
 			},
