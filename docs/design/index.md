@@ -67,7 +67,7 @@ In the above yaml snippet, `podSpec` is a Kubernetes podspec, which consists of 
 
 Queues and scheduling is explained in more detail below.
 
-For more examples, including of jobs spanning multiple nodes, see the [user guide](../user.md).
+For more examples, see the [user guide](../user.md).
 
 ### Job events
 

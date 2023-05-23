@@ -4,6 +4,24 @@
 
 This document is intended for developers who want to contribute to the project. It contains information about the project structure, how to build the project, and how to run the tests.
 
+## TLDR
+
+Want to quickly get Armada running and test it? Install the [Pre-requisites](#pre-requisites) and then run:
+
+```bash
+mage localdev minimal testsuite
+```
+
+## A note for Devs on Arm / Windows
+
+There is limited information on issues that appear on Arm / Windows Machines when running this setup.
+
+Feel free to create a ticket if you encounter any issues, and link them to the relavent issue:
+
+* https://github.com/armadaproject/armada/issues/2493 (Arm)
+* https://github.com/armadaproject/armada/issues/2492 (Windows)
+
+
 ## Design Docs
 
 Please see these documents for more information about Armadas Design:
@@ -33,13 +51,6 @@ Please see these documents for more information about Armadas Design:
 - [kubectl](https://kubernetes.io/docs/tasks/tools/#kubectl)
 - [protoc](https://github.com/protocolbuffers/protobuf/releases)
 
-## TLDR
-
-Want to quickly get Armada running and test it?
-
-```bash
-mage localdev minimal testsuite
-```
 
 ## Using Mage
 
