@@ -47,9 +47,9 @@ class GrpcChannelArgsDict(TypedDict):
     """
 
     target: str
-    credentials: Optional[grpc.ChannelCredentials] = None
-    options: Optional[Sequence[Tuple[str, Any]]] = None
-    compression: Optional[grpc.Compression] = None
+    credentials: Optional[grpc.ChannelCredentials]
+    options: Optional[Sequence[Tuple[str, Any]]]
+    compression: Optional[grpc.Compression]
 
 
 class ArmadaDeferrableOperator(BaseOperator):
@@ -59,7 +59,8 @@ class ArmadaDeferrableOperator(BaseOperator):
     Distinguished from ArmadaOperator by its ability to defer itself after
     submitting its job_request_items.
 
-    See https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html
+    See
+        https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html
     for more information about deferrable airflow operators.
 
     Airflow operators inherit from BaseOperator.
@@ -78,7 +79,7 @@ class ArmadaDeferrableOperator(BaseOperator):
         be replaced with the actual job ID.
 
     :return: A deferrable armada operator instance.
-    """  # noqa
+    """
 
     def __init__(
         self,
@@ -167,7 +168,6 @@ class ArmadaDeferrableOperator(BaseOperator):
         :param event: The payload from the TriggerEvent raised by
             ArmadaJobCompleteTrigger.
         :param job_id: The job ID.
-
         :return: None
         """
 
@@ -198,8 +198,7 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
     :param job_set_id: The ID of the job set.
     :param airflow_task_name: Name of the airflow task to which this trigger
       belongs.
-
-    :returns: An armada job complete trigger instance.
+    :return: An armada job complete trigger instance.
     """
 
     def __init__(
@@ -252,11 +251,14 @@ class GrpcChannelArguments(object):
     """
     A Serializable GRPC Arguments Object.
 
-    :target: Target keyword argument used when instantiating a grpc channel.
-    :credentials: credentials keyword argument used when instantiating a grpc channel.
-    :options: options keyword argument used when instantiating a grpc channel.
-    :compression: compression keyword argument used when instantiating a grpc channel.
-
+    :param target: Target keyword argument used
+        when instantiating a grpc channel.
+    :param credentials: credentials keyword argument used
+        when instantiating a grpc channel.
+    :param options: options keyword argument used
+        when instantiating a grpc channel.
+    :param compression: compression keyword argument used
+        when instantiating a grpc channel.
     :return: a GrpcChannelArguments instance
     """
 
@@ -277,8 +279,9 @@ class GrpcChannelArguments(object):
         Create a grpc.Channel based on arguments supplied to this object.
 
         :return: Return grpc.insecure_channel if credentials is None. Otherwise
-        returns grpc.secure_channel.
+            returns grpc.secure_channel.
         """
+
         if self.credentials is None:
             return grpc.insecure_channel(
                 target=self.target,
@@ -297,8 +300,9 @@ class GrpcChannelArguments(object):
         Create a grpc.aio.Channel (asyncio) based on arguments supplied to this object.
 
         :return: Return grpc.aio.insecure_channel if credentials is None. Otherwise
-        returns grpc.aio.secure_channel.
+            returns grpc.aio.secure_channel.
         """
+
         if self.credentials is None:
             return grpc.aio.insecure_channel(
                 target=self.target,
@@ -317,8 +321,9 @@ class GrpcChannelArguments(object):
         Get a serialized version of this object.
 
         :return: A dict of keyword arguments used when calling
-        grpc{.aio}.{insecure_}channel or instantiating this object.
+            a grpc channel or instantiating this object.
         """
+
         return {
             "target": self.target,
             "credentials": self.credentials,
