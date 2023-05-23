@@ -8,6 +8,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -53,7 +54,7 @@ func (c *KubernetesCordonService) CordonNode(ctx context.Context, request *binoc
 	patchBytes, err := GetPatchBytes(patch)
 
 	client := c.clientProvider.Client()
-	_, err = client.CoreV1().Nodes().Patch(ctx, request.NodeName, types.JSONPatchType, patchBytes, metav1.PatchOptions{})
+	_, err = client.CoreV1().Nodes().Patch(ctx, request.NodeName, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 	return err
 }
 
@@ -67,34 +68,26 @@ func templateLabels(labels map[string]string, user string) map[string]string {
 	return result
 }
 
-func createCordonPatch(labels map[string]string) []*NodePatch {
-	patch := []*NodePatch{}
+type nodePatch struct {
+	MetaData metav1.ObjectMeta `json:"metadata"`
+	Spec     v1.NodeSpec       `json:"spec"`
+}
 
-	patch = append(patch, &NodePatch{
-		Op:    "replace",
-		Path:  "/spec/unschedulable",
-		Value: true,
-	})
+func createCordonPatch(labels map[string]string) *nodePatch {
+	patch := &nodePatch{}
 
-	for key, value := range labels {
-		patch = append(patch, &NodePatch{
-			Op:    "replace",
-			Path:  fmt.Sprintf("/metadata/labels/%s", strings.ReplaceAll(key, "/", "~1")),
-			Value: value,
-		})
+	patch.Spec = v1.NodeSpec{
+		Unschedulable: true,
 	}
 
+	patch.MetaData = metav1.ObjectMeta{
+		Labels: labels,
+	}
 	return patch
 }
 
-func GetPatchBytes(patchData []*NodePatch) ([]byte, error) {
+func GetPatchBytes(patchData *nodePatch) ([]byte, error) {
 	return json.Marshal(patchData)
-}
-
-type NodePatch struct {
-	Op    string      `json:"op"`
-	Path  string      `json:"path"`
-	Value interface{} `json:"value,omitempty"`
 }
 
 func checkPermission(p authorization.PermissionChecker, ctx context.Context, permission permission.Permission) error {

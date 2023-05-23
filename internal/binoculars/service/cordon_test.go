@@ -3,12 +3,7 @@ package service
 import (
 	"context"
 	"testing"
-	"time"
 
-	"github.com/armadaproject/armada/internal/binoculars/configuration"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
-	"github.com/armadaproject/armada/internal/common/auth/permission"
-	"github.com/armadaproject/armada/pkg/api/binoculars"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
@@ -19,6 +14,11 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
+
+	"github.com/armadaproject/armada/internal/binoculars/configuration"
+	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/auth/permission"
+	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
 
 var (
@@ -87,8 +87,6 @@ func TestCordonNode_AddsAdditionalLabelsOnCordon(t *testing.T) {
 	actions := client.Fake.Actions()
 	assert.Len(t, actions, 1)
 
-	time.Sleep(time.Second * 2)
-
 	node, err := client.CoreV1().Nodes().Get(context.Background(), defaultNode.Name, metav1.GetOptions{})
 	assert.Nil(t, err)
 	assert.Equal(t, node.Spec.Unschedulable, true)
@@ -96,7 +94,31 @@ func TestCordonNode_AddsAdditionalLabelsOnCordon(t *testing.T) {
 }
 
 func TestCordonNode_TemplatesLabels(t *testing.T) {
+	principle := authorization.NewStaticPrincipal("principle", []string{})
+	cordonConfig := configuration.CordonConfiguration{
+		AdditionalLabels: map[string]string{
+			"armadaproject.io/cordon-user": "<user>",
+		},
+	}
+	cordonService, client := setupTest(t, cordonConfig, FakePermissionChecker{ReturnValue: true})
 
+	ctx := authorization.WithPrincipal(context.Background(), principle)
+	err := cordonService.CordonNode(ctx, &binoculars.CordonRequest{
+		NodeName: defaultNode.Name,
+	})
+	assert.Nil(t, err)
+
+	actions := client.Fake.Actions()
+	assert.Len(t, actions, 1)
+
+	expectedLabels := map[string]string{
+		"armadaproject.io/cordon-user": principle.GetName(),
+	}
+
+	node, err := client.CoreV1().Nodes().Get(context.Background(), defaultNode.Name, metav1.GetOptions{})
+	assert.Nil(t, err)
+	assert.Equal(t, node.Spec.Unschedulable, true)
+	assert.Equal(t, node.Labels, expectedLabels)
 }
 
 func setupTest(t *testing.T, config configuration.CordonConfiguration, permissionChecker authorization.PermissionChecker) (CordonService, *fake.Clientset) {
