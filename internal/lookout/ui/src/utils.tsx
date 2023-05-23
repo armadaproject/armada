@@ -11,6 +11,7 @@ interface UIConfig {
   debugEnabled: boolean
   fakeDataEnabled: boolean
   lookoutV2ApiBaseUrl: string
+  customTitle: string
 }
 
 export type RequestStatus = "Loading" | "Idle"
@@ -38,6 +39,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     debugEnabled: queryParams.has("debug"),
     fakeDataEnabled: queryParams.has("fakeData"),
     lookoutV2ApiBaseUrl: "",
+    customTitle: "",
   }
 
   try {
@@ -51,6 +53,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     if (json.JobSetsAutoRefreshMs) config.jobSetsAutoRefreshMs = json.JobSetsAutoRefreshMs
     if (json.JobsAutoRefreshMs) config.jobsAutoRefreshMs = json.JobsAutoRefreshMs
     if (json.LookoutV2ApiBaseUrl) config.lookoutV2ApiBaseUrl = json.LookoutV2ApiBaseUrl
+    if (json.CustomTitle) config.customTitle = json.CustomTitle
   } catch (e) {
     console.error(e)
   }
@@ -159,7 +162,7 @@ export function updateArray<T>(array: T[], newValues: T[], start: number) {
   }
 }
 
-export function tryParseJson(json: string): Record<string, unknown> | undefined {
+export function tryParseJson(json: string): Record<string, unknown> | unknown[] | undefined {
   try {
     return JSON.parse(json) as Record<string, unknown>
   } catch (e: unknown) {

@@ -4,6 +4,24 @@ orbs:
   go: circleci/go@1.7.3
 
 commands:
+  install-protobuf:
+    description: Install protobuf (protoc command and standard libs)
+    parameters:
+      prefix:
+        default: /usr/local
+        type: string
+      version:
+        default: 3.17.3
+        type: string
+    steps:
+    - run:
+        command: |
+          archive=protoc-<<parameters.version>>-linux-x86_64
+          curl -O -L https://github.com/protocolbuffers/protobuf/releases/download/v<<parameters.version>>/$archive.zip
+          sudo unzip -d '/usr/local' $archive.zip 'bin/*' 'include/*'
+          sudo chmod +x /usr/local/bin/protoc
+          rm -rf $archive.zip
+        name: 'Install protobuf'
   deploy-executor:
     parameters:
       worker-id:
@@ -130,6 +148,7 @@ jobs:
     working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
+      - install-protobuf
       - go/install:
           version: '1.20.2'
       - restore_cache: # restore dependencies
@@ -257,6 +276,7 @@ jobs:
     working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
+      - install-protobuf
 
       - restore_cache: # restore dependencies
           keys:
@@ -394,6 +414,7 @@ jobs:
     working_directory: ~/go/src/github.com/armadaproject/armada
     steps:
       - checkout
+      - install-protobuf
 
       - restore_cache: # restore dependencies
           keys:
