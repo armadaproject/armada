@@ -13,10 +13,7 @@ export interface ContainerData {
   name: string
   command: string
   args: string
-  cpu: string
-  memory: string
-  ephemeralStorage: string
-  gpu: string
+  resources: Record<string, string>
 }
 
 interface ContainerDetailsProps {
@@ -29,10 +26,7 @@ const getContainerData = (container: any): ContainerData => {
     name: "",
     command: "",
     args: "",
-    cpu: "",
-    memory: "",
-    ephemeralStorage: "",
-    gpu: "",
+    resources: {},
   }
   if (container.name) {
     details.name = container.name as string
@@ -44,11 +38,8 @@ const getContainerData = (container: any): ContainerData => {
     details.args = (container.args as string[]).join(" ")
   }
   if (container.resources && (container.resources as Record<string, unknown>).limits) {
-    const limits = (container.resources as Record<string, unknown>).limits as Record<string, unknown>
-    details.cpu = (limits.cpu as string) ?? ""
-    details.memory = (limits.memory as string) ?? ""
-    details.ephemeralStorage = (limits["ephemeral-storage"] as string) ?? ""
-    details.gpu = (limits["nvidia.com/gpu"] as string) ?? ""
+    const limits = (container.resources as Record<string, unknown>).limits as Record<string, string>
+    details.resources = limits
   }
   return details
 }
@@ -112,12 +103,10 @@ const SingleContainerDetails = ({ container, openByDefault }: { container: Conta
           <div>
             <Typography>Resources</Typography>
             <KeyValuePairTable
-              data={[
-                { key: "CPUs", value: container.cpu },
-                { key: "Memory", value: container.memory },
-                { key: "GPUs", value: container.gpu },
-                { key: "Ephemeral storage", value: container.ephemeralStorage },
-              ]}
+              data={Object.entries(container.resources).map(([key, value]) => ({
+                key: key,
+                value: value,
+              }))}
             />
           </div>
         </div>
