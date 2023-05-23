@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -15,6 +16,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
+	clientTesting "k8s.io/client-go/testing"
 
 	"github.com/armadaproject/armada/internal/binoculars/configuration"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
@@ -38,14 +40,22 @@ func TestCordonNode(t *testing.T) {
 	tests := map[string]struct {
 		additionalLabels map[string]string
 		expectedLabels   map[string]string
+		expectedPatch    *nodePatch
 	}{
-		"basic cordon": {},
+		"basic cordon": {
+			expectedPatch: &nodePatch{Spec: v1.NodeSpec{Unschedulable: true}},
+		},
 		"with additional labels": {
+
 			additionalLabels: map[string]string{
 				"armadaproject.io/cordon-reason": "test",
 			},
 			expectedLabels: map[string]string{
 				"armadaproject.io/cordon-reason": "test",
+			},
+			expectedPatch: &nodePatch{
+				Spec:     v1.NodeSpec{Unschedulable: true},
+				MetaData: metav1.ObjectMeta{Labels: map[string]string{"armadaproject.io/cordon-reason": "test"}},
 			},
 		},
 		"with templated labels": {
@@ -54,6 +64,10 @@ func TestCordonNode(t *testing.T) {
 			},
 			expectedLabels: map[string]string{
 				fmt.Sprintf("armadaproject.io/%s", principle.GetName()): principle.GetName(),
+			},
+			expectedPatch: &nodePatch{
+				Spec:     v1.NodeSpec{Unschedulable: true},
+				MetaData: metav1.ObjectMeta{Labels: map[string]string{fmt.Sprintf("armadaproject.io/%s", principle.GetName()): principle.GetName()}},
 			},
 		},
 	}
@@ -67,13 +81,22 @@ func TestCordonNode(t *testing.T) {
 
 			ctx := authorization.WithPrincipal(context.Background(), principle)
 			err := cordonService.CordonNode(ctx, &binoculars.CordonRequest{
-				NodeName: "Node1",
+				NodeName: defaultNode.Name,
 			})
 			assert.Nil(t, err)
 
+			// Assert the correct patch happened
 			actions := client.Fake.Actions()
 			assert.Len(t, actions, 1)
+			patchAction, ok := client.Fake.Actions()[0].(clientTesting.PatchAction)
+			assert.True(t, ok)
+			assert.Equal(t, patchAction.GetName(), defaultNode.Name)
+			patch := &nodePatch{}
+			err = json.Unmarshal(patchAction.GetPatch(), patch)
+			assert.NoError(t, err)
+			assert.Equal(t, patch, tc.expectedPatch)
 
+			// Assert resulting node is in expected state
 			node, err := client.CoreV1().Nodes().Get(context.Background(), defaultNode.Name, metav1.GetOptions{})
 			assert.Nil(t, err)
 			assert.Equal(t, node.Spec.Unschedulable, true)
