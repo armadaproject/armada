@@ -160,7 +160,7 @@ export const Sidebar = memo(
                 </Tabs>
 
                 <TabPanel value={SidebarTab.JobDetails} className={styles.sidebarTabPanel}>
-                  <SidebarTabJobDetails job={job} />
+                  <SidebarTabJobDetails job={job} jobSpecService={jobSpecService} />
                 </TabPanel>
 
                 <TabPanel value={SidebarTab.JobRuns} className={styles.sidebarTabPanel}>
