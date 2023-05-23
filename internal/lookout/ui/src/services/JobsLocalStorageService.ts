@@ -64,7 +64,7 @@ export default class JobsLocalStorageService {
       return
     }
 
-    const [loadedState, ok] = convertToLocalStorageState(loadedData)
+    const [loadedState, ok] = convertToLocalStorageState(loadedData as Record<string, unknown>)
     if (!ok) {
       // Couldn't convert local storage data to columns - clear it
       localStorage.removeItem(LOCAL_STORAGE_KEY)
