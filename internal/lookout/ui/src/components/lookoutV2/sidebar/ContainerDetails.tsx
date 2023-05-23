@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 
-import { CircularProgress, ListItemButton, Typography, Collapse } from "@mui/material"
+import { CircularProgress, Collapse, ListItemButton, Typography } from "@mui/material"
 
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { useJobSpec } from "../../../hooks/useJobSpec"
@@ -38,8 +38,7 @@ const getContainerData = (container: any): ContainerData => {
     details.args = (container.args as string[]).join(" ")
   }
   if (container.resources && (container.resources as Record<string, unknown>).limits) {
-    const limits = (container.resources as Record<string, unknown>).limits as Record<string, string>
-    details.resources = limits
+    details.resources = (container.resources as Record<string, unknown>).limits as Record<string, string>
   }
   return details
 }
