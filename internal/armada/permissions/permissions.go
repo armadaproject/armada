@@ -19,4 +19,5 @@ const (
 	WatchEvents                               = "watch_events"
 	WatchAllEvents                            = "watch_all_events"
 	ExecuteJobs                               = "execute_jobs"
+	CordonNodes                               = "cordon_nodes"
 )

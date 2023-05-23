@@ -4,6 +4,11 @@ metricsPort: 9000
 corsAllowedOrigins: 
   - http://localhost:3000
   - http://localhost:8080
+application:
+  cordon:
+    additionalLabels:
+      armadaproject.io/cordon-reason: "binoculars"
+      armadaproject.io/cordon-user: "<user>"
 auth:
   basicAuth:
     enableAuthentication: false
