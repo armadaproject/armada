@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,19 +34,52 @@ var (
 )
 
 func TestCordonNode(t *testing.T) {
-	cordonService, client := setupTest(t, defaultCordonConfig, FakePermissionChecker{ReturnValue: true})
+	principle := authorization.NewStaticPrincipal("principle", []string{})
+	tests := map[string]struct {
+		additionalLabels map[string]string
+		expectedLabels   map[string]string
+	}{
+		"basic cordon": {},
+		"with additional labels": {
+			additionalLabels: map[string]string{
+				"armadaproject.io/cordon-reason": "test",
+			},
+			expectedLabels: map[string]string{
+				"armadaproject.io/cordon-reason": "test",
+			},
+		},
+		"with templated labels": {
+			additionalLabels: map[string]string{
+				"armadaproject.io/<user>": "<user>",
+			},
+			expectedLabels: map[string]string{
+				fmt.Sprintf("armadaproject.io/%s", principle.GetName()): principle.GetName(),
+			},
+		},
+	}
 
-	err := cordonService.CordonNode(context.Background(), &binoculars.CordonRequest{
-		NodeName: "Node1",
-	})
-	assert.Nil(t, err)
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			cordonConfig := configuration.CordonConfiguration{
+				AdditionalLabels: tc.additionalLabels,
+			}
+			cordonService, client := setupTest(t, cordonConfig, FakePermissionChecker{ReturnValue: true})
 
-	actions := client.Fake.Actions()
-	assert.Len(t, actions, 1)
+			ctx := authorization.WithPrincipal(context.Background(), principle)
+			err := cordonService.CordonNode(ctx, &binoculars.CordonRequest{
+				NodeName: "Node1",
+			})
+			assert.Nil(t, err)
 
-	node, err := client.CoreV1().Nodes().Get(context.Background(), defaultNode.Name, metav1.GetOptions{})
-	assert.Nil(t, err)
-	assert.Equal(t, node.Spec.Unschedulable, true)
+			actions := client.Fake.Actions()
+			assert.Len(t, actions, 1)
+
+			node, err := client.CoreV1().Nodes().Get(context.Background(), defaultNode.Name, metav1.GetOptions{})
+			assert.Nil(t, err)
+			assert.Equal(t, node.Spec.Unschedulable, true)
+			assert.Equal(t, node.Labels, tc.expectedLabels)
+		})
+	}
 }
 
 func TestCordonNode_InvalidNodeName(t *testing.T) {
@@ -69,56 +103,6 @@ func TestCordonNode_Unauthenticated(t *testing.T) {
 	statusError, ok := status.FromError(err)
 	assert.True(t, ok)
 	assert.Equal(t, statusError.Code(), codes.PermissionDenied)
-}
-
-func TestCordonNode_AddsAdditionalLabelsOnCordon(t *testing.T) {
-	cordonConfig := configuration.CordonConfiguration{
-		AdditionalLabels: map[string]string{
-			"armadaproject.io/cordon-reason": "test",
-		},
-	}
-	cordonService, client := setupTest(t, cordonConfig, FakePermissionChecker{ReturnValue: true})
-
-	err := cordonService.CordonNode(context.Background(), &binoculars.CordonRequest{
-		NodeName: defaultNode.Name,
-	})
-	assert.Nil(t, err)
-
-	actions := client.Fake.Actions()
-	assert.Len(t, actions, 1)
-
-	node, err := client.CoreV1().Nodes().Get(context.Background(), defaultNode.Name, metav1.GetOptions{})
-	assert.Nil(t, err)
-	assert.Equal(t, node.Spec.Unschedulable, true)
-	assert.Equal(t, node.Labels, cordonConfig.AdditionalLabels)
-}
-
-func TestCordonNode_TemplatesLabels(t *testing.T) {
-	principle := authorization.NewStaticPrincipal("principle", []string{})
-	cordonConfig := configuration.CordonConfiguration{
-		AdditionalLabels: map[string]string{
-			"armadaproject.io/cordon-user": "<user>",
-		},
-	}
-	cordonService, client := setupTest(t, cordonConfig, FakePermissionChecker{ReturnValue: true})
-
-	ctx := authorization.WithPrincipal(context.Background(), principle)
-	err := cordonService.CordonNode(ctx, &binoculars.CordonRequest{
-		NodeName: defaultNode.Name,
-	})
-	assert.Nil(t, err)
-
-	actions := client.Fake.Actions()
-	assert.Len(t, actions, 1)
-
-	expectedLabels := map[string]string{
-		"armadaproject.io/cordon-user": principle.GetName(),
-	}
-
-	node, err := client.CoreV1().Nodes().Get(context.Background(), defaultNode.Name, metav1.GetOptions{})
-	assert.Nil(t, err)
-	assert.Equal(t, node.Spec.Unschedulable, true)
-	assert.Equal(t, node.Labels, expectedLabels)
 }
 
 func setupTest(t *testing.T, config configuration.CordonConfiguration, permissionChecker authorization.PermissionChecker) (CordonService, *fake.Clientset) {
