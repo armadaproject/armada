@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react"
 
-import { Collapse, List } from "@material-ui/core"
-import { CircularProgress, ListItemButton, Typography } from "@mui/material"
+import { CircularProgress, ListItemButton, Typography, Collapse } from "@mui/material"
 
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { useJobSpec } from "../../../hooks/useJobSpec"

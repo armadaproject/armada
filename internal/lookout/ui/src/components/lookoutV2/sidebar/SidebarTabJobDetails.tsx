@@ -1,10 +1,6 @@
-import { useMemo } from "react"
-
 import { Typography } from "@mui/material"
 import { Job } from "models/lookoutV2Models"
 
-import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
-import { useJobSpec } from "../../../hooks/useJobSpec"
 import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
 import { formatBytes, formatCpu } from "../../../utils/resourceUtils"
 import { ContainerDetails } from "./ContainerDetails"
