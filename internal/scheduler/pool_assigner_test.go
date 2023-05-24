@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -21,7 +22,7 @@ import (
 func TestPoolAssigner_AssignPool(t *testing.T) {
 	executorTimeout := 15 * time.Minute
 	cpuJob := testfixtures.TestQueuedJobDbJob()
-	gpuJob := testfixtures.WithJobDbJobPodRequirements(testfixtures.TestQueuedJobDbJob(), testfixtures.TestGpuJob(testfixtures.TestQueue, testfixtures.TestPriorities[0]))
+	gpuJob := testfixtures.WithJobDbJobPodRequirements(testfixtures.TestQueuedJobDbJob(), testfixtures.Test1GpuPodReqs(testfixtures.TestQueue, util.ULID(), testfixtures.TestPriorities[0]))
 
 	tests := map[string]struct {
 		executorTimout time.Duration
