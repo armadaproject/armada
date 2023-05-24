@@ -5,10 +5,10 @@ RUN umask 0002; \
 RUN umask 0002; \
     mkdir -p /home/airflow/airflow
 
+COPY --chown=airflow:root init.sh /home/airflow/init.sh
 COPY --chown=airflow:root opt/client /home/airflow/client
 COPY --chown=airflow:root opt/airflow /home/airflow/airflow
 
 USER airflow
 
-RUN pip install -e /home/airflow/client
-RUN pip install -e /home/airflow/airflow
+RUN /home/airflow/init.sh

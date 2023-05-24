@@ -55,14 +55,14 @@ func startAirflow() error {
 	}
 
 	// Arise
-	return dockerComposeRun(
-		"--project-directory", "./localdev/airflow/", "up", "--build", "--always-recreate-deps", "-d")
+	return dockerRun("compose", "--project-directory", "./localdev/airflow/",
+		"up", "--build", "--always-recreate-deps", "-d")
 }
 
 func stopAirflow() error {
 	fmt.Println("Stopping airflow...")
 
-	err := dockerComposeRun("-f", "localdev/airflow/docker-compose.yaml", "down")
+	err := dockerRun("compose", "-f", "localdev/airflow/docker-compose.yaml", "down")
 	if err != nil {
 		return err
 	}
