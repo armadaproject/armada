@@ -38,10 +38,10 @@ const (
 var (
 	BaseTime, _         = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 	TestPriorityClasses = map[string]configuration.PriorityClass{
-		PriorityClass0: {0, true, nil},
-		PriorityClass1: {1, true, nil},
-		PriorityClass2: {2, true, nil},
-		PriorityClass3: {3, false, nil},
+		PriorityClass0: {Priority: 0, Preemptible: true},
+		PriorityClass1: {Priority: 1, Preemptible: true},
+		PriorityClass2: {Priority: 2, Preemptible: true},
+		PriorityClass3: {Priority: 3, Preemptible: false},
 	}
 	TestDefaultPriorityClass         = PriorityClass3
 	TestPriorities                   = []int32{0, 1, 2, 3}
