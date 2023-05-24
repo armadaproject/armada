@@ -11,10 +11,7 @@ import (
 	"github.com/magefile/mage/sh"
 )
 
-// Build images, spin up a test environment, and run the integration tests against it.
-func TestSuite() error {
-	timeTaken := time.Now()
-
+func createQueue() error {
 	outbytes, err := exec.Command(armadaCtl(), "create", "queue", "e2e-test-queue").CombinedOutput()
 	out := string(outbytes)
 	// check if err text contains "already exists" and ignore if it does
@@ -23,8 +20,12 @@ func TestSuite() error {
 		return err
 	}
 
-	fmt.Printf("Time to create queue: %s\n\n", time.Since(timeTaken))
+	return nil
+}
 
+// Build images, spin up a test environment, and run the integration tests against it.
+func TestSuite() error {
+	mg.Deps(createQueue)
 	mg.Deps(CheckForArmadaRunning)
 
 	// Only set these if they have not already been set
@@ -35,7 +36,7 @@ func TestSuite() error {
 		os.Setenv("ARMADA_EXECUTOR_INGRESS_PORT", "5001")
 	}
 
-	timeTaken = time.Now()
+	timeTaken := time.Now()
 	out, err2 := goOutput("run", "cmd/testsuite/main.go", "test",
 		"--tests", "testsuite/testcases/basic/*",
 		"--junit", "junit.xml",
@@ -49,9 +50,12 @@ func TestSuite() error {
 	return nil
 }
 
-// NOTE: This command assumes that the queue "e2e-test-queue" already exists
+// Checks if Armada is ready to accept jobs.
 func CheckForArmadaRunning() error {
-	timeout := time.After(1 * time.Minute)
+	mg.Deps(createQueue)
+
+	// Set high to take compile time into account
+	timeout := time.After(10 * time.Minute)
 	tick := time.Tick(1 * time.Second)
 	seconds := 0
 	for {
