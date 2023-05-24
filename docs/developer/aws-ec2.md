@@ -12,7 +12,7 @@ Note: As of June 2022, not all Armada dependencies reliably build on a Mac M1 us
 - During selection of instance, Add a large volume to your ec2 instance.   100 gb of storage is recommended.
 - When selecting the instance, you will have the opportunity to choose a security group. You may need to make a new one. Be sure to add a rule allowing inbound communication on port 22 so that you can access your server via SSH. We recommend that you restrict access to the IP address from which you access the Internet, or a small CIDR block containing it.
 
-If you want to use your browser to access Armada Lookout UI or other web-based interfaces, you will also need to grant access to their respective ports. For added security, consider using an [SSH tunnel](https://www.ssh.com/academy/ssh/tunneling/example) from your local machine to your development server instead of opening those ports. You can add LocalForward to your ssh config: `LocalForward 4000 localhost:3000`  
+If you want to use your browser to access Armada Lookout UI or other web-based interfaces, you will also need to grant access to their respective ports. For added security, consider using an [SSH tunnel](https://www.ssh.com/academy/ssh/tunneling/example) from your local machine to your development server instead of opening those ports. You can add LocalForward to your ssh config: `LocalForward 4000 localhost:3000`
 
 - ### Install [Docker](https://www.cyberciti.biz/faq/how-to-install-docker-on-amazon-linux-2/)
 
@@ -63,22 +63,33 @@ newgrp docker
 
 - ### Install [docker-compose](https://www.cyberciti.biz/faq/how-to-install-docker-on-amazon-linux-2/)
 
-<b>1. Get pip3</b>
+```bash
+$ cd $HOME/.docker
+$ mkdir cli-plugins
+$ cd cli-plugins
+$ curl -SL https://github.com/docker/compose/releases/download/v2.17.3/docker-compose-linux-x86_64 -o docker-compose
+$ chmod 755 docker-compose
+```
 
-```
-sudo yum install python3-pip
+Then verify it with:
+
+```bash
+docker-compose version
 ```
 
-<b>2. Then run any one of the following</b>
+- ### Getting the [Docker Compose Plugin](https://docs.docker.com/compose/install/linux/#install-the-plugin-manually)
 
-```
-sudo pip3 install docker-compose   ## with root access
-```
-#OR#
+Armadas setup assumes You have the docker compose plugin installed.  If you do not have it installed, you can use the following guide:
 
+* https://docs.docker.com/compose/install/linux/#install-the-plugin-manually
+
+Then test it with:
+
+```bash
+docker compose version
 ```
-pip3 install --user docker-compose   ## without root access for security reasons
-```
+
+
 - ### Install [Go](https://go.dev/doc/install)
 
 ssh into your EC2 instance, become root and download the go package from [golang.org](https://go.dev/doc/install).
@@ -86,7 +97,7 @@ ssh into your EC2 instance, become root and download the go package from [golang
 <b>1. Extract the archive you downloaded into /usr/local, creating a Go tree in /usr/local/go with the following command:</b>
 
 ```
-rm -rf /usr/local/go && tar -C /usr/local -xzf go1.17.1.linux-amd64.tar.gz
+rm -rf /usr/local/go && tar -C /usr/local -xzf go1.20.1.linux-amd64.tar.gz
 ```
 
 <b>2. Configure .bashrc</b>
@@ -103,7 +114,7 @@ Add the following lines to your ~/.bashrc file as well, also create a golang fol
 
 ```
 # Go envs
-export GOVERSION=go1.17.1
+export GOVERSION=go1.20.1
 export GO_INSTALL_DIR=/usr/local/go
 export GOROOT=$GO_INSTALL_DIR
 export GOPATH=/home/ec2-user/golang
@@ -118,7 +129,7 @@ Verify that you’ve installed Go by opening a command prompt and typing the fol
 
 ```
 go version
-go version go1.17.1 linux/amd64
+go version go1.20.1 linux/amd64
 ```
 
 - ### Install [Kind](https://dev.to/rajitpaul_savesoil/setup-kind-kubernetes-in-docker-on-linux-3kbd)
@@ -222,4 +233,4 @@ sudo yum install aspnetcore-runtime-7.0
 <img src = "https://user-images.githubusercontent.com/101946115/224552173-6a4e15f8-1db0-453f-9a9f-683d2c53c2a1.png" />
 </p>
 
-- ### Simplest way to setup development environment is to run docs/dev/setup.sh
+- ### Please see [Our Developer Docs](../developer.md) for more information on how to get started with the codebase.
