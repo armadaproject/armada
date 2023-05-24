@@ -62,11 +62,11 @@ func TestCordonNode(t *testing.T) {
 				"armadaproject.io/<user>": "<user>",
 			},
 			expectedLabels: map[string]string{
-				fmt.Sprintf("armadaproject.io/%s", principle.GetName()): principle.GetName(),
+				fmt.Sprintf("armadaproject.io/%s", principal.GetName()): principal.GetName(),
 			},
 			expectedPatch: &nodePatch{
 				Spec:     v1.NodeSpec{Unschedulable: true},
-				MetaData: metav1.ObjectMeta{Labels: map[string]string{fmt.Sprintf("armadaproject.io/%s", principle.GetName()): principle.GetName()}},
+				MetaData: metav1.ObjectMeta{Labels: map[string]string{fmt.Sprintf("armadaproject.io/%s", principal.GetName()): principal.GetName()}},
 			},
 		},
 	}
@@ -78,7 +78,7 @@ func TestCordonNode(t *testing.T) {
 			}
 			cordonService, client := setupTest(t, cordonConfig, FakePermissionChecker{ReturnValue: true})
 
-			ctx := authorization.WithPrincipal(context.Background(), principle)
+			ctx := authorization.WithPrincipal(context.Background(), principal)
 			err := cordonService.CordonNode(ctx, &binoculars.CordonRequest{
 				NodeName: defaultNode.Name,
 			})
