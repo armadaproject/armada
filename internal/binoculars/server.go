@@ -46,7 +46,7 @@ func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
 	)
 
 	logService := service.NewKubernetesLogService(kubernetesClientProvider)
-	cordonService := service.NewKubernetesCordonService(config.Application.Cordon, permissionsChecker, kubernetesClientProvider)
+	cordonService := service.NewKubernetesCordonService(config.Cordon, permissionsChecker, kubernetesClientProvider)
 	binocularsServer := server.NewBinocularsServer(logService, cordonService)
 	binoculars.RegisterBinocularsServer(grpcServer, binocularsServer)
 	grpc_prometheus.Register(grpcServer)
