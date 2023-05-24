@@ -21,13 +21,13 @@ func TestNodesIterator(t *testing.T) {
 		Nodes []*schedulerobjects.Node
 	}{
 		"1 node": {
-			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 		},
 		"0 nodes": {
-			Nodes: testfixtures.TestNCpuNode(0, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(0, testfixtures.TestPriorities),
 		},
 		"3 nodes": {
-			Nodes: testfixtures.TestNCpuNode(3, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 		},
 	}
 	for name, tc := range tests {
@@ -119,15 +119,15 @@ func TestNodeTypeIterator(t *testing.T) {
 			nodes: armadaslices.Concatenate(
 				testfixtures.WithNodeTypeIdNodes(
 					"foo",
-					testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				),
 				testfixtures.WithNodeTypeIdNodes(
 					"bar",
-					testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
+					testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 				),
 				testfixtures.WithNodeTypeIdNodes(
 					"foo",
-					testfixtures.TestNCpuNode(3, testfixtures.TestPriorities),
+					testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 				),
 			),
 			nodeTypeId:       "foo",
@@ -145,17 +145,17 @@ func TestNodeTypeIterator(t *testing.T) {
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 			),
@@ -171,47 +171,47 @@ func TestNodeTypeIterator(t *testing.T) {
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						1,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						1,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						1,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						2,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						2,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						2,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 			),
@@ -230,7 +230,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("1Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -238,7 +238,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("2Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -246,7 +246,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("129Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -254,7 +254,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("130Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -262,7 +262,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("131Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -270,7 +270,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("16"),
 							"memory": resource.MustParse("130Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -278,7 +278,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("16"),
 							"memory": resource.MustParse("128Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -286,14 +286,14 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("16"),
 							"memory": resource.MustParse("129Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 							"cpu": resource.MustParse("17"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 			),
@@ -315,7 +315,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("31"),
 							"memory": resource.MustParse("1Gi"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -324,7 +324,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"memory": resource.MustParse("1Gi"),
 							"gpu":    resource.MustParse("1"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -333,7 +333,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"memory": resource.MustParse("1Gi"),
 							"gpu":    resource.MustParse("2"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -342,7 +342,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"memory": resource.MustParse("1Gi"),
 							"gpu":    resource.MustParse("5"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -350,7 +350,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("31"),
 							"memory": resource.MustParse("2Gi"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -359,7 +359,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"memory": resource.MustParse("2Gi"),
 							"gpu":    resource.MustParse("1"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -367,7 +367,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("32"),
 							"memory": resource.MustParse("514Gi"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -375,7 +375,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("32"),
 							"memory": resource.MustParse("512Gi"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -383,14 +383,14 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("32"),
 							"memory": resource.MustParse("513Gi"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 							"cpu": resource.MustParse("33"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 			),
@@ -459,15 +459,15 @@ func TestNodeTypesIterator(t *testing.T) {
 			nodes: armadaslices.Concatenate(
 				testfixtures.WithNodeTypeIdNodes(
 					"foo",
-					testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				),
 				testfixtures.WithNodeTypeIdNodes(
 					"bar",
-					testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
+					testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 				),
 				testfixtures.WithNodeTypeIdNodes(
 					"baz",
-					testfixtures.TestNCpuNode(3, testfixtures.TestPriorities),
+					testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 				),
 			),
 			nodeTypeIds:      []string{"foo", "baz"},
@@ -485,7 +485,7 @@ func TestNodeTypesIterator(t *testing.T) {
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 				testfixtures.WithNodeTypeIdNodes(
@@ -493,7 +493,7 @@ func TestNodeTypesIterator(t *testing.T) {
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 				testfixtures.WithNodeTypeIdNodes(
@@ -501,7 +501,7 @@ func TestNodeTypesIterator(t *testing.T) {
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 				testfixtures.WithNodeTypeIdNodes(
@@ -509,7 +509,7 @@ func TestNodeTypesIterator(t *testing.T) {
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("14")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 			),
@@ -525,47 +525,47 @@ func TestNodeTypesIterator(t *testing.T) {
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						1,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						1,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						1,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						2,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						2,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						2,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 			),
@@ -584,7 +584,7 @@ func TestNodeTypesIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("1Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -592,7 +592,7 @@ func TestNodeTypesIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("2Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -600,7 +600,7 @@ func TestNodeTypesIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("129Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -608,7 +608,7 @@ func TestNodeTypesIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("130Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -616,7 +616,7 @@ func TestNodeTypesIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("131Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -624,7 +624,7 @@ func TestNodeTypesIterator(t *testing.T) {
 							"cpu":    resource.MustParse("16"),
 							"memory": resource.MustParse("130Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -632,7 +632,7 @@ func TestNodeTypesIterator(t *testing.T) {
 							"cpu":    resource.MustParse("16"),
 							"memory": resource.MustParse("128Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -640,14 +640,14 @@ func TestNodeTypesIterator(t *testing.T) {
 							"cpu":    resource.MustParse("16"),
 							"memory": resource.MustParse("129Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 							"cpu": resource.MustParse("17"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 			),
@@ -670,7 +670,7 @@ func TestNodeTypesIterator(t *testing.T) {
 								"cpu":    resource.MustParse("31"),
 								"memory": resource.MustParse("1Gi"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -679,7 +679,7 @@ func TestNodeTypesIterator(t *testing.T) {
 								"memory": resource.MustParse("1Gi"),
 								"gpu":    resource.MustParse("1"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -688,7 +688,7 @@ func TestNodeTypesIterator(t *testing.T) {
 								"memory": resource.MustParse("1Gi"),
 								"gpu":    resource.MustParse("2"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -697,7 +697,7 @@ func TestNodeTypesIterator(t *testing.T) {
 								"memory": resource.MustParse("1Gi"),
 								"gpu":    resource.MustParse("5"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 					),
 				),
@@ -710,7 +710,7 @@ func TestNodeTypesIterator(t *testing.T) {
 								"cpu":    resource.MustParse("31"),
 								"memory": resource.MustParse("2Gi"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -719,7 +719,7 @@ func TestNodeTypesIterator(t *testing.T) {
 								"memory": resource.MustParse("2Gi"),
 								"gpu":    resource.MustParse("1"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -727,7 +727,7 @@ func TestNodeTypesIterator(t *testing.T) {
 								"cpu":    resource.MustParse("32"),
 								"memory": resource.MustParse("514Gi"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -735,7 +735,7 @@ func TestNodeTypesIterator(t *testing.T) {
 								"cpu":    resource.MustParse("32"),
 								"memory": resource.MustParse("512Gi"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 					),
 				),
@@ -748,14 +748,14 @@ func TestNodeTypesIterator(t *testing.T) {
 								"cpu":    resource.MustParse("32"),
 								"memory": resource.MustParse("513Gi"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 						testfixtures.WithUsedResourcesNodes(
 							0,
 							schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 								"cpu": resource.MustParse("33"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 					),
 				),
