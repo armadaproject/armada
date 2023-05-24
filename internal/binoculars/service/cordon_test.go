@@ -36,7 +36,7 @@ var (
 )
 
 func TestCordonNode(t *testing.T) {
-	principle := authorization.NewStaticPrincipal("principle", []string{})
+	principal := authorization.NewStaticPrincipal("principle", []string{})
 	tests := map[string]struct {
 		additionalLabels map[string]string
 		expectedLabels   map[string]string
