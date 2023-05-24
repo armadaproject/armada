@@ -1,6 +1,7 @@
 // Values must match the server-side states
 export enum JobState {
   Queued = "QUEUED",
+  Leased = "LEASED",
   Pending = "PENDING",
   Running = "RUNNING",
   Succeeded = "SUCCEEDED",
@@ -10,6 +11,7 @@ export enum JobState {
 }
 
 export const jobStateDisplayInfo: Record<JobState, ColoredState> = {
+  [JobState.Leased]: { displayName: "Leased", color: "#f5c056" },
   [JobState.Queued]: { displayName: "Queued", color: "#ffff00" },
   [JobState.Pending]: { displayName: "Pending", color: "#ff9900" },
   [JobState.Running]: { displayName: "Running", color: "#00ff00" },
@@ -33,6 +35,7 @@ export enum JobRunState {
   RunLeaseReturned = "RUN_LEASE_RETURNED",
   RunLeaseExpired = "RUN_LEASE_EXPIRED",
   RunMaxRunsExceeded = "RUN_MAX_RUNS_EXCEEDED",
+  RunLeased = "RUN_LEASED",
 }
 
 export const jobRunStateDisplayInfo: Record<JobRunState, { displayName: string }> = {
@@ -46,6 +49,7 @@ export const jobRunStateDisplayInfo: Record<JobRunState, { displayName: string }
   [JobRunState.RunPreempted]: { displayName: "Preempted" },
   [JobRunState.RunLeaseExpired]: { displayName: "Lease Expired" },
   [JobRunState.RunMaxRunsExceeded]: { displayName: "Max Runs Exceeded" },
+  [JobRunState.RunLeased]: { displayName: "Leased" },
 }
 
 type ColoredState = {

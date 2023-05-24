@@ -14,6 +14,7 @@ const (
 	JobFailed    JobState = "FAILED"
 	JobCancelled JobState = "CANCELLED"
 	JobPreempted JobState = "PREEMPTED"
+	JobLeased    JobState = "LEASED"
 
 	JobQueuedOrdinal    = 1
 	JobPendingOrdinal   = 2
@@ -22,7 +23,9 @@ const (
 	JobFailedOrdinal    = 5
 	JobCancelledOrdinal = 6
 	JobPreemptedOrdinal = 7
+	JobLeasedOrdinal    = 8
 
+	JobRunLeased           JobRunState = "RUN_LEASED"
 	JobRunPending          JobRunState = "RUN_PENDING"
 	JobRunRunning          JobRunState = "RUN_RUNNING"
 	JobRunSucceeded        JobRunState = "RUN_SUCCEEDED"
@@ -44,10 +47,12 @@ const (
 	JobRunLeaseReturnedOrdinal    = 8
 	JobRunLeaseExpiredOrdinal     = 9
 	JobRunMaxRunsExceededOrdinal  = 10
+	JobRunLeasedOrdinal           = 11
 )
 
 var (
 	JobStateMap = map[int]JobState{
+		JobLeasedOrdinal:    JobLeased,
 		JobQueuedOrdinal:    JobQueued,
 		JobPendingOrdinal:   JobPending,
 		JobRunningOrdinal:   JobRunning,
@@ -60,6 +65,7 @@ var (
 	JobStateOrdinalMap = util.InverseMap(JobStateMap)
 
 	JobRunStateMap = map[int]JobRunState{
+		JobRunLeasedOrdinal:           JobRunLeased,
 		JobRunPendingOrdinal:          JobRunPending,
 		JobRunRunningOrdinal:          JobRunRunning,
 		JobRunSucceededOrdinal:        JobRunSucceeded,

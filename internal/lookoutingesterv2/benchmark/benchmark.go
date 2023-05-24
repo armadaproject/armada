@@ -210,7 +210,7 @@ func createJobRunInstructions(n int, runIds []string) []*model.CreateJobRunInstr
 			RunId:       runIds[i%len(runIds)],
 			JobId:       util.NewULID(),
 			Cluster:     uuid.NewString(),
-			Pending:     time.Now(),
+			Pending:     pointerTime(time.Now()),
 			JobRunState: int32(rand.Intn(10)),
 		}
 	}

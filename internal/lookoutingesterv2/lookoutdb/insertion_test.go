@@ -109,7 +109,7 @@ func defaultInstructionSet() *model.InstructionSet {
 			RunId:       runIdString,
 			JobId:       jobIdString,
 			Cluster:     executorId,
-			Pending:     updateTime,
+			Pending:     &updateTime,
 			JobRunState: lookout.JobRunPendingOrdinal,
 		}},
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{

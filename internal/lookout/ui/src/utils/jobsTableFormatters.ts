@@ -1,4 +1,4 @@
-import { green, grey, orange, pink, purple, red, yellow } from "@mui/material/colors"
+import { cyan, green, grey, orange, pink, purple, red, yellow } from "@mui/material/colors"
 import { intervalToDuration } from "date-fns"
 import { formatInTimeZone } from "date-fns-tz"
 import { parseISO } from "date-fns/fp"
@@ -26,6 +26,8 @@ export const colorForJobState = (state?: JobState): string | undefined => {
       return grey[300]
     case JobState.Preempted:
       return pink[100]
+    case JobState.Leased:
+      return cyan[100]
     default:
       return purple["A100"]
   }
