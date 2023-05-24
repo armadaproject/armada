@@ -58,7 +58,7 @@ func (s *JSRepoPostgres) Setup(ctx context.Context) {
 			Timestamp INTEGER,
 			ConnectionError TEXT,
 			FromMessageId TEXT,
-			UNIQUE(Queue,JobSetId))`,
+			PRIMARY KEY (Queue, JobSetId))`,
 		`CREATE INDEX idx_jobsets_timestamp ON jobsets (Timestamp)`,
 		`DROP TRIGGER IF EXISTS trigger_delete_expired_jobsets ON jobsets`,
 		`DROP FUNCTION IF EXISTS delete_expired_jobsets`,

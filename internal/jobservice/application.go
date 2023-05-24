@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -41,6 +40,15 @@ var DefaultConfiguration = &configuration.JobServiceConfiguration{
 	},
 }
 
+// Size of the worker goroutine pool for job-set processing
+const workerPoolSize = 30
+
+type SubRequest struct {
+	sub         repository.SubscribedTuple
+	subTime     int64
+	eventClient *events.PooledEventClient
+}
+
 // Mutates config where possible to correct mis-configurations.
 // Returns a non-nil error if mis-configuration is unrecoverable.
 func RectifyConfig(config *configuration.JobServiceConfiguration) error {
@@ -63,6 +71,19 @@ func RectifyConfig(config *configuration.JobServiceConfiguration) error {
 	}
 
 	return nil
+}
+
+// ProcessSubs continually reads from the channel of incoming jobset
+// subscription requests and subscribes as they are received
+func ProcessSubs(subRequests <-chan SubRequest, sqlJobRepo repository.SQLJobService) {
+	for r := range subRequests {
+		evJob := eventstojobs.NewEventsToJobService(r.sub.Queue, r.sub.JobSet, r.eventClient, sqlJobRepo)
+
+		err := evJob.SubscribeToJobSetId(context.Background(), r.subTime, r.sub.FromMessageId)
+		if err != nil {
+			log.Error("error on subscribing", err)
+		}
+	}
 }
 
 func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfiguration) error {
@@ -100,7 +121,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	}
 
 	// Start a pool
-	pool, err := grpcpool.NewWithContext(ctx, connFactory,
+	evConnPool, err := grpcpool.NewWithContext(ctx, connFactory,
 		config.GrpcPool.InitialConnections,
 		config.GrpcPool.Capacity,
 		0)
@@ -110,36 +131,26 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 
 	// This function runs in the background every 30 seconds
 	// We will loop over the subscribed jobsets
-	// And we check if we have already subscribed via subscribeMap
 	// If we have then we skip that jobset
 	g.Go(func() error {
+		evClient := events.NewPooledEventClient(evConnPool)
+		subRequests := make(chan SubRequest)
 		ticker := time.NewTicker(30 * time.Second)
-		eventClient := events.NewPooledEventClient(pool)
-		var subscribeMap sync.Map
-		for range ticker.C {
 
-			jobSets, err := sqlJobRepo.GetSubscribedJobSets(ctx)
-			log.Infof("job service has %d subscribed job sets", len(jobSets))
+		for w := 1; w <= workerPoolSize; w++ {
+			go ProcessSubs(subRequests, sqlJobRepo)
+		}
+
+		for range ticker.C {
+			subs, err := sqlJobRepo.GetSubscribedJobSets(ctx)
 			if err != nil {
 				logging.WithStacktrace(log, err).Warn("error getting jobsets")
+				continue
 			}
-			for _, value := range jobSets {
-				queueJobSet := value.Queue + value.JobSet
-				_, ok := subscribeMap.LoadOrStore(queueJobSet, true)
-				if !ok {
-					eventJob := eventstojobs.NewEventsToJobService(value.Queue, value.JobSet, eventClient, sqlJobRepo)
-					go func(value repository.SubscribedTuple) {
-						err := eventJob.SubscribeToJobSetId(context.Background(), config.SubscribeJobSetTime, value.FromMessageId)
-						if err != nil {
-							log.Error("error on subscribing", err)
-						}
-						queueJobSet := value.Queue + value.JobSet
-						log.Infof("deleting %s from map", queueJobSet)
-						subscribeMap.Delete(queueJobSet)
-					}(value)
-				} else {
-					log.Infof("job set %s/%s is subscribed", value.Queue, value.JobSet)
-				}
+			log.Infof("job service has %d subscribed job sets", len(subs))
+
+			for _, sub := range subs {
+				subRequests <- SubRequest{sub: sub, subTime: config.SubscribeJobSetTime, eventClient: evClient}
 			}
 		}
 		return nil
