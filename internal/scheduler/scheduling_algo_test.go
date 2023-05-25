@@ -75,10 +75,11 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				queuedJobs[1].Id(): "executor2",
 			},
 		},
-		"one executor full": {executors: []*schedulerobjects.Executor{
-			testfixtures.Test1Node32CoreExecutor("executor1", runningJobs, testfixtures.BaseTime),
-			testfixtures.Test1Node32CoreExecutor("executor2", nil, testfixtures.BaseTime),
-		},
+		"one executor full": {
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1", runningJobs, testfixtures.BaseTime),
+				testfixtures.Test1Node32CoreExecutor("executor2", nil, testfixtures.BaseTime),
+			},
 			queues:      []*database.Queue{testfixtures.TestDbQueue()},
 			queuedJobs:  queuedJobs,
 			runningJobs: []*jobdb.Job{runningJobs[0], runningJobs[1]},
