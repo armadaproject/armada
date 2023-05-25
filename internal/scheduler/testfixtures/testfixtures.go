@@ -316,7 +316,8 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *sched
 		jobId.String(),
 		TestJobset,
 		queue,
-		uint32(extractPriority(priorityClassName)),
+		// This is the per-queue priority of this job, which is unrelated to `priorityClassName`.
+		1000,
 		&schedulerobjects.JobSchedulingInfo{
 			PriorityClassName: priorityClassName,
 			SubmitTime:        submitTime,
