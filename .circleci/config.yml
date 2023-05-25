@@ -20,8 +20,6 @@ commands:
           curl -O -L https://github.com/protocolbuffers/protobuf/releases/download/v<<parameters.version>>/$archive.zip
           sudo unzip -d '/usr/local' $archive.zip 'bin/*' 'include/*'
           sudo chmod +x /usr/local/bin/protoc
-          echo 'export PATH=/usr/local/bin:$PATH' >> $BASH_ENV
-          source $BASH_ENV
           rm -rf $archive.zip
         name: 'Install protobuf'
   deploy-executor:
@@ -425,6 +423,9 @@ jobs:
       - run:
           name: Download dependencies
           command: |
+            export GOPATH="/home/circleci/go"
+            export GOCACHE="/home/circleci/go/cache"
+            export PATH=$PATH:$GOPATH/bin:/usr/local/go/bin
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             chmod +x kubectl
             sudo mv kubectl /usr/local/bin/
@@ -433,8 +434,9 @@ jobs:
       - run:
           name: Push dotnet clients to nuget
           command: |
-            echo $PATH
-            protoc --version
+            export GOPATH="/home/circleci/go"
+            export GOCACHE="/home/circleci/go/cache"
+            export PATH=$PATH:$GOPATH/bin:/usr/local/go/bin
             RELEASE_TAG=${CIRCLE_TAG#"v"} make push-nuget
 
       - store_artifacts:
@@ -463,9 +465,10 @@ workflows:
               only: /.*/
             branches:
               ignore: /.*/
-      - release-dotnet-client:
-          filters:
-            tags:
-              only: /.*/
-            branches:
-              ignore: /.*/
+      - release-dotnet-client
+#       - release-dotnet-client:
+#           filters:
+#             tags:
+#               only: /.*/
+#             branches:
+#               ignore: /.*/
