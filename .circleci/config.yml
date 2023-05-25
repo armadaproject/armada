@@ -468,10 +468,9 @@ workflows:
               only: /.*/
             branches:
               ignore: /.*/
-      - release-dotnet-client
-#       - release-dotnet-client:
-#           filters:
-#             tags:
-#               only: /.*/
-#             branches:
-#               ignore: /.*/
+      - release-dotnet-client:
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              ignore: /.*/
