@@ -437,6 +437,9 @@ jobs:
             export GOPATH="/home/circleci/go"
             export GOCACHE="/home/circleci/go/cache"
             export PATH=$PATH:$GOPATH/bin:/usr/local/go/bin
+            go mod download
+            go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
+            go run github.com/magefile/mage@v1.14.0 -v proto
             RELEASE_TAG=${CIRCLE_TAG#"v"} make push-nuget
 
       - store_artifacts:
