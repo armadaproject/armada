@@ -102,6 +102,7 @@ export const SidebarTabJobRuns = ({ job, runErrorService, cordonService }: Sideb
   const cordon = async (cluster: string, node: string) => {
     try {
       await cordonService.cordonNode(cluster, node, undefined)
+      openSnackbar("Successfully cordoned node " + node, "success")
     } catch (e) {
       const errMsg = await getErrorMessage(e)
       console.error(errMsg)
