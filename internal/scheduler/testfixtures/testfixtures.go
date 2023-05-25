@@ -38,10 +38,10 @@ const (
 var (
 	BaseTime, _         = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 	TestPriorityClasses = map[string]configuration.PriorityClass{
-		PriorityClass0: {0, true, nil},
-		PriorityClass1: {1, true, nil},
-		PriorityClass2: {2, true, nil},
-		PriorityClass3: {3, false, nil},
+		PriorityClass0: {Priority: 0, Preemptible: true},
+		PriorityClass1: {Priority: 1, Preemptible: true},
+		PriorityClass2: {Priority: 2, Preemptible: true},
+		PriorityClass3: {Priority: 3, Preemptible: false},
 	}
 	TestDefaultPriorityClass         = PriorityClass3
 	TestPriorities                   = []int32{0, 1, 2, 3}
@@ -277,6 +277,14 @@ func N1CpuJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
 	return rv
 }
 
+func N16CpuJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
+	rv := make([]*jobdb.Job, n)
+	for i := 0; i < n; i++ {
+		rv[i] = Test16CpuJob(queue, priorityClassName)
+	}
+	return rv
+}
+
 func N32CpuJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
 	rv := make([]*jobdb.Job, n)
 	for i := 0; i < n; i++ {
@@ -293,20 +301,22 @@ func N1GpuJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
 	return rv
 }
 
-func Test1CpuJob(queue string, priorityClassName string) *jobdb.Job {
-	jobId := util.ULID()
+func extractPriority(priorityClassName string) int32 {
 	priorityClass, ok := TestPriorityClasses[priorityClassName]
 	if !ok {
 		panic(fmt.Sprintf("no priority class with name %s", priorityClassName))
 	}
-	req := Test1CpuPodReqs(queue, jobId, priorityClass.Priority)
+	return priorityClass.Priority
+}
+
+func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *schedulerobjects.PodRequirements) *jobdb.Job {
 	created := jobTimestamp.Add(1)
 	submitTime := time.Time{}.Add(time.Millisecond * time.Duration(created))
 	return jobdb.NewJob(
 		jobId.String(),
-		"",
+		TestJobset,
 		queue,
-		0,
+		uint32(extractPriority(priorityClassName)),
 		&schedulerobjects.JobSchedulingInfo{
 			PriorityClassName: priorityClassName,
 			SubmitTime:        submitTime,
@@ -325,80 +335,40 @@ func Test1CpuJob(queue string, priorityClassName string) *jobdb.Job {
 		false,
 		created,
 	)
+}
+
+func Test1CpuJob(queue string, priorityClassName string) *jobdb.Job {
+	jobId := util.ULID()
+	return TestJob(queue, jobId, priorityClassName, Test1CpuPodReqs(queue, jobId, extractPriority(priorityClassName)))
+}
+
+func Test16CpuJob(queue string, priorityClassName string) *jobdb.Job {
+	jobId := util.ULID()
+	return TestJob(queue, jobId, priorityClassName, Test16CpuPodReqs(queue, jobId, extractPriority(priorityClassName)))
 }
 
 func Test32CpuJob(queue string, priorityClassName string) *jobdb.Job {
 	jobId := util.ULID()
-	priorityClass, ok := TestPriorityClasses[priorityClassName]
-	if !ok {
-		panic(fmt.Sprintf("no priority class with name %s", priorityClassName))
-	}
-	req := Test32CpuPodReqs(queue, jobId, priorityClass.Priority)
-	created := jobTimestamp.Add(1)
-	submitTime := time.Time{}.Add(time.Millisecond * time.Duration(created))
-	return jobdb.NewJob(
-		jobId.String(),
-		"",
-		queue,
-		0,
-		&schedulerobjects.JobSchedulingInfo{
-			PriorityClassName: priorityClassName,
-			SubmitTime:        submitTime,
-			ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-				{
-					Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-						PodRequirements: req,
-					},
-				},
-			},
-		},
-		false,
-		0,
-		false,
-		false,
-		false,
-		created,
-	)
+	return TestJob(queue, jobId, priorityClassName, Test32CpuPodReqs(queue, jobId, extractPriority(priorityClassName)))
 }
 
 func Test1GpuJob(queue string, priorityClassName string) *jobdb.Job {
 	jobId := util.ULID()
-	priorityClass, ok := TestPriorityClasses[priorityClassName]
-	if !ok {
-		panic(fmt.Sprintf("no priority class with name %s", priorityClassName))
-	}
-	req := Test1GpuPodReqs(queue, jobId, priorityClass.Priority)
-	created := jobTimestamp.Add(1)
-	submitTime := time.Time{}.Add(time.Millisecond * time.Duration(created))
-	return jobdb.NewJob(
-		jobId.String(),
-		"",
-		queue,
-		0,
-		&schedulerobjects.JobSchedulingInfo{
-			PriorityClassName: priorityClassName,
-			SubmitTime:        submitTime,
-			ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-				{
-					Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-						PodRequirements: req,
-					},
-				},
-			},
-		},
-		false,
-		0,
-		false,
-		false,
-		false,
-		created,
-	)
+	return TestJob(queue, jobId, priorityClassName, Test1GpuPodReqs(queue, jobId, extractPriority(priorityClassName)))
 }
 
 func N1CpuPodReqs(queue string, priority int32, n int) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, n)
 	for i := 0; i < n; i++ {
 		rv[i] = Test1CpuPodReqs(queue, util.ULID(), priority)
+	}
+	return rv
+}
+
+func N16CpuPodReqs(queue string, priority int32, n int) []*schedulerobjects.PodRequirements {
+	rv := make([]*schedulerobjects.PodRequirements, n)
+	for i := 0; i < n; i++ {
+		rv[i] = Test16CpuPodReqs(queue, util.ULID(), priority)
 	}
 	return rv
 }
@@ -419,68 +389,86 @@ func N1GpuPodReqs(queue string, priority int32, n int) []*schedulerobjects.PodRe
 	return rv
 }
 
-func Test1CpuPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerobjects.PodRequirements {
+func TestPodReqs(queue string, jobId ulid.ULID, priority int32, requests v1.ResourceList) *schedulerobjects.PodRequirements {
 	return &schedulerobjects.PodRequirements{
-		Priority: priority,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{
-				"cpu":    resource.MustParse("1"),
-				"memory": resource.MustParse("4Gi"),
-			},
-		},
+		Priority:             priority,
+		ResourceRequirements: v1.ResourceRequirements{Requests: requests},
 		Annotations: map[string]string{
 			schedulerconfig.JobIdAnnotation: jobId.String(),
 			schedulerconfig.QueueAnnotation: queue,
 		},
 		NodeSelector: make(map[string]string),
 	}
+}
+
+func Test1CpuPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerobjects.PodRequirements {
+	return TestPodReqs(
+		queue,
+		jobId,
+		priority,
+		v1.ResourceList{
+			"cpu":    resource.MustParse("1"),
+			"memory": resource.MustParse("4Gi"),
+		},
+	)
+}
+
+func Test16CpuPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerobjects.PodRequirements {
+	req := TestPodReqs(
+		queue,
+		jobId,
+		priority,
+		v1.ResourceList{
+			"cpu":    resource.MustParse("16"),
+			"memory": resource.MustParse("128Gi"),
+		},
+	)
+	req.Tolerations = []v1.Toleration{
+		{
+			Key:   "largeJobsOnly",
+			Value: "true",
+		},
+	}
+	return req
 }
 
 func Test32CpuPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerobjects.PodRequirements {
-	return &schedulerobjects.PodRequirements{
-		Priority: priority,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
-			},
+	req := TestPodReqs(
+		queue,
+		jobId,
+		priority,
+		v1.ResourceList{
+			"cpu":    resource.MustParse("32"),
+			"memory": resource.MustParse("256Gi"),
 		},
-		Tolerations: []v1.Toleration{
-			{
-				Key:   "largeJobsOnly",
-				Value: "true",
-			},
+	)
+	req.Tolerations = []v1.Toleration{
+		{
+			Key:   "largeJobsOnly",
+			Value: "true",
 		},
-		Annotations: map[string]string{
-			schedulerconfig.JobIdAnnotation: jobId.String(),
-			schedulerconfig.QueueAnnotation: queue,
-		},
-		NodeSelector: make(map[string]string),
 	}
+	return req
 }
 
 func Test1GpuPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerobjects.PodRequirements {
-	return &schedulerobjects.PodRequirements{
-		Priority: priority,
-		ResourceRequirements: v1.ResourceRequirements{
-			Requests: v1.ResourceList{
-				"cpu":    resource.MustParse("4"),
-				"memory": resource.MustParse("16Gi"),
-				"gpu":    resource.MustParse("1"),
-			},
+	req := TestPodReqs(
+		queue,
+		jobId,
+		priority,
+		v1.ResourceList{
+			"cpu":    resource.MustParse("4"),
+			"memory": resource.MustParse("16Gi"),
+			"gpu":    resource.MustParse("1"),
 		},
-		Tolerations: []v1.Toleration{
-			{
-				Key:   "gpu",
-				Value: "true",
-			},
+	)
+	req.Tolerations = []v1.Toleration{
+		{
+			Key:   "gpu",
+			Value: "true",
 		},
-		Annotations: map[string]string{
-			schedulerconfig.JobIdAnnotation: jobId.String(),
-			schedulerconfig.QueueAnnotation: queue,
-		},
-		NodeSelector: make(map[string]string),
 	}
+	return req
 }
 
 func TestUnitReqs(priority int32) *schedulerobjects.PodRequirements {
@@ -586,24 +574,14 @@ func N8GpuNodes(n int, priorities []int32) []*schedulerobjects.Node {
 	return rv
 }
 
-func Test32CpuNode(priorities []int32) *schedulerobjects.Node {
+func TestNode(priorities []int32, resources map[string]resource.Quantity) *schedulerobjects.Node {
 	id := uuid.NewString()
 	return &schedulerobjects.Node{
-		Id: id,
-		TotalResources: schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
-			},
-		},
+		Id:             id,
+		TotalResources: schedulerobjects.ResourceList{Resources: resources},
 		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			priorities,
-			schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("32"),
-					"memory": resource.MustParse("256Gi"),
-				},
-			},
+			schedulerobjects.ResourceList{Resources: resources},
 		),
 		Labels: map[string]string{
 			TestHostnameLabel: id,
@@ -611,67 +589,55 @@ func Test32CpuNode(priorities []int32) *schedulerobjects.Node {
 	}
 }
 
+func Test32CpuNode(priorities []int32) *schedulerobjects.Node {
+	return TestNode(
+		priorities,
+		map[string]resource.Quantity{
+			"cpu":    resource.MustParse("32"),
+			"memory": resource.MustParse("256Gi"),
+		},
+	)
+}
+
 func TestTainted32CpuNode(priorities []int32) *schedulerobjects.Node {
-	id := uuid.NewString()
-	taints := []v1.Taint{
+	node := Test32CpuNode(priorities)
+	node.Taints = []v1.Taint{
 		{
 			Key:    "largeJobsOnly",
 			Value:  "true",
 			Effect: v1.TaintEffectNoSchedule,
 		},
 	}
-	labels := map[string]string{
-		TestHostnameLabel: id,
-		"largeJobsOnly":   "true",
-	}
-	return &schedulerobjects.Node{
-		Id:     id,
-		Taints: taints,
-		Labels: labels,
-		TotalResources: schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
-			},
-		},
-		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
-			priorities,
-			schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("32"),
-					"memory": resource.MustParse("256Gi"),
-				},
-			},
-		),
-	}
+	node.Labels["largeJobsOnly"] = "true"
+	return node
 }
 
 func Test8GpuNode(priorities []int32) *schedulerobjects.Node {
-	id := uuid.NewString()
-	labels := map[string]string{
-		TestHostnameLabel: id,
-		"gpu":             "true",
-	}
-	return &schedulerobjects.Node{
-		Id:     id,
-		Labels: labels,
-		TotalResources: schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("64"),
-				"memory": resource.MustParse("1024Gi"),
-				"gpu":    resource.MustParse("8"),
-			},
+	node := TestNode(
+		priorities,
+		map[string]resource.Quantity{
+			"cpu":    resource.MustParse("64"),
+			"memory": resource.MustParse("1024Gi"),
+			"gpu":    resource.MustParse("8"),
 		},
-		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
-			priorities,
-			schedulerobjects.ResourceList{
-				Resources: map[string]resource.Quantity{
-					"cpu":    resource.MustParse("64"),
-					"memory": resource.MustParse("1024Gi"),
-					"gpu":    resource.MustParse("8"),
-				},
-			},
-		),
+	)
+	node.Labels["gpu"] = "true"
+	return node
+}
+
+func Test1Node32CoreExecutor(name string, jobs []*jobdb.Job, lastUpdateTime time.Time) *schedulerobjects.Executor {
+	node := Test32CpuNode(TestPriorities)
+	node.Name = fmt.Sprintf("%s-node", name)
+	unassignedJobRuns := make([]string, len(jobs))
+	for i, job := range jobs {
+		unassignedJobRuns[i] = job.LatestRun().Id().String()
+	}
+	return &schedulerobjects.Executor{
+		Id:                name,
+		Pool:              TestPool,
+		Nodes:             []*schedulerobjects.Node{node},
+		LastUpdateTime:    lastUpdateTime,
+		UnassignedJobRuns: unassignedJobRuns,
 	}
 }
 
