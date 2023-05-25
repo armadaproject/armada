@@ -109,7 +109,7 @@ export const SidebarTabJobRuns = ({ job, runErrorService, cordonService }: Sideb
       if (!mounted.current) {
         return
       }
-      openSnackbar("Failed to cordon node " + node, "error")
+      openSnackbar("Failed to cordon node " + node + ": " + errMsg, "error")
     }
   }
 
