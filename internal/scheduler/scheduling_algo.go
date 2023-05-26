@@ -58,8 +58,8 @@ func NewFairSchedulingAlgo(
 	executorRepository database.ExecutorRepository,
 	queueRepository database.QueueRepository,
 ) (*FairSchedulingAlgo, error) {
-	if len(config.Preemption.PriorityClasses) <= 0 {
-		return nil, fmt.Errorf("expected the priority class mapping in the preemption configuration to contain at least one element (associated with the default priority class %s), but it was empty", config.Preemption.DefaultPriorityClass)
+	if _, ok := config.Preemption.PriorityClasses[config.Preemption.DefaultPriorityClass]; !ok {
+		return nil, fmt.Errorf("expected the priority class mapping in the preemption configuration to contain the default priority class %s, but it does not; these are the keys that it contains: %v", config.Preemption.DefaultPriorityClass, maps.Keys(config.Preemption.PriorityClasses))
 	}
 
 	indexedResources := config.IndexedResources
