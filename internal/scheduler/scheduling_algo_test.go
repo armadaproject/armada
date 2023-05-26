@@ -20,11 +20,11 @@ import (
 func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 	queuedJobs := make([]*jobdb.Job, 10)
 	for i := 0; i < 10; i++ {
-		queuedJobs[i] = testfixtures.Test16CpuJob(testfixtures.TestQueue, testfixtures.PriorityClass0).WithQueued(true)
+		queuedJobs[i] = testfixtures.Test16CpuJob(testfixtures.TestQueue, testfixtures.PriorityClass3).WithQueued(true)
 	}
 	runningJobs := []*jobdb.Job{
-		testfixtures.Test16CpuJob(testfixtures.TestQueue, testfixtures.PriorityClass0).WithQueued(false).WithNewRun("executor1", "executor1-node"),
-		testfixtures.Test16CpuJob(testfixtures.TestQueue, testfixtures.PriorityClass0).WithQueued(false).WithNewRun("executor1", "executor1-node"),
+		testfixtures.Test16CpuJob(testfixtures.TestQueue, testfixtures.PriorityClass3).WithQueued(false).WithNewRun("executor1", "executor1-node"),
+		testfixtures.Test16CpuJob(testfixtures.TestQueue, testfixtures.PriorityClass3).WithQueued(false).WithNewRun("executor1", "executor1-node"),
 	}
 	tests := map[string]struct {
 		executors                        []*schedulerobjects.Executor
@@ -128,6 +128,27 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			queuedJobs:   queuedJobs,
 			expectedJobs: map[string]string{},
 		},
+		"The scheduling algorithm computes allocated resources by priority class, not by per-queue priority.": {
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor(
+					"executor1",
+					[]*jobdb.Job{runningJobs[0].WithPriority(0)},
+					testfixtures.BaseTime,
+				),
+			},
+			runningJobs: []*jobdb.Job{runningJobs[0].WithPriority(0)},
+			queues:      []*database.Queue{testfixtures.TestDbQueue()},
+			queuedJobs: []*jobdb.Job{
+				// Submit the next job with a per-queue priority number (i.e., 1) that is larger
+				// than the per-queue priority of the already-running job (i.e., 0), but smaller
+				// than the priority class number of the two jobs (i.e., 3); if the scheduler were
+				// to use the per-queue priority instead of the priority class number in its
+				// accounting, then it would schedule this job.
+				queuedJobs[0].WithPriority(1),
+			},
+			perQueueLimit: map[string]float64{"cpu": 0.5},
+			expectedJobs:  map[string]string{},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -136,7 +157,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			defer cancel()
 			config := testfixtures.TestSchedulingConfig()
 			if tc.perQueueLimit != nil {
-				priorityClass := testfixtures.TestPriorityClasses[testfixtures.PriorityClass0]
+				priorityClass := testfixtures.TestPriorityClasses[testfixtures.PriorityClass3]
 				config = testfixtures.WithPerPriorityLimitsConfig(map[int32]map[string]float64{priorityClass.Priority: tc.perQueueLimit}, config)
 			}
 			if tc.maxUnacknowledgedJobsPerExecutor != 0 {
@@ -149,12 +170,13 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
 			mockQueueRepo.EXPECT().GetAllQueues().Return(tc.queues, nil).AnyTimes()
 
-			algo := NewFairSchedulingAlgo(
+			algo, err := NewFairSchedulingAlgo(
 				config,
 				time.Second*5,
 				mockExecutorRepo,
 				mockQueueRepo,
 			)
+			require.NoError(t, err)
 
 			// Use a test clock so we can control time
 			algo.clock = clock.NewFakeClock(testfixtures.BaseTime)
@@ -163,7 +185,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			jobDb := jobdb.NewJobDb()
 
 			txn := jobDb.WriteTxn()
-			err := jobDb.Upsert(txn, tc.queuedJobs)
+			err = jobDb.Upsert(txn, tc.queuedJobs)
 			require.NoError(t, err)
 
 			err = jobDb.Upsert(txn, tc.unacknowledgedJobs)
@@ -351,12 +373,13 @@ func TestLegacySchedulingAlgo_TestSchedule_ExecutorOrdering(t *testing.T) {
 			mockQueueRepo := schedulermocks.NewMockQueueRepository(ctrl)
 			mockQueueRepo.EXPECT().GetAllQueues().Return([]*database.Queue{}, nil).AnyTimes()
 
-			algo := NewFairSchedulingAlgo(
+			algo, err := NewFairSchedulingAlgo(
 				config,
 				tc.maxScheduleDuration,
 				mockExecutorRepo,
 				mockQueueRepo,
 			)
+			require.NoError(t, err)
 			scheduledExecutorsIds := []string{}
 			// Use a test clock so we can control time
 			algo.clock = clock.NewFakeClock(testfixtures.BaseTime)
