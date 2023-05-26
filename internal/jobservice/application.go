@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"time"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -14,7 +13,6 @@ import (
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/internal/common/grpc/grpcpool"
-	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
 	"github.com/armadaproject/armada/internal/jobservice/events"
 	"github.com/armadaproject/armada/internal/jobservice/eventstojobs"
@@ -76,19 +74,6 @@ func RectifyConfig(config *configuration.JobServiceConfiguration) {
 	}
 }
 
-// ProcessSubs continually reads from the channel of incoming jobset
-// subscription requests and subscribes as they are received
-func ProcessSubs(subRequests <-chan SubRequest, sqlJobRepo repository.SQLJobService) {
-	for r := range subRequests {
-		evJob := eventstojobs.NewEventsToJobService(r.sub.Queue, r.sub.JobSet, r.eventClient, sqlJobRepo)
-
-		err := evJob.SubscribeToJobSetId(context.Background(), r.subTime, r.sub.FromMessageId)
-		if err != nil {
-			log.Error("error on subscribing", err)
-		}
-	}
-}
-
 func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfiguration) error {
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, _ := errgroup.WithContext(ctx)
@@ -129,31 +114,13 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		return err
 	}
 
-	// We will loop over the subscribed jobsets
-	// If we have then we skip that jobset
 	g.Go(func() error {
-		evClient := events.NewPooledEventClient(evConnPool)
-		subRequests := make(chan SubRequest)
-		ticker := time.NewTicker(30 * time.Second)
-
-		for w := 1; w <= config.SubscriberPoolSize; w++ {
-			go ProcessSubs(subRequests, sqlJobRepo)
-		}
-
-		for range ticker.C {
-			subs, err := sqlJobRepo.GetSubscribedJobSets(ctx)
-			if err != nil {
-				logging.WithStacktrace(log, err).Warn("error getting jobsets")
-				continue
-			}
-			log.Infof("job service has %d subscribed job sets", len(subs))
-
-			for _, sub := range subs {
-				subRequests <- SubRequest{sub: sub, subTime: config.SubscribeJobSetTime, eventClient: evClient}
-			}
-		}
-		return nil
+		eventClient := events.NewPooledEventClient(evConnPool)
+		// Runs continuously until ctx is canceled or it runs into an unrecoverable error
+		jobSubExecutor := eventstojobs.NewJobSubscriptionExecutor(ctx, eventClient, sqlJobRepo)
+		return jobSubExecutor.Manage()
 	})
+
 	g.Go(func() error {
 		defer log.Infof("stopping server.")
 
