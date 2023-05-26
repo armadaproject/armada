@@ -257,6 +257,50 @@ func TestQueryBuilder_CountGroups(t *testing.T) {
 	assert.Equal(t, []interface{}{"test\\queue", "1234", "abcd", "test\\queue", "5678", "efgh%", "test\\queue", "anon\\\\one%"}, query.Args)
 }
 
+func TestQueryBuilder_CountGroupsByAnnotation(t *testing.T) {
+	query, err := NewQueryBuilder(NewTables()).CountGroups(
+		testFilters,
+		"custom_annotation",
+	)
+	assert.NoError(t, err)
+	assert.Equal(t, splitByWhitespace(`
+			SELECT COUNT(*) FROM (
+			    SELECT ual_group.value
+			    FROM job AS j
+				INNER JOIN (
+					SELECT job_id
+					FROM user_annotation_lookup
+					WHERE queue = $1 AND key = $2 AND value = $3
+				) AS ual0 ON j.job_id = ual0.job_id
+				INNER JOIN (
+					SELECT job_id
+					FROM user_annotation_lookup
+					WHERE queue = $4 AND key = $5 AND value LIKE $6
+				) AS ual1 ON j.job_id = ual1.job_id
+			    INNER JOIN (
+			        SELECT job_id, value
+			        FROM user_annotation_lookup
+			        WHERE queue = $7 AND key = $8
+			    ) AS ual_group ON j.job_id = ual_group.job_id
+				WHERE j.queue = $9 AND j.owner LIKE $10
+			    GROUP BY ual_group.value
+			) AS group_table
+		`),
+		splitByWhitespace(query.Sql))
+	assert.Equal(t, []interface{}{
+		"test\\queue",
+		"1234",
+		"abcd",
+		"test\\queue",
+		"5678",
+		"efgh%",
+		"test\\queue",
+		"custom_annotation",
+		"test\\queue",
+		"anon\\\\one%",
+	}, query.Args)
+}
+
 func TestQueryBuilder_GroupByEmpty(t *testing.T) {
 	query, err := NewQueryBuilder(NewTables()).GroupBy(
 		[]*model.Filter{},
@@ -385,6 +429,60 @@ func TestQueryBuilder_GroupByMultipleAggregates(t *testing.T) {
 		`),
 		splitByWhitespace(query.Sql))
 	assert.Equal(t, []interface{}{"test\\queue", "1234", "abcd", "test\\queue", "5678", "efgh%", "test\\queue", "anon\\\\one%"}, query.Args)
+}
+
+func TestQueryBuilder_GroupByAnnotationMultipleAggregates(t *testing.T) {
+	query, err := NewQueryBuilder(NewTables()).GroupBy(
+		testFilters,
+		&model.Order{
+			Direction: "DESC",
+			Field:     "lastTransitionTime",
+		},
+		"custom_annotation",
+		[]string{
+			"lastTransitionTime",
+			"submitted",
+		},
+		20,
+		100,
+	)
+	assert.NoError(t, err)
+	assert.Equal(t, splitByWhitespace(`
+			SELECT ual_group.value, COUNT(*) AS count, AVG(j.last_transition_time_seconds) AS last_transition_time_seconds, MAX(j.submitted) AS submitted
+			FROM job AS j
+			INNER JOIN (
+				SELECT job_id
+				FROM user_annotation_lookup
+				WHERE queue = $1 AND key = $2 AND value = $3
+			) AS ual0 ON j.job_id = ual0.job_id
+			INNER JOIN (
+				SELECT job_id
+				FROM user_annotation_lookup
+				WHERE queue = $4 AND key = $5 AND value LIKE $6
+			) AS ual1 ON j.job_id = ual1.job_id
+			INNER JOIN (
+			    SELECT job_id, value
+			    FROM user_annotation_lookup
+			    WHERE queue = $7 AND key = $8
+			) AS ual_group ON j.job_id = ual_group.job_id
+			WHERE j.queue = $9 AND j.owner LIKE $10
+			GROUP BY ual_group.value
+			ORDER BY last_transition_time_seconds DESC
+			LIMIT 100 OFFSET 20
+		`),
+		splitByWhitespace(query.Sql))
+	assert.Equal(t, []interface{}{
+		"test\\queue",
+		"1234",
+		"abcd",
+		"test\\queue",
+		"5678",
+		"efgh%",
+		"test\\queue",
+		"custom_annotation",
+		"test\\queue",
+		"anon\\\\one%",
+	}, query.Args)
 }
 
 func splitByWhitespace(s string) []string {
