@@ -545,7 +545,7 @@ func (l *FairSchedulingAlgo) totalAllocationByPoolAndQueue(executors []*schedule
 				if ok {
 					allocation.AddResourceList(priorityClass.Priority, jobSchedulingInfo.GetTotalResourceRequest())
 				} else {
-					log.Errorf("Job %s has unknown priority class name %s; ignoring the resources allocated to this job.", job.Id(), jobSchedulingInfo.PriorityClassName)
+					log.Errorf("job %s has unknown priority class name %s; ignoring the resources allocated to this job", job.Id(), jobSchedulingInfo.PriorityClassName)
 				}
 			}
 		}
