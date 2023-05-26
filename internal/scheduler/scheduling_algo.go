@@ -41,7 +41,7 @@ type FairSchedulingAlgo struct {
 	executorRepository          database.ExecutorRepository
 	queueRepository             database.QueueRepository
 	schedulingContextRepository *SchedulingContextRepository // TODO: Initialise.
-	priorityClassPriorities     []int32
+	priorityClasses             map[string]configuration.PriorityClass
 	indexedResources            []string
 	rand                        *rand.Rand // injected here for repeatable testing
 	previousScheduleClusterId   string
@@ -57,13 +57,11 @@ func NewFairSchedulingAlgo(
 	executorRepository database.ExecutorRepository,
 	queueRepository database.QueueRepository,
 ) *FairSchedulingAlgo {
-	priorities := make([]int32, 0)
-	if len(config.Preemption.PriorityClasses) > 0 {
-		for _, p := range config.Preemption.PriorityClasses {
-			priorities = append(priorities, p.Priority)
-		}
-	} else {
-		priorities = append(priorities, 0)
+	priorityClasses := config.Preemption.PriorityClasses
+	// The comment on `DefaultPriorityClass` suggests that we should never take
+	// this branch, but we are being extra cautious here.
+	if len(config.Preemption.PriorityClasses) <= 0 {
+		priorityClasses = map[string]configuration.PriorityClass{config.Preemption.DefaultPriorityClass: {Priority: 0}}
 	}
 
 	indexedResources := config.IndexedResources
@@ -72,15 +70,15 @@ func NewFairSchedulingAlgo(
 	}
 
 	return &FairSchedulingAlgo{
-		config:                  config,
-		executorRepository:      executorRepository,
-		queueRepository:         queueRepository,
-		priorityClassPriorities: priorities,
-		indexedResources:        indexedResources,
-		maxSchedulingDuration:   maxSchedulingDuration,
-		rand:                    util.NewThreadsafeRand(time.Now().UnixNano()),
-		clock:                   clock.RealClock{},
-		onExecutorScheduled:     func(executor *schedulerobjects.Executor) {},
+		config:                config,
+		executorRepository:    executorRepository,
+		queueRepository:       queueRepository,
+		priorityClasses:       priorityClasses,
+		indexedResources:      indexedResources,
+		maxSchedulingDuration: maxSchedulingDuration,
+		rand:                  util.NewThreadsafeRand(time.Now().UnixNano()),
+		clock:                 clock.RealClock{},
+		onExecutorScheduled:   func(executor *schedulerobjects.Executor) {},
 	}
 }
 
@@ -543,10 +541,12 @@ func (l *FairSchedulingAlgo) totalAllocationByPoolAndQueue(executors []*schedule
 			}
 			jobSchedulingInfo := job.JobSchedulingInfo()
 			if jobSchedulingInfo != nil {
-				allocation.AddResourceList(
-					int32(jobSchedulingInfo.Priority),
-					jobSchedulingInfo.GetTotalResourceRequest(),
-				)
+				priorityClass, ok := l.priorityClasses[jobSchedulingInfo.PriorityClassName]
+				if ok {
+					allocation.AddResourceList(priorityClass.Priority, jobSchedulingInfo.GetTotalResourceRequest())
+				} else {
+					log.Errorf("Job %s has unknown priority class name %s; ignoring the resources allocated to this job.", job.Id(), jobSchedulingInfo.PriorityClassName)
+				}
 			}
 		}
 	}
