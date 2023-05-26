@@ -588,6 +588,9 @@ func (qb *QueryBuilder) annotationGroupTable(key string, normalFilters []*model.
 		return "", err
 	}
 	keyEncoded, err := qb.valueForMatch(key, model.MatchExact)
+	if err != nil {
+		return "", err
+	}
 	annotationKeyCondition := fmt.Sprintf("key = %s", keyEncoded)
 	if whereSql != "" {
 		whereSql = fmt.Sprintf("%s AND %s", whereSql, annotationKeyCondition)
