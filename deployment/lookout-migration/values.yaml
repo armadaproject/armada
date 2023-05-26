@@ -8,6 +8,8 @@ resources:
   requests:
     memory: 128Mi
     cpu: 100m
+# -- Tolerations
+tolerations: []    
 additionalLabels: {}
 additionalVolumeMounts: []
 additionalVolumes: []
