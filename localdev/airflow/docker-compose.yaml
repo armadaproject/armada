@@ -156,7 +156,7 @@ services:
     networks:
       - default
       - kind
-    command: /home/airflow/init.sh && exec celery worker
+    command: celery worker
     healthcheck:
       test:
         - "CMD-SHELL"
