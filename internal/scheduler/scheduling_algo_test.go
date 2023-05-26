@@ -170,12 +170,13 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
 			mockQueueRepo.EXPECT().GetAllQueues().Return(tc.queues, nil).AnyTimes()
 
-			algo := NewFairSchedulingAlgo(
+			algo, err := NewFairSchedulingAlgo(
 				config,
 				time.Second*5,
 				mockExecutorRepo,
 				mockQueueRepo,
 			)
+			require.NoError(t, err)
 
 			// Use a test clock so we can control time
 			algo.clock = clock.NewFakeClock(testfixtures.BaseTime)
@@ -184,7 +185,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			jobDb := jobdb.NewJobDb()
 
 			txn := jobDb.WriteTxn()
-			err := jobDb.Upsert(txn, tc.queuedJobs)
+			err = jobDb.Upsert(txn, tc.queuedJobs)
 			require.NoError(t, err)
 
 			err = jobDb.Upsert(txn, tc.unacknowledgedJobs)
@@ -372,12 +373,13 @@ func TestLegacySchedulingAlgo_TestSchedule_ExecutorOrdering(t *testing.T) {
 			mockQueueRepo := schedulermocks.NewMockQueueRepository(ctrl)
 			mockQueueRepo.EXPECT().GetAllQueues().Return([]*database.Queue{}, nil).AnyTimes()
 
-			algo := NewFairSchedulingAlgo(
+			algo, err := NewFairSchedulingAlgo(
 				config,
 				tc.maxScheduleDuration,
 				mockExecutorRepo,
 				mockQueueRepo,
 			)
+			require.NoError(t, err)
 			scheduledExecutorsIds := []string{}
 			// Use a test clock so we can control time
 			algo.clock = clock.NewFakeClock(testfixtures.BaseTime)

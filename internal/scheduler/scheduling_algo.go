@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"strings"
 	"time"
@@ -56,12 +57,9 @@ func NewFairSchedulingAlgo(
 	maxSchedulingDuration time.Duration,
 	executorRepository database.ExecutorRepository,
 	queueRepository database.QueueRepository,
-) *FairSchedulingAlgo {
-	priorityClasses := config.Preemption.PriorityClasses
-	// The comment on `DefaultPriorityClass` suggests that we should never take
-	// this branch, but we are being extra cautious here.
+) (*FairSchedulingAlgo, error) {
 	if len(config.Preemption.PriorityClasses) <= 0 {
-		priorityClasses = map[string]configuration.PriorityClass{config.Preemption.DefaultPriorityClass: {Priority: 0}}
+		return nil, fmt.Errorf("expected the priority class mapping in the preemption configuration to contain at least one element (associated with the default priority class %s), but it was empty", config.Preemption.DefaultPriorityClass)
 	}
 
 	indexedResources := config.IndexedResources
@@ -69,17 +67,19 @@ func NewFairSchedulingAlgo(
 		indexedResources = []string{"cpu", "memory"}
 	}
 
-	return &FairSchedulingAlgo{
+	algo := &FairSchedulingAlgo{
 		config:                config,
 		executorRepository:    executorRepository,
 		queueRepository:       queueRepository,
-		priorityClasses:       priorityClasses,
+		priorityClasses:       config.Preemption.PriorityClasses,
 		indexedResources:      indexedResources,
 		maxSchedulingDuration: maxSchedulingDuration,
 		rand:                  util.NewThreadsafeRand(time.Now().UnixNano()),
 		clock:                 clock.RealClock{},
 		onExecutorScheduled:   func(executor *schedulerobjects.Executor) {},
 	}
+
+	return algo, nil
 }
 
 // Schedule assigns jobs to nodes in the same way as the old lease call.
