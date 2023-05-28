@@ -40,7 +40,7 @@ func CheckDeps() error {
 		name  string
 		check func() error
 	}{
-		{"docker", DockerCheck},
+		{"docker", dockerCheck},
 		{"go", goCheck},
 		{"kind", kindCheck},
 		{"kubectl", kubectlCheck},

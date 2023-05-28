@@ -91,7 +91,7 @@ func dockerComposeCheck() error {
 	return constraintCheck(version, DOCKER_COMPOSE_VERSION_CONSTRAINT)
 }
 
-func DockerBuildxCheck() error {
+func dockerBuildxCheck() error {
 	version, err := dockerBuildxVersion()
 	if err != nil {
 		return errors.Errorf("error getting version: %v", err)
@@ -99,7 +99,7 @@ func DockerBuildxCheck() error {
 	return constraintCheck(version, DOCKER_BUILDX_VERSION_CONSTRAINT)
 }
 
-func DockerCheck() error {
+func dockerCheck() error {
 	version, err := dockerVersion()
 	if err != nil {
 		return errors.Errorf("error getting version: %v", err)
