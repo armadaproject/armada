@@ -40,12 +40,14 @@ func CheckDeps() error {
 		name  string
 		check func() error
 	}{
-		{"docker", dockerCheck},
+		{"docker", DockerCheck},
 		{"go", goCheck},
 		{"kind", kindCheck},
 		{"kubectl", kubectlCheck},
 		{"protoc", protocCheck},
 		{"sqlc", sqlcCheck},
+		{"docker compose", dockerComposeCheck},
+		{"docker buildx", DockerBuildxCheck},
 	}
 	failures := false
 	for _, check := range checks {
