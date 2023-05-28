@@ -47,7 +47,7 @@ func CheckDeps() error {
 		{"protoc", protocCheck},
 		{"sqlc", sqlcCheck},
 		{"docker compose", dockerComposeCheck},
-		{"docker buildx", DockerBuildxCheck},
+		{"docker buildx", dockerBuildxCheck},
 	}
 	failures := false
 	for _, check := range checks {
