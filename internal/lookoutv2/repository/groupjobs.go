@@ -60,7 +60,7 @@ func (r *SqlGroupJobsRepository) GroupBy(
 	ctx context.Context,
 	filters []*model.Filter,
 	order *model.Order,
-	groupedField string,
+	groupedField *model.GroupedField,
 	aggregates []string,
 	skip int,
 	take int,
@@ -108,10 +108,10 @@ func (r *SqlGroupJobsRepository) GroupBy(
 	}, nil
 }
 
-func rowsToGroups(rows pgx.Rows, groupedField string, aggregates []string) ([]*model.JobGroup, error) {
+func rowsToGroups(rows pgx.Rows, groupedField *model.GroupedField, aggregates []string) ([]*model.JobGroup, error) {
 	var groups []*model.JobGroup
 	for rows.Next() {
-		jobGroup, err := scanGroup(rows, groupedField, aggregates)
+		jobGroup, err := scanGroup(rows, groupedField.Field, aggregates)
 		if err != nil {
 			return nil, err
 		}
