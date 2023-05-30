@@ -1,7 +1,6 @@
 grpcPort: 50051
 httpPort: 8080
 metricsPort: 9000
-profilingPort: 6060 # TODO: Remove before merging.
 corsAllowedOrigins:
   - http://localhost:3000
   - http://localhost:8089
