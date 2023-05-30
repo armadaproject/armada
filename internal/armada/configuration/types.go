@@ -20,7 +20,7 @@ type ArmadaConfig struct {
 	HttpPort    uint16
 	MetricsPort uint16
 	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
-	ProfilingPort *uint16
+	PprofPort *uint16
 
 	CorsAllowedOrigins []string
 
