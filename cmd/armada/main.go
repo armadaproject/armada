@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -46,6 +47,21 @@ func main() {
 
 	log.Info("Starting...")
 
+	// net/http/pprof automatically binds to http.DefaultServeMux.
+	// Create a new instance to ensure only profiling is exposed on this mux.
+	// The endpoints are only exposed if config.ProfilingPort is not nil.
+	pprofMux := http.DefaultServeMux
+	http.DefaultServeMux = http.NewServeMux()
+	if config.ProfilingPort != nil {
+		go func() {
+			server := &http.Server{
+				Addr:    fmt.Sprintf("localhost:%d", *config.ProfilingPort),
+				Handler: pprofMux,
+			}
+			log.Error(server.ListenAndServe())
+		}()
+	}
+
 	// Run services within an errgroup to propagate errors between services.
 	g, ctx := errgroup.WithContext(context.Background())
 
@@ -73,6 +89,8 @@ func main() {
 	startupCompleteCheck := health.NewStartupCompleteChecker()
 	healthChecks := health.NewMultiChecker(startupCompleteCheck)
 	health.SetupHttpMux(mux, healthChecks)
+
+	pprof.Handler()
 
 	// register gRPC API handlers in mux
 	// TODO: Run in errgroup
