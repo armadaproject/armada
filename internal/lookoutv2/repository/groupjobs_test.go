@@ -45,7 +45,9 @@ func TestGroupByQueue(t *testing.T) {
 				Field:     "count",
 				Direction: "DESC",
 			},
-			"queue",
+			&model.GroupedField{
+				Field: "queue",
+			},
 			[]string{},
 			0,
 			10,
@@ -101,7 +103,9 @@ func TestGroupByJobSet(t *testing.T) {
 				Field:     "count",
 				Direction: "DESC",
 			},
-			"jobSet",
+			&model.GroupedField{
+				Field: "jobSet",
+			},
 			[]string{},
 			0,
 			10,
@@ -165,7 +169,9 @@ func TestGroupByState(t *testing.T) {
 				Field:     "count",
 				Direction: "DESC",
 			},
-			"state",
+			&model.GroupedField{
+				Field: "state",
+			},
 			[]string{},
 			0,
 			10,
@@ -350,7 +356,9 @@ func TestGroupByWithFilters(t *testing.T) {
 				Field:     "count",
 				Direction: "DESC",
 			},
-			"state",
+			&model.GroupedField{
+				Field: "state",
+			},
 			[]string{},
 			0,
 			10,
@@ -446,7 +454,9 @@ func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
 				Field:     "submitted",
 				Direction: "DESC",
 			},
-			"jobSet",
+			&model.GroupedField{
+				Field: "jobSet",
+			},
 			[]string{"submitted"},
 			0,
 			10,
@@ -543,7 +553,9 @@ func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
 				Field:     "lastTransitionTime",
 				Direction: "ASC",
 			},
-			"queue",
+			&model.GroupedField{
+				Field: "queue",
+			},
 			[]string{"lastTransitionTime"},
 			0,
 			10,
@@ -680,7 +692,9 @@ func TestGroupJobsComplex(t *testing.T) {
 				Field:     "lastTransitionTime",
 				Direction: "DESC",
 			},
-			"jobSet",
+			&model.GroupedField{
+				Field: "jobSet",
+			},
 			[]string{
 				"submitted",
 				"lastTransitionTime",
@@ -749,7 +763,10 @@ func TestGroupByAnnotation(t *testing.T) {
 				Field:     "count",
 				Direction: "DESC",
 			},
-			"test-annotation-1",
+			&model.GroupedField{
+				Field:        "test-annotation-1",
+				IsAnnotation: true,
+			},
 			[]string{},
 			0,
 			10,
@@ -872,7 +889,10 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 				Field:     "lastTransitionTime",
 				Direction: "DESC",
 			},
-			"a",
+			&model.GroupedField{
+				Field:        "a",
+				IsAnnotation: true,
+			},
 			[]string{
 				"submitted",
 				"lastTransitionTime",
@@ -956,7 +976,9 @@ func TestGroupJobsSkip(t *testing.T) {
 					Field:     "count",
 					Direction: "ASC",
 				},
-				"queue",
+				&model.GroupedField{
+					Field: "queue",
+				},
 				[]string{},
 				skip,
 				take,
@@ -983,7 +1005,9 @@ func TestGroupJobsSkip(t *testing.T) {
 					Field:     "count",
 					Direction: "ASC",
 				},
-				"queue",
+				&model.GroupedField{
+					Field: "queue",
+				},
 				[]string{},
 				skip,
 				take,
@@ -1010,7 +1034,9 @@ func TestGroupJobsSkip(t *testing.T) {
 					Field:     "count",
 					Direction: "ASC",
 				},
-				"queue",
+				&model.GroupedField{
+					Field: "queue",
+				},
 				[]string{},
 				skip,
 				take,
@@ -1022,6 +1048,89 @@ func TestGroupJobsSkip(t *testing.T) {
 				queueGroup(14),
 				queueGroup(15),
 			}, result.Groups)
+		})
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestGroupJobsValidation(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		repo := NewSqlGroupJobsRepository(db)
+
+		t.Run("valid field", func(t *testing.T) {
+			_, err := repo.GroupBy(
+				context.TODO(),
+				[]*model.Filter{},
+				&model.Order{
+					Field:     "count",
+					Direction: "ASC",
+				},
+				&model.GroupedField{
+					Field: "queue",
+				},
+				[]string{},
+				0,
+				100,
+			)
+			assert.NoError(t, err)
+		})
+
+		t.Run("invalid field", func(t *testing.T) {
+			_, err := repo.GroupBy(
+				context.TODO(),
+				[]*model.Filter{},
+				&model.Order{
+					Field:     "count",
+					Direction: "ASC",
+				},
+				&model.GroupedField{
+					Field: "owner",
+				},
+				[]string{},
+				0,
+				100,
+			)
+			assert.Error(t, err)
+		})
+
+		t.Run("valid annotation", func(t *testing.T) {
+			_, err := repo.GroupBy(
+				context.TODO(),
+				[]*model.Filter{},
+				&model.Order{
+					Field:     "count",
+					Direction: "ASC",
+				},
+				&model.GroupedField{
+					Field:        "some-annotation",
+					IsAnnotation: true,
+				},
+				[]string{},
+				0,
+				100,
+			)
+			assert.NoError(t, err)
+		})
+
+		t.Run("valid annotation with same name as column", func(t *testing.T) {
+			_, err := repo.GroupBy(
+				context.TODO(),
+				[]*model.Filter{},
+				&model.Order{
+					Field:     "count",
+					Direction: "ASC",
+				},
+				&model.GroupedField{
+					Field:        "owner",
+					IsAnnotation: true,
+				},
+				[]string{},
+				0,
+				100,
+			)
+			assert.NoError(t, err)
 		})
 
 		return nil

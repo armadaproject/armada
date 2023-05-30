@@ -212,12 +212,15 @@ func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*mod
 
 // CountGroups returns Query that counts the total number of groups created by grouping by groupedField and filtering
 // with filters
-func (qb *QueryBuilder) CountGroups(filters []*model.Filter, groupedField string) (*Query, error) {
+func (qb *QueryBuilder) CountGroups(filters []*model.Filter, groupedField *model.GroupedField) (*Query, error) {
 	err := qb.validateFilters(filters)
 	if err != nil {
 		return nil, errors.Wrap(err, "filters are invalid")
 	}
-	isGroupByAnnotation := qb.isGroupByAnnotation(groupedField)
+	err = qb.validateGroupedField(groupedField)
+	if err != nil {
+		return nil, errors.Wrap(err, "group field is invalid")
+	}
 	normalFilters, annotationFilters := splitFilters(filters)
 
 	allCols, err := qb.fieldsToCols(
@@ -246,19 +249,26 @@ func (qb *QueryBuilder) CountGroups(filters []*model.Filter, groupedField string
 	if err != nil {
 		return nil, err
 	}
-	if isGroupByAnnotation {
-		annotationGroupTable, err := qb.annotationGroupTable(groupedField, normalFilters)
+	var groupCol *queryColumn
+	if groupedField.IsAnnotation {
+		groupCol = &queryColumn{
+			name:   annotationValueCol,
+			table:  userAnnotationLookupTable,
+			abbrev: annotationGroupTableAbbrev,
+		}
+		annotationGroupTable, err := qb.annotationGroupTable(groupedField.Field, normalFilters)
 		if err != nil {
 			return nil, err
 		}
 		fromBuilder.Join(Inner, fmt.Sprintf("( %s )", annotationGroupTable), annotationGroupTableAbbrev, jobIdCol)
+	} else {
+		groupCol, err = qb.getGroupByQueryCol(groupedField.Field, queryTables)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	whereSql, err := qb.queryFiltersToSql(queryFilters, true)
-	if err != nil {
-		return nil, err
-	}
-	groupCol, err := qb.getGroupByQueryCol(groupedField, queryTables)
 	if err != nil {
 		return nil, err
 	}
@@ -283,7 +293,7 @@ func (qb *QueryBuilder) CountGroups(filters []*model.Filter, groupedField string
 func (qb *QueryBuilder) GroupBy(
 	filters []*model.Filter,
 	order *model.Order,
-	groupedField string,
+	groupedField *model.GroupedField,
 	aggregates []string,
 	skip int,
 	take int,
@@ -300,7 +310,10 @@ func (qb *QueryBuilder) GroupBy(
 	if err != nil {
 		return nil, errors.Wrap(err, "aggregates are invalid")
 	}
-	isGroupByAnnotation := qb.isGroupByAnnotation(groupedField)
+	err = qb.validateGroupedField(groupedField)
+	if err != nil {
+		return nil, errors.Wrap(err, "group field is invalid")
+	}
 
 	normalFilters, annotationFilters := splitFilters(filters)
 	fields := util.Concat(
@@ -331,18 +344,25 @@ func (qb *QueryBuilder) GroupBy(
 	if err != nil {
 		return nil, err
 	}
-	if isGroupByAnnotation {
-		annotationGroupTable, err := qb.annotationGroupTable(groupedField, normalFilters)
+	var groupCol *queryColumn
+	if groupedField.IsAnnotation {
+		groupCol = &queryColumn{
+			name:   annotationValueCol,
+			table:  userAnnotationLookupTable,
+			abbrev: annotationGroupTableAbbrev,
+		}
+		annotationGroupTable, err := qb.annotationGroupTable(groupedField.Field, normalFilters)
 		if err != nil {
 			return nil, err
 		}
 		fromBuilder.Join(Inner, fmt.Sprintf("( %s )", annotationGroupTable), annotationGroupTableAbbrev, jobIdCol)
+	} else {
+		groupCol, err = qb.getGroupByQueryCol(groupedField.Field, queryTables)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	groupCol, err := qb.getGroupByQueryCol(groupedField, queryTables)
-	if err != nil {
-		return nil, err
-	}
 	groupBySql := fmt.Sprintf("GROUP BY %s.%s", groupCol.abbrev, groupCol.name)
 	whereSql, err := qb.queryFiltersToSql(queryFilters, true)
 	if err != nil {
@@ -860,15 +880,10 @@ func (qb *QueryBuilder) queryOrderToSql(order *queryOrder) string {
 }
 
 // getGroupByQueryCol finds the groupedField's corresponding column and best table to group by on
-func (qb *QueryBuilder) getGroupByQueryCol(groupedField string, queryTables map[string]bool) (*queryColumn, error) {
-	col, err := qb.lookoutTables.ColumnFromField(groupedField)
+func (qb *QueryBuilder) getGroupByQueryCol(field string, queryTables map[string]bool) (*queryColumn, error) {
+	col, err := qb.lookoutTables.ColumnFromField(field)
 	if err != nil {
-		// Assume it is an annotation
-		return &queryColumn{
-			name:   annotationValueCol,
-			table:  userAnnotationLookupTable,
-			abbrev: annotationGroupTableAbbrev,
-		}, nil
+		return nil, err
 	}
 	return qb.getQueryColumn(col, queryTables)
 }
@@ -1058,15 +1073,19 @@ func (qb *QueryBuilder) validateGroupOrder(order *model.Order) error {
 	return nil
 }
 
-func (qb *QueryBuilder) isGroupByAnnotation(groupedField string) bool {
-	col, err := qb.lookoutTables.ColumnFromField(groupedField)
+func (qb *QueryBuilder) validateGroupedField(groupedField *model.GroupedField) error {
+	if groupedField.IsAnnotation {
+		// No check if is annotation
+		return nil
+	}
+	col, err := qb.lookoutTables.ColumnFromField(groupedField.Field)
 	if err != nil {
-		return true
+		return err
 	}
 	if !qb.lookoutTables.IsGroupable(col) {
-		return true
+		return errors.Errorf("cannot group by field %s", groupedField.Field)
 	}
-	return false
+	return nil
 }
 
 func stateToOrdinal(state string) (int, error) {

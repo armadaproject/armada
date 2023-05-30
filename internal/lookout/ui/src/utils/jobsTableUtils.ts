@@ -3,7 +3,7 @@ import _ from "lodash"
 import { JobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobGroup, JobOrder, Match } from "models/lookoutV2Models"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
-import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { GroupedField, IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 
 import { LookoutColumnFilter } from "../containers/lookoutV2/JobsTableContainer"
 import {
@@ -119,7 +119,7 @@ export const fetchJobs = async (
 export const fetchJobGroups = async (
   rowRequest: FetchRowRequest,
   groupJobsService: IGroupJobsService,
-  groupedColumn: string,
+  groupedColumn: GroupedField,
   columnsToAggregate: string[],
   abortSignal: AbortSignal,
 ) => {

@@ -143,9 +143,9 @@ func TestQueryBuilder_JobCount(t *testing.T) {
 	assert.Equal(t, splitByWhitespace(`
 			SELECT COUNT(DISTINCT j.job_id) FROM job AS j
 			INNER JOIN (
-			    SELECT job_id
-			    FROM user_annotation_lookup
-			    WHERE queue = $1 AND key = $2 AND value = $3
+				SELECT job_id
+				FROM user_annotation_lookup
+				WHERE queue = $1 AND key = $2 AND value = $3
 			) AS ual0 ON j.job_id = ual0.job_id
 			INNER JOIN (
 				SELECT job_id
@@ -194,9 +194,9 @@ func TestQueryBuilder_InsertIntoTempTable(t *testing.T) {
 			INSERT INTO test_table (job_id)
 			SELECT j.job_id FROM job AS j
 			INNER JOIN (
-			    SELECT job_id
-			    FROM user_annotation_lookup
-			    WHERE queue = $1 AND key = $2 AND value = $3
+				SELECT job_id
+				FROM user_annotation_lookup
+				WHERE queue = $1 AND key = $2 AND value = $3
 			) AS ual0 ON j.job_id = ual0.job_id
 			INNER JOIN (
 				SELECT job_id
@@ -215,14 +215,16 @@ func TestQueryBuilder_InsertIntoTempTable(t *testing.T) {
 func TestQueryBuilder_CountGroupsEmpty(t *testing.T) {
 	query, err := NewQueryBuilder(NewTables()).CountGroups(
 		[]*model.Filter{},
-		"state",
+		&model.GroupedField{
+			Field: "state",
+		},
 	)
 	assert.NoError(t, err)
 	assert.Equal(t, splitByWhitespace(`
 			SELECT COUNT(*) FROM (
-			    SELECT j.state
-			    FROM job AS j
-			    GROUP BY j.state
+				SELECT j.state
+				FROM job AS j
+				GROUP BY j.state
 			) AS group_table
 		`),
 		splitByWhitespace(query.Sql))
@@ -232,7 +234,9 @@ func TestQueryBuilder_CountGroupsEmpty(t *testing.T) {
 func TestQueryBuilder_CountGroups(t *testing.T) {
 	query, err := NewQueryBuilder(NewTables()).CountGroups(
 		testFilters,
-		"state",
+		&model.GroupedField{
+			Field: "state",
+		},
 	)
 	assert.NoError(t, err)
 	assert.Equal(t, splitByWhitespace(`
@@ -260,13 +264,16 @@ func TestQueryBuilder_CountGroups(t *testing.T) {
 func TestQueryBuilder_CountGroupsByAnnotation(t *testing.T) {
 	query, err := NewQueryBuilder(NewTables()).CountGroups(
 		testFilters,
-		"custom_annotation",
+		&model.GroupedField{
+			Field:        "custom_annotation",
+			IsAnnotation: true,
+		},
 	)
 	assert.NoError(t, err)
 	assert.Equal(t, splitByWhitespace(`
 			SELECT COUNT(*) FROM (
-			    SELECT ual_group.value
-			    FROM job AS j
+				SELECT ual_group.value
+				FROM job AS j
 				INNER JOIN (
 					SELECT job_id
 					FROM user_annotation_lookup
@@ -277,13 +284,13 @@ func TestQueryBuilder_CountGroupsByAnnotation(t *testing.T) {
 					FROM user_annotation_lookup
 					WHERE queue = $4 AND key = $5 AND value LIKE $6
 				) AS ual1 ON j.job_id = ual1.job_id
-			    INNER JOIN (
-			        SELECT job_id, value
-			        FROM user_annotation_lookup
-			        WHERE queue = $7 AND key = $8
-			    ) AS ual_group ON j.job_id = ual_group.job_id
+				INNER JOIN (
+					SELECT job_id, value
+					FROM user_annotation_lookup
+					WHERE queue = $7 AND key = $8
+				) AS ual_group ON j.job_id = ual_group.job_id
 				WHERE j.queue = $9 AND j.owner LIKE $10
-			    GROUP BY ual_group.value
+				GROUP BY ual_group.value
 			) AS group_table
 		`),
 		splitByWhitespace(query.Sql))
@@ -305,7 +312,9 @@ func TestQueryBuilder_GroupByEmpty(t *testing.T) {
 	query, err := NewQueryBuilder(NewTables()).GroupBy(
 		[]*model.Filter{},
 		nil,
-		"jobSet",
+		&model.GroupedField{
+			Field: "jobSet",
+		},
 		[]string{},
 		0,
 		10,
@@ -328,7 +337,9 @@ func TestQueryBuilder_GroupBy(t *testing.T) {
 			Direction: "DESC",
 			Field:     "count",
 		},
-		"jobSet",
+		&model.GroupedField{
+			Field: "jobSet",
+		},
 		[]string{},
 		0,
 		10,
@@ -363,7 +374,9 @@ func TestQueryBuilder_GroupBySingleAggregate(t *testing.T) {
 			Direction: "ASC",
 			Field:     "submitted",
 		},
-		"jobSet",
+		&model.GroupedField{
+			Field: "jobSet",
+		},
 		[]string{
 			"submitted",
 		},
@@ -400,7 +413,9 @@ func TestQueryBuilder_GroupByMultipleAggregates(t *testing.T) {
 			Direction: "DESC",
 			Field:     "lastTransitionTime",
 		},
-		"jobSet",
+		&model.GroupedField{
+			Field: "jobSet",
+		},
 		[]string{
 			"lastTransitionTime",
 			"submitted",
@@ -438,7 +453,10 @@ func TestQueryBuilder_GroupByAnnotationMultipleAggregates(t *testing.T) {
 			Direction: "DESC",
 			Field:     "lastTransitionTime",
 		},
-		"custom_annotation",
+		&model.GroupedField{
+			Field:        "custom_annotation",
+			IsAnnotation: true,
+		},
 		[]string{
 			"lastTransitionTime",
 			"submitted",
@@ -461,9 +479,9 @@ func TestQueryBuilder_GroupByAnnotationMultipleAggregates(t *testing.T) {
 				WHERE queue = $4 AND key = $5 AND value LIKE $6
 			) AS ual1 ON j.job_id = ual1.job_id
 			INNER JOIN (
-			    SELECT job_id, value
-			    FROM user_annotation_lookup
-			    WHERE queue = $7 AND key = $8
+				SELECT job_id, value
+				FROM user_annotation_lookup
+				WHERE queue = $7 AND key = $8
 			) AS ual_group ON j.job_id = ual_group.job_id
 			WHERE j.queue = $9 AND j.owner LIKE $10
 			GROUP BY ual_group.value
