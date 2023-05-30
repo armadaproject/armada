@@ -52,10 +52,10 @@ func main() {
 	// The profiling endpoints are only exposed if config.ProfilingPort is not nil.
 	pprofMux := http.DefaultServeMux
 	http.DefaultServeMux = http.NewServeMux()
-	if config.ProfilingPort != nil {
+	if config.PprofPort != nil {
 		go func() {
 			server := &http.Server{
-				Addr:    fmt.Sprintf("localhost:%d", *config.ProfilingPort),
+				Addr:    fmt.Sprintf("localhost:%d", *config.PprofPort),
 				Handler: pprofMux,
 			}
 			log := log.NewEntry(log.New())
