@@ -84,13 +84,18 @@ function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () =>
 
   const runs: JobRun[] = []
   for (let i = 0; i < n; i++) {
+    const runState = randomProperty(JobRunState, rand)
+    let node = undefined
+    if (runState !== JobRunState.RunPending && runState !== JobRunState.RunLeased) {
+      node = uuid()
+    }
     runs.push({
       cluster: uuid(),
       exitCode: randomInt(0, 64, rand),
       finished: "2022-12-13T12:19:14.956Z",
       jobId: jobId,
-      jobRunState: randomProperty(JobRunState, rand),
-      node: uuid(),
+      jobRunState: runState,
+      node: node,
       pending: "2022-12-13T12:16:14.956Z",
       runId: uuid(),
       started: "2022-12-13T12:15:14.956Z",

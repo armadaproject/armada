@@ -16,6 +16,7 @@ import JobsContainer from "./containers/JobsContainer"
 import OverviewContainer from "./containers/OverviewContainer"
 import { JobService } from "./services/JobService"
 import LogService from "./services/LogService"
+import { ICordonService } from "./services/lookoutV2/CordonService"
 import { IGetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
 import { ILogService } from "./services/lookoutV2/LogService"
@@ -69,6 +70,7 @@ type AppProps = {
   v2JobSpecService: IGetJobSpecService
   v2LogService: ILogService
   v2UpdateJobsService: UpdateJobsService
+  v2CordonService: ICordonService
   logService: LogService
   overviewAutoRefreshMs: number
   jobSetsAutoRefreshMs: number
@@ -109,6 +111,7 @@ export function App(props: AppProps) {
                           runErrorService={props.v2RunErrorService}
                           jobSpecService={props.v2JobSpecService}
                           logService={props.v2LogService}
+                          cordonService={props.v2CordonService}
                           debug={props.debugEnabled}
                         />
                       }
