@@ -1,3 +1,5 @@
+# -- Tolerations
+tolerations: []
 additionalLabels: {}
 
 scheduler:

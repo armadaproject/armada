@@ -19,7 +19,7 @@ const (
 
 // IsTerminalUnschedulableReason returns true if reason indicates it's not possible to schedule any more jobs in this round.
 func IsTerminalUnschedulableReason(reason string) bool {
-	if reason == UnschedulableReasonMaximumNumberOfJobsScheduled {
+	if reason == UnschedulableReasonMaximumResourcesScheduled {
 		return true
 	}
 	if reason == UnschedulableReasonMaximumNumberOfJobsScheduled {
