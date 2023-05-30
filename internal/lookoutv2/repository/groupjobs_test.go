@@ -45,7 +45,9 @@ func TestGroupByQueue(t *testing.T) {
 				Field:     "count",
 				Direction: "DESC",
 			},
-			"queue",
+			&model.GroupedField{
+				Field: "queue",
+			},
 			[]string{},
 			0,
 			10,
@@ -101,7 +103,9 @@ func TestGroupByJobSet(t *testing.T) {
 				Field:     "count",
 				Direction: "DESC",
 			},
-			"jobSet",
+			&model.GroupedField{
+				Field: "jobSet",
+			},
 			[]string{},
 			0,
 			10,
@@ -165,7 +169,9 @@ func TestGroupByState(t *testing.T) {
 				Field:     "count",
 				Direction: "DESC",
 			},
-			"state",
+			&model.GroupedField{
+				Field: "state",
+			},
 			[]string{},
 			0,
 			10,
@@ -350,7 +356,9 @@ func TestGroupByWithFilters(t *testing.T) {
 				Field:     "count",
 				Direction: "DESC",
 			},
-			"state",
+			&model.GroupedField{
+				Field: "state",
+			},
 			[]string{},
 			0,
 			10,
@@ -446,7 +454,9 @@ func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
 				Field:     "submitted",
 				Direction: "DESC",
 			},
-			"jobSet",
+			&model.GroupedField{
+				Field: "jobSet",
+			},
 			[]string{"submitted"},
 			0,
 			10,
@@ -543,7 +553,9 @@ func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
 				Field:     "lastTransitionTime",
 				Direction: "ASC",
 			},
-			"queue",
+			&model.GroupedField{
+				Field: "queue",
+			},
 			[]string{"lastTransitionTime"},
 			0,
 			10,
@@ -680,7 +692,9 @@ func TestGroupJobsComplex(t *testing.T) {
 				Field:     "lastTransitionTime",
 				Direction: "DESC",
 			},
-			"jobSet",
+			&model.GroupedField{
+				Field: "jobSet",
+			},
 			[]string{
 				"submitted",
 				"lastTransitionTime",
@@ -706,6 +720,220 @@ func TestGroupJobsComplex(t *testing.T) {
 				Aggregates: map[string]string{
 					"submitted":          baseTime.Add(3 * time.Minute).Format(time.RFC3339),
 					"lastTransitionTime": baseTime.Add(5 * time.Minute).Format(time.RFC3339),
+				},
+			},
+		})
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestGroupByAnnotation(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
+		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+
+		manyJobs(10, &createJobsOpts{
+			queue:  queue,
+			jobSet: jobSet,
+			annotations: map[string]string{
+				"test-annotation-1": "test-value-1",
+			},
+		}, converter, store)
+		manyJobs(5, &createJobsOpts{
+			queue:  queue,
+			jobSet: jobSet,
+			annotations: map[string]string{
+				"test-annotation-1": "test-value-2",
+			},
+		}, converter, store)
+		manyJobs(3, &createJobsOpts{
+			queue:  queue,
+			jobSet: jobSet,
+			annotations: map[string]string{
+				"test-annotation-1": "test-value-3",
+			},
+		}, converter, store)
+
+		repo := NewSqlGroupJobsRepository(db)
+		result, err := repo.GroupBy(
+			context.TODO(),
+			[]*model.Filter{},
+			&model.Order{
+				Field:     "count",
+				Direction: "DESC",
+			},
+			&model.GroupedField{
+				Field:        "test-annotation-1",
+				IsAnnotation: true,
+			},
+			[]string{},
+			0,
+			10,
+		)
+		assert.NoError(t, err)
+		assert.Len(t, result.Groups, 3)
+		assert.Equal(t, 3, result.Count)
+		assert.Equal(t, result.Groups, []*model.JobGroup{
+			{
+				Name:       "test-value-1",
+				Count:      10,
+				Aggregates: map[string]string{},
+			},
+			{
+				Name:       "test-value-2",
+				Count:      5,
+				Aggregates: map[string]string{},
+			},
+			{
+				Name:       "test-value-3",
+				Count:      3,
+				Aggregates: map[string]string{},
+			},
+		})
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
+		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+
+		manyJobs(5, &createJobsOpts{
+			queue:  queue,
+			jobSet: "job-set-1",
+			state:  lookout.JobQueued,
+			annotations: map[string]string{
+				"a": "1",
+				"b": "2",
+			},
+			submittedTime: pointer.Time(baseTime),
+		}, converter, store)
+		manyJobs(5, &createJobsOpts{
+			queue:  queue,
+			jobSet: "job-set-2",
+			state:  lookout.JobPending,
+			annotations: map[string]string{
+				"a": "2",
+				"b": "2",
+			},
+			submittedTime:      pointer.Time(baseTime.Add(1 * time.Minute)),
+			lastTransitionTime: pointer.Time(baseTime.Add(10 * time.Minute)),
+		}, converter, store)
+		manyJobs(5, &createJobsOpts{
+			queue:  queue,
+			jobSet: "job-set-3",
+			state:  lookout.JobRunning,
+			annotations: map[string]string{
+				"a": "3",
+				"b": "2",
+			},
+			submittedTime:      pointer.Time(baseTime.Add(3 * time.Minute)),
+			lastTransitionTime: pointer.Time(baseTime.Add(5 * time.Minute)),
+		}, converter, store)
+		manyJobs(2, &createJobsOpts{
+			queue:  queue,
+			jobSet: "job-set-4",
+			state:  lookout.JobPending,
+			annotations: map[string]string{
+				"a": "4",
+				"b": "2",
+			},
+			submittedTime:      pointer.Time(baseTime.Add(20 * time.Minute)),
+			lastTransitionTime: pointer.Time(baseTime.Add(50 * time.Minute)),
+		}, converter, store)
+
+		// Should be excluded
+		manyJobs(5, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: "job-set-3",
+			state:  lookout.JobRunning,
+			annotations: map[string]string{
+				"a": "3",
+				"b": "2",
+			},
+			submittedTime:      pointer.Time(baseTime.Add(3 * time.Minute)),
+			lastTransitionTime: pointer.Time(baseTime.Add(5 * time.Minute)),
+		}, converter, store)
+		manyJobs(2, &createJobsOpts{
+			queue:  queue,
+			jobSet: "job-set-4",
+			state:  lookout.JobPending,
+			annotations: map[string]string{
+				"a": "4",
+				"b": "3",
+			},
+			submittedTime:      pointer.Time(baseTime.Add(20 * time.Minute)),
+			lastTransitionTime: pointer.Time(baseTime.Add(50 * time.Minute)),
+		}, converter, store)
+
+		repo := NewSqlGroupJobsRepository(db)
+		result, err := repo.GroupBy(
+			context.TODO(),
+			[]*model.Filter{
+				{
+					Field: "queue",
+					Value: queue,
+					Match: model.MatchExact,
+				},
+				{
+					IsAnnotation: true,
+					Field:        "b",
+					Value:        "2",
+					Match:        model.MatchExact,
+				},
+			},
+			&model.Order{
+				Field:     "lastTransitionTime",
+				Direction: "DESC",
+			},
+			&model.GroupedField{
+				Field:        "a",
+				IsAnnotation: true,
+			},
+			[]string{
+				"submitted",
+				"lastTransitionTime",
+			},
+			0,
+			10,
+		)
+		assert.NoError(t, err)
+		assert.Len(t, result.Groups, 4)
+		assert.Equal(t, 4, result.Count)
+		assert.Equal(t, result.Groups, []*model.JobGroup{
+			{
+				Name:  "4",
+				Count: 2,
+				Aggregates: map[string]string{
+					"submitted":          baseTime.Add(20 * time.Minute).Format(time.RFC3339),
+					"lastTransitionTime": baseTime.Add(50 * time.Minute).Format(time.RFC3339),
+				},
+			},
+			{
+				Name:  "2",
+				Count: 5,
+				Aggregates: map[string]string{
+					"submitted":          baseTime.Add(1 * time.Minute).Format(time.RFC3339),
+					"lastTransitionTime": baseTime.Add(10 * time.Minute).Format(time.RFC3339),
+				},
+			},
+			{
+				Name:  "3",
+				Count: 5,
+				Aggregates: map[string]string{
+					"submitted":          baseTime.Add(3 * time.Minute).Format(time.RFC3339),
+					"lastTransitionTime": baseTime.Add(5 * time.Minute).Format(time.RFC3339),
+				},
+			},
+			{
+				Name:  "1",
+				Count: 5,
+				Aggregates: map[string]string{
+					"submitted":          baseTime.Format(time.RFC3339),
+					"lastTransitionTime": baseTime.Format(time.RFC3339),
 				},
 			},
 		})
@@ -748,7 +976,9 @@ func TestGroupJobsSkip(t *testing.T) {
 					Field:     "count",
 					Direction: "ASC",
 				},
-				"queue",
+				&model.GroupedField{
+					Field: "queue",
+				},
 				[]string{},
 				skip,
 				take,
@@ -775,7 +1005,9 @@ func TestGroupJobsSkip(t *testing.T) {
 					Field:     "count",
 					Direction: "ASC",
 				},
-				"queue",
+				&model.GroupedField{
+					Field: "queue",
+				},
 				[]string{},
 				skip,
 				take,
@@ -802,7 +1034,9 @@ func TestGroupJobsSkip(t *testing.T) {
 					Field:     "count",
 					Direction: "ASC",
 				},
-				"queue",
+				&model.GroupedField{
+					Field: "queue",
+				},
 				[]string{},
 				skip,
 				take,
@@ -814,6 +1048,89 @@ func TestGroupJobsSkip(t *testing.T) {
 				queueGroup(14),
 				queueGroup(15),
 			}, result.Groups)
+		})
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestGroupJobsValidation(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		repo := NewSqlGroupJobsRepository(db)
+
+		t.Run("valid field", func(t *testing.T) {
+			_, err := repo.GroupBy(
+				context.TODO(),
+				[]*model.Filter{},
+				&model.Order{
+					Field:     "count",
+					Direction: "ASC",
+				},
+				&model.GroupedField{
+					Field: "queue",
+				},
+				[]string{},
+				0,
+				100,
+			)
+			assert.NoError(t, err)
+		})
+
+		t.Run("invalid field", func(t *testing.T) {
+			_, err := repo.GroupBy(
+				context.TODO(),
+				[]*model.Filter{},
+				&model.Order{
+					Field:     "count",
+					Direction: "ASC",
+				},
+				&model.GroupedField{
+					Field: "owner",
+				},
+				[]string{},
+				0,
+				100,
+			)
+			assert.Error(t, err)
+		})
+
+		t.Run("valid annotation", func(t *testing.T) {
+			_, err := repo.GroupBy(
+				context.TODO(),
+				[]*model.Filter{},
+				&model.Order{
+					Field:     "count",
+					Direction: "ASC",
+				},
+				&model.GroupedField{
+					Field:        "some-annotation",
+					IsAnnotation: true,
+				},
+				[]string{},
+				0,
+				100,
+			)
+			assert.NoError(t, err)
+		})
+
+		t.Run("valid annotation with same name as column", func(t *testing.T) {
+			_, err := repo.GroupBy(
+				context.TODO(),
+				[]*model.Filter{},
+				&model.Order{
+					Field:     "count",
+					Direction: "ASC",
+				},
+				&model.GroupedField{
+					Field:        "owner",
+					IsAnnotation: true,
+				},
+				[]string{},
+				0,
+				100,
+			)
+			assert.NoError(t, err)
 		})
 
 		return nil

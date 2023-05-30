@@ -68,3 +68,8 @@ type Order struct {
 	Direction string
 	Field     string
 }
+
+type GroupedField struct {
+	Field        string
+	IsAnnotation bool
+}

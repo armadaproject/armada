@@ -5,9 +5,16 @@ import { JobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobId, JobOrder, Match } from "models/lookoutV2Models"
 import { VariantType } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
-import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { GroupedField, IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { getErrorMessage } from "utils"
-import { ColumnId, JobTableColumn, StandardColumnId } from "utils/jobsTableColumns"
+import {
+  AnnotationColumnId,
+  ColumnId,
+  fromAnnotationColId,
+  isStandardColId,
+  JobTableColumn,
+  StandardColumnId,
+} from "utils/jobsTableColumns"
 import {
   fetchJobGroups,
   fetchJobs,
@@ -167,7 +174,7 @@ export const useFetchJobsTableData = ({
           const { groups, count: totalGroups } = await fetchJobGroups(
             rowRequest,
             groupJobsService,
-            groupedCol,
+            columnToGroupedField(groupedCol),
             colsToAggregate,
             abortController.signal,
           )
@@ -231,5 +238,18 @@ export const useFetchJobsTableData = ({
     rowsToFetch: pendingData,
     setRowsToFetch: setPendingData,
     totalRowCount,
+  }
+}
+
+const columnToGroupedField = (colId: ColumnId): GroupedField => {
+  if (isStandardColId(colId)) {
+    return {
+      field: colId,
+      isAnnotation: false,
+    }
+  }
+  return {
+    field: fromAnnotationColId(colId as AnnotationColumnId),
+    isAnnotation: true,
   }
 }
