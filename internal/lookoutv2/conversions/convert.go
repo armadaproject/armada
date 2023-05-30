@@ -1,12 +1,12 @@
 package conversions
 
 import (
-	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi/operations"
 	"time"
 
 	"github.com/go-openapi/strfmt"
 
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/models"
+	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi/operations"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
