@@ -53,6 +53,7 @@ type CreateJobRunInstruction struct {
 	JobId       string
 	Cluster     string
 	Node        *string
+	Leased      *time.Time
 	Pending     *time.Time
 	JobRunState int32
 }
