@@ -47,7 +47,7 @@ func main() {
 
 	log.Info("Starting...")
 
-	// Importing net/http/pprof automatically binds to profiling endpoints to http.DefaultServeMux.
+	// Importing net/http/pprof automatically binds profiling endpoints to http.DefaultServeMux.
 	// Here, we create a new DefaultServeMux to ensure profiling is exposed on a separate mux.
 	// The profiling endpoints are only exposed if config.ProfilingPort is not nil.
 	pprofMux := http.DefaultServeMux
