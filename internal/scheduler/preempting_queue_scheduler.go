@@ -181,6 +181,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 		NewOversubscribedEvictor(
 			sch.jobRepo,
 			sch.schedulingContext.PriorityClasses,
+			sch.schedulingContext.DefaultPriorityClass,
 			sch.nodeOversubscriptionEvictionProbability,
 			nil,
 		),
@@ -746,6 +747,7 @@ func NewFilteredEvictor(
 func NewOversubscribedEvictor(
 	jobRepo JobRepository,
 	priorityClasses map[string]configuration.PriorityClass,
+	defaultPriorityClass string,
 	perNodeEvictionProbability float64,
 	random *rand.Rand,
 ) *Evictor {
@@ -759,7 +761,6 @@ func NewOversubscribedEvictor(
 	// - nodeFilter being called once before all calls to jobFilter and
 	// - jobFilter being called for all jobs on that node before moving on to another node.
 	var overSubscribedPriorities map[int32]bool
-	prioritiesByName := configuration.PriorityByPriorityClassName(priorityClasses)
 	return &Evictor{
 		jobRepo:         jobRepo,
 		priorityClasses: priorityClasses,
@@ -785,12 +786,15 @@ func NewOversubscribedEvictor(
 				log.Warnf("can't evict job %s: annotations not initialised", job.GetId())
 				return false
 			}
-			info := job.GetRequirements(priorityClasses)
-			if info == nil {
-				return false
+			priorityClassName := job.GetRequirements(priorityClasses).PriorityClassName
+			priorityClass, ok := priorityClasses[priorityClassName]
+			if !ok {
+				priorityClass = priorityClasses[defaultPriorityClass]
 			}
-			p := prioritiesByName[info.PriorityClassName]
-			return overSubscribedPriorities[p]
+			if priorityClass.Preemptible && overSubscribedPriorities[priorityClass.Priority] {
+				return true
+			}
+			return false
 		},
 		postEvictFunc: defaultPostEvictFunc,
 	}
