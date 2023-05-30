@@ -8,9 +8,10 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/binoculars/configuration"
-	"github.com/armadaproject/armada/internal/binoculars/logs"
 	"github.com/armadaproject/armada/internal/binoculars/server"
+	"github.com/armadaproject/armada/internal/binoculars/service"
 	"github.com/armadaproject/armada/internal/common/auth"
+	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/cluster"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
@@ -38,8 +39,15 @@ func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
 
 	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
 
-	logService := logs.NewKubernetesLogService(kubernetesClientProvider)
-	binocularsServer := server.NewBinocularsServer(logService)
+	permissionsChecker := authorization.NewPrincipalPermissionChecker(
+		config.Auth.PermissionGroupMapping,
+		config.Auth.PermissionScopeMapping,
+		config.Auth.PermissionClaimMapping,
+	)
+
+	logService := service.NewKubernetesLogService(kubernetesClientProvider)
+	cordonService := service.NewKubernetesCordonService(config.Cordon, permissionsChecker, kubernetesClientProvider)
+	binocularsServer := server.NewBinocularsServer(logService, cordonService)
 	binoculars.RegisterBinocularsServer(grpcServer, binocularsServer)
 	grpc_prometheus.Register(grpcServer)
 

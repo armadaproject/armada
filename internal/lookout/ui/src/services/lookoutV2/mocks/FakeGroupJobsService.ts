@@ -1,5 +1,5 @@
 import { Job, JobFilter, JobGroup, JobKey, JobOrder } from "models/lookoutV2Models"
-import { GroupJobsResponse, IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { GroupedField, GroupJobsResponse, IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { compareValues, mergeFilters, simulateApiWait } from "utils/fakeJobsUtils"
 
 export default class FakeGroupJobsService implements IGroupJobsService {
@@ -8,7 +8,7 @@ export default class FakeGroupJobsService implements IGroupJobsService {
   async groupJobs(
     filters: JobFilter[],
     order: JobOrder,
-    groupedField: string,
+    groupedField: GroupedField,
     aggregates: string[],
     skip: number,
     take: number,
@@ -40,10 +40,10 @@ const aggregateFieldMap = new Map<string, AggregateField>([
   ["lastTransitionTime", { field: "lastTransitionTime", aggregateType: "Average" }],
 ])
 
-function groupBy(jobs: Job[], field: string, aggregates: string[]): JobGroup[] {
+function groupBy(jobs: Job[], groupedField: GroupedField, aggregates: string[]): JobGroup[] {
   const groups = new Map<string | number, Job[]>()
   for (const job of jobs) {
-    let value = job[field as JobKey]
+    let value = job[groupedField.field as JobKey]
     if (value === undefined) {
       continue
     }

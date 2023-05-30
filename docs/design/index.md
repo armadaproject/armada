@@ -4,12 +4,16 @@ This document is meant to be an overview of Armada for new users. We cover the a
 
 If you just want to learn how to submit jobs to Armada, see:
 
-- [User guide](./user.md)
+- [User guide](../user.md)
+
+If you want to see a quick overview of Armadas components, see:
+
+- [Relationships diagram](./relationships_diagram.md)
 
 ## Architecture
 
 Armada consists of two main components:
-- The Armada server, which is responsible for accepting jobs from users and deciding in what order, and on which Kubernetes cluster, jobs should run. Users submit jobs to the Armada server through the `armadactl` command-line utility or via a gRPC or REST API. 
+- The Armada server, which is responsible for accepting jobs from users and deciding in what order, and on which Kubernetes cluster, jobs should run. Users submit jobs to the Armada server through the `armadactl` command-line utility or via a gRPC or REST API.
 - The Armada executor, of which there is one instance running in each Kubernetes cluster that Armada is connected to. Each Armada executor instance regularly notifies the server of how much spare capacity it has available and requests jobs to run. Users of Armada never interact with the executor directly.
 
 All state relating to the Armada server is stored in [Redis](https://redis.io/), which may use replication combined with failover for redundancy. Hence, the Armada server is itself stateless and is easily replicated by running multiple independent instances. Both the server and the executors are intended to be run in Kubernetes pods. We show a diagram of the architecture below.
@@ -22,7 +26,7 @@ To avoid jobs being lost if a cluster (or cluster executor) becomes unavailable,
 
 ## Jobs and job sets
 
-A job is the most basic unit of work in Armada, and is represented by a Kubernetes pod specification (podspec) with additional metadata specific to Armada. Armada handles creating, running, and removing containers as necessary for each job. Hence, Armada is essentially a system for managing the life cycle of a set of containerised applications representing a batch job. 
+A job is the most basic unit of work in Armada, and is represented by a Kubernetes pod specification (podspec) with additional metadata specific to Armada. Armada handles creating, running, and removing containers as necessary for each job. Hence, Armada is essentially a system for managing the life cycle of a set of containerised applications representing a batch job.
 
 The Armada workflow is:
 
@@ -57,13 +61,13 @@ jobs:
 
 In the above yaml snippet, `podSpec` is a Kubernetes podspec, which consists of one or more containers that contain the user code to be run. In addition, the job specification (jobspec) contains metadata fields specific to Armada:
 
-- `queue`: which of the available job queues the job should be submitted to. 
+- `queue`: which of the available job queues the job should be submitted to.
 - `priority`: the job priority (lower values indicate higher priority).
 - `jobSetId`: jobs with the same `jobSetId` can be followed and cancelled in a single operation. The `jobSetId` has no impact on scheduling.
 
 Queues and scheduling is explained in more detail below.
 
-For more examples, including of jobs spanning multiple nodes, see the [user guide](./user.md).
+For more examples, see the [user guide](../user.md).
 
 ### Job events
 

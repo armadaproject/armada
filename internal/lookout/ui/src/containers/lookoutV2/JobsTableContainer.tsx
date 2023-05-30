@@ -45,7 +45,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGetRunErrorService } from "services/lookoutV2/GetRunErrorService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
-import { JobsTablePreferencesService } from "services/lookoutV2/JobsTablePreferencesService"
+import { JobsTablePreferences, JobsTablePreferencesService } from "services/lookoutV2/JobsTablePreferencesService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import {
   COLUMN_PARSE_TYPES,
@@ -69,9 +69,11 @@ import {
 import { fromRowId, RowId } from "utils/reactTableUtils"
 
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
+import { ICordonService } from "../../services/lookoutV2/CordonService"
+import { CustomViewsService } from "../../services/lookoutV2/CustomViewsService"
 import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
 import { ILogService } from "../../services/lookoutV2/LogService"
-import { waitMillis } from "../../utils"
+import { getErrorMessage, waitMillis } from "../../utils"
 import { EmptyInputError, ParseError } from "../../utils/resourceUtils"
 import styles from "./JobsTableContainer.module.css"
 
@@ -84,6 +86,7 @@ interface JobsTableContainerProps {
   runErrorService: IGetRunErrorService
   jobSpecService: IGetJobSpecService
   logService: ILogService
+  cordonService: ICordonService
   debug: boolean
 }
 
@@ -126,6 +129,7 @@ export const JobsTableContainer = ({
   runErrorService,
   jobSpecService,
   logService,
+  cordonService,
   debug,
 }: JobsTableContainerProps) => {
   const openSnackbar = useCustomSnackbar()
@@ -134,6 +138,7 @@ export const JobsTableContainer = ({
   const navigate = useNavigate()
   const params = useParams()
   const jobsTablePreferencesService = useMemo(() => new JobsTablePreferencesService({ location, navigate, params }), [])
+  const customViewsService = useMemo(() => new CustomViewsService(), [])
   const initialPrefs = useMemo(() => jobsTablePreferencesService.getUserPrefs(), [])
 
   // Columns
@@ -200,6 +205,9 @@ export const JobsTableContainer = ({
     openSnackbar,
   })
 
+  // Custom views (cache)
+  const [customViews, setCustomViews] = useState<string[]>(customViewsService.getAllViews())
+
   // Check if there are grouped columns in initial configuration, and if so enable count column
   useEffect(() => {
     if (grouping.length > 0) {
@@ -225,9 +233,8 @@ export const JobsTableContainer = ({
     [sidebarJobId, jobInfoMap],
   )
 
-  // Update query params with table state
-  useEffect(() => {
-    jobsTablePreferencesService.saveNewPrefs({
+  const prefsFromState = (): JobsTablePreferences => {
+    return {
       groupedColumns: grouping,
       expandedState: expanded,
       pageIndex,
@@ -240,7 +247,55 @@ export const JobsTableContainer = ({
       visibleColumns: columnVisibility,
       sidebarJobId: sidebarJobId,
       sidebarWidth: sidebarWidth,
+    }
+  }
+
+  const setTextFields = (filters: ColumnFiltersState) => {
+    const filterMap = Object.fromEntries(filters.map((f) => [f.id, f]))
+    for (const [id, ref] of Object.entries(textFieldRefs)) {
+      let value = ""
+      if (id in filterMap) {
+        const filter = filterMap[id]
+        value = filter.value as string
+      }
+      if (ref.current) {
+        ref.current.value = value
+      }
+    }
+  }
+
+  const loadPrefs = (prefs: JobsTablePreferences) => {
+    setGrouping(prefs.groupedColumns)
+    setExpanded(prefs.expandedState)
+    setPagination({
+      pageIndex: prefs.pageIndex,
+      pageSize: prefs.pageSize,
     })
+    setLookoutOrder(prefs.order)
+    setSorting(fromLookoutOrder(prefs.order))
+    setColumnSizing(prefs.columnSizing ?? {})
+    setColumnFilterState(prefs.filters)
+    setLookoutFilters(parseLookoutFilters(prefs.filters))
+    setColumnMatches(prefs.columnMatches)
+    const cols = JOB_COLUMNS.concat(...prefs.annotationColumnKeys.map(createAnnotationColumn))
+    setAllColumns(cols)
+    setColumnVisibility(prefs.visibleColumns)
+    setSidebarJobId(prefs.sidebarJobId)
+    setSidebarWidth(prefs.sidebarWidth ?? 600)
+    setSelectedRows({})
+
+    // Have to manually set text fields to the filter values since they are uncontrolled
+    setTextFields(prefs.filters)
+
+    // Load data
+    setRowsToFetch(
+      pendingDataForAllVisibleData(prefs.expandedState, data, prefs.pageSize, prefs.pageIndex * prefs.pageSize),
+    )
+  }
+
+  // Update query params with table state
+  useEffect(() => {
+    jobsTablePreferencesService.saveNewPrefs(prefsFromState())
   }, [
     grouping,
     expanded,
@@ -256,6 +311,27 @@ export const JobsTableContainer = ({
     sidebarJobId,
     sidebarWidth,
   ])
+
+  const addCustomView = (name: string) => {
+    const prefs = prefsFromState()
+    customViewsService.saveView(name, prefs)
+    setCustomViews(customViewsService.getAllViews())
+  }
+
+  const deleteCustomView = (name: string) => {
+    customViewsService.deleteView(name)
+    setCustomViews(customViewsService.getAllViews())
+  }
+
+  const loadCustomView = (name: string) => {
+    try {
+      const prefs = customViewsService.getView(name)
+      loadPrefs(prefs)
+    } catch (e) {
+      console.error(getErrorMessage(e))
+      openSnackbar("Failed to load custom view", "error")
+    }
+  }
 
   const onRefresh = useCallback(() => {
     setSelectedRows({})
@@ -592,6 +668,7 @@ export const JobsTableContainer = ({
           groupedColumns={grouping}
           visibleColumns={visibleColumnIds}
           selectedItemFilters={selectedItemsFilters}
+          customViews={customViews}
           onRefresh={onRefresh}
           onAddAnnotationColumn={addAnnotationCol}
           onRemoveAnnotationColumn={removeAnnotationCol}
@@ -601,6 +678,9 @@ export const JobsTableContainer = ({
           getJobsService={getJobsService}
           updateJobsService={updateJobsService}
           onClearFilters={clearFilters}
+          onAddCustomView={addCustomView}
+          onDeleteCustomView={deleteCustomView}
+          onLoadCustomView={loadCustomView}
         />
         <TableContainer component={Paper}>
           <Table
@@ -670,6 +750,7 @@ export const JobsTableContainer = ({
           runErrorService={runErrorService}
           jobSpecService={jobSpecService}
           logService={logService}
+          cordonService={cordonService}
           sidebarWidth={sidebarWidth}
           onClose={onSideBarClose}
           onWidthChange={setSidebarWidth}

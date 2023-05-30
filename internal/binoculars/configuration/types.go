@@ -6,7 +6,8 @@ import (
 )
 
 type BinocularsConfig struct {
-	Auth configuration.AuthConfig
+	Cordon CordonConfiguration
+	Auth   configuration.AuthConfig
 
 	GrpcPort           uint16
 	HttpPort           uint16
@@ -21,4 +22,8 @@ type BinocularsConfig struct {
 type KubernetesConfiguration struct {
 	Burst int
 	QPS   float32
+}
+
+type CordonConfiguration struct {
+	AdditionalLabels map[string]string
 }

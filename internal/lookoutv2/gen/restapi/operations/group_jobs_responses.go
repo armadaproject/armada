@@ -16,8 +16,7 @@ import (
 // GroupJobsOKCode is the HTTP code returned for type GroupJobsOK
 const GroupJobsOKCode int = 200
 
-/*
-GroupJobsOK Returns job groups from API
+/*GroupJobsOK Returns job groups from API
 
 swagger:response groupJobsOK
 */
@@ -61,8 +60,7 @@ func (o *GroupJobsOK) WriteResponse(rw http.ResponseWriter, producer runtime.Pro
 // GroupJobsBadRequestCode is the HTTP code returned for type GroupJobsBadRequest
 const GroupJobsBadRequestCode int = 400
 
-/*
-GroupJobsBadRequest Error response
+/*GroupJobsBadRequest Error response
 
 swagger:response groupJobsBadRequest
 */
@@ -103,8 +101,7 @@ func (o *GroupJobsBadRequest) WriteResponse(rw http.ResponseWriter, producer run
 	}
 }
 
-/*
-GroupJobsDefault Error response
+/*GroupJobsDefault Error response
 
 swagger:response groupJobsDefault
 */

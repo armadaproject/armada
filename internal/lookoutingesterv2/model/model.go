@@ -52,7 +52,8 @@ type CreateJobRunInstruction struct {
 	RunId       string
 	JobId       string
 	Cluster     string
-	Pending     time.Time
+	Node        *string
+	Pending     *time.Time
 	JobRunState int32
 }
 
@@ -60,6 +61,7 @@ type CreateJobRunInstruction struct {
 type UpdateJobRunInstruction struct {
 	RunId       string
 	Node        *string
+	Pending     *time.Time
 	Started     *time.Time
 	Finished    *time.Time
 	JobRunState *int32
