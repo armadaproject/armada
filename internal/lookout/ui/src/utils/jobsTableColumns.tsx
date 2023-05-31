@@ -446,6 +446,7 @@ export const createAnnotationColumn = (annotationKey: string): JobTableColumn =>
     displayName: annotationKey,
     additionalOptions: {
       enableColumnFilter: true,
+      enableGrouping: true,
     },
     additionalMetadata: {
       annotation: {

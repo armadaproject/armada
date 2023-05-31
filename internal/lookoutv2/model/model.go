@@ -13,6 +13,7 @@ const (
 	MatchLessThan             = "lessThan"
 	MatchGreaterThanOrEqualTo = "greaterThanOrEqualTo"
 	MatchLessThanOrEqualTo    = "lessThanOrEqualTo"
+	MatchExists               = "exists"
 
 	DirectionAsc  = "ASC"
 	DirectionDesc = "DESC"
