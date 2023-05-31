@@ -44,6 +44,9 @@ function groupBy(jobs: Job[], groupedField: GroupedField, aggregates: string[]):
   const groups = new Map<string | number, Job[]>()
   for (const job of jobs) {
     let value = job[groupedField.field as JobKey]
+    if (groupedField.isAnnotation) {
+      value = job.annotations[groupedField.field]
+    }
     if (value === undefined) {
       continue
     }

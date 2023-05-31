@@ -30,7 +30,7 @@ type Filter struct {
 
 	// match
 	// Required: true
-	// Enum: [exact anyOf startsWith contains greaterThan lessThan greaterThanOrEqualTo lessThanOrEqualTo]
+	// Enum: [exact anyOf startsWith contains greaterThan lessThan greaterThanOrEqualTo lessThanOrEqualTo exists]
 	Match string `json:"match"`
 
 	// value
@@ -77,7 +77,7 @@ var filterTypeMatchPropEnum []interface{}
 
 func init() {
 	var res []string
-	if err := json.Unmarshal([]byte(`["exact","anyOf","startsWith","contains","greaterThan","lessThan","greaterThanOrEqualTo","lessThanOrEqualTo"]`), &res); err != nil {
+	if err := json.Unmarshal([]byte(`["exact","anyOf","startsWith","contains","greaterThan","lessThan","greaterThanOrEqualTo","lessThanOrEqualTo","exists"]`), &res); err != nil {
 		panic(err)
 	}
 	for _, v := range res {
@@ -110,6 +110,9 @@ const (
 
 	// FilterMatchLessThanOrEqualTo captures enum value "lessThanOrEqualTo"
 	FilterMatchLessThanOrEqualTo string = "lessThanOrEqualTo"
+
+	// FilterMatchExists captures enum value "exists"
+	FilterMatchExists string = "exists"
 )
 
 // prop value enum

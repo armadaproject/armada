@@ -25,23 +25,25 @@ import (
 )
 
 const (
-	TestJobset        = "testJobset"
-	TestQueue         = "testQueue"
-	TestPool          = "testPool"
-	TestHostnameLabel = "kubernetes.io/hostname"
-	PriorityClass0    = "priority-0"
-	PriorityClass1    = "priority-1"
-	PriorityClass2    = "priority-2"
-	PriorityClass3    = "priority-3"
+	TestJobset                   = "testJobset"
+	TestQueue                    = "testQueue"
+	TestPool                     = "testPool"
+	TestHostnameLabel            = "kubernetes.io/hostname"
+	PriorityClass0               = "priority-0"
+	PriorityClass1               = "priority-1"
+	PriorityClass2               = "priority-2"
+	PriorityClass2NonPreemptible = "priority-2-non-preemptible"
+	PriorityClass3               = "priority-3"
 )
 
 var (
 	BaseTime, _         = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 	TestPriorityClasses = map[string]configuration.PriorityClass{
-		PriorityClass0: {Priority: 0, Preemptible: true},
-		PriorityClass1: {Priority: 1, Preemptible: true},
-		PriorityClass2: {Priority: 2, Preemptible: true},
-		PriorityClass3: {Priority: 3, Preemptible: false},
+		PriorityClass0:               {Priority: 0, Preemptible: true},
+		PriorityClass1:               {Priority: 1, Preemptible: true},
+		PriorityClass2:               {Priority: 2, Preemptible: true},
+		PriorityClass2NonPreemptible: {Priority: 2, Preemptible: false},
+		PriorityClass3:               {Priority: 3, Preemptible: false},
 	}
 	TestDefaultPriorityClass         = PriorityClass3
 	TestPriorities                   = []int32{0, 1, 2, 3}
