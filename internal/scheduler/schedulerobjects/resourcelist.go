@@ -8,9 +8,22 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
+// Most jobs specify 3 or fewer resources. We add 1 extra for margin.
+const resourceListDefaultSize = 4
+
+// NewResourceList returns a new ResourceList, where the backing map has initial capacity n.
+func NewResourceList(n int) ResourceList {
+	return ResourceList{Resources: make(map[string]resource.Quantity, n)}
+}
+
+// NewResourceListWithDefaultSize returns a new ResourceList, where the backing map has default initial capacity.
+func NewResourceListWithDefaultSize() ResourceList {
+	return ResourceList{Resources: make(map[string]resource.Quantity, resourceListDefaultSize)}
+}
+
 func ResourceListFromV1ResourceList(rl v1.ResourceList) ResourceList {
 	rv := ResourceList{
-		Resources: make(map[string]resource.Quantity),
+		Resources: make(map[string]resource.Quantity, len(rl)),
 	}
 	for t, q := range rl {
 		rv.Resources[string(t)] = q
@@ -19,7 +32,7 @@ func ResourceListFromV1ResourceList(rl v1.ResourceList) ResourceList {
 }
 
 func V1ResourceListFromResourceList(rl ResourceList) v1.ResourceList {
-	rv := make(v1.ResourceList)
+	rv := make(v1.ResourceList, len(rl.Resources))
 	for t, q := range rl.Resources {
 		rv[v1.ResourceName(t)] = q.DeepCopy()
 	}
@@ -110,9 +123,7 @@ func (a QuantityByPriorityAndResourceType) IsStrictlyNonNegative() bool {
 }
 
 func (a QuantityByPriorityAndResourceType) AggregateByResource() ResourceList {
-	rv := ResourceList{
-		Resources: make(map[string]resource.Quantity),
-	}
+	rv := NewResourceListWithDefaultSize()
 	for _, rl := range a {
 		rv.Add(rl)
 	}
@@ -139,21 +150,30 @@ func (a QuantityByPriorityAndResourceType) MaxAggregatedByResource(p int32, rl R
 	}
 }
 
-func (a *ResourceList) Get(resourceType string) resource.Quantity {
-	if a.Resources == nil {
-		return resource.Quantity{}
-	}
-	return a.Resources[resourceType]
+func (rl *ResourceList) Get(resourceType string) resource.Quantity {
+	return rl.Resources[resourceType]
+}
+
+func (rl *ResourceList) Set(t string, q resource.Quantity) {
+	rl.initialise()
+	rl.Resources[t] = q
 }
 
 func (a *ResourceList) Add(b ResourceList) {
-	if a.Resources == nil {
-		a.Resources = make(map[string]resource.Quantity)
-	}
+	a.initialise()
 	for t, qb := range b.Resources {
 		qa := a.Resources[t]
 		qa.Add(qb)
 		a.Resources[t] = qa
+	}
+}
+
+func (a *ResourceList) AddV1ResourceList(b v1.ResourceList) {
+	a.initialise()
+	for t, qb := range b {
+		qa := a.Resources[string(t)]
+		qa.Add(qb)
+		a.Resources[string(t)] = qa
 	}
 }
 
@@ -181,7 +201,7 @@ func (rl *ResourceList) SubQuantity(resourceType string, quantity resource.Quant
 }
 
 func (rl ResourceList) DeepCopy() ResourceList {
-	if rl.Resources == nil {
+	if len(rl.Resources) == 0 {
 		return ResourceList{}
 	}
 	rv := ResourceList{
@@ -191,6 +211,14 @@ func (rl ResourceList) DeepCopy() ResourceList {
 		rv.Resources[t] = q.DeepCopy()
 	}
 	return rv
+}
+
+// Zero zeroes out rl in-place, such that all quantities have value 0.
+func (rl ResourceList) Zero() {
+	for t, q := range rl.Resources {
+		q.Set(0)
+		rl.Resources[t] = q
+	}
 }
 
 func (a ResourceList) IsZero() bool {

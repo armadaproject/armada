@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
-	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -230,25 +230,26 @@ func GangIdAndCardinalityFromAnnotations(annotations map[string]string) (string,
 	return gangId, gangCardinality, true, nil
 }
 
-func ResourceListAsWeightedApproximateFloat64(resourceScarcity map[string]float64, rl schedulerobjects.ResourceList) float64 {
-	usage := 0.0
-	for resourceName, quantity := range rl.Resources {
-		scarcity := resourceScarcity[resourceName]
-		usage += armadaresource.QuantityAsFloat64(quantity) * scarcity
+// TODO: Test.
+func ResourceListAsWeightedMillis(weights map[string]float64, rl schedulerobjects.ResourceList) int64 {
+	var rv int64
+	for t, f := range weights {
+		q := rl.Get(t)
+		rv += int64(math.Round(float64(q.MilliValue()) * f))
 	}
-	return usage
+	return rv
 }
 
 func PodRequirementsFromLegacySchedulerJobs[S ~[]E, E interfaces.LegacySchedulerJob](jobs S, priorityClasses map[string]configuration.PriorityClass) []*schedulerobjects.PodRequirements {
-	rv := make([]*schedulerobjects.PodRequirements, 0, len(jobs))
-	for _, job := range jobs {
-		rv = append(rv, PodRequirementFromLegacySchedulerJob(job, priorityClasses))
+	rv := make([]*schedulerobjects.PodRequirements, len(jobs))
+	for i, job := range jobs {
+		rv[i] = PodRequirementFromLegacySchedulerJob(job, priorityClasses)
 	}
 	return rv
 }
 
 func PodRequirementFromLegacySchedulerJob[E interfaces.LegacySchedulerJob](job E, priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
-	annotations := make(map[string]string)
+	annotations := make(map[string]string, len(configuration.ArmadaManagedAnnotations)+len(schedulerconfig.ArmadaSchedulerManagedAnnotations))
 	for _, key := range configuration.ArmadaManagedAnnotations {
 		if value, ok := job.GetAnnotations()[key]; ok {
 			annotations[key] = value

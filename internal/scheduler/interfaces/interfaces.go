@@ -12,6 +12,7 @@ type LegacySchedulerJob interface {
 	GetJobSet() string
 	GetAnnotations() map[string]string
 	GetRequirements(map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo
+	GetPriorityClassName() string
 }
 
 func PodRequirementFromLegacySchedulerJob(job LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {

@@ -24,33 +24,39 @@ func TestInMemoryJobRepository(t *testing.T) {
 			Id:       "3",
 			Priority: 1,
 			Created:  T.Add(3 * time.Second),
+			PodSpec:  &v1.PodSpec{},
 		},
 		{
 			Queue:    "A",
 			Id:       "1",
 			Priority: 1,
 			Created:  T.Add(1 * time.Second),
+			PodSpec:  &v1.PodSpec{},
 		},
 		{
 			Queue:    "A",
 			Id:       "2",
 			Priority: 1,
 			Created:  T.Add(2 * time.Second),
+			PodSpec:  &v1.PodSpec{},
 		},
 		{
 			Queue:    "A",
 			Id:       "5",
 			Priority: 3,
+			PodSpec:  &v1.PodSpec{},
 		},
 		{
 			Queue:    "A",
 			Id:       "0",
 			Priority: 0,
+			PodSpec:  &v1.PodSpec{},
 		},
 		{
 			Queue:    "A",
 			Id:       "4",
 			Priority: 2,
+			PodSpec:  &v1.PodSpec{},
 		},
 	}
 	legacySchedulerjobs := make([]interfaces.LegacySchedulerJob, len(jobs))

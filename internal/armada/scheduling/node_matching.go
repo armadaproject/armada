@@ -80,9 +80,17 @@ func MatchSchedulingRequirements(
 }
 
 func isLargeEnough(job *api.Job, minimumJobSize armadaresource.ComputeResources) bool {
-	resourceRequest := job.TotalResourceRequest().DeepCopy()
-	resourceRequest.Sub(minimumJobSize)
-	return resourceRequest.IsValid()
+	if len(minimumJobSize) == 0 {
+		return true
+	}
+	rl := job.TotalResourceRequestAsResourceList()
+	for t, limit := range minimumJobSize {
+		q := rl.Get(t)
+		if limit.Cmp(q) == 1 {
+			return false
+		}
+	}
+	return true
 }
 
 // matchAnyNodeType returns true if the pod can be scheduled on at least one node type.

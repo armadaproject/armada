@@ -258,3 +258,34 @@ func TestPodRequirementsFromPod(t *testing.T) {
 	// in view of the modification made to "rv" above.
 	assert.Len(t, pod.Annotations, 2)
 }
+
+func BenchmarkCollapsePodSpecContainers(b *testing.B) {
+	podSpec := &v1.PodSpec{
+		Containers: []v1.Container{
+			{
+				Resources: v1.ResourceRequirements{
+					Requests: v1.ResourceList{
+						"cpu":            resource.MustParse("1"),
+						"memory":         resource.MustParse("1Gi"),
+						"nvidia.com/gpu": resource.MustParse("1"),
+					},
+				},
+			},
+		},
+		InitContainers: []v1.Container{
+			{
+				Resources: v1.ResourceRequirements{
+					Requests: v1.ResourceList{
+						"cpu":            resource.MustParse("2"),
+						"memory":         resource.MustParse("1Gi"),
+						"nvidia.com/gpu": resource.MustParse("0"),
+					},
+				},
+			},
+		},
+	}
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		CollapsePodSpecContainers(podSpec)
+	}
+}

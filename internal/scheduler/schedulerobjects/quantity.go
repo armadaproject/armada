@@ -2,6 +2,7 @@ package schedulerobjects
 
 import (
 	"encoding/binary"
+	"math"
 
 	"k8s.io/apimachinery/pkg/api/resource"
 )
@@ -25,4 +26,13 @@ func encodeInt(val int64) []byte {
 
 	binary.BigEndian.PutUint64(buf, uint64(scaled))
 	return buf
+}
+
+// scaleQuantity scales q in-place by a factor f.
+// This can overflow if the quantity can't be expressed as an int64.
+//
+// TODO: Test.
+func ScaleQuantity(q resource.Quantity, f float64) resource.Quantity {
+	q.SetMilli(int64(math.Round(float64(q.MilliValue()) * f)))
+	return q
 }
