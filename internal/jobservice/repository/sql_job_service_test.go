@@ -172,9 +172,9 @@ func TestCleanUpExpiredJobsAnsJobSets(t *testing.T) {
 		response, err = r.GetJobStatus(ctx, "jobs-id")
 		require.Equal(t, responseExpected2, response)
 		require.NoError(t, err)
-
 	})
 }
+
 func TestCleanupJobSetAndJobsHappy(t *testing.T) {
 	WithSqlServiceRepo(purgeTime, func(r SQLJobService) {
 		ctx := context.Background()
