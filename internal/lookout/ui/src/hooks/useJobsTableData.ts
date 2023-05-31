@@ -19,6 +19,7 @@ import {
   fetchJobGroups,
   fetchJobs,
   FetchRowRequest,
+  getFiltersForGroupedAnnotations,
   getFiltersForRows,
   groupsToRows,
   jobsToRows,
@@ -166,6 +167,10 @@ export const useFetchJobsTableData = ({
           setJobInfoMap(new Map([...jobInfoMap.entries(), ...jobs.map((j): [JobId, Job] => [j.jobId, j])]))
         } else {
           const groupedCol = groupedColumns[expandedLevel]
+          const groupedField = columnToGroupedField(groupedCol)
+
+          // Only relevant if we are grouping by annotations: Filter by all remaining annotations in the group by filter
+          rowRequest.filters.push(...getFiltersForGroupedAnnotations(groupedColumns.slice(expandedLevel + 1)))
 
           const colsToAggregate = visibleColumns
             .filter((col) => aggregatableFields.has(col))
@@ -174,11 +179,11 @@ export const useFetchJobsTableData = ({
           const { groups, count: totalGroups } = await fetchJobGroups(
             rowRequest,
             groupJobsService,
-            columnToGroupedField(groupedCol),
+            groupedField,
             colsToAggregate,
             abortController.signal,
           )
-          newData = groupsToRows(groups, parentRowInfo?.rowId, groupedCol)
+          newData = groupsToRows(groups, parentRowInfo?.rowId, groupedField)
           totalCount = totalGroups
         }
       } catch (err) {

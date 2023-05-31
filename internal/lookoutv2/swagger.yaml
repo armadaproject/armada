@@ -204,6 +204,7 @@ definitions:
           - lessThan
           - greaterThanOrEqualTo
           - lessThanOrEqualTo
+          - exists
         x-nullable: false
       isAnnotation:
         type: boolean
