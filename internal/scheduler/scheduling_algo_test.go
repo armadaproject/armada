@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"testing"
 	"time"
 
@@ -19,8 +20,7 @@ import (
 
 func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 	tests := map[string]struct {
-		perQueueLimit                    map[string]float64
-		maxUnacknowledgedJobsPerExecutor uint
+		schedulingConfig configuration.SchedulingConfig
 
 		executors []*schedulerobjects.Executor
 		queues    []*database.Queue
@@ -37,6 +37,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		expectedScheduledIndices map[string][]int
 	}{
 		"fill up both clusters": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+
 			executors: []*schedulerobjects.Executor{
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.Test1Node32CoreExecutor("executor2"),
@@ -50,6 +52,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			},
 		},
 		"one executor stale": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+
 			executors: []*schedulerobjects.Executor{
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.WithLastUpdateTimeExecutor(testfixtures.BaseTime.Add(-1*time.Hour), testfixtures.Test1Node32CoreExecutor("executor2")),
@@ -62,6 +66,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			},
 		},
 		"one executor exceeds unacknowledged": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+
 			executors: []*schedulerobjects.Executor{
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.Test1Node32CoreExecutor("executor2"),
@@ -80,6 +86,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			},
 		},
 		"one executor full": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+
 			executors: []*schedulerobjects.Executor{
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.Test1Node32CoreExecutor("executor2"),
@@ -98,7 +106,12 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			},
 		},
 		"user is at usage cap before scheduling": {
-			perQueueLimit: map[string]float64{"cpu": 0.5},
+			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
+				map[int32]map[string]float64{
+					testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority: {"cpu": 0.5},
+				},
+				testfixtures.TestSchedulingConfig(),
+			),
 
 			executors: []*schedulerobjects.Executor{
 				testfixtures.Test1Node32CoreExecutor("executor1"),
@@ -116,8 +129,12 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			expectedScheduledIndices: nil,
 		},
 		"user hits usage cap during scheduling": {
-			perQueueLimit:                    map[string]float64{"cpu": 0.5},
-			maxUnacknowledgedJobsPerExecutor: 1,
+			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
+				map[int32]map[string]float64{
+					testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority: {"cpu": 0.5},
+				},
+				testfixtures.TestSchedulingConfig(),
+			),
 
 			executors: []*schedulerobjects.Executor{
 				testfixtures.Test1Node32CoreExecutor("executor1"),
@@ -137,6 +154,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			},
 		},
 		"no queuedJobs to schedule": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+
 			executors: []*schedulerobjects.Executor{
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.Test1Node32CoreExecutor("executor2"),
@@ -146,6 +165,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			expectedScheduledIndices: nil,
 		},
 		"no executor available": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+
 			executors: []*schedulerobjects.Executor{},
 			queues:    []*database.Queue{testfixtures.TestDbQueue()},
 
@@ -153,7 +174,12 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			expectedScheduledIndices: nil,
 		},
 		"The scheduling algorithm computes allocated resources by priority class, not by per-queue priority.": {
-			perQueueLimit: map[string]float64{"cpu": 0.5},
+			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
+				map[int32]map[string]float64{
+					testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority: {"cpu": 0.5},
+				},
+				testfixtures.TestSchedulingConfig(),
+			),
 
 			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
 			queues:    []*database.Queue{testfixtures.TestDbQueue()},
@@ -181,15 +207,6 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
 
-			config := testfixtures.TestSchedulingConfig()
-			if tc.perQueueLimit != nil {
-				priorityClass := testfixtures.TestPriorityClasses[testfixtures.PriorityClass3]
-				config = testfixtures.WithPerPriorityLimitsConfig(map[int32]map[string]float64{priorityClass.Priority: tc.perQueueLimit}, config)
-			}
-			if tc.maxUnacknowledgedJobsPerExecutor != 0 {
-				config = testfixtures.WithMaxUnacknowledgedJobsPerExecutor(tc.maxUnacknowledgedJobsPerExecutor, config)
-			}
-
 			ctrl := gomock.NewController(t)
 
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
@@ -199,7 +216,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			mockQueueRepo.EXPECT().GetAllQueues().Return(tc.queues, nil).AnyTimes()
 
 			algo, err := NewFairSchedulingAlgo(
-				config,
+				tc.schedulingConfig,
 				time.Second*5,
 				mockExecutorRepo,
 				mockQueueRepo,
