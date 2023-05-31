@@ -18,36 +18,35 @@ import (
 )
 
 func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
-	queuedJobs := make([]*jobdb.Job, 10)
-	for i := 0; i < 10; i++ {
-		queuedJobs[i] = testfixtures.Test16CpuJob(testfixtures.TestQueue, testfixtures.PriorityClass3).WithQueued(true)
-	}
-	runningJobs := []*jobdb.Job{
-		testfixtures.Test16CpuJob(testfixtures.TestQueue, testfixtures.PriorityClass3).WithQueued(false).WithNewRun("executor1", "executor1-node"),
-		testfixtures.Test16CpuJob(testfixtures.TestQueue, testfixtures.PriorityClass3).WithQueued(false).WithNewRun("executor1", "executor1-node"),
-	}
 	tests := map[string]struct {
-		executors                        []*schedulerobjects.Executor
-		queues                           []*database.Queue
-		queuedJobs                       []*jobdb.Job
-		runningJobs                      []*jobdb.Job
-		unacknowledgedJobs               []*jobdb.Job
 		perQueueLimit                    map[string]float64
 		maxUnacknowledgedJobsPerExecutor uint
-		expectedJobs                     map[string]string // map of jobId to name of executor on which it should be scheduled
+
+		executors []*schedulerobjects.Executor
+		queues    []*database.Queue
+
+		existingJobs []*jobdb.Job
+		// Map from (executor ID, node name) to indices of acknowledged jobs for that node.
+		existingRunningIndices map[string]map[string][]int
+		// Map from (executor ID, node name) to indices of unacknowledged jobs for that node.
+		existingUnacknowledgedIndices map[string]map[string][]int
+
+		queuedJobs []*jobdb.Job
+
+		// Map from executor ID to indices of jobs that we expect to be scheduled.
+		expectedScheduledIndices map[string][]int
 	}{
 		"fill up both clusters": {
 			executors: []*schedulerobjects.Executor{
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
-			queues:     []*database.Queue{testfixtures.TestDbQueue()},
-			queuedJobs: queuedJobs,
-			expectedJobs: map[string]string{
-				queuedJobs[0].Id(): "executor1",
-				queuedJobs[1].Id(): "executor1",
-				queuedJobs[2].Id(): "executor2",
-				queuedJobs[3].Id(): "executor2",
+			queues: []*database.Queue{testfixtures.TestDbQueue()},
+
+			queuedJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			expectedScheduledIndices: map[string][]int{
+				"executor1": {0, 1},
+				"executor2": {2, 3},
 			},
 		},
 		"one executor stale": {
@@ -55,11 +54,11 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.WithLastUpdateTimeExecutor(testfixtures.BaseTime.Add(-1*time.Hour), testfixtures.Test1Node32CoreExecutor("executor2")),
 			},
-			queues:     []*database.Queue{testfixtures.TestDbQueue()},
-			queuedJobs: queuedJobs,
-			expectedJobs: map[string]string{
-				queuedJobs[0].Id(): "executor1",
-				queuedJobs[1].Id(): "executor1",
+			queues: []*database.Queue{testfixtures.TestDbQueue()},
+
+			queuedJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			expectedScheduledIndices: map[string][]int{
+				"executor1": {0, 1},
 			},
 		},
 		"one executor exceeds unacknowledged": {
@@ -67,12 +66,17 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
-			queues:             []*database.Queue{testfixtures.TestDbQueue()},
-			queuedJobs:         queuedJobs,
-			unacknowledgedJobs: runningJobs,
-			expectedJobs: map[string]string{
-				queuedJobs[0].Id(): "executor2",
-				queuedJobs[1].Id(): "executor2",
+			queues: []*database.Queue{testfixtures.TestDbQueue()},
+
+			existingJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 2),
+			existingUnacknowledgedIndices: map[string]map[string][]int{
+				"executor1": {"executor1-node": {0, 1}},
+			},
+
+			queuedJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+
+			expectedScheduledIndices: map[string][]int{
+				"executor2": {0, 1},
 			},
 		},
 		"one executor full": {
@@ -80,37 +84,56 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
-			queues:      []*database.Queue{testfixtures.TestDbQueue()},
-			queuedJobs:  queuedJobs,
-			runningJobs: runningJobs,
-			expectedJobs: map[string]string{
-				queuedJobs[0].Id(): "executor2",
-				queuedJobs[1].Id(): "executor2",
+			queues: []*database.Queue{testfixtures.TestDbQueue()},
+
+			existingJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 2),
+			existingRunningIndices: map[string]map[string][]int{
+				"executor1": {"executor1-node": {0, 1}},
+			},
+
+			queuedJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+
+			expectedScheduledIndices: map[string][]int{
+				"executor2": {0, 1},
 			},
 		},
 		"user is at usage cap before scheduling": {
+			perQueueLimit: map[string]float64{"cpu": 0.5},
+
 			executors: []*schedulerobjects.Executor{
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
-			queues:        []*database.Queue{testfixtures.TestDbQueue()},
-			queuedJobs:    queuedJobs,
-			runningJobs:   []*jobdb.Job{runningJobs[0], runningJobs[1]},
-			perQueueLimit: map[string]float64{"cpu": 0.5},
-			expectedJobs:  map[string]string{},
+			queues: []*database.Queue{testfixtures.TestDbQueue()},
+
+			existingJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 2),
+			existingRunningIndices: map[string]map[string][]int{
+				"executor1": {"executor1-node": {0, 1}},
+			},
+
+			queuedJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+
+			expectedScheduledIndices: nil,
 		},
 		"user hits usage cap during scheduling": {
+			perQueueLimit:                    map[string]float64{"cpu": 0.5},
+			maxUnacknowledgedJobsPerExecutor: 1,
+
 			executors: []*schedulerobjects.Executor{
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
-			queues:                           []*database.Queue{testfixtures.TestDbQueue()},
-			queuedJobs:                       queuedJobs,
-			runningJobs:                      []*jobdb.Job{runningJobs[0]},
-			perQueueLimit:                    map[string]float64{"cpu": 0.5},
-			maxUnacknowledgedJobsPerExecutor: 1,
-			expectedJobs: map[string]string{
-				queuedJobs[0].Id(): "executor1",
+			queues: []*database.Queue{testfixtures.TestDbQueue()},
+
+			existingJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 1),
+			existingRunningIndices: map[string]map[string][]int{
+				"executor1": {"executor1-node": {0}},
+			},
+
+			queuedJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+
+			expectedScheduledIndices: map[string][]int{
+				"executor1": {0},
 			},
 		},
 		"no queuedJobs to schedule": {
@@ -118,29 +141,38 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
-			queues:       []*database.Queue{testfixtures.TestDbQueue()},
-			expectedJobs: map[string]string{},
+			queues: []*database.Queue{testfixtures.TestDbQueue()},
+
+			expectedScheduledIndices: nil,
 		},
 		"no executor available": {
-			executors:    []*schedulerobjects.Executor{},
-			queues:       []*database.Queue{testfixtures.TestDbQueue()},
-			queuedJobs:   queuedJobs,
-			expectedJobs: map[string]string{},
+			executors: []*schedulerobjects.Executor{},
+			queues:    []*database.Queue{testfixtures.TestDbQueue()},
+
+			queuedJobs:               testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			expectedScheduledIndices: nil,
 		},
 		"The scheduling algorithm computes allocated resources by priority class, not by per-queue priority.": {
-			executors:   []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
-			runningJobs: []*jobdb.Job{runningJobs[0].WithPriority(0)},
-			queues:      []*database.Queue{testfixtures.TestDbQueue()},
+			perQueueLimit: map[string]float64{"cpu": 0.5},
+
+			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			queues:    []*database.Queue{testfixtures.TestDbQueue()},
+
+			existingJobs: []*jobdb.Job{testfixtures.Test16CpuJob(testfixtures.TestQueue, testfixtures.PriorityClass3).WithPriority(0)},
+			existingRunningIndices: map[string]map[string][]int{
+				"executor1": {"executor1-node": {0}},
+			},
+
 			queuedJobs: []*jobdb.Job{
 				// Submit the next job with a per-queue priority number (i.e., 1) that is larger
 				// than the per-queue priority of the already-running job (i.e., 0), but smaller
 				// than the priority class number of the two jobs (i.e., 3); if the scheduler were
 				// to use the per-queue priority instead of the priority class number in its
 				// accounting, then it would schedule this job.
-				queuedJobs[0].WithPriority(1),
+				testfixtures.Test16CpuJob(testfixtures.TestQueue, testfixtures.PriorityClass3).WithPriority(1),
 			},
-			perQueueLimit: map[string]float64{"cpu": 0.5},
-			expectedJobs:  map[string]string{},
+
+			expectedScheduledIndices: nil,
 		},
 	}
 	for name, tc := range tests {
@@ -148,6 +180,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			ctx := testfixtures.ContextWithDefaultLogger(context.Background())
 			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			defer cancel()
+
 			config := testfixtures.TestSchedulingConfig()
 			if tc.perQueueLimit != nil {
 				priorityClass := testfixtures.TestPriorityClasses[testfixtures.PriorityClass3]
@@ -156,11 +189,13 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			if tc.maxUnacknowledgedJobsPerExecutor != 0 {
 				config = testfixtures.WithMaxUnacknowledgedJobsPerExecutor(tc.maxUnacknowledgedJobsPerExecutor, config)
 			}
-			ctrl := gomock.NewController(t)
-			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
-			mockQueueRepo := schedulermocks.NewMockQueueRepository(ctrl)
 
+			ctrl := gomock.NewController(t)
+
+			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
+
+			mockQueueRepo := schedulermocks.NewMockQueueRepository(ctrl)
 			mockQueueRepo.EXPECT().GetAllQueues().Return(tc.queues, nil).AnyTimes()
 
 			algo, err := NewFairSchedulingAlgo(
@@ -174,42 +209,72 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			// Use a test clock so we can control time
 			algo.clock = clock.NewFakeClock(testfixtures.BaseTime)
 
-			// Set up JobDb
-			jobDb := jobdb.NewJobDb()
-
-			txn := jobDb.WriteTxn()
-			err = jobDb.Upsert(txn, tc.queuedJobs)
-			require.NoError(t, err)
-
-			err = jobDb.Upsert(txn, tc.unacknowledgedJobs)
-			require.NoError(t, err)
-
-			executorsById := make(map[string]*schedulerobjects.Executor, len(tc.executors))
+			nodes := make(map[string]map[string]*schedulerobjects.Node)
 			for _, executor := range tc.executors {
-				executorsById[executor.Id] = executor
+				nodesByName := make(map[string]*schedulerobjects.Node)
+				for _, node := range executor.Nodes {
+					nodesByName[node.Name] = node
+				}
+				nodes[executor.Id] = nodesByName
 			}
-			for _, job := range tc.runningJobs {
-				run := job.LatestRun()
-				executor := executorsById[run.Executor()]
-				executor.UnassignedJobRuns = append(executor.UnassignedJobRuns, run.Id().String())
+
+			jobsToUpsert := make([]*jobdb.Job, 0)
+
+			for executorId, jobsByNodeName := range tc.existingRunningIndices {
+				for nodeName, jobIndices := range jobsByNodeName {
+					for _, i := range jobIndices {
+						job := tc.existingJobs[i].WithQueued(false).WithNewRun(executorId, nodeName)
+						jobsToUpsert = append(jobsToUpsert, job)
+						run := job.LatestRun()
+						node := nodes[executorId][nodeName]
+						if node.StateByJobRunId == nil {
+							node.StateByJobRunId = make(map[string]schedulerobjects.JobRunState)
+						}
+						node.StateByJobRunId[run.Id().String()] = schedulerobjects.JobRunState_RUNNING
+					}
+				}
 			}
-			err = jobDb.Upsert(txn, tc.runningJobs)
+
+			for executorId, jobsByNodeName := range tc.existingUnacknowledgedIndices {
+				for nodeName, jobIndices := range jobsByNodeName {
+					for _, i := range jobIndices {
+						job := tc.existingJobs[i].WithQueued(false).WithNewRun(executorId, nodeName)
+						jobsToUpsert = append(jobsToUpsert, job)
+					}
+				}
+			}
+
+			for _, job := range tc.queuedJobs {
+				job = job.WithQueued(true)
+				jobsToUpsert = append(jobsToUpsert, job)
+			}
+
+			jobDb := jobdb.NewJobDb()
+			txn := jobDb.WriteTxn()
+			err = jobDb.Upsert(txn, jobsToUpsert)
 			require.NoError(t, err)
 
 			schedulerResult, err := algo.Schedule(ctx, txn, jobDb)
 			require.NoError(t, err)
 
-			// check that we have scheduled the queuedJobs we expect
-			assert.Equal(t, len(tc.expectedJobs), len(schedulerResult.ScheduledJobs))
+			expectedJobs := make(map[string]string, 0)
+			for executorId, jobIndices := range tc.expectedScheduledIndices {
+				for _, i := range jobIndices {
+					job := tc.queuedJobs[i]
+					expectedJobs[job.Id()] = executorId
+				}
+			}
+
+			assert.Equal(t, len(expectedJobs), len(schedulerResult.ScheduledJobs))
 
 			scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
 			for _, job := range scheduledJobs {
-				expectedExecutor, ok := tc.expectedJobs[job.Id()]
+				assert.Equal(t, false, job.Queued())
+				expectedExecutor, ok := expectedJobs[job.Id()]
 				require.True(t, ok)
 				run := job.LatestRun()
-				require.NotEqual(t, t, run)
+				require.NotNil(t, run)
 				assert.Equal(t, expectedExecutor, run.Executor())
-				assert.Equal(t, false, job.Queued())
 			}
 
 			// check all scheduled queuedJobs are up-to-date in db
