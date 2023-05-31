@@ -169,7 +169,6 @@ export const useFetchJobsTableData = ({
           const groupedCol = groupedColumns[expandedLevel]
           const groupedField = columnToGroupedField(groupedCol)
 
-          console.log(groupedColumns.slice(expandedLevel + 1))
           // Only relevant if we are grouping by annotations: Filter by all remaining annotations in the group by filter
           rowRequest.filters.push(...getFiltersForGroupedAnnotations(groupedColumns.slice(expandedLevel + 1)))
 
