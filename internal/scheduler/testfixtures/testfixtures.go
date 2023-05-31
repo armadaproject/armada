@@ -240,6 +240,16 @@ func WithAnnotationsPodReqs(annotations map[string]string, reqs []*schedulerobje
 	return reqs
 }
 
+func WithRequestsPodReqs(rl schedulerobjects.ResourceList, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
+	for _, req := range reqs {
+		maps.Copy(
+			req.ResourceRequirements.Requests,
+			schedulerobjects.V1ResourceListFromResourceList(rl),
+		)
+	}
+	return reqs
+}
+
 func WithGangAnnotationsJobs(jobs []*jobdb.Job) []*jobdb.Job {
 	gangId := uuid.NewString()
 	gangCardinality := fmt.Sprintf("%d", len(jobs))
@@ -259,16 +269,6 @@ func WithAnnotationsJobs(annotations map[string]string, jobs []*jobdb.Job) []*jo
 		}
 	}
 	return jobs
-}
-
-func WithRequestsPodReqs(rl schedulerobjects.ResourceList, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
-	for _, req := range reqs {
-		maps.Copy(
-			req.ResourceRequirements.Requests,
-			schedulerobjects.V1ResourceListFromResourceList(rl),
-		)
-	}
-	return reqs
 }
 
 func N1CpuJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
