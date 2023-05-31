@@ -4,6 +4,7 @@ import { TabContext, TabPanel } from "@mui/lab"
 import { Box, Divider, Drawer, Tab, Tabs } from "@mui/material"
 import { Job, JobState } from "models/lookoutV2Models"
 
+import { ICordonService } from "../../../services/lookoutV2/CordonService"
 import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "../../../services/lookoutV2/GetRunErrorService"
 import { ILogService } from "../../../services/lookoutV2/LogService"
@@ -32,13 +33,23 @@ export interface SidebarProps {
   runErrorService: IGetRunErrorService
   jobSpecService: IGetJobSpecService
   logService: ILogService
+  cordonService: ICordonService
   sidebarWidth: number
   onClose: () => void
   onWidthChange: (width: number) => void
 }
 
 export const Sidebar = memo(
-  ({ job, runErrorService, jobSpecService, logService, sidebarWidth, onClose, onWidthChange }: SidebarProps) => {
+  ({
+    job,
+    runErrorService,
+    jobSpecService,
+    logService,
+    cordonService,
+    sidebarWidth,
+    onClose,
+    onWidthChange,
+  }: SidebarProps) => {
     const [openTab, setOpenTab] = useState<SidebarTab>(SidebarTab.JobDetails)
 
     const handleTabChange = useCallback((_, newValue: SidebarTab) => {
@@ -164,7 +175,7 @@ export const Sidebar = memo(
                 </TabPanel>
 
                 <TabPanel value={SidebarTab.JobRuns} className={styles.sidebarTabPanel}>
-                  <SidebarTabJobRuns job={job} runErrorService={runErrorService} />
+                  <SidebarTabJobRuns job={job} runErrorService={runErrorService} cordonService={cordonService} />
                 </TabPanel>
 
                 <TabPanel value={SidebarTab.Yaml} className={styles.sidebarTabPanel}>

@@ -69,6 +69,7 @@ import {
 import { fromRowId, RowId } from "utils/reactTableUtils"
 
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
+import { ICordonService } from "../../services/lookoutV2/CordonService"
 import { CustomViewsService } from "../../services/lookoutV2/CustomViewsService"
 import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
 import { ILogService } from "../../services/lookoutV2/LogService"
@@ -85,6 +86,7 @@ interface JobsTableContainerProps {
   runErrorService: IGetRunErrorService
   jobSpecService: IGetJobSpecService
   logService: ILogService
+  cordonService: ICordonService
   debug: boolean
 }
 
@@ -127,6 +129,7 @@ export const JobsTableContainer = ({
   runErrorService,
   jobSpecService,
   logService,
+  cordonService,
   debug,
 }: JobsTableContainerProps) => {
   const openSnackbar = useCustomSnackbar()
@@ -747,6 +750,7 @@ export const JobsTableContainer = ({
           runErrorService={runErrorService}
           jobSpecService={jobSpecService}
           logService={logService}
+          cordonService={cordonService}
           sidebarWidth={sidebarWidth}
           onClose={onSideBarClose}
           onWidthChange={setSidebarWidth}

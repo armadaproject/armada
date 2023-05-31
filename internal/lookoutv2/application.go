@@ -80,7 +80,7 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 				params.HTTPRequest.Context(),
 				filters,
 				order,
-				params.GroupJobsRequest.GroupedField,
+				conversions.FromSwaggerGroupedField(params.GroupJobsRequest.GroupedField),
 				params.GroupJobsRequest.Aggregates,
 				skip,
 				int(params.GroupJobsRequest.Take))

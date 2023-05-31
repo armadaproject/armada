@@ -18,6 +18,8 @@ containerSecurityContext:
   allowPrivilegeEscalation: false
 # -- Pod Security Context
 podSecurityContext: {}
+# -- Tolerations
+tolerations: []
 
 # -- Additional labels for all Armada Server K8s resources
 additionalLabels: {}
