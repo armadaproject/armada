@@ -38,10 +38,8 @@ var DefaultConfiguration = &configuration.JobServiceConfiguration{
 		InitialConnections: 5,
 		Capacity:           5,
 	},
+	SubscribeJobSetPoolSize: 30,
 }
-
-// Size of the worker goroutine pool for job-set processing
-const workerPoolSize = 30
 
 type SubRequest struct {
 	sub         repository.SubscribedTuple
@@ -68,6 +66,14 @@ func RectifyConfig(config *configuration.JobServiceConfiguration) error {
 			"configured": config.GrpcPool.Capacity,
 		}).Warn("config.GrpcPool.Capacity invalid, using default instead")
 		config.GrpcPool.Capacity = DefaultConfiguration.GrpcPool.Capacity
+	}
+
+	if config.SubscribeJobSetPoolSize <= 0 {
+		logger.WithFields(log.Fields{
+			"default":    DefaultConfiguration.SubscribeJobSetPoolSize,
+			"configured": config.SubscribeJobSetPoolSize,
+		}).Warn("config.SubscribeJobSetPoolSize invalid, using default instead")
+		config.SubscribeJobSetPoolSize = DefaultConfiguration.SubscribeJobSetPoolSize
 	}
 
 	return nil
@@ -129,7 +135,6 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		return err
 	}
 
-	// This function runs in the background every 30 seconds
 	// We will loop over the subscribed jobsets
 	// If we have then we skip that jobset
 	g.Go(func() error {
@@ -137,7 +142,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		subRequests := make(chan SubRequest)
 		ticker := time.NewTicker(30 * time.Second)
 
-		for w := 1; w <= workerPoolSize; w++ {
+		for w := 1; w <= config.SubscribeJobSetPoolSize; w++ {
 			go ProcessSubs(subRequests, sqlJobRepo)
 		}
 
