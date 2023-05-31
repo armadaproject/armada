@@ -239,6 +239,24 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				"executor1": {0, 1},
 			},
 		},
+		"Fair share preemption.": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+
+			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			queues:    []*database.Queue{{Name: "queue1", Weight: 100}, {Name: "queue2", Weight: 100}},
+
+			existingJobs: testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 2),
+			existingRunningIndices: map[string]map[string][]int{
+				"executor1": {"executor1-node": {0, 1}},
+			},
+
+			queuedJobs: testfixtures.N16CpuJobs("queue2", testfixtures.PriorityClass0, 2),
+
+			expectedPreemptedIndices: []int{1},
+			expectedScheduledIndices: map[string][]int{
+				"executor1": {0},
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
