@@ -3,6 +3,7 @@ package scheduler
 import (
 	"context"
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"golang.org/x/exp/slices"
 	"testing"
 	"time"
 
@@ -33,6 +34,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 
 		queuedJobs []*jobdb.Job
 
+		// Indices of jobs that we expect to be preempted.
+		expectedPreemptedIndices []int
 		// Map from executor ID to indices of jobs that we expect to be scheduled.
 		expectedScheduledIndices map[string][]int
 	}{
@@ -200,6 +203,42 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 
 			expectedScheduledIndices: nil,
 		},
+		"Urgency-based preemption within a single queue.": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+
+			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			queues:    []*database.Queue{{Name: "queue1", Weight: 100}},
+
+			existingJobs: testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 2),
+			existingRunningIndices: map[string]map[string][]int{
+				"executor1": {"executor1-node": {0, 1}},
+			},
+
+			queuedJobs: testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass1, 2),
+
+			expectedPreemptedIndices: []int{0, 1},
+			expectedScheduledIndices: map[string][]int{
+				"executor1": {0, 1},
+			},
+		},
+		"Urgency-based preemption across queues.": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+
+			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			queues:    []*database.Queue{{Name: "queue1", Weight: 100}, {Name: "queue2", Weight: 100}},
+
+			existingJobs: testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 2),
+			existingRunningIndices: map[string]map[string][]int{
+				"executor1": {"executor1-node": {0, 1}},
+			},
+
+			queuedJobs: testfixtures.N16CpuJobs("queue2", testfixtures.PriorityClass1, 2),
+
+			expectedPreemptedIndices: []int{0, 1},
+			expectedScheduledIndices: map[string][]int{
+				"executor1": {0, 1},
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -274,20 +313,19 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			schedulerResult, err := algo.Schedule(ctx, txn, jobDb)
 			require.NoError(t, err)
 
-			expectedJobs := make(map[string]string, 0)
+			expectedScheduledJobs := make(map[string]string, 0)
 			for executorId, jobIndices := range tc.expectedScheduledIndices {
 				for _, i := range jobIndices {
-					job := tc.queuedJobs[i]
-					expectedJobs[job.Id()] = executorId
+					expectedScheduledJobs[tc.queuedJobs[i].Id()] = executorId
 				}
 			}
 
-			assert.Equal(t, len(expectedJobs), len(schedulerResult.ScheduledJobs))
+			assert.Equal(t, len(expectedScheduledJobs), len(schedulerResult.ScheduledJobs))
 
 			scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
 			for _, job := range scheduledJobs {
 				assert.Equal(t, false, job.Queued())
-				expectedExecutor, ok := expectedJobs[job.Id()]
+				expectedExecutor, ok := expectedScheduledJobs[job.Id()]
 				require.True(t, ok)
 				run := job.LatestRun()
 				require.NotNil(t, run)
@@ -300,6 +338,18 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, job, dbJob)
 			}
+
+			expectedPreemptedJobs := make([]string, 0)
+			for _, i := range tc.expectedPreemptedIndices {
+				expectedPreemptedJobs = append(expectedPreemptedJobs, tc.existingJobs[i].Id())
+			}
+			slices.Sort(expectedPreemptedJobs)
+			preemptedJobs := make([]string, 0)
+			for _, job := range PreemptedJobsFromSchedulerResult[*jobdb.Job](schedulerResult) {
+				preemptedJobs = append(preemptedJobs, job.Id())
+			}
+			slices.Sort(preemptedJobs)
+			assert.Equal(t, expectedPreemptedJobs, preemptedJobs)
 		})
 	}
 }
