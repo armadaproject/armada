@@ -102,6 +102,7 @@ export enum Match {
   GreaterThanOrEqual = "greaterThanOrEqualTo",
   LessThanOrEqual = "lessThanOrEqualTo",
   AnyOf = "anyOf",
+  Exists = "exists",
 }
 
 export const MATCH_DISPLAY_STRINGS: Record<Match, string> = {
@@ -113,6 +114,7 @@ export const MATCH_DISPLAY_STRINGS: Record<Match, string> = {
   [Match.GreaterThanOrEqual]: "Greater than or equal to",
   [Match.LessThanOrEqual]: "Less than or equal to",
   [Match.AnyOf]: "Any of",
+  [Match.Exists]: "Exists",
 }
 
 export const isValidMatch = (match: string): match is Match => (Object.values(Match) as string[]).includes(match)

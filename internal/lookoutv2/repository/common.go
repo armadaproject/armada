@@ -640,11 +640,14 @@ func (qb *QueryBuilder) filtersForAnnotationTable(normalFilters []*model.Filter)
 }
 
 func (qb *QueryBuilder) annotationFilterCondition(annotationFilter *model.Filter) (string, error) {
-	comparator, err := qb.comparatorForMatch(annotationFilter.Match)
+	key, err := qb.valueForMatch(annotationFilter.Field, model.MatchExact)
 	if err != nil {
 		return "", err
 	}
-	key, err := qb.valueForMatch(annotationFilter.Field, model.MatchExact)
+	if annotationFilter.Match == model.MatchExists {
+		return fmt.Sprintf("%s = %s", annotationKeyCol, key), nil
+	}
+	comparator, err := qb.comparatorForMatch(annotationFilter.Match)
 	if err != nil {
 		return "", err
 	}
@@ -1024,7 +1027,12 @@ func (qb *QueryBuilder) validateFilter(filter *model.Filter) error {
 }
 
 func validateAnnotationFilter(filter *model.Filter) error {
-	if !slices.Contains([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains}, filter.Match) {
+	if !slices.Contains([]string{
+		model.MatchExact,
+		model.MatchStartsWith,
+		model.MatchContains,
+		model.MatchExists,
+	}, filter.Match) {
 		return errors.Errorf("match %s is not supported for annotation", filter.Match)
 	}
 	return nil
