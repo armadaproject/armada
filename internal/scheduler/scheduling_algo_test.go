@@ -38,8 +38,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 	}{
 		"fill up both clusters": {
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1", nil, testfixtures.BaseTime),
-				testfixtures.Test1Node32CoreExecutor("executor2", nil, testfixtures.BaseTime),
+				testfixtures.Test1Node32CoreExecutor("executor1", testfixtures.BaseTime),
+				testfixtures.Test1Node32CoreExecutor("executor2", testfixtures.BaseTime),
 			},
 			queues:     []*database.Queue{testfixtures.TestDbQueue()},
 			queuedJobs: queuedJobs,
@@ -52,8 +52,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		},
 		"one executor stale": {
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1", nil, testfixtures.BaseTime),
-				testfixtures.Test1Node32CoreExecutor("executor2", nil, testfixtures.BaseTime.Add(-1*time.Hour)),
+				testfixtures.Test1Node32CoreExecutor("executor1", testfixtures.BaseTime),
+				testfixtures.Test1Node32CoreExecutor("executor2", testfixtures.BaseTime.Add(-1*time.Hour)),
 			},
 			queues:     []*database.Queue{testfixtures.TestDbQueue()},
 			queuedJobs: queuedJobs,
@@ -64,12 +64,12 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		},
 		"one executor exceeds unacknowledged": {
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1", nil, testfixtures.BaseTime),
-				testfixtures.Test1Node32CoreExecutor("executor2", nil, testfixtures.BaseTime),
+				testfixtures.Test1Node32CoreExecutor("executor1", testfixtures.BaseTime),
+				testfixtures.Test1Node32CoreExecutor("executor2", testfixtures.BaseTime),
 			},
 			queues:             []*database.Queue{testfixtures.TestDbQueue()},
 			queuedJobs:         queuedJobs,
-			unacknowledgedJobs: []*jobdb.Job{runningJobs[0], runningJobs[1]},
+			unacknowledgedJobs: runningJobs,
 			expectedJobs: map[string]string{
 				queuedJobs[0].Id(): "executor2",
 				queuedJobs[1].Id(): "executor2",
@@ -77,12 +77,12 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		},
 		"one executor full": {
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1", runningJobs, testfixtures.BaseTime),
-				testfixtures.Test1Node32CoreExecutor("executor2", nil, testfixtures.BaseTime),
+				testfixtures.Test1Node32CoreExecutor("executor1", testfixtures.BaseTime),
+				testfixtures.Test1Node32CoreExecutor("executor2", testfixtures.BaseTime),
 			},
 			queues:      []*database.Queue{testfixtures.TestDbQueue()},
 			queuedJobs:  queuedJobs,
-			runningJobs: []*jobdb.Job{runningJobs[0], runningJobs[1]},
+			runningJobs: runningJobs,
 			expectedJobs: map[string]string{
 				queuedJobs[0].Id(): "executor2",
 				queuedJobs[1].Id(): "executor2",
@@ -90,8 +90,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		},
 		"user is at usage cap before scheduling": {
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1", runningJobs, testfixtures.BaseTime),
-				testfixtures.Test1Node32CoreExecutor("executor2", nil, testfixtures.BaseTime),
+				testfixtures.Test1Node32CoreExecutor("executor1", testfixtures.BaseTime),
+				testfixtures.Test1Node32CoreExecutor("executor2", testfixtures.BaseTime),
 			},
 			queues:        []*database.Queue{testfixtures.TestDbQueue()},
 			queuedJobs:    queuedJobs,
@@ -101,8 +101,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		},
 		"user hits usage cap during scheduling": {
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1", []*jobdb.Job{runningJobs[0]}, testfixtures.BaseTime),
-				testfixtures.Test1Node32CoreExecutor("executor2", nil, testfixtures.BaseTime),
+				testfixtures.Test1Node32CoreExecutor("executor1", testfixtures.BaseTime),
+				testfixtures.Test1Node32CoreExecutor("executor2", testfixtures.BaseTime),
 			},
 			queues:                           []*database.Queue{testfixtures.TestDbQueue()},
 			queuedJobs:                       queuedJobs,
@@ -115,11 +115,10 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		},
 		"no queuedJobs to schedule": {
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor("executor1", nil, testfixtures.BaseTime),
-				testfixtures.Test1Node32CoreExecutor("executor2", nil, testfixtures.BaseTime),
+				testfixtures.Test1Node32CoreExecutor("executor1", testfixtures.BaseTime),
+				testfixtures.Test1Node32CoreExecutor("executor2", testfixtures.BaseTime),
 			},
 			queues:       []*database.Queue{testfixtures.TestDbQueue()},
-			queuedJobs:   nil,
 			expectedJobs: map[string]string{},
 		},
 		"no executor available": {
@@ -130,11 +129,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		},
 		"The scheduling algorithm computes allocated resources by priority class, not by per-queue priority.": {
 			executors: []*schedulerobjects.Executor{
-				testfixtures.Test1Node32CoreExecutor(
-					"executor1",
-					[]*jobdb.Job{runningJobs[0].WithPriority(0)},
-					testfixtures.BaseTime,
-				),
+				testfixtures.Test1Node32CoreExecutor("executor1", testfixtures.BaseTime),
 			},
 			runningJobs: []*jobdb.Job{runningJobs[0].WithPriority(0)},
 			queues:      []*database.Queue{testfixtures.TestDbQueue()},
@@ -191,6 +186,15 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			err = jobDb.Upsert(txn, tc.unacknowledgedJobs)
 			require.NoError(t, err)
 
+			executorsById := make(map[string]*schedulerobjects.Executor, len(tc.executors))
+			for _, executor := range tc.executors {
+				executorsById[executor.Id] = executor
+			}
+			for _, job := range tc.runningJobs {
+				run := job.LatestRun()
+				executor := executorsById[run.Executor()]
+				executor.UnassignedJobRuns = append(executor.UnassignedJobRuns, run.Id().String())
+			}
 			err = jobDb.Upsert(txn, tc.runningJobs)
 			require.NoError(t, err)
 
@@ -221,10 +225,10 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 }
 
 func TestGetExecutorsToSchedule(t *testing.T) {
-	executorA := testfixtures.Test1Node32CoreExecutor("a", nil, testfixtures.BaseTime)
-	executorA1 := testfixtures.Test1Node32CoreExecutor("a1", nil, testfixtures.BaseTime)
-	executorB := testfixtures.Test1Node32CoreExecutor("b", nil, testfixtures.BaseTime)
-	executorC := testfixtures.Test1Node32CoreExecutor("c", nil, testfixtures.BaseTime)
+	executorA := testfixtures.Test1Node32CoreExecutor("a", testfixtures.BaseTime)
+	executorA1 := testfixtures.Test1Node32CoreExecutor("a1", testfixtures.BaseTime)
+	executorB := testfixtures.Test1Node32CoreExecutor("b", testfixtures.BaseTime)
+	executorC := testfixtures.Test1Node32CoreExecutor("c", testfixtures.BaseTime)
 
 	tests := map[string]struct {
 		executors          []*schedulerobjects.Executor
@@ -299,8 +303,8 @@ func TestLegacySchedulingAlgo_TestSchedule_ExecutorOrdering(t *testing.T) {
 			rounds: []executorOrderingTest{
 				{
 					executors: []*schedulerobjects.Executor{
-						testfixtures.Test1Node32CoreExecutor("executor1", nil, testfixtures.BaseTime),
-						testfixtures.Test1Node32CoreExecutor("executor2", nil, testfixtures.BaseTime),
+						testfixtures.Test1Node32CoreExecutor("executor1", testfixtures.BaseTime),
+						testfixtures.Test1Node32CoreExecutor("executor2", testfixtures.BaseTime),
 					},
 					expectedExecutorsScheduled:          []string{"executor1", "executor2"},
 					expectedPreviousScheduledExecutorId: "executor2",
@@ -313,16 +317,16 @@ func TestLegacySchedulingAlgo_TestSchedule_ExecutorOrdering(t *testing.T) {
 			rounds: []executorOrderingTest{
 				{
 					executors: []*schedulerobjects.Executor{
-						testfixtures.Test1Node32CoreExecutor("executor1", nil, testfixtures.BaseTime),
-						testfixtures.Test1Node32CoreExecutor("executor2", nil, testfixtures.BaseTime),
+						testfixtures.Test1Node32CoreExecutor("executor1", testfixtures.BaseTime),
+						testfixtures.Test1Node32CoreExecutor("executor2", testfixtures.BaseTime),
 					},
 					expectedExecutorsScheduled:          []string{"executor1"},
 					expectedPreviousScheduledExecutorId: "executor1",
 				},
 				{
 					executors: []*schedulerobjects.Executor{
-						testfixtures.Test1Node32CoreExecutor("executor1", nil, testfixtures.BaseTime),
-						testfixtures.Test1Node32CoreExecutor("executor2", nil, testfixtures.BaseTime),
+						testfixtures.Test1Node32CoreExecutor("executor1", testfixtures.BaseTime),
+						testfixtures.Test1Node32CoreExecutor("executor2", testfixtures.BaseTime),
 					},
 					expectedExecutorsScheduled:          []string{"executor2"},
 					expectedPreviousScheduledExecutorId: "executor2",
@@ -335,25 +339,25 @@ func TestLegacySchedulingAlgo_TestSchedule_ExecutorOrdering(t *testing.T) {
 			rounds: []executorOrderingTest{
 				{
 					executors: []*schedulerobjects.Executor{
-						testfixtures.Test1Node32CoreExecutor("executor1", nil, testfixtures.BaseTime),
-						testfixtures.Test1Node32CoreExecutor("executor3", nil, testfixtures.BaseTime),
+						testfixtures.Test1Node32CoreExecutor("executor1", testfixtures.BaseTime),
+						testfixtures.Test1Node32CoreExecutor("executor3", testfixtures.BaseTime),
 					},
 					expectedExecutorsScheduled:          []string{"executor1"},
 					expectedPreviousScheduledExecutorId: "executor1",
 				},
 				{
 					executors: []*schedulerobjects.Executor{
-						testfixtures.Test1Node32CoreExecutor("executor1", nil, testfixtures.BaseTime),
-						testfixtures.Test1Node32CoreExecutor("executor2", nil, testfixtures.BaseTime),
-						testfixtures.Test1Node32CoreExecutor("executor3", nil, testfixtures.BaseTime),
+						testfixtures.Test1Node32CoreExecutor("executor1", testfixtures.BaseTime),
+						testfixtures.Test1Node32CoreExecutor("executor2", testfixtures.BaseTime),
+						testfixtures.Test1Node32CoreExecutor("executor3", testfixtures.BaseTime),
 					},
 					expectedExecutorsScheduled:          []string{"executor2"},
 					expectedPreviousScheduledExecutorId: "executor2",
 				},
 				{
 					executors: []*schedulerobjects.Executor{
-						testfixtures.Test1Node32CoreExecutor("executor1", nil, testfixtures.BaseTime),
-						testfixtures.Test1Node32CoreExecutor("executor2", nil, testfixtures.BaseTime),
+						testfixtures.Test1Node32CoreExecutor("executor1", testfixtures.BaseTime),
+						testfixtures.Test1Node32CoreExecutor("executor2", testfixtures.BaseTime),
 					},
 					expectedExecutorsScheduled:          []string{"executor1"},
 					expectedPreviousScheduledExecutorId: "executor1",

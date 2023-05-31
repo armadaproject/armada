@@ -628,19 +628,14 @@ func Test8GpuNode(priorities []int32) *schedulerobjects.Node {
 	return node
 }
 
-func Test1Node32CoreExecutor(name string, jobs []*jobdb.Job, lastUpdateTime time.Time) *schedulerobjects.Executor {
+func Test1Node32CoreExecutor(name string, lastUpdateTime time.Time) *schedulerobjects.Executor {
 	node := Test32CpuNode(TestPriorities)
 	node.Name = fmt.Sprintf("%s-node", name)
-	unassignedJobRuns := make([]string, len(jobs))
-	for i, job := range jobs {
-		unassignedJobRuns[i] = job.LatestRun().Id().String()
-	}
 	return &schedulerobjects.Executor{
-		Id:                name,
-		Pool:              TestPool,
-		Nodes:             []*schedulerobjects.Node{node},
-		LastUpdateTime:    lastUpdateTime,
-		UnassignedJobRuns: unassignedJobRuns,
+		Id:             name,
+		Pool:           TestPool,
+		Nodes:          []*schedulerobjects.Node{node},
+		LastUpdateTime: lastUpdateTime,
 	}
 }
 
