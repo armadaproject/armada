@@ -331,7 +331,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			schedulerResult, err := algo.Schedule(ctx, txn, jobDb)
 			require.NoError(t, err)
 
-			expectedScheduledJobs := make(map[string]string, 0)
+			expectedScheduledJobs := make(map[string]string)
 			for executorId, jobIndices := range tc.expectedScheduledIndices {
 				for _, i := range jobIndices {
 					expectedScheduledJobs[tc.queuedJobs[i].Id()] = executorId
