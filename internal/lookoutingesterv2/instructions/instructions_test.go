@@ -63,6 +63,7 @@ var expectedLeasedRun = model.CreateJobRunInstruction{
 	RunId:       testfixtures.RunIdString,
 	JobId:       testfixtures.JobIdString,
 	Cluster:     testfixtures.ExecutorId,
+	Leased:      &testfixtures.BaseTime,
 	Node:        pointer.String(testfixtures.NodeName),
 	JobRunState: lookout.JobRunLeasedOrdinal,
 }
@@ -77,6 +78,7 @@ var expectedLegacyPendingRun = model.CreateJobRunInstruction{
 	RunId:       testfixtures.RunIdString,
 	JobId:       testfixtures.JobIdString,
 	Cluster:     testfixtures.ExecutorId,
+	Leased:      &testfixtures.BaseTime,
 	Pending:     &testfixtures.BaseTime,
 	JobRunState: lookout.JobRunPendingOrdinal,
 }
