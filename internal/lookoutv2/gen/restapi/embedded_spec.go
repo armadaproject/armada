@@ -405,7 +405,8 @@ func init() {
             "greaterThan",
             "lessThan",
             "greaterThanOrEqualTo",
-            "lessThanOrEqualTo"
+            "lessThanOrEqualTo",
+            "exists"
           ],
           "x-nullable": false
         },
@@ -1060,7 +1061,8 @@ func init() {
             "greaterThan",
             "lessThan",
             "greaterThanOrEqualTo",
-            "lessThanOrEqualTo"
+            "lessThanOrEqualTo",
+            "exists"
           ],
           "x-nullable": false
         },
