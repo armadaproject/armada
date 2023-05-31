@@ -85,21 +85,15 @@ func (s *JSRepoSQLite) Setup(ctx context.Context) {
 		`DROP TRIGGER IF EXISTS trigger_delete_expired_jobsets`,
 	}
 
-	if s.jobServiceConfig.PurgeJobSetTime > 0 {
-		setupStmts = append(setupStmts, fmt.Sprintf(`
-		     CREATE TRIGGER trigger_delete_expired_jobsets AFTER INSERT ON jobsets
-		     BEGIN
-			   DELETE FROM jobsets WHERE Timestamp < (UNIXEPOCH() - %d);
-			   DELETE FROM jobs WHERE Timestamp < (UNIXEPOCH() - %d);
-		     END;
-		     `, s.jobServiceConfig.PurgeJobSetTime, s.jobServiceConfig.PurgeJobSetTime))
-	}
-
 	for _, stmt := range setupStmts {
 		_, err := s.db.Exec(stmt)
 		if err != nil {
 			panic(err)
 		}
+	}
+
+	if s.jobServiceConfig.PurgeJobSetTime > 0 {
+		go s.purgExpiredJobSets()
 	}
 }
 
@@ -371,4 +365,23 @@ func (s *JSRepoSQLite) GetSubscribedJobSets(ctx context.Context) ([]SubscribedTu
 		return tuples, err
 	}
 	return tuples, nil
+}
+
+func (s *JSRepoSQLite) purgExpiredJobSets() {
+	ticker := time.NewTicker(time.Duration(s.jobServiceConfig.PurgeJobSetTime) * time.Second)
+	log := log.WithField("JobService", "ExpiredJobSetsPurge")
+	jobsetsStmt := fmt.Sprintf(`DELETE FROM jobsets WHERE Timestamp < (UNIXEPOCH() - %d);`, s.jobServiceConfig.PurgeJobSetTime)
+	jobServiceStmt := fmt.Sprintf(`DELETE FROM jobservice WHERE Timestamp < (UNIXEPOCH() - %d);`, s.jobServiceConfig.PurgeJobSetTime)
+	for range ticker.C {
+		s.lock.Lock()
+		_, jobsetErr := s.db.Exec(jobsetsStmt)
+		if jobsetErr != nil {
+			log.Error("error deleting expired jobsets: ", jobsetErr)
+		}
+		_, jobServiceErr := s.db.Exec(jobServiceStmt)
+		if jobServiceErr != nil {
+			log.Error("error deleting expired jobs: ", jobServiceErr)
+		}
+		s.lock.Unlock()
+	}
 }

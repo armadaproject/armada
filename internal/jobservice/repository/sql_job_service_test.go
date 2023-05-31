@@ -141,25 +141,40 @@ func TestCleanupJobSetAndJobsIfNonExist(t *testing.T) {
 	})
 }
 
-func TestCleanupTrigger(t *testing.T) {
+func TestCleanUpExpiredJobsAnsJobSets(t *testing.T) {
 	realPurgeTime := int64(1)
 	WithSqlServiceRepo(realPurgeTime, func(r SQLJobService) {
 		ctx := context.Background()
+		responseExpected1 := &jobservice.JobServiceResponse{
+			State: jobservice.JobServiceResponse_RUNNING,
+		}
 		err := r.SubscribeJobSet(ctx, "queue", "job-set-1", "")
 		require.NoError(t, err)
+		jobStatus1 := NewJobStatus("test", "job-set-1", "job-id", *responseExpected1)
+		err = r.UpdateJobServiceDb(ctx, jobStatus1)
+		require.NoError(t, err)
+
 		subscribe, _, err := r.IsJobSetSubscribed(ctx, "queue", "job-set-1")
 		require.True(t, subscribe)
 		require.NoError(t, err)
-		time.Sleep(time.Duration(2000 * time.Millisecond))
-		// insert of job-set-2 should cleanup expired job-set-1
-		err = r.SubscribeJobSet(ctx, "queue", "job-set-2", "")
+		response, err := r.GetJobStatus(ctx, "job-id")
+		require.Equal(t, responseExpected1, response)
 		require.NoError(t, err)
+
+		time.Sleep(time.Duration(realPurgeTime+1) * time.Second)
+
 		subscribe, _, err = r.IsJobSetSubscribed(ctx, "queue", "job-set-1")
 		require.False(t, subscribe)
 		require.NoError(t, err)
+		responseExpected2 := &jobservice.JobServiceResponse{
+			State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND,
+		}
+		response, err = r.GetJobStatus(ctx, "jobs-id")
+		require.Equal(t, responseExpected2, response)
+		require.NoError(t, err)
+
 	})
 }
-
 func TestCleanupJobSetAndJobsHappy(t *testing.T) {
 	WithSqlServiceRepo(purgeTime, func(r SQLJobService) {
 		ctx := context.Background()

@@ -67,27 +67,15 @@ func (s *JSRepoPostgres) Setup(ctx context.Context) {
 		`DROP FUNCTION IF EXISTS delete_expired_jobsets`,
 	}
 
-	if s.jobServiceConfig.PurgeJobSetTime > 0 {
-		setupStmts = append(setupStmts, fmt.Sprintf(`
-		     CREATE FUNCTION delete_expired_jobsets() RETURNS trigger
-			 LANGUAGE plpgsql
-			 AS '
-			 BEGIN
-			   DELETE FROM jobsets WHERE Timestamp < (extract(epoch from now()) - %d);
-			   DELETE FROM jobs WHERE Timestamp < (extract(epoch from now()) - %d);
-			   RETURN NULL;
-			 END
-			 ';`, s.jobServiceConfig.PurgeJobSetTime, s.jobServiceConfig.PurgeJobSetTime))
-
-		setupStmts = append(setupStmts, `CREATE TRIGGER trigger_delete_expired_jobsets
-			 AFTER INSERT ON jobsets EXECUTE PROCEDURE delete_expired_jobsets();`)
-	}
-
 	for _, stmt := range setupStmts {
 		_, err := s.dbpool.Exec(ctx, stmt)
 		if err != nil {
 			panic(err)
 		}
+	}
+
+	if s.jobServiceConfig.PurgeJobSetTime > 0 {
+		go s.purgExpiredJobSets(ctx)
 	}
 }
 
@@ -325,4 +313,21 @@ func (s *JSRepoPostgres) GetSubscribedJobSets(ctx context.Context) ([]Subscribed
 		return tuples, err
 	}
 	return tuples, nil
+}
+
+func (s *JSRepoPostgres) purgExpiredJobSets(ctx context.Context) {
+	ticker := time.NewTicker(time.Duration(s.jobServiceConfig.PurgeJobSetTime) * time.Second)
+	log := log.WithField("JobService", "ExpiredJobSetsPurge")
+	jobsetsStmt := fmt.Sprintf(`DELETE FROM jobsets WHERE Timestamp < (extract(epoch from now()) - %d);`, s.jobServiceConfig.PurgeJobSetTime)
+	jobServiceStmt := fmt.Sprintf(`DELETE FROM jobservice WHERE Timestamp < (extract(epoch from now()) - %d);`, s.jobServiceConfig.PurgeJobSetTime)
+	for range ticker.C {
+		_, jobsetErr := s.dbpool.Exec(ctx, jobsetsStmt)
+		if jobsetErr != nil {
+			log.Error("error deleting expired jobsets: ", jobsetErr)
+		}
+		_, jobServiceErr := s.dbpool.Exec(ctx, jobServiceStmt)
+		if jobServiceErr != nil {
+			log.Error("error deleting expired jobs: ", jobServiceErr)
+		}
+	}
 }
