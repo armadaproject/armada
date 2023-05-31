@@ -188,15 +188,6 @@ func WithNodeSelectorPodReqs(selector map[string]string, reqs []*schedulerobject
 	return reqs
 }
 
-func WithNodeSelectorJobs(selector map[string]string, jobs []*jobdb.Job) []*jobdb.Job {
-	for _, job := range jobs {
-		for _, req := range job.GetRequirements(nil).GetObjectRequirements() {
-			req.GetPodRequirements().NodeSelector = maps.Clone(selector)
-		}
-	}
-	return jobs
-}
-
 func WithNodeSelectorPodReq(selector map[string]string, req *schedulerobjects.PodRequirements) *schedulerobjects.PodRequirements {
 	req.NodeSelector = maps.Clone(selector)
 	return req
@@ -248,6 +239,15 @@ func WithRequestsPodReqs(rl schedulerobjects.ResourceList, reqs []*schedulerobje
 		)
 	}
 	return reqs
+}
+
+func WithNodeSelectorJobs(selector map[string]string, jobs []*jobdb.Job) []*jobdb.Job {
+	for _, job := range jobs {
+		for _, req := range job.GetRequirements(nil).GetObjectRequirements() {
+			req.GetPodRequirements().NodeSelector = maps.Clone(selector)
+		}
+	}
+	return jobs
 }
 
 func WithGangAnnotationsJobs(jobs []*jobdb.Job) []*jobdb.Job {
