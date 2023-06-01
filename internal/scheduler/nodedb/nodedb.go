@@ -490,7 +490,6 @@ func BindPodToNode(req *schedulerobjects.PodRequirements, node *schedulerobjects
 	_, isEvicted := node.EvictedJobRunIds[jobId]
 
 	node = node.DeepCopy()
-	requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
 
 	if !isEvicted {
 		if node.AllocatedByJobId == nil {
@@ -499,14 +498,14 @@ func BindPodToNode(req *schedulerobjects.PodRequirements, node *schedulerobjects
 		if allocatedToJob, ok := node.AllocatedByJobId[jobId]; ok {
 			return nil, errors.Errorf("job %s already has resources allocated on node %s", jobId, node.Id)
 		} else {
-			allocatedToJob.Add(requests)
+			allocatedToJob.AddV1ResourceList(req.ResourceRequirements.Requests)
 			node.AllocatedByJobId[jobId] = allocatedToJob
 		}
 		if node.AllocatedByQueue == nil {
 			node.AllocatedByQueue = make(map[string]schedulerobjects.ResourceList)
 		}
 		allocatedToQueue := node.AllocatedByQueue[queue]
-		allocatedToQueue.Add(requests)
+		allocatedToQueue.AddV1ResourceList(req.ResourceRequirements.Requests)
 		node.AllocatedByQueue[queue] = allocatedToQueue
 	}
 	delete(node.EvictedJobRunIds, jobId)
@@ -514,11 +513,11 @@ func BindPodToNode(req *schedulerobjects.PodRequirements, node *schedulerobjects
 	if isEvicted {
 		schedulerobjects.AllocatableByPriorityAndResourceType(
 			node.AllocatableByPriorityAndResource,
-		).MarkAllocatable(evictedPriority, requests)
+		).MarkAllocatableV1ResourceList(evictedPriority, req.ResourceRequirements.Requests)
 	}
 	schedulerobjects.AllocatableByPriorityAndResourceType(
 		node.AllocatableByPriorityAndResource,
-	).MarkAllocated(req.Priority, requests)
+	).MarkAllocatedV1ResourceList(req.Priority, req.ResourceRequirements.Requests)
 	return node, nil
 }
 
@@ -536,7 +535,6 @@ func EvictPodFromNode(req *schedulerobjects.PodRequirements, node *schedulerobje
 		return nil, err
 	}
 	node = node.DeepCopy()
-	requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
 
 	// Ensure we track allocated resources at evictedPriority.
 	if _, ok := node.AllocatableByPriorityAndResource[evictedPriority]; !ok {
@@ -571,10 +569,10 @@ func EvictPodFromNode(req *schedulerobjects.PodRequirements, node *schedulerobje
 
 	schedulerobjects.AllocatableByPriorityAndResourceType(
 		node.AllocatableByPriorityAndResource,
-	).MarkAllocatable(req.Priority, requests)
+	).MarkAllocatableV1ResourceList(req.Priority, req.ResourceRequirements.Requests)
 	schedulerobjects.AllocatableByPriorityAndResourceType(
 		node.AllocatableByPriorityAndResource,
-	).MarkAllocated(evictedPriority, requests)
+	).MarkAllocatedV1ResourceList(evictedPriority, req.ResourceRequirements.Requests)
 	return node, nil
 }
 
@@ -609,7 +607,6 @@ func unbindPodFromNodeInPlace(req *schedulerobjects.PodRequirements, node *sched
 		return err
 	}
 	_, isEvicted := node.EvictedJobRunIds[jobId]
-	requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
 
 	if _, ok := node.AllocatedByJobId[jobId]; !ok {
 		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.Id)
@@ -619,7 +616,7 @@ func unbindPodFromNodeInPlace(req *schedulerobjects.PodRequirements, node *sched
 	if allocatedToQueue, ok := node.AllocatedByQueue[queue]; !ok {
 		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.Id)
 	} else {
-		allocatedToQueue.Sub(requests)
+		allocatedToQueue.SubV1ResourceList(req.ResourceRequirements.Requests)
 		if allocatedToQueue.Equal(schedulerobjects.ResourceList{}) {
 			delete(node.AllocatedByQueue, queue)
 		} else {
@@ -634,7 +631,7 @@ func unbindPodFromNodeInPlace(req *schedulerobjects.PodRequirements, node *sched
 	}
 	schedulerobjects.AllocatableByPriorityAndResourceType(
 		node.AllocatableByPriorityAndResource,
-	).MarkAllocatable(priority, requests)
+	).MarkAllocatableV1ResourceList(priority, req.ResourceRequirements.Requests)
 	return nil
 }
 

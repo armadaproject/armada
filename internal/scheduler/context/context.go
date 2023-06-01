@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
@@ -168,12 +169,11 @@ func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContex
 		return false, err
 	}
 	if jctx.IsSuccessful() {
-		rl := schedulerobjects.ResourceListFromV1ResourceList(jctx.Req.ResourceRequirements.Requests)
 		if evictedInThisRound {
-			sctx.EvictedResourcesByPriority.SubResourceList(jctx.Req.Priority, rl)
+			sctx.EvictedResourcesByPriority.SubV1ResourceList(jctx.Req.Priority, jctx.Req.ResourceRequirements.Requests)
 		} else {
-			sctx.ScheduledResources.Add(rl)
-			sctx.ScheduledResourcesByPriority.AddResourceList(jctx.Req.Priority, rl)
+			sctx.ScheduledResources.AddV1ResourceList(jctx.Req.ResourceRequirements.Requests)
+			sctx.ScheduledResourcesByPriority.AddV1ResourceList(jctx.Req.Priority, jctx.Req.ResourceRequirements.Requests)
 			sctx.NumScheduledJobs++
 		}
 	}
@@ -206,11 +206,11 @@ func (sctx *SchedulingContext) EvictJob(job interfaces.LegacySchedulerJob) (bool
 	}
 	priority, rl := priorityAndRequestsFromLegacySchedulerJob(job, sctx.PriorityClasses)
 	if scheduledInThisRound {
-		sctx.ScheduledResources.Sub(rl)
-		sctx.ScheduledResourcesByPriority.SubResourceList(priority, rl)
+		sctx.ScheduledResources.SubV1ResourceList(rl)
+		sctx.ScheduledResourcesByPriority.SubV1ResourceList(priority, rl)
 		sctx.NumScheduledJobs--
 	} else {
-		sctx.EvictedResourcesByPriority.AddResourceList(priority, rl)
+		sctx.EvictedResourcesByPriority.AddV1ResourceList(priority, rl)
 	}
 	return scheduledInThisRound, nil
 }
@@ -353,21 +353,20 @@ func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingC
 		if jctx.Req == nil {
 			return false, errors.Errorf("failed adding job %s to queue: job requirements are missing", jctx.JobId)
 		}
-		rl := schedulerobjects.ResourceListFromV1ResourceList(jctx.Req.ResourceRequirements.Requests)
 
 		// Always update ResourcesByPriority.
 		// Since ResourcesByPriority is used to order queues by fraction of fair share.
-		qctx.Allocated.Add(rl)
-		qctx.AllocatedByPriority.AddResourceList(jctx.Req.Priority, rl)
+		qctx.Allocated.AddV1ResourceList(jctx.Req.ResourceRequirements.Requests)
+		qctx.AllocatedByPriority.AddV1ResourceList(jctx.Req.Priority, jctx.Req.ResourceRequirements.Requests)
 
 		// Only if the job is not evicted, update ScheduledResourcesByPriority.
 		// Since ScheduledResourcesByPriority is used to control per-round scheduling constraints.
 		if evictedInThisRound {
 			delete(qctx.EvictedJobsById, jctx.JobId)
-			qctx.EvictedResourcesByPriority.SubResourceList(jctx.Req.Priority, rl)
+			qctx.EvictedResourcesByPriority.SubV1ResourceList(jctx.Req.Priority, jctx.Req.ResourceRequirements.Requests)
 		} else {
 			qctx.SuccessfulJobSchedulingContexts[jctx.JobId] = jctx
-			qctx.ScheduledResourcesByPriority.AddResourceList(jctx.Req.Priority, rl)
+			qctx.ScheduledResourcesByPriority.AddV1ResourceList(jctx.Req.Priority, jctx.Req.ResourceRequirements.Requests)
 		}
 	} else {
 		qctx.UnsuccessfulJobSchedulingContexts[jctx.JobId] = jctx
@@ -386,27 +385,27 @@ func (qctx *QueueSchedulingContext) EvictJob(job interfaces.LegacySchedulerJob) 
 	}
 	_, scheduledInThisRound := qctx.SuccessfulJobSchedulingContexts[jobId]
 	if scheduledInThisRound {
-		qctx.ScheduledResourcesByPriority.SubResourceList(priority, rl)
+		qctx.ScheduledResourcesByPriority.SubV1ResourceList(priority, rl)
 		delete(qctx.SuccessfulJobSchedulingContexts, jobId)
 	} else {
-		qctx.EvictedResourcesByPriority.AddResourceList(priority, rl)
+		qctx.EvictedResourcesByPriority.AddV1ResourceList(priority, rl)
 		qctx.EvictedJobsById[jobId] = true
 	}
-	qctx.Allocated.Sub(rl)
-	qctx.AllocatedByPriority.SubResourceList(priority, rl)
+	qctx.Allocated.SubV1ResourceList(rl)
+	qctx.AllocatedByPriority.SubV1ResourceList(priority, rl)
 	return scheduledInThisRound, nil
 }
 
-func priorityAndRequestsFromLegacySchedulerJob(job interfaces.LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) (int32, schedulerobjects.ResourceList) {
+func priorityAndRequestsFromLegacySchedulerJob(job interfaces.LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) (int32, v1.ResourceList) {
 	req := job.GetRequirements(priorityClasses)
 	for _, r := range req.ObjectRequirements {
 		podReqs := r.GetPodRequirements()
 		if podReqs == nil {
 			continue
 		}
-		return podReqs.Priority, schedulerobjects.ResourceListFromV1ResourceList(podReqs.ResourceRequirements.Requests)
+		return podReqs.Priority, podReqs.ResourceRequirements.Requests
 	}
-	return 0, schedulerobjects.ResourceList{}
+	return 0, nil
 }
 
 // ClearJobSpecs zeroes out job specs to reduce memory usage.

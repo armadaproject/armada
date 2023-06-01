@@ -82,14 +82,13 @@ func JobsSummary(jobs []interfaces.LegacySchedulerJob) string {
 	resourcesByQueue := armadamaps.MapValues(
 		jobsByQueue,
 		func(jobs []interfaces.LegacySchedulerJob) schedulerobjects.ResourceList {
-			rv := schedulerobjects.ResourceList{}
+			rv := schedulerobjects.NewResourceListWithDefaultSize()
 			for _, job := range jobs {
 				req := PodRequirementFromLegacySchedulerJob(job, nil)
 				if req == nil {
 					continue
 				}
-				rl := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
-				rv.Add(rl)
+				rv.AddV1ResourceList(req.ResourceRequirements.Requests)
 			}
 			return rv
 		},

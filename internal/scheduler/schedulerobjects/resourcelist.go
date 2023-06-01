@@ -82,9 +82,21 @@ func (a QuantityByPriorityAndResourceType) AddResourceList(priority int32, rlb R
 	a[priority] = rla
 }
 
+func (a QuantityByPriorityAndResourceType) AddV1ResourceList(priority int32, rlb v1.ResourceList) {
+	rla := a[priority]
+	rla.AddV1ResourceList(rlb)
+	a[priority] = rla
+}
+
 func (a QuantityByPriorityAndResourceType) SubResourceList(priority int32, rlb ResourceList) {
 	rla := a[priority]
 	rla.Sub(rlb)
+	a[priority] = rla
+}
+
+func (a QuantityByPriorityAndResourceType) SubV1ResourceList(priority int32, rlb v1.ResourceList) {
+	rla := a[priority]
+	rla.SubV1ResourceList(rlb)
 	a[priority] = rla
 }
 
@@ -173,6 +185,15 @@ func (a *ResourceList) AddV1ResourceList(b v1.ResourceList) {
 	for t, qb := range b {
 		qa := a.Resources[string(t)]
 		qa.Add(qb)
+		a.Resources[string(t)] = qa
+	}
+}
+
+func (a *ResourceList) SubV1ResourceList(b v1.ResourceList) {
+	a.initialise()
+	for t, qb := range b {
+		qa := a.Resources[string(t)]
+		qa.Sub(qb)
 		a.Resources[string(t)] = qa
 	}
 }
@@ -323,6 +344,22 @@ func (m AllocatableByPriorityAndResourceType) MarkAllocatable(p int32, rs Resour
 	for priority, allocatableResourcesAtPriority := range m {
 		if priority <= p {
 			allocatableResourcesAtPriority.Add(rs)
+		}
+	}
+}
+
+func (m AllocatableByPriorityAndResourceType) MarkAllocatedV1ResourceList(p int32, rs v1.ResourceList) {
+	for priority, allocatableResourcesAtPriority := range m {
+		if priority <= p {
+			allocatableResourcesAtPriority.SubV1ResourceList(rs)
+		}
+	}
+}
+
+func (m AllocatableByPriorityAndResourceType) MarkAllocatableV1ResourceList(p int32, rs v1.ResourceList) {
+	for priority, allocatableResourcesAtPriority := range m {
+		if priority <= p {
+			allocatableResourcesAtPriority.AddV1ResourceList(rs)
 		}
 	}
 }
