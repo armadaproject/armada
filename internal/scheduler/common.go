@@ -230,7 +230,8 @@ func GangIdAndCardinalityFromAnnotations(annotations map[string]string) (string,
 	return gangId, gangCardinality, true, nil
 }
 
-// TODO: Test.
+// ResourceListAsWeightedMillis returns the linear combination of the milli values in rl with given weights.
+// This function overflows for values that exceed MaxInt64. E.g., 1Pi is fine but not 10Pi.
 func ResourceListAsWeightedMillis(weights map[string]float64, rl schedulerobjects.ResourceList) int64 {
 	var rv int64
 	for t, f := range weights {

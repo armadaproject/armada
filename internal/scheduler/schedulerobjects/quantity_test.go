@@ -96,3 +96,32 @@ func TestQuantityIndexComparison(t *testing.T) {
 		})
 	}
 }
+
+func TestScaleQuantity(t *testing.T) {
+	tests := map[string]struct {
+		input    resource.Quantity
+		f        float64
+		expected resource.Quantity
+	}{
+		"one": {
+			input:    resource.MustParse("1"),
+			f:        1,
+			expected: resource.MustParse("1"),
+		},
+		"zero": {
+			input:    resource.MustParse("1"),
+			f:        0,
+			expected: resource.MustParse("0"),
+		},
+		"rounding": {
+			input:    resource.MustParse("1"),
+			f:        0.3006,
+			expected: resource.MustParse("301m"),
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.True(t, tc.expected.Equal(ScaleQuantity(tc.input, tc.f)), "expected %s, but got %s", tc.expected.String(), tc.input.String())
+		})
+	}
+}

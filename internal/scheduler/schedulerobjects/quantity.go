@@ -28,10 +28,9 @@ func encodeInt(val int64) []byte {
 	return buf
 }
 
-// scaleQuantity scales q in-place by a factor f.
-// This can overflow if the quantity can't be expressed as an int64.
-//
-// TODO: Test.
+// ScaleQuantity scales q in-place by a factor f.
+// This functions overflows for quantities the milli value of which can't be expressed as an int64.
+// E.g., 1Pi is ok, but not 10Pi.
 func ScaleQuantity(q resource.Quantity, f float64) resource.Quantity {
 	q.SetMilli(int64(math.Round(float64(q.MilliValue()) * f)))
 	return q
