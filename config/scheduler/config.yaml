@@ -48,38 +48,31 @@ grpc:
     permitWithoutStream: true
 scheduling:
   executorTimeout: 10m
+  enableAssertions: true
   preemption:
     enabled: true
+    nodeEvictionProbability: 1.0
+    nodeOversubscriptionEvictionProbability: 1.0
     nodeIdLabel: kubernetes.io/hostname
     priorityClasses:
       armada-default:
         priority: 1000
-        maximalResourceFractionPerQueue:
+        preemptible: false
+        maximumResourceFractionPerQueue:
           memory: 0.99
           cpu: 0.99
       armada-preemptible:
-        priority: 900
-        maximalResourceFractionPerQueue:
-          memory: 0.99
-          cpu: 0.99
+        priority: 1000
+        preemptible: true
     defaultPriorityClass: armada-default
-  queueLeaseBatchSize: 1000
-  minimumResourceToSchedule:
-    memory: 1000000 # 1Mb
-    cpu: 0.1
-  maximalResourceFractionToSchedulePerQueue:
-    memory: 1.0
-    cpu: 1.0
-  maximalResourceFractionPerQueue:
-    memory: 1.0
-    cpu: 1.0
-  maximalClusterFractionToSchedule:
+  maxQueueLookback: 1000
+  maxExtraNodesToConsider: 1
+  maximumResourceFractionToSchedule:
     memory: 1.0
     cpu: 1.0
   maximumJobsToSchedule: 5000
   maxUnacknowledgedJobsPerExecutor: 2500
-  maxQueueReportsToStore: 1000
-  MaxJobReportsToStore: 10000
+  maxJobSchedulingContextsPerExecutor: 10000
   defaultJobLimits:
     cpu: 1
     memory: 1Gi
