@@ -276,8 +276,9 @@ type QueueManagementConfig struct {
 }
 
 type MetricsConfig struct {
-	Port            uint16
-	RefreshInterval time.Duration
+	Port                    uint16
+	RefreshInterval         time.Duration
+	ExposeSchedulingMetrics bool
 }
 
 type EventApiConfig struct {
