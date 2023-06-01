@@ -1,7 +1,9 @@
 package schedulerobjects
 
 import (
+	"encoding/binary"
 	"fmt"
+	"hash/fnv"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -12,16 +14,29 @@ import (
 const (
 	// When checking if a pod fits on a node, this score indicates how well the pods fits.
 	// However, all nodes are currently given the same score.
-	SchedulableScore     = 0
-	SchedulableBestScore = SchedulableScore
+	SchedulableScore                                 = 0
+	SchedulableBestScore                             = SchedulableScore
+	PodRequirementsNotMetReasonUnmatchedNodeSelector = "node does not match pod NodeAffinity"
+	PodRequirementsNotMetReasonUnknown               = "unknown"
+	PodRequirementsNotMetReasonInsufficientResources = "insufficient resources available"
 )
 
 type PodRequirementsNotMetReason interface {
 	fmt.Stringer
+	// Returns a 64-bit hash of this reason.
+	Sum64() uint64
 }
 
 type UntoleratedTaint struct {
 	Taint v1.Taint
+}
+
+func (r *UntoleratedTaint) Sum64() uint64 {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(r.Taint.Key))
+	_, _ = h.Write([]byte(r.Taint.Value))
+	_, _ = h.Write([]byte(r.Taint.Effect))
+	return h.Sum64()
 }
 
 func (r *UntoleratedTaint) String() string {
@@ -30,6 +45,12 @@ func (r *UntoleratedTaint) String() string {
 
 type MissingLabel struct {
 	Label string
+}
+
+func (r *MissingLabel) Sum64() uint64 {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(r.Label))
+	return h.Sum64()
 }
 
 func (r *MissingLabel) String() string {
@@ -42,6 +63,14 @@ type UnmatchedLabel struct {
 	NodeValue string
 }
 
+func (r *UnmatchedLabel) Sum64() uint64 {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(r.Label))
+	_, _ = h.Write([]byte(r.PodValue))
+	_, _ = h.Write([]byte(r.NodeValue))
+	return h.Sum64()
+}
+
 func (r *UnmatchedLabel) String() string {
 	return fmt.Sprintf("node does not match pod NodeSelector: required label %s = %s, but node has %s", r.Label, r.PodValue, r.NodeValue)
 }
@@ -50,8 +79,14 @@ type UnmatchedNodeSelector struct {
 	NodeSelector *v1.NodeSelector
 }
 
+func (r *UnmatchedNodeSelector) Sum64() uint64 {
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(PodRequirementsNotMetReasonUnmatchedNodeSelector))
+	return h.Sum64()
+}
+
 func (err *UnmatchedNodeSelector) String() string {
-	return "node does not match pod NodeAffinity"
+	return PodRequirementsNotMetReasonUnmatchedNodeSelector
 }
 
 type InsufficientResources struct {
@@ -60,14 +95,20 @@ type InsufficientResources struct {
 	Available resource.Quantity
 }
 
+func (r *InsufficientResources) Sum64() uint64 {
+	h := fnv.New64a()
+	b := make([]byte, 8)
+	_, _ = h.Write([]byte(r.Resource))
+	binary.BigEndian.PutUint64(b, uint64(r.Required.MilliValue()))
+	_, _ = h.Write(b)
+	binary.BigEndian.PutUint64(b, uint64(r.Available.MilliValue()))
+	_, _ = h.Write(b)
+	return h.Sum64()
+}
+
 func (err *InsufficientResources) String() string {
-	// Note that the below is much faster than fmt.Sprintf().
-	// This is important as this gets called in a tight loop
 	return "pod requires " + err.Required.String() + " " + err.Resource + ", but only " +
 		err.Available.String() + " is available"
-
-	// TODO: this would be even faster
-	// return "insufficient " + err.Resource
 }
 
 // PodRequirementsMet determines whether a pod can be scheduled on nodes of this NodeType.

@@ -531,3 +531,95 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 		})
 	}
 }
+
+func TestInsufficientResourcesSum64(t *testing.T) {
+	tests := map[string]struct {
+		a     *InsufficientResources
+		b     *InsufficientResources
+		equal bool
+	}{
+		"different resource": {
+			a: &InsufficientResources{
+				Resource:  "foo",
+				Required:  resource.MustParse("2"),
+				Available: resource.MustParse("1"),
+			},
+			b: &InsufficientResources{
+				Resource:  "bar",
+				Required:  resource.MustParse("2"),
+				Available: resource.MustParse("1"),
+			},
+			equal: false,
+		},
+		"different required": {
+			a: &InsufficientResources{
+				Resource:  "foo",
+				Required:  resource.MustParse("2"),
+				Available: resource.MustParse("1"),
+			},
+			b: &InsufficientResources{
+				Resource:  "foo",
+				Required:  resource.MustParse("3"),
+				Available: resource.MustParse("1"),
+			},
+			equal: false,
+		},
+		"different available": {
+			a: &InsufficientResources{
+				Resource:  "foo",
+				Required:  resource.MustParse("2"),
+				Available: resource.MustParse("1"),
+			},
+			b: &InsufficientResources{
+				Resource:  "foo",
+				Required:  resource.MustParse("2"),
+				Available: resource.MustParse("2"),
+			},
+			equal: false,
+		},
+		"small difference": {
+			a: &InsufficientResources{
+				Resource:  "foo",
+				Required:  resource.MustParse("1000m"),
+				Available: resource.MustParse("1"),
+			},
+			b: &InsufficientResources{
+				Resource:  "foo",
+				Required:  resource.MustParse("1001m"),
+				Available: resource.MustParse("1"),
+			},
+			equal: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			if tc.equal {
+				assert.Equal(t, tc.a.Sum64(), tc.b.Sum64())
+			} else {
+				assert.NotEqual(t, tc.a.Sum64(), tc.b.Sum64())
+			}
+		})
+	}
+}
+
+func BenchmarkUntoleratedTaintSum64(b *testing.B) {
+	reason := &UntoleratedTaint{
+		Taint: v1.Taint{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule},
+	}
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		reason.Sum64()
+	}
+}
+
+func BenchmarkInsufficientResourcesSum64(b *testing.B) {
+	reason := &InsufficientResources{
+		Resource:  "foo",
+		Required:  resource.MustParse("2"),
+		Available: resource.MustParse("1"),
+	}
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		reason.Sum64()
+	}
+}

@@ -78,6 +78,9 @@ type NodeDb struct {
 	// Set of node types. Populated automatically as nodes are inserted.
 	// Node types are not cleaned up if all nodes of that type are removed from the NodeDb.
 	nodeTypes map[string]*schedulerobjects.NodeType
+	// Map from podRequirementsNotMetReason Sum64() to the string representation of that reason.
+	// Used to avoid allocs.
+	podRequirementsNotMetReasonStringCache map[uint64]string
 	// Mutex to control access to totalResources and NodeTypes.
 	mu sync.Mutex
 }
@@ -138,6 +141,8 @@ func NewNodeDb(
 		numNodesByNodeType:         make(map[string]int),
 		totalResources:             schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
 		db:                         db,
+		// Set the initial capacity (somewhat arbitrarily) to 128 reasons.
+		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
 	}, nil
 }
 
@@ -349,7 +354,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		}
 		numImplicitlyExcludedNodes := pctx.NumNodes - numExplicitlyExcludedNodes
 		if numImplicitlyExcludedNodes > 0 {
-			pctx.NumExcludedNodesByReason["insufficient resources available"] += numImplicitlyExcludedNodes
+			pctx.NumExcludedNodesByReason[schedulerobjects.PodRequirementsNotMetReasonInsufficientResources] += numImplicitlyExcludedNodes
 		}
 	}()
 
@@ -463,7 +468,8 @@ func (nodeDb *NodeDb) selectNodeForPodWithIt(
 				}
 			}
 		} else {
-			pctx.NumExcludedNodesByReason[reason.String()] += 1
+			s := nodeDb.stringFromPodRequirementsNotMetReason(reason)
+			pctx.NumExcludedNodesByReason[s] += 1
 		}
 		if selectedNode != nil {
 			numConsideredNodes++
@@ -675,9 +681,10 @@ func (nodeDb *NodeDb) NodeTypesMatchingPod(req *schedulerobjects.PodRequirements
 		if matches {
 			selectedNodeTypes = append(selectedNodeTypes, nodeType)
 		} else if reason != nil {
-			numExcludedNodesByReason[reason.String()] += nodeDb.numNodesByNodeType[nodeType.Id]
+			s := nodeDb.stringFromPodRequirementsNotMetReason(reason)
+			numExcludedNodesByReason[s] += nodeDb.numNodesByNodeType[nodeType.Id]
 		} else {
-			numExcludedNodesByReason["unknown"] += nodeDb.numNodesByNodeType[nodeType.Id]
+			numExcludedNodesByReason[schedulerobjects.PodRequirementsNotMetReasonUnknown] += nodeDb.numNodesByNodeType[nodeType.Id]
 		}
 	}
 	return selectedNodeTypes, numExcludedNodesByReason, nil
@@ -857,4 +864,17 @@ func nodeDbSchema(priorities []int32, resources []string) *memdb.DBSchema {
 
 func nodeResourceIndexName(priority int32) string {
 	return fmt.Sprintf("%d", priority)
+}
+
+// stringFromPodRequirementsNotMetReason returns the string representation of reason,
+// using a cache to avoid allocating new strings when possible.
+func (nodeDb *NodeDb) stringFromPodRequirementsNotMetReason(reason schedulerobjects.PodRequirementsNotMetReason) string {
+	h := reason.Sum64()
+	if s, ok := nodeDb.podRequirementsNotMetReasonStringCache[h]; ok {
+		return s
+	} else {
+		s := reason.String()
+		nodeDb.podRequirementsNotMetReasonStringCache[h] = s
+		return s
+	}
 }
