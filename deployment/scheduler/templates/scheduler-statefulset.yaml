@@ -1,5 +1,5 @@
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: {{ include "armada-scheduler.name" . }}
   namespace: {{ .Release.Namespace }}
@@ -10,10 +10,11 @@ spec:
   selector:
     matchLabels:
       {{- include "armada-scheduler.labels.identity" . | nindent 6 }}
-  {{- if .Values.scheduler.strategy }}
-  strategy:
-    {{- toYaml .Values.scheduler.strategy | nindent 4 }}
+  {{- if .Values.scheduler.updateStrategy }}
+  updateStrategy:
+    {{- toYaml .Values.scheduler.updateStrategy | nindent 4 }}
   {{- end }}
+  serviceName: {{ include "armada-scheduler.name" . }}
   template:
     metadata:
       name: {{ include "armada-scheduler.name" . }}
