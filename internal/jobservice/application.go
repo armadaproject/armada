@@ -38,7 +38,7 @@ var DefaultConfiguration = &configuration.JobServiceConfiguration{
 		InitialConnections: 5,
 		Capacity:           5,
 	},
-	SubscribeJobSetPoolSize: 30,
+	SubscriberPoolSize: 30,
 }
 
 type SubRequest struct {
@@ -48,8 +48,7 @@ type SubRequest struct {
 }
 
 // Mutates config where possible to correct mis-configurations.
-// Returns a non-nil error if mis-configuration is unrecoverable.
-func RectifyConfig(config *configuration.JobServiceConfiguration) error {
+func RectifyConfig(config *configuration.JobServiceConfiguration) {
 	logger := log.WithField("JobService", "RectifyConfig")
 
 	// Grpc Pool
@@ -68,15 +67,13 @@ func RectifyConfig(config *configuration.JobServiceConfiguration) error {
 		config.GrpcPool.Capacity = DefaultConfiguration.GrpcPool.Capacity
 	}
 
-	if config.SubscribeJobSetPoolSize <= 0 {
+	if config.SubscriberPoolSize <= 0 {
 		logger.WithFields(log.Fields{
-			"default":    DefaultConfiguration.SubscribeJobSetPoolSize,
-			"configured": config.SubscribeJobSetPoolSize,
-		}).Warn("config.SubscribeJobSetPoolSize invalid, using default instead")
-		config.SubscribeJobSetPoolSize = DefaultConfiguration.SubscribeJobSetPoolSize
+			"default":    DefaultConfiguration.SubscriberPoolSize,
+			"configured": config.SubscriberPoolSize,
+		}).Warn("config.SubscriberPoolSize invalid, using default instead")
+		config.SubscriberPoolSize = DefaultConfiguration.SubscriberPoolSize
 	}
-
-	return nil
 }
 
 // ProcessSubs continually reads from the channel of incoming jobset
@@ -96,10 +93,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, _ := errgroup.WithContext(ctx)
 
-	err := RectifyConfig(config)
-	if err != nil {
-		panic(err)
-	}
+	RectifyConfig(config)
 
 	log := log.WithField("JobService", "Startup")
 	grpcServer := grpcCommon.CreateGrpcServer(
@@ -142,7 +136,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		subRequests := make(chan SubRequest)
 		ticker := time.NewTicker(30 * time.Second)
 
-		for w := 1; w <= config.SubscribeJobSetPoolSize; w++ {
+		for w := 1; w <= config.SubscriberPoolSize; w++ {
 			go ProcessSubs(subRequests, sqlJobRepo)
 		}
 

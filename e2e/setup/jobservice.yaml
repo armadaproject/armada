@@ -1,5 +1,5 @@
 subscribeJobSetTime: 60
-subscribeJobSetPoolSize: 30
+subscriberPoolSize: 30
 purgeJobSetTime: 10000
 databaseType: "postgres"
 postgresConfig:

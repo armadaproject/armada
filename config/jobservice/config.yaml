@@ -2,7 +2,7 @@ grpcPort: 60003
 httpPort: 8090
 purgeJobSetTime: 1000
 subscribeJobSetTime: 100
-subscribeJobSetPoolSize: 30
+subscriberPoolSize: 30
 # databaseType can be either 'postgres' or 'sqlite'
 databaseType: "postgres"
 # databasePath specifies the location of the back-end

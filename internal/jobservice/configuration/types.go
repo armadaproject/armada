@@ -27,7 +27,7 @@ type JobServiceConfiguration struct {
 	// This is the amount of time since the last job in job-set has been updated.
 	SubscribeJobSetTime int64
 	// Size of the goroutine pool for processing job-set subscriptions
-	SubscribeJobSetPoolSize int
+	SubscriberPoolSize int
 	// Purge jobSets if not updated in this number of seconds
 	PurgeJobSetTime int64
 	// Type of database used - must be either 'postgres' or 'sqlite'
