@@ -141,7 +141,7 @@ func TestCleanupJobSetAndJobsIfNonExist(t *testing.T) {
 	})
 }
 
-func TestCleanUpExpiredJobsAnsJobSets(t *testing.T) {
+func TestCleanUpExpiredJobsAndJobSets(t *testing.T) {
 	realPurgeTime := int64(1)
 	WithSqlServiceRepo(realPurgeTime, func(r SQLJobService) {
 		ctx := context.Background()
