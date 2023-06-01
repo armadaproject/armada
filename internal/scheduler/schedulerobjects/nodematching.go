@@ -1,10 +1,9 @@
 package schedulerobjects
 
 import (
-	"encoding/binary"
 	"fmt"
-	"hash/fnv"
 
+	"github.com/segmentio/fasthash/fnv1a"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,11 +31,11 @@ type UntoleratedTaint struct {
 }
 
 func (r *UntoleratedTaint) Sum64() uint64 {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(r.Taint.Key))
-	_, _ = h.Write([]byte(r.Taint.Value))
-	_, _ = h.Write([]byte(r.Taint.Effect))
-	return h.Sum64()
+	h := fnv1a.Init64
+	h = fnv1a.AddString64(h, r.Taint.Key)
+	h = fnv1a.AddString64(h, r.Taint.Value)
+	h = fnv1a.AddString64(h, string(r.Taint.Effect))
+	return h
 }
 
 func (r *UntoleratedTaint) String() string {
@@ -48,9 +47,9 @@ type MissingLabel struct {
 }
 
 func (r *MissingLabel) Sum64() uint64 {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(r.Label))
-	return h.Sum64()
+	h := fnv1a.Init64
+	h = fnv1a.AddString64(h, r.Label)
+	return h
 }
 
 func (r *MissingLabel) String() string {
@@ -64,11 +63,11 @@ type UnmatchedLabel struct {
 }
 
 func (r *UnmatchedLabel) Sum64() uint64 {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(r.Label))
-	_, _ = h.Write([]byte(r.PodValue))
-	_, _ = h.Write([]byte(r.NodeValue))
-	return h.Sum64()
+	h := fnv1a.Init64
+	h = fnv1a.AddString64(h, r.Label)
+	h = fnv1a.AddString64(h, r.PodValue)
+	h = fnv1a.AddString64(h, r.NodeValue)
+	return h
 }
 
 func (r *UnmatchedLabel) String() string {
@@ -80,9 +79,9 @@ type UnmatchedNodeSelector struct {
 }
 
 func (r *UnmatchedNodeSelector) Sum64() uint64 {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(PodRequirementsNotMetReasonUnmatchedNodeSelector))
-	return h.Sum64()
+	h := fnv1a.Init64
+	h = fnv1a.AddString64(h, PodRequirementsNotMetReasonUnmatchedNodeSelector)
+	return h
 }
 
 func (err *UnmatchedNodeSelector) String() string {
@@ -96,14 +95,11 @@ type InsufficientResources struct {
 }
 
 func (r *InsufficientResources) Sum64() uint64 {
-	h := fnv.New64a()
-	b := make([]byte, 8)
-	_, _ = h.Write([]byte(r.Resource))
-	binary.BigEndian.PutUint64(b, uint64(r.Required.MilliValue()))
-	_, _ = h.Write(b)
-	binary.BigEndian.PutUint64(b, uint64(r.Available.MilliValue()))
-	_, _ = h.Write(b)
-	return h.Sum64()
+	h := fnv1a.Init64
+	h = fnv1a.AddString64(h, r.Resource)
+	h = fnv1a.AddUint64(h, uint64(r.Required.MilliValue()))
+	h = fnv1a.AddUint64(h, uint64(r.Available.MilliValue()))
+	return h
 }
 
 func (err *InsufficientResources) String() string {

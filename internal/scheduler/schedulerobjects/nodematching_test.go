@@ -1,6 +1,7 @@
 package schedulerobjects
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -604,7 +605,7 @@ func TestInsufficientResourcesSum64(t *testing.T) {
 
 func BenchmarkUntoleratedTaintSum64(b *testing.B) {
 	reason := &UntoleratedTaint{
-		Taint: v1.Taint{Key: "foo", Value: "foo", Effect: v1.TaintEffectNoSchedule},
+		Taint: v1.Taint{Key: randomString(100), Value: randomString(100), Effect: v1.TaintEffectNoSchedule},
 	}
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
@@ -614,7 +615,7 @@ func BenchmarkUntoleratedTaintSum64(b *testing.B) {
 
 func BenchmarkInsufficientResourcesSum64(b *testing.B) {
 	reason := &InsufficientResources{
-		Resource:  "foo",
+		Resource:  randomString(100),
 		Required:  resource.MustParse("2"),
 		Available: resource.MustParse("1"),
 	}
@@ -622,4 +623,12 @@ func BenchmarkInsufficientResourcesSum64(b *testing.B) {
 	for n := 0; n < b.N; n++ {
 		reason.Sum64()
 	}
+}
+
+func randomString(n int) string {
+	s := ""
+	for i := 0; i < n; i++ {
+		s += fmt.Sprint(i)
+	}
+	return s
 }
