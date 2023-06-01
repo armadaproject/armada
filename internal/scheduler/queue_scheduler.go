@@ -94,7 +94,9 @@ func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, erro
 			break
 		}
 		if len(gctx.JobSchedulingContexts) == 0 {
-			sch.candidateGangIterator.Clear()
+			if err := sch.candidateGangIterator.Clear(); err != nil {
+				return nil, err
+			}
 			continue
 		}
 		select {
@@ -121,7 +123,9 @@ func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, erro
 		}
 		// Clear() to get the next gang in order of smallest fair share.
 		// Calling clear here ensures the gang scheduled in this iteration is accounted for.
-		sch.candidateGangIterator.Clear()
+		if err := sch.candidateGangIterator.Clear(); err != nil {
+			return nil, err
+		}
 	}
 	if sch.schedulingContext.TerminationReason == "" {
 		sch.schedulingContext.TerminationReason = "no remaining candidate jobs"
