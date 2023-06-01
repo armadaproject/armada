@@ -418,6 +418,7 @@ func (c *InstructionConverter) handleJobRunLeased(ts time.Time, event *armadaeve
 		JobId:       jobId,
 		Cluster:     event.ExecutorId,
 		Node:        pointer.String(event.NodeId),
+		Leased:      &ts,
 		JobRunState: lookout.JobRunLeasedOrdinal,
 	}
 	update.JobRunsToCreate = append(update.JobRunsToCreate, &jobRun)
@@ -488,6 +489,7 @@ func (c *InstructionConverter) handleLegacyJobRunAssigned(ts time.Time, event *a
 		RunId:       runId,
 		JobId:       jobId,
 		Cluster:     cluster,
+		Leased:      &ts,
 		Pending:     &ts,
 		JobRunState: lookout.JobRunPendingOrdinal,
 	}

@@ -19,6 +19,7 @@ const FILTER_TYPE_DISPLAY_STRINGS: Record<Match, string> = {
   [Match.GreaterThanOrEqual]: `Greater than${ELLIPSIS}`,
   [Match.LessThanOrEqual]: `Less than${ELLIPSIS}`,
   [Match.AnyOf]: `Filter${ELLIPSIS}`,
+  [Match.Exists]: `Annotation exists`,
 }
 
 export interface JobsTableFilterProps {

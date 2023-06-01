@@ -850,7 +850,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		job := NewJobSimulator(converter, store).
+		job1 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-1",
@@ -860,7 +860,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Build().
 			Job()
 
-		_ = NewJobSimulator(converter, store).
+		job2 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-2",
@@ -869,7 +869,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Build().
 			Job()
 
-		_ = NewJobSimulator(converter, store).
+		job3 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-3",
@@ -887,7 +887,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Build().
 			Job()
 
-		job2 := NewJobSimulator(converter, store).
+		job5 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-6",
@@ -915,7 +915,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, result.Jobs, 1)
 			assert.Equal(t, 1, result.Count)
-			assert.Equal(t, job, result.Jobs[0])
+			assert.Equal(t, job1, result.Jobs[0])
 		})
 
 		t.Run("exact, multiple annotations", func(t *testing.T) {
@@ -942,7 +942,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, result.Jobs, 1)
 			assert.Equal(t, 1, result.Count)
-			assert.Equal(t, job, result.Jobs[0])
+			assert.Equal(t, job1, result.Jobs[0])
 		})
 
 		t.Run("startsWith, multiple annotations", func(t *testing.T) {
@@ -969,8 +969,8 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, result.Jobs, 2)
 			assert.Equal(t, 2, result.Count)
-			assert.Equal(t, job, result.Jobs[0])
-			assert.Equal(t, job2, result.Jobs[1])
+			assert.Equal(t, job1, result.Jobs[0])
+			assert.Equal(t, job5, result.Jobs[1])
 		})
 
 		t.Run("contains, multiple annotations", func(t *testing.T) {
@@ -997,8 +997,31 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, result.Jobs, 2)
 			assert.Equal(t, 2, result.Count)
-			assert.Equal(t, job, result.Jobs[0])
+			assert.Equal(t, job1, result.Jobs[0])
+			assert.Equal(t, job5, result.Jobs[1])
+		})
+
+		t.Run("exists", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{
+					{
+						Field:        "annotation-key-1",
+						Match:        model.MatchExists,
+						IsAnnotation: true,
+					},
+				},
+				&model.Order{},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 4)
+			assert.Equal(t, 4, result.Count)
+			assert.Equal(t, job1, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
+			assert.Equal(t, job3, result.Jobs[2])
+			assert.Equal(t, job5, result.Jobs[3])
 		})
 
 		return nil
