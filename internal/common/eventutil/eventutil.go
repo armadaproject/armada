@@ -311,7 +311,7 @@ func K8sServicesIngressesFromApiJob(job *api.Job, ingressConfig *configuration.I
 	// Hence, we use the same code as is later used by the executor to create the pod to be submitted.
 	// Note that we only create the pod here to pass it to GenerateIngresses.
 	// TODO: This only works for a single pod; I think we should create services/ingresses for each pod in the request (Albin).
-	pod := executorutil.CreatePod(job, &configuration.PodDefaults{}, 0)
+	pod := executorutil.CreatePod(job, &configuration.PodDefaults{})
 	pod.Annotations = util.MergeMaps(pod.Annotations, map[string]string{
 		domain.HasIngress:               "true",
 		domain.AssociatedServicesCount:  fmt.Sprintf("%d", len(job.Services)),

@@ -288,16 +288,13 @@ func getPodSpec(job *executorapi.JobRunLease) (*v1.PodSpec, error) {
 	return nil, fmt.Errorf("no podspec found in the main object - jobs must specify a podspec")
 }
 
-func CreatePod(job *api.Job, defaults *configuration.PodDefaults, i int) *v1.Pod {
-	if i != 0 {
-		panic("non-existing podSpec referenced in CreatePod")
-	}
+func CreatePod(job *api.Job, defaults *configuration.PodDefaults) *v1.Pod {
 	podSpec := job.GetMainPodSpec()
 	applyDefaults(podSpec, defaults)
 	labels := util.MergeMaps(job.Labels, map[string]string{
 		domain.JobId:     job.Id,
 		domain.Queue:     job.Queue,
-		domain.PodNumber: strconv.Itoa(i),
+		domain.PodNumber: "0",
 		domain.PodCount:  "1",
 	})
 	annotation := util.MergeMaps(job.Annotations, map[string]string{
@@ -309,7 +306,7 @@ func CreatePod(job *api.Job, defaults *configuration.PodDefaults, i int) *v1.Pod
 
 	pod := &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        common.PodNamePrefix + job.Id + "-" + strconv.Itoa(i),
+			Name:        common.PodNamePrefix + job.Id + "-0",
 			Labels:      labels,
 			Annotations: annotation,
 			Namespace:   job.Namespace,

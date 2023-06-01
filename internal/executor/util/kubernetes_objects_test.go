@@ -39,7 +39,7 @@ func TestCreateLabels_CreatesExpectedLabels(t *testing.T) {
 		domain.Owner:    job.Owner,
 	}
 
-	result := CreatePod(&job, &configuration.PodDefaults{}, 0)
+	result := CreatePod(&job, &configuration.PodDefaults{})
 
 	assert.Equal(t, result.Labels, expectedLabels)
 	assert.Equal(t, result.Annotations, expectedAnnotations)
@@ -88,7 +88,7 @@ func TestCreatePod_CreatesExpectedPod(t *testing.T) {
 		Spec: *podSpec,
 	}
 
-	result := CreatePod(&job, &configuration.PodDefaults{}, 0)
+	result := CreatePod(&job, &configuration.PodDefaults{})
 	assert.Equal(t, result, &expectedOutput)
 }
 
