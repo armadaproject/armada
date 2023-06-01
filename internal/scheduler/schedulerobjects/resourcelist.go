@@ -371,7 +371,7 @@ type AllocatedByPriorityAndResourceType QuantityByPriorityAndResourceType
 func NewAllocatedByPriorityAndResourceType(priorities []int32) AllocatedByPriorityAndResourceType {
 	rv := make(AllocatedByPriorityAndResourceType)
 	for _, priority := range priorities {
-		rv[priority] = ResourceList{Resources: make(map[string]resource.Quantity)}
+		rv[priority] = NewResourceListWithDefaultSize()
 	}
 	return rv
 }
