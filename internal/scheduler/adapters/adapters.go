@@ -5,11 +5,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/logging"
-	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -36,9 +34,8 @@ func PodRequirementsFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName
 	if podSpec.PreemptionPolicy != nil {
 		preemptionPolicy = string(*podSpec.PreemptionPolicy)
 	}
-	CollapsePodSpecContainers(podSpec) // May mutate podSpec.
 	var resourceRequirements v1.ResourceRequirements
-	for _, container := range podSpec.Containers {
+	if container := MergePodSpecContainers(podSpec); container != nil {
 		resourceRequirements = container.Resources
 	}
 	return &schedulerobjects.PodRequirements{
@@ -51,8 +48,8 @@ func PodRequirementsFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName
 	}
 }
 
-// CollapseContainerRequestsAndLimits collapses all containers and initContainers in podSpec into a single container.
-// Each resource of the requests and limits of this container is set to
+// MergePodSpecContainers merges all containers and initContainers in podSpec into a single container
+// and returns the resulting container. The requests and limits of this container is set to
 //
 // max(
 //
@@ -63,42 +60,47 @@ func PodRequirementsFromPodSpec(podSpec *v1.PodSpec, priorityByPriorityClassName
 //
 // This is because containers run in parallel, whereas initContainers run serially.
 // All containers (and initContainers) other than the collapsed container are deleted from podSpec.
-// This function may mutate containers in-place.
 //
-// TODO: Test.
-func CollapsePodSpecContainers(podSpec *v1.PodSpec) {
+// This function mutates podSpec containers in-place to avoid allocating memory.
+// This function is idempotent.
+func MergePodSpecContainers(podSpec *v1.PodSpec) *v1.Container {
+	containersMinIndex := 0
+	initContainersMinIndex := 0
 	var container *v1.Container
-	for _, c := range podSpec.Containers {
-		if container == nil {
-			container = &c
-		} else {
-			for t, request := range c.Resources.Requests {
-				q := container.Resources.Requests[t]
-				q.Add(request)
-				container.Resources.Requests[t] = q
-			}
-			for t, limit := range c.Resources.Limits {
-				q := container.Resources.Limits[t]
-				q.Add(limit)
-				container.Resources.Limits[t] = q
-			}
+	if len(podSpec.Containers) > 0 {
+		container = &podSpec.Containers[0]
+		containersMinIndex = 1
+	} else if len(podSpec.InitContainers) > 0 {
+		container = &podSpec.InitContainers[0]
+		initContainersMinIndex = 1
+	}
+	for i, c := range podSpec.Containers {
+		if i < containersMinIndex {
+			continue
+		}
+		for t, request := range c.Resources.Requests {
+			q := container.Resources.Requests[t]
+			q.Add(request)
+			container.Resources.Requests[t] = q
+		}
+		for t, limit := range c.Resources.Limits {
+			q := container.Resources.Limits[t]
+			q.Add(limit)
+			container.Resources.Limits[t] = q
 		}
 	}
-	for _, c := range podSpec.InitContainers {
-		if container == nil {
-			container = &c
-		} else {
-			for t, request := range c.Resources.Requests {
-				q := container.Resources.Requests[t]
-				if q.Cmp(request) == -1 {
-					container.Resources.Requests[t] = request
-				}
+	for i, c := range podSpec.InitContainers {
+		if i < initContainersMinIndex {
+			continue
+		}
+		for t, request := range c.Resources.Requests {
+			if request.Cmp(container.Resources.Requests[t]) == 1 {
+				container.Resources.Requests[t] = request
 			}
-			for t, limit := range c.Resources.Limits {
-				q := container.Resources.Limits[t]
-				if q.Cmp(limit) == -1 {
-					container.Resources.Requests[t] = limit
-				}
+		}
+		for t, limit := range c.Resources.Limits {
+			if limit.Cmp(container.Resources.Limits[t]) == 1 {
+				container.Resources.Limits[t] = limit
 			}
 		}
 	}
@@ -108,159 +110,7 @@ func CollapsePodSpecContainers(podSpec *v1.PodSpec) {
 		podSpec.Containers = podSpec.InitContainers[0:1]
 	}
 	podSpec.InitContainers = nil
-}
-
-// TotalPodResourceRequest represents the resource request for a given pod is the maximum of:
-//   - sum of all containers
-//   - any individual init container
-//
-// This is because:
-//   - containers run in parallel (so need to sum resources)
-//   - init containers run sequentially (so only their individual resource need be considered)
-//
-// So pod resource usage is the max for each resource type (cpu/memory etc.) that could be used at any given time
-func PodTotalRequestsAsResourceList(podSpec *v1.PodSpec) schedulerobjects.ResourceList {
-	totalRequests := make(map[string]resource.Quantity, 4)
-	for _, container := range podSpec.Containers {
-		for t, request := range container.Resources.Requests {
-			q := totalRequests[string(t)]
-			q.Add(request)
-			totalRequests[string(t)] = q
-		}
-	}
-	for _, container := range podSpec.InitContainers {
-		for t, request := range container.Resources.Requests {
-			q := totalRequests[string(t)]
-			if q.Cmp(request) == -1 {
-				totalRequests[string(t)] = q
-			}
-		}
-	}
-	return schedulerobjects.ResourceList{Resources: totalRequests}
-}
-
-// TotalPodResourceLimit function calculates the maximum total resource (cpu, memory, etc.) limits in the pod for
-// each resource by iterating through all containers and initContainers in the pod.
-func PodTotalLimitsAsResourceList(podSpec *v1.PodSpec) schedulerobjects.ResourceList {
-	totalLimits := make(map[string]resource.Quantity, 4)
-	for _, container := range podSpec.Containers {
-		for t, request := range container.Resources.Limits {
-			q := totalLimits[string(t)]
-			q.Add(request)
-			totalLimits[string(t)] = q
-		}
-	}
-	for _, container := range podSpec.InitContainers {
-		for t, request := range container.Resources.Limits {
-			q := totalLimits[string(t)]
-			if q.Cmp(request) == -1 {
-				totalLimits[string(t)] = q
-			}
-		}
-	}
-	return schedulerobjects.ResourceList{Resources: totalLimits}
-}
-
-func PodTotalRequestsAsMillis(podSpec *v1.PodSpec) map[string]int64 {
-	total := make(map[string]int64, 4)
-	for _, container := range podSpec.Containers {
-		for t, request := range container.Resources.Requests {
-			total[string(t)] += request.MilliValue()
-		}
-	}
-	for _, container := range podSpec.InitContainers {
-		for t, request := range container.Resources.Requests {
-			v := request.MilliValue()
-			if v > total[string(t)] {
-				total[string(t)] = v
-			}
-		}
-	}
-	return total
-}
-
-func PodTotalRequestsAsV1ResourceList3(podSpec *v1.PodSpec) v1.ResourceList {
-	totalRequests := make(v1.ResourceList, 4)
-	// buffer := resource.Quantity{}
-	for _, container := range podSpec.Containers {
-		for t, request := range container.Resources.Requests {
-			// buffer.DeepCopyInto()
-			q := totalRequests[t]
-			q.Add(request)
-			totalRequests[t] = q
-		}
-	}
-	for _, container := range podSpec.InitContainers {
-		for t, request := range container.Resources.Requests {
-			q := totalRequests[t]
-			if q.Cmp(request) == -1 {
-				totalRequests[t] = q
-			}
-		}
-	}
-	return totalRequests
-}
-
-// TotalPodResourceRequest represents the resource request for a given pod is the maximum of:
-//   - sum of all containers
-//   - any individual init container
-//
-// This is because:
-//   - containers run in parallel (so need to sum resources)
-//   - init containers run sequentially (so only their individual resource need be considered)
-//
-// So pod resource usage is the max for each resource type (cpu/memory etc.) that could be used at any given time
-func PodTotalRequestsAsV1ResourceList(podSpec *v1.PodSpec) v1.ResourceList {
-	totalRequests := make(v1.ResourceList, 4)
-	for _, container := range podSpec.Containers {
-		for t, request := range container.Resources.Requests {
-			q := totalRequests[t]
-			q.Add(request)
-			totalRequests[t] = q
-		}
-	}
-	for _, container := range podSpec.InitContainers {
-		for t, request := range container.Resources.Requests {
-			q := totalRequests[t]
-			if q.Cmp(request) == -1 {
-				totalRequests[t] = q
-			}
-		}
-	}
-	return totalRequests
-}
-
-// TotalPodResourceLimit function calculates the maximum total resource (cpu, memory, etc.) limits in the pod for
-// each resource by iterating through all containers and initContainers in the pod.
-func PodTotalLimitsAsV1ResourceList(podSpec *v1.PodSpec) v1.ResourceList {
-	totalLimits := make(v1.ResourceList, 4)
-	for _, container := range podSpec.Containers {
-		for t, request := range container.Resources.Limits {
-			q := totalLimits[t]
-			q.Add(request)
-			totalLimits[t] = q
-		}
-	}
-	for _, container := range podSpec.InitContainers {
-		for t, request := range container.Resources.Limits {
-			q := totalLimits[t]
-			if q.Cmp(request) == -1 {
-				totalLimits[t] = q
-			}
-		}
-	}
-	return totalLimits
-}
-
-// v1ResourceListFromComputeResources function converts the armadaresource.ComputeResources type
-// defined as map[string]resource.Quantity to v1.ResourceList defined in the k8s API as
-// map[ResourceName]resource.Quantity
-func v1ResourceListFromComputeResources(resources armadaresource.ComputeResources) v1.ResourceList {
-	rv := make(v1.ResourceList)
-	for t, q := range resources {
-		rv[v1.ResourceName(t)] = q
-	}
-	return rv
+	return container
 }
 
 // PriorityFromPodSpec returns the priority in a pod spec.

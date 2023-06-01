@@ -289,15 +289,16 @@ func getPodSpec(job *executorapi.JobRunLease) (*v1.PodSpec, error) {
 }
 
 func CreatePod(job *api.Job, defaults *configuration.PodDefaults, i int) *v1.Pod {
-	allPodSpecs := job.GetAllPodSpecs()
-	podSpec := allPodSpecs[i]
+	if i != 0 {
+		panic("non-existing podSpec referenced in CreatePod")
+	}
+	podSpec := job.GetMainPodSpec()
 	applyDefaults(podSpec, defaults)
-
 	labels := util.MergeMaps(job.Labels, map[string]string{
 		domain.JobId:     job.Id,
 		domain.Queue:     job.Queue,
 		domain.PodNumber: strconv.Itoa(i),
-		domain.PodCount:  strconv.Itoa(len(allPodSpecs)),
+		domain.PodCount:  "1",
 	})
 	annotation := util.MergeMaps(job.Annotations, map[string]string{
 		domain.JobSetId: job.JobSetId,

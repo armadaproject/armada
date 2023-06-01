@@ -106,36 +106,32 @@ func NewNodeTypeFromNodeInfo(nodeInfo *NodeInfo, indexedTaints map[string]interf
 }
 
 func (job *Job) GetRequirements(priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
-	podSpecs := job.GetAllPodSpecs()
-	objectRequirements := make([]*schedulerobjects.ObjectRequirements, len(podSpecs))
-	for i, podSpec := range podSpecs {
-		if podSpec == nil {
-			continue
-		}
-		objectRequirements[i] = &schedulerobjects.ObjectRequirements{
-			Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-				PodRequirements: adapters.PodRequirementsFromPod(
-					&v1.Pod{
-						ObjectMeta: metav1.ObjectMeta{
-							Annotations: job.Annotations,
-						},
-						Spec: *podSpec,
-					},
-					priorityClasses,
-				),
-			},
-		}
-	}
-	priorityClassName := ""
-	if len(podSpecs) > 0 {
-		priorityClassName = podSpecs[0].PriorityClassName
-	}
+	podSpec := job.GetMainPodSpec()
 	return &schedulerobjects.JobSchedulingInfo{
-		PriorityClassName:  priorityClassName,
-		Priority:           LogSubmitPriorityFromApiPriority(job.GetPriority()),
-		SubmitTime:         job.GetCreated(),
-		ObjectRequirements: objectRequirements,
+		PriorityClassName: podSpec.PriorityClassName,
+		Priority:          LogSubmitPriorityFromApiPriority(job.GetPriority()),
+		SubmitTime:        job.GetCreated(),
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: adapters.PodRequirementsFromPod(
+						&v1.Pod{
+							ObjectMeta: metav1.ObjectMeta{
+								Annotations: job.Annotations,
+							},
+							Spec: *podSpec,
+						},
+						priorityClasses,
+					),
+				},
+			},
+		},
 	}
+}
+
+func (job *Job) GetPriorityClassName() string {
+	podSpec := job.GetMainPodSpec()
+	return podSpec.PriorityClassName
 }
 
 func (job *Job) GetJobSet() string {
@@ -167,13 +163,18 @@ func (job *Job) GetMainPodSpec() *v1.PodSpec {
 	return nil
 }
 
-func (job *Job) TotalResourceRequest() armadaresource.ComputeResources {
-	totalResources := make(armadaresource.ComputeResources)
-	for _, podSpec := range job.GetAllPodSpecs() {
-		podResource := armadaresource.TotalPodResourceRequest(podSpec)
-		totalResources.Add(podResource)
+func (job *JobSubmitRequestItem) GetMainPodSpec() *v1.PodSpec {
+	if job.PodSpec != nil {
+		return job.PodSpec
+	} else if len(job.PodSpecs) > 0 {
+		return job.PodSpecs[0]
 	}
-	return totalResources
+	return nil
+}
+
+func (job *Job) TotalResourceRequest() armadaresource.ComputeResources {
+	podSpec := job.GetMainPodSpec()
+	return armadaresource.TotalPodResourceRequest(podSpec)
 }
 
 func ShortStringFromEventMessages(msgs []*EventMessage) string {

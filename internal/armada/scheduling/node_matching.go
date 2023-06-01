@@ -67,14 +67,12 @@ func MatchSchedulingRequirements(
 		err = err.Add(fmt.Sprintf("pod resource requests too low; the minimum allowed is %v", schedulingInfo.MinimumJobSize), len(schedulingInfo.NodeTypes))
 		return false, err
 	}
-	for i, podSpec := range job.GetAllPodSpecs() {
-		// TODO: make sure there are enough nodes available for all the job pods.
-		if ok, err := matchAnyNodeType(podSpec, schedulingInfo.NodeTypes); !ok {
-			if err != nil {
-				return false, err
-			}
-			return false, errors.Errorf("%d-th pod can't be scheduled", i)
+	podSpec := job.GetMainPodSpec()
+	if ok, err := matchAnyNodeType(podSpec, schedulingInfo.NodeTypes); !ok {
+		if err != nil {
+			return false, err
 		}
+		return false, errors.Errorf("job %s can't be scheduled", job.Id)
 	}
 	return true, nil
 }
@@ -83,9 +81,9 @@ func isLargeEnough(job *api.Job, minimumJobSize armadaresource.ComputeResources)
 	if len(minimumJobSize) == 0 {
 		return true
 	}
-	rl := job.TotalResourceRequestAsResourceList()
+	rl := job.TotalResourceRequest()
 	for t, limit := range minimumJobSize {
-		q := rl.Get(t)
+		q := rl[t]
 		if limit.Cmp(q) == 1 {
 			return false
 		}
