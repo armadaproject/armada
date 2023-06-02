@@ -1,4 +1,5 @@
 import { Checkbox } from "@mui/material"
+import { CellContext, Row } from "@tanstack/react-table"
 import { ColumnDef, createColumnHelper, VisibilityState } from "@tanstack/table-core"
 import { JobStateLabel } from "components/lookoutV2/JobStateLabel"
 import { EnumFilterOption } from "components/lookoutV2/JobsTableFilter"
@@ -112,22 +113,43 @@ export const JOB_COLUMNS: JobTableColumn[] = [
       <Checkbox
         checked={table.getIsAllRowsSelected()}
         indeterminate={table.getIsSomeRowsSelected()}
-        onChange={table.getToggleAllRowsSelectedHandler()}
+        onChange={(event) => {
+          if (!event.currentTarget.checked || table.getIsSomeRowsSelected()) {
+            table.toggleAllRowsSelected(false)
+            return
+          }
+          table.toggleAllRowsSelected(true)
+        }}
         size="small"
         sx={{ p: 0 }}
       />
     ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsGrouped() ? row.getIsAllSubRowsSelected() : row.getIsSelected()}
-        indeterminate={row.getIsSomeSelected()}
-        size="small"
-        sx={{
-          p: 0,
-          ml: `${row.depth * 6}px`,
-        }}
-      />
-    ),
+    cell: (item: unknown) => {
+      const itemCasted = item as CellContext<JobTableRow, unknown>
+      const row = itemCasted.row
+      const onClickRowCheckbox = (itemCasted as any).onClickRowCheckbox as (row: Row<JobTableRow>) => void
+      return (
+        <Checkbox
+          checked={row.getIsGrouped() ? row.getIsAllSubRowsSelected() : row.getIsSelected()}
+          indeterminate={row.getIsSomeSelected()}
+          size="small"
+          onClick={(e) => {
+            // Do normal flow for when the shift key is pressed
+            if (e.shiftKey) {
+              return
+            }
+            if (onClickRowCheckbox !== undefined) {
+              onClickRowCheckbox(row)
+            }
+            e.stopPropagation()
+          }}
+          sx={{
+            p: 0,
+            ml: `${row.depth * 6}px`,
+          }}
+        />
+      )
+    },
     meta: {
       displayName: "Select Column",
     } as JobTableColumnMetadata,
