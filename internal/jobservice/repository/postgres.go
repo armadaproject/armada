@@ -316,19 +316,24 @@ func (s *JSRepoPostgres) GetSubscribedJobSets(ctx context.Context) ([]Subscribed
 }
 
 func (s *JSRepoPostgres) purgeExpired(ctx context.Context) {
-	ticker := time.NewTicker(time.Duration(s.jobServiceConfig.PurgeJobSetTime) * time.Second)
-	log := log.WithField("JobService", "ExpiredJobSetsPurge")
 	jobsetsStmt := fmt.Sprintf(`DELETE FROM jobsets WHERE Timestamp < (extract(epoch from now()) - %d);`, s.jobServiceConfig.PurgeJobSetTime)
 	jobServiceStmt := fmt.Sprintf(`DELETE FROM jobservice WHERE Timestamp < (extract(epoch from now()) - %d);`, s.jobServiceConfig.PurgeJobSetTime)
+
+	ticker := time.NewTicker(time.Duration(s.jobServiceConfig.PurgeJobSetTime) * time.Second)
+	log := log.WithField("JobService", "ExpiredJobSetsPurge")
+
 	for range ticker.C {
-		_, jobsetErr := s.dbpool.Exec(ctx, jobsetsStmt)
+		result, jobsetErr := s.dbpool.Exec(ctx, jobsetsStmt)
 		if jobsetErr != nil {
 			log.Error("error deleting expired jobsets: ", jobsetErr)
+		} else {
+			log.Debugf("Deleted %d expired jobsets", result.RowsAffected())
 		}
-		_, jobServiceErr := s.dbpool.Exec(ctx, jobServiceStmt)
+		result, jobServiceErr := s.dbpool.Exec(ctx, jobServiceStmt)
 		if jobServiceErr != nil {
 			log.Error("error deleting expired jobs: ", jobServiceErr)
+		} else {
+			log.Debugf("Deleted %d expired jobs", result.RowsAffected())
 		}
-
 	}
 }

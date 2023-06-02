@@ -368,20 +368,29 @@ func (s *JSRepoSQLite) GetSubscribedJobSets(ctx context.Context) ([]SubscribedTu
 }
 
 func (s *JSRepoSQLite) purgeExpired() {
-	ticker := time.NewTicker(time.Duration(s.jobServiceConfig.PurgeJobSetTime) * time.Second)
-	log := log.WithField("JobService", "ExpiredJobSetsPurge")
 	jobsetsStmt := fmt.Sprintf(`DELETE FROM jobsets WHERE Timestamp < (UNIXEPOCH() - %d);`, s.jobServiceConfig.PurgeJobSetTime)
 	jobServiceStmt := fmt.Sprintf(`DELETE FROM jobservice WHERE Timestamp < (UNIXEPOCH() - %d);`, s.jobServiceConfig.PurgeJobSetTime)
+
+	ticker := time.NewTicker(time.Duration(s.jobServiceConfig.PurgeJobSetTime) * time.Second)
+	log := log.WithField("JobService", "ExpiredJobSetsPurge")
+
+	purge := func(table, sqlStmt string) {
+		result, err := s.db.Exec(jobsetsStmt)
+		if err != nil {
+			log.Errorf("error deleting expired records from table %s: %v ", table, err)
+		} else {
+			count, err := result.RowsAffected()
+			if err != nil {
+				log.Errorf("error getting affected rows for expired %s records deletion: %v", table, err)
+			}
+			log.Debugf("Deleted %d expired records in table %s", count, table)
+		}
+	}
+
 	for range ticker.C {
 		s.lock.Lock()
-		_, jobsetErr := s.db.Exec(jobsetsStmt)
-		if jobsetErr != nil {
-			log.Error("error deleting expired jobsets: ", jobsetErr)
-		}
-		_, jobServiceErr := s.db.Exec(jobServiceStmt)
-		if jobServiceErr != nil {
-			log.Error("error deleting expired jobs: ", jobServiceErr)
-		}
+		purge("jobsets", jobsetsStmt)
+		purge("jobservice", jobServiceStmt)
 		s.lock.Unlock()
 	}
 }
