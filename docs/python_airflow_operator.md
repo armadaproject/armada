@@ -22,7 +22,7 @@ Airflow operators inherit from BaseOperator.
 
 * **Parameters**
 
-    
+
     * **name** (*str*) – The name of the airflow task
 
 
@@ -52,7 +52,7 @@ Airflow operators inherit from BaseOperator.
 
 * **Returns**
 
-    an armada operator instance
+  an armada operator instance
 
 
 
@@ -64,19 +64,35 @@ Runs an Armada job and calls the job_service_client for polling.
 
 * **Parameters**
 
-    **context** – The airflow context.
+  **context** – The airflow context.
 
 
 
 * **Returns**
 
-    None
+  None
 
 
 
 * **Return type**
 
-    None
+  None
+
+
+
+#### on_kill()
+Stops the JobService from listening to the JobSet and cancels the jobs.
+
+
+* **Returns**
+
+  None
+
+
+
+* **Return type**
+
+  None
 
 
 ## armada.operators.armada_deferrable module
@@ -98,7 +114,7 @@ Airflow operators inherit from BaseOperator.
 
 * **Parameters**
 
-    
+
     * **name** (*str*) – The name of the airflow task.
 
 
@@ -126,7 +142,7 @@ Airflow operators inherit from BaseOperator.
 
 * **Returns**
 
-    A deferrable armada operator instance.
+  A deferrable armada operator instance.
 
 
 
@@ -139,19 +155,19 @@ until the job completes.
 
 * **Parameters**
 
-    **context** – The airflow context.
+  **context** – The airflow context.
 
 
 
 * **Returns**
 
-    None
+  None
 
 
 
 * **Return type**
 
-    None
+  None
 
 
 
@@ -164,7 +180,7 @@ Reports the result of the job and returns.
 
 * **Parameters**
 
-    
+
     * **context** – The airflow context.
 
 
@@ -178,13 +194,13 @@ Reports the result of the job and returns.
 
 * **Returns**
 
-    None
+  None
 
 
 
 * **Return type**
 
-    None
+  None
 
 
 
@@ -198,7 +214,7 @@ Triggers when the job is complete.
 
 * **Parameters**
 
-    
+
     * **job_id** (*str*) – The job ID to monitor.
 
 
@@ -219,7 +235,7 @@ Triggers when the job is complete.
 
 * **Returns**
 
-    An armada job complete trigger instance.
+  An armada job complete trigger instance.
 
 
 
@@ -233,13 +249,13 @@ Returns the information needed to reconstruct this Trigger.
 
 * **Returns**
 
-    Tuple of (class path, keyword arguments needed to re-instantiate).
+  Tuple of (class path, keyword arguments needed to re-instantiate).
 
 
 
 * **Return type**
 
-    tuple
+  tuple
 
 
 
@@ -265,37 +281,37 @@ A Serializable GRPC Arguments Object.
 
 * **Target**
 
-    Target keyword argument used when instantiating a grpc channel.
+  Target keyword argument used when instantiating a grpc channel.
 
 
 
 * **Credentials**
 
-    credentials keyword argument used when instantiating a grpc channel.
+  credentials keyword argument used when instantiating a grpc channel.
 
 
 
 * **Options**
 
-    options keyword argument used when instantiating a grpc channel.
+  options keyword argument used when instantiating a grpc channel.
 
 
 
 * **Compression**
 
-    compression keyword argument used when instantiating a grpc channel.
+  compression keyword argument used when instantiating a grpc channel.
 
 
 
 * **Returns**
 
-    a GrpcChannelArguments instance
+  a GrpcChannelArguments instance
 
 
 
 * **Parameters**
 
-    
+
     * **target** (*str*) – 
 
 
@@ -315,13 +331,13 @@ Create a grpc.aio.Channel (asyncio) based on arguments supplied to this object.
 
 * **Returns**
 
-    Return grpc.aio.insecure_channel if credentials is None. Otherwise
+  Return grpc.aio.insecure_channel if credentials is None. Otherwise
 
 
 
 * **Return type**
 
-    *Channel*
+  *Channel*
 
 
 returns grpc.aio.secure_channel.
@@ -333,13 +349,13 @@ Create a grpc.Channel based on arguments supplied to this object.
 
 * **Returns**
 
-    Return grpc.insecure_channel if credentials is None. Otherwise
+  Return grpc.insecure_channel if credentials is None. Otherwise
 
 
 
 * **Return type**
 
-    *Channel*
+  *Channel*
 
 
 returns grpc.secure_channel.
@@ -351,13 +367,13 @@ Get a serialized version of this object.
 
 * **Returns**
 
-    A dict of keyword arguments used when calling
+  A dict of keyword arguments used when calling
 
 
 
 * **Return type**
 
-    dict
+  dict
 
 
 grpc{.aio}.{
@@ -381,15 +397,15 @@ Implementation of gRPC stubs from JobService
 
 * **Parameters**
 
-    **channel** – gRPC channel used for authentication. See
-    [https://grpc.github.io/grpc/python/grpc.html](https://grpc.github.io/grpc/python/grpc.html)
-    for more information.
+  **channel** – gRPC channel used for authentication. See
+  [https://grpc.github.io/grpc/python/grpc.html](https://grpc.github.io/grpc/python/grpc.html)
+  for more information.
 
 
 
 * **Returns**
 
-    a job service client instance
+  a job service client instance
 
 
 
@@ -401,7 +417,7 @@ Uses the GetJobStatus rpc to get a status of your job
 
 * **Parameters**
 
-    
+
     * **queue** (*str*) – The name of the queue
 
 
@@ -414,13 +430,13 @@ Uses the GetJobStatus rpc to get a status of your job
 
 * **Returns**
 
-    A Job Service Request (State, Error)
+  A Job Service Request (State, Error)
 
 
 
 * **Return type**
 
-    *JobServiceResponse*
+  *JobServiceResponse*
 
 
 
@@ -430,7 +446,7 @@ Health Check for GRPC Request
 
 * **Return type**
 
-    *HealthCheckResponse*
+  *HealthCheckResponse*
 
 
 ## armada.operators.jobservice_asyncio module
@@ -446,15 +462,15 @@ AsyncIO implementation of gRPC stubs from JobService
 
 * **Parameters**
 
-    **channel** (*Channel*) – AsyncIO gRPC channel used for authentication. See
-    [https://grpc.github.io/grpc/python/grpc_asyncio.html](https://grpc.github.io/grpc/python/grpc_asyncio.html)
-    for more information.
+  **channel** (*Channel*) – AsyncIO gRPC channel used for authentication. See
+  [https://grpc.github.io/grpc/python/grpc_asyncio.html](https://grpc.github.io/grpc/python/grpc_asyncio.html)
+  for more information.
 
 
 
 * **Returns**
 
-    A job service client instance
+  A job service client instance
 
 
 
@@ -466,7 +482,7 @@ Uses the GetJobStatus rpc to get a status of your job
 
 * **Parameters**
 
-    
+
     * **queue** (*str*) – The name of the queue
 
 
@@ -479,13 +495,13 @@ Uses the GetJobStatus rpc to get a status of your job
 
 * **Returns**
 
-    A Job Service Request (State, Error)
+  A Job Service Request (State, Error)
 
 
 
 * **Return type**
 
-    *JobServiceResponse*
+  *JobServiceResponse*
 
 
 
@@ -495,7 +511,7 @@ Health Check for GRPC Request
 
 * **Return type**
 
-    *HealthCheckResponse*
+  *HealthCheckResponse*
 
 
 ## armada.operators.utils module
@@ -529,7 +545,7 @@ Throw an error on a terminal event if job errored out
 
 * **Parameters**
 
-    
+
     * **job_state** (*JobState*) – A JobState enum class
 
 
@@ -542,7 +558,7 @@ Throw an error on a terminal event if job errored out
 
 * **Returns**
 
-    No Return or an AirflowFailException.
+  No Return or an AirflowFailException.
 
 
 AirflowFailException tells Airflow Schedule to not reschedule the task
@@ -554,7 +570,7 @@ Annotates the inbound job request items with Airflow context elements
 
 * **Parameters**
 
-    
+
     * **context** – The airflow context.
 
 
@@ -564,13 +580,13 @@ Annotates the inbound job request items with Airflow context elements
 
 * **Returns**
 
-    annotated job request items for armada
+  annotated job request items for armada
 
 
 
 * **Return type**
 
-    *List*[*JobSubmitRequestItem*]
+  *List*[*JobSubmitRequestItem*]
 
 
 
@@ -578,7 +594,7 @@ Annotates the inbound job request items with Airflow context elements
 
 * **Parameters**
 
-    
+
     * **armada_queue** (*str*) – 
 
 
@@ -594,7 +610,7 @@ Annotates the inbound job request items with Airflow context elements
 
 * **Return type**
 
-    *JobServiceResponse*
+  *JobServiceResponse*
 
 
 
@@ -606,13 +622,13 @@ A default is provided if the env var is not defined
 
 * **Returns**
 
-    string annotation key prefix
+  string annotation key prefix
 
 
 
 * **Return type**
 
-    str
+  str
 
 
 
@@ -620,7 +636,7 @@ A default is provided if the env var is not defined
 
 * **Return type**
 
-    *JobState*
+  *JobState*
 
 
 
@@ -632,7 +648,7 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
 
 * **Parameters**
 
-    
+
     * **armada_queue** (*str*) – The queue for armada
 
 
@@ -663,13 +679,13 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
 
 * **Returns**
 
-    A tuple of JobStateEnum, message
+  A tuple of JobStateEnum, message
 
 
 
 * **Return type**
 
-    *Tuple*[*JobState*, str]
+  *Tuple*[*JobState*, str]
 
 
 
@@ -681,7 +697,7 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
 
 * **Parameters**
 
-    
+
     * **armada_queue** (*str*) – The queue for armada
 
 
@@ -706,10 +722,10 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
 
 * **Returns**
 
-    A tuple of JobStateEnum, message
+  A tuple of JobStateEnum, message
 
 
 
 * **Return type**
 
-    *Tuple*[*JobState*, str]
+  *Tuple*[*JobState*, str]
