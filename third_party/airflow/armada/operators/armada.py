@@ -72,6 +72,7 @@ class ArmadaOperator(BaseOperator):
         self.poll_interval = poll_interval
         self.job_id = None  # Initialize job_id attribute
         self.job_set_id = None  # Initialize job_set_id attribute
+        self.queue = None
 
     def execute(self, context) -> None:
         """
@@ -134,15 +135,17 @@ class ArmadaOperator(BaseOperator):
         :return: None
         """
         try:
-            if self.job_set_id && self.queue:
+            if self.job_set_id and self.queue:
                 # Cancel the jobs using the Armada client
-                self.armada_client.cancel_job(job_set_id=self.job_set_id, queue=self.queue)
-                armada_logger.info("Queue %s and JobSetId %s has been cancelled.", self.queue, self.job_set_id)
+                self.armada_client.cancel_job(
+                    job_set_id=self.job_set_id, queue=self.queue
+                )
+                armada_logger.info(
+                    "Queue %s and JobSetId %s has been cancelled.",
+                    self.queue,
+                    self.job_set_id,
+                )
         except Exception as e:
-            armada_logger.warning("Error during job unsubscription and cancellation: %s", str(e))
-
-
-
-
-
-
+            armada_logger.warning(
+                "Error during job cancellation: %s", str(e)
+            )
