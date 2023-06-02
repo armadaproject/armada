@@ -481,6 +481,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	}
 	constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 		req.Pool,
+		schedulerobjects.ResourceList{Resources: totalCapacity},
 		schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
 		q.schedulingConfig,
 	)
@@ -669,34 +670,33 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			if apiJob == nil {
 				continue
 			}
-			for _, podSpec := range apiJob.GetAllPodSpecs() {
-				if podSpec == nil {
-					log.Warnf("failed to set node id selector on job %s: missing pod spec", apiJob.Id)
-					continue
-				}
-				nodeId := nodeIdByJobId[apiJob.Id]
-				if nodeId == "" {
-					log.Warnf("failed to set node id selector on job %s: no node assigned to job", apiJob.Id)
-					continue
-				}
-				node, err := nodeDb.GetNode(nodeId)
-				if err != nil {
-					logging.WithStacktrace(log, err).Warnf("failed to set node id selector on job %s: node with id %s not found", apiJob.Id, nodeId)
-					continue
-				}
-				v := node.Labels[q.schedulingConfig.Preemption.NodeIdLabel]
-				if v == "" {
-					log.Warnf(
-						"failed to set node id selector on job %s to target node %s: nodeIdLabel missing from %s",
-						apiJob.Id, node.Name, node.Labels,
-					)
-					continue
-				}
-				if podSpec.NodeSelector == nil {
-					podSpec.NodeSelector = make(map[string]string)
-				}
-				podSpec.NodeSelector[q.schedulingConfig.Preemption.NodeIdLabel] = v
+			podSpec := apiJob.GetMainPodSpec()
+			if podSpec == nil {
+				log.Warnf("failed to set node id selector on job %s: missing pod spec", apiJob.Id)
+				continue
 			}
+			nodeId := nodeIdByJobId[apiJob.Id]
+			if nodeId == "" {
+				log.Warnf("failed to set node id selector on job %s: no node assigned to job", apiJob.Id)
+				continue
+			}
+			node, err := nodeDb.GetNode(nodeId)
+			if err != nil {
+				logging.WithStacktrace(log, err).Warnf("failed to set node id selector on job %s: node with id %s not found", apiJob.Id, nodeId)
+				continue
+			}
+			v := node.Labels[q.schedulingConfig.Preemption.NodeIdLabel]
+			if v == "" {
+				log.Warnf(
+					"failed to set node id selector on job %s to target node %s: nodeIdLabel missing from %s",
+					apiJob.Id, node.Name, node.Labels,
+				)
+				continue
+			}
+			if podSpec.NodeSelector == nil {
+				podSpec.NodeSelector = make(map[string]string)
+			}
+			podSpec.NodeSelector[q.schedulingConfig.Preemption.NodeIdLabel] = v
 		}
 	}
 
@@ -706,23 +706,22 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			if apiJob == nil {
 				continue
 			}
-			for _, podSpec := range apiJob.GetAllPodSpecs() {
-				if podSpec == nil {
-					log.Warnf("failed to set node name on job %s: missing pod spec", apiJob.Id)
-					continue
-				}
-				nodeId := nodeIdByJobId[apiJob.Id]
-				if nodeId == "" {
-					log.Warnf("failed to set node name on job %s: no node assigned to job", apiJob.Id)
-					continue
-				}
-				node, err := nodeDb.GetNode(nodeId)
-				if err != nil {
-					logging.WithStacktrace(log, err).Warnf("failed to set node name on job %s: node with id %s not found", apiJob.Id, nodeId)
-					continue
-				}
-				podSpec.NodeName = node.Name
+			podSpec := apiJob.GetMainPodSpec()
+			if podSpec == nil {
+				log.Warnf("failed to set node name on job %s: missing pod spec", apiJob.Id)
+				continue
 			}
+			nodeId := nodeIdByJobId[apiJob.Id]
+			if nodeId == "" {
+				log.Warnf("failed to set node name on job %s: no node assigned to job", apiJob.Id)
+				continue
+			}
+			node, err := nodeDb.GetNode(nodeId)
+			if err != nil {
+				logging.WithStacktrace(log, err).Warnf("failed to set node name on job %s: node with id %s not found", apiJob.Id, nodeId)
+				continue
+			}
+			podSpec.NodeName = node.Name
 		}
 	}
 
@@ -730,9 +729,15 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if q.schedulingConfig.Preemption.PriorityClassNameOverride != nil {
 		priorityClassName := *q.schedulingConfig.Preemption.PriorityClassNameOverride
 		for _, apiJob := range successfullyLeasedApiJobs {
-			for _, podSpec := range apiJob.GetAllPodSpecs() {
-				podSpec.PriorityClassName = priorityClassName
+			if apiJob == nil {
+				continue
 			}
+			podSpec := apiJob.GetMainPodSpec()
+			if podSpec == nil {
+				log.Warnf("failed to set priorityClassName on job %s: missing pod spec", apiJob.Id)
+				continue
+			}
+			podSpec.PriorityClassName = priorityClassName
 		}
 	}
 

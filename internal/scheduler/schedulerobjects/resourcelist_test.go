@@ -877,6 +877,32 @@ func TestResourceListIsStrictlyLessOrEqual(t *testing.T) {
 	}
 }
 
+func TestResourceListZero(t *testing.T) {
+	rl := ResourceList{
+		Resources: map[string]resource.Quantity{
+			"foo": resource.MustParse("1"),
+			"bar": resource.MustParse("10Gi"),
+			"baz": resource.MustParse("0"),
+		},
+	}
+	rl.Zero()
+	assert.True(t, rl.Equal(ResourceList{}))
+}
+
+func BenchmarkResourceListZero(b *testing.B) {
+	rl := ResourceList{
+		Resources: map[string]resource.Quantity{
+			"foo": resource.MustParse("1"),
+			"bar": resource.MustParse("10Gi"),
+			"baz": resource.MustParse("0"),
+		},
+	}
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		rl.Zero()
+	}
+}
+
 func TestV1ResourceListConversion(t *testing.T) {
 	rl := ResourceList{
 		Resources: map[string]resource.Quantity{
@@ -901,4 +927,16 @@ func TestV1ResourceListConversion(t *testing.T) {
 
 	v1rlCopy := V1ResourceListFromResourceList(rl)
 	assert.True(t, maps.Equal(v1rlCopy, v1rl))
+}
+
+func BenchmarkResourceListZeroAdd(b *testing.B) {
+	rla := NewResourceList(3)
+	rlb := NewResourceList(3)
+	rlb.AddQuantity("cpu", resource.MustParse("2"))
+	rlb.AddQuantity("memory", resource.MustParse("10Gi"))
+	rlb.AddQuantity("nvidia.com/gpu", resource.MustParse("1"))
+	for n := 0; n < b.N; n++ {
+		rla.Zero()
+		rla.Add(rlb)
+	}
 }

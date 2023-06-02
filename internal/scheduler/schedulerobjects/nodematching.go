@@ -3,6 +3,7 @@ package schedulerobjects
 import (
 	"fmt"
 
+	"github.com/segmentio/fasthash/fnv1a"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,16 +13,29 @@ import (
 const (
 	// When checking if a pod fits on a node, this score indicates how well the pods fits.
 	// However, all nodes are currently given the same score.
-	SchedulableScore     = 0
-	SchedulableBestScore = SchedulableScore
+	SchedulableScore                                 = 0
+	SchedulableBestScore                             = SchedulableScore
+	PodRequirementsNotMetReasonUnmatchedNodeSelector = "node does not match pod NodeAffinity"
+	PodRequirementsNotMetReasonUnknown               = "unknown"
+	PodRequirementsNotMetReasonInsufficientResources = "insufficient resources available"
 )
 
 type PodRequirementsNotMetReason interface {
 	fmt.Stringer
+	// Returns a 64-bit hash of this reason.
+	Sum64() uint64
 }
 
 type UntoleratedTaint struct {
 	Taint v1.Taint
+}
+
+func (r *UntoleratedTaint) Sum64() uint64 {
+	h := fnv1a.Init64
+	h = fnv1a.AddString64(h, r.Taint.Key)
+	h = fnv1a.AddString64(h, r.Taint.Value)
+	h = fnv1a.AddString64(h, string(r.Taint.Effect))
+	return h
 }
 
 func (r *UntoleratedTaint) String() string {
@@ -30,6 +44,12 @@ func (r *UntoleratedTaint) String() string {
 
 type MissingLabel struct {
 	Label string
+}
+
+func (r *MissingLabel) Sum64() uint64 {
+	h := fnv1a.Init64
+	h = fnv1a.AddString64(h, r.Label)
+	return h
 }
 
 func (r *MissingLabel) String() string {
@@ -42,6 +62,14 @@ type UnmatchedLabel struct {
 	NodeValue string
 }
 
+func (r *UnmatchedLabel) Sum64() uint64 {
+	h := fnv1a.Init64
+	h = fnv1a.AddString64(h, r.Label)
+	h = fnv1a.AddString64(h, r.PodValue)
+	h = fnv1a.AddString64(h, r.NodeValue)
+	return h
+}
+
 func (r *UnmatchedLabel) String() string {
 	return fmt.Sprintf("node does not match pod NodeSelector: required label %s = %s, but node has %s", r.Label, r.PodValue, r.NodeValue)
 }
@@ -50,8 +78,14 @@ type UnmatchedNodeSelector struct {
 	NodeSelector *v1.NodeSelector
 }
 
+func (r *UnmatchedNodeSelector) Sum64() uint64 {
+	h := fnv1a.Init64
+	h = fnv1a.AddString64(h, PodRequirementsNotMetReasonUnmatchedNodeSelector)
+	return h
+}
+
 func (err *UnmatchedNodeSelector) String() string {
-	return "node does not match pod NodeAffinity"
+	return PodRequirementsNotMetReasonUnmatchedNodeSelector
 }
 
 type InsufficientResources struct {
@@ -60,14 +94,17 @@ type InsufficientResources struct {
 	Available resource.Quantity
 }
 
+func (r *InsufficientResources) Sum64() uint64 {
+	h := fnv1a.Init64
+	h = fnv1a.AddString64(h, r.Resource)
+	h = fnv1a.AddUint64(h, uint64(r.Required.MilliValue()))
+	h = fnv1a.AddUint64(h, uint64(r.Available.MilliValue()))
+	return h
+}
+
 func (err *InsufficientResources) String() string {
-	// Note that the below is much faster than fmt.Sprintf().
-	// This is important as this gets called in a tight loop
 	return "pod requires " + err.Required.String() + " " + err.Resource + ", but only " +
 		err.Available.String() + " is available"
-
-	// TODO: this would be even faster
-	// return "insufficient " + err.Resource
 }
 
 // PodRequirementsMet determines whether a pod can be scheduled on nodes of this NodeType.
