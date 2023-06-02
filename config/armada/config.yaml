@@ -103,6 +103,7 @@ eventRetention:
   retentionDuration: 336h
 metrics:
   refreshInterval: 5m
+  exposeSchedulingMetrics: true
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"

@@ -26,6 +26,6 @@ priorityClasses:
   armada-default:
     priority: 1000
   armada-preemptible:
-    priority: 900
+    priority: 1000
 
 
