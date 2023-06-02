@@ -56,6 +56,7 @@ func (s *JSRepoSQLite) Setup(ctx context.Context) {
 	defer s.lock.Unlock()
 
 	setupStmts := []string{
+		"PRAGMA journal_mode=WAL",
 		`PRAGMA foreign_keys = ON`,
 		`DROP TABLE IF EXISTS jobs`,
 		`DROP TABLE IF EXISTS jobsets`,
