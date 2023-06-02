@@ -21,6 +21,18 @@ func TestPodRequirementFromLegacySchedulerJob(t *testing.T) {
 		"memory":            resource.MustParse("128Mi"),
 		"ephemeral-storage": resource.MustParse("8Gi"),
 	}
+
+	// Hack to remove cached strings in quantities, which invalidate comparisons.
+	q := resourceLimit["cpu"]
+	q.Add(resource.Quantity{})
+	resourceLimit["cpu"] = q
+	q = resourceLimit["memory"]
+	q.Add(resource.Quantity{})
+	resourceLimit["memory"] = q
+	q = resourceLimit["ephemeral-storage"]
+	q.Add(resource.Quantity{})
+	resourceLimit["ephemeral-storage"] = q
+
 	requirements := v1.ResourceRequirements{
 		Limits:   resourceLimit,
 		Requests: resourceLimit,
