@@ -139,8 +139,6 @@ export const JOB_COLUMNS: JobTableColumn[] = [
               return
             }
             if (onClickRowCheckbox !== undefined) {
-              console.log("HIT")
-              console.log(onClickRowCheckbox)
               onClickRowCheckbox(row)
             }
             e.stopPropagation()
