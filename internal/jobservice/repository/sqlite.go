@@ -93,7 +93,7 @@ func (s *JSRepoSQLite) Setup(ctx context.Context) {
 	}
 
 	if s.jobServiceConfig.PurgeJobSetTime > 0 {
-		go s.purgeExpiredJobsAndJobSets()
+		go s.purgeExpired()
 	}
 }
 
@@ -367,33 +367,20 @@ func (s *JSRepoSQLite) GetSubscribedJobSets(ctx context.Context) ([]SubscribedTu
 	return tuples, nil
 }
 
-func (s *JSRepoSQLite) purgeExpiredJobsAndJobSets() {
+func (s *JSRepoSQLite) purgeExpired() {
 	ticker := time.NewTicker(time.Duration(s.jobServiceConfig.PurgeJobSetTime) * time.Second)
 	log := log.WithField("JobService", "ExpiredJobSetsPurge")
 	jobsetsStmt := fmt.Sprintf(`DELETE FROM jobsets WHERE Timestamp < (UNIXEPOCH() - %d);`, s.jobServiceConfig.PurgeJobSetTime)
 	jobServiceStmt := fmt.Sprintf(`DELETE FROM jobservice WHERE Timestamp < (UNIXEPOCH() - %d);`, s.jobServiceConfig.PurgeJobSetTime)
-	tableExistsStmt := `SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name=?);`
 	for range ticker.C {
 		s.lock.Lock()
-		for _, table := range []string{"jobsets", "jobservice"} {
-			var exists bool
-			err := s.db.QueryRow(tableExistsStmt, table).Scan(&exists)
-			if err != nil {
-				log.Errorf("Error checking table '%s' existence: %v", table, err)
-				continue
-			}
-			if exists {
-				var stmt string
-				if table == "jobsets" {
-					stmt = jobsetsStmt
-				} else {
-					stmt = jobServiceStmt
-				}
-				_, execErr := s.db.Exec(stmt)
-				if execErr != nil {
-					log.Errorf("Error deleting expired records from table '%s': %v", table, execErr)
-				}
-			}
+		_, jobsetErr := s.db.Exec(jobsetsStmt)
+		if jobsetErr != nil {
+			log.Error("error deleting expired jobsets: ", jobsetErr)
+		}
+		_, jobServiceErr := s.db.Exec(jobServiceStmt)
+		if jobServiceErr != nil {
+			log.Error("error deleting expired jobs: ", jobServiceErr)
 		}
 		s.lock.Unlock()
 	}
