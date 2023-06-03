@@ -13,6 +13,7 @@ const (
 	MatchLessThan             = "lessThan"
 	MatchGreaterThanOrEqualTo = "greaterThanOrEqualTo"
 	MatchLessThanOrEqualTo    = "lessThanOrEqualTo"
+	MatchExists               = "exists"
 
 	DirectionAsc  = "ASC"
 	DirectionDesc = "DESC"
@@ -67,4 +68,9 @@ type Filter struct {
 type Order struct {
 	Direction string
 	Field     string
+}
+
+type GroupedField struct {
+	Field        string
+	IsAnnotation bool
 }

@@ -154,7 +154,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx context.Context) ([]prometheus
 		}
 		qs, ok := provider.queueStates[job.Queue()]
 		if !ok {
-			log.Warnf("Job %s is in queue %s, but this queue does not exist.  Skipping", job.Id(), job.Queue())
+			log.Warnf("job %s is in queue %s, but this queue does not exist; skipping", job.Id(), job.Queue())
 			continue
 		}
 

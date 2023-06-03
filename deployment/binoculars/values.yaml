@@ -8,6 +8,8 @@ resources:
   requests:
     memory: 512Mi
     cpu: 200m
+# -- Tolerations
+tolerations: []    
 additionalLabels: {}
 additionalClusterRoleBindings: []
 additionalVolumeMounts: []

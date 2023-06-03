@@ -106,7 +106,10 @@ Implementation of a deferrable armada operator for airflow.
 Distinguished from ArmadaOperator by its ability to defer itself after
 submitting its job_request_items.
 
-See [https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html](https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html)
+See
+
+    [https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html](https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html)
+
 for more information about deferrable airflow operators.
 
 Airflow operators inherit from BaseOperator.
@@ -265,11 +268,11 @@ Bases: `TypedDict`
 Helper class to provide stronger type checking on Grpc channel arugments.
 
 
-#### compression(_: Compression | Non_ _ = Non_ )
+#### compression(_: Compression | Non_ )
 
-#### credentials(_: ChannelCredentials | Non_ _ = Non_ )
+#### credentials(_: ChannelCredentials | Non_ )
 
-#### options(_: Sequence[Tuple[str, Any]] | Non_ _ = Non_ )
+#### options(_: Sequence[Tuple[str, Any]] | Non_ )
 
 #### target(_: st_ )
 
@@ -279,27 +282,18 @@ Bases: `object`
 A Serializable GRPC Arguments Object.
 
 
-* **Target**
 
-  Target keyword argument used when instantiating a grpc channel.
-
-
-
-* **Credentials**
-
-  credentials keyword argument used when instantiating a grpc channel.
+    
+    * **target** (*str*) – Target keyword argument used
+    when instantiating a grpc channel.
 
 
 
-* **Options**
 
-  options keyword argument used when instantiating a grpc channel.
+    * **options** (*Sequence**[**Tuple**[**str**, **Any**]**] **| **None*) – options keyword argument used
+    when instantiating a grpc channel.
 
 
-
-* **Compression**
-
-  compression keyword argument used when instantiating a grpc channel.
 
 
 
@@ -309,29 +303,12 @@ A Serializable GRPC Arguments Object.
 
 
 
-* **Parameters**
-
-
-    * **target** (*str*) – 
-
-
-    * **credentials** (*ChannelCredentials** | **None*) – 
-
-
-    * **options** (*Sequence**[**Tuple**[**str**, **Any**]**] **| **None*) – 
-
-
-    * **compression** (*Compression** | **None*) – 
-
-
-
 #### aio_channel()
 Create a grpc.aio.Channel (asyncio) based on arguments supplied to this object.
 
 
 * **Returns**
 
-  Return grpc.aio.insecure_channel if credentials is None. Otherwise
 
 
 
@@ -339,8 +316,6 @@ Create a grpc.aio.Channel (asyncio) based on arguments supplied to this object.
 
   *Channel*
 
-
-returns grpc.aio.secure_channel.
 
 
 #### channel()
@@ -349,7 +324,6 @@ Create a grpc.Channel based on arguments supplied to this object.
 
 * **Returns**
 
-  Return grpc.insecure_channel if credentials is None. Otherwise
 
 
 
@@ -358,8 +332,6 @@ Create a grpc.Channel based on arguments supplied to this object.
   *Channel*
 
 
-returns grpc.secure_channel.
-
 
 #### serialize()
 Get a serialized version of this object.
@@ -367,7 +339,6 @@ Get a serialized version of this object.
 
 * **Returns**
 
-  A dict of keyword arguments used when calling
 
 
 
@@ -375,14 +346,6 @@ Get a serialized version of this object.
 
   dict
 
-
-grpc{.aio}.{
-
-```
-insecure_
-```
-
-}channel or instantiating this object.
 
 ## armada.operators.jobservice module
 

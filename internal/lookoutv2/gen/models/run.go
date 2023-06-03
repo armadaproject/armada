@@ -34,7 +34,7 @@ type Run struct {
 
 	// job run state
 	// Required: true
-	// Enum: [RUN_PENDING RUN_RUNNING RUN_SUCCEEDED RUN_FAILED RUN_TERMINATED RUN_PREEMPTED RUN_UNABLE_TO_SCHEDULE RUN_LEASE_RETURNED RUN_LEASE_EXPIRED RUN_MAX_RUNS_EXCEEDED]
+	// Enum: [RUN_PENDING RUN_RUNNING RUN_SUCCEEDED RUN_FAILED RUN_TERMINATED RUN_PREEMPTED RUN_UNABLE_TO_SCHEDULE RUN_LEASE_RETURNED RUN_LEASE_EXPIRED RUN_MAX_RUNS_EXCEEDED RUN_LEASED]
 	JobRunState string `json:"jobRunState"`
 
 	// node
@@ -119,7 +119,7 @@ var runTypeJobRunStatePropEnum []interface{}
 
 func init() {
 	var res []string
-	if err := json.Unmarshal([]byte(`["RUN_PENDING","RUN_RUNNING","RUN_SUCCEEDED","RUN_FAILED","RUN_TERMINATED","RUN_PREEMPTED","RUN_UNABLE_TO_SCHEDULE","RUN_LEASE_RETURNED","RUN_LEASE_EXPIRED","RUN_MAX_RUNS_EXCEEDED"]`), &res); err != nil {
+	if err := json.Unmarshal([]byte(`["RUN_PENDING","RUN_RUNNING","RUN_SUCCEEDED","RUN_FAILED","RUN_TERMINATED","RUN_PREEMPTED","RUN_UNABLE_TO_SCHEDULE","RUN_LEASE_RETURNED","RUN_LEASE_EXPIRED","RUN_MAX_RUNS_EXCEEDED","RUN_LEASED"]`), &res); err != nil {
 		panic(err)
 	}
 	for _, v := range res {
@@ -158,6 +158,9 @@ const (
 
 	// RunJobRunStateRUNMAXRUNSEXCEEDED captures enum value "RUN_MAX_RUNS_EXCEEDED"
 	RunJobRunStateRUNMAXRUNSEXCEEDED string = "RUN_MAX_RUNS_EXCEEDED"
+
+	// RunJobRunStateRUNLEASED captures enum value "RUN_LEASED"
+	RunJobRunStateRUNLEASED string = "RUN_LEASED"
 )
 
 // prop value enum

@@ -93,7 +93,7 @@ func ApiJobsFromLogSubmitJobs(
 	time time.Time,
 	es []*armadaevents.SubmitJob,
 ) ([]*api.Job, error) {
-	jobs := make([]*api.Job, len(es), len(es))
+	jobs := make([]*api.Job, len(es))
 	for i, e := range es {
 		job, err := ApiJobFromLogSubmitJob(userId, groups, queueName, jobSetName, time, e)
 		if err != nil {
@@ -154,6 +154,9 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 		}
 	}
 
+	// Compute the overall resource requirements necessary for scheduling.
+	schedulingResourceRequirements := api.SchedulingResourceRequirementsFromPodSpec(podSpec)
+
 	// If there's exactly one podSpec, put it in the PodSpec field, otherwise put all of them in the PodSpecs field.
 	// Because API jobs must specify either PodSpec or PodSpecs, this ensures that the job resulting from the conversion
 	// API job -> log job -> API job is equal to the original job.
@@ -180,8 +183,10 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 
 		Priority: float64(e.Priority),
 
-		PodSpec:                  podSpec,
-		PodSpecs:                 podSpecs,
+		PodSpec:                        podSpec,
+		PodSpecs:                       podSpecs,
+		SchedulingResourceRequirements: schedulingResourceRequirements,
+
 		Created:                  time,
 		Owner:                    ownerId,
 		QueueOwnershipUserGroups: groups,
@@ -311,7 +316,7 @@ func K8sServicesIngressesFromApiJob(job *api.Job, ingressConfig *configuration.I
 	// Hence, we use the same code as is later used by the executor to create the pod to be submitted.
 	// Note that we only create the pod here to pass it to GenerateIngresses.
 	// TODO: This only works for a single pod; I think we should create services/ingresses for each pod in the request (Albin).
-	pod := executorutil.CreatePod(job, &configuration.PodDefaults{}, 0)
+	pod := executorutil.CreatePod(job, &configuration.PodDefaults{})
 	pod.Annotations = util.MergeMaps(pod.Annotations, map[string]string{
 		domain.HasIngress:               "true",
 		domain.AssociatedServicesCount:  fmt.Sprintf("%d", len(job.Services)),

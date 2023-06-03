@@ -15,10 +15,10 @@ import (
 
 // Service that subscribes to events and stores JobStatus in the repository.
 type EventsToJobService struct {
-	queue                string
-	jobSetId             string
-	eventClient          events.JobEventReader
-	jobServiceRepository repository.JobTableUpdater
+	queue          string
+	jobSetId       string
+	eventClient    events.JobEventReader
+	jobServiceRepo repository.JobTableUpdater
 }
 
 func NewEventsToJobService(
@@ -28,23 +28,21 @@ func NewEventsToJobService(
 	jobServiceRepository repository.JobTableUpdater,
 ) *EventsToJobService {
 	return &EventsToJobService{
-		queue:                queue,
-		jobSetId:             jobSetId,
-		eventClient:          eventClient,
-		jobServiceRepository: jobServiceRepository,
+		queue:          queue,
+		jobSetId:       jobSetId,
+		eventClient:    eventClient,
+		jobServiceRepo: jobServiceRepository,
 	}
 }
 
 // Subscribes to a JobSet from jobsetid. Will retry until there is a successful exit, up to the TTL
-func (eventToJobService *EventsToJobService) SubscribeToJobSetId(context context.Context, ttlSecs int64, fromMessageId string) error {
-	log.Infof("subscribeToJobSetId start for %s/%s with messageId %s", eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
-	return eventToJobService.streamCommon(context, ttlSecs, fromMessageId)
-}
-
-func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, timeout int64, fromMessageId string) error {
+func (evToJS *EventsToJobService) SubscribeToJobSetId(ctx context.Context, timeout int64, fromMessageId string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	g, _ := errgroup.WithContext(ctx)
 	expiresAt := time.Now().Add(time.Duration(timeout) * time.Second)
+
+	log.Infof("SubscribeToJobSetId start for %s/%s with messageId %s", evToJS.queue, evToJS.jobSetId, fromMessageId)
+
 	g.Go(func() error {
 		defer cancel()
 
@@ -57,7 +55,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 			case <-ctx.Done():
 				return errors.Errorf("context done")
 			case t := <-ticker.C:
-				jobSetFound, _, err := eventToJobService.jobServiceRepository.IsJobSetSubscribed(ctx, eventToJobService.queue, eventToJobService.jobSetId)
+				jobSetFound, _, err := evToJS.jobServiceRepo.IsJobSetSubscribed(ctx, evToJS.queue, evToJS.jobSetId)
 				if err != nil {
 					return errors.Errorf("unsubscribe jobsets: %v", err)
 				}
@@ -65,7 +63,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 					return nil
 				}
 				if t.After(expiresAt) {
-					log.Infof("JobSet %s/%s unsubscribing and messageId is %s", eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
+					log.Infof("JobSet %s/%s unsubscribing and messageId is %s", evToJS.queue, evToJS.jobSetId, fromMessageId)
 					return errors.Errorf("stream subscription ttl exceeded: %v", timeout)
 				}
 			}
@@ -74,7 +72,7 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 	g.Go(func() error {
 		var err error
 		defer func() {
-			eventToJobService.eventClient.Close()
+			evToJS.eventClient.Close()
 			log.Info("closed the event client connection")
 			// cancel the ticker go routine if an error originated here
 			if err != nil {
@@ -82,10 +80,10 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 			}
 		}()
 
-		log.Infof("GetJobEventMessage for %s/%s with id %s", eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
-		stream, err := eventToJobService.eventClient.GetJobEventMessage(ctx, &api.JobSetRequest{
-			Id:            eventToJobService.jobSetId,
-			Queue:         eventToJobService.queue,
+		log.Infof("GetJobEventMessage for %s/%s with id %s", evToJS.queue, evToJS.jobSetId, fromMessageId)
+		stream, err := evToJS.eventClient.GetJobEventMessage(ctx, &api.JobSetRequest{
+			Id:            evToJS.jobSetId,
+			Queue:         evToJS.queue,
 			Watch:         true,
 			FromMessageId: fromMessageId,
 		})
@@ -98,35 +96,36 @@ func (eventToJobService *EventsToJobService) streamCommon(ctx context.Context, t
 		for {
 			select {
 			case <-ctx.Done():
-				log.Errorf("context is done on %s/%s", eventToJobService.queue, eventToJobService.jobSetId)
+				log.Errorf("context is done on %s/%s", evToJS.queue, evToJS.jobSetId)
 				return nil
 			default:
 				requestFields := log.Fields{
-					"job_set_id": eventToJobService.jobSetId,
-					"queue":      eventToJobService.queue,
+					"job_set_id": evToJS.jobSetId,
+					"queue":      evToJS.queue,
 				}
 				msg, err := stream.Recv()
 				if err != nil {
 					log.WithError(err).Error("could not obtain job set event message, retrying")
-					settingSubscribeErr := eventToJobService.jobServiceRepository.SetSubscriptionError(
-						ctx, eventToJobService.queue, eventToJobService.jobSetId, err.Error(), fromMessageId)
+					settingSubscribeErr := evToJS.jobServiceRepo.SetSubscriptionError(
+						ctx, evToJS.queue, evToJS.jobSetId, err.Error(), fromMessageId)
 					if settingSubscribeErr != nil {
 						log.WithError(settingSubscribeErr).Error("could not set error field in job set table")
 					}
 					time.Sleep(5 * time.Second)
 					continue
 				}
-				errClear := eventToJobService.jobServiceRepository.AddMessageIdAndClearSubscriptionError(
-					ctx, eventToJobService.queue, eventToJobService.jobSetId, fromMessageId)
+				errClear := evToJS.jobServiceRepo.AddMessageIdAndClearSubscriptionError(
+					ctx, evToJS.queue, evToJS.jobSetId, fromMessageId)
 				if errClear != nil {
 					log.WithError(errClear).Error("could not clear subscription error from job set table")
 				}
 				currentJobId := api.JobIdFromApiEvent(msg.Message)
 				jobStatus := EventsToJobResponse(*msg.Message)
 				if jobStatus != nil {
-					log.WithFields(requestFields).Debugf("fromMessageId: %s JobId: %s State: %s", fromMessageId, currentJobId, jobStatus.GetState().String())
-					jobStatus := repository.NewJobStatus(eventToJobService.queue, eventToJobService.jobSetId, currentJobId, *jobStatus)
-					err := eventToJobService.jobServiceRepository.UpdateJobServiceDb(ctx, jobStatus)
+					log.WithFields(requestFields).Debugf("fromMessageId: %s JobId: %s State: %s", fromMessageId,
+						currentJobId, jobStatus.GetState().String())
+					jobStatus := repository.NewJobStatus(evToJS.queue, evToJS.jobSetId, currentJobId, *jobStatus)
+					err := evToJS.jobServiceRepo.UpdateJobServiceDb(ctx, jobStatus)
 					if err != nil {
 						log.WithError(err).Error("could not update job status, retrying")
 						time.Sleep(5 * time.Second)

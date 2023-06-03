@@ -24,3 +24,4 @@ minJobSpecCompressionSize: 1024
 userAnnotationPrefix: "armadaproject.io/"
 maxAttempts: 10
 maxBackoff: 60
+useLegacyEventConversion: true

@@ -30,6 +30,20 @@ message Job {
     double priority = 4;
     k8s.io.api.core.v1.PodSpec pod_spec = 5 [deprecated = true]; // Use PodSpecs instead
     repeated k8s.io.api.core.v1.PodSpec pod_specs = 12;
+    // Resource requests and limits necessary for scheduling the main pod of this job.
+    // The requests and limits herein are set to:
+    //
+    // max(
+    //
+    //	sum across all containers,
+    //	max over all init containers,
+    //
+    // )
+    //
+    // This is because containers run in parallel, whereas initContainers run serially.
+    // This field is populated automatically at submission.
+    // Submitting a job with this field already populated results in an error.
+    k8s.io.api.core.v1.ResourceRequirements scheduling_resource_requirements = 21 [(gogoproto.nullable) = false];
     google.protobuf.Timestamp created = 6 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
     // Services can be provided either as Armada-specific config objects or as proper k8s objects.
     // These options are exclusive, i.e., if either ingress or services is provided,

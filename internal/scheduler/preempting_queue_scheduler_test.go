@@ -16,6 +16,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
@@ -26,12 +27,12 @@ import (
 )
 
 func TestEvictOversubscribed(t *testing.T) {
-	nodes := testfixtures.TestNCpuNode(1, testfixtures.TestPriorities)
+	nodes := testfixtures.N32CpuNodes(1, testfixtures.TestPriorities)
 	node := nodes[0]
 	var err error
 	jobs := append(
-		testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 20),
-		testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass1, 20)...,
+		testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 20),
+		testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 20)...,
 	)
 	reqs := PodRequirementsFromLegacySchedulerJobs(jobs, testfixtures.TestPriorityClasses)
 	for _, req := range reqs {
@@ -47,6 +48,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	evictor := NewOversubscribedEvictor(
 		jobRepo,
 		testfixtures.TestPriorityClasses,
+		testfixtures.TestDefaultPriorityClass,
 		1,
 		nil,
 	)
@@ -121,11 +123,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 	}{
 		"balancing three queues": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 32),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 31),
@@ -133,7 +135,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass0, 32),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 15),
@@ -146,7 +148,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"C": testfixtures.NSmallCpuJob("C", testfixtures.PriorityClass0, 10),
+						"C": testfixtures.N1CpuJobs("C", testfixtures.PriorityClass0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"C": testfixtures.IntRange(0, 9),
@@ -163,9 +165,9 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// The system should be in steady-state; nothing should be scheduled/preempted.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1),
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass0, 1),
-						"C": testfixtures.NSmallCpuJob("C", testfixtures.PriorityClass0, 1),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 1),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass0, 1),
+						"C": testfixtures.N1CpuJobs("C", testfixtures.PriorityClass0, 1),
 					},
 				},
 			},
@@ -177,11 +179,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"balancing two queues weighted": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 32),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 31),
@@ -189,7 +191,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass0, 32),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 20),
@@ -203,8 +205,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// The system should be in steady-state; nothing should be scheduled/preempted.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1),
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass0, 1),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 1),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass0, 1),
 					},
 				},
 			},
@@ -215,11 +217,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"balancing two queues weighted with inactive queues": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 32),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 31),
@@ -227,7 +229,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass0, 32),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 20),
@@ -241,8 +243,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// The system should be in steady-state; nothing should be scheduled/preempted.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1),
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass0, 1),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 1),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass0, 1),
 					},
 				},
 			},
@@ -255,11 +257,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"reschedule onto same node": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 32),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 31),
@@ -267,7 +269,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass0, 32),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 31),
@@ -282,11 +284,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"reschedule onto same node reverse order": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass0, 32),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 31),
@@ -294,7 +296,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 32),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 31),
@@ -309,11 +311,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"urgency-based preemption stability": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass2, 33),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass2, 33),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 31),
@@ -321,7 +323,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass3, 1),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass3, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 0),
@@ -334,7 +336,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass2, 1),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass2, 1),
 					},
 				},
 				{}, // Empty round to make sure nothing changes.
@@ -346,11 +348,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"avoid urgency-based preemptions when possible": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NLargeCpuJob("A", testfixtures.PriorityClass0, 1),
+						"A": testfixtures.N32CpuJobs("A", testfixtures.PriorityClass0, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -359,7 +361,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// These should all be scheduled onto the second node with no preemptions necessary.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NLargeCpuJob("A", testfixtures.PriorityClass1, 1),
+						"A": testfixtures.N32CpuJobs("A", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -372,11 +374,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"preempt in order of priority": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NLargeCpuJob("A", testfixtures.PriorityClass1, 1),
+						"A": testfixtures.N32CpuJobs("A", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -384,7 +386,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NLargeCpuJob("A", testfixtures.PriorityClass0, 1),
+						"A": testfixtures.N32CpuJobs("A", testfixtures.PriorityClass0, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -393,7 +395,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// This job should preempt the priority-0 jobs.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NLargeCpuJob("A", testfixtures.PriorityClass2, 1),
+						"A": testfixtures.N32CpuJobs("A", testfixtures.PriorityClass2, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -411,11 +413,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"avoid urgency-based preemptions when possible cross-queue": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(3, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NLargeCpuJob("A", testfixtures.PriorityClass1, 1),
+						"A": testfixtures.N32CpuJobs("A", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -424,7 +426,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// These should all be scheduled onto the second node with no preemptions necessary.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.NLargeCpuJob("B", testfixtures.PriorityClass0, 1),
+						"B": testfixtures.N32CpuJobs("B", testfixtures.PriorityClass0, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 0),
@@ -433,7 +435,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// These should all be scheduled onto the second node with no preemptions necessary.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"C": testfixtures.NLargeCpuJob("C", testfixtures.PriorityClass2, 1),
+						"C": testfixtures.N32CpuJobs("C", testfixtures.PriorityClass2, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"C": testfixtures.IntRange(0, 0),
@@ -442,7 +444,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// These should all be scheduled onto the second node with no preemptions necessary.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"D": testfixtures.NLargeCpuJob("D", testfixtures.PriorityClass3, 1),
+						"D": testfixtures.N32CpuJobs("D", testfixtures.PriorityClass3, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"D": testfixtures.IntRange(0, 0),
@@ -463,13 +465,13 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"gang preemption": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					// Fill half of node 1 and half of node 2.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 16),
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass0, 16),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 16),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass0, 16),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 15),
@@ -479,7 +481,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// Schedule a gang filling the remaining space on both nodes.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"C": testfixtures.WithGangAnnotationsJobs(testfixtures.NSmallCpuJob("C", testfixtures.PriorityClass0, 32)),
+						"C": testfixtures.WithGangAnnotationsJobs(testfixtures.N1CpuJobs("C", testfixtures.PriorityClass0, 32)),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"C": testfixtures.IntRange(0, 31),
@@ -489,7 +491,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					// Schedule jobs that requires preempting one job in the gang,
 					// and assert that all jobs in the gang are preempted.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass1, 17),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 17),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 16),
@@ -509,12 +511,12 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"gang preemption with partial gang": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					// Schedule a gang across two nodes.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.WithGangAnnotationsJobs(testfixtures.NLargeCpuJob("A", testfixtures.PriorityClass0, 2)),
+						"A": testfixtures.WithGangAnnotationsJobs(testfixtures.N32CpuJobs("A", testfixtures.PriorityClass0, 2)),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 1),
@@ -539,7 +541,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				0.0, // To test the gang evictor, we need to disable stochastic eviction.
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					// Schedule a gang filling all of node 1 and part of node 2.
@@ -547,7 +549,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					// to avoid them being urgency-preempted in the next round.
 					JobsByQueue: map[string][]*jobdb.Job{
 						"A": testfixtures.WithGangAnnotationsJobs(
-							append(testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass1, 32), testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1)...),
+							append(testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 32), testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 1)...),
 						),
 					},
 					ExpectedScheduledIndices: map[string][]int{
@@ -558,7 +560,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					// Schedule a that requires preempting one job in the gang,
 					// and assert that all jobs in the gang are preempted.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.NLargeCpuJob("B", testfixtures.PriorityClass1, 1),
+						"B": testfixtures.N32CpuJobs("B", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 0),
@@ -580,12 +582,12 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				0.0, // To test the gang evictor, we need to disable stochastic eviction.
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.TestNCpuNode(3, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					// Schedule a gang spanning nodes 1 and 2.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.WithGangAnnotationsJobs(testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass1, 33)),
+						"A": testfixtures.WithGangAnnotationsJobs(testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 33)),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 32),
@@ -596,7 +598,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					// Make the one job landing on node 3 have priority 0, so it will be urgency-preempted next.
 					JobsByQueue: map[string][]*jobdb.Job{
 						"A": testfixtures.WithGangAnnotationsJobs(
-							append(testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass1, 31), testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1)...),
+							append(testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 31), testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 1)...),
 						),
 					},
 					ExpectedScheduledIndices: map[string][]int{
@@ -607,7 +609,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					// Schedule a job that requires preempting the one job on node 3.
 					// Assert that the entire second gang is preempted and that the first gang isn't.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.NLargeCpuJob("B", testfixtures.PriorityClass1, 1),
+						"B": testfixtures.N32CpuJobs("B", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 0),
@@ -626,11 +628,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"rescheduled jobs don't count towards maxJobsToSchedule": {
 			SchedulingConfig: testfixtures.WithMaxJobsToScheduleConfig(5, testfixtures.TestSchedulingConfig()),
-			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 10),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 4),
@@ -638,7 +640,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 10),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 4),
@@ -651,11 +653,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"rescheduled jobs don't count towards maxQueueLookback": {
 			SchedulingConfig: testfixtures.WithMaxLookbackPerQueueConfig(5, testfixtures.TestSchedulingConfig()),
-			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 2),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 2),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 1),
@@ -663,7 +665,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 10),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 4),
@@ -681,11 +683,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 10),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 5),
@@ -693,7 +695,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 10),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 5),
@@ -706,11 +708,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"priority class preemption two classes": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NLargeCpuJob("A", testfixtures.PriorityClass0, 1),
+						"A": testfixtures.N32CpuJobs("A", testfixtures.PriorityClass0, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -718,7 +720,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NLargeCpuJob("A", testfixtures.PriorityClass1, 1),
+						"A": testfixtures.N32CpuJobs("A", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -736,11 +738,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"priority class preemption cross-queue": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NLargeCpuJob("A", testfixtures.PriorityClass0, 1),
+						"A": testfixtures.N32CpuJobs("A", testfixtures.PriorityClass0, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -748,7 +750,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.NLargeCpuJob("B", testfixtures.PriorityClass1, 1),
+						"B": testfixtures.N32CpuJobs("B", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 0),
@@ -767,11 +769,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"priority class preemption not scheduled": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": append(testfixtures.NLargeCpuJob("A", testfixtures.PriorityClass0, 1), testfixtures.NLargeCpuJob("A", testfixtures.PriorityClass1, 1)...),
+						"A": append(testfixtures.N32CpuJobs("A", testfixtures.PriorityClass0, 1), testfixtures.N32CpuJobs("A", testfixtures.PriorityClass1, 1)...),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(1, 1),
@@ -784,14 +786,14 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"priority class preemption four classes": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
 						"A": append(append(
-							testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 10),
-							testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass1, 10)...),
-							testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass2, 10)...,
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 10),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 10)...),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass2, 10)...,
 						),
 					},
 					ExpectedScheduledIndices: map[string][]int{
@@ -800,7 +802,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass3, 24),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass3, 24),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 23),
@@ -824,13 +826,13 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
 						"A": append(
-							testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass1, 64),
-							testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 64)...,
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 64),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 64)...,
 						),
 					},
 					ExpectedScheduledIndices: map[string][]int{
@@ -839,7 +841,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 1),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 1),
 					},
 				},
 			},
@@ -855,13 +857,13 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
 						"A": append(
-							testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass1, 5),
-							testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 10)...,
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 5),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 10)...,
 						),
 					},
 					ExpectedScheduledIndices: map[string][]int{
@@ -871,8 +873,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
 						"A": append(
-							testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass1, 32),
-							testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 32)...,
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32)...,
 						),
 					},
 					ExpectedScheduledIndices: map[string][]int{
@@ -882,8 +884,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
 						"A": append(
-							testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass1, 32),
-							testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 32)...,
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32)...,
 						),
 					},
 				},
@@ -897,11 +899,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				map[string]float64{"cpu": 15.0 / 64.0},
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass0, 64),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass0, 64),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 15),
@@ -909,8 +911,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 64),
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass0, 64),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 64),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass0, 64),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 15),
@@ -918,8 +920,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 64),
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass0, 64),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 64),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass0, 64),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 7),
@@ -928,8 +930,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 64),
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass0, 64),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 64),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass0, 64),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 7),
@@ -944,12 +946,12 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"Queued jobs are not preempted cross queue": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 32),
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass1, 32),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass1, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 31),
@@ -964,12 +966,12 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"Queued jobs are not preempted cross queue with some scheduled": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 32),
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass1, 31),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass1, 31),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -985,12 +987,12 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"Queued jobs are not preempted cross queue with non-preemptible jobs": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 32),
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass3, 32),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass3, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 31),
@@ -1005,11 +1007,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		},
 		"Queued jobs are not preempted cross queue multiple rounds": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass1, 16),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 16),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 15),
@@ -1017,8 +1019,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass0, 16),
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass1, 32),
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 16),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass1, 32),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"B": testfixtures.IntRange(0, 15),
@@ -1031,13 +1033,54 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"B": 1,
 			},
 		},
-		"Cordoning prevents scheduling new jobs but not re-scheduling running jobs": {
-			SchedulingConfig: testfixtures.TestSchedulingConfig(),
-			Nodes:            testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+		"Oversubscribed eviction does not evict non-preemptible": {
+			SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
+				0.0,
+				testfixtures.TestSchedulingConfig(),
+			),
+			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.NSmallCpuJob("A", testfixtures.PriorityClass1, 1),
+						"A": armadaslices.Concatenate(
+							testfixtures.N16CpuJobs("A", testfixtures.PriorityClass2, 1),
+							testfixtures.N16CpuJobs("A", testfixtures.PriorityClass2NonPreemptible, 3),
+						),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 3),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": armadaslices.Concatenate(
+							testfixtures.N16CpuJobs("B", testfixtures.PriorityClass3, 1),
+							testfixtures.N16CpuJobs("B", testfixtures.PriorityClass2NonPreemptible, 1),
+						),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": testfixtures.IntRange(0, 0),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: testfixtures.IntRange(0, 0),
+						},
+					},
+				},
+				{}, // Empty round to make sure nothing changes.
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+		},
+		"Cordoning prevents scheduling new jobs but not re-scheduling running jobs": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 0),
@@ -1045,13 +1088,13 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass1, 1),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass1, 1),
 					},
 					NodeIndicesToCordon: []int{0},
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"B": testfixtures.NSmallCpuJob("B", testfixtures.PriorityClass1, 1),
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass1, 1),
 					},
 				},
 				{}, // Empty round to make sure nothing changes.
@@ -1151,6 +1194,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				}
 				constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 					"pool",
+					tc.TotalResources,
 					schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 					tc.SchedulingConfig,
 				)
@@ -1315,8 +1359,8 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					testfixtures.TestSchedulingConfig(),
 				),
 			),
-			Nodes:             testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			JobFunc:           testfixtures.NSmallCpuJob,
+			Nodes:             testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			JobFunc:           testfixtures.N1CpuJobs,
 			NumQueues:         1,
 			NumJobsPerQueue:   320,
 			MinPriorityFactor: 1,
@@ -1327,8 +1371,8 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				0.1,
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes:             testfixtures.TestNCpuNode(10, testfixtures.TestPriorities),
-			JobFunc:           testfixtures.NSmallCpuJob,
+			Nodes:             testfixtures.N32CpuNodes(10, testfixtures.TestPriorities),
+			JobFunc:           testfixtures.N1CpuJobs,
 			NumQueues:         1,
 			NumJobsPerQueue:   3200,
 			MinPriorityFactor: 1,
@@ -1339,8 +1383,8 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				0.1,
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes:             testfixtures.TestNCpuNode(10, testfixtures.TestPriorities),
-			JobFunc:           testfixtures.NSmallCpuJob,
+			Nodes:             testfixtures.N32CpuNodes(10, testfixtures.TestPriorities),
+			JobFunc:           testfixtures.N1CpuJobs,
 			NumQueues:         10,
 			NumJobsPerQueue:   3200,
 			MinPriorityFactor: 1,
@@ -1351,8 +1395,8 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				0.1,
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes:             testfixtures.TestNCpuNode(100, testfixtures.TestPriorities),
-			JobFunc:           testfixtures.NSmallCpuJob,
+			Nodes:             testfixtures.N32CpuNodes(100, testfixtures.TestPriorities),
+			JobFunc:           testfixtures.N1CpuJobs,
 			NumQueues:         1,
 			NumJobsPerQueue:   32000,
 			MinPriorityFactor: 1,
@@ -1363,8 +1407,8 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				0.1,
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes:             testfixtures.TestNCpuNode(1000, testfixtures.TestPriorities),
-			JobFunc:           testfixtures.NSmallCpuJob,
+			Nodes:             testfixtures.N32CpuNodes(1000, testfixtures.TestPriorities),
+			JobFunc:           testfixtures.N1CpuJobs,
 			NumQueues:         1,
 			NumJobsPerQueue:   320000,
 			MinPriorityFactor: 1,
@@ -1408,6 +1452,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 				"pool",
+				nodeDb.TotalResources(),
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 			)

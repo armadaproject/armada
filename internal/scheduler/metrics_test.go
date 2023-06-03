@@ -264,7 +264,7 @@ func createExecutor(clusterName string, nodes ...*schedulerobjects.Node) *schedu
 }
 
 func createNode(nodeType string) *schedulerobjects.Node {
-	node := testfixtures.TestCpuNode([]int32{})
+	node := testfixtures.Test32CpuNode([]int32{})
 	node.ReportingNodeType = nodeType
 	node.StateByJobRunId = map[string]schedulerobjects.JobRunState{}
 	node.ResourceUsageByQueue = map[string]*schedulerobjects.ResourceList{}

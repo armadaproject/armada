@@ -3,16 +3,10 @@ import _ from "lodash"
 import { JobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobGroup, JobOrder, Match } from "models/lookoutV2Models"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
-import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { GroupedField, IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 
 import { LookoutColumnFilter } from "../containers/lookoutV2/JobsTableContainer"
-import {
-  AnnotationColumnId,
-  ColumnId,
-  DEFAULT_COLUMN_MATCHES,
-  fromAnnotationColId,
-  isStandardColId,
-} from "./jobsTableColumns"
+import { AnnotationColumnId, DEFAULT_COLUMN_MATCHES, fromAnnotationColId, isStandardColId } from "./jobsTableColumns"
 import { findRowInData, RowId, RowIdParts, toRowId } from "./reactTableUtils"
 
 export interface PendingData {
@@ -89,6 +83,9 @@ export function getFiltersForRows(
       match: Match.Exact,
       isAnnotation: false,
     }
+    if (!isStandardColId(rowIdParts.type)) {
+      filter.isAnnotation = true
+    }
     if (filterColumnsIndexes.has(rowIdParts.type)) {
       const i = filterColumnsIndexes.get(rowIdParts.type) as number
       jobFilters[i] = filter
@@ -98,6 +95,19 @@ export function getFiltersForRows(
   }
 
   return jobFilters
+}
+
+export function getFiltersForGroupedAnnotations(remainingGroups: string[]): JobFilter[] {
+  return remainingGroups
+    .filter((group) => !isStandardColId(group))
+    .map((annotationColId) => {
+      return {
+        field: fromAnnotationColId(annotationColId as AnnotationColumnId),
+        value: "",
+        match: Match.Exists,
+        isAnnotation: true,
+      }
+    })
 }
 
 export interface FetchRowRequest {
@@ -119,12 +129,11 @@ export const fetchJobs = async (
 export const fetchJobGroups = async (
   rowRequest: FetchRowRequest,
   groupJobsService: IGroupJobsService,
-  groupedColumn: string,
+  groupedColumn: GroupedField,
   columnsToAggregate: string[],
   abortSignal: AbortSignal,
 ) => {
   const { filters, skip, take, order } = rowRequest
-
   return await groupJobsService.groupJobs(filters, order, groupedColumn, columnsToAggregate, skip, take, abortSignal)
 }
 
@@ -140,13 +149,13 @@ export const jobsToRows = (jobs: Job[]): JobRow[] => {
 export const groupsToRows = (
   groups: JobGroup[],
   baseRowId: RowId | undefined,
-  groupingField: ColumnId,
+  groupedField: GroupedField,
 ): JobGroupRow[] => {
   return groups.map((group): JobGroupRow => {
     const row: JobGroupRow = {
-      rowId: toRowId({ type: groupingField, value: group.name, parentRowId: baseRowId }),
-      [groupingField]: group.name,
-      groupedField: groupingField,
+      rowId: toRowId({ type: groupedField.field, value: group.name, parentRowId: baseRowId }),
+      groupedField: groupedField.field,
+      [groupedField.field]: group.name,
 
       isGroup: true,
       jobCount: group.count,
@@ -154,6 +163,11 @@ export const groupsToRows = (
       // Will be set later if expanded
       subRowCount: undefined,
       subRows: [],
+    }
+    if (groupedField.isAnnotation) {
+      row.annotations = {
+        [groupedField.field]: group.name,
+      }
     }
     for (const [key, val] of Object.entries(group.aggregates)) {
       switch (key) {

@@ -6,6 +6,7 @@ option csharp_namespace = "ArmadaProject.Io.Api.Binoculars";
 
 import "k8s.io/api/core/v1/generated.proto";
 import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
 
 // swagger:model
 message LogRequest {
@@ -27,11 +28,22 @@ message LogLine {
     string line = 2;
 }
 
+// swagger:model
+message CordonRequest {
+    string node_name = 1;
+}
+
 service Binoculars {
     rpc Logs(LogRequest) returns (LogResponse) {
         option (google.api.http) = {
             post: "/v1/binoculars/log"
             body: "*"
         };
+    }
+    rpc Cordon(CordonRequest) returns (google.protobuf.Empty){
+      option (google.api.http) = {
+        post: "/v1/binoculars/cordon"
+        body: "*"
+      };
     }
 }

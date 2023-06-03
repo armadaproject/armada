@@ -19,6 +19,8 @@ type ArmadaConfig struct {
 	GrpcPort    uint16
 	HttpPort    uint16
 	MetricsPort uint16
+	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
+	PprofPort *uint16
 
 	CorsAllowedOrigins []string
 
@@ -276,8 +278,9 @@ type QueueManagementConfig struct {
 }
 
 type MetricsConfig struct {
-	Port            uint16
-	RefreshInterval time.Duration
+	Port                    uint16
+	RefreshInterval         time.Duration
+	ExposeSchedulingMetrics bool
 }
 
 type EventApiConfig struct {

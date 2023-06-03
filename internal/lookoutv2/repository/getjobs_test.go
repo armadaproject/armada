@@ -52,7 +52,7 @@ var (
 
 func TestGetJobsSingle(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
@@ -89,7 +89,7 @@ func TestGetJobsSingle(t *testing.T) {
 
 func TestGetJobsMultipleRuns(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
@@ -158,7 +158,7 @@ func TestOrderByUnsupportedDirection(t *testing.T) {
 // Since job ids are ULIDs, it is comparable to sorting by submission time
 func TestGetJobsOrderByJobId(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		firstId := "01f3j0g1md4qx7z5qb148qnh4d"
@@ -233,7 +233,7 @@ func TestGetJobsOrderByJobId(t *testing.T) {
 
 func TestGetJobsOrderBySubmissionTime(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		third := NewJobSimulator(converter, store).
@@ -298,7 +298,7 @@ func TestGetJobsOrderBySubmissionTime(t *testing.T) {
 
 func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		runId1 := uuid.NewString()
@@ -411,7 +411,7 @@ func TestFilterByUnsupportedMatch(t *testing.T) {
 
 func TestGetJobsById(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
@@ -456,7 +456,7 @@ func TestGetJobsById(t *testing.T) {
 
 func TestGetJobsByQueue(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
@@ -558,7 +558,7 @@ func TestGetJobsByQueue(t *testing.T) {
 
 func TestGetJobsByJobSet(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
@@ -660,7 +660,7 @@ func TestGetJobsByJobSet(t *testing.T) {
 
 func TestGetJobsByOwner(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
@@ -762,7 +762,7 @@ func TestGetJobsByOwner(t *testing.T) {
 
 func TestGetJobsByState(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		queued := NewJobSimulator(converter, store).
@@ -847,10 +847,10 @@ func TestGetJobsByState(t *testing.T) {
 
 func TestGetJobsByAnnotation(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		job := NewJobSimulator(converter, store).
+		job1 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-1",
@@ -860,7 +860,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Build().
 			Job()
 
-		_ = NewJobSimulator(converter, store).
+		job2 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-2",
@@ -869,7 +869,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Build().
 			Job()
 
-		_ = NewJobSimulator(converter, store).
+		job3 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-3",
@@ -887,7 +887,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Build().
 			Job()
 
-		job2 := NewJobSimulator(converter, store).
+		job5 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-6",
@@ -915,7 +915,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, result.Jobs, 1)
 			assert.Equal(t, 1, result.Count)
-			assert.Equal(t, job, result.Jobs[0])
+			assert.Equal(t, job1, result.Jobs[0])
 		})
 
 		t.Run("exact, multiple annotations", func(t *testing.T) {
@@ -942,7 +942,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, result.Jobs, 1)
 			assert.Equal(t, 1, result.Count)
-			assert.Equal(t, job, result.Jobs[0])
+			assert.Equal(t, job1, result.Jobs[0])
 		})
 
 		t.Run("startsWith, multiple annotations", func(t *testing.T) {
@@ -969,8 +969,8 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, result.Jobs, 2)
 			assert.Equal(t, 2, result.Count)
-			assert.Equal(t, job, result.Jobs[0])
-			assert.Equal(t, job2, result.Jobs[1])
+			assert.Equal(t, job1, result.Jobs[0])
+			assert.Equal(t, job5, result.Jobs[1])
 		})
 
 		t.Run("contains, multiple annotations", func(t *testing.T) {
@@ -997,8 +997,31 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, result.Jobs, 2)
 			assert.Equal(t, 2, result.Count)
-			assert.Equal(t, job, result.Jobs[0])
+			assert.Equal(t, job1, result.Jobs[0])
+			assert.Equal(t, job5, result.Jobs[1])
+		})
+
+		t.Run("exists", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{
+					{
+						Field:        "annotation-key-1",
+						Match:        model.MatchExists,
+						IsAnnotation: true,
+					},
+				},
+				&model.Order{},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 4)
+			assert.Equal(t, 4, result.Count)
+			assert.Equal(t, job1, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
+			assert.Equal(t, job3, result.Jobs[2])
+			assert.Equal(t, job5, result.Jobs[3])
 		})
 
 		return nil
@@ -1008,7 +1031,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 
 func TestGetJobsByCpu(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job1 := NewJobSimulator(converter, store).
@@ -1156,7 +1179,7 @@ func TestGetJobsByCpu(t *testing.T) {
 
 func TestGetJobsByMemory(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job1 := NewJobSimulator(converter, store).
@@ -1304,7 +1327,7 @@ func TestGetJobsByMemory(t *testing.T) {
 
 func TestGetJobsByEphemeralStorage(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job1 := NewJobSimulator(converter, store).
@@ -1452,7 +1475,7 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 
 func TestGetJobsByGpu(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job1 := NewJobSimulator(converter, store).
@@ -1600,7 +1623,7 @@ func TestGetJobsByGpu(t *testing.T) {
 
 func TestGetJobsByPriority(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job1 := NewJobSimulator(converter, store).
@@ -1748,7 +1771,7 @@ func TestGetJobsByPriority(t *testing.T) {
 
 func TestGetJobsByPriorityClass(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
@@ -1860,7 +1883,7 @@ func TestGetJobsByPriorityClass(t *testing.T) {
 
 func TestGetJobsSkip(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		nJobs := 15
@@ -1939,7 +1962,7 @@ func TestGetJobsSkip(t *testing.T) {
 
 func TestGetJobsComplex(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		nJobs := 15
