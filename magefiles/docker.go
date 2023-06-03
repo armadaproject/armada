@@ -8,9 +8,9 @@ import (
 	"github.com/pkg/errors"
 )
 
-const DOCKER_VERSION_CONSTRAINT = ">= 19.0.0"
-const DOCKER_COMPOSE_VERSION_CONSTRAINT = ">= 2.17.0"
-const DOCKER_BUILDX_VERSION_CONSTRAINT = ">= 0.0.0"
+const DOCKER_VERSION_CONSTRAINT = ">= 20.10.10"
+const DOCKER_COMPOSE_VERSION_CONSTRAINT = ">= 1.29.2"
+const DOCKER_BUILDX_VERSION_CONSTRAINT = ">= 0.6.3"
 
 func dockerBinary() string {
 	return binaryWithExt("docker")
