@@ -1416,7 +1416,7 @@ func (this *LeaseRequest) String() string {
 	}
 	repeatedStringForUnassignedJobRunIds += "}"
 	keysForResources := make([]string, 0, len(this.Resources))
-	for k, _ := range this.Resources {
+	for k := range this.Resources {
 		keysForResources = append(keysForResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForResources)
@@ -1426,7 +1426,7 @@ func (this *LeaseRequest) String() string {
 	}
 	mapStringForResources += "}"
 	keysForMinimumJobSize := make([]string, 0, len(this.MinimumJobSize))
-	for k, _ := range this.MinimumJobSize {
+	for k := range this.MinimumJobSize {
 		keysForMinimumJobSize = append(keysForMinimumJobSize, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForMinimumJobSize)

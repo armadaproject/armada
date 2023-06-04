@@ -1083,7 +1083,7 @@ func (this *QueueReport) String() string {
 		return "nil"
 	}
 	keysForResources := make([]string, 0, len(this.Resources))
-	for k, _ := range this.Resources {
+	for k := range this.Resources {
 		keysForResources = append(keysForResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForResources)
@@ -1093,7 +1093,7 @@ func (this *QueueReport) String() string {
 	}
 	mapStringForResources += "}"
 	keysForResourcesUsed := make([]string, 0, len(this.ResourcesUsed))
-	for k, _ := range this.ResourcesUsed {
+	for k := range this.ResourcesUsed {
 		keysForResourcesUsed = append(keysForResourcesUsed, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForResourcesUsed)
@@ -1103,7 +1103,7 @@ func (this *QueueReport) String() string {
 	}
 	mapStringForResourcesUsed += "}"
 	keysForCountOfPodsByPhase := make([]string, 0, len(this.CountOfPodsByPhase))
-	for k, _ := range this.CountOfPodsByPhase {
+	for k := range this.CountOfPodsByPhase {
 		keysForCountOfPodsByPhase = append(keysForCountOfPodsByPhase, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForCountOfPodsByPhase)
@@ -1136,7 +1136,7 @@ func (this *ClusterUsageReport) String() string {
 	}
 	repeatedStringForNodeTypeUsageReports += "}"
 	keysForClusterCapacity := make([]string, 0, len(this.ClusterCapacity))
-	for k, _ := range this.ClusterCapacity {
+	for k := range this.ClusterCapacity {
 		keysForClusterCapacity = append(keysForClusterCapacity, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForClusterCapacity)
@@ -1146,7 +1146,7 @@ func (this *ClusterUsageReport) String() string {
 	}
 	mapStringForClusterCapacity += "}"
 	keysForClusterAvailableCapacity := make([]string, 0, len(this.ClusterAvailableCapacity))
-	for k, _ := range this.ClusterAvailableCapacity {
+	for k := range this.ClusterAvailableCapacity {
 		keysForClusterAvailableCapacity = append(keysForClusterAvailableCapacity, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForClusterAvailableCapacity)
@@ -1193,7 +1193,7 @@ func (this *NodeTypeUsageReport) String() string {
 	}
 	repeatedStringForQueues += "}"
 	keysForCapacity := make([]string, 0, len(this.Capacity))
-	for k, _ := range this.Capacity {
+	for k := range this.Capacity {
 		keysForCapacity = append(keysForCapacity, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForCapacity)
@@ -1203,7 +1203,7 @@ func (this *NodeTypeUsageReport) String() string {
 	}
 	mapStringForCapacity += "}"
 	keysForAvailableCapacity := make([]string, 0, len(this.AvailableCapacity))
-	for k, _ := range this.AvailableCapacity {
+	for k := range this.AvailableCapacity {
 		keysForAvailableCapacity = append(keysForAvailableCapacity, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForAvailableCapacity)
@@ -1213,7 +1213,7 @@ func (this *NodeTypeUsageReport) String() string {
 	}
 	mapStringForAvailableCapacity += "}"
 	keysForCordonedUsage := make([]string, 0, len(this.CordonedUsage))
-	for k, _ := range this.CordonedUsage {
+	for k := range this.CordonedUsage {
 		keysForCordonedUsage = append(keysForCordonedUsage, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForCordonedUsage)
