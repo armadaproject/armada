@@ -53,10 +53,6 @@ func NewSchedulingKeyGenerator() *SchedulingKeyGenerator {
 	}
 }
 
-func (skg *SchedulingKeyGenerator) SetPrefix(v uint64) {
-	skg.prefix = v
-}
-
 func (skg *SchedulingKeyGenerator) Key(
 	nodeSelector map[string]string,
 	affinity *v1.Affinity,
