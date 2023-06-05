@@ -642,27 +642,8 @@ func TestSchedulingKey(t *testing.T) {
 				},
 			},
 		},
-		"affinity MatchLabels": {
+		"affinity PodAffinity ignored": {
 			a: &PodRequirements{
-				NodeSelector: map[string]string{
-					"property1": "value1",
-					"property3": "value3",
-				},
-				Tolerations: []v1.Toleration{{
-					Key:               "a",
-					Operator:          "b",
-					Value:             "b",
-					Effect:            "d",
-					TolerationSeconds: pointer.Int64(1),
-				}},
-				Priority: 1,
-				ResourceRequirements: v1.ResourceRequirements{
-					Requests: map[v1.ResourceName]resource.Quantity{
-						"cpu":    resource.MustParse("4"),
-						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
-					},
-				},
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
@@ -726,25 +707,6 @@ func TestSchedulingKey(t *testing.T) {
 				},
 			},
 			b: &PodRequirements{
-				NodeSelector: map[string]string{
-					"property3": "value3",
-					"property1": "value1",
-				},
-				Tolerations: []v1.Toleration{{
-					Key:               "a",
-					Operator:          "b",
-					Value:             "b",
-					Effect:            "d",
-					TolerationSeconds: pointer.Int64(1),
-				}},
-				Priority: 1,
-				ResourceRequirements: v1.ResourceRequirements{
-					Requests: map[v1.ResourceName]resource.Quantity{
-						"cpu":    resource.MustParse("4"),
-						"memory": resource.MustParse("5"),
-						"gpu":    resource.MustParse("6"),
-					},
-				},
 				Affinity: &v1.Affinity{
 					NodeAffinity: &v1.NodeAffinity{
 						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
@@ -807,12 +769,197 @@ func TestSchedulingKey(t *testing.T) {
 					PodAntiAffinity: nil,
 				},
 			},
+			equal: true,
+		},
+		"affinity NodeAffinity MatchExpressions": {
+			a: &PodRequirements{
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k1",
+											Operator: "o1",
+											Values:   []string{"v1", "v2"},
+										},
+									},
+									MatchFields: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k2",
+											Operator: "o2",
+											Values:   []string{"v10", "v20"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			b: &PodRequirements{
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k1",
+											Operator: "o1",
+											Values:   []string{"v1", "v3"},
+										},
+									},
+									MatchFields: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k2",
+											Operator: "o2",
+											Values:   []string{"v10", "v20"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			equal: false,
+		},
+		"affinity NodeAffinity MatchFields": {
+			a: &PodRequirements{
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k1",
+											Operator: "o1",
+											Values:   []string{"v1", "v2"},
+										},
+									},
+									MatchFields: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k2",
+											Operator: "o2",
+											Values:   []string{"v10", "v20"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			b: &PodRequirements{
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k1",
+											Operator: "o1",
+											Values:   []string{"v1", "v2"},
+										},
+									},
+									MatchFields: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k2",
+											Operator: "o2",
+											Values:   []string{"v10", "v21"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			equal: false,
+		},
+		"affinity NodeAffinity multiple MatchFields": {
+			a: &PodRequirements{
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k1",
+											Operator: "o1",
+											Values:   []string{"v1", "v2"},
+										},
+									},
+									MatchFields: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k2",
+											Operator: "o2",
+											Values:   []string{"v10", "v20"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			b: &PodRequirements{
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k1",
+											Operator: "o1",
+											Values:   []string{"v1", "v2"},
+										},
+									},
+									MatchFields: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k2",
+											Operator: "o2",
+											Values:   []string{"v10", "v20"},
+										},
+										{
+											Key:      "k3",
+											Operator: "o2",
+											Values:   []string{"v10", "v20"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			equal: false,
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			schedulingKeyA := tc.a.SchedulingKey()
-			schedulingKeyB := tc.b.SchedulingKey()
+			skg := NewSchedulingKeyGenerator()
+			schedulingKeyA := skg.Key(
+				tc.a.NodeSelector,
+				tc.a.Affinity,
+				tc.a.Tolerations,
+				tc.a.ResourceRequirements.Requests,
+				tc.a.Priority,
+			)
+			schedulingKeyB := skg.Key(
+				tc.b.NodeSelector,
+				tc.b.Affinity,
+				tc.b.Tolerations,
+				tc.b.ResourceRequirements.Requests,
+				tc.b.Priority,
+			)
+
 			var prevSchedulingKeyA SchedulingKey
 			var prevSchedulingKeyB SchedulingKey
 			n := defaultN
@@ -820,8 +967,6 @@ func TestSchedulingKey(t *testing.T) {
 				n = tc.n
 			}
 			for i := 0; i < n; i++ {
-				tc.a.ClearCachedSchedulingKey()
-				tc.b.ClearCachedSchedulingKey()
 				if tc.equal {
 					assert.Equal(t, schedulingKeyA, schedulingKeyB)
 				} else {
@@ -838,8 +983,31 @@ func TestSchedulingKey(t *testing.T) {
 	}
 }
 
+func benchmarkSchedulingKey(b *testing.B, jobSchedulingInfo *JobSchedulingInfo) {
+	skg := NewSchedulingKeyGenerator()
+	req := (jobSchedulingInfo.ObjectRequirements[0]).GetPodRequirements()
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		skg.Key(
+			req.NodeSelector,
+			req.Affinity,
+			req.Tolerations,
+			req.ResourceRequirements.Requests,
+			req.Priority,
+		)
+	}
+}
+
 func BenchmarkSchedulingKey(b *testing.B) {
-	jobSchedulingInfo := &JobSchedulingInfo{
+	benchmarkSchedulingKey(b, getBenchmarkJobSchedulingSchedulingInfo())
+}
+
+func BenchmarkSchedulingKey_Affinity(b *testing.B) {
+	benchmarkSchedulingKey(b, getBenchmarkJobSchedulingSchedulingInfoWithAffinity())
+}
+
+func getBenchmarkJobSchedulingSchedulingInfo() *JobSchedulingInfo {
+	return &JobSchedulingInfo{
 		Lifetime:          1,
 		AtMostOnce:        true,
 		Preemptible:       true,
@@ -885,15 +1053,10 @@ func BenchmarkSchedulingKey(b *testing.B) {
 			},
 		},
 	}
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		jobSchedulingInfo.ClearCachedSchedulingKey()
-		jobSchedulingInfo.SchedulingKey()
-	}
 }
 
-func BenchmarkSchedulingKey_Affinity(b *testing.B) {
-	jobSchedulingInfo := &JobSchedulingInfo{
+func getBenchmarkJobSchedulingSchedulingInfoWithAffinity() *JobSchedulingInfo {
+	return &JobSchedulingInfo{
 		Lifetime:          1,
 		AtMostOnce:        true,
 		Preemptible:       true,
@@ -999,10 +1162,5 @@ func BenchmarkSchedulingKey_Affinity(b *testing.B) {
 				},
 			},
 		},
-	}
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		jobSchedulingInfo.ClearCachedSchedulingKey()
-		jobSchedulingInfo.SchedulingKey()
 	}
 }

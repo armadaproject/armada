@@ -1,23 +1,18 @@
 package schedulerobjects
 
 import (
-	"crypto/sha1"
-	"io"
-	"strconv"
-	"strings"
+	"math/rand"
 
-	"github.com/gogo/protobuf/jsonpb"
-	"golang.org/x/exp/maps"
+	"github.com/segmentio/fasthash/fnv1a"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
-
-	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 )
 
-const SchedulingKeySize = 20
+// const SchedulingKeySize = 20
 
-type SchedulingKey [SchedulingKeySize]byte
+// type SchedulingKey [SchedulingKeySize]byte
+
+type SchedulingKey uint64
 
 func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
 	affinity := req.Affinity
@@ -31,93 +26,266 @@ func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
 	return nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
 }
 
-// SchedulingKey returns the canonical hash of the scheduling requirements of a job.
+// // SchedulingKey returns the canonical hash of the scheduling requirements of a job.
+// //
+// // The hash is of size SchedulingKeySize and is guaranteed to always be the same for equivalent requirements,
+// // unless Affinity is used, in which case they may differ as a result of unordered map keys.
+// func (jobSchedulingInfo *JobSchedulingInfo) SchedulingKey() (SchedulingKey, bool) {
+// 	if jobSchedulingInfo == nil {
+// 		return [SchedulingKeySize]byte{}, false
+// 	}
+// 	for _, objReq := range jobSchedulingInfo.ObjectRequirements {
+// 		if req := objReq.GetPodRequirements(); req != nil {
+// 			return req.SchedulingKey(), true
+// 		}
+// 	}
+// 	return SchedulingKey{}, false
+// }
+
+// // SchedulingKey returns the canonical hash of the scheduling requirements of a pod.
+// //
+// // The hash is of size SchedulingKeySize and is guaranteed to always be the same for equivalent requirements,
+// // unless Affinity is used, in which case they may differ as a result of unordered map keys.
+// func (req *PodRequirements) SchedulingKey() SchedulingKey {
+// 	if req.CachedSchedulingKey == nil {
+// 		// Cache the key such that the next invocation returns a pre-computed key.
+// 		schedulingKey := schedulingKeyFromPodRequirements(req)
+// 		req.CachedSchedulingKey = schedulingKey[:]
+// 	}
+// 	return SchedulingKey(req.CachedSchedulingKey)
+// }
+
+// func schedulingKeyFromPodRequirements(req *PodRequirements) SchedulingKey {
+// 	// We separate taints/labels by $, labels and values by =, and and groups by &,
+// 	// since these characters are not allowed in taints and labels; see
+// 	// https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+// 	// https://man.archlinux.org/man/community/kubectl/kubectl-taint.1.en
+// 	h := sha1.New()
+
+// 	nodeSelectorKeys := maps.Keys(req.NodeSelector)
+// 	slices.Sort(nodeSelectorKeys)
+// 	for _, key := range nodeSelectorKeys {
+// 		value := req.NodeSelector[key]
+// 		_, _ = io.WriteString(h, key)
+// 		_, _ = io.WriteString(h, "=")
+// 		_, _ = io.WriteString(h, value)
+// 		_, _ = io.WriteString(h, "$")
+// 	}
+// 	_, _ = io.WriteString(h, "&")
+
+// 	if req.Affinity != nil {
+// 		_ = (&jsonpb.Marshaler{EnumsAsInts: true, OrigName: true}).Marshal(h, req.Affinity)
+// 		_, _ = io.WriteString(h, "&")
+// 	}
+
+// 	tolerations := slices.Clone(req.Tolerations)
+// 	slices.SortFunc(tolerations, lessToleration)
+// 	for _, toleration := range tolerations {
+// 		_, _ = io.WriteString(h, toleration.Key)
+// 		_, _ = io.WriteString(h, "=")
+// 		_, _ = io.WriteString(h, toleration.Value)
+// 		_, _ = io.WriteString(h, ":")
+// 		_, _ = io.WriteString(h, string(toleration.Operator))
+// 		_, _ = io.WriteString(h, ":")
+// 		_, _ = io.WriteString(h, string(toleration.Effect))
+// 		_, _ = io.WriteString(h, "$")
+// 	}
+// 	_, _ = io.WriteString(h, "&")
+
+// 	_, _ = io.WriteString(h, strconv.Itoa(int(req.Priority)))
+// 	_, _ = io.WriteString(h, "&")
+
+// 	requestKeys := maps.Keys(req.ResourceRequirements.Requests)
+// 	requestKeys = armadaslices.Filter(
+// 		requestKeys,
+// 		func(key v1.ResourceName) bool {
+// 			q := req.ResourceRequirements.Requests[key]
+// 			return q.Cmp(resource.Quantity{}) != 0
+// 		},
+// 	)
+// 	slices.Sort(requestKeys)
+// 	for _, key := range requestKeys {
+// 		value := req.ResourceRequirements.Requests[key]
+// 		_, _ = io.WriteString(h, string(key))
+// 		_, _ = io.WriteString(h, "=")
+// 		_, _ = h.Write(EncodeQuantity(value))
+// 		_, _ = io.WriteString(h, "$")
+// 	}
+
+// 	return SchedulingKey(h.Sum(nil))
+// }
+
+// SchedulingKeyGenerator is used to generate scheduling keys efficiently without requiring allocs.
+// A scheduling key is the canonical hash of the scheduling requirements of a job.
 //
-// The hash is of size SchedulingKeySize and is guaranteed to always be the same for equivalent requirements,
-// unless Affinity is used, in which case they may differ as a result of unordered map keys.
-func (jobSchedulingInfo *JobSchedulingInfo) SchedulingKey() (SchedulingKey, bool) {
-	if jobSchedulingInfo == nil {
-		return [SchedulingKeySize]byte{}, false
+// Fields are separated by =, $, &, and =, since these characters are not allowed in taints and labels; see
+// https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+// https://man.archlinux.org/man/community/kubectl/kubectl-taint.1.en
+type SchedulingKeyGenerator struct {
+	// Prefix is written into the hash before any other data.
+	// Using a randomly chosen prefix in each scheduling round makes hash collisions persisting across rounds less likely.
+	prefix                        uint64
+	stringBuffer                  []string
+	byteBuffer                    []byte
+	nodeSelectorTermBuffer        []v1.NodeSelectorTerm
+	nodeSelectorRequirementBuffer []v1.NodeSelectorRequirement
+	tolerationBuffer              []v1.Toleration
+	resourceNameBuffer            []v1.ResourceName
+}
+
+func NewSchedulingKeyGenerator() *SchedulingKeyGenerator {
+	// Create buffers with some initial capacity to reduce dynamic allocs.
+	return &SchedulingKeyGenerator{
+		prefix:                        uint64(rand.Int63()),
+		stringBuffer:                  make([]string, 0, 16),
+		byteBuffer:                    make([]byte, 0, 1024),
+		nodeSelectorTermBuffer:        make([]v1.NodeSelectorTerm, 16),
+		nodeSelectorRequirementBuffer: make([]v1.NodeSelectorRequirement, 16),
+		tolerationBuffer:              make([]v1.Toleration, 0, 16),
+		resourceNameBuffer:            make([]v1.ResourceName, 0, 4),
 	}
-	for _, objReq := range jobSchedulingInfo.ObjectRequirements {
-		if req := objReq.GetPodRequirements(); req != nil {
-			return req.SchedulingKey(), true
+}
+
+func (skg *SchedulingKeyGenerator) SetPrefix(v uint64) {
+	skg.prefix = v
+}
+
+func (skg *SchedulingKeyGenerator) Key(
+	nodeSelector map[string]string,
+	affinity *v1.Affinity,
+	tolerations []v1.Toleration,
+	requests v1.ResourceList,
+	priority int32,
+) SchedulingKey {
+	h := fnv1a.Init64
+	h = fnv1a.AddUint64(h, skg.prefix)
+	h = skg.addNodeSelector64(h, nodeSelector)
+	h = skg.addAffinity64(h, affinity)
+	h = skg.addTolerations64(h, tolerations)
+	h = skg.addResourceList64(h, requests)
+	h = fnv1a.AddUint64(h, uint64(priority))
+	return SchedulingKey(h)
+}
+
+func (skg *SchedulingKeyGenerator) addNodeSelector64(h uint64, nodeSelector map[string]string) uint64 {
+	skg.stringBuffer = skg.stringBuffer[0:0]
+	for _, key := range nodeSelector {
+		skg.stringBuffer = append(skg.stringBuffer, key)
+	}
+	slices.Sort(skg.stringBuffer)
+	for _, key := range skg.stringBuffer {
+		value := nodeSelector[key]
+		h = fnv1a.AddString64(h, key)
+		h = fnv1a.AddString64(h, "=")
+		h = fnv1a.AddString64(h, value)
+		h = fnv1a.AddString64(h, "$")
+	}
+	h = fnv1a.AddString64(h, "&")
+	return h
+}
+
+// addAffinity64 writes a v1.Affinity into the hash.
+// Only NodeAffinity (i.e., not PodAffinity) and RequiredDuringSchedulingIgnoredDuringExecution fields are considered.
+func (skg *SchedulingKeyGenerator) addAffinity64(h uint64, affinity *v1.Affinity) uint64 {
+	if affinity == nil {
+		return h
+	}
+	if affinity.NodeAffinity == nil {
+		return h
+	}
+	h = skg.addAffinityNodeSelector64(h, affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution)
+	return h
+}
+
+func (skg *SchedulingKeyGenerator) addAffinityNodeSelector64(h uint64, nodeSelector *v1.NodeSelector) uint64 {
+	if nodeSelector == nil {
+		return h
+	}
+	skg.nodeSelectorTermBuffer = skg.nodeSelectorTermBuffer[0:0]
+	skg.nodeSelectorTermBuffer = append(skg.nodeSelectorTermBuffer, nodeSelector.NodeSelectorTerms...)
+	slices.SortFunc(skg.nodeSelectorTermBuffer, lessNodeSelectorTerm)
+	for _, nodeSelectorTerm := range skg.nodeSelectorTermBuffer {
+		h = skg.addNodeSelectorRequirements64(h, nodeSelectorTerm.MatchExpressions)
+		h = skg.addNodeSelectorRequirements64(h, nodeSelectorTerm.MatchFields)
+	}
+	if len(skg.nodeSelectorTermBuffer) > 0 {
+		h = fnv1a.AddString64(h, "&")
+	}
+	return h
+}
+
+func (skg *SchedulingKeyGenerator) addNodeSelectorRequirements64(h uint64, nodeSelectorRequirements []v1.NodeSelectorRequirement) uint64 {
+	skg.nodeSelectorRequirementBuffer = skg.nodeSelectorRequirementBuffer[0:0]
+	skg.nodeSelectorRequirementBuffer = append(skg.nodeSelectorRequirementBuffer, nodeSelectorRequirements...)
+	slices.SortFunc(skg.nodeSelectorRequirementBuffer, lessNodeSelectorRequirement)
+	for _, nodeSelectorRequirement := range skg.nodeSelectorRequirementBuffer {
+		h = fnv1a.AddString64(h, nodeSelectorRequirement.Key)
+		h = fnv1a.AddString64(h, "=")
+		for _, value := range nodeSelectorRequirement.Values {
+			h = fnv1a.AddString64(h, value)
+			h = fnv1a.AddString64(h, "$")
+		}
+		h = fnv1a.AddString64(h, ":")
+		h = fnv1a.AddString64(h, string(nodeSelectorRequirement.Operator))
+		h = fnv1a.AddString64(h, "$")
+	}
+	if len(skg.nodeSelectorRequirementBuffer) > 0 {
+		h = fnv1a.AddString64(h, "&")
+	}
+	return h
+}
+
+// func (skg *SchedulingKeyGenerator) addAffinity64Old(h uint64, affinity *v1.Affinity) uint64 {
+// 	skg.byteBuffer = skg.byteBuffer[0:0]
+// 	if affinity != nil {
+// 		// TODO: Improve.
+// 		_ = (&jsonpb.Marshaler{EnumsAsInts: true, OrigName: true}).Marshal(bytes.NewBuffer(skg.byteBuffer), affinity)
+// 		h = fnv1a.AddBytes64(h, skg.byteBuffer)
+// 		h = fnv1a.AddString64(h, "&")
+// 	}
+// 	return h
+// }
+
+func (skg *SchedulingKeyGenerator) addTolerations64(h uint64, tolerations []v1.Toleration) uint64 {
+	skg.tolerationBuffer = skg.tolerationBuffer[0:0]
+	skg.tolerationBuffer = append(skg.tolerationBuffer, tolerations...)
+	slices.SortFunc(skg.tolerationBuffer, lessToleration)
+	for _, toleration := range skg.tolerationBuffer {
+		h = fnv1a.AddString64(h, toleration.Key)
+		h = fnv1a.AddString64(h, "=")
+		h = fnv1a.AddString64(h, toleration.Value)
+		h = fnv1a.AddString64(h, ":")
+		h = fnv1a.AddString64(h, string(toleration.Operator))
+		h = fnv1a.AddString64(h, ":")
+		h = fnv1a.AddString64(h, string(toleration.Effect))
+		h = fnv1a.AddString64(h, "$")
+	}
+	if len(tolerations) > 0 {
+		h = fnv1a.AddString64(h, "&")
+	}
+	return h
+}
+
+func (skg *SchedulingKeyGenerator) addResourceList64(h uint64, resourceList v1.ResourceList) uint64 {
+	skg.resourceNameBuffer = skg.resourceNameBuffer[0:0]
+	for t, q := range resourceList {
+		if !q.IsZero() {
+			// Zero-valued requests don't affect scheduling.
+			skg.resourceNameBuffer = append(skg.resourceNameBuffer, t)
 		}
 	}
-	return SchedulingKey{}, false
-}
-
-// SchedulingKey returns the canonical hash of the scheduling requirements of a pod.
-//
-// The hash is of size SchedulingKeySize and is guaranteed to always be the same for equivalent requirements,
-// unless Affinity is used, in which case they may differ as a result of unordered map keys.
-func (req *PodRequirements) SchedulingKey() SchedulingKey {
-	if req.CachedSchedulingKey == nil {
-		// Cache the key such that the next invocation returns a pre-computed key.
-		schedulingKey := schedulingKeyFromPodRequirements(req)
-		req.CachedSchedulingKey = schedulingKey[:]
+	slices.Sort(skg.resourceNameBuffer)
+	for _, t := range skg.resourceNameBuffer {
+		q := resourceList[t]
+		h = fnv1a.AddString64(h, string(t))
+		h = fnv1a.AddString64(h, "=")
+		h = fnv1a.AddUint64(h, uint64(q.MilliValue()))
+		h = fnv1a.AddString64(h, "$")
 	}
-	return SchedulingKey(req.CachedSchedulingKey)
-}
-
-func schedulingKeyFromPodRequirements(req *PodRequirements) SchedulingKey {
-	// We separate taints/labels by $, labels and values by =, and and groups by &,
-	// since these characters are not allowed in taints and labels; see
-	// https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
-	// https://man.archlinux.org/man/community/kubectl/kubectl-taint.1.en
-	h := sha1.New()
-
-	nodeSelectorKeys := maps.Keys(req.NodeSelector)
-	slices.Sort(nodeSelectorKeys)
-	for _, key := range nodeSelectorKeys {
-		value := req.NodeSelector[key]
-		_, _ = io.WriteString(h, key)
-		_, _ = io.WriteString(h, "=")
-		_, _ = io.WriteString(h, value)
-		_, _ = io.WriteString(h, "$")
+	if len(skg.resourceNameBuffer) > 0 {
+		h = fnv1a.AddString64(h, "&")
 	}
-	_, _ = io.WriteString(h, "&")
-
-	if req.Affinity != nil {
-		_ = (&jsonpb.Marshaler{EnumsAsInts: true, OrigName: true}).Marshal(h, req.Affinity)
-		_, _ = io.WriteString(h, "&")
-	}
-
-	tolerations := slices.Clone(req.Tolerations)
-	slices.SortFunc(tolerations, lessToleration)
-	for _, toleration := range tolerations {
-		_, _ = io.WriteString(h, toleration.Key)
-		_, _ = io.WriteString(h, "=")
-		_, _ = io.WriteString(h, toleration.Value)
-		_, _ = io.WriteString(h, ":")
-		_, _ = io.WriteString(h, string(toleration.Operator))
-		_, _ = io.WriteString(h, ":")
-		_, _ = io.WriteString(h, string(toleration.Effect))
-		_, _ = io.WriteString(h, "$")
-	}
-	_, _ = io.WriteString(h, "&")
-
-	_, _ = io.WriteString(h, strconv.Itoa(int(req.Priority)))
-	_, _ = io.WriteString(h, "&")
-
-	requestKeys := maps.Keys(req.ResourceRequirements.Requests)
-	requestKeys = armadaslices.Filter(
-		requestKeys,
-		func(key v1.ResourceName) bool {
-			q := req.ResourceRequirements.Requests[key]
-			return q.Cmp(resource.Quantity{}) != 0
-		},
-	)
-	slices.Sort(requestKeys)
-	for _, key := range requestKeys {
-		value := req.ResourceRequirements.Requests[key]
-		_, _ = io.WriteString(h, string(key))
-		_, _ = io.WriteString(h, "=")
-		_, _ = h.Write(EncodeQuantity(value))
-		_, _ = io.WriteString(h, "$")
-	}
-
-	return SchedulingKey(h.Sum(nil))
+	return h
 }
 
 // ClearCachedSchedulingKey clears any cached scheduling keys.
@@ -140,24 +308,59 @@ func (req *PodRequirements) ClearCachedSchedulingKey() {
 }
 
 func lessToleration(a, b v1.Toleration) bool {
-	if cmp := strings.Compare(a.Key, b.Key); cmp == -1 {
+	if a.Key < b.Key {
 		return true
-	} else if cmp == 1 {
+	} else if a.Key > b.Key {
 		return false
 	}
-	if cmp := strings.Compare(a.Value, b.Value); cmp == -1 {
+	if a.Value < b.Value {
 		return true
-	} else if cmp == 1 {
+	} else if a.Value > b.Value {
 		return false
 	}
-	if cmp := strings.Compare(string(a.Operator), string(b.Operator)); cmp == -1 {
+	if string(a.Operator) < string(b.Operator) {
 		return true
-	} else if cmp == 1 {
+	} else if string(a.Operator) > string(b.Operator) {
 		return false
 	}
-	if cmp := strings.Compare(string(a.Effect), string(b.Effect)); cmp == -1 {
+	if string(a.Effect) < string(b.Effect) {
 		return true
-	} else if cmp == 1 {
+	} else if string(a.Effect) > string(b.Effect) {
+		return false
+	}
+	return true
+}
+
+func lessNodeSelectorTerm(a, b v1.NodeSelectorTerm) bool {
+	// For simplicity, we consider only the length and not the contents of MatchExpressions/MatchFields.
+	// Hence, the hash may depend on their order.
+	if len(a.MatchExpressions) < len(b.MatchExpressions) {
+		return true
+	} else if len(a.MatchExpressions) > len(b.MatchExpressions) {
+		return false
+	}
+	if len(a.MatchFields) < len(b.MatchFields) {
+		return true
+	} else if len(a.MatchFields) > len(b.MatchFields) {
+		return false
+	}
+	return true
+}
+
+func lessNodeSelectorRequirement(a, b v1.NodeSelectorRequirement) bool {
+	if a.Key < b.Key {
+		return true
+	} else if a.Key > b.Key {
+		return false
+	}
+	if string(a.Operator) < string(b.Operator) {
+		return true
+	} else if string(a.Operator) > string(b.Operator) {
+		return false
+	}
+	if len(a.Values) < len(b.Values) {
+		return true
+	} else if len(a.Values) > len(b.Values) {
 		return false
 	}
 	return true
