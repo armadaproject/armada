@@ -15,6 +15,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
+	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
@@ -361,16 +362,23 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 
 			for executorId, jobsByNodeName := range tc.existingRunningIndices {
 				for nodeName, jobIndices := range jobsByNodeName {
+					node := nodes[executorId][nodeName]
+					if node.StateByJobRunId == nil {
+						node.StateByJobRunId = make(map[string]schedulerobjects.JobRunState)
+					}
+
 					for _, i := range jobIndices {
 						job := tc.existingJobs[i].WithQueued(false).WithNewRun(executorId, nodeName)
 						jobsToUpsert = append(jobsToUpsert, job)
 						run := job.LatestRun()
-						node := nodes[executorId][nodeName]
-						if node.StateByJobRunId == nil {
-							node.StateByJobRunId = make(map[string]schedulerobjects.JobRunState)
-						}
 						node.StateByJobRunId[run.Id().String()] = schedulerobjects.JobRunState_RUNNING
+
+						req := PodRequirementFromLegacySchedulerJob(job, tc.schedulingConfig.Preemption.PriorityClasses)
+						node, err = nodedb.BindPodToNode(req, node)
+						require.NoError(t, err)
 					}
+
+					nodes[executorId][nodeName] = node
 				}
 			}
 
