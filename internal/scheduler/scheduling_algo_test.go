@@ -257,6 +257,71 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				"executor1": {0},
 			},
 		},
+		"scheduling a gang": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+
+			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			queues:    []*database.Queue{{Name: "queue1", Weight: 100}},
+
+			queuedJobs: testfixtures.WithGangAnnotationsJobs(testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 2)),
+
+			expectedScheduledIndices: map[string][]int{
+				"executor1": {0, 1},
+			},
+		},
+		"not scheduling a gang that is too large for any of the executors": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1"),
+				testfixtures.Test1Node32CoreExecutor("executor2"),
+			},
+			queues: []*database.Queue{{Name: "queue1", Weight: 100}},
+
+			queuedJobs: testfixtures.WithGangAnnotationsJobs(testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 3)),
+
+			expectedScheduledIndices: nil,
+		},
+		"urgency-based preemption evicting a gang": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1"),
+				testfixtures.Test1Node32CoreExecutor("executor2"),
+			},
+			queues: []*database.Queue{{Name: "queue1", Weight: 100}, {Name: "queue2", Weight: 100}},
+
+			existingJobs: testfixtures.WithGangAnnotationsJobs(testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 2)),
+			existingRunningIndices: map[string]map[string][]int{
+				"executor1": {"executor1-node": {0, 1}},
+			},
+
+			queuedJobs: testfixtures.N16CpuJobs("queue2", testfixtures.PriorityClass1, 4),
+
+			expectedPreemptedIndices: []int{0, 1},
+			expectedScheduledIndices: map[string][]int{
+				"executor1": {0, 1},
+				"executor2": {2, 3},
+			},
+		},
+		"preemption to fair share evicting a gang": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+
+			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			queues:    []*database.Queue{{Name: "queue1", Weight: 100}, {Name: "queue2", Weight: 100}},
+
+			existingJobs: testfixtures.WithGangAnnotationsJobs(testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 2)),
+			existingRunningIndices: map[string]map[string][]int{
+				"executor1": {"executor1-node": {0, 1}},
+			},
+
+			queuedJobs: testfixtures.N16CpuJobs("queue2", testfixtures.PriorityClass0, 1),
+
+			expectedPreemptedIndices: []int{0, 1},
+			expectedScheduledIndices: map[string][]int{
+				"executor1": {0},
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
