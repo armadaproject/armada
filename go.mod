@@ -91,6 +91,7 @@ require (
 	github.com/openconfig/goyang v1.2.0
 	github.com/prometheus/common v0.37.0
 	github.com/sanity-io/litter v1.5.5
+	github.com/segmentio/fasthash v1.0.3
 )
 
 require (

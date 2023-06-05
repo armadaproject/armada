@@ -28,7 +28,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: "latest"
+          version: "v1.53.1"
           skip-pkg-cache: true
           skip-build-cache: true
           args: "-c ./.golangci.yml --timeout=10m --issues-exit-code=1 --max-issues-per-linter=0 --sort-results ./..."

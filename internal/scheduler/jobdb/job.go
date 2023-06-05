@@ -155,6 +155,12 @@ func (job *Job) GetRequirements(_ map[string]configuration.PriorityClass) *sched
 	return job.JobSchedulingInfo()
 }
 
+// GetPriorityClassName returns the priorityClassName of the job.
+// Needed for compatibility with interfaces.LegacySchedulerJob
+func (job *Job) GetPriorityClassName() string {
+	return job.JobSchedulingInfo().PriorityClassName
+}
+
 // Queued returns true if the job should be considered by the scheduler for assignment or false otherwise.
 func (job *Job) Queued() bool {
 	return job.queued

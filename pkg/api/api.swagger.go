@@ -720,6 +720,11 @@ func SwaggerJsonTemplate() string {
 		"          \"description\": \"Indicates which scheduler should manage this job.\\nIf empty, the default scheduler is used.\",\n" +
 		"          \"type\": \"string\"\n" +
 		"        },\n" +
+		"        \"schedulingResourceRequirements\": {\n" +
+		"          \"description\": \"max(\\n\\n\\tsum across all containers,\\n\\tmax over all init containers,\\n\\n)\\n\\nThis is because containers run in parallel, whereas initContainers run serially.\\nThis field is populated automatically at submission.\\nSubmitting a job with this field already populated results in an error.\",\n" +
+		"          \"title\": \"Resource requests and limits necessary for scheduling the main pod of this job.\\nThe requests and limits herein are set to:\",\n" +
+		"          \"$ref\": \"#/definitions/v1ResourceRequirements\"\n" +
+		"        },\n" +
 		"        \"services\": {\n" +
 		"          \"type\": \"array\",\n" +
 		"          \"items\": {\n" +

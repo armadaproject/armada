@@ -381,14 +381,13 @@ func (repo *RedisJobRepository) GetJobsByIds(ids []string) ([]*JobResult, error)
 
 		// TODO This shouldn't be here. We write these when creating the job,
 		// and the getter shouldn't mutate the object read from the database.
-		for _, podSpec := range result.Job.GetAllPodSpecs() {
-			// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
-			for k, v := range result.Job.RequiredNodeLabels {
-				if podSpec.NodeSelector == nil {
-					podSpec.NodeSelector = map[string]string{}
-				}
-				podSpec.NodeSelector[k] = v
+		podSpec := result.Job.GetMainPodSpec()
+		// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
+		for k, v := range result.Job.RequiredNodeLabels {
+			if podSpec.NodeSelector == nil {
+				podSpec.NodeSelector = map[string]string{}
 			}
+			podSpec.NodeSelector[k] = v
 		}
 	}
 

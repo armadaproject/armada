@@ -1,6 +1,7 @@
 package nodedb
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -619,4 +620,26 @@ func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 		return nil, err
 	}
 	return db, nil
+}
+
+func BenchmarkNodeDbtringFromPodRequirementsNotMetReason(b *testing.B) {
+	nodeDb := &NodeDb{
+		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
+	}
+	reason := &schedulerobjects.UntoleratedTaint{
+		Taint: v1.Taint{Key: randomString(100), Value: randomString(100), Effect: v1.TaintEffectNoSchedule},
+	}
+	nodeDb.stringFromPodRequirementsNotMetReason(reason)
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		nodeDb.stringFromPodRequirementsNotMetReason(reason)
+	}
+}
+
+func randomString(n int) string {
+	s := ""
+	for i := 0; i < n; i++ {
+		s += fmt.Sprint(i)
+	}
+	return s
 }

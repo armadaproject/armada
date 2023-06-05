@@ -13,7 +13,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -57,68 +56,6 @@ var (
 		PreemptionPolicy:     string(v1.PreemptLowerPriority),
 	}
 )
-
-func TestPriorityFromPodSpec(t *testing.T) {
-	tests := []struct {
-		name                     string
-		podSpec                  *v1.PodSpec
-		expectedPriorityNumber   int32
-		expectedCheckForPriority bool
-	}{
-		{
-			name:                     "Podspec is nil",
-			podSpec:                  nil,
-			expectedPriorityNumber:   0,
-			expectedCheckForPriority: false,
-		},
-		{
-			name: "Podspec has priority field",
-			podSpec: &v1.PodSpec{
-				Priority: &priority,
-			},
-			expectedPriorityNumber:   priority,
-			expectedCheckForPriority: true,
-		},
-		{
-			name: "Podspec has priorityClassName field",
-			podSpec: &v1.PodSpec{
-				PriorityClassName: "priority-3",
-			},
-			expectedPriorityNumber:   3,
-			expectedCheckForPriority: true,
-		},
-		{
-			name: "Podspec has a nil value for the priority field",
-			podSpec: &v1.PodSpec{
-				Priority: nil,
-			},
-			expectedPriorityNumber:   0,
-			expectedCheckForPriority: false,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			wantedPriorityNumber, wantedCheckForPriority := PriorityFromPodSpec(test.podSpec, priorityByPriorityClassName)
-			assert.Equal(t, test.expectedCheckForPriority, wantedCheckForPriority)
-			assert.Equal(t, test.expectedPriorityNumber, wantedPriorityNumber)
-		})
-	}
-}
-
-func TestV1ResourceListFromComputeResources(t *testing.T) {
-	var armandaResources armadaresource.ComputeResources = map[string]resource.Quantity{
-		"cpu":    *resource.NewMilliQuantity(5300, resource.DecimalSI),
-		"memory": *resource.NewQuantity(5*1024*1024*1024, resource.BinarySI),
-	}
-	rv := v1ResourceListFromComputeResources(armandaResources)
-
-	expectedRv := v1.ResourceList{
-		v1.ResourceName("cpu"):    *resource.NewMilliQuantity(5300, resource.DecimalSI),
-		v1.ResourceName("memory"): *resource.NewQuantity(5*1024*1024*1024, resource.BinarySI),
-	}
-	assert.Equal(t, expectedRv, rv)
-}
 
 func TestPodRequirementsFromPodSpecPriorityByPriorityClassName(t *testing.T) {
 	tests := []struct {

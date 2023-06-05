@@ -503,6 +503,7 @@ func TestQueueScheduler(t *testing.T) {
 			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 				"pool",
+				tc.TotalResources,
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 			)

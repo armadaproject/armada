@@ -1194,6 +1194,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				}
 				constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 					"pool",
+					tc.TotalResources,
 					schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 					tc.SchedulingConfig,
 				)
@@ -1451,6 +1452,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 				"pool",
+				nodeDb.TotalResources(),
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 			)
