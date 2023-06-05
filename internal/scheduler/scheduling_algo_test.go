@@ -363,9 +363,6 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			for executorId, jobsByNodeName := range tc.existingRunningIndices {
 				for nodeName, jobIndices := range jobsByNodeName {
 					node := nodes[executorId][nodeName]
-					if node.StateByJobRunId == nil {
-						node.StateByJobRunId = make(map[string]schedulerobjects.JobRunState)
-					}
 
 					for _, i := range jobIndices {
 						job := tc.existingJobs[i].WithQueued(false).WithNewRun(executorId, nodeName)
