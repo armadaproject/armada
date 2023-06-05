@@ -8,10 +8,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-// const SchedulingKeySize = 20
-
-// type SchedulingKey [SchedulingKeySize]byte
-
 type SchedulingKey uint64
 
 func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
@@ -25,95 +21,6 @@ func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
 	}
 	return nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
 }
-
-// // SchedulingKey returns the canonical hash of the scheduling requirements of a job.
-// //
-// // The hash is of size SchedulingKeySize and is guaranteed to always be the same for equivalent requirements,
-// // unless Affinity is used, in which case they may differ as a result of unordered map keys.
-// func (jobSchedulingInfo *JobSchedulingInfo) SchedulingKey() (SchedulingKey, bool) {
-// 	if jobSchedulingInfo == nil {
-// 		return [SchedulingKeySize]byte{}, false
-// 	}
-// 	for _, objReq := range jobSchedulingInfo.ObjectRequirements {
-// 		if req := objReq.GetPodRequirements(); req != nil {
-// 			return req.SchedulingKey(), true
-// 		}
-// 	}
-// 	return SchedulingKey{}, false
-// }
-
-// // SchedulingKey returns the canonical hash of the scheduling requirements of a pod.
-// //
-// // The hash is of size SchedulingKeySize and is guaranteed to always be the same for equivalent requirements,
-// // unless Affinity is used, in which case they may differ as a result of unordered map keys.
-// func (req *PodRequirements) SchedulingKey() SchedulingKey {
-// 	if req.CachedSchedulingKey == nil {
-// 		// Cache the key such that the next invocation returns a pre-computed key.
-// 		schedulingKey := schedulingKeyFromPodRequirements(req)
-// 		req.CachedSchedulingKey = schedulingKey[:]
-// 	}
-// 	return SchedulingKey(req.CachedSchedulingKey)
-// }
-
-// func schedulingKeyFromPodRequirements(req *PodRequirements) SchedulingKey {
-// 	// We separate taints/labels by $, labels and values by =, and and groups by &,
-// 	// since these characters are not allowed in taints and labels; see
-// 	// https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
-// 	// https://man.archlinux.org/man/community/kubectl/kubectl-taint.1.en
-// 	h := sha1.New()
-
-// 	nodeSelectorKeys := maps.Keys(req.NodeSelector)
-// 	slices.Sort(nodeSelectorKeys)
-// 	for _, key := range nodeSelectorKeys {
-// 		value := req.NodeSelector[key]
-// 		_, _ = io.WriteString(h, key)
-// 		_, _ = io.WriteString(h, "=")
-// 		_, _ = io.WriteString(h, value)
-// 		_, _ = io.WriteString(h, "$")
-// 	}
-// 	_, _ = io.WriteString(h, "&")
-
-// 	if req.Affinity != nil {
-// 		_ = (&jsonpb.Marshaler{EnumsAsInts: true, OrigName: true}).Marshal(h, req.Affinity)
-// 		_, _ = io.WriteString(h, "&")
-// 	}
-
-// 	tolerations := slices.Clone(req.Tolerations)
-// 	slices.SortFunc(tolerations, lessToleration)
-// 	for _, toleration := range tolerations {
-// 		_, _ = io.WriteString(h, toleration.Key)
-// 		_, _ = io.WriteString(h, "=")
-// 		_, _ = io.WriteString(h, toleration.Value)
-// 		_, _ = io.WriteString(h, ":")
-// 		_, _ = io.WriteString(h, string(toleration.Operator))
-// 		_, _ = io.WriteString(h, ":")
-// 		_, _ = io.WriteString(h, string(toleration.Effect))
-// 		_, _ = io.WriteString(h, "$")
-// 	}
-// 	_, _ = io.WriteString(h, "&")
-
-// 	_, _ = io.WriteString(h, strconv.Itoa(int(req.Priority)))
-// 	_, _ = io.WriteString(h, "&")
-
-// 	requestKeys := maps.Keys(req.ResourceRequirements.Requests)
-// 	requestKeys = armadaslices.Filter(
-// 		requestKeys,
-// 		func(key v1.ResourceName) bool {
-// 			q := req.ResourceRequirements.Requests[key]
-// 			return q.Cmp(resource.Quantity{}) != 0
-// 		},
-// 	)
-// 	slices.Sort(requestKeys)
-// 	for _, key := range requestKeys {
-// 		value := req.ResourceRequirements.Requests[key]
-// 		_, _ = io.WriteString(h, string(key))
-// 		_, _ = io.WriteString(h, "=")
-// 		_, _ = h.Write(EncodeQuantity(value))
-// 		_, _ = io.WriteString(h, "$")
-// 	}
-
-// 	return SchedulingKey(h.Sum(nil))
-// }
 
 // SchedulingKeyGenerator is used to generate scheduling keys efficiently without requiring allocs.
 // A scheduling key is the canonical hash of the scheduling requirements of a job.
@@ -234,17 +141,6 @@ func (skg *SchedulingKeyGenerator) addNodeSelectorRequirements64(h uint64, nodeS
 	}
 	return h
 }
-
-// func (skg *SchedulingKeyGenerator) addAffinity64Old(h uint64, affinity *v1.Affinity) uint64 {
-// 	skg.byteBuffer = skg.byteBuffer[0:0]
-// 	if affinity != nil {
-// 		// TODO: Improve.
-// 		_ = (&jsonpb.Marshaler{EnumsAsInts: true, OrigName: true}).Marshal(bytes.NewBuffer(skg.byteBuffer), affinity)
-// 		h = fnv1a.AddBytes64(h, skg.byteBuffer)
-// 		h = fnv1a.AddString64(h, "&")
-// 	}
-// 	return h
-// }
 
 func (skg *SchedulingKeyGenerator) addTolerations64(h uint64, tolerations []v1.Toleration) uint64 {
 	skg.tolerationBuffer = skg.tolerationBuffer[0:0]
