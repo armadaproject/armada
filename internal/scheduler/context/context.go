@@ -51,7 +51,7 @@ type SchedulingContext struct {
 	// Reason for why the scheduling round finished.
 	TerminationReason string
 	// Used to efficiently generate scheduling keys.
-	schedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
+	SchedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
 	// Record of job scheduling requirements known to be unfeasible.
 	// Used to immediately reject new jobs with identical reqirements.
 	// Maps to the JobSchedulingContext of a previous job attempted to schedule with the same key.
@@ -78,7 +78,7 @@ func NewSchedulingContext(
 		ScheduledResources:           schedulerobjects.NewResourceListWithDefaultSize(),
 		ScheduledResourcesByPriority: make(schedulerobjects.QuantityByPriorityAndResourceType),
 		EvictedResourcesByPriority:   make(schedulerobjects.QuantityByPriorityAndResourceType),
-		schedulingKeyGenerator:       schedulerobjects.NewSchedulingKeyGenerator(),
+		SchedulingKeyGenerator:       schedulerobjects.NewSchedulingKeyGenerator(),
 		UnfeasibleSchedulingKeys:     make(map[schedulerobjects.SchedulingKey]*JobSchedulingContext),
 	}
 }
@@ -88,7 +88,7 @@ func (sctx *SchedulingContext) SchedulingKeyFromLegacySchedulerJob(job interface
 	if priorityClass, ok := sctx.PriorityClasses[job.GetPriorityClassName()]; ok {
 		priority = priorityClass.Priority
 	}
-	return sctx.schedulingKeyGenerator.Key(
+	return sctx.SchedulingKeyGenerator.Key(
 		job.GetNodeSelector(),
 		job.GetAffinity(),
 		job.GetTolerations(),
