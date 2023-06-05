@@ -15,6 +15,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
+	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
@@ -176,7 +177,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			queuedJobs:               testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
 			expectedScheduledIndices: nil,
 		},
-		"The scheduling algorithm computes allocated resources by priority class, not by per-queue priority.": {
+		"computation of allocated resources does not confuse priority class with per-queue priority": {
 			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
 				map[int32]map[string]float64{
 					testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority: {"cpu": 0.5},
@@ -203,7 +204,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 
 			expectedScheduledIndices: nil,
 		},
-		"Urgency-based preemption within a single queue.": {
+		"urgency-based preemption within a single queue": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 
 			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
@@ -221,7 +222,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				"executor1": {0, 1},
 			},
 		},
-		"Urgency-based preemption across queues.": {
+		"urgency-based preemption across queues": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 
 			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
@@ -239,7 +240,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				"executor1": {0, 1},
 			},
 		},
-		"Fair share preemption.": {
+		"preemption to fair share": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 
 			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
@@ -253,6 +254,71 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			queuedJobs: testfixtures.N16CpuJobs("queue2", testfixtures.PriorityClass0, 2),
 
 			expectedPreemptedIndices: []int{1},
+			expectedScheduledIndices: map[string][]int{
+				"executor1": {0},
+			},
+		},
+		"scheduling a gang": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+
+			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			queues:    []*database.Queue{{Name: "queue1", Weight: 100}},
+
+			queuedJobs: testfixtures.WithGangAnnotationsJobs(testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 2)),
+
+			expectedScheduledIndices: map[string][]int{
+				"executor1": {0, 1},
+			},
+		},
+		"not scheduling a gang that is too large for any of the executors": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1"),
+				testfixtures.Test1Node32CoreExecutor("executor2"),
+			},
+			queues: []*database.Queue{{Name: "queue1", Weight: 100}},
+
+			queuedJobs: testfixtures.WithGangAnnotationsJobs(testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 3)),
+
+			expectedScheduledIndices: nil,
+		},
+		"urgency-based preemption evicting a gang": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1"),
+				testfixtures.Test1Node32CoreExecutor("executor2"),
+			},
+			queues: []*database.Queue{{Name: "queue1", Weight: 100}, {Name: "queue2", Weight: 100}},
+
+			existingJobs: testfixtures.WithGangAnnotationsJobs(testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 2)),
+			existingRunningIndices: map[string]map[string][]int{
+				"executor1": {"executor1-node": {0, 1}},
+			},
+
+			queuedJobs: testfixtures.N16CpuJobs("queue2", testfixtures.PriorityClass1, 4),
+
+			expectedPreemptedIndices: []int{0, 1},
+			expectedScheduledIndices: map[string][]int{
+				"executor1": {0, 1},
+				"executor2": {2, 3},
+			},
+		},
+		"preemption to fair share evicting a gang": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+
+			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			queues:    []*database.Queue{{Name: "queue1", Weight: 100}, {Name: "queue2", Weight: 100}},
+
+			existingJobs: testfixtures.WithGangAnnotationsJobs(testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 2)),
+			existingRunningIndices: map[string]map[string][]int{
+				"executor1": {"executor1-node": {0, 1}},
+			},
+
+			queuedJobs: testfixtures.N16CpuJobs("queue2", testfixtures.PriorityClass0, 1),
+
+			expectedPreemptedIndices: []int{0, 1},
 			expectedScheduledIndices: map[string][]int{
 				"executor1": {0},
 			},
@@ -296,16 +362,20 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 
 			for executorId, jobsByNodeName := range tc.existingRunningIndices {
 				for nodeName, jobIndices := range jobsByNodeName {
+					node := nodes[executorId][nodeName]
+
 					for _, i := range jobIndices {
 						job := tc.existingJobs[i].WithQueued(false).WithNewRun(executorId, nodeName)
 						jobsToUpsert = append(jobsToUpsert, job)
 						run := job.LatestRun()
-						node := nodes[executorId][nodeName]
-						if node.StateByJobRunId == nil {
-							node.StateByJobRunId = make(map[string]schedulerobjects.JobRunState)
-						}
 						node.StateByJobRunId[run.Id().String()] = schedulerobjects.JobRunState_RUNNING
+
+						req := PodRequirementFromLegacySchedulerJob(job, tc.schedulingConfig.Preemption.PriorityClasses)
+						node, err = nodedb.BindPodToNode(req, node)
+						require.NoError(t, err)
 					}
+
+					nodes[executorId][nodeName] = node
 				}
 			}
 
