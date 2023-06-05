@@ -176,7 +176,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			queuedJobs:               testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
 			expectedScheduledIndices: nil,
 		},
-		"The scheduling algorithm computes allocated resources by priority class, not by per-queue priority.": {
+		"computation of allocated resources does not confuse priority class with per-queue priority": {
 			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
 				map[int32]map[string]float64{
 					testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority: {"cpu": 0.5},
@@ -203,7 +203,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 
 			expectedScheduledIndices: nil,
 		},
-		"Urgency-based preemption within a single queue.": {
+		"urgency-based preemption within a single queue": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 
 			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
@@ -221,7 +221,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				"executor1": {0, 1},
 			},
 		},
-		"Urgency-based preemption across queues.": {
+		"urgency-based preemption across queues": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 
 			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
@@ -239,7 +239,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				"executor1": {0, 1},
 			},
 		},
-		"Fair share preemption.": {
+		"preemption to fair share": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 
 			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
