@@ -6956,7 +6956,7 @@ func (this *JobIngressInfoEvent) String() string {
 		return "nil"
 	}
 	keysForIngressAddresses := make([]int32, 0, len(this.IngressAddresses))
-	for k := range this.IngressAddresses {
+	for k, _ := range this.IngressAddresses {
 		keysForIngressAddresses = append(keysForIngressAddresses, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Int32s(keysForIngressAddresses)
@@ -7011,7 +7011,7 @@ func (this *JobFailedEvent) String() string {
 	}
 	repeatedStringForContainerStatuses += "}"
 	keysForExitCodes := make([]string, 0, len(this.ExitCodes))
-	for k := range this.ExitCodes {
+	for k, _ := range this.ExitCodes {
 		keysForExitCodes = append(keysForExitCodes, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForExitCodes)
@@ -7090,7 +7090,7 @@ func (this *JobUtilisationEvent) String() string {
 		return "nil"
 	}
 	keysForMaxResourcesForPeriod := make([]string, 0, len(this.MaxResourcesForPeriod))
-	for k := range this.MaxResourcesForPeriod {
+	for k, _ := range this.MaxResourcesForPeriod {
 		keysForMaxResourcesForPeriod = append(keysForMaxResourcesForPeriod, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForMaxResourcesForPeriod)
@@ -7100,7 +7100,7 @@ func (this *JobUtilisationEvent) String() string {
 	}
 	mapStringForMaxResourcesForPeriod += "}"
 	keysForTotalCumulativeUsage := make([]string, 0, len(this.TotalCumulativeUsage))
-	for k := range this.TotalCumulativeUsage {
+	for k, _ := range this.TotalCumulativeUsage {
 		keysForTotalCumulativeUsage = append(keysForTotalCumulativeUsage, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForTotalCumulativeUsage)

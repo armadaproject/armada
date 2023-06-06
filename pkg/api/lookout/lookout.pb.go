@@ -2362,7 +2362,7 @@ func (this *GetJobsRequest) String() string {
 		return "nil"
 	}
 	keysForUserAnnotations := make([]string, 0, len(this.UserAnnotations))
-	for k := range this.UserAnnotations {
+	for k, _ := range this.UserAnnotations {
 		keysForUserAnnotations = append(keysForUserAnnotations, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForUserAnnotations)

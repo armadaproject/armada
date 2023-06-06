@@ -3551,7 +3551,7 @@ func (this *Job) String() string {
 	}
 	repeatedStringForK8SService += "}"
 	keysForLabels := make([]string, 0, len(this.Labels))
-	for k := range this.Labels {
+	for k, _ := range this.Labels {
 		keysForLabels = append(keysForLabels, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForLabels)
@@ -3561,7 +3561,7 @@ func (this *Job) String() string {
 	}
 	mapStringForLabels += "}"
 	keysForAnnotations := make([]string, 0, len(this.Annotations))
-	for k := range this.Annotations {
+	for k, _ := range this.Annotations {
 		keysForAnnotations = append(keysForAnnotations, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForAnnotations)
@@ -3571,7 +3571,7 @@ func (this *Job) String() string {
 	}
 	mapStringForAnnotations += "}"
 	keysForRequiredNodeLabels := make([]string, 0, len(this.RequiredNodeLabels))
-	for k := range this.RequiredNodeLabels {
+	for k, _ := range this.RequiredNodeLabels {
 		keysForRequiredNodeLabels = append(keysForRequiredNodeLabels, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForRequiredNodeLabels)
@@ -3615,7 +3615,7 @@ func (this *StreamingLeaseRequest) String() string {
 	}
 	repeatedStringForNodes += "}"
 	keysForResources := make([]string, 0, len(this.Resources))
-	for k := range this.Resources {
+	for k, _ := range this.Resources {
 		keysForResources = append(keysForResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForResources)
@@ -3625,7 +3625,7 @@ func (this *StreamingLeaseRequest) String() string {
 	}
 	mapStringForResources += "}"
 	keysForMinimumJobSize := make([]string, 0, len(this.MinimumJobSize))
-	for k := range this.MinimumJobSize {
+	for k, _ := range this.MinimumJobSize {
 		keysForMinimumJobSize = append(keysForMinimumJobSize, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForMinimumJobSize)
@@ -3656,7 +3656,7 @@ func (this *NodeInfo) String() string {
 	}
 	repeatedStringForTaints += "}"
 	keysForLabels := make([]string, 0, len(this.Labels))
-	for k := range this.Labels {
+	for k, _ := range this.Labels {
 		keysForLabels = append(keysForLabels, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForLabels)
@@ -3666,7 +3666,7 @@ func (this *NodeInfo) String() string {
 	}
 	mapStringForLabels += "}"
 	keysForAllocatableResources := make([]string, 0, len(this.AllocatableResources))
-	for k := range this.AllocatableResources {
+	for k, _ := range this.AllocatableResources {
 		keysForAllocatableResources = append(keysForAllocatableResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForAllocatableResources)
@@ -3676,7 +3676,7 @@ func (this *NodeInfo) String() string {
 	}
 	mapStringForAllocatableResources += "}"
 	keysForAvailableResources := make([]string, 0, len(this.AvailableResources))
-	for k := range this.AvailableResources {
+	for k, _ := range this.AvailableResources {
 		keysForAvailableResources = append(keysForAvailableResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForAvailableResources)
@@ -3686,7 +3686,7 @@ func (this *NodeInfo) String() string {
 	}
 	mapStringForAvailableResources += "}"
 	keysForTotalResources := make([]string, 0, len(this.TotalResources))
-	for k := range this.TotalResources {
+	for k, _ := range this.TotalResources {
 		keysForTotalResources = append(keysForTotalResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForTotalResources)
@@ -3696,7 +3696,7 @@ func (this *NodeInfo) String() string {
 	}
 	mapStringForTotalResources += "}"
 	keysForAllocatedResources := make([]int32, 0, len(this.AllocatedResources))
-	for k := range this.AllocatedResources {
+	for k, _ := range this.AllocatedResources {
 		keysForAllocatedResources = append(keysForAllocatedResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Int32s(keysForAllocatedResources)
@@ -3706,7 +3706,7 @@ func (this *NodeInfo) String() string {
 	}
 	mapStringForAllocatedResources += "}"
 	keysForRunIdsByState := make([]string, 0, len(this.RunIdsByState))
-	for k := range this.RunIdsByState {
+	for k, _ := range this.RunIdsByState {
 		keysForRunIdsByState = append(keysForRunIdsByState, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForRunIdsByState)
@@ -3716,7 +3716,7 @@ func (this *NodeInfo) String() string {
 	}
 	mapStringForRunIdsByState += "}"
 	keysForNonArmadaAllocatedResources := make([]int32, 0, len(this.NonArmadaAllocatedResources))
-	for k := range this.NonArmadaAllocatedResources {
+	for k, _ := range this.NonArmadaAllocatedResources {
 		keysForNonArmadaAllocatedResources = append(keysForNonArmadaAllocatedResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Int32s(keysForNonArmadaAllocatedResources)
@@ -3726,7 +3726,7 @@ func (this *NodeInfo) String() string {
 	}
 	mapStringForNonArmadaAllocatedResources += "}"
 	keysForResourceUsageByQueue := make([]string, 0, len(this.ResourceUsageByQueue))
-	for k := range this.ResourceUsageByQueue {
+	for k, _ := range this.ResourceUsageByQueue {
 		keysForResourceUsageByQueue = append(keysForResourceUsageByQueue, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForResourceUsageByQueue)
@@ -3762,7 +3762,7 @@ func (this *NodeType) String() string {
 	}
 	repeatedStringForTaints += "}"
 	keysForLabels := make([]string, 0, len(this.Labels))
-	for k := range this.Labels {
+	for k, _ := range this.Labels {
 		keysForLabels = append(keysForLabels, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForLabels)
@@ -3772,7 +3772,7 @@ func (this *NodeType) String() string {
 	}
 	mapStringForLabels += "}"
 	keysForAllocatableResources := make([]string, 0, len(this.AllocatableResources))
-	for k := range this.AllocatableResources {
+	for k, _ := range this.AllocatableResources {
 		keysForAllocatableResources = append(keysForAllocatableResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForAllocatableResources)
@@ -3799,7 +3799,7 @@ func (this *ClusterSchedulingInfoReport) String() string {
 	}
 	repeatedStringForNodeTypes += "}"
 	keysForMinimumJobSize := make([]string, 0, len(this.MinimumJobSize))
-	for k := range this.MinimumJobSize {
+	for k, _ := range this.MinimumJobSize {
 		keysForMinimumJobSize = append(keysForMinimumJobSize, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForMinimumJobSize)
@@ -3823,7 +3823,7 @@ func (this *QueueLeasedReport) String() string {
 		return "nil"
 	}
 	keysForResourcesLeased := make([]string, 0, len(this.ResourcesLeased))
-	for k := range this.ResourcesLeased {
+	for k, _ := range this.ResourcesLeased {
 		keysForResourcesLeased = append(keysForResourcesLeased, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForResourcesLeased)
@@ -3833,7 +3833,7 @@ func (this *QueueLeasedReport) String() string {
 	}
 	mapStringForResourcesLeased += "}"
 	keysForResourcesLeasedByPriority := make([]int32, 0, len(this.ResourcesLeasedByPriority))
-	for k := range this.ResourcesLeasedByPriority {
+	for k, _ := range this.ResourcesLeasedByPriority {
 		keysForResourcesLeasedByPriority = append(keysForResourcesLeasedByPriority, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Int32s(keysForResourcesLeasedByPriority)
@@ -3872,7 +3872,7 @@ func (this *ComputeResource) String() string {
 		return "nil"
 	}
 	keysForResources := make([]string, 0, len(this.Resources))
-	for k := range this.Resources {
+	for k, _ := range this.Resources {
 		keysForResources = append(keysForResources, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForResources)
@@ -3892,7 +3892,7 @@ func (this *NodeLabeling) String() string {
 		return "nil"
 	}
 	keysForLabels := make([]string, 0, len(this.Labels))
-	for k := range this.Labels {
+	for k, _ := range this.Labels {
 		keysForLabels = append(keysForLabels, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForLabels)
@@ -3960,7 +3960,7 @@ func (this *ReturnLeaseRequest) String() string {
 		return "nil"
 	}
 	keysForTrackedAnnotations := make([]string, 0, len(this.TrackedAnnotations))
-	for k := range this.TrackedAnnotations {
+	for k, _ := range this.TrackedAnnotations {
 		keysForTrackedAnnotations = append(keysForTrackedAnnotations, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForTrackedAnnotations)

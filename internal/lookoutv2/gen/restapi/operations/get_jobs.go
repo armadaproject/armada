@@ -37,10 +37,10 @@ func NewGetJobs(ctx *middleware.Context, handler GetJobsHandler) *GetJobs {
 	return &GetJobs{Context: ctx, Handler: handler}
 }
 
-/*
-	GetJobs swagger:route POST /api/v1/jobs getJobs
+/* GetJobs swagger:route POST /api/v1/jobs getJobs
 
 GetJobs get jobs API
+
 */
 type GetJobs struct {
 	Context *middleware.Context

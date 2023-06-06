@@ -4027,7 +4027,7 @@ func (this *JobSubmitRequestItem) String() string {
 	}
 	repeatedStringForServices += "}"
 	keysForLabels := make([]string, 0, len(this.Labels))
-	for k := range this.Labels {
+	for k, _ := range this.Labels {
 		keysForLabels = append(keysForLabels, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForLabels)
@@ -4037,7 +4037,7 @@ func (this *JobSubmitRequestItem) String() string {
 	}
 	mapStringForLabels += "}"
 	keysForAnnotations := make([]string, 0, len(this.Annotations))
-	for k := range this.Annotations {
+	for k, _ := range this.Annotations {
 		keysForAnnotations = append(keysForAnnotations, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForAnnotations)
@@ -4047,7 +4047,7 @@ func (this *JobSubmitRequestItem) String() string {
 	}
 	mapStringForAnnotations += "}"
 	keysForRequiredNodeLabels := make([]string, 0, len(this.RequiredNodeLabels))
-	for k := range this.RequiredNodeLabels {
+	for k, _ := range this.RequiredNodeLabels {
 		keysForRequiredNodeLabels = append(keysForRequiredNodeLabels, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForRequiredNodeLabels)
@@ -4077,7 +4077,7 @@ func (this *IngressConfig) String() string {
 		return "nil"
 	}
 	keysForAnnotations := make([]string, 0, len(this.Annotations))
-	for k := range this.Annotations {
+	for k, _ := range this.Annotations {
 		keysForAnnotations = append(keysForAnnotations, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForAnnotations)
@@ -4180,7 +4180,7 @@ func (this *JobReprioritizeResponse) String() string {
 		return "nil"
 	}
 	keysForReprioritizationResults := make([]string, 0, len(this.ReprioritizationResults))
-	for k := range this.ReprioritizationResults {
+	for k, _ := range this.ReprioritizationResults {
 		keysForReprioritizationResults = append(keysForReprioritizationResults, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForReprioritizationResults)
@@ -4231,7 +4231,7 @@ func (this *Queue) String() string {
 	}
 	repeatedStringForPermissions += "}"
 	keysForResourceLimits := make([]string, 0, len(this.ResourceLimits))
-	for k := range this.ResourceLimits {
+	for k, _ := range this.ResourceLimits {
 		keysForResourceLimits = append(keysForResourceLimits, k)
 	}
 	github_com_gogo_protobuf_sortkeys.Strings(keysForResourceLimits)
