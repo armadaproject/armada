@@ -18,9 +18,39 @@ func getSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 			return initParams(cmd, a.Params)
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return a.GetSchedulingReport()
+			verbosity, err := cmd.Flags().GetCount("verbose")
+			if err != nil {
+				return err
+			}
+
+			queueName, err := cmd.Flags().GetString("queue")
+			if err != nil {
+				return err
+			}
+			queueName = strings.TrimSpace(queueName)
+			if queueName != "" {
+				return a.GetSchedulingReportForQueue(queueName, int32(verbosity))
+			}
+
+			jobId, err := cmd.Flags().GetString("job")
+			if err != nil {
+				return err
+			}
+			jobId = strings.TrimSpace(jobId)
+			if jobId != "" {
+				return a.GetSchedulingReportForJob(jobId, int32(verbosity))
+			}
+
+			return a.GetSchedulingReport(int32(verbosity))
 		},
 	}
+
+	cmd.Flags().CountP("verbose", "v", "report verbosity; specify multiple times (for example: -vvv) to increase verbosity")
+
+	cmd.Flags().String("queue", "", "only get scheduler reports containing this queue")
+	cmd.Flags().String("job", "", "only get scheduler reports containing this job ID")
+	cmd.MarkFlagsMutuallyExclusive("queue", "job")
+
 	return cmd
 }
 
