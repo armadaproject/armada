@@ -91,10 +91,6 @@ func (s *JSRepoSQLite) Setup(ctx context.Context) {
 			panic(err)
 		}
 	}
-
-	if s.jobServiceConfig.PurgeJobSetTime > 0 {
-		go s.purgeExpired()
-	}
 }
 
 // Get the JobStatus given the jodId
@@ -367,7 +363,7 @@ func (s *JSRepoSQLite) GetSubscribedJobSets(ctx context.Context) ([]SubscribedTu
 	return tuples, nil
 }
 
-func (s *JSRepoSQLite) purgeExpired() {
+func (s *JSRepoSQLite) PurgeExpiredJobSets(ctx context.Context) {
 	jobsetsStmt := fmt.Sprintf(`DELETE FROM jobsets WHERE Timestamp < (UNIXEPOCH() - %d);`, s.jobServiceConfig.PurgeJobSetTime)
 	jobServiceStmt := fmt.Sprintf(`DELETE FROM jobservice WHERE Timestamp < (UNIXEPOCH() - %d);`, s.jobServiceConfig.PurgeJobSetTime)
 
@@ -387,6 +383,7 @@ func (s *JSRepoSQLite) purgeExpired() {
 		}
 	}
 
+	log.Info("Starting purge of expired jobsets")
 	for range ticker.C {
 		s.lock.Lock()
 		purge("jobsets", jobsetsStmt)

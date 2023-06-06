@@ -73,10 +73,6 @@ func (s *JSRepoPostgres) Setup(ctx context.Context) {
 			panic(err)
 		}
 	}
-
-	if s.jobServiceConfig.PurgeJobSetTime > 0 {
-		go s.purgeExpired(ctx)
-	}
 }
 
 // Get the JobStatus given the jodId
@@ -315,13 +311,14 @@ func (s *JSRepoPostgres) GetSubscribedJobSets(ctx context.Context) ([]Subscribed
 	return tuples, nil
 }
 
-func (s *JSRepoPostgres) purgeExpired(ctx context.Context) {
+func (s *JSRepoPostgres) PurgeExpiredJobSets(ctx context.Context) {
 	jobsetsStmt := fmt.Sprintf(`DELETE FROM jobsets WHERE Timestamp < (extract(epoch from now()) - %d);`, s.jobServiceConfig.PurgeJobSetTime)
 	jobServiceStmt := fmt.Sprintf(`DELETE FROM jobservice WHERE Timestamp < (extract(epoch from now()) - %d);`, s.jobServiceConfig.PurgeJobSetTime)
 
 	ticker := time.NewTicker(time.Duration(s.jobServiceConfig.PurgeJobSetTime) * time.Second)
 	log := log.WithField("JobService", "ExpiredJobSetsPurge")
 
+	log.Info("Starting purge of expired jobsets")
 	for range ticker.C {
 		result, jobsetErr := s.dbpool.Exec(ctx, jobsetsStmt)
 		if jobsetErr != nil {

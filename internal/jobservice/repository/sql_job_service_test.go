@@ -141,37 +141,42 @@ func TestCleanupJobSetAndJobsIfNonExist(t *testing.T) {
 	})
 }
 
-func TestCleanUpExpiredJobsAndJobSets(t *testing.T) {
+func TestCleanUpExpiredJobSets(t *testing.T) {
 	realPurgeTime := int64(1)
 	WithSqlServiceRepo(realPurgeTime, func(r SQLJobService) {
 		ctx := context.Background()
-		responseExpected1 := &jobservice.JobServiceResponse{
-			State: jobservice.JobServiceResponse_RUNNING,
+		go r.PurgeExpiredJobSets(ctx)
+		// test multiple iterations of the purging goroutine
+		for i := 1; i <= 3; i++ {
+			jobsetId := fmt.Sprintf("job-set-%d", i)
+			jobId := fmt.Sprintf("job-%d", i)
+			responseExpected1 := &jobservice.JobServiceResponse{
+				State: jobservice.JobServiceResponse_RUNNING,
+			}
+			err := r.SubscribeJobSet(ctx, "queue", jobsetId, "")
+			require.NoError(t, err)
+			jobStatus1 := NewJobStatus("test", jobsetId, jobId, *responseExpected1)
+			err = r.UpdateJobServiceDb(ctx, jobStatus1)
+			require.NoError(t, err)
+			subscribe, _, err := r.IsJobSetSubscribed(ctx, "queue", jobsetId)
+			require.True(t, subscribe)
+			require.NoError(t, err)
+			response, err := r.GetJobStatus(ctx, jobId)
+			require.Equal(t, responseExpected1, response)
+			require.NoError(t, err)
+
+			time.Sleep(time.Duration(realPurgeTime+1) * time.Second)
+
+			subscribe, _, err = r.IsJobSetSubscribed(ctx, "queue", jobsetId)
+			require.False(t, subscribe)
+			require.NoError(t, err)
+			responseExpected2 := &jobservice.JobServiceResponse{
+				State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND,
+			}
+			response, err = r.GetJobStatus(ctx, jobId)
+			require.Equal(t, responseExpected2, response)
+			require.NoError(t, err)
 		}
-		err := r.SubscribeJobSet(ctx, "queue", "job-set-1", "")
-		require.NoError(t, err)
-		jobStatus1 := NewJobStatus("test", "job-set-1", "job-id", *responseExpected1)
-		err = r.UpdateJobServiceDb(ctx, jobStatus1)
-		require.NoError(t, err)
-
-		subscribe, _, err := r.IsJobSetSubscribed(ctx, "queue", "job-set-1")
-		require.True(t, subscribe)
-		require.NoError(t, err)
-		response, err := r.GetJobStatus(ctx, "job-id")
-		require.Equal(t, responseExpected1, response)
-		require.NoError(t, err)
-
-		time.Sleep(time.Duration(realPurgeTime+1) * time.Second)
-
-		subscribe, _, err = r.IsJobSetSubscribed(ctx, "queue", "job-set-1")
-		require.False(t, subscribe)
-		require.NoError(t, err)
-		responseExpected2 := &jobservice.JobServiceResponse{
-			State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND,
-		}
-		response, err = r.GetJobStatus(ctx, "jobs-id")
-		require.Equal(t, responseExpected2, response)
-		require.NoError(t, err)
 	})
 }
 

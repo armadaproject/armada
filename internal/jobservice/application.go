@@ -163,6 +163,10 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		}
 		return nil
 	})
+	g.Go(func() error {
+		sqlJobRepo.PurgeExpiredJobSets(ctx)
+		return nil
+	})
 
 	if err := g.Wait(); err != nil {
 		log.Fatalf("error detected on wait %v", err)
