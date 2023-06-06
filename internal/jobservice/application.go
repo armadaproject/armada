@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -72,6 +73,12 @@ func RectifyConfig(config *configuration.JobServiceConfiguration) {
 		}).Warn("config.SubscriberPoolSize invalid, using default instead")
 		config.SubscriberPoolSize = DefaultConfiguration.SubscriberPoolSize
 	}
+
+	if config.ApiConnection.ForceNoTls {
+		logger.Warn("Armada Server connection will be unsecured! TLS is forced OFF!")
+	}
+
+	return
 }
 
 func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfiguration) error {
@@ -117,7 +124,12 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	g.Go(func() error {
 		eventClient := events.NewPooledEventClient(evConnPool)
 		// Runs continuously until ctx is canceled or it runs into an unrecoverable error
-		jobSubExecutor := eventstojobs.NewJobSubscriptionExecutor(ctx, eventClient, sqlJobRepo)
+		jobSubExecutor := eventstojobs.NewJobSetSubscriptionExecutor(
+			ctx,
+			eventClient,
+			sqlJobRepo,
+			jobService.GetNewSubscriptionChannel(),
+			time.Duration(config.SubscribeJobSetTime)*time.Second)
 		return jobSubExecutor.Manage()
 	})
 
