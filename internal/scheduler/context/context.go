@@ -328,6 +328,18 @@ func (qctx *QueueSchedulingContext) String() string {
 			}
 		}
 	}
+	if len(qctx.EvictedJobsById) > 0 {
+		jobIdsToPrint := maps.Keys(qctx.EvictedJobsById)
+		if len(jobIdsToPrint) > maxPrintedJobIdsByReason {
+			jobIdsToPrint = jobIdsToPrint[0:maxPrintedJobIdsByReason]
+		}
+		fmt.Fprintf(w, "Preempted jobs:\t%v", jobIdsToPrint)
+		if len(jobIdsToPrint) != len(qctx.EvictedJobsById) {
+			fmt.Fprintf(w, " (and %d others not shown)\n", len(qctx.EvictedJobsById)-len(jobIdsToPrint))
+		} else {
+			fmt.Fprint(w, "\n")
+		}
+	}
 	w.Flush()
 	return sb.String()
 }
