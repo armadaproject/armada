@@ -279,7 +279,6 @@ type QueueSchedulingContext struct {
 
 const maxPrintedJobIdsByReason = 1
 
-// TODO: Update with preemptions.
 func (qctx *QueueSchedulingContext) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
@@ -289,8 +288,11 @@ func (qctx *QueueSchedulingContext) String() string {
 	fmt.Fprintf(w, "Total allocated resources after scheduling (by priority):\t%s\n", qctx.AllocatedByPriority.String())
 	fmt.Fprintf(w, "Scheduled resources:\t%s\n", qctx.ScheduledResourcesByPriority.AggregateByResource().CompactString())
 	fmt.Fprintf(w, "Scheduled resources (by priority):\t%s\n", qctx.ScheduledResourcesByPriority.String())
+	fmt.Fprintf(w, "Preempted resources:\t%s\n", qctx.EvictedResourcesByPriority.AggregateByResource().CompactString())
+	fmt.Fprintf(w, "Preempted resources (by priority):\t%s\n", qctx.EvictedResourcesByPriority.String())
 	fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", len(qctx.SuccessfulJobSchedulingContexts))
 	fmt.Fprintf(w, "Number of jobs that could not be scheduled:\t%d\n", len(qctx.UnsuccessfulJobSchedulingContexts))
+	fmt.Fprintf(w, "Number of jobs preempted:\t%d\n", len(qctx.EvictedJobsById))
 	if len(qctx.SuccessfulJobSchedulingContexts) > 0 {
 		jobIdsToPrint := maps.Keys(qctx.SuccessfulJobSchedulingContexts)
 		if len(jobIdsToPrint) > maxPrintedJobIdsByReason {
@@ -324,6 +326,18 @@ func (qctx *QueueSchedulingContext) String() string {
 			} else {
 				fmt.Fprint(w, "\n")
 			}
+		}
+	}
+	if len(qctx.EvictedJobsById) > 0 {
+		jobIdsToPrint := maps.Keys(qctx.EvictedJobsById)
+		if len(jobIdsToPrint) > maxPrintedJobIdsByReason {
+			jobIdsToPrint = jobIdsToPrint[0:maxPrintedJobIdsByReason]
+		}
+		fmt.Fprintf(w, "Preempted jobs:\t%v", jobIdsToPrint)
+		if len(jobIdsToPrint) != len(qctx.EvictedJobsById) {
+			fmt.Fprintf(w, " (and %d others not shown)\n", len(qctx.EvictedJobsById)-len(jobIdsToPrint))
+		} else {
+			fmt.Fprint(w, "\n")
 		}
 	}
 	w.Flush()
