@@ -24,8 +24,10 @@ func TestConstructInMemoryDoesNotExist(t *testing.T) {
 		responseExpected := &jobservice.JobServiceResponse{
 			State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND,
 		}
+		err := r.SubscribeJobSet(ctx, "test", "job-set-1", "test")
+		require.NoError(t, err)
 		jobStatus := NewJobStatus("test", "job-set-1", "job-id", *responseExpected)
-		err := r.UpdateJobServiceDb(ctx, jobStatus)
+		err = r.UpdateJobServiceDb(ctx, jobStatus)
 		require.NoError(t, err)
 
 		resp, err := r.GetJobStatus(ctx, "job-set-1")
@@ -61,9 +63,13 @@ func TestConstructInMemoryServiceFailed(t *testing.T) {
 	WithSqlServiceRepo(purgeTime, func(r SQLJobService) {
 		ctx := context.Background()
 		responseExpected := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_FAILED, Error: "TestFail"}
+
+		err := r.SubscribeJobSet(ctx, "test", "job-set-1", "test")
+		require.NoError(t, err)
+
 		jobStatus := NewJobStatus("test", "job-set-1", "job-id", *responseExpected)
 
-		err := r.UpdateJobServiceDb(ctx, jobStatus)
+		err = r.UpdateJobServiceDb(ctx, jobStatus)
 		require.NoError(t, err)
 
 		resp, err := r.GetJobStatus(ctx, "job-id")
@@ -95,8 +101,6 @@ func TestIsJobSubscribed(t *testing.T) {
 		resp2, _, err := r.IsJobSetSubscribed(ctx, "queue-1", "job-set-1")
 		require.NoError(t, err)
 		require.True(t, resp2)
-		err = r.SubscribeJobSet(ctx, "queue-1", "job-set-1", "")
-		require.NoError(t, err)
 	})
 }
 
@@ -127,7 +131,7 @@ func TestSubscribeList(t *testing.T) {
 func TestCleanupJobSetAndJobsIfNonExist(t *testing.T) {
 	WithSqlServiceRepo(purgeTime, func(r SQLJobService) {
 		ctx := context.Background()
-		rowsAffected, err := r.CleanupJobSetAndJobs(ctx, "queue", "job-set-1")
+		rowsAffected, err := r.UnsubscribeJobSet(ctx, "queue", "job-set-1")
 		require.NoError(t, err)
 		subscribe, _, err := r.IsJobSetSubscribed(ctx, "queue", "job-set-1")
 		require.NoError(t, err)
@@ -163,11 +167,39 @@ func TestCleanupJobSetAndJobsHappy(t *testing.T) {
 		require.NoError(t, err)
 		respHappy, _, _ := r.IsJobSetSubscribed(ctx, "queue", "job-set-1")
 		require.True(t, respHappy)
-		rowsAffected, err := r.CleanupJobSetAndJobs(ctx, "queue", "job-set-1")
+		rowsAffected, err := r.UnsubscribeJobSet(ctx, "queue", "job-set-1")
 		subscribe, _, _ := r.IsJobSetSubscribed(ctx, "queue", "job-set-1")
 		require.False(t, subscribe)
-		require.Equal(t, rowsAffected, int64(0))
+		require.Equal(t, rowsAffected, int64(1))
 		require.NoError(t, err)
+	})
+}
+
+func TestCheckJobsAfterDeleteJobSet(t *testing.T) {
+	WithSqlServiceRepo(purgeTime, func(r SQLJobService) {
+		ctx := context.Background()
+		responseExpected := &jobservice.JobServiceResponse{
+			State: jobservice.JobServiceResponse_SUCCEEDED,
+		}
+		err := r.SubscribeJobSet(ctx, "queue", "job-set-1", "")
+		require.NoError(t, err)
+
+		jobStatus := NewJobStatus("queue", "job-set-1", "job-id", *responseExpected)
+		err = r.UpdateJobServiceDb(ctx, jobStatus)
+		require.NoError(t, err)
+
+		respGood, err := r.GetJobStatus(ctx, "job-id")
+		require.NoError(t, err)
+		require.Equal(t, responseExpected, respGood)
+
+		affectedRows, err := r.UnsubscribeJobSet(ctx, "queue", "job-set-1")
+		require.NoError(t, err)
+		require.Equal(t, int64(1), affectedRows)
+
+		noExist := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
+		respNotFound, err := r.GetJobStatus(ctx, "job-id")
+		require.NoError(t, err)
+		require.Equal(t, noExist, respNotFound)
 	})
 }
 
@@ -178,16 +210,17 @@ func TestDeleteJobsInJobSet(t *testing.T) {
 			State: jobservice.JobServiceResponse_FAILED, Error: "TestFail",
 		}
 
+		err := r.SubscribeJobSet(ctx, "test", "job-set-1", "test")
+		require.NoError(t, err)
+
 		jobStatus1 := NewJobStatus("test", "job-set-1", "job-id", *responseExpected1)
 
-		err := r.UpdateJobServiceDb(ctx, jobStatus1)
+		err = r.UpdateJobServiceDb(ctx, jobStatus1)
 		require.NoError(t, err)
 
 		jobResponse1, _ := r.GetJobStatus(ctx, "job-id")
 		require.Equal(t, jobResponse1, responseExpected1)
 
-		err = r.SubscribeJobSet(ctx, "test", "job-set-1", "")
-		require.NoError(t, err)
 		rows, err := r.DeleteJobsInJobSet(ctx, "test", "job-set-1")
 		require.Equal(t, rows, int64(1))
 		require.NoError(t, err)
@@ -210,13 +243,14 @@ func TestCheckToUnSubscribe(t *testing.T) {
 			State: jobservice.JobServiceResponse_FAILED, Error: "TestFail",
 		}
 
+		err := r.SubscribeJobSet(ctx, "test", "job-set-1", "")
+		require.NoError(t, err)
+
 		jobStatus1 := NewJobStatus("test", "job-set-1", "job-id", *responseExpected1)
 
-		err := r.UpdateJobServiceDb(ctx, jobStatus1)
+		err = r.UpdateJobServiceDb(ctx, jobStatus1)
 		require.NoError(t, err)
 
-		err = r.SubscribeJobSet(ctx, "test", "job-set-1", "")
-		require.NoError(t, err)
 		subscribe, _, err := r.IsJobSetSubscribed(ctx, "test", "job-set-1")
 		require.NoError(t, err)
 		assert.True(t, subscribe)
@@ -226,33 +260,6 @@ func TestCheckToUnSubscribe(t *testing.T) {
 		require.NoError(t, errFalse)
 		assert.False(t, flag)
 		assert.True(t, flagFalse)
-	})
-}
-
-func TestCheckToUnSubscribeWithoutSubscribing(t *testing.T) {
-	WithSqlServiceRepo(purgeTime, func(r SQLJobService) {
-		ctx := context.Background()
-		responseExpected1 := &jobservice.JobServiceResponse{
-			State: jobservice.JobServiceResponse_FAILED, Error: "TestFail",
-		}
-		responseExpected2 := &jobservice.JobServiceResponse{
-			State: jobservice.JobServiceResponse_SUCCEEDED,
-		}
-
-		jobStatus1 := NewJobStatus("test", "job-set-1", "job-id", *responseExpected1)
-		jobStatus2 := NewJobStatus("test", "job-set-2", "job-id-3", *responseExpected2)
-
-		err := r.UpdateJobServiceDb(ctx, jobStatus1)
-		require.NoError(t, err)
-		err = r.UpdateJobServiceDb(ctx, jobStatus2)
-		assert.NoError(t, err)
-
-		subscribe, _, err := r.IsJobSetSubscribed(ctx, "test", "job-set-1")
-		require.NoError(t, err)
-		assert.False(t, subscribe)
-		flag, err := r.CheckToUnSubscribe(ctx, "test", "job-set-1", 10000)
-		require.NoError(t, err)
-		assert.False(t, flag)
 	})
 }
 
@@ -299,6 +306,9 @@ func TestGetJobStatusAllStates(t *testing.T) {
 		responseCancelled := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_CANCELLED}
 		responseDoesNotExist := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
 
+		err := r.SubscribeJobSet(ctx, "test", "job-set-1", "test")
+		require.NoError(t, err)
+
 		jobStatus1 := NewJobStatus("test", "job-set-1", "job-id", *responseFailed)
 		jobStatus2 := NewJobStatus("test", "job-set-1", "job-id-2", *responseSuccess)
 		jobStatus3 := NewJobStatus("test", "job-set-1", "job-id-3", *responseDuplicate)
@@ -307,7 +317,7 @@ func TestGetJobStatusAllStates(t *testing.T) {
 		jobStatus6 := NewJobStatus("test", "job-set-1", "job-id-6", *responseCancelled)
 		jobStatus7 := NewJobStatus("test", "job-set-1", "job-id-7", *responseDoesNotExist)
 
-		err := r.UpdateJobServiceDb(ctx, jobStatus1)
+		err = r.UpdateJobServiceDb(ctx, jobStatus1)
 		require.NoError(t, err)
 		err = r.UpdateJobServiceDb(ctx, jobStatus2)
 		require.NoError(t, err)
@@ -353,12 +363,12 @@ func TestDeleteJobsBeforePersistingRaceError(t *testing.T) {
 		responseSuccess := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
 		noExist := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
 		var expectedNumberOfJobs int64 = 1
+		err := r.SubscribeJobSet(ctx, "test-race", "job-set-race", "")
+		require.NoError(t, err)
 		jobStatus1 := NewJobStatus("test-race", "job-set-race", "job-race", *responseSuccess)
-		err := r.UpdateJobServiceDb(ctx, jobStatus1)
+		err = r.UpdateJobServiceDb(ctx, jobStatus1)
 		require.NoError(t, err)
-		err = r.SubscribeJobSet(ctx, "test-race", "job-set-race", "")
-		require.NoError(t, err)
-		numberOfJobs, deleteErr := r.CleanupJobSetAndJobs(ctx, "test-race", "job-set-race")
+		numberOfJobs, deleteErr := r.DeleteJobsInJobSet(ctx, "test-race", "job-set-race")
 		assert.Equal(t, expectedNumberOfJobs, numberOfJobs)
 		require.NoError(t, deleteErr)
 		actualSuccess, actualError := r.GetJobStatus(ctx, "job-race")
@@ -375,8 +385,11 @@ func TestGetJobStatusAfterPersisting(t *testing.T) {
 		ctx := context.Background()
 		responseSuccess := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
 
+		err := r.SubscribeJobSet(ctx, "queue", "job-set-1", "")
+		require.NoError(t, err)
+
 		jobStatus1 := NewJobStatus("test", "job-set-1", "job-id", *responseSuccess)
-		err := r.UpdateJobServiceDb(ctx, jobStatus1)
+		err = r.UpdateJobServiceDb(ctx, jobStatus1)
 		require.NoError(t, err)
 		actual, actualErr := r.GetJobStatus(ctx, "job-id")
 		assert.Nil(t, actualErr)
@@ -390,8 +403,11 @@ func TestDuplicateIdDatabaseInsert(t *testing.T) {
 		responseRunning := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_RUNNING}
 		responseSuccess := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_SUCCEEDED}
 
+		err := r.SubscribeJobSet(ctx, "queue", "job-set-1", "")
+		require.NoError(t, err)
+
 		jobStatus1 := NewJobStatus("test", "job-set-1", "job-id", *responseRunning)
-		err := r.UpdateJobServiceDb(ctx, jobStatus1)
+		err = r.UpdateJobServiceDb(ctx, jobStatus1)
 		require.NoError(t, err)
 		actualSql, actualErr := r.GetJobStatus(ctx, "job-id")
 		assert.Equal(t, actualSql, responseRunning)
@@ -426,6 +442,9 @@ func TestConcurrentJobStatusUpdating(t *testing.T) {
 
 		startWg := sync.WaitGroup{}
 		startWg.Add(1)
+
+		err := r.SubscribeJobSet(ctx, "queue", "job-set-1", "")
+		require.NoError(t, err)
 
 		for i := 0; i < concurrency; i++ {
 			go func(num int) {
