@@ -311,26 +311,22 @@ func (s *JSRepoPostgres) GetSubscribedJobSets(ctx context.Context) ([]Subscribed
 	return tuples, nil
 }
 
+// PurgeExpiredJobSets purges all expired JobSets from the database
+// An expired JobSet is a JobSet that has not been updated within the specified PurgeJobSetTime period.
+// All children Jobs of the expired JobSets will also be deleted by the Cascade deletion relationship.
+// This function should be called from a dedicated goroutine.
 func (s *JSRepoPostgres) PurgeExpiredJobSets(ctx context.Context) {
-	jobsetsStmt := fmt.Sprintf(`DELETE FROM jobsets WHERE Timestamp < (extract(epoch from now()) - %d);`, s.jobServiceConfig.PurgeJobSetTime)
-	jobServiceStmt := fmt.Sprintf(`DELETE FROM jobservice WHERE Timestamp < (extract(epoch from now()) - %d);`, s.jobServiceConfig.PurgeJobSetTime)
-
+	sqlStmt := fmt.Sprintf(`DELETE FROM jobsets WHERE Timestamp < (extract(epoch from now()) - %d);`, s.jobServiceConfig.PurgeJobSetTime)
 	ticker := time.NewTicker(time.Duration(s.jobServiceConfig.PurgeJobSetTime) * time.Second)
 	log := log.WithField("JobService", "ExpiredJobSetsPurge")
 
 	log.Info("Starting purge of expired jobsets")
 	for range ticker.C {
-		result, jobsetErr := s.dbpool.Exec(ctx, jobsetsStmt)
-		if jobsetErr != nil {
-			log.Error("error deleting expired jobsets: ", jobsetErr)
+		result, err := s.dbpool.Exec(ctx, sqlStmt)
+		if err != nil {
+			log.Error("error deleting expired jobsets: ", err)
 		} else {
 			log.Debugf("Deleted %d expired jobsets", result.RowsAffected())
-		}
-		result, jobServiceErr := s.dbpool.Exec(ctx, jobServiceStmt)
-		if jobServiceErr != nil {
-			log.Error("error deleting expired jobs: ", jobServiceErr)
-		} else {
-			log.Debugf("Deleted %d expired jobs", result.RowsAffected())
 		}
 	}
 }

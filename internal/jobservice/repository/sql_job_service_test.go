@@ -141,7 +141,7 @@ func TestCleanupJobSetAndJobsIfNonExist(t *testing.T) {
 	})
 }
 
-func TestCleanUpExpiredJobSets(t *testing.T) {
+func TestPurgeExpiredJobSets(t *testing.T) {
 	realPurgeTime := int64(1)
 	WithSqlServiceRepo(realPurgeTime, func(r SQLJobService) {
 		ctx := context.Background()
@@ -165,6 +165,7 @@ func TestCleanUpExpiredJobSets(t *testing.T) {
 			require.Equal(t, responseExpected1, response)
 			require.NoError(t, err)
 
+			// wait until the purge ticker starts a new cycle
 			time.Sleep(time.Duration(realPurgeTime+1) * time.Second)
 
 			subscribe, _, err = r.IsJobSetSubscribed(ctx, "queue", jobsetId)

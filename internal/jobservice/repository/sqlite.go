@@ -363,31 +363,28 @@ func (s *JSRepoSQLite) GetSubscribedJobSets(ctx context.Context) ([]SubscribedTu
 	return tuples, nil
 }
 
+// PurgeExpiredJobSets purges all expired JobSets from the database
+// An expired JobSet is a JobSet that has not been updated within the specified PurgeJobSetTime period.
+// All children Jobs of the expired JobSets will also be deleted by the Cascade deletion relationship.
+// This function should be called from a dedicated goroutine.
 func (s *JSRepoSQLite) PurgeExpiredJobSets(ctx context.Context) {
-	jobsetsStmt := fmt.Sprintf(`DELETE FROM jobsets WHERE Timestamp < (UNIXEPOCH() - %d);`, s.jobServiceConfig.PurgeJobSetTime)
-	jobServiceStmt := fmt.Sprintf(`DELETE FROM jobservice WHERE Timestamp < (UNIXEPOCH() - %d);`, s.jobServiceConfig.PurgeJobSetTime)
-
+	sqlStmt := fmt.Sprintf(`DELETE FROM jobsets WHERE Timestamp < (UNIXEPOCH() - %d);`, s.jobServiceConfig.PurgeJobSetTime)
 	ticker := time.NewTicker(time.Duration(s.jobServiceConfig.PurgeJobSetTime) * time.Second)
 	log := log.WithField("JobService", "ExpiredJobSetsPurge")
-
-	purge := func(table, sqlStmt string) {
-		result, err := s.db.Exec(jobsetsStmt)
-		if err != nil {
-			log.Errorf("error deleting expired records from table %s: %v ", table, err)
-		} else {
-			count, err := result.RowsAffected()
-			if err != nil {
-				log.Errorf("error getting affected rows for expired %s records deletion: %v", table, err)
-			}
-			log.Debugf("Deleted %d expired records in table %s", count, table)
-		}
-	}
 
 	log.Info("Starting purge of expired jobsets")
 	for range ticker.C {
 		s.lock.Lock()
-		purge("jobsets", jobsetsStmt)
-		purge("jobservice", jobServiceStmt)
+		result, err := s.db.Exec(sqlStmt)
+		if err != nil {
+			log.Error("error deleting expired jobsets: ", err)
+		} else {
+			count, err := result.RowsAffected()
+			if err != nil {
+				log.Error("error getting affected rows for expired jobsets delete operation: ", err)
+			}
+			log.Debugf("Deleted %d expired jobsets", count)
+		}
 		s.lock.Unlock()
 	}
 }
