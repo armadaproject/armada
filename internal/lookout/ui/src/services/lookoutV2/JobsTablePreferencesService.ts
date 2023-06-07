@@ -120,7 +120,11 @@ const columnMatchesFromQueryStringFilters = (f: QueryStringJobFilter[]): Record<
 }
 
 const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partial<JobsTablePreferences> => {
-  const { g, e, page, ps, sort, f, sb } = serializedPrefs
+  const { e, page, ps, sort, f, sb } = serializedPrefs
+  let g = serializedPrefs.g
+  if (!(Array.isArray(g) && g.length > 0 && typeof g[0] === "string")) {
+    g = []
+  }
   return {
     ...(g && { groupedColumns: g as ColumnId[] }),
     ...(e && { expandedState: Object.fromEntries(e.map((rowId) => [rowId, true])) }),
@@ -187,9 +191,10 @@ export const ensurePreferencesAreConsistent = (preferences: JobsTablePreferences
     preferences.annotationColumnKeys = []
   }
   const annotationKeysSet = new Set<string>(preferences.annotationColumnKeys)
-  for (const filter of preferences.filters) {
-    if (!isStandardColId(filter.id)) {
-      const annotationKey = fromAnnotationColId(filter.id as AnnotationColumnId)
+  const potentialAnnotations = preferences.filters.map((f) => f.id).concat(preferences.groupedColumns as string[])
+  for (const id of potentialAnnotations) {
+    if (!isStandardColId(id)) {
+      const annotationKey = fromAnnotationColId(id as AnnotationColumnId)
       if (!annotationKeysSet.has(annotationKey)) {
         preferences.annotationColumnKeys.push(annotationKey)
         annotationKeysSet.add(annotationKey)
