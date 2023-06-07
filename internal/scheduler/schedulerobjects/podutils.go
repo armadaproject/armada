@@ -1,14 +1,15 @@
 package schedulerobjects
 
 import (
-	"math/rand"
+	"crypto/rand"
+	"encoding/binary"
 
-	"github.com/segmentio/fasthash/fnv1a"
+	"github.com/minio/highwayhash"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 )
 
-type SchedulingKey uint64
+type SchedulingKey [highwayhash.Size]byte
 
 func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
 	affinity := req.Affinity
@@ -24,32 +25,23 @@ func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
 
 // SchedulingKeyGenerator is used to generate scheduling keys efficiently without requiring allocs.
 // A scheduling key is the canonical hash of the scheduling requirements of a job.
-//
-// Fields are separated by =, $, &, and =, since these characters are not allowed in taints and labels; see
-// https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
-// https://man.archlinux.org/man/community/kubectl/kubectl-taint.1.en
+// Not thread-safe.
 type SchedulingKeyGenerator struct {
-	// Prefix is written into the hash before any other data.
-	// Using a randomly chosen prefix in each scheduling round makes hash collisions persisting across rounds less likely.
-	prefix                        uint64
-	stringBuffer                  []string
-	byteBuffer                    []byte
-	nodeSelectorTermBuffer        []v1.NodeSelectorTerm
-	nodeSelectorRequirementBuffer []v1.NodeSelectorRequirement
-	tolerationBuffer              []v1.Toleration
-	resourceNameBuffer            []v1.ResourceName
+	s      PodRequirementsSerialiser
+	key    []byte
+	buffer []byte
 }
 
 func NewSchedulingKeyGenerator() *SchedulingKeyGenerator {
-	// Create buffers with some initial capacity to reduce dynamic allocs.
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		// This should never happen.
+		panic(err)
+	}
 	return &SchedulingKeyGenerator{
-		prefix:                        uint64(rand.Int63()),
-		stringBuffer:                  make([]string, 0, 16),
-		byteBuffer:                    make([]byte, 0, 1024),
-		nodeSelectorTermBuffer:        make([]v1.NodeSelectorTerm, 16),
-		nodeSelectorRequirementBuffer: make([]v1.NodeSelectorRequirement, 16),
-		tolerationBuffer:              make([]v1.Toleration, 0, 16),
-		resourceNameBuffer:            make([]v1.ResourceName, 0, 4),
+		s:      *NewPodRequirementsSerialiser(),
+		key:    key,
+		buffer: make([]byte, 2048),
 	}
 }
 
@@ -60,17 +52,62 @@ func (skg *SchedulingKeyGenerator) Key(
 	requests v1.ResourceList,
 	priority int32,
 ) SchedulingKey {
-	h := fnv1a.Init64
-	h = fnv1a.AddUint64(h, skg.prefix)
-	h = skg.addNodeSelector64(h, nodeSelector)
-	h = skg.addAffinity64(h, affinity)
-	h = skg.addTolerations64(h, tolerations)
-	h = skg.addResourceList64(h, requests)
-	h = fnv1a.AddUint64(h, uint64(priority))
-	return SchedulingKey(h)
+	skg.buffer = skg.buffer[0:0]
+	skg.buffer = skg.s.AppendRequirements(
+		skg.buffer,
+		nodeSelector,
+		affinity,
+		tolerations,
+		requests,
+		priority,
+	)
+	return highwayhash.Sum(skg.buffer, skg.key)
 }
 
-func (skg *SchedulingKeyGenerator) addNodeSelector64(h uint64, nodeSelector map[string]string) uint64 {
+// PodRequirementsSerialiser produces the canonical byte representation of a set of pod scheduling requirements.
+// The resulting byte array can, e.g., be used to produce a hash guaranteed to be equal for equivalent requirements.
+// Not thread-safe.
+//
+// Fields are separated by =, $, &, and =, since these characters are not allowed in taints and labels; see
+// https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+// https://man.archlinux.org/man/community/kubectl/kubectl-taint.1.en
+type PodRequirementsSerialiser struct {
+	stringBuffer                  []string
+	byteBuffer                    []byte
+	nodeSelectorTermBuffer        []v1.NodeSelectorTerm
+	nodeSelectorRequirementBuffer []v1.NodeSelectorRequirement
+	tolerationBuffer              []v1.Toleration
+	resourceNameBuffer            []v1.ResourceName
+}
+
+func NewPodRequirementsSerialiser() *PodRequirementsSerialiser {
+	return &PodRequirementsSerialiser{
+		stringBuffer:                  make([]string, 0, 16),
+		byteBuffer:                    make([]byte, 0, 1024),
+		nodeSelectorTermBuffer:        make([]v1.NodeSelectorTerm, 16),
+		nodeSelectorRequirementBuffer: make([]v1.NodeSelectorRequirement, 16),
+		tolerationBuffer:              make([]v1.Toleration, 0, 16),
+		resourceNameBuffer:            make([]v1.ResourceName, 0, 4),
+	}
+}
+
+func (skg *PodRequirementsSerialiser) AppendRequirements(
+	out []byte,
+	nodeSelector map[string]string,
+	affinity *v1.Affinity,
+	tolerations []v1.Toleration,
+	requests v1.ResourceList,
+	priority int32,
+) []byte {
+	out = skg.AppendNodeSelector(out, nodeSelector)
+	out = skg.AppendAffinity(out, affinity)
+	out = skg.AppendTolerations(out, tolerations)
+	out = skg.AppendResourceList(out, requests)
+	out = binary.LittleEndian.AppendUint32(out, uint32(priority))
+	return out
+}
+
+func (skg *PodRequirementsSerialiser) AppendNodeSelector(out []byte, nodeSelector map[string]string) []byte {
 	skg.stringBuffer = skg.stringBuffer[0:0]
 	for _, key := range nodeSelector {
 		skg.stringBuffer = append(skg.stringBuffer, key)
@@ -78,87 +115,86 @@ func (skg *SchedulingKeyGenerator) addNodeSelector64(h uint64, nodeSelector map[
 	slices.Sort(skg.stringBuffer)
 	for _, key := range skg.stringBuffer {
 		value := nodeSelector[key]
-		h = fnv1a.AddString64(h, key)
-		h = fnv1a.AddString64(h, "=")
-		h = fnv1a.AddString64(h, value)
-		h = fnv1a.AddString64(h, "$")
+		out = append(out, []byte(key)...)
+		out = append(out, []byte("=")...)
+		out = append(out, []byte(value)...)
+		out = append(out, []byte("$")...)
 	}
-	h = fnv1a.AddString64(h, "&")
-	return h
+	out = append(out, []byte("&")...)
+	return out
 }
 
-// addAffinity64 writes a v1.Affinity into the hash.
+// AppendAffinity writes a v1.Affinity into the hash.
 // Only NodeAffinity (i.e., not PodAffinity) and RequiredDuringSchedulingIgnoredDuringExecution fields are considered.
-func (skg *SchedulingKeyGenerator) addAffinity64(h uint64, affinity *v1.Affinity) uint64 {
+func (skg *PodRequirementsSerialiser) AppendAffinity(out []byte, affinity *v1.Affinity) []byte {
 	if affinity == nil {
-		return h
+		return out
 	}
 	if affinity.NodeAffinity == nil {
-		return h
+		return out
 	}
-	h = skg.addAffinityNodeSelector64(h, affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution)
-	return h
+	return skg.AppendAffinityNodeSelector(out, affinity.NodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution)
 }
 
-func (skg *SchedulingKeyGenerator) addAffinityNodeSelector64(h uint64, nodeSelector *v1.NodeSelector) uint64 {
+func (skg *PodRequirementsSerialiser) AppendAffinityNodeSelector(out []byte, nodeSelector *v1.NodeSelector) []byte {
 	if nodeSelector == nil {
-		return h
+		return out
 	}
 	skg.nodeSelectorTermBuffer = skg.nodeSelectorTermBuffer[0:0]
 	skg.nodeSelectorTermBuffer = append(skg.nodeSelectorTermBuffer, nodeSelector.NodeSelectorTerms...)
 	slices.SortFunc(skg.nodeSelectorTermBuffer, lessNodeSelectorTerm)
 	for _, nodeSelectorTerm := range skg.nodeSelectorTermBuffer {
-		h = skg.addNodeSelectorRequirements64(h, nodeSelectorTerm.MatchExpressions)
-		h = skg.addNodeSelectorRequirements64(h, nodeSelectorTerm.MatchFields)
+		out = skg.AppendNodeSelectorRequirements(out, nodeSelectorTerm.MatchExpressions)
+		out = skg.AppendNodeSelectorRequirements(out, nodeSelectorTerm.MatchFields)
 	}
 	if len(skg.nodeSelectorTermBuffer) > 0 {
-		h = fnv1a.AddString64(h, "&")
+		out = append(out, []byte("&")...)
 	}
-	return h
+	return out
 }
 
-func (skg *SchedulingKeyGenerator) addNodeSelectorRequirements64(h uint64, nodeSelectorRequirements []v1.NodeSelectorRequirement) uint64 {
+func (skg *PodRequirementsSerialiser) AppendNodeSelectorRequirements(out []byte, nodeSelectorRequirements []v1.NodeSelectorRequirement) []byte {
 	skg.nodeSelectorRequirementBuffer = skg.nodeSelectorRequirementBuffer[0:0]
 	skg.nodeSelectorRequirementBuffer = append(skg.nodeSelectorRequirementBuffer, nodeSelectorRequirements...)
 	slices.SortFunc(skg.nodeSelectorRequirementBuffer, lessNodeSelectorRequirement)
 	for _, nodeSelectorRequirement := range skg.nodeSelectorRequirementBuffer {
-		h = fnv1a.AddString64(h, nodeSelectorRequirement.Key)
-		h = fnv1a.AddString64(h, "=")
+		out = append(out, []byte(nodeSelectorRequirement.Key)...)
+		out = append(out, []byte("=")...)
 		for _, value := range nodeSelectorRequirement.Values {
-			h = fnv1a.AddString64(h, value)
-			h = fnv1a.AddString64(h, "$")
+			out = append(out, []byte(value)...)
+			out = append(out, []byte("$")...)
 		}
-		h = fnv1a.AddString64(h, ":")
-		h = fnv1a.AddString64(h, string(nodeSelectorRequirement.Operator))
-		h = fnv1a.AddString64(h, "$")
+		out = append(out, []byte(":")...)
+		out = append(out, []byte(nodeSelectorRequirement.Operator)...)
+		out = append(out, []byte("$")...)
 	}
 	if len(skg.nodeSelectorRequirementBuffer) > 0 {
-		h = fnv1a.AddString64(h, "&")
+		out = append(out, []byte("&")...)
 	}
-	return h
+	return out
 }
 
-func (skg *SchedulingKeyGenerator) addTolerations64(h uint64, tolerations []v1.Toleration) uint64 {
+func (skg *PodRequirementsSerialiser) AppendTolerations(out []byte, tolerations []v1.Toleration) []byte {
 	skg.tolerationBuffer = skg.tolerationBuffer[0:0]
 	skg.tolerationBuffer = append(skg.tolerationBuffer, tolerations...)
 	slices.SortFunc(skg.tolerationBuffer, lessToleration)
 	for _, toleration := range skg.tolerationBuffer {
-		h = fnv1a.AddString64(h, toleration.Key)
-		h = fnv1a.AddString64(h, "=")
-		h = fnv1a.AddString64(h, toleration.Value)
-		h = fnv1a.AddString64(h, ":")
-		h = fnv1a.AddString64(h, string(toleration.Operator))
-		h = fnv1a.AddString64(h, ":")
-		h = fnv1a.AddString64(h, string(toleration.Effect))
-		h = fnv1a.AddString64(h, "$")
+		out = append(out, []byte(toleration.Key)...)
+		out = append(out, []byte("=")...)
+		out = append(out, []byte(toleration.Value)...)
+		out = append(out, []byte(":")...)
+		out = append(out, []byte(toleration.Operator)...)
+		out = append(out, []byte(":")...)
+		out = append(out, []byte((toleration.Effect))...)
+		out = append(out, []byte("$")...)
 	}
 	if len(tolerations) > 0 {
-		h = fnv1a.AddString64(h, "&")
+		out = append(out, []byte("&")...)
 	}
-	return h
+	return out
 }
 
-func (skg *SchedulingKeyGenerator) addResourceList64(h uint64, resourceList v1.ResourceList) uint64 {
+func (skg *PodRequirementsSerialiser) AppendResourceList(out []byte, resourceList v1.ResourceList) []byte {
 	skg.resourceNameBuffer = skg.resourceNameBuffer[0:0]
 	for t, q := range resourceList {
 		if !q.IsZero() {
@@ -169,15 +205,15 @@ func (skg *SchedulingKeyGenerator) addResourceList64(h uint64, resourceList v1.R
 	slices.Sort(skg.resourceNameBuffer)
 	for _, t := range skg.resourceNameBuffer {
 		q := resourceList[t]
-		h = fnv1a.AddString64(h, string(t))
-		h = fnv1a.AddString64(h, "=")
-		h = fnv1a.AddUint64(h, uint64(q.MilliValue()))
-		h = fnv1a.AddString64(h, "$")
+		out = append(out, []byte(t)...)
+		out = append(out, []byte("=")...)
+		out = binary.LittleEndian.AppendUint64(out, uint64(q.MilliValue()))
+		out = append(out, []byte("$")...)
 	}
 	if len(skg.resourceNameBuffer) > 0 {
-		h = fnv1a.AddString64(h, "&")
+		out = append(out, "&"...)
 	}
-	return h
+	return out
 }
 
 // ClearCachedSchedulingKey clears any cached scheduling keys.

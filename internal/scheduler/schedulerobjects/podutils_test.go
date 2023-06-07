@@ -983,6 +983,32 @@ func TestSchedulingKey(t *testing.T) {
 	}
 }
 
+func benchmarPodRequirementsSerialiser(b *testing.B, jobSchedulingInfo *JobSchedulingInfo) {
+	skg := NewPodRequirementsSerialiser()
+	req := (jobSchedulingInfo.ObjectRequirements[0]).GetPodRequirements()
+	out := make([]byte, 0, 1024)
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		out = out[0:0]
+		out = skg.AppendRequirements(
+			out,
+			req.NodeSelector,
+			req.Affinity,
+			req.Tolerations,
+			req.ResourceRequirements.Requests,
+			req.Priority,
+		)
+	}
+}
+
+func BenchmarkPodRequirementsSerialiser(b *testing.B) {
+	benchmarPodRequirementsSerialiser(b, getBenchmarkJobSchedulingSchedulingInfo())
+}
+
+func BenchmarkPodRequirementsSerialiser_Affinity(b *testing.B) {
+	benchmarPodRequirementsSerialiser(b, getBenchmarkJobSchedulingSchedulingInfoWithAffinity())
+}
+
 func benchmarkSchedulingKey(b *testing.B, jobSchedulingInfo *JobSchedulingInfo) {
 	skg := NewSchedulingKeyGenerator()
 	req := (jobSchedulingInfo.ObjectRequirements[0]).GetPodRequirements()
