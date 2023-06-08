@@ -26,7 +26,7 @@ if curl -sL $ARMADACTL_URL | sh -c "$UNARCHIVE" ; then
   
   # Move armadactl binary to a directory in PATH
     TARGET_DIR="/usr/local/bin" # Change this to the desired target directory
-    mv armadactl "$TARGET_DIR/"
+    sudo mv armadactl "$TARGET_DIR/"
 
     echo "armadactl is now available on your PATH"
 else
