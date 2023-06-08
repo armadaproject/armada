@@ -130,7 +130,8 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 			sqlJobRepo,
 			jobService.GetNewSubscriptionChannel(),
 			time.Duration(config.SubscribeJobSetTime)*time.Second)
-		return jobSubExecutor.Manage()
+		jobSubExecutor.Manage()
+		return nil
 	})
 
 	g.Go(func() error {
