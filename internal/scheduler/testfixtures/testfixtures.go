@@ -586,6 +586,7 @@ func TestNode(priorities []int32, resources map[string]resource.Quantity) *sched
 			priorities,
 			schedulerobjects.ResourceList{Resources: resources},
 		),
+		StateByJobRunId: make(map[string]schedulerobjects.JobRunState),
 		Labels: map[string]string{
 			TestHostnameLabel: id,
 		},
