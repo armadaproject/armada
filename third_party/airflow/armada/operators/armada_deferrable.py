@@ -24,6 +24,7 @@ import grpc
 from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator
 from airflow.triggers.base import BaseTrigger, TriggerEvent
+from airflow.utils.context import Context
 
 from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.client import ArmadaClient
@@ -36,6 +37,10 @@ from armada.operators.utils import (
     annotate_job_request_items,
 )
 from armada.jobservice import jobservice_pb2
+
+from google.protobuf.json_format import MessageToDict, ParseDict
+
+import jinja2
 
 
 armada_logger = logging.getLogger("airflow.task")
@@ -80,6 +85,10 @@ class ArmadaDeferrableOperator(BaseOperator):
 
     :return: A deferrable armada operator instance.
     """
+
+    template_fields: Sequence[str] = (
+         'job_request_items',
+    )
 
     def __init__(
         self,
@@ -183,6 +192,15 @@ class ArmadaDeferrableOperator(BaseOperator):
         if self.lookout_url_template is None:
             return ""
         return self.lookout_url_template.replace("<job_id>", job_id)
+
+    def render_template_fields(
+        self,
+        context: Context,
+        jinja_env: jinja2.Environment | None = None,
+    ) -> None:
+        self.job_request_items = [MessageToDict(x, preserving_proto_field_name=True) for x in self.job_request_items]
+        super().render_template_fields(context, jinja_env)
+        self.job_request_items = [ParseDict(x, JobSubmitRequestItem()) for x in self.job_request_items]
 
 
 class ArmadaJobCompleteTrigger(BaseTrigger):
