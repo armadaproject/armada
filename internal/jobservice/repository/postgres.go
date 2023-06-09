@@ -41,6 +41,7 @@ func NewJSRepoPostgres(cfg *configuration.JobServiceConfiguration, log *log.Entr
 func (s *JSRepoPostgres) Setup(ctx context.Context) {
 	setupStmts := []string{
 		`DROP TABLE IF EXISTS jobs`,
+		`DROP INDEX IF EXISTS idx_job_set_queue`,
 		`DROP TABLE IF EXISTS jobsets`,
 		`CREATE TABLE jobsets (
 			Queue TEXT,

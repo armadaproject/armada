@@ -66,6 +66,8 @@ func NewJobSetSubscriptionExecutor(ctx context.Context,
 
 func (jse *JobSetSubscriptionExecutor) Manage() {
 	// Main {un}subscribe loop.
+	go jse.ScanForMissingSubscriptions()
+
 	for {
 		select {
 		case <-jse.ctx.Done():
@@ -79,6 +81,10 @@ func (jse *JobSetSubscriptionExecutor) Manage() {
 			jse.removeSubscription(subDoneKey)
 		}
 	}
+}
+
+func (jse *JobSetSubscriptionExecutor) ScanForMissingSubscriptions() {
+	// TODO
 }
 
 func (jse *JobSetSubscriptionExecutor) addSubscription(sub *repository.JobSetSubscriptionInfo) {
@@ -163,7 +169,11 @@ func NewJobSetSubscription(ctx context.Context, eventReader events.JobEventReade
 }
 
 func (js *JobSetSubscription) Subscribe() error {
-	log.Debugf("Subscribe() for %s/%s with message id %s", js.Queue, js.JobSetId, js.fromMessageId)
+	requestFields := log.Fields{
+		"job_set_id":      js.JobSetId,
+		"queue":           js.Queue,
+		"from_message_id": js.fromMessageId,
+	}
 
 	defer func() {
 		js.subDoneChan <- &repository.JobSetKey{
@@ -172,7 +182,7 @@ func (js *JobSetSubscription) Subscribe() error {
 		}
 	}()
 
-	log.Infof("Calling GetJobEventMessage on %s/%s", js.Queue, js.JobSetId)
+	log.WithFields(requestFields).Debugf("Calling GetJobEventMessage")
 
 	stream, err := js.eventReader.GetJobEventMessage(js.ctx, &api.JobSetRequest{
 		Id:            js.JobSetId,
@@ -181,12 +191,12 @@ func (js *JobSetSubscription) Subscribe() error {
 		FromMessageId: js.fromMessageId,
 	})
 	if err != nil {
-		log.Error("error from GetJobEventMessage", err)
+		log.WithFields(requestFields).WithError(err).Error("error from GetJobEventMessage")
 		js.cancel()
 		return err
 	}
 
-	log.Infof("Got stream on %s/%s/", js.Queue, js.JobSetId)
+	log.WithFields(requestFields).Debug("Got stream")
 
 	g, _ := errgroup.WithContext(js.ctx)
 
@@ -198,15 +208,15 @@ func (js *JobSetSubscription) Subscribe() error {
 		case <-js.ctx.Done():
 			return nil
 		case <-timeout.C:
-			log.Infof("JobSetSubscription.Subscribe checking subscription status on %s/%s/", js.Queue, js.JobSetId)
+			log.WithFields(requestFields).Infof("JobSetSubscription.Subscribe checking subscription status")
 			// Stream is created with *our* context, therefore if we cancel, stream.Recv() should bail out too.
 			jobSetFound, _, err := js.jobUpdater.IsJobSetSubscribed(js.ctx, js.Queue, js.JobSetId)
 			if err != nil {
-				log.WithError(err).Error("IsJobSetSubscribed error")
+				log.WithFields(requestFields).WithError(err).Error("IsJobSetSubscribed error")
 			}
 			// We're no longer subscribed.
 			if !jobSetFound {
-				log.Infof("JobSetSubscription.Subscribe subscription done on %s/%s/", js.Queue, js.JobSetId)
+				log.WithFields(requestFields).Info("subscription done")
 				js.cancel()
 				return nil
 			}
@@ -223,29 +233,24 @@ func (js *JobSetSubscription) Subscribe() error {
 		for {
 			select {
 			case <-js.ctx.Done():
-				log.Infof("context is done for JobSetSubscription on %s/%s", js.Queue, js.JobSetId)
+				log.WithFields(requestFields).Infof("context is done")
 				return nil
 			case <-nextRecv:
-				requestFields := log.Fields{
-					"job_set_id": js.JobSetId,
-					"queue":      js.Queue,
-				}
-				log.Info("Calling Recv()")
 				msg, err := stream.Recv()
 				if err != nil {
 					if errors.Is(err, io.EOF) {
-						log.Infof("Reached stream end for JobSetSubscription on %s/%s", js.Queue, js.JobSetId)
+						log.WithFields(requestFields).Info("Reached stream end for JobSetSubscription")
 						return nil
 					} else if strings.Contains(err.Error(), "context canceled") {
 						// The select case will handle context being done/canceled.
 						continue
 					}
 
-					log.WithError(err).Error("could not obtain job set event message, retrying")
+					log.WithFields(requestFields).WithError(err).Error("could not obtain job set event message, retrying")
 					settingSubscribeErr := js.jobUpdater.SetSubscriptionError(
 						js.ctx, js.Queue, js.JobSetId, err.Error(), js.fromMessageId)
 					if settingSubscribeErr != nil {
-						log.WithError(settingSubscribeErr).Error("could not set error field in job set table")
+						log.WithFields(requestFields).WithError(settingSubscribeErr).Error("could not set error field in job set table")
 					}
 					nextRecv = time.After(5 * time.Second)
 					continue
@@ -254,24 +259,31 @@ func (js *JobSetSubscription) Subscribe() error {
 				errClear := js.jobUpdater.AddMessageIdAndClearSubscriptionError(
 					js.ctx, js.Queue, js.JobSetId, js.fromMessageId)
 				if errClear != nil {
-					log.WithError(errClear).Error("could not clear subscription error from job set table")
+					log.WithFields(requestFields).WithError(errClear).Error("could not clear subscription error from job set table")
 				}
 				currentJobId := api.JobIdFromApiEvent(msg.Message)
 				jobStatus := EventsToJobResponse(*msg.Message)
 				if jobStatus != nil {
-					log.WithFields(requestFields).Infof("fromMessageId: %s JobId: %s State: %s", js.fromMessageId, currentJobId, jobStatus.GetState().String())
+					log.WithFields(requestFields).WithFields(log.Fields{
+						"job_id":     currentJobId,
+						"job_status": jobStatus.GetState().String(),
+					}).Info("Got event")
 					jobStatus := repository.NewJobStatus(js.Queue, js.JobSetId, currentJobId, *jobStatus)
 					err := js.jobUpdater.UpdateJobServiceDb(js.ctx, jobStatus)
 					if err != nil {
-						log.WithError(err).Error("could not update job status, retrying")
+						log.WithFields(requestFields).WithError(err).Error("could not update job status, retrying")
 						nextRecv = time.After(5 * time.Second)
 						continue
 					}
 				} else {
-					log.WithFields(requestFields).Debugf("JobId: %s Message: %v", currentJobId, msg.Message)
+					log.WithFields(requestFields).WithFields(log.Fields{
+						"job_id":  currentJobId,
+						"message": msg.Message,
+					}).Debug("Got non-status event")
 				}
 				// advance the message id for next loop
 				js.fromMessageId = msg.GetId()
+				requestFields["from_message_id"] = js.fromMessageId
 				// Nanosecond, essentially go again now.
 				nextRecv = time.After(1 * time.Nanosecond)
 			}
