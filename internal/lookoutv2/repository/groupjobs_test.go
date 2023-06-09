@@ -59,17 +59,17 @@ func TestGroupByQueue(t *testing.T) {
 			{
 				Name:       "queue-1",
 				Count:      10,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       "queue-2",
 				Count:      5,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       "queue-3",
 				Count:      3,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 		})
 		return nil
@@ -117,17 +117,17 @@ func TestGroupByJobSet(t *testing.T) {
 			{
 				Name:       "job-set-1",
 				Count:      10,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       "job-set-2",
 				Count:      5,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       "job-set-3",
 				Count:      3,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 		})
 		return nil
@@ -183,22 +183,22 @@ func TestGroupByState(t *testing.T) {
 			{
 				Name:       string(lookout.JobQueued),
 				Count:      10,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       string(lookout.JobPending),
 				Count:      5,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       string(lookout.JobRunning),
 				Count:      3,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       string(lookout.JobFailed),
 				Count:      2,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 		})
 		return nil
@@ -370,22 +370,22 @@ func TestGroupByWithFilters(t *testing.T) {
 			{
 				Name:       string(lookout.JobQueued),
 				Count:      10,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       string(lookout.JobPending),
 				Count:      5,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       string(lookout.JobRunning),
 				Count:      3,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       string(lookout.JobFailed),
 				Count:      2,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 		})
 		return nil
@@ -468,21 +468,21 @@ func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
 			{
 				Name:  "job-set-1",
 				Count: 15,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"submitted": baseTime.Format(time.RFC3339),
 				},
 			},
 			{
 				Name:  "job-set-2",
 				Count: 12,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"submitted": baseTime.Add(-4 * time.Minute).Format(time.RFC3339),
 				},
 			},
 			{
 				Name:  "job-set-3",
 				Count: 18,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"submitted": baseTime.Add(-7 * time.Minute).Format(time.RFC3339),
 				},
 			},
@@ -567,21 +567,21 @@ func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
 			{
 				Name:  "queue-3",
 				Count: 18,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"lastTransitionTime": baseTime.Add(-8 * time.Minute).Format(time.RFC3339),
 				},
 			},
 			{
 				Name:  "queue-2",
 				Count: 12,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"lastTransitionTime": baseTime.Add(-5 * time.Minute).Format(time.RFC3339),
 				},
 			},
 			{
 				Name:  "queue-1",
 				Count: 15,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"lastTransitionTime": baseTime.Add(-1 * time.Minute).Format(time.RFC3339),
 				},
 			},
@@ -709,7 +709,7 @@ func TestGroupJobsComplex(t *testing.T) {
 			{
 				Name:  "job-set-2",
 				Count: 2,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"submitted":          baseTime.Add(20 * time.Minute).Format(time.RFC3339),
 					"lastTransitionTime": baseTime.Add(50 * time.Minute).Format(time.RFC3339),
 				},
@@ -717,7 +717,7 @@ func TestGroupJobsComplex(t *testing.T) {
 			{
 				Name:  "job-set-1",
 				Count: 15,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"submitted":          baseTime.Add(3 * time.Minute).Format(time.RFC3339),
 					"lastTransitionTime": baseTime.Add(5 * time.Minute).Format(time.RFC3339),
 				},
@@ -778,17 +778,17 @@ func TestGroupByAnnotation(t *testing.T) {
 			{
 				Name:       "test-value-1",
 				Count:      10,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       "test-value-2",
 				Count:      5,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       "test-value-3",
 				Count:      3,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 		})
 		return nil
@@ -907,7 +907,7 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 			{
 				Name:  "4",
 				Count: 2,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"submitted":          baseTime.Add(20 * time.Minute).Format(time.RFC3339),
 					"lastTransitionTime": baseTime.Add(50 * time.Minute).Format(time.RFC3339),
 				},
@@ -915,7 +915,7 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 			{
 				Name:  "2",
 				Count: 5,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"submitted":          baseTime.Add(1 * time.Minute).Format(time.RFC3339),
 					"lastTransitionTime": baseTime.Add(10 * time.Minute).Format(time.RFC3339),
 				},
@@ -923,7 +923,7 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 			{
 				Name:  "3",
 				Count: 5,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"submitted":          baseTime.Add(3 * time.Minute).Format(time.RFC3339),
 					"lastTransitionTime": baseTime.Add(5 * time.Minute).Format(time.RFC3339),
 				},
@@ -931,7 +931,7 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 			{
 				Name:  "1",
 				Count: 5,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"submitted":          baseTime.Format(time.RFC3339),
 					"lastTransitionTime": baseTime.Format(time.RFC3339),
 				},
@@ -960,7 +960,7 @@ func TestGroupJobsSkip(t *testing.T) {
 			return &model.JobGroup{
 				Name:       fmt.Sprintf("queue-%d", i),
 				Count:      int64(i),
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			}
 		}
 

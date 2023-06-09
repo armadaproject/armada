@@ -151,7 +151,7 @@ func scanGroup(rows pgx.Rows, field string, aggregates []string) (*model.JobGrou
 	if err != nil {
 		return nil, err
 	}
-	aggregatesMap := make(map[string]string)
+	aggregatesMap := make(map[string]interface{})
 	for i, sc := range scanContexts {
 		val := aggregateVars[i]
 		parsedVal, err := sc.parser(val)
