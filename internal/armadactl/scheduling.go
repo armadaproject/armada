@@ -57,11 +57,11 @@ func (a *App) GetSchedulingReport(verbosity int32) error {
 	)
 }
 
-func (a *App) GetQueueSchedulingReport(queue string) error {
+func (a *App) GetQueueSchedulingReport(queueName string, verbosity int32) error {
 	return client.WithSchedulerReportingClient(a.Params.ApiConnectionDetails, func(c schedulerobjects.SchedulerReportingClient) error {
 		ctx, cancel := common.ContextWithDefaultTimeout()
 		defer cancel()
-		report, err := c.GetQueueReport(ctx, &schedulerobjects.QueueReportRequest{QueueName: queue})
+		report, err := c.GetQueueReport(ctx, &schedulerobjects.QueueReportRequest{QueueName: queueName, Verbosity: verbosity})
 		if err != nil {
 			return err
 		}
