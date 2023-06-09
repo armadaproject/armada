@@ -45,10 +45,10 @@ func getSchedulingReportCmd(a *armadactl.App) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().CountP("verbose", "v", "report verbosity; specify multiple times (for example: -vvv) to increase verbosity")
+	cmd.Flags().CountP("verbose", "v", "report verbosity; repeat (e.g., -vvv) to increase verbosity")
 
-	cmd.Flags().String("queue", "", "only get scheduler reports containing this queue")
-	cmd.Flags().String("job", "", "only get scheduler reports containing this job ID")
+	cmd.Flags().String("queue", "", "get scheduler reports relevant for this queue; mutually exclusive with --job")
+	cmd.Flags().String("job", "", "get scheduler reports relevant for this job; mutually exclusive with --queue")
 	cmd.MarkFlagsMutuallyExclusive("queue", "job")
 
 	return cmd
