@@ -69,6 +69,11 @@ func TestAddGetSchedulingContext(t *testing.T) {
 	err = repo.AddSchedulingContext(sctx)
 	require.NoError(t, err)
 
+	sctx = testSchedulingContext("baz")
+	sctx = withPreemptingJobSchedulingContext(sctx, "C", "preempted")
+	err = repo.AddSchedulingContext(sctx)
+	require.NoError(t, err)
+
 	actualJobSchedulingContextByExecutor, ok := repo.GetMostRecentJobSchedulingContextByExecutor("doesNotExist")
 	require.Nil(t, actualJobSchedulingContextByExecutor)
 	require.False(t, ok)
@@ -139,12 +144,23 @@ func TestAddGetSchedulingContext(t *testing.T) {
 		actualQueueSchedulingContextByExecutor,
 	)
 
+	actualQueueSchedulingContextByExecutor, ok = repo.GetMostRecentQueueSchedulingContextByExecutor("C")
+	require.True(t, ok)
+	assert.Equal(
+		t,
+		QueueSchedulingContextByExecutor{
+			"baz": withPreemptingJobSchedulingContext(testSchedulingContext("baz"), "C", "preempted").QueueSchedulingContexts["C"],
+		},
+		actualQueueSchedulingContextByExecutor,
+	)
+
 	actualSchedulingContextByExecutor := repo.GetMostRecentSchedulingContextByExecutor()
 	assert.Equal(
 		t,
 		SchedulingContextByExecutor{
 			"foo": withUnsuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "failureA"),
 			"bar": withUnsuccessfulJobSchedulingContext(testSchedulingContext("bar"), "B", "failureB"),
+			"baz": withPreemptingJobSchedulingContext(testSchedulingContext("baz"), "C", "preempted"),
 		},
 		actualSchedulingContextByExecutor,
 	)
@@ -155,6 +171,15 @@ func TestAddGetSchedulingContext(t *testing.T) {
 		SchedulingContextByExecutor{
 			"foo": withSuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "successFooA"),
 			"bar": withSuccessfulJobSchedulingContext(withUnsuccessfulJobSchedulingContext(testSchedulingContext("bar"), "A", "failureA"), "B", "successBarB"),
+		},
+		actualSchedulingContextByExecutor,
+	)
+
+	actualSchedulingContextByExecutor = repo.GetMostRecentPreemptingSchedulingContextByExecutor()
+	assert.Equal(
+		t,
+		SchedulingContextByExecutor{
+			"baz": withPreemptingJobSchedulingContext(testSchedulingContext("baz"), "C", "preempted"),
 		},
 		actualSchedulingContextByExecutor,
 	)
@@ -177,7 +202,9 @@ func TestTestAddGetSchedulingContextConcurrency(t *testing.T) {
 				sctx := testSchedulingContext(executorId)
 				sctx = withUnsuccessfulJobSchedulingContext(sctx, "A", "failureA")
 				sctx = withUnsuccessfulJobSchedulingContext(sctx, "B", "failureB")
+				sctx = withUnsuccessfulJobSchedulingContext(sctx, "C", "failureC")
 				sctx = withSuccessfulJobSchedulingContext(sctx, "B", fmt.Sprintf("success%sB", executorId))
+				sctx = withPreemptingJobSchedulingContext(sctx, "C", "preempted")
 				err = repo.AddSchedulingContext(sctx)
 				require.NoError(t, err)
 				err = repo.AddSchedulingContext(sctx)
@@ -217,18 +244,29 @@ func withSuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingContext
 		ExecutorId: sctx.ExecutorId,
 		JobId:      jobId,
 	}
-	qctx.ScheduledResourcesByPriority.AddResourceList(
-		0,
-		schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")},
-		},
-	)
-	sctx.ScheduledResourcesByPriority.AddResourceList(
-		0,
-		schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")},
-		},
-	)
+	rl := schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}}
+	qctx.ScheduledResourcesByPriority.AddResourceList(0, rl)
+	sctx.ScheduledResourcesByPriority.AddResourceList(0, rl)
+	return sctx
+}
+
+func withPreemptingJobSchedulingContext(sctx *schedulercontext.SchedulingContext, queue, jobId string) *schedulercontext.SchedulingContext {
+	if sctx.QueueSchedulingContexts == nil {
+		sctx.QueueSchedulingContexts = make(map[string]*schedulercontext.QueueSchedulingContext)
+	}
+	qctx := sctx.QueueSchedulingContexts[queue]
+	if qctx == nil {
+		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByPriorityAndResourceType)); err != nil {
+			panic(err)
+		}
+		qctx = sctx.QueueSchedulingContexts[queue]
+		qctx.SchedulingContext = nil
+		qctx.Created = time.Time{}
+	}
+	qctx.EvictedJobsById[jobId] = true
+	rl := schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}}
+	qctx.EvictedResourcesByPriority.AddResourceList(0, rl)
+	sctx.EvictedResourcesByPriority.AddResourceList(0, rl)
 	return sctx
 }
 
