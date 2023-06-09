@@ -27,7 +27,6 @@ type JobTableUpdater interface {
 type SQLJobService interface {
 	AddMessageIdAndClearSubscriptionError(ctx context.Context, queue string, jobSet string, fromMessageId string) error
 	CheckToUnSubscribe(ctx context.Context, queue string, jobSet string, configTimeWithoutUpdates int64) (bool, error)
-	CleanupJobSetAndJobs(ctx context.Context, queue string, jobSet string) (int64, error)
 	DeleteJobsInJobSet(ctx context.Context, queue string, jobSet string) (int64, error)
 	GetJobStatus(ctx context.Context, jobId string) (*js.JobServiceResponse, error)
 	GetSubscribedJobSets(ctx context.Context) ([]SubscribedTuple, error)
