@@ -122,7 +122,7 @@ const columnMatchesFromQueryStringFilters = (f: QueryStringJobFilter[]): Record<
 const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partial<JobsTablePreferences> => {
   const { e, page, ps, sort, f, sb } = serializedPrefs
   let g = serializedPrefs.g
-  if (!(Array.isArray(g) && g.length > 0 && typeof g[0] === "string")) {
+  if (!(Array.isArray(g) && g.length > 0 && g.map((elem) => typeof elem === "string").reduce((a, b) => a && b, true))) {
     g = []
   }
   return {
