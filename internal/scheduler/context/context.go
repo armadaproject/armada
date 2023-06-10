@@ -44,11 +44,16 @@ type SchedulingContext struct {
 	ScheduledResources           schedulerobjects.ResourceList
 	ScheduledResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
 	// Resources evicted across all queues during this scheduling cycle.
+	EvictedResources           schedulerobjects.ResourceList
 	EvictedResourcesByPriority schedulerobjects.QuantityByPriorityAndResourceType
 	// Total number of successfully scheduled jobs.
 	NumScheduledJobs int
 	// Total number of successfully scheduled gangs.
 	NumScheduledGangs int
+	// Total number of evicted jobs.
+	NumEvictedJobs int
+	// Total number of evicted gangs.
+	NumEvictedGangs int
 	// Reason for why the scheduling round finished.
 	TerminationReason string
 	// Record of job scheduling requirements known to be unfeasible.
@@ -177,8 +182,12 @@ func (sctx *SchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingCont
 		allJobsEvictedInThisRound = allJobsEvictedInThisRound && evictedInThisRound
 		allJobsSuccessful = allJobsSuccessful && jctx.IsSuccessful()
 	}
-	if !allJobsEvictedInThisRound && allJobsSuccessful {
-		sctx.NumScheduledGangs++
+	if allJobsSuccessful {
+		if allJobsEvictedInThisRound {
+			sctx.NumEvictedGangs--
+		} else {
+			sctx.NumScheduledGangs++
+		}
 	}
 	return allJobsEvictedInThisRound, nil
 }
@@ -196,7 +205,9 @@ func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContex
 	}
 	if jctx.IsSuccessful() {
 		if evictedInThisRound {
+			sctx.EvictedResources.SubV1ResourceList(jctx.Req.ResourceRequirements.Requests)
 			sctx.EvictedResourcesByPriority.SubV1ResourceList(jctx.Req.Priority, jctx.Req.ResourceRequirements.Requests)
+			sctx.NumEvictedJobs--
 		} else {
 			sctx.ScheduledResources.AddV1ResourceList(jctx.Req.ResourceRequirements.Requests)
 			sctx.ScheduledResourcesByPriority.AddV1ResourceList(jctx.Req.Priority, jctx.Req.ResourceRequirements.Requests)
@@ -217,6 +228,8 @@ func (sctx *SchedulingContext) EvictGang(jobs []interfaces.LegacySchedulerJob) (
 	}
 	if allJobsScheduledInThisRound {
 		sctx.NumScheduledGangs--
+	} else {
+		sctx.NumEvictedGangs++
 	}
 	return allJobsScheduledInThisRound, nil
 }
@@ -236,7 +249,9 @@ func (sctx *SchedulingContext) EvictJob(job interfaces.LegacySchedulerJob) (bool
 		sctx.ScheduledResourcesByPriority.SubV1ResourceList(priority, rl)
 		sctx.NumScheduledJobs--
 	} else {
+		sctx.EvictedResources.AddV1ResourceList(rl)
 		sctx.EvictedResourcesByPriority.AddV1ResourceList(priority, rl)
+		sctx.NumEvictedJobs++
 	}
 	return scheduledInThisRound, nil
 }
