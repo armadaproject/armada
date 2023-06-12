@@ -134,7 +134,11 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 	fmt.Fprintf(w, "Termination reason:\t%s\n", sctx.TerminationReason)
 	fmt.Fprintf(w, "Total capacity:\t%s\n", sctx.TotalResources.CompactString())
 	fmt.Fprintf(w, "Scheduled resources:\t%s\n", sctx.ScheduledResources.CompactString())
+	fmt.Fprintf(w, "Preempted resources:\t%s\n", sctx.EvictedResources.CompactString())
+	fmt.Fprintf(w, "Number of gangs scheduled:\t%d\n", sctx.NumScheduledGangs)
 	fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", sctx.NumScheduledJobs)
+	fmt.Fprintf(w, "Number of gangs preempted:\t%d\n", sctx.NumEvictedGangs)
+	fmt.Fprintf(w, "Number of jobs preempted:\t%d\n", sctx.NumEvictedJobs)
 	if verbosity <= 0 {
 		fmt.Fprintf(
 			w,
