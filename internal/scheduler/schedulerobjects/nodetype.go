@@ -3,6 +3,7 @@ package schedulerobjects
 import (
 	"strings"
 
+	"github.com/segmentio/fasthash/fnv1a"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
@@ -38,7 +39,7 @@ func NewNodeType(taints []v1.Taint, labels map[string]string, indexedTaints map[
 
 	// Sort taints to ensure node type id is consistent regardless of
 	// the order in which taints are set on the node.
-	slices.SortFunc(taints, func(a, b v1.Taint) bool { return a.Key < b.Key })
+	slices.SortFunc(taints, func(a, b v1.Taint) bool { return a.Key < b.Key }) // TODO: LessToleration.
 
 	// Filter out any labels that should not be indexed.
 	if indexedLabels != nil {
@@ -67,15 +68,47 @@ func NewNodeType(taints []v1.Taint, labels map[string]string, indexedTaints map[
 	}
 }
 
-// nodeTypeIdFromTaintsAndLabels generates an id that is unique for each combination
-// of taints, labels, and unset labels, of the form
-// $taint1$taint2...&$label1=labelValue1$label2=labelValue2...&$unsetIndexedLabel1=unsetIndexedLabelValue1...
+// nodeTypeIdFromTaintsAndLabels generates a id unique for each combination of taints, labels, and unset labels.
+// The id is based on the fnv1a hash. Hash collisions do not affect correctness, only the efficiency of sorting out nodes.
 //
 // We separate taints/labels by $, labels and values by =, and and groups by &,
 // since these characters are not allowed in taints and labels; see
 // https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
 // https://man.archlinux.org/man/community/kubectl/kubectl-taint.1.en
-func nodeTypeIdFromTaintsAndLabels(taints []v1.Taint, labels, unsetIndexedLabels map[string]string) string {
+func nodeTypeIdFromTaintsAndLabels(taints []v1.Taint, labels, unsetIndexedLabels map[string]string) uint64 {
+	// TODO: We should test this function to ensure there are no collisions. And that the string is never empty.
+	h := fnv1a.Init64
+	for _, taint := range taints {
+		h = fnv1a.AddString64(h, taint.Key)
+		h = fnv1a.AddString64(h, "=")
+		h = fnv1a.AddString64(h, taint.Value)
+		h = fnv1a.AddString64(h, ":")
+		h = fnv1a.AddString64(h, string(taint.Effect))
+		h = fnv1a.AddString64(h, "$")
+	}
+	h = fnv1a.AddString64(h, "&")
+
+	ls := maps.Keys(labels)
+	slices.Sort(ls)
+	for _, label := range ls {
+		value := labels[label]
+		h = fnv1a.AddString64(h, label)
+		h = fnv1a.AddString64(h, "=")
+		h = fnv1a.AddString64(h, value)
+		h = fnv1a.AddString64(h, "$")
+	}
+	h = fnv1a.AddString64(h, "&")
+
+	ls = maps.Keys(unsetIndexedLabels)
+	slices.Sort(ls)
+	for _, label := range ls {
+		h = fnv1a.AddString64(h, label)
+		h = fnv1a.AddString64(h, "$")
+	}
+	return h
+}
+
+func nodeTypeIdFromTaintsAndLabelsOld(taints []v1.Taint, labels, unsetIndexedLabels map[string]string) string {
 	// TODO: To reduce key size (and thus improve performance), we could hash the string.
 	// TODO: We should test this function to ensure there are no collisions. And that the string is never empty.
 	var sb strings.Builder

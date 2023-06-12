@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -68,20 +69,26 @@ func TestNodePairIterator(t *testing.T) {
 		nodes[i].Id = c
 	}
 
-	db, err := memdb.NewMemDB(nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResources))
+	nodeDb, err := createNodeDb(nil)
 	require.NoError(t, err)
+	for _, node := range nodes {
+		node.NodeDbKeys = make([][]byte, len(nodeDb.prioritiesToTryAssigningAt))
+		for i, p := range nodeDb.prioritiesToTryAssigningAt {
+			node.NodeDbKeys[i] = nodeDb.nodeDbKeyFromNode(node.NodeDbKeys[i], node, p)
+		}
+	}
 
-	txn := db.Txn(true)
+	txn := nodeDb.Txn(true)
 	require.NoError(t, txn.Insert("nodes", nodes[0]))
 	require.NoError(t, txn.Insert("nodes", nodes[1]))
 	txn.Commit()
-	txnA := db.Txn(false)
+	txnA := nodeDb.Txn(false)
 
-	txn = db.Txn(true)
+	txn = nodeDb.Txn(true)
 	require.NoError(t, txn.Delete("nodes", nodes[0]))
 	require.NoError(t, txn.Insert("nodes", nodes[2]))
 	txn.Commit()
-	txnB := db.Txn(false)
+	txnB := nodeDb.Txn(false)
 
 	it, err := NewNodePairIterator(txnA, txnB)
 	require.NoError(t, err)
@@ -110,7 +117,7 @@ func TestNodePairIterator(t *testing.T) {
 func TestNodeTypeIterator(t *testing.T) {
 	tests := map[string]struct {
 		nodes            []*schedulerobjects.Node
-		nodeTypeId       string
+		nodeTypeId       uint64
 		priority         int32
 		resourceRequests schedulerobjects.ResourceList
 		expected         []int
@@ -118,19 +125,19 @@ func TestNodeTypeIterator(t *testing.T) {
 		"only yield nodes of the right nodeType": {
 			nodes: armadaslices.Concatenate(
 				testfixtures.WithNodeTypeIdNodes(
-					"foo",
+					1,
 					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				),
 				testfixtures.WithNodeTypeIdNodes(
-					"bar",
+					2,
 					testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 				),
 				testfixtures.WithNodeTypeIdNodes(
-					"foo",
+					1,
 					testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 				),
 			),
-			nodeTypeId:       "foo",
+			nodeTypeId:       1,
 			priority:         0,
 			resourceRequests: schedulerobjects.ResourceList{},
 			expected: armadaslices.Concatenate(
@@ -140,7 +147,7 @@ func TestNodeTypeIterator(t *testing.T) {
 		},
 		"filter nodes with insufficient resources and return in increasing order": {
 			nodes: testfixtures.WithNodeTypeIdNodes(
-				"foo",
+				1,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -159,14 +166,14 @@ func TestNodeTypeIterator(t *testing.T) {
 					),
 				),
 			),
-			nodeTypeId:       "foo",
+			nodeTypeId:       1,
 			priority:         0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
 			expected:         []int{1, 0},
 		},
 		"filter nodes with insufficient resources at priority and return in increasing order": {
 			nodes: testfixtures.WithNodeTypeIdNodes(
-				"foo",
+				1,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -215,14 +222,14 @@ func TestNodeTypeIterator(t *testing.T) {
 					),
 				),
 			),
-			nodeTypeId:       "foo",
+			nodeTypeId:       1,
 			priority:         1,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
 			expected:         []int{4, 7, 3, 6, 0, 1, 2},
 		},
 		"nested ordering": {
 			nodes: testfixtures.WithNodeTypeIdNodes(
-				"foo",
+				1,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -297,7 +304,7 @@ func TestNodeTypeIterator(t *testing.T) {
 					),
 				),
 			),
-			nodeTypeId: "foo",
+			nodeTypeId: 1,
 			priority:   0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 				"cpu":    resource.MustParse("16"),
@@ -307,7 +314,7 @@ func TestNodeTypeIterator(t *testing.T) {
 		},
 		"double-nested ordering": {
 			nodes: testfixtures.WithNodeTypeIdNodes(
-				"foo",
+				1,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -394,7 +401,7 @@ func TestNodeTypeIterator(t *testing.T) {
 					),
 				),
 			),
-			nodeTypeId: "foo",
+			nodeTypeId: 1,
 			priority:   0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 				"cpu":    resource.MustParse("32"),
@@ -406,23 +413,41 @@ func TestNodeTypeIterator(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			nodeDb, err := createNodeDb(nil)
+			require.NoError(t, err)
+
 			// Set monotonically increaseing node ids to ensure nodes appear in predictable order.
 			for i, node := range tc.nodes {
 				node.Id = fmt.Sprintf("%d", i)
 			}
-
 			indexByNodeId := make(map[string]int)
 			for i, node := range tc.nodes {
 				indexByNodeId[node.Id] = i
 			}
-			db, err := newTestNodeDb(tc.nodes)
-			require.NoError(t, err)
 
+			// Compute the keys necessary to efficiently iterate over nodes
+			// and populate the database. We do this manually instead of using nodeDb.Upsert to control the nodeTypeId.
+			for _, node := range tc.nodes {
+				node.NodeDbKeys = make([][]byte, len(nodeDb.prioritiesToTryAssigningAt))
+				for i, p := range nodeDb.prioritiesToTryAssigningAt {
+					node.NodeDbKeys[i] = nodeDb.nodeDbKeyFromNode(node.NodeDbKeys[i], node, p)
+				}
+			}
+			require.NoError(t, populateDatabase(nodeDb.db, tc.nodes))
+
+			// Create iterator.
 			indexedResourceRequests := make([]resource.Quantity, len(testfixtures.TestResources))
-			for i, t := range testfixtures.TestResources {
+			for i, t := range nodeDb.indexedResources {
 				indexedResourceRequests[i] = tc.resourceRequests.Get(t)
 			}
-			it, err := NewNodeTypeIterator(db.Txn(false), tc.nodeTypeId, tc.priority, testfixtures.TestResources, indexedResourceRequests)
+			keyIndex := -1
+			for i, p := range nodeDb.prioritiesToTryAssigningAt {
+				if p == tc.priority {
+					keyIndex = i
+				}
+			}
+			require.NotEqual(t, -1, keyIndex)
+			it, err := NewNodeTypeIterator2(nodeDb.Txn(false), tc.nodeTypeId, nodeResourceIndexName2(keyIndex), tc.priority, testfixtures.TestResourceNames, indexedResourceRequests, testfixtures.TestIndexedResourceResolutionMillis)
 			require.NoError(t, err)
 
 			// Compare actual with expected order.
@@ -439,10 +464,12 @@ func TestNodeTypeIterator(t *testing.T) {
 			}
 			assert.Equal(t, tc.expected, actual)
 
-			// Calling next again should still return nil.
-			node, err := it.NextNode()
-			require.NoError(t, err)
-			require.Nil(t, node)
+			// Calling next should always return nil from now on.
+			for i := 0; i < 100; i++ {
+				node, err := it.NextNode()
+				require.NoError(t, err)
+				require.Nil(t, node)
+			}
 		})
 	}
 }
@@ -450,7 +477,7 @@ func TestNodeTypeIterator(t *testing.T) {
 func TestNodeTypesIterator(t *testing.T) {
 	tests := map[string]struct {
 		nodes            []*schedulerobjects.Node
-		nodeTypeIds      []string
+		nodeTypeIds      []uint64
 		priority         int32
 		resourceRequests schedulerobjects.ResourceList
 		expected         []int
@@ -458,19 +485,19 @@ func TestNodeTypesIterator(t *testing.T) {
 		"only yield nodes of the right nodeType": {
 			nodes: armadaslices.Concatenate(
 				testfixtures.WithNodeTypeIdNodes(
-					"foo",
+					1,
 					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				),
 				testfixtures.WithNodeTypeIdNodes(
-					"bar",
+					2,
 					testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 				),
 				testfixtures.WithNodeTypeIdNodes(
-					"baz",
+					3,
 					testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 				),
 			),
-			nodeTypeIds:      []string{"foo", "baz"},
+			nodeTypeIds:      []uint64{1, 3},
 			priority:         0,
 			resourceRequests: schedulerobjects.ResourceList{},
 			expected: armadaslices.Concatenate(
@@ -481,7 +508,7 @@ func TestNodeTypesIterator(t *testing.T) {
 		"filter nodes with insufficient resources and return in increasing order": {
 			nodes: armadaslices.Concatenate(
 				testfixtures.WithNodeTypeIdNodes(
-					"foo",
+					1,
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
@@ -489,7 +516,7 @@ func TestNodeTypesIterator(t *testing.T) {
 					),
 				),
 				testfixtures.WithNodeTypeIdNodes(
-					"bar",
+					2,
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
@@ -497,7 +524,7 @@ func TestNodeTypesIterator(t *testing.T) {
 					),
 				),
 				testfixtures.WithNodeTypeIdNodes(
-					"baz",
+					3,
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
@@ -505,7 +532,7 @@ func TestNodeTypesIterator(t *testing.T) {
 					),
 				),
 				testfixtures.WithNodeTypeIdNodes(
-					"foobar",
+					4,
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("14")}},
@@ -513,14 +540,14 @@ func TestNodeTypesIterator(t *testing.T) {
 					),
 				),
 			),
-			nodeTypeIds:      []string{"foo", "bar", "baz"},
+			nodeTypeIds:      []uint64{1, 2, 3},
 			priority:         0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
 			expected:         []int{1, 0},
 		},
 		"filter nodes with insufficient resources at priority and return in increasing order": {
 			nodes: testfixtures.WithNodeTypeIdNodes(
-				"foo",
+				1,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -569,14 +596,14 @@ func TestNodeTypesIterator(t *testing.T) {
 					),
 				),
 			),
-			nodeTypeIds:      []string{"foo"},
+			nodeTypeIds:      []uint64{1},
 			priority:         1,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
 			expected:         []int{4, 7, 3, 6, 0, 1, 2},
 		},
 		"nested ordering": {
 			nodes: testfixtures.WithNodeTypeIdNodes(
-				"foo",
+				1,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -651,7 +678,7 @@ func TestNodeTypesIterator(t *testing.T) {
 					),
 				),
 			),
-			nodeTypeIds: []string{"foo"},
+			nodeTypeIds: []uint64{1},
 			priority:    0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 				"cpu":    resource.MustParse("16"),
@@ -662,7 +689,7 @@ func TestNodeTypesIterator(t *testing.T) {
 		"double-nested ordering": {
 			nodes: armadaslices.Concatenate(
 				testfixtures.WithNodeTypeIdNodes(
-					"foo",
+					1,
 					armadaslices.Concatenate(
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -702,7 +729,7 @@ func TestNodeTypesIterator(t *testing.T) {
 					),
 				),
 				testfixtures.WithNodeTypeIdNodes(
-					"bar",
+					2,
 					armadaslices.Concatenate(
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -740,7 +767,7 @@ func TestNodeTypesIterator(t *testing.T) {
 					),
 				),
 				testfixtures.WithNodeTypeIdNodes(
-					"baz",
+					3,
 					armadaslices.Concatenate(
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -760,7 +787,7 @@ func TestNodeTypesIterator(t *testing.T) {
 					),
 				),
 			),
-			nodeTypeIds: []string{"foo", "bar", "baz"},
+			nodeTypeIds: []uint64{1, 2, 3},
 			priority:    0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 				"cpu":    resource.MustParse("32"),
@@ -772,23 +799,39 @@ func TestNodeTypesIterator(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			nodeDb, err := createNodeDb(nil)
+			require.NoError(t, err)
+
 			// Set monotonically increaseing node ids to ensure nodes appear in predictable order.
 			for i, node := range tc.nodes {
 				node.Id = fmt.Sprintf("%d", i)
 			}
-
 			indexByNodeId := make(map[string]int)
 			for i, node := range tc.nodes {
 				indexByNodeId[node.Id] = i
 			}
-			db, err := newTestNodeDb(tc.nodes)
-			require.NoError(t, err)
+
+			// Compute the keys necessary to efficiently iterate over nodes
+			// and populate the database. We do this manually instead of using nodeDb.Upsert to control the nodeTypeId.
+			for _, node := range tc.nodes {
+				node.NodeDbKeys = make([][]byte, len(nodeDb.prioritiesToTryAssigningAt))
+				for i, p := range nodeDb.prioritiesToTryAssigningAt {
+					node.NodeDbKeys[i] = nodeDb.nodeDbKeyFromNode(node.NodeDbKeys[i], node, p)
+				}
+			}
+			require.NoError(t, populateDatabase(nodeDb.db, tc.nodes))
 
 			indexedResourceRequests := make([]resource.Quantity, len(testfixtures.TestResources))
-			for i, t := range testfixtures.TestResources {
+			for i, t := range testfixtures.TestResourceNames {
 				indexedResourceRequests[i] = tc.resourceRequests.Get(t)
 			}
-			it, err := NewNodeTypesIterator(db.Txn(false), tc.nodeTypeIds, tc.priority, testfixtures.TestResources, indexedResourceRequests)
+			keyIndex := -1
+			for i, p := range nodeDb.prioritiesToTryAssigningAt {
+				if p == tc.priority {
+					keyIndex = i
+				}
+			}
+			it, err := NewNodeTypesIterator(nodeDb.Txn(false), tc.nodeTypeIds, keyIndex, tc.priority, testfixtures.TestResourceNames, indexedResourceRequests, testfixtures.TestIndexedResourceResolutionMillis)
 			require.NoError(t, err)
 
 			// Compare actual with expected order.
@@ -814,7 +857,8 @@ func TestNodeTypesIterator(t *testing.T) {
 }
 
 func newTestNodeDb(nodes []*schedulerobjects.Node) (*memdb.MemDB, error) {
-	db, err := memdb.NewMemDB(nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResources))
+	schema, _ := nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResourceNames)
+	db, err := memdb.NewMemDB(schema)
 	if err != nil {
 		return nil, err
 	}
@@ -836,4 +880,50 @@ func populateDatabase(db *memdb.MemDB, items []*schedulerobjects.Node) error {
 	}
 	txn.Commit()
 	return nil
+}
+
+func BenchmarkNodeTypeIterator(b *testing.B) {
+	numNodes := 1000
+
+	// Create nodes with varying amounts of CPU available.
+	// allocatedMilliCpus := []int64{0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000}
+	allocatedMilliCpus := []int64{0, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900}
+	nodes := testfixtures.N32CpuNodes(numNodes, testfixtures.TestPriorities)
+	for i, node := range nodes {
+		var q resource.Quantity
+		q.SetMilli(allocatedMilliCpus[i%len(allocatedMilliCpus)])
+		testfixtures.WithUsedResourcesNodes(
+			testfixtures.TestPriorities[len(testfixtures.TestPriorities)-1],
+			schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": q}},
+			[]*schedulerobjects.Node{node},
+		)
+	}
+	nodeDb, err := createNodeDb(nodes)
+	require.NoError(b, err)
+
+	// Create iterator for 0 CPU required and an unfeasible memory request
+	// to benchmark how quickly jobs re rejected.
+	indexedResourceRequests := make([]resource.Quantity, len(nodeDb.indexedResources))
+	indexedResourceRequests[1] = resource.MustParse("1Ti")
+	nodeTypeId := maps.Keys(nodeDb.nodeTypes)[0]
+	var priority int32
+	keyIndex := 0
+	indexName := nodeResourceIndexName2(keyIndex)
+	txn := nodeDb.Txn(false)
+	defer txn.Abort()
+
+	// defer profile.Start(profile.CPUProfile).Stop()
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		it, err := NewNodeTypeIterator2(txn, nodeTypeId, indexName, priority, nodeDb.indexedResources, indexedResourceRequests, testfixtures.TestIndexedResourceResolutionMillis)
+		// it, err := NewNodeTypeIterator(txn, nodeTypeId, priority, nodeDb.indexedResources, indexedResourceRequests)
+		require.NoError(b, err)
+		for {
+			node, err := it.NextNode()
+			require.NoError(b, err)
+			if node == nil {
+				break
+			}
+		}
+	}
 }

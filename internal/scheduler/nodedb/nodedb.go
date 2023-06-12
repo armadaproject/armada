@@ -1,6 +1,7 @@
 package nodedb
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
 	"strings"
@@ -17,6 +18,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -55,6 +57,12 @@ type NodeDb struct {
 	indexedResources []string
 	// Like indexedResources, but stored as a map for efficient lookup.
 	indexedResourcesSet map[string]interface{}
+	// The resolution with which indexed resources are tracked. In the same order as indexedResources.
+	// For example, if indexedResources = []string{"cpu"} and indexedResourceResolutionMillis = []int64{1000},
+	// then nodes with, e.g., 2000, 2100, and 2900 mCPU allocatable are all registered as having 2000 mCPU allocatable.
+	//
+	// Lower resolution makes scheduling faster, but may lead to jobs incorrectly being considered unschedulable.
+	indexedResourceResolutionMillis []int64
 	// Taint keys that to create indexes for.
 	// Should include taints frequently used for scheduling.
 	// Since the NodeDb can efficiently sort out nodes with taints not tolerated
@@ -72,12 +80,12 @@ type NodeDb struct {
 	// Total number of nodes in the db.
 	numNodes int
 	// Number of nodes in the db by node type.
-	numNodesByNodeType map[string]int
+	numNodesByNodeType map[uint64]int
 	// Total amount of resources, e.g., "cpu", "memory", "gpu", across all nodes in the db.
 	totalResources schedulerobjects.ResourceList
 	// Set of node types. Populated automatically as nodes are inserted.
 	// Node types are not cleaned up if all nodes of that type are removed from the NodeDb.
-	nodeTypes map[string]*schedulerobjects.NodeType
+	nodeTypes map[uint64]*schedulerobjects.NodeType
 	// Map from podRequirementsNotMetReason Sum64() to the string representation of that reason.
 	// Used to avoid allocs.
 	podRequirementsNotMetReasonStringCache map[uint64]string
@@ -88,7 +96,7 @@ type NodeDb struct {
 func NewNodeDb(
 	priorityClasses map[string]configuration.PriorityClass,
 	maxExtraNodesToConsider uint,
-	indexedResources,
+	indexedResources []configuration.IndexResource,
 	indexedTaints,
 	indexedNodeLabels []string,
 ) (*NodeDb, error) {
@@ -99,10 +107,16 @@ func NewNodeDb(
 	prioritiesToTryAssigningAt := maps.Keys(allowedPriorities)
 	slices.Sort(prioritiesToTryAssigningAt)
 
-	db, err := memdb.NewMemDB(nodeDbSchema(
-		prioritiesToTryAssigningAt,
-		indexedResources,
-	))
+	if len(indexedResources) == 0 {
+		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
+			Name:    "indexedResources",
+			Value:   indexedResources,
+			Message: "there must be at least one index resource",
+		})
+	}
+	indexedResourceNames := util.Map(indexedResources, func(v configuration.IndexResource) string { return v.Name })
+	schema, _ := nodeDbSchema(prioritiesToTryAssigningAt, indexedResourceNames)
+	db, err := memdb.NewMemDB(schema)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -133,14 +147,18 @@ func NewNodeDb(
 		priorityClasses:            priorityClasses,
 		prioritiesToTryAssigningAt: prioritiesToTryAssigningAt,
 		maxExtraNodesToConsider:    maxExtraNodesToConsider,
-		indexedResources:           slices.Clone(indexedResources),
-		indexedResourcesSet:        mapFromSlice(indexedResources),
-		indexedTaints:              mapFromSlice(indexedTaints),
-		indexedNodeLabels:          mapFromSlice(indexedNodeLabels),
-		nodeTypes:                  make(map[string]*schedulerobjects.NodeType),
-		numNodesByNodeType:         make(map[string]int),
-		totalResources:             schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
-		db:                         db,
+		indexedResources:           indexedResourceNames,
+		indexedResourcesSet:        mapFromSlice(indexedResourceNames),
+		indexedResourceResolutionMillis: util.Map(
+			indexedResources,
+			func(v configuration.IndexResource) int64 { return v.Resolution.MilliValue() },
+		),
+		indexedTaints:      mapFromSlice(indexedTaints),
+		indexedNodeLabels:  mapFromSlice(indexedNodeLabels),
+		nodeTypes:          make(map[uint64]*schedulerobjects.NodeType),
+		numNodesByNodeType: make(map[uint64]int),
+		totalResources:     schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
+		db:                 db,
 		// Set the initial capacity (somewhat arbitrarily) to 128 reasons.
 		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
 	}, nil
@@ -158,7 +176,7 @@ func (nodeDb *NodeDb) String() string {
 	} else {
 		fmt.Fprint(w, "Node types:\n")
 		for _, nodeType := range nodeDb.nodeTypes {
-			fmt.Fprintf(w, "  %s\n", nodeType.Id)
+			fmt.Fprintf(w, "  %d\n", nodeType.Id)
 		}
 	}
 	w.Flush()
@@ -409,7 +427,7 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	priority int32,
 	req *schedulerobjects.PodRequirements,
 ) (*schedulerobjects.Node, error) {
-	nodeTypeIds := make([]string, len(pctx.MatchingNodeTypes))
+	nodeTypeIds := make([]uint64, len(pctx.MatchingNodeTypes))
 	for i, nodeType := range pctx.MatchingNodeTypes {
 		nodeTypeIds[i] = nodeType.Id
 	}
@@ -418,8 +436,25 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	for i, t := range nodeDb.indexedResources {
 		indexResourceRequests[i] = req.ResourceRequirements.Requests[v1.ResourceName(t)]
 	}
-
-	it, err := NewNodeTypesIterator(txn, nodeTypeIds, priority, nodeDb.indexedResources, indexResourceRequests)
+	keyIndex := -1
+	for i, p := range nodeDb.prioritiesToTryAssigningAt {
+		if p == priority {
+			keyIndex = i
+			break
+		}
+	}
+	if keyIndex == -1 {
+		return nil, errors.Errorf("unsupported priority %d; must be in %v", priority, nodeDb.prioritiesToTryAssigningAt)
+	}
+	it, err := NewNodeTypesIterator(
+		txn,
+		nodeTypeIds,
+		keyIndex,
+		priority,
+		nodeDb.indexedResources,
+		indexResourceRequests,
+		nodeDb.indexedResourceResolutionMillis,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -721,6 +756,7 @@ func (nodeDb *NodeDb) Upsert(node *schedulerobjects.Node) error {
 
 func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node) error {
 	// Mutating the node once inserted is forbidden.
+	// TODO: We shouldn't need a copy here.
 	node = node.DeepCopy()
 
 	// Add an evictedPriority record to the node.
@@ -771,6 +807,12 @@ func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node)
 	node.NodeTypeId = nodeType.Id
 	node.NodeType = nodeType
 
+	// Compute the keys necessary to efficiently iterate over nodes.
+	node.NodeDbKeys = make([][]byte, len(nodeDb.prioritiesToTryAssigningAt))
+	for i, p := range nodeDb.prioritiesToTryAssigningAt {
+		node.NodeDbKeys[i] = nodeDb.nodeDbKeyFromNode(node.NodeDbKeys[i], node, p)
+	}
+
 	// Add the node to the db.
 	isNewNode := false
 	if existingNode, err := nodeDb.GetNodeWithTxn(txn, node.Id); err != nil {
@@ -819,16 +861,17 @@ func (nodeDb *NodeDb) ClearAllocated() error {
 	return nil
 }
 
-func nodeDbSchema(priorities []int32, resources []string) *memdb.DBSchema {
+func nodeDbSchema(priorities []int32, resources []string) (*memdb.DBSchema, []string) {
 	indexes := make(map[string]*memdb.IndexSchema)
 	indexes["id"] = &memdb.IndexSchema{
 		Name:    "id",
 		Unique:  true,
 		Indexer: &memdb.StringFieldIndex{Field: "Id"},
 	}
-	for _, priority := range priorities {
+	indexNames := make([]string, len(priorities))
+	for i, priority := range priorities {
 		resourceIndexes := []memdb.Indexer{
-			&memdb.StringFieldIndex{Field: "NodeTypeId"},
+			&memdb.UintFieldIndex{Field: "NodeTypeId"},
 		}
 		for _, resource := range resources {
 			resourceIndexes = append(
@@ -851,6 +894,14 @@ func nodeDbSchema(priorities []int32, resources []string) *memdb.DBSchema {
 				Indexes: resourceIndexes,
 			},
 		}
+
+		name = nodeResourceIndexName2(i)
+		indexNames[i] = name
+		indexes[name] = &memdb.IndexSchema{
+			Name:    name,
+			Unique:  false,
+			Indexer: &NodeIndex{KeyIndex: i},
+		}
 	}
 	return &memdb.DBSchema{
 		Tables: map[string]*memdb.TableSchema{
@@ -859,11 +910,15 @@ func nodeDbSchema(priorities []int32, resources []string) *memdb.DBSchema {
 				Indexes: indexes,
 			},
 		},
-	}
+	}, indexNames
 }
 
 func nodeResourceIndexName(priority int32) string {
 	return fmt.Sprintf("%d", priority)
+}
+
+func nodeResourceIndexName2(keyIndex int) string {
+	return fmt.Sprintf("new-%d", keyIndex)
 }
 
 // stringFromPodRequirementsNotMetReason returns the string representation of reason,
@@ -877,4 +932,32 @@ func (nodeDb *NodeDb) stringFromPodRequirementsNotMetReason(reason schedulerobje
 		nodeDb.podRequirementsNotMetReasonStringCache[h] = s
 		return s
 	}
+}
+
+func (nodeDb *NodeDb) nodeDbKeyFromNode(out []byte, node *schedulerobjects.Node, priority int32) []byte {
+	size := 8
+	out = append(out, make([]byte, size)...)
+	binary.BigEndian.PutUint64(out[len(out)-size:], node.NodeTypeId)
+	for i, resource := range nodeDb.indexedResources {
+		resolution := nodeDb.indexedResourceResolutionMillis[i]
+		q := node.AvailableQuantityByPriorityAndResource(priority, resource)
+		q.SetMilli((q.MilliValue() / resolution) * resolution)
+		out = schedulerobjects.EncodeQuantityBuffer(out, q)
+	}
+	return out
+}
+
+func appendNodeDbKey(out []byte, nodeTypeId uint64, resources []resource.Quantity, resourceResolutionMillis []int64) []byte {
+	if len(resources) != len(resourceResolutionMillis) {
+		panic("resources and resolutionMillis do not have equal length")
+	}
+	size := 8
+	out = append(out, make([]byte, size)...)
+	binary.BigEndian.PutUint64(out[len(out)-size:], nodeTypeId)
+	for i, q := range resources {
+		resolution := resourceResolutionMillis[i]
+		q.SetMilli((q.MilliValue() / resolution) * resolution)
+		out = schedulerobjects.EncodeQuantityBuffer(out, q)
+	}
+	return out
 }

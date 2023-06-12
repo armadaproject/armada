@@ -90,8 +90,10 @@ scheduling:
   minJobResources:
     memory: 1Mi
   indexedResources:
-    - cpu
-    - memory
+    - name: "cpu"
+      resolution: "100m"
+    - name: "memory"
+      resolution: 1Mi
   minTerminationGracePeriod: 1s
   maxTerminationGracePeriod: 300s
 queueManagement:

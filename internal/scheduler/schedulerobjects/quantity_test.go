@@ -125,3 +125,13 @@ func TestScaleQuantity(t *testing.T) {
 		})
 	}
 }
+
+func BenchmarkEncodeQuantityBuffer(b *testing.B) {
+	out := make([]byte, 8)
+	q := resource.MustParse("16Gi")
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		out = out[0:0]
+		EncodeQuantityBuffer(out, q)
+	}
+}
