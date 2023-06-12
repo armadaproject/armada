@@ -6,6 +6,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/openconfig/goyang/pkg/indent"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
@@ -116,26 +117,51 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(queue string, priorityF
 }
 
 func (sctx *SchedulingContext) String() string {
+	return sctx.ReportString(0)
+}
+
+func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	fmt.Fprintf(w, "Started:\t%s\n", sctx.Started)
 	fmt.Fprintf(w, "Finished:\t%s\n", sctx.Finished)
 	fmt.Fprintf(w, "Duration:\t%s\n", sctx.Finished.Sub(sctx.Started))
-	fmt.Fprintf(w, "Total capacity:\t%s\n", sctx.TotalResources.CompactString())
-	fmt.Fprintf(w, "Jobs scheduled:\t%d\n", sctx.NumScheduledJobs)
-	fmt.Fprintf(w, "Total scheduled resources:\t%s\n", sctx.ScheduledResources.CompactString())
-	fmt.Fprintf(
-		w, "Scheduled queues:\t%v\n",
-		maps.Keys(
-			armadamaps.Filter(
-				sctx.QueueSchedulingContexts,
-				func(_ string, qctx *QueueSchedulingContext) bool {
-					return len(qctx.SuccessfulJobSchedulingContexts) > 0
-				},
-			),
-		),
-	)
 	fmt.Fprintf(w, "Termination reason:\t%s\n", sctx.TerminationReason)
+	fmt.Fprintf(w, "Total capacity:\t%s\n", sctx.TotalResources.CompactString())
+	fmt.Fprintf(w, "Scheduled resources:\t%s\n", sctx.ScheduledResources.CompactString())
+	fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", sctx.NumScheduledJobs)
+	if verbosity <= 0 {
+		fmt.Fprintf(
+			w,
+			"Scheduled queues:\t%v\n",
+			maps.Keys(
+				armadamaps.Filter(
+					sctx.QueueSchedulingContexts,
+					func(_ string, qctx *QueueSchedulingContext) bool {
+						return len(qctx.SuccessfulJobSchedulingContexts) > 0
+					},
+				),
+			),
+		)
+		fmt.Fprintf(
+			w,
+			"Preempted queues:\t%v\n",
+			maps.Keys(
+				armadamaps.Filter(
+					sctx.QueueSchedulingContexts,
+					func(_ string, qctx *QueueSchedulingContext) bool {
+						return len(qctx.EvictedJobsById) > 0
+					},
+				),
+			),
+		)
+	} else {
+		fmt.Fprint(w, "Queues:\n")
+		for queueName, qctx := range sctx.QueueSchedulingContexts {
+			fmt.Fprintf(w, "\t%s:\n", queueName)
+			fmt.Fprintf(w, indent.String("\t\t", qctx.ReportString(verbosity-1)))
+		}
+	}
 	w.Flush()
 	return sb.String()
 }
@@ -277,67 +303,81 @@ type QueueSchedulingContext struct {
 	EvictedJobsById map[string]bool
 }
 
-const maxPrintedJobIdsByReason = 1
+func GetSchedulingContextFromQueueSchedulingContext(qctx *QueueSchedulingContext) *SchedulingContext {
+	if qctx == nil {
+		return nil
+	}
+	return qctx.SchedulingContext
+}
 
 func (qctx *QueueSchedulingContext) String() string {
+	return qctx.ReportString(0)
+}
+
+const maxPrintedJobIdsByReason = 1
+
+func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	fmt.Fprintf(w, "Time:\t%s\n", qctx.Created)
-	fmt.Fprintf(w, "Queue:\t%s\n", qctx.Queue)
-	fmt.Fprintf(w, "Total allocated resources after scheduling:\t%s\n", qctx.AllocatedByPriority.AggregateByResource().CompactString())
-	fmt.Fprintf(w, "Total allocated resources after scheduling (by priority):\t%s\n", qctx.AllocatedByPriority.String())
+	if verbosity > 0 {
+		fmt.Fprintf(w, "Created:\t%s\n", qctx.Created)
+	}
 	fmt.Fprintf(w, "Scheduled resources:\t%s\n", qctx.ScheduledResourcesByPriority.AggregateByResource().CompactString())
 	fmt.Fprintf(w, "Scheduled resources (by priority):\t%s\n", qctx.ScheduledResourcesByPriority.String())
 	fmt.Fprintf(w, "Preempted resources:\t%s\n", qctx.EvictedResourcesByPriority.AggregateByResource().CompactString())
 	fmt.Fprintf(w, "Preempted resources (by priority):\t%s\n", qctx.EvictedResourcesByPriority.String())
-	fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", len(qctx.SuccessfulJobSchedulingContexts))
-	fmt.Fprintf(w, "Number of jobs that could not be scheduled:\t%d\n", len(qctx.UnsuccessfulJobSchedulingContexts))
-	fmt.Fprintf(w, "Number of jobs preempted:\t%d\n", len(qctx.EvictedJobsById))
-	if len(qctx.SuccessfulJobSchedulingContexts) > 0 {
-		jobIdsToPrint := maps.Keys(qctx.SuccessfulJobSchedulingContexts)
-		if len(jobIdsToPrint) > maxPrintedJobIdsByReason {
-			jobIdsToPrint = jobIdsToPrint[0:maxPrintedJobIdsByReason]
-		}
-		fmt.Fprintf(w, "Scheduled jobs:\t%v", jobIdsToPrint)
-		if len(jobIdsToPrint) != len(qctx.SuccessfulJobSchedulingContexts) {
-			fmt.Fprintf(w, " (and %d others not shown)\n", len(qctx.SuccessfulJobSchedulingContexts)-len(jobIdsToPrint))
-		} else {
-			fmt.Fprint(w, "\n")
-		}
-	}
-	if len(qctx.UnsuccessfulJobSchedulingContexts) > 0 {
-		fmt.Fprint(w, "Unschedulable jobs:\n")
-		for reason, jobIds := range armadaslices.MapAndGroupByFuncs(
-			maps.Values(qctx.UnsuccessfulJobSchedulingContexts),
-			func(jctx *JobSchedulingContext) string {
-				return jctx.UnschedulableReason
-			},
-			func(jctx *JobSchedulingContext) string {
-				return jctx.JobId
-			},
-		) {
-			jobIdsToPrint := jobIds
-			if len(jobIdsToPrint) > maxPrintedJobIdsByReason {
-				jobIdsToPrint = jobIds[0:maxPrintedJobIdsByReason]
+	if verbosity > 0 {
+		fmt.Fprintf(w, "Total allocated resources after scheduling:\t%s\n", qctx.AllocatedByPriority.AggregateByResource().CompactString())
+		fmt.Fprintf(w, "Total allocated resources after scheduling (by priority):\t%s\n", qctx.AllocatedByPriority.String())
+		fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", len(qctx.SuccessfulJobSchedulingContexts))
+		fmt.Fprintf(w, "Number of jobs that could not be scheduled:\t%d\n", len(qctx.UnsuccessfulJobSchedulingContexts))
+		fmt.Fprintf(w, "Number of jobs preempted:\t%d\n", len(qctx.EvictedJobsById))
+		if len(qctx.SuccessfulJobSchedulingContexts) > 0 {
+			jobIdsToPrint := maps.Keys(qctx.SuccessfulJobSchedulingContexts)
+			if verbosity <= 1 && len(jobIdsToPrint) > maxPrintedJobIdsByReason {
+				jobIdsToPrint = jobIdsToPrint[0:maxPrintedJobIdsByReason]
 			}
-			fmt.Fprintf(w, "\t%d:\t%s jobs\t%v", len(qctx.UnsuccessfulJobSchedulingContexts), reason, jobIdsToPrint)
-			if len(jobIdsToPrint) != len(jobIds) {
-				fmt.Fprintf(w, " (and %d others not shown)\n", len(jobIds)-len(jobIdsToPrint))
+			fmt.Fprintf(w, "Scheduled jobs:\t%v", jobIdsToPrint)
+			if len(jobIdsToPrint) != len(qctx.SuccessfulJobSchedulingContexts) {
+				fmt.Fprintf(w, " (and %d others not shown)\n", len(qctx.SuccessfulJobSchedulingContexts)-len(jobIdsToPrint))
 			} else {
 				fmt.Fprint(w, "\n")
 			}
 		}
-	}
-	if len(qctx.EvictedJobsById) > 0 {
-		jobIdsToPrint := maps.Keys(qctx.EvictedJobsById)
-		if len(jobIdsToPrint) > maxPrintedJobIdsByReason {
-			jobIdsToPrint = jobIdsToPrint[0:maxPrintedJobIdsByReason]
+		if len(qctx.UnsuccessfulJobSchedulingContexts) > 0 {
+			fmt.Fprint(w, "Unschedulable jobs:\n")
+			for reason, jobIds := range armadaslices.MapAndGroupByFuncs(
+				maps.Values(qctx.UnsuccessfulJobSchedulingContexts),
+				func(jctx *JobSchedulingContext) string {
+					return jctx.UnschedulableReason
+				},
+				func(jctx *JobSchedulingContext) string {
+					return jctx.JobId
+				},
+			) {
+				jobIdsToPrint := jobIds
+				if verbosity <= 1 && len(jobIdsToPrint) > maxPrintedJobIdsByReason {
+					jobIdsToPrint = jobIds[0:maxPrintedJobIdsByReason]
+				}
+				fmt.Fprintf(w, "\t%d:\t%s jobs\t%v", len(qctx.UnsuccessfulJobSchedulingContexts), reason, jobIdsToPrint)
+				if len(jobIdsToPrint) != len(jobIds) {
+					fmt.Fprintf(w, " (and %d others not shown)\n", len(jobIds)-len(jobIdsToPrint))
+				} else {
+					fmt.Fprint(w, "\n")
+				}
+			}
 		}
-		fmt.Fprintf(w, "Preempted jobs:\t%v", jobIdsToPrint)
-		if len(jobIdsToPrint) != len(qctx.EvictedJobsById) {
-			fmt.Fprintf(w, " (and %d others not shown)\n", len(qctx.EvictedJobsById)-len(jobIdsToPrint))
-		} else {
-			fmt.Fprint(w, "\n")
+		if len(qctx.EvictedJobsById) > 0 {
+			jobIdsToPrint := maps.Keys(qctx.EvictedJobsById)
+			if verbosity <= 1 && len(jobIdsToPrint) > maxPrintedJobIdsByReason {
+				jobIdsToPrint = jobIdsToPrint[0:maxPrintedJobIdsByReason]
+			}
+			fmt.Fprintf(w, "Preempted jobs:\t%v", jobIdsToPrint)
+			if len(jobIdsToPrint) != len(qctx.EvictedJobsById) {
+				fmt.Fprintf(w, " (and %d others not shown)\n", len(qctx.EvictedJobsById)-len(jobIdsToPrint))
+			} else {
+				fmt.Fprint(w, "\n")
+			}
 		}
 	}
 	w.Flush()
