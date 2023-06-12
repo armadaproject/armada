@@ -63,6 +63,8 @@ type NodeDb struct {
 	//
 	// Lower resolution makes scheduling faster, but may lead to jobs incorrectly being considered unschedulable.
 	indexedResourceResolutionMillis []int64
+	// Map from priority class priority to the index tracking allocatable resources at that priority.
+	indexNameByPriority map[int32]string
 	// Taint keys that to create indexes for.
 	// Should include taints frequently used for scheduling.
 	// Since the NodeDb can efficiently sort out nodes with taints not tolerated
@@ -115,7 +117,7 @@ func NewNodeDb(
 		})
 	}
 	indexedResourceNames := util.Map(indexedResources, func(v configuration.IndexResource) string { return v.Name })
-	schema, _ := nodeDbSchema(prioritiesToTryAssigningAt, indexedResourceNames)
+	schema, indexNameByPriority := nodeDbSchema(prioritiesToTryAssigningAt, indexedResourceNames)
 	db, err := memdb.NewMemDB(schema)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -153,12 +155,13 @@ func NewNodeDb(
 			indexedResources,
 			func(v configuration.IndexResource) int64 { return v.Resolution.MilliValue() },
 		),
-		indexedTaints:      mapFromSlice(indexedTaints),
-		indexedNodeLabels:  mapFromSlice(indexedNodeLabels),
-		nodeTypes:          make(map[uint64]*schedulerobjects.NodeType),
-		numNodesByNodeType: make(map[uint64]int),
-		totalResources:     schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
-		db:                 db,
+		indexNameByPriority: indexNameByPriority,
+		indexedTaints:       mapFromSlice(indexedTaints),
+		indexedNodeLabels:   mapFromSlice(indexedNodeLabels),
+		nodeTypes:           make(map[uint64]*schedulerobjects.NodeType),
+		numNodesByNodeType:  make(map[uint64]int),
+		totalResources:      schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
+		db:                  db,
 		// Set the initial capacity (somewhat arbitrarily) to 128 reasons.
 		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
 	}, nil
@@ -436,20 +439,14 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	for i, t := range nodeDb.indexedResources {
 		indexResourceRequests[i] = req.ResourceRequirements.Requests[v1.ResourceName(t)]
 	}
-	keyIndex := -1
-	for i, p := range nodeDb.prioritiesToTryAssigningAt {
-		if p == priority {
-			keyIndex = i
-			break
-		}
-	}
-	if keyIndex == -1 {
-		return nil, errors.Errorf("unsupported priority %d; must be in %v", priority, nodeDb.prioritiesToTryAssigningAt)
+	indexName, ok := nodeDb.indexNameByPriority[priority]
+	if !ok {
+		return nil, errors.Errorf("no index for priority %d; must be in %v", priority, nodeDb.indexNameByPriority)
 	}
 	it, err := NewNodeTypesIterator(
 		txn,
 		nodeTypeIds,
-		keyIndex,
+		indexName,
 		priority,
 		nodeDb.indexedResources,
 		indexResourceRequests,
@@ -861,42 +858,17 @@ func (nodeDb *NodeDb) ClearAllocated() error {
 	return nil
 }
 
-func nodeDbSchema(priorities []int32, resources []string) (*memdb.DBSchema, []string) {
+func nodeDbSchema(priorities []int32, resources []string) (*memdb.DBSchema, map[int32]string) {
 	indexes := make(map[string]*memdb.IndexSchema)
 	indexes["id"] = &memdb.IndexSchema{
 		Name:    "id",
 		Unique:  true,
 		Indexer: &memdb.StringFieldIndex{Field: "Id"},
 	}
-	indexNames := make([]string, len(priorities))
+	indexNameByPriority := make(map[int32]string, len(priorities))
 	for i, priority := range priorities {
-		resourceIndexes := []memdb.Indexer{
-			&memdb.UintFieldIndex{Field: "NodeTypeId"},
-		}
-		for _, resource := range resources {
-			resourceIndexes = append(
-				resourceIndexes,
-				&NodeAvailableResourceIndex{
-					Resource: resource,
-					Priority: priority,
-				},
-			)
-		}
-		resourceIndexes = append( // Tie-break by id.
-			resourceIndexes,
-			&memdb.StringFieldIndex{Field: "Id"},
-		)
-		name := nodeResourceIndexName(priority)
-		indexes[name] = &memdb.IndexSchema{
-			Name:   name,
-			Unique: false,
-			Indexer: &memdb.CompoundIndex{
-				Indexes: resourceIndexes,
-			},
-		}
-
-		name = nodeResourceIndexName2(i)
-		indexNames[i] = name
+		name := nodeIndexName(i)
+		indexNameByPriority[priority] = name
 		indexes[name] = &memdb.IndexSchema{
 			Name:    name,
 			Unique:  false,
@@ -910,15 +882,11 @@ func nodeDbSchema(priorities []int32, resources []string) (*memdb.DBSchema, []st
 				Indexes: indexes,
 			},
 		},
-	}, indexNames
+	}, indexNameByPriority
 }
 
-func nodeResourceIndexName(priority int32) string {
-	return fmt.Sprintf("%d", priority)
-}
-
-func nodeResourceIndexName2(keyIndex int) string {
-	return fmt.Sprintf("new-%d", keyIndex)
+func nodeIndexName(keyIndex int) string {
+	return fmt.Sprintf("index-%d", keyIndex)
 }
 
 // stringFromPodRequirementsNotMetReason returns the string representation of reason,
@@ -934,6 +902,7 @@ func (nodeDb *NodeDb) stringFromPodRequirementsNotMetReason(reason schedulerobje
 	}
 }
 
+// TODO: Test.
 func (nodeDb *NodeDb) nodeDbKeyFromNode(out []byte, node *schedulerobjects.Node, priority int32) []byte {
 	size := 8
 	out = append(out, make([]byte, size)...)

@@ -447,7 +447,7 @@ func TestNodeTypeIterator(t *testing.T) {
 				}
 			}
 			require.NotEqual(t, -1, keyIndex)
-			it, err := NewNodeTypeIterator2(nodeDb.Txn(false), tc.nodeTypeId, nodeResourceIndexName2(keyIndex), tc.priority, testfixtures.TestResourceNames, indexedResourceRequests, testfixtures.TestIndexedResourceResolutionMillis)
+			it, err := NewNodeTypeIterator(nodeDb.Txn(false), tc.nodeTypeId, nodeIndexName(keyIndex), tc.priority, testfixtures.TestResourceNames, indexedResourceRequests, testfixtures.TestIndexedResourceResolutionMillis)
 			require.NoError(t, err)
 
 			// Compare actual with expected order.
@@ -825,13 +825,15 @@ func TestNodeTypesIterator(t *testing.T) {
 			for i, t := range testfixtures.TestResourceNames {
 				indexedResourceRequests[i] = tc.resourceRequests.Get(t)
 			}
-			keyIndex := -1
-			for i, p := range nodeDb.prioritiesToTryAssigningAt {
-				if p == tc.priority {
-					keyIndex = i
-				}
-			}
-			it, err := NewNodeTypesIterator(nodeDb.Txn(false), tc.nodeTypeIds, keyIndex, tc.priority, testfixtures.TestResourceNames, indexedResourceRequests, testfixtures.TestIndexedResourceResolutionMillis)
+			it, err := NewNodeTypesIterator(
+				nodeDb.Txn(false),
+				tc.nodeTypeIds,
+				nodeDb.indexNameByPriority[tc.priority],
+				tc.priority,
+				testfixtures.TestResourceNames,
+				indexedResourceRequests,
+				testfixtures.TestIndexedResourceResolutionMillis,
+			)
 			require.NoError(t, err)
 
 			// Compare actual with expected order.
@@ -883,11 +885,13 @@ func populateDatabase(db *memdb.MemDB, items []*schedulerobjects.Node) error {
 }
 
 func BenchmarkNodeTypeIterator(b *testing.B) {
-	numNodes := 1000
-
 	// Create nodes with varying amounts of CPU available.
-	// allocatedMilliCpus := []int64{0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000}
-	allocatedMilliCpus := []int64{0, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900}
+	numNodes := 1000
+	allocatedMilliCpus := []int64{
+		1, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900,
+		2, 2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900,
+		3, 4, 5, 6, 7, 8, 9,
+	}
 	nodes := testfixtures.N32CpuNodes(numNodes, testfixtures.TestPriorities)
 	for i, node := range nodes {
 		var q resource.Quantity
@@ -901,21 +905,18 @@ func BenchmarkNodeTypeIterator(b *testing.B) {
 	nodeDb, err := createNodeDb(nodes)
 	require.NoError(b, err)
 
-	// Create iterator for 0 CPU required and an unfeasible memory request
-	// to benchmark how quickly jobs re rejected.
+	// Create iterator for 0 CPU required and an unfeasible memory request,
+	// such that the iterator has to consider all nodes.
 	indexedResourceRequests := make([]resource.Quantity, len(nodeDb.indexedResources))
 	indexedResourceRequests[1] = resource.MustParse("1Ti")
 	nodeTypeId := maps.Keys(nodeDb.nodeTypes)[0]
 	var priority int32
-	keyIndex := 0
-	indexName := nodeResourceIndexName2(keyIndex)
 	txn := nodeDb.Txn(false)
 	defer txn.Abort()
 
-	// defer profile.Start(profile.CPUProfile).Stop()
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		it, err := NewNodeTypeIterator2(txn, nodeTypeId, indexName, priority, nodeDb.indexedResources, indexedResourceRequests, testfixtures.TestIndexedResourceResolutionMillis)
+		it, err := NewNodeTypeIterator(txn, nodeTypeId, nodeDb.indexNameByPriority[priority], priority, nodeDb.indexedResources, indexedResourceRequests, testfixtures.TestIndexedResourceResolutionMillis)
 		// it, err := NewNodeTypeIterator(txn, nodeTypeId, priority, nodeDb.indexedResources, indexedResourceRequests)
 		require.NoError(b, err)
 		for {

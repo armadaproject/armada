@@ -184,17 +184,13 @@ func (index *NodeAvailableResourceIndex) FromObject(raw interface{}) (bool, []by
 // For example, all nodes of nodeType "foo" and "bar" with at least 2 cores and 1Gi memory allocatable at priority 2.
 // Nodes are returned in sorted order, from least to most of the specified resource available.
 type NodeTypesIterator struct {
-	priority                        int32
-	indexedResources                []string
-	indexedResourceRequests         []resource.Quantity
-	indexedResourceResolutionMillis []int64
-	pq                              *nodeTypesIteratorPQ
+	pq *nodeTypesIteratorPQ
 }
 
 func NewNodeTypesIterator(
 	txn *memdb.Txn,
 	nodeTypeIds []uint64,
-	keyIndex int,
+	indexName string,
 	priority int32,
 	indexedResources []string,
 	indexedResourceRequests []resource.Quantity,
@@ -206,11 +202,10 @@ func NewNodeTypesIterator(
 		items:            make([]*nodeTypesIteratorPQItem, 0, len(nodeTypeIds)),
 	}
 	for _, nodeTypeId := range nodeTypeIds {
-		it, err := NewNodeTypeIterator2(
+		it, err := NewNodeTypeIterator(
 			txn,
 			nodeTypeId,
-			// TODO: Pass in name instead of keyIndex.
-			nodeResourceIndexName2(keyIndex),
+			indexName,
 			priority,
 			indexedResources,
 			indexedResourceRequests,
@@ -231,12 +226,7 @@ func NewNodeTypesIterator(
 			it:   it,
 		})
 	}
-	return &NodeTypesIterator{
-		priority:                priority,
-		indexedResources:        indexedResources,
-		indexedResourceRequests: indexedResourceRequests,
-		pq:                      pq,
-	}, nil
+	return &NodeTypesIterator{pq: pq}, nil
 }
 
 func (it *NodeTypesIterator) WatchCh() <-chan struct{} {
@@ -276,7 +266,7 @@ type nodeTypesIteratorPQ struct {
 
 type nodeTypesIteratorPQItem struct {
 	node *schedulerobjects.Node
-	it   *NodeTypeIterator2
+	it   *NodeTypeIterator
 	// The index of the item in the heap. Maintained by the heap.Interface methods.
 	index int
 }
@@ -293,13 +283,13 @@ func (it *nodeTypesIteratorPQ) less(a, b *schedulerobjects.Node) bool {
 	for _, t := range it.indexedResources {
 		qa := allocatableByPriorityA.Get(t)
 		qb := allocatableByPriorityB.Get(t)
-		cmp := qa.Cmp(qb)
-		if cmp == -1 {
+		if cmp := qa.Cmp(qb); cmp == -1 {
 			return true
 		} else if cmp == 1 {
 			return false
 		}
 	}
+	// Tie-break by id.
 	return a.Id < b.Id
 }
 
@@ -330,7 +320,7 @@ func (pq *nodeTypesIteratorPQ) Pop() any {
 // with at least some specified amount of resources allocatable at a given priority.
 // For example, all nodes of nodeType "foo" with at least 2 cores and 1Gi memory allocatable at priority 2.
 // Nodes are returned in sorted order, from least to most of the specified resource available.
-type NodeTypeIterator2 struct {
+type NodeTypeIterator struct {
 	txn *memdb.Txn
 	// Only yield nodes of this nodeType.
 	nodeTypeId uint64
@@ -356,7 +346,7 @@ type NodeTypeIterator2 struct {
 	memdbIterator memdb.ResultIterator
 }
 
-func NewNodeTypeIterator2(
+func NewNodeTypeIterator(
 	txn *memdb.Txn,
 	nodeTypeId uint64,
 	indexName string,
@@ -364,11 +354,11 @@ func NewNodeTypeIterator2(
 	indexedResources []string,
 	indexedResourceRequests []resource.Quantity,
 	indexedResourceResolutionMillis []int64,
-) (*NodeTypeIterator2, error) {
+) (*NodeTypeIterator, error) {
 	if len(indexedResources) != len(indexedResourceRequests) {
 		return nil, errors.Errorf("indexedResources and resourceRequirements are not of equal length")
 	}
-	it := &NodeTypeIterator2{
+	it := &NodeTypeIterator{
 		txn:                             txn,
 		nodeTypeId:                      nodeTypeId,
 		priority:                        priority,
@@ -386,7 +376,7 @@ func NewNodeTypeIterator2(
 	return it, nil
 }
 
-func (it *NodeTypeIterator2) newNodeTypeIterator() (memdb.ResultIterator, error) {
+func (it *NodeTypeIterator) newNodeTypeIterator() (memdb.ResultIterator, error) {
 	it.key = it.key[0:0]
 	it.key = appendNodeDbKey(it.key, it.nodeTypeId, it.lowerBound, it.indexedResourceResolutionMillis)
 	memdbIt, err := it.txn.LowerBound(
@@ -398,108 +388,6 @@ func (it *NodeTypeIterator2) newNodeTypeIterator() (memdb.ResultIterator, error)
 		return nil, errors.WithStack(err)
 	}
 	return memdbIt, nil
-}
-
-func (it *NodeTypeIterator2) WatchCh() <-chan struct{} {
-	panic("not implemented")
-}
-
-func (it *NodeTypeIterator2) Next() interface{} {
-	v, err := it.NextNode()
-	if err != nil {
-		panic(err)
-	}
-	return v
-}
-
-func (it *NodeTypeIterator2) NextNode() (*schedulerobjects.Node, error) {
-	for {
-		v := it.memdbIterator.Next()
-		if v == nil {
-			// fmt.Println("returning due to nil")
-			return nil, nil
-		}
-		node := v.(*schedulerobjects.Node)
-		// fmt.Println("got node", node.Id, node.NodeTypeId)
-		if node.NodeTypeId != it.nodeTypeId {
-			// There are no more nodes of this nodeType.
-			// fmt.Println("returning due to wrong nodeType")
-			return nil, nil
-		}
-		allocatableByPriority := node.AllocatableByPriorityAndResource[it.priority]
-		for i, t := range it.indexedResources {
-			nodeQuantity := allocatableByPriority.Get(t)
-			requestQuantity := it.indexedResourceRequests[i]
-			it.lowerBound[i] = nodeQuantity
-
-			// If nodeQuantity < requestQuantity, replace the iterator using the lowerBound.
-			// If nodeQuantity >= requestQuantity for all resources, return the node.
-			if nodeQuantity.Cmp(requestQuantity) == -1 {
-				for j := i; j < len(it.indexedResources); j++ {
-					it.lowerBound[j] = it.indexedResourceRequests[j]
-				}
-				memdbIterator, err := it.newNodeTypeIterator()
-				if err != nil {
-					return nil, err
-				}
-				it.memdbIterator = memdbIterator
-				break
-			} else if i == len(it.indexedResources)-1 {
-				return node, nil
-			}
-		}
-	}
-}
-
-// NodeTypeIterator is an iterator over all nodes of a given nodeType
-// with at least some specified amount of resources allocatable at a given priority.
-// For example, all nodes of nodeType "foo" with at least 2 cores and 1Gi memory allocatable at priority 2.
-// Nodes are returned in sorted order, from least to most of the specified resource available.
-type NodeTypeIterator struct {
-	txn                     *memdb.Txn
-	nodeTypeId              uint64
-	priority                int32
-	indexedResources        []string
-	indexedResourceRequests []resource.Quantity
-	lowerBound              []resource.Quantity
-	memdbIterator           memdb.ResultIterator
-}
-
-func NewNodeTypeIterator(txn *memdb.Txn, nodeTypeId uint64, priority int32, indexedResources []string, indexedResourceRequests []resource.Quantity) (*NodeTypeIterator, error) {
-	if len(indexedResources) != len(indexedResourceRequests) {
-		return nil, errors.Errorf("indexedResources and resourceRequirements are not of equal length")
-	}
-	memdbIterator, err := newNodeTypeIterator(txn, nodeTypeId, indexedResourceRequests, priority)
-	if err != nil {
-		return nil, err
-	}
-	return &NodeTypeIterator{
-		txn:                     txn,
-		nodeTypeId:              nodeTypeId,
-		priority:                priority,
-		indexedResources:        indexedResources,
-		indexedResourceRequests: indexedResourceRequests,
-		lowerBound:              make([]resource.Quantity, len(indexedResourceRequests)),
-		memdbIterator:           memdbIterator,
-	}, nil
-}
-
-func newNodeTypeIterator(txn *memdb.Txn, nodeTypeId uint64, resourceRequirements []resource.Quantity, priority int32) (memdb.ResultIterator, error) {
-	args := make([]interface{}, 2+len(resourceRequirements))
-	args[0] = nodeTypeId
-	for i, q := range resourceRequirements {
-		args[i+1] = q
-	}
-	args[len(args)-1] = ""
-	it, err := txn.LowerBound(
-		"nodes",
-		nodeResourceIndexName(priority),
-		args...,
-	)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	return it, nil
 }
 
 func (it *NodeTypeIterator) WatchCh() <-chan struct{} {
@@ -522,6 +410,7 @@ func (it *NodeTypeIterator) NextNode() (*schedulerobjects.Node, error) {
 		}
 		node := v.(*schedulerobjects.Node)
 		if node.NodeTypeId != it.nodeTypeId {
+			// There are no more nodes of this nodeType.
 			return nil, nil
 		}
 		allocatableByPriority := node.AllocatableByPriorityAndResource[it.priority]
@@ -536,7 +425,7 @@ func (it *NodeTypeIterator) NextNode() (*schedulerobjects.Node, error) {
 				for j := i; j < len(it.indexedResources); j++ {
 					it.lowerBound[j] = it.indexedResourceRequests[j]
 				}
-				memdbIterator, err := newNodeTypeIterator(it.txn, it.nodeTypeId, it.lowerBound, it.priority)
+				memdbIterator, err := it.newNodeTypeIterator()
 				if err != nil {
 					return nil, err
 				}
