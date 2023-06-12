@@ -5,13 +5,21 @@ import { JobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobId, JobOrder, Match } from "models/lookoutV2Models"
 import { VariantType } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
-import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { GroupedField, IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { getErrorMessage } from "utils"
-import { ColumnId, JobTableColumn, StandardColumnId } from "utils/jobsTableColumns"
+import {
+  AnnotationColumnId,
+  ColumnId,
+  fromAnnotationColId,
+  isStandardColId,
+  JobTableColumn,
+  StandardColumnId,
+} from "utils/jobsTableColumns"
 import {
   fetchJobGroups,
   fetchJobs,
   FetchRowRequest,
+  getFiltersForGroupedAnnotations,
   getFiltersForRows,
   groupsToRows,
   jobsToRows,
@@ -159,6 +167,10 @@ export const useFetchJobsTableData = ({
           setJobInfoMap(new Map([...jobInfoMap.entries(), ...jobs.map((j): [JobId, Job] => [j.jobId, j])]))
         } else {
           const groupedCol = groupedColumns[expandedLevel]
+          const groupedField = columnToGroupedField(groupedCol)
+
+          // Only relevant if we are grouping by annotations: Filter by all remaining annotations in the group by filter
+          rowRequest.filters.push(...getFiltersForGroupedAnnotations(groupedColumns.slice(expandedLevel + 1)))
 
           const colsToAggregate = visibleColumns
             .filter((col) => aggregatableFields.has(col))
@@ -167,11 +179,11 @@ export const useFetchJobsTableData = ({
           const { groups, count: totalGroups } = await fetchJobGroups(
             rowRequest,
             groupJobsService,
-            groupedCol,
+            groupedField,
             colsToAggregate,
             abortController.signal,
           )
-          newData = groupsToRows(groups, parentRowInfo?.rowId, groupedCol)
+          newData = groupsToRows(groups, parentRowInfo?.rowId, groupedField)
           totalCount = totalGroups
         }
       } catch (err) {
@@ -231,5 +243,18 @@ export const useFetchJobsTableData = ({
     rowsToFetch: pendingData,
     setRowsToFetch: setPendingData,
     totalRowCount,
+  }
+}
+
+const columnToGroupedField = (colId: ColumnId): GroupedField => {
+  if (isStandardColId(colId)) {
+    return {
+      field: colId,
+      isAnnotation: false,
+    }
+  }
+  return {
+    field: fromAnnotationColId(colId as AnnotationColumnId),
+    isAnnotation: true,
   }
 }

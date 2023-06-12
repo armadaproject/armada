@@ -25,23 +25,25 @@ import (
 )
 
 const (
-	TestJobset        = "testJobset"
-	TestQueue         = "testQueue"
-	TestPool          = "testPool"
-	TestHostnameLabel = "kubernetes.io/hostname"
-	PriorityClass0    = "priority-0"
-	PriorityClass1    = "priority-1"
-	PriorityClass2    = "priority-2"
-	PriorityClass3    = "priority-3"
+	TestJobset                   = "testJobset"
+	TestQueue                    = "testQueue"
+	TestPool                     = "testPool"
+	TestHostnameLabel            = "kubernetes.io/hostname"
+	PriorityClass0               = "priority-0"
+	PriorityClass1               = "priority-1"
+	PriorityClass2               = "priority-2"
+	PriorityClass2NonPreemptible = "priority-2-non-preemptible"
+	PriorityClass3               = "priority-3"
 )
 
 var (
 	BaseTime, _         = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 	TestPriorityClasses = map[string]configuration.PriorityClass{
-		PriorityClass0: {Priority: 0, Preemptible: true},
-		PriorityClass1: {Priority: 1, Preemptible: true},
-		PriorityClass2: {Priority: 2, Preemptible: true},
-		PriorityClass3: {Priority: 3, Preemptible: false},
+		PriorityClass0:               {Priority: 0, Preemptible: true},
+		PriorityClass1:               {Priority: 1, Preemptible: true},
+		PriorityClass2:               {Priority: 2, Preemptible: true},
+		PriorityClass2NonPreemptible: {Priority: 2, Preemptible: false},
+		PriorityClass3:               {Priority: 3, Preemptible: false},
 	}
 	TestDefaultPriorityClass         = PriorityClass3
 	TestPriorities                   = []int32{0, 1, 2, 3}
@@ -186,15 +188,6 @@ func WithNodeSelectorPodReqs(selector map[string]string, reqs []*schedulerobject
 	return reqs
 }
 
-func WithNodeSelectorJobs(selector map[string]string, jobs []*jobdb.Job) []*jobdb.Job {
-	for _, job := range jobs {
-		for _, req := range job.GetRequirements(nil).GetObjectRequirements() {
-			req.GetPodRequirements().NodeSelector = maps.Clone(selector)
-		}
-	}
-	return jobs
-}
-
 func WithNodeSelectorPodReq(selector map[string]string, req *schedulerobjects.PodRequirements) *schedulerobjects.PodRequirements {
 	req.NodeSelector = maps.Clone(selector)
 	return req
@@ -238,6 +231,25 @@ func WithAnnotationsPodReqs(annotations map[string]string, reqs []*schedulerobje
 	return reqs
 }
 
+func WithRequestsPodReqs(rl schedulerobjects.ResourceList, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
+	for _, req := range reqs {
+		maps.Copy(
+			req.ResourceRequirements.Requests,
+			schedulerobjects.V1ResourceListFromResourceList(rl),
+		)
+	}
+	return reqs
+}
+
+func WithNodeSelectorJobs(selector map[string]string, jobs []*jobdb.Job) []*jobdb.Job {
+	for _, job := range jobs {
+		for _, req := range job.GetRequirements(nil).GetObjectRequirements() {
+			req.GetPodRequirements().NodeSelector = maps.Clone(selector)
+		}
+	}
+	return jobs
+}
+
 func WithGangAnnotationsJobs(jobs []*jobdb.Job) []*jobdb.Job {
 	gangId := uuid.NewString()
 	gangCardinality := fmt.Sprintf("%d", len(jobs))
@@ -257,16 +269,6 @@ func WithAnnotationsJobs(annotations map[string]string, jobs []*jobdb.Job) []*jo
 		}
 	}
 	return jobs
-}
-
-func WithRequestsPodReqs(rl schedulerobjects.ResourceList, reqs []*schedulerobjects.PodRequirements) []*schedulerobjects.PodRequirements {
-	for _, req := range reqs {
-		maps.Copy(
-			req.ResourceRequirements.Requests,
-			schedulerobjects.V1ResourceListFromResourceList(rl),
-		)
-	}
-	return reqs
 }
 
 func N1CpuJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
@@ -584,6 +586,7 @@ func TestNode(priorities []int32, resources map[string]resource.Quantity) *sched
 			priorities,
 			schedulerobjects.ResourceList{Resources: resources},
 		),
+		StateByJobRunId: make(map[string]schedulerobjects.JobRunState),
 		Labels: map[string]string{
 			TestHostnameLabel: id,
 		},
@@ -626,19 +629,19 @@ func Test8GpuNode(priorities []int32) *schedulerobjects.Node {
 	return node
 }
 
-func Test1Node32CoreExecutor(name string, jobs []*jobdb.Job, lastUpdateTime time.Time) *schedulerobjects.Executor {
+func WithLastUpdateTimeExecutor(lastUpdateTime time.Time, executor *schedulerobjects.Executor) *schedulerobjects.Executor {
+	executor.LastUpdateTime = lastUpdateTime
+	return executor
+}
+
+func Test1Node32CoreExecutor(name string) *schedulerobjects.Executor {
 	node := Test32CpuNode(TestPriorities)
 	node.Name = fmt.Sprintf("%s-node", name)
-	unassignedJobRuns := make([]string, len(jobs))
-	for i, job := range jobs {
-		unassignedJobRuns[i] = job.LatestRun().Id().String()
-	}
 	return &schedulerobjects.Executor{
-		Id:                name,
-		Pool:              TestPool,
-		Nodes:             []*schedulerobjects.Node{node},
-		LastUpdateTime:    lastUpdateTime,
-		UnassignedJobRuns: unassignedJobRuns,
+		Id:             name,
+		Pool:           TestPool,
+		Nodes:          []*schedulerobjects.Node{node},
+		LastUpdateTime: BaseTime,
 	}
 }
 

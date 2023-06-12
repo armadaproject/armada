@@ -253,7 +253,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	}
 
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
-	queueCache := cache.NewQueueCache(&util.UTCClock{}, queueRepository, jobRepository, schedulingInfoRepository)
+
 	aggregatedQueueServer := server.NewAggregatedQueueServer(
 		permissions,
 		config.Scheduling,
@@ -286,10 +286,13 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	// Allows for registering functions to be run periodically in the background.
 	taskManager := task.NewBackgroundTaskManager(commonmetrics.MetricPrefix)
 	defer taskManager.StopAll(time.Second * 2)
-	taskManager.Register(queueCache.Refresh, config.Metrics.RefreshInterval, "refresh_queue_cache")
 	taskManager.Register(leaseManager.ExpireLeases, config.Scheduling.Lease.ExpiryLoopInterval, "lease_expiry")
 
-	metrics.ExposeDataMetrics(queueRepository, jobRepository, usageRepository, schedulingInfoRepository, queueCache)
+	if config.Metrics.ExposeSchedulingMetrics {
+		queueCache := cache.NewQueueCache(&util.UTCClock{}, queueRepository, jobRepository, schedulingInfoRepository)
+		taskManager.Register(queueCache.Refresh, config.Metrics.RefreshInterval, "refresh_queue_cache")
+		metrics.ExposeDataMetrics(queueRepository, jobRepository, usageRepository, schedulingInfoRepository, queueCache)
+	}
 
 	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
 	api.RegisterUsageServer(grpcServer, usageServer)

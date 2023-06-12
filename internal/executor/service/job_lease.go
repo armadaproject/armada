@@ -213,25 +213,23 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 }
 
 func (jobLeaseService *JobLeaseService) returnLeases(jobs []*api.Job, reason string, jobRunAttempted bool) {
-	for _, j := range jobs {
-		podSpecs := j.GetAllPodSpecs()
-		if len(podSpecs) == 0 {
-			log.Errorf("no pod specs found for job %s", j.Id)
+	for _, job := range jobs {
+		podSpec := job.GetMainPodSpec()
+		if podSpec == nil {
+			log.Errorf("nil podSpec for job %s", job.Id)
 			continue
 		}
-		podSpec := podSpecs[0]
-		err := jobLeaseService.ReturnLease(
+		if err := jobLeaseService.ReturnLease(
 			&v1.Pod{
 				ObjectMeta: metav1.ObjectMeta{
-					Annotations: j.Annotations,
+					Annotations: job.Annotations,
 				},
 				Spec: *podSpec,
 			},
 			reason,
 			jobRunAttempted,
-		)
-		if err != nil {
-			log.Errorf("failed to return lease for job %s: %s", j.Id, err)
+		); err != nil {
+			log.Errorf("failed to return lease for job %s: %s", job.Id, err)
 		}
 	}
 }

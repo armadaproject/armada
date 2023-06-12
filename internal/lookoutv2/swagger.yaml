@@ -204,6 +204,7 @@ definitions:
           - lessThan
           - greaterThanOrEqualTo
           - lessThanOrEqualTo
+          - exists
         x-nullable: false
       isAnnotation:
         type: boolean
@@ -416,10 +417,17 @@ paths:
                 $ref: "#/definitions/order"
                 x-nullable: true
               groupedField:
-                type: string
-                description: "Field to group jobs by"
-                minLength: 1
-                x-nullable: false
+                type: object
+                required:
+                  - field
+                properties:
+                  field:
+                    type: string
+                    description: Field or annotation key to group by
+                    x-nullable: false
+                  isAnnotation:
+                    type: boolean
+                    x-nullable: false
               aggregates:
                 type: array
                 description: "Additional fields to compute aggregates on"

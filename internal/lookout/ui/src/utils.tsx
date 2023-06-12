@@ -1,5 +1,7 @@
 import { Location, NavigateFunction, Params, useLocation, useNavigate, useParams } from "react-router-dom"
 
+import { BinocularsApi, Configuration, ConfigurationParameters } from "./openapi/binoculars"
+
 interface UIConfig {
   armadaApiBaseUrl: string
   userAnnotationPrefix: string
@@ -232,3 +234,12 @@ export function withRouter<T extends PropsWithRouter>(Component: React.FC<T>): R
 }
 
 export const PlatformCancelReason = "Platform error marked by user"
+
+export function getBinocularsApi(clusterId: string, baseUrlPattern: string, config: ConfigurationParameters) {
+  return new BinocularsApi(
+    new Configuration({
+      ...config,
+      basePath: baseUrlPattern.replace("{CLUSTER_ID}", clusterId),
+    }),
+  )
+}

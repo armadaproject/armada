@@ -12,9 +12,11 @@ import { LookoutApi, Configuration as LookoutConfiguration } from "./openapi/loo
 import reportWebVitals from "./reportWebVitals"
 import { LookoutJobService } from "./services/JobService"
 import LogService from "./services/LogService"
+import { CordonService } from "./services/lookoutV2/CordonService"
 import { GetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 import { GetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
 import { LogService as V2LogService } from "./services/lookoutV2/LogService"
+import { FakeCordonService } from "./services/lookoutV2/mocks/FakeCordonService"
 import FakeGetJobSpecService from "./services/lookoutV2/mocks/FakeGetJobSpecService"
 import { FakeGetRunErrorService } from "./services/lookoutV2/mocks/FakeGetRunErrorService"
 import { FakeLogService } from "./services/lookoutV2/mocks/FakeLogService"
@@ -58,6 +60,9 @@ import "./index.css"
     : new V2LogService({ credentials: "include" }, uiConfig.binocularsBaseUrlPattern)
   const v2JobSpecService = fakeDataEnabled ? new FakeGetJobSpecService() : new GetJobSpecService(lookoutV2BaseUrl)
   const v2UpdateJobsService = new UpdateJobsService(submitApi)
+  const v2CordonService = fakeDataEnabled
+    ? new FakeCordonService()
+    : new CordonService({ credentials: "include" }, uiConfig.binocularsBaseUrlPattern)
 
   ReactDOM.render(
     <App
@@ -69,6 +74,7 @@ import "./index.css"
       v2RunErrorService={v2RunErrorService}
       v2JobSpecService={v2JobSpecService}
       v2LogService={v2LogService}
+      v2CordonService={v2CordonService}
       logService={logService}
       overviewAutoRefreshMs={uiConfig.overviewAutoRefreshMs}
       jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}

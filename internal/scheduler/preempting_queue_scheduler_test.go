@@ -16,6 +16,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
@@ -47,6 +48,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	evictor := NewOversubscribedEvictor(
 		jobRepo,
 		testfixtures.TestPriorityClasses,
+		testfixtures.TestDefaultPriorityClass,
 		1,
 		nil,
 	)
@@ -1031,6 +1033,47 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"B": 1,
 			},
 		},
+		"Oversubscribed eviction does not evict non-preemptible": {
+			SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
+				0.0,
+				testfixtures.TestSchedulingConfig(),
+			),
+			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": armadaslices.Concatenate(
+							testfixtures.N16CpuJobs("A", testfixtures.PriorityClass2, 1),
+							testfixtures.N16CpuJobs("A", testfixtures.PriorityClass2NonPreemptible, 3),
+						),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 3),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": armadaslices.Concatenate(
+							testfixtures.N16CpuJobs("B", testfixtures.PriorityClass3, 1),
+							testfixtures.N16CpuJobs("B", testfixtures.PriorityClass2NonPreemptible, 1),
+						),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": testfixtures.IntRange(0, 0),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: testfixtures.IntRange(0, 0),
+						},
+					},
+				},
+				{}, // Empty round to make sure nothing changes.
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+		},
 		"Cordoning prevents scheduling new jobs but not re-scheduling running jobs": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
@@ -1151,6 +1194,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				}
 				constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 					"pool",
+					tc.TotalResources,
 					schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 					tc.SchedulingConfig,
 				)
@@ -1408,6 +1452,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 				"pool",
+				nodeDb.TotalResources(),
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 			)
