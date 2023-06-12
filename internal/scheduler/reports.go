@@ -8,7 +8,6 @@ import (
 	"sync/atomic"
 	"text/tabwriter"
 
-	"github.com/gogo/protobuf/types"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/oklog/ulid"
 	"github.com/openconfig/goyang/pkg/indent"
@@ -17,6 +16,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -39,7 +39,7 @@ type SchedulingContextRepository struct {
 	mostRecentQueueSchedulingContextByExecutorByQueueP atomic.Pointer[map[string]QueueSchedulingContextByExecutor]
 	// The most recent attempt where a non-zero amount of resources were scheduled.
 	mostRecentSuccessfulQueueSchedulingContextByExecutorByQueueP atomic.Pointer[map[string]QueueSchedulingContextByExecutor]
-	// Map from queue name to most recent attempt that preempted at least one job belonging to this queue.
+	// The most recent attempt that preempted at least one job belonging to this queue.
 	mostRecentPreemptingQueueSchedulingContextByExecutorByQueueP atomic.Pointer[map[string]QueueSchedulingContextByExecutor]
 
 	// Maps job id to JobSchedulingContextByExecutor.
@@ -222,6 +222,7 @@ func (repo *SchedulingContextRepository) addQueueSchedulingContexts(qctxs []*sch
 
 	repo.mostRecentQueueSchedulingContextByExecutorByQueueP.Store(&mostRecentQueueSchedulingContextByExecutorByQueue)
 	repo.mostRecentSuccessfulQueueSchedulingContextByExecutorByQueueP.Store(&mostRecentSuccessfulQueueSchedulingContextByExecutorByQueue)
+	repo.mostRecentPreemptingQueueSchedulingContextByExecutorByQueueP.Store(&mostRecentPreemptingQueueSchedulingContextByExecutorByQueue)
 
 	return nil
 }
@@ -271,41 +272,129 @@ func extractQueueAndJobContexts(sctx *schedulercontext.SchedulingContext) (map[s
 	return queueSchedulingContextByQueue, jobSchedulingContextByJobId
 }
 
-// GetSchedulingReport is a gRPC endpoint for querying scheduler reports.
-// TODO: Further separate this from internal contexts.
-func (repo *SchedulingContextRepository) GetSchedulingReport(_ context.Context, _ *types.Empty) (*schedulerobjects.SchedulingReport, error) {
-	return &schedulerobjects.SchedulingReport{
-		Report: repo.getSchedulingReportString(),
-	}, nil
+func (repo *SchedulingContextRepository) getSchedulingReportForQueue(queueName string) schedulingReport {
+	mostRecent, _ := repo.GetMostRecentQueueSchedulingContextByExecutor(queueName)
+	mostRecentSuccessful, _ := repo.GetMostRecentSuccessfulQueueSchedulingContextByExecutor(queueName)
+	mostRecentPreempting, _ := repo.GetMostRecentPreemptingQueueSchedulingContextByExecutor(queueName)
+
+	return schedulingReport{
+		mostRecentSchedulingContextByExecutor:           armadamaps.MapValues(mostRecent, schedulercontext.GetSchedulingContextFromQueueSchedulingContext),
+		mostRecentSuccessfulSchedulingContextByExecutor: armadamaps.MapValues(mostRecentSuccessful, schedulercontext.GetSchedulingContextFromQueueSchedulingContext),
+		mostRecentPreemptingSchedulingContextByExecutor: armadamaps.MapValues(mostRecentPreempting, schedulercontext.GetSchedulingContextFromQueueSchedulingContext),
+
+		sortedExecutorIds: repo.GetSortedExecutorIds(),
+	}
 }
 
-func (repo *SchedulingContextRepository) getSchedulingReportString() string {
-	sortedExecutorIds := repo.GetSortedExecutorIds()
-	mostRecentSchedulingContextByExecutor := repo.GetMostRecentSchedulingContextByExecutor()
-	mostRecentSuccessfulSchedulingContextByExecutor := repo.GetMostRecentSuccessfulSchedulingContextByExecutor()
-	mostRecentPreemptingSchedulingContextByExecutor := repo.GetMostRecentPreemptingSchedulingContextByExecutor()
+func (repo *SchedulingContextRepository) getSchedulingReportForJob(jobId string) schedulingReport {
+	mostRecent := make(map[string]*schedulercontext.QueueSchedulingContext)
+	for _, byExecutor := range *repo.mostRecentQueueSchedulingContextByExecutorByQueueP.Load() {
+		for executorId, qctx := range byExecutor {
+			if existing, existed := mostRecent[executorId]; existed && qctx.Created.Before(existing.Created) {
+				continue
+			}
+			_, successful := qctx.SuccessfulJobSchedulingContexts[jobId]
+			_, unsuccessful := qctx.UnsuccessfulJobSchedulingContexts[jobId]
+			_, preempted := qctx.EvictedJobsById[jobId]
+			if successful || unsuccessful || preempted {
+				mostRecent[executorId] = qctx
+			}
+		}
+	}
+
+	mostRecentSuccessful := make(map[string]*schedulercontext.QueueSchedulingContext)
+	for _, byExecutor := range *repo.mostRecentSuccessfulQueueSchedulingContextByExecutorByQueueP.Load() {
+		for executorId, qctx := range byExecutor {
+			if existing, existed := mostRecentSuccessful[executorId]; existed && qctx.Created.Before(existing.Created) {
+				continue
+			}
+			if _, successful := qctx.SuccessfulJobSchedulingContexts[jobId]; successful {
+				mostRecentSuccessful[executorId] = qctx
+			}
+		}
+	}
+
+	mostRecentPreempting := make(map[string]*schedulercontext.QueueSchedulingContext)
+	for _, byExecutor := range *repo.mostRecentPreemptingQueueSchedulingContextByExecutorByQueueP.Load() {
+		for executorId, qctx := range byExecutor {
+			if existing, existed := mostRecentPreempting[executorId]; existed && qctx.Created.Before(existing.Created) {
+				continue
+			}
+			if _, preempted := qctx.EvictedJobsById[jobId]; preempted {
+				mostRecentPreempting[executorId] = qctx
+			}
+		}
+	}
+
+	return schedulingReport{
+		mostRecentSchedulingContextByExecutor:           armadamaps.MapValues(mostRecent, schedulercontext.GetSchedulingContextFromQueueSchedulingContext),
+		mostRecentSuccessfulSchedulingContextByExecutor: armadamaps.MapValues(mostRecentSuccessful, schedulercontext.GetSchedulingContextFromQueueSchedulingContext),
+		mostRecentPreemptingSchedulingContextByExecutor: armadamaps.MapValues(mostRecentPreempting, schedulercontext.GetSchedulingContextFromQueueSchedulingContext),
+
+		sortedExecutorIds: repo.GetSortedExecutorIds(),
+	}
+}
+
+func (repo *SchedulingContextRepository) getSchedulingReport() schedulingReport {
+	return schedulingReport{
+		mostRecentSchedulingContextByExecutor:           repo.GetMostRecentSchedulingContextByExecutor(),
+		mostRecentSuccessfulSchedulingContextByExecutor: repo.GetMostRecentSuccessfulSchedulingContextByExecutor(),
+		mostRecentPreemptingSchedulingContextByExecutor: repo.GetMostRecentPreemptingSchedulingContextByExecutor(),
+
+		sortedExecutorIds: repo.GetSortedExecutorIds(),
+	}
+}
+
+// GetSchedulingReport is a gRPC endpoint for querying scheduler reports.
+// TODO: Further separate this from internal contexts.
+func (repo *SchedulingContextRepository) GetSchedulingReport(_ context.Context, request *schedulerobjects.SchedulingReportRequest) (*schedulerobjects.SchedulingReport, error) {
+	var sr schedulingReport
+
+	switch filter := request.GetFilter().(type) {
+	case *schedulerobjects.SchedulingReportRequest_MostRecentForQueue:
+		queueName := strings.TrimSpace(filter.MostRecentForQueue.GetQueueName())
+		sr = repo.getSchedulingReportForQueue(queueName)
+	case *schedulerobjects.SchedulingReportRequest_MostRecentForJob:
+		jobId := strings.TrimSpace(filter.MostRecentForJob.GetJobId())
+		sr = repo.getSchedulingReportForJob(jobId)
+	default:
+		sr = repo.getSchedulingReport()
+	}
+
+	return &schedulerobjects.SchedulingReport{Report: sr.ReportString(request.GetVerbosity())}, nil
+}
+
+type schedulingReport struct {
+	mostRecentSchedulingContextByExecutor           SchedulingContextByExecutor
+	mostRecentSuccessfulSchedulingContextByExecutor SchedulingContextByExecutor
+	mostRecentPreemptingSchedulingContextByExecutor SchedulingContextByExecutor
+
+	sortedExecutorIds []string
+}
+
+func (sr schedulingReport) ReportString(verbosity int32) string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	for _, executorId := range sortedExecutorIds {
+	for _, executorId := range sr.sortedExecutorIds {
 		fmt.Fprintf(w, "%s:\n", executorId)
-		sctx := mostRecentSchedulingContextByExecutor[executorId]
+		sctx := sr.mostRecentSchedulingContextByExecutor[executorId]
 		if sctx != nil {
 			fmt.Fprint(w, indent.String("\t", "Most recent attempt:\n"))
-			fmt.Fprint(w, indent.String("\t\t", sctx.String()))
+			fmt.Fprint(w, indent.String("\t\t", sctx.ReportString(verbosity)))
 		} else {
 			fmt.Fprint(w, indent.String("\t", "Most recent attempt: none\n"))
 		}
-		sctx = mostRecentSuccessfulSchedulingContextByExecutor[executorId]
+		sctx = sr.mostRecentSuccessfulSchedulingContextByExecutor[executorId]
 		if sctx != nil {
 			fmt.Fprint(w, indent.String("\t", "Most recent successful attempt:\n"))
-			fmt.Fprint(w, indent.String("\t\t", sctx.String()))
+			fmt.Fprint(w, indent.String("\t\t", sctx.ReportString(verbosity)))
 		} else {
 			fmt.Fprint(w, indent.String("\t", "Most recent successful attempt: none\n"))
 		}
-		sctx = mostRecentPreemptingSchedulingContextByExecutor[executorId]
+		sctx = sr.mostRecentPreemptingSchedulingContextByExecutor[executorId]
 		if sctx != nil {
 			fmt.Fprint(w, indent.String("\t", "Most recent preempting attempt:\n"))
-			fmt.Fprint(w, indent.String("\t\t", sctx.String()))
+			fmt.Fprint(w, indent.String("\t\t", sctx.ReportString(verbosity)))
 		} else {
 			fmt.Fprint(w, indent.String("\t", "Most recent preempting attempt: none\n"))
 		}
@@ -316,14 +405,15 @@ func (repo *SchedulingContextRepository) getSchedulingReportString() string {
 
 // GetQueueReport is a gRPC endpoint for querying queue reports.
 // TODO: Further separate this from internal contexts.
-func (repo *SchedulingContextRepository) GetQueueReport(_ context.Context, queue *schedulerobjects.Queue) (*schedulerobjects.QueueReport, error) {
-	queueName := strings.TrimSpace(queue.Name)
+func (repo *SchedulingContextRepository) GetQueueReport(_ context.Context, request *schedulerobjects.QueueReportRequest) (*schedulerobjects.QueueReport, error) {
+	queueName := strings.TrimSpace(request.GetQueueName())
+	verbosity := request.GetVerbosity()
 	return &schedulerobjects.QueueReport{
-		Report: repo.getQueueReportString(queueName),
+		Report: repo.getQueueReportString(queueName, verbosity),
 	}, nil
 }
 
-func (repo *SchedulingContextRepository) getQueueReportString(queue string) string {
+func (repo *SchedulingContextRepository) getQueueReportString(queue string, verbosity int32) string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	sortedExecutorIds := repo.GetSortedExecutorIds()
@@ -335,21 +425,21 @@ func (repo *SchedulingContextRepository) getQueueReportString(queue string) stri
 		qctx := mostRecentQueueSchedulingContextByExecutor[executorId]
 		if qctx != nil {
 			fmt.Fprint(w, indent.String("\t", "Most recent attempt:\n"))
-			fmt.Fprint(w, indent.String("\t\t", qctx.String()))
+			fmt.Fprint(w, indent.String("\t\t", qctx.ReportString(verbosity)))
 		} else {
 			fmt.Fprint(w, indent.String("\t", "Most recent attempt: none\n"))
 		}
 		qctx = mostRecentSuccessfulQueueSchedulingContextByExecutor[executorId]
 		if qctx != nil {
 			fmt.Fprint(w, indent.String("\t", "Most recent successful attempt:\n"))
-			fmt.Fprint(w, indent.String("\t\t", qctx.String()))
+			fmt.Fprint(w, indent.String("\t\t", qctx.ReportString(verbosity)))
 		} else {
 			fmt.Fprint(w, indent.String("\t", "Most recent successful attempt: none\n"))
 		}
 		qctx = mostRecentPreemptingQueueSchedulingContextByExecutor[executorId]
 		if qctx != nil {
 			fmt.Fprint(w, indent.String("\t", "Most recent preempting attempt:\n"))
-			fmt.Fprint(w, indent.String("\t\t", qctx.String()))
+			fmt.Fprint(w, indent.String("\t\t", qctx.ReportString(verbosity)))
 		} else {
 			fmt.Fprint(w, indent.String("\t", "Most recent preempting attempt: none\n"))
 		}
@@ -360,17 +450,17 @@ func (repo *SchedulingContextRepository) getQueueReportString(queue string) stri
 
 // GetJobReport is a gRPC endpoint for querying job reports.
 // TODO: Further separate this from internal contexts.
-func (repo *SchedulingContextRepository) GetJobReport(_ context.Context, jobId *schedulerobjects.JobId) (*schedulerobjects.JobReport, error) {
-	key := strings.TrimSpace(jobId.Id)
-	if _, err := ulid.Parse(key); err != nil {
+func (repo *SchedulingContextRepository) GetJobReport(_ context.Context, request *schedulerobjects.JobReportRequest) (*schedulerobjects.JobReport, error) {
+	jobId := strings.TrimSpace(request.GetJobId())
+	if _, err := ulid.Parse(jobId); err != nil {
 		return nil, &armadaerrors.ErrInvalidArgument{
 			Name:    "jobId",
-			Value:   jobId.Id,
-			Message: fmt.Sprintf("%s is not a valid jobId", jobId.Id),
+			Value:   request.GetJobId(),
+			Message: fmt.Sprintf("%s is not a valid jobId", request.GetJobId()),
 		}
 	}
 	return &schedulerobjects.JobReport{
-		Report: repo.getJobReportString(key),
+		Report: repo.getJobReportString(jobId),
 	}, nil
 }
 
