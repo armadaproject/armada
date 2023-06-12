@@ -255,7 +255,7 @@ pulsar:
       # -- Pulsar image which contains pulsar-admin
       repository: apachepulsar/pulsar
       # -- Pulsar image tag
-      tag: 2.10.2
+      tag: 3.0.0
     # -- Pulsar Broker host
     brokerHost: pulsar-broker.armada.svc.cluster.local
     # -- Protocol used for connecting to Pulsar Broker host (either `http` or `https`)

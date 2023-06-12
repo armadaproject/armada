@@ -34,7 +34,7 @@ services:
       - kind
 
   pulsar:
-    image: ${PULSAR_IMAGE:-apachepulsar/pulsar:2.10.0}
+    image: ${PULSAR_IMAGE:-apachepulsar/pulsar:3.0.0}
     container_name: pulsar
     volumes:
       - ./developer/dependencies/pulsar.conf:/conf/pulsar.conf

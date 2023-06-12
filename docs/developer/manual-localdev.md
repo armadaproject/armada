@@ -8,16 +8,6 @@ For a full lust of mage commands, run `mage -l`.
 
 ## Setup
 
-### Note for Arm/M1 Mac Users
-
-You will need to set the `PULSAR_IMAGE` enviromental variable to an arm64 image.
-
-We provide an optimised image for this purpose:
-
-```bash
-export PULSAR_IMAGE=richgross/pulsar:2.11.0
-```
-
 ```bash
 # Download Go dependencies.
 go mod tidy

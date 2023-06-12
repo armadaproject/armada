@@ -114,7 +114,7 @@ A helm chart which bundles Armada components
 | pulsar.armadaInit.brokerHost | string | `"pulsar-broker.armada.svc.cluster.local"` | Pulsar Broker host |
 | pulsar.armadaInit.enabled | bool | `false` | Toggle whether to enable the job which creates necessary Pulsar resources needed by Armada |
 | pulsar.armadaInit.image.repository | string | `"apachepulsar/pulsar"` | Pulsar image which contains pulsar-admin |
-| pulsar.armadaInit.image.tag | string | `"2.10.2"` | Pulsar image tag |
+| pulsar.armadaInit.image.tag | string | `"3.0.0"` | Pulsar image tag |
 | pulsar.armadaInit.port | int | `6650` | Pulsar application port |
 | pulsar.armadaInit.protocol | string | `"http"` | Protocol used for connecting to Pulsar Broker host (either `http` or `https`) |
 | pulsar.fullnameOverride | string | `"pulsar"` | Fullname override for Pulsar release |
