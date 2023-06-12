@@ -28,11 +28,9 @@ import (
 // This helps avoid scheduling new jobs onto nodes that make it impossible to re-schedule evicted jobs.
 const evictedPriority int32 = -1
 
-// NodeDb is the scheduler-internal system for storing node information.
-// It's used to efficiently find nodes on which a pod can be scheduled.
+// NodeDb is the scheduler-internal system used to efficiently find nodes on which a pod could be scheduled.
 type NodeDb struct {
-	// In-memory database. Stores *SchedulerNode.
-	// Used to efficiently iterate over nodes in sorted order.
+	// In-memory database storing *schedulerobjects.Node.
 	db *memdb.MemDB
 	// Once a node has been found on which a pod can be scheduled,
 	// the NodeDb will consider up to the next maxExtraNodesToConsider nodes.

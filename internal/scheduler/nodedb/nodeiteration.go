@@ -130,6 +130,7 @@ func (it *NodePairIterator) Next() interface{} {
 	return it.NextItem()
 }
 
+// NodeIndex is an index for schedulerobjects.Node that returns node.NodeDbKeys[KeyIndex].
 type NodeIndex struct {
 	KeyIndex int
 }
@@ -147,36 +148,6 @@ func (index *NodeIndex) FromArgs(args ...interface{}) ([]byte, error) {
 func (index *NodeIndex) FromObject(raw interface{}) (bool, []byte, error) {
 	node := raw.(*schedulerobjects.Node)
 	return true, node.NodeDbKeys[index.KeyIndex], nil
-}
-
-type NodeAvailableResourceIndex struct {
-	// Resource name, e.g., "cpu", "gpu", or "memory".
-	Resource string
-	// Job priority.
-	Priority int32
-}
-
-// FromArgs computes the index key from a set of arguments.
-// Takes a single argument resourceAmount of type resource.Quantity.
-func (index *NodeAvailableResourceIndex) FromArgs(args ...interface{}) ([]byte, error) {
-	if len(args) != 1 {
-		return nil, errors.New("must provide exactly one argument")
-	}
-	q, ok := args[0].(resource.Quantity)
-	if !ok {
-		return nil, errors.Errorf("expected Quantity, but got %T", args[0])
-	}
-	return schedulerobjects.EncodeQuantity(q), nil
-}
-
-// FromObject extracts the index key from a *schedulerobjects.Node.
-func (index *NodeAvailableResourceIndex) FromObject(raw interface{}) (bool, []byte, error) {
-	node, ok := raw.(*schedulerobjects.Node)
-	if !ok {
-		return false, nil, errors.Errorf("expected *Node, but got %T", raw)
-	}
-	q := node.AvailableQuantityByPriorityAndResource(index.Priority, index.Resource)
-	return true, schedulerobjects.EncodeQuantity(q), nil
 }
 
 // NodeTypesIterator is an iterator over all nodes of the given nodeTypes
