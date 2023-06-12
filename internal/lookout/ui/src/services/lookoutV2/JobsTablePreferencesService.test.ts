@@ -103,6 +103,26 @@ describe("JobsTablePreferencesService", () => {
       expect(router.location.search).not.toContain("g[0]")
       expect(service.getUserPrefs().groupedColumns).toStrictEqual([])
     })
+
+    it("creates annotation columns if grouping by annotation", () => {
+      router.navigate({
+        search: "?g[0]=annotation_my-annotation",
+      })
+
+      const prefs = service.getUserPrefs()
+      expect(prefs.groupedColumns).toStrictEqual(["annotation_my-annotation"])
+      expect(prefs.annotationColumnKeys).toStrictEqual(["my-annotation"])
+    })
+
+    it("ignores grouping overlapping groups specified", () => {
+      router.navigate({
+        search: "?g[0]=queue&g[0]=annotation_my-annotation",
+      })
+
+      const prefs = service.getUserPrefs()
+      expect(prefs.groupedColumns).toStrictEqual([])
+      expect(prefs.annotationColumnKeys).toStrictEqual([])
+    })
   })
 
   describe("Column filters", () => {
