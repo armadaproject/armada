@@ -21,8 +21,7 @@ var rootCmd = &cobra.Command{
 Command line utility to submit many jobs to armada
 
 Persistent config can be saved in a config file so it doesn't have to be specified every command.
-The location of this file can be passed in using --config argument or picked from $HOME/.armadactl.yaml.
-`,	
+The location of this file can be passed in using --config argument or picked from $HOME/.armadactl.yaml.`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
