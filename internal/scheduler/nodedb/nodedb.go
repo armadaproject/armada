@@ -902,7 +902,6 @@ func (nodeDb *NodeDb) stringFromPodRequirementsNotMetReason(reason schedulerobje
 	}
 }
 
-// TODO: Test.
 func (nodeDb *NodeDb) nodeDbKeyFromNode(out []byte, node *schedulerobjects.Node, priority int32) []byte {
 	size := 8
 	out = append(out, make([]byte, size)...)
