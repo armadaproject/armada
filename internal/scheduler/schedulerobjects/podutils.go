@@ -23,9 +23,9 @@ func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
 	return nodeAffinity.RequiredDuringSchedulingIgnoredDuringExecution
 }
 
-// SchedulingKeyGenerator is used to generate scheduling keys efficiently without requiring allocs.
+// SchedulingKeyGenerator is used to generate scheduling keys efficiently.
 // A scheduling key is the canonical hash of the scheduling requirements of a job.
-// Not thread-safe.
+// All memory is allocated up-front and re-used. Not thread-safe.
 type SchedulingKeyGenerator struct {
 	s      PodRequirementsSerialiser
 	key    []byte
@@ -74,7 +74,6 @@ func (skg *SchedulingKeyGenerator) Key(
 type PodRequirementsSerialiser struct {
 	stringBuffer                  []string
 	byteBuffer                    []byte
-	nodeSelectorTermBuffer        []v1.NodeSelectorTerm
 	nodeSelectorRequirementBuffer []v1.NodeSelectorRequirement
 	tolerationBuffer              []v1.Toleration
 	resourceNameBuffer            []v1.ResourceName
@@ -84,7 +83,6 @@ func NewPodRequirementsSerialiser() *PodRequirementsSerialiser {
 	return &PodRequirementsSerialiser{
 		stringBuffer:                  make([]string, 0, 16),
 		byteBuffer:                    make([]byte, 0, 1024),
-		nodeSelectorTermBuffer:        make([]v1.NodeSelectorTerm, 16),
 		nodeSelectorRequirementBuffer: make([]v1.NodeSelectorRequirement, 16),
 		tolerationBuffer:              make([]v1.Toleration, 0, 16),
 		resourceNameBuffer:            make([]v1.ResourceName, 0, 4),
@@ -140,14 +138,12 @@ func (skg *PodRequirementsSerialiser) AppendAffinityNodeSelector(out []byte, nod
 	if nodeSelector == nil {
 		return out
 	}
-	skg.nodeSelectorTermBuffer = skg.nodeSelectorTermBuffer[0:0]
-	skg.nodeSelectorTermBuffer = append(skg.nodeSelectorTermBuffer, nodeSelector.NodeSelectorTerms...)
-	slices.SortFunc(skg.nodeSelectorTermBuffer, lessNodeSelectorTerm)
-	for _, nodeSelectorTerm := range skg.nodeSelectorTermBuffer {
+	// For simplicity, these are not sorted. Hence, the hash may depend on their order.
+	for _, nodeSelectorTerm := range nodeSelector.NodeSelectorTerms {
 		out = skg.AppendNodeSelectorRequirements(out, nodeSelectorTerm.MatchExpressions)
 		out = skg.AppendNodeSelectorRequirements(out, nodeSelectorTerm.MatchFields)
 	}
-	if len(skg.nodeSelectorTermBuffer) > 0 {
+	if len(nodeSelector.NodeSelectorTerms) > 0 {
 		out = append(out, []byte("&")...)
 	}
 	return out
@@ -254,22 +250,6 @@ func lessToleration(a, b v1.Toleration) bool {
 	if string(a.Effect) < string(b.Effect) {
 		return true
 	} else if string(a.Effect) > string(b.Effect) {
-		return false
-	}
-	return true
-}
-
-func lessNodeSelectorTerm(a, b v1.NodeSelectorTerm) bool {
-	// For simplicity, we consider only the length and not the contents of MatchExpressions/MatchFields.
-	// Hence, the hash may depend on their order.
-	if len(a.MatchExpressions) < len(b.MatchExpressions) {
-		return true
-	} else if len(a.MatchExpressions) > len(b.MatchExpressions) {
-		return false
-	}
-	if len(a.MatchFields) < len(b.MatchFields) {
-		return true
-	} else if len(a.MatchFields) > len(b.MatchFields) {
 		return false
 	}
 	return true

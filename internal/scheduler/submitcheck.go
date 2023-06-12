@@ -124,7 +124,6 @@ func (srv *SubmitChecker) updateExecutors(ctx context.Context) {
 		} else {
 			log.WithError(err).Warnf("Error clearing nodedb for executor %s", executor.Id)
 		}
-
 	}
 
 	// Reset cache as the executors may have updated, changing what can be scheduled.
@@ -178,6 +177,7 @@ func GroupJobsByAnnotation(annotation string, jobs []*api.Job) map[string][]*api
 }
 
 func (srv *SubmitChecker) getSchedulingResult(req *schedulerobjects.PodRequirements) schedulingResult {
+	srv.mu.Lock()
 	schedulingKey := srv.schedulingKeyGenerator.Key(
 		req.NodeSelector,
 		req.Affinity,
@@ -185,6 +185,7 @@ func (srv *SubmitChecker) getSchedulingResult(req *schedulerobjects.PodRequireme
 		req.ResourceRequirements.Requests,
 		req.Priority,
 	)
+	srv.mu.Unlock()
 	var result schedulingResult
 	if obj, ok := srv.jobSchedulingResultsCache.Get(schedulingKey); ok {
 		result = obj.(schedulingResult)
