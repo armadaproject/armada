@@ -302,5 +302,6 @@ func testSchedulingContext(executorId string) *schedulercontext.SchedulingContex
 	)
 	sctx.Started = time.Time{}
 	sctx.Finished = time.Time{}
+	sctx.SchedulingKeyGenerator = nil
 	return sctx
 }
