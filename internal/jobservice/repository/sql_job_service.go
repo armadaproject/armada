@@ -21,6 +21,7 @@ type JobTableUpdater interface {
 	GetSubscriptionError(ctx context.Context, queue string, jobSet string) (string, error)
 	AddMessageIdAndClearSubscriptionError(ctx context.Context, queue string, jobSet string, messageId string) error
 	UnsubscribeJobSet(ctx context.Context, queue string, jobSet string) (int64, error)
+	GetSubscribedJobSets(ctx context.Context) ([]SubscribedTuple, error)
 }
 
 // SQLJobService for persisting to DB.
@@ -52,9 +53,14 @@ func NewSQLJobService(cfg *configuration.JobServiceConfiguration, log *log.Entry
 	return errors.New("database type must be either 'postgres' or 'sqlite'"), nil, func() {}
 }
 
+type JobSetKey struct {
+	Queue    string
+	JobSetId string
+}
+
 type SubscribedTuple struct {
-	Queue         string
-	JobSet        string
+	JobSetKey
+
 	FromMessageId string
 }
 

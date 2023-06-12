@@ -21,6 +21,9 @@ var _ JobTableUpdater = &JobTableUpdaterMock{}
 //			AddMessageIdAndClearSubscriptionErrorFunc: func(ctx context.Context, queue string, jobSet string, messageId string) error {
 //				panic("mock out the AddMessageIdAndClearSubscriptionError method")
 //			},
+//			GetSubscribedJobSetsFunc: func(ctx context.Context) ([]SubscribedTuple, error) {
+//				panic("mock out the GetSubscribedJobSets method")
+//			},
 //			GetSubscriptionErrorFunc: func(ctx context.Context, queue string, jobSet string) (string, error) {
 //				panic("mock out the GetSubscriptionError method")
 //			},
@@ -51,6 +54,9 @@ var _ JobTableUpdater = &JobTableUpdaterMock{}
 type JobTableUpdaterMock struct {
 	// AddMessageIdAndClearSubscriptionErrorFunc mocks the AddMessageIdAndClearSubscriptionError method.
 	AddMessageIdAndClearSubscriptionErrorFunc func(ctx context.Context, queue string, jobSet string, messageId string) error
+
+	// GetSubscribedJobSetsFunc mocks the GetSubscribedJobSets method.
+	GetSubscribedJobSetsFunc func(ctx context.Context) ([]SubscribedTuple, error)
 
 	// GetSubscriptionErrorFunc mocks the GetSubscriptionError method.
 	GetSubscriptionErrorFunc func(ctx context.Context, queue string, jobSet string) (string, error)
@@ -85,6 +91,11 @@ type JobTableUpdaterMock struct {
 			JobSet string
 			// MessageId is the messageId argument value.
 			MessageId string
+		}
+		// GetSubscribedJobSets holds details about calls to the GetSubscribedJobSets method.
+		GetSubscribedJobSets []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
 		}
 		// GetSubscriptionError holds details about calls to the GetSubscriptionError method.
 		GetSubscriptionError []struct {
@@ -157,6 +168,7 @@ type JobTableUpdaterMock struct {
 		}
 	}
 	lockAddMessageIdAndClearSubscriptionError sync.RWMutex
+	lockGetSubscribedJobSets                  sync.RWMutex
 	lockGetSubscriptionError                  sync.RWMutex
 	lockIsJobSetSubscribed                    sync.RWMutex
 	lockSetSubscriptionError                  sync.RWMutex
@@ -207,6 +219,38 @@ func (mock *JobTableUpdaterMock) AddMessageIdAndClearSubscriptionErrorCalls() []
 	mock.lockAddMessageIdAndClearSubscriptionError.RLock()
 	calls = mock.calls.AddMessageIdAndClearSubscriptionError
 	mock.lockAddMessageIdAndClearSubscriptionError.RUnlock()
+	return calls
+}
+
+// GetSubscribedJobSets calls GetSubscribedJobSetsFunc.
+func (mock *JobTableUpdaterMock) GetSubscribedJobSets(ctx context.Context) ([]SubscribedTuple, error) {
+	if mock.GetSubscribedJobSetsFunc == nil {
+		panic("JobTableUpdaterMock.GetSubscribedJobSetsFunc: method is nil but JobTableUpdater.GetSubscribedJobSets was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+	}{
+		Ctx: ctx,
+	}
+	mock.lockGetSubscribedJobSets.Lock()
+	mock.calls.GetSubscribedJobSets = append(mock.calls.GetSubscribedJobSets, callInfo)
+	mock.lockGetSubscribedJobSets.Unlock()
+	return mock.GetSubscribedJobSetsFunc(ctx)
+}
+
+// GetSubscribedJobSetsCalls gets all the calls that were made to GetSubscribedJobSets.
+// Check the length with:
+//
+//	len(mockedJobTableUpdater.GetSubscribedJobSetsCalls())
+func (mock *JobTableUpdaterMock) GetSubscribedJobSetsCalls() []struct {
+	Ctx context.Context
+} {
+	var calls []struct {
+		Ctx context.Context
+	}
+	mock.lockGetSubscribedJobSets.RLock()
+	calls = mock.calls.GetSubscribedJobSets
+	mock.lockGetSubscribedJobSets.RUnlock()
 	return calls
 }
 

@@ -349,7 +349,7 @@ func (s *JSRepoSQLite) GetSubscribedJobSets(ctx context.Context) ([]SubscribedTu
 	// Loop through rows, using Scan to assign column data to struct fields.
 	for rows.Next() {
 		var st SubscribedTuple
-		if err := rows.Scan(&st.Queue, &st.JobSet, &st.FromMessageId); err != nil {
+		if err := rows.Scan(&st.Queue, &st.JobSetId, &st.FromMessageId); err != nil {
 			return tuples, err
 		}
 		tuples = append(tuples, st)

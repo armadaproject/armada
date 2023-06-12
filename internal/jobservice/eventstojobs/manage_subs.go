@@ -42,7 +42,7 @@ type JobSetSubscriptionExecutor struct {
 	subscriptions map[repository.JobSetKey]*JobSetSubscription
 	mutex         sync.Mutex
 
-	newSubChan  <-chan *repository.JobSetSubscriptionInfo
+	newSubChan  <-chan *repository.SubscribedTuple
 	subDoneChan chan *repository.JobSetKey
 
 	subTimeout time.Duration
@@ -51,7 +51,7 @@ type JobSetSubscriptionExecutor struct {
 func NewJobSetSubscriptionExecutor(ctx context.Context,
 	eventReader events.JobEventReader,
 	jobUpdater repository.JobTableUpdater,
-	newSubChan <-chan *repository.JobSetSubscriptionInfo,
+	newSubChan <-chan *repository.SubscribedTuple,
 	subTimeout time.Duration,
 ) *JobSetSubscriptionExecutor {
 	return &JobSetSubscriptionExecutor{
@@ -66,9 +66,9 @@ func NewJobSetSubscriptionExecutor(ctx context.Context,
 }
 
 func (jse *JobSetSubscriptionExecutor) Manage() {
-	// Main {un}subscribe loop.
 	go jse.ScanForMissingSubscriptions()
 
+	// Main {un}subscribe loop.
 	for {
 		select {
 		case <-jse.ctx.Done():
@@ -91,11 +91,39 @@ func (jse *JobSetSubscriptionExecutor) Manage() {
 	}
 }
 
+// Looks for subscriptions that show as active in the DB but are not active
+// in this executor.
 func (jse *JobSetSubscriptionExecutor) ScanForMissingSubscriptions() {
-	// TODO
+	nextScan := time.After(1 * time.Nanosecond)
+	for {
+		select {
+		case <-jse.ctx.Done():
+			return
+		case <-nextScan:
+			scanStart := time.Now()
+
+			subscriptions, err := jse.jobUpdater.GetSubscribedJobSets(jse.ctx)
+			if err != nil {
+				log.WithError(err).Error("error getting subscribed job sets")
+				nextScan = time.After(60 * time.Second)
+				continue
+			}
+
+			for _, sub := range subscriptions {
+				// Adding an already existing subscription is a no-op.
+				jse.addSubscription(&sub)
+			}
+
+			scanEnd := time.Now()
+			duration := scanEnd.Sub(scanStart)
+			log.Infof("Scan for missing subs took %s", duration.String())
+
+			nextScan = time.After(60 * time.Second)
+		}
+	}
 }
 
-func (jse *JobSetSubscriptionExecutor) addSubscription(sub *repository.JobSetSubscriptionInfo) {
+func (jse *JobSetSubscriptionExecutor) addSubscription(sub *repository.SubscribedTuple) {
 	jse.mutex.Lock()
 	defer jse.mutex.Unlock()
 
@@ -111,11 +139,11 @@ func (jse *JobSetSubscriptionExecutor) addSubscription(sub *repository.JobSetSub
 			jse.subTimeout,
 			jse.subDoneChan,
 			jse.jobUpdater)
-	}
 
-	err := jse.jobUpdater.SubscribeJobSet(jse.ctx, sub.Queue, sub.JobSetId, sub.FromMessageId)
-	if err != nil {
-		log.Errorf("Could not add subscription on %s/%s to DB: %s", sub.Queue, sub.JobSetId, err.Error())
+		err := jse.jobUpdater.SubscribeJobSet(jse.ctx, sub.Queue, sub.JobSetId, sub.FromMessageId)
+		if err != nil {
+			log.Errorf("Could not add subscription on %s/%s to DB: %s", sub.Queue, sub.JobSetId, err.Error())
+		}
 	}
 }
 
@@ -162,7 +190,7 @@ func (jse *JobSetSubscriptionExecutor) NumActiveSubscriptions() int {
 	return len(jse.subscriptions)
 }
 
-func NewJobSetSubscription(ctx context.Context, eventReader events.JobEventReader, subInfo *repository.JobSetSubscriptionInfo, subTimeout time.Duration, subDoneChan chan<- *repository.JobSetKey, jobUpdater repository.JobTableUpdater) *JobSetSubscription {
+func NewJobSetSubscription(ctx context.Context, eventReader events.JobEventReader, subInfo *repository.SubscribedTuple, subTimeout time.Duration, subDoneChan chan<- *repository.JobSetKey, jobUpdater repository.JobTableUpdater) *JobSetSubscription {
 	newCtx, cancel := context.WithCancel(ctx)
 	return &JobSetSubscription{
 		ctx:           newCtx,
