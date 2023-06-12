@@ -127,7 +127,7 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 	fmt.Fprintf(w, "Finished:\t%s\n", sctx.Finished)
 	fmt.Fprintf(w, "Duration:\t%s\n", sctx.Finished.Sub(sctx.Started))
 	fmt.Fprintf(w, "Termination reason:\t%s\n", sctx.TerminationReason)
-	fmt.Fprintf(w, "Available resources before scheduling:\t%s\n", sctx.TotalResources.CompactString())
+	fmt.Fprintf(w, "Total capacity:\t%s\n", sctx.TotalResources.CompactString())
 	fmt.Fprintf(w, "Scheduled resources:\t%s\n", sctx.ScheduledResources.CompactString())
 	fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", sctx.NumScheduledJobs)
 	if verbosity <= 0 {
