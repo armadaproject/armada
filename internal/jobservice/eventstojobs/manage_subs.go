@@ -117,6 +117,7 @@ func (jse *JobSetSubscriptionExecutor) ScanForMissingSubscriptions() {
 			scanEnd := time.Now()
 			duration := scanEnd.Sub(scanStart)
 			log.Infof("Scan for missing subs took %s", duration.String())
+			log.Infof("There are %d active jobset subscriptions", jse.NumActiveSubscriptions())
 
 			nextScan = time.After(60 * time.Second)
 		}
@@ -240,25 +241,25 @@ func (js *JobSetSubscription) Subscribe() error {
 	timeout := time.NewTicker(js.subTimeout)
 
 	g.Go(func() error {
-		select {
-		case <-js.ctx.Done():
-			return nil
-		case <-timeout.C:
-			log.WithFields(requestFields).Infof("JobSetSubscription.Subscribe checking subscription status")
-			// Stream is created with *our* context, therefore if we cancel, stream.Recv() should bail out too.
-			jobSetFound, _, err := js.jobUpdater.IsJobSetSubscribed(js.ctx, js.Queue, js.JobSetId)
-			if err != nil {
-				log.WithFields(requestFields).WithError(err).Error("IsJobSetSubscribed error")
-			}
-			// We're no longer subscribed.
-			if !jobSetFound {
-				log.WithFields(requestFields).Info("subscription done")
-				js.cancel()
+		for {
+			select {
+			case <-js.ctx.Done():
 				return nil
+			case <-timeout.C:
+				log.WithFields(requestFields).Debug("JobSetSubscription.Subscribe checking subscription status")
+				// Stream is created with *our* context, therefore if we cancel, stream.Recv() should bail out too.
+				jobSetFound, _, err := js.jobUpdater.IsJobSetSubscribed(js.ctx, js.Queue, js.JobSetId)
+				if err != nil {
+					log.WithFields(requestFields).WithError(err).Error("IsJobSetSubscribed error")
+				}
+				// We're no longer subscribed.
+				if !jobSetFound {
+					log.WithFields(requestFields).Info("subscription done")
+					js.cancel()
+					return nil
+				}
 			}
-
 		}
-		return nil
 	})
 
 	// Nanosecond, zero wait essentially.
