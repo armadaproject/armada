@@ -446,7 +446,7 @@ tests-e2e-teardown:
 	docker rm -f redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester jobservice event-ingester || true
 	kind delete cluster --name armada-test || true
 	rm .kube/config || true
-	rmdir .kube || true
+	rm -r .kube || true
 
 .ONESHELL:
 setup-cluster:
