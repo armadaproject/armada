@@ -118,7 +118,10 @@ func Ack(ctx context.Context, consumers []pulsar.Consumer, msgs chan []*Consumer
 						"Asked to ack message belonging to consumer %d, however this is outside the bounds of the consumers array which is of length %d",
 						id.ConsumerId, len(consumers)))
 			}
-			consumers[id.ConsumerId].AckID(id.MessageId)
+			err := consumers[id.ConsumerId].AckID(id.MessageId)
+			if err != nil {
+				msgLogger.Errorf("error acknowledging message %v", id.MessageId)
+			}
 		}
 	}
 	msgLogger.Info("Shutting down Ackker")

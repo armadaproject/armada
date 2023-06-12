@@ -474,6 +474,20 @@ func (mr *MockMessageMockRecorder) RedeliveryCount() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RedeliveryCount", reflect.TypeOf((*MockMessage)(nil).RedeliveryCount))
 }
 
+// SchemaVersion mocks base method.
+func (m *MockMessage) SchemaVersion() []byte {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SchemaVersion")
+	ret0, _ := ret[0].([]byte)
+	return ret0
+}
+
+// SchemaVersion indicates an expected call of SchemaVersion.
+func (mr *MockMessageMockRecorder) SchemaVersion() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SchemaVersion", reflect.TypeOf((*MockMessage)(nil).SchemaVersion))
+}
+
 // Topic mocks base method.
 func (m *MockMessage) Topic() string {
 	m.ctrl.T.Helper()

@@ -540,7 +540,7 @@ tests-e2e: build-armadactl build-docker-no-lookout tests-e2e-setup gotestsum
 		docker rm -f redis pulsar server executor postgres lookout-ingester-migrate lookout-ingester event-ingester jobservice
 		kind delete cluster --name armada-test
 		rm .kube/config
-		rmdir .kube
+		rm -r .kube
 	}
 	mkdir -p test_reports
 	trap teardown exit

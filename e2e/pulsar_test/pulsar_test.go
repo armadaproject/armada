@@ -900,7 +900,12 @@ func receiveJobSetSequencesWithEventFilter(
 			fmt.Println("Pulsar receive error", err)
 			continue
 		}
-		consumer.Ack(msg)
+
+		err = consumer.Ack(msg)
+		if err != nil {
+			fmt.Println("Pulsar ack error", err)
+			continue
+		}
 
 		sequence := &armadaevents.EventSequence{}
 		err = proto.Unmarshal(msg.Payload(), sequence)

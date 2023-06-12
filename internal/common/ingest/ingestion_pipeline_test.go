@@ -144,12 +144,14 @@ func (p *mockPulsarConsumer) Receive(ctx context.Context) (pulsar.Message, error
 	}
 }
 
-func (p *mockPulsarConsumer) AckID(messageId pulsar.MessageID) {
+func (p *mockPulsarConsumer) AckID(messageId pulsar.MessageID) error {
 	p.acked[messageId] = true
 	p.received++
 	if p.received >= len(p.messages) {
 		p.cancelFn()
 	}
+
+	return nil
 }
 
 func (p *mockPulsarConsumer) assertDidAck(messages []pulsar.Message) {

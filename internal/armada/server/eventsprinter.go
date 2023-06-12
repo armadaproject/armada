@@ -82,7 +82,12 @@ func (srv *EventsPrinter) Run(ctx context.Context) error {
 				logging.WithStacktrace(log, err).Warnf("receiving from Pulsar failed")
 				break
 			}
-			consumer.Ack(msg)
+
+			err = consumer.Ack(msg)
+			if err != nil {
+				logging.WithStacktrace(log, err).Warnf("acknowledging message from Pulsar failed")
+				break
+			}
 
 			sequence := &armadaevents.EventSequence{}
 			if err := proto.Unmarshal(msg.Payload(), sequence); err != nil {

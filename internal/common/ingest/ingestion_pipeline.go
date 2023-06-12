@@ -204,7 +204,10 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 				break
 			} else {
 				for _, msgId := range msg.GetMessageIDs() {
-					ingester.consumer.AckID(msgId)
+					ackErr := ingester.consumer.AckID(msgId)
+					if ackErr != nil {
+						log.WithError(ackErr).Warnf("Error acknowledging message %v", msgId)
+					}
 				}
 			}
 		}

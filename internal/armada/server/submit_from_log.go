@@ -113,7 +113,10 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			// If this message isn't for us we can simply ack it
 			// and go to the next message
 			if !schedulers.ForLegacyScheduler(msg) {
-				srv.Consumer.Ack(msg)
+				err = srv.Consumer.Ack(msg)
+				if err != nil {
+					logging.WithStacktrace(log, err).WithField("lastMessageId", lastMessageId).Warnf("acknowledge message failed")
+				}
 				break
 			}
 
@@ -137,7 +140,10 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			// Unmarshal and validate the message.
 			sequence, err := eventutil.UnmarshalEventSequence(ctxWithLogger, msg.Payload())
 			if err != nil {
-				srv.Consumer.Ack(msg)
+				ackErr := srv.Consumer.Ack(msg)
+				if ackErr != nil {
+					logging.WithStacktrace(messageLogger, err).Warnf("acknowledge message error")
+				}
 				logging.WithStacktrace(messageLogger, err).Warnf("processing message failed; ignoring")
 				numErrored++
 				break
@@ -146,7 +152,10 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			messageLogger.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
 			// TODO: Improve retry logic.
 			srv.ProcessSequence(ctxWithLogger, sequence)
-			srv.Consumer.Ack(msg)
+			err = srv.Consumer.Ack(msg)
+			if err != nil {
+				logging.WithStacktrace(messageLogger, err).Warnf("acknowledge message error")
+			}
 		}
 	}
 }
