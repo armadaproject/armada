@@ -86,9 +86,7 @@ class ArmadaDeferrableOperator(BaseOperator):
     :return: A deferrable armada operator instance.
     """
 
-    template_fields: Sequence[str] = (
-         'job_request_items',
-    )
+    template_fields: Sequence[str] = ("job_request_items",)
 
     def __init__(
         self,
@@ -198,9 +196,14 @@ class ArmadaDeferrableOperator(BaseOperator):
         context: Context,
         jinja_env: jinja2.Environment | None = None,
     ) -> None:
-        self.job_request_items = [MessageToDict(x, preserving_proto_field_name=True) for x in self.job_request_items]
+        self.job_request_items = [
+            MessageToDict(x, preserving_proto_field_name=True)
+            for x in self.job_request_items
+        ]
         super().render_template_fields(context, jinja_env)
-        self.job_request_items = [ParseDict(x, JobSubmitRequestItem()) for x in self.job_request_items]
+        self.job_request_items = [
+            ParseDict(x, JobSubmitRequestItem()) for x in self.job_request_items
+        ]
 
 
 class ArmadaJobCompleteTrigger(BaseTrigger):

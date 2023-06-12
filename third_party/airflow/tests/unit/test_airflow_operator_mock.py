@@ -75,13 +75,16 @@ def generate_pod_spec(name: str = "container-1") -> core_v1.PodSpec:
     )
     return ps
 
+
 def sleep_job():
     pod = generate_pod_spec()
     return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
 
+
 def pre_template_sleep_job():
     pod = generate_pod_spec(name="name-{{ run_id }}")
     return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
+
 
 def expected_sleep_job():
     pod = generate_pod_spec(name="name-another-run-id")
