@@ -750,6 +750,10 @@ func (nodeDb *NodeDb) Upsert(node *schedulerobjects.Node) error {
 }
 
 func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *schedulerobjects.Node) error {
+	if len(node.AllocatableByPriorityAndResource) == 0 {
+		return errors.Errorf("can't upsert node with AllocatableByPriorityAndResource: %v", node.AllocatableByPriorityAndResource)
+	}
+
 	// Mutating the node once inserted is forbidden.
 	// TODO: We shouldn't need a copy here.
 	node = node.DeepCopy()
@@ -841,16 +845,17 @@ func (nodeDb *NodeDb) ClearAllocated() error {
 	if err != nil {
 		return err
 	}
+	newNodes := make([]*schedulerobjects.Node, 0)
 	for node := it.NextNode(); node != nil; node = it.NextNode() {
 		node = node.DeepCopy()
 		node.AllocatableByPriorityAndResource = schedulerobjects.NewAllocatableByPriorityAndResourceType(
-			configuration.AllowedPriorities(nodeDb.priorityClasses),
-			nodeDb.totalResources,
+			nodeDb.prioritiesToTryAssigningAt,
+			node.TotalResources,
 		)
-		err := txn.Insert("nodes", node)
-		if err != nil {
-			return err
-		}
+		newNodes = append(newNodes, node)
+	}
+	if err := nodeDb.UpsertManyWithTxn(txn, newNodes); err != nil {
+		return err
 	}
 	txn.Commit()
 	return nil
@@ -884,7 +889,7 @@ func nodeDbSchema(priorities []int32, resources []string) (*memdb.DBSchema, map[
 }
 
 func nodeIndexName(keyIndex int) string {
-	return fmt.Sprintf("index-%d", keyIndex)
+	return fmt.Sprintf("%d", keyIndex)
 }
 
 // stringFromPodRequirementsNotMetReason returns the string representation of reason,
@@ -920,9 +925,7 @@ func appendNodeDbKey(out []byte, nodeTypeId uint64, resources []resource.Quantit
 	size := 8
 	out = append(out, make([]byte, size)...)
 	binary.BigEndian.PutUint64(out[len(out)-size:], nodeTypeId)
-	for i, q := range resources {
-		resolution := resourceResolutionMillis[i]
-		q.SetMilli((q.MilliValue() / resolution) * resolution)
+	for _, q := range resources {
 		out = schedulerobjects.EncodeQuantityBuffer(out, q)
 	}
 	return out

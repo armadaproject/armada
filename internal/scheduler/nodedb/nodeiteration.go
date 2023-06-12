@@ -314,7 +314,8 @@ type NodeTypeIterator struct {
 	key []byte
 	// Current iterator into the underlying memdb.
 	// Updated in-place whenever lowerBound changes.
-	memdbIterator memdb.ResultIterator
+	memdbIterator  memdb.ResultIterator
+	previousNodeId string
 }
 
 func NewNodeTypeIterator(
@@ -380,11 +381,18 @@ func (it *NodeTypeIterator) NextNode() (*schedulerobjects.Node, error) {
 			return nil, nil
 		}
 		node := v.(*schedulerobjects.Node)
+		if node.Id == it.previousNodeId {
+			panic(fmt.Sprintf("iterator received the same node twice consecutively: %s", node.Id))
+		}
+		it.previousNodeId = node.Id
 		if node.NodeTypeId != it.nodeTypeId {
 			// There are no more nodes of this nodeType.
 			return nil, nil
 		}
 		allocatableByPriority := node.AllocatableByPriorityAndResource[it.priority]
+		if len(allocatableByPriority.Resources) == 0 {
+			return nil, errors.Errorf("node %s has no resources registered at priority %d: %v", node.Id, it.priority, node.AllocatableByPriorityAndResource)
+		}
 		for i, t := range it.indexedResources {
 			nodeQuantity := allocatableByPriority.Get(t)
 			requestQuantity := it.indexedResourceRequests[i]

@@ -122,7 +122,6 @@ func (srv *SubmitChecker) updateExecutors(ctx context.Context) {
 		} else {
 			log.WithError(err).Warnf("Error clearing nodedb for executor %s", executor.Id)
 		}
-
 	}
 
 	// Reset cache as the executors may have updated - changing what can be scheduled
