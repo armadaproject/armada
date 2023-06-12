@@ -915,7 +915,7 @@ func (nodeDb *NodeDb) nodeDbKeyFromNode(out []byte, node *schedulerobjects.Node,
 
 func appendNodeDbKey(out []byte, nodeTypeId uint64, resources []resource.Quantity, resourceResolutionMillis []int64) []byte {
 	if len(resources) != len(resourceResolutionMillis) {
-		panic("resources and resolutionMillis do not have equal length")
+		panic("resources and resourceResolutionMillis do not have equal length")
 	}
 	size := 8
 	out = append(out, make([]byte, size)...)
