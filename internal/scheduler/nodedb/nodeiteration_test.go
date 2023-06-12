@@ -447,7 +447,7 @@ func TestNodeTypeIterator(t *testing.T) {
 				}
 			}
 			require.NotEqual(t, -1, keyIndex)
-			it, err := NewNodeTypeIterator(nodeDb.Txn(false), tc.nodeTypeId, nodeIndexName(keyIndex), tc.priority, testfixtures.TestResourceNames, indexedResourceRequests, testfixtures.TestIndexedResourceResolutionMillis)
+			it, err := NewNodeTypeIterator(nodeDb.Txn(false), tc.nodeTypeId, nodeIndexName(keyIndex), tc.priority, testfixtures.TestResourceNames, indexedResourceRequests)
 			require.NoError(t, err)
 
 			// Compare actual with expected order.
@@ -832,7 +832,6 @@ func TestNodeTypesIterator(t *testing.T) {
 				tc.priority,
 				testfixtures.TestResourceNames,
 				indexedResourceRequests,
-				testfixtures.TestIndexedResourceResolutionMillis,
 			)
 			require.NoError(t, err)
 
@@ -903,7 +902,7 @@ func BenchmarkNodeTypeIterator(b *testing.B) {
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		it, err := NewNodeTypeIterator(txn, nodeTypeId, nodeDb.indexNameByPriority[priority], priority, nodeDb.indexedResources, indexedResourceRequests, testfixtures.TestIndexedResourceResolutionMillis)
+		it, err := NewNodeTypeIterator(txn, nodeTypeId, nodeDb.indexNameByPriority[priority], priority, nodeDb.indexedResources, indexedResourceRequests)
 		require.NoError(b, err)
 		for {
 			node, err := it.NextNode()

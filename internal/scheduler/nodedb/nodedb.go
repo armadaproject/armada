@@ -448,7 +448,6 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 		priority,
 		nodeDb.indexedResources,
 		indexResourceRequests,
-		nodeDb.indexedResourceResolutionMillis,
 	)
 	if err != nil {
 		return nil, err
@@ -905,6 +904,9 @@ func (nodeDb *NodeDb) stringFromPodRequirementsNotMetReason(reason schedulerobje
 	}
 }
 
+// nodeDbKeyFromNode returns the index key for a particular node and resource.
+// Allocatable resources are rounded down to the closest multiple of nodeDb.indexedResourceResolutionMillis.
+// This improves efficiency by reducing the number of distinct values that need to be considered when iterating over nodes.
 func (nodeDb *NodeDb) nodeDbKeyFromNode(out []byte, node *schedulerobjects.Node, priority int32) []byte {
 	size := 8
 	out = append(out, make([]byte, size)...)
@@ -918,10 +920,9 @@ func (nodeDb *NodeDb) nodeDbKeyFromNode(out []byte, node *schedulerobjects.Node,
 	return out
 }
 
-func appendNodeDbKey(out []byte, nodeTypeId uint64, resources []resource.Quantity, resourceResolutionMillis []int64) []byte {
-	if len(resources) != len(resourceResolutionMillis) {
-		panic("resources and resourceResolutionMillis do not have equal length")
-	}
+// appendNodeDbKey appends to out the index key for a particular nodeTypeId and resources.
+// Unlike for nodeDbKeyFromNode, resources are not rounded down, since we here want to look for a specific value.
+func appendNodeDbKey(out []byte, nodeTypeId uint64, resources []resource.Quantity) []byte {
 	size := 8
 	out = append(out, make([]byte, size)...)
 	binary.BigEndian.PutUint64(out[len(out)-size:], nodeTypeId)

@@ -50,7 +50,7 @@ var (
 	TestMaxExtraNodesToConsider uint = 1
 	TestResources                    = []configuration.IndexResource{
 		{Name: "cpu", Resolution: resource.MustParse("1")},
-		{Name: "memory", Resolution: resource.MustParse("100Mi")},
+		{Name: "memory", Resolution: resource.MustParse("128Mi")},
 		{Name: "gpu", Resolution: resource.MustParse("1")},
 	}
 	TestResourceNames = util.Map(

@@ -165,7 +165,6 @@ func NewNodeTypesIterator(
 	priority int32,
 	indexedResources []string,
 	indexedResourceRequests []resource.Quantity,
-	indexedResourceResolutionMillis []int64,
 ) (*NodeTypesIterator, error) {
 	pq := &nodeTypesIteratorPQ{
 		priority:         priority,
@@ -180,7 +179,6 @@ func NewNodeTypesIterator(
 			priority,
 			indexedResources,
 			indexedResourceRequests,
-			indexedResourceResolutionMillis,
 		)
 		if err != nil {
 			return nil, err
@@ -304,8 +302,6 @@ type NodeTypeIterator struct {
 	indexedResources []string
 	// Pod requests for indexed resources in the same order as indexedResources.
 	indexedResourceRequests []resource.Quantity
-	// The resolution at which indexed resources are tracked; see nodeDb for details.
-	indexedResourceResolutionMillis []int64
 	// Current lower bound on node allocatable resources looked for.
 	// Updated in-place as the iterator makes progress.
 	lowerBound []resource.Quantity
@@ -325,20 +321,18 @@ func NewNodeTypeIterator(
 	priority int32,
 	indexedResources []string,
 	indexedResourceRequests []resource.Quantity,
-	indexedResourceResolutionMillis []int64,
 ) (*NodeTypeIterator, error) {
 	if len(indexedResources) != len(indexedResourceRequests) {
 		return nil, errors.Errorf("indexedResources and resourceRequirements are not of equal length")
 	}
 	it := &NodeTypeIterator{
-		txn:                             txn,
-		nodeTypeId:                      nodeTypeId,
-		priority:                        priority,
-		indexName:                       indexName,
-		indexedResources:                indexedResources,
-		indexedResourceRequests:         indexedResourceRequests,
-		indexedResourceResolutionMillis: indexedResourceResolutionMillis,
-		lowerBound:                      slices.Clone(indexedResourceRequests),
+		txn:                     txn,
+		nodeTypeId:              nodeTypeId,
+		priority:                priority,
+		indexName:               indexName,
+		indexedResources:        indexedResources,
+		indexedResourceRequests: indexedResourceRequests,
+		lowerBound:              slices.Clone(indexedResourceRequests),
 	}
 	memdbIt, err := it.newNodeTypeIterator()
 	if err != nil {
@@ -350,7 +344,7 @@ func NewNodeTypeIterator(
 
 func (it *NodeTypeIterator) newNodeTypeIterator() (memdb.ResultIterator, error) {
 	it.key = it.key[0:0]
-	it.key = appendNodeDbKey(it.key, it.nodeTypeId, it.lowerBound, it.indexedResourceResolutionMillis)
+	it.key = appendNodeDbKey(it.key, it.nodeTypeId, it.lowerBound)
 	memdbIt, err := it.txn.LowerBound(
 		"nodes",
 		it.indexName,

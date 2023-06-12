@@ -37,7 +37,6 @@ func TestNodeDbKey(t *testing.T) {
 			nil,
 			node.NodeTypeId,
 			indexedResourceRequests,
-			nodeDb.indexedResourceResolutionMillis,
 		)
 		assert.Equal(t, a, b, "node keys not equal for priority %d", p)
 	}
