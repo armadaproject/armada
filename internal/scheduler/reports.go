@@ -304,7 +304,7 @@ func (repo *SchedulingContextRepository) getSchedulingReportForJob(jobId string)
 	mostRecentSuccessful := make(map[string]*schedulercontext.QueueSchedulingContext)
 	for _, byExecutor := range *repo.mostRecentSuccessfulQueueSchedulingContextByExecutorByQueueP.Load() {
 		for executorId, qctx := range byExecutor {
-			if existing, existed := mostRecent[executorId]; existed && qctx.Created.Before(existing.Created) {
+			if existing, existed := mostRecentSuccessful[executorId]; existed && qctx.Created.Before(existing.Created) {
 				continue
 			}
 			if _, successful := qctx.SuccessfulJobSchedulingContexts[jobId]; successful {
@@ -316,7 +316,7 @@ func (repo *SchedulingContextRepository) getSchedulingReportForJob(jobId string)
 	mostRecentPreempting := make(map[string]*schedulercontext.QueueSchedulingContext)
 	for _, byExecutor := range *repo.mostRecentPreemptingQueueSchedulingContextByExecutorByQueueP.Load() {
 		for executorId, qctx := range byExecutor {
-			if existing, existed := mostRecent[executorId]; existed && qctx.Created.Before(existing.Created) {
+			if existing, existed := mostRecentPreempting[executorId]; existed && qctx.Created.Before(existing.Created) {
 				continue
 			}
 			if _, preempted := qctx.EvictedJobsById[jobId]; preempted {
