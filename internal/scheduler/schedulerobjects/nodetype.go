@@ -1,8 +1,6 @@
 package schedulerobjects
 
 import (
-	"strings"
-
 	"github.com/segmentio/fasthash/fnv1a"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -39,7 +37,7 @@ func NewNodeType(taints []v1.Taint, labels map[string]string, indexedTaints map[
 
 	// Sort taints to ensure node type id is consistent regardless of
 	// the order in which taints are set on the node.
-	slices.SortFunc(taints, func(a, b v1.Taint) bool { return a.Key < b.Key }) // TODO: LessToleration.
+	slices.SortFunc(taints, func(a, b v1.Taint) bool { return a.Key < b.Key }) // TODO: Use less ambiguous sorting.
 
 	// Filter out any labels that should not be indexed.
 	if indexedLabels != nil {
@@ -106,34 +104,6 @@ func nodeTypeIdFromTaintsAndLabels(taints []v1.Taint, labels, unsetIndexedLabels
 		h = fnv1a.AddString64(h, "$")
 	}
 	return h
-}
-
-func nodeTypeIdFromTaintsAndLabelsOld(taints []v1.Taint, labels, unsetIndexedLabels map[string]string) string {
-	// TODO: To reduce key size (and thus improve performance), we could hash the string.
-	// TODO: We should test this function to ensure there are no collisions. And that the string is never empty.
-	var sb strings.Builder
-	for _, taint := range taints {
-		sb.WriteString("$")
-		sb.WriteString(taint.String())
-	}
-	sb.WriteString("&")
-	ls := maps.Keys(labels)
-	slices.Sort(ls)
-	for _, label := range ls {
-		value := labels[label]
-		sb.WriteString("$")
-		sb.WriteString(label)
-		sb.WriteString("=")
-		sb.WriteString(value)
-	}
-	sb.WriteString("&")
-	ls = maps.Keys(unsetIndexedLabels)
-	slices.Sort(ls)
-	for _, label := range ls {
-		sb.WriteString("$")
-		sb.WriteString(label)
-	}
-	return sb.String()
 }
 
 // getFilteredTaints returns a list of taints satisfying the filter predicate.

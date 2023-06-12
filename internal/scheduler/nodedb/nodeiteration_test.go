@@ -858,19 +858,6 @@ func TestNodeTypesIterator(t *testing.T) {
 	}
 }
 
-func newTestNodeDb(nodes []*schedulerobjects.Node) (*memdb.MemDB, error) {
-	schema, _ := nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResourceNames)
-	db, err := memdb.NewMemDB(schema)
-	if err != nil {
-		return nil, err
-	}
-	err = populateDatabase(db, nodes)
-	if err != nil {
-		return nil, err
-	}
-	return db, nil
-}
-
 func populateDatabase(db *memdb.MemDB, items []*schedulerobjects.Node) error {
 	txn := db.Txn(true)
 	defer txn.Abort()
