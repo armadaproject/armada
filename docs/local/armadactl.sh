@@ -23,6 +23,15 @@ ARMADACTL_URL="https://github.com/armadaproject/armada/releases/download/$ARMADA
 # Download and untar/unzip armadactl
 if curl -sL $ARMADACTL_URL | sh -c "$UNARCHIVE" ; then
 	echo "armadactl downloaded successfully"
+  
+  # Move armadactl binary to a directory in user's PATH
+    TARGET_DIR="$HOME/bin" # Change this to the desired target directory in your user's home
+    mkdir -p "$TARGET_DIR"
+    cp armadactl "$TARGET_DIR/"
+    export PATH="$TARGET_DIR:$PATH"
+
+    echo "armadactl is now available on your PATH"
+
 else
 	echo "Something is amiss!"
 	echo "Please visit:"

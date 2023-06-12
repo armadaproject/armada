@@ -338,11 +338,14 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			mockQueueRepo := schedulermocks.NewMockQueueRepository(ctrl)
 			mockQueueRepo.EXPECT().GetAllQueues().Return(tc.queues, nil).AnyTimes()
 
+			schedulingContextRepo, err := NewSchedulingContextRepository(1024)
+			require.NoError(t, err)
 			algo, err := NewFairSchedulingAlgo(
 				tc.schedulingConfig,
 				time.Second*5,
 				mockExecutorRepo,
 				mockQueueRepo,
+				schedulingContextRepo,
 			)
 			require.NoError(t, err)
 
@@ -410,6 +413,26 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 
 			assert.Equal(t, len(expectedScheduledJobs), len(schedulerResult.ScheduledJobs))
 
+			schedulingContextByExecutor := schedulingContextRepo.GetMostRecentSchedulingContextByExecutor()
+
+			for executorId, jobIndices := range tc.expectedScheduledIndices {
+				sctx := schedulingContextByExecutor[executorId]
+				require.NotNil(t, sctx)
+
+				assert.Equal(t, len(jobIndices), sctx.NumScheduledJobs)
+
+				expectedScheduledResources := schedulerobjects.ResourceList{}
+				expectedScheduledResourcesByPriority := schedulerobjects.QuantityByPriorityAndResourceType{}
+				for _, i := range jobIndices {
+					job := tc.queuedJobs[i]
+					req := job.JobSchedulingInfo().ObjectRequirements[0].GetPodRequirements()
+					expectedScheduledResources.AddV1ResourceList(req.ResourceRequirements.Requests)
+					expectedScheduledResourcesByPriority.AddV1ResourceList(req.Priority, req.ResourceRequirements.Requests)
+				}
+				assert.Equal(t, expectedScheduledResources, sctx.ScheduledResources)
+				assert.Equal(t, expectedScheduledResourcesByPriority, sctx.ScheduledResourcesByPriority)
+			}
+
 			scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
 			for _, job := range scheduledJobs {
 				assert.Equal(t, false, job.Queued())
@@ -438,6 +461,33 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			}
 			slices.Sort(preemptedJobs)
 			assert.Equal(t, expectedPreemptedJobs, preemptedJobs)
+
+			numPreemptedJobs := 0
+			for _, sctx := range schedulingContextByExecutor {
+				numPreemptedJobs += sctx.NumEvictedJobs
+			}
+			assert.Equal(t, len(tc.expectedPreemptedIndices), numPreemptedJobs)
+
+			expectedPreemptedResources := schedulerobjects.ResourceList{}
+			expectedPreemptedResourcesByPriority := schedulerobjects.QuantityByPriorityAndResourceType{}
+			for _, i := range tc.expectedPreemptedIndices {
+				job := tc.existingJobs[i]
+				req := job.JobSchedulingInfo().ObjectRequirements[0].GetPodRequirements()
+				expectedPreemptedResources.AddV1ResourceList(req.ResourceRequirements.Requests)
+				expectedPreemptedResourcesByPriority.AddV1ResourceList(req.Priority, req.ResourceRequirements.Requests)
+			}
+			preemptedResources := schedulerobjects.ResourceList{}
+			preemptedResourcesByPriority := schedulerobjects.QuantityByPriorityAndResourceType{}
+			for _, sctx := range schedulingContextByExecutor {
+				for resourceType, quantity := range sctx.EvictedResources.Resources {
+					preemptedResources.AddQuantity(resourceType, quantity)
+				}
+				for p, rl := range sctx.EvictedResourcesByPriority {
+					preemptedResourcesByPriority.AddResourceList(p, rl)
+				}
+			}
+			assert.Equal(t, expectedPreemptedResources, preemptedResources)
+			assert.Equal(t, expectedPreemptedResourcesByPriority, preemptedResourcesByPriority)
 		})
 	}
 }
@@ -600,6 +650,7 @@ func TestLegacySchedulingAlgo_TestSchedule_ExecutorOrdering(t *testing.T) {
 				tc.maxScheduleDuration,
 				mockExecutorRepo,
 				mockQueueRepo,
+				nil,
 			)
 			require.NoError(t, err)
 			scheduledExecutorsIds := []string{}

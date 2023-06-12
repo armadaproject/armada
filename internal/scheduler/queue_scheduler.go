@@ -212,21 +212,20 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 
 		// Skip this job if it's known to be unschedulable.
 		if len(it.schedulingContext.UnfeasibleSchedulingKeys) > 0 {
-			if schedulingKey, ok := schedulingKeyFromLegacySchedulerJob(job, it.schedulingContext.PriorityClasses); ok {
-				if unsuccessfulJctx, ok := it.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; ok {
-					jctx := &schedulercontext.JobSchedulingContext{
-						Created:              time.Now(),
-						ExecutorId:           it.schedulingContext.ExecutorId,
-						JobId:                job.GetId(),
-						Job:                  job,
-						UnschedulableReason:  unsuccessfulJctx.UnschedulableReason,
-						PodSchedulingContext: unsuccessfulJctx.PodSchedulingContext,
-					}
-					if _, err := it.schedulingContext.AddJobSchedulingContext(jctx); err != nil {
-						return nil, err
-					}
-					continue
+			schedulingKey := it.schedulingContext.SchedulingKeyFromLegacySchedulerJob(job)
+			if unsuccessfulJctx, ok := it.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; ok {
+				jctx := &schedulercontext.JobSchedulingContext{
+					Created:              time.Now(),
+					ExecutorId:           it.schedulingContext.ExecutorId,
+					JobId:                job.GetId(),
+					Job:                  job,
+					UnschedulableReason:  unsuccessfulJctx.UnschedulableReason,
+					PodSchedulingContext: unsuccessfulJctx.PodSchedulingContext,
 				}
+				if _, err := it.schedulingContext.AddJobSchedulingContext(jctx); err != nil {
+					return nil, err
+				}
+				continue
 			}
 		}
 

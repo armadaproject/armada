@@ -1,6 +1,8 @@
 package interfaces
 
 import (
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -13,6 +15,10 @@ type LegacySchedulerJob interface {
 	GetAnnotations() map[string]string
 	GetRequirements(map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo
 	GetPriorityClassName() string
+	GetNodeSelector() map[string]string
+	GetAffinity() *v1.Affinity
+	GetTolerations() []v1.Toleration
+	GetResourceRequirements() v1.ResourceRequirements
 }
 
 func PodRequirementFromLegacySchedulerJob(job LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {

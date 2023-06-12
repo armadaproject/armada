@@ -300,6 +300,5 @@ func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobS
 			},
 		},
 	}
-	_, _ = expectedSubmitSchedulingInfo.SchedulingKey()
 	return expectedSubmitSchedulingInfo
 }
