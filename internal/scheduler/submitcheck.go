@@ -50,6 +50,7 @@ type SubmitChecker struct {
 	executorRepository        database.ExecutorRepository
 	clock                     clock.Clock
 	mu                        sync.Mutex
+	schedulingKeyGenerator    *schedulerobjects.SchedulingKeyGenerator
 	jobSchedulingResultsCache *lru.Cache
 }
 
@@ -73,6 +74,7 @@ func NewSubmitChecker(
 		indexedNodeLabels:         schedulingConfig.IndexedNodeLabels,
 		executorRepository:        executorRepository,
 		clock:                     clock.RealClock{},
+		schedulingKeyGenerator:    schedulerobjects.NewSchedulingKeyGenerator(),
 		jobSchedulingResultsCache: jobSchedulingResultsCache,
 	}
 }
@@ -122,15 +124,16 @@ func (srv *SubmitChecker) updateExecutors(ctx context.Context) {
 		} else {
 			log.WithError(err).Warnf("Error clearing nodedb for executor %s", executor.Id)
 		}
-
 	}
 
-	// Reset cache as the executors may have updated - changing what can be scheduled
+	// Reset cache as the executors may have updated, changing what can be scheduled.
+	// Create a new schedulingKeyGenerator to get a new initial state.
+	srv.schedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGenerator()
 	srv.jobSchedulingResultsCache.Purge()
 }
 
-func (srv *SubmitChecker) CheckPodRequirements(podRequirement *schedulerobjects.PodRequirements) (bool, string) {
-	schedulingResult := srv.getSchedulingResult([]*schedulerobjects.PodRequirements{podRequirement})
+func (srv *SubmitChecker) CheckPodRequirements(req *schedulerobjects.PodRequirements) (bool, string) {
+	schedulingResult := srv.getSchedulingResult(req)
 	if !schedulingResult.isSchedulable {
 		return schedulingResult.isSchedulable, fmt.Sprintf("requirements unschedulable:\n%s", schedulingResult.reason)
 	}
@@ -140,8 +143,8 @@ func (srv *SubmitChecker) CheckPodRequirements(podRequirement *schedulerobjects.
 func (srv *SubmitChecker) CheckApiJobs(jobs []*api.Job) (bool, string) {
 	// First, check if all jobs can be scheduled individually.
 	for i, job := range jobs {
-		reqs := PodRequirementFromLegacySchedulerJob(job, srv.priorityClasses)
-		schedulingResult := srv.getSchedulingResult([]*schedulerobjects.PodRequirements{reqs})
+		req := PodRequirementFromLegacySchedulerJob(job, srv.priorityClasses)
+		schedulingResult := srv.getSchedulingResult(req)
 		if !schedulingResult.isSchedulable {
 			return schedulingResult.isSchedulable, fmt.Sprintf("%d-th job unschedulable:\n%s", i, schedulingResult.reason)
 		}
@@ -173,19 +176,25 @@ func GroupJobsByAnnotation(annotation string, jobs []*api.Job) map[string][]*api
 	return rv
 }
 
-func (srv *SubmitChecker) getSchedulingResult(reqs []*schedulerobjects.PodRequirements) schedulingResult {
-	for _, req := range reqs {
-		schedulingKey := req.SchedulingKey()
-		var result schedulingResult
-		if obj, ok := srv.jobSchedulingResultsCache.Get(schedulingKey); ok {
-			result = obj.(schedulingResult)
-		} else {
-			result = srv.check(reqs)
-			srv.jobSchedulingResultsCache.Add(schedulingKey, result)
-		}
-		if !result.isSchedulable {
-			return result
-		}
+func (srv *SubmitChecker) getSchedulingResult(req *schedulerobjects.PodRequirements) schedulingResult {
+	srv.mu.Lock()
+	schedulingKey := srv.schedulingKeyGenerator.Key(
+		req.NodeSelector,
+		req.Affinity,
+		req.Tolerations,
+		req.ResourceRequirements.Requests,
+		req.Priority,
+	)
+	srv.mu.Unlock()
+	var result schedulingResult
+	if obj, ok := srv.jobSchedulingResultsCache.Get(schedulingKey); ok {
+		result = obj.(schedulingResult)
+	} else {
+		result = srv.check([]*schedulerobjects.PodRequirements{req})
+		srv.jobSchedulingResultsCache.Add(schedulingKey, result)
+	}
+	if !result.isSchedulable {
+		return result
 	}
 	return schedulingResult{isSchedulable: true}
 }

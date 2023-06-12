@@ -220,8 +220,8 @@ func TestTestAddGetSchedulingContextConcurrency(t *testing.T) {
 			default:
 			}
 			repo.getJobReportString(fmt.Sprintf("failure%s", queue))
-			repo.getQueueReportString(queue)
-			repo.getSchedulingReportString()
+			repo.getQueueReportString(queue, 0)
+			repo.getSchedulingReport().ReportString(0)
 		}(queue)
 	}
 	<-ctx.Done()
@@ -302,5 +302,6 @@ func testSchedulingContext(executorId string) *schedulercontext.SchedulingContex
 	)
 	sctx.Started = time.Time{}
 	sctx.Finished = time.Time{}
+	sctx.SchedulingKeyGenerator = nil
 	return sctx
 }
