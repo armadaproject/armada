@@ -40,12 +40,6 @@ var DefaultConfiguration = &configuration.JobServiceConfiguration{
 	SubscriberPoolSize: 30,
 }
 
-type SubRequest struct {
-	sub         repository.SubscribedTuple
-	subTime     int64
-	eventClient *events.PooledEventClient
-}
-
 // Mutates config where possible to correct mis-configurations.
 func RectifyConfig(config *configuration.JobServiceConfiguration) {
 	logger := log.WithField("JobService", "RectifyConfig")

@@ -9,11 +9,12 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
+
 	"github.com/armadaproject/armada/internal/jobservice/events"
 	"github.com/armadaproject/armada/internal/jobservice/repository"
 	"github.com/armadaproject/armada/pkg/api"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
 )
 
 type JobSetSubscription struct {
@@ -71,14 +72,21 @@ func (jse *JobSetSubscriptionExecutor) Manage() {
 	for {
 		select {
 		case <-jse.ctx.Done():
-			log.Infof("Context is done.")
+			log.Info("Context is done.")
 			return
 		case newSubInfo := <-jse.newSubChan:
 			jse.addSubscription(newSubInfo)
-			jse.launchSubscriber(&newSubInfo.JobSetKey)
+			err := jse.launchSubscriber(&newSubInfo.JobSetKey)
+			if err != nil {
+				log.WithError(err).Error("JobSet subscribe error")
+			}
 		case subDoneKey := <-jse.subDoneChan:
 			log.Infof("Removing subscription on %s/%s", subDoneKey.Queue, subDoneKey.JobSetId)
-			jse.removeSubscription(subDoneKey)
+			err := jse.removeSubscription(subDoneKey)
+			if err != nil {
+				log.WithError(err).Error("JobSet unsubscribe error")
+			}
+
 		}
 	}
 }
@@ -117,7 +125,7 @@ func (jse *JobSetSubscriptionExecutor) launchSubscriber(key *repository.JobSetKe
 	jse.mutex.Unlock()
 
 	if ok {
-		go sub.Subscribe()
+		go sub.Subscribe() //nolint:errcheck
 		return nil
 	}
 	return fmt.Errorf("No subscription with specified key %s/%s exists!", sub.Queue, sub.JobSetId)
