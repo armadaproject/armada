@@ -42,7 +42,7 @@ type FairSchedulingAlgo struct {
 	queueRepository             database.QueueRepository
 	schedulingContextRepository *SchedulingContextRepository
 	priorityClasses             map[string]configuration.PriorityClass
-	indexedResources            []configuration.IndexResource
+	indexedResources            []configuration.IndexedResource
 	rand                        *rand.Rand // injected here for repeatable testing
 	previousScheduleClusterId   string
 	maxSchedulingDuration       time.Duration

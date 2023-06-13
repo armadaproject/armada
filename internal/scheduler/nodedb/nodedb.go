@@ -1,7 +1,6 @@
 package nodedb
 
 import (
-	"encoding/binary"
 	"fmt"
 	"math"
 	"strings"
@@ -96,7 +95,7 @@ type NodeDb struct {
 func NewNodeDb(
 	priorityClasses map[string]configuration.PriorityClass,
 	maxExtraNodesToConsider uint,
-	indexedResources []configuration.IndexResource,
+	indexedResources []configuration.IndexedResource,
 	indexedTaints,
 	indexedNodeLabels []string,
 ) (*NodeDb, error) {
@@ -114,7 +113,7 @@ func NewNodeDb(
 			Message: "there must be at least one index resource",
 		})
 	}
-	indexedResourceNames := util.Map(indexedResources, func(v configuration.IndexResource) string { return v.Name })
+	indexedResourceNames := util.Map(indexedResources, func(v configuration.IndexedResource) string { return v.Name })
 	schema, indexNameByPriority := nodeDbSchema(prioritiesToTryAssigningAt, indexedResourceNames)
 	db, err := memdb.NewMemDB(schema)
 	if err != nil {
@@ -151,7 +150,7 @@ func NewNodeDb(
 		indexedResourcesSet:        mapFromSlice(indexedResourceNames),
 		indexedResourceResolutionMillis: util.Map(
 			indexedResources,
-			func(v configuration.IndexResource) int64 { return v.Resolution.MilliValue() },
+			func(v configuration.IndexedResource) int64 { return v.Resolution.MilliValue() },
 		),
 		indexNameByPriority: indexNameByPriority,
 		indexedTaints:       mapFromSlice(indexedTaints),
@@ -906,28 +905,13 @@ func (nodeDb *NodeDb) stringFromPodRequirementsNotMetReason(reason schedulerobje
 
 // nodeDbKeyFromNode returns the index key for a particular node and resource.
 // Allocatable resources are rounded down to the closest multiple of nodeDb.indexedResourceResolutionMillis.
-// This improves efficiency by reducing the number of distinct values that need to be considered when iterating over nodes.
+// This improves efficiency by reducing the number of distinct values in the index.
 func (nodeDb *NodeDb) nodeDbKeyFromNode(out []byte, node *schedulerobjects.Node, priority int32) []byte {
-	size := 8
-	out = append(out, make([]byte, size)...)
-	binary.BigEndian.PutUint64(out[len(out)-size:], node.NodeTypeId)
-	for i, resource := range nodeDb.indexedResources {
-		resolution := nodeDb.indexedResourceResolutionMillis[i]
-		q := node.AvailableQuantityByPriorityAndResource(priority, resource)
-		q.SetMilli((q.MilliValue() / resolution) * resolution)
-		out = schedulerobjects.EncodeQuantityBuffer(out, q)
-	}
-	return out
-}
-
-// appendNodeDbKey appends to out the index key for a particular nodeTypeId and resources.
-// Unlike for nodeDbKeyFromNode, resources are not rounded down, since we here want to look for a specific value.
-func appendNodeDbKey(out []byte, nodeTypeId uint64, resources []resource.Quantity) []byte {
-	size := 8
-	out = append(out, make([]byte, size)...)
-	binary.BigEndian.PutUint64(out[len(out)-size:], nodeTypeId)
-	for _, q := range resources {
-		out = schedulerobjects.EncodeQuantityBuffer(out, q)
-	}
-	return out
+	return RoundedNodeIndexKeyFromResourceList(
+		out,
+		node.NodeTypeId,
+		nodeDb.indexedResources,
+		nodeDb.indexedResourceResolutionMillis,
+		node.AllocatableByPriorityAndResource[priority],
+	)
 }

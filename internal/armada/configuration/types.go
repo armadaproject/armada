@@ -130,7 +130,7 @@ type SchedulingConfig struct {
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
 	// for which the scheduler creates indexes for efficient lookup.
 	// Applies only to the new scheduler.
-	IndexedResources []IndexResource
+	IndexedResources []IndexedResource
 	// Node labels that the scheduler creates indexes for efficient lookup of.
 	// Should include node labels frequently used for scheduling.
 	// Since the scheduler can efficiently sort out nodes for which these labels
@@ -187,7 +187,7 @@ type SchedulingConfig struct {
 	AlwaysAttemptScheduling bool
 }
 
-type IndexResource struct {
+type IndexedResource struct {
 	// Resource name. E.g., "cpu", "memory", or "nvidia.com/gpu".
 	Name string
 	// See NodeDb docs.

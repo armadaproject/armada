@@ -382,11 +382,10 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		}
 		nodes = append(nodes, node)
 	}
-	indexedResources := q.schedulingConfig.IndexedResources
 	nodeDb, err := nodedb.NewNodeDb(
 		q.schedulingConfig.Preemption.PriorityClasses,
 		q.schedulingConfig.MaxExtraNodesToConsider,
-		indexedResources,
+		q.schedulingConfig.IndexedResources,
 		q.schedulingConfig.IndexedTaints,
 		q.schedulingConfig.IndexedNodeLabels,
 	)

@@ -137,9 +137,9 @@ func TestGangScheduler(t *testing.T) {
 			},
 			ExpectedScheduledIndices: []int{1, 3, 5, 7},
 		},
-		"resolution just high enough to allow scheduling": {
+		"resolution has no impact on jobs of size a multiple of the resolution": {
 			SchedulingConfig: testfixtures.WithIndexedResourcesConfig(
-				[]configuration.IndexResource{
+				[]configuration.IndexedResource{
 					{Name: "cpu", Resolution: resource.MustParse("16")},
 					{Name: "memory", Resolution: resource.MustParse("128Mi")},
 				},
@@ -156,9 +156,9 @@ func TestGangScheduler(t *testing.T) {
 			},
 			ExpectedScheduledIndices: testfixtures.IntRange(0, 5),
 		},
-		"low resolution blocks scheduling": {
+		"jobs of size not a multiple of the resolution blocks scheduling new jobs": {
 			SchedulingConfig: testfixtures.WithIndexedResourcesConfig(
-				[]configuration.IndexResource{
+				[]configuration.IndexedResource{
 					{Name: "cpu", Resolution: resource.MustParse("17")},
 					{Name: "memory", Resolution: resource.MustParse("128Mi")},
 				},
@@ -166,6 +166,7 @@ func TestGangScheduler(t *testing.T) {
 			),
 			Nodes: testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
+				testfixtures.N16CpuJobs("A", testfixtures.PriorityClass0, 1),
 				testfixtures.N16CpuJobs("A", testfixtures.PriorityClass0, 1),
 				testfixtures.N16CpuJobs("A", testfixtures.PriorityClass0, 1),
 				testfixtures.N16CpuJobs("A", testfixtures.PriorityClass0, 1),

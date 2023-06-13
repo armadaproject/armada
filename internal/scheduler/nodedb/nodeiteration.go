@@ -343,8 +343,7 @@ func NewNodeTypeIterator(
 }
 
 func (it *NodeTypeIterator) newNodeTypeIterator() (memdb.ResultIterator, error) {
-	it.key = it.key[0:0]
-	it.key = appendNodeDbKey(it.key, it.nodeTypeId, it.lowerBound)
+	it.key = NodeIndexKey(it.key[0:0], it.nodeTypeId, it.lowerBound)
 	memdbIt, err := it.txn.LowerBound(
 		"nodes",
 		it.indexName,

@@ -48,18 +48,18 @@ var (
 	TestDefaultPriorityClass         = PriorityClass3
 	TestPriorities                   = []int32{0, 1, 2, 3}
 	TestMaxExtraNodesToConsider uint = 1
-	TestResources                    = []configuration.IndexResource{
+	TestResources                    = []configuration.IndexedResource{
 		{Name: "cpu", Resolution: resource.MustParse("1")},
 		{Name: "memory", Resolution: resource.MustParse("128Mi")},
 		{Name: "gpu", Resolution: resource.MustParse("1")},
 	}
 	TestResourceNames = util.Map(
 		TestResources,
-		func(v configuration.IndexResource) string { return v.Name },
+		func(v configuration.IndexedResource) string { return v.Name },
 	)
 	TestIndexedResourceResolutionMillis = util.Map(
 		TestResources,
-		func(v configuration.IndexResource) int64 { return v.Resolution.MilliValue() },
+		func(v configuration.IndexedResource) int64 { return v.Resolution.MilliValue() },
 	)
 	TestIndexedTaints     = []string{"largeJobsOnly", "gpu"}
 	TestIndexedNodeLabels = []string{"largeJobsOnly", "gpu"}
@@ -137,7 +137,7 @@ func WithPerPriorityLimitsConfig(limits map[int32]map[string]float64, config con
 	return config
 }
 
-func WithIndexedResourcesConfig(indexResources []configuration.IndexResource, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+func WithIndexedResourcesConfig(indexResources []configuration.IndexedResource, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.IndexedResources = indexResources
 	return config
 }

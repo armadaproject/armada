@@ -21,27 +21,6 @@ func TestNodeDbSchema(t *testing.T) {
 	assert.NoError(t, schema.Validate())
 }
 
-func TestNodeDbKey(t *testing.T) {
-	nodeDb, err := createNodeDb(nil)
-	require.NoError(t, err)
-	node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
-	for _, p := range testfixtures.TestPriorities {
-		a := nodeDb.nodeDbKeyFromNode(nil, node, p)
-		assert.NotEqual(t, 0, len(a))
-
-		indexedResourceRequests := make([]resource.Quantity, len(nodeDb.indexedResources))
-		for i, t := range nodeDb.indexedResources {
-			indexedResourceRequests[i] = node.AllocatableByPriorityAndResource[p].Resources[t]
-		}
-		b := appendNodeDbKey(
-			nil,
-			node.NodeTypeId,
-			indexedResourceRequests,
-		)
-		assert.Equal(t, a, b, "node keys not equal for priority %d", p)
-	}
-}
-
 // Test the accounting of total resources across all nodes.
 func TestTotalResources(t *testing.T) {
 	nodeDb, err := createNodeDb([]*schedulerobjects.Node{})
