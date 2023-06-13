@@ -7,6 +7,7 @@ import (
 	"github.com/go-redis/redis"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
@@ -129,7 +130,7 @@ type SchedulingConfig struct {
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
 	// for which the scheduler creates indexes for efficient lookup.
 	// Applies only to the new scheduler.
-	IndexedResources []string
+	IndexedResources []IndexedResource
 	// Node labels that the scheduler creates indexes for efficient lookup of.
 	// Should include node labels frequently used for scheduling.
 	// Since the scheduler can efficiently sort out nodes for which these labels
@@ -184,6 +185,13 @@ type SchedulingConfig struct {
 	MaxUnacknowledgedJobsPerExecutor uint
 	// If true, do not during scheduling skip jobs with requirements known to be impossible to meet.
 	AlwaysAttemptScheduling bool
+}
+
+type IndexedResource struct {
+	// Resource name. E.g., "cpu", "memory", or "nvidia.com/gpu".
+	Name string
+	// See NodeDb docs.
+	Resolution resource.Quantity
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.

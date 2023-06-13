@@ -32,7 +32,7 @@ type DefaultPoolAssigner struct {
 	executorTimeout        time.Duration
 	priorityClasses        map[string]configuration.PriorityClass
 	priorities             []int32
-	indexedResources       []string
+	indexedResources       []configuration.IndexedResource
 	indexedTaints          []string
 	indexedNodeLabels      []string
 	poolByExecutorId       map[string]string

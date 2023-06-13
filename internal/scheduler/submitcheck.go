@@ -44,7 +44,7 @@ type SubmitChecker struct {
 	gangIdAnnotation          string
 	executorById              map[string]minimalExecutor
 	priorities                []int32
-	indexedResources          []string
+	indexedResources          []configuration.IndexedResource
 	indexedTaints             []string
 	indexedNodeLabels         []string
 	executorRepository        database.ExecutorRepository
