@@ -137,6 +137,11 @@ func WithPerPriorityLimitsConfig(limits map[int32]map[string]float64, config con
 	return config
 }
 
+func WithIndexedResourcesConfig(indexResources []configuration.IndexResource, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.IndexedResources = indexResources
+	return config
+}
+
 func WithMaxJobsToScheduleConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.MaximumJobsToSchedule = n
 	return config
