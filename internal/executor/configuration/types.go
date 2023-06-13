@@ -18,6 +18,7 @@ type ApplicationConfiguration struct {
 	DeleteConcurrencyLimit int
 	UseExecutorApi         bool
 	UseLegacyApi           bool
+	JobLeaseRequestTimeout time.Duration
 }
 
 type PodDefaults struct {
