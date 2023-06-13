@@ -25,8 +25,9 @@ type JobTableUpdater interface {
 	GetSubscribedJobSets(ctx context.Context) ([]SubscribedTuple, error)
 }
 
-//go:generate moq -out sql_job_service_moq.go . SQLJobService
 // SQLJobService for persisting to DB.
+//
+//go:generate moq -out sql_job_service_moq.go . SQLJobService
 type SQLJobService interface {
 	AddMessageIdAndClearSubscriptionError(ctx context.Context, queue string, jobSet string, fromMessageId string) error
 	CheckToUnSubscribe(ctx context.Context, queue string, jobSet string, configTimeWithoutUpdates time.Duration) (bool, error)

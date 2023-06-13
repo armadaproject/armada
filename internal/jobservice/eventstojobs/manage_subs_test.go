@@ -75,14 +75,14 @@ func TestJobSetSubscriptionSubscribe(t *testing.T) {
 	tests := []struct {
 		name                 string
 		isJobSetSubscribedFn func(context.Context, string, string) (bool, string, error)
-		ttlSecs              int64
+		ttlSecs              time.Duration
 		err                  error
 		wantErr              bool
 		wantSubscriptionErr  bool
 	}{
 		{
 			name:    "no error after expiration if messages are received",
-			ttlSecs: int64(1),
+			ttlSecs: time.Second,
 			err:     nil,
 			isJobSetSubscribedFn: func(context.Context, string, string) (bool, string, error) {
 				return true, "", nil
@@ -91,7 +91,7 @@ func TestJobSetSubscriptionSubscribe(t *testing.T) {
 		},
 		{
 			name:    "client errors and sets subscription error, but can continue on and exit normally",
-			ttlSecs: int64(1),
+			ttlSecs: time.Second * 10,
 			err:     errors.New("some error"),
 			isJobSetSubscribedFn: func(context.Context, string, string) (bool, string, error) {
 				return true, "", nil
@@ -101,7 +101,7 @@ func TestJobSetSubscriptionSubscribe(t *testing.T) {
 		},
 		{
 			name:    "it exits without error when job unsubscribes",
-			ttlSecs: int64(1),
+			ttlSecs: time.Second,
 			err:     nil,
 			isJobSetSubscribedFn: func(context.Context, string, string) (bool, string, error) {
 				return false, "", nil
@@ -125,12 +125,16 @@ func TestJobSetSubscriptionSubscribe(t *testing.T) {
 				CloseFunc: func() {},
 			}
 
-			mockJobRepo := repository.JobTableUpdaterMock{
+			mockJobRepo := repository.SQLJobServiceMock{
 				IsJobSetSubscribedFunc:                    tt.isJobSetSubscribedFn,
 				SubscribeJobSetFunc:                       func(context.Context, string, string, string) error { return nil },
 				AddMessageIdAndClearSubscriptionErrorFunc: func(context.Context, string, string, string) error { return nil },
 				SetSubscriptionErrorFunc:                  func(context.Context, string, string, string, string) error { return nil },
 				UnsubscribeJobSetFunc:                     func(context.Context, string, string) (int64, error) { return 0, nil },
+				CheckToUnSubscribeFunc:                    func(context.Context, string, string, time.Duration) (bool, error) { return true, nil },
+				GetSubscribedJobSetsFunc: func(context.Context) ([]repository.SubscribedTuple, error) {
+					return make([]repository.SubscribedTuple, 0), nil
+				},
 			}
 
 			subInfo := &repository.SubscribedTuple{
@@ -144,7 +148,7 @@ func TestJobSetSubscriptionSubscribe(t *testing.T) {
 				context.Background(),
 				&mockJobEventReader,
 				subInfo,
-				time.Duration(time.Second),
+				tt.ttlSecs,
 				subDoneChan,
 				&mockJobRepo,
 			)
@@ -186,12 +190,16 @@ func TestJobSetSubscriptionExecutor(t *testing.T) {
 
 	ctx := context.Background()
 
-	mockJobRepo := repository.JobTableUpdaterMock{
+	mockJobRepo := repository.SQLJobServiceMock{
 		IsJobSetSubscribedFunc:                    func(context.Context, string, string) (bool, string, error) { return true, "", nil },
 		SubscribeJobSetFunc:                       func(context.Context, string, string, string) error { return nil },
 		AddMessageIdAndClearSubscriptionErrorFunc: func(context.Context, string, string, string) error { return nil },
 		SetSubscriptionErrorFunc:                  func(context.Context, string, string, string, string) error { return nil },
 		UnsubscribeJobSetFunc:                     func(context.Context, string, string) (int64, error) { return 0, nil },
+		CheckToUnSubscribeFunc:                    func(context.Context, string, string, time.Duration) (bool, error) { return true, nil },
+		GetSubscribedJobSetsFunc: func(context.Context) ([]repository.SubscribedTuple, error) {
+			return make([]repository.SubscribedTuple, 0), nil
+		},
 	}
 
 	jobSubChan := make(chan *repository.SubscribedTuple, 10)
