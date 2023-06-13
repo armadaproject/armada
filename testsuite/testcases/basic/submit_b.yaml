@@ -1,0 +1,29 @@
+numBatches: 1
+batchSize: 30
+queue: b
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    podSpec:
+      terminationGracePeriodSeconds: 0
+      restartPolicy: Never
+      priorityClassName: armada-preemptible
+      containers:
+        - name: sleep
+          imagePullPolicy: IfNotPresent
+          image: alpine:3.10
+          args:
+            - "sleep"
+            - "30"
+          resources:
+            limits:
+              memory: 10Mi
+              cpu: 1
+            requests:
+              memory: 10Mi
+              cpu: 1
+---
+timeout: "500s"
+expectedEvents:
+  #- submitted:
+  #- succeeded:

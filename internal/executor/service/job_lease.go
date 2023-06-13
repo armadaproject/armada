@@ -44,6 +44,7 @@ type JobLeaseService struct {
 	queueClient            api.AggregatedQueueClient
 	minimumJobSize         armadaresource.ComputeResources
 	avoidNodeLabelsOnRetry []string
+	jobLeaseRequestTimeout time.Duration
 }
 
 func NewJobLeaseService(
@@ -51,12 +52,14 @@ func NewJobLeaseService(
 	queueClient api.AggregatedQueueClient,
 	minimumJobSize armadaresource.ComputeResources,
 	avoidNodeLabelsOnRetry []string,
+	jobLeaseRequestTimeout time.Duration,
 ) *JobLeaseService {
 	return &JobLeaseService{
 		clusterContext:         clusterContext,
 		queueClient:            queueClient,
 		minimumJobSize:         minimumJobSize,
 		avoidNodeLabelsOnRetry: avoidNodeLabelsOnRetry,
+		jobLeaseRequestTimeout: jobLeaseRequestTimeout,
 	}
 }
 
@@ -108,8 +111,12 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 	// Setup a bidirectional gRPC stream.
 	// The server sends jobs over this stream.
 	// The executor sends back acks to indicate which jobs were successfully received.
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	ctx := context.Background()
+	var cancel context.CancelFunc
+	if jobLeaseService.jobLeaseRequestTimeout != 0 {
+		ctx, cancel = context.WithTimeout(ctx, jobLeaseService.jobLeaseRequestTimeout)
+		defer cancel()
+	}
 	stream, err := jobLeaseService.queueClient.StreamingLeaseJobs(ctx, grpc_retry.Disable(), grpc.UseCompressor(gzip.Name))
 	if err != nil {
 		return nil, errors.WithStack(err)
