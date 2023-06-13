@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -80,6 +81,11 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	g, _ := errgroup.WithContext(ctx)
 
 	RectifyConfig(config)
+
+	if os.Getenv("JOBSERVICE_DEBUG") != "" {
+		log.SetLevel(log.DebugLevel)
+		log.Debug("Set logging to debug level")
+	}
 
 	log := log.WithField("JobService", "Startup")
 	grpcServer := grpcCommon.CreateGrpcServer(
