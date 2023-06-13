@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // The memdb internally uses bytes.Compare to compare keys.
