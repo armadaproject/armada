@@ -248,7 +248,7 @@ func (js *JobSetSubscription) Subscribe() error {
 			case <-timeout.C:
 				log.WithFields(requestFields).Debug("JobSetSubscription.Subscribe checking subscription status")
 				// Stream is created with *our* context, therefore if we cancel, stream.Recv() should bail out too.
-				unsub, err := js.sqlJobService.CheckToUnSubscribe(js.ctx, js.Queue, js.JobSetId, int64(js.subTimeout))
+				unsub, err := js.sqlJobService.CheckToUnSubscribe(js.ctx, js.Queue, js.JobSetId, js.subTimeout)
 				if err != nil {
 					log.WithFields(requestFields).WithError(err).Error("IsJobSetSubscribed error")
 				}

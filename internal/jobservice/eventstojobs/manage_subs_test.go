@@ -133,7 +133,7 @@ func TestJobSetSubscriptionSubscribe(t *testing.T) {
 				UnsubscribeJobSetFunc:                     func(context.Context, string, string) (int64, error) { return 0, nil },
 			}
 
-			subInfo := &repository.JobSetSubscriptionInfo{
+			subInfo := &repository.SubscribedTuple{
 				JobSetKey: repository.JobSetKey{
 					Queue:    "testQueue",
 					JobSetId: "testID",
@@ -194,7 +194,7 @@ func TestJobSetSubscriptionExecutor(t *testing.T) {
 		UnsubscribeJobSetFunc:                     func(context.Context, string, string) (int64, error) { return 0, nil },
 	}
 
-	jobSubChan := make(chan *repository.JobSetSubscriptionInfo, 10)
+	jobSubChan := make(chan *repository.SubscribedTuple, 10)
 
 	executor := NewJobSetSubscriptionExecutor(
 		ctx,
@@ -207,7 +207,7 @@ func TestJobSetSubscriptionExecutor(t *testing.T) {
 	go executor.Manage()
 
 	for i := 0; i < 5; i++ {
-		jobSubChan <- &repository.JobSetSubscriptionInfo{
+		jobSubChan <- &repository.SubscribedTuple{
 			JobSetKey: repository.JobSetKey{
 				Queue:    fmt.Sprintf("TestQueue-%d", i),
 				JobSetId: fmt.Sprintf("TestJobSetId-%d", i),

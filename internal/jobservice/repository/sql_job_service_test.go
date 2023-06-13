@@ -115,12 +115,12 @@ func TestSubscribeList(t *testing.T) {
 		subscribeList, err := r.GetSubscribedJobSets(ctx)
 		require.NoError(t, err)
 		for _, val := range subscribeList {
-			if val.Queue == "queue" && val.JobSet == "job-set-1" {
+			if val.Queue == "queue" && val.JobSetId == "job-set-1" {
 				require.Equal(t, val.Queue, "queue")
-				require.Equal(t, val.JobSet, "job-set-1")
-			} else if val.Queue == "queue" && val.JobSet == "job-set-2" {
+				require.Equal(t, val.JobSetId, "job-set-1")
+			} else if val.Queue == "queue" && val.JobSetId == "job-set-2" {
 				require.Equal(t, val.Queue, "queue")
-				require.Equal(t, val.JobSet, "job-set-2")
+				require.Equal(t, val.JobSetId, "job-set-2")
 			} else {
 				require.True(t, false)
 			}
