@@ -1,4 +1,3 @@
-//go:generate moq -out sql_job_service_moq.go . JobTableUpdater
 package repository
 
 import (
@@ -273,7 +272,7 @@ func (s *JSRepoSQLite) SubscribeJobSet(ctx context.Context, queue string, jobSet
 // We allow unsubscribing if the jobset hasn't been updated in configTime
 // TODO implement this
 func (s *JSRepoSQLite) CheckToUnSubscribe(ctx context.Context, queue string, jobSet string,
-	configTimeWithoutUpdates int64,
+	configTimeWithoutUpdates time.Duration,
 ) (bool, error) {
 	jobSetFound, _, err := s.IsJobSetSubscribed(ctx, queue, jobSet)
 	if err != nil {
@@ -288,7 +287,7 @@ func (s *JSRepoSQLite) CheckToUnSubscribe(ctx context.Context, queue string, job
 
 	sqlStmt := "SELECT Timestamp FROM jobsets WHERE Queue = ? AND Id = ?"
 	row := s.db.QueryRow(sqlStmt, queue, jobSet)
-	var timeStamp int
+	var timeStamp int64
 
 	timeErr := row.Scan(&timeStamp)
 
@@ -298,10 +297,12 @@ func (s *JSRepoSQLite) CheckToUnSubscribe(ctx context.Context, queue string, job
 		return false, err
 	}
 
-	currentTime := time.Now().Unix()
-	if (currentTime - configTimeWithoutUpdates) > int64(timeStamp) {
+	currentTime := time.Now()
+	lastUpdate := time.Unix(timeStamp, 0)
+	if currentTime.After(lastUpdate.Add(configTimeWithoutUpdates)) {
 		return true, nil
 	}
+
 	return false, nil
 }
 
@@ -349,7 +350,7 @@ func (s *JSRepoSQLite) GetSubscribedJobSets(ctx context.Context) ([]SubscribedTu
 	// Loop through rows, using Scan to assign column data to struct fields.
 	for rows.Next() {
 		var st SubscribedTuple
-		if err := rows.Scan(&st.Queue, &st.JobSet, &st.FromMessageId); err != nil {
+		if err := rows.Scan(&st.Queue, &st.JobSetId, &st.FromMessageId); err != nil {
 			return tuples, err
 		}
 		tuples = append(tuples, st)

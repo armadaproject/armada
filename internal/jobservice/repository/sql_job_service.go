@@ -1,10 +1,10 @@
-//go:generate moq -out sql_job_service_moq.go . JobTableUpdater
 package repository
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -12,6 +12,7 @@ import (
 	js "github.com/armadaproject/armada/pkg/api/jobservice"
 )
 
+//go:generate moq -out job_table_updater_moq.go . JobTableUpdater
 type JobTableUpdater interface {
 	SubscribeJobSet(ctx context.Context, queue string, jobSet string, fromMessageId string) error
 	IsJobSetSubscribed(ctx context.Context, queue string, jobSet string) (bool, string, error)
@@ -21,12 +22,15 @@ type JobTableUpdater interface {
 	GetSubscriptionError(ctx context.Context, queue string, jobSet string) (string, error)
 	AddMessageIdAndClearSubscriptionError(ctx context.Context, queue string, jobSet string, messageId string) error
 	UnsubscribeJobSet(ctx context.Context, queue string, jobSet string) (int64, error)
+	GetSubscribedJobSets(ctx context.Context) ([]SubscribedTuple, error)
 }
 
 // SQLJobService for persisting to DB.
+//
+//go:generate moq -out sql_job_service_moq.go . SQLJobService
 type SQLJobService interface {
 	AddMessageIdAndClearSubscriptionError(ctx context.Context, queue string, jobSet string, fromMessageId string) error
-	CheckToUnSubscribe(ctx context.Context, queue string, jobSet string, configTimeWithoutUpdates int64) (bool, error)
+	CheckToUnSubscribe(ctx context.Context, queue string, jobSet string, configTimeWithoutUpdates time.Duration) (bool, error)
 	DeleteJobsInJobSet(ctx context.Context, queue string, jobSet string) (int64, error)
 	GetJobStatus(ctx context.Context, jobId string) (*js.JobServiceResponse, error)
 	GetSubscribedJobSets(ctx context.Context) ([]SubscribedTuple, error)
@@ -52,9 +56,14 @@ func NewSQLJobService(cfg *configuration.JobServiceConfiguration, log *log.Entry
 	return errors.New("database type must be either 'postgres' or 'sqlite'"), nil, func() {}
 }
 
+type JobSetKey struct {
+	Queue    string
+	JobSetId string
+}
+
 type SubscribedTuple struct {
-	Queue         string
-	JobSet        string
+	JobSetKey
+
 	FromMessageId string
 }
 

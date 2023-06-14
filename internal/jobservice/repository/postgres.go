@@ -1,4 +1,3 @@
-//go:generate moq -out sql_job_service_moq.go . JobTableUpdater
 package repository
 
 import (
@@ -41,6 +40,7 @@ func NewJSRepoPostgres(cfg *configuration.JobServiceConfiguration, log *log.Entr
 func (s *JSRepoPostgres) Setup(ctx context.Context) {
 	setupStmts := []string{
 		`DROP TABLE IF EXISTS jobs`,
+		`DROP INDEX IF EXISTS idx_job_set_queue`,
 		`DROP TABLE IF EXISTS jobsets`,
 		`CREATE TABLE jobsets (
 			Queue TEXT,
@@ -231,7 +231,7 @@ func (s *JSRepoPostgres) SubscribeJobSet(ctx context.Context, queue string, jobS
 // We allow unsubscribing if the jobset hasn't been updated in configTime
 // TODO implement this
 func (s *JSRepoPostgres) CheckToUnSubscribe(ctx context.Context, queue string, jobSet string,
-	configTimeWithoutUpdates int64,
+	configTimeWithoutUpdates time.Duration,
 ) (bool, error) {
 	jobSetFound, _, err := s.IsJobSetSubscribed(ctx, queue, jobSet)
 	if err != nil {
@@ -244,7 +244,7 @@ func (s *JSRepoPostgres) CheckToUnSubscribe(ctx context.Context, queue string, j
 	sqlStmt := "SELECT Timestamp FROM jobsets WHERE Queue = $1 AND Id = $2"
 
 	row := s.dbpool.QueryRow(ctx, sqlStmt, queue, jobSet)
-	var timeStamp int
+	var timeStamp int64
 
 	timeErr := row.Scan(&timeStamp)
 
@@ -254,8 +254,9 @@ func (s *JSRepoPostgres) CheckToUnSubscribe(ctx context.Context, queue string, j
 		return false, err
 	}
 
-	currentTime := time.Now().Unix()
-	if (currentTime - configTimeWithoutUpdates) > int64(timeStamp) {
+	currentTime := time.Now()
+	lastUpdate := time.Unix(timeStamp, 0)
+	if currentTime.After(lastUpdate.Add(configTimeWithoutUpdates)) {
 		return true, nil
 	}
 	return false, nil
@@ -296,7 +297,7 @@ func (s *JSRepoPostgres) GetSubscribedJobSets(ctx context.Context) ([]Subscribed
 	// Loop through rows, using Scan to assign column data to struct fields.
 	for rows.Next() {
 		var st SubscribedTuple
-		if err := rows.Scan(&st.Queue, &st.JobSet, &st.FromMessageId); err != nil {
+		if err := rows.Scan(&st.Queue, &st.JobSetId, &st.FromMessageId); err != nil {
 			return tuples, err
 		}
 		tuples = append(tuples, st)
