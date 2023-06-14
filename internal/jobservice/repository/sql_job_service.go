@@ -39,6 +39,7 @@ type SQLJobService interface {
 	UnsubscribeJobSet(ctx context.Context, queue, jobSet string) (int64, error)
 	UpdateJobServiceDb(ctx context.Context, jobTable *JobStatus) error
 	UpdateJobSetDb(ctx context.Context, queue string, jobSet string, fromMessageId string) error
+	PurgeExpiredJobSets(ctx context.Context)
 }
 
 func NewSQLJobService(cfg *configuration.JobServiceConfiguration, log *log.Entry) (error, SQLJobService, func()) {
