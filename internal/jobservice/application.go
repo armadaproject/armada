@@ -85,7 +85,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	if os.Getenv("JOBSERVICE_DEBUG") != "" {
 		log.SetLevel(log.DebugLevel)
 		log.Debug("Set logging to debug level")
-		log.Debugf("Subscription time: %d", config.SubscribeJobSetTime)
+		log.Debugf("Subscription expiry time: %d", config.SubscriptionExpirySecs)
 	}
 
 	log := log.WithField("JobService", "Startup")
@@ -130,7 +130,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 			eventClient,
 			sqlJobRepo,
 			jobService.GetNewSubscriptionChannel(),
-			time.Duration(config.SubscribeJobSetTime)*time.Second)
+			time.Duration(config.SubscriptionExpirySecs)*time.Second)
 		jobSubExecutor.Manage()
 		return nil
 	})

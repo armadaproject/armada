@@ -24,8 +24,8 @@ type JobServiceConfiguration struct {
 	// Connection details that we obtain from client
 	ApiConnection client.ApiConnectionDetails
 	// Configurable value that translates to number of seconds
-	// This is the amount of time since the last job in job-set has been updated.
-	SubscribeJobSetTime int64
+	// until a job set subscription is considered expired.
+	SubscriptionExpirySecs int64
 	// Size of the goroutine pool for processing job-set subscriptions
 	SubscriberPoolSize int
 	// Purge jobSets if not updated in this number of seconds
