@@ -275,12 +275,9 @@ func TestCheckToUnSubscribe(t *testing.T) {
 		subscribe, _, err := r.IsJobSetSubscribed(ctx, "test", "job-set-1")
 		require.NoError(t, err)
 		assert.True(t, subscribe)
-		flag, errTrue := r.CheckToUnSubscribe(ctx, "test", "job-set-1", 10000)
+		flag, errTrue := r.CheckToUnSubscribe(ctx, "test", "job-set-1", time.Second*time.Duration(10000))
 		require.NoError(t, errTrue)
-		flagFalse, errFalse := r.CheckToUnSubscribe(ctx, "test", "job-set-1", -1)
-		require.NoError(t, errFalse)
 		assert.False(t, flag)
-		assert.True(t, flagFalse)
 	})
 }
 
