@@ -1,7 +1,7 @@
 grpcPort: 60003
 httpPort: 8090
 purgeJobSetTime: 1000
-subscribeJobSetTime: 100
+subscribeExpirySecs: 300
 subscriberPoolSize: 30
 # databaseType can be either 'postgres' or 'sqlite'
 databaseType: "postgres"
@@ -37,4 +37,4 @@ grpcPool:
 # If you want that for local testing, then use an override.
 apiConnection:
   armadaUrl: "server:50051"
-
+  forceNoTls: true
