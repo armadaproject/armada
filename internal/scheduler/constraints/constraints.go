@@ -1,7 +1,10 @@
 package constraints
 
 import (
+	"math"
+
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -88,7 +91,7 @@ func SchedulingConstraintsFromSchedulingConfig(
 func absoluteFromRelativeLimits(totalResources schedulerobjects.ResourceList, relativeLimits map[string]float64) schedulerobjects.ResourceList {
 	absoluteLimits := schedulerobjects.NewResourceList(len(relativeLimits))
 	for t, f := range relativeLimits {
-		absoluteLimits.Set(t, schedulerobjects.ScaleQuantity(totalResources.Get(t).DeepCopy(), f))
+		absoluteLimits.Set(t, ScaleQuantity(totalResources.Get(t).DeepCopy(), f))
 	}
 	return absoluteLimits
 }
@@ -141,4 +144,12 @@ func (constraints *SchedulingConstraints) CheckPerQueueAndPriorityClassConstrain
 // exceedsResourceLimits returns true if used/total > limits for some resource.
 func exceedsResourceLimits(used, limits schedulerobjects.ResourceList) bool {
 	return !used.IsStrictlyLessOrEqual(limits)
+}
+
+// ScaleQuantity scales q in-place by a factor f.
+// This functions overflows for quantities the milli value of which can't be expressed as an int64.
+// E.g., 1Pi is ok, but not 10Pi.
+func ScaleQuantity(q resource.Quantity, f float64) resource.Quantity {
+	q.SetMilli(int64(math.Round(float64(q.MilliValue()) * f)))
+	return q
 }

@@ -52,8 +52,7 @@ type SchedulingContext struct {
 	NumScheduledGangs int
 	// Total number of evicted jobs.
 	NumEvictedJobs int
-	// Total number of evicted gangs.
-	NumEvictedGangs int
+	// TODO(reports): Count the number of evicted gangs.
 	// Reason for why the scheduling round finished.
 	TerminationReason string
 	// Used to efficiently generate scheduling keys.
@@ -154,7 +153,6 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 	fmt.Fprintf(w, "Preempted resources:\t%s\n", sctx.EvictedResources.CompactString())
 	fmt.Fprintf(w, "Number of gangs scheduled:\t%d\n", sctx.NumScheduledGangs)
 	fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", sctx.NumScheduledJobs)
-	fmt.Fprintf(w, "Number of gangs preempted:\t%d\n", sctx.NumEvictedGangs)
 	fmt.Fprintf(w, "Number of jobs preempted:\t%d\n", sctx.NumEvictedJobs)
 	if verbosity <= 0 {
 		fmt.Fprintf(
@@ -203,12 +201,8 @@ func (sctx *SchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingCont
 		allJobsEvictedInThisRound = allJobsEvictedInThisRound && evictedInThisRound
 		allJobsSuccessful = allJobsSuccessful && jctx.IsSuccessful()
 	}
-	if allJobsSuccessful {
-		if allJobsEvictedInThisRound {
-			sctx.NumEvictedGangs--
-		} else {
-			sctx.NumScheduledGangs++
-		}
+	if allJobsSuccessful && !allJobsEvictedInThisRound {
+		sctx.NumScheduledGangs++
 	}
 	return allJobsEvictedInThisRound, nil
 }
@@ -249,8 +243,6 @@ func (sctx *SchedulingContext) EvictGang(jobs []interfaces.LegacySchedulerJob) (
 	}
 	if allJobsScheduledInThisRound {
 		sctx.NumScheduledGangs--
-	} else {
-		sctx.NumEvictedGangs++
 	}
 	return allJobsScheduledInThisRound, nil
 }
