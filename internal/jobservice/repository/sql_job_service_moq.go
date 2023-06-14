@@ -44,6 +44,9 @@ var _ SQLJobService = &SQLJobServiceMock{}
 //			IsJobSetSubscribedFunc: func(ctx context.Context, queue string, jobSet string) (bool, string, error) {
 //				panic("mock out the IsJobSetSubscribed method")
 //			},
+//			PurgeExpiredJobSetsFunc: func(ctx context.Context)  {
+//				panic("mock out the PurgeExpiredJobSets method")
+//			},
 //			SetSubscriptionErrorFunc: func(ctx context.Context, queue string, jobSet string, connErr string, fromMessageId string) error {
 //				panic("mock out the SetSubscriptionError method")
 //			},
@@ -92,6 +95,9 @@ type SQLJobServiceMock struct {
 
 	// IsJobSetSubscribedFunc mocks the IsJobSetSubscribed method.
 	IsJobSetSubscribedFunc func(ctx context.Context, queue string, jobSet string) (bool, string, error)
+
+	// PurgeExpiredJobSetsFunc mocks the PurgeExpiredJobSets method.
+	PurgeExpiredJobSetsFunc func(ctx context.Context)
 
 	// SetSubscriptionErrorFunc mocks the SetSubscriptionError method.
 	SetSubscriptionErrorFunc func(ctx context.Context, queue string, jobSet string, connErr string, fromMessageId string) error
@@ -179,6 +185,11 @@ type SQLJobServiceMock struct {
 			// JobSet is the jobSet argument value.
 			JobSet string
 		}
+		// PurgeExpiredJobSets holds details about calls to the PurgeExpiredJobSets method.
+		PurgeExpiredJobSets []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+		}
 		// SetSubscriptionError holds details about calls to the SetSubscriptionError method.
 		SetSubscriptionError []struct {
 			// Ctx is the ctx argument value.
@@ -244,6 +255,7 @@ type SQLJobServiceMock struct {
 	lockGetSubscriptionError                  sync.RWMutex
 	lockHealthCheck                           sync.RWMutex
 	lockIsJobSetSubscribed                    sync.RWMutex
+	lockPurgeExpiredJobSets                   sync.RWMutex
 	lockSetSubscriptionError                  sync.RWMutex
 	lockSetup                                 sync.RWMutex
 	lockSubscribeJobSet                       sync.RWMutex
@@ -557,6 +569,38 @@ func (mock *SQLJobServiceMock) IsJobSetSubscribedCalls() []struct {
 	mock.lockIsJobSetSubscribed.RLock()
 	calls = mock.calls.IsJobSetSubscribed
 	mock.lockIsJobSetSubscribed.RUnlock()
+	return calls
+}
+
+// PurgeExpiredJobSets calls PurgeExpiredJobSetsFunc.
+func (mock *SQLJobServiceMock) PurgeExpiredJobSets(ctx context.Context) {
+	if mock.PurgeExpiredJobSetsFunc == nil {
+		panic("SQLJobServiceMock.PurgeExpiredJobSetsFunc: method is nil but SQLJobService.PurgeExpiredJobSets was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+	}{
+		Ctx: ctx,
+	}
+	mock.lockPurgeExpiredJobSets.Lock()
+	mock.calls.PurgeExpiredJobSets = append(mock.calls.PurgeExpiredJobSets, callInfo)
+	mock.lockPurgeExpiredJobSets.Unlock()
+	mock.PurgeExpiredJobSetsFunc(ctx)
+}
+
+// PurgeExpiredJobSetsCalls gets all the calls that were made to PurgeExpiredJobSets.
+// Check the length with:
+//
+//	len(mockedSQLJobService.PurgeExpiredJobSetsCalls())
+func (mock *SQLJobServiceMock) PurgeExpiredJobSetsCalls() []struct {
+	Ctx context.Context
+} {
+	var calls []struct {
+		Ctx context.Context
+	}
+	mock.lockPurgeExpiredJobSets.RLock()
+	calls = mock.calls.PurgeExpiredJobSets
+	mock.lockPurgeExpiredJobSets.RUnlock()
 	return calls
 }
 
