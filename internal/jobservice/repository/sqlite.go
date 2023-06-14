@@ -148,14 +148,11 @@ func (s *JSRepoSQLite) UpdateJobServiceDb(ctx context.Context, jobTable *JobStat
 	return errExec
 }
 
+// We should check if a JobSet exists first before updating the database and return an error if it doesn't exist.
+// However, The only caller of this function, in jobservice/server/server.go, does this check before calling.
+// Adding the check here will be redundant and a performance botteneck.
+// TODO: We should descend the check here and adjust the JobSet subscription logic in jobservice/server/server.go
 func (s *JSRepoSQLite) UpdateJobSetDb(ctx context.Context, queue string, jobSet string, fromMessageId string) error {
-	subscribe, _, err := s.IsJobSetSubscribed(ctx, queue, jobSet)
-	if err != nil {
-		return err
-	}
-	if !subscribe {
-		return fmt.Errorf("queue %s jobSet %s is already unsubscribed", queue, jobSet)
-	}
 	s.lock.Lock()
 	defer s.lock.Unlock()
 

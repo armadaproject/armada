@@ -308,14 +308,6 @@ func TestUpdateJobSetTime(t *testing.T) {
 	})
 }
 
-func TestUpdateJobSetTimeWithoutSubscribe(t *testing.T) {
-	WithSqlServiceRepo(purgeTime, func(r SQLJobService) {
-		ctx := context.Background()
-		updateErr := r.UpdateJobSetDb(ctx, "test", "job-set-1", "")
-		assert.EqualError(t, updateErr, "queue test jobSet job-set-1 is already unsubscribed")
-	})
-}
-
 func TestGetJobStatusAllStates(t *testing.T) {
 	WithSqlServiceRepo(purgeTime, func(r SQLJobService) {
 		ctx := context.Background()
