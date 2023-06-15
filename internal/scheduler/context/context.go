@@ -154,34 +154,32 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 	fmt.Fprintf(w, "Number of gangs scheduled:\t%d\n", sctx.NumScheduledGangs)
 	fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", sctx.NumScheduledJobs)
 	fmt.Fprintf(w, "Number of jobs preempted:\t%d\n", sctx.NumEvictedJobs)
+	scheduled := armadamaps.Filter(
+		sctx.QueueSchedulingContexts,
+		func(_ string, qctx *QueueSchedulingContext) bool {
+			return len(qctx.SuccessfulJobSchedulingContexts) > 0
+		},
+	)
 	if verbosity <= 0 {
-		fmt.Fprintf(
-			w,
-			"Scheduled queues:\t%v\n",
-			maps.Keys(
-				armadamaps.Filter(
-					sctx.QueueSchedulingContexts,
-					func(_ string, qctx *QueueSchedulingContext) bool {
-						return len(qctx.SuccessfulJobSchedulingContexts) > 0
-					},
-				),
-			),
-		)
-		fmt.Fprintf(
-			w,
-			"Preempted queues:\t%v\n",
-			maps.Keys(
-				armadamaps.Filter(
-					sctx.QueueSchedulingContexts,
-					func(_ string, qctx *QueueSchedulingContext) bool {
-						return len(qctx.EvictedJobsById) > 0
-					},
-				),
-			),
-		)
+		fmt.Fprintf(w, "Scheduled queues:\t%v\n", maps.Keys(scheduled))
 	} else {
-		fmt.Fprint(w, "Queues:\n")
-		for queueName, qctx := range sctx.QueueSchedulingContexts {
+		fmt.Fprint(w, "Scheduled queues:\n")
+		for queueName, qctx := range scheduled {
+			fmt.Fprintf(w, "\t%s:\n", queueName)
+			fmt.Fprintf(w, indent.String("\t\t", qctx.ReportString(verbosity-1)))
+		}
+	}
+	preempted := armadamaps.Filter(
+		sctx.QueueSchedulingContexts,
+		func(_ string, qctx *QueueSchedulingContext) bool {
+			return len(qctx.EvictedJobsById) > 0
+		},
+	)
+	if verbosity <= 0 {
+		fmt.Fprintf(w, "Preempted queues:\t%v\n", maps.Keys(preempted))
+	} else {
+		fmt.Fprint(w, "Preempted queues:\n")
+		for queueName, qctx := range preempted {
 			fmt.Fprintf(w, "\t%s:\n", queueName)
 			fmt.Fprintf(w, indent.String("\t\t", qctx.ReportString(verbosity-1)))
 		}
