@@ -414,9 +414,18 @@ func (repo *SchedulingContextRepository) getQueueReportString(queue string, verb
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	sortedExecutorIds := repo.GetSortedExecutorIds()
-	mostRecentByExecutor, _ := repo.GetMostRecentQueueSchedulingContextByExecutor(queue)
-	mostRecentSuccessfulByExecutor, _ := repo.GetMostRecentSuccessfulQueueSchedulingContextByExecutor(queue)
-	mostRecentPreemptingByExecutor, _ := repo.GetMostRecentPreemptingQueueSchedulingContextByExecutor(queue)
+	mostRecentByExecutor, ok := repo.GetMostRecentQueueSchedulingContextByExecutor(queue)
+	if !ok {
+		mostRecentByExecutor = make(QueueSchedulingContextByExecutor)
+	}
+	mostRecentSuccessfulByExecutor, ok := repo.GetMostRecentSuccessfulQueueSchedulingContextByExecutor(queue)
+	if !ok {
+		mostRecentSuccessfulByExecutor = make(QueueSchedulingContextByExecutor)
+	}
+	mostRecentPreemptingByExecutor, ok := repo.GetMostRecentPreemptingQueueSchedulingContextByExecutor(queue)
+	if !ok {
+		mostRecentPreemptingByExecutor = make(QueueSchedulingContextByExecutor)
+	}
 	for _, executorId := range sortedExecutorIds {
 		fmt.Fprintf(w, "%s:\n", executorId)
 		qctx := mostRecentByExecutor[executorId]
