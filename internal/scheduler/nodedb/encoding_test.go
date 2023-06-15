@@ -100,72 +100,72 @@ func TestEncodeQuantity(t *testing.T) {
 }
 
 func TestNodeIndexKey(t *testing.T) {
-	type v struct {
+	type nodeIndexKeyValues struct {
 		nodeTypeId uint64
 		resources  []resource.Quantity
 	}
 	tests := map[string]struct {
-		a v
-		b v
+		a nodeIndexKeyValues
+		b nodeIndexKeyValues
 	}{
 		"equal nodeTypeId": {
-			a: v{
+			a: nodeIndexKeyValues{
 				nodeTypeId: 10,
 			},
-			b: v{
+			b: nodeIndexKeyValues{
 				nodeTypeId: 10,
 			},
 		},
 		"unequal nodeTypeId": {
-			a: v{
+			a: nodeIndexKeyValues{
 				nodeTypeId: 10,
 			},
-			b: v{
+			b: nodeIndexKeyValues{
 				nodeTypeId: 11,
 			},
 		},
 		"equal nodeTypeId and resources": {
-			a: v{
+			a: nodeIndexKeyValues{
 				nodeTypeId: 10,
 				resources:  []resource.Quantity{resource.MustParse("1"), resource.MustParse("2")},
 			},
-			b: v{
+			b: nodeIndexKeyValues{
 				nodeTypeId: 10,
 				resources:  []resource.Quantity{resource.MustParse("1"), resource.MustParse("2")},
 			},
 		},
 		"equal nodeTypeId and unequal resources": {
-			a: v{
+			a: nodeIndexKeyValues{
 				nodeTypeId: 10,
 				resources:  []resource.Quantity{resource.MustParse("2"), resource.MustParse("1")},
 			},
-			b: v{
+			b: nodeIndexKeyValues{
 				nodeTypeId: 10,
 				resources:  []resource.Quantity{resource.MustParse("1"), resource.MustParse("2")},
 			},
 		},
 		"unequal nodeTypeId and equal resources": {
-			a: v{
+			a: nodeIndexKeyValues{
 				nodeTypeId: 10,
 				resources:  []resource.Quantity{resource.MustParse("1"), resource.MustParse("2")},
 			},
-			b: v{
+			b: nodeIndexKeyValues{
 				nodeTypeId: 11,
 				resources:  []resource.Quantity{resource.MustParse("1"), resource.MustParse("2")},
 			},
 		},
 		"negative resource": {
-			a: v{
+			a: nodeIndexKeyValues{
 				nodeTypeId: 10,
 				resources:  []resource.Quantity{resource.MustParse("1"), resource.MustParse("2")},
 			},
-			b: v{
+			b: nodeIndexKeyValues{
 				nodeTypeId: 10,
 				resources:  []resource.Quantity{resource.MustParse("-1"), resource.MustParse("2")},
 			},
 		},
 	}
-	expectedCmp := func(a, b v) int {
+	expectedCmp := func(a, b nodeIndexKeyValues) int {
 		if a.nodeTypeId < b.nodeTypeId {
 			return -1
 		} else if a.nodeTypeId > b.nodeTypeId {
