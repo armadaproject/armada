@@ -55,11 +55,7 @@ type SchedulingContextRepository struct {
 	mu sync.Mutex
 }
 
-type (
-	SchedulingContextByExecutor      map[string]*schedulercontext.SchedulingContext
-	QueueSchedulingContextByExecutor map[string]*schedulercontext.QueueSchedulingContext
-	JobSchedulingContextByExecutor   map[string]*schedulercontext.JobSchedulingContext
-)
+type SchedulingContextByExecutor map[string]*schedulercontext.SchedulingContext
 
 func NewSchedulingContextRepository(jobCacheSize uint) (*SchedulingContextRepository, error) {
 	mostRecentByExecutorByJobId, err := lru.New(int(jobCacheSize))
@@ -526,34 +522,6 @@ func (m SchedulingContextByExecutor) String() string {
 		sctx := m[executorId]
 		fmt.Fprintf(w, "%s:\n", executorId)
 		fmt.Fprint(w, indent.String("\t", sctx.String()))
-	}
-	w.Flush()
-	return sb.String()
-}
-
-func (m QueueSchedulingContextByExecutor) String() string {
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	executorIds := maps.Keys(m)
-	slices.Sort(executorIds)
-	for _, executorId := range executorIds {
-		qctx := m[executorId]
-		fmt.Fprintf(w, "%s:\n", executorId)
-		fmt.Fprint(w, indent.String("\t", qctx.String()))
-	}
-	w.Flush()
-	return sb.String()
-}
-
-func (m JobSchedulingContextByExecutor) String() string {
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	executorIds := maps.Keys(m)
-	slices.Sort(executorIds)
-	for _, executorId := range executorIds {
-		jctx := m[executorId]
-		fmt.Fprintf(w, "%s:\n", executorId)
-		fmt.Fprint(w, indent.String("\t", jctx.String()))
 	}
 	w.Flush()
 	return sb.String()
