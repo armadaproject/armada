@@ -58,9 +58,7 @@ func (s *JSRepoPostgres) Setup(ctx context.Context) {
 			JobResponseState TEXT,
 			JobResponseError TEXT,
 			Timestamp INTEGER,
-			PRIMARY KEY(Id),
-			FOREIGN KEY(JobSetId) REFERENCES jobsets(Id) ON DELETE CASCADE
-		)`,
+			PRIMARY KEY(Id))`,
 		`CREATE INDEX idx_job_set_queue ON jobs (Queue, JobSetId)`,
 		`CREATE INDEX idx_jobs_timestamp ON jobs (Timestamp)`,
 		`DROP TRIGGER IF EXISTS trigger_delete_expired_jobsets ON jobsets`,
@@ -308,22 +306,27 @@ func (s *JSRepoPostgres) GetSubscribedJobSets(ctx context.Context) ([]Subscribed
 	return tuples, nil
 }
 
-// PurgeExpiredJobSets purges all expired JobSets from the database
-// An expired JobSet is a JobSet that has not been updated within the specified PurgeJobSetTime period.
-// All children Jobs of the expired JobSets will also be deleted by the Cascade deletion relationship.
-// This function should be called from a dedicated goroutine.
+// PurgeExpiredJobSets purges all expired Jobs/JobSets from the database
+// An expired Job/JobSet is a Job/JobSet that has not been updated within the specified PurgeJobSetTime period.
 func (s *JSRepoPostgres) PurgeExpiredJobSets(ctx context.Context) {
-	sqlStmt := fmt.Sprintf(`DELETE FROM jobsets WHERE Timestamp < (extract(epoch from now()) - %d);`, s.jobServiceConfig.PurgeJobSetTime)
+	jobSetStmt := fmt.Sprintf(`DELETE FROM jobsets WHERE Timestamp < (extract(epoch from now()) - %d);`, s.jobServiceConfig.PurgeJobSetTime)
+	jobStmt := fmt.Sprintf(`DELETE FROM jobs WHERE Timestamp < (extract(epoch from now()) - %d);`, s.jobServiceConfig.PurgeJobSetTime)
 	ticker := time.NewTicker(time.Duration(s.jobServiceConfig.PurgeJobSetTime) * time.Second)
 	log := log.WithField("JobService", "ExpiredJobSetsPurge")
 
 	log.Info("Starting purge of expired jobsets")
 	for range ticker.C {
-		result, err := s.dbpool.Exec(ctx, sqlStmt)
+		result, err := s.dbpool.Exec(ctx, jobSetStmt)
 		if err != nil {
 			log.Error("error deleting expired jobsets: ", err)
 		} else {
 			log.Debugf("Deleted %d expired jobsets", result.RowsAffected())
+		}
+		result, err = s.dbpool.Exec(ctx, jobStmt)
+		if err != nil {
+			log.Error("error deleting expired jobs: ", err)
+		} else {
+			log.Debugf("Deleted %d expired jobs", result.RowsAffected())
 		}
 	}
 }
