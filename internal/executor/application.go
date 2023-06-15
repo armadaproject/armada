@@ -273,6 +273,7 @@ func setupServerApiComponents(
 		queueClient,
 		config.Kubernetes.MinimumJobSize,
 		config.Kubernetes.AvoidNodeLabelsOnRetry,
+		config.Application.JobLeaseRequestTimeout,
 	)
 
 	submitter := job.NewSubmitter(

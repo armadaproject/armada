@@ -9,9 +9,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
@@ -136,10 +138,90 @@ func TestGangScheduler(t *testing.T) {
 			},
 			ExpectedScheduledIndices: []int{1, 3, 5, 7},
 		},
+		"resolution has no impact on jobs of size a multiple of the resolution": {
+			SchedulingConfig: testfixtures.WithIndexedResourcesConfig(
+				[]configuration.IndexedResource{
+					{Name: "cpu", Resolution: resource.MustParse("16")},
+					{Name: "memory", Resolution: resource.MustParse("128Mi")},
+				},
+				testfixtures.TestSchedulingConfig(),
+			),
+			Nodes: testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
+			Gangs: [][]*jobdb.Job{
+				testfixtures.N16CpuJobs("A", testfixtures.PriorityClass0, 1),
+				testfixtures.N16CpuJobs("A", testfixtures.PriorityClass0, 1),
+				testfixtures.N16CpuJobs("A", testfixtures.PriorityClass0, 1),
+				testfixtures.N16CpuJobs("A", testfixtures.PriorityClass0, 1),
+				testfixtures.N16CpuJobs("A", testfixtures.PriorityClass0, 1),
+				testfixtures.N16CpuJobs("A", testfixtures.PriorityClass0, 1),
+			},
+			ExpectedScheduledIndices: testfixtures.IntRange(0, 5),
+		},
+		"jobs of size not a multiple of the resolution blocks scheduling new jobs": {
+			SchedulingConfig: testfixtures.WithIndexedResourcesConfig(
+				[]configuration.IndexedResource{
+					{Name: "cpu", Resolution: resource.MustParse("17")},
+					{Name: "memory", Resolution: resource.MustParse("128Mi")},
+				},
+				testfixtures.TestSchedulingConfig(),
+			),
+			Nodes: testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
+			Gangs: [][]*jobdb.Job{
+				testfixtures.N16CpuJobs("A", testfixtures.PriorityClass0, 1),
+				testfixtures.N16CpuJobs("A", testfixtures.PriorityClass0, 1),
+				testfixtures.N16CpuJobs("A", testfixtures.PriorityClass0, 1),
+				testfixtures.N16CpuJobs("A", testfixtures.PriorityClass0, 1),
+			},
+			ExpectedScheduledIndices: testfixtures.IntRange(0, 2),
+		},
+		"consider all nodes in the bucket": {
+			SchedulingConfig: testfixtures.WithIndexedResourcesConfig(
+				[]configuration.IndexedResource{
+					{Name: "cpu", Resolution: resource.MustParse("1")},
+					{Name: "memory", Resolution: resource.MustParse("1Mi")},
+					{Name: "gpu", Resolution: resource.MustParse("1")},
+				},
+				testfixtures.TestSchedulingConfig(),
+			),
+			Nodes: armadaslices.Concatenate(
+				testfixtures.WithUsedResourcesNodes(
+					0,
+					schedulerobjects.ResourceList{
+						Resources: map[string]resource.Quantity{
+							"cpu":    resource.MustParse("31.5"),
+							"memory": resource.MustParse("512Gi"),
+							"gpu":    resource.MustParse("8"),
+						},
+					},
+					testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
+				),
+				testfixtures.WithUsedResourcesNodes(
+					0,
+					schedulerobjects.ResourceList{
+						Resources: map[string]resource.Quantity{
+							"cpu": resource.MustParse("32"),
+						},
+					},
+					testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
+				),
+			),
+			Gangs: [][]*jobdb.Job{
+				testfixtures.N1GpuJobs("A", testfixtures.PriorityClass0, 1),
+			},
+			ExpectedScheduledIndices: testfixtures.IntRange(0, 0),
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := CreateNodeDb(tc.Nodes)
+			nodeDb, err := nodedb.NewNodeDb(
+				testfixtures.TestPriorityClasses,
+				testfixtures.TestMaxExtraNodesToConsider,
+				tc.SchedulingConfig.IndexedResources,
+				testfixtures.TestIndexedTaints,
+				testfixtures.TestIndexedNodeLabels,
+			)
+			require.NoError(t, err)
+			err = nodeDb.UpsertMany(tc.Nodes)
 			require.NoError(t, err)
 			if tc.TotalResources.Resources == nil {
 				// Default to NodeDb total.
