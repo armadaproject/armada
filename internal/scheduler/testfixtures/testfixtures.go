@@ -477,8 +477,8 @@ func Test1GpuPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerob
 		jobId,
 		priority,
 		v1.ResourceList{
-			"cpu":    resource.MustParse("4"),
-			"memory": resource.MustParse("16Gi"),
+			"cpu":    resource.MustParse("8"),
+			"memory": resource.MustParse("128Gi"),
 			"gpu":    resource.MustParse("1"),
 		},
 	)

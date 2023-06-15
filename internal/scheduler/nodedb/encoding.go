@@ -33,10 +33,15 @@ func RoundedNodeIndexKeyFromResourceList(out []byte, nodeTypeId uint64, resource
 	for i, name := range resourceNames {
 		resolution := resourceResolutionMillis[i]
 		q := rl.Get(name)
-		q.SetMilli((q.MilliValue() / resolution) * resolution)
+		q = roundQuantityToResolution(q, resolution)
 		out = EncodeQuantity(out, q)
 	}
 	return out
+}
+
+func roundQuantityToResolution(q resource.Quantity, resolutionMillis int64) resource.Quantity {
+	q.SetMilli((q.MilliValue() / resolutionMillis) * resolutionMillis)
+	return q
 }
 
 // EncodeQuantity returns the canonical byte representation of a resource.Quantity used within the nodeDb.

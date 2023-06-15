@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -172,6 +173,42 @@ func TestGangScheduler(t *testing.T) {
 				testfixtures.N16CpuJobs("A", testfixtures.PriorityClass0, 1),
 			},
 			ExpectedScheduledIndices: testfixtures.IntRange(0, 2),
+		},
+		"consider all nodes in the bucket": {
+			SchedulingConfig: testfixtures.WithIndexedResourcesConfig(
+				[]configuration.IndexedResource{
+					{Name: "cpu", Resolution: resource.MustParse("1")},
+					{Name: "memory", Resolution: resource.MustParse("1Mi")},
+					{Name: "gpu", Resolution: resource.MustParse("1")},
+				},
+				testfixtures.TestSchedulingConfig(),
+			),
+			Nodes: armadaslices.Concatenate(
+				testfixtures.WithUsedResourcesNodes(
+					0,
+					schedulerobjects.ResourceList{
+						Resources: map[string]resource.Quantity{
+							"cpu":    resource.MustParse("31.5"),
+							"memory": resource.MustParse("512Gi"),
+							"gpu":    resource.MustParse("8"),
+						},
+					},
+					testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
+				),
+				testfixtures.WithUsedResourcesNodes(
+					0,
+					schedulerobjects.ResourceList{
+						Resources: map[string]resource.Quantity{
+							"cpu": resource.MustParse("32"),
+						},
+					},
+					testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
+				),
+			),
+			Gangs: [][]*jobdb.Job{
+				testfixtures.N1GpuJobs("A", testfixtures.PriorityClass0, 1),
+			},
+			ExpectedScheduledIndices: testfixtures.IntRange(0, 0),
 		},
 	}
 	for name, tc := range tests {
