@@ -102,10 +102,10 @@ func (repo *SchedulingContextRepository) AddSchedulingContext(sctx *schedulercon
 	qctxs, jctxs := extractQueueAndJobContexts(sctx)
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
-	if err := repo.addJobSchedulingContexts(sctx, jctxs); err != nil {
+	if err := repo.addSchedulingContextForJobs(sctx, jctxs); err != nil {
 		return err
 	}
-	if err := repo.addQueueSchedulingContexts(sctx, qctxs); err != nil {
+	if err := repo.addSchedulingContextForQueues(sctx, qctxs); err != nil {
 		return err
 	}
 	if err := repo.addSchedulingContext(sctx); err != nil {
@@ -155,7 +155,7 @@ func (repo *SchedulingContextRepository) addSchedulingContext(sctx *schedulercon
 }
 
 // Should only be called from AddSchedulingContext to avoid dirty writes.
-func (repo *SchedulingContextRepository) addQueueSchedulingContexts(sctx *schedulercontext.SchedulingContext, qctxs []*schedulercontext.QueueSchedulingContext) error {
+func (repo *SchedulingContextRepository) addSchedulingContextForQueues(sctx *schedulercontext.SchedulingContext, qctxs []*schedulercontext.QueueSchedulingContext) error {
 	executorId := sctx.ExecutorId
 	if executorId == "" {
 		return errors.WithStack(
@@ -220,7 +220,7 @@ func (repo *SchedulingContextRepository) addQueueSchedulingContexts(sctx *schedu
 }
 
 // Should only be called from AddSchedulingContext to avoid dirty writes.
-func (repo *SchedulingContextRepository) addJobSchedulingContexts(sctx *schedulercontext.SchedulingContext, jctxs []*schedulercontext.JobSchedulingContext) error {
+func (repo *SchedulingContextRepository) addSchedulingContextForJobs(sctx *schedulercontext.SchedulingContext, jctxs []*schedulercontext.JobSchedulingContext) error {
 	executorId := sctx.ExecutorId
 	if executorId == "" {
 		return errors.WithStack(
