@@ -78,17 +78,13 @@ func TestAddGetSchedulingContext(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(
 		t,
-		SchedulingContextByExecutor{
-			"foo": withUnsuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "failureA"),
-		},
-		actualSchedulingContextByExecutor,
+		withUnsuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "failureA").QueueSchedulingContexts["A"],
+		actualSchedulingContextByExecutor["foo"].QueueSchedulingContexts["A"],
 	)
 	assert.Equal(
 		t,
-		SchedulingContextByExecutor{
-			"bar": withUnsuccessfulJobSchedulingContext(testSchedulingContext("bar"), "A", "failureA"),
-		},
-		actualSchedulingContextByExecutor,
+		withUnsuccessfulJobSchedulingContext(testSchedulingContext("bar"), "A", "failureA").QueueSchedulingContexts["A"],
+		actualSchedulingContextByExecutor["bar"].QueueSchedulingContexts["A"],
 	)
 
 	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSchedulingContextByExecutorForQueue("doesNotExist")
@@ -99,57 +95,45 @@ func TestAddGetSchedulingContext(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(
 		t,
-		SchedulingContextByExecutor{
-			"foo": withUnsuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "failureA"),
-		},
-		actualSchedulingContextByExecutor["foo"],
+		withUnsuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "failureA").QueueSchedulingContexts["A"],
+		actualSchedulingContextByExecutor["foo"].QueueSchedulingContexts["A"],
 	)
 	assert.Equal(
 		t,
-		SchedulingContextByExecutor{
-			"bar": withUnsuccessfulJobSchedulingContext(testSchedulingContext("bar"), "A", "failureA"),
-		},
-		actualSchedulingContextByExecutor["bar"],
+		withUnsuccessfulJobSchedulingContext(testSchedulingContext("bar"), "A", "failureA").QueueSchedulingContexts["A"],
+		actualSchedulingContextByExecutor["bar"].QueueSchedulingContexts["A"],
 	)
 
 	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSuccessfulSchedulingContextByExecutorForQueue("A")
 	require.True(t, ok)
 	assert.Equal(
 		t,
-		SchedulingContextByExecutor{
-			"foo": withSuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "successFooA"),
-		},
-		actualSchedulingContextByExecutor["foo"],
+		withSuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "successFooA").QueueSchedulingContexts["A"],
+		actualSchedulingContextByExecutor["foo"].QueueSchedulingContexts["A"],
 	)
 
 	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSchedulingContextByExecutorForQueue("B")
 	require.True(t, ok)
 	assert.Equal(
 		t,
-		SchedulingContextByExecutor{
-			"bar": withUnsuccessfulJobSchedulingContext(testSchedulingContext("bar"), "B", "failureB"),
-		},
-		actualSchedulingContextByExecutor["bar"],
+		withUnsuccessfulJobSchedulingContext(testSchedulingContext("bar"), "B", "failureB").QueueSchedulingContexts["B"],
+		actualSchedulingContextByExecutor["bar"].QueueSchedulingContexts["B"],
 	)
 
 	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSuccessfulSchedulingContextByExecutorForQueue("B")
 	require.True(t, ok)
 	assert.Equal(
 		t,
-		SchedulingContextByExecutor{
-			"bar": withSuccessfulJobSchedulingContext(testSchedulingContext("bar"), "B", "successBarB"),
-		},
-		actualSchedulingContextByExecutor["bar"],
+		withSuccessfulJobSchedulingContext(testSchedulingContext("bar"), "B", "successBarB").QueueSchedulingContexts["B"],
+		actualSchedulingContextByExecutor["bar"].QueueSchedulingContexts["B"],
 	)
 
 	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSchedulingContextByExecutorForQueue("C")
 	require.True(t, ok)
 	assert.Equal(
 		t,
-		SchedulingContextByExecutor{
-			"baz": withPreemptingJobSchedulingContext(testSchedulingContext("baz"), "C", "preempted"),
-		},
-		actualSchedulingContextByExecutor["baz"],
+		withPreemptingJobSchedulingContext(testSchedulingContext("baz"), "C", "preempted").QueueSchedulingContexts["C"],
+		actualSchedulingContextByExecutor["baz"].QueueSchedulingContexts["C"],
 	)
 
 	actualSchedulingContextByExecutor = repo.GetMostRecentSchedulingContextByExecutor()
