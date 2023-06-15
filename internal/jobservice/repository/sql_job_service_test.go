@@ -196,34 +196,6 @@ func TestCleanupJobSetAndJobsHappy(t *testing.T) {
 	})
 }
 
-func TestCheckJobsAfterDeleteJobSet(t *testing.T) {
-	WithSqlServiceRepo(purgeTime, func(r SQLJobService) {
-		ctx := context.Background()
-		responseExpected := &jobservice.JobServiceResponse{
-			State: jobservice.JobServiceResponse_SUCCEEDED,
-		}
-		err := r.SubscribeJobSet(ctx, "queue", "job-set-1", "")
-		require.NoError(t, err)
-
-		jobStatus := NewJobStatus("queue", "job-set-1", "job-id", *responseExpected)
-		err = r.UpdateJobServiceDb(ctx, jobStatus)
-		require.NoError(t, err)
-
-		respGood, err := r.GetJobStatus(ctx, "job-id")
-		require.NoError(t, err)
-		require.Equal(t, responseExpected, respGood)
-
-		affectedRows, err := r.UnsubscribeJobSet(ctx, "queue", "job-set-1")
-		require.NoError(t, err)
-		require.Equal(t, int64(1), affectedRows)
-
-		noExist := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
-		respNotFound, err := r.GetJobStatus(ctx, "job-id")
-		require.NoError(t, err)
-		require.Equal(t, noExist, respNotFound)
-	})
-}
-
 func TestDeleteJobsInJobSet(t *testing.T) {
 	WithSqlServiceRepo(purgeTime, func(r SQLJobService) {
 		ctx := context.Background()

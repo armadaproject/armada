@@ -361,27 +361,36 @@ func (s *JSRepoSQLite) GetSubscribedJobSets(ctx context.Context) ([]SubscribedTu
 	return tuples, nil
 }
 
-// PurgeExpiredJobSets purges all expired JobSets from the database
-// An expired JobSet is a JobSet that has not been updated within the specified PurgeJobSetTime period.
-// All children Jobs of the expired JobSets will also be deleted by the Cascade deletion relationship.
-// This function should be called from a dedicated goroutine.
+// PurgeExpiredJobSets purges all expired Jobs/JobSets from the database
+// An expired Job/JobSet is a Job/JobSet that has not been updated within the specified PurgeJobSetTime period.
 func (s *JSRepoSQLite) PurgeExpiredJobSets(ctx context.Context) {
-	sqlStmt := fmt.Sprintf(`DELETE FROM jobsets WHERE Timestamp < (UNIXEPOCH() - %d);`, s.jobServiceConfig.PurgeJobSetTime)
+	jobSetStmt := fmt.Sprintf(`DELETE FROM jobsets WHERE Timestamp < (UNIXEPOCH() - %d);`, s.jobServiceConfig.PurgeJobSetTime)
+	jobStmt := fmt.Sprintf(`DELETE FROM jobs WHERE Timestamp < (UNIXEPOCH() - %d);`, s.jobServiceConfig.PurgeJobSetTime)
 	ticker := time.NewTicker(time.Duration(s.jobServiceConfig.PurgeJobSetTime) * time.Second)
 	log := log.WithField("JobService", "ExpiredJobSetsPurge")
 
 	log.Info("Starting purge of expired jobsets")
 	for range ticker.C {
 		s.lock.Lock()
-		result, err := s.db.Exec(sqlStmt)
-		if err != nil {
-			log.Error("error deleting expired jobsets: ", err)
+		result, jobSetErr := s.db.Exec(jobSetStmt)
+		if jobSetErr != nil {
+			log.Error("error deleting expired jobsets: ", jobSetErr)
 		} else {
 			count, err := result.RowsAffected()
 			if err != nil {
 				log.Error("error getting affected rows for expired jobsets delete operation: ", err)
 			}
 			log.Debugf("Deleted %d expired jobsets", count)
+		}
+		result, jobErr := s.db.Exec(jobStmt)
+		if jobErr != nil {
+			log.Error("error deleting expired jobs: ", jobErr)
+		} else {
+			count, err := result.RowsAffected()
+			if err != nil {
+				log.Error("error getting affected rows for expired jobs delete operation: ", err)
+			}
+			log.Debugf("Deleted %d expired jobs", count)
 		}
 		s.lock.Unlock()
 	}
