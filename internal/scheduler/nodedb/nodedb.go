@@ -447,6 +447,7 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 		priority,
 		nodeDb.indexedResources,
 		indexResourceRequests,
+		nodeDb.indexedResourceResolutionMillis,
 	)
 	if err != nil {
 		return nil, err
