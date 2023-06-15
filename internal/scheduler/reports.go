@@ -287,7 +287,10 @@ func (repo *SchedulingContextRepository) getSchedulingReportStringForQueue(queue
 }
 
 func (repo *SchedulingContextRepository) getSchedulingReportStringForJob(jobId string, verbosity int32) string {
-	mostRecentByExecutor, _ := repo.GetMostRecentSchedulingContextByExecutorForJob(jobId)
+	mostRecentByExecutor, ok := repo.GetMostRecentSchedulingContextByExecutorForJob(jobId)
+	if !ok {
+		mostRecentByExecutor = make(SchedulingContextByExecutor)
+	}
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	for _, executorId := range repo.GetSortedExecutorIds() {
