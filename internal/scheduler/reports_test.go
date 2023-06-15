@@ -18,7 +18,7 @@ import (
 
 func TestExtractQueueAndJobContexts(t *testing.T) {
 	sctx := withUnsuccessfulJobSchedulingContext(withSuccessfulJobSchedulingContext(testSchedulingContext("executor"), "queue", "success"), "queue", "failure")
-	qctxs, jctxs := extractQueueAndJobContexts(sctx)
+	qctxs, jctxs := extractQueueAndJobSchedulingContexts(sctx)
 	queues := util.Map(qctxs, func(qctx *schedulercontext.QueueSchedulingContext) string { return qctx.Queue })
 	slices.Sort(queues)
 	jobIds := util.Map(jctxs, func(jctx *schedulercontext.JobSchedulingContext) string { return jctx.JobId })

@@ -99,7 +99,7 @@ func NewSchedulingContextRepository(jobCacheSize uint) (*SchedulingContextReposi
 // Job contexts are stored first, then queue contexts, and finally the scheduling context itself.
 // This avoids having a stored scheduling (queue) context referring to a queue (job) context that isn't stored yet.
 func (repo *SchedulingContextRepository) AddSchedulingContext(sctx *schedulercontext.SchedulingContext) error {
-	qctxs, jctxs := extractQueueAndJobContexts(sctx)
+	qctxs, jctxs := extractQueueAndJobSchedulingContexts(sctx)
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 	if err := repo.addSchedulingContextForJobs(sctx, jctxs); err != nil {
@@ -251,9 +251,9 @@ func (repo *SchedulingContextRepository) addSchedulingContextForJobs(sctx *sched
 	return nil
 }
 
-// extractQueueAndJobContexts extracts the job and queue scheduling contexts from the scheduling context,
+// extractQueueAndJobSchedulingContexts extracts the job and queue scheduling contexts from the scheduling context,
 // and returns those separately.
-func extractQueueAndJobContexts(sctx *schedulercontext.SchedulingContext) ([]*schedulercontext.QueueSchedulingContext, []*schedulercontext.JobSchedulingContext) {
+func extractQueueAndJobSchedulingContexts(sctx *schedulercontext.SchedulingContext) ([]*schedulercontext.QueueSchedulingContext, []*schedulercontext.JobSchedulingContext) {
 	qctxs := make([]*schedulercontext.QueueSchedulingContext, 0)
 	jctxs := make([]*schedulercontext.JobSchedulingContext, 0)
 	for _, qctx := range sctx.QueueSchedulingContexts {
