@@ -8,40 +8,23 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/util"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func TestExtractQueueAndJobContexts(t *testing.T) {
 	sctx := withUnsuccessfulJobSchedulingContext(withSuccessfulJobSchedulingContext(testSchedulingContext("executor"), "queue", "success"), "queue", "failure")
-	queueSchedulingContextByQueue, jobSchedulingContextByJobId := extractQueueAndJobContexts(sctx)
-	assert.Equal(
-		t,
-		withUnsuccessfulJobSchedulingContext(withSuccessfulJobSchedulingContext(testSchedulingContext("executor"), "queue", "success"), "queue", "failure"),
-		sctx,
-	)
-	assert.Equal(
-		t,
-		withUnsuccessfulJobSchedulingContext(withSuccessfulJobSchedulingContext(testSchedulingContext("executor"), "queue", "success"), "queue", "failure").QueueSchedulingContexts,
-		queueSchedulingContextByQueue,
-	)
-	assert.Equal(
-		t,
-		map[string]*schedulercontext.JobSchedulingContext{
-			"success": {
-				ExecutorId: "executor",
-				JobId:      "success",
-			},
-			"failure": {
-				ExecutorId:          "executor",
-				JobId:               "failure",
-				UnschedulableReason: "unknown",
-			},
-		},
-		jobSchedulingContextByJobId,
-	)
+	qctxs, jctxs := extractQueueAndJobContexts(sctx)
+	queues := util.Map(qctxs, func(qctx *schedulercontext.QueueSchedulingContext) string { return qctx.Queue })
+	slices.Sort(queues)
+	jobIds := util.Map(jctxs, func(jctx *schedulercontext.JobSchedulingContext) string { return jctx.JobId })
+	slices.Sort(jobIds)
+	assert.Equal(t, []string{"queue"}, queues)
+	assert.Equal(t, []string{"failure", "success"}, jobIds)
 }
 
 func TestAddGetSchedulingContext(t *testing.T) {
