@@ -82,7 +82,6 @@ class ArmadaDeferrableOperator(BaseOperator):
         The format should be:
         "https://lookout.armada.domain/jobs?job_id=<job_id>" where <job_id> will
         be replaced with the actual job ID.
-
     :return: A deferrable armada operator instance.
     """
 
@@ -194,7 +193,7 @@ class ArmadaDeferrableOperator(BaseOperator):
     def render_template_fields(
         self,
         context: Context,
-        jinja_env: jinja2.Environment | None = None,
+        jinja_env: Optional[jinja2.Environment] = None,
     ) -> None:
         self.job_request_items = [
             MessageToDict(x, preserving_proto_field_name=True)
