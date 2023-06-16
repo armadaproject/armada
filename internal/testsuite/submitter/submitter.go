@@ -121,7 +121,7 @@ func (srv *Submitter) Run(ctx context.Context) error {
 				res, err := c.SubmitJobs(ctx, req)
 				time.Sleep(5 * time.Millisecond)
 				submissionSerializer.Unlock()
-				
+
 				if err != nil {
 					return errors.WithMessage(err, "error submitting jobs")
 				}
