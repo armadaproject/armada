@@ -1,7 +1,7 @@
 grpcPort: 60003
 httpPort: 8090
 purgeJobSetTime: 1000
-subscribeExpirySecs: 300
+subscriptionExpirySecs: 300
 subscriberPoolSize: 30
 # databaseType can be either 'postgres' or 'sqlite'
 databaseType: "postgres"
