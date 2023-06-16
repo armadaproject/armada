@@ -397,7 +397,7 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 				if verbosity <= 1 && len(jobIdsToPrint) > maxPrintedJobIdsByReason {
 					jobIdsToPrint = jobIds[0:maxPrintedJobIdsByReason]
 				}
-				fmt.Fprintf(w, "\t%d:\t%s jobs\t%v", len(qctx.UnsuccessfulJobSchedulingContexts), reason, jobIdsToPrint)
+				fmt.Fprintf(w, "\t%s:\t%v", reason, jobIdsToPrint)
 				if len(jobIdsToPrint) != len(jobIds) {
 					fmt.Fprintf(w, " (and %d others not shown)\n", len(jobIds)-len(jobIdsToPrint))
 				} else {
