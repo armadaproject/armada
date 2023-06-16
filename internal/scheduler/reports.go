@@ -269,9 +269,18 @@ func extractQueueAndJobSchedulingContexts(sctx *schedulercontext.SchedulingConte
 }
 
 func (repo *SchedulingContextRepository) getSchedulingReportStringForQueue(queue string, verbosity int32) string {
-	mostRecentByExecutor, _ := repo.GetMostRecentSchedulingContextByExecutorForQueue(queue)
-	mostRecentSuccessfulByExecutor, _ := repo.GetMostRecentSuccessfulSchedulingContextByExecutorForQueue(queue)
-	mostRecentPreemptingByExecutor, _ := repo.GetMostRecentPreemptingSchedulingContextByExecutorForQueue(queue)
+	mostRecentByExecutor, ok := repo.GetMostRecentSchedulingContextByExecutorForQueue(queue)
+	if !ok {
+		mostRecentByExecutor = make(SchedulingContextByExecutor)
+	}
+	mostRecentSuccessfulByExecutor, ok := repo.GetMostRecentSuccessfulSchedulingContextByExecutorForQueue(queue)
+	if !ok {
+		mostRecentSuccessfulByExecutor = make(SchedulingContextByExecutor)
+	}
+	mostRecentPreemptingByExecutor, ok := repo.GetMostRecentPreemptingSchedulingContextByExecutorForQueue(queue)
+	if !ok {
+		mostRecentPreemptingByExecutor = make(SchedulingContextByExecutor)
+	}
 	sr := schedulingReport{
 		mostRecentByExecutor:           mostRecentByExecutor,
 		mostRecentSuccessfulByExecutor: mostRecentSuccessfulByExecutor,
