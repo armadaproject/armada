@@ -356,8 +356,8 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 		fmt.Fprintf(w, "Total allocated resources after scheduling:\t%s\n", qctx.AllocatedByPriority.AggregateByResource().CompactString())
 		fmt.Fprintf(w, "Total allocated resources after scheduling (by priority):\t%s\n", qctx.AllocatedByPriority.String())
 		fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", len(qctx.SuccessfulJobSchedulingContexts))
-		fmt.Fprintf(w, "Number of jobs that could not be scheduled:\t%d\n", len(qctx.UnsuccessfulJobSchedulingContexts))
 		fmt.Fprintf(w, "Number of jobs preempted:\t%d\n", len(qctx.EvictedJobsById))
+		fmt.Fprintf(w, "Number of jobs that could not be scheduled:\t%d\n", len(qctx.UnsuccessfulJobSchedulingContexts))
 		if len(qctx.SuccessfulJobSchedulingContexts) > 0 {
 			jobIdsToPrint := maps.Keys(qctx.SuccessfulJobSchedulingContexts)
 			if verbosity <= 1 && len(jobIdsToPrint) > maxPrintedJobIdsByReason {
@@ -366,6 +366,18 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 			fmt.Fprintf(w, "Scheduled jobs:\t%v", jobIdsToPrint)
 			if len(jobIdsToPrint) != len(qctx.SuccessfulJobSchedulingContexts) {
 				fmt.Fprintf(w, " (and %d others not shown)\n", len(qctx.SuccessfulJobSchedulingContexts)-len(jobIdsToPrint))
+			} else {
+				fmt.Fprint(w, "\n")
+			}
+		}
+		if len(qctx.EvictedJobsById) > 0 {
+			jobIdsToPrint := maps.Keys(qctx.EvictedJobsById)
+			if verbosity <= 1 && len(jobIdsToPrint) > maxPrintedJobIdsByReason {
+				jobIdsToPrint = jobIdsToPrint[0:maxPrintedJobIdsByReason]
+			}
+			fmt.Fprintf(w, "Preempted jobs:\t%v", jobIdsToPrint)
+			if len(jobIdsToPrint) != len(qctx.EvictedJobsById) {
+				fmt.Fprintf(w, " (and %d others not shown)\n", len(qctx.EvictedJobsById)-len(jobIdsToPrint))
 			} else {
 				fmt.Fprint(w, "\n")
 			}
@@ -391,18 +403,6 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 				} else {
 					fmt.Fprint(w, "\n")
 				}
-			}
-		}
-		if len(qctx.EvictedJobsById) > 0 {
-			jobIdsToPrint := maps.Keys(qctx.EvictedJobsById)
-			if verbosity <= 1 && len(jobIdsToPrint) > maxPrintedJobIdsByReason {
-				jobIdsToPrint = jobIdsToPrint[0:maxPrintedJobIdsByReason]
-			}
-			fmt.Fprintf(w, "Preempted jobs:\t%v", jobIdsToPrint)
-			if len(jobIdsToPrint) != len(qctx.EvictedJobsById) {
-				fmt.Fprintf(w, " (and %d others not shown)\n", len(qctx.EvictedJobsById)-len(jobIdsToPrint))
-			} else {
-				fmt.Fprint(w, "\n")
 			}
 		}
 	}
