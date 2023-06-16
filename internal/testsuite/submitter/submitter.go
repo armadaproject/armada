@@ -12,6 +12,8 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
+var submissionSerializer sync.Mutex
+
 type Submitter struct {
 	ApiConnectionDetails *client.ApiConnectionDetails
 	// Jobs to submit.
@@ -114,7 +116,12 @@ func (srv *Submitter) Run(ctx context.Context) error {
 			case <-ctx.Done():
 				return ctx.Err()
 			case <-tickerCh:
+				// Stagger submissions by a couple of millis to avoid Kerberos replay issues.
+				submissionSerializer.Lock()
 				res, err := c.SubmitJobs(ctx, req)
+				time.Sleep(5 * time.Millisecond)
+				submissionSerializer.Unlock()
+				
 				if err != nil {
 					return errors.WithMessage(err, "error submitting jobs")
 				}
