@@ -192,9 +192,9 @@ func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSui
 			rv.TestCaseReports[i] = testRunner.TestCaseReport
 			wg.Done()
 		}()
+		time.Sleep(100 * time.Millisecond)
 	}
 
-	time.Sleep(100 * time.Millisecond)
 	fmt.Fprintf(a.Out, "---\n")
 	g.Go(func() error { return eventLogger.Run(ctx) })
 
