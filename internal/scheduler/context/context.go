@@ -347,7 +347,8 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	if verbosity > 0 {
-		fmt.Fprintf(w, "Created:\t%s\n", qctx.Created)
+		fmt.Fprintf(w, "Time:\t%s\n", qctx.Created)
+		fmt.Fprintf(w, "Queue:\t%s\n", qctx.Queue)
 	}
 	fmt.Fprintf(w, "Scheduled resources:\t%s\n", qctx.ScheduledResourcesByPriority.AggregateByResource().CompactString())
 	fmt.Fprintf(w, "Scheduled resources (by priority):\t%s\n", qctx.ScheduledResourcesByPriority.String())
@@ -571,7 +572,7 @@ func (jctx *JobSchedulingContext) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	fmt.Fprintf(w, "Time:\t%s\n", jctx.Created)
-	fmt.Fprintf(w, "Job id:\t%s\n", jctx.JobId)
+	fmt.Fprintf(w, "Job ID:\t%s\n", jctx.JobId)
 	fmt.Fprintf(w, "Number of nodes in cluster:\t%d\n", jctx.NumNodes)
 	if jctx.UnschedulableReason != "" {
 		fmt.Fprintf(w, "UnschedulableReason:\t%s\n", jctx.UnschedulableReason)
