@@ -88,8 +88,8 @@ jobs:
       DOCKER_BUILDX_BUILDER: "builder"
     steps:
       - uses: actions/checkout@v3
-      - run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
-      - run: docker buildx install
+      #- run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
+      #- run: docker buildx install
       - uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go }}
@@ -98,7 +98,7 @@ jobs:
           # Manually create folders to ensure perms are correct.
           mkdir -p .kube/internal
           mkdir -p .kube/external
-          go run github.com/magefile/mage@v1.14.0 -v localdev minimal
+          go run github.com/magefile/mage@v1.14.0 -v localdev full
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
         with:
