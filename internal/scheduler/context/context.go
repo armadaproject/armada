@@ -362,7 +362,7 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 		fmt.Fprintf(w, "Number of jobs that could not be scheduled:\t%d\n", len(qctx.UnsuccessfulJobSchedulingContexts))
 		if len(qctx.SuccessfulJobSchedulingContexts) > 0 {
 			jobIdsToPrint := maps.Keys(qctx.SuccessfulJobSchedulingContexts)
-			if verbosity <= 1 && len(jobIdsToPrint) > maxPrintedJobIdsByReason {
+			if len(jobIdsToPrint) > maxPrintedJobIdsByReason {
 				jobIdsToPrint = jobIdsToPrint[0:maxPrintedJobIdsByReason]
 			}
 			fmt.Fprintf(w, "Scheduled jobs:\t%v", jobIdsToPrint)
@@ -374,7 +374,7 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 		}
 		if len(qctx.EvictedJobsById) > 0 {
 			jobIdsToPrint := maps.Keys(qctx.EvictedJobsById)
-			if verbosity <= 1 && len(jobIdsToPrint) > maxPrintedJobIdsByReason {
+			if len(jobIdsToPrint) > maxPrintedJobIdsByReason {
 				jobIdsToPrint = jobIdsToPrint[0:maxPrintedJobIdsByReason]
 			}
 			fmt.Fprintf(w, "Preempted jobs:\t%v", jobIdsToPrint)
