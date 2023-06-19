@@ -399,7 +399,7 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 			for i := len(reasons) - 1; i >= 0; i-- {
 				reason := reasons[i]
 				jobIds := jobIdsByReason[reason]
-				if jobIds == nil || len(jobIds) <= 0 {
+				if len(jobIds) <= 0 {
 					continue
 				}
 				fmt.Fprintf(w, "\t%d:\t%s (e.g., %s)\n", len(jobIds), reason, jobIds[0])
