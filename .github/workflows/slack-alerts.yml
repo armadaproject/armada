@@ -1,8 +1,8 @@
-name: Nudge
+name: Slack CI Alerts
 
 on:
   workflow_run:
-    workflows: [Go]
+    workflows: [Go Tests, Python Airflow Operator, Release Armada components - RC, Build Release Images, Code Coverage, "CodeQL"]
     types: [completed]
     branches: [master]
 
