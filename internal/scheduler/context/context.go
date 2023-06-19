@@ -341,7 +341,7 @@ func (qctx *QueueSchedulingContext) String() string {
 	return qctx.ReportString(0)
 }
 
-const maxPrintedJobIdsByReason = 1
+const maxJobIdsToPrint = 1
 
 func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 	var sb strings.Builder
@@ -362,8 +362,8 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 		fmt.Fprintf(w, "Number of jobs that could not be scheduled:\t%d\n", len(qctx.UnsuccessfulJobSchedulingContexts))
 		if len(qctx.SuccessfulJobSchedulingContexts) > 0 {
 			jobIdsToPrint := maps.Keys(qctx.SuccessfulJobSchedulingContexts)
-			if len(jobIdsToPrint) > maxPrintedJobIdsByReason {
-				jobIdsToPrint = jobIdsToPrint[0:maxPrintedJobIdsByReason]
+			if len(jobIdsToPrint) > maxJobIdsToPrint {
+				jobIdsToPrint = jobIdsToPrint[0:maxJobIdsToPrint]
 			}
 			fmt.Fprintf(w, "Scheduled jobs:\t%v", jobIdsToPrint)
 			if len(jobIdsToPrint) != len(qctx.SuccessfulJobSchedulingContexts) {
@@ -374,8 +374,8 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 		}
 		if len(qctx.EvictedJobsById) > 0 {
 			jobIdsToPrint := maps.Keys(qctx.EvictedJobsById)
-			if len(jobIdsToPrint) > maxPrintedJobIdsByReason {
-				jobIdsToPrint = jobIdsToPrint[0:maxPrintedJobIdsByReason]
+			if len(jobIdsToPrint) > maxJobIdsToPrint {
+				jobIdsToPrint = jobIdsToPrint[0:maxJobIdsToPrint]
 			}
 			fmt.Fprintf(w, "Preempted jobs:\t%v", jobIdsToPrint)
 			if len(jobIdsToPrint) != len(qctx.EvictedJobsById) {
