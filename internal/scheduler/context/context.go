@@ -167,7 +167,7 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 		fmt.Fprint(w, "Scheduled queues:\n")
 		for queueName, qctx := range scheduled {
 			fmt.Fprintf(w, "\t%s:\n", queueName)
-			fmt.Fprintf(w, indent.String("\t\t", qctx.ReportString(verbosity-1)))
+			fmt.Fprintf(w, indent.String("\t\t", qctx.ReportString(verbosity-2)))
 		}
 	}
 	preempted := armadamaps.Filter(
@@ -182,7 +182,7 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 		fmt.Fprint(w, "Preempted queues:\n")
 		for queueName, qctx := range preempted {
 			fmt.Fprintf(w, "\t%s:\n", queueName)
-			fmt.Fprintf(w, indent.String("\t\t", qctx.ReportString(verbosity-1)))
+			fmt.Fprintf(w, indent.String("\t\t", qctx.ReportString(verbosity-2)))
 		}
 	}
 	w.Flush()
@@ -346,7 +346,7 @@ const maxPrintedJobIdsByReason = 1
 func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	if verbosity > 0 {
+	if verbosity >= 0 {
 		fmt.Fprintf(w, "Time:\t%s\n", qctx.Created)
 		fmt.Fprintf(w, "Queue:\t%s\n", qctx.Queue)
 	}
@@ -354,7 +354,7 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 	fmt.Fprintf(w, "Scheduled resources (by priority):\t%s\n", qctx.ScheduledResourcesByPriority.String())
 	fmt.Fprintf(w, "Preempted resources:\t%s\n", qctx.EvictedResourcesByPriority.AggregateByResource().CompactString())
 	fmt.Fprintf(w, "Preempted resources (by priority):\t%s\n", qctx.EvictedResourcesByPriority.String())
-	if verbosity > 0 {
+	if verbosity >= 0 {
 		fmt.Fprintf(w, "Total allocated resources after scheduling:\t%s\n", qctx.AllocatedByPriority.AggregateByResource().CompactString())
 		fmt.Fprintf(w, "Total allocated resources after scheduling (by priority):\t%s\n", qctx.AllocatedByPriority.String())
 		fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", len(qctx.SuccessfulJobSchedulingContexts))
