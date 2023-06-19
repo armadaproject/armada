@@ -9,6 +9,7 @@ import (
 	"github.com/openconfig/goyang/pkg/indent"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -384,7 +385,7 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 		}
 		if len(qctx.UnsuccessfulJobSchedulingContexts) > 0 {
 			fmt.Fprint(w, "Unschedulable jobs:\n")
-			for reason, jobIds := range armadaslices.MapAndGroupByFuncs(
+			jobIdsByReason := armadaslices.MapAndGroupByFuncs(
 				maps.Values(qctx.UnsuccessfulJobSchedulingContexts),
 				func(jctx *JobSchedulingContext) string {
 					return jctx.UnschedulableReason
@@ -392,17 +393,16 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 				func(jctx *JobSchedulingContext) string {
 					return jctx.JobId
 				},
-			) {
-				jobIdsToPrint := jobIds
-				if verbosity <= 1 && len(jobIdsToPrint) > maxPrintedJobIdsByReason {
-					jobIdsToPrint = jobIds[0:maxPrintedJobIdsByReason]
+			)
+			reasons := maps.Keys(jobIdsByReason)
+			slices.SortFunc(reasons, func(a, b string) bool { return len(jobIdsByReason[a]) < len(jobIdsByReason[b]) })
+			for i := len(reasons) - 1; i >= 0; i-- {
+				reason := reasons[i]
+				jobIds := jobIdsByReason[reason]
+				if jobIds == nil || len(jobIds) <= 0 {
+					continue
 				}
-				fmt.Fprintf(w, "\t%s:\t%v", reason, jobIdsToPrint)
-				if len(jobIdsToPrint) != len(jobIds) {
-					fmt.Fprintf(w, " (and %d others not shown)\n", len(jobIds)-len(jobIdsToPrint))
-				} else {
-					fmt.Fprint(w, "\n")
-				}
+				fmt.Fprintf(w, "\t%d:\t%s (e.g., %s)\n", len(jobIds), reason, jobIds[0])
 			}
 		}
 	}
