@@ -269,18 +269,9 @@ func extractQueueAndJobSchedulingContexts(sctx *schedulercontext.SchedulingConte
 }
 
 func (repo *SchedulingContextRepository) getSchedulingReportStringForQueue(queue string, verbosity int32) string {
-	mostRecentByExecutor, ok := repo.GetMostRecentSchedulingContextByExecutorForQueue(queue)
-	if !ok {
-		mostRecentByExecutor = make(SchedulingContextByExecutor)
-	}
-	mostRecentSuccessfulByExecutor, ok := repo.GetMostRecentSuccessfulSchedulingContextByExecutorForQueue(queue)
-	if !ok {
-		mostRecentSuccessfulByExecutor = make(SchedulingContextByExecutor)
-	}
-	mostRecentPreemptingByExecutor, ok := repo.GetMostRecentPreemptingSchedulingContextByExecutorForQueue(queue)
-	if !ok {
-		mostRecentPreemptingByExecutor = make(SchedulingContextByExecutor)
-	}
+	mostRecentByExecutor, _ := repo.GetMostRecentSchedulingContextByExecutorForQueue(queue)
+	mostRecentSuccessfulByExecutor, _ := repo.GetMostRecentSuccessfulSchedulingContextByExecutorForQueue(queue)
+	mostRecentPreemptingByExecutor, _ := repo.GetMostRecentPreemptingSchedulingContextByExecutorForQueue(queue)
 	sr := schedulingReport{
 		mostRecentByExecutor:           mostRecentByExecutor,
 		mostRecentSuccessfulByExecutor: mostRecentSuccessfulByExecutor,
@@ -292,10 +283,7 @@ func (repo *SchedulingContextRepository) getSchedulingReportStringForQueue(queue
 }
 
 func (repo *SchedulingContextRepository) getSchedulingReportStringForJob(jobId string, verbosity int32) string {
-	mostRecentByExecutor, ok := repo.GetMostRecentSchedulingContextByExecutorForJob(jobId)
-	if !ok {
-		mostRecentByExecutor = make(SchedulingContextByExecutor)
-	}
+	mostRecentByExecutor, _ := repo.GetMostRecentSchedulingContextByExecutorForJob(jobId)
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	for _, executorId := range repo.GetSortedExecutorIds() {
@@ -391,18 +379,9 @@ func (repo *SchedulingContextRepository) getQueueReportString(queue string, verb
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	sortedExecutorIds := repo.GetSortedExecutorIds()
-	mostRecentByExecutor, ok := repo.GetMostRecentSchedulingContextByExecutorForQueue(queue)
-	if !ok {
-		mostRecentByExecutor = make(SchedulingContextByExecutor)
-	}
-	mostRecentSuccessfulByExecutor, ok := repo.GetMostRecentSuccessfulSchedulingContextByExecutorForQueue(queue)
-	if !ok {
-		mostRecentSuccessfulByExecutor = make(SchedulingContextByExecutor)
-	}
-	mostRecentPreemptingByExecutor, ok := repo.GetMostRecentPreemptingSchedulingContextByExecutorForQueue(queue)
-	if !ok {
-		mostRecentPreemptingByExecutor = make(SchedulingContextByExecutor)
-	}
+	mostRecentByExecutor, _ := repo.GetMostRecentSchedulingContextByExecutorForQueue(queue)
+	mostRecentSuccessfulByExecutor, _ := repo.GetMostRecentSuccessfulSchedulingContextByExecutorForQueue(queue)
+	mostRecentPreemptingByExecutor, _ := repo.GetMostRecentPreemptingSchedulingContextByExecutorForQueue(queue)
 	for _, executorId := range sortedExecutorIds {
 		fmt.Fprintf(w, "%s:\n", executorId)
 		if sctx := mostRecentByExecutor[executorId]; sctx != nil {
@@ -448,10 +427,7 @@ func (repo *SchedulingContextRepository) GetJobReport(_ context.Context, request
 }
 
 func (repo *SchedulingContextRepository) getJobReportString(jobId string) string {
-	byExecutor, ok := repo.GetMostRecentSchedulingContextByExecutorForJob(jobId)
-	if !ok {
-		byExecutor = make(SchedulingContextByExecutor)
-	}
+	byExecutor, _ := repo.GetMostRecentSchedulingContextByExecutorForJob(jobId)
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	for _, executorId := range repo.GetSortedExecutorIds() {
