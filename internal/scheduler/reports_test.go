@@ -209,6 +209,49 @@ func TestTestAddGetSchedulingContextConcurrency(t *testing.T) {
 	<-ctx.Done()
 }
 
+func TestReportDoesNotExist(t *testing.T) {
+	repo, err := NewSchedulingContextRepository(1024)
+	require.NoError(t, err)
+	err = repo.AddSchedulingContext(testSchedulingContext("executor-01"))
+	require.NoError(t, err)
+	ctx := context.Background()
+	queue := "queue-does-not-exist"
+	jobId := util.NewULID()
+
+	_, err = repo.GetSchedulingReport(ctx, &schedulerobjects.SchedulingReportRequest{})
+	require.NoError(t, err)
+
+	_, err = repo.GetSchedulingReport(
+		ctx,
+		&schedulerobjects.SchedulingReportRequest{
+			Filter: &schedulerobjects.SchedulingReportRequest_MostRecentForQueue{
+				MostRecentForQueue: &schedulerobjects.MostRecentForQueue{
+					QueueName: queue,
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = repo.GetSchedulingReport(
+		ctx,
+		&schedulerobjects.SchedulingReportRequest{
+			Filter: &schedulerobjects.SchedulingReportRequest_MostRecentForJob{
+				MostRecentForJob: &schedulerobjects.MostRecentForJob{
+					JobId: jobId,
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = repo.GetQueueReport(ctx, &schedulerobjects.QueueReportRequest{QueueName: queue})
+	require.NoError(t, err)
+
+	_, err = repo.GetJobReport(ctx, &schedulerobjects.JobReportRequest{JobId: jobId})
+	require.NoError(t, err)
+}
+
 func withSuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingContext, queue, jobId string) *schedulercontext.SchedulingContext {
 	if sctx.QueueSchedulingContexts == nil {
 		sctx.QueueSchedulingContexts = make(map[string]*schedulercontext.QueueSchedulingContext)
