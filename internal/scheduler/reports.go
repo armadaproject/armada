@@ -408,23 +408,23 @@ func (repo *SchedulingContextRepository) getQueueReportString(queue string, verb
 	}
 	for _, executorId := range sortedExecutorIds {
 		fmt.Fprintf(w, "%s:\n", executorId)
-		qctx := mostRecentByExecutor[executorId]
-		if qctx != nil {
+		if sctx := mostRecentByExecutor[executorId]; sctx != nil {
 			fmt.Fprint(w, indent.String("\t", "Most recent attempt:\n"))
+			qctx := sctx.QueueSchedulingContexts[queue]
 			fmt.Fprint(w, indent.String("\t\t", qctx.ReportString(verbosity)))
 		} else {
 			fmt.Fprint(w, indent.String("\t", "Most recent attempt: none\n"))
 		}
-		qctx = mostRecentSuccessfulByExecutor[executorId]
-		if qctx != nil {
+		if sctx := mostRecentSuccessfulByExecutor[executorId]; sctx != nil {
 			fmt.Fprint(w, indent.String("\t", "Most recent successful attempt:\n"))
+			qctx := sctx.QueueSchedulingContexts[queue]
 			fmt.Fprint(w, indent.String("\t\t", qctx.ReportString(verbosity)))
 		} else {
 			fmt.Fprint(w, indent.String("\t", "Most recent successful attempt: none\n"))
 		}
-		qctx = mostRecentPreemptingByExecutor[executorId]
-		if qctx != nil {
+		if sctx := mostRecentPreemptingByExecutor[executorId]; sctx != nil {
 			fmt.Fprint(w, indent.String("\t", "Most recent preempting attempt:\n"))
+			qctx := sctx.QueueSchedulingContexts[queue]
 			fmt.Fprint(w, indent.String("\t\t", qctx.ReportString(verbosity)))
 		} else {
 			fmt.Fprint(w, indent.String("\t", "Most recent preempting attempt: none\n"))
