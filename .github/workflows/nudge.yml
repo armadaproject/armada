@@ -2,7 +2,7 @@ name: Nudge
 
 on:
   workflow_run:
-    workflows: [Go Tests, Go End to End]
+    workflows: [Go, Go End to End]
     types: [completed]
     branches: [master]
 
