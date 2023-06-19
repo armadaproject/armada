@@ -79,6 +79,30 @@ Runs an Armada job and calls the job_service_client for polling.
     None
 
 
+
+#### render_template_fields(context, jinja_env=None)
+Template all attributes listed in *self.template_fields*.
+
+This mutates the attributes in-place and is irreversible.
+
+
+* **Parameters**
+
+    
+    * **context** (*Context*) – Context dict with values to apply on content.
+
+
+    * **jinja_env** (*Environment** | **None*) – Jinja’s environment to use for rendering.
+
+
+
+* **Return type**
+
+    None
+
+
+
+#### template_fields(_: Sequence[str_ _ = ('job_request_items',_ )
 ## armada.operators.armada_deferrable module
 
 
@@ -158,6 +182,28 @@ until the job completes.
 
 
 
+#### render_template_fields(context, jinja_env=None)
+Template all attributes listed in *self.template_fields*.
+
+This mutates the attributes in-place and is irreversible.
+
+
+* **Parameters**
+
+    
+    * **context** (*Context*) – Context dict with values to apply on content.
+
+
+    * **jinja_env** (*Environment** | **None*) – Jinja’s environment to use for rendering.
+
+
+
+* **Return type**
+
+    None
+
+
+
 #### resume_job_complete(context, event, job_id)
 Resumes this operator after deferring itself to ArmadaJobCompleteTrigger.
 Only meant to be called from within Airflow.
@@ -190,6 +236,8 @@ Reports the result of the job and returns.
     None
 
 
+
+#### template_fields(_: Sequence[str_ _ = ('job_request_items',_ )
 
 ### _class_ armada.operators.armada_deferrable.ArmadaJobCompleteTrigger(job_id, job_service_channel_args, armada_queue, job_set_id, airflow_task_name)
 Bases: `BaseTrigger`
