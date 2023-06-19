@@ -1,0 +1,14 @@
+pull_request_rules:
+  - name: Require GR approval
+    conditions:
+      - "#approved-reviews-by>=1"
+    actions:
+      post_check:
+        success_conditions:
+        - or:
+          - "#approved-reviews-by>=2"
+          - and: 
+            - "#approved-reviews-by>=1"
+            - "author~=^(JamesMurkin|severinson|d80tb7|carlocamurri|kannon92|dejanzele|Sharpz7|ClifHouck|robertdavidsmith|theAntiYeti|richscott|suprjinx|zuqq)"
+        title:
+          Two are checks required.
