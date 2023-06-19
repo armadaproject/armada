@@ -99,13 +99,12 @@ func NewSchedulingContextRepository(jobCacheSize uint) (*SchedulingContextReposi
 // Job contexts are stored first, then queue contexts, and finally the scheduling context itself.
 // This avoids having a stored scheduling (queue) context referring to a queue (job) context that isn't stored yet.
 func (repo *SchedulingContextRepository) AddSchedulingContext(sctx *schedulercontext.SchedulingContext) error {
-	qctxs, jctxs := extractQueueAndJobSchedulingContexts(sctx)
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
-	if err := repo.addSchedulingContextForJobs(sctx, jctxs); err != nil {
+	if err := repo.addSchedulingContextForJobs(sctx); err != nil {
 		return err
 	}
-	if err := repo.addSchedulingContextForQueues(sctx, qctxs); err != nil {
+	if err := repo.addSchedulingContextForQueues(sctx); err != nil {
 		return err
 	}
 	if err := repo.addSchedulingContext(sctx); err != nil {
@@ -155,7 +154,7 @@ func (repo *SchedulingContextRepository) addSchedulingContext(sctx *schedulercon
 }
 
 // Should only be called from AddSchedulingContext to avoid dirty writes.
-func (repo *SchedulingContextRepository) addSchedulingContextForQueues(sctx *schedulercontext.SchedulingContext, qctxs []*schedulercontext.QueueSchedulingContext) error {
+func (repo *SchedulingContextRepository) addSchedulingContextForQueues(sctx *schedulercontext.SchedulingContext) error {
 	executorId := sctx.ExecutorId
 	if executorId == "" {
 		return errors.WithStack(
@@ -171,7 +170,7 @@ func (repo *SchedulingContextRepository) addSchedulingContextForQueues(sctx *sch
 	mostRecentSuccessfulByExecutorByQueue := maps.Clone(*repo.mostRecentSuccessfulByExecutorByQueue.Load())
 	mostRecentPreemptingByExecutorByQueue := maps.Clone(*repo.mostRecentPreemptingByExecutorByQueue.Load())
 
-	for _, qctx := range qctxs {
+	for _, qctx := range sctx.QueueSchedulingContexts {
 		queue := qctx.Queue
 		if queue == "" {
 			return errors.WithStack(
@@ -220,7 +219,7 @@ func (repo *SchedulingContextRepository) addSchedulingContextForQueues(sctx *sch
 }
 
 // Should only be called from AddSchedulingContext to avoid dirty writes.
-func (repo *SchedulingContextRepository) addSchedulingContextForJobs(sctx *schedulercontext.SchedulingContext, jctxs []*schedulercontext.JobSchedulingContext) error {
+func (repo *SchedulingContextRepository) addSchedulingContextForJobs(sctx *schedulercontext.SchedulingContext) error {
 	executorId := sctx.ExecutorId
 	if executorId == "" {
 		return errors.WithStack(
@@ -231,41 +230,43 @@ func (repo *SchedulingContextRepository) addSchedulingContextForJobs(sctx *sched
 			},
 		)
 	}
-	for _, jctx := range jctxs {
-		jobId := jctx.JobId
-		if jobId == "" {
-			return errors.WithStack(
-				&armadaerrors.ErrInvalidArgument{
-					Name:    "JobId",
-					Value:   "",
-					Message: "received empty jobId",
-				},
-			)
+	for _, qctx := range sctx.QueueSchedulingContexts {
+		for _, jctx := range qctx.SuccessfulJobSchedulingContexts {
+			jobId := jctx.JobId
+			if jobId == "" {
+				return errors.WithStack(
+					&armadaerrors.ErrInvalidArgument{
+						Name:    "JobId",
+						Value:   "",
+						Message: "received empty jobId",
+					},
+				)
+			}
+			if previous, ok, _ := repo.mostRecentByExecutorByJobId.PeekOrAdd(jobId, SchedulingContextByExecutor{executorId: sctx}); ok {
+				byExecutor := previous.(SchedulingContextByExecutor)
+				byExecutor[executorId] = sctx
+				repo.mostRecentByExecutorByJobId.Add(jobId, byExecutor)
+			}
 		}
-		if previous, ok, _ := repo.mostRecentByExecutorByJobId.PeekOrAdd(jobId, SchedulingContextByExecutor{executorId: sctx}); ok {
-			byExecutor := previous.(SchedulingContextByExecutor)
-			byExecutor[executorId] = sctx
-			repo.mostRecentByExecutorByJobId.Add(jobId, byExecutor)
+		for _, jctx := range qctx.UnsuccessfulJobSchedulingContexts {
+			jobId := jctx.JobId
+			if jobId == "" {
+				return errors.WithStack(
+					&armadaerrors.ErrInvalidArgument{
+						Name:    "JobId",
+						Value:   "",
+						Message: "received empty jobId",
+					},
+				)
+			}
+			if previous, ok, _ := repo.mostRecentByExecutorByJobId.PeekOrAdd(jobId, SchedulingContextByExecutor{executorId: sctx}); ok {
+				byExecutor := previous.(SchedulingContextByExecutor)
+				byExecutor[executorId] = sctx
+				repo.mostRecentByExecutorByJobId.Add(jobId, byExecutor)
+			}
 		}
 	}
 	return nil
-}
-
-// extractQueueAndJobSchedulingContexts extracts the job and queue scheduling contexts from the scheduling context,
-// and returns those separately.
-func extractQueueAndJobSchedulingContexts(sctx *schedulercontext.SchedulingContext) ([]*schedulercontext.QueueSchedulingContext, []*schedulercontext.JobSchedulingContext) {
-	qctxs := make([]*schedulercontext.QueueSchedulingContext, 0)
-	jctxs := make([]*schedulercontext.JobSchedulingContext, 0)
-	for _, qctx := range sctx.QueueSchedulingContexts {
-		qctxs = append(qctxs, qctx)
-		for _, jctx := range qctx.SuccessfulJobSchedulingContexts {
-			jctxs = append(jctxs, jctx)
-		}
-		for _, jctx := range qctx.UnsuccessfulJobSchedulingContexts {
-			jctxs = append(jctxs, jctx)
-		}
-	}
-	return qctxs, jctxs
 }
 
 func (repo *SchedulingContextRepository) getSchedulingReportStringForQueue(queue string, verbosity int32) string {
