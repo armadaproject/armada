@@ -354,22 +354,19 @@ func (sr schedulingReport) ReportString(verbosity int32) string {
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	for _, executorId := range sr.sortedExecutorIds {
 		fmt.Fprintf(w, "%s:\n", executorId)
-		sctx := sr.mostRecentByExecutor[executorId]
-		if sctx != nil {
+		if sctx := sr.mostRecentByExecutor[executorId]; sctx != nil {
 			fmt.Fprint(w, indent.String("\t", "Most recent attempt:\n"))
 			fmt.Fprint(w, indent.String("\t\t", sctx.ReportString(verbosity)))
 		} else {
 			fmt.Fprint(w, indent.String("\t", "Most recent attempt: none\n"))
 		}
-		sctx = sr.mostRecentSuccessfulByExecutor[executorId]
-		if sctx != nil {
+		if sctx := sr.mostRecentSuccessfulByExecutor[executorId]; sctx != nil {
 			fmt.Fprint(w, indent.String("\t", "Most recent successful attempt:\n"))
 			fmt.Fprint(w, indent.String("\t\t", sctx.ReportString(verbosity)))
 		} else {
 			fmt.Fprint(w, indent.String("\t", "Most recent successful attempt: none\n"))
 		}
-		sctx = sr.mostRecentPreemptingByExecutor[executorId]
-		if sctx != nil {
+		if sctx := sr.mostRecentPreemptingByExecutor[executorId]; sctx != nil {
 			fmt.Fprint(w, indent.String("\t", "Most recent preempting attempt:\n"))
 			fmt.Fprint(w, indent.String("\t\t", sctx.ReportString(verbosity)))
 		} else {
