@@ -9,6 +9,7 @@ import (
 	"github.com/openconfig/goyang/pkg/indent"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -356,8 +357,8 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 		fmt.Fprintf(w, "Total allocated resources after scheduling:\t%s\n", qctx.AllocatedByPriority.AggregateByResource().CompactString())
 		fmt.Fprintf(w, "Total allocated resources after scheduling (by priority):\t%s\n", qctx.AllocatedByPriority.String())
 		fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", len(qctx.SuccessfulJobSchedulingContexts))
-		fmt.Fprintf(w, "Number of jobs that could not be scheduled:\t%d\n", len(qctx.UnsuccessfulJobSchedulingContexts))
 		fmt.Fprintf(w, "Number of jobs preempted:\t%d\n", len(qctx.EvictedJobsById))
+		fmt.Fprintf(w, "Number of jobs that could not be scheduled:\t%d\n", len(qctx.UnsuccessfulJobSchedulingContexts))
 		if len(qctx.SuccessfulJobSchedulingContexts) > 0 {
 			jobIdsToPrint := maps.Keys(qctx.SuccessfulJobSchedulingContexts)
 			if verbosity <= 1 && len(jobIdsToPrint) > maxPrintedJobIdsByReason {
@@ -370,29 +371,6 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 				fmt.Fprint(w, "\n")
 			}
 		}
-		if len(qctx.UnsuccessfulJobSchedulingContexts) > 0 {
-			fmt.Fprint(w, "Unschedulable jobs:\n")
-			for reason, jobIds := range armadaslices.MapAndGroupByFuncs(
-				maps.Values(qctx.UnsuccessfulJobSchedulingContexts),
-				func(jctx *JobSchedulingContext) string {
-					return jctx.UnschedulableReason
-				},
-				func(jctx *JobSchedulingContext) string {
-					return jctx.JobId
-				},
-			) {
-				jobIdsToPrint := jobIds
-				if verbosity <= 1 && len(jobIdsToPrint) > maxPrintedJobIdsByReason {
-					jobIdsToPrint = jobIds[0:maxPrintedJobIdsByReason]
-				}
-				fmt.Fprintf(w, "\t%d:\t%s jobs\t%v", len(qctx.UnsuccessfulJobSchedulingContexts), reason, jobIdsToPrint)
-				if len(jobIdsToPrint) != len(jobIds) {
-					fmt.Fprintf(w, " (and %d others not shown)\n", len(jobIds)-len(jobIdsToPrint))
-				} else {
-					fmt.Fprint(w, "\n")
-				}
-			}
-		}
 		if len(qctx.EvictedJobsById) > 0 {
 			jobIdsToPrint := maps.Keys(qctx.EvictedJobsById)
 			if verbosity <= 1 && len(jobIdsToPrint) > maxPrintedJobIdsByReason {
@@ -403,6 +381,28 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 				fmt.Fprintf(w, " (and %d others not shown)\n", len(qctx.EvictedJobsById)-len(jobIdsToPrint))
 			} else {
 				fmt.Fprint(w, "\n")
+			}
+		}
+		if len(qctx.UnsuccessfulJobSchedulingContexts) > 0 {
+			fmt.Fprint(w, "Unschedulable jobs:\n")
+			jobIdsByReason := armadaslices.MapAndGroupByFuncs(
+				maps.Values(qctx.UnsuccessfulJobSchedulingContexts),
+				func(jctx *JobSchedulingContext) string {
+					return jctx.UnschedulableReason
+				},
+				func(jctx *JobSchedulingContext) string {
+					return jctx.JobId
+				},
+			)
+			reasons := maps.Keys(jobIdsByReason)
+			slices.SortFunc(reasons, func(a, b string) bool { return len(jobIdsByReason[a]) < len(jobIdsByReason[b]) })
+			for i := len(reasons) - 1; i >= 0; i-- {
+				reason := reasons[i]
+				jobIds := jobIdsByReason[reason]
+				if len(jobIds) <= 0 {
+					continue
+				}
+				fmt.Fprintf(w, "\t%d:\t%s (e.g., %s)\n", len(jobIds), reason, jobIds[0])
 			}
 		}
 	}
