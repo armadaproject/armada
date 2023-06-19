@@ -1,5 +1,5 @@
 pull_request_rules:
-  - name: Require GR approval
+  - name: Require approval from Armada maintainer
     conditions:
       - "#approved-reviews-by>=1"
     actions:
