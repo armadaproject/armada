@@ -20,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -556,59 +557,52 @@ func BindPodToNode(req *schedulerobjects.PodRequirements, node *schedulerobjects
 	return node, nil
 }
 
-// EvictPodFromNode returns a copy of node with req evicted from it. Specifically:
-// - The job is marked as evicted on the node.
-// - AllocatedByJobId and AllocatedByQueue are not updated.
-// - Resources requested by the evicted pod are marked as allocated at priority evictedPriority.
-func EvictPodFromNode(req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
-	jobId, err := JobIdFromPodRequirements(req)
-	if err != nil {
-		return nil, err
-	}
-	queue, err := QueueFromPodRequirements(req)
-	if err != nil {
-		return nil, err
-	}
-	node = node.DeepCopy()
-
-	// Ensure we track allocated resources at evictedPriority.
-	if _, ok := node.AllocatableByPriorityAndResource[evictedPriority]; !ok {
-		pMin := int32(math.MaxInt32)
-		ok := false
-		for p := range node.AllocatableByPriorityAndResource {
-			if p < pMin {
-				pMin = p
-				ok = true
-			}
-		}
-		if ok {
-			node.AllocatableByPriorityAndResource[evictedPriority] = node.AllocatableByPriorityAndResource[pMin].DeepCopy()
-		}
-	}
-
+// EvictJobFromNodeInPlace marks the given job as evicted and moves its resources from the job's
+// priority to preemptedPriority; it does not update AllocatedByJobId and AllocatedByQueue.
+func EvictJobFromNodeInPlace(priorityClasses map[string]configuration.PriorityClass, job interfaces.LegacySchedulerJob, node *schedulerobjects.Node) error {
+	jobId := job.GetId()
 	if _, ok := node.AllocatedByJobId[jobId]; !ok {
-		return nil, errors.Errorf("job %s has no resources allocated on node %s", jobId, node.Id)
+		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.Id)
 	}
+
+	queue := job.GetQueue()
 	if _, ok := node.AllocatedByQueue[queue]; !ok {
-		return nil, errors.Errorf("queue %s has no resources allocated on node %s", queue, node.Id)
+		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.Id)
 	}
+
 	if node.EvictedJobRunIds == nil {
 		node.EvictedJobRunIds = make(map[string]bool)
 	}
 	if _, ok := node.EvictedJobRunIds[jobId]; ok {
-		// TODO: We're using run ids instead of job ids for now.
-		return nil, errors.Errorf("job %s is already evicted from node %s", jobId, node.Id)
-	} else {
-		node.EvictedJobRunIds[jobId] = true
+		return errors.Errorf("job %s is already evicted from node %s", jobId, node.Id)
 	}
+	node.EvictedJobRunIds[jobId] = true
 
-	schedulerobjects.AllocatableByPriorityAndResourceType(
-		node.AllocatableByPriorityAndResource,
-	).MarkAllocatableV1ResourceList(req.Priority, req.ResourceRequirements.Requests)
-	schedulerobjects.AllocatableByPriorityAndResourceType(
-		node.AllocatableByPriorityAndResource,
-	).MarkAllocatedV1ResourceList(evictedPriority, req.ResourceRequirements.Requests)
-	return node, nil
+	if _, ok := node.AllocatableByPriorityAndResource[evictedPriority]; !ok {
+		minimumPriority := int32(math.MaxInt32)
+		foundPriority := false
+		for p := range node.AllocatableByPriorityAndResource {
+			if p < minimumPriority {
+				minimumPriority = p
+				foundPriority = true
+			}
+		}
+		if foundPriority {
+			node.AllocatableByPriorityAndResource[evictedPriority] = node.AllocatableByPriorityAndResource[minimumPriority].DeepCopy()
+		} else {
+			// We do not expect to hit this branch; however, if we do, then we need
+			// to make sure that evictedPriority is in this map so that the call to
+			// MarkAllocatedV1ResourceList() below knows about it.
+			node.AllocatableByPriorityAndResource[evictedPriority] = schedulerobjects.ResourceList{}
+		}
+	}
+	allocatable := schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource)
+	priority := priorityClasses[job.GetPriorityClassName()].Priority
+	requests := job.GetResourceRequirements().Requests
+	allocatable.MarkAllocatableV1ResourceList(priority, requests)
+	allocatable.MarkAllocatedV1ResourceList(evictedPriority, requests)
+
+	return nil
 }
 
 // UnbindPodsFromNode returns a node with all reqs unbound from it.

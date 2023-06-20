@@ -808,41 +808,41 @@ func (evi *Evictor) Evict(ctx context.Context, it nodedb.NodeIterator) (*Evictor
 	evictedJobsById := make(map[string]interfaces.LegacySchedulerJob)
 	affectedNodesById := make(map[string]*schedulerobjects.Node)
 	nodeIdByJobId := make(map[string]string)
-	for node := it.NextNode(); node != nil; node = it.NextNode() {
-		if evi.nodeFilter != nil && !evi.nodeFilter(ctx, node) {
+	for originalNode := it.NextNode(); originalNode != nil; originalNode = it.NextNode() {
+		if evi.nodeFilter != nil && !evi.nodeFilter(ctx, originalNode) {
 			continue
 		}
-		jobIds := util.Filter(
-			maps.Keys(node.AllocatedByJobId),
-			func(jobId string) bool {
-				_, ok := node.EvictedJobRunIds[jobId]
-				return !ok
-			},
-		)
+		jobIds := make([]string, 0)
+		for jobId := range originalNode.AllocatedByJobId {
+			if _, ok := originalNode.EvictedJobRunIds[jobId]; !ok {
+				jobIds = append(jobIds, jobId)
+			}
+		}
 		jobs, err := evi.jobRepo.GetExistingJobsByIds(jobIds)
 		if err != nil {
 			return nil, err
 		}
+		var affectedNode *schedulerobjects.Node
 		for _, job := range jobs {
 			if evi.jobFilter != nil && !evi.jobFilter(ctx, job) {
 				continue
 			}
-			req := PodRequirementFromLegacySchedulerJob(job, evi.priorityClasses)
-			if req == nil {
-				continue
+			if affectedNode == nil {
+				affectedNode = originalNode.DeepCopy()
 			}
-			node, err = nodedb.EvictPodFromNode(req, node)
+			err = nodedb.EvictJobFromNodeInPlace(evi.priorityClasses, job, affectedNode)
 			if err != nil {
 				return nil, err
 			}
 			if evi.postEvictFunc != nil {
-				evi.postEvictFunc(ctx, job, node)
+				evi.postEvictFunc(ctx, job, affectedNode)
 			}
-
 			evictedJobsById[job.GetId()] = job
-			nodeIdByJobId[job.GetId()] = node.Id
+			nodeIdByJobId[job.GetId()] = affectedNode.Id
 		}
-		affectedNodesById[node.Id] = node
+		if affectedNode != nil {
+			affectedNodesById[affectedNode.Id] = affectedNode
+		}
 	}
 	return &EvictorResult{
 		EvictedJobsById:   evictedJobsById,

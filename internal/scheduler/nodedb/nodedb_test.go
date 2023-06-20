@@ -103,40 +103,45 @@ func TestSelectNodeForPod_NodeIdLabel_Failure(t *testing.T) {
 }
 
 func TestNodeBindingEvictionUnbinding(t *testing.T) {
+	// We add evictedPriority here to simplify the resource accounting checks
+	// below; it is always present after the first eviction.
 	node := testfixtures.Test8GpuNode(append(testfixtures.TestPriorities, evictedPriority))
-	req := testfixtures.N1GpuPodReqs("A", 0, 1)[0]
-	request := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
-	jobId, err := JobIdFromPodRequirements(req)
+	job := testfixtures.Test1GpuJob("A", testfixtures.PriorityClass0)
+	jobId := job.GetId()
+	priority := testfixtures.TestPriorityClasses[job.GetPriorityClassName()].Priority
+	schedulingInfo := job.GetRequirements(testfixtures.TestPriorityClasses)
+	podRequirements := schedulingInfo.ObjectRequirements[0].GetPodRequirements()
+	requests := schedulerobjects.ResourceListFromV1ResourceList(job.GetResourceRequirements().Requests)
+
+	boundNode, err := BindPodToNode(podRequirements, node)
 	require.NoError(t, err)
 
-	boundNode, err := BindPodToNode(req, node)
+	unboundNode, err := UnbindPodFromNode(podRequirements, boundNode)
 	require.NoError(t, err)
 
-	unboundNode, err := UnbindPodFromNode(req, boundNode)
+	unboundMultipleNode, err := UnbindPodsFromNode([]*schedulerobjects.PodRequirements{podRequirements}, boundNode)
 	require.NoError(t, err)
 
-	unboundMultipleNode, err := UnbindPodsFromNode([]*schedulerobjects.PodRequirements{req}, boundNode)
+	evictedNode := boundNode.DeepCopy()
+	err = EvictJobFromNodeInPlace(testfixtures.TestPriorityClasses, job, evictedNode)
 	require.NoError(t, err)
 
-	evictedNode, err := EvictPodFromNode(req, boundNode)
+	evictedUnboundNode, err := UnbindPodFromNode(podRequirements, evictedNode)
 	require.NoError(t, err)
 
-	evictedUnboundNode, err := UnbindPodFromNode(req, evictedNode)
+	evictedBoundNode, err := BindPodToNode(podRequirements, evictedNode)
 	require.NoError(t, err)
 
-	evictedBoundNode, err := BindPodToNode(req, evictedNode)
-	require.NoError(t, err)
-
-	_, err = EvictPodFromNode(req, node)
+	err = EvictJobFromNodeInPlace(testfixtures.TestPriorityClasses, job, node)
 	require.Error(t, err)
 
-	_, err = UnbindPodFromNode(req, node)
+	_, err = UnbindPodFromNode(podRequirements, node)
 	require.Error(t, err)
 
-	_, err = BindPodToNode(req, boundNode)
+	_, err = BindPodToNode(podRequirements, boundNode)
 	require.Error(t, err)
 
-	_, err = EvictPodFromNode(req, evictedNode)
+	err = EvictJobFromNodeInPlace(testfixtures.TestPriorityClasses, job, evictedNode)
 	require.Error(t, err)
 
 	assertNodeAccountingEqual(t, node, unboundNode)
@@ -148,14 +153,14 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	assert.True(
 		t,
 		armadamaps.DeepEqual(
-			map[string]schedulerobjects.ResourceList{jobId: request},
+			map[string]schedulerobjects.ResourceList{jobId: requests},
 			boundNode.AllocatedByJobId,
 		),
 	)
 	assert.True(
 		t,
 		armadamaps.DeepEqual(
-			map[string]schedulerobjects.ResourceList{jobId: request},
+			map[string]schedulerobjects.ResourceList{jobId: requests},
 			evictedNode.AllocatedByJobId,
 		),
 	)
@@ -163,21 +168,21 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	assert.True(
 		t,
 		armadamaps.DeepEqual(
-			map[string]schedulerobjects.ResourceList{"A": request},
+			map[string]schedulerobjects.ResourceList{"A": requests},
 			boundNode.AllocatedByQueue,
 		),
 	)
 	assert.True(
 		t,
 		armadamaps.DeepEqual(
-			map[string]schedulerobjects.ResourceList{"A": request},
+			map[string]schedulerobjects.ResourceList{"A": requests},
 			evictedNode.AllocatedByQueue,
 		),
 	)
 
 	expectedAllocatable := boundNode.TotalResources.DeepCopy()
-	expectedAllocatable.Sub(request)
-	assert.True(t, expectedAllocatable.Equal(boundNode.AllocatableByPriorityAndResource[req.Priority]))
+	expectedAllocatable.Sub(requests)
+	assert.True(t, expectedAllocatable.Equal(boundNode.AllocatableByPriorityAndResource[priority]))
 
 	assert.Empty(t, unboundNode.AllocatedByJobId)
 	assert.Empty(t, unboundNode.AllocatedByQueue)
@@ -636,18 +641,4 @@ func randomString(n int) string {
 		s += fmt.Sprint(i)
 	}
 	return s
-}
-
-func GetTestNodeDb() *NodeDb {
-	nodeDb, err := NewNodeDb(
-		testfixtures.TestPriorityClasses,
-		0,
-		testfixtures.TestResources,
-		testfixtures.TestIndexedTaints,
-		testfixtures.TestIndexedNodeLabels,
-	)
-	if err != nil {
-		panic(err)
-	}
-	return nodeDb
 }
