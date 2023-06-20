@@ -1,16 +1,19 @@
 name: Release Armada components
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_run:
+    types: [completed]
+    workflows: [Validate Release]
+    branches:
+      - master
+      - v*
 
 permissions:
   contents: write
 
 jobs:
   release:
-    if: github.repository_owner == 'armadaproject'
+    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.repository_owner == 'armadaproject'
     name: "Release"
     runs-on: ubuntu-22.04
     environment: armada-dockerhub

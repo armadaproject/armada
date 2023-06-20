@@ -1,0 +1,56 @@
+name: Validate Release
+
+on:
+  push:
+    tags:
+      - v*
+
+permissions:
+  contents: write
+
+jobs:
+  compare_tags:
+    if: github.repository_owner == 'armadaproject'
+    name: "Compare tags"
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: "Checkout"
+        uses: "actions/checkout@v3"
+        with:
+          fetch-depth: 0
+
+      - name: Compare tags
+        env:
+          ALLOWED_BRANCH: "master"
+        run: |
+          ref=${{ github.ref }}
+          tag=${ref#refs/tags/}
+          echo "Current tag: $tag"
+          sha=${{ github.sha }}
+          echo "Current sha: $sha"
+          result=0
+          case $tag in
+            v?*)
+              latest_tag_commit=$(git rev-parse refs/tags/$tag^{})
+              git branch --contains=$sha $ALLOWED_BRANCH >> /dev/null
+              branch_contains_commit=$?
+
+              if [[ $branch_contains_commit -eq 0 && "$latest_tag_commit" == "$sha" ]]; then
+                result=0
+              else
+                result=1
+              fi
+            ;;
+            *)
+              echo "Invalid tag $tag"
+              result=1
+            ;;
+          esac
+          if [ $result -ne 0 ]; then
+            echo "Latest tag ($tag) does not match the current commit ($sha)."
+            echo "::error ::Invalid ref $ref $sha"
+            exit 1
+          else
+            echo "Latest tag ($tag) matches the current commit ($sha)."
+          fi
