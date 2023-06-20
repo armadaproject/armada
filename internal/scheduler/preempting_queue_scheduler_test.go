@@ -1379,13 +1379,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 		MaxPriorityFactor int
 	}{
 		"1 node 1 queue 320 jobs": {
-			SchedulingConfig: testfixtures.WithNodeOversubscriptionEvictionProbabilityConfig(
-				0,
-				testfixtures.WithNodeEvictionProbabilityConfig(
-					0.1,
-					testfixtures.TestSchedulingConfig(),
-				),
-			),
+			SchedulingConfig:  testfixtures.TestSchedulingConfig(),
 			Nodes:             testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			JobFunc:           testfixtures.N1CpuJobs,
 			NumQueues:         1,
@@ -1394,10 +1388,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			MaxPriorityFactor: 1,
 		},
 		"10 nodes 1 queue 3200 jobs": {
-			SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
-				0.1,
-				testfixtures.TestSchedulingConfig(),
-			),
+			SchedulingConfig:  testfixtures.TestSchedulingConfig(),
 			Nodes:             testfixtures.N32CpuNodes(10, testfixtures.TestPriorities),
 			JobFunc:           testfixtures.N1CpuJobs,
 			NumQueues:         1,
@@ -1406,10 +1397,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			MaxPriorityFactor: 1,
 		},
 		"10 nodes 10 queues 3200 jobs": {
-			SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
-				0.1,
-				testfixtures.TestSchedulingConfig(),
-			),
+			SchedulingConfig:  testfixtures.TestSchedulingConfig(),
 			Nodes:             testfixtures.N32CpuNodes(10, testfixtures.TestPriorities),
 			JobFunc:           testfixtures.N1CpuJobs,
 			NumQueues:         10,
@@ -1418,10 +1406,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			MaxPriorityFactor: 1,
 		},
 		"100 nodes 1 queue 32000 jobs": {
-			SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
-				0.1,
-				testfixtures.TestSchedulingConfig(),
-			),
+			SchedulingConfig:  testfixtures.TestSchedulingConfig(),
 			Nodes:             testfixtures.N32CpuNodes(100, testfixtures.TestPriorities),
 			JobFunc:           testfixtures.N1CpuJobs,
 			NumQueues:         1,
@@ -1430,10 +1415,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			MaxPriorityFactor: 1,
 		},
 		"1000 nodes 1 queue 320000 jobs": {
-			SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
-				0.1,
-				testfixtures.TestSchedulingConfig(),
-			),
+			SchedulingConfig:  testfixtures.TestSchedulingConfig(),
 			Nodes:             testfixtures.N32CpuNodes(1000, testfixtures.TestPriorities),
 			JobFunc:           testfixtures.N1CpuJobs,
 			NumQueues:         1,
