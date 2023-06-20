@@ -1409,8 +1409,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 
 			nodeDb, err := CreateNodeDb(tc.Nodes)
 			require.NoError(b, err)
-			repo := NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
-			allocatedByQueueAndPriority := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
+			jobRepo := NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
 
 			jobs := make([]interfaces.LegacySchedulerJob, 0)
 			for _, queueJobs := range jobsByQueue {
@@ -1418,7 +1417,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					jobs = append(jobs, job)
 				}
 			}
-			repo.EnqueueMany(jobs)
+			jobRepo.EnqueueMany(jobs)
 
 			sctx := schedulercontext.NewSchedulingContext(
 				"executor",
@@ -1429,7 +1428,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nodeDb.TotalResources(),
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
-				err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByQueueAndPriority[queue])
+				err := sctx.AddQueueSchedulingContext(queue, priorityFactor, schedulerobjects.QuantityByPriorityAndResourceType{})
 				require.NoError(b, err)
 			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
@@ -1443,7 +1442,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				constraints,
 				tc.SchedulingConfig.Preemption.NodeEvictionProbability,
 				tc.SchedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
-				repo,
+				jobRepo,
 				nodeDb,
 				nil,
 				nil,
@@ -1453,19 +1452,30 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			require.NoError(b, err)
 			require.Equal(b, 0, len(result.PreemptedJobs))
 
-			// Create a new job repo without the scheduled jobs.
-			scheduledJobsById := make(map[string]interfaces.LegacySchedulerJob)
+			scheduledJobs := make(map[string]bool)
 			for _, job := range result.ScheduledJobs {
-				scheduledJobsById[job.GetId()] = job
+				scheduledJobs[job.GetId()] = true
 			}
-			unscheduledJobs := make([]interfaces.LegacySchedulerJob, 0)
-			for _, job := range jobs {
-				if _, ok := scheduledJobsById[job.GetId()]; !ok {
-					unscheduledJobs = append(unscheduledJobs, job)
-				}
+			for queue, jobs := range jobRepo.jobsByQueue {
+				jobRepo.jobsByQueue[queue] = armadaslices.Filter(jobs, func(job interfaces.LegacySchedulerJob) bool { return scheduledJobs[job.GetId()] })
 			}
-			repo = NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
-			repo.EnqueueMany(unscheduledJobs)
+
+			nodesById := make(map[string]*schedulerobjects.Node)
+			for _, node := range tc.Nodes {
+				nodesById[node.Id] = node
+			}
+			for _, job := range result.ScheduledJobs {
+				nodeId := result.NodeIdByJobId[job.GetId()]
+				node := nodesById[nodeId]
+				podRequirements := PodRequirementFromLegacySchedulerJob(job, tc.SchedulingConfig.Preemption.PriorityClasses)
+				node, err = nodedb.BindPodToNode(podRequirements, node)
+				require.NoError(b, err)
+				nodesById[nodeId] = node
+			}
+			nodeDb, err = CreateNodeDb(maps.Values(nodesById))
+			require.NoError(b, err)
+
+			allocatedByQueueAndPriority := sctx.AllocatedByQueueAndPriority()
 
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
@@ -1486,7 +1496,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					constraints,
 					tc.SchedulingConfig.Preemption.NodeEvictionProbability,
 					tc.SchedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
-					repo,
+					jobRepo,
 					nodeDb,
 					nil,
 					nil,
