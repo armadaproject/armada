@@ -1,4 +1,4 @@
-subscribeExpirySecs: 60
+subscriptionExpirySecs: 60
 subscriberPoolSize: 30
 purgeJobSetTime: 10000
 databaseType: "postgres"
