@@ -40,9 +40,9 @@ type FairSchedulingAlgo struct {
 	config                      configuration.SchedulingConfig
 	executorRepository          database.ExecutorRepository
 	queueRepository             database.QueueRepository
-	schedulingContextRepository *SchedulingContextRepository // TODO: Initialise.
+	schedulingContextRepository *SchedulingContextRepository
 	priorityClasses             map[string]configuration.PriorityClass
-	indexedResources            []string
+	indexedResources            []configuration.IndexedResource
 	rand                        *rand.Rand // injected here for repeatable testing
 	previousScheduleClusterId   string
 	maxSchedulingDuration       time.Duration
@@ -56,26 +56,22 @@ func NewFairSchedulingAlgo(
 	maxSchedulingDuration time.Duration,
 	executorRepository database.ExecutorRepository,
 	queueRepository database.QueueRepository,
+	schedulingContextRepository *SchedulingContextRepository,
 ) (*FairSchedulingAlgo, error) {
 	if _, ok := config.Preemption.PriorityClasses[config.Preemption.DefaultPriorityClass]; !ok {
 		return nil, errors.Errorf("default priority class %s is missing from priority class mapping %v", config.Preemption.DefaultPriorityClass, config.Preemption.PriorityClasses)
 	}
-
-	indexedResources := config.IndexedResources
-	if len(indexedResources) == 0 {
-		indexedResources = []string{"cpu", "memory"}
-	}
-
 	algo := &FairSchedulingAlgo{
-		config:                config,
-		executorRepository:    executorRepository,
-		queueRepository:       queueRepository,
-		priorityClasses:       config.Preemption.PriorityClasses,
-		indexedResources:      indexedResources,
-		maxSchedulingDuration: maxSchedulingDuration,
-		rand:                  util.NewThreadsafeRand(time.Now().UnixNano()),
-		clock:                 clock.RealClock{},
-		onExecutorScheduled:   func(executor *schedulerobjects.Executor) {},
+		config:                      config,
+		executorRepository:          executorRepository,
+		queueRepository:             queueRepository,
+		schedulingContextRepository: schedulingContextRepository,
+		priorityClasses:             config.Preemption.PriorityClasses,
+		indexedResources:            config.IndexedResources,
+		maxSchedulingDuration:       maxSchedulingDuration,
+		rand:                        util.NewThreadsafeRand(time.Now().UnixNano()),
+		clock:                       clock.RealClock{},
+		onExecutorScheduled:         func(executor *schedulerobjects.Executor) {},
 	}
 
 	return algo, nil

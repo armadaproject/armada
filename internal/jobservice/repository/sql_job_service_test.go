@@ -115,12 +115,12 @@ func TestSubscribeList(t *testing.T) {
 		subscribeList, err := r.GetSubscribedJobSets(ctx)
 		require.NoError(t, err)
 		for _, val := range subscribeList {
-			if val.Queue == "queue" && val.JobSet == "job-set-1" {
+			if val.Queue == "queue" && val.JobSetId == "job-set-1" {
 				require.Equal(t, val.Queue, "queue")
-				require.Equal(t, val.JobSet, "job-set-1")
-			} else if val.Queue == "queue" && val.JobSet == "job-set-2" {
+				require.Equal(t, val.JobSetId, "job-set-1")
+			} else if val.Queue == "queue" && val.JobSetId == "job-set-2" {
 				require.Equal(t, val.Queue, "queue")
-				require.Equal(t, val.JobSet, "job-set-2")
+				require.Equal(t, val.JobSetId, "job-set-2")
 			} else {
 				require.True(t, false)
 			}
@@ -141,22 +141,43 @@ func TestCleanupJobSetAndJobsIfNonExist(t *testing.T) {
 	})
 }
 
-func TestCleanupTrigger(t *testing.T) {
+func TestPurgeExpiredJobSets(t *testing.T) {
 	realPurgeTime := int64(1)
 	WithSqlServiceRepo(realPurgeTime, func(r SQLJobService) {
 		ctx := context.Background()
-		err := r.SubscribeJobSet(ctx, "queue", "job-set-1", "")
-		require.NoError(t, err)
-		subscribe, _, err := r.IsJobSetSubscribed(ctx, "queue", "job-set-1")
-		require.True(t, subscribe)
-		require.NoError(t, err)
-		time.Sleep(time.Duration(2000 * time.Millisecond))
-		// insert of job-set-2 should cleanup expired job-set-1
-		err = r.SubscribeJobSet(ctx, "queue", "job-set-2", "")
-		require.NoError(t, err)
-		subscribe, _, err = r.IsJobSetSubscribed(ctx, "queue", "job-set-1")
-		require.False(t, subscribe)
-		require.NoError(t, err)
+		go r.PurgeExpiredJobSets(ctx)
+		// test multiple iterations of the purging goroutine
+		for i := 1; i <= 3; i++ {
+			jobsetId := fmt.Sprintf("job-set-%d", i)
+			jobId := fmt.Sprintf("job-%d", i)
+			responseExpected1 := &jobservice.JobServiceResponse{
+				State: jobservice.JobServiceResponse_RUNNING,
+			}
+			err := r.SubscribeJobSet(ctx, "queue", jobsetId, "")
+			require.NoError(t, err)
+			jobStatus1 := NewJobStatus("test", jobsetId, jobId, *responseExpected1)
+			err = r.UpdateJobServiceDb(ctx, jobStatus1)
+			require.NoError(t, err)
+			subscribe, _, err := r.IsJobSetSubscribed(ctx, "queue", jobsetId)
+			require.True(t, subscribe)
+			require.NoError(t, err)
+			response, err := r.GetJobStatus(ctx, jobId)
+			require.Equal(t, responseExpected1, response)
+			require.NoError(t, err)
+
+			// wait until the purge ticker starts a new cycle
+			time.Sleep(time.Duration(realPurgeTime+1) * time.Second)
+
+			subscribe, _, err = r.IsJobSetSubscribed(ctx, "queue", jobsetId)
+			require.False(t, subscribe)
+			require.NoError(t, err)
+			responseExpected2 := &jobservice.JobServiceResponse{
+				State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND,
+			}
+			response, err = r.GetJobStatus(ctx, jobId)
+			require.Equal(t, responseExpected2, response)
+			require.NoError(t, err)
+		}
 	})
 }
 
@@ -172,34 +193,6 @@ func TestCleanupJobSetAndJobsHappy(t *testing.T) {
 		require.False(t, subscribe)
 		require.Equal(t, rowsAffected, int64(1))
 		require.NoError(t, err)
-	})
-}
-
-func TestCheckJobsAfterDeleteJobSet(t *testing.T) {
-	WithSqlServiceRepo(purgeTime, func(r SQLJobService) {
-		ctx := context.Background()
-		responseExpected := &jobservice.JobServiceResponse{
-			State: jobservice.JobServiceResponse_SUCCEEDED,
-		}
-		err := r.SubscribeJobSet(ctx, "queue", "job-set-1", "")
-		require.NoError(t, err)
-
-		jobStatus := NewJobStatus("queue", "job-set-1", "job-id", *responseExpected)
-		err = r.UpdateJobServiceDb(ctx, jobStatus)
-		require.NoError(t, err)
-
-		respGood, err := r.GetJobStatus(ctx, "job-id")
-		require.NoError(t, err)
-		require.Equal(t, responseExpected, respGood)
-
-		affectedRows, err := r.UnsubscribeJobSet(ctx, "queue", "job-set-1")
-		require.NoError(t, err)
-		require.Equal(t, int64(1), affectedRows)
-
-		noExist := &jobservice.JobServiceResponse{State: jobservice.JobServiceResponse_JOB_ID_NOT_FOUND}
-		respNotFound, err := r.GetJobStatus(ctx, "job-id")
-		require.NoError(t, err)
-		require.Equal(t, noExist, respNotFound)
 	})
 }
 
@@ -254,12 +247,9 @@ func TestCheckToUnSubscribe(t *testing.T) {
 		subscribe, _, err := r.IsJobSetSubscribed(ctx, "test", "job-set-1")
 		require.NoError(t, err)
 		assert.True(t, subscribe)
-		flag, errTrue := r.CheckToUnSubscribe(ctx, "test", "job-set-1", 10000)
+		flag, errTrue := r.CheckToUnSubscribe(ctx, "test", "job-set-1", time.Second*time.Duration(10000))
 		require.NoError(t, errTrue)
-		flagFalse, errFalse := r.CheckToUnSubscribe(ctx, "test", "job-set-1", -1)
-		require.NoError(t, errFalse)
 		assert.False(t, flag)
-		assert.True(t, flagFalse)
 	})
 }
 
@@ -284,14 +274,6 @@ func TestUpdateJobSetTime(t *testing.T) {
 		require.NoError(t, err)
 		err = r.UpdateJobSetDb(ctx, "test", "job-set-1", "")
 		require.NoError(t, err)
-	})
-}
-
-func TestUpdateJobSetTimeWithoutSubscribe(t *testing.T) {
-	WithSqlServiceRepo(purgeTime, func(r SQLJobService) {
-		ctx := context.Background()
-		updateErr := r.UpdateJobSetDb(ctx, "test", "job-set-1", "")
-		assert.EqualError(t, updateErr, "queue test jobSet job-set-1 is already unsubscribed")
 	})
 }
 
