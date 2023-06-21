@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/armadaproject/armada/internal/scheduler/reports"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
@@ -158,8 +160,22 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating submit checker")
 	}
-	// TODO(reports): Pass in a non-nil SchedulingContextRepository.
-	schedulingAlgo, err := NewFairSchedulingAlgo(config.Scheduling, config.MaxSchedulingDuration, executorRepository, queueRepository, nil)
+
+	schedulingContextRepository, err := NewSchedulingContextRepository(config.Scheduling.MaxJobSchedulingContextsPerExecutor)
+	if err != nil {
+		return errors.WithMessage(err, "error creating scheduling context repository")
+	}
+
+	schedulingReportServer := reports.NewLeaderProxyingSchedulingReportsServer(schedulingContextRepository, leaderController)
+	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportServer)
+
+	schedulingAlgo, err := NewFairSchedulingAlgo(
+		config.Scheduling,
+		config.MaxSchedulingDuration,
+		executorRepository,
+		queueRepository,
+		schedulingContextRepository,
+	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
 	}

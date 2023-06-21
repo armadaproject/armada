@@ -12,6 +12,7 @@ import (
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 type ArmadaConfig struct {
@@ -26,6 +27,8 @@ type ArmadaConfig struct {
 	CorsAllowedOrigins []string
 
 	Grpc grpcconfig.GrpcConfig
+
+	SchedulerApiConnection client.ApiConnectionDetails
 
 	PriorityHalfTime                  time.Duration
 	CancelJobsBatchSize               int

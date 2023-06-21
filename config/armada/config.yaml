@@ -9,6 +9,8 @@ cancelJobsBatchSize: 1000
 pulsarSchedulerEnabled: false
 probabilityOfUsingPulsarScheduler: 0
 ignoreJobSubmitChecks: false
+schedulerApiConnection:
+  armadaUrl: "server:50052"
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m
@@ -53,7 +55,7 @@ scheduling:
   maxExtraNodesToConsider: 1
   maximumResourceFractionToSchedule:
     memory: 1.0
-    cpu: 1.0    
+    cpu: 1.0
   maxJobSchedulingContextsPerExecutor: 10000
   lease:
     expireAfter: 15m

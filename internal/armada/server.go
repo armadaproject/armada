@@ -7,14 +7,6 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/go-redis/redis"
-	"github.com/google/uuid"
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/jackc/pgx/v4/pgxpool"
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
-
 	"github.com/armadaproject/armada/internal/armada/cache"
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/armada/metrics"
@@ -33,8 +25,18 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
+	reports "github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
+	"github.com/go-redis/redis"
+	"github.com/google/uuid"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
 )
 
 func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
@@ -266,12 +268,23 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		config.Pulsar.MaxAllowedMessageSize,
 		legacyExecutorRepo,
 	)
-	if schedulingContextRepository, err := scheduler.NewSchedulingContextRepository(
-		config.Scheduling.MaxJobSchedulingContextsPerExecutor,
-	); err != nil {
+
+	schedulingContextRepository, err := scheduler.NewSchedulingContextRepository(config.Scheduling.MaxJobSchedulingContextsPerExecutor)
+	if err != nil {
 		return err
+	}
+	aggregatedQueueServer.SchedulingContextRepository = schedulingContextRepository
+
+	var schedulingReportsServer schedulerobjects.SchedulerReportingServer
+	if config.PulsarSchedulerEnabled {
+		schedulerApiConnection, err := createApiConnection(config.SchedulerApiConnection)
+		if err != nil {
+			return errors.Wrapf(err, "error creating connection to scheduler api")
+		}
+		schedulerApiReportsClient := schedulerobjects.NewSchedulerReportingClient(schedulerApiConnection)
+		schedulingReportsServer = reports.NewProxyingSchedulingReportsServer(schedulerApiReportsClient)
 	} else {
-		aggregatedQueueServer.SchedulingContextRepository = schedulingContextRepository
+		schedulingReportsServer = schedulingContextRepository
 	}
 
 	eventServer := server.NewEventServer(
@@ -297,12 +310,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
 	api.RegisterUsageServer(grpcServer, usageServer)
 	api.RegisterEventServer(grpcServer, eventServer)
-	if aggregatedQueueServer.SchedulingContextRepository != nil {
-		schedulerobjects.RegisterSchedulerReportingServer(
-			grpcServer,
-			aggregatedQueueServer.SchedulingContextRepository,
-		)
-	}
+	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
 
 	api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
 	grpc_prometheus.Register(grpcServer)
@@ -350,4 +358,14 @@ func validatePreemptionConfig(config configuration.PreemptionConfig) error {
 	}
 
 	return nil
+}
+
+func createApiConnection(connectionDetails client.ApiConnectionDetails) (*grpc.ClientConn, error) {
+	grpc_prometheus.EnableClientHandlingTimeHistogram()
+	return client.CreateApiConnectionWithCallOptions(
+		&connectionDetails,
+		[]grpc.CallOption{},
+		grpc.WithChainUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
+		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
+	)
 }

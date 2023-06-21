@@ -147,6 +147,9 @@ func (lc *KubernetesLeaderController) Run(ctx context.Context) error {
 							lc.listener.onStoppedLeading()
 						}
 					},
+					OnNewLeader: func(identity string) {
+
+					},
 				},
 			})
 			log.Infof("leader election round finished")
