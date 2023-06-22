@@ -817,25 +817,30 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"A": 1,
 			},
 		},
-		"per-priority class limits": {
+		"MaximumResourceFractionPerQueue": {
 			SchedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
-				map[int32]map[string]float64{
-					0: {"cpu": 60.0 / 64.0},
-					1: {"cpu": 20.0 / 64.0},
+				map[string]map[string]float64{
+					testfixtures.PriorityClass0: {"cpu": 1.0 / 32.0},
+					testfixtures.PriorityClass1: {"cpu": 2.0 / 32.0},
+					testfixtures.PriorityClass2: {"cpu": 3.0 / 32.0},
+					testfixtures.PriorityClass3: {"cpu": 4.0 / 32.0},
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": append(
-							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 64),
-							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 64)...,
+						"A": armadaslices.Concatenate(
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass2, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass3, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
 						),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": append(testfixtures.IntRange(0, 19), testfixtures.IntRange(64, 103)...),
+						"A": {0, 32, 33, 64, 65, 66, 96, 97, 98, 99},
 					},
 				},
 				{
@@ -848,11 +853,13 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"A": 1,
 			},
 		},
-		"per-priority class limits multiple rounds": {
+		"MaximumResourceFractionPerQueue multiple rounds": {
 			SchedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
-				map[int32]map[string]float64{
-					0: {"cpu": 30.0 / 32.0},
-					1: {"cpu": 10.0 / 32.0},
+				map[string]map[string]float64{
+					testfixtures.PriorityClass0: {"cpu": 1.0 / 32.0},
+					testfixtures.PriorityClass1: {"cpu": 2.0 / 32.0},
+					testfixtures.PriorityClass2: {"cpu": 3.0 / 32.0},
+					testfixtures.PriorityClass3: {"cpu": 4.0 / 32.0},
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
@@ -860,31 +867,57 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": append(
-							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 5),
-							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 10)...,
+						"A": armadaslices.Concatenate(
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
 						),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": testfixtures.IntRange(0, 14),
+						"A": testfixtures.IntRange(0, 0),
 					},
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": append(
+						"A": armadaslices.Concatenate(
 							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 32),
-							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32)...,
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
 						),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": append(testfixtures.IntRange(0, 4), testfixtures.IntRange(32, 41)...),
+						"A": testfixtures.IntRange(0, 1),
 					},
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": append(
+						"A": armadaslices.Concatenate(
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass2, 32),
 							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 32),
-							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32)...,
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
+						),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 2),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": armadaslices.Concatenate(
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass3, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass2, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
+						),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 3),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": armadaslices.Concatenate(
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass3, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass2, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
 						),
 					},
 				},
@@ -1216,13 +1249,23 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 
 				// Test resource accounting.
 				for _, job := range result.PreemptedJobs {
-					allocatedByQueueAndPriorityClass[job.GetQueue()].SubV1ResourceList(
+					m := allocatedByQueueAndPriorityClass[job.GetQueue()]
+					if m == nil {
+						m = make(schedulerobjects.QuantityByTAndResourceType[string])
+						allocatedByQueueAndPriorityClass[job.GetQueue()] = m
+					}
+					m.SubV1ResourceList(
 						job.GetPriorityClassName(),
 						job.GetResourceRequirements().Requests,
 					)
 				}
 				for _, job := range result.ScheduledJobs {
-					allocatedByQueueAndPriorityClass[job.GetQueue()].AddV1ResourceList(
+					m := allocatedByQueueAndPriorityClass[job.GetQueue()]
+					if m == nil {
+						m = make(schedulerobjects.QuantityByTAndResourceType[string])
+						allocatedByQueueAndPriorityClass[job.GetQueue()] = m
+					}
+					m.AddV1ResourceList(
 						job.GetPriorityClassName(),
 						job.GetResourceRequirements().Requests,
 					)

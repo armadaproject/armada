@@ -111,8 +111,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		},
 		"user is at usage cap before scheduling": {
 			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
-				map[int32]map[string]float64{
-					testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority: {"cpu": 0.5},
+				map[string]map[string]float64{
+					testfixtures.PriorityClass3: {"cpu": 0.5},
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
@@ -134,8 +134,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		},
 		"user hits usage cap during scheduling": {
 			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
-				map[int32]map[string]float64{
-					testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority: {"cpu": 0.5},
+				map[string]map[string]float64{
+					testfixtures.PriorityClass3: {"cpu": 0.5},
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
@@ -179,8 +179,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		},
 		"computation of allocated resources does not confuse priority class with per-queue priority": {
 			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
-				map[int32]map[string]float64{
-					testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority: {"cpu": 0.5},
+				map[string]map[string]float64{
+					testfixtures.PriorityClass3: {"cpu": 0.5},
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
