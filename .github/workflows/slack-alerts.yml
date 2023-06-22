@@ -2,17 +2,37 @@ name: Slack CI Alerts
 
 on:
   workflow_run:
-    workflows: [Go Tests, Python Airflow Operator, Release Armada components - RC, Build Release Images, Code Coverage, "CodeQL"]
+    workflows: [Go Tests, Go End to End, Python Airflow Operator, Release Armada components, Release Armada components - RC, Build Release Images, Code Coverage, "CodeQL"]
     types: [completed]
-    branches: [master]
-
 
 jobs:
-  nudge:
+  on_push_failure:
     runs-on: ubuntu-latest
-    environment: nudge
+    if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_branch == 'master'
     steps:
-      - name: Send notification
-        uses: pavlovic-ivan/octo-nudge@v1
-        with:
-          webhooks: ${{ secrets.NUDGE_WEBHOOKS }}
+      - name: "Master Notification"
+        uses: Mo-Fatah/ci-alerts@v1
+        env: 
+          webhook: ${{ secrets.SLACK_WEBHOOK }}
+          event: push
+          commit: ${{ github.sha }}
+          commit_url: https://github.com/armadaproject/armada/commit/${{ github.sha }}
+          author: ${{ github.actor }}
+          workflow_name: ${{ github.event.workflow_run.name }}
+          workflow_url: ${{ github.event.workflow_run.html_url}}
+
+  on_pull_request_failure:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'pull_request'
+    steps:
+      - uses: actions/checkout@v3
+      - uses: Mo-Fatah/ci-alerts@v1
+        env: 
+          webhook: ${{ secrets.SLACK_WEBHOOK }}
+          event: pr
+          commit: ${{ github.sha }}
+          commit_url: https://github.com/armadaproject/armada/commit/${{ github.sha }}
+          author: ${{ github.actor }}
+          workflow_name: ${{ github.event.workflow_run.name }}
+          workflow_url: ${{ github.event.workflow_run.html_url}}
+          users_path: ${{github.workspace}}/.github/gh-to-slackid
