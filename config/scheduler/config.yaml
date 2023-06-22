@@ -104,8 +104,10 @@ scheduling:
   resourceScarcity:
     cpu: 1.0
   indexedResources:
-    - cpu
-    - memory
+    - name: "cpu"
+      resolution: "100m"
+    - name: "memory"
+      resolution: "1Mi"
   gangIdAnnotation: armadaproject.io/gangId
   gangCardinalityAnnotation: armadaproject.io/gangCardinality
 
