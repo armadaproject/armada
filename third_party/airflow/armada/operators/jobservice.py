@@ -32,7 +32,6 @@ class JobServiceClient:
         :param job_id: The id of the job
         :return: A Job Service Request (State, Error)
         """
-        print("Hello world")
         job_service_request = jobservice_pb2.JobServiceRequest(
             queue=queue, job_set_id=job_set_id, job_id=job_id
         )
