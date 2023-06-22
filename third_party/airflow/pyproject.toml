@@ -12,7 +12,8 @@ dependencies = [
 	"apache-airflow>=2.3.1",
 	"grpcio>=1.46.3",
 	"grpcio-tools>=1.46.3",
-	"types-protobuf>=3.19.22"
+	"types-protobuf>=3.19.22",
+	"tenacity"
 ]
 authors = [{name = "Armada-GROSS", email = "armada@armadaproject.io"}]
 license = { text = "Apache Software License" }
