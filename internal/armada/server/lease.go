@@ -752,7 +752,11 @@ const (
 	subtract
 )
 
-func updateAllocatedByQueueAndPriorityClass[T interfaces.LegacySchedulerJob](allocatedByQueueAndPriorityClass map[string]schedulerobjects.QuantityByTAndResourceType[string], op addOrSubtract, jobs []T) map[string]schedulerobjects.QuantityByTAndResourceType[string] {
+func updateAllocatedByQueueAndPriorityClass[T interfaces.LegacySchedulerJob](
+	allocatedByQueueAndPriorityClass map[string]schedulerobjects.QuantityByTAndResourceType[string],
+	op addOrSubtract,
+	jobs []T,
+) map[string]schedulerobjects.QuantityByTAndResourceType[string] {
 	if allocatedByQueueAndPriorityClass == nil {
 		allocatedByQueueAndPriorityClass = make(map[string]schedulerobjects.QuantityByTAndResourceType[string], 256)
 	}
