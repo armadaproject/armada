@@ -1637,7 +1637,7 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 		MaxPodSpecSizeBytes: 65535,
 		Preemption: configuration.PreemptionConfig{
 			DefaultPriorityClass: "high",
-			PriorityClasses:      map[string]configuration.PriorityClass{"high": {0, false, nil}},
+			PriorityClasses:      map[string]configuration.PriorityClass{"high": {0, false, nil, nil}},
 		},
 		MinTerminationGracePeriod: time.Duration(30 * time.Second),
 		MaxTerminationGracePeriod: time.Duration(300 * time.Second),

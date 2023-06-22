@@ -240,6 +240,9 @@ type PriorityClass struct {
 	// jobs of this priority class are not scheduled if doing so would cause the total resources assigned
 	// to jobs of priority 10 or lower from the same queue to exceed 30% of the total.
 	MaximumResourceFractionPerQueue map[string]float64
+	// Per-pool override of MaximumResourceFractionPerQueue.
+	// If missing for a particular pool, MaximumResourceFractionPerQueue is used instead for that pool.
+	MaximumResourceFractionPerQueueByPool map[string]map[string]float64
 }
 
 func (p PreemptionConfig) PriorityByPriorityClassName() map[string]int32 {
