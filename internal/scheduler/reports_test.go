@@ -246,7 +246,7 @@ func withSuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingContext
 	}
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
-		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByPriorityAndResourceType)); err != nil {
+		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByTAndResourceType[string])); err != nil {
 			panic(err)
 		}
 		qctx = sctx.QueueSchedulingContexts[queue]
@@ -258,8 +258,8 @@ func withSuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingContext
 		JobId:      jobId,
 	}
 	rl := schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}}
-	qctx.ScheduledResourcesByPriority.AddResourceList(0, rl)
-	sctx.ScheduledResourcesByPriority.AddResourceList(0, rl)
+	qctx.ScheduledResourcesByPriorityClass.AddResourceList("foo", rl)
+	sctx.ScheduledResourcesByPriorityClass.AddResourceList("foo", rl)
 	return sctx
 }
 
@@ -269,7 +269,7 @@ func withPreemptingJobSchedulingContext(sctx *schedulercontext.SchedulingContext
 	}
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
-		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByPriorityAndResourceType)); err != nil {
+		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByTAndResourceType[string])); err != nil {
 			panic(err)
 		}
 		qctx = sctx.QueueSchedulingContexts[queue]
@@ -278,8 +278,8 @@ func withPreemptingJobSchedulingContext(sctx *schedulercontext.SchedulingContext
 	}
 	qctx.EvictedJobsById[jobId] = true
 	rl := schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}}
-	qctx.EvictedResourcesByPriority.AddResourceList(0, rl)
-	sctx.EvictedResourcesByPriority.AddResourceList(0, rl)
+	qctx.EvictedResourcesByPriorityClass.AddResourceList("foo", rl)
+	sctx.EvictedResourcesByPriorityClass.AddResourceList("foo", rl)
 	return sctx
 }
 
@@ -289,7 +289,7 @@ func withUnsuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingConte
 	}
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
-		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByPriorityAndResourceType)); err != nil {
+		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByTAndResourceType[string])); err != nil {
 			panic(err)
 		}
 		qctx = sctx.QueueSchedulingContexts[queue]

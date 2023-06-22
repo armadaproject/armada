@@ -146,7 +146,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		maps.Copy(overallSchedulerResult.NodeIdByJobId, schedulerResult.NodeIdByJobId)
 
 		// Update accounting.
-		accounting.totalAllocationByPoolAndQueue[executor.Pool] = sctx.AllocatedByQueueAndPriority()
+		accounting.allocationByPoolAndQueueAndPriorityClass[executor.Pool] = sctx.AllocatedByQueueAndPriority()
 
 		// Update result to mark this executor as scheduled
 		l.previousScheduleClusterId = executor.Id
@@ -175,14 +175,14 @@ func (it *JobQueueIteratorAdapter) Next() (interfaces.LegacySchedulerJob, error)
 }
 
 type fairSchedulingAlgoContext struct {
-	priorityFactorByQueue         map[string]float64
-	totalCapacity                 schedulerobjects.ResourceList
-	jobsByExecutorId              map[string][]*jobdb.Job
-	nodeIdByJobId                 map[string]string
-	jobIdsByGangId                map[string]map[string]bool
-	gangIdByJobId                 map[string]string
-	totalAllocationByPoolAndQueue map[string]map[string]schedulerobjects.QuantityByPriorityAndResourceType
-	executors                     []*schedulerobjects.Executor
+	priorityFactorByQueue                    map[string]float64
+	totalCapacity                            schedulerobjects.ResourceList
+	jobsByExecutorId                         map[string][]*jobdb.Job
+	nodeIdByJobId                            map[string]string
+	jobIdsByGangId                           map[string]map[string]bool
+	gangIdByJobId                            map[string]string
+	allocationByPoolAndQueueAndPriorityClass map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]
+	executors                                []*schedulerobjects.Executor
 }
 
 // This function will return executors in the order they should be scheduled in
@@ -287,14 +287,14 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, t
 	executors = l.filterLaggingExecutors(executors, jobsByExecutorId)
 
 	return &fairSchedulingAlgoContext{
-		priorityFactorByQueue:         priorityFactorByQueue,
-		totalCapacity:                 totalCapacity,
-		jobsByExecutorId:              jobsByExecutorId,
-		nodeIdByJobId:                 nodeIdByJobId,
-		jobIdsByGangId:                jobIdsByGangId,
-		gangIdByJobId:                 gangIdByJobId,
-		totalAllocationByPoolAndQueue: totalAllocationByPoolAndQueue,
-		executors:                     executors,
+		priorityFactorByQueue:                    priorityFactorByQueue,
+		totalCapacity:                            totalCapacity,
+		jobsByExecutorId:                         jobsByExecutorId,
+		nodeIdByJobId:                            nodeIdByJobId,
+		jobIdsByGangId:                           jobIdsByGangId,
+		gangIdByJobId:                            gangIdByJobId,
+		allocationByPoolAndQueueAndPriorityClass: totalAllocationByPoolAndQueue,
+		executors:                                executors,
 	}, nil
 }
 
@@ -323,11 +323,11 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 		accounting.totalCapacity,
 	)
 	for queue, priorityFactor := range accounting.priorityFactorByQueue {
-		var allocatedByPriority schedulerobjects.QuantityByPriorityAndResourceType
-		if allocatedByQueueAndPriority := accounting.totalAllocationByPoolAndQueue[executor.Pool]; allocatedByQueueAndPriority != nil {
-			allocatedByPriority = allocatedByQueueAndPriority[queue]
+		var allocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
+		if allocatedByQueueAndPriorityClass := accounting.allocationByPoolAndQueueAndPriorityClass[executor.Pool]; allocatedByQueueAndPriorityClass != nil {
+			allocatedByPriorityClass = allocatedByQueueAndPriorityClass[queue]
 		}
-		if err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByPriority); err != nil {
+		if err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByPriorityClass); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -520,30 +520,23 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 	return activeExecutors
 }
 
-func (l *FairSchedulingAlgo) totalAllocationByPoolAndQueue(executors []*schedulerobjects.Executor, jobsByExecutorId map[string][]*jobdb.Job) map[string]map[string]schedulerobjects.QuantityByPriorityAndResourceType {
-	rv := make(map[string]map[string]schedulerobjects.QuantityByPriorityAndResourceType)
+// TODO: Rename
+func (l *FairSchedulingAlgo) totalAllocationByPoolAndQueue(executors []*schedulerobjects.Executor, jobsByExecutorId map[string][]*jobdb.Job) map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string] {
+	rv := make(map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string])
 	for _, executor := range executors {
 		allocationByQueue := rv[executor.Pool]
 		if allocationByQueue == nil {
-			allocationByQueue = make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
+			allocationByQueue = make(map[string]schedulerobjects.QuantityByTAndResourceType[string])
 			rv[executor.Pool] = allocationByQueue
 		}
 		for _, job := range jobsByExecutorId[executor.Id] {
 			queue := job.Queue()
 			allocation := allocationByQueue[queue]
 			if allocation == nil {
-				allocation = make(schedulerobjects.QuantityByPriorityAndResourceType)
+				allocation = make(schedulerobjects.QuantityByTAndResourceType[string])
 				allocationByQueue[queue] = allocation
 			}
-			jobSchedulingInfo := job.JobSchedulingInfo()
-			if jobSchedulingInfo != nil {
-				priorityClass, ok := l.priorityClasses[jobSchedulingInfo.PriorityClassName]
-				if ok {
-					allocation.AddResourceList(priorityClass.Priority, jobSchedulingInfo.GetTotalResourceRequest())
-				} else {
-					log.Errorf("job %s has unknown priority class name %s; ignoring the resources allocated to this job", job.Id(), jobSchedulingInfo.PriorityClassName)
-				}
-			}
+			allocation.AddV1ResourceList(job.GetPriorityClassName(), job.GetResourceRequirements().Requests)
 		}
 	}
 	return rv

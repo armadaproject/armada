@@ -34,7 +34,7 @@ func TestQueueScheduler(t *testing.T) {
 		// Map from queue to the priority factor associated with that queue.
 		PriorityFactorByQueue map[string]float64
 		// Initial resource usage for all queues.
-		InitialAllocatedByQueueAndPriority map[string]schedulerobjects.QuantityByPriorityAndResourceType
+		InitialAllocatedByQueueAndPriorityClass map[string]schedulerobjects.QuantityByTAndResourceType[string]
 		// Nodes to be considered by the scheduler.
 		Nodes []*schedulerobjects.Node
 		// Jobs to try scheduling.
@@ -170,14 +170,14 @@ func TestQueueScheduler(t *testing.T) {
 			Nodes:                 testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs:                  armadaslices.Concatenate(testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 5), testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 5)),
 			PriorityFactorByQueue: map[string]float64{"A": 1},
-			InitialAllocatedByQueueAndPriority: map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+			InitialAllocatedByQueueAndPriorityClass: map[string]schedulerobjects.QuantityByTAndResourceType[string]{
 				"A": {
-					0: schedulerobjects.ResourceList{
+					testfixtures.PriorityClass0: schedulerobjects.ResourceList{
 						Resources: map[string]resource.Quantity{
 							"cpu": resource.MustParse("13"),
 						},
 					},
-					1: schedulerobjects.ResourceList{
+					testfixtures.PriorityClass1: schedulerobjects.ResourceList{
 						Resources: map[string]resource.Quantity{
 							"cpu": resource.MustParse("14"),
 						},
@@ -195,14 +195,14 @@ func TestQueueScheduler(t *testing.T) {
 			Nodes:                 testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs:                  armadaslices.Concatenate(testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 1), testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 5)),
 			PriorityFactorByQueue: map[string]float64{"A": 1},
-			InitialAllocatedByQueueAndPriority: map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+			InitialAllocatedByQueueAndPriorityClass: map[string]schedulerobjects.QuantityByTAndResourceType[string]{
 				"A": {
-					0: schedulerobjects.ResourceList{
+					testfixtures.PriorityClass0: schedulerobjects.ResourceList{
 						Resources: map[string]resource.Quantity{
 							"cpu": resource.MustParse("7"), // out of 28
 						},
 					},
-					1: schedulerobjects.ResourceList{
+					testfixtures.PriorityClass1: schedulerobjects.ResourceList{
 						Resources: map[string]resource.Quantity{
 							"cpu": resource.MustParse("20"), // out of 14, i.e., over the limit
 						},
@@ -283,9 +283,9 @@ func TestQueueScheduler(t *testing.T) {
 				"A": 1,
 				"B": 1,
 			},
-			InitialAllocatedByQueueAndPriority: map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+			InitialAllocatedByQueueAndPriorityClass: map[string]schedulerobjects.QuantityByTAndResourceType[string]{
 				"A": {
-					0: schedulerobjects.ResourceList{
+					testfixtures.PriorityClass0: schedulerobjects.ResourceList{
 						Resources: map[string]resource.Quantity{
 							"cpu": resource.MustParse("100"),
 						},
@@ -498,7 +498,7 @@ func TestQueueScheduler(t *testing.T) {
 				tc.TotalResources,
 			)
 			for queue, priorityFactor := range tc.PriorityFactorByQueue {
-				err := sctx.AddQueueSchedulingContext(queue, priorityFactor, tc.InitialAllocatedByQueueAndPriority[queue])
+				err := sctx.AddQueueSchedulingContext(queue, priorityFactor, tc.InitialAllocatedByQueueAndPriorityClass[queue])
 				require.NoError(t, err)
 			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
