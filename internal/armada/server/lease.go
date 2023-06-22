@@ -267,7 +267,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	activeClusterReports := scheduling.FilterActiveClusters(usageReports)
 	totalCapacity := make(armadaresource.ComputeResources)
 	for _, clusterReport := range activeClusterReports {
-		totalCapacity.Add(util.GetClusterAvailableCapacity(clusterReport))
+		if clusterReport.Pool == req.Pool {
+			totalCapacity.Add(util.GetClusterAvailableCapacity(clusterReport))
+		}
 	}
 
 	// Collect all allowed priorities.
