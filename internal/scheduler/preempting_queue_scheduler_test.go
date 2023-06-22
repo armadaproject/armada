@@ -1230,15 +1230,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				for queue, qctx := range sctx.QueueSchedulingContexts {
 					assert.True(t, qctx.AllocatedByPriorityClass.Equal(allocatedByQueueAndPriorityClass[queue]))
 				}
-				// for queue, allocated := range allocatedByQueueAndPriorityClass {
-				// 	// Filter out explicit zeros to enable comparing with expected allocation.
-				// 	allocatedByQueueAndPriorityClass[queue] = armadamaps.Filter(
-				// 		allocated,
-				// 		func(_ int32, rl schedulerobjects.ResourceList) bool {
-				// 			return !rl.IsZero()
-				// 		},
-				// 	)
-				// }
 
 				// Test that jobs are mapped to nodes correctly.
 				for _, job := range result.PreemptedJobs {

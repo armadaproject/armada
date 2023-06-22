@@ -280,7 +280,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, t
 	}
 
 	// Used to calculate fair share.
-	totalAllocationByPoolAndQueue := l.totalAllocationByPoolAndQueue(executors, jobsByExecutorId)
+	totalAllocationByPoolAndQueue := l.aggregateAllocationByPoolAndQueueAndPriorityClass(executors, jobsByExecutorId)
 
 	// Filter out any executor that isn't acknowledging jobs in a timely fashion
 	// Note that we do this after aggregating allocation across clusters for fair share.
@@ -520,8 +520,7 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 	return activeExecutors
 }
 
-// TODO: Rename
-func (l *FairSchedulingAlgo) totalAllocationByPoolAndQueue(executors []*schedulerobjects.Executor, jobsByExecutorId map[string][]*jobdb.Job) map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string] {
+func (l *FairSchedulingAlgo) aggregateAllocationByPoolAndQueueAndPriorityClass(executors []*schedulerobjects.Executor, jobsByExecutorId map[string][]*jobdb.Job) map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string] {
 	rv := make(map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string])
 	for _, executor := range executors {
 		allocationByQueue := rv[executor.Pool]
