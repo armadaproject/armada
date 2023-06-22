@@ -68,15 +68,21 @@ func SchedulingConstraintsFromSchedulingConfig(
 ) SchedulingConstraints {
 	priorityClassSchedulingConstraintsByPriorityClassName := make(map[string]PriorityClassSchedulingConstraints, len(config.Preemption.PriorityClasses))
 	for name, priorityClass := range config.Preemption.PriorityClasses {
+		maximumResourceFractionPerQueue := priorityClass.MaximumResourceFractionPerQueue
+		if m, ok := priorityClass.MaximumResourceFractionPerQueueByPool[pool]; ok {
+			// Use pool-specific config is available.
+			maximumResourceFractionPerQueue = m
+		}
 		priorityClassSchedulingConstraintsByPriorityClassName[name] = PriorityClassSchedulingConstraints{
 			PriorityClassName:                  name,
 			PriorityClassPriority:              priorityClass.Priority,
-			MaximumCumulativeResourcesPerQueue: absoluteFromRelativeLimits(totalResources, priorityClass.MaximumResourceFractionPerQueue),
+			MaximumCumulativeResourcesPerQueue: absoluteFromRelativeLimits(totalResources, maximumResourceFractionPerQueue),
 		}
 	}
 	maximumResourceFractionToSchedule := config.MaximumResourceFractionToSchedule
-	if limit, ok := config.MaximumResourceFractionToScheduleByPool[pool]; ok {
-		maximumResourceFractionToSchedule = limit
+	if m, ok := config.MaximumResourceFractionToScheduleByPool[pool]; ok {
+		// Use pool-specific config is available.
+		maximumResourceFractionToSchedule = m
 	}
 	return SchedulingConstraints{
 		MaximumJobsToSchedule:      config.MaximumJobsToSchedule,
