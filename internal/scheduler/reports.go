@@ -136,13 +136,13 @@ func (repo *SchedulingContextRepository) addSchedulingContext(sctx *schedulercon
 
 	mostRecentSuccessfulByExecutor := *repo.mostRecentSuccessfulByExecutor.Load()
 	mostRecentSuccessfulByExecutor = maps.Clone(mostRecentSuccessfulByExecutor)
-	if !sctx.ScheduledResourcesByPriority.IsZero() {
+	if !sctx.ScheduledResourcesByPriorityClass.IsZero() {
 		mostRecentSuccessfulByExecutor[sctx.ExecutorId] = sctx
 	}
 
 	mostRecentPreemptingByExecutor := *repo.mostRecentPreemptingByExecutor.Load()
 	mostRecentPreemptingByExecutor = maps.Clone(mostRecentPreemptingByExecutor)
-	if !sctx.EvictedResourcesByPriority.IsZero() {
+	if !sctx.EvictedResourcesByPriorityClass.IsZero() {
 		mostRecentPreemptingByExecutor[sctx.ExecutorId] = sctx
 	}
 
@@ -190,7 +190,7 @@ func (repo *SchedulingContextRepository) addSchedulingContextForQueues(sctx *sch
 			mostRecentByExecutorByQueue[queue] = SchedulingContextByExecutor{executorId: sctx}
 		}
 
-		if !qctx.ScheduledResourcesByPriority.IsZero() {
+		if !qctx.ScheduledResourcesByPriorityClass.IsZero() {
 			if previous := mostRecentSuccessfulByExecutorByQueue[queue]; previous != nil {
 				previous = maps.Clone(previous)
 				previous[executorId] = sctx
@@ -200,7 +200,7 @@ func (repo *SchedulingContextRepository) addSchedulingContextForQueues(sctx *sch
 			}
 		}
 
-		if !qctx.EvictedResourcesByPriority.IsZero() {
+		if !qctx.EvictedResourcesByPriorityClass.IsZero() {
 			if previous := mostRecentPreemptingByExecutorByQueue[queue]; previous != nil {
 				previous = maps.Clone(previous)
 				previous[executorId] = sctx

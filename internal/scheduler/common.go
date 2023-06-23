@@ -116,46 +116,6 @@ func JobsSummary(jobs []interfaces.LegacySchedulerJob) string {
 	)
 }
 
-type AddOrSubtract int
-
-const (
-	Add AddOrSubtract = iota
-	Subtract
-)
-
-func UpdateUsage[S ~[]E, E interfaces.LegacySchedulerJob](
-	usage map[string]schedulerobjects.QuantityByPriorityAndResourceType,
-	jobs S,
-	priorityClasses map[string]configuration.PriorityClass,
-	addOrSubtract AddOrSubtract,
-) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
-	if usage == nil {
-		usage = make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
-	}
-	for _, job := range jobs {
-		req := PodRequirementFromLegacySchedulerJob(job, priorityClasses)
-		if req == nil {
-			continue
-		}
-		requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
-		queue := job.GetQueue()
-		m := usage[queue]
-		if m == nil {
-			m = make(schedulerobjects.QuantityByPriorityAndResourceType)
-		}
-		switch addOrSubtract {
-		case Add:
-			m.Add(schedulerobjects.QuantityByPriorityAndResourceType{req.Priority: requests})
-		case Subtract:
-			m.Sub(schedulerobjects.QuantityByPriorityAndResourceType{req.Priority: requests})
-		default:
-			panic(fmt.Sprintf("invalid operation %d", addOrSubtract))
-		}
-		usage[queue] = m
-	}
-	return usage
-}
-
 func jobSchedulingContextsFromJobs[T interfaces.LegacySchedulerJob](jobs []T, executorId string, priorityClasses map[string]configuration.PriorityClass) []*schedulercontext.JobSchedulingContext {
 	if jobs == nil {
 		return nil
