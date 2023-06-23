@@ -58,14 +58,6 @@ type queryOrder struct {
 	direction string
 }
 
-// Get aggregation expression for column, e.g. MAX(j.submitted)
-type aggregatorFn func(column *queryColumn) string
-
-type queryAggregator struct {
-	column     *queryColumn
-	aggregator aggregatorFn
-}
-
 func NewQueryBuilder(lookoutTables *LookoutTables) *QueryBuilder {
 	return &QueryBuilder{
 		lookoutTables: lookoutTables,
@@ -368,11 +360,14 @@ func (qb *QueryBuilder) GroupBy(
 	if err != nil {
 		return nil, err
 	}
-	queryAggregators, err := qb.getQueryAggregators(aggregates, queryTables)
+	queryAggregators, err := qb.getQueryAggregators(aggregates, normalFilters, queryTables)
 	if err != nil {
 		return nil, err
 	}
-	selectListSql := qb.getAggregatesSql(queryAggregators)
+	selectListSql, err := qb.getAggregatesSql(queryAggregators)
+	if err != nil {
+		return nil, err
+	}
 	orderSql, err := qb.groupByOrderSql(order)
 	if err != nil {
 		return nil, err
@@ -912,9 +907,9 @@ func (qb *QueryBuilder) highestPrecedenceTableForColumn(col string, queryTables 
 	return selectedTable, nil
 }
 
-func (qb *QueryBuilder) getQueryAggregators(aggregates []string, queryTables map[string]bool) ([]*queryAggregator, error) {
-	queryAggregators := make([]*queryAggregator, len(aggregates))
-	for i, aggregate := range aggregates {
+func (qb *QueryBuilder) getQueryAggregators(aggregates []string, filters []*model.Filter, queryTables map[string]bool) ([]QueryAggregator, error) {
+	var queryAggregators []QueryAggregator
+	for _, aggregate := range aggregates {
 		col, err := qb.lookoutTables.ColumnFromField(aggregate)
 		if err != nil {
 			return nil, err
@@ -927,25 +922,22 @@ func (qb *QueryBuilder) getQueryAggregators(aggregates []string, queryTables map
 		if err != nil {
 			return nil, err
 		}
-		fn, err := getAggregatorFn(aggregateType)
-		if err != nil {
-			return nil, err
-		}
-		queryAggregators[i] = &queryAggregator{
-			column:     qc,
-			aggregator: fn,
-		}
+		newQueryAggregators, err := GetAggregatorsForColumn(qc, aggregateType, filters)
+		queryAggregators = append(queryAggregators, newQueryAggregators...)
 	}
 	return queryAggregators, nil
 }
 
-func (qb *QueryBuilder) getAggregatesSql(aggregators []*queryAggregator) string {
+func (qb *QueryBuilder) getAggregatesSql(aggregators []QueryAggregator) (string, error) {
 	selectList := []string{"COUNT(*) AS count"}
 	for _, agg := range aggregators {
-		sql := fmt.Sprintf("%s AS %s", agg.aggregator(agg.column), agg.column.name)
+		sql, err := agg.AggregateSql()
+		if err != nil {
+			return "", err
+		}
 		selectList = append(selectList, sql)
 	}
-	return strings.Join(selectList, ", ")
+	return strings.Join(selectList, ", "), nil
 }
 
 func (qb *QueryBuilder) groupByOrderSql(order *model.Order) (string, error) {
@@ -960,23 +952,6 @@ func (qb *QueryBuilder) groupByOrderSql(order *model.Order) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("ORDER BY %s %s", col, order.Direction), nil
-}
-
-func getAggregatorFn(aggregateType AggregateType) (aggregatorFn, error) {
-	switch aggregateType {
-	case Max:
-		return func(col *queryColumn) string {
-			return fmt.Sprintf("MAX(%s.%s)", col.abbrev, col.name)
-		}, nil
-	case Average:
-		return func(col *queryColumn) string {
-			return fmt.Sprintf("AVG(%s.%s)", col.abbrev, col.name)
-		}, nil
-	case Unknown:
-		return nil, errors.New("unknown aggregate type")
-	default:
-		return nil, errors.Errorf("cannot determine aggregate type: %v", aggregateType)
-	}
 }
 
 func (qb *QueryBuilder) getQueryColumn(col string, queryTables map[string]bool) (*queryColumn, error) {

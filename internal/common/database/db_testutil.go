@@ -2,8 +2,6 @@ package database
 
 import (
 	"context"
-	"fmt"
-
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	_ "github.com/jackc/pgx/v4/stdlib"
@@ -39,20 +37,20 @@ func WithTestDb(migrations []Migration, action func(db *pgxpool.Pool) error) err
 		return errors.WithStack(err)
 	}
 
-	defer func() {
-		// disconnect all db user before cleanup
-		_, err = db.Exec(ctx,
-			`SELECT pg_terminate_backend(pg_stat_activity.pid)
-			 FROM pg_stat_activity WHERE pg_stat_activity.datname = '`+dbName+`';`)
-		if err != nil {
-			fmt.Println("Failed to disconnect users")
-		}
-
-		_, err = db.Exec(ctx, "DROP DATABASE "+dbName)
-		if err != nil {
-			fmt.Println("Failed to drop database")
-		}
-	}()
+	//defer func() {
+	//	// disconnect all db user before cleanup
+	//	_, err = db.Exec(ctx,
+	//		`SELECT pg_terminate_backend(pg_stat_activity.pid)
+	//		 FROM pg_stat_activity WHERE pg_stat_activity.datname = '`+dbName+`';`)
+	//	if err != nil {
+	//		fmt.Println("Failed to disconnect users")
+	//	}
+	//
+	//	_, err = db.Exec(ctx, "DROP DATABASE "+dbName)
+	//	if err != nil {
+	//		fmt.Println("Failed to drop database")
+	//	}
+	//}()
 
 	err = UpdateDatabase(ctx, testDbPool, migrations)
 	if err != nil {
