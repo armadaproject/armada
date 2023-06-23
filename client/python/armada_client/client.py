@@ -94,7 +94,6 @@ class ArmadaClient:
         """
         return self.submit_stub.Health(request=empty_pb2.Empty())
 
-    
     def event_health(self) -> health_pb2.HealthCheckResponse:
         """
         Health check for Event Service.
@@ -102,7 +101,6 @@ class ArmadaClient:
         """
         return self.event_stub.Health(request=empty_pb2.Empty())
 
-   
     def submit_jobs(
         self, queue: str, job_set_id: str, job_request_items
     ) -> submit_pb2.JobSubmitResponse:
@@ -155,7 +153,6 @@ class ArmadaClient:
         response = self.submit_stub.CancelJobs(request)
         return response
 
-    
     def cancel_jobset(
         self,
         queue: str,
@@ -184,7 +181,6 @@ class ArmadaClient:
         response = self.submit_stub.CancelJobSet(request)
         return response
 
-    
     def reprioritize_jobs(
         self,
         new_priority: float,
@@ -226,7 +222,6 @@ class ArmadaClient:
         response = self.submit_stub.ReprioritizeJobs(request)
         return response
 
-    
     def create_queue(self, queue: submit_pb2.Queue) -> empty_pb2.Empty:
         """
         Uses the CreateQueue RPC to create a queue.
@@ -237,7 +232,6 @@ class ArmadaClient:
         response = self.submit_stub.CreateQueue(queue)
         return response
 
-    
     def update_queue(self, queue: submit_pb2.Queue) -> empty_pb2.Empty:
         """
         Uses the UpdateQueue RPC to update a queue.
@@ -248,7 +242,6 @@ class ArmadaClient:
         response = self.submit_stub.UpdateQueue(queue)
         return response
 
-    
     def create_queues(
         self, queues: List[submit_pb2.Queue]
     ) -> submit_pb2.BatchQueueCreateResponse:
@@ -262,7 +255,6 @@ class ArmadaClient:
         response = self.submit_stub.CreateQueues(queue_list)
         return response
 
-    
     def update_queues(
         self, queues: List[submit_pb2.Queue]
     ) -> submit_pb2.BatchQueueUpdateResponse:
@@ -276,7 +268,6 @@ class ArmadaClient:
         response = self.submit_stub.UpdateQueues(queue_list)
         return response
 
-    
     def delete_queue(self, name: str) -> None:
         """Delete an empty queue by name.
 
@@ -288,7 +279,6 @@ class ArmadaClient:
         request = submit_pb2.QueueDeleteRequest(name=name)
         self.submit_stub.DeleteQueue(request)
 
-    
     def get_queue(self, name: str) -> submit_pb2.Queue:
         """Get the queue by name.
 
@@ -301,7 +291,6 @@ class ArmadaClient:
         response = self.submit_stub.GetQueue(request)
         return response
 
-    
     def get_queue_info(self, name: str) -> submit_pb2.QueueInfo:
         """Get the queue info by name.
 
