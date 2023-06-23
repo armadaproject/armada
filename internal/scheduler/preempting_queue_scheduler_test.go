@@ -111,10 +111,9 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 		Rounds []SchedulingRound
 		// Map from queue to the priority factor associated with that queue.
 		PriorityFactorByQueue map[string]float64
-		// Initial resource usage for all queues.
-		// This value is used across all rounds,
+		// Initial resource usage for all queues. This value is used across all rounds,
 		// i.e., we don't update it based on preempted/scheduled jobs.
-		InitialAllocationByQueue map[string]schedulerobjects.QuantityByPriorityAndResourceType
+		InitialAllocationByQueueAndPriorityClass map[string]schedulerobjects.QuantityByTAndResourceType[string]
 		// Total resources across all clusters.
 		// If empty, it is computed as the total resources across the provided nodes.
 		TotalResources schedulerobjects.ResourceList
@@ -818,25 +817,30 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"A": 1,
 			},
 		},
-		"per-priority class limits": {
+		"MaximumResourceFractionPerQueue": {
 			SchedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
-				map[int32]map[string]float64{
-					0: {"cpu": 60.0 / 64.0},
-					1: {"cpu": 20.0 / 64.0},
+				map[string]map[string]float64{
+					testfixtures.PriorityClass0: {"cpu": 1.0 / 32.0},
+					testfixtures.PriorityClass1: {"cpu": 2.0 / 32.0},
+					testfixtures.PriorityClass2: {"cpu": 3.0 / 32.0},
+					testfixtures.PriorityClass3: {"cpu": 4.0 / 32.0},
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
-			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": append(
-							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 64),
-							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 64)...,
+						"A": armadaslices.Concatenate(
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass2, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass3, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
 						),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": append(testfixtures.IntRange(0, 19), testfixtures.IntRange(64, 103)...),
+						"A": {0, 32, 33, 64, 65, 66, 96, 97, 98, 99},
 					},
 				},
 				{
@@ -849,11 +853,13 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"A": 1,
 			},
 		},
-		"per-priority class limits multiple rounds": {
+		"MaximumResourceFractionPerQueue multiple rounds": {
 			SchedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
-				map[int32]map[string]float64{
-					0: {"cpu": 30.0 / 32.0},
-					1: {"cpu": 10.0 / 32.0},
+				map[string]map[string]float64{
+					testfixtures.PriorityClass0: {"cpu": 1.0 / 32.0},
+					testfixtures.PriorityClass1: {"cpu": 2.0 / 32.0},
+					testfixtures.PriorityClass2: {"cpu": 3.0 / 32.0},
+					testfixtures.PriorityClass3: {"cpu": 4.0 / 32.0},
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
@@ -861,31 +867,57 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			Rounds: []SchedulingRound{
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": append(
-							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 5),
-							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 10)...,
+						"A": armadaslices.Concatenate(
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
 						),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": testfixtures.IntRange(0, 14),
+						"A": testfixtures.IntRange(0, 0),
 					},
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": append(
+						"A": armadaslices.Concatenate(
 							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 32),
-							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32)...,
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
 						),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": append(testfixtures.IntRange(0, 4), testfixtures.IntRange(32, 41)...),
+						"A": testfixtures.IntRange(0, 1),
 					},
 				},
 				{
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": append(
+						"A": armadaslices.Concatenate(
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass2, 32),
 							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 32),
-							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32)...,
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
+						),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 2),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": armadaslices.Concatenate(
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass3, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass2, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
+						),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 3),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": armadaslices.Concatenate(
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass3, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass2, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 32),
+							testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
 						),
 					},
 				},
@@ -1118,7 +1150,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			// Accounting across scheduling rounds.
 			roundByJobId := make(map[string]int)
 			indexByJobId := make(map[string]int)
-			allocatedByQueueAndPriority := armadamaps.DeepCopy(tc.InitialAllocationByQueue)
+			allocatedByQueueAndPriorityClass := armadamaps.DeepCopy(tc.InitialAllocationByQueueAndPriorityClass)
 			nodeIdByJobId := make(map[string]string)
 			var jobIdsByGangId map[string]map[string]bool
 			var gangIdByJobId map[string]string
@@ -1189,7 +1221,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					tc.TotalResources,
 				)
 				for queue, priorityFactor := range tc.PriorityFactorByQueue {
-					err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByQueueAndPriority[queue])
+					err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByQueueAndPriorityClass[queue])
 					require.NoError(t, err)
 				}
 				constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
@@ -1217,34 +1249,29 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 
 				// Test resource accounting.
 				for _, job := range result.PreemptedJobs {
-					req := PodRequirementFromLegacySchedulerJob(job, tc.SchedulingConfig.Preemption.PriorityClasses)
-					requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
-					quantityByPriorityAndResourceType := schedulerobjects.QuantityByPriorityAndResourceType{
-						req.Priority: requests,
+					m := allocatedByQueueAndPriorityClass[job.GetQueue()]
+					if m == nil {
+						m = make(schedulerobjects.QuantityByTAndResourceType[string])
+						allocatedByQueueAndPriorityClass[job.GetQueue()] = m
 					}
-					allocatedByQueueAndPriority[job.GetQueue()].Sub(quantityByPriorityAndResourceType)
+					m.SubV1ResourceList(
+						job.GetPriorityClassName(),
+						job.GetResourceRequirements().Requests,
+					)
 				}
 				for _, job := range result.ScheduledJobs {
-					req := PodRequirementFromLegacySchedulerJob(job, tc.SchedulingConfig.Preemption.PriorityClasses)
-					requests := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
-					quantityByPriorityAndResourceType := schedulerobjects.QuantityByPriorityAndResourceType{
-						req.Priority: requests,
-					}
-					m := allocatedByQueueAndPriority[job.GetQueue()]
+					m := allocatedByQueueAndPriorityClass[job.GetQueue()]
 					if m == nil {
-						m = make(schedulerobjects.QuantityByPriorityAndResourceType)
+						m = make(schedulerobjects.QuantityByTAndResourceType[string])
+						allocatedByQueueAndPriorityClass[job.GetQueue()] = m
 					}
-					m.Add(quantityByPriorityAndResourceType)
-					allocatedByQueueAndPriority[job.GetQueue()] = m
-				}
-				for queue, allocated := range allocatedByQueueAndPriority {
-					// Filter out explicit zeros to enable comparing with expected allocation.
-					allocatedByQueueAndPriority[queue] = armadamaps.Filter(
-						allocated,
-						func(_ int32, rl schedulerobjects.ResourceList) bool {
-							return !rl.IsZero()
-						},
+					m.AddV1ResourceList(
+						job.GetPriorityClassName(),
+						job.GetResourceRequirements().Requests,
 					)
+				}
+				for queue, qctx := range sctx.QueueSchedulingContexts {
+					assert.True(t, qctx.AllocatedByPriorityClass.Equal(allocatedByQueueAndPriorityClass[queue]))
 				}
 
 				// Test that jobs are mapped to nodes correctly.
@@ -1428,7 +1455,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			nodeDb, err := CreateNodeDb(tc.Nodes)
 			require.NoError(b, err)
 			repo := NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
-			allocatedByQueueAndPriority := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
+			allocatedByQueueAndPriorityClass := make(map[string]schedulerobjects.QuantityByTAndResourceType[string])
 
 			jobs := make([]interfaces.LegacySchedulerJob, 0)
 			for _, queueJobs := range jobsByQueue {
@@ -1447,7 +1474,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nodeDb.TotalResources(),
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
-				err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByQueueAndPriority[queue])
+				err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByQueueAndPriorityClass[queue])
 				require.NoError(b, err)
 			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
@@ -1496,7 +1523,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					nodeDb.TotalResources(),
 				)
 				for queue, priorityFactor := range priorityFactorByQueue {
-					err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByQueueAndPriority[queue])
+					err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByQueueAndPriorityClass[queue])
 					require.NoError(b, err)
 				}
 				sch := NewPreemptingQueueScheduler(
