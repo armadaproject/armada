@@ -171,7 +171,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			mockLegacyExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
 
-			runIds, err := extractRunIds(tc.request)
+			runIds, err := runIdsFromLeaseRequest(tc.request)
 			require.NoError(t, err)
 
 			// set up mocks
@@ -204,6 +204,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				maxJobsPerCall,
 				"kubernetes.io/hostname",
 				nil,
+				4*1024*1024,
 			)
 			require.NoError(t, err)
 			server.clock = testClock
@@ -331,6 +332,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 				100,
 				"kubernetes.io/hostname",
 				nil,
+				4*1024*1024,
 			)
 
 			require.NoError(t, err)
