@@ -295,14 +295,6 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		priorityFactorByQueue[queue.Name] = float64(queue.PriorityFactor)
 		apiQueues[i] = &api.Queue{Name: queue.Name}
 	}
-	activeQueues, err := q.jobRepository.FilterActiveQueues(apiQueues)
-	if err != nil {
-		return nil, err
-	}
-	priorityFactorByActiveQueue := make(map[string]float64, len(activeQueues))
-	for _, queue := range activeQueues {
-		priorityFactorByActiveQueue[queue.Name] = priorityFactorByQueue[queue.Name]
-	}
 
 	// Nodes to be considered by the scheduler.
 	lastSeen := q.clock.Now()
@@ -336,7 +328,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		if err != nil {
 			return nil, err
 		}
-		receivedJobIds := make(map[string]bool)
+		receivedJobIds := make(map[string]bool, len(jobs))
 		for _, job := range jobs {
 			receivedJobIds[job.Id] = true
 		}
@@ -455,7 +447,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		Pool:           req.Pool,
 		Nodes:          nodes,
 		MinimumJobSize: schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
-		LastUpdateTime: time.Now(),
+		LastUpdateTime: q.clock.Now(),
 	}); err != nil {
 		// This is not fatal; we can still schedule if it doesn't happen.
 		log.WithError(err).Warnf("could not store executor details for cluster %s", req.ClusterId)
