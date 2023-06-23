@@ -59,6 +59,9 @@ kubernetes:
   fatalPodSubmissionErrors:
     - "admission webhook"
     - "namespaces \".*\" not found"
+  stateChecks:
+    deadlineForSubmittedPodConsideredMissing: 15m
+    deadlineForActivePodConsideredMissing: 5m
   pendingPodChecks:
     deadlineForUpdates: 10m
     deadlineForNodeAssignment: 5m
