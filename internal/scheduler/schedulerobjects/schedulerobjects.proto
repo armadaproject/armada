@@ -101,13 +101,13 @@ message NodeType {
     map<string, string> unsetIndexedLabels = 4;
 }
 
-// Captures the resource usage of a particular queue
-// in a given cluster.
+// Captures the resource usage of a particular queue in a given cluster.
 message QueueClusterResourceUsage {
     google.protobuf.Timestamp created = 1 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
     string queue = 2;
     string executorId = 3;
-    map<int32, ResourceList> resourcesByPriority = 4 [(gogoproto.nullable) = false];
+    map<int32, ResourceList> resourcesByPriority = 4 [(gogoproto.nullable) = false, deprecated = true];
+    map<string, ResourceList> resourcesByPriorityClassName = 5 [(gogoproto.nullable) = false];
 }
 
 // A collection of QueueClusterResourceUsage

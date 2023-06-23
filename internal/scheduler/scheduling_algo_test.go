@@ -111,8 +111,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		},
 		"user is at usage cap before scheduling": {
 			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
-				map[int32]map[string]float64{
-					testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority: {"cpu": 0.5},
+				map[string]map[string]float64{
+					testfixtures.PriorityClass3: {"cpu": 0.5},
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
@@ -134,8 +134,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		},
 		"user hits usage cap during scheduling": {
 			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
-				map[int32]map[string]float64{
-					testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority: {"cpu": 0.5},
+				map[string]map[string]float64{
+					testfixtures.PriorityClass3: {"cpu": 0.5},
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
@@ -179,8 +179,8 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 		},
 		"computation of allocated resources does not confuse priority class with per-queue priority": {
 			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
-				map[int32]map[string]float64{
-					testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority: {"cpu": 0.5},
+				map[string]map[string]float64{
+					testfixtures.PriorityClass3: {"cpu": 0.5},
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
@@ -422,15 +422,14 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				assert.Equal(t, len(jobIndices), sctx.NumScheduledJobs)
 
 				expectedScheduledResources := schedulerobjects.ResourceList{}
-				expectedScheduledResourcesByPriority := schedulerobjects.QuantityByPriorityAndResourceType{}
+				expectedScheduledResourcesByPriorityClass := make(schedulerobjects.QuantityByTAndResourceType[string])
 				for _, i := range jobIndices {
 					job := tc.queuedJobs[i]
-					req := job.JobSchedulingInfo().ObjectRequirements[0].GetPodRequirements()
-					expectedScheduledResources.AddV1ResourceList(req.ResourceRequirements.Requests)
-					expectedScheduledResourcesByPriority.AddV1ResourceList(req.Priority, req.ResourceRequirements.Requests)
+					expectedScheduledResources.AddV1ResourceList(job.GetResourceRequirements().Requests)
+					expectedScheduledResourcesByPriorityClass.AddV1ResourceList(job.GetPriorityClassName(), job.GetResourceRequirements().Requests)
 				}
-				assert.Equal(t, expectedScheduledResources, sctx.ScheduledResources)
-				assert.Equal(t, expectedScheduledResourcesByPriority, sctx.ScheduledResourcesByPriority)
+				assert.True(t, expectedScheduledResources.Equal(sctx.ScheduledResources))
+				assert.True(t, expectedScheduledResourcesByPriorityClass.Equal(sctx.ScheduledResourcesByPriorityClass))
 			}
 
 			scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
@@ -469,25 +468,24 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			assert.Equal(t, len(tc.expectedPreemptedIndices), numPreemptedJobs)
 
 			expectedPreemptedResources := schedulerobjects.ResourceList{}
-			expectedPreemptedResourcesByPriority := schedulerobjects.QuantityByPriorityAndResourceType{}
+			expectedPreemptedResourcesByPriorityClass := make(schedulerobjects.QuantityByTAndResourceType[string])
 			for _, i := range tc.expectedPreemptedIndices {
 				job := tc.existingJobs[i]
-				req := job.JobSchedulingInfo().ObjectRequirements[0].GetPodRequirements()
-				expectedPreemptedResources.AddV1ResourceList(req.ResourceRequirements.Requests)
-				expectedPreemptedResourcesByPriority.AddV1ResourceList(req.Priority, req.ResourceRequirements.Requests)
+				expectedPreemptedResources.AddV1ResourceList(job.GetResourceRequirements().Requests)
+				expectedPreemptedResourcesByPriorityClass.AddV1ResourceList(job.GetPriorityClassName(), job.GetResourceRequirements().Requests)
 			}
 			preemptedResources := schedulerobjects.ResourceList{}
-			preemptedResourcesByPriority := schedulerobjects.QuantityByPriorityAndResourceType{}
+			preemptedResourcesByPriority := make(schedulerobjects.QuantityByTAndResourceType[string])
 			for _, sctx := range schedulingContextByExecutor {
 				for resourceType, quantity := range sctx.EvictedResources.Resources {
 					preemptedResources.AddQuantity(resourceType, quantity)
 				}
-				for p, rl := range sctx.EvictedResourcesByPriority {
+				for p, rl := range sctx.EvictedResourcesByPriorityClass {
 					preemptedResourcesByPriority.AddResourceList(p, rl)
 				}
 			}
-			assert.Equal(t, expectedPreemptedResources, preemptedResources)
-			assert.Equal(t, expectedPreemptedResourcesByPriority, preemptedResourcesByPriority)
+			assert.True(t, expectedPreemptedResources.Equal(preemptedResources))
+			assert.True(t, expectedPreemptedResourcesByPriorityClass.Equal(preemptedResourcesByPriority))
 		})
 	}
 }
