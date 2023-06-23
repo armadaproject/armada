@@ -6,7 +6,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -75,12 +74,12 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 			//
 			// Only record unfeasible scheduling keys for single-job gangs.
 			// Since a gang may be unschedulable even if all its members are individually schedulable.
-			if !sch.skipUnsuccessfulSchedulingKeyCheck {
-				if schedulingKey, jctx, ok := schedulingKeyIfSingleJobGang(gctx, sch.schedulingContext.PriorityClasses); ok {
-					if _, ok := sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; !ok {
-						// Keep the first jctx for each unfeasible schedulingKey.
-						sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey] = jctx
-					}
+			if !sch.skipUnsuccessfulSchedulingKeyCheck && len(gctx.JobSchedulingContexts) == 1 {
+				jctx := gctx.JobSchedulingContexts[0]
+				schedulingKey := sch.schedulingContext.SchedulingKeyFromLegacySchedulerJob(jctx.Job)
+				if _, ok := sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; !ok {
+					// Keep the first jctx for each unfeasible schedulingKey.
+					sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey] = jctx
 				}
 			}
 		}
@@ -150,22 +149,4 @@ func requestIsLargeEnough(totalResourceRequests, minRequest schedulerobjects.Res
 		}
 	}
 	return true, ""
-}
-
-func schedulingKeyIfSingleJobGang(
-	gctx *schedulercontext.GangSchedulingContext,
-	priorityClasses map[string]configuration.PriorityClass,
-) (schedulerobjects.SchedulingKey, *schedulercontext.JobSchedulingContext, bool) {
-	if len(gctx.JobSchedulingContexts) == 1 {
-		jctx := gctx.JobSchedulingContexts[0]
-		schedulingKey, ok := schedulingKeyFromLegacySchedulerJob(jctx.Job, priorityClasses)
-		return schedulingKey, jctx, ok
-	}
-	return schedulerobjects.SchedulingKey{}, nil, false
-}
-
-func schedulingKeyFromLegacySchedulerJob(job interfaces.LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) (schedulerobjects.SchedulingKey, bool) {
-	jobSchedulingInfo := job.GetRequirements(priorityClasses)
-	schedulingKey, ok := jobSchedulingInfo.SchedulingKey()
-	return schedulingKey, ok
 }

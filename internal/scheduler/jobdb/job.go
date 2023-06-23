@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -149,16 +150,67 @@ func (job *Job) JobSchedulingInfo() *schedulerobjects.JobSchedulingInfo {
 	return job.jobSchedulingInfo
 }
 
-// GetRequirements  returns the scheduling requirements associated with the job.
-// this is needed for compatibility with interfaces.LegacySchedulerJob
+// GetAnnotations returns the annotations on the job.
+// This is needed for compatibility with interfaces.LegacySchedulerJob
+func (job *Job) GetAnnotations() map[string]string {
+	if req := job.getPodRequirements(); req != nil {
+		return req.Annotations
+	}
+	return nil
+}
+
+// GetRequirements returns the scheduling requirements associated with the job.
+// Needed for compatibility with interfaces.LegacySchedulerJob
 func (job *Job) GetRequirements(_ map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
 	return job.JobSchedulingInfo()
 }
 
-// GetPriorityClassName returns the priorityClassName of the job.
 // Needed for compatibility with interfaces.LegacySchedulerJob
 func (job *Job) GetPriorityClassName() string {
 	return job.JobSchedulingInfo().PriorityClassName
+}
+
+// Needed for compatibility with interfaces.LegacySchedulerJob
+func (job *Job) GetNodeSelector() map[string]string {
+	if req := job.getPodRequirements(); req != nil {
+		return req.NodeSelector
+	}
+	return nil
+}
+
+// Needed for compatibility with interfaces.LegacySchedulerJob
+func (job *Job) GetAffinity() *v1.Affinity {
+	if req := job.getPodRequirements(); req != nil {
+		return req.Affinity
+	}
+	return nil
+}
+
+// Needed for compatibility with interfaces.LegacySchedulerJob
+func (job *Job) GetTolerations() []v1.Toleration {
+	if req := job.getPodRequirements(); req != nil {
+		return req.Tolerations
+	}
+	return nil
+}
+
+// Needed for compatibility with interfaces.LegacySchedulerJob
+func (job *Job) GetResourceRequirements() v1.ResourceRequirements {
+	if req := job.getPodRequirements(); req != nil {
+		return req.ResourceRequirements
+	}
+	return v1.ResourceRequirements{}
+}
+
+func (job *Job) getPodRequirements() *schedulerobjects.PodRequirements {
+	requirements := job.jobSchedulingInfo.GetObjectRequirements()
+	if len(requirements) == 0 {
+		return nil
+	}
+	if podReqs := requirements[0].GetPodRequirements(); podReqs != nil {
+		return podReqs
+	}
+	return nil
 }
 
 // Queued returns true if the job should be considered by the scheduler for assignment or false otherwise.
@@ -248,19 +300,6 @@ func (job *Job) WithFailed(failed bool) *Job {
 // Created Returns the creation time of the job
 func (job *Job) Created() int64 {
 	return job.created
-}
-
-// GetAnnotations returns the annotations on the job.
-// This is needed for compatibility with interfaces.LegacySchedulerJob
-func (job *Job) GetAnnotations() map[string]string {
-	requirements := job.jobSchedulingInfo.GetObjectRequirements()
-	if len(requirements) == 0 {
-		return nil
-	}
-	if podReqs := requirements[0].GetPodRequirements(); podReqs != nil {
-		return podReqs.GetAnnotations()
-	}
-	return nil
 }
 
 // InTerminalState returns true if the job  is in a terminal state

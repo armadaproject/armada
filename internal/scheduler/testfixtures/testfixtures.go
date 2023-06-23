@@ -48,10 +48,22 @@ var (
 	TestDefaultPriorityClass         = PriorityClass3
 	TestPriorities                   = []int32{0, 1, 2, 3}
 	TestMaxExtraNodesToConsider uint = 1
-	TestResources                    = []string{"cpu", "memory", "gpu"}
-	TestIndexedTaints                = []string{"largeJobsOnly", "gpu"}
-	TestIndexedNodeLabels            = []string{"largeJobsOnly", "gpu"}
-	jobTimestamp                atomic.Int64
+	TestResources                    = []configuration.IndexedResource{
+		{Name: "cpu", Resolution: resource.MustParse("1")},
+		{Name: "memory", Resolution: resource.MustParse("128Mi")},
+		{Name: "gpu", Resolution: resource.MustParse("1")},
+	}
+	TestResourceNames = util.Map(
+		TestResources,
+		func(v configuration.IndexedResource) string { return v.Name },
+	)
+	TestIndexedResourceResolutionMillis = util.Map(
+		TestResources,
+		func(v configuration.IndexedResource) int64 { return v.Resolution.MilliValue() },
+	)
+	TestIndexedTaints     = []string{"largeJobsOnly", "gpu"}
+	TestIndexedNodeLabels = []string{"largeJobsOnly", "gpu"}
+	jobTimestamp          atomic.Int64
 )
 
 func IntRange(a, b int) []int {
@@ -83,7 +95,7 @@ func TestSchedulingConfig() configuration.SchedulingConfig {
 			NodeEvictionProbability:                 1.0,
 			NodeOversubscriptionEvictionProbability: 1.0,
 		},
-		IndexedResources:                 []string{"cpu", "memory"},
+		IndexedResources:                 TestResources,
 		ExecutorTimeout:                  15 * time.Minute,
 		MaxUnacknowledgedJobsPerExecutor: math.MaxInt,
 	}
@@ -114,14 +126,25 @@ func WithRoundLimitsPoolConfig(limits map[string]map[string]float64, config conf
 	return config
 }
 
-func WithPerPriorityLimitsConfig(limits map[int32]map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	for k, v := range config.Preemption.PriorityClasses {
-		config.Preemption.PriorityClasses[k] = configuration.PriorityClass{
-			Priority:                        v.Priority,
-			Preemptible:                     v.Preemptible,
-			MaximumResourceFractionPerQueue: limits[v.Priority],
+func WithPerPriorityLimitsConfig(limits map[string]map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	for priorityClassName, limit := range limits {
+		priorityClass, ok := config.Preemption.PriorityClasses[priorityClassName]
+		if !ok {
+			panic(fmt.Sprintf("no priority class with name %s", priorityClassName))
+		}
+		// We need to make a copy to avoid mutating the priorityClasses, which are used by other tests too.
+		config.Preemption.PriorityClasses[priorityClassName] = configuration.PriorityClass{
+			Priority:                              priorityClass.Priority,
+			Preemptible:                           priorityClass.Preemptible,
+			MaximumResourceFractionPerQueue:       limit,
+			MaximumResourceFractionPerQueueByPool: priorityClass.MaximumResourceFractionPerQueueByPool,
 		}
 	}
+	return config
+}
+
+func WithIndexedResourcesConfig(indexResources []configuration.IndexedResource, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.IndexedResources = indexResources
 	return config
 }
 
@@ -163,7 +186,7 @@ func WithUsedResourcesNodes(p int32, rl schedulerobjects.ResourceList, nodes []*
 	return nodes
 }
 
-func WithNodeTypeIdNodes(nodeTypeId string, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
+func WithNodeTypeIdNodes(nodeTypeId uint64, nodes []*schedulerobjects.Node) []*schedulerobjects.Node {
 	for _, node := range nodes {
 		node.NodeTypeId = nodeTypeId
 	}
@@ -460,8 +483,8 @@ func Test1GpuPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerob
 		jobId,
 		priority,
 		v1.ResourceList{
-			"cpu":    resource.MustParse("4"),
-			"memory": resource.MustParse("16Gi"),
+			"cpu":    resource.MustParse("8"),
+			"memory": resource.MustParse("128Gi"),
 			"gpu":    resource.MustParse("1"),
 		},
 	)
@@ -495,8 +518,8 @@ func TestCluster() []*schedulerobjects.Node {
 	return []*schedulerobjects.Node{
 		{
 			Id:         "node1",
-			NodeTypeId: "foo",
-			NodeType:   &schedulerobjects.NodeType{Id: "foo"},
+			NodeTypeId: 1,
+			NodeType:   &schedulerobjects.NodeType{Id: 1},
 			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
 				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("2"), "memory": resource.MustParse("2Gi")}},
@@ -514,8 +537,8 @@ func TestCluster() []*schedulerobjects.Node {
 		},
 		{
 			Id:         "node2",
-			NodeTypeId: "foo",
-			NodeType:   &schedulerobjects.NodeType{Id: "foo"},
+			NodeTypeId: 2,
+			NodeType:   &schedulerobjects.NodeType{Id: 2},
 			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("4"), "memory": resource.MustParse("4Gi")}},
 				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("5"), "memory": resource.MustParse("5Gi")}},
@@ -533,8 +556,8 @@ func TestCluster() []*schedulerobjects.Node {
 		},
 		{
 			Id:         "node3",
-			NodeTypeId: "bar",
-			NodeType:   &schedulerobjects.NodeType{Id: "bar"},
+			NodeTypeId: 3,
+			NodeType:   &schedulerobjects.NodeType{Id: 3},
 			AllocatableByPriorityAndResource: map[int32]schedulerobjects.ResourceList{
 				0: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("7"), "memory": resource.MustParse("7Gi")}},
 				1: {Resources: map[string]resource.Quantity{"cpu": resource.MustParse("8"), "memory": resource.MustParse("8Gi")}},

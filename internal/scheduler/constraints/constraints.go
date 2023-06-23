@@ -1,7 +1,10 @@
 package constraints
 
 import (
+	"math"
+
 	"github.com/pkg/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -50,11 +53,8 @@ type SchedulingConstraints struct {
 type PriorityClassSchedulingConstraints struct {
 	PriorityClassName     string
 	PriorityClassPriority int32
-	// Prevents jobs of this priority class from being scheduled if doing so would exceed
-	// cumulative resource usage at priority priorityClassPriority for the queue the job originates from.
-	//
-	// Cumulative resource usage at priority x includes resources allocated to jobs of priorityClassPriority x or lower.
-	MaximumCumulativeResourcesPerQueue schedulerobjects.ResourceList
+	// Limits total resources allocated to jobs of this priority class per queue.
+	MaximumResourcesPerQueue schedulerobjects.ResourceList
 }
 
 func SchedulingConstraintsFromSchedulingConfig(
@@ -65,15 +65,21 @@ func SchedulingConstraintsFromSchedulingConfig(
 ) SchedulingConstraints {
 	priorityClassSchedulingConstraintsByPriorityClassName := make(map[string]PriorityClassSchedulingConstraints, len(config.Preemption.PriorityClasses))
 	for name, priorityClass := range config.Preemption.PriorityClasses {
+		maximumResourceFractionPerQueue := priorityClass.MaximumResourceFractionPerQueue
+		if m, ok := priorityClass.MaximumResourceFractionPerQueueByPool[pool]; ok {
+			// Use pool-specific config is available.
+			maximumResourceFractionPerQueue = m
+		}
 		priorityClassSchedulingConstraintsByPriorityClassName[name] = PriorityClassSchedulingConstraints{
-			PriorityClassName:                  name,
-			PriorityClassPriority:              priorityClass.Priority,
-			MaximumCumulativeResourcesPerQueue: absoluteFromRelativeLimits(totalResources, priorityClass.MaximumResourceFractionPerQueue),
+			PriorityClassName:        name,
+			PriorityClassPriority:    priorityClass.Priority,
+			MaximumResourcesPerQueue: absoluteFromRelativeLimits(totalResources, maximumResourceFractionPerQueue),
 		}
 	}
 	maximumResourceFractionToSchedule := config.MaximumResourceFractionToSchedule
-	if limit, ok := config.MaximumResourceFractionToScheduleByPool[pool]; ok {
-		maximumResourceFractionToSchedule = limit
+	if m, ok := config.MaximumResourceFractionToScheduleByPool[pool]; ok {
+		// Use pool-specific config is available.
+		maximumResourceFractionToSchedule = m
 	}
 	return SchedulingConstraints{
 		MaximumJobsToSchedule:      config.MaximumJobsToSchedule,
@@ -88,7 +94,7 @@ func SchedulingConstraintsFromSchedulingConfig(
 func absoluteFromRelativeLimits(totalResources schedulerobjects.ResourceList, relativeLimits map[string]float64) schedulerobjects.ResourceList {
 	absoluteLimits := schedulerobjects.NewResourceList(len(relativeLimits))
 	for t, f := range relativeLimits {
-		absoluteLimits.Set(t, schedulerobjects.ScaleQuantity(totalResources.Get(t).DeepCopy(), f))
+		absoluteLimits.Set(t, ScaleQuantity(totalResources.Get(t).DeepCopy(), f))
 	}
 	return absoluteLimits
 }
@@ -105,7 +111,7 @@ func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *schedulerc
 	}
 
 	// MaximumResourcesToSchedule check.
-	if exceedsResourceLimits(sctx.ScheduledResources, constraints.MaximumResourcesToSchedule) {
+	if !sctx.ScheduledResources.IsStrictlyLessOrEqual(constraints.MaximumResourcesToSchedule) {
 		return false, UnschedulableReasonMaximumResourcesScheduled, nil
 	}
 	return true, "", nil
@@ -123,22 +129,17 @@ func (constraints *SchedulingConstraints) CheckPerQueueAndPriorityClassConstrain
 
 	// PriorityClassSchedulingConstraintsByPriorityClassName check.
 	if priorityClassConstraint, ok := constraints.PriorityClassSchedulingConstraintsByPriorityClassName[priorityClassName]; ok {
-		allocatedByPriorityAndResourceType := schedulerobjects.NewAllocatedByPriorityAndResourceType([]int32{priorityClassConstraint.PriorityClassPriority})
-		for p, rl := range qctx.AllocatedByPriority {
-			allocatedByPriorityAndResourceType.MarkAllocated(p, rl)
-		}
-		if exceedsResourceLimits(
-			// TODO: Avoid allocation.
-			schedulerobjects.QuantityByPriorityAndResourceType(allocatedByPriorityAndResourceType).AggregateByResource(),
-			priorityClassConstraint.MaximumCumulativeResourcesPerQueue,
-		) {
+		if !qctx.AllocatedByPriorityClass[priorityClassName].IsStrictlyLessOrEqual(priorityClassConstraint.MaximumResourcesPerQueue) {
 			return false, UnschedulableReasonMaximumResourcesPerQueueExceeded, nil
 		}
 	}
 	return true, "", nil
 }
 
-// exceedsResourceLimits returns true if used/total > limits for some resource.
-func exceedsResourceLimits(used, limits schedulerobjects.ResourceList) bool {
-	return !used.IsStrictlyLessOrEqual(limits)
+// ScaleQuantity scales q in-place by a factor f.
+// This functions overflows for quantities the milli value of which can't be expressed as an int64.
+// E.g., 1Pi is ok, but not 10Pi.
+func ScaleQuantity(q resource.Quantity, f float64) resource.Quantity {
+	q.SetMilli(int64(math.Round(float64(q.MilliValue()) * f)))
+	return q
 }

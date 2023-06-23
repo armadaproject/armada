@@ -426,8 +426,8 @@ func (sch *PreemptingQueueScheduler) setEvictedGangCardinality(evictedJobsById m
 
 func (sch *PreemptingQueueScheduler) evictionAssertions(evictedJobsById map[string]interfaces.LegacySchedulerJob, affectedNodesById map[string]*schedulerobjects.Node) error {
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
-		if !qctx.AllocatedByPriority.IsStrictlyNonNegative() {
-			return errors.Errorf("negative allocation for queue %s after eviction: %s", qctx.Queue, qctx.AllocatedByPriority)
+		if !qctx.AllocatedByPriorityClass.IsStrictlyNonNegative() {
+			return errors.Errorf("negative allocation for queue %s after eviction: %s", qctx.Queue, qctx.AllocatedByPriorityClass)
 		}
 	}
 	evictedJobIdsByGangId := make(map[string]map[string]bool)

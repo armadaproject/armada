@@ -1,4 +1,3 @@
-//go:generate moq -out sql_job_service_moq.go . JobTableUpdater
 package repository
 
 import (
@@ -41,6 +40,7 @@ func NewJSRepoPostgres(cfg *configuration.JobServiceConfiguration, log *log.Entr
 func (s *JSRepoPostgres) Setup(ctx context.Context) {
 	setupStmts := []string{
 		`DROP TABLE IF EXISTS jobs`,
+		`DROP INDEX IF EXISTS idx_job_set_queue`,
 		`DROP TABLE IF EXISTS jobsets`,
 		`CREATE TABLE jobsets (
 			Queue TEXT,
@@ -58,29 +58,11 @@ func (s *JSRepoPostgres) Setup(ctx context.Context) {
 			JobResponseState TEXT,
 			JobResponseError TEXT,
 			Timestamp INTEGER,
-			PRIMARY KEY(Id),
-			FOREIGN KEY(JobSetId) REFERENCES jobsets(Id) ON DELETE CASCADE
-		)`,
+			PRIMARY KEY(Id))`,
 		`CREATE INDEX idx_job_set_queue ON jobs (Queue, JobSetId)`,
 		`CREATE INDEX idx_jobs_timestamp ON jobs (Timestamp)`,
 		`DROP TRIGGER IF EXISTS trigger_delete_expired_jobsets ON jobsets`,
 		`DROP FUNCTION IF EXISTS delete_expired_jobsets`,
-	}
-
-	if s.jobServiceConfig.PurgeJobSetTime > 0 {
-		setupStmts = append(setupStmts, fmt.Sprintf(`
-		     CREATE FUNCTION delete_expired_jobsets() RETURNS trigger
-			 LANGUAGE plpgsql
-			 AS '
-			 BEGIN
-			   DELETE FROM jobsets WHERE Timestamp < (extract(epoch from now()) - %d);
-			   DELETE FROM jobs WHERE Timestamp < (extract(epoch from now()) - %d);
-			   RETURN NULL;
-			 END
-			 ';`, s.jobServiceConfig.PurgeJobSetTime, s.jobServiceConfig.PurgeJobSetTime))
-
-		setupStmts = append(setupStmts, `CREATE TRIGGER trigger_delete_expired_jobsets
-			 AFTER INSERT ON jobsets EXECUTE PROCEDURE delete_expired_jobsets();`)
 	}
 
 	for _, stmt := range setupStmts {
@@ -141,15 +123,11 @@ func (s *JSRepoPostgres) UpdateJobServiceDb(ctx context.Context, jobTable *JobSt
 	return errExec
 }
 
+// We should check if a JobSet exists first before updating the database and return an error if it doesn't exist
+// However, The only caller of this function, in jobservice/server/server.go, does this check before calling.
+// Adding the check here will be redundant and a performance botteneck.
+// TODO: We should descend the check here and adjust the JobSet subscription logic in jobservice/server/server.go
 func (s *JSRepoPostgres) UpdateJobSetDb(ctx context.Context, queue string, jobSet string, fromMessageId string) error {
-	subscribe, _, err := s.IsJobSetSubscribed(ctx, queue, jobSet)
-	if err != nil {
-		return err
-	}
-	if !subscribe {
-		return fmt.Errorf("queue %s jobSet %s is already unsubscribed", queue, jobSet)
-	}
-
 	sqlStmt := `INSERT INTO jobsets (Queue, Id, Timestamp, ConnectionError, FromMessageId)
 			VALUES ($1, $2, $3, $4, $5) ON CONFLICT (Queue, Id) DO UPDATE SET
 			(Timestamp, ConnectionError, FromMessageId) =
@@ -251,7 +229,7 @@ func (s *JSRepoPostgres) SubscribeJobSet(ctx context.Context, queue string, jobS
 // We allow unsubscribing if the jobset hasn't been updated in configTime
 // TODO implement this
 func (s *JSRepoPostgres) CheckToUnSubscribe(ctx context.Context, queue string, jobSet string,
-	configTimeWithoutUpdates int64,
+	configTimeWithoutUpdates time.Duration,
 ) (bool, error) {
 	jobSetFound, _, err := s.IsJobSetSubscribed(ctx, queue, jobSet)
 	if err != nil {
@@ -264,7 +242,7 @@ func (s *JSRepoPostgres) CheckToUnSubscribe(ctx context.Context, queue string, j
 	sqlStmt := "SELECT Timestamp FROM jobsets WHERE Queue = $1 AND Id = $2"
 
 	row := s.dbpool.QueryRow(ctx, sqlStmt, queue, jobSet)
-	var timeStamp int
+	var timeStamp int64
 
 	timeErr := row.Scan(&timeStamp)
 
@@ -274,8 +252,9 @@ func (s *JSRepoPostgres) CheckToUnSubscribe(ctx context.Context, queue string, j
 		return false, err
 	}
 
-	currentTime := time.Now().Unix()
-	if (currentTime - configTimeWithoutUpdates) > int64(timeStamp) {
+	currentTime := time.Now()
+	lastUpdate := time.Unix(timeStamp, 0)
+	if currentTime.After(lastUpdate.Add(configTimeWithoutUpdates)) {
 		return true, nil
 	}
 	return false, nil
@@ -316,7 +295,7 @@ func (s *JSRepoPostgres) GetSubscribedJobSets(ctx context.Context) ([]Subscribed
 	// Loop through rows, using Scan to assign column data to struct fields.
 	for rows.Next() {
 		var st SubscribedTuple
-		if err := rows.Scan(&st.Queue, &st.JobSet, &st.FromMessageId); err != nil {
+		if err := rows.Scan(&st.Queue, &st.JobSetId, &st.FromMessageId); err != nil {
 			return tuples, err
 		}
 		tuples = append(tuples, st)
@@ -325,4 +304,29 @@ func (s *JSRepoPostgres) GetSubscribedJobSets(ctx context.Context) ([]Subscribed
 		return tuples, err
 	}
 	return tuples, nil
+}
+
+// PurgeExpiredJobSets purges all expired Jobs/JobSets from the database
+// An expired Job/JobSet is a Job/JobSet that has not been updated within the specified PurgeJobSetTime period.
+func (s *JSRepoPostgres) PurgeExpiredJobSets(ctx context.Context) {
+	jobSetStmt := fmt.Sprintf(`DELETE FROM jobsets WHERE Timestamp < (extract(epoch from now()) - %d);`, s.jobServiceConfig.PurgeJobSetTime)
+	jobStmt := fmt.Sprintf(`DELETE FROM jobs WHERE Timestamp < (extract(epoch from now()) - %d);`, s.jobServiceConfig.PurgeJobSetTime)
+	ticker := time.NewTicker(time.Duration(s.jobServiceConfig.PurgeJobSetTime) * time.Second)
+	log := log.WithField("JobService", "ExpiredJobSetsPurge")
+
+	log.Info("Starting purge of expired jobsets")
+	for range ticker.C {
+		result, err := s.dbpool.Exec(ctx, jobSetStmt)
+		if err != nil {
+			log.Error("error deleting expired jobsets: ", err)
+		} else {
+			log.Debugf("Deleted %d expired jobsets", result.RowsAffected())
+		}
+		result, err = s.dbpool.Exec(ctx, jobStmt)
+		if err != nil {
+			log.Error("error deleting expired jobs: ", err)
+		} else {
+			log.Debugf("Deleted %d expired jobs", result.RowsAffected())
+		}
+	}
 }

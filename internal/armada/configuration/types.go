@@ -7,6 +7,7 @@ import (
 	"github.com/go-redis/redis"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
@@ -129,7 +130,7 @@ type SchedulingConfig struct {
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
 	// for which the scheduler creates indexes for efficient lookup.
 	// Applies only to the new scheduler.
-	IndexedResources []string
+	IndexedResources []IndexedResource
 	// Node labels that the scheduler creates indexes for efficient lookup of.
 	// Should include node labels frequently used for scheduling.
 	// Since the scheduler can efficiently sort out nodes for which these labels
@@ -186,6 +187,13 @@ type SchedulingConfig struct {
 	AlwaysAttemptScheduling bool
 }
 
+type IndexedResource struct {
+	// Resource name. E.g., "cpu", "memory", or "nvidia.com/gpu".
+	Name string
+	// See NodeDb docs.
+	Resolution resource.Quantity
+}
+
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.
 // This scheduler will eventually replace the current scheduler.
 type NewSchedulerConfig struct {
@@ -225,13 +233,12 @@ type PriorityClass struct {
 	Priority int32
 	// If true, Armada may preempt jobs of this class to improve fairness.
 	Preemptible bool
-	// Limits resources assigned to jobs of priority equal to or lower than that of this priority class.
+	// Limits resources assigned to jobs of this priority class.
 	// Specifically, jobs of this priority class are only scheduled if doing so does not exceed this limit.
-	//
-	// For example, if priority is 10 and MaximumResourceFractionPerQueue is map[string]float64{"cpu": 0.3},
-	// jobs of this priority class are not scheduled if doing so would cause the total resources assigned
-	// to jobs of priority 10 or lower from the same queue to exceed 30% of the total.
 	MaximumResourceFractionPerQueue map[string]float64
+	// Per-pool override of MaximumResourceFractionPerQueue.
+	// If missing for a particular pool, MaximumResourceFractionPerQueue is used instead for that pool.
+	MaximumResourceFractionPerQueueByPool map[string]map[string]float64
 }
 
 func (p PreemptionConfig) PriorityByPriorityClassName() map[string]int32 {

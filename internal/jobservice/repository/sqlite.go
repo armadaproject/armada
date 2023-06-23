@@ -1,4 +1,3 @@
-//go:generate moq -out sql_job_service_moq.go . JobTableUpdater
 package repository
 
 import (
@@ -85,16 +84,6 @@ func (s *JSRepoSQLite) Setup(ctx context.Context) {
 		`DROP TRIGGER IF EXISTS trigger_delete_expired_jobsets`,
 	}
 
-	if s.jobServiceConfig.PurgeJobSetTime > 0 {
-		setupStmts = append(setupStmts, fmt.Sprintf(`
-		     CREATE TRIGGER trigger_delete_expired_jobsets AFTER INSERT ON jobsets
-		     BEGIN
-			   DELETE FROM jobsets WHERE Timestamp < (UNIXEPOCH() - %d);
-			   DELETE FROM jobs WHERE Timestamp < (UNIXEPOCH() - %d);
-		     END;
-		     `, s.jobServiceConfig.PurgeJobSetTime, s.jobServiceConfig.PurgeJobSetTime))
-	}
-
 	for _, stmt := range setupStmts {
 		_, err := s.db.Exec(stmt)
 		if err != nil {
@@ -158,14 +147,11 @@ func (s *JSRepoSQLite) UpdateJobServiceDb(ctx context.Context, jobTable *JobStat
 	return errExec
 }
 
+// We should check if a JobSet exists first before updating the database and return an error if it doesn't exist.
+// However, The only caller of this function, in jobservice/server/server.go, does this check before calling.
+// Adding the check here will be redundant and a performance botteneck.
+// TODO: We should descend the check here and adjust the JobSet subscription logic in jobservice/server/server.go
 func (s *JSRepoSQLite) UpdateJobSetDb(ctx context.Context, queue string, jobSet string, fromMessageId string) error {
-	subscribe, _, err := s.IsJobSetSubscribed(ctx, queue, jobSet)
-	if err != nil {
-		return err
-	}
-	if !subscribe {
-		return fmt.Errorf("queue %s jobSet %s is already unsubscribed", queue, jobSet)
-	}
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -286,7 +272,7 @@ func (s *JSRepoSQLite) SubscribeJobSet(ctx context.Context, queue string, jobSet
 // We allow unsubscribing if the jobset hasn't been updated in configTime
 // TODO implement this
 func (s *JSRepoSQLite) CheckToUnSubscribe(ctx context.Context, queue string, jobSet string,
-	configTimeWithoutUpdates int64,
+	configTimeWithoutUpdates time.Duration,
 ) (bool, error) {
 	jobSetFound, _, err := s.IsJobSetSubscribed(ctx, queue, jobSet)
 	if err != nil {
@@ -301,7 +287,7 @@ func (s *JSRepoSQLite) CheckToUnSubscribe(ctx context.Context, queue string, job
 
 	sqlStmt := "SELECT Timestamp FROM jobsets WHERE Queue = ? AND Id = ?"
 	row := s.db.QueryRow(sqlStmt, queue, jobSet)
-	var timeStamp int
+	var timeStamp int64
 
 	timeErr := row.Scan(&timeStamp)
 
@@ -311,10 +297,12 @@ func (s *JSRepoSQLite) CheckToUnSubscribe(ctx context.Context, queue string, job
 		return false, err
 	}
 
-	currentTime := time.Now().Unix()
-	if (currentTime - configTimeWithoutUpdates) > int64(timeStamp) {
+	currentTime := time.Now()
+	lastUpdate := time.Unix(timeStamp, 0)
+	if currentTime.After(lastUpdate.Add(configTimeWithoutUpdates)) {
 		return true, nil
 	}
+
 	return false, nil
 }
 
@@ -362,7 +350,7 @@ func (s *JSRepoSQLite) GetSubscribedJobSets(ctx context.Context) ([]SubscribedTu
 	// Loop through rows, using Scan to assign column data to struct fields.
 	for rows.Next() {
 		var st SubscribedTuple
-		if err := rows.Scan(&st.Queue, &st.JobSet, &st.FromMessageId); err != nil {
+		if err := rows.Scan(&st.Queue, &st.JobSetId, &st.FromMessageId); err != nil {
 			return tuples, err
 		}
 		tuples = append(tuples, st)
@@ -371,4 +359,39 @@ func (s *JSRepoSQLite) GetSubscribedJobSets(ctx context.Context) ([]SubscribedTu
 		return tuples, err
 	}
 	return tuples, nil
+}
+
+// PurgeExpiredJobSets purges all expired Jobs/JobSets from the database
+// An expired Job/JobSet is a Job/JobSet that has not been updated within the specified PurgeJobSetTime period.
+func (s *JSRepoSQLite) PurgeExpiredJobSets(ctx context.Context) {
+	jobSetStmt := fmt.Sprintf(`DELETE FROM jobsets WHERE Timestamp < (UNIXEPOCH() - %d);`, s.jobServiceConfig.PurgeJobSetTime)
+	jobStmt := fmt.Sprintf(`DELETE FROM jobs WHERE Timestamp < (UNIXEPOCH() - %d);`, s.jobServiceConfig.PurgeJobSetTime)
+	ticker := time.NewTicker(time.Duration(s.jobServiceConfig.PurgeJobSetTime) * time.Second)
+	log := log.WithField("JobService", "ExpiredJobSetsPurge")
+
+	log.Info("Starting purge of expired jobsets")
+	for range ticker.C {
+		s.lock.Lock()
+		result, jobSetErr := s.db.Exec(jobSetStmt)
+		if jobSetErr != nil {
+			log.Error("error deleting expired jobsets: ", jobSetErr)
+		} else {
+			count, err := result.RowsAffected()
+			if err != nil {
+				log.Error("error getting affected rows for expired jobsets delete operation: ", err)
+			}
+			log.Debugf("Deleted %d expired jobsets", count)
+		}
+		result, jobErr := s.db.Exec(jobStmt)
+		if jobErr != nil {
+			log.Error("error deleting expired jobs: ", jobErr)
+		} else {
+			count, err := result.RowsAffected()
+			if err != nil {
+				log.Error("error getting affected rows for expired jobs delete operation: ", err)
+			}
+			log.Debugf("Deleted %d expired jobs", count)
+		}
+		s.lock.Unlock()
+	}
 }

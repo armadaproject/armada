@@ -17,10 +17,11 @@
 # under the License.
 
 import logging
-from typing import Optional, List
+from typing import Optional, List, Sequence
 
 from airflow.models import BaseOperator
 from airflow.exceptions import AirflowException
+from airflow.utils.context import Context
 
 from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.client import ArmadaClient
@@ -32,6 +33,10 @@ from armada.operators.utils import (
     annotate_job_request_items,
 )
 from armada.jobservice import jobservice_pb2
+
+from google.protobuf.json_format import MessageToDict, ParseDict
+
+import jinja2
 
 
 armada_logger = logging.getLogger("airflow.task")
@@ -57,6 +62,8 @@ class ArmadaOperator(BaseOperator):
     :param poll_interval: How often to poll jobservice to get status.
     :return: an armada operator instance
     """
+
+    template_fields: Sequence[str] = ("job_request_items",)
 
     def __init__(
         self,
@@ -131,3 +138,17 @@ class ArmadaOperator(BaseOperator):
         if self.lookout_url_template is None:
             return ""
         return self.lookout_url_template.replace("<job_id>", job_id)
+
+    def render_template_fields(
+        self,
+        context: Context,
+        jinja_env: Optional[jinja2.Environment] = None,
+    ) -> None:
+        self.job_request_items = [
+            MessageToDict(x, preserving_proto_field_name=True)
+            for x in self.job_request_items
+        ]
+        super().render_template_fields(context, jinja_env)
+        self.job_request_items = [
+            ParseDict(x, JobSubmitRequestItem()) for x in self.job_request_items
+        ]

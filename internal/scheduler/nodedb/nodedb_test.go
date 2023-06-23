@@ -17,8 +17,8 @@ import (
 )
 
 func TestNodeDbSchema(t *testing.T) {
-	err := nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResources).Validate()
-	assert.NoError(t, err)
+	schema, _ := nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResourceNames)
+	assert.NoError(t, schema.Validate())
 }
 
 // Test the accounting of total resources across all nodes.
@@ -188,10 +188,10 @@ func assertNodeAccountingEqual(t *testing.T, node1, node2 *schedulerobjects.Node
 	rv := true
 	rv = rv && assert.True(
 		t,
-		schedulerobjects.QuantityByPriorityAndResourceType(
+		schedulerobjects.QuantityByTAndResourceType[int32](
 			node1.AllocatableByPriorityAndResource,
 		).Equal(
-			schedulerobjects.QuantityByPriorityAndResourceType(
+			schedulerobjects.QuantityByTAndResourceType[int32](
 				node2.AllocatableByPriorityAndResource,
 			),
 		),
@@ -479,30 +479,24 @@ func BenchmarkUpsert100000(b *testing.B) {
 }
 
 func benchmarkSelectAndBindNodeToPod(nodes []*schedulerobjects.Node, reqs []*schedulerobjects.PodRequirements, b *testing.B) {
-	db, err := NewNodeDb(
+	nodeDb, err := NewNodeDb(
 		testfixtures.TestPriorityClasses,
 		testfixtures.TestMaxExtraNodesToConsider,
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
 	)
-	if !assert.NoError(b, err) {
-		return
-	}
+	require.NoError(b, err)
 
-	err = db.UpsertMany(nodes)
-	if !assert.NoError(b, err) {
-		return
-	}
+	err = nodeDb.UpsertMany(nodes)
+	require.NoError(b, err)
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		txn := db.db.Txn(true)
+		txn := nodeDb.Txn(true)
 		for _, req := range reqs {
-			_, err := db.SelectAndBindNodeToPodWithTxn(txn, req)
-			if !assert.NoError(b, err) {
-				return
-			}
+			_, err := nodeDb.SelectAndBindNodeToPodWithTxn(txn, req)
+			require.NoError(b, err)
 		}
 		txn.Abort()
 	}
@@ -622,7 +616,7 @@ func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	return db, nil
 }
 
-func BenchmarkNodeDbtringFromPodRequirementsNotMetReason(b *testing.B) {
+func BenchmarkNodeDbStringFromPodRequirementsNotMetReason(b *testing.B) {
 	nodeDb := &NodeDb{
 		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
 	}
@@ -642,4 +636,18 @@ func randomString(n int) string {
 		s += fmt.Sprint(i)
 	}
 	return s
+}
+
+func GetTestNodeDb() *NodeDb {
+	nodeDb, err := NewNodeDb(
+		testfixtures.TestPriorityClasses,
+		0,
+		testfixtures.TestResources,
+		testfixtures.TestIndexedTaints,
+		testfixtures.TestIndexedNodeLabels,
+	)
+	if err != nil {
+		panic(err)
+	}
+	return nodeDb
 }

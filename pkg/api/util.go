@@ -109,15 +109,6 @@ func NewNodeTypeFromNodeInfo(nodeInfo *NodeInfo, indexedTaints map[string]interf
 func (job *Job) GetRequirements(priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
 	podSpec := job.GetMainPodSpec()
 
-	// Use pre-computed schedulingResourceRequirements if available.
-	// Otherwise compute it from the containers in podSpec.
-	var schedulingResourceRequirements v1.ResourceRequirements
-	if len(job.SchedulingResourceRequirements.Requests) > 0 || len(job.SchedulingResourceRequirements.Limits) > 0 {
-		schedulingResourceRequirements = job.SchedulingResourceRequirements
-	} else {
-		schedulingResourceRequirements = SchedulingResourceRequirementsFromPodSpec(podSpec)
-	}
-
 	priority, ok := PriorityFromPodSpec(podSpec, priorityClasses)
 	if priorityClasses != nil && !ok {
 		// Ignore this error if priorityByPriorityClassName is explicitly set to nil.
@@ -137,7 +128,7 @@ func (job *Job) GetRequirements(priorityClasses map[string]configuration.Priorit
 		Annotations:          maps.Clone(job.Annotations),
 		Priority:             priority,
 		PreemptionPolicy:     preemptionPolicy,
-		ResourceRequirements: schedulingResourceRequirements,
+		ResourceRequirements: job.GetResourceRequirements(),
 	}
 	return &schedulerobjects.JobSchedulingInfo{
 		PriorityClassName: podSpec.PriorityClassName,
@@ -226,6 +217,32 @@ func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityClasses map[string]configu
 func (job *Job) GetPriorityClassName() string {
 	podSpec := job.GetMainPodSpec()
 	return podSpec.PriorityClassName
+}
+
+func (job *Job) GetNodeSelector() map[string]string {
+	podSpec := job.GetMainPodSpec()
+	return podSpec.NodeSelector
+}
+
+func (job *Job) GetAffinity() *v1.Affinity {
+	podSpec := job.GetMainPodSpec()
+	return podSpec.Affinity
+}
+
+func (job *Job) GetTolerations() []v1.Toleration {
+	podSpec := job.GetMainPodSpec()
+	return podSpec.Tolerations
+}
+
+func (job *Job) GetResourceRequirements() v1.ResourceRequirements {
+	// Use pre-computed schedulingResourceRequirements if available.
+	// Otherwise compute it from the containers in podSpec.
+	podSpec := job.GetMainPodSpec()
+	if len(job.SchedulingResourceRequirements.Requests) > 0 || len(job.SchedulingResourceRequirements.Limits) > 0 {
+		return job.SchedulingResourceRequirements
+	} else {
+		return SchedulingResourceRequirementsFromPodSpec(podSpec)
+	}
 }
 
 func (job *Job) GetJobSet() string {
