@@ -2,12 +2,14 @@ package repository
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/database/lookout"
-	"github.com/armadaproject/armada/internal/lookoutv2/model"
-	"github.com/jackc/pgtype"
-	"github.com/pkg/errors"
 	"math"
 	"time"
+
+	"github.com/jackc/pgtype"
+	"github.com/pkg/errors"
+
+	"github.com/armadaproject/armada/internal/common/database/lookout"
+	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
 type FieldParser interface {

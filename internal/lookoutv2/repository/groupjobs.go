@@ -3,10 +3,11 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/pkg/errors"
-	"strings"
 
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/util"

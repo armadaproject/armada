@@ -2,12 +2,12 @@ package repository
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )

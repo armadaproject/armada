@@ -923,6 +923,9 @@ func (qb *QueryBuilder) getQueryAggregators(aggregates []string, filters []*mode
 			return nil, err
 		}
 		newQueryAggregators, err := GetAggregatorsForColumn(qc, aggregateType, filters)
+		if err != nil {
+			return nil, err
+		}
 		queryAggregators = append(queryAggregators, newQueryAggregators...)
 	}
 	return queryAggregators, nil
