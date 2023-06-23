@@ -188,10 +188,10 @@ func assertNodeAccountingEqual(t *testing.T, node1, node2 *schedulerobjects.Node
 	rv := true
 	rv = rv && assert.True(
 		t,
-		schedulerobjects.QuantityByPriorityAndResourceType(
+		schedulerobjects.QuantityByTAndResourceType[int32](
 			node1.AllocatableByPriorityAndResource,
 		).Equal(
-			schedulerobjects.QuantityByPriorityAndResourceType(
+			schedulerobjects.QuantityByTAndResourceType[int32](
 				node2.AllocatableByPriorityAndResource,
 			),
 		),

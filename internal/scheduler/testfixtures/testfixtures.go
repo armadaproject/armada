@@ -126,12 +126,18 @@ func WithRoundLimitsPoolConfig(limits map[string]map[string]float64, config conf
 	return config
 }
 
-func WithPerPriorityLimitsConfig(limits map[int32]map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	for k, v := range config.Preemption.PriorityClasses {
-		config.Preemption.PriorityClasses[k] = configuration.PriorityClass{
-			Priority:                        v.Priority,
-			Preemptible:                     v.Preemptible,
-			MaximumResourceFractionPerQueue: limits[v.Priority],
+func WithPerPriorityLimitsConfig(limits map[string]map[string]float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	for priorityClassName, limit := range limits {
+		priorityClass, ok := config.Preemption.PriorityClasses[priorityClassName]
+		if !ok {
+			panic(fmt.Sprintf("no priority class with name %s", priorityClassName))
+		}
+		// We need to make a copy to avoid mutating the priorityClasses, which are used by other tests too.
+		config.Preemption.PriorityClasses[priorityClassName] = configuration.PriorityClass{
+			Priority:                              priorityClass.Priority,
+			Preemptible:                           priorityClass.Preemptible,
+			MaximumResourceFractionPerQueue:       limit,
+			MaximumResourceFractionPerQueueByPool: priorityClass.MaximumResourceFractionPerQueueByPool,
 		}
 	}
 	return config

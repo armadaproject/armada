@@ -42,13 +42,13 @@ func TestSchedulingContextAccounting(t *testing.T) {
 		schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
 	)
 	priorityFactorByQueue := map[string]float64{"A": 1, "B": 1}
-	allocatedByQueueAndPriority := map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+	allocatedByQueueAndPriorityClass := map[string]schedulerobjects.QuantityByTAndResourceType[string]{
 		"A": {
-			0: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+			"foo": schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
 		},
 	}
 	for _, queue := range []string{"A", "B"} {
-		err := sctx.AddQueueSchedulingContext(queue, priorityFactorByQueue[queue], allocatedByQueueAndPriority[queue])
+		err := sctx.AddQueueSchedulingContext(queue, priorityFactorByQueue[queue], allocatedByQueueAndPriorityClass[queue])
 		require.NoError(t, err)
 	}
 
