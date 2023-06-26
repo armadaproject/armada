@@ -13,25 +13,25 @@ import (
 
 // Job is the scheduler-internal representation of a job.
 type Job struct {
-	// String representation of the job id
+	// String representation of the job id.
 	id string
 	// Name of the queue this job belongs to.
 	queue string
-	// Jobset the job belongs to
-	// We store this as it's needed for sending job event messages
+	// Jobset the job belongs to.
+	// We store this as it's needed for sending job event messages.
 	jobset string
 	// Per-queue priority of this job.
 	priority uint32
 	// Requested per queue priority of this job.
-	// This is used when syncing the postgres database with the scheduler-internal database
+	// This is used when syncing the postgres database with the scheduler-internal database.
 	requestedPriority uint32
 	// Logical timestamp indicating the order in which jobs are submitted.
 	// Jobs with identical Queue and Priority are sorted by this.
 	created int64
 	// True if the job is currently queued.
-	// If this is set then the job will not be considered for scheduling
+	// If this is set then the job will not be considered for scheduling.
 	queued bool
-	// The current version of the queued state
+	// The current version of the queued state.
 	queuedVersion int32
 	// Scheduling requirements of this job.
 	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo

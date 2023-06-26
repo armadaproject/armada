@@ -209,8 +209,8 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	}
 	events = append(events, expirationEvents...)
 
+	// Schedule jobs.
 	if s.clock.Now().Sub(s.previousSchedulingRoundEnd) > s.schedulePeriod {
-		// Schedule jobs.
 		overallSchedulerResult, err := s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
 		if err != nil {
 			return err
@@ -222,8 +222,6 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 		}
 		events = append(events, resultEvents...)
 		s.previousSchedulingRoundEnd = s.clock.Now()
-	} else {
-		log.Infof("skipping scheduling new jobs this cycle as a scheduling round ran less than %s ago", s.schedulePeriod)
 	}
 
 	// Publish to Pulsar.
@@ -264,7 +262,7 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*jobdb.Job, error) {
 		// Try and retrieve the job from the jobDb. If it doesn't exist then create it.
 		job := s.jobDb.GetById(txn, dbJob.JobID)
 		if job == nil {
-			job, err = s.createSchedulerJob(&dbJob)
+			job, err = s.schedulerJobFromDatabaseJob(&dbJob)
 			if err != nil {
 				return nil, err
 			}
@@ -817,8 +815,8 @@ func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Dura
 	}
 }
 
-// createSchedulerJob creates a new scheduler job from a database job.
-func (s *Scheduler) createSchedulerJob(dbJob *database.Job) (*jobdb.Job, error) {
+// schedulerJobFromDatabaseJob creates a new scheduler job from a database job.
+func (s *Scheduler) schedulerJobFromDatabaseJob(dbJob *database.Job) (*jobdb.Job, error) {
 	schedulingInfo := &schedulerobjects.JobSchedulingInfo{}
 	err := proto.Unmarshal(dbJob.SchedulingInfo, schedulingInfo)
 	if err != nil {
@@ -892,7 +890,7 @@ func updateSchedulerRun(run *jobdb.JobRun, dbRun *database.Run) *jobdb.JobRun {
 	return run
 }
 
-// updateSchedulerJob updates the scheduler job  (in-place) to match the database job
+// updateSchedulerJob updates the scheduler job in-place to match the database job.
 func updateSchedulerJob(job *jobdb.Job, dbJob *database.Job) (*jobdb.Job, error) {
 	if dbJob.CancelRequested && !job.CancelRequested() {
 		job = job.WithCancelRequested(true)
