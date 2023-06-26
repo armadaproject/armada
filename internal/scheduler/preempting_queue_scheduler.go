@@ -443,17 +443,13 @@ func (sch *PreemptingQueueScheduler) evictionAssertions(evictedJobsById map[stri
 		if !isEvictedJob(job) {
 			return errors.Errorf("evicted job %s is not marked as such: job annotations %v", jobId, job.GetAnnotations())
 		}
-		if nodeId, ok := targetNodeIdFromLegacySchedulerJob(job); ok {
+		nodeSelector := job.GetNodeSelector()
+		if nodeId, ok := targetNodeIdFromNodeSelector(nodeSelector); ok {
 			if _, ok := affectedNodesById[nodeId]; !ok {
 				return errors.Errorf("node id %s targeted by job %s is not marked as affected", nodeId, jobId)
 			}
 		} else {
-			nodeSelector := job.GetNodeSelector()
-			if nodeSelector != nil {
-				return errors.Errorf("evicted job %s is missing target node id selector: job nodeSelector %v", jobId, nodeSelector)
-			} else {
-				return errors.Errorf("evicted job %s is missing target node id selector: req is nil", jobId)
-			}
+			return errors.Errorf("evicted job %s is missing target node id selector: job nodeSelector %v", jobId, nodeSelector)
 		}
 	}
 	for gangId, evictedGangJobIds := range evictedJobIdsByGangId {
