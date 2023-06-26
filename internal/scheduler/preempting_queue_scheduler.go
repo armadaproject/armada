@@ -432,26 +432,27 @@ func (sch *PreemptingQueueScheduler) evictionAssertions(evictedJobsById map[stri
 	}
 	evictedJobIdsByGangId := make(map[string]map[string]bool)
 	for _, job := range evictedJobsById {
-		if gangId, ok := sch.gangIdByJobId[job.GetId()]; ok {
+		jobId := job.GetId()
+		if gangId, ok := sch.gangIdByJobId[jobId]; ok {
 			if m := evictedJobIdsByGangId[gangId]; m != nil {
-				m[job.GetId()] = true
+				m[jobId] = true
 			} else {
-				evictedJobIdsByGangId[gangId] = map[string]bool{job.GetId(): true}
+				evictedJobIdsByGangId[gangId] = map[string]bool{jobId: true}
 			}
 		}
 		if !isEvictedJob(job) {
-			return errors.Errorf("evicted job %s is not marked as such: job annotations %v", job.GetId(), job.GetAnnotations())
+			return errors.Errorf("evicted job %s is not marked as such: job annotations %v", jobId, job.GetAnnotations())
 		}
 		if nodeId, ok := targetNodeIdFromLegacySchedulerJob(job); ok {
 			if _, ok := affectedNodesById[nodeId]; !ok {
-				return errors.Errorf("node id %s targeted by job %s is not marked as affected", nodeId, job.GetId())
+				return errors.Errorf("node id %s targeted by job %s is not marked as affected", nodeId, jobId)
 			}
 		} else {
-			req := PodRequirementFromLegacySchedulerJob(job, nil)
-			if req != nil {
-				return errors.Errorf("evicted job %s is missing target node id selector: job nodeSelector %v", job.GetId(), req.NodeSelector)
+			nodeSelector := job.GetNodeSelector()
+			if nodeSelector != nil {
+				return errors.Errorf("evicted job %s is missing target node id selector: job nodeSelector %v", jobId, nodeSelector)
 			} else {
-				return errors.Errorf("evicted job %s is missing target node id selector: req is nil", job.GetId())
+				return errors.Errorf("evicted job %s is missing target node id selector: req is nil", jobId)
 			}
 		}
 	}
@@ -552,7 +553,7 @@ func (sch *PreemptingQueueScheduler) updateGangAccounting(preemptedJobs, schedul
 		}
 	}
 	for _, job := range scheduledJobs {
-		gangId, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(job, sch.schedulingContext.PriorityClasses)
+		gangId, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(job)
 		if err != nil {
 			return err
 		}
@@ -701,7 +702,7 @@ func NewPreemptibleEvictor(
 				log.Warnf("can't evict job %s: annotations not initialised", job.GetId())
 				return false
 			}
-			priorityClassName := job.GetRequirements(priorityClasses).PriorityClassName
+			priorityClassName := job.GetPriorityClassName()
 			priorityClass, ok := priorityClasses[priorityClassName]
 			if !ok {
 				priorityClass = priorityClasses[defaultPriorityClass]
@@ -786,7 +787,7 @@ func NewOversubscribedEvictor(
 				log.Warnf("can't evict job %s: annotations not initialised", job.GetId())
 				return false
 			}
-			priorityClassName := job.GetRequirements(priorityClasses).PriorityClassName
+			priorityClassName := job.GetPriorityClassName()
 			priorityClass, ok := priorityClasses[priorityClassName]
 			if !ok {
 				priorityClass = priorityClasses[defaultPriorityClass]
@@ -874,7 +875,7 @@ func defaultPostEvictFunc(ctx context.Context, job interfaces.LegacySchedulerJob
 
 	// Add a toleration to allow the job to be re-scheduled even if node is unschedulable.
 	//
-	// TODO: Because req is created with a new tolerations slice above, this toleration doesn't persist.
+	// TODO: Because req is allocated by GetRequirements() if job is an api.Job, this toleration may not persist.
 	// In practice, this isn't an issue now since we don't check static requirements for evicted jobs.
 	if node.Unschedulable {
 		req.Tolerations = append(req.Tolerations, nodedb.UnschedulableToleration())

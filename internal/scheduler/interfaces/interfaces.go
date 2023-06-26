@@ -1,6 +1,8 @@
 package interfaces
 
 import (
+	"time"
+
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -12,6 +14,8 @@ type LegacySchedulerJob interface {
 	GetId() string
 	GetQueue() string
 	GetJobSet() string
+	GetPerQueuePriority() uint32
+	GetSubmitTime() time.Time
 	GetAnnotations() map[string]string
 	GetRequirements(map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo
 	GetPriorityClassName() string
