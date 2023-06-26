@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	discovery "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"
@@ -57,8 +58,8 @@ type ClusterContext interface {
 	GetServices(pod *v1.Pod) ([]*v1.Service, error)
 	GetIngresses(pod *v1.Pod) ([]*networking.Ingress, error)
 	GetEndpointSlices(namespace string, labelName string, labelValue string) ([]*discovery.EndpointSlice, error)
-
 	SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error)
+	SubmitJob(pod *v1.Pod, owner string, ownerGroups []string) (*batchv1.Job, error)
 	SubmitService(service *v1.Service) (*v1.Service, error)
 	SubmitIngress(ingress *networking.Ingress) (*networking.Ingress, error)
 	DeletePodWithCondition(pod *v1.Pod, condition func(pod *v1.Pod) bool, pessimistic bool) error
@@ -75,6 +76,7 @@ type ClusterContext interface {
 type KubernetesClusterContext struct {
 	clusterId                string
 	pool                     string
+	useJobShim               bool
 	deleteThreadCount        int
 	submittedPods            util.PodCache
 	podsToDelete             util.PodCache
@@ -116,6 +118,7 @@ func NewClusterContext(
 		clusterId:                configuration.ClusterId,
 		pool:                     configuration.Pool,
 		deleteThreadCount:        configuration.DeleteConcurrencyLimit,
+		useJobShim:               configuration.UseJobShim,
 		submittedPods:            util.NewTimeExpiringPodCache(time.Minute, time.Second, "submitted_job"),
 		podsToDelete:             util.NewTimeExpiringPodCache(minTimeBetweenRepeatDeletionCalls, time.Second, "deleted_job"),
 		stopper:                  make(chan struct{}),
@@ -250,6 +253,32 @@ func (c *KubernetesClusterContext) GetNodeStatsSummary(ctx context.Context, node
 		return nil, fmt.Errorf("unable to unmarshal %s", err)
 	}
 	return summary, nil
+}
+
+func (c *KubernetesClusterContext) SubmitJob(pod *v1.Pod, owner string, ownerGroups []string) (*batchv1.Job, error) {
+	// If a health monitor is provided, reject pods when etcd is at its hard limit.
+	if c.etcdHealthMonitor != nil && !c.etcdHealthMonitor.IsWithinHardHealthLimit() {
+		err := errors.WithStack(&armadaerrors.ErrCreateResource{
+			Type:    "pod",
+			Name:    pod.Name,
+			Message: fmt.Sprintf("etcd is at its hard heatlh limit and therefore not healthy to submit to"),
+		})
+		return nil, err
+	}
+
+	c.submittedPods.Add(pod)
+	ownerClient, err := c.kubernetesClientProvider.ClientForUser(owner, ownerGroups)
+	if err != nil {
+		return nil, err
+	}
+
+	job := util.BuildKubernetesJobFromPod(pod)
+	log.Info("adopting k8 job from pod")
+	returnedJob, err := ownerClient.BatchV1().Jobs(pod.Namespace).Create(context.Background(), &job, metav1.CreateOptions{})
+	if err != nil {
+		c.submittedPods.Delete(util.ExtractPodKey(pod))
+	}
+	return returnedJob, err
 }
 
 func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error) {

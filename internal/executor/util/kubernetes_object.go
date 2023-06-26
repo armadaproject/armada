@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	networking "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -330,4 +331,20 @@ func applyDefaults(spec *v1.PodSpec, defaults *configuration.PodDefaults) {
 
 func setRestartPolicyNever(podSpec *v1.PodSpec) {
 	podSpec.RestartPolicy = v1.RestartPolicyNever
+}
+
+func BuildKubernetesJobFromPod(pod *v1.Pod) batchv1.Job {
+	backoffLimit := int32(0)
+	ttlCleanup := int32(100)
+	return batchv1.Job{
+		ObjectMeta: pod.ObjectMeta,
+		Spec: batchv1.JobSpec{
+			BackoffLimit:            &backoffLimit,
+			TTLSecondsAfterFinished: &ttlCleanup,
+			Template: v1.PodTemplateSpec{
+				Spec:       pod.Spec,
+				ObjectMeta: pod.ObjectMeta,
+			},
+		},
+	}
 }
