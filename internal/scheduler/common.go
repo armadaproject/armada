@@ -84,11 +84,7 @@ func JobsSummary(jobs []interfaces.LegacySchedulerJob) string {
 		func(jobs []interfaces.LegacySchedulerJob) schedulerobjects.ResourceList {
 			rv := schedulerobjects.NewResourceListWithDefaultSize()
 			for _, job := range jobs {
-				req := PodRequirementFromLegacySchedulerJob(job, nil)
-				if req == nil {
-					continue
-				}
-				rv.AddV1ResourceList(req.ResourceRequirements.Requests)
+				rv.AddV1ResourceList(job.GetResourceRequirements().Requests)
 			}
 			return rv
 		},
@@ -141,29 +137,14 @@ func isEvictedJob(job interfaces.LegacySchedulerJob) bool {
 	return job.GetAnnotations()[schedulerconfig.IsEvictedAnnotation] == "true"
 }
 
-func targetNodeIdFromLegacySchedulerJob(job interfaces.LegacySchedulerJob) (string, bool) {
-	req := PodRequirementFromLegacySchedulerJob(job, nil)
-	if req == nil {
-		return "", false
-	}
-	nodeId, ok := req.NodeSelector[schedulerconfig.NodeIdLabel]
+func targetNodeIdFromNodeSelector(nodeSelector map[string]string) (string, bool) {
+	nodeId, ok := nodeSelector[schedulerconfig.NodeIdLabel]
 	return nodeId, ok
 }
 
 // GangIdAndCardinalityFromLegacySchedulerJob returns a tuple (gangId, gangCardinality, isGangJob, error).
-func GangIdAndCardinalityFromLegacySchedulerJob(job interfaces.LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) (string, int, bool, error) {
-	reqs := job.GetRequirements(priorityClasses)
-	if reqs == nil {
-		return "", 0, false, nil
-	}
-	if len(reqs.ObjectRequirements) != 1 {
-		return "", 0, false, errors.Errorf("expected exactly one object requirement in %v", reqs)
-	}
-	podReqs := reqs.ObjectRequirements[0].GetPodRequirements()
-	if podReqs == nil {
-		return "", 0, false, nil
-	}
-	return GangIdAndCardinalityFromAnnotations(podReqs.Annotations)
+func GangIdAndCardinalityFromLegacySchedulerJob(job interfaces.LegacySchedulerJob) (string, int, bool, error) {
+	return GangIdAndCardinalityFromAnnotations(job.GetAnnotations())
 }
 
 // GangIdAndCardinalityFromAnnotations returns a tuple (gangId, gangCardinality, isGangJob, error).
@@ -222,18 +203,10 @@ func PodRequirementFromLegacySchedulerJob[E interfaces.LegacySchedulerJob](job E
 	}
 	annotations[schedulerconfig.JobIdAnnotation] = job.GetId()
 	annotations[schedulerconfig.QueueAnnotation] = job.GetQueue()
-	info := job.GetRequirements(priorityClasses)
+	info := job.GetJobSchedulingInfo(priorityClasses)
 	req := PodRequirementFromJobSchedulingInfo(info)
 	req.Annotations = annotations
 	return req
-}
-
-func PodRequirementsFromJobSchedulingInfos(infos []*schedulerobjects.JobSchedulingInfo) []*schedulerobjects.PodRequirements {
-	rv := make([]*schedulerobjects.PodRequirements, 0, len(infos))
-	for _, info := range infos {
-		rv = append(rv, PodRequirementFromJobSchedulingInfo(info))
-	}
-	return rv
 }
 
 func PodRequirementFromJobSchedulingInfo(info *schedulerobjects.JobSchedulingInfo) *schedulerobjects.PodRequirements {
