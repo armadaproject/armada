@@ -126,6 +126,19 @@ func (job *Job) Priority() uint32 {
 	return job.priority
 }
 
+// GetPerQueuePriority exists for compatibility with the LegacyJob interface.
+func (job *Job) GetPerQueuePriority() uint32 {
+	return job.priority
+}
+
+// GetSubmitTime exists for compatibility with the LegacyJob interface.
+func (job *Job) GetSubmitTime() time.Time {
+	if job.jobSchedulingInfo == nil {
+		return time.Time{}
+	}
+	return job.jobSchedulingInfo.SubmitTime
+}
+
 // RequestedPriority returns the requested priority of the job.
 func (job *Job) RequestedPriority() uint32 {
 	return job.requestedPriority
@@ -161,7 +174,7 @@ func (job *Job) GetAnnotations() map[string]string {
 
 // GetRequirements returns the scheduling requirements associated with the job.
 // Needed for compatibility with interfaces.LegacySchedulerJob
-func (job *Job) GetRequirements(_ map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
+func (job *Job) GetJobSchedulingInfo(_ map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
 	return job.JobSchedulingInfo()
 }
 

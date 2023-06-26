@@ -266,7 +266,7 @@ func WithRequestsPodReqs(rl schedulerobjects.ResourceList, reqs []*schedulerobje
 
 func WithNodeSelectorJobs(selector map[string]string, jobs []*jobdb.Job) []*jobdb.Job {
 	for _, job := range jobs {
-		for _, req := range job.GetRequirements(nil).GetObjectRequirements() {
+		for _, req := range job.GetJobSchedulingInfo(nil).GetObjectRequirements() {
 			req.GetPodRequirements().NodeSelector = maps.Clone(selector)
 		}
 	}
@@ -284,7 +284,7 @@ func WithGangAnnotationsJobs(jobs []*jobdb.Job) []*jobdb.Job {
 
 func WithAnnotationsJobs(annotations map[string]string, jobs []*jobdb.Job) []*jobdb.Job {
 	for _, job := range jobs {
-		for _, req := range job.GetRequirements(nil).GetObjectRequirements() {
+		for _, req := range job.GetJobSchedulingInfo(nil).GetObjectRequirements() {
 			if req.GetPodRequirements().Annotations == nil {
 				req.GetPodRequirements().Annotations = make(map[string]string)
 			}
