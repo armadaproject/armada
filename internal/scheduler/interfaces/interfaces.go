@@ -17,7 +17,7 @@ type LegacySchedulerJob interface {
 	GetPerQueuePriority() uint32
 	GetSubmitTime() time.Time
 	GetAnnotations() map[string]string
-	GetRequirements(map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo
+	GetJobSchedulingInfo(map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo
 	GetPriorityClassName() string
 	GetNodeSelector() map[string]string
 	GetAffinity() *v1.Affinity

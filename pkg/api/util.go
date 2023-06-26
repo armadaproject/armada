@@ -117,7 +117,7 @@ func (job *Job) GetSubmitTime() time.Time {
 	return job.Created
 }
 
-func (job *Job) GetRequirements(priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
+func (job *Job) GetJobSchedulingInfo(priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
 	podSpec := job.GetMainPodSpec()
 
 	priority, ok := PriorityFromPodSpec(podSpec, priorityClasses)

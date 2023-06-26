@@ -207,7 +207,7 @@ func PodRequirementFromLegacySchedulerJob[E interfaces.LegacySchedulerJob](job E
 	}
 	annotations[schedulerconfig.JobIdAnnotation] = job.GetId()
 	annotations[schedulerconfig.QueueAnnotation] = job.GetQueue()
-	info := job.GetRequirements(priorityClasses)
+	info := job.GetJobSchedulingInfo(priorityClasses)
 	req := PodRequirementFromJobSchedulingInfo(info)
 	req.Annotations = annotations
 	return req

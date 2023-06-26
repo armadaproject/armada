@@ -503,7 +503,7 @@ func TestJobGetRequirements(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, tc.job.GetRequirements(TestPriorityClasses))
+			assert.Equal(t, tc.expected, tc.job.GetJobSchedulingInfo(TestPriorityClasses))
 		})
 	}
 }
