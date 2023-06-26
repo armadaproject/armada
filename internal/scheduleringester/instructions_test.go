@@ -201,7 +201,7 @@ func TestConvertSequence(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			converter := InstructionConverter{m, f.PriorityClasses, compressor}
 			es := f.NewEventSequence(tc.events...)
-			results := converter.convertSequence(es)
+			results := converter.dbOperationsFromEventSequence(es)
 			assertOperationsEqual(t, tc.expected, results)
 		})
 	}

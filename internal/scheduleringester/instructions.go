@@ -48,7 +48,7 @@ func NewInstructionConverter(
 func (c *InstructionConverter) Convert(_ context.Context, sequencesWithIds *ingest.EventSequencesWithIds) *DbOperationsWithMessageIds {
 	operations := make([]DbOperation, 0)
 	for _, es := range sequencesWithIds.EventSequences {
-		for _, op := range c.convertSequence(es) {
+		for _, op := range c.dbOperationsFromEventSequence(es) {
 			operations = AppendDbOperation(operations, op)
 		}
 	}
@@ -58,14 +58,13 @@ func (c *InstructionConverter) Convert(_ context.Context, sequencesWithIds *inge
 	}
 }
 
-func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) []DbOperation {
+func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.EventSequence) []DbOperation {
 	meta := eventSequenceCommon{
 		queue:  es.Queue,
 		jobset: es.JobSetName,
 		user:   es.UserId,
 		groups: es.Groups,
 	}
-
 	operations := make([]DbOperation, 0, len(es.Events))
 	for idx, event := range es.Events {
 		eventTime := time.Now().UTC()
@@ -117,7 +116,7 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence) [
 		}
 		if err != nil {
 			c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
-			log.WithError(err).Warnf("Could not convert event at index %d.", idx)
+			log.WithError(err).Errorf("Could not convert event at index %d.", idx)
 		} else {
 			operations = append(operations, operationsFromEvent...)
 		}
