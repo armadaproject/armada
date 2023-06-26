@@ -216,7 +216,6 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 			if unsuccessfulJctx, ok := it.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; ok {
 				jctx := &schedulercontext.JobSchedulingContext{
 					Created:              time.Now(),
-					ExecutorId:           it.schedulingContext.ExecutorId,
 					JobId:                job.GetId(),
 					Job:                  job,
 					UnschedulableReason:  unsuccessfulJctx.UnschedulableReason,
@@ -242,20 +241,18 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 			if len(gang) == gangCardinality {
 				delete(it.jobsByGangId, gangId)
 				it.next = schedulercontext.NewGangSchedulingContext(
-					jobSchedulingContextsFromJobs(
-						gang,
-						it.schedulingContext.ExecutorId,
+					schedulercontext.JobSchedulingContextsFromJobs(
 						it.schedulingContext.PriorityClasses,
+						gang,
 					),
 				)
 				return it.next, nil
 			}
 		} else {
 			it.next = schedulercontext.NewGangSchedulingContext(
-				jobSchedulingContextsFromJobs(
-					[]interfaces.LegacySchedulerJob{job},
-					it.schedulingContext.ExecutorId,
+				schedulercontext.JobSchedulingContextsFromJobs(
 					it.schedulingContext.PriorityClasses,
+					[]interfaces.LegacySchedulerJob{job},
 				),
 			)
 			return it.next, nil

@@ -512,7 +512,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					expectedAffinity := createAntiAffinity(t, nodeIdLabel, tc.expectedNodeAntiAffinities)
 					assert.Equal(t, expectedAffinity, affinity)
 				}
-				podRequirements := PodRequirementFromJobSchedulingInfo(job.JobSchedulingInfo())
+				podRequirements := job.PodRequirements()
 				assert.NotNil(t, podRequirements)
 
 				expectedQueuedVersion := int32(1)
@@ -819,12 +819,20 @@ type testSubmitChecker struct {
 	checkSuccess bool
 }
 
-func (t *testSubmitChecker) CheckPodRequirements(podRequirement *schedulerobjects.PodRequirements) (bool, string) {
-	return t.checkSuccess, ""
+func (t *testSubmitChecker) CheckApiJobs(_ []*api.Job) (bool, string) {
+	reason := ""
+	if !t.checkSuccess {
+		reason = "CheckApiJobs failed"
+	}
+	return t.checkSuccess, reason
 }
 
-func (t *testSubmitChecker) CheckApiJobs(jobs []*api.Job) (bool, string) {
-	return t.checkSuccess, "2"
+func (t *testSubmitChecker) CheckJobDbJobs(_ []*jobdb.Job) (bool, string) {
+	reason := ""
+	if !t.checkSuccess {
+		reason = "CheckJobDbJobs failed"
+	}
+	return t.checkSuccess, reason
 }
 
 // Test implementations of the interfaces needed by the Scheduler
