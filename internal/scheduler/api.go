@@ -104,21 +104,20 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	if err != nil {
 		return err
 	}
-	log.Infof("executor is aware of %d job runs", len(requestRuns))
-
 	runsToCancel, err := srv.jobRepository.FindInactiveRuns(ctx, requestRuns)
 	if err != nil {
 		return err
 	}
-	// TODO: Print a combined diff later.
-	log.Infof("%d runs that need cancelling", len(runsToCancel))
-
-	leases, err := srv.jobRepository.FetchJobRunLeases(ctx, req.ExecutorId, srv.maxJobsPerCall, requestRuns)
+	newRuns, err := srv.jobRepository.FetchJobRunLeases(ctx, req.ExecutorId, srv.maxJobsPerCall, requestRuns)
 	if err != nil {
 		return err
 	}
+	log.Infof(
+		"executor currently has %d job runs; sending %d cancellations and %d new runs",
+		len(requestRuns), len(runsToCancel), len(newRuns),
+	)
 
-	// Send any runs that should be cancelled..
+	// Send any runs that should be cancelled.
 	if len(runsToCancel) > 0 {
 		if err := stream.Send(&executorapi.LeaseStreamMessage{
 			Event: &executorapi.LeaseStreamMessage_CancelRuns{
@@ -135,7 +134,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 
 	// Send any scheduled jobs the executor doesn't already have.
 	decompressor := compress.NewZlibDecompressor()
-	for _, lease := range leases {
+	for _, lease := range newRuns {
 		submitMsg := &armadaevents.SubmitJob{}
 		if err := unmarshalFromCompressedBytes(lease.SubmitMessage, decompressor, submitMsg); err != nil {
 			return err

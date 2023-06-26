@@ -148,7 +148,7 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, subm
 
 	// Produce a minimal representation of the job for the scheduler.
 	// To avoid the scheduler needing to load the entire job spec.
-	schedulingInfo, err := c.schedulingInfoFromSubmitJob(job)
+	schedulingInfo, err := c.schedulingInfoFromSubmitJob(job, submitTime)
 	if err != nil {
 		return nil, err
 	}
@@ -357,13 +357,15 @@ func (c *InstructionConverter) handlePartitionMarker(pm *armadaevents.PartitionM
 
 // schedulingInfoFromSubmitJob returns a minimal representation of a job
 // containing only the info needed by the scheduler.
-func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob) (*schedulerobjects.JobSchedulingInfo, error) {
+func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime time.Time) (*schedulerobjects.JobSchedulingInfo, error) {
 	// Component common to all jobs.
 	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
 		Lifetime:        submitJob.Lifetime,
 		AtMostOnce:      submitJob.AtMostOnce,
 		Preemptible:     submitJob.Preemptible,
 		ConcurrencySafe: submitJob.ConcurrencySafe,
+		SubmitTime:      submitTime,
+		Priority:        submitJob.Priority,
 		Version:         0,
 	}
 
@@ -371,12 +373,16 @@ func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaeven
 	switch object := submitJob.MainObject.Object.(type) {
 	case *armadaevents.KubernetesMainObject_PodSpec:
 		podSpec := object.PodSpec.PodSpec
-		requirements := &schedulerobjects.ObjectRequirements_PodRequirements{
-			PodRequirements: adapters.PodRequirementsFromPodSpec(podSpec, c.priorityClasses),
-		}
+		schedulingInfo.PriorityClassName = podSpec.PriorityClassName
+		podRequirements := adapters.PodRequirementsFromPodSpec(podSpec, c.priorityClasses)
+		podRequirements.Annotations = submitJob.ObjectMeta.Annotations
 		schedulingInfo.ObjectRequirements = append(
 			schedulingInfo.ObjectRequirements,
-			&schedulerobjects.ObjectRequirements{Requirements: requirements},
+			&schedulerobjects.ObjectRequirements{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: podRequirements,
+				},
+			},
 		)
 	default:
 		return nil, errors.Errorf("unsupported object type %T", object)
