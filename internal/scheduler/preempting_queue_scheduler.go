@@ -861,22 +861,11 @@ func defaultPostEvictFunc(ctx context.Context, job interfaces.LegacySchedulerJob
 	}
 
 	// Add node selector ensuring this job is only re-scheduled onto the node it was evicted from.
-	req := PodRequirementFromLegacySchedulerJob(job, nil)
-	if req.NodeSelector == nil {
+	nodeSelector := job.GetNodeSelector()
+	if nodeSelector == nil {
 		log := ctxlogrus.Extract(ctx)
 		log.Errorf("error evicting job %s: nodeSelector not initialised", job.GetId())
 	} else {
-		req.NodeSelector[schedulerconfig.NodeIdLabel] = node.Id
+		nodeSelector[schedulerconfig.NodeIdLabel] = node.Id
 	}
-
-	// Add a toleration to allow the job to be re-scheduled even if node is unschedulable.
-	//
-	// TODO: Because req is allocated by GetJobSchedulingInfo() if job is an api.Job, this toleration may not persist.
-	// In practice, this isn't an issue now since we don't check static requirements for evicted jobs.
-	if node.Unschedulable {
-		req.Tolerations = append(req.Tolerations, nodedb.UnschedulableToleration())
-	}
-
-	// We've changed the scheduling requirements and must clear any cached key.
-	req.ClearCachedSchedulingKey()
 }
