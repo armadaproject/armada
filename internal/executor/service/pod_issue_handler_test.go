@@ -119,7 +119,7 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfRetryableStuckPodStartsUpA
 	assert.Len(t, eventsReporter.ReceivedEvents, 0)
 	assert.Len(t, getActivePods(t, fakeClusterContext), 1)
 
-	// Now processes the issue as non-retryable and fails the po
+	// Now processes the issue as non-retryable and fails the pod
 	podIssueService.HandlePodIssues()
 	assert.Len(t, getActivePods(t, fakeClusterContext), 0)
 
