@@ -129,7 +129,6 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.Preemption.PriorityClassNameOverride,
 		config.Pulsar.MaxAllowedMessageSize,
 	)
-
 	if err != nil {
 		return errors.WithMessage(err, "error creating executorApi")
 	}
