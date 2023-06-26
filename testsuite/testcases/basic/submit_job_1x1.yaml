@@ -1,0 +1,28 @@
+numBatches: 1
+batchSize: 1
+queue: e2e-test-queue
+jobs:
+  - priority: 0
+    namespace: personal-anonymous
+    jobSpec:
+      backOffLimit: 0
+      restartPolicy: Never
+      spec:
+        containers:
+          - name: sleep
+            imagePullPolicy: IfNotPresent
+            image: alpine:3.10            
+            args:
+              - "ls"
+            resources:
+              limits:
+                memory: 10Mi
+                cpu: 100m
+              requests:
+                memory: 10Mi
+                cpu: 100m
+---
+timeout: "100s"
+expectedEvents:
+  - submitted:
+  - succeeded:
