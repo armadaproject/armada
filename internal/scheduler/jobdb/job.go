@@ -71,6 +71,20 @@ func NewJob(
 	cancelled bool,
 	created int64,
 ) *Job {
+	// Initialise the annotation and nodeSelector maps if nil.
+	// Since those need to be mutated in-place.
+	if schedulingInfo != nil {
+		for _, req := range schedulingInfo.ObjectRequirements {
+			if podReq := req.GetPodRequirements(); podReq != nil {
+				if podReq.Annotations == nil {
+					podReq.Annotations = make(map[string]string)
+				}
+				if podReq.NodeSelector == nil {
+					podReq.NodeSelector = make(map[string]string)
+				}
+			}
+		}
+	}
 	return &Job{
 		id:                      jobId,
 		jobset:                  jobset,
