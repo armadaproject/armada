@@ -53,7 +53,7 @@ type Run struct {
 }
 
 type JobGroup struct {
-	Aggregates map[string]string
+	Aggregates map[string]interface{}
 	Count      int64
 	Name       string
 }
