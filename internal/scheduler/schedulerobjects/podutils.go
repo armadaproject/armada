@@ -212,25 +212,6 @@ func (skg *PodRequirementsSerialiser) AppendResourceList(out []byte, resourceLis
 	return out
 }
 
-// ClearCachedSchedulingKey clears any cached scheduling keys.
-// Necessary after changing scheduling requirements to avoid inconsistency.
-func (jobSchedulingInfo *JobSchedulingInfo) ClearCachedSchedulingKey() {
-	if jobSchedulingInfo == nil {
-		return
-	}
-	for _, objReq := range jobSchedulingInfo.ObjectRequirements {
-		if req := objReq.GetPodRequirements(); req != nil {
-			req.ClearCachedSchedulingKey()
-		}
-	}
-}
-
-// ClearCachedSchedulingKey clears any cached scheduling key.
-// Necessary after changing scheduling requirements to avoid inconsistency.
-func (req *PodRequirements) ClearCachedSchedulingKey() {
-	req.CachedSchedulingKey = nil
-}
-
 func lessToleration(a, b v1.Toleration) bool {
 	if a.Key < b.Key {
 		return true
