@@ -20,16 +20,3 @@ type LegacySchedulerJob interface {
 	GetTolerations() []v1.Toleration
 	GetResourceRequirements() v1.ResourceRequirements
 }
-
-func PodRequirementFromLegacySchedulerJob(job LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
-	schedulingInfo := job.GetRequirements(priorityClasses)
-	if schedulingInfo == nil {
-		return nil
-	}
-	for _, objectReq := range schedulingInfo.ObjectRequirements {
-		if req := objectReq.GetPodRequirements(); req != nil {
-			return req
-		}
-	}
-	return nil
-}
