@@ -169,6 +169,7 @@ func (eventReporter *JobEventReporter) reportStatusUpdate(old *v1.Pod, new *v1.P
 	// Don't report status change for pods Armada is deleting
 	// This prevents reporting JobFailed when we delete a pod - for example due to cancellation
 	if util.IsMarkedForDeletion(new) {
+		log.Warnf("not sending event to report pod %s moving into phase %s as pod is marked for deletion", new.Name, new.Status.Phase)
 		return
 	}
 	eventReporter.reportCurrentStatus(new)

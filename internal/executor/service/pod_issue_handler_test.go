@@ -97,6 +97,37 @@ func TestPodIssueService_DeletesPodAndReportsLeaseReturned_IfRetryableStuckPod(t
 	assert.True(t, ok)
 }
 
+func TestPodIssueService_DeletesPodAndReportsFailed_IfRetryableStuckPodStartsUpAfterDeletionCalled(t *testing.T) {
+	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
+	retryableStuckPod := makeRetryableStuckPod(false)
+	addPod(t, fakeClusterContext, retryableStuckPod)
+
+	podIssueService.HandlePodIssues()
+
+	// Reports UnableToSchedule
+	assert.Len(t, eventsReporter.ReceivedEvents, 1)
+	_, ok := eventsReporter.ReceivedEvents[0].Event.(*api.JobUnableToScheduleEvent)
+	assert.True(t, ok)
+
+	// Reset events, and add pod back as running
+	eventsReporter.ReceivedEvents = []reporter.EventMessage{}
+	retryableStuckPod.Status.Phase = v1.PodRunning
+	addPod(t, fakeClusterContext, retryableStuckPod)
+
+	// Detects pod is now unexpectedly running and marks it non-retryable
+	podIssueService.HandlePodIssues()
+	assert.Len(t, eventsReporter.ReceivedEvents, 0)
+	assert.Len(t, getActivePods(t, fakeClusterContext), 1)
+
+	// Now processes the issue as non-retryable and fails the po
+	podIssueService.HandlePodIssues()
+	assert.Len(t, getActivePods(t, fakeClusterContext), 0)
+
+	assert.Len(t, eventsReporter.ReceivedEvents, 1)
+	_, ok = eventsReporter.ReceivedEvents[0].Event.(*api.JobFailedEvent)
+	assert.True(t, ok)
+}
+
 func TestPodIssueService_ReportsFailed_IfDeletedExternally(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
 	runningPod := makeRunningPod(false)
