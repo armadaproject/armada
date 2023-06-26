@@ -272,11 +272,14 @@ func assertErrorMessagesEqual(t *testing.T, expectedBytes []byte, actualBytes []
 
 func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobSchedulingInfo {
 	expectedSubmitSchedulingInfo := &schedulerobjects.JobSchedulingInfo{
-		Lifetime:        0,
-		AtMostOnce:      true,
-		Preemptible:     true,
-		ConcurrencySafe: true,
-		Version:         0,
+		Lifetime:          0,
+		AtMostOnce:        true,
+		Preemptible:       true,
+		ConcurrencySafe:   true,
+		Version:           0,
+		PriorityClassName: "test-priority",
+		Priority:          3,
+		SubmitTime:        f.BaseTime,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
