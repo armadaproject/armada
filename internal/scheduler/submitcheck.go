@@ -214,8 +214,9 @@ func (srv *SubmitChecker) getSchedulingResult(jctxs []*schedulercontext.JobSched
 		nodeDb := executor.nodeDb
 		txn := nodeDb.Txn(true)
 		ok, err := nodeDb.ScheduleManyWithTxn(txn, jctxs)
-		isSchedulable = isSchedulable || ok
 		txn.Abort()
+
+		isSchedulable = isSchedulable || ok
 
 		sb.WriteString(id)
 		if err != nil {
@@ -224,7 +225,6 @@ func (srv *SubmitChecker) getSchedulingResult(jctxs []*schedulercontext.JobSched
 			continue
 		}
 
-		isSchedulable = isSchedulable || ok
 		numSuccessfullyScheduled := 0
 		for _, jctx := range jctxs {
 			pctx := jctx.PodSchedulingContext
