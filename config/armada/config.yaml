@@ -34,6 +34,7 @@ scheduling:
   preemption:
     nodeEvictionProbability: 1.0
     nodeOversubscriptionEvictionProbability: 1.0
+    protectedFractionOfFairShare: 1.0
     setNodeIdSelector: true
     nodeIdLabel: kubernetes.io/hostname
     setNodeName: false

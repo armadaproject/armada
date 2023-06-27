@@ -2,6 +2,7 @@ package schedulerobjects
 
 import (
 	"fmt"
+	math "math"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -301,6 +302,17 @@ func (rl ResourceList) CompactString() string {
 	}
 	sb.WriteString("}")
 	return sb.String()
+}
+
+// AsWeightedMillis returns the linear combination of the milli values in rl with given weights.
+// This function overflows for values greater than MaxInt64. E.g., 1Pi is fine but not 10Pi.
+func (rl *ResourceList) AsWeightedMillis(weights map[string]float64) int64 {
+	var rv int64
+	for t, w := range weights {
+		q := rl.Get(t)
+		rv += int64(math.Round(float64(q.MilliValue()) * w))
+	}
+	return rv
 }
 
 func (rl *ResourceList) initialise() {

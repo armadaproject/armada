@@ -469,7 +469,11 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		schedulerobjects.ResourceList{Resources: totalCapacity},
 	)
 	for queue, priorityFactor := range priorityFactorByQueue {
-		if err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByQueueAndPriorityClassForPool[queue]); err != nil {
+		var weight float64 = 1
+		if priorityFactor > 0 {
+			weight = 1 / priorityFactor
+		}
+		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClassForPool[queue]); err != nil {
 			return nil, err
 		}
 	}
@@ -484,6 +488,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		constraints,
 		q.schedulingConfig.Preemption.NodeEvictionProbability,
 		q.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
+		q.schedulingConfig.Preemption.ProtectedFractionOfFairShare,
 		&SchedulerJobRepositoryAdapter{
 			r: q.jobRepository,
 		},
