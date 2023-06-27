@@ -37,6 +37,9 @@ type SchedulingContext struct {
 	DefaultPriorityClass string
 	// Determines how fairness is computed.
 	FairnessType configuration.FairnessType
+	// Used to convert one resource into another when computing fair share.
+	// Only applies to DominantResourceFairness.
+	FairnessResourceMappingBySourceResource map[string]configuration.ResourceMapping
 	// Weights used when computing total resource usage.
 	ResourceScarcity map[string]float64
 	// Per-queue scheduling contexts.
@@ -73,15 +76,13 @@ func NewSchedulingContext(
 	defaultPriorityClass string,
 	resourceScarcity map[string]float64,
 	totalResources schedulerobjects.ResourceList,
-	// fairnessType configuration.FairnessType,
 ) *SchedulingContext {
 	return &SchedulingContext{
-		Started:              time.Now(),
-		ExecutorId:           executorId,
-		Pool:                 pool,
-		PriorityClasses:      priorityClasses,
-		DefaultPriorityClass: defaultPriorityClass,
-		// TODO: Provide as argument.
+		Started:                           time.Now(),
+		ExecutorId:                        executorId,
+		Pool:                              pool,
+		PriorityClasses:                   priorityClasses,
+		DefaultPriorityClass:              defaultPriorityClass,
 		FairnessType:                      configuration.AssertFairness,
 		ResourceScarcity:                  resourceScarcity,
 		QueueSchedulingContexts:           make(map[string]*QueueSchedulingContext),
