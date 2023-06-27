@@ -327,7 +327,10 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 		if allocatedByQueueAndPriorityClass := accounting.allocationByPoolAndQueueAndPriorityClass[executor.Pool]; allocatedByQueueAndPriorityClass != nil {
 			allocatedByPriorityClass = allocatedByQueueAndPriorityClass[queue]
 		}
-		weight := 1 / priorityFactor
+		var weight float64 = 1
+		if priorityFactor > 0 {
+			weight = 1 / priorityFactor
+		}
 		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByPriorityClass); err != nil {
 			return nil, nil, err
 		}

@@ -469,7 +469,10 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		schedulerobjects.ResourceList{Resources: totalCapacity},
 	)
 	for queue, priorityFactor := range priorityFactorByQueue {
-		weight := 1 / priorityFactor
+		var weight float64 = 1
+		if priorityFactor > 0 {
+			weight = 1 / priorityFactor
+		}
 		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClassForPool[queue]); err != nil {
 			return nil, err
 		}
