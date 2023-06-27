@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
@@ -34,16 +35,14 @@ type SchedulingContext struct {
 	PriorityClasses map[string]configuration.PriorityClass
 	// Default priority class.
 	DefaultPriorityClass string
+	// Determines how fairness is computed.
+	FairnessType configuration.FairnessType
 	// Weights used when computing total resource usage.
 	ResourceScarcity map[string]float64
 	// Per-queue scheduling contexts.
 	QueueSchedulingContexts map[string]*QueueSchedulingContext
-	// Sum of weights across all queues.
-	WeightSum float64
 	// Total resources across all clusters available at the start of the scheduling cycle.
 	TotalResources schedulerobjects.ResourceList
-	// = TotalResources.AsWeightedMillis(ResourceScarcity).
-	TotalResourcesAsWeightedMillis int64
 	// Resources assigned across all queues during this scheduling cycle.
 	ScheduledResources                schedulerobjects.ResourceList
 	ScheduledResourcesByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
@@ -74,17 +73,19 @@ func NewSchedulingContext(
 	defaultPriorityClass string,
 	resourceScarcity map[string]float64,
 	totalResources schedulerobjects.ResourceList,
+	// fairnessType configuration.FairnessType,
 ) *SchedulingContext {
 	return &SchedulingContext{
-		Started:                           time.Now(),
-		ExecutorId:                        executorId,
-		Pool:                              pool,
-		PriorityClasses:                   priorityClasses,
-		DefaultPriorityClass:              defaultPriorityClass,
+		Started:              time.Now(),
+		ExecutorId:           executorId,
+		Pool:                 pool,
+		PriorityClasses:      priorityClasses,
+		DefaultPriorityClass: defaultPriorityClass,
+		// TODO: Provide as argument.
+		FairnessType:                      configuration.AssertFairness,
 		ResourceScarcity:                  resourceScarcity,
 		QueueSchedulingContexts:           make(map[string]*QueueSchedulingContext),
 		TotalResources:                    totalResources.DeepCopy(),
-		TotalResourcesAsWeightedMillis:    totalResources.AsWeightedMillis(resourceScarcity),
 		ScheduledResources:                schedulerobjects.NewResourceListWithDefaultSize(),
 		ScheduledResourcesByPriorityClass: make(schedulerobjects.QuantityByTAndResourceType[string]),
 		EvictedResourcesByPriorityClass:   make(schedulerobjects.QuantityByTAndResourceType[string]),
@@ -128,7 +129,6 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(queue string, weight fl
 	for _, rl := range initialAllocatedByPriorityClass {
 		allocated.Add(rl)
 	}
-	sctx.WeightSum += weight
 	qctx := &QueueSchedulingContext{
 		SchedulingContext:                 sctx,
 		Created:                           time.Now(),
@@ -149,6 +149,21 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(queue string, weight fl
 
 func (sctx *SchedulingContext) String() string {
 	return sctx.ReportString(0)
+}
+
+// TotalCostAndWeight returns the sum of the costs and weights across all queues.
+// Only queues with non-zero cost contribute towards the total weight.
+func (sctx *SchedulingContext) TotalCostAndWeight() (float64, float64) {
+	var cost float64
+	var weight float64
+	for _, qctx := range sctx.QueueSchedulingContexts {
+		queueCost := qctx.TotalCostForQueue()
+		if queueCost != 0 {
+			cost += queueCost
+			weight += qctx.Weight
+		}
+	}
+	return cost, weight
 }
 
 func (sctx *SchedulingContext) ReportString(verbosity int32) string {
@@ -496,17 +511,42 @@ func (qctx *QueueSchedulingContext) ClearJobSpecs() {
 	}
 }
 
-// FractionOfFairShare returns a number in [0, 1] indicating what fraction of its fair share this queue is allocated.
-func (qctx *QueueSchedulingContext) FractionOfFairShare() float64 {
-	return qctx.FractionOfFairShareWithAllocation(qctx.Allocated)
+// TotalCostForQueueWithAllocation returns the cost for which this queue should be penalised when computing fairness,
+// if the total allocation of this queue is given by allocated.
+func (qctx *QueueSchedulingContext) TotalCostForQueue() float64 {
+	return qctx.TotalCostForQueueWithAllocation(qctx.Allocated)
 }
 
-// FractionOfFairShareWithAllocation returns a number in [0, 1] indicating what
-// fraction of its fair share this queue is allocated if the total allocation of this queue is given by allocated.
-func (qctx *QueueSchedulingContext) FractionOfFairShareWithAllocation(allocated schedulerobjects.ResourceList) float64 {
-	fairShare := qctx.Weight / qctx.SchedulingContext.WeightSum
-	allocatedAsWeightedMillis := allocated.AsWeightedMillis(qctx.SchedulingContext.ResourceScarcity)
-	return (float64(allocatedAsWeightedMillis) / float64(qctx.SchedulingContext.TotalResourcesAsWeightedMillis)) / fairShare
+// TotalCostForQueueWithAllocation returns the cost for which this queue should be penalised when computing fairness,
+// if the total allocation of this queue is given by allocated.
+func (qctx *QueueSchedulingContext) TotalCostForQueueWithAllocation(allocated schedulerobjects.ResourceList) float64 {
+	switch qctx.SchedulingContext.FairnessType {
+	case configuration.AssertFairness:
+		return qctx.assetFairnessCostWithAllocation(allocated)
+	case configuration.DominantResourceFairness:
+		return qctx.dominantResourceFairnessCostWithAllocation(allocated)
+	default:
+		panic(fmt.Sprintf("unknown fairness type: %s", qctx.SchedulingContext.FairnessType))
+	}
+}
+
+func (qctx *QueueSchedulingContext) assetFairnessCostWithAllocation(allocated schedulerobjects.ResourceList) float64 {
+	return float64(allocated.AsWeightedMillis(qctx.SchedulingContext.ResourceScarcity)) / qctx.Weight
+}
+
+func (qctx *QueueSchedulingContext) dominantResourceFairnessCostWithAllocation(allocated schedulerobjects.ResourceList) float64 {
+	var cost float64
+	for t, q := range allocated.Resources {
+		totalq := qctx.SchedulingContext.TotalResources.Get(t)
+		if totalq.Cmp(resource.Quantity{}) == 0 {
+			totalq.SetMilli(1)
+		}
+		tcost := float64(q.MilliValue()) / float64(totalq.MilliValue())
+		if tcost > cost {
+			cost = tcost
+		}
+	}
+	return cost / qctx.Weight
 }
 
 type GangSchedulingContext struct {

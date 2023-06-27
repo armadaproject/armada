@@ -113,7 +113,11 @@ type SchedulingConfig struct {
 	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
-	// Weights used when computing fair share.
+	// Controls how fairness is calculated. Can be either AssetFairness or DominantResourceFairness.
+	FairnessType FairnessType
+	// Used to convert one resource into another when using DominantResourceFairness.
+	FairnessResourceMapping []ResourceMapping
+	// Weights used to compute fair share when using AssetFairness.
 	// Overrides dynamic scarcity calculation if provided.
 	// Applies to both the new and old scheduler.
 	ResourceScarcity map[string]float64
@@ -185,6 +189,33 @@ type SchedulingConfig struct {
 	MaxUnacknowledgedJobsPerExecutor uint
 	// If true, do not during scheduling skip jobs with requirements known to be impossible to meet.
 	AlwaysAttemptScheduling bool
+}
+
+// FairnessType controls how fairness is computed.
+// In particular, each queue has a cost associated with it and the next job to attempt to schedule
+// is taken from the queue with the smallest cost associated with it.
+//
+// Can be either AssetFairness or DominantResourceFairness.
+//
+// If AssetFairness, the cost associated with a queue is a linear combination of its total allocation.
+// E.g., w_CPU * "CPU allocation" + w_memory * "memory allocation".
+//
+// If DominantResourceFairness, the cost associated with a queue is
+// max("CPU allocation" / "CPU capacity", "memory allocation" / "mamory capacity", ...).
+type FairnessType string
+
+const (
+	AssertFairness           FairnessType = "AssertFairness"
+	DominantResourceFairness FairnessType = "DominantResourceFairness"
+)
+
+// ResourceMapping describes a mapping from one resource type to another. Used when computing fairness.
+// E.g., ResourceMapping{"nvidia.com/mig-1g.10gb", "nvidia.com/gpu", 1/8}
+// indicates 1 unit of "nvidia.com/mig-1g.10gb" should be trated as 1/8 unit of "nvidia.com/gpu".
+type ResourceMapping struct {
+	Source     string
+	Target     string
+	Multiplier float64
 }
 
 type IndexedResource struct {
