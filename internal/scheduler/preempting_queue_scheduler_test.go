@@ -1221,7 +1221,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					tc.TotalResources,
 				)
 				for queue, priorityFactor := range tc.PriorityFactorByQueue {
-					err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByQueueAndPriorityClass[queue])
+					weight := 1 / priorityFactor
+					err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClass[queue])
 					require.NoError(t, err)
 				}
 				constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
@@ -1482,7 +1483,8 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nodeDb.TotalResources(),
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
-				err := sctx.AddQueueSchedulingContext(queue, priorityFactor, make(schedulerobjects.QuantityByTAndResourceType[string]))
+				weight := 1 / priorityFactor
+				err := sctx.AddQueueSchedulingContext(queue, weight, make(schedulerobjects.QuantityByTAndResourceType[string]))
 				require.NoError(b, err)
 			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
@@ -1542,7 +1544,8 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					nodeDb.TotalResources(),
 				)
 				for queue, priorityFactor := range priorityFactorByQueue {
-					err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByQueueAndPriorityClass[queue])
+					weight := 1 / priorityFactor
+					err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClass[queue])
 					require.NoError(b, err)
 				}
 				sch := NewPreemptingQueueScheduler(

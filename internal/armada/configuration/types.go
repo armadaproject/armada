@@ -209,6 +209,8 @@ type PreemptionConfig struct {
 	// the probability of evicting jobs on oversubscribed nodes, i.e.,
 	// nodes on which the total resource requests are greater than the available resources.
 	NodeOversubscriptionEvictionProbability float64
+	// Jobs from queues allocated less than this fraction of their fair share are not evicted.
+	ProtectedFractionOfFairShare float64
 	// If true, the Armada scheduler will add to scheduled pods a node selector
 	// NodeIdLabel: <value of label on node selected by scheduler>.
 	// If true, NodeIdLabel must be non-empty.

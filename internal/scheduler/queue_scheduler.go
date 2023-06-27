@@ -3,7 +3,6 @@ package scheduler
 import (
 	"container/heap"
 	"context"
-	"math"
 	"reflect"
 	"time"
 
@@ -277,12 +276,6 @@ type CandidateGangIterator struct {
 	SchedulingContext *schedulercontext.SchedulingContext
 	// If true, this iterator only yields gangs where all jobs are evicted.
 	onlyYieldEvicted bool
-	// For each queue, weight is the inverse of the priority factor.
-	weightByQueue map[string]float64
-	// Sum of all weights.
-	weightSum float64
-	// Total weighted resources.
-	totalResourcesAsWeightedMillis int64
 	// Reusable buffer to avoid allocations.
 	buffer schedulerobjects.ResourceList
 	// Priority queue containing per-queue iterators.
@@ -294,28 +287,10 @@ func NewCandidateGangIterator(
 	sctx *schedulercontext.SchedulingContext,
 	iteratorsByQueue map[string]*QueuedGangIterator,
 ) (*CandidateGangIterator, error) {
-	weightSum := 0.0
-	weightByQueue := make(map[string]float64, len(iteratorsByQueue))
-	for queue := range iteratorsByQueue {
-		qctx := sctx.QueueSchedulingContexts[queue]
-		if qctx == nil {
-			return nil, errors.Errorf("no scheduling context for queue %s", queue)
-		}
-		weight := 1 / math.Max(qctx.PriorityFactor, 1)
-		weightByQueue[queue] = weight
-		weightSum += weight
-	}
-	totalResourcesAsWeightedMillis := ResourceListAsWeightedMillis(sctx.ResourceScarcity, sctx.TotalResources)
-	if totalResourcesAsWeightedMillis < 1 {
-		totalResourcesAsWeightedMillis = 1
-	}
 	it := &CandidateGangIterator{
-		SchedulingContext:              sctx,
-		weightByQueue:                  weightByQueue,
-		weightSum:                      weightSum,
-		totalResourcesAsWeightedMillis: totalResourcesAsWeightedMillis,
-		buffer:                         schedulerobjects.NewResourceListWithDefaultSize(),
-		pq:                             make(QueueCandidateGangIteratorPQ, 0, len(iteratorsByQueue)),
+		SchedulingContext: sctx,
+		buffer:            schedulerobjects.NewResourceListWithDefaultSize(),
+		pq:                make(QueueCandidateGangIteratorPQ, 0, len(iteratorsByQueue)),
 	}
 	for queue, queueIt := range iteratorsByQueue {
 		if _, err := it.updateAndPushPQItem(it.newPQItem(queue, queueIt)); err != nil {
@@ -372,17 +347,11 @@ func (it *CandidateGangIterator) updatePQItem(item *QueueCandidateGangIteratorIt
 
 // fractionOfFairShareWithGctx returns the fraction of its fair share this queue would have if the jobs in gctx were scheduled.
 func (it *CandidateGangIterator) fractionOfFairShareWithGctx(gctx *schedulercontext.GangSchedulingContext) float64 {
+	qctx := it.SchedulingContext.QueueSchedulingContexts[gctx.Queue]
 	it.buffer.Zero()
-	it.buffer.Add(it.SchedulingContext.QueueSchedulingContexts[gctx.Queue].Allocated)
+	it.buffer.Add(qctx.Allocated)
 	it.buffer.Add(gctx.TotalResourceRequests)
-	queueWeight := it.weightByQueue[gctx.Queue]
-	if queueWeight == 0 {
-		return 1
-	} else {
-		fairShare := queueWeight / it.weightSum
-		used := ResourceListAsWeightedMillis(it.SchedulingContext.ResourceScarcity, it.buffer)
-		return (float64(used) / float64(it.totalResourcesAsWeightedMillis)) / fairShare
-	}
+	return qctx.FractionOfFairShareWithAllocation(it.buffer)
 }
 
 // Clear removes the first item in the iterator.
