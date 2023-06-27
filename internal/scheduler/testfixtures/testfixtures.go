@@ -88,7 +88,7 @@ func ContextWithDefaultLogger(ctx context.Context) context.Context {
 
 func TestSchedulingConfig() configuration.SchedulingConfig {
 	return configuration.SchedulingConfig{
-		ResourceScarcity: map[string]float64{"cpu": 1, "memory": 0},
+		ResourceScarcity: map[string]float64{"cpu": 1},
 		Preemption: configuration.PreemptionConfig{
 			PriorityClasses:                         maps.Clone(TestPriorityClasses),
 			DefaultPriorityClass:                    TestDefaultPriorityClass,
@@ -101,8 +101,13 @@ func TestSchedulingConfig() configuration.SchedulingConfig {
 	}
 }
 
-func WithMaxUnacknowledgedJobsPerExecutor(i uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.MaxUnacknowledgedJobsPerExecutor = i
+func WithMaxUnacknowledgedJobsPerExecutorConfig(v uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.MaxUnacknowledgedJobsPerExecutor = v
+	return config
+}
+
+func WithProtectedFractionOfFairShareConfig(v float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.Preemption.ProtectedFractionOfFairShare = v
 	return config
 }
 

@@ -79,6 +79,7 @@ func NewPreemptingQueueScheduler(
 		constraints:                             constraints,
 		nodeEvictionProbability:                 nodeEvictionProbability,
 		nodeOversubscriptionEvictionProbability: nodeOversubscriptionEvictionProbability,
+		protectedFractionOfFairShare:            protectedFractionOfFairShare,
 		jobRepo:                                 jobRepo,
 		nodeDb:                                  nodeDb,
 		nodeIdByJobId:                           maps.Clone(initialNodeIdByJobId),
@@ -155,7 +156,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 					return false
 				}
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.GetQueue()]; ok {
-					if qctx.FractionOfFairShare() < sch.protectedFractionOfFairShare {
+					if qctx.FractionOfFairShare() <= sch.protectedFractionOfFairShare {
 						return false
 					}
 				}
