@@ -18,15 +18,15 @@ Most of the components (Lookout, Scheduler, Scheduler Ingester) rely on [Postgre
         Components configuration (e.g. LookoutConfiguration) can now make use of this interface instead of hardcoding PostgresConfig.
     */
     type DatabaseConfig interface {
-    	GetMaxOpenConns() int
-    	GetMaxIdleConns() int
-    	GetConnMaxLifetime() time.Duration
-    	GetConnectionString() string
+    	GetMaxOpenConns()       int
+    	GetMaxIdleConns()       int
+    	GetConnMaxLifetime()    time.Duration
+    	GetConnectionString()   string
     }
 
     type DatabaseConnection interface {
-    	GetConnection() (*sql.DB, error)
-    	GetConfig() DatabaseConfig
+    	GetConnection()     (*sql.DB, error)
+    	GetConfig()         DatabaseConfig
     }
 
 The existing configurations can then be tweaked to use the new generic `DatabaseConfig` interface instead of hardcoding `PostgresConfig`
