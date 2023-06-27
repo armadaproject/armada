@@ -343,6 +343,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 		constraints,
 		l.config.Preemption.NodeEvictionProbability,
 		l.config.Preemption.NodeOversubscriptionEvictionProbability,
+		l.config.Preemption.ProtectedFractionOfFairShare,
 		&schedulerJobRepositoryAdapter{
 			txn: txn,
 			db:  db,

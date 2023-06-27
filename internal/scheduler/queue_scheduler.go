@@ -62,7 +62,7 @@ func (sch *QueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 
 func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, error) {
 	log := ctxlogrus.Extract(ctx)
-	if ResourceListAsWeightedMillis(sch.schedulingContext.ResourceScarcity, sch.schedulingContext.TotalResources) == 0 {
+	if sch.schedulingContext.TotalResources.AsWeightedMillis(sch.schedulingContext.ResourceScarcity) == 0 {
 		// This refers to resources available across all clusters, i.e.,
 		// it may include resources not currently considered for scheduling.
 		log.Infof(
@@ -71,8 +71,8 @@ func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, erro
 		)
 		return &SchedulerResult{}, nil
 	}
-	if ResourceListAsWeightedMillis(sch.schedulingContext.ResourceScarcity, sch.gangScheduler.nodeDb.TotalResources()) == 0 {
-		// This refers to the resources currently considered for schedling.
+	if rl := sch.gangScheduler.nodeDb.TotalResources(); rl.AsWeightedMillis(sch.schedulingContext.ResourceScarcity) == 0 {
+		// This refers to the resources currently considered for scheduling.
 		log.Infof(
 			"no resources with non-zero weight available for scheduling in NodeDb: resource scarcity %v, total resources %v",
 			sch.schedulingContext.ResourceScarcity, sch.gangScheduler.nodeDb.TotalResources(),

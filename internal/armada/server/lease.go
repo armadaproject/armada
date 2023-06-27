@@ -485,6 +485,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		constraints,
 		q.schedulingConfig.Preemption.NodeEvictionProbability,
 		q.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
+		q.schedulingConfig.Preemption.ProtectedFractionOfFairShare,
 		&SchedulerJobRepositoryAdapter{
 			r: q.jobRepository,
 		},
