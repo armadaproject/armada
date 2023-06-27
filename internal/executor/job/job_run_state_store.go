@@ -51,12 +51,14 @@ func NewJobRunStateStore(clusterContext context.ClusterContext) *JobRunStateStor
 				return
 			}
 
-			stateStore.reportRunActive(pod)
+			if !util.IsPodFinishedAndReported(pod) {
+				stateStore.reportRunActive(pod)
+			}
 		},
 	})
 
 	// On start up, make sure our state matches current k8s state
-	err := stateStore.reconcileStateWithKubernetes()
+	err := stateStore.initialiseStateFromKubernetes()
 	if err != nil {
 		panic(err)
 	}
@@ -75,7 +77,7 @@ func NewJobRunStateStoreWithInitialState(initialJobRuns []*RunState) *JobRunStat
 	return stateStore
 }
 
-func (stateStore *JobRunStateStore) reconcileStateWithKubernetes() error {
+func (stateStore *JobRunStateStore) initialiseStateFromKubernetes() error {
 	pods, err := stateStore.clusterContext.GetAllPods()
 	if err != nil {
 		return err
@@ -84,7 +86,9 @@ func (stateStore *JobRunStateStore) reconcileStateWithKubernetes() error {
 		return !util.IsLegacyManagedPod(pod)
 	})
 	for _, pod := range pods {
-		stateStore.reportRunActive(pod)
+		if !util.IsPodFinishedAndReported(pod) {
+			stateStore.reportRunActive(pod)
+		}
 	}
 
 	return nil

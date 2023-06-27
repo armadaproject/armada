@@ -88,6 +88,6 @@ func testSmallCpuJobSchedulingContext(queue, priorityClassName string) *JobSched
 		NumNodes:   1,
 		JobId:      job.GetId(),
 		Job:        job,
-		Req:        job.GetRequirements(nil).ObjectRequirements[0].GetPodRequirements(),
+		Req:        job.GetJobSchedulingInfo(nil).ObjectRequirements[0].GetPodRequirements(),
 	}
 }

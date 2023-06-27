@@ -189,9 +189,11 @@ func setupExecutorApiComponents(
 		jobRunState,
 		submitter,
 		etcdHealthMonitor)
-	podIssueService := service.NewPodIssueService(
+	podIssueService := service.NewIssueHandler(
+		jobRunState,
 		clusterContext,
 		eventReporter,
+		config.Kubernetes.StateChecks,
 		pendingPodChecker,
 		config.Kubernetes.StuckTerminatingPodExpiry)
 
