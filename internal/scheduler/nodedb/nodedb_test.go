@@ -391,6 +391,16 @@ func TestScheduleIndividually(t *testing.T) {
 				ok, err := nodeDb.ScheduleMany([]*schedulercontext.JobSchedulingContext{jctx})
 				require.NoError(t, err)
 				pctx := jctx.PodSchedulingContext
+
+				if !tc.ExpectSuccess[i] {
+					assert.False(t, ok)
+					if pctx != nil {
+						assert.Nil(t, pctx.Node)
+					}
+					continue
+				}
+
+				assert.True(t, ok)
 				require.NotNil(t, pctx)
 
 				node := pctx.Node
