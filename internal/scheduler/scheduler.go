@@ -344,8 +344,6 @@ func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job
 		}
 	}
 	podSchedulingRequirement.Affinity = newAffinity
-	podSchedulingRequirement.ClearCachedSchedulingKey()
-
 	return newSchedulingInfo, nil
 }
 
