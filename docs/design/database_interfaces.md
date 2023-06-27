@@ -15,7 +15,7 @@ Open source projects should not be hard coded to a particular Database. Armada c
 Most of the components (Lookout, Scheduler, Scheduler Ingester) rely on [PostgresConfig](github.com/armadaproject/armada/internal/armada/configuration) to connect to external databases, we can avoid hardcoding the configuration of those components to use `PostgresConfig` but defining a generic `DatabaseConfig` interface that's when implemented will provide those components with the necessary details to connect to databases.
 
     /**
-    Components configuration (e.g. ArmadaConfiguration) can now make use of this interface instead of hardcoding PostgresConfig.
+        Components configuration (e.g. LookoutConfiguration) can now make use of this interface instead of hardcoding PostgresConfig.
     */
     type DatabaseConfig interface {
     	GetMaxOpenConns() int
@@ -31,8 +31,7 @@ Most of the components (Lookout, Scheduler, Scheduler Ingester) rely on [Postgre
 
 The existing configurations can then be tweaked to use the new generic `DatabaseConfig` interface instead of hardcoding `PostgresConfig`
 
-    type ArmadaConfig struct {
-        ...
-        Postgres 		 PostgresConfig // this can be replace now
-        PulsarDedupStore DatabaseConfig // new property
+    type LookoutConfiguration struct {
+        Postgres    PostgresConfig // this can be replaced with the new Database property
+        Database    DatabaseConfig // new property
     }
