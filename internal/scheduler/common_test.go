@@ -132,7 +132,7 @@ func TestResourceListAsWeightedMillis(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, ResourceListAsWeightedMillis(tc.weights, tc.rl))
+			assert.Equal(t, tc.expected, tc.rl.AsWeightedMillis(tc.weights))
 		})
 	}
 }
@@ -149,6 +149,6 @@ func BenchmarkResourceListAsWeightedMillis(b *testing.B) {
 	}
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		ResourceListAsWeightedMillis(weights, rl)
+		rl.AsWeightedMillis(weights)
 	}
 }

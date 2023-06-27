@@ -1135,6 +1135,122 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"B": 1,
 			},
 		},
+		"ProtectedFractionOfFairShare": {
+			SchedulingConfig: testfixtures.WithProtectedFractionOfFairShareConfig(
+				1.0,
+				testfixtures.TestSchedulingConfig(),
+			),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 10),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 9),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass3, 22),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": testfixtures.IntRange(0, 21),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"C": testfixtures.N1CpuJobs("C", testfixtures.PriorityClass0, 1),
+					},
+				},
+				{}, // Empty round to make sure nothing changes.
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+				"C": 1,
+			},
+		},
+		"ProtectedFractionOfFairShare at limit": {
+			SchedulingConfig: testfixtures.WithProtectedFractionOfFairShareConfig(
+				0.5,
+				testfixtures.TestSchedulingConfig(),
+			),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 8),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 7),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass3, 24),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": testfixtures.IntRange(0, 23),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"C": testfixtures.N1CpuJobs("C", testfixtures.PriorityClass0, 1),
+					},
+				},
+				{}, // Empty round to make sure nothing changes.
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 0.5,
+				"B": 1,
+				"C": 1,
+			},
+		},
+		"ProtectedFractionOfFairShare above limit": {
+			SchedulingConfig: testfixtures.WithProtectedFractionOfFairShareConfig(
+				0.5,
+				testfixtures.TestSchedulingConfig(),
+			),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 9),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 8),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.N1CpuJobs("B", testfixtures.PriorityClass3, 23),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": testfixtures.IntRange(0, 22),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"C": testfixtures.N1CpuJobs("C", testfixtures.PriorityClass0, 1),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"C": testfixtures.IntRange(0, 0),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: testfixtures.IntRange(8, 8),
+						},
+					},
+				},
+				{}, // Empty round to make sure nothing changes.
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+				"C": 1,
+			},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -1219,7 +1335,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					tc.TotalResources,
 				)
 				for queue, priorityFactor := range tc.PriorityFactorByQueue {
-					err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByQueueAndPriorityClass[queue])
+					weight := 1 / priorityFactor
+					err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClass[queue])
 					require.NoError(t, err)
 				}
 				constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
@@ -1233,6 +1350,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					constraints,
 					tc.SchedulingConfig.Preemption.NodeEvictionProbability,
 					tc.SchedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
+					tc.SchedulingConfig.Preemption.ProtectedFractionOfFairShare,
 					repo,
 					nodeDb,
 					nodeIdByJobId,
@@ -1480,7 +1598,8 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nodeDb.TotalResources(),
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
-				err := sctx.AddQueueSchedulingContext(queue, priorityFactor, make(schedulerobjects.QuantityByTAndResourceType[string]))
+				weight := 1 / priorityFactor
+				err := sctx.AddQueueSchedulingContext(queue, weight, make(schedulerobjects.QuantityByTAndResourceType[string]))
 				require.NoError(b, err)
 			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
@@ -1494,6 +1613,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				constraints,
 				tc.SchedulingConfig.Preemption.NodeEvictionProbability,
 				tc.SchedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
+				tc.SchedulingConfig.Preemption.ProtectedFractionOfFairShare,
 				jobRepo,
 				nodeDb,
 				nil,
@@ -1539,7 +1659,8 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					nodeDb.TotalResources(),
 				)
 				for queue, priorityFactor := range priorityFactorByQueue {
-					err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByQueueAndPriorityClass[queue])
+					weight := 1 / priorityFactor
+					err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClass[queue])
 					require.NoError(b, err)
 				}
 				sch := NewPreemptingQueueScheduler(
@@ -1547,6 +1668,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					constraints,
 					tc.SchedulingConfig.Preemption.NodeEvictionProbability,
 					tc.SchedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
+					tc.SchedulingConfig.Preemption.ProtectedFractionOfFairShare,
 					jobRepo,
 					nodeDb,
 					nil,
