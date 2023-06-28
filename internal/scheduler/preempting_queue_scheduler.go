@@ -135,6 +135,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 	snapshot := sch.nodeDb.Txn(false)
 
 	// Evict preemptible jobs.
+	totalCost := sch.schedulingContext.TotalCost()
 	evictorResult, inMemoryJobRepo, err := sch.evict(
 		ctxlogrus.ToContext(
 			ctx,
@@ -156,7 +157,10 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 					return false
 				}
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.GetQueue()]; ok {
-					if qctx.FractionOfFairShare() <= sch.protectedFractionOfFairShare {
+					fairShare := qctx.Weight / sch.schedulingContext.WeightSum
+					actualShare := qctx.TotalCostForQueue() / totalCost
+					fractionOfFairShare := actualShare / fairShare
+					if fractionOfFairShare <= sch.protectedFractionOfFairShare {
 						return false
 					}
 				}
@@ -544,15 +548,7 @@ func (sch *PreemptingQueueScheduler) unbindJobs(jobs []interfaces.LegacySchedule
 		if err != nil {
 			return err
 		}
-		node, err = nodedb.UnbindPodsFromNode(
-			util.Map(
-				jobsOnNode,
-				func(job interfaces.LegacySchedulerJob) *schedulerobjects.PodRequirements {
-					return PodRequirementFromLegacySchedulerJob(job, sch.schedulingContext.PriorityClasses)
-				},
-			),
-			node,
-		)
+		node, err = nodedb.UnbindJobsFromNode(sch.schedulingContext.PriorityClasses, jobsOnNode, node)
 		if err != nil {
 			return err
 		}
@@ -814,11 +810,7 @@ func (evi *Evictor) Evict(ctx context.Context, it nodedb.NodeIterator) (*Evictor
 			if evi.jobFilter != nil && !evi.jobFilter(ctx, job) {
 				continue
 			}
-			req := PodRequirementFromLegacySchedulerJob(job, evi.priorityClasses)
-			if req == nil {
-				continue
-			}
-			node, err = nodedb.EvictPodFromNode(req, node)
+			node, err = nodedb.EvictJobFromNode(evi.priorityClasses, job, node)
 			if err != nil {
 				return nil, err
 			}

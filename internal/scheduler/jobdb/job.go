@@ -180,16 +180,10 @@ func (job *Job) JobSchedulingInfo() *schedulerobjects.JobSchedulingInfo {
 // GetAnnotations returns the annotations on the job.
 // This is needed for compatibility with interfaces.LegacySchedulerJob
 func (job *Job) GetAnnotations() map[string]string {
-	if req := job.getPodRequirements(); req != nil {
+	if req := job.PodRequirements(); req != nil {
 		return req.Annotations
 	}
 	return nil
-}
-
-// GetRequirements returns the scheduling requirements associated with the job.
-// Needed for compatibility with interfaces.LegacySchedulerJob
-func (job *Job) GetJobSchedulingInfo(_ map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
-	return job.JobSchedulingInfo()
 }
 
 // Needed for compatibility with interfaces.LegacySchedulerJob
@@ -199,7 +193,7 @@ func (job *Job) GetPriorityClassName() string {
 
 // Needed for compatibility with interfaces.LegacySchedulerJob
 func (job *Job) GetNodeSelector() map[string]string {
-	if req := job.getPodRequirements(); req != nil {
+	if req := job.PodRequirements(); req != nil {
 		return req.NodeSelector
 	}
 	return nil
@@ -207,7 +201,7 @@ func (job *Job) GetNodeSelector() map[string]string {
 
 // Needed for compatibility with interfaces.LegacySchedulerJob
 func (job *Job) GetAffinity() *v1.Affinity {
-	if req := job.getPodRequirements(); req != nil {
+	if req := job.PodRequirements(); req != nil {
 		return req.Affinity
 	}
 	return nil
@@ -215,7 +209,7 @@ func (job *Job) GetAffinity() *v1.Affinity {
 
 // Needed for compatibility with interfaces.LegacySchedulerJob
 func (job *Job) GetTolerations() []v1.Toleration {
-	if req := job.getPodRequirements(); req != nil {
+	if req := job.PodRequirements(); req != nil {
 		return req.Tolerations
 	}
 	return nil
@@ -223,21 +217,19 @@ func (job *Job) GetTolerations() []v1.Toleration {
 
 // Needed for compatibility with interfaces.LegacySchedulerJob
 func (job *Job) GetResourceRequirements() v1.ResourceRequirements {
-	if req := job.getPodRequirements(); req != nil {
+	if req := job.PodRequirements(); req != nil {
 		return req.ResourceRequirements
 	}
 	return v1.ResourceRequirements{}
 }
 
-func (job *Job) getPodRequirements() *schedulerobjects.PodRequirements {
-	requirements := job.jobSchedulingInfo.GetObjectRequirements()
-	if len(requirements) == 0 {
-		return nil
-	}
-	if podReqs := requirements[0].GetPodRequirements(); podReqs != nil {
-		return podReqs
-	}
-	return nil
+func (job *Job) PodRequirements() *schedulerobjects.PodRequirements {
+	return job.jobSchedulingInfo.GetPodRequirements()
+}
+
+// GetPodRequirements is needed for compatibility with interfaces.LegacySchedulerJob.
+func (job *Job) GetPodRequirements(_ map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
+	return job.PodRequirements()
 }
 
 // Queued returns true if the job should be considered by the scheduler for assignment or false otherwise.

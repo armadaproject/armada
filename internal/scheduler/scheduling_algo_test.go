@@ -373,8 +373,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 						run := job.LatestRun()
 						node.StateByJobRunId[run.Id().String()] = schedulerobjects.JobRunState_RUNNING
 
-						req := PodRequirementFromLegacySchedulerJob(job, tc.schedulingConfig.Preemption.PriorityClasses)
-						node, err = nodedb.BindPodToNode(req, node)
+						node, err = nodedb.BindJobToNode(tc.schedulingConfig.Preemption.PriorityClasses, job, node)
 						require.NoError(t, err)
 					}
 
