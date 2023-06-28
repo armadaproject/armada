@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -29,17 +30,18 @@ type executor struct {
 }
 
 type DefaultPoolAssigner struct {
-	executorTimeout    time.Duration
-	priorityClasses    map[string]configuration.PriorityClass
-	priorities         []int32
-	indexedResources   []string
-	indexedTaints      []string
-	indexedNodeLabels  []string
-	poolByExecutorId   map[string]string
-	executorsByPool    map[string][]*executor
-	executorRepository database.ExecutorRepository
-	poolCache          *lru.Cache
-	clock              clock.Clock
+	executorTimeout        time.Duration
+	priorityClasses        map[string]configuration.PriorityClass
+	priorities             []int32
+	indexedResources       []configuration.IndexedResource
+	indexedTaints          []string
+	indexedNodeLabels      []string
+	poolByExecutorId       map[string]string
+	executorsByPool        map[string][]*executor
+	executorRepository     database.ExecutorRepository
+	schedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
+	poolCache              *lru.Cache
+	clock                  clock.Clock
 }
 
 func NewPoolAssigner(executorTimeout time.Duration,
@@ -51,17 +53,18 @@ func NewPoolAssigner(executorTimeout time.Duration,
 		return nil, errors.Wrap(err, "error  creating PoolAssigner pool cache")
 	}
 	return &DefaultPoolAssigner{
-		executorTimeout:    executorTimeout,
-		priorityClasses:    schedulingConfig.Preemption.PriorityClasses,
-		executorsByPool:    map[string][]*executor{},
-		poolByExecutorId:   map[string]string{},
-		priorities:         schedulingConfig.Preemption.AllowedPriorities(),
-		indexedResources:   schedulingConfig.IndexedResources,
-		indexedTaints:      schedulingConfig.IndexedTaints,
-		indexedNodeLabels:  schedulingConfig.IndexedNodeLabels,
-		executorRepository: executorRepository,
-		poolCache:          poolCache,
-		clock:              clock.RealClock{},
+		executorTimeout:        executorTimeout,
+		priorityClasses:        schedulingConfig.Preemption.PriorityClasses,
+		executorsByPool:        map[string][]*executor{},
+		poolByExecutorId:       map[string]string{},
+		priorities:             schedulingConfig.Preemption.AllowedPriorities(),
+		indexedResources:       schedulingConfig.IndexedResources,
+		indexedTaints:          schedulingConfig.IndexedTaints,
+		indexedNodeLabels:      schedulingConfig.IndexedNodeLabels,
+		executorRepository:     executorRepository,
+		schedulingKeyGenerator: schedulerobjects.NewSchedulingKeyGenerator(),
+		poolCache:              poolCache,
+		clock:                  clock.RealClock{},
 	}, nil
 }
 
@@ -88,6 +91,7 @@ func (p *DefaultPoolAssigner) Refresh(ctx context.Context) error {
 	}
 	p.executorsByPool = executorsByPool
 	p.poolByExecutorId = poolByExecutorId
+	p.schedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGenerator()
 	p.poolCache.Purge()
 	return nil
 }
@@ -100,35 +104,48 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	}
 
 	// See if we have this set of reqs cached.
-	if schedulingKey, ok := j.JobSchedulingInfo().SchedulingKey(); ok {
-		if cachedPool, ok := p.poolCache.Get(schedulingKey); ok {
-			return cachedPool.(string), nil
-		}
+	var priority int32
+	if priorityClass, ok := p.priorityClasses[j.GetPriorityClassName()]; ok {
+		priority = priorityClass.Priority
+	}
+	schedulingKey := p.schedulingKeyGenerator.Key(
+		j.GetNodeSelector(),
+		j.GetAffinity(),
+		j.GetTolerations(),
+		j.GetResourceRequirements().Requests,
+		priority,
+	)
+	if cachedPool, ok := p.poolCache.Get(schedulingKey); ok {
+		return cachedPool.(string), nil
 	}
 
-	req := PodRequirementFromJobSchedulingInfo(j.JobSchedulingInfo())
+	req := j.PodRequirements()
 	req = p.clearAnnotations(req)
 
 	// Otherwise iterate through each pool and detect the first one the job is potentially schedulable on
 	for pool, executors := range p.executorsByPool {
 		for _, e := range executors {
-			minReqsMet, _ := requestIsLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(
-				req.GetResourceRequirements().Requests,
-			), e.minimumJobSize)
-			if minReqsMet {
-				nodeDb := e.nodeDb
-				txn := nodeDb.Txn(true)
-				report, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
-				txn.Abort()
-				if err != nil {
-					return "", errors.WithMessagef(err, "error selecting node for job %s", j.Id())
-				}
-				if report.Node != nil {
-					if schedulingKey, ok := j.JobSchedulingInfo().SchedulingKey(); ok {
-						p.poolCache.Add(schedulingKey, pool)
-					}
-					return pool, nil
-				}
+			requests := req.GetResourceRequirements().Requests
+			if ok, _ := requestsAreLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(requests), e.minimumJobSize); !ok {
+				continue
+			}
+			nodeDb := e.nodeDb
+			txn := nodeDb.Txn(true)
+			jctx := &schedulercontext.JobSchedulingContext{
+				Created:         time.Now(),
+				JobId:           j.GetId(),
+				Job:             j,
+				PodRequirements: j.GetPodRequirements(p.priorityClasses),
+			}
+			err := nodeDb.SelectNodeForJobWithTxn(txn, jctx)
+			txn.Abort()
+			if err != nil {
+				return "", errors.WithMessagef(err, "error selecting node for job %s", j.Id())
+			}
+			pctx := jctx.PodSchedulingContext
+			if pctx != nil && pctx.Node != nil {
+				p.poolCache.Add(schedulingKey, pool)
+				return pool, nil
 			}
 		}
 	}

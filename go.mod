@@ -88,9 +88,11 @@ require (
 	github.com/jackc/pgx/v5 v5.3.1
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/magefile/mage v1.14.0
+	github.com/minio/highwayhash v1.0.2
 	github.com/openconfig/goyang v1.2.0
 	github.com/prometheus/common v0.37.0
 	github.com/sanity-io/litter v1.5.5
+	github.com/segmentio/fasthash v1.0.3
 )
 
 require (

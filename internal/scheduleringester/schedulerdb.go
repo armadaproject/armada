@@ -42,10 +42,9 @@ func NewSchedulerDb(
 	}
 }
 
-// Store persists all operations in the database.  Note that:
-//   - this function will retry until it either succeeds or a terminal error is encountered
-//   - this function will take out a postgres lock to ensure that other ingesters are not writing to the database
-//     at the same time (for details, see acquireLock())
+// Store persists all operations in the database.
+// This function retires until it either succeeds or encounters a terminal error.
+// This function locks the postgres table to avoid write conflicts; see acquireLock() for details.
 func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithMessageIds) error {
 	return ingest.WithRetry(func() (bool, error) {
 		err := s.db.BeginTxFunc(ctx, pgx.TxOptions{
@@ -53,36 +52,38 @@ func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithM
 			AccessMode:     pgx.ReadWrite,
 			DeferrableMode: pgx.Deferrable,
 		}, func(tx pgx.Tx) error {
-			// First acquire the write lock
 			lockCtx, cancel := context.WithTimeout(ctx, s.lockTimeout)
 			defer cancel()
-			err := s.acquireLock(lockCtx, tx)
-			if err != nil {
+			// The lock is released automatically on transaction rollback/commit.
+			if err := s.acquireLock(lockCtx, tx); err != nil {
 				return err
 			}
-			// Now insert the ops
 			for _, dbOp := range instructions.Ops {
-				err := s.WriteDbOp(ctx, tx, dbOp)
-				if err != nil {
+				if err := s.WriteDbOp(ctx, tx, dbOp); err != nil {
 					return err
 				}
 			}
-			return err
+			return nil
 		})
 		return true, err
 	}, s.initialBackOff, s.maxBackOff)
 }
 
-// acquireLock acquires the armada_scheduleringester_lock, which prevents two ingesters writing to the db at the same
-// time.  This is necessary because:
-// - when rows are inserted into the database they are stamped with a sequence number
-// - the scheduler relies on this sequence number increasing to ensure it has fetched all updated rows
-// - concurrent transactions will result in sequence numbers being interleaved across transactions.
-// - the interleaved sequences may result in the scheduler seeing sequence numbers that do not strictly increase over time.
+// acquireLock acquires a postgres advisory lock, thus preventing concurrent writes.
+// This is necessary to ensure sequence numbers assigned to each inserted row are monotonically increasing.
+// Such a sequence number is assigned to each inserted row by a postgres function.
+//
+// Hence, if rows are inserted across multiple transactions concurrently,
+// sequence numbers may be interleaved between transactions and the slower transaction may insert
+// rows with sequence numbers smaller than those already written.
+//
+// The scheduler relies on these sequence numbers to only fetch new or updated rows in each update cycle.
 func (s *SchedulerDb) acquireLock(ctx context.Context, tx pgx.Tx) error {
 	const lockId = 8741339439634283896
-	_, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockId)
-	return errors.Wrapf(err, "Could not obtain lock")
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockId); err != nil {
+		return errors.Wrapf(err, "could not obtain lock")
+	}
+	return nil
 }
 
 func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) error {

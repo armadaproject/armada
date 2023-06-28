@@ -13,6 +13,7 @@ const (
 	MatchLessThan             = "lessThan"
 	MatchGreaterThanOrEqualTo = "greaterThanOrEqualTo"
 	MatchLessThanOrEqualTo    = "lessThanOrEqualTo"
+	MatchExists               = "exists"
 
 	DirectionAsc  = "ASC"
 	DirectionDesc = "DESC"
@@ -52,7 +53,7 @@ type Run struct {
 }
 
 type JobGroup struct {
-	Aggregates map[string]string
+	Aggregates map[string]interface{}
 	Count      int64
 	Name       string
 }
@@ -67,4 +68,9 @@ type Filter struct {
 type Order struct {
 	Direction string
 	Field     string
+}
+
+type GroupedField struct {
+	Field        string
+	IsAnnotation bool
 }

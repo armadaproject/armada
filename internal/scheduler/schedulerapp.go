@@ -115,7 +115,7 @@ func Run(config schedulerconfig.Configuration) error {
 	defer grpcServer.GracefulStop()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Grpc.Port))
 	if err != nil {
-		return errors.WithMessage(err, "error setting up grpc server")
+		return errors.WithMessage(err, "error setting up gRPC server")
 	}
 	allowedPcs := config.Scheduling.Preemption.AllowedPriorities()
 	executorServer, err := NewExecutorApi(
@@ -127,6 +127,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.MaximumJobsToSchedule,
 		config.Scheduling.Preemption.NodeIdLabel,
 		config.Scheduling.Preemption.PriorityClassNameOverride,
+		config.Pulsar.MaxAllowedMessageSize,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating executorApi")
@@ -158,7 +159,11 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating submit checker")
 	}
-	schedulingAlgo := NewFairSchedulingAlgo(config.Scheduling, config.MaxSchedulingDuration, executorRepository, queueRepository)
+	// TODO(reports): Pass in a non-nil SchedulingContextRepository.
+	schedulingAlgo, err := NewFairSchedulingAlgo(config.Scheduling, config.MaxSchedulingDuration, executorRepository, queueRepository, nil)
+	if err != nil {
+		return errors.WithMessage(err, "error creating scheduling algo")
+	}
 	scheduler, err := NewScheduler(
 		jobRepository,
 		executorRepository,

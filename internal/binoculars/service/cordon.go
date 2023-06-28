@@ -93,7 +93,7 @@ func GetPatchBytes(patchData *nodePatch) ([]byte, error) {
 
 func checkPermission(p authorization.PermissionChecker, ctx context.Context, permission permission.Permission) error {
 	if !p.UserHasPermission(ctx, permission) {
-		return fmt.Errorf("user %s does not have permission %s", authorization.GetPrincipal(ctx), permission)
+		return fmt.Errorf("user %s does not have permission %s", authorization.GetPrincipal(ctx).GetName(), permission)
 	}
 	return nil
 }

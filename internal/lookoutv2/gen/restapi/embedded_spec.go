@@ -70,10 +70,21 @@ func init() {
                   "x-nullable": true
                 },
                 "groupedField": {
-                  "description": "Field to group jobs by",
-                  "type": "string",
-                  "minLength": 1,
-                  "x-nullable": false
+                  "type": "object",
+                  "required": [
+                    "field"
+                  ],
+                  "properties": {
+                    "field": {
+                      "description": "Field or annotation key to group by",
+                      "type": "string",
+                      "x-nullable": false
+                    },
+                    "isAnnotation": {
+                      "type": "boolean",
+                      "x-nullable": false
+                    }
+                  }
                 },
                 "order": {
                   "description": "Ordering to apply to job groups.",
@@ -394,7 +405,8 @@ func init() {
             "greaterThan",
             "lessThan",
             "greaterThanOrEqualTo",
-            "lessThanOrEqualTo"
+            "lessThanOrEqualTo",
+            "exists"
           ],
           "x-nullable": false
         },
@@ -414,7 +426,7 @@ func init() {
         "aggregates": {
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": "object"
           },
           "x-nullable": false
         },
@@ -697,10 +709,21 @@ func init() {
                   "x-nullable": true
                 },
                 "groupedField": {
-                  "description": "Field to group jobs by",
-                  "type": "string",
-                  "minLength": 1,
-                  "x-nullable": false
+                  "type": "object",
+                  "required": [
+                    "field"
+                  ],
+                  "properties": {
+                    "field": {
+                      "description": "Field or annotation key to group by",
+                      "type": "string",
+                      "x-nullable": false
+                    },
+                    "isAnnotation": {
+                      "type": "boolean",
+                      "x-nullable": false
+                    }
+                  }
                 },
                 "order": {
                   "description": "Ordering to apply to job groups.",
@@ -981,6 +1004,23 @@ func init() {
     }
   },
   "definitions": {
+    "GroupJobsParamsBodyGroupedField": {
+      "type": "object",
+      "required": [
+        "field"
+      ],
+      "properties": {
+        "field": {
+          "description": "Field or annotation key to group by",
+          "type": "string",
+          "x-nullable": false
+        },
+        "isAnnotation": {
+          "type": "boolean",
+          "x-nullable": false
+        }
+      }
+    },
     "error": {
       "type": "object",
       "required": [
@@ -1021,7 +1061,8 @@ func init() {
             "greaterThan",
             "lessThan",
             "greaterThanOrEqualTo",
-            "lessThanOrEqualTo"
+            "lessThanOrEqualTo",
+            "exists"
           ],
           "x-nullable": false
         },
@@ -1041,7 +1082,7 @@ func init() {
         "aggregates": {
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": "object"
           },
           "x-nullable": false
         },

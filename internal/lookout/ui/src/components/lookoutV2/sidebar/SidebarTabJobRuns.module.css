@@ -5,3 +5,16 @@
     justify-content: center;
     margin-bottom: 0.5em;
 }
+
+.markUnschedulableButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 10px 0 10px 0;
+}
+
+.markUnschedulableDialog {
+  display: flex;
+  align-items: center !important;
+  justify-content: center !important;
+}

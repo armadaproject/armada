@@ -365,25 +365,8 @@ func TotalPodResourceRequest(podSpec *v1.PodSpec) ComputeResources {
 		containerResource := FromResourceList(container.Resources.Requests)
 		totalResources.Add(containerResource)
 	}
-
 	for _, initContainer := range podSpec.InitContainers {
 		containerResource := FromResourceList(initContainer.Resources.Requests)
-		totalResources.Max(containerResource)
-	}
-	return totalResources
-}
-
-// TotalPodResourceLimit function calculates the maximum total resource (cpu, memory, etc.) limits in the pod for
-// each resource by iterating through all containers and initContainers in the pod.
-func TotalPodResourceLimit(podSpec *v1.PodSpec) ComputeResources {
-	totalResources := make(ComputeResources)
-	for _, container := range podSpec.Containers {
-		containerResource := FromResourceList(container.Resources.Limits)
-		totalResources.Add(containerResource)
-	}
-
-	for _, initContainer := range podSpec.InitContainers {
-		containerResource := FromResourceList(initContainer.Resources.Limits)
 		totalResources.Max(containerResource)
 	}
 	return totalResources

@@ -46,6 +46,8 @@ func CheckDeps() error {
 		{"kubectl", kubectlCheck},
 		{"protoc", protocCheck},
 		{"sqlc", sqlcCheck},
+		{"docker compose", dockerComposeCheck},
+		{"docker buildx", dockerBuildxCheck},
 	}
 	failures := false
 	for _, check := range checks {

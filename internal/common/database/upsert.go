@@ -109,53 +109,6 @@ func Upsert[T any](ctx context.Context, tx pgx.Tx, tableName string, records []T
 	return nil
 }
 
-// NamesFromRecord returns a slice composed of the field names in a struct marked with "db" tags.
-//
-// For example, if x is an instance of a struct with definition
-//
-//	type Rectangle struct {
-//		Width int  `db:"width"`
-//		Height int `db:"height"`
-//	},
-//
-// it returns ["width", "height"].
-func NamesFromRecord(x interface{}) []string {
-	t := reflect.TypeOf(x)
-	names := make([]string, 0, t.NumField())
-	for i := 0; i < t.NumField(); i++ {
-		name := t.Field(i).Tag.Get("db")
-		if name != "" {
-			names = append(names, name)
-		}
-	}
-	return names
-}
-
-// ValuesFromRecord returns a slice composed of the values of the fields in a struct marked with "db" tags.
-//
-// For example, if x is an instance of a struct with definition
-//
-//	type Rectangle struct {
-//	 Name string,
-//		Width int  `db:"width"`
-//		Height int `db:"height"`
-//	},
-//
-// where Width = 5 and Height = 10, it returns [5, 10].
-func ValuesFromRecord(x interface{}) []interface{} {
-	t := reflect.TypeOf(x)
-	v := reflect.ValueOf(x)
-	values := make([]interface{}, 0, v.NumField())
-	for i := 0; i < t.NumField(); i++ {
-		name := t.Field(i).Tag.Get("db")
-		if name != "" {
-			value := v.Field(i).Interface()
-			values = append(values, value)
-		}
-	}
-	return values
-}
-
 // NamesValuesFromRecord returns a slice composed of the field names
 // and another composed of the corresponding values
 // for fields of a struct marked with "db" tags.

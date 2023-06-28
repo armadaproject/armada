@@ -1,6 +1,6 @@
 [project]
 name = "armada_airflow"
-version = "0.4.0"
+version = "0.4.1"
 description = "Armada Airflow Operator"
 requires-python = ">=3.7"
 # Note(JayF): This dependency value is not suitable for release. Whatever
@@ -19,9 +19,10 @@ license = { text = "Apache Software License" }
 readme = "README.md"
 
 [project.optional-dependencies]
-format = ["black==23.3.0", "flake8==6.0.0", "pylint==2.17.3"]
+format = ["black==23.3.0", "flake8==6.0.0", "pylint==2.17.4"]
 test = ["pytest==7.3.1", "coverage>=6.5.0", "pytest-asyncio==0.21.0"]
-docs = ["sphinx", "sphinx-jekyll-builder"]
+# note(JayF): sphinx-jekyll-builder was broken by sphinx-markdown-builder 0.6 -- so exclude it
+docs = ["sphinx", "sphinx-jekyll-builder", "sphinx-markdown-builder<0.6"]
 
 [build-system]
 requires = ["setuptools"]

@@ -453,24 +453,24 @@ workflows:
       - release-armadactl:
           filters:
             tags:
-              only: /.*/
+              only: /v[0-9]+\.[0-9]+\.[0-9]+/
             branches:
               ignore: /.*/
       - release-docker-images:
           filters:
             tags:
-              only: /.*/
+              only: /v[0-9]+\.[0-9]+\.[0-9]+/
             branches:
               ignore: /.*/
       - release-charts:
           filters:
             tags:
-              only: /.*/
+              only: /v[0-9]+\.[0-9]+\.[0-9]+/
             branches:
               ignore: /.*/
       - release-dotnet-client:
           filters:
             tags:
-              only: /.*/
+              only: /v[0-9]+\.[0-9]+\.[0-9]+/
             branches:
               ignore: /.*/

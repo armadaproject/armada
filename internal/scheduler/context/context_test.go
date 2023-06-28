@@ -42,13 +42,13 @@ func TestSchedulingContextAccounting(t *testing.T) {
 		schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
 	)
 	priorityFactorByQueue := map[string]float64{"A": 1, "B": 1}
-	allocatedByQueueAndPriority := map[string]schedulerobjects.QuantityByPriorityAndResourceType{
+	allocatedByQueueAndPriorityClass := map[string]schedulerobjects.QuantityByTAndResourceType[string]{
 		"A": {
-			0: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+			"foo": schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
 		},
 	}
 	for _, queue := range []string{"A", "B"} {
-		err := sctx.AddQueueSchedulingContext(queue, priorityFactorByQueue[queue], allocatedByQueueAndPriority[queue])
+		err := sctx.AddQueueSchedulingContext(queue, priorityFactorByQueue[queue], allocatedByQueueAndPriorityClass[queue])
 		require.NoError(t, err)
 	}
 
@@ -84,10 +84,8 @@ func testNSmallCpuJobSchedulingContext(queue, priorityClassName string, n int) [
 func testSmallCpuJobSchedulingContext(queue, priorityClassName string) *JobSchedulingContext {
 	job := testfixtures.Test1CpuJob(queue, priorityClassName)
 	return &JobSchedulingContext{
-		ExecutorId: "executor",
-		NumNodes:   1,
-		JobId:      job.GetId(),
-		Job:        job,
-		Req:        job.GetRequirements(nil).ObjectRequirements[0].GetPodRequirements(),
+		JobId:           job.GetId(),
+		Job:             job,
+		PodRequirements: job.GetPodRequirements(testfixtures.TestPriorityClasses),
 	}
 }

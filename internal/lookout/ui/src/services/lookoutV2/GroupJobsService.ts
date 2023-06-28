@@ -4,12 +4,17 @@ export interface IGroupJobsService {
   groupJobs(
     filters: JobFilter[],
     order: JobOrder,
-    groupedField: string,
+    groupedField: GroupedField,
     aggregates: string[],
     skip: number,
     take: number,
     abortSignal: AbortSignal | undefined,
   ): Promise<GroupJobsResponse>
+}
+
+export type GroupedField = {
+  field: string
+  isAnnotation: boolean
 }
 
 export type GroupJobsResponse = {
@@ -23,7 +28,7 @@ export class GroupJobsService implements IGroupJobsService {
   async groupJobs(
     filters: JobFilter[],
     order: JobOrder,
-    groupedField: string,
+    groupedField: GroupedField,
     aggregates: string[],
     skip: number,
     take: number,
