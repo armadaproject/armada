@@ -432,10 +432,10 @@ func (repo *schedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([
 }
 
 // constructNodeDb constructs a node db with all jobs bound to it.
-func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]configuration.PriorityClass, jobs []*jobdb.Job, originalNodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
-	originalNodesByName := make(map[string]*schedulerobjects.Node, len(originalNodes))
-	for _, node := range originalNodes {
-		originalNodesByName[node.Name] = node
+func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]configuration.PriorityClass, jobs []*jobdb.Job, nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
+	nodesByName := make(map[string]*schedulerobjects.Node, len(nodes))
+	for _, node := range nodes {
+		nodesByName[node.Name] = node
 	}
 	jobsByNodeName := make(map[string][]*jobdb.Job)
 	for _, job := range jobs {
@@ -443,7 +443,7 @@ func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]configur
 			continue
 		}
 		nodeName := job.LatestRun().Node()
-		if _, ok := originalNodesByName[nodeName]; !ok {
+		if _, ok := nodesByName[nodeName]; !ok {
 			log.Warnf(
 				"job %s assigned to node %s on executor %s, but no such node found",
 				job.Id(), nodeName, job.LatestRun().Executor(),
@@ -452,14 +452,12 @@ func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]configur
 		}
 		jobsByNodeName[nodeName] = append(jobsByNodeName[nodeName], job)
 	}
-	updatedNodes := make([]*schedulerobjects.Node, 0, len(originalNodes))
 	for nodeName, jobsOnNode := range jobsByNodeName {
-		node := originalNodesByName[nodeName]
-		node, err := nodedb.BindJobsToNode(priorityClasses, jobsOnNode, node)
+		node, err := nodedb.BindJobsToNode(priorityClasses, jobsOnNode, nodesByName[nodeName])
 		if err != nil {
 			return nil, err
 		}
-		updatedNodes = append(updatedNodes, node)
+		nodesByName[nodeName] = node
 	}
 	nodeDb, err := nodedb.NewNodeDb(
 		priorityClasses,
@@ -471,7 +469,7 @@ func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]configur
 	if err != nil {
 		return nil, err
 	}
-	if err := nodeDb.UpsertMany(updatedNodes); err != nil {
+	if err := nodeDb.UpsertMany(maps.Values(nodesByName)); err != nil {
 		return nil, err
 	}
 	return nodeDb, nil

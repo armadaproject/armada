@@ -16,7 +16,6 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -791,43 +790,45 @@ func (evi *Evictor) Evict(ctx context.Context, it nodedb.NodeIterator) (*Evictor
 	evictedJobsById := make(map[string]interfaces.LegacySchedulerJob)
 	affectedNodesById := make(map[string]*schedulerobjects.Node)
 	nodeIdByJobId := make(map[string]string)
+	result := &EvictorResult{
+		EvictedJobsById:   evictedJobsById,
+		AffectedNodesById: affectedNodesById,
+		NodeIdByJobId:     nodeIdByJobId,
+	}
+	if evi.jobFilter == nil || evi.nodeFilter == nil {
+		return result, nil
+	}
+	jobFilter := func(job interfaces.LegacySchedulerJob) bool { return evi.jobFilter(ctx, job) }
 	for node := it.NextNode(); node != nil; node = it.NextNode() {
-		if evi.nodeFilter != nil && !evi.nodeFilter(ctx, node) {
+		if !evi.nodeFilter(ctx, node) {
 			continue
 		}
-		jobIds := util.Filter(
-			maps.Keys(node.AllocatedByJobId),
-			func(jobId string) bool {
-				_, ok := node.EvictedJobRunIds[jobId]
-				return !ok
-			},
-		)
+		jobIds := make([]string, 0)
+		for jobId := range node.AllocatedByJobId {
+			if _, ok := node.EvictedJobRunIds[jobId]; !ok {
+				jobIds = append(jobIds, jobId)
+			}
+		}
 		jobs, err := evi.jobRepo.GetExistingJobsByIds(jobIds)
 		if err != nil {
 			return nil, err
 		}
-		for _, job := range jobs {
-			if evi.jobFilter != nil && !evi.jobFilter(ctx, job) {
-				continue
-			}
-			node, err = nodedb.EvictJobFromNode(evi.priorityClasses, job, node)
-			if err != nil {
-				return nil, err
-			}
+		evictedJobs, node, err := nodedb.EvictJobsFromNode(evi.priorityClasses, jobFilter, jobs, node)
+		if err != nil {
+			return nil, err
+		}
+		for _, job := range evictedJobs {
+			evictedJobsById[job.GetId()] = job
+			nodeIdByJobId[job.GetId()] = node.Id
 			if evi.postEvictFunc != nil {
 				evi.postEvictFunc(ctx, job, node)
 			}
-
-			evictedJobsById[job.GetId()] = job
-			nodeIdByJobId[job.GetId()] = node.Id
 		}
-		affectedNodesById[node.Id] = node
+		if len(evictedJobs) > 0 {
+			affectedNodesById[node.Id] = node
+		}
 	}
-	return &EvictorResult{
-		EvictedJobsById:   evictedJobsById,
-		AffectedNodesById: affectedNodesById,
-		NodeIdByJobId:     nodeIdByJobId,
-	}, nil
+	return result, nil
 }
 
 // TODO: This is only necessary for jobs not scheduled in this cycle.
