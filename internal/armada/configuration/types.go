@@ -114,9 +114,9 @@ type SchedulingConfig struct {
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
 	// Controls how fairness is calculated. Can be either AssetFairness or DominantResourceFairness.
-	FairnessType FairnessType
-	// Used to convert one resource into another when using DominantResourceFairness.
-	FairnessResourceMapping []ResourceMapping
+	FairnessModel FairnessModel
+	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness.
+	DominantResourceFairnessResourcesToConsider []string
 	// Weights used to compute fair share when using AssetFairness.
 	// Overrides dynamic scarcity calculation if provided.
 	// Applies to both the new and old scheduler.
@@ -191,7 +191,7 @@ type SchedulingConfig struct {
 	AlwaysAttemptScheduling bool
 }
 
-// FairnessType controls how fairness is computed.
+// FairnessModel controls how fairness is computed.
 // In particular, each queue has a cost associated with it and the next job to attempt to schedule
 // is taken from the queue with the smallest cost associated with it.
 //
@@ -202,21 +202,12 @@ type SchedulingConfig struct {
 //
 // If DominantResourceFairness, the cost associated with a queue is
 // max("CPU allocation" / "CPU capacity", "memory allocation" / "mamory capacity", ...).
-type FairnessType string
+type FairnessModel string
 
 const (
-	AssertFairness           FairnessType = "AssertFairness"
-	DominantResourceFairness FairnessType = "DominantResourceFairness"
+	AssetFairness            FairnessModel = "AssetFairness"
+	DominantResourceFairness FairnessModel = "DominantResourceFairness"
 )
-
-// ResourceMapping describes a mapping from one resource type to another. Used when computing fairness.
-// E.g., ResourceMapping{"nvidia.com/mig-1g.10gb", "nvidia.com/gpu", 1/8}
-// indicates 1 unit of "nvidia.com/mig-1g.10gb" should be trated as 1/8 unit of "nvidia.com/gpu".
-type ResourceMapping struct {
-	Source     string
-	Target     string
-	Multiplier float64
-}
 
 type IndexedResource struct {
 	// Resource name. E.g., "cpu", "memory", or "nvidia.com/gpu".

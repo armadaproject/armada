@@ -36,11 +36,10 @@ type SchedulingContext struct {
 	// Default priority class.
 	DefaultPriorityClass string
 	// Determines how fairness is computed.
-	FairnessType configuration.FairnessType
-	// Used to convert one resource into another when computing fair share.
-	// Only applies to DominantResourceFairness.
-	FairnessResourceMappingBySourceResource map[string]configuration.ResourceMapping
-	// Weights used when computing total resource usage.
+	FairnessModel configuration.FairnessModel
+	// Resources considered when computing DominantResourceFairness.
+	DominantResourceFairnessResourcesToConsider []string
+	// Weights used when computing AssetFairness.
 	ResourceScarcity map[string]float64
 	// Per-queue scheduling contexts.
 	QueueSchedulingContexts map[string]*QueueSchedulingContext
@@ -83,7 +82,7 @@ func NewSchedulingContext(
 		Pool:                              pool,
 		PriorityClasses:                   priorityClasses,
 		DefaultPriorityClass:              defaultPriorityClass,
-		FairnessType:                      configuration.AssertFairness,
+		FairnessModel:                     configuration.AssetFairness,
 		ResourceScarcity:                  resourceScarcity,
 		QueueSchedulingContexts:           make(map[string]*QueueSchedulingContext),
 		TotalResources:                    totalResources.DeepCopy(),
@@ -93,6 +92,11 @@ func NewSchedulingContext(
 		SchedulingKeyGenerator:            schedulerobjects.NewSchedulingKeyGenerator(),
 		UnfeasibleSchedulingKeys:          make(map[schedulerobjects.SchedulingKey]*JobSchedulingContext),
 	}
+}
+
+func (sctx *SchedulingContext) EnableDominantResourceFairness(dominantResourceFairnessResourcesToConsider []string) {
+	sctx.FairnessModel = configuration.DominantResourceFairness
+	sctx.DominantResourceFairnessResourcesToConsider = dominantResourceFairnessResourcesToConsider
 }
 
 func (sctx *SchedulingContext) SchedulingKeyFromLegacySchedulerJob(job interfaces.LegacySchedulerJob) schedulerobjects.SchedulingKey {
@@ -521,28 +525,36 @@ func (qctx *QueueSchedulingContext) TotalCostForQueue() float64 {
 // TotalCostForQueueWithAllocation returns the cost for which this queue should be penalised when computing fairness,
 // if the total allocation of this queue is given by allocated.
 func (qctx *QueueSchedulingContext) TotalCostForQueueWithAllocation(allocated schedulerobjects.ResourceList) float64 {
-	switch qctx.SchedulingContext.FairnessType {
-	case configuration.AssertFairness:
+	switch qctx.SchedulingContext.FairnessModel {
+	case configuration.AssetFairness:
 		return qctx.assetFairnessCostWithAllocation(allocated)
 	case configuration.DominantResourceFairness:
 		return qctx.dominantResourceFairnessCostWithAllocation(allocated)
 	default:
-		panic(fmt.Sprintf("unknown fairness type: %s", qctx.SchedulingContext.FairnessType))
+		panic(fmt.Sprintf("unknown fairness type: %s", qctx.SchedulingContext.FairnessModel))
 	}
 }
 
 func (qctx *QueueSchedulingContext) assetFairnessCostWithAllocation(allocated schedulerobjects.ResourceList) float64 {
+	if len(qctx.SchedulingContext.ResourceScarcity) == 0 {
+		panic("ResourceScarcity is not set")
+	}
 	return float64(allocated.AsWeightedMillis(qctx.SchedulingContext.ResourceScarcity)) / qctx.Weight
 }
 
 func (qctx *QueueSchedulingContext) dominantResourceFairnessCostWithAllocation(allocated schedulerobjects.ResourceList) float64 {
+	if len(qctx.SchedulingContext.DominantResourceFairnessResourcesToConsider) == 0 {
+		panic("DominantResourceFairnessResourcesToConsider is not set")
+	}
 	var cost float64
-	for t, q := range allocated.Resources {
-		totalq := qctx.SchedulingContext.TotalResources.Get(t)
-		if totalq.Cmp(resource.Quantity{}) == 0 {
-			totalq.SetMilli(1)
+	for _, t := range qctx.SchedulingContext.DominantResourceFairnessResourcesToConsider {
+		capacity := qctx.SchedulingContext.TotalResources.Get(t)
+		if capacity.Equal(resource.Quantity{}) {
+			// Ignore any resources with zero capacity.
+			continue
 		}
-		tcost := float64(q.MilliValue()) / float64(totalq.MilliValue())
+		q := allocated.Get(t)
+		tcost := float64(q.MilliValue()) / float64(capacity.MilliValue())
 		if tcost > cost {
 			cost = tcost
 		}

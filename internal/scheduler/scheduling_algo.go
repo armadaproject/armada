@@ -322,6 +322,9 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 		l.config.ResourceScarcity,
 		accounting.totalCapacity,
 	)
+	if l.config.FairnessModel == configuration.DominantResourceFairness {
+		sctx.EnableDominantResourceFairness(l.config.DominantResourceFairnessResourcesToConsider)
+	}
 	for queue, priorityFactor := range accounting.priorityFactorByQueue {
 		var allocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
 		if allocatedByQueueAndPriorityClass := accounting.allocationByPoolAndQueueAndPriorityClass[executor.Pool]; allocatedByQueueAndPriorityClass != nil {

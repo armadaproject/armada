@@ -468,6 +468,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		q.schedulingConfig.ResourceScarcity,
 		schedulerobjects.ResourceList{Resources: totalCapacity},
 	)
+	if q.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
+		sctx.EnableDominantResourceFairness(q.schedulingConfig.DominantResourceFairnessResourcesToConsider)
+	}
 	for queue, priorityFactor := range priorityFactorByQueue {
 		weight := 1 / priorityFactor
 		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClassForPool[queue]); err != nil {
