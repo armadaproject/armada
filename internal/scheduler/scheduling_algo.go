@@ -311,9 +311,9 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 	db *jobdb.JobDb,
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	nodeDb, err := l.constructNodeDb(
-		executor.Nodes,
-		accounting.jobsByExecutorId[executor.Id],
 		l.config.Preemption.PriorityClasses,
+		accounting.jobsByExecutorId[executor.Id],
+		executor.Nodes,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -432,7 +432,7 @@ func (repo *schedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([
 }
 
 // constructNodeDb constructs a node db with all jobs bound to it.
-func (l *FairSchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, jobs []*jobdb.Job, priorityClasses map[string]configuration.PriorityClass) (*nodedb.NodeDb, error) {
+func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]configuration.PriorityClass, jobs []*jobdb.Job, nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
 	nodesByName := make(map[string]*schedulerobjects.Node, len(nodes))
 	for _, node := range nodes {
 		nodesByName[node.Name] = node
