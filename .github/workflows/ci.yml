@@ -14,6 +14,8 @@ permissions:
   checks: write
 
 jobs:
+  codeql:
+    uses: ./.github/workflows/codeql-analysis.yml
   lint:
     uses: ./.github/workflows/lint.yml
   test:
