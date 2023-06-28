@@ -14,6 +14,10 @@ name: "CodeQL"
 on:
   workflow_call:
 
+permissions:
+  actions: read
+  security-events: write
+
 jobs:
   analyze:
     name: Analyze
