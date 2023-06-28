@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  schedule:
+    # Run daily at 01:34, so we get notified if CI is broken before a pull request
+    # is submitted.
+    - cron: "34 1 * * *"
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: write
+
+jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+  test:
+    uses: ./.github/workflows/test.yml
