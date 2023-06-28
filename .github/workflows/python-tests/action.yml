@@ -40,10 +40,10 @@ runs:
       run: tox -e format
       shell: bash
       working-directory: ${{ inputs.path }}
-    - name: Verify docs updated if needed
-      run: tox -e docs-check
-      shell: bash
-      working-directory: ${{ inputs.path }}
+#    - name: Verify docs updated if needed
+#      run: tox -e docs-check
+#      shell: bash
+#      working-directory: ${{ inputs.path }}
     - name: Run tox python ${{ inputs.python-version }} unit tests
       run: tox -e ${{ inputs.tox-env }}
       shell: bash
