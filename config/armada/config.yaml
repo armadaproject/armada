@@ -31,6 +31,13 @@ eventsApiRedis:
   poolSize: 1000
 scheduling:
   enableAssertions: true
+  fairnessModel: "AssetFairness"
+  dominantResourceFairnessResourcesToConsider:
+    - "cpu"
+    - "memory"
+    - "nvidia.com/gpu"
+  resourceScarcity:
+    cpu: 1.0
   preemption:
     nodeEvictionProbability: 1.0
     nodeOversubscriptionEvictionProbability: 1.0
@@ -43,8 +50,8 @@ scheduling:
         priority: 1000
         preemptible: false
         maximumResourceFractionPerQueue:
-          memory: 0.99
-          cpu: 0.99
+          memory: 1.0
+          cpu: 1.0
       armada-preemptible:
         priority: 1000
         preemptible: true
@@ -54,7 +61,7 @@ scheduling:
   maxExtraNodesToConsider: 1
   maximumResourceFractionToSchedule:
     memory: 1.0
-    cpu: 1.0    
+    cpu: 1.0
   maxJobSchedulingContextsPerExecutor: 10000
   lease:
     expireAfter: 15m
@@ -69,11 +76,6 @@ scheduling:
       value: "true"
       effect: "NoSchedule"
   defaultJobTolerationsByPriorityClass:
-    "":
-      - key: "armadaproject.io/pc-armada-default"
-        operator: "Equal"
-        value: "true"
-        effect: "NoSchedule"
     armada-default:
       - key: "armadaproject.io/pc-armada-default"
         operator: "Equal"
@@ -85,8 +87,6 @@ scheduling:
         value: "true"
         effect: "NoSchedule"
   maxRetries: 5
-  resourceScarcity:
-    cpu: 1.0
   maxPodSpecSizeBytes: 65535
   minJobResources:
     memory: 1Mi

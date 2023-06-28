@@ -348,7 +348,7 @@ func (it *CandidateGangIterator) fractionOfFairShareWithGctx(gctx *schedulercont
 	it.buffer.Zero()
 	it.buffer.Add(qctx.Allocated)
 	it.buffer.Add(gctx.TotalResourceRequests)
-	return qctx.FractionOfFairShareWithAllocation(it.buffer)
+	return qctx.TotalCostForQueueWithAllocation(it.buffer)
 }
 
 // Clear removes the first item in the iterator.

@@ -135,6 +135,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 	snapshot := sch.nodeDb.Txn(false)
 
 	// Evict preemptible jobs.
+	totalCost := sch.schedulingContext.TotalCost()
 	evictorResult, inMemoryJobRepo, err := sch.evict(
 		ctxlogrus.ToContext(
 			ctx,
@@ -156,7 +157,10 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 					return false
 				}
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.GetQueue()]; ok {
-					if qctx.FractionOfFairShare() <= sch.protectedFractionOfFairShare {
+					fairShare := qctx.Weight / sch.schedulingContext.WeightSum
+					actualShare := qctx.TotalCostForQueue() / totalCost
+					fractionOfFairShare := actualShare / fairShare
+					if fractionOfFairShare <= sch.protectedFractionOfFairShare {
 						return false
 					}
 				}
