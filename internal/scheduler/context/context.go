@@ -516,14 +516,12 @@ func (qctx *QueueSchedulingContext) ClearJobSpecs() {
 	}
 }
 
-// TotalCostForQueueWithAllocation returns the cost for which this queue should be penalised when computing fairness,
-// if the total allocation of this queue is given by allocated.
+// TotalCostForQueue returns the total cost of this queue.
 func (qctx *QueueSchedulingContext) TotalCostForQueue() float64 {
 	return qctx.TotalCostForQueueWithAllocation(qctx.Allocated)
 }
 
-// TotalCostForQueueWithAllocation returns the cost for which this queue should be penalised when computing fairness,
-// if the total allocation of this queue is given by allocated.
+// TotalCostForQueueWithAllocation returns the total cost of this queue if its total allocation is given by allocated.
 func (qctx *QueueSchedulingContext) TotalCostForQueueWithAllocation(allocated schedulerobjects.ResourceList) float64 {
 	switch qctx.SchedulingContext.FairnessModel {
 	case configuration.AssetFairness:

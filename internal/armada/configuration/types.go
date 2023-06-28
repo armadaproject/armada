@@ -192,20 +192,16 @@ type SchedulingConfig struct {
 }
 
 // FairnessModel controls how fairness is computed.
-// In particular, each queue has a cost associated with it and the next job to attempt to schedule
-// is taken from the queue with the smallest cost associated with it.
-//
-// Can be either AssetFairness or DominantResourceFairness.
-//
-// If AssetFairness, the cost associated with a queue is a linear combination of its total allocation.
-// E.g., w_CPU * "CPU allocation" + w_memory * "memory allocation".
-//
-// If DominantResourceFairness, the cost associated with a queue is
-// max("CPU allocation" / "CPU capacity", "memory allocation" / "mamory capacity", ...).
+// More specifically, each queue has a cost associated with it and the next job to schedule
+// is taken from the queue with smallest cost. FairnessModel determines how that cost is computed.
 type FairnessModel string
 
 const (
-	AssetFairness            FairnessModel = "AssetFairness"
+	// AssetFairness sets the cost associated with a queue to a linear combination of its total allocation.
+	// E.g., w_CPU * "CPU allocation" + w_memory * "memory allocation".
+	AssetFairness FairnessModel = "AssetFairness"
+	// DominantResourceFairness set the cost associated with a queue to
+	// max("CPU allocation" / "CPU capacity", "memory allocation" / "mamory capacity", ...).
 	DominantResourceFairness FairnessModel = "DominantResourceFairness"
 )
 
