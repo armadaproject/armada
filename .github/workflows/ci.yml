@@ -16,10 +16,11 @@ permissions:
   security-events: write
 
 jobs:
-  codeql:
-    uses: ./.github/workflows/codeql-analysis.yml
   lint:
     uses: ./.github/workflows/lint.yml
+  codeql:
+    needs: lint
+    uses: ./.github/workflows/codeql-analysis.yml
   test:
     needs: lint
     uses: ./.github/workflows/test.yml
