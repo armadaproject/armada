@@ -41,6 +41,8 @@ type SchedulingContext struct {
 	DominantResourceFairnessResourcesToConsider []string
 	// Weights used when computing AssetFairness.
 	ResourceScarcity map[string]float64
+	// Sum of queue weights across all queues.
+	WeightSum float64
 	// Per-queue scheduling contexts.
 	QueueSchedulingContexts map[string]*QueueSchedulingContext
 	// Total resources across all clusters available at the start of the scheduling cycle.
@@ -137,6 +139,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(queue string, weight fl
 	for _, rl := range initialAllocatedByPriorityClass {
 		allocated.Add(rl)
 	}
+	sctx.WeightSum += weight
 	qctx := &QueueSchedulingContext{
 		SchedulingContext:                 sctx,
 		Created:                           time.Now(),
@@ -159,19 +162,13 @@ func (sctx *SchedulingContext) String() string {
 	return sctx.ReportString(0)
 }
 
-// TotalCostAndWeight returns the sum of the costs and weights across all queues.
-// Only queues with non-zero cost contribute towards the total weight.
-func (sctx *SchedulingContext) TotalCostAndWeight() (float64, float64) {
-	var cost float64
-	var weight float64
+// TotalCost returns the sum of the costs across all queues.
+func (sctx *SchedulingContext) TotalCost() float64 {
+	var rv float64
 	for _, qctx := range sctx.QueueSchedulingContexts {
-		queueCost := qctx.TotalCostForQueue()
-		if queueCost != 0 {
-			cost += queueCost
-			weight += qctx.Weight
-		}
+		rv += qctx.TotalCostForQueue()
 	}
-	return cost, weight
+	return rv
 }
 
 func (sctx *SchedulingContext) ReportString(verbosity int32) string {
