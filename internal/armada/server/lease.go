@@ -370,11 +370,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		// Bind pods to nodes, thus ensuring resources are marked as allocated on the node.
 		skipNode := false
 		for _, job := range jobs {
-			node, err = nodedb.BindPodToNode(
-				scheduler.PodRequirementFromLegacySchedulerJob(
-					job,
-					q.schedulingConfig.Preemption.PriorityClasses,
-				),
+			node, err = nodedb.BindJobToNode(
+				q.schedulingConfig.Preemption.PriorityClasses,
+				job,
 				node,
 			)
 			if err != nil {
@@ -472,7 +470,10 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		sctx.EnableDominantResourceFairness(q.schedulingConfig.DominantResourceFairnessResourcesToConsider)
 	}
 	for queue, priorityFactor := range priorityFactorByQueue {
-		weight := 1 / priorityFactor
+		var weight float64 = 1
+		if priorityFactor > 0 {
+			weight = 1 / priorityFactor
+		}
 		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClassForPool[queue]); err != nil {
 			return nil, err
 		}
