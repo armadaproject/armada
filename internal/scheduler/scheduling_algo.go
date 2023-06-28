@@ -439,12 +439,7 @@ func (l *FairSchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, job
 			)
 			continue
 		}
-		req := PodRequirementFromLegacySchedulerJob(job, l.config.Preemption.PriorityClasses)
-		if req == nil {
-			log.Errorf("no pod spec found for job %s", job.Id())
-			continue
-		}
-		node, err := nodedb.BindPodToNode(req, node)
+		node, err := nodedb.BindJobToNode(l.config.Preemption.PriorityClasses, job, node)
 		if err != nil {
 			return nil, err
 		}

@@ -20,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -263,94 +264,66 @@ func NodeJobDiff(txnA, txnB *memdb.Txn) (map[string]*schedulerobjects.Node, map[
 	return preempted, scheduled, nil
 }
 
-// ScheduleMany assigns a set of pods to nodes.
-// The assignment is atomic, i.e., either all pods are successfully assigned to nodes or none are.
-// The returned bool indicates whether assignment succeeded or not.
+// ScheduleMany assigns a set of jobs to nodes. The assignment is atomic, i.e., either all jobs are
+// successfully assigned to nodes or none are. The returned bool indicates whether assignment
+// succeeded (true) or not (false).
+//
+// This method sets the PodSchedulingContext field on each JobSchedulingContext that it attempts to
+// schedule; if it returns early (e.g., because it finds an unschedulable JobSchedulingContext),
+// then this field will not be set on the remaining items.
 // TODO: Pass through contexts to support timeouts.
-func (nodeDb *NodeDb) ScheduleMany(reqs []*schedulerobjects.PodRequirements) ([]*schedulercontext.PodSchedulingContext, bool, error) {
+func (nodeDb *NodeDb) ScheduleMany(jctxs []*schedulercontext.JobSchedulingContext) (bool, error) {
 	txn := nodeDb.db.Txn(true)
 	defer txn.Abort()
-	pctxs, ok, err := nodeDb.ScheduleManyWithTxn(txn, reqs)
+	ok, err := nodeDb.ScheduleManyWithTxn(txn, jctxs)
 	if ok && err == nil {
 		// All pods can be scheduled; commit the transaction.
 		txn.Commit()
 	} else {
 		// On failure, clear the node binding.
-		for _, pctx := range pctxs {
+		for _, jctx := range jctxs {
+			pctx := jctx.PodSchedulingContext
+			if pctx == nil {
+				continue
+			}
 			pctx.Node = nil
 		}
 	}
-	return pctxs, ok, err
+	return ok, err
 }
 
-func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, reqs []*schedulerobjects.PodRequirements) ([]*schedulercontext.PodSchedulingContext, bool, error) {
+func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, jctxs []*schedulercontext.JobSchedulingContext) (bool, error) {
 	// Attempt to schedule pods one by one in a transaction.
-	pctxs := make([]*schedulercontext.PodSchedulingContext, 0, len(reqs))
-	for _, req := range reqs {
-		pctx, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
-		if err != nil {
-			return nil, false, err
+	for _, jctx := range jctxs {
+		if err := nodeDb.SelectNodeForJobWithTxn(txn, jctx); err != nil {
+			return false, err
 		}
-		pctxs = append(pctxs, pctx)
-
+		pctx := jctx.PodSchedulingContext
 		// If we found a node for this pod, bind it and continue to the next pod.
-		//
-		// Otherwise, zero out the node binding for all pods and abort the transaction.
-		if pctx.Node != nil {
-			if node, err := BindPodToNode(req, pctx.Node); err != nil {
-				return nil, false, err
+		if pctx != nil && pctx.Node != nil {
+			if node, err := BindJobToNode(nodeDb.priorityClasses, jctx.Job, pctx.Node); err != nil {
+				return false, err
 			} else {
 				if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
-					return nil, false, err
+					return false, err
 				}
 				pctx.Node = node
 			}
 		} else {
-			return pctxs, false, nil
+			return false, nil
 		}
 	}
-	return pctxs, true, nil
+	return true, nil
 }
 
-func (nodeDb *NodeDb) SelectAndBindNodeToPod(req *schedulerobjects.PodRequirements) (*schedulercontext.PodSchedulingContext, error) {
-	txn := nodeDb.db.Txn(true)
-	defer txn.Abort()
-	pctx, err := nodeDb.SelectAndBindNodeToPodWithTxn(txn, req)
-	if err != nil {
-		return nil, err
-	}
-	txn.Commit()
-	return pctx, nil
-}
+// SelectNodeForJobWithTxn selects a node on which the job can be scheduled.
+func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext) error {
+	req := jctx.PodRequirements
 
-func (nodeDb *NodeDb) SelectAndBindNodeToPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*schedulercontext.PodSchedulingContext, error) {
-	pctx, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
-	if err != nil {
-		return nil, err
-	}
-	if pctx.Node != nil {
-		if node, err := BindPodToNode(req, pctx.Node); err != nil {
-			return nil, err
-		} else {
-			if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
-				return nil, err
-			}
-			pctx.Node = node
-		}
-	}
-	return pctx, nil
-}
-
-func (nodeDb *NodeDb) SelectNodeForPod(req *schedulerobjects.PodRequirements) (*schedulercontext.PodSchedulingContext, error) {
-	return nodeDb.SelectNodeForPodWithTxn(nodeDb.db.Txn(false), req)
-}
-
-// SelectNodeForPodWithTxn selects a node on which the pod can be scheduled.
-func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobjects.PodRequirements) (*schedulercontext.PodSchedulingContext, error) {
 	// Collect all node types that could potentially schedule the pod.
 	matchingNodeTypes, numExcludedNodesByReason, err := nodeDb.NodeTypesMatchingPod(req)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Create a pctx to be returned to the caller.
@@ -360,6 +333,7 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		NumNodes:                 nodeDb.numNodes,
 		NumExcludedNodesByReason: maps.Clone(numExcludedNodesByReason),
 	}
+	jctx.PodSchedulingContext = pctx
 
 	// For pods that failed to schedule, add an exclusion reason for implicitly excluded nodes.
 	defer func() {
@@ -380,12 +354,12 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 	// and schedule onto that node even if it requires preempting other jobs.
 	if nodeId, ok := req.NodeSelector[schedulerconfig.NodeIdLabel]; ok {
 		if it, err := txn.Get("nodes", "id", nodeId); err != nil {
-			return nil, errors.WithStack(err)
+			return errors.WithStack(err)
 		} else {
 			if _, err := nodeDb.selectNodeForPodWithIt(pctx, it, req.Priority, req, true); err != nil {
-				return nil, err
+				return err
 			} else {
-				return pctx, nil
+				return nil
 			}
 		}
 	}
@@ -401,24 +375,24 @@ func (nodeDb *NodeDb) SelectNodeForPodWithTxn(txn *memdb.Txn, req *schedulerobje
 		// (since we may consider all nodes at each priority).
 		pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
 
-		// To to find a node at this priority.
+		// Try to find a node at this priority.
 		node, err := nodeDb.selectNodeForPodAtPriority(txn, pctx, priority, req)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if node != nil {
 			if pctx.Node == nil {
-				return nil, errors.New("pctx.Node not set")
+				return errors.New("pctx.Node not set")
 			}
 			if node.Id != pctx.Node.Id {
-				return nil, errors.New("pctx.Node.Id does not match that of the returned node")
+				return errors.New("pctx.Node.Id does not match that of the returned node")
 			}
-			return pctx, nil
+			return nil
 		} else if pctx.Node != nil {
-			return nil, errors.New("pctx.Node is set, but no node was returned")
+			return errors.New("pctx.Node is set, but no node was returned")
 		}
 	}
-	return pctx, nil
+	return nil
 }
 
 func (nodeDb *NodeDb) selectNodeForPodAtPriority(
@@ -512,19 +486,15 @@ func (nodeDb *NodeDb) selectNodeForPodWithIt(
 	return selectedNode, nil
 }
 
-// BindPodToNode returns a copy of node with req bound to it.
-func BindPodToNode(req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
-	jobId, err := JobIdFromPodRequirements(req)
-	if err != nil {
-		return nil, err
-	}
-	queue, err := QueueFromPodRequirements(req)
-	if err != nil {
-		return nil, err
-	}
-	_, isEvicted := node.EvictedJobRunIds[jobId]
+// BindJobToNode returns a copy of node with job bound to it.
+func BindJobToNode(priorityClasses map[string]configuration.PriorityClass, job interfaces.LegacySchedulerJob, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
+	jobId := job.GetId()
+	requests := job.GetResourceRequirements().Requests
 
 	node = node.DeepCopy()
+
+	_, isEvicted := node.EvictedJobRunIds[jobId]
+	delete(node.EvictedJobRunIds, jobId)
 
 	if !isEvicted {
 		if node.AllocatedByJobId == nil {
@@ -533,42 +503,39 @@ func BindPodToNode(req *schedulerobjects.PodRequirements, node *schedulerobjects
 		if allocatedToJob, ok := node.AllocatedByJobId[jobId]; ok {
 			return nil, errors.Errorf("job %s already has resources allocated on node %s", jobId, node.Id)
 		} else {
-			allocatedToJob.AddV1ResourceList(req.ResourceRequirements.Requests)
+			allocatedToJob.AddV1ResourceList(requests)
 			node.AllocatedByJobId[jobId] = allocatedToJob
 		}
+
 		if node.AllocatedByQueue == nil {
 			node.AllocatedByQueue = make(map[string]schedulerobjects.ResourceList)
 		}
+		queue := job.GetQueue()
 		allocatedToQueue := node.AllocatedByQueue[queue]
-		allocatedToQueue.AddV1ResourceList(req.ResourceRequirements.Requests)
+		allocatedToQueue.AddV1ResourceList(requests)
 		node.AllocatedByQueue[queue] = allocatedToQueue
 	}
-	delete(node.EvictedJobRunIds, jobId)
 
+	allocatable := schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource)
+	priority := priorityClasses[job.GetPriorityClassName()].Priority
+	allocatable.MarkAllocatedV1ResourceList(priority, requests)
 	if isEvicted {
-		schedulerobjects.AllocatableByPriorityAndResourceType(
-			node.AllocatableByPriorityAndResource,
-		).MarkAllocatableV1ResourceList(evictedPriority, req.ResourceRequirements.Requests)
+		allocatable.MarkAllocatableV1ResourceList(evictedPriority, requests)
 	}
-	schedulerobjects.AllocatableByPriorityAndResourceType(
-		node.AllocatableByPriorityAndResource,
-	).MarkAllocatedV1ResourceList(req.Priority, req.ResourceRequirements.Requests)
+
 	return node, nil
 }
 
-// EvictPodFromNode returns a copy of node with req evicted from it. Specifically:
+// EvictJobFromNode returns a copy of node with job evicted from it. Specifically:
+//
 // - The job is marked as evicted on the node.
 // - AllocatedByJobId and AllocatedByQueue are not updated.
 // - Resources requested by the evicted pod are marked as allocated at priority evictedPriority.
-func EvictPodFromNode(req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
-	jobId, err := JobIdFromPodRequirements(req)
-	if err != nil {
-		return nil, err
-	}
-	queue, err := QueueFromPodRequirements(req)
-	if err != nil {
-		return nil, err
-	}
+func EvictJobFromNode(priorityClasses map[string]configuration.PriorityClass, job interfaces.LegacySchedulerJob, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
+	jobId := job.GetId()
+	queue := job.GetQueue()
+	requests := job.GetResourceRequirements().Requests
+
 	node = node.DeepCopy()
 
 	// Ensure we track allocated resources at evictedPriority.
@@ -602,99 +569,65 @@ func EvictPodFromNode(req *schedulerobjects.PodRequirements, node *schedulerobje
 		node.EvictedJobRunIds[jobId] = true
 	}
 
-	schedulerobjects.AllocatableByPriorityAndResourceType(
-		node.AllocatableByPriorityAndResource,
-	).MarkAllocatableV1ResourceList(req.Priority, req.ResourceRequirements.Requests)
-	schedulerobjects.AllocatableByPriorityAndResourceType(
-		node.AllocatableByPriorityAndResource,
-	).MarkAllocatedV1ResourceList(evictedPriority, req.ResourceRequirements.Requests)
+	allocatable := schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource)
+	priority := priorityClasses[job.GetPriorityClassName()].Priority
+	allocatable.MarkAllocatableV1ResourceList(priority, requests)
+	allocatable.MarkAllocatedV1ResourceList(evictedPriority, requests)
 	return node, nil
 }
 
-// UnbindPodsFromNode returns a node with all reqs unbound from it.
-func UnbindPodsFromNode(reqs []*schedulerobjects.PodRequirements, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
+// UnbindJobsFromNode returns a node with all reqs unbound from it.
+func UnbindJobsFromNode(priorityClasses map[string]configuration.PriorityClass, jobs []interfaces.LegacySchedulerJob, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
 	node = node.DeepCopy()
-	for _, req := range reqs {
-		if err := unbindPodFromNodeInPlace(req, node); err != nil {
+	for _, job := range jobs {
+		if err := unbindJobFromNodeInPlace(priorityClasses, job, node); err != nil {
 			return nil, err
 		}
 	}
 	return node, nil
 }
 
-// UnbindPodFromNode returns a copy of node with req unbound from it.
-func UnbindPodFromNode(req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
+// UnbindJobFromNode returns a copy of node with req unbound from it.
+func UnbindJobFromNode(priorityClasses map[string]configuration.PriorityClass, job interfaces.LegacySchedulerJob, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
 	node = node.DeepCopy()
-	if err := unbindPodFromNodeInPlace(req, node); err != nil {
+	if err := unbindJobFromNodeInPlace(priorityClasses, job, node); err != nil {
 		return nil, err
 	}
 	return node, nil
 }
 
-// unbindPodFromNodeInPlace is like UnbindPodFromNode, but doesn't make a copy of the node.
-func unbindPodFromNodeInPlace(req *schedulerobjects.PodRequirements, node *schedulerobjects.Node) error {
-	jobId, err := JobIdFromPodRequirements(req)
-	if err != nil {
-		return err
-	}
-	queue, err := QueueFromPodRequirements(req)
-	if err != nil {
-		return err
-	}
+// unbindPodFromNodeInPlace is like UnbindJobFromNode, but doesn't make a copy of the node.
+func unbindJobFromNodeInPlace(priorityClasses map[string]configuration.PriorityClass, job interfaces.LegacySchedulerJob, node *schedulerobjects.Node) error {
+	jobId := job.GetId()
+	requests := job.GetResourceRequirements().Requests
+
 	_, isEvicted := node.EvictedJobRunIds[jobId]
+	delete(node.EvictedJobRunIds, jobId)
 
 	if _, ok := node.AllocatedByJobId[jobId]; !ok {
 		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.Id)
 	} else {
 		delete(node.AllocatedByJobId, jobId)
 	}
+
+	queue := job.GetQueue()
 	if allocatedToQueue, ok := node.AllocatedByQueue[queue]; !ok {
 		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.Id)
 	} else {
-		allocatedToQueue.SubV1ResourceList(req.ResourceRequirements.Requests)
-		if allocatedToQueue.Equal(schedulerobjects.ResourceList{}) {
+		allocatedToQueue.SubV1ResourceList(requests)
+		if allocatedToQueue.IsZero() {
 			delete(node.AllocatedByQueue, queue)
-		} else {
-			node.AllocatedByQueue[queue] = allocatedToQueue
 		}
 	}
-	delete(node.EvictedJobRunIds, jobId)
 
-	priority := req.Priority
+	allocatable := schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource)
+	priority := priorityClasses[job.GetPriorityClassName()].Priority
 	if isEvicted {
 		priority = evictedPriority
 	}
-	schedulerobjects.AllocatableByPriorityAndResourceType(
-		node.AllocatableByPriorityAndResource,
-	).MarkAllocatableV1ResourceList(priority, req.ResourceRequirements.Requests)
+	allocatable.MarkAllocatableV1ResourceList(priority, requests)
+
 	return nil
-}
-
-func JobIdFromPodRequirements(req *schedulerobjects.PodRequirements) (string, error) {
-	return valueFromPodRequirements(req, schedulerconfig.JobIdAnnotation)
-}
-
-func QueueFromPodRequirements(req *schedulerobjects.PodRequirements) (string, error) {
-	return valueFromPodRequirements(req, schedulerconfig.QueueAnnotation)
-}
-
-func valueFromPodRequirements(req *schedulerobjects.PodRequirements, key string) (string, error) {
-	v, ok := req.Annotations[key]
-	if !ok {
-		return "", errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    "req.Annotations",
-			Value:   req.Annotations,
-			Message: fmt.Sprintf("%s annotation missing", key),
-		})
-	}
-	if v == "" {
-		return "", errors.WithStack(&armadaerrors.ErrInvalidArgument{
-			Name:    key,
-			Value:   v,
-			Message: fmt.Sprintf("value of %s is empty", key),
-		})
-	}
-	return v, nil
 }
 
 // NodeTypesMatchingPod returns a slice with all node types a pod could be scheduled on.

@@ -370,11 +370,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		// Bind pods to nodes, thus ensuring resources are marked as allocated on the node.
 		skipNode := false
 		for _, job := range jobs {
-			node, err = nodedb.BindPodToNode(
-				scheduler.PodRequirementFromLegacySchedulerJob(
-					job,
-					q.schedulingConfig.Preemption.PriorityClasses,
-				),
+			node, err = nodedb.BindJobToNode(
+				q.schedulingConfig.Preemption.PriorityClasses,
+				job,
 				node,
 			)
 			if err != nil {

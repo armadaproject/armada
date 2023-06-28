@@ -228,12 +228,12 @@ func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContex
 	}
 	if jctx.IsSuccessful() {
 		if evictedInThisRound {
-			sctx.EvictedResources.SubV1ResourceList(jctx.Req.ResourceRequirements.Requests)
-			sctx.EvictedResourcesByPriorityClass.SubV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.Req.ResourceRequirements.Requests)
+			sctx.EvictedResources.SubV1ResourceList(jctx.PodRequirements.ResourceRequirements.Requests)
+			sctx.EvictedResourcesByPriorityClass.SubV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 			sctx.NumEvictedJobs--
 		} else {
-			sctx.ScheduledResources.AddV1ResourceList(jctx.Req.ResourceRequirements.Requests)
-			sctx.ScheduledResourcesByPriorityClass.AddV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.Req.ResourceRequirements.Requests)
+			sctx.ScheduledResources.AddV1ResourceList(jctx.PodRequirements.ResourceRequirements.Requests)
+			sctx.ScheduledResourcesByPriorityClass.AddV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 			sctx.NumScheduledJobs++
 		}
 	}
@@ -440,23 +440,23 @@ func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingC
 	}
 	_, evictedInThisRound := qctx.EvictedJobsById[jctx.JobId]
 	if jctx.IsSuccessful() {
-		if jctx.Req == nil {
+		if jctx.PodRequirements == nil {
 			return false, errors.Errorf("failed adding job %s to queue: job requirements are missing", jctx.JobId)
 		}
 
 		// Always update ResourcesByPriority.
 		// Since ResourcesByPriority is used to order queues by fraction of fair share.
-		qctx.Allocated.AddV1ResourceList(jctx.Req.ResourceRequirements.Requests)
-		qctx.AllocatedByPriorityClass.AddV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.Req.ResourceRequirements.Requests)
+		qctx.Allocated.AddV1ResourceList(jctx.PodRequirements.ResourceRequirements.Requests)
+		qctx.AllocatedByPriorityClass.AddV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 
 		// Only if the job is not evicted, update ScheduledResourcesByPriority.
 		// Since ScheduledResourcesByPriority is used to control per-round scheduling constraints.
 		if evictedInThisRound {
 			delete(qctx.EvictedJobsById, jctx.JobId)
-			qctx.EvictedResourcesByPriorityClass.SubV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.Req.ResourceRequirements.Requests)
+			qctx.EvictedResourcesByPriorityClass.SubV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 		} else {
 			qctx.SuccessfulJobSchedulingContexts[jctx.JobId] = jctx
-			qctx.ScheduledResourcesByPriorityClass.AddV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.Req.ResourceRequirements.Requests)
+			qctx.ScheduledResourcesByPriorityClass.AddV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 		}
 	} else {
 		qctx.UnsuccessfulJobSchedulingContexts[jctx.JobId] = jctx
@@ -531,7 +531,7 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 	totalResourceRequests := schedulerobjects.NewResourceList(4)
 	for _, jctx := range jctxs {
 		allJobsEvicted = allJobsEvicted && isEvictedJob(jctx.Job)
-		totalResourceRequests.AddV1ResourceList(jctx.Req.ResourceRequirements.Requests)
+		totalResourceRequests.AddV1ResourceList(jctx.PodRequirements.ResourceRequirements.Requests)
 	}
 	return &GangSchedulingContext{
 		Created:               time.Now(),
@@ -543,14 +543,6 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 	}
 }
 
-func (gctx GangSchedulingContext) PodRequirements() []*schedulerobjects.PodRequirements {
-	rv := make([]*schedulerobjects.PodRequirements, len(gctx.JobSchedulingContexts))
-	for i, jctx := range gctx.JobSchedulingContexts {
-		rv[i] = jctx.Req
-	}
-	return rv
-}
-
 func isEvictedJob(job interfaces.LegacySchedulerJob) bool {
 	return job.GetAnnotations()[schedulerconfig.IsEvictedAnnotation] == "true"
 }
@@ -560,17 +552,13 @@ func isEvictedJob(job interfaces.LegacySchedulerJob) bool {
 type JobSchedulingContext struct {
 	// Time at which this context was created.
 	Created time.Time
-	// Executor this job was attempted to be assigned to.
-	ExecutorId string
-	// Total number of nodes in the cluster when trying to schedule.
-	NumNodes int
 	// Id of the job this pod corresponds to.
 	JobId string
 	// Job spec.
 	Job interfaces.LegacySchedulerJob
 	// Scheduling requirements of this job.
 	// We currently require that each job contains exactly one pod spec.
-	Req *schedulerobjects.PodRequirements
+	PodRequirements *schedulerobjects.PodRequirements
 	// Reason for why the job could not be scheduled.
 	// Empty if the job was scheduled successfully.
 	UnschedulableReason string
@@ -583,7 +571,6 @@ func (jctx *JobSchedulingContext) String() string {
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
 	fmt.Fprintf(w, "Time:\t%s\n", jctx.Created)
 	fmt.Fprintf(w, "Job ID:\t%s\n", jctx.JobId)
-	fmt.Fprintf(w, "Number of nodes in cluster:\t%d\n", jctx.NumNodes)
 	if jctx.UnschedulableReason != "" {
 		fmt.Fprintf(w, "UnschedulableReason:\t%s\n", jctx.UnschedulableReason)
 	} else {
@@ -598,6 +585,20 @@ func (jctx *JobSchedulingContext) String() string {
 
 func (jctx *JobSchedulingContext) IsSuccessful() bool {
 	return jctx.UnschedulableReason == ""
+}
+
+func JobSchedulingContextsFromJobs[T interfaces.LegacySchedulerJob](priorityClasses map[string]configuration.PriorityClass, jobs []T) []*JobSchedulingContext {
+	jctxs := make([]*JobSchedulingContext, len(jobs))
+	timestamp := time.Now()
+	for i, job := range jobs {
+		jctxs[i] = &JobSchedulingContext{
+			Created:         timestamp,
+			JobId:           job.GetId(),
+			Job:             job,
+			PodRequirements: job.GetPodRequirements(priorityClasses),
+		}
+	}
+	return jctxs
 }
 
 // PodSchedulingContext is returned by SelectAndBindNodeToPod and
@@ -626,6 +627,7 @@ func (pctx *PodSchedulingContext) String() string {
 	} else {
 		fmt.Fprint(w, "Node:\tnone\n")
 	}
+	fmt.Fprintf(w, "Number of nodes in cluster:\t%d\n", pctx.NumNodes)
 	if len(pctx.NumExcludedNodesByReason) == 0 {
 		fmt.Fprint(w, "Excluded nodes:\tnone\n")
 	} else {

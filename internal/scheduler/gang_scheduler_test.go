@@ -256,7 +256,7 @@ func TestGangScheduler(t *testing.T) {
 
 			var actualScheduledIndices []int
 			for i, gang := range tc.Gangs {
-				jctxs := jobSchedulingContextsFromJobs(gang, "", testfixtures.TestPriorityClasses)
+				jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, gang)
 				gctx := schedulercontext.NewGangSchedulingContext(jctxs)
 				ok, reason, err := sch.Schedule(context.Background(), gctx)
 				require.NoError(t, err)

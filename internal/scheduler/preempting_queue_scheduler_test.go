@@ -34,9 +34,8 @@ func TestEvictOversubscribed(t *testing.T) {
 		testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 20),
 		testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 20)...,
 	)
-	reqs := PodRequirementsFromLegacySchedulerJobs(jobs, testfixtures.TestPriorityClasses)
-	for _, req := range reqs {
-		node, err = nodedb.BindPodToNode(req, node)
+	for _, job := range jobs {
+		node, err = nodedb.BindJobToNode(testfixtures.TestPriorityClasses, job, node)
 		require.NoError(t, err)
 	}
 	nodes[0] = node
@@ -1297,11 +1296,10 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					for roundIndex, reqIndices := range reqIndicesByRoundIndex {
 						for _, reqIndex := range reqIndices {
 							job := tc.Rounds[roundIndex].JobsByQueue[queue][reqIndex]
-							req := PodRequirementFromLegacySchedulerJob(job, tc.SchedulingConfig.Preemption.PriorityClasses)
 							nodeId := nodeIdByJobId[job.GetId()]
 							node, err := nodeDb.GetNode(nodeId)
 							require.NoError(t, err)
-							node, err = nodedb.UnbindPodFromNode(req, node)
+							node, err = nodedb.UnbindJobFromNode(tc.SchedulingConfig.Preemption.PriorityClasses, job, node)
 							require.NoError(t, err)
 							err = nodeDb.Upsert(node)
 							require.NoError(t, err)
@@ -1641,8 +1639,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			for _, job := range result.ScheduledJobs {
 				nodeId := result.NodeIdByJobId[job.GetId()]
 				node := nodesById[nodeId]
-				podRequirements := PodRequirementFromLegacySchedulerJob(job, tc.SchedulingConfig.Preemption.PriorityClasses)
-				node, err = nodedb.BindPodToNode(podRequirements, node)
+				node, err = nodedb.BindJobToNode(tc.SchedulingConfig.Preemption.PriorityClasses, job, node)
 				require.NoError(b, err)
 				nodesById[nodeId] = node
 			}
