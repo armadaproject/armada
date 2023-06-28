@@ -26,6 +26,17 @@ type PodDefaults struct {
 	Ingress       *IngressConfiguration
 }
 
+type StateChecksConfiguration struct {
+	// Once a pod is submitted to kubernetes, this is how long we'll wait for it to appear in the kubernetes informer state
+	// If the pod hasn't appeared after this duration, it is considered missing
+	DeadlineForSubmittedPodConsideredMissing time.Duration
+	// Once the executor has seen a pod appear on the cluster, it considers that run Active
+	// If we get into a state where there is no longer a pod backing that Active run, this is how long we'll wait before we consider the pod missing
+	// The most likely cause of this is actually a bug in the executors processing of the kubernetes state
+	// However without it - we can have runs get indefinitely stuck as Active with no backing pod
+	DeadlineForActivePodConsideredMissing time.Duration
+}
+
 type IngressConfiguration struct {
 	HostnameSuffix string
 	CertNameSuffix string
@@ -54,6 +65,7 @@ type KubernetesConfiguration struct {
 	MaxTerminatedPods         int
 	MinimumJobSize            armadaresource.ComputeResources
 	PodDefaults               *PodDefaults
+	StateChecks               StateChecksConfiguration
 	PendingPodChecks          *podchecks.Checks
 	FatalPodSubmissionErrors  []string
 	// Minimum amount of resources marked as allocated to non-Armada pods on each node.

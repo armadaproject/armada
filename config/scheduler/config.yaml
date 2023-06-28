@@ -49,6 +49,13 @@ grpc:
 scheduling:
   executorTimeout: 10m
   enableAssertions: true
+  fairnessModel: "AssetFairness"
+  dominantResourceFairnessResourcesToConsider:
+    - "cpu"
+    - "memory"
+    - "nvidia.com/gpu"
+  resourceScarcity:
+    cpu: 1.0
   preemption:
     alwaysAttemptScheduling: false
     enabled: true
@@ -60,8 +67,8 @@ scheduling:
         priority: 1000
         preemptible: false
         maximumResourceFractionPerQueue:
-          memory: 0.99
-          cpu: 0.99
+          memory: 1.0
+          cpu: 1.0
       armada-preemptible:
         priority: 1000
         preemptible: true
@@ -85,11 +92,6 @@ scheduling:
       value: "true"
       effect: "NoSchedule"
   defaultJobTolerationsByPriorityClass:
-    "":
-      - key: "armadaproject.io/pc-armada-default"
-        operator: "Equal"
-        value: "true"
-        effect: "NoSchedule"
     armada-default:
       - key: "armadaproject.io/pc-armada-default"
         operator: "Equal"
@@ -101,11 +103,11 @@ scheduling:
         value: "true"
         effect: "NoSchedule"
   maxRetries: 5
-  resourceScarcity:
-    cpu: 1.0
   indexedResources:
-    - cpu
-    - memory
+    - name: "cpu"
+      resolution: "100m"
+    - name: "memory"
+      resolution: "1Mi"
   gangIdAnnotation: armadaproject.io/gangId
   gangCardinalityAnnotation: armadaproject.io/gangCardinality
 

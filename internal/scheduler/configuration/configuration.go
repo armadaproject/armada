@@ -10,22 +10,13 @@ import (
 )
 
 const (
-	// IsEvictedAnnotation, indicates a pod was evicted in this round and is currently running.
-	// Used by the scheduler to differentiate between pods from running and queued jobs.
+	// IsEvictedAnnotation is set on evicted jobs; the scheduler uses it to differentiate between
+	// already-running and queued jobs.
 	IsEvictedAnnotation = "armadaproject.io/isEvicted"
-	// JobIdAnnotation if set on a pod, indicates which job this pod is part of.
-	JobIdAnnotation = "armadaproject.io/jobId"
-	// QueueAnnotation if set on a pod, indicates which queue this pod is part of.
-	QueueAnnotation = "armadaproject.io/queue"
-	// IdNodeLabel is automatically added to nodes in the NodeDb.
+	// NodeIdLabel is set on evicted jobs, so that the scheduler only tries to schedule them on the
+	// nodes that they are already running on; nodedb is responsible for labelling its Node objects.
 	NodeIdLabel = "armadaproject.io/nodeId"
 )
-
-var ArmadaSchedulerManagedAnnotations = []string{
-	IsEvictedAnnotation,
-	JobIdAnnotation,
-	QueueAnnotation,
-}
 
 type Configuration struct {
 	// Database configuration
