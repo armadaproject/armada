@@ -8,7 +8,29 @@ permissions:
   pull-requests: read
 
 jobs:
-  lint-go:
+  ts-lint:
+    # TODO(JayF): Determine what nodejs versions we target, and setup matrix-based testing similar to what we do for go
+    name: Lint TypeScript
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16.14.2
+          cache: yarn
+          cache-dependency-path: ./internal/lookout/ui/yarn.lock
+
+      - name: Check TypeScript formatting
+        run: |
+          yarn install --frozen-lockfile && yarn run fmt || exit 1
+          exit $(git status -s -uno | wc -l)
+        working-directory: ./internal/lookout/ui
+
+  go-lint:
     name: Lint Go
     runs-on: ubuntu-22.04
 

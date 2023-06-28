@@ -8,7 +8,27 @@ permissions:
   checks: write
 
 jobs:
-  unit-tests:
+  ts-unit-tests:
+    name: TypeScript Unit Tests
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16.14.2
+          cache: yarn
+          cache-dependency-path: ./internal/lookout/ui/yarn.lock
+
+      - name: Run Unit Tests
+        run: |
+          yarn install --frozen-lockfile && yarn run openapi && CI=true yarn run test
+        working-directory: ./internal/lookout/ui
+
+  go-unit-tests:
     name: Unit Tests
     runs-on: ubuntu-22.04
 
@@ -56,7 +76,7 @@ jobs:
           name: codecov-armada-unit-tests
           verbose: true
 
-  integration-tests:
+  go-integration-tests:
     name: Integration Tests
     runs-on: ubuntu-22.04
 
