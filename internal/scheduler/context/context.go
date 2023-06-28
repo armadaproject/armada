@@ -43,8 +43,6 @@ type SchedulingContext struct {
 	ResourceScarcity map[string]float64
 	// Per-queue scheduling contexts.
 	QueueSchedulingContexts map[string]*QueueSchedulingContext
-	// Sum of weights across all queues.
-	WeightSum float64
 	// Total resources across all clusters available at the start of the scheduling cycle.
 	TotalResources schedulerobjects.ResourceList
 	// = TotalResources.AsWeightedMillis(ResourceScarcity).
@@ -139,7 +137,6 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(queue string, weight fl
 	for _, rl := range initialAllocatedByPriorityClass {
 		allocated.Add(rl)
 	}
-	sctx.WeightSum += weight
 	qctx := &QueueSchedulingContext{
 		SchedulingContext:                 sctx,
 		Created:                           time.Now(),
