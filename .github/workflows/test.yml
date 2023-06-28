@@ -25,8 +25,35 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          yarn install --frozen-lockfile && yarn run openapi && CI=true yarn run test
+          yarn install --frozen-lockfile && yarn run openapi && CI=true yarn run test --reporters=jest-junit
         working-directory: ./internal/lookout/ui
+
+      - name: Publish JUnit Report
+        uses: mikepenz/action-junit-report@v3
+        if: always()
+        with:
+          report_paths: ./internal/lookout/ui/junit.xml
+          fail_on_failure: true
+          require_tests: true
+          detailed_summary: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Test Reports Artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: ts-unit-test-reports
+          path: ./internal/lookout/ui/junit.xml
+          if-no-files-found: error
+
+      - name: Send Coverage Report to Codecov
+        if: always()
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./internal/lookout/ui/coverage/cobertura-coverage.xml
+          flags: unittests
+          name: codecov-armada-ts-unit-tests
+          verbose: true
 
   go-unit-tests:
     name: Golang Unit Tests
@@ -63,7 +90,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v3
         with:
-          name: unit-test-reports
+          name: go-unit-test-reports
           path: test-reports/
           if-no-files-found: error
 
@@ -73,7 +100,7 @@ jobs:
         with:
           file: ./test-reports/coverage.out
           flags: unittests
-          name: codecov-armada-unit-tests
+          name: codecov-armada-go-unit-tests
           verbose: true
 
   go-integration-tests:
@@ -118,7 +145,7 @@ jobs:
       - name: Upload JUnit Report Artifact
         uses: actions/upload-artifact@v3
         with:
-          name: integration-rest-reports
+          name: go-integration-test-reports
           path: junit.xml
           if-no-files-found: error
 
