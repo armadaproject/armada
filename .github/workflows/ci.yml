@@ -17,4 +17,5 @@ jobs:
   lint:
     uses: ./.github/workflows/lint.yml
   test:
+    needs: lint
     uses: ./.github/workflows/test.yml
