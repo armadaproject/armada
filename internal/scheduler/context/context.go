@@ -10,7 +10,6 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
@@ -39,8 +38,12 @@ type SchedulingContext struct {
 	ResourceScarcity map[string]float64
 	// Per-queue scheduling contexts.
 	QueueSchedulingContexts map[string]*QueueSchedulingContext
+	// Sum of weights across all queues.
+	WeightSum float64
 	// Total resources across all clusters available at the start of the scheduling cycle.
 	TotalResources schedulerobjects.ResourceList
+	// = TotalResources.AsWeightedMillis(ResourceScarcity).
+	TotalResourcesAsWeightedMillis int64
 	// Resources assigned across all queues during this scheduling cycle.
 	ScheduledResources                schedulerobjects.ResourceList
 	ScheduledResourcesByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
@@ -81,6 +84,7 @@ func NewSchedulingContext(
 		ResourceScarcity:                  resourceScarcity,
 		QueueSchedulingContexts:           make(map[string]*QueueSchedulingContext),
 		TotalResources:                    totalResources.DeepCopy(),
+		TotalResourcesAsWeightedMillis:    totalResources.AsWeightedMillis(resourceScarcity),
 		ScheduledResources:                schedulerobjects.NewResourceListWithDefaultSize(),
 		ScheduledResourcesByPriorityClass: make(schedulerobjects.QuantityByTAndResourceType[string]),
 		EvictedResourcesByPriorityClass:   make(schedulerobjects.QuantityByTAndResourceType[string]),
@@ -107,7 +111,7 @@ func (sctx *SchedulingContext) ClearUnfeasibleSchedulingKeys() {
 	sctx.UnfeasibleSchedulingKeys = make(map[schedulerobjects.SchedulingKey]*JobSchedulingContext)
 }
 
-func (sctx *SchedulingContext) AddQueueSchedulingContext(queue string, priorityFactor float64, initialAllocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]) error {
+func (sctx *SchedulingContext) AddQueueSchedulingContext(queue string, weight float64, initialAllocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]) error {
 	if _, ok := sctx.QueueSchedulingContexts[queue]; ok {
 		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "queue",
@@ -124,12 +128,13 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(queue string, priorityF
 	for _, rl := range initialAllocatedByPriorityClass {
 		allocated.Add(rl)
 	}
+	sctx.WeightSum += weight
 	qctx := &QueueSchedulingContext{
 		SchedulingContext:                 sctx,
 		Created:                           time.Now(),
 		ExecutorId:                        sctx.ExecutorId,
 		Queue:                             queue,
-		PriorityFactor:                    priorityFactor,
+		Weight:                            weight,
 		Allocated:                         allocated,
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
 		ScheduledResourcesByPriorityClass: make(schedulerobjects.QuantityByTAndResourceType[string]),
@@ -314,8 +319,8 @@ type QueueSchedulingContext struct {
 	ExecutorId string
 	// Queue name.
 	Queue string
-	// These factors influence the fraction of resources assigned to each queue.
-	PriorityFactor float64
+	// Determines the fair share of this queue relative to other queues.
+	Weight float64
 	// Total resources assigned to the queue across all clusters by priority class priority.
 	// Includes jobs scheduled during this invocation of the scheduler.
 	Allocated schedulerobjects.ResourceList
@@ -461,13 +466,13 @@ func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingC
 
 func (qctx *QueueSchedulingContext) EvictJob(job interfaces.LegacySchedulerJob) (bool, error) {
 	jobId := job.GetId()
-	_, rl := priorityAndRequestsFromLegacySchedulerJob(job, qctx.SchedulingContext.PriorityClasses)
 	if _, ok := qctx.UnsuccessfulJobSchedulingContexts[jobId]; ok {
 		return false, errors.Errorf("failed evicting job %s from queue: job already marked unsuccessful", jobId)
 	}
 	if _, ok := qctx.EvictedJobsById[jobId]; ok {
 		return false, errors.Errorf("failed evicting job %s from queue: job already marked evicted", jobId)
 	}
+	rl := job.GetResourceRequirements().Requests
 	_, scheduledInThisRound := qctx.SuccessfulJobSchedulingContexts[jobId]
 	if scheduledInThisRound {
 		qctx.ScheduledResourcesByPriorityClass.SubV1ResourceList(job.GetPriorityClassName(), rl)
@@ -481,19 +486,6 @@ func (qctx *QueueSchedulingContext) EvictJob(job interfaces.LegacySchedulerJob) 
 	return scheduledInThisRound, nil
 }
 
-// TODO: Remove?
-func priorityAndRequestsFromLegacySchedulerJob(job interfaces.LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) (int32, v1.ResourceList) {
-	req := job.GetRequirements(priorityClasses)
-	for _, r := range req.ObjectRequirements {
-		podReqs := r.GetPodRequirements()
-		if podReqs == nil {
-			continue
-		}
-		return podReqs.Priority, podReqs.ResourceRequirements.Requests
-	}
-	return 0, nil
-}
-
 // ClearJobSpecs zeroes out job specs to reduce memory usage.
 func (qctx *QueueSchedulingContext) ClearJobSpecs() {
 	for _, jctx := range qctx.SuccessfulJobSchedulingContexts {
@@ -502,6 +494,19 @@ func (qctx *QueueSchedulingContext) ClearJobSpecs() {
 	for _, jctx := range qctx.UnsuccessfulJobSchedulingContexts {
 		jctx.Job = nil
 	}
+}
+
+// FractionOfFairShare returns a number in [0, 1] indicating what fraction of its fair share this queue is allocated.
+func (qctx *QueueSchedulingContext) FractionOfFairShare() float64 {
+	return qctx.FractionOfFairShareWithAllocation(qctx.Allocated)
+}
+
+// FractionOfFairShareWithAllocation returns a number in [0, 1] indicating what
+// fraction of its fair share this queue is allocated if the total allocation of this queue is given by allocated.
+func (qctx *QueueSchedulingContext) FractionOfFairShareWithAllocation(allocated schedulerobjects.ResourceList) float64 {
+	fairShare := qctx.Weight / qctx.SchedulingContext.WeightSum
+	allocatedAsWeightedMillis := allocated.AsWeightedMillis(qctx.SchedulingContext.ResourceScarcity)
+	return (float64(allocatedAsWeightedMillis) / float64(qctx.SchedulingContext.TotalResourcesAsWeightedMillis)) / fairShare
 }
 
 type GangSchedulingContext struct {

@@ -86,16 +86,22 @@ var (
 	}
 
 	swaggerGroup = &models.Group{
-		Aggregates: map[string]string{
+		Aggregates: map[string]interface{}{
 			"averageTimeInState": "3d",
+			"state": map[string]int{
+				"QUEUED": 321,
+			},
 		},
 		Count: 1000,
 		Name:  "queue-1",
 	}
 
 	group = &model.JobGroup{
-		Aggregates: map[string]string{
+		Aggregates: map[string]interface{}{
 			"averageTimeInState": "3d",
+			"state": map[string]int{
+				"QUEUED": 321,
+			},
 		},
 		Count: 1000,
 		Name:  "queue-1",

@@ -264,7 +264,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, t
 		}
 		jobsByExecutorId[executorId] = append(jobsByExecutorId[executorId], job)
 		nodeIdByJobId[job.Id()] = nodeId
-		gangId, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(job, l.config.Preemption.PriorityClasses)
+		gangId, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(job)
 		if err != nil {
 			return nil, err
 		}
@@ -327,7 +327,11 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 		if allocatedByQueueAndPriorityClass := accounting.allocationByPoolAndQueueAndPriorityClass[executor.Pool]; allocatedByQueueAndPriorityClass != nil {
 			allocatedByPriorityClass = allocatedByQueueAndPriorityClass[queue]
 		}
-		if err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByPriorityClass); err != nil {
+		var weight float64 = 1
+		if priorityFactor > 0 {
+			weight = 1 / priorityFactor
+		}
+		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByPriorityClass); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -342,6 +346,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 		constraints,
 		l.config.Preemption.NodeEvictionProbability,
 		l.config.Preemption.NodeOversubscriptionEvictionProbability,
+		l.config.Preemption.ProtectedFractionOfFairShare,
 		&schedulerJobRepositoryAdapter{
 			txn: txn,
 			db:  db,

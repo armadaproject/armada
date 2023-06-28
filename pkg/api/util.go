@@ -102,11 +102,22 @@ func JobRunStateFromApiJobState(s JobState) schedulerobjects.JobRunState {
 	return schedulerobjects.JobRunState_UNKNOWN
 }
 
-func NewNodeTypeFromNodeInfo(nodeInfo *NodeInfo, indexedTaints map[string]interface{}, indexedLabels map[string]interface{}) *schedulerobjects.NodeType {
-	return schedulerobjects.NewNodeType(nodeInfo.GetTaints(), nodeInfo.GetLabels(), indexedTaints, indexedLabels)
+func (job *Job) GetPerQueuePriority() uint32 {
+	priority := job.Priority
+	if priority < 0 {
+		return 0
+	}
+	if priority > math.MaxUint32 {
+		return math.MaxUint32
+	}
+	return uint32(math.Round(priority))
 }
 
-func (job *Job) GetRequirements(priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
+func (job *Job) GetSubmitTime() time.Time {
+	return job.Created
+}
+
+func (job *Job) GetJobSchedulingInfo(priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
 	podSpec := job.GetMainPodSpec()
 
 	priority, ok := PriorityFromPodSpec(podSpec, priorityClasses)
@@ -132,8 +143,8 @@ func (job *Job) GetRequirements(priorityClasses map[string]configuration.Priorit
 	}
 	return &schedulerobjects.JobSchedulingInfo{
 		PriorityClassName: podSpec.PriorityClassName,
-		Priority:          LogSubmitPriorityFromApiPriority(job.GetPriority()),
-		SubmitTime:        job.GetCreated(),
+		Priority:          job.GetPerQueuePriority(),
+		SubmitTime:        job.GetSubmitTime(),
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
@@ -247,19 +258,6 @@ func (job *Job) GetResourceRequirements() v1.ResourceRequirements {
 
 func (job *Job) GetJobSet() string {
 	return job.JobSetId
-}
-
-// LogSubmitPriorityFromApiPriority returns the uint32 representation of the priority included with a submitted job,
-// or an error if the conversion fails.
-func LogSubmitPriorityFromApiPriority(priority float64) uint32 {
-	if priority < 0 {
-		priority = 0
-	}
-	if priority > math.MaxUint32 {
-		priority = math.MaxUint32
-	}
-	priority = math.Round(priority)
-	return uint32(priority)
 }
 
 func (job *Job) GetMainPodSpec() *v1.PodSpec {
