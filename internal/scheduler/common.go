@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"fmt"
-	"math"
 	"strconv"
 	"time"
 
@@ -168,17 +167,6 @@ func GangIdAndCardinalityFromAnnotations(annotations map[string]string) (string,
 		return "", 0, false, errors.Errorf("gang cardinality is non-positive %d", gangCardinality)
 	}
 	return gangId, gangCardinality, true, nil
-}
-
-// ResourceListAsWeightedMillis returns the linear combination of the milli values in rl with given weights.
-// This function overflows for values that exceed MaxInt64. E.g., 1Pi is fine but not 10Pi.
-func ResourceListAsWeightedMillis(weights map[string]float64, rl schedulerobjects.ResourceList) int64 {
-	var rv int64
-	for t, f := range weights {
-		q := rl.Get(t)
-		rv += int64(math.Round(float64(q.MilliValue()) * f))
-	}
-	return rv
 }
 
 func PodRequirementsFromLegacySchedulerJobs[S ~[]E, E interfaces.LegacySchedulerJob](jobs S, priorityClasses map[string]configuration.PriorityClass) []*schedulerobjects.PodRequirements {

@@ -453,7 +453,8 @@ func TestQueueScheduler(t *testing.T) {
 				tc.TotalResources,
 			)
 			for queue, priorityFactor := range tc.PriorityFactorByQueue {
-				err := sctx.AddQueueSchedulingContext(queue, priorityFactor, tc.InitialAllocatedByQueueAndPriorityClass[queue])
+				weight := 1 / priorityFactor
+				err := sctx.AddQueueSchedulingContext(queue, weight, tc.InitialAllocatedByQueueAndPriorityClass[queue])
 				require.NoError(t, err)
 			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
