@@ -176,6 +176,7 @@ func (it *JobQueueIteratorAdapter) Next() (interfaces.LegacySchedulerJob, error)
 
 type fairSchedulingAlgoContext struct {
 	priorityFactorByQueue                    map[string]float64
+	isActiveByQueueName                      map[string]bool
 	totalCapacity                            schedulerobjects.ResourceList
 	jobsByExecutorId                         map[string][]*jobdb.Job
 	nodeIdByJobId                            map[string]string
@@ -242,11 +243,13 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, t
 	}
 
 	// Create a map of jobs associated with each executor.
+	isActiveByQueueName := make(map[string]bool, len(queues))
 	jobsByExecutorId := make(map[string][]*jobdb.Job)
 	nodeIdByJobId := make(map[string]string)
 	jobIdsByGangId := make(map[string]map[string]bool)
 	gangIdByJobId := make(map[string]string)
 	for _, job := range jobDb.GetAll(txn) {
+		isActiveByQueueName[job.Queue()] = true
 		if job.Queued() {
 			continue
 		}
@@ -288,6 +291,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, t
 
 	return &fairSchedulingAlgoContext{
 		priorityFactorByQueue:                    priorityFactorByQueue,
+		isActiveByQueueName:                      isActiveByQueueName,
 		totalCapacity:                            totalCapacity,
 		jobsByExecutorId:                         jobsByExecutorId,
 		nodeIdByJobId:                            nodeIdByJobId,
@@ -322,7 +326,14 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 		l.config.ResourceScarcity,
 		accounting.totalCapacity,
 	)
+	if l.config.FairnessModel == configuration.DominantResourceFairness {
+		sctx.EnableDominantResourceFairness(l.config.DominantResourceFairnessResourcesToConsider)
+	}
 	for queue, priorityFactor := range accounting.priorityFactorByQueue {
+		if !accounting.isActiveByQueueName[queue] {
+			// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.
+			continue
+		}
 		var allocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
 		if allocatedByQueueAndPriorityClass := accounting.allocationByPoolAndQueueAndPriorityClass[executor.Pool]; allocatedByQueueAndPriorityClass != nil {
 			allocatedByPriorityClass = allocatedByQueueAndPriorityClass[queue]
@@ -439,12 +450,7 @@ func (l *FairSchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, job
 			)
 			continue
 		}
-		req := PodRequirementFromLegacySchedulerJob(job, l.config.Preemption.PriorityClasses)
-		if req == nil {
-			log.Errorf("no pod spec found for job %s", job.Id())
-			continue
-		}
-		node, err := nodedb.BindPodToNode(req, node)
+		node, err := nodedb.BindJobToNode(l.config.Preemption.PriorityClasses, job, node)
 		if err != nil {
 			return nil, err
 		}

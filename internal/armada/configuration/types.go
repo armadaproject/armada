@@ -113,7 +113,11 @@ type SchedulingConfig struct {
 	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
-	// Weights used when computing fair share.
+	// Controls how fairness is calculated. Can be either AssetFairness or DominantResourceFairness.
+	FairnessModel FairnessModel
+	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness.
+	DominantResourceFairnessResourcesToConsider []string
+	// Weights used to compute fair share when using AssetFairness.
 	// Overrides dynamic scarcity calculation if provided.
 	// Applies to both the new and old scheduler.
 	ResourceScarcity map[string]float64
@@ -186,6 +190,20 @@ type SchedulingConfig struct {
 	// If true, do not during scheduling skip jobs with requirements known to be impossible to meet.
 	AlwaysAttemptScheduling bool
 }
+
+// FairnessModel controls how fairness is computed.
+// More specifically, each queue has a cost associated with it and the next job to schedule
+// is taken from the queue with smallest cost. FairnessModel determines how that cost is computed.
+type FairnessModel string
+
+const (
+	// AssetFairness sets the cost associated with a queue to a linear combination of its total allocation.
+	// E.g., w_CPU * "CPU allocation" + w_memory * "memory allocation".
+	AssetFairness FairnessModel = "AssetFairness"
+	// DominantResourceFairness set the cost associated with a queue to
+	// max("CPU allocation" / "CPU capacity", "memory allocation" / "mamory capacity", ...).
+	DominantResourceFairness FairnessModel = "DominantResourceFairness"
+)
 
 type IndexedResource struct {
 	// Resource name. E.g., "cpu", "memory", or "nvidia.com/gpu".
