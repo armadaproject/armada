@@ -424,7 +424,7 @@ func TestQueueScheduler(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := CreateNodeDb(tc.Nodes)
+			nodeDb, err := NewNodeDb(tc.Nodes)
 			require.NoError(t, err)
 			if tc.TotalResources.Resources == nil {
 				// Default to NodeDb total.
@@ -596,7 +596,7 @@ func TestQueueScheduler(t *testing.T) {
 	}
 }
 
-func CreateNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
+func NewNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
 	db, err := nodedb.NewNodeDb(
 		testfixtures.TestPriorityClasses,
 		testfixtures.TestMaxExtraNodesToConsider,
