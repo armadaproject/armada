@@ -29,7 +29,7 @@ jobs:
         working-directory: ./internal/lookout/ui
 
   go-unit-tests:
-    name: Unit Tests
+    name: Golang Unit Tests
     runs-on: ubuntu-22.04
 
     steps:
@@ -77,7 +77,7 @@ jobs:
           verbose: true
 
   go-integration-tests:
-    name: Integration Tests
+    name: Golang Integration Tests
     runs-on: ubuntu-22.04
 
     env:
@@ -133,7 +133,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   go-mod-up-to-date:
-    name: Go Mod Up To Date
+    name: Golang Mod Up To Date
     runs-on: ubuntu-22.04
 
     steps:
