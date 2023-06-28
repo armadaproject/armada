@@ -432,29 +432,34 @@ func (repo *schedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([
 }
 
 // constructNodeDb constructs a node db with all jobs bound to it.
-func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]configuration.PriorityClass, jobs []*jobdb.Job, nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
-	nodesByName := make(map[string]*schedulerobjects.Node, len(nodes))
-	for _, node := range nodes {
-		nodesByName[node.Name] = node
+func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]configuration.PriorityClass, jobs []*jobdb.Job, originalNodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
+	originalNodesByName := make(map[string]*schedulerobjects.Node, len(originalNodes))
+	for _, node := range originalNodes {
+		originalNodesByName[node.Name] = node
 	}
+	jobsByNodeName := make(map[string][]*jobdb.Job)
 	for _, job := range jobs {
 		if job.InTerminalState() || !job.HasRuns() {
 			continue
 		}
-		assignedNode := job.LatestRun().Node()
-		node, ok := nodesByName[assignedNode]
-		if !ok {
+		nodeName := job.LatestRun().Node()
+		if _, ok := originalNodesByName[nodeName]; !ok {
 			log.Warnf(
 				"job %s assigned to node %s on executor %s, but no such node found",
-				job.Id(), assignedNode, job.LatestRun().Executor(),
+				job.Id(), nodeName, job.LatestRun().Executor(),
 			)
 			continue
 		}
-		node, err := nodedb.BindJobToNode(l.config.Preemption.PriorityClasses, job, node)
+		jobsByNodeName[nodeName] = append(jobsByNodeName[nodeName], job)
+	}
+	updatedNodes := make([]*schedulerobjects.Node, 0, len(originalNodes))
+	for nodeName, jobsOnNode := range jobsByNodeName {
+		node := originalNodesByName[nodeName]
+		node, err := nodedb.BindJobsToNode(priorityClasses, jobsOnNode, node)
 		if err != nil {
 			return nil, err
 		}
-		nodesByName[node.Name] = node
+		updatedNodes = append(updatedNodes, node)
 	}
 	nodeDb, err := nodedb.NewNodeDb(
 		priorityClasses,
@@ -466,7 +471,7 @@ func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]configur
 	if err != nil {
 		return nil, err
 	}
-	if err := nodeDb.UpsertMany(maps.Values(nodesByName)); err != nil {
+	if err := nodeDb.UpsertMany(updatedNodes); err != nil {
 		return nil, err
 	}
 	return nodeDb, nil

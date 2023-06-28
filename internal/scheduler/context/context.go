@@ -638,7 +638,7 @@ func (jctx *JobSchedulingContext) IsSuccessful() bool {
 	return jctx.UnschedulableReason == ""
 }
 
-func JobSchedulingContextsFromJobs[T interfaces.LegacySchedulerJob](priorityClasses map[string]configuration.PriorityClass, jobs []T) []*JobSchedulingContext {
+func JobSchedulingContextsFromJobs[J interfaces.LegacySchedulerJob](priorityClasses map[string]configuration.PriorityClass, jobs []J) []*JobSchedulingContext {
 	jctxs := make([]*JobSchedulingContext, len(jobs))
 	timestamp := time.Now()
 	for i, job := range jobs {
