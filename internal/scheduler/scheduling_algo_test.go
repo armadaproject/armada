@@ -49,7 +49,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			},
 			queues: []*database.Queue{testfixtures.TestDbQueue()},
 
-			queuedJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
 			expectedScheduledIndices: map[string][]int{
 				"executor1": {0, 1},
 				"executor2": {2, 3},
@@ -64,7 +64,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			},
 			queues: []*database.Queue{testfixtures.TestDbQueue()},
 
-			queuedJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
 			expectedScheduledIndices: map[string][]int{
 				"executor1": {0, 1},
 			},
@@ -78,12 +78,12 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			},
 			queues: []*database.Queue{testfixtures.TestDbQueue()},
 
-			existingJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 2),
+			existingJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 2),
 			existingUnacknowledgedIndices: map[string]map[string][]int{
 				"executor1": {"executor1-node": {0, 1}},
 			},
 
-			queuedJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
 
 			expectedScheduledIndices: map[string][]int{
 				"executor2": {0, 1},
@@ -98,12 +98,12 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			},
 			queues: []*database.Queue{testfixtures.TestDbQueue()},
 
-			existingJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 2),
+			existingJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 2),
 			existingRunningIndices: map[string]map[string][]int{
 				"executor1": {"executor1-node": {0, 1}},
 			},
 
-			queuedJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
 
 			expectedScheduledIndices: map[string][]int{
 				"executor2": {0, 1},
@@ -123,12 +123,12 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			},
 			queues: []*database.Queue{testfixtures.TestDbQueue()},
 
-			existingJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 2),
+			existingJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 2),
 			existingRunningIndices: map[string]map[string][]int{
 				"executor1": {"executor1-node": {0, 1}},
 			},
 
-			queuedJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
 
 			expectedScheduledIndices: nil,
 		},
@@ -146,12 +146,12 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			},
 			queues: []*database.Queue{testfixtures.TestDbQueue()},
 
-			existingJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 1),
+			existingJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 1),
 			existingRunningIndices: map[string]map[string][]int{
 				"executor1": {"executor1-node": {0}},
 			},
 
-			queuedJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
 
 			expectedScheduledIndices: map[string][]int{
 				"executor1": {0},
@@ -174,7 +174,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			executors: []*schedulerobjects.Executor{},
 			queues:    []*database.Queue{testfixtures.TestDbQueue()},
 
-			queuedJobs:               testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
 			expectedScheduledIndices: nil,
 		},
 		"computation of allocated resources does not confuse priority class with per-queue priority": {
@@ -188,7 +188,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
 			queues:    []*database.Queue{testfixtures.TestDbQueue()},
 
-			existingJobs: []*jobdb.Job{testfixtures.Test16CpuJob(testfixtures.TestQueue, testfixtures.PriorityClass3).WithPriority(0)},
+			existingJobs: []*jobdb.Job{testfixtures.Test16Cpu128GiJob(testfixtures.TestQueue, testfixtures.PriorityClass3).WithPriority(0)},
 			existingRunningIndices: map[string]map[string][]int{
 				"executor1": {"executor1-node": {0}},
 			},
@@ -199,7 +199,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				// than the priority class number of the two jobs (i.e., 3); if the scheduler were
 				// to use the per-queue priority instead of the priority class number in its
 				// accounting, then it would schedule this job.
-				testfixtures.Test16CpuJob(testfixtures.TestQueue, testfixtures.PriorityClass3).WithPriority(1),
+				testfixtures.Test16Cpu128GiJob(testfixtures.TestQueue, testfixtures.PriorityClass3).WithPriority(1),
 			},
 
 			expectedScheduledIndices: nil,
@@ -210,12 +210,12 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
 			queues:    []*database.Queue{{Name: "queue1", Weight: 100}},
 
-			existingJobs: testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 2),
+			existingJobs: testfixtures.N16Cpu128GiJobs("queue1", testfixtures.PriorityClass0, 2),
 			existingRunningIndices: map[string]map[string][]int{
 				"executor1": {"executor1-node": {0, 1}},
 			},
 
-			queuedJobs: testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass1, 2),
+			queuedJobs: testfixtures.N16Cpu128GiJobs("queue1", testfixtures.PriorityClass1, 2),
 
 			expectedPreemptedIndices: []int{0, 1},
 			expectedScheduledIndices: map[string][]int{
@@ -228,12 +228,12 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
 			queues:    []*database.Queue{{Name: "queue1", Weight: 100}, {Name: "queue2", Weight: 100}},
 
-			existingJobs: testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 2),
+			existingJobs: testfixtures.N16Cpu128GiJobs("queue1", testfixtures.PriorityClass0, 2),
 			existingRunningIndices: map[string]map[string][]int{
 				"executor1": {"executor1-node": {0, 1}},
 			},
 
-			queuedJobs: testfixtures.N16CpuJobs("queue2", testfixtures.PriorityClass1, 2),
+			queuedJobs: testfixtures.N16Cpu128GiJobs("queue2", testfixtures.PriorityClass1, 2),
 
 			expectedPreemptedIndices: []int{0, 1},
 			expectedScheduledIndices: map[string][]int{
@@ -246,12 +246,12 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
 			queues:    []*database.Queue{{Name: "queue1", Weight: 100}, {Name: "queue2", Weight: 100}},
 
-			existingJobs: testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 2),
+			existingJobs: testfixtures.N16Cpu128GiJobs("queue1", testfixtures.PriorityClass0, 2),
 			existingRunningIndices: map[string]map[string][]int{
 				"executor1": {"executor1-node": {0, 1}},
 			},
 
-			queuedJobs: testfixtures.N16CpuJobs("queue2", testfixtures.PriorityClass0, 2),
+			queuedJobs: testfixtures.N16Cpu128GiJobs("queue2", testfixtures.PriorityClass0, 2),
 
 			expectedPreemptedIndices: []int{1},
 			expectedScheduledIndices: map[string][]int{
@@ -264,7 +264,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
 			queues:    []*database.Queue{{Name: "queue1", Weight: 100}},
 
-			queuedJobs: testfixtures.WithGangAnnotationsJobs(testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 2)),
+			queuedJobs: testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("queue1", testfixtures.PriorityClass0, 2)),
 
 			expectedScheduledIndices: map[string][]int{
 				"executor1": {0, 1},
@@ -279,7 +279,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			},
 			queues: []*database.Queue{{Name: "queue1", Weight: 100}},
 
-			queuedJobs: testfixtures.WithGangAnnotationsJobs(testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 3)),
+			queuedJobs: testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("queue1", testfixtures.PriorityClass0, 3)),
 
 			expectedScheduledIndices: nil,
 		},
@@ -292,12 +292,12 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			},
 			queues: []*database.Queue{{Name: "queue1", Weight: 100}, {Name: "queue2", Weight: 100}},
 
-			existingJobs: testfixtures.WithGangAnnotationsJobs(testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 2)),
+			existingJobs: testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("queue1", testfixtures.PriorityClass0, 2)),
 			existingRunningIndices: map[string]map[string][]int{
 				"executor1": {"executor1-node": {0, 1}},
 			},
 
-			queuedJobs: testfixtures.N16CpuJobs("queue2", testfixtures.PriorityClass1, 4),
+			queuedJobs: testfixtures.N16Cpu128GiJobs("queue2", testfixtures.PriorityClass1, 4),
 
 			expectedPreemptedIndices: []int{0, 1},
 			expectedScheduledIndices: map[string][]int{
@@ -311,12 +311,12 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
 			queues:    []*database.Queue{{Name: "queue1", Weight: 100}, {Name: "queue2", Weight: 100}},
 
-			existingJobs: testfixtures.WithGangAnnotationsJobs(testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 2)),
+			existingJobs: testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("queue1", testfixtures.PriorityClass0, 2)),
 			existingRunningIndices: map[string]map[string][]int{
 				"executor1": {"executor1-node": {0, 1}},
 			},
 
-			queuedJobs: testfixtures.N16CpuJobs("queue2", testfixtures.PriorityClass0, 1),
+			queuedJobs: testfixtures.N16Cpu128GiJobs("queue2", testfixtures.PriorityClass0, 1),
 
 			expectedPreemptedIndices: []int{0, 1},
 			expectedScheduledIndices: map[string][]int{
