@@ -1,6 +1,8 @@
 package interfaces
 
 import (
+	"time"
+
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -12,24 +14,13 @@ type LegacySchedulerJob interface {
 	GetId() string
 	GetQueue() string
 	GetJobSet() string
+	GetPerQueuePriority() uint32
+	GetSubmitTime() time.Time
 	GetAnnotations() map[string]string
-	GetRequirements(map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo
+	GetPodRequirements(priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements
 	GetPriorityClassName() string
 	GetNodeSelector() map[string]string
 	GetAffinity() *v1.Affinity
 	GetTolerations() []v1.Toleration
 	GetResourceRequirements() v1.ResourceRequirements
-}
-
-func PodRequirementFromLegacySchedulerJob(job LegacySchedulerJob, priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
-	schedulingInfo := job.GetRequirements(priorityClasses)
-	if schedulingInfo == nil {
-		return nil
-	}
-	for _, objectReq := range schedulingInfo.ObjectRequirements {
-		if req := objectReq.GetPodRequirements(); req != nil {
-			return req
-		}
-	}
-	return nil
 }

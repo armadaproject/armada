@@ -166,6 +166,30 @@ func (js *JobSimulator) Submit(queue, jobSet, owner string, timestamp time.Time,
 	return js
 }
 
+func (js *JobSimulator) Lease(runId string, timestamp time.Time) *JobSimulator {
+	ts := timestampOrNow(timestamp)
+	leasedEvent := &armadaevents.EventSequence_Event{
+		Created: &ts,
+		Event: &armadaevents.EventSequence_Event_JobRunLeased{
+			JobRunLeased: &armadaevents.JobRunLeased{
+				RunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(runId)),
+				JobId: js.jobId,
+			},
+		},
+	}
+	js.events = append(js.events, leasedEvent)
+
+	js.job.LastActiveRunId = &runId
+	js.job.LastTransitionTime = ts
+	js.job.State = string(lookout.JobLeased)
+	updateRun(js.job, &runPatch{
+		runId:       runId,
+		jobRunState: pointer.String(string(lookout.JobRunLeased)),
+		pending:     &ts,
+	})
+	return js
+}
+
 func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	assignedEvent := &armadaevents.EventSequence_Event{
@@ -414,6 +438,31 @@ func (js *JobSimulator) Failed(node string, exitCode int32, message string, time
 
 	js.job.LastTransitionTime = ts
 	js.job.State = string(lookout.JobFailed)
+	return js
+}
+
+func (js *JobSimulator) Preempted(timestamp time.Time) *JobSimulator {
+	ts := timestampOrNow(timestamp)
+	jobIdProto, err := armadaevents.ProtoUuidFromUlidString(util.NewULID())
+	if err != nil {
+		log.WithError(err).Errorf("Could not convert job ID to UUID: %s", util.NewULID())
+	}
+
+	preempted := &armadaevents.EventSequence_Event{
+		Created: &ts,
+		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+			JobRunPreempted: &armadaevents.JobRunPreempted{
+				PreemptedJobId:  js.jobId,
+				PreemptiveJobId: jobIdProto,
+				PreemptedRunId:  armadaevents.ProtoUuidFromUuid(uuid.MustParse(uuid.NewString())),
+				PreemptiveRunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(uuid.NewString())),
+			},
+		},
+	}
+	js.events = append(js.events, preempted)
+
+	js.job.LastTransitionTime = ts
+	js.job.State = string(lookout.JobPreempted)
 	return js
 }
 

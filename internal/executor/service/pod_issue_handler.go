@@ -27,6 +27,7 @@ const (
 	StuckStartingUp
 	StuckTerminating
 	ExternallyDeleted
+	ErrorDuringIssueHandling
 )
 
 type podIssue struct {
@@ -303,9 +304,7 @@ func (p *IssueHandler) handleNonRetryableJobIssue(issue *issue) {
 //   - Report JobUnableToScheduleEvent
 //   - Report JobReturnLeaseEvent
 //
-// Special consideration must be taken that most of these pods are somewhat "stuck" in pending.
-// So can transition to Running/Completed/Failed in the middle of this
-// We must not return the lease if the pod state changes - as likely it has become "unstuck"
+// If the pod becomes Running/Completed/Failed in the middle of being deleted - swap this issue to a nonRetryableIssue where it will be Failed
 func (p *IssueHandler) handleRetryableJobIssue(issue *issue) {
 	if !issue.RunIssue.Reported {
 		log.Infof("Retryable issue detected for job %s run %s - %s", issue.RunIssue.JobId, issue.RunIssue.RunId, issue.RunIssue.PodIssue.Message)
@@ -321,7 +320,25 @@ func (p *IssueHandler) handleRetryableJobIssue(issue *issue) {
 	}
 
 	if issue.CurrentPodState != nil {
-		// TODO consider moving this to a synchronous call - but long termination periods would need to be handled
+		if issue.CurrentPodState.Status.Phase != v1.PodPending {
+			p.markIssuesResolved(issue.RunIssue)
+			if issue.RunIssue.PodIssue.DeletionRequested {
+				p.registerIssue(&runIssue{
+					JobId: issue.RunIssue.JobId,
+					RunId: issue.RunIssue.RunId,
+					PodIssue: &podIssue{
+						OriginalPodState:  issue.RunIssue.PodIssue.OriginalPodState,
+						Message:           "Pod unexpectedly started up after delete was called",
+						Retryable:         false,
+						DeletionRequested: false,
+						Type:              ErrorDuringIssueHandling,
+						Cause:             api.Cause_Error,
+					},
+				})
+			}
+			return
+		}
+
 		err := p.clusterContext.DeletePodWithCondition(issue.CurrentPodState, func(pod *v1.Pod) bool {
 			return pod.Status.Phase == v1.PodPending
 		}, true)
@@ -359,20 +376,10 @@ func hasPodIssueSelfResolved(issue *issue) bool {
 			return false
 		}
 
-		// Pod has completed - no need to report any issues
-		if util.IsInTerminalState(issue.CurrentPodState) {
+		// Pod has started up and we haven't tried to delete the pod yet - so resolve the issue
+		if issue.CurrentPodState.Status.Phase != v1.PodPending && !issue.RunIssue.PodIssue.DeletionRequested {
 			return true
 		}
-
-		// Pod has started running, and we haven't requested deletion - let it continue
-		if issue.CurrentPodState.Status.Phase == v1.PodRunning && !issue.RunIssue.PodIssue.DeletionRequested {
-			return true
-		}
-		// TODO There is an edge case here where the pod has started running but we have requested deletion
-		// Without a proper state model, we can't easily handle this correctly
-		// Ideally we'd see if it completes or deletes first and report it accordingly
-		// If it completes first - do nothing
-		// If it deletes first - report JobFailed (as we accidentally deleted it during the run)
 	}
 
 	return false

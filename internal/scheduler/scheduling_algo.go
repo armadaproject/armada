@@ -176,6 +176,7 @@ func (it *JobQueueIteratorAdapter) Next() (interfaces.LegacySchedulerJob, error)
 
 type fairSchedulingAlgoContext struct {
 	priorityFactorByQueue                    map[string]float64
+	isActiveByQueueName                      map[string]bool
 	totalCapacity                            schedulerobjects.ResourceList
 	jobsByExecutorId                         map[string][]*jobdb.Job
 	nodeIdByJobId                            map[string]string
@@ -242,11 +243,13 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, t
 	}
 
 	// Create a map of jobs associated with each executor.
+	isActiveByQueueName := make(map[string]bool, len(queues))
 	jobsByExecutorId := make(map[string][]*jobdb.Job)
 	nodeIdByJobId := make(map[string]string)
 	jobIdsByGangId := make(map[string]map[string]bool)
 	gangIdByJobId := make(map[string]string)
 	for _, job := range jobDb.GetAll(txn) {
+		isActiveByQueueName[job.Queue()] = true
 		if job.Queued() {
 			continue
 		}
@@ -264,7 +267,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, t
 		}
 		jobsByExecutorId[executorId] = append(jobsByExecutorId[executorId], job)
 		nodeIdByJobId[job.Id()] = nodeId
-		gangId, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(job, l.config.Preemption.PriorityClasses)
+		gangId, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(job)
 		if err != nil {
 			return nil, err
 		}
@@ -288,6 +291,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, t
 
 	return &fairSchedulingAlgoContext{
 		priorityFactorByQueue:                    priorityFactorByQueue,
+		isActiveByQueueName:                      isActiveByQueueName,
 		totalCapacity:                            totalCapacity,
 		jobsByExecutorId:                         jobsByExecutorId,
 		nodeIdByJobId:                            nodeIdByJobId,
@@ -307,9 +311,9 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 	db *jobdb.JobDb,
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	nodeDb, err := l.constructNodeDb(
-		executor.Nodes,
-		accounting.jobsByExecutorId[executor.Id],
 		l.config.Preemption.PriorityClasses,
+		accounting.jobsByExecutorId[executor.Id],
+		executor.Nodes,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -322,12 +326,23 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 		l.config.ResourceScarcity,
 		accounting.totalCapacity,
 	)
+	if l.config.FairnessModel == configuration.DominantResourceFairness {
+		sctx.EnableDominantResourceFairness(l.config.DominantResourceFairnessResourcesToConsider)
+	}
 	for queue, priorityFactor := range accounting.priorityFactorByQueue {
+		if !accounting.isActiveByQueueName[queue] {
+			// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.
+			continue
+		}
 		var allocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
 		if allocatedByQueueAndPriorityClass := accounting.allocationByPoolAndQueueAndPriorityClass[executor.Pool]; allocatedByQueueAndPriorityClass != nil {
 			allocatedByPriorityClass = allocatedByQueueAndPriorityClass[queue]
 		}
-		if err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByPriorityClass); err != nil {
+		var weight float64 = 1
+		if priorityFactor > 0 {
+			weight = 1 / priorityFactor
+		}
+		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByPriorityClass); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -342,6 +357,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 		constraints,
 		l.config.Preemption.NodeEvictionProbability,
 		l.config.Preemption.NodeOversubscriptionEvictionProbability,
+		l.config.Preemption.ProtectedFractionOfFairShare,
 		&schedulerJobRepositoryAdapter{
 			txn: txn,
 			db:  db,
@@ -416,34 +432,32 @@ func (repo *schedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([
 }
 
 // constructNodeDb constructs a node db with all jobs bound to it.
-func (l *FairSchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, jobs []*jobdb.Job, priorityClasses map[string]configuration.PriorityClass) (*nodedb.NodeDb, error) {
+func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]configuration.PriorityClass, jobs []*jobdb.Job, nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
 	nodesByName := make(map[string]*schedulerobjects.Node, len(nodes))
 	for _, node := range nodes {
 		nodesByName[node.Name] = node
 	}
+	jobsByNodeName := make(map[string][]*jobdb.Job)
 	for _, job := range jobs {
 		if job.InTerminalState() || !job.HasRuns() {
 			continue
 		}
-		assignedNode := job.LatestRun().Node()
-		node, ok := nodesByName[assignedNode]
-		if !ok {
+		nodeName := job.LatestRun().Node()
+		if _, ok := nodesByName[nodeName]; !ok {
 			log.Warnf(
 				"job %s assigned to node %s on executor %s, but no such node found",
-				job.Id(), assignedNode, job.LatestRun().Executor(),
+				job.Id(), nodeName, job.LatestRun().Executor(),
 			)
 			continue
 		}
-		req := PodRequirementFromLegacySchedulerJob(job, l.config.Preemption.PriorityClasses)
-		if req == nil {
-			log.Errorf("no pod spec found for job %s", job.Id())
-			continue
-		}
-		node, err := nodedb.BindPodToNode(req, node)
+		jobsByNodeName[nodeName] = append(jobsByNodeName[nodeName], job)
+	}
+	for nodeName, jobsOnNode := range jobsByNodeName {
+		node, err := nodedb.BindJobsToNode(priorityClasses, jobsOnNode, nodesByName[nodeName])
 		if err != nil {
 			return nil, err
 		}
-		nodesByName[node.Name] = node
+		nodesByName[nodeName] = node
 	}
 	nodeDb, err := nodedb.NewNodeDb(
 		priorityClasses,

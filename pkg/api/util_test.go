@@ -264,10 +264,10 @@ func QuantityWithMilliValue(v int64) resource.Quantity {
 	return q
 }
 
-func TestJobGetRequirements(t *testing.T) {
+func TestJobGetPodRequirements(t *testing.T) {
 	tests := map[string]struct {
 		job      *Job
-		expected *schedulerobjects.JobSchedulingInfo
+		expected *schedulerobjects.PodRequirements
 	}{
 		"queue priority": {
 			job: &Job{
@@ -277,20 +277,11 @@ func TestJobGetRequirements(t *testing.T) {
 					// PriorityClassName: ,
 				},
 			},
-			expected: &schedulerobjects.JobSchedulingInfo{
-				Priority: 10,
-				ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-					{
-						&schedulerobjects.ObjectRequirements_PodRequirements{
-							PodRequirements: &schedulerobjects.PodRequirements{
-								PreemptionPolicy: string(v1.PreemptLowerPriority),
-								ResourceRequirements: v1.ResourceRequirements{
-									Requests: make(v1.ResourceList),
-									Limits:   make(v1.ResourceList),
-								},
-							},
-						},
-					},
+			expected: &schedulerobjects.PodRequirements{
+				PreemptionPolicy: string(v1.PreemptLowerPriority),
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: make(v1.ResourceList),
+					Limits:   make(v1.ResourceList),
 				},
 			},
 		},
@@ -300,21 +291,12 @@ func TestJobGetRequirements(t *testing.T) {
 					PriorityClassName: PriorityClass1,
 				},
 			},
-			expected: &schedulerobjects.JobSchedulingInfo{
-				PriorityClassName: PriorityClass1,
-				ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-					{
-						&schedulerobjects.ObjectRequirements_PodRequirements{
-							PodRequirements: &schedulerobjects.PodRequirements{
-								Priority:         1,
-								PreemptionPolicy: string(v1.PreemptLowerPriority),
-								ResourceRequirements: v1.ResourceRequirements{
-									Requests: make(v1.ResourceList),
-									Limits:   make(v1.ResourceList),
-								},
-							},
-						},
-					},
+			expected: &schedulerobjects.PodRequirements{
+				Priority:         1,
+				PreemptionPolicy: string(v1.PreemptLowerPriority),
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: make(v1.ResourceList),
+					Limits:   make(v1.ResourceList),
 				},
 			},
 		},
@@ -324,19 +306,11 @@ func TestJobGetRequirements(t *testing.T) {
 					PreemptionPolicy: pointerFromValue(v1.PreemptNever),
 				},
 			},
-			expected: &schedulerobjects.JobSchedulingInfo{
-				ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-					{
-						&schedulerobjects.ObjectRequirements_PodRequirements{
-							PodRequirements: &schedulerobjects.PodRequirements{
-								PreemptionPolicy: string(v1.PreemptNever),
-								ResourceRequirements: v1.ResourceRequirements{
-									Requests: make(v1.ResourceList),
-									Limits:   make(v1.ResourceList),
-								},
-							},
-						},
-					},
+			expected: &schedulerobjects.PodRequirements{
+				PreemptionPolicy: string(v1.PreemptNever),
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: make(v1.ResourceList),
+					Limits:   make(v1.ResourceList),
 				},
 			},
 		},
@@ -366,40 +340,32 @@ func TestJobGetRequirements(t *testing.T) {
 					},
 				},
 			},
-			expected: &schedulerobjects.JobSchedulingInfo{
-				ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-					{
-						&schedulerobjects.ObjectRequirements_PodRequirements{
-							PodRequirements: &schedulerobjects.PodRequirements{
-								NodeSelector: map[string]string{"label": "value"},
-								Affinity: &v1.Affinity{
-									NodeAffinity: &v1.NodeAffinity{
-										RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
-											NodeSelectorTerms: []v1.NodeSelectorTerm{
-												{
-													MatchExpressions: []v1.NodeSelectorRequirement{
-														{
-															Key: "affinityKey",
-														},
-													},
-												},
-											},
+			expected: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{"label": "value"},
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key: "affinityKey",
 										},
 									},
-								},
-								Tolerations: []v1.Toleration{
-									{
-										Key: "tolerationKey",
-									},
-								},
-								PreemptionPolicy: string(v1.PreemptLowerPriority),
-								ResourceRequirements: v1.ResourceRequirements{
-									Requests: make(v1.ResourceList),
-									Limits:   make(v1.ResourceList),
 								},
 							},
 						},
 					},
+				},
+				Tolerations: []v1.Toleration{
+					{
+						Key: "tolerationKey",
+					},
+				},
+				PreemptionPolicy: string(v1.PreemptLowerPriority),
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: make(v1.ResourceList),
+					Limits:   make(v1.ResourceList),
 				},
 			},
 		},
@@ -408,20 +374,12 @@ func TestJobGetRequirements(t *testing.T) {
 				Annotations: map[string]string{"key": "value"},
 				PodSpec:     &v1.PodSpec{},
 			},
-			expected: &schedulerobjects.JobSchedulingInfo{
-				ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-					{
-						&schedulerobjects.ObjectRequirements_PodRequirements{
-							PodRequirements: &schedulerobjects.PodRequirements{
-								Annotations:      map[string]string{"key": "value"},
-								PreemptionPolicy: string(v1.PreemptLowerPriority),
-								ResourceRequirements: v1.ResourceRequirements{
-									Requests: make(v1.ResourceList),
-									Limits:   make(v1.ResourceList),
-								},
-							},
-						},
-					},
+			expected: &schedulerobjects.PodRequirements{
+				Annotations:      map[string]string{"key": "value"},
+				PreemptionPolicy: string(v1.PreemptLowerPriority),
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: make(v1.ResourceList),
+					Limits:   make(v1.ResourceList),
 				},
 			},
 		},
@@ -438,19 +396,11 @@ func TestJobGetRequirements(t *testing.T) {
 					},
 				},
 			},
-			expected: &schedulerobjects.JobSchedulingInfo{
-				ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-					{
-						&schedulerobjects.ObjectRequirements_PodRequirements{
-							PodRequirements: &schedulerobjects.PodRequirements{
-								PreemptionPolicy: string(v1.PreemptLowerPriority),
-								ResourceRequirements: v1.ResourceRequirements{
-									Requests: v1.ResourceList{"foo": QuantityWithMilliValue(1000)},
-									Limits:   v1.ResourceList{"bar": QuantityWithMilliValue(2000)},
-								},
-							},
-						},
-					},
+			expected: &schedulerobjects.PodRequirements{
+				PreemptionPolicy: string(v1.PreemptLowerPriority),
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: v1.ResourceList{"foo": QuantityWithMilliValue(1000)},
+					Limits:   v1.ResourceList{"bar": QuantityWithMilliValue(2000)},
 				},
 			},
 		},
@@ -461,19 +411,11 @@ func TestJobGetRequirements(t *testing.T) {
 					Requests: v1.ResourceList{"foo": resource.MustParse("1")},
 				},
 			},
-			expected: &schedulerobjects.JobSchedulingInfo{
-				ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-					{
-						&schedulerobjects.ObjectRequirements_PodRequirements{
-							PodRequirements: &schedulerobjects.PodRequirements{
-								PreemptionPolicy: string(v1.PreemptLowerPriority),
-								ResourceRequirements: v1.ResourceRequirements{
-									Requests: v1.ResourceList{"foo": resource.MustParse("1")},
-									Limits:   nil,
-								},
-							},
-						},
-					},
+			expected: &schedulerobjects.PodRequirements{
+				PreemptionPolicy: string(v1.PreemptLowerPriority),
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: v1.ResourceList{"foo": resource.MustParse("1")},
+					Limits:   nil,
 				},
 			},
 		},
@@ -484,26 +426,18 @@ func TestJobGetRequirements(t *testing.T) {
 					Limits: v1.ResourceList{"foo": resource.MustParse("1")},
 				},
 			},
-			expected: &schedulerobjects.JobSchedulingInfo{
-				ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-					{
-						&schedulerobjects.ObjectRequirements_PodRequirements{
-							PodRequirements: &schedulerobjects.PodRequirements{
-								PreemptionPolicy: string(v1.PreemptLowerPriority),
-								ResourceRequirements: v1.ResourceRequirements{
-									Requests: nil,
-									Limits:   v1.ResourceList{"foo": resource.MustParse("1")},
-								},
-							},
-						},
-					},
+			expected: &schedulerobjects.PodRequirements{
+				PreemptionPolicy: string(v1.PreemptLowerPriority),
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: nil,
+					Limits:   v1.ResourceList{"foo": resource.MustParse("1")},
 				},
 			},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, tc.job.GetRequirements(TestPriorityClasses))
+			assert.Equal(t, tc.expected, tc.job.GetPodRequirements(TestPriorityClasses))
 		})
 	}
 }

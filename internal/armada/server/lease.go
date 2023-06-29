@@ -296,6 +296,16 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		apiQueues[i] = &api.Queue{Name: queue.Name}
 	}
 
+	// Record which queues are active, i.e., have jobs either queued or running.
+	queuesWithJobsQueued, err := q.jobRepository.FilterActiveQueues(apiQueues)
+	if err != nil {
+		return nil, err
+	}
+	isActiveByQueueName := make(map[string]bool, len(queuesWithJobsQueued))
+	for _, queue := range queuesWithJobsQueued {
+		isActiveByQueueName[queue.Name] = true
+	}
+
 	// Nodes to be considered by the scheduler.
 	lastSeen := q.clock.Now()
 	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
@@ -353,7 +363,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 		// Group gangs.
 		for _, job := range jobs {
-			gangId, _, isGangJob, err := scheduler.GangIdAndCardinalityFromLegacySchedulerJob(job, q.schedulingConfig.Preemption.PriorityClasses)
+			gangId, _, isGangJob, err := scheduler.GangIdAndCardinalityFromLegacySchedulerJob(job)
 			if err != nil {
 				return nil, err
 			}
@@ -368,26 +378,8 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		}
 
 		// Bind pods to nodes, thus ensuring resources are marked as allocated on the node.
-		skipNode := false
-		for _, job := range jobs {
-			node, err = nodedb.BindPodToNode(
-				scheduler.PodRequirementFromLegacySchedulerJob(
-					job,
-					q.schedulingConfig.Preemption.PriorityClasses,
-				),
-				node,
-			)
-			if err != nil {
-				logging.WithStacktrace(log, err).Warnf(
-					"skipping node %s from executor %s: failed to bind job %s to node",
-					nodeInfo.GetName(), req.GetClusterId(), job.Id,
-				)
-				skipNode = true
-				break
-			}
-		}
-		if skipNode {
-			continue
+		if node, err = nodedb.BindJobsToNode(q.schedulingConfig.Preemption.PriorityClasses, jobs, node); err != nil {
+			return nil, err
 		}
 
 		// Record which node each job is scheduled on. Necessary for gang preemption.
@@ -395,6 +387,11 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			nodeIdByJobId[job.Id] = node.Id
 		}
 		nodes = append(nodes, node)
+
+		// Record which queues have jobs running. Necessary to omit inactive queues.
+		for _, job := range jobs {
+			isActiveByQueueName[job.Queue] = true
+		}
 	}
 	nodeDb, err := nodedb.NewNodeDb(
 		q.schedulingConfig.Preemption.PriorityClasses,
@@ -468,8 +465,19 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		q.schedulingConfig.ResourceScarcity,
 		schedulerobjects.ResourceList{Resources: totalCapacity},
 	)
+	if q.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
+		sctx.EnableDominantResourceFairness(q.schedulingConfig.DominantResourceFairnessResourcesToConsider)
+	}
 	for queue, priorityFactor := range priorityFactorByQueue {
-		if err := sctx.AddQueueSchedulingContext(queue, priorityFactor, allocatedByQueueAndPriorityClassForPool[queue]); err != nil {
+		if !isActiveByQueueName[queue] {
+			// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.
+			continue
+		}
+		var weight float64 = 1
+		if priorityFactor > 0 {
+			weight = 1 / priorityFactor
+		}
+		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClassForPool[queue]); err != nil {
 			return nil, err
 		}
 	}
@@ -484,6 +492,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		constraints,
 		q.schedulingConfig.Preemption.NodeEvictionProbability,
 		q.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
+		q.schedulingConfig.Preemption.ProtectedFractionOfFairShare,
 		&SchedulerJobRepositoryAdapter{
 			r: q.jobRepository,
 		},
