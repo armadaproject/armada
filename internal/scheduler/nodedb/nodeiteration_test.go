@@ -64,29 +64,36 @@ func TestNodesIterator(t *testing.T) {
 }
 
 func TestNodePairIterator(t *testing.T) {
+	nodeDb, err := createNodeDb(nil)
+	require.NoError(t, err)
+
 	nodes := testfixtures.TestCluster()
 	for i, c := range []string{"A", "B", "C"} {
 		nodes[i].Id = c
 	}
+	entries := make([]*Node, len(nodes))
+	for i, node := range nodes {
+		entry, err := nodeDb.create(node)
+		require.NoError(t, err)
+		entries[i] = entry
+	}
 
-	nodeDb, err := createNodeDb(nil)
-	require.NoError(t, err)
-	for _, node := range nodes {
-		node.NodeDbKeys = make([][]byte, len(nodeDb.prioritiesToTryAssigningAt))
+	for _, node := range entries {
+		node.Keys = make([][]byte, len(nodeDb.prioritiesToTryAssigningAt))
 		for i, p := range nodeDb.prioritiesToTryAssigningAt {
-			node.NodeDbKeys[i] = nodeDb.nodeDbKeyFromNode(node.NodeDbKeys[i], node, p)
+			node.Keys[i] = nodeDb.nodeDbKey(node.Keys[i], node.NodeTypeId, node.AllocatableByPriority[p])
 		}
 	}
 
 	txn := nodeDb.Txn(true)
-	require.NoError(t, txn.Insert("nodes", nodes[0]))
-	require.NoError(t, txn.Insert("nodes", nodes[1]))
+	require.NoError(t, txn.Insert("nodes", entries[0]))
+	require.NoError(t, txn.Insert("nodes", entries[1]))
 	txn.Commit()
 	txnA := nodeDb.Txn(false)
 
 	txn = nodeDb.Txn(true)
-	require.NoError(t, txn.Delete("nodes", nodes[0]))
-	require.NoError(t, txn.Insert("nodes", nodes[2]))
+	require.NoError(t, txn.Delete("nodes", entries[0]))
+	require.NoError(t, txn.Insert("nodes", entries[2]))
 	txn.Commit()
 	txnB := nodeDb.Txn(false)
 
@@ -99,16 +106,16 @@ func TestNodePairIterator(t *testing.T) {
 	}
 	expected := []*NodePairIteratorItem{
 		{
-			NodeA: nodes[0],
+			NodeA: entries[0],
 			NodeB: nil,
 		},
 		{
-			NodeA: nodes[1],
-			NodeB: nodes[1],
+			NodeA: entries[1],
+			NodeB: entries[1],
 		},
 		{
 			NodeA: nil,
-			NodeB: nodes[2],
+			NodeB: entries[2],
 		},
 	}
 	assert.Equal(t, expected, actual)
@@ -425,15 +432,23 @@ func TestNodeTypeIterator(t *testing.T) {
 				indexByNodeId[node.Id] = i
 			}
 
+			entries := make([]*Node, len(tc.nodes))
+			for i, node := range tc.nodes {
+				entry, err := nodeDb.create(node)
+				require.NoError(t, err)
+				entry.NodeTypeId = node.NodeTypeId
+				entries[i] = entry
+			}
+
 			// Compute the keys necessary to efficiently iterate over nodes
 			// and populate the database. We do this manually instead of using nodeDb.Upsert to control the nodeTypeId.
-			for _, node := range tc.nodes {
-				node.NodeDbKeys = make([][]byte, len(nodeDb.prioritiesToTryAssigningAt))
+			for _, node := range entries {
+				node.Keys = make([][]byte, len(nodeDb.prioritiesToTryAssigningAt))
 				for i, p := range nodeDb.prioritiesToTryAssigningAt {
-					node.NodeDbKeys[i] = nodeDb.nodeDbKeyFromNode(node.NodeDbKeys[i], node, p)
+					node.Keys[i] = nodeDb.nodeDbKey(node.Keys[i], node.NodeTypeId, node.AllocatableByPriority[p])
 				}
 			}
-			require.NoError(t, populateDatabase(nodeDb.db, tc.nodes))
+			require.NoError(t, populateDatabase(nodeDb.db, entries))
 
 			// Create iterator.
 			indexedResourceRequests := make([]resource.Quantity, len(testfixtures.TestResources))
@@ -811,15 +826,23 @@ func TestNodeTypesIterator(t *testing.T) {
 				indexByNodeId[node.Id] = i
 			}
 
+			entries := make([]*Node, len(tc.nodes))
+			for i, node := range tc.nodes {
+				entry, err := nodeDb.create(node)
+				require.NoError(t, err)
+				entry.NodeTypeId = node.NodeTypeId
+				entries[i] = entry
+			}
+
 			// Compute the keys necessary to efficiently iterate over nodes
 			// and populate the database. We do this manually instead of using nodeDb.Upsert to control the nodeTypeId.
-			for _, node := range tc.nodes {
-				node.NodeDbKeys = make([][]byte, len(nodeDb.prioritiesToTryAssigningAt))
+			for _, node := range entries {
+				node.Keys = make([][]byte, len(nodeDb.prioritiesToTryAssigningAt))
 				for i, p := range nodeDb.prioritiesToTryAssigningAt {
-					node.NodeDbKeys[i] = nodeDb.nodeDbKeyFromNode(node.NodeDbKeys[i], node, p)
+					node.Keys[i] = nodeDb.nodeDbKey(node.Keys[i], node.NodeTypeId, node.AllocatableByPriority[p])
 				}
 			}
-			require.NoError(t, populateDatabase(nodeDb.db, tc.nodes))
+			require.NoError(t, populateDatabase(nodeDb.db, entries))
 
 			indexedResourceRequests := make([]resource.Quantity, len(testfixtures.TestResources))
 			for i, t := range testfixtures.TestResourceNames {
@@ -858,11 +881,11 @@ func TestNodeTypesIterator(t *testing.T) {
 	}
 }
 
-func populateDatabase(db *memdb.MemDB, items []*schedulerobjects.Node) error {
+func populateDatabase(db *memdb.MemDB, nodes []*Node) error {
 	txn := db.Txn(true)
 	defer txn.Abort()
-	for _, item := range items {
-		err := txn.Insert("nodes", item)
+	for _, node := range nodes {
+		err := txn.Insert("nodes", node)
 		if err != nil {
 			return errors.WithStack(err)
 		}

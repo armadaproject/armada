@@ -221,8 +221,12 @@ func TestGangScheduler(t *testing.T) {
 				testfixtures.TestIndexedNodeLabels,
 			)
 			require.NoError(t, err)
-			err = nodeDb.UpsertMany(tc.Nodes)
-			require.NoError(t, err)
+			txn := nodeDb.Txn(true)
+			for _, node := range tc.Nodes {
+				err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
+				require.NoError(t, err)
+			}
+			txn.Commit()
 			if tc.TotalResources.Resources == nil {
 				// Default to NodeDb total.
 				tc.TotalResources = nodeDb.TotalResources()
