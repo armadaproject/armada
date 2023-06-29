@@ -378,24 +378,8 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		}
 
 		// Bind pods to nodes, thus ensuring resources are marked as allocated on the node.
-		skipNode := false
-		for _, job := range jobs {
-			node, err = nodedb.BindJobToNode(
-				q.schedulingConfig.Preemption.PriorityClasses,
-				job,
-				node,
-			)
-			if err != nil {
-				logging.WithStacktrace(log, err).Warnf(
-					"skipping node %s from executor %s: failed to bind job %s to node",
-					nodeInfo.GetName(), req.GetClusterId(), job.Id,
-				)
-				skipNode = true
-				break
-			}
-		}
-		if skipNode {
-			continue
+		if node, err = nodedb.BindJobsToNode(q.schedulingConfig.Preemption.PriorityClasses, jobs, node); err != nil {
+			return nil, err
 		}
 
 		// Record which node each job is scheduled on. Necessary for gang preemption.

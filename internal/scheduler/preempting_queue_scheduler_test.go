@@ -1277,7 +1277,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := CreateNodeDb(tc.Nodes)
+			nodeDb, err := NewNodeDb(tc.Nodes)
 			require.NoError(t, err)
 
 			// Repo. for storing jobs to be queued.
@@ -1603,7 +1603,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				priorityFactorByQueue[queue] = float64(rand.Intn(tc.MaxPriorityFactor-tc.MinPriorityFactor+1) + tc.MinPriorityFactor)
 			}
 
-			nodeDb, err := CreateNodeDb(tc.Nodes)
+			nodeDb, err := NewNodeDb(tc.Nodes)
 			require.NoError(b, err)
 			jobRepo := NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
 
@@ -1669,7 +1669,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				require.NoError(b, err)
 				nodesById[nodeId] = node
 			}
-			nodeDb, err = CreateNodeDb(maps.Values(nodesById))
+			nodeDb, err = NewNodeDb(maps.Values(nodesById))
 			require.NoError(b, err)
 
 			allocatedByQueueAndPriorityClass := sctx.AllocatedByQueueAndPriority()

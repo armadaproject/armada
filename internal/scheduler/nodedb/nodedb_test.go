@@ -116,6 +116,7 @@ func TestSelectNodeForPod_NodeIdLabel_Failure(t *testing.T) {
 }
 
 func TestNodeBindingEvictionUnbinding(t *testing.T) {
+	jobFilter := func(job interfaces.LegacySchedulerJob) bool { return true }
 	node := testfixtures.Test8GpuNode(append(testfixtures.TestPriorities, evictedPriority))
 	job := testfixtures.Test1GpuJob("A", testfixtures.PriorityClass0)
 	request := schedulerobjects.ResourceListFromV1ResourceList(job.GetResourceRequirements().Requests)
@@ -130,8 +131,9 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	unboundMultipleNode, err := UnbindJobsFromNode(testfixtures.TestPriorityClasses, []interfaces.LegacySchedulerJob{job}, boundNode)
 	require.NoError(t, err)
 
-	evictedNode, err := EvictJobFromNode(testfixtures.TestPriorityClasses, job, boundNode)
+	evictedJobs, evictedNode, err := EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, boundNode)
 	require.NoError(t, err)
+	assert.Equal(t, []interfaces.LegacySchedulerJob{job}, evictedJobs)
 
 	evictedUnboundNode, err := UnbindJobFromNode(testfixtures.TestPriorityClasses, job, evictedNode)
 	require.NoError(t, err)
@@ -139,7 +141,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	evictedBoundNode, err := BindJobToNode(testfixtures.TestPriorityClasses, job, evictedNode)
 	require.NoError(t, err)
 
-	_, err = EvictJobFromNode(testfixtures.TestPriorityClasses, job, node)
+	_, _, err = EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, node)
 	require.Error(t, err)
 
 	_, err = UnbindJobFromNode(testfixtures.TestPriorityClasses, job, node)
@@ -148,7 +150,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	_, err = BindJobToNode(testfixtures.TestPriorityClasses, job, boundNode)
 	require.Error(t, err)
 
-	_, err = EvictJobFromNode(testfixtures.TestPriorityClasses, job, evictedNode)
+	_, _, err = EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, evictedNode)
 	require.Error(t, err)
 
 	assertNodeAccountingEqual(t, node, unboundNode)
@@ -253,6 +255,56 @@ func assertNodeAccountingEqual(t *testing.T, node1, node2 *schedulerobjects.Node
 		node2.NonArmadaAllocatedResources,
 	)
 	return rv
+}
+
+func TestEviction(t *testing.T) {
+	tests := map[string]struct {
+		jobFilter         func(interfaces.LegacySchedulerJob) bool
+		expectedEvictions []int32
+	}{
+		"jobFilter always returns false": {
+			jobFilter:         func(_ interfaces.LegacySchedulerJob) bool { return false },
+			expectedEvictions: []int32{},
+		},
+		"jobFilter always returns true": {
+			jobFilter:         func(_ interfaces.LegacySchedulerJob) bool { return true },
+			expectedEvictions: []int32{0, 1},
+		},
+		"jobFilter returns true for preemptible jobs": {
+			jobFilter: func(job interfaces.LegacySchedulerJob) bool {
+				priorityClassName := job.GetPriorityClassName()
+				priorityClass := testfixtures.TestPriorityClasses[priorityClassName]
+				return priorityClass.Preemptible
+			},
+			expectedEvictions: []int32{0},
+		},
+		"jobFilter nil": {
+			jobFilter:         nil,
+			expectedEvictions: []int32{0, 1},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
+			jobs := []interfaces.LegacySchedulerJob{
+				testfixtures.Test1Cpu4GiJob("queue-alice", testfixtures.PriorityClass0),
+				testfixtures.Test1Cpu4GiJob("queue-alice", testfixtures.PriorityClass3),
+			}
+			var err error
+			for _, job := range jobs {
+				node, err = BindJobToNode(testfixtures.TestPriorityClasses, job, node)
+				require.NoError(t, err)
+			}
+
+			actualEvictions, _, err := EvictJobsFromNode(testfixtures.TestPriorityClasses, tc.jobFilter, jobs, node)
+			require.NoError(t, err)
+			expectedEvictions := make([]interfaces.LegacySchedulerJob, 0, len(tc.expectedEvictions))
+			for _, i := range tc.expectedEvictions {
+				expectedEvictions = append(expectedEvictions, jobs[i])
+			}
+			assert.Equal(t, expectedEvictions, actualEvictions)
+		})
+	}
 }
 
 func TestScheduleIndividually(t *testing.T) {
