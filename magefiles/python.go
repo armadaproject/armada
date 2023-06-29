@@ -4,7 +4,7 @@ import (
 	"github.com/magefile/mage/mg"
 )
 
-// Build armada related python dependencies.
+// Build armada python client.
 func BuildPython() error {
 	mg.Deps(BootstrapProto)
 
