@@ -100,8 +100,11 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		}
 		return result, err
 	}
-	if err := commonvalidation.ValidateApiJobs(apiJobs, *srv.SubmitServer.schedulingConfig); err != nil {
-		return nil, err
+	if responseItems, err := commonvalidation.ValidateApiJobs(apiJobs, *srv.SubmitServer.schedulingConfig); err != nil {
+		result := &api.JobSubmitResponse{
+			JobResponseItems: responseItems,
+		}
+		return result, err
 	}
 
 	schedulersByJobId, err := srv.assignScheduler(apiJobs)

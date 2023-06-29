@@ -262,8 +262,12 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		reqJson, _ := json.Marshal(req)
 		return result, status.Errorf(codes.InvalidArgument, "[SubmitJobs] Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e)
 	}
-	if err := validation.ValidateApiJobs(jobs, *server.schedulingConfig); err != nil {
-		return nil, err
+	if responseItems, err := validation.ValidateApiJobs(jobs, *server.schedulingConfig); err != nil {
+		result := &api.JobSubmitResponse{
+			JobResponseItems: responseItems,
+		}
+
+		return result, err
 	}
 
 	q, err := server.getQueueOrCreate(ctx, req.Queue)
@@ -300,11 +304,14 @@ func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRe
 		return nil, status.Errorf(codes.InvalidArgument, "error getting scheduling info: %s", err)
 	}
 
-	if ok, err := validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo); !ok {
-		if err != nil {
-			return nil, errors.WithMessagef(err, "can't schedule job for user %s", principal.GetName())
+	if ok, responseItems, err := validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo); !ok {
+		result := &api.JobSubmitResponse{
+			JobResponseItems: responseItems,
 		}
-		return nil, errors.Errorf("can't schedule job for user %s", principal.GetName())
+		if err != nil {
+			return result, errors.WithMessagef(err, "can't schedule job for user %s", principal.GetName())
+		}
+		return result, errors.Errorf("can't schedule job for user %s", principal.GetName())
 	}
 
 	// Create events marking the jobs as submitted
@@ -861,7 +868,7 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 	}
 
 	if len(responseItems) > 0 {
-		return nil, responseItems, errors.Errorf("[createJobs] error creating jobs, check JobSubmitResponse for details")
+		return nil, responseItems, errors.New("[createJobs] error creating jobs, check JobSubmitResponse for details")
 	}
 	return jobs, nil, nil
 }
