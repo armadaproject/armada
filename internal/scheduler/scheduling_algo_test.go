@@ -685,7 +685,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 	for e := 1; e <= 4; e++ {
 		numNodes := int(math.Pow10(e))
 		b.Run(fmt.Sprintf("%d nodes", numNodes), func(b *testing.B) {
-			jobs := testfixtures.N1CpuJobs("queue-alice", testfixtures.PriorityClass0, 32*numNodes)
+			jobs := testfixtures.N1Cpu4GiJobs("queue-alice", testfixtures.PriorityClass0, 32*numNodes)
 			nodes := testfixtures.N32CpuNodes(numNodes, testfixtures.TestPriorities)
 			for i, node := range nodes {
 				for j := 32 * i; j < 32*(i+1); j++ {
