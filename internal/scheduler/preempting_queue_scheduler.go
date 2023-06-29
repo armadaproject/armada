@@ -787,20 +787,15 @@ func NewOversubscribedEvictor(
 // Any job for which jobFilter returns true is evicted (if the node was not skipped).
 // If a job was evicted from a node, postEvictFunc is called with the corresponding job and node.
 func (evi *Evictor) Evict(ctx context.Context, it nodedb.NodeIterator) (*EvictorResult, error) {
+	var jobFilter func(job interfaces.LegacySchedulerJob) bool
+	if evi.jobFilter != nil {
+		jobFilter = func(job interfaces.LegacySchedulerJob) bool { return evi.jobFilter(ctx, job) }
+	}
 	evictedJobsById := make(map[string]interfaces.LegacySchedulerJob)
 	affectedNodesById := make(map[string]*schedulerobjects.Node)
 	nodeIdByJobId := make(map[string]string)
-	result := &EvictorResult{
-		EvictedJobsById:   evictedJobsById,
-		AffectedNodesById: affectedNodesById,
-		NodeIdByJobId:     nodeIdByJobId,
-	}
-	if evi.jobFilter == nil || evi.nodeFilter == nil {
-		return result, nil
-	}
-	jobFilter := func(job interfaces.LegacySchedulerJob) bool { return evi.jobFilter(ctx, job) }
 	for node := it.NextNode(); node != nil; node = it.NextNode() {
-		if !evi.nodeFilter(ctx, node) {
+		if evi.nodeFilter != nil && !evi.nodeFilter(ctx, node) {
 			continue
 		}
 		jobIds := make([]string, 0)
@@ -827,6 +822,11 @@ func (evi *Evictor) Evict(ctx context.Context, it nodedb.NodeIterator) (*Evictor
 		if len(evictedJobs) > 0 {
 			affectedNodesById[node.Id] = node
 		}
+	}
+	result := &EvictorResult{
+		EvictedJobsById:   evictedJobsById,
+		AffectedNodesById: affectedNodesById,
+		NodeIdByJobId:     nodeIdByJobId,
 	}
 	return result, nil
 }

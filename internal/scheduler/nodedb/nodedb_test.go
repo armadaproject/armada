@@ -258,23 +258,53 @@ func assertNodeAccountingEqual(t *testing.T, node1, node2 *schedulerobjects.Node
 }
 
 func TestEviction(t *testing.T) {
-	jobFilter := func(job interfaces.LegacySchedulerJob) bool {
-		priorityClassName := job.GetPriorityClassName()
-		priorityClass := testfixtures.TestPriorityClasses[priorityClassName]
-		return priorityClass.Preemptible
+	tests := map[string]struct {
+		jobFilter         func(interfaces.LegacySchedulerJob) bool
+		expectedEvictions []int32
+	}{
+		"jobFilter always returns false": {
+			jobFilter:         func(_ interfaces.LegacySchedulerJob) bool { return false },
+			expectedEvictions: []int32{},
+		},
+		"jobFilter always returns true": {
+			jobFilter:         func(_ interfaces.LegacySchedulerJob) bool { return true },
+			expectedEvictions: []int32{0, 1},
+		},
+		"jobFilter returns true for preemptible jobs": {
+			jobFilter: func(job interfaces.LegacySchedulerJob) bool {
+				priorityClassName := job.GetPriorityClassName()
+				priorityClass := testfixtures.TestPriorityClasses[priorityClassName]
+				return priorityClass.Preemptible
+			},
+			expectedEvictions: []int32{0},
+		},
+		"jobFilter nil": {
+			jobFilter:         nil,
+			expectedEvictions: []int32{0, 1},
+		},
 	}
-	node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
-	job0 := testfixtures.Test1CpuJob("queue-alice", testfixtures.PriorityClass0)
-	job3 := testfixtures.Test1CpuJob("queue-alice", testfixtures.PriorityClass3)
-	var err error
-	node, err = BindJobToNode(testfixtures.TestPriorityClasses, job0, node)
-	require.NoError(t, err)
-	node, err = BindJobToNode(testfixtures.TestPriorityClasses, job3, node)
-	require.NoError(t, err)
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
+			jobs := []interfaces.LegacySchedulerJob{
+				testfixtures.Test1Cpu4GiJob("queue-alice", testfixtures.PriorityClass0),
+				testfixtures.Test1Cpu4GiJob("queue-alice", testfixtures.PriorityClass3),
+			}
+			var err error
+			for _, job := range jobs {
+				node, err = BindJobToNode(testfixtures.TestPriorityClasses, job, node)
+				require.NoError(t, err)
+			}
 
-	evictedJobs, _, err := EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job0, job3}, node)
-	require.NoError(t, err)
-	assert.Equal(t, []interfaces.LegacySchedulerJob{job0}, evictedJobs)
+			actualEvictions, _, err := EvictJobsFromNode(testfixtures.TestPriorityClasses, tc.jobFilter, jobs, node)
+			require.NoError(t, err)
+			expectedEvictions := make([]interfaces.LegacySchedulerJob, 0, len(tc.expectedEvictions))
+			for _, i := range tc.expectedEvictions {
+				expectedEvictions = append(expectedEvictions, jobs[i])
+			}
+			assert.Equal(t, expectedEvictions, actualEvictions)
+		})
+	}
 }
 
 func TestScheduleIndividually(t *testing.T) {

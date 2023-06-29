@@ -561,11 +561,8 @@ func EvictJobsFromNode(
 ) ([]interfaces.LegacySchedulerJob, *schedulerobjects.Node, error) {
 	evicted := make([]interfaces.LegacySchedulerJob, 0)
 	node = node.DeepCopy()
-	if jobFilter == nil {
-		return evicted, node, nil
-	}
 	for _, job := range jobs {
-		if !jobFilter(job) {
+		if jobFilter != nil && !jobFilter(job) {
 			continue
 		}
 		evicted = append(evicted, job)
