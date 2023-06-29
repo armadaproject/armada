@@ -4,6 +4,8 @@ import grpc
 
 from google.protobuf import empty_pb2
 
+import tenacity
+
 
 class JobServiceAsyncIOClient:
     """
@@ -20,6 +22,11 @@ class JobServiceAsyncIOClient:
     def __init__(self, channel: grpc.aio.Channel) -> None:
         self.job_stub = jobservice_pb2_grpc.JobServiceStub(channel)
 
+    @tenacity.retry(
+        stop=tenacity.stop_after_attempt(3),
+        wait=tenacity.wait_exponential(),
+        reraise=True,
+    )
     async def get_job_status(
         self, queue: str, job_set_id: str, job_id: str
     ) -> jobservice_pb2.JobServiceResponse:
@@ -38,6 +45,11 @@ class JobServiceAsyncIOClient:
         response = await self.job_stub.GetJobStatus(job_service_request)
         return response
 
+    @tenacity.retry(
+        stop=tenacity.stop_after_attempt(3),
+        wait=tenacity.wait_exponential(),
+        reraise=True,
+    )
     async def health(self) -> jobservice_pb2.HealthCheckResponse:
         """Health Check for GRPC Request"""
         response = await self.job_stub.Health(request=empty_pb2.Empty())
