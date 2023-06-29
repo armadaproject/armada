@@ -71,7 +71,7 @@ func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {
 	require.NoError(t, err)
 	jobs := testfixtures.WithNodeSelectorJobs(
 		map[string]string{schedulerconfig.NodeIdLabel: nodeId},
-		testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 1),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 	)
 	jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
 	for _, jctx := range jctxs {
@@ -98,7 +98,7 @@ func TestSelectNodeForPod_NodeIdLabel_Failure(t *testing.T) {
 	require.NoError(t, err)
 	jobs := testfixtures.WithNodeSelectorJobs(
 		map[string]string{schedulerconfig.NodeIdLabel: "this node does not exist"},
-		testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 1),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 	)
 	jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
 	for _, jctx := range jctxs {
@@ -263,12 +263,12 @@ func TestScheduleIndividually(t *testing.T) {
 	}{
 		"all jobs fit": {
 			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Jobs:          testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
+			Jobs:          testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
 			ExpectSuccess: testfixtures.Repeat(true, 32),
 		},
 		"not all jobs fit": {
 			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Jobs:          testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 33),
+			Jobs:          testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33),
 			ExpectSuccess: append(testfixtures.Repeat(true, 32), testfixtures.Repeat(false, 1)...),
 		},
 		"unavailable resource": {
@@ -284,7 +284,7 @@ func TestScheduleIndividually(t *testing.T) {
 						"gibberish": resource.MustParse("1"),
 					},
 				},
-				testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 1),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 			),
 			ExpectSuccess: testfixtures.Repeat(false, 1),
 		},
@@ -292,10 +292,10 @@ func TestScheduleIndividually(t *testing.T) {
 			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs: append(
 				append(
-					testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
-					testfixtures.N1CpuJobs("A", testfixtures.PriorityClass1, 32)...,
+					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
+					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 32)...,
 				),
-				testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32)...,
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)...,
 			),
 			ExpectSuccess: append(testfixtures.Repeat(true, 64), testfixtures.Repeat(false, 32)...),
 		},
@@ -303,10 +303,10 @@ func TestScheduleIndividually(t *testing.T) {
 			Nodes: testfixtures.NTainted32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs: append(
 				append(
-					testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 1),
+					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 					testfixtures.N1GpuJobs("A", testfixtures.PriorityClass0, 1)...,
 				),
-				testfixtures.N32CpuJobs("A", testfixtures.PriorityClass0, 1)...,
+				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)...,
 			),
 			ExpectSuccess: []bool{false, false, true},
 		},
@@ -324,7 +324,7 @@ func TestScheduleIndividually(t *testing.T) {
 				map[string]string{
 					"key": "value",
 				},
-				testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 33),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33),
 			),
 			ExpectSuccess: append(testfixtures.Repeat(true, 32), testfixtures.Repeat(false, 1)...),
 		},
@@ -339,7 +339,7 @@ func TestScheduleIndividually(t *testing.T) {
 				map[string]string{
 					"key": "this is the wrong value",
 				},
-				testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 1),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 			),
 			ExpectSuccess: testfixtures.Repeat(false, 1),
 		},
@@ -349,7 +349,7 @@ func TestScheduleIndividually(t *testing.T) {
 				map[string]string{
 					"this label does not exist": "value",
 				},
-				testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 1),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 			),
 			ExpectSuccess: testfixtures.Repeat(false, 1),
 		},
@@ -375,7 +375,7 @@ func TestScheduleIndividually(t *testing.T) {
 						},
 					},
 				},
-				testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 33),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33),
 			),
 			ExpectSuccess: append(testfixtures.Repeat(true, 32), testfixtures.Repeat(false, 1)...),
 		},
@@ -432,20 +432,20 @@ func TestScheduleMany(t *testing.T) {
 	}{
 		"simple success": {
 			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Jobs:          [][]*jobdb.Job{testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32)},
+			Jobs:          [][]*jobdb.Job{testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)},
 			ExpectSuccess: []bool{true},
 		},
 		"simple failure": {
 			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Jobs:          [][]*jobdb.Job{testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 33)},
+			Jobs:          [][]*jobdb.Job{testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33)},
 			ExpectSuccess: []bool{false},
 		},
 		"correct rollback": {
 			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Jobs: [][]*jobdb.Job{
-				testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
-				testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 33),
-				testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
 			},
 			ExpectSuccess: []bool{true, false, true},
 		},
@@ -453,10 +453,10 @@ func TestScheduleMany(t *testing.T) {
 			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Jobs: [][]*jobdb.Job{
 				append(
-					testfixtures.N32CpuJobs("A", testfixtures.PriorityClass0, 1),
-					testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32)...,
+					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
+					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)...,
 				),
-				testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 1),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 			},
 			ExpectSuccess: []bool{true, false},
 		},
@@ -541,7 +541,7 @@ func BenchmarkScheduleMany10CpuNodes320SmallJobs(b *testing.B) {
 	benchmarkScheduleMany(
 		b,
 		testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-		testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 320),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 320),
 	)
 }
 
@@ -549,7 +549,7 @@ func BenchmarkScheduleMany10CpuNodes640SmallJobs(b *testing.B) {
 	benchmarkScheduleMany(
 		b,
 		testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-		testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 640),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 640),
 	)
 }
 
@@ -557,7 +557,7 @@ func BenchmarkScheduleMany100CpuNodes3200SmallJobs(b *testing.B) {
 	benchmarkScheduleMany(
 		b,
 		testfixtures.N32CpuNodes(100, testfixtures.TestPriorities),
-		testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 3200),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 3200),
 	)
 }
 
@@ -565,7 +565,7 @@ func BenchmarkScheduleMany100CpuNodes6400SmallJobs(b *testing.B) {
 	benchmarkScheduleMany(
 		b,
 		testfixtures.N32CpuNodes(100, testfixtures.TestPriorities),
-		testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 6400),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 6400),
 	)
 }
 
@@ -573,7 +573,7 @@ func BenchmarkScheduleMany1000CpuNodes32000SmallJobs(b *testing.B) {
 	benchmarkScheduleMany(
 		b,
 		testfixtures.N32CpuNodes(1000, testfixtures.TestPriorities),
-		testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 32000),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32000),
 	)
 }
 
@@ -581,7 +581,7 @@ func BenchmarkScheduleMany1000CpuNodes64000SmallJobs(b *testing.B) {
 	benchmarkScheduleMany(
 		b,
 		testfixtures.N32CpuNodes(1000, testfixtures.TestPriorities),
-		testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 64000),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 64000),
 	)
 }
 
@@ -593,7 +593,7 @@ func BenchmarkScheduleMany100CpuNodes1CpuUnused(b *testing.B) {
 			schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("31")}},
 			testfixtures.N32CpuNodes(100, testfixtures.TestPriorities),
 		),
-		testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 100),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 100),
 	)
 }
 
@@ -605,7 +605,7 @@ func BenchmarkScheduleMany1000CpuNodes1CpuUnused(b *testing.B) {
 			schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("31")}},
 			testfixtures.N32CpuNodes(1000, testfixtures.TestPriorities),
 		),
-		testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 1000),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1000),
 	)
 }
 
@@ -617,7 +617,7 @@ func BenchmarkScheduleMany10000CpuNodes1CpuUnused(b *testing.B) {
 			schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("31")}},
 			testfixtures.N32CpuNodes(10000, testfixtures.TestPriorities),
 		),
-		testfixtures.N1CpuJobs("A", testfixtures.PriorityClass0, 10000),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10000),
 	)
 }
 
