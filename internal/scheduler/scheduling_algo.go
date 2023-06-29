@@ -311,9 +311,9 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 	db *jobdb.JobDb,
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	nodeDb, err := l.constructNodeDb(
-		executor.Nodes,
-		accounting.jobsByExecutorId[executor.Id],
 		l.config.Preemption.PriorityClasses,
+		accounting.jobsByExecutorId[executor.Id],
+		executor.Nodes,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -432,29 +432,32 @@ func (repo *schedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([
 }
 
 // constructNodeDb constructs a node db with all jobs bound to it.
-func (l *FairSchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, jobs []*jobdb.Job, priorityClasses map[string]configuration.PriorityClass) (*nodedb.NodeDb, error) {
+func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]configuration.PriorityClass, jobs []*jobdb.Job, nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
 	nodesByName := make(map[string]*schedulerobjects.Node, len(nodes))
 	for _, node := range nodes {
 		nodesByName[node.Name] = node
 	}
+	jobsByNodeName := make(map[string][]*jobdb.Job)
 	for _, job := range jobs {
 		if job.InTerminalState() || !job.HasRuns() {
 			continue
 		}
-		assignedNode := job.LatestRun().Node()
-		node, ok := nodesByName[assignedNode]
-		if !ok {
+		nodeName := job.LatestRun().Node()
+		if _, ok := nodesByName[nodeName]; !ok {
 			log.Warnf(
 				"job %s assigned to node %s on executor %s, but no such node found",
-				job.Id(), assignedNode, job.LatestRun().Executor(),
+				job.Id(), nodeName, job.LatestRun().Executor(),
 			)
 			continue
 		}
-		node, err := nodedb.BindJobToNode(l.config.Preemption.PriorityClasses, job, node)
+		jobsByNodeName[nodeName] = append(jobsByNodeName[nodeName], job)
+	}
+	for nodeName, jobsOnNode := range jobsByNodeName {
+		node, err := nodedb.BindJobsToNode(priorityClasses, jobsOnNode, nodesByName[nodeName])
 		if err != nil {
 			return nil, err
 		}
-		nodesByName[node.Name] = node
+		nodesByName[nodeName] = node
 	}
 	nodeDb, err := nodedb.NewNodeDb(
 		priorityClasses,

@@ -2,6 +2,9 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
+	"math"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -673,6 +676,38 @@ func TestLegacySchedulingAlgo_TestSchedule_ExecutorOrdering(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, scheduledExecutorsIds, round.expectedExecutorsScheduled)
 				assert.Equal(t, round.expectedPreviousScheduledExecutorId, algo.previousScheduleClusterId)
+			}
+		})
+	}
+}
+
+func BenchmarkNodeDbConstruction(b *testing.B) {
+	for e := 1; e <= 4; e++ {
+		numNodes := int(math.Pow10(e))
+		b.Run(fmt.Sprintf("%d nodes", numNodes), func(b *testing.B) {
+			jobs := testfixtures.N1Cpu4GiJobs("queue-alice", testfixtures.PriorityClass0, 32*numNodes)
+			nodes := testfixtures.N32CpuNodes(numNodes, testfixtures.TestPriorities)
+			for i, node := range nodes {
+				for j := 32 * i; j < 32*(i+1); j++ {
+					jobs[j] = jobs[j].WithNewRun("executor-01", node.Name)
+				}
+			}
+			rand.Shuffle(len(jobs), func(i, j int) { jobs[i], jobs[j] = jobs[j], jobs[i] })
+			b.ResetTimer()
+			for n := 0; n < b.N; n++ {
+				b.StopTimer()
+				algo, err := NewFairSchedulingAlgo(
+					testfixtures.TestSchedulingConfig(),
+					time.Second*5,
+					nil,
+					nil,
+					nil,
+				)
+				require.NoError(b, err)
+				b.StartTimer()
+
+				_, err = algo.constructNodeDb(testfixtures.TestPriorityClasses, jobs, nodes)
+				require.NoError(b, err)
 			}
 		})
 	}

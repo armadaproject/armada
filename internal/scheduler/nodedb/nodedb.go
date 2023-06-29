@@ -486,12 +486,30 @@ func (nodeDb *NodeDb) selectNodeForPodWithIt(
 	return selectedNode, nil
 }
 
+// BindJobsToNode returns a copy of node with all elements of jobs bound to it.
+func BindJobsToNode[J interfaces.LegacySchedulerJob](priorityClasses map[string]configuration.PriorityClass, jobs []J, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
+	node = node.DeepCopy()
+	for _, job := range jobs {
+		if err := bindJobToNodeInPlace(priorityClasses, job, node); err != nil {
+			return nil, err
+		}
+	}
+	return node, nil
+}
+
 // BindJobToNode returns a copy of node with job bound to it.
 func BindJobToNode(priorityClasses map[string]configuration.PriorityClass, job interfaces.LegacySchedulerJob, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
+	node = node.DeepCopy()
+	if err := bindJobToNodeInPlace(priorityClasses, job, node); err != nil {
+		return nil, err
+	}
+	return node, nil
+}
+
+// bindJobToNodeInPlace is like BindJobToNode, but doesn't make a copy of node.
+func bindJobToNodeInPlace(priorityClasses map[string]configuration.PriorityClass, job interfaces.LegacySchedulerJob, node *schedulerobjects.Node) error {
 	jobId := job.GetId()
 	requests := job.GetResourceRequirements().Requests
-
-	node = node.DeepCopy()
 
 	_, isEvicted := node.EvictedJobRunIds[jobId]
 	delete(node.EvictedJobRunIds, jobId)
@@ -501,7 +519,7 @@ func BindJobToNode(priorityClasses map[string]configuration.PriorityClass, job i
 			node.AllocatedByJobId = make(map[string]schedulerobjects.ResourceList)
 		}
 		if allocatedToJob, ok := node.AllocatedByJobId[jobId]; ok {
-			return nil, errors.Errorf("job %s already has resources allocated on node %s", jobId, node.Id)
+			return errors.Errorf("job %s already has resources allocated on node %s", jobId, node.Id)
 		} else {
 			allocatedToJob.AddV1ResourceList(requests)
 			node.AllocatedByJobId[jobId] = allocatedToJob
@@ -523,60 +541,86 @@ func BindJobToNode(priorityClasses map[string]configuration.PriorityClass, job i
 		allocatable.MarkAllocatableV1ResourceList(evictedPriority, requests)
 	}
 
-	return node, nil
+	return nil
 }
 
-// EvictJobFromNode returns a copy of node with job evicted from it. Specifically:
+// EvictJobsFromNode returns a copy of node with all elements of jobs for which jobFilter returns
+// true evicted from it, together with a slice containing exactly those jobs.
 //
-// - The job is marked as evicted on the node.
-// - AllocatedByJobId and AllocatedByQueue are not updated.
-// - Resources requested by the evicted pod are marked as allocated at priority evictedPriority.
-func EvictJobFromNode(priorityClasses map[string]configuration.PriorityClass, job interfaces.LegacySchedulerJob, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
-	jobId := job.GetId()
-	queue := job.GetQueue()
-	requests := job.GetResourceRequirements().Requests
-
+// Specifically:
+//
+//   - The jobs that jobFilter returns true for are marked as evicted on the node.
+//   - Within AllocatableByPriorityAndResource, the resources allocated to these jobs are moved from
+//     the jobs' priorities to evictedPriority; they are not subtracted from AllocatedByJobId and
+//     AllocatedByQueue.
+func EvictJobsFromNode(
+	priorityClasses map[string]configuration.PriorityClass,
+	jobFilter func(interfaces.LegacySchedulerJob) bool,
+	jobs []interfaces.LegacySchedulerJob,
+	node *schedulerobjects.Node,
+) ([]interfaces.LegacySchedulerJob, *schedulerobjects.Node, error) {
+	evicted := make([]interfaces.LegacySchedulerJob, 0)
 	node = node.DeepCopy()
-
-	// Ensure we track allocated resources at evictedPriority.
-	if _, ok := node.AllocatableByPriorityAndResource[evictedPriority]; !ok {
-		pMin := int32(math.MaxInt32)
-		ok := false
-		for p := range node.AllocatableByPriorityAndResource {
-			if p < pMin {
-				pMin = p
-				ok = true
-			}
+	for _, job := range jobs {
+		if jobFilter != nil && !jobFilter(job) {
+			continue
 		}
-		if ok {
-			node.AllocatableByPriorityAndResource[evictedPriority] = node.AllocatableByPriorityAndResource[pMin].DeepCopy()
+		evicted = append(evicted, job)
+		if err := evictJobFromNodeInPlace(priorityClasses, job, node); err != nil {
+			return nil, nil, err
 		}
 	}
+	return evicted, node, nil
+}
 
+// evictJobFromNodeInPlace is the in-place operation backing EvictJobsFromNode.
+func evictJobFromNodeInPlace(priorityClasses map[string]configuration.PriorityClass, job interfaces.LegacySchedulerJob, node *schedulerobjects.Node) error {
+	jobId := job.GetId()
 	if _, ok := node.AllocatedByJobId[jobId]; !ok {
-		return nil, errors.Errorf("job %s has no resources allocated on node %s", jobId, node.Id)
+		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.Id)
 	}
+
+	queue := job.GetQueue()
 	if _, ok := node.AllocatedByQueue[queue]; !ok {
-		return nil, errors.Errorf("queue %s has no resources allocated on node %s", queue, node.Id)
+		return errors.Errorf("queue %s has no resources allocated on node %s", queue, node.Id)
 	}
+
 	if node.EvictedJobRunIds == nil {
 		node.EvictedJobRunIds = make(map[string]bool)
 	}
 	if _, ok := node.EvictedJobRunIds[jobId]; ok {
-		// TODO: We're using run ids instead of job ids for now.
-		return nil, errors.Errorf("job %s is already evicted from node %s", jobId, node.Id)
-	} else {
-		node.EvictedJobRunIds[jobId] = true
+		return errors.Errorf("job %s is already evicted from node %s", jobId, node.Id)
 	}
+	node.EvictedJobRunIds[jobId] = true
 
+	if _, ok := node.AllocatableByPriorityAndResource[evictedPriority]; !ok {
+		minimumPriority := int32(math.MaxInt32)
+		foundPriority := false
+		for p := range node.AllocatableByPriorityAndResource {
+			if p < minimumPriority {
+				minimumPriority = p
+				foundPriority = true
+			}
+		}
+		if foundPriority {
+			node.AllocatableByPriorityAndResource[evictedPriority] = node.AllocatableByPriorityAndResource[minimumPriority].DeepCopy()
+		} else {
+			// We do not expect to hit this branch; however, if we do, then we need
+			// to make sure that evictedPriority is in this map so that the call to
+			// MarkAllocatedV1ResourceList() below knows about it.
+			node.AllocatableByPriorityAndResource[evictedPriority] = schedulerobjects.ResourceList{}
+		}
+	}
 	allocatable := schedulerobjects.AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource)
 	priority := priorityClasses[job.GetPriorityClassName()].Priority
+	requests := job.GetResourceRequirements().Requests
 	allocatable.MarkAllocatableV1ResourceList(priority, requests)
 	allocatable.MarkAllocatedV1ResourceList(evictedPriority, requests)
-	return node, nil
+
+	return nil
 }
 
-// UnbindJobsFromNode returns a node with all reqs unbound from it.
+// UnbindJobsFromNode returns a node with all elements of jobs unbound from it.
 func UnbindJobsFromNode(priorityClasses map[string]configuration.PriorityClass, jobs []interfaces.LegacySchedulerJob, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
 	node = node.DeepCopy()
 	for _, job := range jobs {
@@ -587,7 +631,7 @@ func UnbindJobsFromNode(priorityClasses map[string]configuration.PriorityClass, 
 	return node, nil
 }
 
-// UnbindJobFromNode returns a copy of node with req unbound from it.
+// UnbindJobFromNode returns a copy of node with job unbound from it.
 func UnbindJobFromNode(priorityClasses map[string]configuration.PriorityClass, job interfaces.LegacySchedulerJob, node *schedulerobjects.Node) (*schedulerobjects.Node, error) {
 	node = node.DeepCopy()
 	if err := unbindJobFromNodeInPlace(priorityClasses, job, node); err != nil {
@@ -596,7 +640,7 @@ func UnbindJobFromNode(priorityClasses map[string]configuration.PriorityClass, j
 	return node, nil
 }
 
-// unbindPodFromNodeInPlace is like UnbindJobFromNode, but doesn't make a copy of the node.
+// unbindPodFromNodeInPlace is like UnbindJobFromNode, but doesn't make a copy of node.
 func unbindJobFromNodeInPlace(priorityClasses map[string]configuration.PriorityClass, job interfaces.LegacySchedulerJob, node *schedulerobjects.Node) error {
 	jobId := job.GetId()
 	requests := job.GetResourceRequirements().Requests
