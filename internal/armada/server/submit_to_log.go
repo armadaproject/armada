@@ -93,9 +93,12 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 
 	// Create legacy API jobs from the requests.
 	// We use the legacy code for the conversion to ensure that behaviour doesn't change.
-	apiJobs, err := srv.SubmitServer.createJobs(req, userId, groups)
+	apiJobs, responseItems, err := srv.SubmitServer.createJobs(req, userId, groups)
 	if err != nil {
-		return nil, err
+		result := &api.JobSubmitResponse{
+			JobResponseItems: responseItems,
+		}
+		return result, err
 	}
 	if err := commonvalidation.ValidateApiJobs(apiJobs, *srv.SubmitServer.schedulingConfig); err != nil {
 		return nil, err
