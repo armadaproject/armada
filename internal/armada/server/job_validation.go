@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/armada/scheduling"
@@ -13,16 +14,30 @@ import (
 func validateJobsCanBeScheduled(
 	jobs []*api.Job,
 	allClusterSchedulingInfo map[string]*api.ClusterSchedulingInfoReport,
-) (bool, error) {
+) (bool, []*api.JobSubmitResponseItem, error) {
 	activeClusterSchedulingInfo := scheduling.FilterActiveClusterSchedulingInfoReports(allClusterSchedulingInfo)
+	responseItems := make([]*api.JobSubmitResponseItem, 0, len(jobs))
 	for i, job := range jobs {
 		if ok, err := scheduling.MatchSchedulingRequirementsOnAnyCluster(job, activeClusterSchedulingInfo); !ok {
 			if err != nil {
-				return false, errors.WithMessagef(err, "%d-th job can't be scheduled", i)
+				response := &api.JobSubmitResponseItem{
+					JobId: job.Id,
+					Error: errors.WithMessagef(err, "%d-th job can't be scheduled", i).Error(),
+				}
+				responseItems = append(responseItems, response)
 			} else {
-				return false, errors.Errorf("%d-th job can't be scheduled", i)
+				response := &api.JobSubmitResponseItem{
+					JobId: job.Id,
+					Error: fmt.Sprintf("%d-th job can't be scheduled", i),
+				}
+				responseItems = append(responseItems, response)
 			}
 		}
 	}
-	return true, nil
+
+	if len(responseItems) > 0 {
+		return false, responseItems, errors.New("[createJobs] Failed to validate jobs can be scheduled")
+	}
+
+	return true, nil, nil
 }

@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"fmt"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/scheduler"
@@ -11,50 +12,77 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-func ValidateApiJobs(jobs []*api.Job, config configuration.SchedulingConfig) error {
-	err := validateGangs(jobs)
-	if err != nil {
-		return err
+func ValidateApiJobs(jobs []*api.Job, config configuration.SchedulingConfig) ([]*api.JobSubmitResponseItem, error) {
+	if responseItems, err := validateGangs(jobs); err != nil {
+		return responseItems, err
 	}
+
+	responseItems := make([]*api.JobSubmitResponseItem, 0, len(jobs))
 	for _, job := range jobs {
 		if err := ValidateApiJob(job, config); err != nil {
-			return err
+			response := &api.JobSubmitResponseItem{
+				JobId: job.Id,
+				Error: err.Error(),
+			}
+			responseItems = append(responseItems, response)
 		}
 	}
-	return nil
+
+	if len(responseItems) > 0 {
+		return responseItems, errors.New("[createJobs] Failed to validate jobs")
+	}
+	return nil, nil
 }
 
-func validateGangs(jobs []*api.Job) error {
+func validateGangs(jobs []*api.Job) ([]*api.JobSubmitResponseItem, error) {
 	gangDetailsByGangId := make(map[string]struct {
 		actualCardinality         int
 		expectedCardinality       int
 		expectedPriorityClassName string
 	})
+
+	responseItems := make([]*api.JobSubmitResponseItem, 0, len(jobs))
 	for i, job := range jobs {
 		annotations := job.Annotations
 		gangId, gangCardinality, isGangJob, err := scheduler.GangIdAndCardinalityFromAnnotations(annotations)
 		if err != nil {
-			return errors.WithMessagef(err, "%d-th job with id %s in gang %s", i, job.Id, gangId)
+			response := &api.JobSubmitResponseItem{
+				JobId: job.Id,
+				Error: errors.WithMessagef(err, "%d-th job with id %s in gang %s", i, job.Id, gangId).Error(),
+			}
+			responseItems = append(responseItems, response)
 		}
 		if !isGangJob {
 			continue
 		}
 		if gangId == "" {
-			return errors.Errorf("empty gang id for %d-th job with id %s", i, job.Id)
+			response := &api.JobSubmitResponseItem{
+				JobId: job.Id,
+				Error: fmt.Sprintf("empty gang id for %d-th job with id %s", i, job.Id),
+			}
+			responseItems = append(responseItems, response)
 		}
 		podSpec := util.PodSpecFromJob(job)
 		if details, ok := gangDetailsByGangId[gangId]; ok {
 			if details.expectedCardinality != gangCardinality {
-				return errors.Errorf(
-					"inconsistent gang cardinality for %d-th job with id %s in gang %s: expected %d but got %d",
-					i, job.Id, gangId, details.expectedCardinality, gangCardinality,
-				)
+				response := &api.JobSubmitResponseItem{
+					JobId: job.Id,
+					Error: fmt.Sprintf(
+						"inconsistent gang cardinality for %d-th job with id %s in gang %s: expected %d but got %d",
+						i, job.Id, gangId, details.expectedCardinality, gangCardinality,
+					),
+				}
+				responseItems = append(responseItems, response)
 			}
 			if podSpec != nil && details.expectedPriorityClassName != podSpec.PriorityClassName {
-				return errors.Errorf(
-					"inconsistent PriorityClassName for %d-th job with id %s in gang %s: expected %s but got %s",
-					i, job.Id, gangId, details.expectedPriorityClassName, podSpec.PriorityClassName,
-				)
+				response := &api.JobSubmitResponseItem{
+					JobId: job.Id,
+					Error: fmt.Sprintf(
+						"inconsistent PriorityClassName for %d-th job with id %s in gang %s: expected %s but got %s",
+						i, job.Id, gangId, details.expectedPriorityClassName, podSpec.PriorityClassName,
+					),
+				}
+				responseItems = append(responseItems, response)
 			}
 			details.actualCardinality++
 			gangDetailsByGangId[gangId] = details
@@ -67,15 +95,20 @@ func validateGangs(jobs []*api.Job) error {
 			gangDetailsByGangId[gangId] = details
 		}
 	}
+
+	if len(responseItems) > 0 {
+		return responseItems, errors.New("[createJobs] Failed to validate gang jobs")
+	}
+
 	for gangId, details := range gangDetailsByGangId {
 		if details.expectedCardinality != details.actualCardinality {
-			return errors.Errorf(
+			return nil, errors.Errorf(
 				"unexpected number of jobs for gang %s: expected %d jobs but got %d",
 				gangId, details.expectedCardinality, details.actualCardinality,
 			)
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 func ValidateApiJob(job *api.Job, config configuration.SchedulingConfig) error {
