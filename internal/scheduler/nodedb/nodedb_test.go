@@ -131,7 +131,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	unboundMultipleNode, err := UnbindJobsFromNode(testfixtures.TestPriorityClasses, []interfaces.LegacySchedulerJob{job}, boundNode)
 	require.NoError(t, err)
 
-	evictedJobs, evictedNode, err := EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, boundNode)
+	evictedJobs, evictedNode, err := EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, nil, []interfaces.LegacySchedulerJob{job}, boundNode)
 	require.NoError(t, err)
 	assert.Equal(t, []interfaces.LegacySchedulerJob{job}, evictedJobs)
 
@@ -141,7 +141,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	evictedBoundNode, err := BindJobToNode(testfixtures.TestPriorityClasses, job, evictedNode)
 	require.NoError(t, err)
 
-	_, _, err = EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, node)
+	_, _, err = EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, nil, []interfaces.LegacySchedulerJob{job}, node)
 	require.Error(t, err)
 
 	_, err = UnbindJobFromNode(testfixtures.TestPriorityClasses, job, node)
@@ -150,7 +150,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	_, err = BindJobToNode(testfixtures.TestPriorityClasses, job, boundNode)
 	require.Error(t, err)
 
-	_, _, err = EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, evictedNode)
+	_, _, err = EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, nil, []interfaces.LegacySchedulerJob{job}, evictedNode)
 	require.Error(t, err)
 
 	assertNodeAccountingEqual(t, node, unboundNode)
@@ -296,7 +296,7 @@ func TestEviction(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			actualEvictions, _, err := EvictJobsFromNode(testfixtures.TestPriorityClasses, tc.jobFilter, jobs, node)
+			actualEvictions, _, err := EvictJobsFromNode(testfixtures.TestPriorityClasses, tc.jobFilter, nil, jobs, node)
 			require.NoError(t, err)
 			expectedEvictions := make([]interfaces.LegacySchedulerJob, 0, len(tc.expectedEvictions))
 			for _, i := range tc.expectedEvictions {

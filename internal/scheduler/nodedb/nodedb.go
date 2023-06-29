@@ -553,24 +553,28 @@ func bindJobToNodeInPlace(priorityClasses map[string]configuration.PriorityClass
 //   - Within AllocatableByPriorityAndResource, the resources allocated to these jobs are moved from
 //     the jobs' priorities to evictedPriority; they are not subtracted from AllocatedByJobId and
 //     AllocatedByQueue.
+//
+// The evictedJobs parameter is a pre-allocated slice for the evicted jobs; this function initially
+// clears it, and then appends all evicted jobs to it.
 func EvictJobsFromNode(
 	priorityClasses map[string]configuration.PriorityClass,
 	jobFilter func(interfaces.LegacySchedulerJob) bool,
+	evictedJobs []interfaces.LegacySchedulerJob,
 	jobs []interfaces.LegacySchedulerJob,
 	node *schedulerobjects.Node,
 ) ([]interfaces.LegacySchedulerJob, *schedulerobjects.Node, error) {
-	evicted := make([]interfaces.LegacySchedulerJob, 0)
+	evictedJobs = evictedJobs[0:0]
 	node = node.DeepCopy()
 	for _, job := range jobs {
 		if jobFilter != nil && !jobFilter(job) {
 			continue
 		}
-		evicted = append(evicted, job)
+		evictedJobs = append(evictedJobs, job)
 		if err := evictJobFromNodeInPlace(priorityClasses, job, node); err != nil {
 			return nil, nil, err
 		}
 	}
-	return evicted, node, nil
+	return evictedJobs, node, nil
 }
 
 // evictJobFromNodeInPlace is the in-place operation backing EvictJobsFromNode.

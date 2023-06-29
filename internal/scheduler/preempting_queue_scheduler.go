@@ -787,6 +787,7 @@ func NewOversubscribedEvictor(
 // Any job for which jobFilter returns true is evicted (if the node was not skipped).
 // If a job was evicted from a node, postEvictFunc is called with the corresponding job and node.
 func (evi *Evictor) Evict(ctx context.Context, it nodedb.NodeIterator) (*EvictorResult, error) {
+	evictedJobs := make([]interfaces.LegacySchedulerJob, 0)
 	var jobFilter func(job interfaces.LegacySchedulerJob) bool
 	if evi.jobFilter != nil {
 		jobFilter = func(job interfaces.LegacySchedulerJob) bool { return evi.jobFilter(ctx, job) }
@@ -808,7 +809,7 @@ func (evi *Evictor) Evict(ctx context.Context, it nodedb.NodeIterator) (*Evictor
 		if err != nil {
 			return nil, err
 		}
-		evictedJobs, node, err := nodedb.EvictJobsFromNode(evi.priorityClasses, jobFilter, jobs, node)
+		evictedJobs, node, err = nodedb.EvictJobsFromNode(evi.priorityClasses, jobFilter, evictedJobs, jobs, node)
 		if err != nil {
 			return nil, err
 		}
