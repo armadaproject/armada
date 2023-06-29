@@ -253,10 +253,14 @@ func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueD
 func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 	principal := authorization.GetPrincipal(ctx)
 
-	jobs, e := server.createJobs(req, principal.GetName(), principal.GetGroupNames())
+	jobs, responseItems, e := server.createJobs(req, principal.GetName(), principal.GetGroupNames())
 	if e != nil {
+		result := &api.JobSubmitResponse{
+			JobResponseItems: responseItems,
+		}
+
 		reqJson, _ := json.Marshal(req)
-		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e)
+		return result, status.Errorf(codes.InvalidArgument, "[SubmitJobs] Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e)
 	}
 	if err := validation.ValidateApiJobs(jobs, *server.schedulingConfig); err != nil {
 		return nil, err
@@ -746,16 +750,16 @@ func (server *SubmitServer) getQueueOrCreate(ctx context.Context, queueName stri
 // createJobs returns a list of objects representing the jobs in a JobSubmitRequest.
 // This function validates the jobs in the request and the pod specs. in each job.
 // If any job or pod in invalid, an error is returned.
-func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error) {
+func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, []*api.JobSubmitResponseItem, error) {
 	return server.createJobsObjects(request, owner, ownershipGroups, time.Now, util.NewULID)
 }
 
 func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, owner string, ownershipGroups []string,
 	getTime func() time.Time, getUlid func() string,
-) ([]*api.Job, error) {
+) ([]*api.Job, []*api.JobSubmitResponseItem, error) {
 	compressor, err := server.compressorPool.BorrowObject(context.Background())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer func(compressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
 		err := compressorPool.ReturnObject(ctx, object)
@@ -765,29 +769,44 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 	}(server.compressorPool, context.Background(), compressor)
 	compressedOwnershipGroups, err := compress.CompressStringArray(ownershipGroups, compressor.(compress.Compressor))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
 
 	if request.JobSetId == "" {
-		return nil, errors.Errorf("[createJobs] job set not specified")
+		return nil, nil, errors.Errorf("[createJobs] job set not specified")
 	}
 
 	if request.Queue == "" {
-		return nil, errors.Errorf("[createJobs] queue not specified")
+		return nil, nil, errors.Errorf("[createJobs] queue not specified")
 	}
 
+	responseItems := make([]*api.JobSubmitResponseItem, 0, len(request.JobRequestItems))
 	for i, item := range request.JobRequestItems {
+		jobId := getUlid()
+
 		if item.PodSpec != nil && len(item.PodSpecs) > 0 {
-			return nil, errors.Errorf("[createJobs] job %d in job set %s contains both podSpec and podSpecs, but may only contain either", i, request.JobSetId)
+			response := &api.JobSubmitResponseItem{
+				JobId: jobId,
+				Error: fmt.Sprintf("[createJobs] job %d in job set %s contains both podSpec and podSpecs, but may only contain either", i, request.JobSetId),
+			}
+			responseItems = append(responseItems, response)
 		}
 		podSpec := item.GetMainPodSpec()
 		if podSpec == nil {
-			return nil, errors.Errorf("[createJobs] job %d in job set %s contains no podSpec", i, request.JobSetId)
+			response := &api.JobSubmitResponseItem{
+				JobId: jobId,
+				Error: fmt.Sprintf("[createJobs] job %d in job set %s contains no podSpec", i, request.JobSetId),
+			}
+			responseItems = append(responseItems, response)
 		}
 		if err := validation.ValidateJobSubmitRequestItem(item); err != nil {
-			return nil, errors.Errorf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err)
+			response := &api.JobSubmitResponseItem{
+				JobId: jobId,
+				Error: fmt.Sprintf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err),
+			}
+			responseItems = append(responseItems, response)
 		}
 		namespace := item.Namespace
 		if namespace == "" {
@@ -797,7 +816,11 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 		applyDefaultsToAnnotations(item.Annotations, *server.schedulingConfig)
 		applyDefaultsToPodSpec(podSpec, *server.schedulingConfig)
 		if err := validation.ValidatePodSpec(podSpec, server.schedulingConfig); err != nil {
-			return nil, errors.Errorf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err)
+			response := &api.JobSubmitResponseItem{
+				JobId: jobId,
+				Error: fmt.Sprintf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err),
+			}
+			responseItems = append(responseItems, response)
 		}
 
 		// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
@@ -808,7 +831,6 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 			podSpec.NodeSelector[k] = v
 		}
 
-		jobId := getUlid()
 		enrichText(item.Labels, jobId)
 		enrichText(item.Annotations, jobId)
 		j := &api.Job{
@@ -838,7 +860,10 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 		jobs = append(jobs, j)
 	}
 
-	return jobs, nil
+	if len(responseItems) > 0 {
+		return nil, responseItems, errors.Errorf("[createJobs] error creating jobs, check JobSubmitResponse for details")
+	}
+	return jobs, nil, nil
 }
 
 func enrichText(labels map[string]string, jobId string) {
