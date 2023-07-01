@@ -14,7 +14,7 @@ Open source projects should not be hard coded to a particular Database. Armada c
 
 #### Database Connection
 
-Most of the components (Lookout, Scheduler, Scheduler Ingester) rely on [PostgresConfig](github.com/armadaproject/armada/internal/armada/configuration) to connect to external databases, we can avoid hardcoding the configuration of those components to use `PostgresConfig` but defining a generic `DatabaseConfig` interface that's when implemented will provide those components with the necessary details to connect to databases.
+Most of the components (Lookout, Scheduler, Scheduler Ingester) rely on [PostgresConfig](https://github.com/armadaproject/armada/blob/master/internal/armada/configuration/types.go#L294) to connect to external databases, we can avoid hardcoding the configuration of those components to use `PostgresConfig` but defining a generic `DatabaseConfig` interface that's when implemented will provide those components with the necessary details to connect to databases.
 
     /**
         Components configuration (e.g. LookoutConfiguration) can now make use of this interface instead of hardcoding PostgresConfig.
