@@ -433,6 +433,18 @@ func (repo *schedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([
 
 // constructNodeDb constructs a node db with all jobs bound to it.
 func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]configuration.PriorityClass, jobs []*jobdb.Job, nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
+	nodeDb, err := nodedb.NewNodeDb(
+		priorityClasses,
+		l.config.MaxExtraNodesToConsider,
+		l.indexedResources,
+		l.config.IndexedTaints,
+		l.config.IndexedNodeLabels,
+	)
+	if err != nil {
+		return nil, err
+	}
+	txn := nodeDb.Txn(true)
+	defer txn.Abort()
 	nodesByName := make(map[string]*schedulerobjects.Node, len(nodes))
 	for _, node := range nodes {
 		nodesByName[node.Name] = node
@@ -452,26 +464,12 @@ func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]configur
 		}
 		jobsByNodeName[nodeName] = append(jobsByNodeName[nodeName], job)
 	}
-	for nodeName, jobsOnNode := range jobsByNodeName {
-		node, err := nodedb.BindJobsToNode(priorityClasses, jobsOnNode, nodesByName[nodeName])
-		if err != nil {
+	for _, node := range nodes {
+		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobsByNodeName[node.Name], node); err != nil {
 			return nil, err
 		}
-		nodesByName[nodeName] = node
 	}
-	nodeDb, err := nodedb.NewNodeDb(
-		priorityClasses,
-		l.config.MaxExtraNodesToConsider,
-		l.indexedResources,
-		l.config.IndexedTaints,
-		l.config.IndexedNodeLabels,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if err := nodeDb.UpsertMany(maps.Values(nodesByName)); err != nil {
-		return nil, err
-	}
+	txn.Commit()
 	return nodeDb, nil
 }
 

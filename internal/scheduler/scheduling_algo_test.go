@@ -18,7 +18,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
-	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
@@ -369,18 +368,12 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 			for executorId, jobsByNodeName := range tc.existingRunningIndices {
 				for nodeName, jobIndices := range jobsByNodeName {
 					node := nodes[executorId][nodeName]
-
 					for _, i := range jobIndices {
 						job := tc.existingJobs[i].WithQueued(false).WithNewRun(executorId, nodeName)
 						jobsToUpsert = append(jobsToUpsert, job)
 						run := job.LatestRun()
 						node.StateByJobRunId[run.Id().String()] = schedulerobjects.JobRunState_RUNNING
-
-						node, err = nodedb.BindJobToNode(tc.schedulingConfig.Preemption.PriorityClasses, job, node)
-						require.NoError(t, err)
 					}
-
-					nodes[executorId][nodeName] = node
 				}
 			}
 

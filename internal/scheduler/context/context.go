@@ -657,9 +657,8 @@ func JobSchedulingContextsFromJobs[J interfaces.LegacySchedulerJob](priorityClas
 type PodSchedulingContext struct {
 	// Time at which this context was created.
 	Created time.Time
-	// Node the pod was assigned to.
-	// If nil, the pod could not be assigned to any node.
-	Node *schedulerobjects.Node
+	// ID of the node that the pod was assigned to, or empty.
+	NodeId string
 	// Score indicates how well the pod fits on the selected node.
 	Score int
 	// Node types on which this pod could be scheduled.
@@ -673,8 +672,8 @@ type PodSchedulingContext struct {
 func (pctx *PodSchedulingContext) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	if pctx.Node != nil {
-		fmt.Fprintf(w, "Node:\t%s\n", pctx.Node.Id)
+	if pctx.NodeId != "" {
+		fmt.Fprintf(w, "Node:\t%s\n", pctx.NodeId)
 	} else {
 		fmt.Fprint(w, "Node:\tnone\n")
 	}
