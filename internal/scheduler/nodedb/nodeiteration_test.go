@@ -35,7 +35,7 @@ func TestNodesIterator(t *testing.T) {
 			for i, node := range tc.Nodes {
 				indexById[node.Id] = i
 			}
-			nodeDb, err := createNodeDb(tc.Nodes)
+			nodeDb, err := newNodeDbWithNodes(tc.Nodes)
 			if !assert.NoError(t, err) {
 				return
 			}
@@ -66,7 +66,7 @@ func TestNodePairIterator(t *testing.T) {
 	for i, nodeId := range []string{"A", "B", "C"} {
 		nodes[i].Id = nodeId
 	}
-	nodeDb, err := createAndPopulateNodeDb(nodes)
+	nodeDb, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
 	entries := make([]*Node, len(nodes))
 	for i, node := range nodes {
@@ -409,7 +409,7 @@ func TestNodeTypeIterator(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := createNodeDb(nil)
+			nodeDb, err := newNodeDbWithNodes(nil)
 			require.NoError(t, err)
 
 			entries := make([]*Node, len(tc.nodes))
@@ -799,7 +799,7 @@ func TestNodeTypesIterator(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := createNodeDb(nil)
+			nodeDb, err := newNodeDbWithNodes(nil)
 			require.NoError(t, err)
 
 			entries := make([]*Node, len(tc.nodes))
@@ -873,7 +873,7 @@ func BenchmarkNodeTypeIterator(b *testing.B) {
 			[]*schedulerobjects.Node{node},
 		)
 	}
-	nodeDb, err := createNodeDb(nodes)
+	nodeDb, err := newNodeDbWithNodes(nodes)
 	require.NoError(b, err)
 
 	// Create iterator for 0 CPU required and an unfeasible memory request,
