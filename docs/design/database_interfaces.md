@@ -40,8 +40,9 @@ The existing configurations can then be tweaked to use the new generic `Database
 
 #### Database Communication
 
-Currently, most of the Armada components make use of the `github.com/jackc/pgx` Postgres client which provides APIs to interact exclusively with Postgres databases, this makes Armada tightly coupled with Postgres and makes it impossible to use other database SQL dialects (e.g. MySQL).
-A way to fix this would be to design database agnostic interfaces that can abstracts away the existing Postgres core implementation (pgx), and then implement adapters around `pgx` that implement those interfaces. This will allow for having a high level abstraction API for interacting with databases while maintaining the existing Postgres core implementation.
+Currently, most of the Armada components make use of the `github.com/jackc/pgx` Postgres client which provides APIs to interact exclusively with Postgres databases, this makes Armada tightly coupled with Postgres and makes it impossible to use other SQL dialects (e.g. MySQL).
+
+A way to fix this would be to design database-agnostic interfaces that can abstract away the existing Postgres core implementation (pgx), and then implement adapters around `pgx` that implement those interfaces. This will allow for having a high level abstraction API for interacting with databases while maintaining the existing Postgres core implementation.
 To accomplish this, we will need to define interfaces for the following features:
 
 1.  Connection Handler
@@ -74,7 +75,7 @@ To accomplish this, we will need to define interfaces for the following features
 
         // DatabasePool represents a database connection pool interface that provides methods for acquiring and managing database connections.
         type DatabasePool interface {
-            // Acquire acquires a database connection from the pool. It takes a context and returns a DatabaseConn representing the acquired connection and any encountered error.
+        	// Acquire acquires a database connection from the pool. It takes a context and returns a DatabaseConn representing the acquired connection and any encountered error.
         	Acquire(context.Context) (DatabaseConn, error)
 
         	// Ping pings the database to check the connection. It returns any error encountered during the ping operation.
