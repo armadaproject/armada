@@ -170,3 +170,35 @@ def test_annotate_job_request_items():
         "armadaproject.io/taskRunId": "some-run-id",
         "armadaproject.io/dagId": "hello_armada",
     }
+
+
+import unittest
+from armada.operators import ArmadaOperator
+from armada_client.client import ArmadaClient
+
+class TestArmadaOperatorIntegration(unittest.TestCase):
+    def test_on_kill(self):
+        armada_client = ArmadaClient()  # Initialize the Armada client
+        job_service_client = MagicMock()  # Mock the Jobservice client
+        armada_queue = "armada_queue"
+        job_request_items = [...]  # Define the job request items
+
+        operator = ArmadaOperator(
+            name="test_operator",
+            armada_client=armada_client,
+            job_service_client=job_service_client,
+            armada_queue=armada_queue,
+            job_request_items=job_request_items,
+            poll_interval=30,
+        )
+
+        # Execute the operator's on_kill() method
+        operator.on_kill()
+
+        # Assert the expected interactions between Armada and Jobservice
+        job_service_client.cancel_job.assert_called_once_with(
+            job_set_id=operator.job_set_id, queue=armada_queue
+        )
+
+if __name__ == "__main__":
+    unittest.main()
