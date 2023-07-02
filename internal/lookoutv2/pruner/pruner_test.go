@@ -108,7 +108,7 @@ func TestPruneDb(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-				converter := instructions.NewInstructionConverter(metrics.Get(), "armadaproject.io/", &compress.NoOpCompressor{})
+				converter := instructions.NewInstructionConverter(metrics.Get(), "armadaproject.io/", &compress.NoOpCompressor{}, true)
 				store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)

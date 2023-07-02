@@ -1,6 +1,7 @@
 package schedulerobjects
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -374,7 +375,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			matches, _, reason, err := tc.node.PodRequirementsMet(tc.req.Priority, tc.req)
+			matches, _, reason, err := PodRequirementsMet(tc.node.Taints, tc.node.Labels, tc.node.TotalResources, tc.node.AllocatableByPriorityAndResource[tc.req.Priority], tc.req)
 			assert.NoError(t, err)
 			if tc.expectSuccess { // TODO: Test score set correctly.
 				assert.True(t, matches)
@@ -530,4 +531,104 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInsufficientResourcesSum64(t *testing.T) {
+	tests := map[string]struct {
+		a     *InsufficientResources
+		b     *InsufficientResources
+		equal bool
+	}{
+		"different resource": {
+			a: &InsufficientResources{
+				Resource:  "foo",
+				Required:  resource.MustParse("2"),
+				Available: resource.MustParse("1"),
+			},
+			b: &InsufficientResources{
+				Resource:  "bar",
+				Required:  resource.MustParse("2"),
+				Available: resource.MustParse("1"),
+			},
+			equal: false,
+		},
+		"different required": {
+			a: &InsufficientResources{
+				Resource:  "foo",
+				Required:  resource.MustParse("2"),
+				Available: resource.MustParse("1"),
+			},
+			b: &InsufficientResources{
+				Resource:  "foo",
+				Required:  resource.MustParse("3"),
+				Available: resource.MustParse("1"),
+			},
+			equal: false,
+		},
+		"different available": {
+			a: &InsufficientResources{
+				Resource:  "foo",
+				Required:  resource.MustParse("2"),
+				Available: resource.MustParse("1"),
+			},
+			b: &InsufficientResources{
+				Resource:  "foo",
+				Required:  resource.MustParse("2"),
+				Available: resource.MustParse("2"),
+			},
+			equal: false,
+		},
+		"small difference": {
+			a: &InsufficientResources{
+				Resource:  "foo",
+				Required:  resource.MustParse("1000m"),
+				Available: resource.MustParse("1"),
+			},
+			b: &InsufficientResources{
+				Resource:  "foo",
+				Required:  resource.MustParse("1001m"),
+				Available: resource.MustParse("1"),
+			},
+			equal: false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			if tc.equal {
+				assert.Equal(t, tc.a.Sum64(), tc.b.Sum64())
+			} else {
+				assert.NotEqual(t, tc.a.Sum64(), tc.b.Sum64())
+			}
+		})
+	}
+}
+
+func BenchmarkUntoleratedTaintSum64(b *testing.B) {
+	reason := &UntoleratedTaint{
+		Taint: v1.Taint{Key: randomString(100), Value: randomString(100), Effect: v1.TaintEffectNoSchedule},
+	}
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		reason.Sum64()
+	}
+}
+
+func BenchmarkInsufficientResourcesSum64(b *testing.B) {
+	reason := &InsufficientResources{
+		Resource:  randomString(100),
+		Required:  resource.MustParse("2"),
+		Available: resource.MustParse("1"),
+	}
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		reason.Sum64()
+	}
+}
+
+func randomString(n int) string {
+	s := ""
+	for i := 0; i < n; i++ {
+		s += fmt.Sprint(i)
+	}
+	return s
 }

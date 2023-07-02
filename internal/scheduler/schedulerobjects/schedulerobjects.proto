@@ -31,6 +31,8 @@ message Node {
     string id = 1;
     // Kubernetes node name. Not guaranteed to be unique across clusters.
     string name = 12;
+    // Keys by which nodes are sorted in the nodeDb.
+    repeated bytes nodeDbKeys = 18;
     // Time at which this node was last updated.
     // Used to garbage collect nodes that have been removed.
     google.protobuf.Timestamp last_seen = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
@@ -40,7 +42,7 @@ message Node {
     NodeType node_type = 3;
     // We store NodeType.id here to simplify indexing.
     // This field is set automatically by the NodeDb on inserting the node.
-    string node_type_id = 4;
+    uint64 node_type_id = 4;
     // Kubernetes taints.
     repeated k8s.io.api.core.v1.Taint taints = 5 [(gogoproto.nullable) = false];
     // Kubernetes labels.
@@ -84,7 +86,7 @@ enum JobRunState {
 // the scheduler only considers nodes with a NodeType for which the taints and labels match.
 message NodeType {
     // Unique identifier. Used for map lookup.
-    string Id = 1;
+    uint64 Id = 1;
     // Kubernetes taints.
     // To reduce the number of distinct node types,
     // may contain only a subset of the taints of the node the node type is created from.
@@ -99,13 +101,13 @@ message NodeType {
     map<string, string> unsetIndexedLabels = 4;
 }
 
-// Captures the resource usage of a particular queue
-// in a given cluster.
+// Captures the resource usage of a particular queue in a given cluster.
 message QueueClusterResourceUsage {
     google.protobuf.Timestamp created = 1 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
     string queue = 2;
     string executorId = 3;
-    map<int32, ResourceList> resourcesByPriority = 4 [(gogoproto.nullable) = false];
+    map<int32, ResourceList> resourcesByPriority = 4 [(gogoproto.nullable) = false, deprecated = true];
+    map<string, ResourceList> resourcesByPriorityClassName = 5 [(gogoproto.nullable) = false];
 }
 
 // A collection of QueueClusterResourceUsage

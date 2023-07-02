@@ -37,10 +37,10 @@ func NewGroupJobs(ctx *middleware.Context, handler GroupJobsHandler) *GroupJobs 
 	return &GroupJobs{Context: ctx, Handler: handler}
 }
 
-/*
-	GroupJobs swagger:route POST /api/v1/jobGroups groupJobs
+/* GroupJobs swagger:route POST /api/v1/jobGroups groupJobs
 
 GroupJobs group jobs API
+
 */
 type GroupJobs struct {
 	Context *middleware.Context
@@ -76,10 +76,9 @@ type GroupJobsBody struct {
 	// Required: true
 	Filters []*models.Filter `json:"filters"`
 
-	// Field to group jobs by
+	// grouped field
 	// Required: true
-	// Min Length: 1
-	GroupedField string `json:"groupedField"`
+	GroupedField *GroupJobsParamsBodyGroupedField `json:"groupedField"`
 
 	// Ordering to apply to job groups.
 	// Required: true
@@ -166,12 +165,19 @@ func (o *GroupJobsBody) validateFilters(formats strfmt.Registry) error {
 
 func (o *GroupJobsBody) validateGroupedField(formats strfmt.Registry) error {
 
-	if err := validate.RequiredString("groupJobsRequest"+"."+"groupedField", "body", o.GroupedField); err != nil {
+	if err := validate.Required("groupJobsRequest"+"."+"groupedField", "body", o.GroupedField); err != nil {
 		return err
 	}
 
-	if err := validate.MinLength("groupJobsRequest"+"."+"groupedField", "body", o.GroupedField, 1); err != nil {
-		return err
+	if o.GroupedField != nil {
+		if err := o.GroupedField.Validate(formats); err != nil {
+			if ve, ok := err.(*errors.Validation); ok {
+				return ve.ValidateName("groupJobsRequest" + "." + "groupedField")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("groupJobsRequest" + "." + "groupedField")
+			}
+			return err
+		}
 	}
 
 	return nil
@@ -223,6 +229,10 @@ func (o *GroupJobsBody) ContextValidate(ctx context.Context, formats strfmt.Regi
 		res = append(res, err)
 	}
 
+	if err := o.contextValidateGroupedField(ctx, formats); err != nil {
+		res = append(res, err)
+	}
+
 	if err := o.contextValidateOrder(ctx, formats); err != nil {
 		res = append(res, err)
 	}
@@ -248,6 +258,22 @@ func (o *GroupJobsBody) contextValidateFilters(ctx context.Context, formats strf
 			}
 		}
 
+	}
+
+	return nil
+}
+
+func (o *GroupJobsBody) contextValidateGroupedField(ctx context.Context, formats strfmt.Registry) error {
+
+	if o.GroupedField != nil {
+		if err := o.GroupedField.ContextValidate(ctx, formats); err != nil {
+			if ve, ok := err.(*errors.Validation); ok {
+				return ve.ValidateName("groupJobsRequest" + "." + "groupedField")
+			} else if ce, ok := err.(*errors.CompositeError); ok {
+				return ce.ValidateName("groupJobsRequest" + "." + "groupedField")
+			}
+			return err
+		}
 	}
 
 	return nil
@@ -386,6 +412,65 @@ func (o *GroupJobsOKBody) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary interface implementation
 func (o *GroupJobsOKBody) UnmarshalBinary(b []byte) error {
 	var res GroupJobsOKBody
+	if err := swag.ReadJSON(b, &res); err != nil {
+		return err
+	}
+	*o = res
+	return nil
+}
+
+// GroupJobsParamsBodyGroupedField group jobs params body grouped field
+//
+// swagger:model GroupJobsParamsBodyGroupedField
+type GroupJobsParamsBodyGroupedField struct {
+
+	// Field or annotation key to group by
+	// Required: true
+	Field string `json:"field"`
+
+	// is annotation
+	IsAnnotation bool `json:"isAnnotation,omitempty"`
+}
+
+// Validate validates this group jobs params body grouped field
+func (o *GroupJobsParamsBodyGroupedField) Validate(formats strfmt.Registry) error {
+	var res []error
+
+	if err := o.validateField(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
+	return nil
+}
+
+func (o *GroupJobsParamsBodyGroupedField) validateField(formats strfmt.Registry) error {
+
+	if err := validate.RequiredString("groupJobsRequest"+"."+"groupedField"+"."+"field", "body", o.Field); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ContextValidate validates this group jobs params body grouped field based on context it is used
+func (o *GroupJobsParamsBodyGroupedField) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
+	return nil
+}
+
+// MarshalBinary interface implementation
+func (o *GroupJobsParamsBodyGroupedField) MarshalBinary() ([]byte, error) {
+	if o == nil {
+		return nil, nil
+	}
+	return swag.WriteJSON(o)
+}
+
+// UnmarshalBinary interface implementation
+func (o *GroupJobsParamsBodyGroupedField) UnmarshalBinary(b []byte) error {
+	var res GroupJobsParamsBodyGroupedField
 	if err := swag.ReadJSON(b, &res); err != nil {
 		return err
 	}

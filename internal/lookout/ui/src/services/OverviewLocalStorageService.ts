@@ -36,7 +36,7 @@ export default class OverviewLocalStorageService {
       return
     }
 
-    const loadedState = convertToLocalStorageState(loadedData)
+    const loadedState = convertToLocalStorageState(loadedData as Record<string, unknown>)
     if (loadedState.autoRefresh != undefined) state.autoRefresh = loadedState.autoRefresh
   }
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/go-openapi/strfmt"
 
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/models"
+	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi/operations"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
@@ -77,6 +78,13 @@ func FromSwaggerOrder(order *models.Order) *model.Order {
 	return &model.Order{
 		Direction: order.Direction,
 		Field:     order.Field,
+	}
+}
+
+func FromSwaggerGroupedField(groupedField *operations.GroupJobsParamsBodyGroupedField) *model.GroupedField {
+	return &model.GroupedField{
+		Field:        groupedField.Field,
+		IsAnnotation: groupedField.IsAnnotation,
 	}
 }
 

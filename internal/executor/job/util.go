@@ -21,7 +21,7 @@ func CreateSubmitJobsFromApiJobs(apiJobs []*api.Job, podDefaults *configuration.
 }
 
 func CreateSubmitJobFromApiJob(apiJob *api.Job, podDefaults *configuration.PodDefaults) *SubmitJob {
-	pod := util2.CreatePod(apiJob, podDefaults, 0)
+	pod := util2.CreatePod(apiJob, podDefaults)
 
 	runMeta := &RunMeta{
 		JobId:  apiJob.Id,

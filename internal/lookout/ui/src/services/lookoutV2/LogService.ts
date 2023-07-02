@@ -1,4 +1,5 @@
-import { BinocularsApi, BinocularsLogLine, Configuration, ConfigurationParameters } from "../../openapi/binoculars"
+import { BinocularsLogLine, ConfigurationParameters } from "../../openapi/binoculars"
+import { getBinocularsApi } from "../../utils"
 
 export type LogLine = {
   timestamp: string
@@ -34,7 +35,7 @@ export class LogService implements ILogService {
     sinceTime: string,
     tailLines: number | undefined,
   ): Promise<LogLine[]> {
-    const api = this.getBinocularsApi(cluster)
+    const api = getBinocularsApi(cluster, this.baseUrlPattern, this.config)
     const logResult = await api.logs({
       body: {
         jobId: jobId,
@@ -48,15 +49,6 @@ export class LogService implements ILogService {
       },
     })
     return parseLogLines(logResult.log ?? [])
-  }
-
-  private getBinocularsApi(clusterId: string) {
-    return new BinocularsApi(
-      new Configuration({
-        ...this.config,
-        basePath: this.baseUrlPattern.replace("{CLUSTER_ID}", clusterId),
-      }),
-    )
   }
 }
 

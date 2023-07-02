@@ -1,5 +1,9 @@
 # Docs Readme
 
+## For Developers
+
+See [website.md](./developer/website.md)
+
 ## Overview
 Docs added to this directory are automatically copied into armadaproject.io.
 
@@ -14,8 +18,8 @@ for people viewing in github and for those viewing via armadaproject.io.
 
 The easiest way to accomplish this is by using page bundles. See quickstart
 as as example: quickstart/index.md is the actual content, with links to
-various images using relative pathing; e.g. `./my-image.png`. This is 
-considered a page bundle by jekyll (github pages) and are rendered as a 
+various images using relative pathing; e.g. `./my-image.png`. This is
+considered a page bundle by jekyll (github pages) and are rendered as a
 single page at `quickstart/`.
 
 In order to get this page bundle pushed to gh-pages branch, you'll need

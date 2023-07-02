@@ -106,7 +106,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	}
 
 	// Convert the API jobs to log jobs.
-	responses := make([]*api.JobSubmitResponseItem, len(req.JobRequestItems), len(req.JobRequestItems))
+	responses := make([]*api.JobSubmitResponseItem, len(req.JobRequestItems))
 
 	originalIds, err := srv.getOriginalJobIds(ctx, apiJobs)
 	if err != nil {
@@ -157,8 +157,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 
 		// Try converting the log job back to an API job to make sure there are no errors.
 		// The log consumer will do this again; we do it here to ensure that any errors are noticed immediately.
-		_, err = eventutil.ApiJobFromLogSubmitJob(userId, groups, req.Queue, req.JobSetId, time.Now(), logJob)
-		if err != nil {
+		if _, err := eventutil.ApiJobFromLogSubmitJob(userId, groups, req.Queue, req.JobSetId, time.Now(), logJob); err != nil {
 			return nil, err
 		}
 

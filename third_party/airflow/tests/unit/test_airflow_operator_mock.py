@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.models.taskinstance import TaskInstance
+from airflow.utils.context import Context
 from armada_client.client import ArmadaClient
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
@@ -54,11 +55,11 @@ tester_client = ArmadaClient(
 tester_jobservice = JobServiceClient(grpc.insecure_channel(target="127.0.0.1:60081"))
 
 
-def sleep_job():
-    pod = core_v1.PodSpec(
+def generate_pod_spec(name: str = "container-1") -> core_v1.PodSpec:
+    ps = core_v1.PodSpec(
         containers=[
             core_v1.Container(
-                name="container-1",
+                name=name,
                 image="busybox",
                 args=["sleep", "10s"],
                 securityContext=core_v1.SecurityContext(runAsUser=1000),
@@ -75,6 +76,21 @@ def sleep_job():
             )
         ],
     )
+    return ps
+
+
+def sleep_job():
+    pod = generate_pod_spec()
+    return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
+
+
+def pre_template_sleep_job():
+    pod = generate_pod_spec(name="name-{{ run_id }}")
+    return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
+
+
+def expected_sleep_job():
+    pod = generate_pod_spec(name="name-another-run-id")
     return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
 
 
@@ -200,3 +216,4 @@ class TestArmadaOperatorIntegration(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

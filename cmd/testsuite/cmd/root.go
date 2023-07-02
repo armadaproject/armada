@@ -18,13 +18,6 @@ func RootCmd() *cobra.Command {
 		Long: `testsuite is a suite of automated tests for Armada deployments.
 
 Persistent config can be saved in a config file so it doesn't have to be specified every command.
-
-Example structure:
-armadaUrl: localhost:50051
-basicAuth:
-username: user1
-password: password123
-
 The location of this file can be passed in using the --config argument.
 If not provided, $HOME/.armadactl.yaml is used.`,
 	}

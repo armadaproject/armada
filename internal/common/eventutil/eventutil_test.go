@@ -410,12 +410,15 @@ func TestConvertJobMultiplePodSpecs(t *testing.T) {
 }
 
 func testJob(multiplePodSpecs bool) *api.Job {
+	var mainPodSpec *v1.PodSpec
 	var podSpec *v1.PodSpec
 	var podSpecs []*v1.PodSpec
 	if multiplePodSpecs {
 		podSpecs = []*v1.PodSpec{testPodSpec("podSpec1"), testPodSpec("podSpec2")}
+		mainPodSpec = podSpecs[0]
 	} else {
 		podSpec = testPodSpec("podSpec")
+		mainPodSpec = podSpec
 	}
 	return &api.Job{
 		Id:          util.NewULID(),
@@ -427,12 +430,13 @@ func testJob(multiplePodSpecs bool) *api.Job {
 		Annotations: map[string]string{"annotation_1": "annotation_1", "annotation_2": "annotation_2"},
 		// Deprecated and hence not part of the tests.
 		// RequiredNodeLabels:       map[string]string{},
-		Owner:                    "owner",
-		QueueOwnershipUserGroups: []string{"group1, group2"},
-		Priority:                 1,
-		PodSpec:                  podSpec,
-		PodSpecs:                 podSpecs,
-		Created:                  time.Now(),
+		Owner:                          "owner",
+		QueueOwnershipUserGroups:       []string{"group1, group2"},
+		Priority:                       1,
+		PodSpec:                        podSpec,
+		PodSpecs:                       podSpecs,
+		SchedulingResourceRequirements: api.SchedulingResourceRequirementsFromPodSpec(mainPodSpec),
+		Created:                        time.Now(),
 		Ingress: []*api.IngressConfig{
 			{
 				Type:       api.IngressType_Ingress,

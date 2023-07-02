@@ -402,14 +402,7 @@ tests: gotestsum
 	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 	sleep 3
 	function tearDown { docker rm -f redis postgres; }; trap tearDown EXIT
-	$(GOTESTSUM) -- $(shell go list ./internal/... | grep -v 'jobservice/repository') \
-		-coverprofile internal_coverage.xml -v  2>&1 | tee test_reports/internal.txt
-	env JSDBTYPE=sqlite $(GOTESTSUM) -- -v \
-			 ./internal/jobservice/repository/... 2>&1 | tee -a test_reports/internal.txt
-	env JSDBTYPE=postgres $(GOTESTSUM) -- -v \
-			 ./internal/jobservice/repository/... 2>&1 | tee -a test_reports/internal.txt
-	$(GOTESTSUM) -- -coverprofile pkg_coverage.xml -v ./pkg... 2>&1 | tee test_reports/pkg.txt
-	$(GOTESTSUM) -- -coverprofile cmd_coverage.xml -v ./cmd... 2>&1 | tee test_reports/cmd.txt
+	$(GOTESTSUM) --format short-verbose --junitfile test-reports/unit-tests.xml --jsonfile test-reports/unit-tests.json -- -coverprofile=test-reports/coverage.out -covermode=atomic ./cmd/... ./pkg/... $(go list ./internal/... | grep -v 'jobservice/repository')
 
 .ONESHELL:
 lint-fix:
@@ -604,7 +597,7 @@ dotnet: dotnet-setup proto-setup
 	$(DOTNET_CMD) dotnet build ./client/DotNet/ArmadaProject.Io.Client
 
 # Pack and push dotnet clients to nuget. Requires RELEASE_TAG and NUGET_API_KEY env vars to be set
-push-nuget: dotnet-setup proto-setup
+push-nuget: dotnet-setup proto
 	$(DOTNET_CMD) dotnet pack client/DotNet/Armada.Client/Armada.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
 	$(DOTNET_CMD) dotnet nuget push ./bin/client/DotNet/G-Research.Armada.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
 	$(DOTNET_CMD) dotnet pack client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
