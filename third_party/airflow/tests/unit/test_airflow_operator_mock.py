@@ -19,6 +19,9 @@ from armada.jobservice import jobservice_pb2_grpc, jobservice_pb2
 from armada_client_mock import SubmitService, EventService
 from job_service_mock import JobService
 
+import unittest
+from armada_client.client import ArmadaClient
+
 
 @pytest.fixture(scope="session", autouse=True)
 def server_mock():
@@ -170,11 +173,6 @@ def test_annotate_job_request_items():
         "armadaproject.io/taskRunId": "some-run-id",
         "armadaproject.io/dagId": "hello_armada",
     }
-
-
-import unittest
-from armada.operators import ArmadaOperator
-from armada_client.client import ArmadaClient
 
 class TestArmadaOperatorIntegration(unittest.TestCase):
     def test_on_kill(self):
