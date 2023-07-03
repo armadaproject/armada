@@ -1707,6 +1707,9 @@ func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
 		},
 	}
 
+	// Empty - no response items expected as no jobs were submitted without errors
+	var expectedResponseItems []*api.JobSubmitResponseItem
+
 	request := &api.JobSubmitRequest{
 		Queue:    "test",
 		JobSetId: "test-jobsetid",
@@ -1746,8 +1749,90 @@ func TestSubmitServer_CreateJobs_WithJobIdReplacement(t *testing.T) {
 	}
 	ownershipGroups := make([]string, 0)
 	withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-		output, err := s.createJobsObjects(request, "test", ownershipGroups, mockNow, mockNewULID)
+		output, responseItems, err := s.createJobsObjects(request, "test", ownershipGroups, mockNow, mockNewULID)
 		assert.NoError(t, err)
+		assert.Equal(t, expectedResponseItems, responseItems)
 		assert.Equal(t, expected, output)
+	})
+}
+
+func TestSubmitServer_CreateJobs_WithDuplicatePodSpec(t *testing.T) {
+	timeNow := time.Now()
+	mockNow := func() time.Time {
+		return timeNow
+	}
+	mockNewULID := func() string {
+		return "test-ulid"
+	}
+
+	expectedResponseItems := []*api.JobSubmitResponseItem{
+		{
+			JobId: "test-ulid",
+			Error: "[createJobs] job 0 in job set test-jobsetid contains both podSpec and podSpecs, but may only contain either",
+		},
+	}
+	expectedError := "[createJobs] error creating jobs, check JobSubmitResponse for details"
+
+	request := &api.JobSubmitRequest{
+		Queue:    "test",
+		JobSetId: "test-jobsetid",
+		JobRequestItems: []*api.JobSubmitRequestItem{
+			{
+				Priority:  1,
+				Namespace: "test",
+				ClientId:  "0",
+				Labels: map[string]string{
+					"a.label": "job-id-is-{JobId}",
+				},
+				Annotations: map[string]string{
+					"a.nnotation": "job-id-is-{JobId}",
+				},
+				PodSpecs: []*v1.PodSpec{
+					{
+						Containers: []v1.Container{
+							{
+								Name:  "app",
+								Image: "test:latest",
+								Resources: v1.ResourceRequirements{
+									Limits: v1.ResourceList{
+										"cpu":    resource.MustParse("1"),
+										"memory": resource.MustParse("100Mi"),
+									},
+									Requests: v1.ResourceList{
+										"cpu":    resource.MustParse("1"),
+										"memory": resource.MustParse("100Mi"),
+									},
+								},
+							},
+						},
+					},
+				},
+				PodSpec: &v1.PodSpec{
+					Containers: []v1.Container{
+						{
+							Name:  "app",
+							Image: "test:latest",
+							Resources: v1.ResourceRequirements{
+								Limits: v1.ResourceList{
+									"cpu":    resource.MustParse("1"),
+									"memory": resource.MustParse("100Mi"),
+								},
+								Requests: v1.ResourceList{
+									"cpu":    resource.MustParse("1"),
+									"memory": resource.MustParse("100Mi"),
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	ownershipGroups := make([]string, 0)
+	withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
+		output, responseItems, err := s.createJobsObjects(request, "test", ownershipGroups, mockNow, mockNewULID)
+		assert.Equal(t, expectedError, err.Error())
+		assert.Equal(t, expectedResponseItems, responseItems)
+		assert.Nil(t, output)
 	})
 }
