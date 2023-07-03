@@ -153,6 +153,8 @@ type SchedulingConfig struct {
 	//
 	// Applies only to the new scheduler.
 	IndexedTaints []string
+	// Default value of GangNodeUniformityLabelAnnotation if none is provided.
+	DefaultGangNodeUniformityLabel string
 	// Kubernetes pods may specify a termination grace period.
 	// When Pods are cancelled/preempted etc., they are first sent a SIGTERM.
 	// If a pod has not exited within its termination grace period,

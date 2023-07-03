@@ -7,6 +7,10 @@ const (
 	// GangCardinalityAnnotation All jobs in a gang must specify the total number of jobs in the gang via this annotation.
 	// The cardinality should be expressed as an integer, e.g., "3".
 	GangCardinalityAnnotation = "armadaproject.io/gangCardinality"
+	// The jobs that make up a gang may be constrained to be scheduled across a set of uniform nodes.
+	// Specifically, if provided, all gang jobs are scheduled onto nodes for which the value of the provided label is equal.
+	// Used to ensure, e.g., that all gang jobs are scheduled onto the same cluster or rack.
+	GangNodeUniformityLabelAnnotation = "armadaproject.io/nodeUniformityLabel"
 	// Armada normally tries to re-schedule jobs for which a pod fails to start.
 	// Pods for which this annotation has value "true" are not retried.
 	// Instead, the job the pod is part of fails immediately.

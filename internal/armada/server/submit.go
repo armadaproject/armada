@@ -794,6 +794,7 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 			namespace = "default"
 		}
 		fillContainerRequestsAndLimits(podSpec.Containers)
+		applyDefaultsToAnnotations(item.Annotations, *server.schedulingConfig)
 		applyDefaultsToPodSpec(podSpec, *server.schedulingConfig)
 		if err := validation.ValidatePodSpec(podSpec, server.schedulingConfig); err != nil {
 			return nil, errors.Errorf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err)
