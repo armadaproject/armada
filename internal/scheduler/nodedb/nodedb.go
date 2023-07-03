@@ -31,7 +31,7 @@ const (
 	// evictedPriority is the priority class priority resources consumed by evicted jobs are accounted for at.
 	// This helps avoid scheduling new jobs onto nodes that make it impossible to re-schedule evicted jobs.
 	evictedPriority int32 = -1
-	// MinPriority is the minimum smallest priority recognised within the nodedb package.
+	// MinPriority is the smallest possible priority class priority within the NodeDb.
 	MinPriority int32 = evictedPriority
 )
 
