@@ -10,8 +10,10 @@ import (
 
 const testInstanceName = "instance-1"
 
-var isNotLeaderMetric = prometheus.MustNewConstMetric(leaderStatusDesc, prometheus.GaugeValue, float64(0), testInstanceName)
-var isLeaderMetric = prometheus.MustNewConstMetric(leaderStatusDesc, prometheus.GaugeValue, float64(1), testInstanceName)
+var (
+	isNotLeaderMetric = prometheus.MustNewConstMetric(leaderStatusDesc, prometheus.GaugeValue, float64(0), testInstanceName)
+	isLeaderMetric    = prometheus.MustNewConstMetric(leaderStatusDesc, prometheus.GaugeValue, float64(1), testInstanceName)
+)
 
 func TestLeaderStatusMetrics_DefaultsToNotLeader(t *testing.T) {
 	collector := NewLeaderStatusMetricsCollector(testInstanceName)

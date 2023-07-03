@@ -4,8 +4,9 @@ import (
 	"context"
 	"sync"
 
-	"github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/armadaproject/armada/internal/common/metrics"
 )
 
 var leaderStatusDesc = prometheus.NewDesc(
@@ -34,6 +35,7 @@ func (l *LeaderStatusMetricsCollector) onStartedLeading(context.Context) {
 
 	l.isCurrentlyLeader = true
 }
+
 func (l *LeaderStatusMetricsCollector) onStoppedLeading() {
 	l.lock.Lock()
 	defer l.lock.Unlock()
