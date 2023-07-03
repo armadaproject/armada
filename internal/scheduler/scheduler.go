@@ -326,11 +326,11 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*jobdb.Job, error) {
 func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job *jobdb.Job) (*schedulerobjects.JobSchedulingInfo, error) {
 	newSchedulingInfo := proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
 	newSchedulingInfo.Version = job.JobSchedulingInfo().Version + 1
-	podSchedulingRequirement := PodRequirementFromJobSchedulingInfo(newSchedulingInfo)
-	if podSchedulingRequirement == nil {
+	podRequirements := newSchedulingInfo.GetPodRequirements()
+	if podRequirements == nil {
 		return nil, errors.Errorf("no pod scheduling requirement found for job %s", job.GetId())
 	}
-	newAffinity := podSchedulingRequirement.Affinity
+	newAffinity := podRequirements.Affinity
 	if newAffinity == nil {
 		newAffinity = &v1.Affinity{}
 	}
@@ -343,7 +343,7 @@ func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job
 			}
 		}
 	}
-	podSchedulingRequirement.Affinity = newAffinity
+	podRequirements.Affinity = newAffinity
 	return newSchedulingInfo, nil
 }
 
@@ -352,12 +352,9 @@ func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job *jobd
 	if err != nil {
 		return nil, false, err
 	}
-	podSchedulingRequirement := PodRequirementFromJobSchedulingInfo(schedulingInfoWithNodeAntiAffinity)
-	if podSchedulingRequirement == nil {
-		return nil, false, errors.Errorf("no pod scheduling requirement found for job %s", job.GetId())
-	}
-	isSchedulable, _ := s.submitChecker.CheckPodRequirements(podSchedulingRequirement)
-	return job.WithJobSchedulingInfo(schedulingInfoWithNodeAntiAffinity), isSchedulable, nil
+	job = job.WithJobSchedulingInfo(schedulingInfoWithNodeAntiAffinity)
+	isSchedulable, _ := s.submitChecker.CheckJobDbJobs([]*jobdb.Job{job})
+	return job, isSchedulable, nil
 }
 
 // eventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
@@ -587,7 +584,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 				if lastRun.Returned() {
 					errorMessage := fmt.Sprintf("Maximum number of attempts (%d) reached - this job will no longer be retried", s.maxAttemptedRuns)
 					if job.NumAttempts() < s.maxAttemptedRuns {
-						errorMessage = fmt.Sprintf("Job was attempeted %d times, and has been tried once on all nodes it can run on - this job will no longer be retried", job.NumAttempts())
+						errorMessage = fmt.Sprintf("Job was attempted %d times, and has been tried once on all nodes it can run on - this job will no longer be retried", job.NumAttempts())
 					}
 					runError = &armadaevents.Error{
 						Terminal: true,

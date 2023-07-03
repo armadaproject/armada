@@ -167,11 +167,14 @@ func LocalDevStop() {
 
 // Build the lookout UI from internal/lookout/ui
 func UI() error {
+	timeTaken := time.Now()
 	mg.Deps(yarnCheck)
 
 	mg.Deps(yarnInstall)
 	mg.Deps(yarnOpenAPI)
 	mg.Deps(yarnBuild)
+
+	fmt.Println("Time to build UI:", time.Since(timeTaken))
 	return nil
 }
 

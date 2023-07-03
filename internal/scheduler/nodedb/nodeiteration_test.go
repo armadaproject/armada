@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/go-memdb"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -37,7 +35,7 @@ func TestNodesIterator(t *testing.T) {
 			for i, node := range tc.Nodes {
 				indexById[node.Id] = i
 			}
-			nodeDb, err := createNodeDb(tc.Nodes)
+			nodeDb, err := newNodeDbWithNodes(tc.Nodes)
 			if !assert.NoError(t, err) {
 				return
 			}
@@ -65,28 +63,26 @@ func TestNodesIterator(t *testing.T) {
 
 func TestNodePairIterator(t *testing.T) {
 	nodes := testfixtures.TestCluster()
-	for i, c := range []string{"A", "B", "C"} {
-		nodes[i].Id = c
+	for i, nodeId := range []string{"A", "B", "C"} {
+		nodes[i].Id = nodeId
 	}
-
-	nodeDb, err := createNodeDb(nil)
+	nodeDb, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
-	for _, node := range nodes {
-		node.NodeDbKeys = make([][]byte, len(nodeDb.prioritiesToTryAssigningAt))
-		for i, p := range nodeDb.prioritiesToTryAssigningAt {
-			node.NodeDbKeys[i] = nodeDb.nodeDbKeyFromNode(node.NodeDbKeys[i], node, p)
-		}
+	entries := make([]*Node, len(nodes))
+	for i, node := range nodes {
+		entry, err := nodeDb.GetNode(node.Id)
+		require.NoError(t, err)
+		entries[i] = entry
 	}
 
 	txn := nodeDb.Txn(true)
-	require.NoError(t, txn.Insert("nodes", nodes[0]))
-	require.NoError(t, txn.Insert("nodes", nodes[1]))
+	require.NoError(t, txn.Delete("nodes", entries[2]))
 	txn.Commit()
 	txnA := nodeDb.Txn(false)
 
 	txn = nodeDb.Txn(true)
-	require.NoError(t, txn.Delete("nodes", nodes[0]))
-	require.NoError(t, txn.Insert("nodes", nodes[2]))
+	require.NoError(t, txn.Delete("nodes", entries[0]))
+	require.NoError(t, txn.Insert("nodes", entries[2]))
 	txn.Commit()
 	txnB := nodeDb.Txn(false)
 
@@ -99,16 +95,16 @@ func TestNodePairIterator(t *testing.T) {
 	}
 	expected := []*NodePairIteratorItem{
 		{
-			NodeA: nodes[0],
+			NodeA: entries[0],
 			NodeB: nil,
 		},
 		{
-			NodeA: nodes[1],
-			NodeB: nodes[1],
+			NodeA: entries[1],
+			NodeB: entries[1],
 		},
 		{
 			NodeA: nil,
-			NodeB: nodes[2],
+			NodeB: entries[2],
 		},
 	}
 	assert.Equal(t, expected, actual)
@@ -413,29 +409,24 @@ func TestNodeTypeIterator(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := createNodeDb(nil)
+			nodeDb, err := newNodeDbWithNodes(nil)
 			require.NoError(t, err)
 
-			// Set monotonically increaseing node ids to ensure nodes appear in predictable order.
+			entries := make([]*Node, len(tc.nodes))
 			for i, node := range tc.nodes {
+				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
 				node.Id = fmt.Sprintf("%d", i)
-			}
-			indexByNodeId := make(map[string]int)
-			for i, node := range tc.nodes {
-				indexByNodeId[node.Id] = i
-			}
 
-			// Compute the keys necessary to efficiently iterate over nodes
-			// and populate the database. We do this manually instead of using nodeDb.Upsert to control the nodeTypeId.
-			for _, node := range tc.nodes {
-				node.NodeDbKeys = make([][]byte, len(nodeDb.prioritiesToTryAssigningAt))
-				for i, p := range nodeDb.prioritiesToTryAssigningAt {
-					node.NodeDbKeys[i] = nodeDb.nodeDbKeyFromNode(node.NodeDbKeys[i], node, p)
-				}
-			}
-			require.NoError(t, populateDatabase(nodeDb.db, tc.nodes))
+				entry, err := nodeDb.create(node)
+				require.NoError(t, err)
 
-			// Create iterator.
+				// We can safely override NodeTypeId, because Keys is recomputed upon insertion.
+				entry.NodeTypeId = node.NodeTypeId
+
+				entries[i] = entry
+			}
+			require.NoError(t, nodeDb.UpsertMany(entries))
+
 			indexedResourceRequests := make([]resource.Quantity, len(testfixtures.TestResources))
 			for i, t := range nodeDb.indexedResources {
 				indexedResourceRequests[i] = tc.resourceRequests.Get(t)
@@ -447,22 +438,31 @@ func TestNodeTypeIterator(t *testing.T) {
 				}
 			}
 			require.NotEqual(t, -1, keyIndex)
-			it, err := NewNodeTypeIterator(nodeDb.Txn(false), tc.nodeTypeId, nodeIndexName(keyIndex), tc.priority, testfixtures.TestResourceNames, indexedResourceRequests, testfixtures.TestIndexedResourceResolutionMillis)
+			it, err := NewNodeTypeIterator(
+				nodeDb.Txn(false),
+				tc.nodeTypeId,
+				nodeIndexName(keyIndex),
+				tc.priority,
+				testfixtures.TestResourceNames,
+				indexedResourceRequests,
+				testfixtures.TestIndexedResourceResolutionMillis,
+			)
 			require.NoError(t, err)
 
-			// Compare actual with expected order.
-			actual := make([]int, 0)
+			expected := make([]string, len(tc.expected))
+			for i, nodeId := range tc.expected {
+				expected[i] = fmt.Sprintf("%d", nodeId)
+			}
+			actual := make([]string, 0)
 			for {
 				node, err := it.NextNode()
 				require.NoError(t, err)
 				if node == nil {
 					break
 				}
-				i, ok := indexByNodeId[node.Id]
-				require.True(t, ok)
-				actual = append(actual, i)
+				actual = append(actual, node.Id)
 			}
-			assert.Equal(t, tc.expected, actual)
+			assert.Equal(t, expected, actual)
 
 			// Calling next should always return nil from now on.
 			for i := 0; i < 100; i++ {
@@ -799,27 +799,23 @@ func TestNodeTypesIterator(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := createNodeDb(nil)
+			nodeDb, err := newNodeDbWithNodes(nil)
 			require.NoError(t, err)
 
-			// Set monotonically increaseing node ids to ensure nodes appear in predictable order.
+			entries := make([]*Node, len(tc.nodes))
 			for i, node := range tc.nodes {
+				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
 				node.Id = fmt.Sprintf("%d", i)
-			}
-			indexByNodeId := make(map[string]int)
-			for i, node := range tc.nodes {
-				indexByNodeId[node.Id] = i
-			}
 
-			// Compute the keys necessary to efficiently iterate over nodes
-			// and populate the database. We do this manually instead of using nodeDb.Upsert to control the nodeTypeId.
-			for _, node := range tc.nodes {
-				node.NodeDbKeys = make([][]byte, len(nodeDb.prioritiesToTryAssigningAt))
-				for i, p := range nodeDb.prioritiesToTryAssigningAt {
-					node.NodeDbKeys[i] = nodeDb.nodeDbKeyFromNode(node.NodeDbKeys[i], node, p)
-				}
+				entry, err := nodeDb.create(node)
+				require.NoError(t, err)
+
+				// We can safely override NodeTypeId, because Keys is recomputed upon insertion.
+				entry.NodeTypeId = node.NodeTypeId
+
+				entries[i] = entry
 			}
-			require.NoError(t, populateDatabase(nodeDb.db, tc.nodes))
+			require.NoError(t, nodeDb.UpsertMany(entries))
 
 			indexedResourceRequests := make([]resource.Quantity, len(testfixtures.TestResources))
 			for i, t := range testfixtures.TestResourceNames {
@@ -836,19 +832,20 @@ func TestNodeTypesIterator(t *testing.T) {
 			)
 			require.NoError(t, err)
 
-			// Compare actual with expected order.
-			actual := make([]int, 0)
+			expected := make([]string, len(tc.expected))
+			for i, nodeId := range tc.expected {
+				expected[i] = fmt.Sprintf("%d", nodeId)
+			}
+			actual := make([]string, 0)
 			for {
 				node, err := it.NextNode()
 				require.NoError(t, err)
 				if node == nil {
 					break
 				}
-				i, ok := indexByNodeId[node.Id]
-				require.True(t, ok)
-				actual = append(actual, i)
+				actual = append(actual, node.Id)
 			}
-			assert.Equal(t, tc.expected, actual)
+			assert.Equal(t, expected, actual)
 
 			// Calling next again should still return nil.
 			node, err := it.NextNode()
@@ -856,19 +853,6 @@ func TestNodeTypesIterator(t *testing.T) {
 			require.Nil(t, node)
 		})
 	}
-}
-
-func populateDatabase(db *memdb.MemDB, items []*schedulerobjects.Node) error {
-	txn := db.Txn(true)
-	defer txn.Abort()
-	for _, item := range items {
-		err := txn.Insert("nodes", item)
-		if err != nil {
-			return errors.WithStack(err)
-		}
-	}
-	txn.Commit()
-	return nil
 }
 
 func BenchmarkNodeTypeIterator(b *testing.B) {
@@ -889,7 +873,7 @@ func BenchmarkNodeTypeIterator(b *testing.B) {
 			[]*schedulerobjects.Node{node},
 		)
 	}
-	nodeDb, err := createNodeDb(nodes)
+	nodeDb, err := newNodeDbWithNodes(nodes)
 	require.NoError(b, err)
 
 	// Create iterator for 0 CPU required and an unfeasible memory request,

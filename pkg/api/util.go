@@ -117,7 +117,7 @@ func (job *Job) GetSubmitTime() time.Time {
 	return job.Created
 }
 
-func (job *Job) GetJobSchedulingInfo(priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
+func (job *Job) GetPodRequirements(priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
 	podSpec := job.GetMainPodSpec()
 
 	priority, ok := PriorityFromPodSpec(podSpec, priorityClasses)
@@ -132,7 +132,8 @@ func (job *Job) GetJobSchedulingInfo(priorityClasses map[string]configuration.Pr
 	if podSpec.PreemptionPolicy != nil {
 		preemptionPolicy = string(*podSpec.PreemptionPolicy)
 	}
-	podRequirements := &schedulerobjects.PodRequirements{
+
+	return &schedulerobjects.PodRequirements{
 		NodeSelector:         podSpec.NodeSelector,
 		Affinity:             podSpec.Affinity,
 		Tolerations:          podSpec.Tolerations,
@@ -140,18 +141,6 @@ func (job *Job) GetJobSchedulingInfo(priorityClasses map[string]configuration.Pr
 		Priority:             priority,
 		PreemptionPolicy:     preemptionPolicy,
 		ResourceRequirements: job.GetResourceRequirements(),
-	}
-	return &schedulerobjects.JobSchedulingInfo{
-		PriorityClassName: podSpec.PriorityClassName,
-		Priority:          job.GetPerQueuePriority(),
-		SubmitTime:        job.GetSubmitTime(),
-		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-			{
-				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-					PodRequirements: podRequirements,
-				},
-			},
-		},
 	}
 }
 

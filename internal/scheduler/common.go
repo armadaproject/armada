@@ -2,9 +2,7 @@ package scheduler
 
 import (
 	"fmt"
-	"math"
 	"strconv"
-	"time"
 
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -13,7 +11,6 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -112,27 +109,6 @@ func JobsSummary(jobs []interfaces.LegacySchedulerJob) string {
 	)
 }
 
-func jobSchedulingContextsFromJobs[T interfaces.LegacySchedulerJob](jobs []T, executorId string, priorityClasses map[string]configuration.PriorityClass) []*schedulercontext.JobSchedulingContext {
-	if jobs == nil {
-		return nil
-	}
-	if len(jobs) == 0 {
-		return make([]*schedulercontext.JobSchedulingContext, 0)
-	}
-	jctxs := make([]*schedulercontext.JobSchedulingContext, len(jobs))
-	timestamp := time.Now()
-	for i, job := range jobs {
-		jctxs[i] = &schedulercontext.JobSchedulingContext{
-			Created:    timestamp,
-			ExecutorId: executorId,
-			JobId:      job.GetId(),
-			Job:        job,
-			Req:        PodRequirementFromLegacySchedulerJob(job, priorityClasses),
-		}
-	}
-	return jctxs
-}
-
 func isEvictedJob(job interfaces.LegacySchedulerJob) bool {
 	return job.GetAnnotations()[schedulerconfig.IsEvictedAnnotation] == "true"
 }
@@ -168,52 +144,4 @@ func GangIdAndCardinalityFromAnnotations(annotations map[string]string) (string,
 		return "", 0, false, errors.Errorf("gang cardinality is non-positive %d", gangCardinality)
 	}
 	return gangId, gangCardinality, true, nil
-}
-
-// ResourceListAsWeightedMillis returns the linear combination of the milli values in rl with given weights.
-// This function overflows for values that exceed MaxInt64. E.g., 1Pi is fine but not 10Pi.
-func ResourceListAsWeightedMillis(weights map[string]float64, rl schedulerobjects.ResourceList) int64 {
-	var rv int64
-	for t, f := range weights {
-		q := rl.Get(t)
-		rv += int64(math.Round(float64(q.MilliValue()) * f))
-	}
-	return rv
-}
-
-func PodRequirementsFromLegacySchedulerJobs[S ~[]E, E interfaces.LegacySchedulerJob](jobs S, priorityClasses map[string]configuration.PriorityClass) []*schedulerobjects.PodRequirements {
-	rv := make([]*schedulerobjects.PodRequirements, len(jobs))
-	for i, job := range jobs {
-		rv[i] = PodRequirementFromLegacySchedulerJob(job, priorityClasses)
-	}
-	return rv
-}
-
-func PodRequirementFromLegacySchedulerJob[E interfaces.LegacySchedulerJob](job E, priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
-	annotations := make(map[string]string, len(configuration.ArmadaManagedAnnotations)+len(schedulerconfig.ArmadaSchedulerManagedAnnotations))
-	for _, key := range configuration.ArmadaManagedAnnotations {
-		if value, ok := job.GetAnnotations()[key]; ok {
-			annotations[key] = value
-		}
-	}
-	for _, key := range schedulerconfig.ArmadaSchedulerManagedAnnotations {
-		if value, ok := job.GetAnnotations()[key]; ok {
-			annotations[key] = value
-		}
-	}
-	annotations[schedulerconfig.JobIdAnnotation] = job.GetId()
-	annotations[schedulerconfig.QueueAnnotation] = job.GetQueue()
-	info := job.GetJobSchedulingInfo(priorityClasses)
-	req := PodRequirementFromJobSchedulingInfo(info)
-	req.Annotations = annotations
-	return req
-}
-
-func PodRequirementFromJobSchedulingInfo(info *schedulerobjects.JobSchedulingInfo) *schedulerobjects.PodRequirements {
-	for _, oreq := range info.ObjectRequirements {
-		if preq := oreq.GetPodRequirements(); preq != nil {
-			return preq
-		}
-	}
-	return nil
 }

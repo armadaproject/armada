@@ -12,10 +12,6 @@ type (
 	labelsFilterFunc func(key, value string) bool
 )
 
-func NewNodeTypeFromNode(node *v1.Node, indexedTaints map[string]interface{}, indexedLabels map[string]interface{}) *NodeType {
-	return NewNodeType(node.Spec.Taints, node.GetLabels(), indexedTaints, indexedLabels)
-}
-
 func NewNodeType(taints []v1.Taint, labels map[string]string, indexedTaints map[string]interface{}, indexedLabels map[string]interface{}) *NodeType {
 	if taints == nil {
 		taints = make([]v1.Taint, 0)
