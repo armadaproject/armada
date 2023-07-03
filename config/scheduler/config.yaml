@@ -37,6 +37,8 @@ leader:
   renewDeadline: 10s
   retryPeriod: 2s
   podName: "" # This must be set so viper allows env vars to overwrite it
+http:
+  port: 8080
 grpc:
   port: 50052
   keepaliveParams:

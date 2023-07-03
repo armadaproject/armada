@@ -3,10 +3,12 @@ package scheduler
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
@@ -35,6 +37,17 @@ func Run(config schedulerconfig.Configuration) error {
 	g, ctx := errgroup.WithContext(app.CreateContextWithShutdown())
 	logrusLogger := log.NewEntry(log.StandardLogger())
 	ctx = ctxlogrus.ToContext(ctx, logrusLogger)
+
+	//////////////////////////////////////////////////////////////////////////
+	// Health Checks
+	//////////////////////////////////////////////////////////////////////////
+	mux := http.NewServeMux()
+
+	startupCompleteCheck := health.NewStartupCompleteChecker()
+	healthChecks := health.NewMultiChecker(startupCompleteCheck)
+	health.SetupHttpMux(mux, healthChecks)
+	shutdownHttpServer := common.ServeHttp(uint16(config.Http.Port), mux)
+	defer shutdownHttpServer()
 
 	// List of services to run concurrently.
 	// Because we want to start services only once all input validation has been completed,
@@ -205,6 +218,9 @@ func Run(config schedulerconfig.Configuration) error {
 	for _, service := range services {
 		g.Go(service)
 	}
+
+	// Mark startup as complete, will allow the health check to return healthy
+	startupCompleteCheck.MarkComplete()
 
 	return g.Wait()
 }
