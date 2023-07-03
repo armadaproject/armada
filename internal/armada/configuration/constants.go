@@ -17,12 +17,6 @@ const (
 	FailFastAnnotation = "armadaproject.io/failFast"
 )
 
-var ArmadaManagedAnnotations = []string{
-	GangIdAnnotation,
-	GangCardinalityAnnotation,
-	FailFastAnnotation,
-}
-
 var ReturnLeaseRequestTrackedAnnotations = map[string]struct{}{
 	FailFastAnnotation: {},
 }
