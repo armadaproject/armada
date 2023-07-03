@@ -29,7 +29,7 @@ func Test_ValidateJobSubmitRequestItem(t *testing.T) {
 
 func Test_ValidateApiJobPodSpecs(t *testing.T) {
 	noPodSpec := &api.Job{}
-	err := ValidateApiJobPodSpecs(noPodSpec)
+	err := validateApiJobPodSpecs(noPodSpec)
 	assert.Error(
 		t,
 		err,
@@ -40,7 +40,7 @@ func Test_ValidateApiJobPodSpecs(t *testing.T) {
 	multiplePods := &api.Job{
 		PodSpecs: []*v1.PodSpec{{}, {}},
 	}
-	err = ValidateApiJobPodSpecs(multiplePods)
+	err = validateApiJobPodSpecs(multiplePods)
 	assert.Error(
 		t,
 		err,
@@ -52,7 +52,7 @@ func Test_ValidateApiJobPodSpecs(t *testing.T) {
 		PodSpec:  &v1.PodSpec{},
 		PodSpecs: []*v1.PodSpec{{}},
 	}
-	err = ValidateApiJobPodSpecs(multiplePodSpecs)
+	err = validateApiJobPodSpecs(multiplePodSpecs)
 	assert.Error(
 		t,
 		err,
