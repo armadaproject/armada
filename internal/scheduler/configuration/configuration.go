@@ -16,9 +16,6 @@ const (
 	// NodeIdLabel maps to a unique id associated with each node.
 	// This label is automatically added to nodes within the NodeDb.
 	NodeIdLabel = "armadaproject.io/nodeId"
-	// ClusterIdLabel indicates which cluster each node belongs to.
-	// This label is automatically added to nodes within the NodeDb.
-	ClusterIdLabel = "armadaproject.io/clusterId"
 )
 
 type Configuration struct {
