@@ -359,8 +359,9 @@ func TestValidateGangs(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := validateGangs(tc.Jobs)
+			responseItems, err := validateGangs(tc.Jobs)
 			if tc.ExpectSuccess {
+				assert.Nil(t, responseItems)
 				assert.NoError(t, err)
 			} else {
 				assert.Error(t, err)
