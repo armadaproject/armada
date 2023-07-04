@@ -174,6 +174,7 @@ func (sch *GangScheduler) trySchedule(ctx context.Context, gctx *schedulercontex
 		unschedulableReason = "at least one job in the gang does not fit on any node"
 		return
 	}
+	addNodeSelectorToGctx(gctx, gctx.NodeUniformityLabel, bestValue)
 	return sch.tryScheduleGang(ctx, gctx)
 }
 
