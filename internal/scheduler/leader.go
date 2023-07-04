@@ -103,6 +103,10 @@ func NewKubernetesLeaderController(config schedulerconfig.LeaderConfig, client c
 	return controller
 }
 
+func (lc *KubernetesLeaderController) RegisterListener(listener LeaseListener) {
+	lc.listener = listener
+}
+
 func (lc *KubernetesLeaderController) GetToken() LeaderToken {
 	return lc.token.Load().(LeaderToken)
 }
