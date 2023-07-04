@@ -567,6 +567,7 @@ type GangSchedulingContext struct {
 	JobSchedulingContexts []*JobSchedulingContext
 	TotalResourceRequests schedulerobjects.ResourceList
 	AllJobsEvicted        bool
+	NodeUniformityLabel   string
 }
 
 func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingContext {
@@ -574,9 +575,13 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 	// (which we enforce at job submission).
 	queue := ""
 	priorityClassName := ""
+	nodeUniformityLabel := ""
 	if len(jctxs) > 0 {
 		queue = jctxs[0].Job.GetQueue()
 		priorityClassName = jctxs[0].Job.GetPriorityClassName()
+		if jctxs[0].PodRequirements != nil {
+			nodeUniformityLabel = jctxs[0].PodRequirements.Annotations[configuration.GangNodeUniformityLabelAnnotation]
+		}
 	}
 	allJobsEvicted := true
 	totalResourceRequests := schedulerobjects.NewResourceList(4)
@@ -591,6 +596,7 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 		JobSchedulingContexts: jctxs,
 		TotalResourceRequests: totalResourceRequests,
 		AllJobsEvicted:        allJobsEvicted,
+		NodeUniformityLabel:   nodeUniformityLabel,
 	}
 }
 
@@ -661,6 +667,9 @@ type PodSchedulingContext struct {
 	NodeId string
 	// Score indicates how well the pod fits on the selected node.
 	Score int
+	// Priority class priority at which this pod was scheduled.
+	// Only set if NodeId is.
+	ScheduledAtPriority int32
 	// Node types on which this pod could be scheduled.
 	MatchingNodeTypes []*schedulerobjects.NodeType
 	// Total number of nodes in the cluster when trying to schedule.

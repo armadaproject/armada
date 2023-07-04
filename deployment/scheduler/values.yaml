@@ -19,6 +19,8 @@ scheduler:
       port: 50051
     metrics:
       port: 9001
+    http:
+      port: 8080
     pulsar: {}
   updateStrategy:
     rollingUpdate:
