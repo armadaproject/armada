@@ -94,7 +94,8 @@ func TestSchedulingConfig() configuration.SchedulingConfig {
 			NodeEvictionProbability:                 1.0,
 			NodeOversubscriptionEvictionProbability: 1.0,
 		},
-		IndexedResources: TestResources,
+		IndexedResources:  TestResources,
+		IndexedNodeLabels: TestIndexedNodeLabels,
 		DominantResourceFairnessResourcesToConsider: TestResourceNames,
 		ExecutorTimeout:                  15 * time.Minute,
 		MaxUnacknowledgedJobsPerExecutor: math.MaxInt,
@@ -224,6 +225,17 @@ func WithNodeSelectorPodReqs(selector map[string]string, reqs []*schedulerobject
 func WithNodeSelectorPodReq(selector map[string]string, req *schedulerobjects.PodRequirements) *schedulerobjects.PodRequirements {
 	req.NodeSelector = maps.Clone(selector)
 	return req
+}
+
+func WithNodeUniformityLabelAnnotationJobs(label string, jobs []*jobdb.Job) []*jobdb.Job {
+	for _, job := range jobs {
+		req := job.PodRequirements()
+		if req.Annotations == nil {
+			req.Annotations = make(map[string]string)
+		}
+		req.Annotations[configuration.GangNodeUniformityLabelAnnotation] = label
+	}
+	return jobs
 }
 
 func WithNodeAffinityJobs(nodeSelectorTerms []v1.NodeSelectorTerm, jobs []*jobdb.Job) []*jobdb.Job {

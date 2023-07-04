@@ -27,9 +27,15 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-// evictedPriority is the priority class priority resources consumed by evicted jobs are accounted for at.
-// This helps avoid scheduling new jobs onto nodes that make it impossible to re-schedule evicted jobs.
-const evictedPriority int32 = -1
+const (
+	// evictedPriority is the priority class priority resources consumed by evicted jobs are accounted for at.
+	// This helps avoid scheduling new jobs onto nodes that make it impossible to re-schedule evicted jobs.
+	evictedPriority int32 = -1
+	// MinPriority is the smallest possible priority class priority within the NodeDb.
+	MinPriority int32 = evictedPriority
+)
+
+var empty struct{}
 
 type Node struct {
 	Id   string
@@ -42,7 +48,7 @@ type Node struct {
 
 	TotalResources schedulerobjects.ResourceList
 
-	// This field is set when inserting the Node into the node database.
+	// This field is set when inserting the Node into a NodeDb.
 	Keys [][]byte
 
 	NodeTypeId uint64
@@ -125,6 +131,11 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*Node, error) {
 	}
 
 	nodeDb.mu.Lock()
+	for key := range nodeDb.indexedNodeLabels {
+		if value, ok := labels[key]; ok {
+			nodeDb.indexedNodeLabelValues[key][value] = empty
+		}
+	}
 	nodeDb.numNodes++
 	nodeDb.numNodesByNodeType[nodeType.Id]++
 	nodeDb.totalResources.Add(totalResources)
@@ -237,6 +248,8 @@ type NodeDb struct {
 	// Mutex for the remaining fields of this struct, which are mutated after initialization.
 	mu sync.Mutex
 
+	// Map from indexed label names to the set of values that label takes across all nodes in the NodeDb.
+	indexedNodeLabelValues map[string]map[string]struct{}
 	// Total number of nodes in the db.
 	numNodes int
 	// Number of nodes in the db by node type.
@@ -293,6 +306,10 @@ func NewNodeDb(
 			Message: "there must be at least one indexed resource",
 		})
 	}
+	indexedNodeLabelValues := make(map[string]map[string]struct{}, len(indexedNodeLabels))
+	for _, key := range indexedNodeLabels {
+		indexedNodeLabelValues[key] = make(map[string]struct{})
+	}
 	mapFromSlice := func(vs []string) map[string]interface{} {
 		rv := make(map[string]interface{})
 		for _, v := range vs {
@@ -311,13 +328,14 @@ func NewNodeDb(
 			indexedResources,
 			func(v configuration.IndexedResource) int64 { return v.Resolution.MilliValue() },
 		),
-		indexNameByPriority: indexNameByPriority,
-		indexedTaints:       mapFromSlice(indexedTaints),
-		indexedNodeLabels:   mapFromSlice(indexedNodeLabels),
-		nodeTypes:           make(map[uint64]*schedulerobjects.NodeType),
-		numNodesByNodeType:  make(map[uint64]int),
-		totalResources:      schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
-		db:                  db,
+		indexNameByPriority:    indexNameByPriority,
+		indexedTaints:          mapFromSlice(indexedTaints),
+		indexedNodeLabels:      mapFromSlice(indexedNodeLabels),
+		indexedNodeLabelValues: indexedNodeLabelValues,
+		nodeTypes:              make(map[uint64]*schedulerobjects.NodeType),
+		numNodesByNodeType:     make(map[uint64]int),
+		totalResources:         schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
+		db:                     db,
 		// Set the initial capacity (somewhat arbitrarily) to 128 reasons.
 		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
 	}, nil
@@ -340,6 +358,12 @@ func (nodeDb *NodeDb) String() string {
 	}
 	w.Flush()
 	return sb.String()
+}
+
+// IndexedNodeLabelValues returns the set of possible values for a given indexed label across all nodes in the NodeDb.
+func (nodeDb *NodeDb) IndexedNodeLabelValues(label string) (map[string]struct{}, bool) {
+	values, ok := nodeDb.indexedNodeLabelValues[label]
+	return values, ok
 }
 
 func (nodeDb *NodeDb) NumNodes() int {
@@ -433,15 +457,6 @@ func (nodeDb *NodeDb) ScheduleMany(jctxs []*schedulercontext.JobSchedulingContex
 	if ok && err == nil {
 		// All pods can be scheduled; commit the transaction.
 		txn.Commit()
-	} else {
-		// On failure, clear the node binding.
-		for _, jctx := range jctxs {
-			pctx := jctx.PodSchedulingContext
-			if pctx == nil {
-				continue
-			}
-			pctx.NodeId = ""
-		}
 	}
 	return ok, err
 }
@@ -643,6 +658,7 @@ func (nodeDb *NodeDb) selectNodeForPodWithIt(
 	if selectedNode != nil {
 		pctx.NodeId = selectedNode.Id
 		pctx.Score = selectedNodeScore
+		pctx.ScheduledAtPriority = priority
 	}
 	return selectedNode, nil
 }
