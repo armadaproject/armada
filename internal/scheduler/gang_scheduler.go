@@ -105,10 +105,7 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 			return
 		}
 	}
-	if ok, unschedulableReason, err = sch.trySchedule(ctx, gctx); err != nil || ok {
-		return
-	}
-	return
+	return sch.trySchedule(ctx, gctx)
 }
 
 func (sch *GangScheduler) trySchedule(ctx context.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {

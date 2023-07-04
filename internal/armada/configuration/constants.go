@@ -10,7 +10,7 @@ const (
 	// The jobs that make up a gang may be constrained to be scheduled across a set of uniform nodes.
 	// Specifically, if provided, all gang jobs are scheduled onto nodes for which the value of the provided label is equal.
 	// Used to ensure, e.g., that all gang jobs are scheduled onto the same cluster or rack.
-	GangNodeUniformityLabelAnnotation = "armadaproject.io/nodeUniformityLabel"
+	GangNodeUniformityLabelAnnotation = "armadaproject.io/gangNodeUniformityLabel"
 	// Armada normally tries to re-schedule jobs for which a pod fails to start.
 	// Pods for which this annotation has value "true" are not retried.
 	// Instead, the job the pod is part of fails immediately.
