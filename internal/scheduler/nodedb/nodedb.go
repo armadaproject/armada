@@ -48,7 +48,7 @@ type Node struct {
 
 	TotalResources schedulerobjects.ResourceList
 
-	// This field is set when inserting the Node into the node database.
+	// This field is set when inserting the Node into a NodeDb.
 	Keys [][]byte
 
 	NodeTypeId uint64

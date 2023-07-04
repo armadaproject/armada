@@ -26,7 +26,7 @@ func TestNodeDbSchema(t *testing.T) {
 
 // Test the accounting of total resources across all nodes.
 func TestTotalResources(t *testing.T) {
-	nodeDb, err := createNodeDb([]*schedulerobjects.Node{})
+	nodeDb, err := newNodeDbWithNodes([]*schedulerobjects.Node{})
 	require.NoError(t, err)
 
 	expected := schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)}
@@ -65,7 +65,7 @@ func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {
 	nodes := testfixtures.N32CpuNodes(2, testfixtures.TestPriorities)
 	nodeId := nodes[1].Id
 	require.NotEmpty(t, nodeId)
-	db, err := createNodeDb(nodes)
+	db, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
 	jobs := testfixtures.WithNodeSelectorJobs(
 		map[string]string{schedulerconfig.NodeIdLabel: nodeId},
@@ -94,7 +94,7 @@ func TestSelectNodeForPod_NodeIdLabel_Failure(t *testing.T) {
 	nodes := testfixtures.N32CpuNodes(1, testfixtures.TestPriorities)
 	nodeId := nodes[0].Id
 	require.NotEmpty(t, nodeId)
-	db, err := createNodeDb(nodes)
+	db, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
 	jobs := testfixtures.WithNodeSelectorJobs(
 		map[string]string{schedulerconfig.NodeIdLabel: "this node does not exist"},
@@ -119,7 +119,7 @@ func TestSelectNodeForPod_NodeIdLabel_Failure(t *testing.T) {
 
 func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	node := testfixtures.Test8GpuNode(testfixtures.TestPriorities)
-	nodeDb, err := createNodeDb([]*schedulerobjects.Node{node})
+	nodeDb, err := newNodeDbWithNodes([]*schedulerobjects.Node{node})
 	require.NoError(t, err)
 	entry, err := nodeDb.GetNode(node.Id)
 	require.NoError(t, err)
@@ -276,7 +276,7 @@ func TestEviction(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := createNodeDb([]*schedulerobjects.Node{})
+			nodeDb, err := newNodeDbWithNodes([]*schedulerobjects.Node{})
 			require.NoError(t, err)
 			txn := nodeDb.Txn(true)
 			jobs := []*jobdb.Job{
@@ -432,7 +432,7 @@ func TestScheduleIndividually(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := createNodeDb(tc.Nodes)
+			nodeDb, err := newNodeDbWithNodes(tc.Nodes)
 			require.NoError(t, err)
 
 			jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, tc.Jobs)
@@ -516,7 +516,7 @@ func TestScheduleMany(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := createNodeDb(tc.Nodes)
+			nodeDb, err := newNodeDbWithNodes(tc.Nodes)
 			require.NoError(t, err)
 			for i, jobs := range tc.Jobs {
 				jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
@@ -696,7 +696,7 @@ func BenchmarkScheduleManyResourceConstrained(b *testing.B) {
 	)
 }
 
-func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
+func newNodeDbWithNodes(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	nodeDb, err := NewNodeDb(
 		testfixtures.TestPriorityClasses,
 		testfixtures.TestMaxExtraNodesToConsider,
