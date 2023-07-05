@@ -25,7 +25,7 @@ Armada is designed primarily for machine learning, AI, and data analytics worklo
 
 Armada is a [CNCF](https://www.cncf.io/) Sandbox project used in production at [G-Research](https://www.gresearch.co.uk/).
 
-For an overview of Armada, see these videos:
+For an overview of Armada, see:
 
 - [Armada - high-throughput batch scheduling](https://www.youtube.com/watch?v=FT8pXYciD9A)
 - [Building Armada - Running Batch Jobs at Massive Scale on Kubernetes](https://www.youtube.com/watch?v=B3WPxw3OUl4)
