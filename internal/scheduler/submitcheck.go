@@ -213,6 +213,8 @@ func (srv *SubmitChecker) getSchedulingResult(jctxs []*schedulercontext.JobSched
 	for id, executor := range executorById {
 		nodeDb := executor.nodeDb
 		txn := nodeDb.Txn(true)
+		// TODO: This doesn't account for per-queue limits or the NodeUniformityLabel.
+		// We should create a GangScheduler for this instead.
 		ok, err := nodeDb.ScheduleManyWithTxn(txn, jctxs)
 		txn.Abort()
 
