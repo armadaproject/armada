@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -118,27 +119,32 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 		return cachedPool.(string), nil
 	}
 
-	req := PodRequirementFromJobSchedulingInfo(j.JobSchedulingInfo())
+	req := j.PodRequirements()
 	req = p.clearAnnotations(req)
 
 	// Otherwise iterate through each pool and detect the first one the job is potentially schedulable on
 	for pool, executors := range p.executorsByPool {
 		for _, e := range executors {
-			minReqsMet, _ := requestIsLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(
-				req.GetResourceRequirements().Requests,
-			), e.minimumJobSize)
-			if minReqsMet {
-				nodeDb := e.nodeDb
-				txn := nodeDb.Txn(true)
-				report, err := nodeDb.SelectNodeForPodWithTxn(txn, req)
-				txn.Abort()
-				if err != nil {
-					return "", errors.WithMessagef(err, "error selecting node for job %s", j.Id())
-				}
-				if report.Node != nil {
-					p.poolCache.Add(schedulingKey, pool)
-					return pool, nil
-				}
+			requests := req.GetResourceRequirements().Requests
+			if ok, _ := requestsAreLargeEnough(schedulerobjects.ResourceListFromV1ResourceList(requests), e.minimumJobSize); !ok {
+				continue
+			}
+			nodeDb := e.nodeDb
+			txn := nodeDb.Txn(true)
+			jctx := &schedulercontext.JobSchedulingContext{
+				Created:         time.Now(),
+				JobId:           j.GetId(),
+				Job:             j,
+				PodRequirements: j.GetPodRequirements(p.priorityClasses),
+			}
+			node, err := nodeDb.SelectNodeForJobWithTxn(txn, jctx)
+			txn.Abort()
+			if err != nil {
+				return "", errors.WithMessagef(err, "error selecting node for job %s", j.Id())
+			}
+			if node != nil {
+				p.poolCache.Add(schedulingKey, pool)
+				return pool, nil
 			}
 		}
 	}
@@ -157,10 +163,14 @@ func (p *DefaultPoolAssigner) constructNodeDb(nodes []*schedulerobjects.Node) (*
 	if err != nil {
 		return nil, err
 	}
-	err = nodeDb.UpsertMany(nodes)
-	if err != nil {
-		return nil, err
+	txn := nodeDb.Txn(true)
+	defer txn.Abort()
+	for _, node := range nodes {
+		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
+			return nil, err
+		}
 	}
+	txn.Commit()
 	err = nodeDb.ClearAllocated()
 	if err != nil {
 		return nil, err

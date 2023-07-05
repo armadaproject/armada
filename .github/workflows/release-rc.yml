@@ -1,18 +1,48 @@
 name: Release Armada components - RC
 
 on:
-  push:
+  workflow_run:
+    types: [completed]
+    workflows: [CI]
     branches:
-      - main
       - master
 
 permissions:
   contents: write
 
 jobs:
+  validate:
+    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success'
+    name: "Validate revision"
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: "Checkout"
+        uses: "actions/checkout@v3"
+        with:
+          fetch-depth: 0
+
+      - name: Validate ref
+        run: |
+          ref='${{ github.event.workflow_run.head_branch }}'
+          sha='${{ github.event.workflow_run.head_sha }}'
+          case $ref in
+            main)
+              [ $(git branch --contains=$sha main | wc -l) -eq 1 ] &&
+              [ $(git rev-list --count $sha..main) -le 2 ]
+              ;;
+            *)
+              false
+              ;;
+          esac
+          if [ $? -ne 0 ]; then
+            echo "::error ::Invalid ref $ref $sha"
+            exit 1
+          fi
   release:
-    if: github.repository_owner == 'armadaproject'
+    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success'
     name: Release
+    needs: validate
     runs-on: "ubuntu-22.04"
     environment: armada-dockerhub
 

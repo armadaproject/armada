@@ -201,7 +201,7 @@ func TestConvertSequence(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			converter := InstructionConverter{m, f.PriorityClasses, compressor}
 			es := f.NewEventSequence(tc.events...)
-			results := converter.convertSequence(es)
+			results := converter.dbOperationsFromEventSequence(es)
 			assertOperationsEqual(t, tc.expected, results)
 		})
 	}
@@ -272,11 +272,14 @@ func assertErrorMessagesEqual(t *testing.T, expectedBytes []byte, actualBytes []
 
 func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobSchedulingInfo {
 	expectedSubmitSchedulingInfo := &schedulerobjects.JobSchedulingInfo{
-		Lifetime:        0,
-		AtMostOnce:      true,
-		Preemptible:     true,
-		ConcurrencySafe: true,
-		Version:         0,
+		Lifetime:          0,
+		AtMostOnce:        true,
+		Preemptible:       true,
+		ConcurrencySafe:   true,
+		Version:           0,
+		PriorityClassName: "test-priority",
+		Priority:          3,
+		SubmitTime:        f.BaseTime,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{

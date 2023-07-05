@@ -10,22 +10,13 @@ import (
 )
 
 const (
-	// IsEvictedAnnotation, indicates a pod was evicted in this round and is currently running.
-	// Used by the scheduler to differentiate between pods from running and queued jobs.
+	// IsEvictedAnnotation is set on evicted jobs; the scheduler uses it to differentiate between
+	// already-running and queued jobs.
 	IsEvictedAnnotation = "armadaproject.io/isEvicted"
-	// JobIdAnnotation if set on a pod, indicates which job this pod is part of.
-	JobIdAnnotation = "armadaproject.io/jobId"
-	// QueueAnnotation if set on a pod, indicates which queue this pod is part of.
-	QueueAnnotation = "armadaproject.io/queue"
-	// IdNodeLabel is automatically added to nodes in the NodeDb.
+	// NodeIdLabel maps to a unique id associated with each node.
+	// This label is automatically added to nodes within the NodeDb.
 	NodeIdLabel = "armadaproject.io/nodeId"
 )
-
-var ArmadaSchedulerManagedAnnotations = []string{
-	IsEvictedAnnotation,
-	JobIdAnnotation,
-	QueueAnnotation,
-}
 
 type Configuration struct {
 	// Database configuration
@@ -42,6 +33,7 @@ type Configuration struct {
 	Scheduling configuration.SchedulingConfig
 	Auth       authconfig.AuthConfig
 	Grpc       grpcconfig.GrpcConfig
+	Http       HttpConfig
 	// Maximum number of strings that should be cached at any one time
 	InternedStringsCacheSize uint32 `validate:"required"`
 	// How often the scheduling cycle should run
@@ -76,4 +68,8 @@ type LeaderConfig struct {
 	RenewDeadline time.Duration
 	// RetryPeriod is the duration the LeaderElector clients should waite between tries of actions.
 	RetryPeriod time.Duration
+}
+
+type HttpConfig struct {
+	Port int `validate:"required"`
 }
