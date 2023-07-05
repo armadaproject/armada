@@ -308,12 +308,26 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 	// Nodes to be considered by the scheduler.
 	lastSeen := q.clock.Now()
-	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
+
+	nodeDb, err := nodedb.NewNodeDb(
+		q.schedulingConfig.Preemption.PriorityClasses,
+		q.schedulingConfig.MaxExtraNodesToConsider,
+		q.schedulingConfig.IndexedResources,
+		q.schedulingConfig.IndexedTaints,
+		q.schedulingConfig.IndexedNodeLabels,
+	)
+	if err != nil {
+		return nil, err
+	}
+	txn := nodeDb.Txn(true)
+	defer txn.Abort()
+
 	allocatedByQueueAndPriorityClassForCluster := make(map[string]schedulerobjects.QuantityByTAndResourceType[string], len(queues))
 	jobIdsByGangId := make(map[string]map[string]bool)
 	gangIdByJobId := make(map[string]string)
 	nodeIdByJobId := make(map[string]string)
-	for _, nodeInfo := range req.Nodes {
+	nodes := make([]*schedulerobjects.Node, len(req.Nodes))
+	for i, nodeInfo := range req.Nodes {
 		node, err := api.NewNodeFromNodeInfo(
 			&nodeInfo,
 			req.ClusterId,
@@ -326,6 +340,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			)
 			continue
 		}
+		nodes[i] = node
 
 		jobIds := make([]string, 0, len(nodeInfo.RunIdsByState))
 		for jobId, jobState := range nodeInfo.RunIdsByState {
@@ -378,50 +393,22 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		}
 
 		// Bind pods to nodes, thus ensuring resources are marked as allocated on the node.
-		skipNode := false
-		for _, job := range jobs {
-			node, err = nodedb.BindJobToNode(
-				q.schedulingConfig.Preemption.PriorityClasses,
-				job,
-				node,
-			)
-			if err != nil {
-				logging.WithStacktrace(log, err).Warnf(
-					"skipping node %s from executor %s: failed to bind job %s to node",
-					nodeInfo.GetName(), req.GetClusterId(), job.Id,
-				)
-				skipNode = true
-				break
-			}
-		}
-		if skipNode {
-			continue
+		if err := nodeDb.CreateAndInsertWithApiJobsWithTxn(txn, jobs, node); err != nil {
+			return nil, err
 		}
 
 		// Record which node each job is scheduled on. Necessary for gang preemption.
 		for _, job := range jobs {
 			nodeIdByJobId[job.Id] = node.Id
 		}
-		nodes = append(nodes, node)
 
 		// Record which queues have jobs running. Necessary to omit inactive queues.
 		for _, job := range jobs {
 			isActiveByQueueName[job.Queue] = true
 		}
 	}
-	nodeDb, err := nodedb.NewNodeDb(
-		q.schedulingConfig.Preemption.PriorityClasses,
-		q.schedulingConfig.MaxExtraNodesToConsider,
-		q.schedulingConfig.IndexedResources,
-		q.schedulingConfig.IndexedTaints,
-		q.schedulingConfig.IndexedNodeLabels,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if err := nodeDb.UpsertMany(nodes); err != nil {
-		return nil, err
-	}
+
+	txn.Commit()
 
 	// Load allocation reports for all executors from Redis.
 	reportsByExecutor, err := q.usageRepository.GetClusterQueueResourceUsage()

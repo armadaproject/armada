@@ -213,6 +213,8 @@ func (srv *SubmitChecker) getSchedulingResult(jctxs []*schedulercontext.JobSched
 	for id, executor := range executorById {
 		nodeDb := executor.nodeDb
 		txn := nodeDb.Txn(true)
+		// TODO: This doesn't account for per-queue limits or the NodeUniformityLabel.
+		// We should create a GangScheduler for this instead.
 		ok, err := nodeDb.ScheduleManyWithTxn(txn, jctxs)
 		txn.Abort()
 
@@ -228,7 +230,7 @@ func (srv *SubmitChecker) getSchedulingResult(jctxs []*schedulercontext.JobSched
 		numSuccessfullyScheduled := 0
 		for _, jctx := range jctxs {
 			pctx := jctx.PodSchedulingContext
-			if pctx != nil && pctx.Node != nil {
+			if pctx != nil && pctx.NodeId != "" {
 				numSuccessfullyScheduled++
 			}
 		}
@@ -278,7 +280,14 @@ func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*node
 	if err != nil {
 		return nil, err
 	}
-	err = nodeDb.UpsertMany(nodes)
+	txn := nodeDb.Txn(true)
+	defer txn.Abort()
+	for _, node := range nodes {
+		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
+			return nil, err
+		}
+	}
+	txn.Commit()
 	if err != nil {
 		return nil, err
 	}

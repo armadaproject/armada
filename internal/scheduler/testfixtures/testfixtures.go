@@ -94,7 +94,9 @@ func TestSchedulingConfig() configuration.SchedulingConfig {
 			NodeEvictionProbability:                 1.0,
 			NodeOversubscriptionEvictionProbability: 1.0,
 		},
-		IndexedResources:                 TestResources,
+		IndexedResources:  TestResources,
+		IndexedNodeLabels: TestIndexedNodeLabels,
+		DominantResourceFairnessResourcesToConsider: TestResourceNames,
 		ExecutorTimeout:                  15 * time.Minute,
 		MaxUnacknowledgedJobsPerExecutor: math.MaxInt,
 	}
@@ -107,6 +109,11 @@ func WithMaxUnacknowledgedJobsPerExecutorConfig(v uint, config configuration.Sch
 
 func WithProtectedFractionOfFairShareConfig(v float64, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	config.Preemption.ProtectedFractionOfFairShare = v
+	return config
+}
+
+func WithDominantResourceFairnessConfig(config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.FairnessModel = configuration.DominantResourceFairness
 	return config
 }
 
@@ -220,6 +227,17 @@ func WithNodeSelectorPodReq(selector map[string]string, req *schedulerobjects.Po
 	return req
 }
 
+func WithNodeUniformityLabelAnnotationJobs(label string, jobs []*jobdb.Job) []*jobdb.Job {
+	for _, job := range jobs {
+		req := job.PodRequirements()
+		if req.Annotations == nil {
+			req.Annotations = make(map[string]string)
+		}
+		req.Annotations[configuration.GangNodeUniformityLabelAnnotation] = label
+	}
+	return jobs
+}
+
 func WithNodeAffinityJobs(nodeSelectorTerms []v1.NodeSelectorTerm, jobs []*jobdb.Job) []*jobdb.Job {
 	for _, job := range jobs {
 		req := job.PodRequirements()
@@ -308,26 +326,34 @@ func WithAnnotationsJobs(annotations map[string]string, jobs []*jobdb.Job) []*jo
 	return jobs
 }
 
-func N1CpuJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
+func N1Cpu4GiJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
 	rv := make([]*jobdb.Job, n)
 	for i := 0; i < n; i++ {
-		rv[i] = Test1CpuJob(queue, priorityClassName)
+		rv[i] = Test1Cpu4GiJob(queue, priorityClassName)
 	}
 	return rv
 }
 
-func N16CpuJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
+func N1Cpu16GiJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
 	rv := make([]*jobdb.Job, n)
 	for i := 0; i < n; i++ {
-		rv[i] = Test16CpuJob(queue, priorityClassName)
+		rv[i] = Test1Cpu16GiJob(queue, priorityClassName)
 	}
 	return rv
 }
 
-func N32CpuJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
+func N16Cpu128GiJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
 	rv := make([]*jobdb.Job, n)
 	for i := 0; i < n; i++ {
-		rv[i] = Test32CpuJob(queue, priorityClassName)
+		rv[i] = Test16Cpu128GiJob(queue, priorityClassName)
+	}
+	return rv
+}
+
+func N32Cpu256GiJobs(queue string, priorityClassName string, n int) []*jobdb.Job {
+	rv := make([]*jobdb.Job, n)
+	for i := 0; i < n; i++ {
+		rv[i] = Test32Cpu256GiJob(queue, priorityClassName)
 	}
 	return rv
 }
@@ -377,19 +403,24 @@ func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *sched
 	)
 }
 
-func Test1CpuJob(queue string, priorityClassName string) *jobdb.Job {
+func Test1Cpu4GiJob(queue string, priorityClassName string) *jobdb.Job {
 	jobId := util.ULID()
-	return TestJob(queue, jobId, priorityClassName, Test1CpuPodReqs(queue, jobId, extractPriority(priorityClassName)))
+	return TestJob(queue, jobId, priorityClassName, Test1Cpu4GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
 }
 
-func Test16CpuJob(queue string, priorityClassName string) *jobdb.Job {
+func Test1Cpu16GiJob(queue string, priorityClassName string) *jobdb.Job {
 	jobId := util.ULID()
-	return TestJob(queue, jobId, priorityClassName, Test16CpuPodReqs(queue, jobId, extractPriority(priorityClassName)))
+	return TestJob(queue, jobId, priorityClassName, Test1Cpu16GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
 }
 
-func Test32CpuJob(queue string, priorityClassName string) *jobdb.Job {
+func Test16Cpu128GiJob(queue string, priorityClassName string) *jobdb.Job {
 	jobId := util.ULID()
-	return TestJob(queue, jobId, priorityClassName, Test32CpuPodReqs(queue, jobId, extractPriority(priorityClassName)))
+	return TestJob(queue, jobId, priorityClassName, Test16Cpu128GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
+}
+
+func Test32Cpu256GiJob(queue string, priorityClassName string) *jobdb.Job {
+	jobId := util.ULID()
+	return TestJob(queue, jobId, priorityClassName, Test32Cpu256GiPodReqs(queue, jobId, extractPriority(priorityClassName)))
 }
 
 func Test1GpuJob(queue string, priorityClassName string) *jobdb.Job {
@@ -400,7 +431,7 @@ func Test1GpuJob(queue string, priorityClassName string) *jobdb.Job {
 func N1CpuPodReqs(queue string, priority int32, n int) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, n)
 	for i := 0; i < n; i++ {
-		rv[i] = Test1CpuPodReqs(queue, util.ULID(), priority)
+		rv[i] = Test1Cpu4GiPodReqs(queue, util.ULID(), priority)
 	}
 	return rv
 }
@@ -408,7 +439,7 @@ func N1CpuPodReqs(queue string, priority int32, n int) []*schedulerobjects.PodRe
 func N16CpuPodReqs(queue string, priority int32, n int) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, n)
 	for i := 0; i < n; i++ {
-		rv[i] = Test16CpuPodReqs(queue, util.ULID(), priority)
+		rv[i] = Test16Cpu128GiPodReqs(queue, util.ULID(), priority)
 	}
 	return rv
 }
@@ -416,7 +447,7 @@ func N16CpuPodReqs(queue string, priority int32, n int) []*schedulerobjects.PodR
 func N32CpuPodReqs(queue string, priority int32, n int) []*schedulerobjects.PodRequirements {
 	rv := make([]*schedulerobjects.PodRequirements, n)
 	for i := 0; i < n; i++ {
-		rv[i] = Test32CpuPodReqs(queue, util.ULID(), priority)
+		rv[i] = Test32Cpu256GiPodReqs(queue, util.ULID(), priority)
 	}
 	return rv
 }
@@ -438,7 +469,7 @@ func TestPodReqs(queue string, jobId ulid.ULID, priority int32, requests v1.Reso
 	}
 }
 
-func Test1CpuPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerobjects.PodRequirements {
+func Test1Cpu4GiPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerobjects.PodRequirements {
 	return TestPodReqs(
 		queue,
 		jobId,
@@ -450,7 +481,19 @@ func Test1CpuPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerob
 	)
 }
 
-func Test16CpuPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerobjects.PodRequirements {
+func Test1Cpu16GiPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerobjects.PodRequirements {
+	return TestPodReqs(
+		queue,
+		jobId,
+		priority,
+		v1.ResourceList{
+			"cpu":    resource.MustParse("1"),
+			"memory": resource.MustParse("16Gi"),
+		},
+	)
+}
+
+func Test16Cpu128GiPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerobjects.PodRequirements {
 	req := TestPodReqs(
 		queue,
 		jobId,
@@ -469,7 +512,7 @@ func Test16CpuPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulero
 	return req
 }
 
-func Test32CpuPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerobjects.PodRequirements {
+func Test32Cpu256GiPodReqs(queue string, jobId ulid.ULID, priority int32) *schedulerobjects.PodRequirements {
 	req := TestPodReqs(
 		queue,
 		jobId,
