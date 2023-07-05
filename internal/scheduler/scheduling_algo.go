@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"math/rand"
 	"strings"
 	"time"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/logging"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -172,7 +172,7 @@ func (it *JobQueueIteratorAdapter) Next() (interfaces.LegacySchedulerJob, error)
 type fairSchedulingAlgoContext struct {
 	priorityFactorByQueue                    map[string]float64
 	isActiveByQueueName                      map[string]bool
-	totalCapacity                            schedulerobjects.ResourceList
+	totalCapacityByPool                      schedulerobjects.QuantityByTAndResourceType[string]
 	jobsByExecutorId                         map[string][]*jobdb.Job
 	nodeIdByJobId                            map[string]string
 	jobIdsByGangId                           map[string]map[string]bool
@@ -232,10 +232,10 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, t
 	}
 
 	// Get the total capacity available across executors.
-	totalCapacity := schedulerobjects.ResourceList{}
+	totalCapacityByPool := make(schedulerobjects.QuantityByTAndResourceType[string])
 	for _, executor := range executors {
 		for _, node := range executor.Nodes {
-			totalCapacity.Add(node.TotalResources)
+			totalCapacityByPool.AddResourceList(executor.Pool, node.TotalResources)
 		}
 	}
 
@@ -289,7 +289,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, t
 	return &fairSchedulingAlgoContext{
 		priorityFactorByQueue:                    priorityFactorByQueue,
 		isActiveByQueueName:                      isActiveByQueueName,
-		totalCapacity:                            totalCapacity,
+		totalCapacityByPool:                      totalCapacityByPool,
 		jobsByExecutorId:                         jobsByExecutorId,
 		nodeIdByJobId:                            nodeIdByJobId,
 		jobIdsByGangId:                           jobIdsByGangId,
@@ -337,7 +337,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		l.schedulingConfig.Preemption.PriorityClasses,
 		l.schedulingConfig.Preemption.DefaultPriorityClass,
 		l.schedulingConfig.ResourceScarcity,
-		fsctx.totalCapacity,
+		fsctx.totalCapacityByPool[pool],
 	)
 	if l.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
 		sctx.EnableDominantResourceFairness(l.schedulingConfig.DominantResourceFairnessResourcesToConsider)
@@ -361,7 +361,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	}
 	constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 		pool,
-		fsctx.totalCapacity, // TODO: Make sure this is for this pool.
+		fsctx.totalCapacityByPool[pool],
 		minimumJobSize,
 		l.schedulingConfig,
 	)
@@ -535,7 +535,10 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 	return activeExecutors
 }
 
-func (l *FairSchedulingAlgo) aggregateAllocationByPoolAndQueueAndPriorityClass(executors []*schedulerobjects.Executor, jobsByExecutorId map[string][]*jobdb.Job) map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string] {
+func (l *FairSchedulingAlgo) aggregateAllocationByPoolAndQueueAndPriorityClass(
+	executors []*schedulerobjects.Executor,
+	jobsByExecutorId map[string][]*jobdb.Job,
+) map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string] {
 	rv := make(map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string])
 	for _, executor := range executors {
 		allocationByQueue := rv[executor.Pool]
