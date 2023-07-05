@@ -37,7 +37,6 @@ def test_get_lookout_url(lookout_url_template, job_id, expected_url):
 
     assert operator._get_lookout_url(job_id) == expected_url
 
-
 class TestJobService(unittest.TestCase):
 
     def test_cancel_jobs(self, job_id, queue):
