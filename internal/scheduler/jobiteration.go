@@ -88,23 +88,23 @@ func (repo *InMemoryJobRepository) Enqueue(job interfaces.LegacySchedulerJob) {
 // finally by submit time, with earlier submit times first.
 func (repo *InMemoryJobRepository) sortQueue(queue string) {
 	slices.SortFunc(repo.jobsByQueue[queue], func(a, b interfaces.LegacySchedulerJob) bool {
-		infoa := a.GetRequirements(repo.priorityClasses)
-		infob := b.GetRequirements(repo.priorityClasses)
 		if repo.sortByPriorityClass {
-			pca := repo.priorityClasses[infoa.PriorityClassName]
-			pcb := repo.priorityClasses[infob.PriorityClassName]
+			pca := repo.priorityClasses[a.GetPriorityClassName()]
+			pcb := repo.priorityClasses[b.GetPriorityClassName()]
 			if pca.Priority > pcb.Priority {
 				return true
 			} else if pca.Priority < pcb.Priority {
 				return false
 			}
 		}
-		if infoa.GetPriority() < infob.GetPriority() {
+		pa := a.GetPerQueuePriority()
+		pb := b.GetPerQueuePriority()
+		if pa < pb {
 			return true
-		} else if infoa.GetPriority() > infob.GetPriority() {
+		} else if pa > pb {
 			return false
 		}
-		return infoa.GetSubmitTime().Before(infob.GetSubmitTime())
+		return a.GetSubmitTime().Before(b.GetSubmitTime())
 	})
 }
 

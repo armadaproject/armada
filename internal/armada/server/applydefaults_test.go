@@ -11,6 +11,53 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 )
 
+func TestApplyDefaultsToAnnotations(t *testing.T) {
+	tests := map[string]struct {
+		Config      configuration.SchedulingConfig
+		Annotations map[string]string
+		Expected    map[string]string
+	}{
+		"no change": {
+			Annotations: make(map[string]string),
+			Expected:    make(map[string]string),
+		},
+		"DefaultNodeUniformityLabelAnnotation no change for non-gang jobs": {
+			Config: configuration.SchedulingConfig{
+				DefaultGangNodeUniformityLabel: "foo",
+			},
+			Annotations: make(map[string]string),
+			Expected:    make(map[string]string),
+		},
+		"DefaultNodeUniformityLabelAnnotation empty default": {
+			Annotations: map[string]string{
+				configuration.GangIdAnnotation: "bar",
+			},
+			Expected: map[string]string{
+				configuration.GangIdAnnotation:                  "bar",
+				configuration.GangNodeUniformityLabelAnnotation: "",
+			},
+		},
+		"DefaultNodeUniformityLabelAnnotation": {
+			Config: configuration.SchedulingConfig{
+				DefaultGangNodeUniformityLabel: "foo",
+			},
+			Annotations: map[string]string{
+				configuration.GangIdAnnotation: "bar",
+			},
+			Expected: map[string]string{
+				configuration.GangIdAnnotation:                  "bar",
+				configuration.GangNodeUniformityLabelAnnotation: "foo",
+			},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			applyDefaultsToAnnotations(tc.Annotations, tc.Config)
+			assert.Equal(t, tc.Expected, tc.Annotations)
+		})
+	}
+}
+
 func TestApplyDefaultsToPodSpec(t *testing.T) {
 	tests := map[string]struct {
 		Config   configuration.SchedulingConfig

@@ -426,7 +426,7 @@ func init() {
         "aggregates": {
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": "object"
           },
           "x-nullable": false
         },
@@ -1082,7 +1082,7 @@ func init() {
         "aggregates": {
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": "object"
           },
           "x-nullable": false
         },

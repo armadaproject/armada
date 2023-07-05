@@ -3,6 +3,7 @@ package scheduler
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"strings"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth"
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
+	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -37,6 +39,17 @@ func Run(config schedulerconfig.Configuration) error {
 	g, ctx := errgroup.WithContext(app.CreateContextWithShutdown())
 	logrusLogger := log.NewEntry(log.StandardLogger())
 	ctx = ctxlogrus.ToContext(ctx, logrusLogger)
+
+	//////////////////////////////////////////////////////////////////////////
+	// Health Checks
+	//////////////////////////////////////////////////////////////////////////
+	mux := http.NewServeMux()
+
+	startupCompleteCheck := health.NewStartupCompleteChecker()
+	healthChecks := health.NewMultiChecker(startupCompleteCheck)
+	health.SetupHttpMux(mux, healthChecks)
+	shutdownHttpServer := common.ServeHttp(uint16(config.Http.Port), mux)
+	defer shutdownHttpServer()
 
 	// List of services to run concurrently.
 	// Because we want to start services only once all input validation has been completed,
@@ -117,7 +130,7 @@ func Run(config schedulerconfig.Configuration) error {
 	defer grpcServer.GracefulStop()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Grpc.Port))
 	if err != nil {
-		return errors.WithMessage(err, "error setting up grpc server")
+		return errors.WithMessage(err, "error setting up gRPC server")
 	}
 	allowedPcs := config.Scheduling.Preemption.AllowedPriorities()
 	executorServer, err := NewExecutorApi(
@@ -129,6 +142,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.MaximumJobsToSchedule,
 		config.Scheduling.Preemption.NodeIdLabel,
 		config.Scheduling.Preemption.PriorityClassNameOverride,
+		config.Pulsar.MaxAllowedMessageSize,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating executorApi")
@@ -221,6 +235,9 @@ func Run(config schedulerconfig.Configuration) error {
 		g.Go(service)
 	}
 
+	// Mark startup as complete, will allow the health check to return healthy
+	startupCompleteCheck.MarkComplete()
+
 	return g.Wait()
 }
 
@@ -239,7 +256,11 @@ func createLeaderController(config schedulerconfig.LeaderConfig) (LeaderControll
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error creating kubernetes client")
 		}
-		return NewKubernetesLeaderController(config, clientSet.CoordinationV1()), nil
+		leaderController := NewKubernetesLeaderController(config, clientSet.CoordinationV1())
+		leaderStatusMetrics := NewLeaderStatusMetricsCollector(config.PodName)
+		leaderController.RegisterListener(leaderStatusMetrics)
+		prometheus.MustRegister(leaderStatusMetrics)
+		return leaderController, nil
 	default:
 		return nil, errors.Errorf("%s is not a value leader mode", config.Mode)
 	}

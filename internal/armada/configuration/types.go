@@ -116,7 +116,11 @@ type SchedulingConfig struct {
 	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
-	// Weights used when computing fair share.
+	// Controls how fairness is calculated. Can be either AssetFairness or DominantResourceFairness.
+	FairnessModel FairnessModel
+	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness.
+	DominantResourceFairnessResourcesToConsider []string
+	// Weights used to compute fair share when using AssetFairness.
 	// Overrides dynamic scarcity calculation if provided.
 	// Applies to both the new and old scheduler.
 	ResourceScarcity map[string]float64
@@ -152,6 +156,8 @@ type SchedulingConfig struct {
 	//
 	// Applies only to the new scheduler.
 	IndexedTaints []string
+	// Default value of GangNodeUniformityLabelAnnotation if none is provided.
+	DefaultGangNodeUniformityLabel string
 	// Kubernetes pods may specify a termination grace period.
 	// When Pods are cancelled/preempted etc., they are first sent a SIGTERM.
 	// If a pod has not exited within its termination grace period,
@@ -190,6 +196,20 @@ type SchedulingConfig struct {
 	AlwaysAttemptScheduling bool
 }
 
+// FairnessModel controls how fairness is computed.
+// More specifically, each queue has a cost associated with it and the next job to schedule
+// is taken from the queue with smallest cost. FairnessModel determines how that cost is computed.
+type FairnessModel string
+
+const (
+	// AssetFairness sets the cost associated with a queue to a linear combination of its total allocation.
+	// E.g., w_CPU * "CPU allocation" + w_memory * "memory allocation".
+	AssetFairness FairnessModel = "AssetFairness"
+	// DominantResourceFairness set the cost associated with a queue to
+	// max("CPU allocation" / "CPU capacity", "memory allocation" / "mamory capacity", ...).
+	DominantResourceFairness FairnessModel = "DominantResourceFairness"
+)
+
 type IndexedResource struct {
 	// Resource name. E.g., "cpu", "memory", or "nvidia.com/gpu".
 	Name string
@@ -212,6 +232,8 @@ type PreemptionConfig struct {
 	// the probability of evicting jobs on oversubscribed nodes, i.e.,
 	// nodes on which the total resource requests are greater than the available resources.
 	NodeOversubscriptionEvictionProbability float64
+	// Only queues allocated more than this fraction of their fair share are considered for preemption.
+	ProtectedFractionOfFairShare float64
 	// If true, the Armada scheduler will add to scheduled pods a node selector
 	// NodeIdLabel: <value of label on node selected by scheduler>.
 	// If true, NodeIdLabel must be non-empty.
@@ -236,13 +258,12 @@ type PriorityClass struct {
 	Priority int32
 	// If true, Armada may preempt jobs of this class to improve fairness.
 	Preemptible bool
-	// Limits resources assigned to jobs of priority equal to or lower than that of this priority class.
+	// Limits resources assigned to jobs of this priority class.
 	// Specifically, jobs of this priority class are only scheduled if doing so does not exceed this limit.
-	//
-	// For example, if priority is 10 and MaximumResourceFractionPerQueue is map[string]float64{"cpu": 0.3},
-	// jobs of this priority class are not scheduled if doing so would cause the total resources assigned
-	// to jobs of priority 10 or lower from the same queue to exceed 30% of the total.
 	MaximumResourceFractionPerQueue map[string]float64
+	// Per-pool override of MaximumResourceFractionPerQueue.
+	// If missing for a particular pool, MaximumResourceFractionPerQueue is used instead for that pool.
+	MaximumResourceFractionPerQueueByPool map[string]map[string]float64
 }
 
 func (p PreemptionConfig) PriorityByPriorityClassName() map[string]int32 {

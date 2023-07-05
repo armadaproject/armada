@@ -375,7 +375,7 @@ func TestNodeSchedulingRequirementsMet(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			matches, _, reason, err := tc.node.PodRequirementsMet(tc.req.Priority, tc.req)
+			matches, _, reason, err := PodRequirementsMet(tc.node.Taints, tc.node.Labels, tc.node.TotalResources, tc.node.AllocatableByPriorityAndResource[tc.req.Priority], tc.req)
 			assert.NoError(t, err)
 			if tc.expectSuccess { // TODO: Test score set correctly.
 				assert.True(t, matches)

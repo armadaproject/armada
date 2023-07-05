@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
@@ -444,6 +445,64 @@ func TestQueryBuilder_GroupByMultipleAggregates(t *testing.T) {
 		`),
 		splitByWhitespace(query.Sql))
 	assert.Equal(t, []interface{}{"test\\queue", "1234", "abcd", "test\\queue", "5678", "efgh%", "test\\queue", "anon\\\\one%"}, query.Args)
+}
+
+func TestQueryBuilder_GroupByStateAggregates(t *testing.T) {
+	stateFilter := &model.Filter{
+		Field: "state",
+		Match: model.MatchAnyOf,
+		Value: []string{
+			string(lookout.JobQueued),
+			string(lookout.JobLeased),
+			string(lookout.JobPending),
+			string(lookout.JobRunning),
+		},
+	}
+	query, err := NewQueryBuilder(NewTables()).GroupBy(
+		append(testFilters, stateFilter),
+		&model.Order{
+			Direction: "DESC",
+			Field:     "lastTransitionTime",
+		},
+		&model.GroupedField{
+			Field: "jobSet",
+		},
+		[]string{
+			"lastTransitionTime",
+			"submitted",
+			"state",
+		},
+		20,
+		100,
+	)
+	assert.NoError(t, err)
+	assert.Equal(t, splitByWhitespace(`
+			SELECT j.jobset,
+			       COUNT(*) AS count,
+			       AVG(j.last_transition_time_seconds) AS last_transition_time_seconds,
+			       MAX(j.submitted) AS submitted,
+			       SUM(CASE WHEN j.state = 1 THEN 1 ELSE 0 END) AS state_QUEUED,
+			       SUM(CASE WHEN j.state = 8 THEN 1 ELSE 0 END) AS state_LEASED,
+			       SUM(CASE WHEN j.state = 2 THEN 1 ELSE 0 END) AS state_PENDING,
+			       SUM(CASE WHEN j.state = 3 THEN 1 ELSE 0 END) AS state_RUNNING
+			FROM job AS j
+			INNER JOIN (
+				SELECT job_id
+				FROM user_annotation_lookup
+				WHERE queue = $1 AND key = $2 AND value = $3
+			) AS ual0 ON j.job_id = ual0.job_id
+			INNER JOIN (
+				SELECT job_id
+				FROM user_annotation_lookup
+				WHERE queue = $4 AND key = $5 AND value LIKE $6
+			) AS ual1 ON j.job_id = ual1.job_id
+			WHERE j.queue = $7 AND j.owner LIKE $8 AND j.state IN ($9, $10, $11, $12)
+			GROUP BY j.jobset
+			ORDER BY last_transition_time_seconds DESC
+			LIMIT 100 OFFSET 20
+		`),
+		splitByWhitespace(query.Sql))
+	assert.Equal(t, []interface{}{"test\\queue", "1234", "abcd", "test\\queue", "5678", "efgh%", "test\\queue", "anon\\\\one%", 1, 8, 2, 3}, query.Args)
 }
 
 func TestQueryBuilder_GroupByAnnotationMultipleAggregates(t *testing.T) {

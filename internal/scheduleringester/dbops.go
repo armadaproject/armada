@@ -99,7 +99,7 @@ func AppendDbOperation(ops []DbOperation, op DbOperation) []DbOperation {
 			break
 		}
 	}
-	return discardNilOps(ops) // TODO: Can be made more efficient.
+	return discardNilOps(ops)
 }
 
 func discardNilOps(ops []DbOperation) []DbOperation {
