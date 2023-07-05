@@ -567,6 +567,7 @@ type GangSchedulingContext struct {
 	JobSchedulingContexts []*JobSchedulingContext
 	TotalResourceRequests schedulerobjects.ResourceList
 	AllJobsEvicted        bool
+	NodeUniformityLabel   string
 }
 
 func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingContext {
@@ -574,9 +575,13 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 	// (which we enforce at job submission).
 	queue := ""
 	priorityClassName := ""
+	nodeUniformityLabel := ""
 	if len(jctxs) > 0 {
 		queue = jctxs[0].Job.GetQueue()
 		priorityClassName = jctxs[0].Job.GetPriorityClassName()
+		if jctxs[0].PodRequirements != nil {
+			nodeUniformityLabel = jctxs[0].PodRequirements.Annotations[configuration.GangNodeUniformityLabelAnnotation]
+		}
 	}
 	allJobsEvicted := true
 	totalResourceRequests := schedulerobjects.NewResourceList(4)
@@ -591,6 +596,7 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 		JobSchedulingContexts: jctxs,
 		TotalResourceRequests: totalResourceRequests,
 		AllJobsEvicted:        allJobsEvicted,
+		NodeUniformityLabel:   nodeUniformityLabel,
 	}
 }
 
@@ -638,7 +644,7 @@ func (jctx *JobSchedulingContext) IsSuccessful() bool {
 	return jctx.UnschedulableReason == ""
 }
 
-func JobSchedulingContextsFromJobs[T interfaces.LegacySchedulerJob](priorityClasses map[string]configuration.PriorityClass, jobs []T) []*JobSchedulingContext {
+func JobSchedulingContextsFromJobs[J interfaces.LegacySchedulerJob](priorityClasses map[string]configuration.PriorityClass, jobs []J) []*JobSchedulingContext {
 	jctxs := make([]*JobSchedulingContext, len(jobs))
 	timestamp := time.Now()
 	for i, job := range jobs {
@@ -657,11 +663,13 @@ func JobSchedulingContextsFromJobs[T interfaces.LegacySchedulerJob](priorityClas
 type PodSchedulingContext struct {
 	// Time at which this context was created.
 	Created time.Time
-	// Node the pod was assigned to.
-	// If nil, the pod could not be assigned to any node.
-	Node *schedulerobjects.Node
+	// ID of the node that the pod was assigned to, or empty.
+	NodeId string
 	// Score indicates how well the pod fits on the selected node.
 	Score int
+	// Priority class priority at which this pod was scheduled.
+	// Only set if NodeId is.
+	ScheduledAtPriority int32
 	// Node types on which this pod could be scheduled.
 	MatchingNodeTypes []*schedulerobjects.NodeType
 	// Total number of nodes in the cluster when trying to schedule.
@@ -673,8 +681,8 @@ type PodSchedulingContext struct {
 func (pctx *PodSchedulingContext) String() string {
 	var sb strings.Builder
 	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	if pctx.Node != nil {
-		fmt.Fprintf(w, "Node:\t%s\n", pctx.Node.Id)
+	if pctx.NodeId != "" {
+		fmt.Fprintf(w, "Node:\t%s\n", pctx.NodeId)
 	} else {
 		fmt.Fprint(w, "Node:\tnone\n")
 	}

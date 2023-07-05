@@ -311,9 +311,9 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 	db *jobdb.JobDb,
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	nodeDb, err := l.constructNodeDb(
-		executor.Nodes,
-		accounting.jobsByExecutorId[executor.Id],
 		l.config.Preemption.PriorityClasses,
+		accounting.jobsByExecutorId[executor.Id],
+		executor.Nodes,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -432,30 +432,7 @@ func (repo *schedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([
 }
 
 // constructNodeDb constructs a node db with all jobs bound to it.
-func (l *FairSchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, jobs []*jobdb.Job, priorityClasses map[string]configuration.PriorityClass) (*nodedb.NodeDb, error) {
-	nodesByName := make(map[string]*schedulerobjects.Node, len(nodes))
-	for _, node := range nodes {
-		nodesByName[node.Name] = node
-	}
-	for _, job := range jobs {
-		if job.InTerminalState() || !job.HasRuns() {
-			continue
-		}
-		assignedNode := job.LatestRun().Node()
-		node, ok := nodesByName[assignedNode]
-		if !ok {
-			log.Warnf(
-				"job %s assigned to node %s on executor %s, but no such node found",
-				job.Id(), assignedNode, job.LatestRun().Executor(),
-			)
-			continue
-		}
-		node, err := nodedb.BindJobToNode(l.config.Preemption.PriorityClasses, job, node)
-		if err != nil {
-			return nil, err
-		}
-		nodesByName[node.Name] = node
-	}
+func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]configuration.PriorityClass, jobs []*jobdb.Job, nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		priorityClasses,
 		l.config.MaxExtraNodesToConsider,
@@ -466,9 +443,33 @@ func (l *FairSchedulingAlgo) constructNodeDb(nodes []*schedulerobjects.Node, job
 	if err != nil {
 		return nil, err
 	}
-	if err := nodeDb.UpsertMany(maps.Values(nodesByName)); err != nil {
-		return nil, err
+	txn := nodeDb.Txn(true)
+	defer txn.Abort()
+	nodesByName := make(map[string]*schedulerobjects.Node, len(nodes))
+	for _, node := range nodes {
+		nodesByName[node.Name] = node
 	}
+	jobsByNodeName := make(map[string][]*jobdb.Job)
+	for _, job := range jobs {
+		if job.InTerminalState() || !job.HasRuns() {
+			continue
+		}
+		nodeName := job.LatestRun().Node()
+		if _, ok := nodesByName[nodeName]; !ok {
+			log.Warnf(
+				"job %s assigned to node %s on executor %s, but no such node found",
+				job.Id(), nodeName, job.LatestRun().Executor(),
+			)
+			continue
+		}
+		jobsByNodeName[nodeName] = append(jobsByNodeName[nodeName], job)
+	}
+	for _, node := range nodes {
+		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobsByNodeName[node.Name], node); err != nil {
+			return nil, err
+		}
+	}
+	txn.Commit()
 	return nodeDb, nil
 }
 
