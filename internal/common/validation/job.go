@@ -88,7 +88,7 @@ func validateGangs(jobs []*api.Job) ([]*api.JobSubmitResponseItem, error) {
 				responseItems = append(responseItems, response)
 			}
 			if nodeUniformityLabel != details.expectedNodeUniformityLabel {
-				return errors.Errorf(
+				return nil, errors.Errorf(
 					"inconsistent nodeUniformityLabel for %d-th job with id %s in gang %s: expected %s but got %s",
 					i, job.Id, gangId, details.expectedNodeUniformityLabel, nodeUniformityLabel,
 				)
