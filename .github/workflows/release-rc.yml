@@ -28,8 +28,8 @@ jobs:
           sha='${{ github.event.workflow_run.head_sha }}'
           case $ref in
             master)
-              [ $(git branch --contains=$sha main | wc -l) -eq 1 ] &&
-              [ $(git rev-list --count $sha..main) -le 2 ]
+              [ $(git branch --contains=$sha master | wc -l) -eq 1 ] &&
+              [ $(git rev-list --count $sha..master) -le 2 ]
               ;;
             *)
               false

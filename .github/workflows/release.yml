@@ -35,7 +35,7 @@ jobs:
                 exit 1
               fi
               [ $(git rev-parse refs/tags/$ref) == $sha ] &&
-              [ $(git branch --contains=$sha main | wc -l) -eq 1 ]
+              [ $(git branch --contains=$sha master | wc -l) -eq 1 ]
               ;;
             *)
               false
