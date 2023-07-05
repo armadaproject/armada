@@ -27,7 +27,7 @@ jobs:
           ref='${{ github.event.workflow_run.head_branch }}'
           sha='${{ github.event.workflow_run.head_sha }}'
           case $ref in
-            main)
+            master)
               [ $(git branch --contains=$sha main | wc -l) -eq 1 ] &&
               [ $(git rev-list --count $sha..main) -le 2 ]
               ;;
