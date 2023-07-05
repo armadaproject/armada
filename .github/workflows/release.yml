@@ -24,10 +24,16 @@ jobs:
 
       - name: Validate ref
         run: |
-          ref=${{ github.event.workflow_run.head_branch }}
-          sha=${{ github.event.workflow_run.head_sha }}
+          ref='${{ github.event.workflow_run.head_branch }}'
+          sha='${{ github.event.workflow_run.head_sha }}'
           case $ref in
             v?*)
+              semver_pattern="^v[0-9]+\.[0-9]+\.[0-9]+$"
+              # Check if the tag/branch name matches the semver pattern
+              if [[ ! $ref =~ $semver_pattern ]]; then
+                echo "::error ::Invalid ref $ref. It must be in semver format vX.Y.Z!"
+                exit 1
+              fi
               [ $(git rev-parse refs/tags/$ref) == $sha ] &&
               [ $(git branch --contains=$sha main | wc -l) -eq 1 ]
               ;;

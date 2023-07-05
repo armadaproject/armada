@@ -24,8 +24,8 @@ jobs:
 
       - name: Validate ref
         run: |
-          ref=${{ github.event.workflow_run.head_branch }}
-          sha=${{ github.event.workflow_run.head_sha }}
+          ref='${{ github.event.workflow_run.head_branch }}'
+          sha='${{ github.event.workflow_run.head_sha }}'
           case $ref in
             main)
               [ $(git branch --contains=$sha main | wc -l) -eq 1 ] &&
