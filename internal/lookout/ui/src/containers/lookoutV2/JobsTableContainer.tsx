@@ -471,10 +471,6 @@ export const JobsTableContainer = ({
     setSelectedRows(newSelectedRows)
   }
 
-  const onSelectRow = (row: Row<JobTableRow>) => {
-    setLastSelectedRow(row)
-  }
-
   const setParseError = (colId: string, error: string | undefined) => {
     setParseErrors((old) => {
       const newParseErrors = { ...old }
@@ -560,13 +556,13 @@ export const JobsTableContainer = ({
     [columnSizing],
   )
 
-  const onJobRowClick = (jobRow: JobRow) => {
+  const toggleSidebarForJobRow = (jobRow: JobRow) => {
     const clickedJob = jobRow as Job
     const jobId = clickedJob.jobId
     // Deselect if clicking on a job row that's already shown in the sidebar
     setSidebarJobId(jobId === sidebarJobId ? undefined : jobId)
   }
-  const onSideBarClose = () => setSidebarJobId(undefined)
+  const sideBarClose = () => setSidebarJobId(undefined)
 
   const selectedItemsFilters: JobFilter[][] = useMemo(() => {
     return Object.keys(selectedRows).map((rowId) => {
@@ -639,7 +635,7 @@ export const JobsTableContainer = ({
     setParseErrors({})
   }
 
-  const onShiftClickRow = async (row: Row<JobTableRow>) => {
+  const shiftSelectRow = async (row: Row<JobTableRow>) => {
     if (lastSelectedRow === undefined || row.depth !== lastSelectedRow.depth) {
       return
     }
@@ -648,10 +644,20 @@ export const JobsTableContainer = ({
     const currentIdx = sameDepthRows.indexOf(row)
     const shouldSelect = lastSelectedRow.getIsSelected()
     // Race condition - if we don't wait here the rows do not get selected
-    await waitMillis(5)
+    await waitMillis(1)
     for (let i = Math.min(lastSelectedIdx, currentIdx); i <= Math.max(lastSelectedIdx, currentIdx); i++) {
       sameDepthRows[i].toggleSelected(shouldSelect)
     }
+  }
+
+  const selectRow = async (row: Row<JobTableRow>, singleSelect: boolean) => {
+    setLastSelectedRow(row)
+    const isSelected = row.getIsSelected()
+    if (singleSelect) {
+      table.toggleAllRowsSelected(false)
+      await waitMillis(1)
+    }
+    row.toggleSelected(!isSelected)
   }
 
   const topLevelRows = table.getRowModel().rows.filter((row) => row.depth === 0)
@@ -718,9 +724,11 @@ export const JobsTableContainer = ({
               topLevelRows={topLevelRows}
               sidebarJobId={sidebarJobId}
               onLoadMoreSubRows={onLoadMoreSubRows}
-              onClickJobRow={onJobRowClick}
-              onToggleSelect={onSelectRow}
-              onShiftClickRow={onShiftClickRow}
+              onClickRowCheckbox={(row) => selectRow(row, false)}
+              onClickJobRow={toggleSidebarForJobRow}
+              onClickRow={(row) => selectRow(row, true)}
+              onShiftClickRow={shiftSelectRow}
+              onControlClickRow={(row) => selectRow(row, false)}
             />
 
             <TableFooter>
@@ -752,7 +760,7 @@ export const JobsTableContainer = ({
           logService={logService}
           cordonService={cordonService}
           sidebarWidth={sidebarWidth}
-          onClose={onSideBarClose}
+          onClose={sideBarClose}
           onWidthChange={setSidebarWidth}
         />
       )}
@@ -766,8 +774,12 @@ interface JobsTableBodyProps {
   topLevelRows: Row<JobTableRow>[]
   sidebarJobId: JobId | undefined
   onLoadMoreSubRows: (rowId: RowId, skip: number) => void
-  onClickJobRow: (row: JobRow) => void
-  onToggleSelect: (row: Row<JobTableRow>) => void
+  onClickRowCheckbox: (row: Row<JobTableRow>) => void
+  // Always called if row is a Job row
+  onClickJobRow: (jobRow: JobRow) => void
+  // Mutually exclusively called depending on key being pressed
+  onClickRow: (row: Row<JobTableRow>) => void
+  onControlClickRow: (row: Row<JobTableRow>) => void
   onShiftClickRow: (row: Row<JobTableRow>) => void
 }
 
@@ -777,8 +789,10 @@ const JobsTableBody = ({
   topLevelRows,
   sidebarJobId,
   onLoadMoreSubRows,
+  onClickRowCheckbox,
   onClickJobRow,
-  onToggleSelect,
+  onClickRow,
+  onControlClickRow,
   onShiftClickRow,
 }: JobsTableBodyProps) => {
   const canDisplay = !dataIsLoading && topLevelRows.length > 0
@@ -797,7 +811,16 @@ const JobsTableBody = ({
         </TableRow>
       )}
       {topLevelRows.map((row) =>
-        recursiveRowRender(row, sidebarJobId, onLoadMoreSubRows, onClickJobRow, onToggleSelect, onShiftClickRow),
+        recursiveRowRender(
+          row,
+          sidebarJobId,
+          onLoadMoreSubRows,
+          onClickRowCheckbox,
+          onClickJobRow,
+          onClickRow,
+          onControlClickRow,
+          onShiftClickRow,
+        ),
       )}
     </TableBody>
   )
@@ -807,8 +830,10 @@ const recursiveRowRender = (
   row: Row<JobTableRow>,
   sidebarJobId: JobId | undefined,
   onLoadMoreSubRows: (rowId: RowId, skip: number) => void,
-  onClickJobRow: (row: JobRow) => void,
-  onToggleSelect: (row: Row<JobTableRow>) => void,
+  onClickRowCheckbox: (row: Row<JobTableRow>) => void,
+  onClickJobRow: (jobRow: JobRow) => void,
+  onClickRow: (row: Row<JobTableRow>) => void,
+  onControlClickRow: (row: Row<JobTableRow>) => void,
   onShiftClickRow: (row: Row<JobTableRow>) => void,
 ): JSX.Element => {
   const original = row.original
@@ -823,23 +848,35 @@ const recursiveRowRender = (
       <JobsTableRow
         row={row}
         isOpenInSidebar={isOpenInSidebar}
-        onClick={(jr, e) => {
+        onClick={(e) => {
           if (!rowIsGroup) {
-            onClickJobRow(jr)
+            onClickJobRow(original)
           }
-          onToggleSelect(row)
           if (e.shiftKey) {
             onShiftClickRow(row)
+          } else if (e.ctrlKey || e.altKey) {
+            onControlClickRow(row)
+          } else {
+            onClickRow(row)
           }
-          row.getToggleSelectedHandler()(e)
         }}
+        onClickRowCheckbox={onClickRowCheckbox}
       />
 
       {/* Render any sub rows if expanded */}
       {rowIsGroup &&
         row.getIsExpanded() &&
         row.subRows.map((row) =>
-          recursiveRowRender(row, sidebarJobId, onLoadMoreSubRows, onClickJobRow, onToggleSelect, onShiftClickRow),
+          recursiveRowRender(
+            row,
+            sidebarJobId,
+            onLoadMoreSubRows,
+            onClickRowCheckbox,
+            onClickJobRow,
+            onClickRow,
+            onControlClickRow,
+            onShiftClickRow,
+          ),
         )}
 
       {/* Render pagination tools for this expanded row */}

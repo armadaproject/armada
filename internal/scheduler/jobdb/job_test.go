@@ -54,7 +54,6 @@ func TestJob_TestGetter(t *testing.T) {
 	assert.Equal(t, baseJob.queue, baseJob.Queue())
 	assert.Equal(t, baseJob.queue, baseJob.GetQueue())
 	assert.Equal(t, baseJob.created, baseJob.Created())
-	assert.Equal(t, schedulingInfo, baseJob.GetRequirements(nil))
 	assert.Equal(t, schedulingInfo, baseJob.JobSchedulingInfo())
 	assert.Equal(t, baseJob.GetAnnotations(), map[string]string{
 		"foo": "bar",

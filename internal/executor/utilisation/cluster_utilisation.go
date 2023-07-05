@@ -281,8 +281,8 @@ func groupPodsByNodes(pods []*v1.Pod) map[string][]*v1.Pod {
 	return podsByNodes
 }
 
-func allocatedByPriorityAndResourceTypeFromPods(pods []*v1.Pod) schedulerobjects.QuantityByPriorityAndResourceType {
-	rv := make(schedulerobjects.QuantityByPriorityAndResourceType)
+func allocatedByPriorityAndResourceTypeFromPods(pods []*v1.Pod) schedulerobjects.QuantityByTAndResourceType[int32] {
+	rv := make(schedulerobjects.QuantityByTAndResourceType[int32])
 	for _, pod := range pods {
 		var priority int32 = 0
 		if pod.Spec.Priority != nil {

@@ -779,42 +779,33 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 	}
 
 	for i, item := range request.JobRequestItems {
-
 		if item.PodSpec != nil && len(item.PodSpecs) > 0 {
 			return nil, errors.Errorf("[createJobs] job %d in job set %s contains both podSpec and podSpecs, but may only contain either", i, request.JobSetId)
 		}
-
-		podSpecs := item.GetAllPodSpecs()
-		if len(podSpecs) == 0 {
-			return nil, errors.Errorf("[createJobs] job %d in job set %s contains no podSpec or podSpecs", i, request.JobSetId)
+		podSpec := item.GetMainPodSpec()
+		if podSpec == nil {
+			return nil, errors.Errorf("[createJobs] job %d in job set %s contains no podSpec", i, request.JobSetId)
 		}
-
 		if err := validation.ValidateJobSubmitRequestItem(item); err != nil {
 			return nil, errors.Errorf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err)
 		}
-
 		namespace := item.Namespace
 		if namespace == "" {
 			namespace = "default"
 		}
+		fillContainerRequestsAndLimits(podSpec.Containers)
+		applyDefaultsToAnnotations(item.Annotations, *server.schedulingConfig)
+		applyDefaultsToPodSpec(podSpec, *server.schedulingConfig)
+		if err := validation.ValidatePodSpec(podSpec, server.schedulingConfig); err != nil {
+			return nil, errors.Errorf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err)
+		}
 
-		for j, podSpec := range item.GetAllPodSpecs() {
-			if podSpec != nil {
-				fillContainerRequestsAndLimits(podSpec.Containers)
+		// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
+		for k, v := range item.RequiredNodeLabels {
+			if podSpec.NodeSelector == nil {
+				podSpec.NodeSelector = map[string]string{}
 			}
-			applyDefaultsToPodSpec(podSpec, *server.schedulingConfig)
-			err := validation.ValidatePodSpec(podSpec, server.schedulingConfig)
-			if err != nil {
-				return nil, errors.Errorf("[createJobs] error validating the %d-th pod of the %d-th job of job set %s: %v", j, i, request.JobSetId, err)
-			}
-
-			// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
-			for k, v := range item.RequiredNodeLabels {
-				if podSpec.NodeSelector == nil {
-					podSpec.NodeSelector = map[string]string{}
-				}
-				podSpec.NodeSelector[k] = v
-			}
+			podSpec.NodeSelector[k] = v
 		}
 
 		jobId := getUlid()

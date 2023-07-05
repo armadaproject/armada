@@ -51,6 +51,18 @@ const (
 )
 
 var (
+	// JobStates is an ordered list of states
+	JobStates = []JobState{
+		JobQueued,
+		JobLeased,
+		JobPending,
+		JobRunning,
+		JobSucceeded,
+		JobFailed,
+		JobCancelled,
+		JobPreempted,
+	}
+
 	JobStateMap = map[int]JobState{
 		JobLeasedOrdinal:    JobLeased,
 		JobQueuedOrdinal:    JobQueued,

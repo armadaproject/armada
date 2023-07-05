@@ -178,7 +178,7 @@ definitions:
       aggregates:
         type: object
         additionalProperties:
-          type: string
+          type: object
         x-nullable: false
   filter:
     type: object
