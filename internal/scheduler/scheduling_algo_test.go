@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
+	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
@@ -369,7 +370,7 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 				for nodeName, jobIndices := range jobsByNodeName {
 					node := nodes[executorId][nodeName]
 					for _, i := range jobIndices {
-						job := tc.existingJobs[i].WithQueued(false).WithNewRun(executorId, nodeName)
+						job := tc.existingJobs[i].WithQueued(false).WithNewRun(executorId, node.Id)
 						jobsToUpsert = append(jobsToUpsert, job)
 						run := job.LatestRun()
 						node.StateByJobRunId[run.Id().String()] = schedulerobjects.JobRunState_RUNNING
@@ -379,8 +380,9 @@ func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
 
 			for executorId, jobsByNodeName := range tc.existingUnacknowledgedIndices {
 				for nodeName, jobIndices := range jobsByNodeName {
+					node := nodes[executorId][nodeName]
 					for _, i := range jobIndices {
-						job := tc.existingJobs[i].WithQueued(false).WithNewRun(executorId, nodeName)
+						job := tc.existingJobs[i].WithQueued(false).WithNewRun(executorId, node.Id)
 						jobsToUpsert = append(jobsToUpsert, job)
 					}
 				}
@@ -686,6 +688,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 				}
 			}
 			rand.Shuffle(len(jobs), func(i, j int) { jobs[i], jobs[j] = jobs[j], jobs[i] })
+			schedulingConfig := testfixtures.TestSchedulingConfig()
 			b.ResetTimer()
 			for n := 0; n < b.N; n++ {
 				b.StopTimer()
@@ -697,9 +700,18 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					nil,
 				)
 				require.NoError(b, err)
+
+				nodeDb, err := nodedb.NewNodeDb(
+					schedulingConfig.Preemption.PriorityClasses,
+					schedulingConfig.MaxExtraNodesToConsider,
+					schedulingConfig.IndexedResources,
+					schedulingConfig.IndexedTaints,
+					schedulingConfig.IndexedNodeLabels,
+				)
+				require.NoError(b, err)
 				b.StartTimer()
 
-				_, err = algo.constructNodeDb(testfixtures.TestPriorityClasses, jobs, nodes)
+				err = algo.addExecutorToNodeDb(nodeDb, jobs, nodes)
 				require.NoError(b, err)
 			}
 		})

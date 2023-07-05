@@ -31,6 +31,8 @@ message Node {
     string id = 1;
     // Kubernetes node name. Not guaranteed to be unique across clusters.
     string name = 12;
+    // Name of the executor to which this node belongs.
+    string executor = 19;
     // Keys by which nodes are sorted in the nodeDb.
     repeated bytes nodeDbKeys = 18;
     // Time at which this node was last updated.

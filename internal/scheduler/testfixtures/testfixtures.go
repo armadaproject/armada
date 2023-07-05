@@ -655,6 +655,7 @@ func TestNode(priorities []int32, resources map[string]resource.Quantity) *sched
 	id := uuid.NewString()
 	return &schedulerobjects.Node{
 		Id:             id,
+		Name:           id,
 		TotalResources: schedulerobjects.ResourceList{Resources: resources},
 		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			priorities,
@@ -708,11 +709,12 @@ func WithLastUpdateTimeExecutor(lastUpdateTime time.Time, executor *schedulerobj
 	return executor
 }
 
-func Test1Node32CoreExecutor(name string) *schedulerobjects.Executor {
+func Test1Node32CoreExecutor(executorId string) *schedulerobjects.Executor {
 	node := Test32CpuNode(TestPriorities)
-	node.Name = fmt.Sprintf("%s-node", name)
+	node.Name = fmt.Sprintf("%s-node", executorId)
+	node.Executor = executorId
 	return &schedulerobjects.Executor{
-		Id:             name,
+		Id:             executorId,
 		Pool:           TestPool,
 		Nodes:          []*schedulerobjects.Node{node},
 		LastUpdateTime: BaseTime,

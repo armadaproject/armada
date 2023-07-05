@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"math/rand"
 	"strings"
 	"time"
@@ -37,12 +38,10 @@ type SchedulingAlgo interface {
 
 // FairSchedulingAlgo is a SchedulingAlgo based on PreemptingQueueScheduler.
 type FairSchedulingAlgo struct {
-	config                      configuration.SchedulingConfig
+	schedulingConfig            configuration.SchedulingConfig
 	executorRepository          database.ExecutorRepository
 	queueRepository             database.QueueRepository
 	schedulingContextRepository *SchedulingContextRepository
-	priorityClasses             map[string]configuration.PriorityClass
-	indexedResources            []configuration.IndexedResource
 	rand                        *rand.Rand // injected here for repeatable testing
 	previousScheduleClusterId   string
 	maxSchedulingDuration       time.Duration
@@ -61,25 +60,21 @@ func NewFairSchedulingAlgo(
 	if _, ok := config.Preemption.PriorityClasses[config.Preemption.DefaultPriorityClass]; !ok {
 		return nil, errors.Errorf("default priority class %s is missing from priority class mapping %v", config.Preemption.DefaultPriorityClass, config.Preemption.PriorityClasses)
 	}
-	algo := &FairSchedulingAlgo{
-		config:                      config,
+	return &FairSchedulingAlgo{
+		schedulingConfig:            config,
 		executorRepository:          executorRepository,
 		queueRepository:             queueRepository,
 		schedulingContextRepository: schedulingContextRepository,
-		priorityClasses:             config.Preemption.PriorityClasses,
-		indexedResources:            config.IndexedResources,
 		maxSchedulingDuration:       maxSchedulingDuration,
 		rand:                        util.NewThreadsafeRand(time.Now().UnixNano()),
 		clock:                       clock.RealClock{},
 		onExecutorScheduled:         func(executor *schedulerobjects.Executor) {},
-	}
-
-	return algo, nil
+	}, nil
 }
 
 // Schedule assigns jobs to nodes in the same way as the old lease call.
-// It iterates over each executor in turn (using lexicographical order) and assigns the jobs using a LegacyScheduler, before moving onto the next executor
-// It maintains state of which executors it has considered already and may take multiple Schedule() calls to consider all of the executors if scheduling is slow
+// It iterates over each executor in turn (using lexicographical order) and assigns the jobs using a LegacyScheduler, before moving onto the next executor.
+// It maintains state of which executors it has considered already and may take multiple Schedule() calls to consider all executors if scheduling is slow.
 // Newly leased jobs are updated as such in the jobDb using the transaction provided and are also returned to the caller.
 func (l *FairSchedulingAlgo) Schedule(
 	ctx context.Context,
@@ -87,7 +82,7 @@ func (l *FairSchedulingAlgo) Schedule(
 	jobDb *jobdb.JobDb,
 ) (*SchedulerResult, error) {
 	log := ctxlogrus.Extract(ctx)
-	accounting, err := l.newFairSchedulingAlgoContext(ctx, txn, jobDb)
+	fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, jobDb)
 	if err != nil {
 		return nil, err
 	}
@@ -95,25 +90,25 @@ func (l *FairSchedulingAlgo) Schedule(
 		NodeIdByJobId: make(map[string]string),
 	}
 
-	timeout, cancel := context.WithTimeout(ctx, l.maxSchedulingDuration)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, l.maxSchedulingDuration)
 	defer cancel()
 
 	allExecutorsConsidered := false
-	executorsToSchedule := accounting.getExecutorsToSchedule(l.previousScheduleClusterId)
+	executorsToSchedule := fsctx.getExecutorsToSchedule(l.previousScheduleClusterId)
 	for i, executor := range executorsToSchedule {
-		if timeout.Err() != nil {
+		if ctxWithTimeout.Err() != nil {
 			// We've reached the scheduling time limit, exit gracefully
 			log.Infof("ending scheduling round early as we have hit the maximum scheduling duration")
 			break
 		}
 
 		log.Infof("scheduling on %s", executor.Id)
-		schedulerResult, sctx, err := l.scheduleOnExecutor(
-			timeout,
-			accounting,
-			txn,
-			executor,
-			jobDb,
+		schedulerResult, sctx, err := l.scheduleOnExecutors(
+			ctxWithTimeout,
+			fsctx,
+			executor.Pool,
+			executor.MinimumJobSize,
+			[]*schedulerobjects.Executor{executor},
 		)
 		if err != nil {
 			if err == context.DeadlineExceeded {
@@ -145,8 +140,8 @@ func (l *FairSchedulingAlgo) Schedule(
 		overallSchedulerResult.ScheduledJobs = append(overallSchedulerResult.ScheduledJobs, schedulerResult.ScheduledJobs...)
 		maps.Copy(overallSchedulerResult.NodeIdByJobId, schedulerResult.NodeIdByJobId)
 
-		// Update accounting.
-		accounting.allocationByPoolAndQueueAndPriorityClass[executor.Pool] = sctx.AllocatedByQueueAndPriority()
+		// Update fsctx.
+		fsctx.allocationByPoolAndQueueAndPriorityClass[executor.Pool] = sctx.AllocatedByQueueAndPriority()
 
 		// Update result to mark this executor as scheduled
 		l.previousScheduleClusterId = executor.Id
@@ -184,6 +179,8 @@ type fairSchedulingAlgoContext struct {
 	gangIdByJobId                            map[string]string
 	allocationByPoolAndQueueAndPriorityClass map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]
 	executors                                []*schedulerobjects.Executor
+	txn                                      *jobdb.Txn
+	jobDb                                    *jobdb.JobDb
 }
 
 // This function will return executors in the order they should be scheduled in
@@ -299,43 +296,59 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, t
 		gangIdByJobId:                            gangIdByJobId,
 		allocationByPoolAndQueueAndPriorityClass: totalAllocationByPoolAndQueue,
 		executors:                                executors,
+		jobDb:                                    jobDb,
+		txn:                                      txn,
 	}, nil
 }
 
-// scheduleOnExecutor schedules jobs on a specified executor.
-func (l *FairSchedulingAlgo) scheduleOnExecutor(
+// scheduleOnExecutors schedules jobs on a specified set of executors.
+func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	ctx context.Context,
-	accounting *fairSchedulingAlgoContext,
-	txn *jobdb.Txn,
-	executor *schedulerobjects.Executor,
-	db *jobdb.JobDb,
+	fsctx *fairSchedulingAlgoContext,
+	pool string,
+	minimumJobSize schedulerobjects.ResourceList,
+	executors []*schedulerobjects.Executor,
 ) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
-	nodeDb, err := l.constructNodeDb(
-		l.config.Preemption.PriorityClasses,
-		accounting.jobsByExecutorId[executor.Id],
-		executor.Nodes,
+	nodeDb, err := nodedb.NewNodeDb(
+		l.schedulingConfig.Preemption.PriorityClasses,
+		l.schedulingConfig.MaxExtraNodesToConsider,
+		l.schedulingConfig.IndexedResources,
+		l.schedulingConfig.IndexedTaints,
+		l.schedulingConfig.IndexedNodeLabels,
 	)
 	if err != nil {
 		return nil, nil, err
 	}
-	sctx := schedulercontext.NewSchedulingContext(
-		executor.Id,
-		executor.Pool,
-		l.config.Preemption.PriorityClasses,
-		l.config.Preemption.DefaultPriorityClass,
-		l.config.ResourceScarcity,
-		accounting.totalCapacity,
-	)
-	if l.config.FairnessModel == configuration.DominantResourceFairness {
-		sctx.EnableDominantResourceFairness(l.config.DominantResourceFairnessResourcesToConsider)
+	for _, executor := range executors {
+		if err := l.addExecutorToNodeDb(nodeDb, fsctx.jobsByExecutorId[executor.Id], executor.Nodes); err != nil {
+			return nil, nil, err
+		}
 	}
-	for queue, priorityFactor := range accounting.priorityFactorByQueue {
-		if !accounting.isActiveByQueueName[queue] {
+
+	// If there are multiple executors, use pool name instead of executorId.
+	// ExecutorId is only used for reporting so this results in an aggregated report for the pool.
+	executorId := pool
+	if len(executors) == 1 {
+		executorId = executors[0].Id
+	}
+	sctx := schedulercontext.NewSchedulingContext(
+		executorId,
+		pool,
+		l.schedulingConfig.Preemption.PriorityClasses,
+		l.schedulingConfig.Preemption.DefaultPriorityClass,
+		l.schedulingConfig.ResourceScarcity,
+		fsctx.totalCapacity,
+	)
+	if l.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
+		sctx.EnableDominantResourceFairness(l.schedulingConfig.DominantResourceFairnessResourcesToConsider)
+	}
+	for queue, priorityFactor := range fsctx.priorityFactorByQueue {
+		if !fsctx.isActiveByQueueName[queue] {
 			// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.
 			continue
 		}
 		var allocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
-		if allocatedByQueueAndPriorityClass := accounting.allocationByPoolAndQueueAndPriorityClass[executor.Pool]; allocatedByQueueAndPriorityClass != nil {
+		if allocatedByQueueAndPriorityClass := fsctx.allocationByPoolAndQueueAndPriorityClass[pool]; allocatedByQueueAndPriorityClass != nil {
 			allocatedByPriorityClass = allocatedByQueueAndPriorityClass[queue]
 		}
 		var weight float64 = 1
@@ -347,30 +360,30 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 		}
 	}
 	constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
-		executor.Pool,
-		accounting.totalCapacity,
-		executor.MinimumJobSize,
-		l.config,
+		pool,
+		fsctx.totalCapacity, // TODO: Make sure this is for this pool.
+		minimumJobSize,
+		l.schedulingConfig,
 	)
 	scheduler := NewPreemptingQueueScheduler(
 		sctx,
 		constraints,
-		l.config.Preemption.NodeEvictionProbability,
-		l.config.Preemption.NodeOversubscriptionEvictionProbability,
-		l.config.Preemption.ProtectedFractionOfFairShare,
+		l.schedulingConfig.Preemption.NodeEvictionProbability,
+		l.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
+		l.schedulingConfig.Preemption.ProtectedFractionOfFairShare,
 		&schedulerJobRepositoryAdapter{
-			txn: txn,
-			db:  db,
+			txn: fsctx.txn,
+			db:  fsctx.jobDb,
 		},
 		nodeDb,
-		accounting.nodeIdByJobId,
-		accounting.jobIdsByGangId,
-		accounting.gangIdByJobId,
+		fsctx.nodeIdByJobId,
+		fsctx.jobIdsByGangId,
+		fsctx.gangIdByJobId,
 	)
-	if l.config.AlwaysAttemptScheduling {
+	if l.schedulingConfig.AlwaysAttemptScheduling {
 		scheduler.SkipUnsuccessfulSchedulingKeyCheck()
 	}
-	if l.config.EnableAssertions {
+	if l.schedulingConfig.EnableAssertions {
 		scheduler.EnableAssertions()
 	}
 	result, err := scheduler.Schedule(ctx)
@@ -396,7 +409,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutor(
 		if node, err := nodeDb.GetNode(nodeId); err != nil {
 			return nil, nil, err
 		} else {
-			result.ScheduledJobs[i] = jobDbJob.WithQueued(false).WithNewRun(executor.Id, node.Name)
+			result.ScheduledJobs[i] = jobDbJob.WithQueued(false).WithNewRun(node.Executor, node.Id)
 		}
 	}
 	return result, sctx, nil
@@ -431,53 +444,43 @@ func (repo *schedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([
 	return rv, nil
 }
 
-// constructNodeDb constructs a node db with all jobs bound to it.
-func (l *FairSchedulingAlgo) constructNodeDb(priorityClasses map[string]configuration.PriorityClass, jobs []*jobdb.Job, nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
-	nodeDb, err := nodedb.NewNodeDb(
-		priorityClasses,
-		l.config.MaxExtraNodesToConsider,
-		l.indexedResources,
-		l.config.IndexedTaints,
-		l.config.IndexedNodeLabels,
-	)
-	if err != nil {
-		return nil, err
-	}
+// addExecutorToNodeDb adds all the nodes and jobs associated with a particular executor to the nodeDb.
+func (l *FairSchedulingAlgo) addExecutorToNodeDb(nodeDb *nodedb.NodeDb, jobs []*jobdb.Job, nodes []*schedulerobjects.Node) error {
 	txn := nodeDb.Txn(true)
 	defer txn.Abort()
-	nodesByName := make(map[string]*schedulerobjects.Node, len(nodes))
-	for _, node := range nodes {
-		nodesByName[node.Name] = node
-	}
-	jobsByNodeName := make(map[string][]*jobdb.Job)
+	nodesById := armadaslices.GroupByFuncUnique(
+		nodes,
+		func(node *schedulerobjects.Node) string { return node.Id },
+	)
+	jobsByNodeId := make(map[string][]*jobdb.Job, len(nodes))
 	for _, job := range jobs {
 		if job.InTerminalState() || !job.HasRuns() {
 			continue
 		}
-		nodeName := job.LatestRun().Node()
-		if _, ok := nodesByName[nodeName]; !ok {
-			log.Warnf(
+		nodeId := job.LatestRun().Node()
+		if _, ok := nodesById[nodeId]; !ok {
+			log.Errorf(
 				"job %s assigned to node %s on executor %s, but no such node found",
-				job.Id(), nodeName, job.LatestRun().Executor(),
+				job.Id(), nodeId, job.LatestRun().Executor(),
 			)
 			continue
 		}
-		jobsByNodeName[nodeName] = append(jobsByNodeName[nodeName], job)
+		jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
 	}
 	for _, node := range nodes {
-		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobsByNodeName[node.Name], node); err != nil {
-			return nil, err
+		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobsByNodeId[node.Id], node); err != nil {
+			return err
 		}
 	}
 	txn.Commit()
-	return nodeDb, nil
+	return nil
 }
 
-// filterStaleExecutors returns all executors which have sent a lease request within the duration given by l.config.ExecutorTimeout.
+// filterStaleExecutors returns all executors which have sent a lease request within the duration given by l.schedulingConfig.ExecutorTimeout.
 // This ensures that we don't continue to assign jobs to executors that are no longer active.
 func (l *FairSchedulingAlgo) filterStaleExecutors(executors []*schedulerobjects.Executor) []*schedulerobjects.Executor {
 	activeExecutors := make([]*schedulerobjects.Executor, 0, len(executors))
-	cutoff := l.clock.Now().Add(-l.config.ExecutorTimeout)
+	cutoff := l.clock.Now().Add(-l.schedulingConfig.ExecutorTimeout)
 	for _, executor := range executors {
 		if executor.LastUpdateTime.After(cutoff) {
 			activeExecutors = append(activeExecutors, executor)
@@ -488,7 +491,7 @@ func (l *FairSchedulingAlgo) filterStaleExecutors(executors []*schedulerobjects.
 	return activeExecutors
 }
 
-// filterLaggingExecutors returns all executors with <= l.config.MaxUnacknowledgedJobsPerExecutor unacknowledged jobs,
+// filterLaggingExecutors returns all executors with <= l.schedulingConfig.MaxUnacknowledgedJobsPerExecutor unacknowledged jobs,
 // where unacknowledged means the executor has not echoed the job since it was scheduled.
 //
 // Used to rate-limit scheduling onto executors that can't keep up.
@@ -519,12 +522,12 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 				}
 			}
 		}
-		if numUnacknowledgedJobs <= l.config.MaxUnacknowledgedJobsPerExecutor {
+		if numUnacknowledgedJobs <= l.schedulingConfig.MaxUnacknowledgedJobsPerExecutor {
 			activeExecutors = append(activeExecutors, executor)
 		} else {
 			log.Warnf(
 				"%d unacknowledged jobs on executor %s exceeds limit of %d; will not be considered for scheduling",
-				numUnacknowledgedJobs, executor.Id, l.config.MaxUnacknowledgedJobsPerExecutor,
+				numUnacknowledgedJobs, executor.Id, l.schedulingConfig.MaxUnacknowledgedJobsPerExecutor,
 			)
 		}
 

@@ -54,8 +54,8 @@ func TestJobDb_TestGetById(t *testing.T) {
 
 func TestJobDb_TestGetByRunId(t *testing.T) {
 	jobDb := NewJobDb()
-	job1 := newJob().WithNewRun("executor", "node")
-	job2 := newJob().WithNewRun("executor", "node")
+	job1 := newJob().WithNewRun("executor", "nodeId")
+	job2 := newJob().WithNewRun("executor", "nodeId")
 	txn := jobDb.WriteTxn()
 
 	err := jobDb.Upsert(txn, []*Job{job1, job2})
@@ -71,8 +71,8 @@ func TestJobDb_TestGetByRunId(t *testing.T) {
 
 func TestJobDb_TestHasQueuedJobs(t *testing.T) {
 	jobDb := NewJobDb()
-	job1 := newJob().WithNewRun("executor", "node")
-	job2 := newJob().WithNewRun("executor", "node")
+	job1 := newJob().WithNewRun("executor", "nodeId")
+	job2 := newJob().WithNewRun("executor", "nodeId")
 	txn := jobDb.WriteTxn()
 
 	err := jobDb.Upsert(txn, []*Job{job1, job2})
@@ -141,8 +141,8 @@ func TestJobDb_TestQueuedJobs(t *testing.T) {
 
 func TestJobDb_TestGetAll(t *testing.T) {
 	jobDb := NewJobDb()
-	job1 := newJob().WithNewRun("executor", "node")
-	job2 := newJob().WithNewRun("executor", "node")
+	job1 := newJob().WithNewRun("executor", "nodeId")
+	job2 := newJob().WithNewRun("executor", "nodeId")
 	txn := jobDb.WriteTxn()
 	assert.Equal(t, []*Job{}, jobDb.GetAll(txn))
 
@@ -180,8 +180,8 @@ func TestJobDb_TestTransactions(t *testing.T) {
 
 func TestJobDb_TestBatchDelete(t *testing.T) {
 	jobDb := NewJobDb()
-	job1 := newJob().WithQueued(true).WithNewRun("executor", "node")
-	job2 := newJob().WithQueued(true).WithNewRun("executor", "node")
+	job1 := newJob().WithQueued(true).WithNewRun("executor", "nodeId")
+	job2 := newJob().WithQueued(true).WithNewRun("executor", "nodeId")
 	txn := jobDb.WriteTxn()
 
 	// Insert Job
