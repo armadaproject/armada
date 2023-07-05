@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "es5",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "es2019"
-    ],
+    "lib": ["dom", "dom.iterable", "es2019"],
     "allowJs": true,
     "downlevelIteration": true,
     "skipLibCheck": true,
@@ -22,8 +18,5 @@
     "jsx": "react-jsx",
     "baseUrl": "src"
   },
-  "include": [
-    "types/workarounds.d.ts",
-    "src"
-  ]
+  "include": ["types/workarounds.d.ts", "src"]
 }
