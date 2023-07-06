@@ -35,7 +35,7 @@ jobs:
           [ $(git branch --contains=$sha master | wc -l) -eq 1 ] &&
           [ $(git rev-list --count $sha..master) -le 2 ]
           if [ $? -ne 0 ]; then
-            echo "::error ::Invalid ref $ref $sha"
+            echo "::error ::Invalid ref $ref $sha: must be a merge to master branch and not more than 2 commits away"
             exit 1
           fi
   release:
