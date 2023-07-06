@@ -2,14 +2,14 @@ import React from "react"
 
 import { AutoSizer, InfiniteLoader, Table } from "react-virtualized"
 
+import createJobTableColumns from "./JobTableColumns"
+import JobTableHeader from "./JobTableHeader"
+import LoadingRow from "./LoadingRow"
 import { ColumnSpec } from "../../containers/JobsContainer"
 import { Job } from "../../services/JobService"
 import { RequestStatus } from "../../utils"
 import CheckboxHeaderRow from "../CheckboxHeaderRow"
 import CheckboxRow from "../CheckboxRow"
-import createJobTableColumns from "./JobTableColumns"
-import JobTableHeader from "./JobTableHeader"
-import LoadingRow from "./LoadingRow"
 
 import "./Jobs.css"
 

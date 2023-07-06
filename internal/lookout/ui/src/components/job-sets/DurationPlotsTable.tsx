@@ -2,9 +2,9 @@ import React from "react"
 
 import { Table, TableHeaderRowProps, TableRowProps } from "react-virtualized"
 
-import { DurationStats } from "../../services/JobService"
 import DurationAxis from "./DurationAxis"
 import DurationBoxPlot from "./DurationBoxPlot"
+import { DurationStats } from "../../services/JobService"
 
 import "./DurationPlotsTable.css"
 
