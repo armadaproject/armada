@@ -24,7 +24,6 @@ jobs:
 
       # The given ref should belong to the master branch.
       # If it's master, it shouldn't be more than 2 commits away (in case another push happened in the meantime).
-      # If it starts with 'v', it should be a tag and belong to the master branch.
       # Anything else is invalid.
       - name: Validate ref
         run: |
