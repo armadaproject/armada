@@ -156,6 +156,7 @@ export const groupsToRows = (
       rowId: toRowId({ type: groupedField.field, value: group.name, parentRowId: baseRowId }),
       groupedField: groupedField.field,
       [groupedField.field]: group.name,
+      stateCounts: undefined,
 
       isGroup: true,
       jobCount: group.count,
@@ -176,6 +177,9 @@ export const groupsToRows = (
           break
         case "lastTransitionTime":
           row.lastTransitionTime = val as string
+          break
+        case "state":
+          row.stateCounts = val as Record<string, number>
           break
         default:
           break
