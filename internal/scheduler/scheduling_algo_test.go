@@ -253,7 +253,7 @@ func TestSchedule(t *testing.T) {
 			schedulingConfig:         testfixtures.TestSchedulingConfig(),
 			executors:                []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
 			queues:                   []*database.Queue{{Name: "A", Weight: 100}},
-			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("queue1", testfixtures.PriorityClass0, 2)),
+			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2)),
 			expectedScheduledIndices: []int{0, 1},
 		},
 		"not scheduling a gang that does not fit on any executor": {
