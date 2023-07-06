@@ -16,7 +16,10 @@ import grpc
 
 import pendulum
 
-from armada.operators.jobservice import JobServiceClient
+from armada.operators.jobservice import (
+    JobServiceClient,
+    default_jobservice_channel_options,
+)
 
 
 def submit_sleep_container(image: str):
@@ -69,7 +72,8 @@ with DAG(
         channel=grpc.insecure_channel(target="127.0.0.1:50051")
     )
     job_service_client = JobServiceClient(
-        channel=grpc.insecure_channel(target="127.0.0.1:60003")
+        channel=grpc.insecure_channel(target="127.0.0.1:60003"),
+        options=default_jobservice_channel_options,
     )
 
     op = BashOperator(task_id="dummy", bash_command="echo Hello World!")

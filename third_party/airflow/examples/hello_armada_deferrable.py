@@ -11,6 +11,9 @@ from armada_client.armada import (
     submit_pb2,
 )
 
+from armada.operators.jobservice import default_jobservice_channel_options
+
+
 import pendulum
 
 
@@ -66,7 +69,10 @@ with DAG(
     The ArmadaDeferrableOperatorOperator requires grpc.aio.channel arguments
     """
     armada_channel_args = {"target": "127.0.0.1:50051"}
-    job_service_channel_args = {"target": "127.0.0.1:60003"}
+    job_service_channel_args = {
+        "target": "127.0.0.1:60003",
+        "options": default_jobservice_channel_options,
+    }
     """
     This defines an Airflow task that runs Hello World and it gives the airflow
     task name of dummy.

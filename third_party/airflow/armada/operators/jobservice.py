@@ -1,6 +1,30 @@
+import json
+
 from armada.jobservice import jobservice_pb2_grpc, jobservice_pb2
 
 from google.protobuf import empty_pb2
+
+default_jobservice_channel_options = [
+    (
+        "grpc.service_config",
+        json.dumps(
+            {
+                "methodConfig": [
+                    {
+                        "name": [{"service": "jobservice.JobService"}],
+                        "retryPolicy": {
+                            "maxAttempts": 5,
+                            "initialBackoff": "0.1s",
+                            "maxBackoff": "10s",
+                            "backoffMultiplier": 2,
+                            "retryableStatusCodes": ["UNAVAILABLE"],
+                        },
+                    }
+                ]
+            }
+        ),
+    )
+]
 
 
 class JobServiceClient:
