@@ -133,6 +133,7 @@ export const fetchJobGroups = async (
   columnsToAggregate: string[],
   abortSignal: AbortSignal,
 ) => {
+  console.log(rowRequest, columnsToAggregate)
   const { filters, skip, take, order } = rowRequest
   return await groupJobsService.groupJobs(filters, order, groupedColumn, columnsToAggregate, skip, take, abortSignal)
 }
@@ -156,6 +157,7 @@ export const groupsToRows = (
       rowId: toRowId({ type: groupedField.field, value: group.name, parentRowId: baseRowId }),
       groupedField: groupedField.field,
       [groupedField.field]: group.name,
+      stateCounts: undefined,
 
       isGroup: true,
       jobCount: group.count,
@@ -176,6 +178,9 @@ export const groupsToRows = (
           break
         case "lastTransitionTime":
           row.lastTransitionTime = val as string
+          break
+        case "state":
+          row.stateCounts = val as Record<string, number>
           break
         default:
           break

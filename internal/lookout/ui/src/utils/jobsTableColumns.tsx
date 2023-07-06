@@ -6,6 +6,7 @@ import { EnumFilterOption } from "components/lookoutV2/JobsTableFilter"
 import { isJobGroupRow, JobTableRow } from "models/jobsTableModels"
 import { JobState, Match } from "models/lookoutV2Models"
 
+import { JobGroupStateCounts } from "../components/lookoutV2/JobGroupStateCounts"
 import { LookoutColumnOrder } from "../containers/lookoutV2/JobsTableContainer"
 import { formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
 import { formatBytes, formatCpu, parseBytes, parseCpu, parseInteger } from "./resourceUtils"
@@ -204,9 +205,22 @@ export const JOB_COLUMNS: JobTableColumn[] = [
       enableGrouping: true,
       enableColumnFilter: true,
       size: 300,
-      cell: (cell) => (
-        <JobStateLabel state={cell.getValue() as JobState}>{formatJobState(cell.getValue() as JobState)}</JobStateLabel>
-      ),
+      cell: (cell) => {
+        if (
+          cell.row.original &&
+          isJobGroupRow(cell.row.original) &&
+          cell.row.original.stateCounts &&
+          cell.row.original.groupedField !== "state"
+        ) {
+          return <JobGroupStateCounts stateCounts={cell.row.original.stateCounts} />
+        } else {
+          return (
+            <JobStateLabel state={cell.getValue() as JobState}>
+              {formatJobState(cell.getValue() as JobState)}
+            </JobStateLabel>
+          )
+        }
+      },
     },
     additionalMetadata: {
       filterType: FilterType.Enum,
