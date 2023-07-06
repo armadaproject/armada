@@ -15,6 +15,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
@@ -210,7 +211,7 @@ type NodeDb struct {
 	// Allowed priority classes.
 	// Because the number of database indices scales linearly with the number of distinct priorities,
 	// the efficiency of the NodeDb relies on the number of distinct priorities being small.
-	priorityClasses map[string]configuration.PriorityClass
+	priorityClasses map[string]types.PriorityClass
 	// Priorities, in increasing order, to try to schedule pods at.
 	// In particular, if a pod has priority class priority p, try to schedule that pod at priority
 	// prioritiesToTryAssigningAt[0], ..., prioritiesToTryAssigningAt[i],
@@ -265,7 +266,7 @@ type NodeDb struct {
 }
 
 func NewNodeDb(
-	priorityClasses map[string]configuration.PriorityClass,
+	priorityClasses map[string]types.PriorityClass,
 	maxExtraNodesToConsider uint,
 	indexedResources []configuration.IndexedResource,
 	indexedTaints,
@@ -664,7 +665,7 @@ func (nodeDb *NodeDb) selectNodeForPodWithIt(
 }
 
 // bindJobToNode returns a copy of node with job bound to it.
-func bindJobToNode(priorityClasses map[string]configuration.PriorityClass, job interfaces.LegacySchedulerJob, node *Node) (*Node, error) {
+func bindJobToNode(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, node *Node) (*Node, error) {
 	node = node.UnsafeCopy()
 	if err := bindJobToNodeInPlace(priorityClasses, job, node); err != nil {
 		return nil, err
@@ -673,7 +674,7 @@ func bindJobToNode(priorityClasses map[string]configuration.PriorityClass, job i
 }
 
 // bindJobToNodeInPlace is like bindJobToNode, but doesn't make a copy of node.
-func bindJobToNodeInPlace(priorityClasses map[string]configuration.PriorityClass, job interfaces.LegacySchedulerJob, node *Node) error {
+func bindJobToNodeInPlace(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, node *Node) error {
 	jobId := job.GetId()
 	requests := job.GetResourceRequirements().Requests
 
@@ -720,7 +721,7 @@ func bindJobToNodeInPlace(priorityClasses map[string]configuration.PriorityClass
 //     the jobs' priorities to evictedPriority; they are not subtracted from AllocatedByJobId and
 //     AllocatedByQueue.
 func EvictJobsFromNode(
-	priorityClasses map[string]configuration.PriorityClass,
+	priorityClasses map[string]types.PriorityClass,
 	jobFilter func(interfaces.LegacySchedulerJob) bool,
 	jobs []interfaces.LegacySchedulerJob,
 	node *Node,
@@ -740,7 +741,7 @@ func EvictJobsFromNode(
 }
 
 // evictJobFromNodeInPlace is the in-place operation backing EvictJobsFromNode.
-func evictJobFromNodeInPlace(priorityClasses map[string]configuration.PriorityClass, job interfaces.LegacySchedulerJob, node *Node) error {
+func evictJobFromNodeInPlace(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, node *Node) error {
 	jobId := job.GetId()
 	if _, ok := node.AllocatedByJobId[jobId]; !ok {
 		return errors.Errorf("job %s has no resources allocated on node %s", jobId, node.Id)
@@ -769,7 +770,7 @@ func evictJobFromNodeInPlace(priorityClasses map[string]configuration.PriorityCl
 }
 
 // UnbindJobsFromNode returns a node with all elements of jobs unbound from it.
-func UnbindJobsFromNode(priorityClasses map[string]configuration.PriorityClass, jobs []interfaces.LegacySchedulerJob, node *Node) (*Node, error) {
+func UnbindJobsFromNode(priorityClasses map[string]types.PriorityClass, jobs []interfaces.LegacySchedulerJob, node *Node) (*Node, error) {
 	node = node.UnsafeCopy()
 	for _, job := range jobs {
 		if err := unbindJobFromNodeInPlace(priorityClasses, job, node); err != nil {
@@ -780,7 +781,7 @@ func UnbindJobsFromNode(priorityClasses map[string]configuration.PriorityClass, 
 }
 
 // UnbindJobFromNode returns a copy of node with job unbound from it.
-func UnbindJobFromNode(priorityClasses map[string]configuration.PriorityClass, job interfaces.LegacySchedulerJob, node *Node) (*Node, error) {
+func UnbindJobFromNode(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, node *Node) (*Node, error) {
 	node = node.UnsafeCopy()
 	if err := unbindJobFromNodeInPlace(priorityClasses, job, node); err != nil {
 		return nil, err
@@ -789,7 +790,7 @@ func UnbindJobFromNode(priorityClasses map[string]configuration.PriorityClass, j
 }
 
 // unbindPodFromNodeInPlace is like UnbindJobFromNode, but doesn't make a copy of node.
-func unbindJobFromNodeInPlace(priorityClasses map[string]configuration.PriorityClass, job interfaces.LegacySchedulerJob, node *Node) error {
+func unbindJobFromNodeInPlace(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, node *Node) error {
 	jobId := job.GetId()
 	requests := job.GetResourceRequirements().Requests
 

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
@@ -101,7 +100,8 @@ func Run(config schedulerconfig.Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	// Leader Election
 	//////////////////////////////////////////////////////////////////////////
-	leaderController, err := createLeaderController(config.Leader)
+	leaderJobReportsClientProvider := NewKubernetesLeaderSchedulingReportClientProvider(config.Leader)
+	leaderController, err := createLeaderController(config.Leader, leaderJobReportsClientProvider)
 	if err != nil {
 		return errors.WithMessage(err, "error creating leader controller")
 	}
@@ -180,7 +180,7 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithMessage(err, "error creating scheduling context repository")
 	}
 
-	schedulingReportServer := reports.NewLeaderProxyingSchedulingReportsServer(schedulingContextRepository, leaderController)
+	schedulingReportServer := NewLeaderProxyingSchedulingReportsServer(schedulingContextRepository, leaderController, leaderJobReportsClientProvider)
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportServer)
 
 	schedulingAlgo, err := NewFairSchedulingAlgo(
@@ -241,7 +241,7 @@ func Run(config schedulerconfig.Configuration) error {
 	return g.Wait()
 }
 
-func createLeaderController(config schedulerconfig.LeaderConfig) (LeaderController, error) {
+func createLeaderController(config schedulerconfig.LeaderConfig, listeners ...LeaseListener) (LeaderController, error) {
 	switch mode := strings.ToLower(config.Mode); mode {
 	case "standalone":
 		log.Infof("Scheduler will run in standalone mode")
@@ -260,6 +260,9 @@ func createLeaderController(config schedulerconfig.LeaderConfig) (LeaderControll
 		leaderStatusMetrics := NewLeaderStatusMetricsCollector(config.PodName)
 		leaderController.RegisterListener(leaderStatusMetrics)
 		prometheus.MustRegister(leaderStatusMetrics)
+		for _, listener := range listeners {
+			leaderController.RegisterListener(listener)
+		}
 		return leaderController, nil
 	default:
 		return nil, errors.Errorf("%s is not a value leader mode", config.Mode)

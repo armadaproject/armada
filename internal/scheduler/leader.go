@@ -77,9 +77,11 @@ func (lc *StandaloneLeaderController) Run(ctx context.Context) error {
 // LeaseListener allows clients to listen for lease events.
 type LeaseListener interface {
 	// Called when the client has started leading.
-	onStartedLeading(context.Context)
+	OnStartedLeading(context.Context)
 	// Called when the client has stopped leading,
-	onStoppedLeading()
+	OnStoppedLeading()
+	// Called when a new leader has claimed the lease
+	OnNewLeader(identity string)
 }
 
 // KubernetesLeaderController uses the Kubernetes leader election mechanism to determine who is leader.
@@ -87,10 +89,10 @@ type LeaseListener interface {
 //
 // TODO: Move into package in common.
 type KubernetesLeaderController struct {
-	client   coordinationv1client.LeasesGetter
-	token    atomic.Value
-	config   schedulerconfig.LeaderConfig // TODO: Move necessary config into this struct.
-	listener LeaseListener
+	client    coordinationv1client.LeasesGetter
+	token     atomic.Value
+	config    schedulerconfig.LeaderConfig // TODO: Move necessary config into this struct.
+	listeners []LeaseListener
 }
 
 func NewKubernetesLeaderController(config schedulerconfig.LeaderConfig, client coordinationv1client.LeasesGetter) *KubernetesLeaderController {
@@ -104,7 +106,7 @@ func NewKubernetesLeaderController(config schedulerconfig.LeaderConfig, client c
 }
 
 func (lc *KubernetesLeaderController) RegisterListener(listener LeaseListener) {
-	lc.listener = listener
+	lc.listeners = append(lc.listeners, listener)
 }
 
 func (lc *KubernetesLeaderController) GetToken() LeaderToken {
@@ -140,19 +142,21 @@ func (lc *KubernetesLeaderController) Run(ctx context.Context) error {
 					OnStartedLeading: func(c context.Context) {
 						log.Infof("I am now leader")
 						lc.token.Store(NewLeaderToken())
-						if lc.listener != nil {
-							lc.listener.onStartedLeading(ctx)
+						for _, listener := range lc.listeners {
+							listener.OnStartedLeading(ctx)
 						}
 					},
 					OnStoppedLeading: func() {
 						log.Infof("I am no longer leader")
 						lc.token.Store(InvalidLeaderToken())
-						if lc.listener != nil {
-							lc.listener.onStoppedLeading()
+						for _, listener := range lc.listeners {
+							listener.OnStoppedLeading()
 						}
 					},
 					OnNewLeader: func(identity string) {
-
+						for _, listener := range lc.listeners {
+							listener.OnNewLeader(identity)
+						}
 					},
 				},
 			})

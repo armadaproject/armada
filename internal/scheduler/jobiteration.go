@@ -7,7 +7,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 )
 
@@ -47,13 +47,13 @@ func (it *InMemoryJobIterator) Next() (interfaces.LegacySchedulerJob, error) {
 type InMemoryJobRepository struct {
 	jobsByQueue     map[string][]interfaces.LegacySchedulerJob
 	jobsById        map[string]interfaces.LegacySchedulerJob
-	priorityClasses map[string]configuration.PriorityClass
+	priorityClasses map[string]types.PriorityClass
 	// If true, jobs are sorted first by priority class priority.
 	// If false, priority class is ignored when ordering jobs.
 	sortByPriorityClass bool
 }
 
-func NewInMemoryJobRepository(priorityClasses map[string]configuration.PriorityClass) *InMemoryJobRepository {
+func NewInMemoryJobRepository(priorityClasses map[string]types.PriorityClass) *InMemoryJobRepository {
 	return &InMemoryJobRepository{
 		jobsByQueue:         make(map[string][]interfaces.LegacySchedulerJob),
 		jobsById:            make(map[string]interfaces.LegacySchedulerJob),

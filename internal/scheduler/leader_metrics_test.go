@@ -31,13 +31,13 @@ func TestLeaderStatusMetrics_HandlesLeaderChanges(t *testing.T) {
 	assert.Equal(t, actual[0], isNotLeaderMetric)
 
 	// start leading
-	collector.onStartedLeading(context.Background())
+	collector.OnStartedLeading(context.Background())
 	actual = getCurrentMetrics(collector)
 	assert.Len(t, actual, 1)
 	assert.Equal(t, actual[0], isLeaderMetric)
 
 	// stop leading
-	collector.onStoppedLeading()
+	collector.OnStoppedLeading()
 	actual = getCurrentMetrics(collector)
 	assert.Len(t, actual, 1)
 	assert.Equal(t, actual[0], isNotLeaderMetric)

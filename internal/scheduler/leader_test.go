@@ -107,7 +107,7 @@ func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 			// Run the test
 			controller := NewKubernetesLeaderController(testLeaderConfig(), client)
 			testListener := NewTestLeaseListener(controller)
-			controller.listener = testListener
+			controller.RegisterListener(testListener)
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			go func() {
 				err := controller.Run(ctx)
@@ -184,12 +184,15 @@ func (t *TestLeaseListener) GetMessages() []LeaderToken {
 	return append([]LeaderToken(nil), t.tokens...)
 }
 
-func (t *TestLeaseListener) onStartedLeading(_ context.Context) {
+func (t *TestLeaseListener) OnStartedLeading(_ context.Context) {
 	t.handleNewToken()
 }
 
-func (t *TestLeaseListener) onStoppedLeading() {
+func (t *TestLeaseListener) OnStoppedLeading() {
 	t.handleNewToken()
+}
+
+func (t *TestLeaseListener) OnNewLeader(identity string) {
 }
 
 func (t *TestLeaseListener) handleNewToken() {

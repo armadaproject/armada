@@ -49,13 +49,17 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            {{- if  not ((.Values.scheduler.applicationConfig).leader).leaderConnectionUrl }}
+            - name: ARMADA_LEADER_LEADERCONNECTIONURL
+              value: "<name>.{{ include "armada-scheduler.name" . }}.{{ .Release.Namespace }}.svc.cluster.local"
+            {{- end }}
           {{- if .Values.scheduler.env }}
             {{- toYaml .Values.scheduler.env | nindent 12 -}}
           {{- end }}
           resources:
             {{- toYaml .Values.scheduler.resources | nindent 12 }}
           ports:
-            - containerPort: { { .Values.scheduler.applicationConfig.http.port } }
+            - containerPort: {{ .Values.scheduler.applicationConfig.http.port }}
               protocol: TCP
               name: http
             - containerPort:  {{ .Values.scheduler.applicationConfig.grpc.port }}

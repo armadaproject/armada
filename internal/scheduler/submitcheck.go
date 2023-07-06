@@ -16,6 +16,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/types"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -43,7 +44,7 @@ type SubmitScheduleChecker interface {
 
 type SubmitChecker struct {
 	executorTimeout           time.Duration
-	priorityClasses           map[string]configuration.PriorityClass
+	priorityClasses           map[string]types.PriorityClass
 	gangIdAnnotation          string
 	executorById              map[string]minimalExecutor
 	priorities                []int32

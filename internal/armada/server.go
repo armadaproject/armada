@@ -25,7 +25,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
-	reports "github.com/armadaproject/armada/internal/scheduler/reports"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
@@ -282,7 +281,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 			return errors.Wrapf(err, "error creating connection to scheduler api")
 		}
 		schedulerApiReportsClient := schedulerobjects.NewSchedulerReportingClient(schedulerApiConnection)
-		schedulingReportsServer = reports.NewProxyingSchedulingReportsServer(schedulerApiReportsClient)
+		schedulingReportsServer = scheduler.NewProxyingSchedulingReportsServer(schedulerApiReportsClient)
 	} else {
 		schedulingReportsServer = schedulingContextRepository
 	}

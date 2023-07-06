@@ -16,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/types"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -652,7 +653,7 @@ func (sch *PreemptingQueueScheduler) assertions(
 
 type Evictor struct {
 	jobRepo         JobRepository
-	priorityClasses map[string]configuration.PriorityClass
+	priorityClasses map[string]types.PriorityClass
 	nodeFilter      func(context.Context, *nodedb.Node) bool
 	jobFilter       func(context.Context, interfaces.LegacySchedulerJob) bool
 	postEvictFunc   func(context.Context, interfaces.LegacySchedulerJob, *nodedb.Node)
@@ -669,7 +670,7 @@ type EvictorResult struct {
 
 func NewNodeEvictor(
 	jobRepo JobRepository,
-	priorityClasses map[string]configuration.PriorityClass,
+	priorityClasses map[string]types.PriorityClass,
 	perNodeEvictionProbability float64,
 	jobFilter func(context.Context, interfaces.LegacySchedulerJob) bool,
 	random *rand.Rand,
@@ -695,7 +696,7 @@ func NewNodeEvictor(
 // on nodes for which nodeIdsToEvict[nodeId] is true.
 func NewFilteredEvictor(
 	jobRepo JobRepository,
-	priorityClasses map[string]configuration.PriorityClass,
+	priorityClasses map[string]types.PriorityClass,
 	nodeIdsToEvict map[string]bool,
 	jobIdsToEvict map[string]bool,
 ) *Evictor {
@@ -722,7 +723,7 @@ func NewFilteredEvictor(
 // with probability perNodeEvictionProbability.
 func NewOversubscribedEvictor(
 	jobRepo JobRepository,
-	priorityClasses map[string]configuration.PriorityClass,
+	priorityClasses map[string]types.PriorityClass,
 	defaultPriorityClass string,
 	perNodeEvictionProbability float64,
 	random *rand.Rand,

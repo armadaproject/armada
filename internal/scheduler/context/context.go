@@ -6,6 +6,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/openconfig/goyang/pkg/indent"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -32,7 +33,7 @@ type SchedulingContext struct {
 	// Resource pool of this executor.
 	Pool string
 	// Allowed priority classes.
-	PriorityClasses map[string]configuration.PriorityClass
+	PriorityClasses map[string]types.PriorityClass
 	// Default priority class.
 	DefaultPriorityClass string
 	// Determines how fairness is computed.
@@ -75,7 +76,7 @@ type SchedulingContext struct {
 func NewSchedulingContext(
 	executorId string,
 	pool string,
-	priorityClasses map[string]configuration.PriorityClass,
+	priorityClasses map[string]types.PriorityClass,
 	defaultPriorityClass string,
 	resourceScarcity map[string]float64,
 	totalResources schedulerobjects.ResourceList,
@@ -644,7 +645,7 @@ func (jctx *JobSchedulingContext) IsSuccessful() bool {
 	return jctx.UnschedulableReason == ""
 }
 
-func JobSchedulingContextsFromJobs[J interfaces.LegacySchedulerJob](priorityClasses map[string]configuration.PriorityClass, jobs []J) []*JobSchedulingContext {
+func JobSchedulingContextsFromJobs[J interfaces.LegacySchedulerJob](priorityClasses map[string]types.PriorityClass, jobs []J) []*JobSchedulingContext {
 	jctxs := make([]*JobSchedulingContext, len(jobs))
 	timestamp := time.Now()
 	for i, job := range jobs {

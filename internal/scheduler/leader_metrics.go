@@ -29,18 +29,21 @@ func NewLeaderStatusMetricsCollector(currentInstanceName string) *LeaderStatusMe
 	}
 }
 
-func (l *LeaderStatusMetricsCollector) onStartedLeading(context.Context) {
+func (l *LeaderStatusMetricsCollector) OnStartedLeading(context.Context) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 
 	l.isCurrentlyLeader = true
 }
 
-func (l *LeaderStatusMetricsCollector) onStoppedLeading() {
+func (l *LeaderStatusMetricsCollector) OnStoppedLeading() {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 
 	l.isCurrentlyLeader = false
+}
+
+func (l *LeaderStatusMetricsCollector) OnNewLeader(identity string) {
 }
 
 func (l *LeaderStatusMetricsCollector) isLeading() bool {
