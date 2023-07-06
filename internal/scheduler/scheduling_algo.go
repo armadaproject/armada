@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"github.com/sirupsen/logrus"
 	"math/rand"
 	"time"
 
@@ -10,9 +9,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/util/clock"
-
+	
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
