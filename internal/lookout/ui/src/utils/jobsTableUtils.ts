@@ -133,7 +133,6 @@ export const fetchJobGroups = async (
   columnsToAggregate: string[],
   abortSignal: AbortSignal,
 ) => {
-  console.log(rowRequest, columnsToAggregate)
   const { filters, skip, take, order } = rowRequest
   return await groupJobsService.groupJobs(filters, order, groupedColumn, columnsToAggregate, skip, take, abortSignal)
 }
