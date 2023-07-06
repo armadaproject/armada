@@ -2,6 +2,10 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/scheduler/nodedb"
+	"math"
 	"testing"
 	"time"
 
@@ -456,6 +460,47 @@ func TestSchedule(t *testing.T) {
 			for _, job := range scheduledJobs {
 				dbJob := jobDb.GetById(txn, job.Id())
 				assert.Equal(t, job, dbJob)
+			}
+		})
+	}
+}
+
+func BenchmarkNodeDbConstruction(b *testing.B) {
+	for e := 1; e <= 4; e++ {
+		numNodes := int(math.Pow10(e))
+		b.Run(fmt.Sprintf("%d nodes", numNodes), func(b *testing.B) {
+			jobs := testfixtures.N1Cpu4GiJobs("queue-alice", testfixtures.PriorityClass0, 32*numNodes)
+			nodes := testfixtures.N32CpuNodes(numNodes, testfixtures.TestPriorities)
+			for i, node := range nodes {
+				for j := 32 * i; j < 32*(i+1); j++ {
+					jobs[j] = jobs[j].WithNewRun("executor-01", node.Name)
+				}
+			}
+			armadaslices.Shuffle(jobs)
+			schedulingConfig := testfixtures.TestSchedulingConfig()
+			b.ResetTimer()
+			for n := 0; n < b.N; n++ {
+				b.StopTimer()
+				algo, err := NewFairSchedulingAlgo(
+					schedulingConfig,
+					time.Second*5,
+					nil,
+					nil,
+					nil,
+				)
+				require.NoError(b, err)
+				b.StartTimer()
+
+				nodeDb, err := nodedb.NewNodeDb(
+					schedulingConfig.Preemption.PriorityClasses,
+					schedulingConfig.MaxExtraNodesToConsider,
+					schedulingConfig.IndexedResources,
+					schedulingConfig.IndexedTaints,
+					schedulingConfig.IndexedNodeLabels,
+				)
+				require.NoError(b, err)
+				err = algo.addExecutorToNodeDb(nodeDb, jobs, nodes)
+				require.NoError(b, err)
 			}
 		})
 	}
