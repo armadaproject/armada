@@ -1,11 +1,12 @@
 package adapters
 
 import (
-	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/armadaproject/armada/internal/common/types"
 
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"

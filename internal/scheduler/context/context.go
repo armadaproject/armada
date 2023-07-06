@@ -6,7 +6,6 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/openconfig/goyang/pkg/indent"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -17,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/types"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"

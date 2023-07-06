@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func TestProxyingSchedulingReportsServer_GetJobReports(t *testing.T) {

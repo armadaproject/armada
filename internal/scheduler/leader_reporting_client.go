@@ -6,13 +6,13 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/armadaproject/armada/pkg/client"
+	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
-	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 const leaseHolderNameToken = "<name>"
