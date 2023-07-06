@@ -13,8 +13,8 @@ const (
 	// IsEvictedAnnotation is set on evicted jobs; the scheduler uses it to differentiate between
 	// already-running and queued jobs.
 	IsEvictedAnnotation = "armadaproject.io/isEvicted"
-	// NodeIdLabel is set on evicted jobs, so that the scheduler only tries to schedule them on the
-	// nodes that they are already running on; nodedb is responsible for labelling its Node objects.
+	// NodeIdLabel maps to a unique id associated with each node.
+	// This label is automatically added to nodes within the NodeDb.
 	NodeIdLabel = "armadaproject.io/nodeId"
 )
 
@@ -33,6 +33,7 @@ type Configuration struct {
 	Scheduling configuration.SchedulingConfig
 	Auth       authconfig.AuthConfig
 	Grpc       grpcconfig.GrpcConfig
+	Http       HttpConfig
 	// Maximum number of strings that should be cached at any one time
 	InternedStringsCacheSize uint32 `validate:"required"`
 	// How often the scheduling cycle should run
@@ -67,4 +68,8 @@ type LeaderConfig struct {
 	RenewDeadline time.Duration
 	// RetryPeriod is the duration the LeaderElector clients should waite between tries of actions.
 	RetryPeriod time.Duration
+}
+
+type HttpConfig struct {
+	Port int `validate:"required"`
 }
