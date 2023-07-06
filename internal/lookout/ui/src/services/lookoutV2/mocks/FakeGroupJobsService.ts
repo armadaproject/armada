@@ -28,7 +28,7 @@ export default class FakeGroupJobsService implements IGroupJobsService {
   }
 }
 
-type AggregateType = "Max" | "Average"
+type AggregateType = "Max" | "Average" | "State Counts"
 
 type AggregateField = {
   field: JobKey
@@ -38,6 +38,7 @@ type AggregateField = {
 const aggregateFieldMap = new Map<string, AggregateField>([
   ["submitted", { field: "submitted", aggregateType: "Max" }],
   ["lastTransitionTime", { field: "lastTransitionTime", aggregateType: "Average" }],
+  ["state", { field: "state", aggregateType: "State Counts" }],
 ])
 
 function groupBy(jobs: Job[], groupedField: GroupedField, aggregates: string[]): JobGroup[] {
@@ -58,21 +59,31 @@ function groupBy(jobs: Job[], groupedField: GroupedField, aggregates: string[]):
     }
   }
   return Array.from(groups.entries()).map(([groupName, jobs]) => {
-    const computedAggregates: Record<string, string> = {}
+    const computedAggregates: Record<string, string | Record<string, number>> = {}
     for (const aggregate of aggregates) {
       if (!aggregateFieldMap.has(aggregate)) {
         continue
       }
       const aggregateField = aggregateFieldMap.get(aggregate) as AggregateField
-      const values = jobs.map((job) => new Date(job[aggregateField.field] as string).getTime())
       switch (aggregateField.aggregateType) {
         case "Max":
-          const max = Math.max(...values)
+          const max = Math.max(...jobs.map((job) => new Date(job[aggregateField.field] as string).getTime()))
           computedAggregates[aggregateField.field] = new Date(max).toISOString()
           break
         case "Average":
+          const values = jobs.map((job) => new Date(job[aggregateField.field] as string).getTime())
           const avg = values.reduce((a, b) => a + b, 0) / values.length
           computedAggregates[aggregateField.field] = new Date(avg).toISOString()
+          break
+        case "State Counts":
+          const stateCounts: Record<string, number> = {}
+          for (const job of jobs) {
+            if (!(job.state in stateCounts)) {
+              stateCounts[job.state] = 0
+            }
+            stateCounts[job.state] += 1
+          }
+          computedAggregates[aggregateField.field] = stateCounts
           break
         default:
           console.error(`aggregate type not found: ${aggregateField.aggregateType}`)
@@ -89,7 +100,7 @@ function groupBy(jobs: Job[], groupedField: GroupedField, aggregates: string[]):
 
 function comparator(order: JobOrder): (a: JobGroup, b: JobGroup) => number {
   return (a, b) => {
-    let accessor: (group: JobGroup) => string | number | undefined = () => undefined
+    let accessor: (group: JobGroup) => string | number | Record<string, number> | undefined = () => undefined
     if (order.field === "count") {
       accessor = (group: JobGroup) => group.count
     } else if (order.field === "name") {
