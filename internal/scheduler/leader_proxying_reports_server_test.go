@@ -262,8 +262,8 @@ func (f *FakeSchedulerReportingServer) GetSchedulingReport(ctx context.Context, 
 func (f *FakeSchedulerReportingServer) GetQueueReport(ctx context.Context, request *schedulerobjects.QueueReportRequest) (*schedulerobjects.QueueReport, error) {
 	f.GetQueueReportCalls = append(f.GetQueueReportCalls, GetQueueReportCall{Context: ctx, Request: request})
 	return f.GetQueueReportResponse, f.Err
-
 }
+
 func (f *FakeSchedulerReportingServer) GetJobReport(ctx context.Context, request *schedulerobjects.JobReportRequest) (*schedulerobjects.JobReport, error) {
 	f.GetJobReportCalls = append(f.GetJobReportCalls, GetJobReportCall{Context: ctx, Request: request})
 	return f.GetJobReportResponse, f.Err

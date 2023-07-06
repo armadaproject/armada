@@ -16,7 +16,8 @@ type LeaderProxyingSchedulingReportsServer struct {
 func NewLeaderProxyingSchedulingReportsServer(
 	schedulingReportsRepository schedulerobjects.SchedulerReportingServer,
 	leaderController LeaderController,
-	leaderClientProvider LeaderSchedulingReportClientProvider) *LeaderProxyingSchedulingReportsServer {
+	leaderClientProvider LeaderSchedulingReportClientProvider,
+) *LeaderProxyingSchedulingReportsServer {
 	return &LeaderProxyingSchedulingReportsServer{
 		leaderClientProvider: leaderClientProvider,
 		localReportsServer:   schedulingReportsRepository,
