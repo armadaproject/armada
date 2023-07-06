@@ -211,10 +211,14 @@ func setupLeaderProxyingSchedulerReportsServerTest(t *testing.T) (*LeaderProxyin
 	jobReportsServer := NewFakeSchedulerReportingServer()
 	jobReportsClient := NewFakeSchedulerReportingClient()
 	clientProvider := NewFakeClientProvider()
-	clientProvider.Client = jobReportsClient
+
 	leaderController := &FakeLeaderController{IsCurrentlyLeader: true}
 
 	reportsServer := NewLeaderProxyingSchedulingReportsServer(jobReportsServer, leaderController, clientProvider)
+
+	schedulingReportsClientProvider := NewFakeSchedulerReportingClientProvider()
+	schedulingReportsClientProvider.Client = jobReportsClient
+	reportsServer.schedulerReportingClientProvider = schedulingReportsClientProvider
 
 	return reportsServer, leaderController, jobReportsServer, jobReportsClient
 }
@@ -305,16 +309,27 @@ func (f *FakeSchedulerReportingClient) GetJobReport(ctx context.Context, request
 }
 
 type FakeClientProvider struct {
-	Client schedulerobjects.SchedulerReportingClient
-	Error  error
+	Error error
 }
 
 func NewFakeClientProvider() *FakeClientProvider {
 	return &FakeClientProvider{}
 }
 
-func (f *FakeClientProvider) GetCurrentLeaderClient() (schedulerobjects.SchedulerReportingClient, error) {
-	return f.Client, f.Error
+func (f *FakeClientProvider) GetCurrentLeaderClientConnection() (*grpc.ClientConn, error) {
+	return &grpc.ClientConn{}, f.Error
+}
+
+type FakeSchedulerReportingClientProvider struct {
+	Client schedulerobjects.SchedulerReportingClient
+}
+
+func NewFakeSchedulerReportingClientProvider() *FakeSchedulerReportingClientProvider {
+	return &FakeSchedulerReportingClientProvider{}
+}
+
+func (f *FakeSchedulerReportingClientProvider) GetSchedulerReportingClient(conn *grpc.ClientConn) schedulerobjects.SchedulerReportingClient {
+	return f.Client
 }
 
 type FakeLeaderController struct {

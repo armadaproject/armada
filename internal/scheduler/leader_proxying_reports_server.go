@@ -5,23 +5,26 @@ import (
 	"fmt"
 
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"google.golang.org/grpc"
 )
 
 type LeaderProxyingSchedulingReportsServer struct {
-	localReportsServer   schedulerobjects.SchedulerReportingServer
-	leaderClientProvider LeaderSchedulingReportClientProvider
-	leaderController     LeaderController
+	localReportsServer               schedulerobjects.SchedulerReportingServer
+	leaderClientProvider             LeaderClientConnectionProvider
+	leaderController                 LeaderController
+	schedulerReportingClientProvider reportingClientProvider
 }
 
 func NewLeaderProxyingSchedulingReportsServer(
 	schedulingReportsRepository schedulerobjects.SchedulerReportingServer,
 	leaderController LeaderController,
-	leaderClientProvider LeaderSchedulingReportClientProvider,
+	leaderClientProvider LeaderClientConnectionProvider,
 ) *LeaderProxyingSchedulingReportsServer {
 	return &LeaderProxyingSchedulingReportsServer{
-		leaderClientProvider: leaderClientProvider,
-		localReportsServer:   schedulingReportsRepository,
-		leaderController:     leaderController,
+		leaderClientProvider:             leaderClientProvider,
+		localReportsServer:               schedulingReportsRepository,
+		leaderController:                 leaderController,
+		schedulerReportingClientProvider: &schedulerReportingClientProvider{},
 	}
 }
 
@@ -59,13 +62,26 @@ func (s *LeaderProxyingSchedulingReportsServer) GetJobReport(ctx context.Context
 }
 
 func (s *LeaderProxyingSchedulingReportsServer) getLeaderClient() (schedulerobjects.SchedulerReportingClient, error) {
-	leaderClient, err := s.leaderClientProvider.GetCurrentLeaderClient()
-	if leaderClient == nil && err == nil {
+	leaderConnection, err := s.leaderClientProvider.GetCurrentLeaderClientConnection()
+	if err != nil {
+		return nil, err
+	}
+	if leaderConnection == nil {
 		return nil, fmt.Errorf("no client found for leader, unable to retrieve reports")
 	}
-	return leaderClient, err
+	return s.schedulerReportingClientProvider.GetSchedulerReportingClient(leaderConnection), nil
 }
 
 func (s *LeaderProxyingSchedulingReportsServer) isCurrentProcessLeader() bool {
 	return s.leaderController.ValidateToken(s.leaderController.GetToken())
+}
+
+type reportingClientProvider interface {
+	GetSchedulerReportingClient(conn *grpc.ClientConn) schedulerobjects.SchedulerReportingClient
+}
+
+type schedulerReportingClientProvider struct{}
+
+func (s *schedulerReportingClientProvider) GetSchedulerReportingClient(conn *grpc.ClientConn) schedulerobjects.SchedulerReportingClient {
+	return schedulerobjects.NewSchedulerReportingClient(conn)
 }

@@ -100,8 +100,8 @@ func Run(config schedulerconfig.Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	// Leader Election
 	//////////////////////////////////////////////////////////////////////////
-	leaderJobReportsClientProvider := NewKubernetesLeaderSchedulingReportClientProvider(config.Leader)
-	leaderController, err := createLeaderController(config.Leader, leaderJobReportsClientProvider)
+	leaderClientConnectionProvider := NewLeaderConnectionProvider(config.Leader)
+	leaderController, err := createLeaderController(config.Leader, leaderClientConnectionProvider)
 	if err != nil {
 		return errors.WithMessage(err, "error creating leader controller")
 	}
@@ -180,7 +180,7 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithMessage(err, "error creating scheduling context repository")
 	}
 
-	schedulingReportServer := NewLeaderProxyingSchedulingReportsServer(schedulingContextRepository, leaderController, leaderJobReportsClientProvider)
+	schedulingReportServer := NewLeaderProxyingSchedulingReportsServer(schedulingContextRepository, leaderController, leaderClientConnectionProvider)
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportServer)
 
 	schedulingAlgo, err := NewFairSchedulingAlgo(
