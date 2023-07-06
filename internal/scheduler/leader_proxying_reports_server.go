@@ -4,8 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"google.golang.org/grpc"
+
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 type LeaderProxyingSchedulingReportsServer struct {

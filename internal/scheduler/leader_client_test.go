@@ -3,9 +3,10 @@ package scheduler
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/pkg/client"
-	"github.com/stretchr/testify/assert"
 )
 
 const currentProcessPodName = "current-process-name"
