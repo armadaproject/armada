@@ -118,6 +118,14 @@ func MapAndGroupByFuncs[S ~[]E, E any, K comparable, V any](s S, keyFunc func(E)
 	return rv
 }
 
+// Pop removes the last item from s and returns it.
+// Calling pop on an empty slice causes a panic.
+func Pop[S ~[]E, E any](s *S) E {
+	v := (*s)[len(*s)-1]
+	*s = (*s)[:len(*s)-1]
+	return v
+}
+
 func Subtract[T comparable](list []T, toRemove []T) []T {
 	if list == nil {
 		return nil
