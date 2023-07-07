@@ -10,7 +10,7 @@ pulsarSchedulerEnabled: false
 probabilityOfUsingPulsarScheduler: 0
 ignoreJobSubmitChecks: false
 schedulerApiConnection:
-  armadaUrl: "server:50052"
+  armadaUrl: "localhost:50052"
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m
