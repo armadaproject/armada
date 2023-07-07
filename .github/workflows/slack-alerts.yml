@@ -2,7 +2,7 @@ name: Slack CI Alerts
 
 on:
   workflow_run:
-    workflows: [Go Tests, Go End to End, Python Airflow Operator, Release Armada components, Release Armada components - RC, Build Release Images, Code Coverage, "CodeQL"]
+    workflows: [CI, Python Airflow Operator, Build Release Images]
     types: [completed]
 
 jobs:
@@ -26,7 +26,8 @@ jobs:
     if: github.event.workflow_run.conclusion == 'failure' && github.event.workflow_run.event == 'pull_request'
     steps:
       - uses: actions/checkout@v3
-      - uses: Mo-Fatah/ci-alerts@v1
+      - name: "Pull Request Notification"
+        uses: Mo-Fatah/ci-alerts@v1
         env: 
           webhook: ${{ secrets.SLACK_WEBHOOK }}
           event: pr
