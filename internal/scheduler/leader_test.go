@@ -192,9 +192,6 @@ func (t *TestLeaseListener) OnStoppedLeading() {
 	t.handleNewToken()
 }
 
-func (t *TestLeaseListener) OnNewLeader(identity string) {
-}
-
 func (t *TestLeaseListener) handleNewToken() {
 	t.mutex.Lock()
 	token := t.lc.GetToken()

@@ -43,9 +43,6 @@ func (l *LeaderStatusMetricsCollector) OnStoppedLeading() {
 	l.isCurrentlyLeader = false
 }
 
-func (l *LeaderStatusMetricsCollector) OnNewLeader(identity string) {
-}
-
 func (l *LeaderStatusMetricsCollector) isLeading() bool {
 	l.lock.Lock()
 	defer l.lock.Unlock()
