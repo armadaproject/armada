@@ -92,9 +92,9 @@ func (lc *StandaloneLeaderController) Run(ctx context.Context) error {
 // LeaseListener allows clients to listen for lease events.
 type LeaseListener interface {
 	// Called when the client has started leading.
-	OnStartedLeading(context.Context)
+	onStartedLeading(context.Context)
 	// Called when the client has stopped leading,
-	OnStoppedLeading()
+	onStoppedLeading()
 }
 
 // KubernetesLeaderController uses the Kubernetes leader election mechanism to determine who is leader.
@@ -159,14 +159,14 @@ func (lc *KubernetesLeaderController) Run(ctx context.Context) error {
 						log.Infof("I am now leader")
 						lc.token.Store(NewLeaderToken())
 						for _, listener := range lc.listeners {
-							listener.OnStartedLeading(ctx)
+							listener.onStartedLeading(ctx)
 						}
 					},
 					OnStoppedLeading: func() {
 						log.Infof("I am no longer leader")
 						lc.token.Store(InvalidLeaderToken())
 						for _, listener := range lc.listeners {
-							listener.OnStoppedLeading()
+							listener.onStoppedLeading()
 						}
 					},
 					OnNewLeader: func(identity string) {

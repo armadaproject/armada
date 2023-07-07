@@ -184,11 +184,11 @@ func (t *TestLeaseListener) GetMessages() []LeaderToken {
 	return append([]LeaderToken(nil), t.tokens...)
 }
 
-func (t *TestLeaseListener) OnStartedLeading(_ context.Context) {
+func (t *TestLeaseListener) onStartedLeading(_ context.Context) {
 	t.handleNewToken()
 }
 
-func (t *TestLeaseListener) OnStoppedLeading() {
+func (t *TestLeaseListener) onStoppedLeading() {
 	t.handleNewToken()
 }
 
