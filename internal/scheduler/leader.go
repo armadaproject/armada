@@ -173,7 +173,7 @@ func (lc *KubernetesLeaderController) Run(ctx context.Context) error {
 					},
 					OnNewLeader: func(identity string) {
 						lc.currentLeaderLock.Lock()
-						lc.currentLeader = lc.currentLeader
+						lc.currentLeader = identity
 						lc.currentLeaderLock.Unlock()
 						for _, listener := range lc.listeners {
 							listener.OnNewLeader(identity)
