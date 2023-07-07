@@ -49,8 +49,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-            {{- if  not ((.Values.scheduler.applicationConfig).leader).leaderConnectionUrl }}
-            - name: ARMADA_LEADER_LEADERCONNECTIONURL
+            {{- if  not (((.Values.scheduler.applicationConfig).leader).leaderConnection).armadaUrl }}
+            - name: ARMADA_LEADER_LEADERCONNECTION_ARMADAURL
               value: "<name>.{{ include "armada-scheduler.name" . }}.{{ .Release.Namespace }}.svc.cluster.local"
             {{- end }}
           {{- if .Values.scheduler.env }}

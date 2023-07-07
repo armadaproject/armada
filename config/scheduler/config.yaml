@@ -38,7 +38,7 @@ leader:
   retryPeriod: 2s
   podName: "" # This must be set so viper allows env vars to overwrite it
   leaderConnection:
-    armadaUrl: "localhost:50052" # <name> will get replaced with the lease owners name
+    armadaUrl: "" # <name> will get replaced with the lease owners name
 http:
   port: 8080
 grpc:
