@@ -55,7 +55,7 @@ spec:
           resources:
             {{- toYaml .Values.scheduler.resources | nindent 12 }}
           ports:
-            - containerPort: { { .Values.scheduler.applicationConfig.http.port } }
+            - containerPort: {{ .Values.scheduler.applicationConfig.http.port }}
               protocol: TCP
               name: http
             - containerPort:  {{ .Values.scheduler.applicationConfig.grpc.port }}
