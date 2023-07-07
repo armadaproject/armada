@@ -7,6 +7,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/types"
 )
 
 func ValidatePodSpec(spec *v1.PodSpec, schedulingConfig *configuration.SchedulingConfig) error {
@@ -160,7 +161,7 @@ func validatePorts(podSpec *v1.PodSpec) error {
 	return nil
 }
 
-func validatePodSpecPriorityClass(podSpec *v1.PodSpec, preemptionEnabled bool, allowedPriorityClasses map[string]configuration.PriorityClass) error {
+func validatePodSpecPriorityClass(podSpec *v1.PodSpec, preemptionEnabled bool, allowedPriorityClasses map[string]types.PriorityClass) error {
 	priorityClassName := podSpec.PriorityClassName
 	if priorityClassName != "" {
 		if !preemptionEnabled {
