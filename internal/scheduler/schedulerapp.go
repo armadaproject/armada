@@ -100,8 +100,7 @@ func Run(config schedulerconfig.Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	// Leader Election
 	//////////////////////////////////////////////////////////////////////////
-	leaderClientConnectionProvider := NewLeaderConnectionProvider(config.Leader)
-	leaderController, err := createLeaderController(config.Leader, leaderClientConnectionProvider)
+	leaderController, err := createLeaderController(config.Leader)
 	if err != nil {
 		return errors.WithMessage(err, "error creating leader controller")
 	}
@@ -180,7 +179,8 @@ func Run(config schedulerconfig.Configuration) error {
 		return errors.WithMessage(err, "error creating scheduling context repository")
 	}
 
-	schedulingReportServer := NewLeaderProxyingSchedulingReportsServer(schedulingContextRepository, leaderController, leaderClientConnectionProvider)
+	leaderClientConnectionProvider := NewLeaderConnectionProvider(leaderController, config.Leader)
+	schedulingReportServer := NewLeaderProxyingSchedulingReportsServer(schedulingContextRepository, leaderClientConnectionProvider)
 	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportServer)
 
 	schedulingAlgo, err := NewFairSchedulingAlgo(
@@ -241,7 +241,7 @@ func Run(config schedulerconfig.Configuration) error {
 	return g.Wait()
 }
 
-func createLeaderController(config schedulerconfig.LeaderConfig, listeners ...LeaseListener) (LeaderController, error) {
+func createLeaderController(config schedulerconfig.LeaderConfig) (LeaderController, error) {
 	switch mode := strings.ToLower(config.Mode); mode {
 	case "standalone":
 		log.Infof("Scheduler will run in standalone mode")
@@ -260,9 +260,6 @@ func createLeaderController(config schedulerconfig.LeaderConfig, listeners ...Le
 		leaderStatusMetrics := NewLeaderStatusMetricsCollector(config.PodName)
 		leaderController.RegisterListener(leaderStatusMetrics)
 		prometheus.MustRegister(leaderStatusMetrics)
-		for _, listener := range listeners {
-			leaderController.RegisterListener(listener)
-		}
 		return leaderController, nil
 	default:
 		return nil, errors.Errorf("%s is not a value leader mode", config.Mode)

@@ -51,8 +51,8 @@ func TestLeaderProxyingSchedulingReportsServer_GetJobReports(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			sut, leaderController, jobReportsServer, jobReportsClient := setupLeaderProxyingSchedulerReportsServerTest(t)
-			leaderController.IsCurrentlyLeader = tc.isCurrentProcessLeader
+			sut, clientProvider, jobReportsServer, jobReportsClient := setupLeaderProxyingSchedulerReportsServerTest(t)
+			clientProvider.IsCurrentProcessLeader = tc.isCurrentProcessLeader
 
 			request := &schedulerobjects.JobReportRequest{JobId: "job-1"}
 
@@ -116,8 +116,8 @@ func TestLeaderProxyingSchedulingReportsServer_GetSchedulingReport(t *testing.T)
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			sut, leaderController, jobReportsServer, jobReportsClient := setupLeaderProxyingSchedulerReportsServerTest(t)
-			leaderController.IsCurrentlyLeader = tc.isCurrentProcessLeader
+			sut, clientProvider, jobReportsServer, jobReportsClient := setupLeaderProxyingSchedulerReportsServerTest(t)
+			clientProvider.IsCurrentProcessLeader = tc.isCurrentProcessLeader
 
 			request := &schedulerobjects.SchedulingReportRequest{Verbosity: int32(1)}
 
@@ -181,8 +181,8 @@ func TestLeaderProxyingSchedulingReportsServer_GetQueueReport(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 
-			sut, leaderController, jobReportsServer, jobReportsClient := setupLeaderProxyingSchedulerReportsServerTest(t)
-			leaderController.IsCurrentlyLeader = tc.isCurrentProcessLeader
+			sut, clientProvider, jobReportsServer, jobReportsClient := setupLeaderProxyingSchedulerReportsServerTest(t)
+			clientProvider.IsCurrentProcessLeader = tc.isCurrentProcessLeader
 
 			request := &schedulerobjects.QueueReportRequest{Verbosity: int32(1), QueueName: "queue-1"}
 
@@ -207,20 +207,18 @@ func TestLeaderProxyingSchedulingReportsServer_GetQueueReport(t *testing.T) {
 	}
 }
 
-func setupLeaderProxyingSchedulerReportsServerTest(t *testing.T) (*LeaderProxyingSchedulingReportsServer, *FakeLeaderController, *FakeSchedulerReportingServer, *FakeSchedulerReportingClient) {
+func setupLeaderProxyingSchedulerReportsServerTest(t *testing.T) (*LeaderProxyingSchedulingReportsServer, *FakeClientProvider, *FakeSchedulerReportingServer, *FakeSchedulerReportingClient) {
 	jobReportsServer := NewFakeSchedulerReportingServer()
 	jobReportsClient := NewFakeSchedulerReportingClient()
 	clientProvider := NewFakeClientProvider()
 
-	leaderController := &FakeLeaderController{IsCurrentlyLeader: true}
-
-	reportsServer := NewLeaderProxyingSchedulingReportsServer(jobReportsServer, leaderController, clientProvider)
+	reportsServer := NewLeaderProxyingSchedulingReportsServer(jobReportsServer, clientProvider)
 
 	schedulingReportsClientProvider := NewFakeSchedulerReportingClientProvider()
 	schedulingReportsClientProvider.Client = jobReportsClient
 	reportsServer.schedulerReportingClientProvider = schedulingReportsClientProvider
 
-	return reportsServer, leaderController, jobReportsServer, jobReportsClient
+	return reportsServer, clientProvider, jobReportsServer, jobReportsClient
 }
 
 type GetSchedulingReportCall struct {
@@ -309,15 +307,16 @@ func (f *FakeSchedulerReportingClient) GetJobReport(ctx context.Context, request
 }
 
 type FakeClientProvider struct {
-	Error error
+	Error                  error
+	IsCurrentProcessLeader bool
 }
 
 func NewFakeClientProvider() *FakeClientProvider {
 	return &FakeClientProvider{}
 }
 
-func (f *FakeClientProvider) GetCurrentLeaderClientConnection() (*grpc.ClientConn, error) {
-	return &grpc.ClientConn{}, f.Error
+func (f *FakeClientProvider) GetCurrentLeaderClientConnection() (bool, *grpc.ClientConn, error) {
+	return f.IsCurrentProcessLeader, &grpc.ClientConn{}, f.Error
 }
 
 type FakeSchedulerReportingClientProvider struct {
@@ -330,20 +329,4 @@ func NewFakeSchedulerReportingClientProvider() *FakeSchedulerReportingClientProv
 
 func (f *FakeSchedulerReportingClientProvider) GetSchedulerReportingClient(conn *grpc.ClientConn) schedulerobjects.SchedulerReportingClient {
 	return f.Client
-}
-
-type FakeLeaderController struct {
-	IsCurrentlyLeader bool
-}
-
-func (f *FakeLeaderController) GetToken() LeaderToken {
-	return NewLeaderToken()
-}
-
-func (f *FakeLeaderController) ValidateToken(tok LeaderToken) bool {
-	return f.IsCurrentlyLeader
-}
-
-func (f *FakeLeaderController) Run(ctx context.Context) error {
-	return nil
 }

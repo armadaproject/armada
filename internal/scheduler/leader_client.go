@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -17,37 +16,37 @@ import (
 const leaseHolderNameToken = "<name>"
 
 type LeaderClientConnectionProvider interface {
-	GetCurrentLeaderClientConnection() (*grpc.ClientConn, error)
+	GetCurrentLeaderClientConnection() (bool, *grpc.ClientConn, error)
 }
 
 type LeaderConnectionProvider struct {
-	currentLeaderName string
-	leaderConfig      configuration.LeaderConfig
-	connectionLock    sync.Mutex
-	connectionByName  map[string]*grpc.ClientConn
+	leaderController LeaderController
+	leaderConfig     configuration.LeaderConfig
+	connectionLock   sync.Mutex
+	connectionByName map[string]*grpc.ClientConn
 }
 
-func NewLeaderConnectionProvider(leaderConfig configuration.LeaderConfig) *LeaderConnectionProvider {
+func NewLeaderConnectionProvider(leaderController LeaderController, leaderConfig configuration.LeaderConfig) *LeaderConnectionProvider {
 	return &LeaderConnectionProvider{
-		leaderConfig:      leaderConfig,
-		connectionLock:    sync.Mutex{},
-		currentLeaderName: "",
-		connectionByName:  map[string]*grpc.ClientConn{},
+		leaderController: leaderController,
+		leaderConfig:     leaderConfig,
+		connectionLock:   sync.Mutex{},
+		connectionByName: map[string]*grpc.ClientConn{},
 	}
 }
 
-func (l *LeaderConnectionProvider) GetCurrentLeaderClientConnection() (*grpc.ClientConn, error) {
-	currentLeader := l.currentLeaderName
-	if currentLeader == "" {
-		return nil, fmt.Errorf("no leader found to retrieve scheduling reports from")
+func (l *LeaderConnectionProvider) GetCurrentLeaderClientConnection() (bool, *grpc.ClientConn, error) {
+	currentLeader := l.leaderController.GetLeaderReport()
+
+	if currentLeader.IsCurrentProcessLeader {
+		return true, nil, nil
+	}
+	if currentLeader.LeaderName == "" {
+		return false, nil, fmt.Errorf("no leader found to retrieve scheduling reports from")
 	}
 
-	if currentLeader == l.leaderConfig.PodName {
-		return nil, nil
-	}
-
-	leaderClient, err := l.getClientByName(currentLeader)
-	return leaderClient, err
+	leaderClient, err := l.getClientByName(currentLeader.LeaderName)
+	return false, leaderClient, err
 }
 
 func (l *LeaderConnectionProvider) getClientByName(currentLeaderName string) (*grpc.ClientConn, error) {
@@ -68,16 +67,6 @@ func (l *LeaderConnectionProvider) getClientByName(currentLeaderName string) (*g
 
 	l.connectionByName[currentLeaderName] = apiConnection
 	return apiConnection, nil
-}
-
-func (l *LeaderConnectionProvider) OnStartedLeading(context.Context) {
-}
-
-func (l *LeaderConnectionProvider) OnStoppedLeading() {
-}
-
-func (l *LeaderConnectionProvider) OnNewLeader(identity string) {
-	l.currentLeaderName = identity
 }
 
 func createApiConnection(connectionDetails client.ApiConnectionDetails) (*grpc.ClientConn, error) {

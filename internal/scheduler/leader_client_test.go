@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,44 +27,77 @@ var templatedLeader = configuration.LeaderConfig{
 }
 
 func TestGetCurrentLeaderClientConnection(t *testing.T) {
-	clientProvider := NewLeaderConnectionProvider(defaultLeaderConfig)
-	clientProvider.OnNewLeader("new-leader")
+	leaderController := &FakeLeaderController{}
+	clientProvider := NewLeaderConnectionProvider(leaderController, defaultLeaderConfig)
+	leaderController.LeaderName = "new-leader"
 
-	result, err := clientProvider.GetCurrentLeaderClientConnection()
+	isCurrentProcessLeader, result, err := clientProvider.GetCurrentLeaderClientConnection()
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
+	assert.False(t, isCurrentProcessLeader)
 	assert.Equal(t, result.Target(), defaultLeaderConfig.LeaderConnection.ArmadaUrl)
 }
 
 func TestGetCurrentLeaderClientConnection_WithTemplatedConnection(t *testing.T) {
-	clientProvider := NewLeaderConnectionProvider(templatedLeader)
+	leaderController := &FakeLeaderController{}
+	clientProvider := NewLeaderConnectionProvider(leaderController, templatedLeader)
 
-	clientProvider.OnNewLeader("new-leader")
-	result, err := clientProvider.GetCurrentLeaderClientConnection()
+	leaderController.LeaderName = "new-leader"
+	isCurrentProcessLeader, result, err := clientProvider.GetCurrentLeaderClientConnection()
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
+	assert.False(t, isCurrentProcessLeader)
 	assert.Equal(t, result.Target(), "new-leader.localhost:50052")
 
-	clientProvider.OnNewLeader("new-leader-2")
-	result, err = clientProvider.GetCurrentLeaderClientConnection()
+	leaderController.LeaderName = "new-leader-2"
+	isCurrentProcessLeader, result, err = clientProvider.GetCurrentLeaderClientConnection()
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
+	assert.False(t, isCurrentProcessLeader)
 	assert.Equal(t, result.Target(), "new-leader-2.localhost:50052")
 }
 
 func TestGetCurrentLeaderClientConnection_NoLeader(t *testing.T) {
-	clientProvider := NewLeaderConnectionProvider(defaultLeaderConfig)
+	leaderController := &FakeLeaderController{}
+	clientProvider := NewLeaderConnectionProvider(leaderController, defaultLeaderConfig)
 
-	result, err := clientProvider.GetCurrentLeaderClientConnection()
+	isCurrentProcessLeader, result, err := clientProvider.GetCurrentLeaderClientConnection()
 	assert.Nil(t, result)
 	assert.Error(t, err)
+	assert.False(t, isCurrentProcessLeader)
 }
 
 func TestGetCurrentLeaderClientConnection_OnCurrentProcessIsLeader(t *testing.T) {
-	clientProvider := NewLeaderConnectionProvider(defaultLeaderConfig)
-	clientProvider.OnNewLeader(currentProcessPodName)
+	leaderController := &FakeLeaderController{}
+	clientProvider := NewLeaderConnectionProvider(leaderController, defaultLeaderConfig)
+	leaderController.IsCurrentlyLeader = true
 
-	result, err := clientProvider.GetCurrentLeaderClientConnection()
+	isCurrentProcessLeader, result, err := clientProvider.GetCurrentLeaderClientConnection()
 	assert.Nil(t, result)
 	assert.NoError(t, err)
+	assert.True(t, isCurrentProcessLeader)
+}
+
+type FakeLeaderController struct {
+	IsCurrentlyLeader bool
+	LeaderName        string
+}
+
+func (f *FakeLeaderController) GetToken() LeaderToken {
+	return NewLeaderToken()
+}
+
+func (f *FakeLeaderController) ValidateToken(tok LeaderToken) bool {
+	return f.IsCurrentlyLeader
+}
+
+func (f *FakeLeaderController) Run(ctx context.Context) error {
+	return nil
+}
+
+func (f *FakeLeaderController) GetLeaderReport() LeaderReport {
+	return LeaderReport{
+		LeaderName:             f.LeaderName,
+		IsCurrentProcessLeader: f.IsCurrentlyLeader,
+	}
 }

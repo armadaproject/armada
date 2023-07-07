@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 
 	"github.com/google/uuid"
@@ -23,6 +24,13 @@ type LeaderController interface {
 	ValidateToken(tok LeaderToken) bool
 	// Run starts the controller.  This is a blocking call which will return when the provided context is cancelled
 	Run(ctx context.Context) error
+	// GetLeaderReport returns a report about the current leader
+	GetLeaderReport() LeaderReport
+}
+
+type LeaderReport struct {
+	IsCurrentProcessLeader bool
+	LeaderName             string
 }
 
 // LeaderToken is a token handed out to schedulers which they can use to determine if they are leader
@@ -63,6 +71,13 @@ func (lc *StandaloneLeaderController) GetToken() LeaderToken {
 	return lc.token
 }
 
+func (lc *StandaloneLeaderController) GetLeaderReport() LeaderReport {
+	return LeaderReport{
+		LeaderName:             "standalone",
+		IsCurrentProcessLeader: true,
+	}
+}
+
 func (lc *StandaloneLeaderController) ValidateToken(tok LeaderToken) bool {
 	if tok.leader {
 		return lc.token.id == tok.id
@@ -89,17 +104,20 @@ type LeaseListener interface {
 //
 // TODO: Move into package in common.
 type KubernetesLeaderController struct {
-	client    coordinationv1client.LeasesGetter
-	token     atomic.Value
-	config    schedulerconfig.LeaderConfig // TODO: Move necessary config into this struct.
-	listeners []LeaseListener
+	client            coordinationv1client.LeasesGetter
+	token             atomic.Value
+	config            schedulerconfig.LeaderConfig // TODO: Move necessary config into this struct.
+	currentLeaderLock sync.Mutex
+	currentLeader     string
+	listeners         []LeaseListener
 }
 
 func NewKubernetesLeaderController(config schedulerconfig.LeaderConfig, client coordinationv1client.LeasesGetter) *KubernetesLeaderController {
 	controller := &KubernetesLeaderController{
-		client: client,
-		token:  atomic.Value{},
-		config: config,
+		client:            client,
+		token:             atomic.Value{},
+		currentLeaderLock: sync.Mutex{},
+		config:            config,
 	}
 	controller.token.Store(InvalidLeaderToken())
 	return controller
@@ -154,6 +172,9 @@ func (lc *KubernetesLeaderController) Run(ctx context.Context) error {
 						}
 					},
 					OnNewLeader: func(identity string) {
+						lc.currentLeaderLock.Lock()
+						lc.currentLeader = lc.currentLeader
+						lc.currentLeaderLock.Unlock()
 						for _, listener := range lc.listeners {
 							listener.OnNewLeader(identity)
 						}
@@ -162,6 +183,15 @@ func (lc *KubernetesLeaderController) Run(ctx context.Context) error {
 			})
 			log.Infof("leader election round finished")
 		}
+	}
+}
+
+func (lc *KubernetesLeaderController) GetLeaderReport() LeaderReport {
+	lc.currentLeaderLock.Lock()
+	defer lc.currentLeaderLock.Unlock()
+	return LeaderReport{
+		LeaderName:             lc.currentLeader,
+		IsCurrentProcessLeader: lc.currentLeader == lc.config.PodName,
 	}
 }
 
