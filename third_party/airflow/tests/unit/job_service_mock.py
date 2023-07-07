@@ -30,6 +30,7 @@ class JobService(jobservice_pb2_grpc.JobServiceServicer):
     )
     def GetJobStatus(self, request, context):
         return mock_dummy_mapper_terminal(request)
+
     @tenacity.retry(
         stop=tenacity.stop_after_attempt(4),
         wait=tenacity.wait_exponential(),
@@ -39,14 +40,15 @@ class JobService(jobservice_pb2_grpc.JobServiceServicer):
         return jobservice_pb2.HealthCheckResponse(
             status=jobservice_pb2.HealthCheckResponse.SERVING
         )
+
     @tenacity.retry(
         stop=tenacity.stop_after_attempt(4),
         wait=tenacity.wait_exponential(),
         reraise=True,
     )
     def tenacity_example(target_count):
-        current_count = JobService.tenacity_example.retry.statistics['attempt_number']
-        if current_count<target_count:
+        current_count = JobService.tenacity_example.retry.statistics["attempt_number"]
+        if current_count < target_count:
             raise IOError("dummy error")
         else:
             return
