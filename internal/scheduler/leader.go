@@ -95,8 +95,6 @@ type LeaseListener interface {
 	OnStartedLeading(context.Context)
 	// Called when the client has stopped leading,
 	OnStoppedLeading()
-	// Called when a new leader has claimed the lease
-	OnNewLeader(identity string)
 }
 
 // KubernetesLeaderController uses the Kubernetes leader election mechanism to determine who is leader.
@@ -173,11 +171,8 @@ func (lc *KubernetesLeaderController) Run(ctx context.Context) error {
 					},
 					OnNewLeader: func(identity string) {
 						lc.currentLeaderLock.Lock()
+						defer lc.currentLeaderLock.Unlock()
 						lc.currentLeader = identity
-						lc.currentLeaderLock.Unlock()
-						for _, listener := range lc.listeners {
-							listener.OnNewLeader(identity)
-						}
 					},
 				},
 			})
