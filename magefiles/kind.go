@@ -84,8 +84,7 @@ func kindCheck() error {
 // e.g., images required for e2e tests.
 func kindGetImages() error {
 	for _, image := range getImages() {
-		err := dockerRun("pull", image)
-		if err != nil {
+		if err := dockerRun("pull", image); err != nil {
 			return err
 		}
 	}

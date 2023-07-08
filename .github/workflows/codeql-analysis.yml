@@ -46,8 +46,8 @@ jobs:
         version: '3.17.3'
         repo-token: ${{ secrets.GITHUB_TOKEN }}
     - uses: ./.github/workflows/go-setup
-    - name: Make Proto
-      run: make proto
+    - name: Mage Proto
+      run: go run github.com/magefile/mage@v1.14.0 -v proto
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
