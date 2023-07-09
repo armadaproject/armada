@@ -9,6 +9,8 @@ cancelJobsBatchSize: 1000
 pulsarSchedulerEnabled: false
 probabilityOfUsingPulsarScheduler: 0
 ignoreJobSubmitChecks: false
+schedulerApiConnection:
+  armadaUrl: "localhost:50052"
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m

@@ -29,6 +29,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
@@ -172,8 +173,23 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating submit checker")
 	}
-	// TODO(reports): Pass in a non-nil SchedulingContextRepository.
-	schedulingAlgo, err := NewFairSchedulingAlgo(config.Scheduling, config.MaxSchedulingDuration, executorRepository, queueRepository, nil)
+
+	schedulingContextRepository, err := NewSchedulingContextRepository(config.Scheduling.MaxJobSchedulingContextsPerExecutor)
+	if err != nil {
+		return errors.WithMessage(err, "error creating scheduling context repository")
+	}
+
+	leaderClientConnectionProvider := NewLeaderConnectionProvider(leaderController, config.Leader)
+	schedulingReportServer := NewLeaderProxyingSchedulingReportsServer(schedulingContextRepository, leaderClientConnectionProvider)
+	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportServer)
+
+	schedulingAlgo, err := NewFairSchedulingAlgo(
+		config.Scheduling,
+		config.MaxSchedulingDuration,
+		executorRepository,
+		queueRepository,
+		schedulingContextRepository,
+	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
 	}

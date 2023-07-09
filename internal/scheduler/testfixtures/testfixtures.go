@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -37,7 +38,7 @@ const (
 
 var (
 	BaseTime, _         = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-	TestPriorityClasses = map[string]configuration.PriorityClass{
+	TestPriorityClasses = map[string]types.PriorityClass{
 		PriorityClass0:               {Priority: 0, Preemptible: true},
 		PriorityClass1:               {Priority: 1, Preemptible: true},
 		PriorityClass2:               {Priority: 2, Preemptible: true},
@@ -144,7 +145,7 @@ func WithPerPriorityLimitsConfig(limits map[string]map[string]float64, config co
 			panic(fmt.Sprintf("no priority class with name %s", priorityClassName))
 		}
 		// We need to make a copy to avoid mutating the priorityClasses, which are used by other tests too.
-		config.Preemption.PriorityClasses[priorityClassName] = configuration.PriorityClass{
+		config.Preemption.PriorityClasses[priorityClassName] = types.PriorityClass{
 			Priority:                              priorityClass.Priority,
 			Preemptible:                           priorityClass.Preemptible,
 			MaximumResourceFractionPerQueue:       limit,
