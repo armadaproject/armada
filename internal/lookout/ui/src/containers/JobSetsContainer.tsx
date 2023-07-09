@@ -1,13 +1,13 @@
 import React from "react"
 
+import CancelJobSetsDialog, { getCancellableJobSets } from "./CancelJobSetsDialog"
+import ReprioritizeJobSetsDialog, { getReprioritizeableJobSets } from "./ReprioritizeJobSetsDialog"
 import JobSets from "../components/job-sets/JobSets"
 import IntervalService from "../services/IntervalService"
 import { JobService, GetJobSetsRequest, JobSet } from "../services/JobService"
 import JobSetsLocalStorageService from "../services/JobSetsLocalStorageService"
 import JobSetsQueryParamsService from "../services/JobSetsQueryParamsService"
 import { ApiResult, debounced, PropsWithRouter, RequestStatus, selectItem, setStateAsync, withRouter } from "../utils"
-import CancelJobSetsDialog, { getCancellableJobSets } from "./CancelJobSetsDialog"
-import ReprioritizeJobSetsDialog, { getReprioritizeableJobSets } from "./ReprioritizeJobSetsDialog"
 
 interface JobSetsContainerProps extends PropsWithRouter {
   jobService: JobService

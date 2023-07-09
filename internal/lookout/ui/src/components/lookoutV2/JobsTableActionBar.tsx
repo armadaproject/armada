@@ -9,11 +9,11 @@ import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import { ColumnId, JobTableColumn } from "utils/jobsTableColumns"
 
-import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { CancelDialog } from "./CancelDialog"
 import { CustomViewPicker } from "./CustomViewPicker"
 import styles from "./JobsTableActionBar.module.css"
 import { ReprioritiseDialog } from "./ReprioritiseDialog"
+import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 
 export interface JobsTableActionBarProps {
   isLoading: boolean

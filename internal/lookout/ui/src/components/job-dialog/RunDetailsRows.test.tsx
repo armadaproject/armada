@@ -3,8 +3,8 @@ import React from "react"
 import { TableContainer, Table, TableBody } from "@material-ui/core"
 import { render, screen } from "@testing-library/react"
 
-import { Run } from "../../services/JobService"
 import RunDetailsRows from "./RunDetailsRows"
+import { Run } from "../../services/JobService"
 
 function SetUpReactTable(run: Run, jobId: string) {
   return (

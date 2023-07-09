@@ -1,7 +1,7 @@
 import _ from "lodash"
 
-import { Job, JobId, JobState } from "../../models/lookoutV2Models"
 import { createJobBatches } from "./UpdateJobsService"
+import { Job, JobId, JobState } from "../../models/lookoutV2Models"
 
 describe("UpdateJobsService", () => {
   describe("createJobBatches", () => {
