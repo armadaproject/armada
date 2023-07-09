@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/grpc/configuration"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
@@ -26,7 +25,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
-	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/internal/common/requestid"
 )
 
@@ -61,14 +60,12 @@ func CreateGrpcServer(
 		requestid.UnaryServerInterceptor(false),
 		armadaerrors.UnaryServerInterceptor(2000),
 		grpc_logrus.UnaryServerInterceptor(messageDefault),
-		logging.UnaryServerInterceptor(),
 	)
 	streamInterceptors = append(streamInterceptors,
 		grpc_ctxtags.StreamServerInterceptor(tagsExtractor),
 		requestid.StreamServerInterceptor(false),
 		armadaerrors.StreamServerInterceptor(2000),
 		grpc_logrus.StreamServerInterceptor(messageDefault),
-		logging.StreamServerInterceptor(),
 	)
 
 	// Authentication
