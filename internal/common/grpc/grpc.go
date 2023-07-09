@@ -2,12 +2,14 @@ package grpc
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"runtime/debug"
 	"sync"
 	"time"
 
+	"github.com/armadaproject/armada/internal/common/grpc/configuration"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
@@ -17,6 +19,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	_ "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
@@ -33,6 +36,7 @@ func CreateGrpcServer(
 	keepaliveParams keepalive.ServerParameters,
 	keepaliveEnforcementPolicy keepalive.EnforcementPolicy,
 	authServices []authorization.AuthService,
+	tlsConfig configuration.TlsConfig,
 ) *grpc.Server {
 	// Logging, authentication, etc. are implemented via gRPC interceptors
 	// (i.e., via functions that are called before handling the actual request).
@@ -79,13 +83,28 @@ func CreateGrpcServer(
 	unaryInterceptors = append(unaryInterceptors, grpc_prometheus.UnaryServerInterceptor)
 	streamInterceptors = append(streamInterceptors, grpc_prometheus.StreamServerInterceptor)
 
-	// Interceptors are registered at server creation
-	return grpc.NewServer(
+	serverOptions := []grpc.ServerOption{
 		grpc.KeepaliveParams(keepaliveParams),
 		grpc.KeepaliveEnforcementPolicy(keepaliveEnforcementPolicy),
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptors...)),
 		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptors...)),
-	)
+	}
+
+	if tlsConfig.Enabled {
+		tlsCreds := credentials.NewTLS(&tls.Config{
+			GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				cert, err := tls.LoadX509KeyPair(tlsConfig.CertPath, tlsConfig.KeyPath)
+				if err != nil {
+					return nil, err
+				}
+				return &cert, nil
+			},
+		})
+		serverOptions = append(serverOptions, grpc.Creds(tlsCreds))
+	}
+
+	// Interceptors are registered at server creation
+	return grpc.NewServer(serverOptions...)
 }
 
 // TODO We don't need this function. Just do this at the caller.

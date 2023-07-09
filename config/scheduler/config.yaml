@@ -50,6 +50,8 @@ grpc:
   keepaliveEnforcementPolicy:
     minTime: 10s
     permitWithoutStream: true
+  tls:
+    enabled: false
 scheduling:
   executorTimeout: 10m
   enableAssertions: true

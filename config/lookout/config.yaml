@@ -9,6 +9,8 @@ grpc:
   keepaliveEnforcementPolicy:
     minTime: 5m
     permitWithoutStream: false
+  tls:
+    enabled: false
 uiConfig:
   armadaApiBaseUrl: "http://armada-server:8080"
   userAnnotationPrefix: "armadaproject.io/"
