@@ -7,12 +7,12 @@ import (
 	"os"
 	"time"
 
+	"github.com/armadaproject/armada/internal/common/certs"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
-	"github.com/armadaproject/armada/internal/common/fileutils"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/internal/common/grpc/grpcpool"
@@ -90,9 +90,9 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	}
 
 	log := log.WithField("JobService", "Startup")
-	var cachedCertificateService *fileutils.CachedCertificateService
+	var cachedCertificateService *certs.CachedCertificateService
 	if config.Grpc.Tls.Enabled {
-		cachedCertificateService = fileutils.NewCachedCertificateService(config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
+		cachedCertificateService = certs.NewCachedCertificateService(config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
 		g.Go(func() error {
 			return cachedCertificateService.Run(ctx)
 		})

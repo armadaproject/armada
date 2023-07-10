@@ -5,6 +5,7 @@ import (
 	"os"
 	"sync"
 
+	"github.com/armadaproject/armada/internal/common/certs"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	log "github.com/sirupsen/logrus"
 
@@ -14,7 +15,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/cluster"
-	"github.com/armadaproject/armada/internal/common/fileutils"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
@@ -39,9 +39,9 @@ func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
 		os.Exit(-1)
 	}
 
-	var cachedCertificateService *fileutils.CachedCertificateService
+	var cachedCertificateService *certs.CachedCertificateService
 	if config.Grpc.Tls.Enabled {
-		cachedCertificateService = fileutils.NewCachedCertificateService(config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
+		cachedCertificateService = certs.NewCachedCertificateService(config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
 		go func() {
 			err := func() error {
 				return cachedCertificateService.Run(context.Background())

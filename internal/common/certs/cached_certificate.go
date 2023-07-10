@@ -1,4 +1,4 @@
-package fileutils
+package certs
 
 import (
 	"context"
@@ -20,6 +20,8 @@ type CachedCertificateService struct {
 
 	certificateLock sync.Mutex
 	certificate     *tls.Certificate
+
+	refreshInterval time.Duration
 }
 
 func NewCachedCertificateService(certPath string, keyPath string) *CachedCertificateService {
@@ -27,6 +29,8 @@ func NewCachedCertificateService(certPath string, keyPath string) *CachedCertifi
 		certPath:        certPath,
 		keyPath:         keyPath,
 		certificateLock: sync.Mutex{},
+		fileInfoLock:    sync.Mutex{},
+		refreshInterval: time.Minute,
 	}
 	// Initialise the certificate
 	err := cert.refresh()
@@ -49,7 +53,7 @@ func (c *CachedCertificateService) updateCertificate(certificate *tls.Certificat
 }
 
 func (c *CachedCertificateService) Run(ctx context.Context) error {
-	ticker := time.NewTicker(1 * time.Minute)
+	ticker := time.NewTicker(c.refreshInterval)
 	for {
 		select {
 		case <-ctx.Done():
@@ -106,7 +110,7 @@ func (c *CachedCertificateService) refresh() error {
 
 func (c *CachedCertificateService) updateData(certFileInfo os.FileInfo, keyFileInfo os.FileInfo, newCert *tls.Certificate) {
 	c.fileInfoLock.Lock()
-	defer c.certificateLock.Lock()
+	defer c.fileInfoLock.Unlock()
 	c.certFileInfo = certFileInfo
 	c.keyFileInfo = keyFileInfo
 

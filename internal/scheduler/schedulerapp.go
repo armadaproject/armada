@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/armadaproject/armada/internal/common/certs"
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
@@ -23,7 +24,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/auth"
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
-	"github.com/armadaproject/armada/internal/common/fileutils"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
@@ -126,9 +126,9 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating auth services")
 	}
-	var cachedCertificateService *fileutils.CachedCertificateService
+	var cachedCertificateService *certs.CachedCertificateService
 	if config.Grpc.Tls.Enabled {
-		cachedCertificateService = fileutils.NewCachedCertificateService(config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
+		cachedCertificateService = certs.NewCachedCertificateService(config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
 		services = append(services, func() error {
 			return cachedCertificateService.Run(ctx)
 		})

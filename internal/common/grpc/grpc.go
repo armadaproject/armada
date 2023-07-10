@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/armadaproject/armada/internal/common/certs"
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
@@ -25,7 +26,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
-	"github.com/armadaproject/armada/internal/common/fileutils"
 	"github.com/armadaproject/armada/internal/common/requestid"
 )
 
@@ -35,7 +35,7 @@ func CreateGrpcServer(
 	keepaliveParams keepalive.ServerParameters,
 	keepaliveEnforcementPolicy keepalive.EnforcementPolicy,
 	authServices []authorization.AuthService,
-	tlsCertService *fileutils.CachedCertificateService,
+	tlsCertService *certs.CachedCertificateService,
 ) *grpc.Server {
 	// Logging, authentication, etc. are implemented via gRPC interceptors
 	// (i.e., via functions that are called before handling the actual request).
