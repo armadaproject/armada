@@ -76,6 +76,11 @@ spec:
               mountPath: "/pulsar/ca"
               readOnly: true
             {{- end }}
+            {{- if .Values.applicationConfig.grpc.tls.enabled }}
+            - name: tls-certs
+              mountPath: /certs
+              readOnly: true
+            {{- end }}
             {{- if .Values.additionalVolumeMounts }}
             {{- toYaml .Values.additionalVolumeMounts | nindent 12 -}}
             {{- end }}
@@ -128,6 +133,11 @@ spec:
             items:
               - key: ca.crt
                 path: ca.crt
+        {{- end }}
+        {{- if .Values.applicationConfig.grpc.tls.enabled }}
+        - name: tls-certs
+          secret:
+            secretName: armada-service-tls
         {{- end }}
         {{- if .Values.additionalVolumes }}
         {{- toYaml .Values.additionalVolumes | nindent 8 }}

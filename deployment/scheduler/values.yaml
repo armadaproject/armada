@@ -4,6 +4,10 @@ additionalLabels: {}
 
 scheduler:
   replicas: 1
+  ingressClass: test
+  clusterIssuer: test
+  hostnames:
+    - test
   image:
     repository: gresearchdev/armada-scheduler
     tag: 0.0.0-latest
@@ -17,6 +21,10 @@ scheduler:
   applicationConfig:
     grpc:
       port: 50051
+      tls:
+        enabled: false
+        certPath: /certs/tls.crt
+        keyPath: /certs/tls.key
     metrics:
       port: 9001
     http:
