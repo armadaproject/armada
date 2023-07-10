@@ -1,6 +1,7 @@
 package binoculars
 
 import (
+	"context"
 	"os"
 	"sync"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/cluster"
+	"github.com/armadaproject/armada/internal/common/fileutils"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
@@ -37,7 +39,19 @@ func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
 		os.Exit(-1)
 	}
 
-	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls)
+	var cachedCertificateService *fileutils.CachedCertificateService
+	if config.Grpc.Tls.Enabled {
+		cachedCertificateService = fileutils.NewCachedCertificateService(config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
+		go func() {
+			err := func() error {
+				return cachedCertificateService.Run(context.Background())
+			}()
+			if err != nil {
+				log.WithError(err).Errorf("failed refreshing certificate")
+			}
+		}()
+	}
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, cachedCertificateService)
 
 	permissionsChecker := authorization.NewPrincipalPermissionChecker(
 		config.Auth.PermissionGroupMapping,

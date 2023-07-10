@@ -1,0 +1,115 @@
+package fileutils
+
+import (
+	"context"
+	"crypto/tls"
+	"os"
+	"sync"
+	"time"
+
+	log "github.com/sirupsen/logrus"
+)
+
+type CachedCertificateService struct {
+	certPath string
+	keyPath string
+
+	fileInfoLock sync.Mutex
+	certFileInfo os.FileInfo
+	keyFileInfo os.FileInfo
+
+	certificateLock sync.Mutex
+	certificate *tls.Certificate
+}
+
+func NewCachedCertificateService(certPath string, keyPath string) *CachedCertificateService {
+	cert := &CachedCertificateService{
+		certPath: certPath,
+		keyPath: keyPath,
+		certificateLock: sync.Mutex{},
+	}
+	// Initialise the certificate
+	err := cert.refresh()
+	if err != nil {
+		panic(err)
+	}
+	return cert
+}
+
+func (c *CachedCertificateService) GetCertificate() *tls.Certificate {
+	c.certificateLock.Lock()
+	defer c.certificateLock.Unlock()
+	return c.certificate
+}
+
+func (c *CachedCertificateService) updateCertificate(certificate *tls.Certificate) {
+	c.certificateLock.Lock()
+	defer c.certificateLock.Unlock()
+	c.certificate = certificate
+}
+
+func (c *CachedCertificateService) Run(ctx context.Context) error {
+	ticker := time.NewTicker(1 * time.Minute)
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-ticker.C:
+			err := c.refresh()
+			log.WithError(err).Errorf("failed refreshing tls cert for key %s cert %s", c.keyPath, c.certPath)
+		}
+	}
+}
+
+func (c *CachedCertificateService) refresh() error {
+	updatedCertFileInfo, err := os.Stat(c.certPath)
+	if err != nil {
+		return err
+	}
+
+	updatedKeyFileInfo, err := os.Stat(c.keyPath)
+	if err != nil {
+		return err
+	}
+
+	modified := false
+
+	if c.certFileInfo == nil || updatedCertFileInfo.ModTime().After(c.certFileInfo.ModTime()) {
+		modified = true
+	}
+
+	if c.keyFileInfo == nil || updatedKeyFileInfo.ModTime().After(c.keyFileInfo.ModTime()) {
+		modified = true
+	}
+
+	if modified {
+		certFileData, err := os.ReadFile(c.certPath)
+		if err != nil {
+			return err
+		}
+
+		keyFileData, err := os.ReadFile(c.keyPath)
+		if err != nil {
+			return err
+		}
+
+		cert, err := tls.X509KeyPair(certFileData, keyFileData)
+		if err != nil {
+			return err
+		}
+
+		c.updateData(updatedCertFileInfo, updatedKeyFileInfo, &cert)
+	}
+
+	return nil
+}
+
+func (c *CachedCertificateService) updateData(certFileInfo os.FileInfo, keyFileInfo os.FileInfo, newCert *tls.Certificate) {
+	c.fileInfoLock.Lock()
+	defer c.certificateLock.Lock()
+	c.certFileInfo = certFileInfo
+	c.keyFileInfo = keyFileInfo
+
+	c.updateCertificate(newCert)
+}
+

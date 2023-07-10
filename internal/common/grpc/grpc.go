@@ -25,7 +25,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
-	"github.com/armadaproject/armada/internal/common/grpc/configuration"
+	"github.com/armadaproject/armada/internal/common/fileutils"
 	"github.com/armadaproject/armada/internal/common/requestid"
 )
 
@@ -35,7 +35,7 @@ func CreateGrpcServer(
 	keepaliveParams keepalive.ServerParameters,
 	keepaliveEnforcementPolicy keepalive.EnforcementPolicy,
 	authServices []authorization.AuthService,
-	tlsConfig configuration.TlsConfig,
+	tlsCertService *fileutils.CachedCertificateService,
 ) *grpc.Server {
 	// Logging, authentication, etc. are implemented via gRPC interceptors
 	// (i.e., via functions that are called before handling the actual request).
@@ -87,14 +87,14 @@ func CreateGrpcServer(
 		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptors...)),
 	}
 
-	if tlsConfig.Enabled {
+	if tlsCertService != nil {
 		tlsCreds := credentials.NewTLS(&tls.Config{
 			GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
-				cert, err := tls.LoadX509KeyPair(tlsConfig.CertPath, tlsConfig.KeyPath)
-				if err != nil {
-					return nil, err
+				cert := tlsCertService.GetCertificate()
+				if cert == nil {
+					return nil, fmt.Errorf("unexpectedly received nil from certificate cache")
 				}
-				return &cert, nil
+				return cert, nil
 			},
 		})
 		serverOptions = append(serverOptions, grpc.Creds(tlsCreds))

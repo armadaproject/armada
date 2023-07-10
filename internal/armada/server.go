@@ -25,6 +25,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/fileutils"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
@@ -77,7 +78,14 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	if err != nil {
 		return err
 	}
-	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls)
+	var cachedCertificateService *fileutils.CachedCertificateService
+	if config.Grpc.Tls.Enabled {
+		cachedCertificateService = fileutils.NewCachedCertificateService(config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
+		services = append(services, func() error {
+			return cachedCertificateService.Run(ctx)
+		})
+	}
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, cachedCertificateService)
 
 	// Shut down grpcServer if the context is cancelled.
 	// Give the server 5 seconds to shut down gracefully.
