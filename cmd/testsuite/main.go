@@ -12,7 +12,6 @@ func main() {
 	common.ConfigureCommandLineLogging()
 	err = cmd.RootCmd().Execute()
 	if err != nil {
-		log.Fatal(err)
 		os.Exit(1)
 	}
 }
