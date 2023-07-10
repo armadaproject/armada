@@ -1,10 +1,8 @@
 package lookout
 
 import (
-	"context"
 	"sync"
 
-	"github.com/armadaproject/armada/internal/common/certs"
 	"github.com/doug-martin/goqu/v9"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	log "github.com/sirupsen/logrus"
@@ -31,23 +29,11 @@ func StartUp(config configuration.LookoutConfiguration, healthChecks *health.Mul
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 
-	var cachedCertificateService *certs.CachedCertificateService
-	if config.Grpc.Tls.Enabled {
-		cachedCertificateService = certs.NewCachedCertificateService(config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
-		go func() {
-			err := func() error {
-				return cachedCertificateService.Run(context.Background())
-			}()
-			if err != nil {
-				log.WithError(err).Errorf("failed refreshing certificate")
-			}
-		}()
-	}
 	grpcServer := grpc.CreateGrpcServer(
 		config.Grpc.KeepaliveParams,
 		config.Grpc.KeepaliveEnforcementPolicy,
 		[]authorization.AuthService{&authorization.AnonymousAuthService{}},
-		cachedCertificateService,
+		config.Grpc.Tls,
 	)
 
 	db, err := postgres.Open(config.Postgres)

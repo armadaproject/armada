@@ -18,8 +18,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const certFilePath = "testdata/tls.crt"
-const keyFilePath = "testdata/tls.key"
+const (
+	certFilePath = "testdata/tls.crt"
+	keyFilePath  = "testdata/tls.key"
+)
 
 func TestCachedCertificateService_LoadsCertificateOnStartup(t *testing.T) {
 	defer cleanup()
@@ -93,8 +95,7 @@ func TestCachedCertificateService_ReloadsCertPeriodically_WhenUsingRun(t *testin
 	assert.Equal(t, cert, cachedCertService.GetCertificate())
 
 	go func() {
-		err := cachedCertService.Run(context.Background())
-		require.NoError(t, err)
+		cachedCertService.Run(context.Background())
 	}()
 
 	newCert, certData, keyData := createCerts()
@@ -105,12 +106,12 @@ func TestCachedCertificateService_ReloadsCertPeriodically_WhenUsingRun(t *testin
 
 func writeCerts(t *testing.T, certData *bytes.Buffer, keyData *bytes.Buffer) {
 	if certData != nil {
-		err := os.WriteFile(certFilePath, certData.Bytes(), 0644)
+		err := os.WriteFile(certFilePath, certData.Bytes(), 0o644)
 		require.NoError(t, err)
 	}
 
 	if keyData != nil {
-		err := os.WriteFile(keyFilePath, keyData.Bytes(), 0644)
+		err := os.WriteFile(keyFilePath, keyData.Bytes(), 0o644)
 		require.NoError(t, err)
 	}
 }

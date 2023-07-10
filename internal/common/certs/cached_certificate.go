@@ -52,12 +52,12 @@ func (c *CachedCertificateService) updateCertificate(certificate *tls.Certificat
 	c.certificate = certificate
 }
 
-func (c *CachedCertificateService) Run(ctx context.Context) error {
+func (c *CachedCertificateService) Run(ctx context.Context) {
 	ticker := time.NewTicker(c.refreshInterval)
 	for {
 		select {
 		case <-ctx.Done():
-			return nil
+			return
 		case <-ticker.C:
 			err := c.refresh()
 			if err != nil {

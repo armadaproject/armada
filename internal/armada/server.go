@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/armadaproject/armada/internal/common/certs"
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
@@ -78,14 +77,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	if err != nil {
 		return err
 	}
-	var cachedCertificateService *certs.CachedCertificateService
-	if config.Grpc.Tls.Enabled {
-		cachedCertificateService = certs.NewCachedCertificateService(config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
-		services = append(services, func() error {
-			return cachedCertificateService.Run(ctx)
-		})
-	}
-	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, cachedCertificateService)
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls)
 
 	// Shut down grpcServer if the context is cancelled.
 	// Give the server 5 seconds to shut down gracefully.

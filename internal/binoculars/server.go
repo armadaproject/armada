@@ -1,11 +1,9 @@
 package binoculars
 
 import (
-	"context"
 	"os"
 	"sync"
 
-	"github.com/armadaproject/armada/internal/common/certs"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	log "github.com/sirupsen/logrus"
 
@@ -39,19 +37,7 @@ func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
 		os.Exit(-1)
 	}
 
-	var cachedCertificateService *certs.CachedCertificateService
-	if config.Grpc.Tls.Enabled {
-		cachedCertificateService = certs.NewCachedCertificateService(config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
-		go func() {
-			err := func() error {
-				return cachedCertificateService.Run(context.Background())
-			}()
-			if err != nil {
-				log.WithError(err).Errorf("failed refreshing certificate")
-			}
-		}()
-	}
-	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, cachedCertificateService)
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls)
 
 	permissionsChecker := authorization.NewPrincipalPermissionChecker(
 		config.Auth.PermissionGroupMapping,

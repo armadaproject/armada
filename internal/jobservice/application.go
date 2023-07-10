@@ -7,7 +7,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/certs"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
@@ -90,18 +89,11 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	}
 
 	log := log.WithField("JobService", "Startup")
-	var cachedCertificateService *certs.CachedCertificateService
-	if config.Grpc.Tls.Enabled {
-		cachedCertificateService = certs.NewCachedCertificateService(config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
-		g.Go(func() error {
-			return cachedCertificateService.Run(ctx)
-		})
-	}
 	grpcServer := grpcCommon.CreateGrpcServer(
 		config.Grpc.KeepaliveParams,
 		config.Grpc.KeepaliveEnforcementPolicy,
 		[]authorization.AuthService{&authorization.AnonymousAuthService{}},
-		cachedCertificateService,
+		config.Grpc.Tls,
 	)
 
 	err, sqlJobRepo, dbCallbackFn := repository.NewSQLJobService(config, log)
