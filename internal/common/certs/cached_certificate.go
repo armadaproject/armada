@@ -24,13 +24,13 @@ type CachedCertificateService struct {
 	refreshInterval time.Duration
 }
 
-func NewCachedCertificateService(certPath string, keyPath string) *CachedCertificateService {
+func NewCachedCertificateService(certPath string, keyPath string, refreshInternal time.Duration) *CachedCertificateService {
 	cert := &CachedCertificateService{
 		certPath:        certPath,
 		keyPath:         keyPath,
 		certificateLock: sync.Mutex{},
 		fileInfoLock:    sync.Mutex{},
-		refreshInterval: time.Minute,
+		refreshInterval: refreshInternal,
 	}
 	// Initialise the certificate
 	err := cert.refresh()
@@ -60,7 +60,9 @@ func (c *CachedCertificateService) Run(ctx context.Context) error {
 			return nil
 		case <-ticker.C:
 			err := c.refresh()
-			log.WithError(err).Errorf("failed refreshing tls cert for key %s cert %s", c.keyPath, c.certPath)
+			if err != nil {
+				log.WithError(err).Errorf("failed refreshing tls cert for key %s cert %s", c.keyPath, c.certPath)
+			}
 		}
 	}
 }

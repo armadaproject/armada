@@ -2,6 +2,7 @@ package certs
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -25,7 +26,7 @@ func TestCachedCertificateService_LoadsCertificateOnStartup(t *testing.T) {
 	cert, certData, keyData := createCerts()
 	writeCerts(t, certData, keyData)
 
-	cachedCertService := NewCachedCertificateService(certFilePath, keyFilePath)
+	cachedCertService := NewCachedCertificateService(certFilePath, keyFilePath, time.Second)
 
 	result := cachedCertService.GetCertificate()
 
@@ -35,14 +36,14 @@ func TestCachedCertificateService_LoadsCertificateOnStartup(t *testing.T) {
 func TestCachedCertificateService_PanicIfInitialLoadFails(t *testing.T) {
 	defer cleanup()
 
-	assert.Panics(t, func() { NewCachedCertificateService(certFilePath, keyFilePath) })
+	assert.Panics(t, func() { NewCachedCertificateService(certFilePath, keyFilePath, time.Second) })
 }
 
 func TestCachedCertificateService_ReloadsCert_IfFileOnDiskChanges(t *testing.T) {
 	defer cleanup()
 	cert, certData, keyData := createCerts()
 	writeCerts(t, certData, keyData)
-	cachedCertService := NewCachedCertificateService(certFilePath, keyFilePath)
+	cachedCertService := NewCachedCertificateService(certFilePath, keyFilePath, time.Second)
 
 	assert.Equal(t, cert, cachedCertService.GetCertificate())
 
@@ -62,10 +63,10 @@ func TestCachedCertificateService_HandlesPartialUpdates(t *testing.T) {
 	defer cleanup()
 	originalCert, certData, keyData := createCerts()
 	writeCerts(t, certData, keyData)
-	cachedCertService := NewCachedCertificateService(certFilePath, keyFilePath)
+	cachedCertService := NewCachedCertificateService(certFilePath, keyFilePath, time.Second)
 
 	assert.Equal(t, originalCert, cachedCertService.GetCertificate())
-	
+
 	newCert, certData, keyData := createCerts()
 
 	// Update only 1 file on disk - which leaves the representation on disk in an invalid state
@@ -81,6 +82,24 @@ func TestCachedCertificateService_HandlesPartialUpdates(t *testing.T) {
 	err = cachedCertService.refresh()
 	assert.NoError(t, err)
 
+	assert.Equal(t, newCert, cachedCertService.GetCertificate())
+}
+
+func TestCachedCertificateService_ReloadsCertPeriodically_WhenUsingRun(t *testing.T) {
+	defer cleanup()
+	cert, certData, keyData := createCerts()
+	writeCerts(t, certData, keyData)
+	cachedCertService := NewCachedCertificateService(certFilePath, keyFilePath, time.Second)
+	assert.Equal(t, cert, cachedCertService.GetCertificate())
+
+	go func() {
+		err := cachedCertService.Run(context.Background())
+		require.NoError(t, err)
+	}()
+
+	newCert, certData, keyData := createCerts()
+	writeCerts(t, certData, keyData)
+	time.Sleep(time.Second * 2)
 	assert.Equal(t, newCert, cachedCertService.GetCertificate())
 }
 
