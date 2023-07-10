@@ -4,10 +4,6 @@ additionalLabels: {}
 
 scheduler:
   replicas: 1
-  ingressClass: test
-  clusterIssuer: test
-  hostnames:
-    - test
   image:
     repository: gresearchdev/armada-scheduler
     tag: 0.0.0-latest
