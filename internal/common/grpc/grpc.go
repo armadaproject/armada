@@ -88,7 +88,6 @@ func CreateGrpcServer(
 		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptors...)),
 	}
 
-
 	if tlsConfig.Enabled {
 		cachedCertificateService := certs.NewCachedCertificateService(tlsConfig.CertPath, tlsConfig.KeyPath, time.Minute)
 		go func() {
