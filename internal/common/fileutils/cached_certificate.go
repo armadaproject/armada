@@ -12,20 +12,20 @@ import (
 
 type CachedCertificateService struct {
 	certPath string
-	keyPath string
+	keyPath  string
 
 	fileInfoLock sync.Mutex
 	certFileInfo os.FileInfo
-	keyFileInfo os.FileInfo
+	keyFileInfo  os.FileInfo
 
 	certificateLock sync.Mutex
-	certificate *tls.Certificate
+	certificate     *tls.Certificate
 }
 
 func NewCachedCertificateService(certPath string, keyPath string) *CachedCertificateService {
 	cert := &CachedCertificateService{
-		certPath: certPath,
-		keyPath: keyPath,
+		certPath:        certPath,
+		keyPath:         keyPath,
 		certificateLock: sync.Mutex{},
 	}
 	// Initialise the certificate
@@ -112,4 +112,3 @@ func (c *CachedCertificateService) updateData(certFileInfo os.FileInfo, keyFileI
 
 	c.updateCertificate(newCert)
 }
-
