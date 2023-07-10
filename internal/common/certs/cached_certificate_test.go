@@ -25,7 +25,7 @@ const (
 
 func TestCachedCertificateService_LoadsCertificateOnStartup(t *testing.T) {
 	defer cleanup()
-	cert, certData, keyData := createCerts()
+	cert, certData, keyData := createCerts(t)
 	writeCerts(t, certData, keyData)
 
 	cachedCertService := NewCachedCertificateService(certFilePath, keyFilePath, time.Second)
@@ -43,13 +43,13 @@ func TestCachedCertificateService_PanicIfInitialLoadFails(t *testing.T) {
 
 func TestCachedCertificateService_ReloadsCert_IfFileOnDiskChanges(t *testing.T) {
 	defer cleanup()
-	cert, certData, keyData := createCerts()
+	cert, certData, keyData := createCerts(t)
 	writeCerts(t, certData, keyData)
 	cachedCertService := NewCachedCertificateService(certFilePath, keyFilePath, time.Second)
 
 	assert.Equal(t, cert, cachedCertService.GetCertificate())
 
-	newCert, certData, keyData := createCerts()
+	newCert, certData, keyData := createCerts(t)
 
 	// Update files on disk
 	writeCerts(t, certData, keyData)
@@ -63,13 +63,13 @@ func TestCachedCertificateService_ReloadsCert_IfFileOnDiskChanges(t *testing.T) 
 
 func TestCachedCertificateService_HandlesPartialUpdates(t *testing.T) {
 	defer cleanup()
-	originalCert, certData, keyData := createCerts()
+	originalCert, certData, keyData := createCerts(t)
 	writeCerts(t, certData, keyData)
 	cachedCertService := NewCachedCertificateService(certFilePath, keyFilePath, time.Second)
 
 	assert.Equal(t, originalCert, cachedCertService.GetCertificate())
 
-	newCert, certData, keyData := createCerts()
+	newCert, certData, keyData := createCerts(t)
 
 	// Update only 1 file on disk - which leaves the representation on disk in an invalid state
 	writeCerts(t, certData, nil)
@@ -89,7 +89,7 @@ func TestCachedCertificateService_HandlesPartialUpdates(t *testing.T) {
 
 func TestCachedCertificateService_ReloadsCertPeriodically_WhenUsingRun(t *testing.T) {
 	defer cleanup()
-	cert, certData, keyData := createCerts()
+	cert, certData, keyData := createCerts(t)
 	writeCerts(t, certData, keyData)
 	cachedCertService := NewCachedCertificateService(certFilePath, keyFilePath, time.Second)
 	assert.Equal(t, cert, cachedCertService.GetCertificate())
@@ -98,7 +98,7 @@ func TestCachedCertificateService_ReloadsCertPeriodically_WhenUsingRun(t *testin
 		cachedCertService.Run(context.Background())
 	}()
 
-	newCert, certData, keyData := createCerts()
+	newCert, certData, keyData := createCerts(t)
 	writeCerts(t, certData, keyData)
 	time.Sleep(time.Second * 2)
 	assert.Equal(t, newCert, cachedCertService.GetCertificate())
@@ -121,7 +121,7 @@ func cleanup() {
 	os.Remove(keyFilePath)
 }
 
-func createCerts() (*tls.Certificate, *bytes.Buffer, *bytes.Buffer) {
+func createCerts(t *testing.T) (*tls.Certificate, *bytes.Buffer, *bytes.Buffer) {
 	// set up our CA certificate
 	ca := &x509.Certificate{
 		SerialNumber:          big.NewInt(2019),
@@ -135,28 +135,26 @@ func createCerts() (*tls.Certificate, *bytes.Buffer, *bytes.Buffer) {
 
 	// create our private and public key
 	caPrivKey, err := rsa.GenerateKey(rand.Reader, 1024)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 
 	// create the CA
 	caBytes, err := x509.CreateCertificate(rand.Reader, ca, ca, &caPrivKey.PublicKey, caPrivKey)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 
 	// pem encode
 	caPEM := new(bytes.Buffer)
-	pem.Encode(caPEM, &pem.Block{
+	err = pem.Encode(caPEM, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: caBytes,
 	})
+	require.NoError(t, err)
 
 	caPrivKeyPEM := new(bytes.Buffer)
-	pem.Encode(caPrivKeyPEM, &pem.Block{
+	err = pem.Encode(caPrivKeyPEM, &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(caPrivKey),
 	})
+	require.NoError(t, err)
 
 	// set up our server certificate
 	cert := &x509.Certificate{
@@ -170,31 +168,27 @@ func createCerts() (*tls.Certificate, *bytes.Buffer, *bytes.Buffer) {
 	}
 
 	certPrivKey, err := rsa.GenerateKey(rand.Reader, 1024)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 
 	certBytes, err := x509.CreateCertificate(rand.Reader, cert, ca, &certPrivKey.PublicKey, caPrivKey)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 
 	certPEM := new(bytes.Buffer)
-	pem.Encode(certPEM, &pem.Block{
+	err = pem.Encode(certPEM, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: certBytes,
 	})
+	require.NoError(t, err)
 
 	certPrivKeyPEM := new(bytes.Buffer)
-	pem.Encode(certPrivKeyPEM, &pem.Block{
+	err = pem.Encode(certPrivKeyPEM, &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(certPrivKey),
 	})
+	require.NoError(t, err)
 
 	certificate, err := tls.X509KeyPair(certPEM.Bytes(), certPrivKeyPEM.Bytes())
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 
 	return &certificate, certPEM, certPrivKeyPEM
 }
