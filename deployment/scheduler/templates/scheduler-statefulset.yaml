@@ -51,7 +51,7 @@ spec:
                   fieldPath: metadata.namespace
             {{- if  not (((.Values.scheduler.applicationConfig).leader).leaderConnection).armadaUrl }}
             - name: ARMADA_LEADER_LEADERCONNECTION_ARMADAURL
-              value: "<name>.{{ include "armada-scheduler.name" . }}.{{ .Release.Namespace }}.svc.cluster.local"
+              value: "<name>.{{ include "armada-scheduler.name" . }}.{{ .Release.Namespace }}.svc:{{ .Values.scheduler.applicationConfig.grpc.port }}"
             {{- end }}
           {{- if .Values.scheduler.env }}
             {{- toYaml .Values.scheduler.env | nindent 12 -}}
