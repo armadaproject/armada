@@ -89,7 +89,7 @@ func (c *CachedCertificateService) refresh() error {
 	}
 
 	if modified {
-		log.Infof("Refreshing certificate from files cert: %s key: %s", c.certPath, c.keyPath)
+		log.Infof("refreshing certificate from files cert: %s key: %s", c.certPath, c.keyPath)
 		certFileData, err := os.ReadFile(c.certPath)
 		if err != nil {
 			return err
