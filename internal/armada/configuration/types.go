@@ -88,6 +88,28 @@ type PulsarConfig struct {
 	BackoffTime time.Duration
 }
 
+// DatabaseConfig represents the configuration of the database connection.
+type DatabaseConfig interface {
+	// GetMaxOpenConns gets the maximum number of open connections to the database.
+	GetMaxOpenConns() int
+
+	// GetMaxIdleConns gets the maximum number of connections in the idle connection pool.
+	GetMaxIdleConns() int
+
+	// GetConnMaxLifetime gets the maximum amount of time a connection may be reused.
+	GetConnMaxLifetime() time.Duration
+
+	// GetConnection gets the database connection details in a key/value pairs format.
+	GetConnection() map[string]string
+
+	// GetConnection gets the database connection string that can typically be used
+	// to establish connection to the database.
+	GetConnectionString() string
+
+	// GetDialect gets the dialect of the configured database.
+	GetDialect() string
+}
+
 type SchedulingConfig struct {
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
