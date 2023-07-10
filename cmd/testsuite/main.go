@@ -10,7 +10,7 @@ import (
 // Config is handled by cmd/params.go
 func main() {
 	common.ConfigureCommandLineLogging()
-	err = cmd.RootCmd().Execute()
+	err := cmd.RootCmd().Execute()
 	if err != nil {
 		os.Exit(1)
 	}
