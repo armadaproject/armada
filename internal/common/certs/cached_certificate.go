@@ -61,7 +61,7 @@ func (c *CachedCertificateService) Run(ctx context.Context) {
 		case <-ticker.C:
 			err := c.refresh()
 			if err != nil {
-				log.WithError(err).Errorf("failed refreshing certificate for files cert: %s key: %s", c.certPath, c.keyPath)
+				log.WithError(err).Errorf("failed refreshing certificate from files cert: %s key: %s", c.certPath, c.keyPath)
 			}
 		}
 	}
@@ -89,7 +89,7 @@ func (c *CachedCertificateService) refresh() error {
 	}
 
 	if modified {
-		log.Infof("refreshing certificate for files cert: %s key: %s", c.certPath, c.keyPath)
+		log.Infof("refreshing certificate from files cert: %s key: %s", c.certPath, c.keyPath)
 		certFileData, err := os.ReadFile(c.certPath)
 		if err != nil {
 			return err
