@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/armadaproject/armada/cmd/testsuite/cmd"
 	"github.com/armadaproject/armada/internal/common"
 )
@@ -8,5 +10,9 @@ import (
 // Config is handled by cmd/params.go
 func main() {
 	common.ConfigureCommandLineLogging()
-	_ = cmd.RootCmd().Execute()
+	err = cmd.RootCmd().Execute()
+	if err != nil {
+		log.Fatal(err)
+		os.Exit(1)
+	}
 }
