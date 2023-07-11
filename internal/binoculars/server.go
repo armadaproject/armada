@@ -37,7 +37,7 @@ func StartUp(config *configuration.BinocularsConfig) (func(), *sync.WaitGroup) {
 		os.Exit(-1)
 	}
 
-	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls)
 
 	permissionsChecker := authorization.NewPrincipalPermissionChecker(
 		config.Auth.PermissionGroupMapping,
