@@ -39,5 +39,9 @@ spec:
   {{ end }}
   tls:
     - hosts:
-      {{- toYaml .Values.scheduler.hostnames  | nindent 8 }}
+      {{- toYaml .Values.scheduler.hostnames  | nindent 6 }}
+      {{- $root := . -}}
+      {{- range $i := until (int .Values.scheduler.replicas) }}
+      - {{ include "armada-scheduler.name" $root }}-{{ $i }}.{{ include "armada-scheduler.name" $root }}.{{ $root.Release.Namespace }}.svc
+      {{- end }}
       secretName: armada-scheduler-service-tls
