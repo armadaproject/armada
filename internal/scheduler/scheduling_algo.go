@@ -47,8 +47,9 @@ type FairSchedulingAlgo struct {
 	executorGroupsToSchedule []string
 	// Function that is called every time an executor is scheduled. Useful for testing.
 	onExecutorScheduled func(executor *schedulerobjects.Executor)
-	rand                *rand.Rand // injected here for repeatable testing
-	clock               clock.Clock
+	// rand and clock injected here for repeatable testing.
+	rand  *rand.Rand
+	clock clock.Clock
 }
 
 func NewFairSchedulingAlgo(
