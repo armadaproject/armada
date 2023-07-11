@@ -77,7 +77,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	if err != nil {
 		return err
 	}
-	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls)
 
 	// Shut down grpcServer if the context is cancelled.
 	// Give the server 5 seconds to shut down gracefully.
