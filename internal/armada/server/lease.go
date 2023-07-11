@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -67,6 +68,10 @@ type AggregatedQueueServer struct {
 	pulsarProducer       pulsar.Producer
 	maxPulsarMessageSize uint
 	executorRepository   database.ExecutorRepository
+	// Lock protecting access to schedulingLockByPool.
+	mu sync.Mutex
+	// Lock to prevent scheduling onto multiple executors in the same pool concurrently.
+	schedulingLockByPool map[string]*sync.Mutex
 }
 
 func NewAggregatedQueueServer(
@@ -109,6 +114,7 @@ func NewAggregatedQueueServer(
 		clock:                    clock.RealClock{},
 		pulsarProducer:           pulsarProducer,
 		maxPulsarMessageSize:     maxPulsarMessageSize,
+		schedulingLockByPool:     make(map[string]*sync.Mutex),
 	}
 }
 
@@ -126,6 +132,13 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	req, err := stream.Recv()
 	if err != nil {
 		return errors.WithStack(err)
+	}
+
+	// If pool scheduling concurrency isn't enabled, get a lock before starting scheduling.
+	if !q.schedulingConfig.EnablePoolSchedulingConcurrency {
+		schedulingLock := q.getPoolSchedulingLock(req.Pool)
+		schedulingLock.Lock()
+		defer schedulingLock.Unlock()
 	}
 
 	// Old scheduler resource accounting logic.
@@ -230,6 +243,18 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	}
 
 	return result.ErrorOrNil()
+}
+
+func (q *AggregatedQueueServer) getPoolSchedulingLock(pool string) *sync.Mutex {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	schedulingLock, ok := q.schedulingLockByPool[pool]
+	if !ok {
+		// Create a lock if this is the first time we're seeing this pool.
+		schedulingLock = &sync.Mutex{}
+		q.schedulingLockByPool[pool] = schedulingLock
+	}
+	return schedulingLock
 }
 
 type SchedulerJobRepositoryAdapter struct {
@@ -453,13 +478,19 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		log.WithError(err).Warnf("could not store executor details for cluster %s", req.ClusterId)
 	}
 
+	// At this point we've written updated usage information to Redis and are ready to start scheduling.
+	// Exit here if scheduling is disabled.
+	if q.schedulingConfig.DisableScheduling {
+		log.Info("scheduling disabled")
+		return make([]*api.Job, 0), nil
+	}
+
 	// Give Schedule() a 3 second shorter deadline than ctx to give it a chance to finish up before ctx deadline.
 	if deadline, ok := ctx.Deadline(); ok {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithDeadline(ctx, deadline.Add(-3*time.Second))
 		defer cancel()
 	}
-
 	sctx := schedulercontext.NewSchedulingContext(
 		req.ClusterId,
 		req.Pool,
