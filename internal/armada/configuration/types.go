@@ -89,6 +89,8 @@ type PulsarConfig struct {
 }
 
 type SchedulingConfig struct {
+	// Disables scheduling.
+	DisableScheduling bool
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
 	Preemption       PreemptionConfig

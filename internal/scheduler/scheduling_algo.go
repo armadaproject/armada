@@ -99,6 +99,12 @@ func (l *FairSchedulingAlgo) Schedule(
 	timeout, cancel := context.WithTimeout(ctx, l.maxSchedulingDuration)
 	defer cancel()
 
+	// Exit immediately if scheduling is disabled.
+	if l.config.DisableScheduling {
+		log.Info("scheduling disabled")
+		return overallSchedulerResult, nil
+	}
+
 	allExecutorsConsidered := false
 	executorsToSchedule := accounting.getExecutorsToSchedule(l.previousScheduleClusterId)
 	for i, executor := range executorsToSchedule {
