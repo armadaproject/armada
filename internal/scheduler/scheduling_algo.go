@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -94,8 +95,9 @@ func (l *FairSchedulingAlgo) Schedule(
 	}
 	executorGroups := l.groupExecutors(fsctx.executors)
 	if len(l.executorGroupsToSchedule) == 0 {
+		// Cycle over groups in a consistent order.
 		l.executorGroupsToSchedule = maps.Keys(executorGroups)
-		armadaslices.Shuffle(l.executorGroupsToSchedule)
+		slices.Sort(l.executorGroupsToSchedule)
 	}
 	for len(l.executorGroupsToSchedule) > 0 {
 		select {
