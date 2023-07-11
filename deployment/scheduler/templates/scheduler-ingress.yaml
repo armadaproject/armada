@@ -40,6 +40,7 @@ spec:
   tls:
     - hosts:
       {{- toYaml .Values.scheduler.hostnames  | nindent 6 }}
+      - {{ include "armada-scheduler.name" $root }}.{{ $root.Release.Namespace }}.svc
       {{- $root := . -}}
       {{- range $i := until (int .Values.scheduler.replicas) }}
       - {{ include "armada-scheduler.name" $root }}-{{ $i }}.{{ include "armada-scheduler.name" $root }}.{{ $root.Release.Namespace }}.svc
