@@ -11,10 +11,10 @@ import (
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -118,7 +118,7 @@ func (job *Job) GetSubmitTime() time.Time {
 	return job.Created
 }
 
-func (job *Job) GetPodRequirements(priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
+func (job *Job) GetPodRequirements(priorityClasses map[string]types.PriorityClass) *schedulerobjects.PodRequirements {
 	podSpec := job.GetMainPodSpec()
 
 	priority, ok := PriorityFromPodSpec(podSpec, priorityClasses)
@@ -194,7 +194,7 @@ func SchedulingResourceRequirementsFromPodSpec(podSpec *v1.PodSpec) v1.ResourceR
 // In both cases the value along with true boolean is returned.
 // PriorityClassName in priorityByPriorityClassName map.
 // If no priority is set for the pod spec, 0 along with a false boolean would be returned
-func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityClasses map[string]configuration.PriorityClass) (int32, bool) {
+func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityClasses map[string]types.PriorityClass) (int32, bool) {
 	// If there's no podspec there's nothing we can do
 	if podSpec == nil {
 		return 0, false
