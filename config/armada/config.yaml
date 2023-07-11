@@ -19,6 +19,8 @@ grpc:
   keepaliveEnforcementPolicy:
     minTime: 10s
     permitWithoutStream: true
+  tls:
+    enabled: false
 redis:
   addrs:
     - redis:6379

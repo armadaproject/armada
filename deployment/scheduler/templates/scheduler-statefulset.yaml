@@ -91,6 +91,11 @@ spec:
               mountPath: "/pulsar/ca"
               readOnly: true
             {{- end }}
+            {{- if .Values.scheduler.applicationConfig.grpc.tls.enabled }}
+            - name: tls-certs
+              mountPath: /certs
+              readOnly: true
+            {{- end }}
             {{- if .Values.scheduler.additionalVolumeMounts }}
             {{- toYaml .Values.scheduler.additionalVolumeMounts | nindent 12 -}}
             {{- end }}
@@ -116,6 +121,11 @@ spec:
                         - {{ include "armada-scheduler.name" . }}
                 topologyKey: kubernetes.io/hostname
       volumes:
+        {{- if .Values.scheduler.applicationConfig.grpc.tls.enabled }}
+        - name: tls-certs
+          secret:
+            secretName: armada-scheduler-service-tls
+        {{- end}}
         - name: user-config
           secret:
             secretName: {{ include "armada-scheduler.config.name" . }}

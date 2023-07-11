@@ -2,6 +2,7 @@ package grpc
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"runtime/debug"
@@ -17,13 +18,15 @@ import (
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	_ "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
-	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/certs"
+	"github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/internal/common/requestid"
 )
 
@@ -33,6 +36,7 @@ func CreateGrpcServer(
 	keepaliveParams keepalive.ServerParameters,
 	keepaliveEnforcementPolicy keepalive.EnforcementPolicy,
 	authServices []authorization.AuthService,
+	tlsConfig configuration.TlsConfig,
 ) *grpc.Server {
 	// Logging, authentication, etc. are implemented via gRPC interceptors
 	// (i.e., via functions that are called before handling the actual request).
@@ -57,14 +61,12 @@ func CreateGrpcServer(
 		requestid.UnaryServerInterceptor(false),
 		armadaerrors.UnaryServerInterceptor(2000),
 		grpc_logrus.UnaryServerInterceptor(messageDefault),
-		logging.UnaryServerInterceptor(),
 	)
 	streamInterceptors = append(streamInterceptors,
 		grpc_ctxtags.StreamServerInterceptor(tagsExtractor),
 		requestid.StreamServerInterceptor(false),
 		armadaerrors.StreamServerInterceptor(2000),
 		grpc_logrus.StreamServerInterceptor(messageDefault),
-		logging.StreamServerInterceptor(),
 	)
 
 	// Authentication
@@ -79,13 +81,32 @@ func CreateGrpcServer(
 	unaryInterceptors = append(unaryInterceptors, grpc_prometheus.UnaryServerInterceptor)
 	streamInterceptors = append(streamInterceptors, grpc_prometheus.StreamServerInterceptor)
 
-	// Interceptors are registered at server creation
-	return grpc.NewServer(
+	serverOptions := []grpc.ServerOption{
 		grpc.KeepaliveParams(keepaliveParams),
 		grpc.KeepaliveEnforcementPolicy(keepaliveEnforcementPolicy),
 		grpc.StreamInterceptor(grpc_middleware.ChainStreamServer(streamInterceptors...)),
 		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(unaryInterceptors...)),
-	)
+	}
+
+	if tlsConfig.Enabled {
+		cachedCertificateService := certs.NewCachedCertificateService(tlsConfig.CertPath, tlsConfig.KeyPath, time.Minute)
+		go func() {
+			cachedCertificateService.Run(context.Background())
+		}()
+		tlsCreds := credentials.NewTLS(&tls.Config{
+			GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+				cert := cachedCertificateService.GetCertificate()
+				if cert == nil {
+					return nil, fmt.Errorf("unexpectedly received nil from certificate cache")
+				}
+				return cert, nil
+			},
+		})
+		serverOptions = append(serverOptions, grpc.Creds(tlsCreds))
+	}
+
+	// Interceptors are registered at server creation
+	return grpc.NewServer(serverOptions...)
 }
 
 // TODO We don't need this function. Just do this at the caller.
