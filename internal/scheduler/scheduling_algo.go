@@ -100,11 +100,12 @@ func (l *FairSchedulingAlgo) Schedule(
 		slices.Sort(l.executorGroupsToSchedule)
 	}
 	for len(l.executorGroupsToSchedule) > 0 {
+
 		select {
 		case <-ctxWithTimeout.Done():
 			// We've reached the scheduling time limit; exit gracefully.
 			log.Info("ending scheduling round early as we have hit the maximum scheduling duration")
-			break
+			return overallSchedulerResult, nil
 		default:
 		}
 		executorGroupLabel := armadaslices.Pop(&l.executorGroupsToSchedule)
