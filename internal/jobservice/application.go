@@ -93,6 +93,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		config.Grpc.KeepaliveParams,
 		config.Grpc.KeepaliveEnforcementPolicy,
 		[]authorization.AuthService{&authorization.AnonymousAuthService{}},
+		config.Grpc.Tls,
 	)
 
 	err, sqlJobRepo, dbCallbackFn := repository.NewSQLJobService(config, log)

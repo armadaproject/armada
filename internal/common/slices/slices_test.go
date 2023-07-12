@@ -241,3 +241,26 @@ func TestFilter_Nil(t *testing.T) {
 	output := Filter(input, includeAll)
 	assert.Equal(t, expectedOutput, output)
 }
+
+func TestPop(t *testing.T) {
+	s := []int{1, 2, 3}
+	expected := []int{3, 2, 1}
+	var actual []int
+	for len(s) > 0 {
+		actual = append(actual, Pop(&s))
+	}
+	assert.Equal(t, expected, actual)
+	assert.Panics(
+		t,
+		func() {
+			Pop(&s)
+		},
+	)
+	assert.Panics(
+		t,
+		func() {
+			var s []int
+			Pop(&s)
+		},
+	)
+}

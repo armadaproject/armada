@@ -86,10 +86,3 @@ jobs:
           DOCKER_BUILDX_BUILDER: "${{ steps.buildx.outputs.name }}"
           DOCKER_BUILDX_CACHE_FROM: "type=gha"
           DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
-
-      - name: Push Docker image README.md's
-        uses: ./.github/workflows/docker-readme
-        with:
-          docker_owner: "gresearch"
-          docker_user: "${{ secrets.DOCKERHUB_USER }}"
-          docker_pwd: "${{ secrets.DOCKERHUB_PASS }}"

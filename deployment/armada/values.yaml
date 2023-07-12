@@ -84,6 +84,11 @@ serviceAccount: {}
 applicationConfig:
   # -- Armada Server gRPC port
   grpcPort: 50051
+  grpc:
+    tls:
+      enabled: false
+      certPath: /certs/tls.crt
+      keyPath: /certs/tls.key
   # -- Armada Server REST port
   httpPort: 8080
   pulsar:
