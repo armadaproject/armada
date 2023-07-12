@@ -102,7 +102,20 @@ var (
 		false,
 		false,
 		1).WithUpdatedRun(
-		jobdb.CreateRun(uuid.New(), requeuedJobId, time.Now().Unix(), "testExecutor", "test-node", false, false, true, false, true, true),
+		jobdb.CreateRun(
+			uuid.New(),
+			requeuedJobId,
+			time.Now().Unix(),
+			"testExecutor",
+			"test-node",
+			"node",
+			false,
+			false,
+			true,
+			false,
+			true,
+			true,
+		),
 	)
 )
 
@@ -707,6 +720,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 						queuedJob.Id(),
 						123,
 						"test-executor",
+						"test-executor-test-node",
 						"test-node",
 						false,
 						false,
