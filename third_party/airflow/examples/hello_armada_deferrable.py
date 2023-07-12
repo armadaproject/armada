@@ -71,7 +71,6 @@ with DAG(
     armada_channel_args = {"target": "127.0.0.1:50051"}
     job_service_channel_args = {
         "target": "127.0.0.1:60003",
-        "options": default_jobservice_channel_options,
     }
     """
     This defines an Airflow task that runs Hello World and it gives the airflow
@@ -81,8 +80,7 @@ with DAG(
     """
     This is creating an Armada task with the task_id of armada and name of armada.
     The Airflow operator needs queue and job-set for Armada
-    You also specify the PythonClient and JobServiceClient for each task.
-    You should reuse them for all your tasks.
+    You also specify the PythonClient and JobServiceClient channel arguments for each task.
     This job will use the podspec defined above.
     """
     armada = ArmadaDeferrableOperator(

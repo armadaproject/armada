@@ -17,7 +17,7 @@ import grpc
 import pendulum
 from armada.operators.jobservice import (
     JobServiceClient,
-    default_jobservice_channel_options,
+    get_retryable_job_service_client,
 )
 
 
@@ -75,10 +75,7 @@ with DAG(
     no_auth_client = ArmadaClient(
         channel=grpc.insecure_channel(target="127.0.0.1:50051")
     )
-    job_service_client = JobServiceClient(
-        channel=grpc.insecure_channel(target="127.0.0.1:60003"),
-        options=default_jobservice_channel_options,
-    )
+    job_service_client = get_retryable_job_service_client(target="127.0.0.1:60003")
     """
     This defines an Airflow task that runs Hello World and it gives the airflow
     task name of dummy.
