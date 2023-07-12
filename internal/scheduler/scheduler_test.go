@@ -216,7 +216,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedQueued:   []string{leasedJob.Id()},
 			expectedRequeued: []string{leasedJob.Id()},
 			// Should add node anti affinities for nodes of any attempted runs
-			expectedNodeAntiAffinities:       []string{leasedJob.LatestRun().NodeId()},
+			expectedNodeAntiAffinities:       []string{leasedJob.LatestRun().NodeName()},
 			expectedJobSchedulingInfoVersion: 2,
 			expectedQueuedVersion:            leasedJob.QueuedVersion() + 1,
 		},
