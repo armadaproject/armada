@@ -10,7 +10,7 @@ import (
 )
 
 var leaderStatusDesc = prometheus.NewDesc(
-	metrics.MetricPrefix+"_scheduler_leader_status",
+	metrics.MetricPrefix+"scheduler_leader_status",
 	"Gauge of if the reporting system is leader, 0 indicates hot replica, 1 indicates leader.",
 	[]string{"name"}, nil,
 )
