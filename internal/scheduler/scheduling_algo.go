@@ -101,7 +101,6 @@ func (l *FairSchedulingAlgo) Schedule(
 		slices.Sort(l.executorGroupsToSchedule)
 	}
 	for len(l.executorGroupsToSchedule) > 0 {
-
 		select {
 		case <-ctxWithTimeout.Done():
 			// We've reached the scheduling time limit; exit gracefully.
@@ -133,8 +132,11 @@ func (l *FairSchedulingAlgo) Schedule(
 			executorGroup,
 		)
 		if err == context.DeadlineExceeded {
+			// We've reached the scheduling time limit;
+			// add the executorGroupLabel back to l.executorGroupsToSchedule such that we try it again next time,
+			// and exit gracefully.
+			l.executorGroupsToSchedule = append(l.executorGroupsToSchedule, executorGroupLabel)
 			log.Info("stopped scheduling early as we have hit the maximum scheduling duration")
-			// We've reached the scheduling time limit, exit gracefully
 			break
 		} else if err != nil {
 			return nil, err
