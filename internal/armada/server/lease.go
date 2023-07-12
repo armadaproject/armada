@@ -693,8 +693,8 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			v := node.Labels[q.schedulingConfig.Preemption.NodeIdLabel]
 			if v == "" {
 				log.Warnf(
-					"failed to set node id selector on job %s to target node %s: nodeIdLabel missing from %s",
-					apiJob.Id, node.Name, node.Labels,
+					"failed to set node id selector on job %s to target node %s (id %s): nodeIdLabel missing from %s",
+					apiJob.Id, node.Name, node.Id, node.Labels,
 				)
 				continue
 			}
