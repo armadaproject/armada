@@ -26,7 +26,7 @@ func TestJobRun_TestGetter(t *testing.T) {
 	assert.Equal(t, baseJobRun.id, baseJobRun.Id())
 	assert.Equal(t, baseJobRun.created, baseJobRun.Created())
 	assert.Equal(t, baseJobRun.executor, baseJobRun.Executor())
-	assert.Equal(t, baseJobRun.nodeId, baseJobRun.Node())
+	assert.Equal(t, baseJobRun.nodeId, baseJobRun.NodeId())
 }
 
 func TestJobRun_TestRunning(t *testing.T) {

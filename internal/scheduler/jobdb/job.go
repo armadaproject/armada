@@ -333,13 +333,14 @@ func (job *Job) HasRuns() bool {
 }
 
 // WithNewRun creates a copy of the job with a new run on the given executor.
-func (job *Job) WithNewRun(executor string, nodeId string) *Job {
+func (job *Job) WithNewRun(executor string, nodeId, nodeName string) *Job {
 	run := &JobRun{
 		id:       uuid.New(),
 		jobId:    job.id,
 		created:  time.Now().UnixNano(),
 		executor: executor,
 		nodeId:   nodeId,
+		nodeName: nodeName,
 	}
 	return job.WithUpdatedRun(run)
 }
