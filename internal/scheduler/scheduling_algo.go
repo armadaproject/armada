@@ -259,9 +259,12 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, t
 		if executorId == "" {
 			return nil, errors.Errorf("run %s of job %s is not queued but is not assigned to an executor", run.Id(), job.Id())
 		}
-		nodeId := run.Node()
+		nodeId := run.NodeId()
 		if nodeId == "" {
-			return nil, errors.Errorf("run %s of job %s is not queued but is not assigned to a node", run.Id(), job.Id())
+			return nil, errors.Errorf("run %s of job %s is not queued but has no nodeId associated with it", run.Id(), job.Id())
+		}
+		if nodeName := run.NodeName(); nodeName == "" {
+			return nil, errors.Errorf("run %s of job %s is not queued but has no nodeName associated with it", run.Id(), job.Id())
 		}
 		jobsByExecutorId[executorId] = append(jobsByExecutorId[executorId], job)
 		nodeIdByJobId[job.Id()] = nodeId
@@ -410,7 +413,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		if node, err := nodeDb.GetNode(nodeId); err != nil {
 			return nil, nil, err
 		} else {
-			result.ScheduledJobs[i] = jobDbJob.WithQueued(false).WithNewRun(node.Executor, node.Id)
+			result.ScheduledJobs[i] = jobDbJob.WithQueued(false).WithNewRun(node.Executor, node.Id, node.Name)
 		}
 	}
 	return result, sctx, nil
@@ -458,7 +461,7 @@ func (l *FairSchedulingAlgo) addExecutorToNodeDb(nodeDb *nodedb.NodeDb, jobs []*
 		if job.InTerminalState() || !job.HasRuns() {
 			continue
 		}
-		nodeId := job.LatestRun().Node()
+		nodeId := job.LatestRun().NodeId()
 		if _, ok := nodesById[nodeId]; !ok {
 			logrus.Errorf(
 				"job %s assigned to node %s on executor %s, but no such node found",

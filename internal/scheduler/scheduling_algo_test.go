@@ -373,7 +373,7 @@ func TestSchedule(t *testing.T) {
 				for nodeIndex, existingJobs := range existingJobsByExecutorNodeIndex {
 					node := executor.Nodes[nodeIndex]
 					for jobIndex, job := range existingJobs.jobs {
-						job = job.WithQueued(false).WithNewRun(executor.Id, node.Id)
+						job = job.WithQueued(false).WithNewRun(executor.Id, node.Id, node.Name)
 						if existingJobs.acknowledged {
 							run := job.LatestRun()
 							node.StateByJobRunId[run.Id().String()] = schedulerobjects.JobRunState_RUNNING
@@ -448,7 +448,8 @@ func TestSchedule(t *testing.T) {
 				assert.False(t, dbJob.Queued())
 				dbRun := dbJob.LatestRun()
 				assert.False(t, dbRun.Failed())
-				assert.Equal(t, schedulerResult.NodeIdByJobId[dbJob.Id()], dbRun.Node())
+				assert.Equal(t, schedulerResult.NodeIdByJobId[dbJob.Id()], dbRun.NodeId())
+				assert.NotEmpty(t, dbRun.NodeName())
 			}
 
 			// Check that jobDb was updated correctly.
@@ -473,7 +474,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 			nodes := testfixtures.N32CpuNodes(numNodes, testfixtures.TestPriorities)
 			for i, node := range nodes {
 				for j := 32 * i; j < 32*(i+1); j++ {
-					jobs[j] = jobs[j].WithNewRun("executor-01", node.Name)
+					jobs[j] = jobs[j].WithNewRun("executor-01", node.Id, node.Name)
 				}
 			}
 			armadaslices.Shuffle(jobs)

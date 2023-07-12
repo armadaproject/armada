@@ -337,7 +337,7 @@ func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job
 
 	for _, run := range job.AllRuns() {
 		if run.RunAttempted() {
-			err := affinity.AddNodeAntiAffinity(newAffinity, s.nodeIdLabel, run.Node())
+			err := affinity.AddNodeAntiAffinity(newAffinity, s.nodeIdLabel, run.NodeName())
 			if err != nil {
 				return nil, err
 			}
@@ -440,10 +440,12 @@ func (s *Scheduler) eventsFromSchedulerResult(txn *jobdb.Txn, result *SchedulerR
 						Created: s.now(),
 						Event: &armadaevents.EventSequence_Event_JobRunLeased{
 							JobRunLeased: &armadaevents.JobRunLeased{
-								RunId:                armadaevents.ProtoUuidFromUuid(job.LatestRun().Id()),
-								JobId:                jobId,
-								ExecutorId:           job.LatestRun().Executor(),
-								NodeId:               job.LatestRun().Node(),
+								RunId:      armadaevents.ProtoUuidFromUuid(job.LatestRun().Id()),
+								JobId:      jobId,
+								ExecutorId: job.LatestRun().Executor(),
+								// NodeId here refers to the unique identifier of the node in an executor cluster,
+								// which is referred to as the NodeName within the scheduler.
+								NodeId:               job.LatestRun().NodeName(),
 								UpdateSequenceNumber: job.QueuedVersion(),
 							},
 						},
