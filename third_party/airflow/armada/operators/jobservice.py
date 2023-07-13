@@ -68,8 +68,8 @@ class JobServiceClient:
 
 def get_retryable_job_service_client(
     target: str,
-    credentials: Optional[grpc.ChannelCredentials],
-    compression: Optional[grpc.Compression],
+    credentials: Optional[grpc.ChannelCredentials] = None,
+    compression: Optional[grpc.Compression] = None,
 ) -> JobServiceClient:
     """
     Get a JobServiceClient that has retry configured
