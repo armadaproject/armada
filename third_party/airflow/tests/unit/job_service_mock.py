@@ -33,7 +33,7 @@ class JobService(jobservice_pb2_grpc.JobServiceServicer):
         )
 
 
-class JobServiceOccaisonalError(jobservice_pb2_grpc.JobServiceServicer):
+class JobServiceOccasionalError(jobservice_pb2_grpc.JobServiceServicer):
     def __init__(self):
         self.get_job_status_count = 0
         self.health_count = 0

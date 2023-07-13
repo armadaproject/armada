@@ -5,7 +5,7 @@ import grpc
 import pytest
 import pytest_asyncio
 
-from job_service_mock import JobService, JobServiceOccaisonalError
+from job_service_mock import JobService, JobServiceOccasionalError
 
 from armada.operators.jobservice_asyncio import JobServiceAsyncIOClient
 from armada.operators.jobservice import default_jobservice_channel_options
@@ -38,10 +38,10 @@ async def js_aio_client(server_mock):
 
 
 @pytest.fixture
-def server_occaisonal_error_mock():
+def server_occasional_error_mock():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     jobservice_pb2_grpc.add_JobServiceServicer_to_server(
-        JobServiceOccaisonalError(), server
+        JobServiceOccasionalError(), server
     )
     server.add_insecure_port("[::]:50101")
     server.start()
@@ -50,7 +50,7 @@ def server_occaisonal_error_mock():
 
 
 @pytest_asyncio.fixture(scope="function")
-async def js_aio_retry_client(server_occaisonal_error_mock):
+async def js_aio_retry_client(server_occasional_error_mock):
     channel = grpc.aio.insecure_channel(
         target="127.0.0.1:50101",
         options=default_jobservice_channel_options,
