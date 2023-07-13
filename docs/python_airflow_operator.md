@@ -454,7 +454,7 @@ Health Check for GRPC Request
 
 
 
-### armada.operators.jobservice.get_retryable_job_service_client(target, credentials, compression)
+### armada.operators.jobservice.get_retryable_job_service_client(target, credentials=None, compression=None)
 Get a JobServiceClient that has retry configured
 
 
