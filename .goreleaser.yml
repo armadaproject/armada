@@ -479,6 +479,7 @@ checksum:
 
 release:
   disable: '{{ if index .Env "FULL_RELEASE" }}false{{ else }}true{{ end }}'
+  mode: replace
   header: |
     ## Armada v{{ .Version }}
 
