@@ -1,9 +1,10 @@
 from armada.operators.armada import ArmadaOperator
-from armada_client import cancel_jobset
+from armada.job_service import JobService
 
 import pytest
 import unittest
-import armada_client
+from unittest.mock import patch
+
 
 get_lookout_url_test_cases = [
     (
@@ -39,19 +40,18 @@ def test_get_lookout_url(lookout_url_template, job_id, expected_url):
 
 
 class TestJobService(unittest.TestCase):
-    def test_cancel_jobs(self, job_id, queue):
-        # Set the job_set_id and queue
-        self.job_set_id = job_id
-        self.queue = queue
+    @patch.object(JobService, "cancel_jobs")
+    def test_on_kill(self, mock_cancel_jobs):
+        mock_cancel_jobs.return_value = None
 
-        # Call the on_kill function
-        self.on_kill()
+        job_service = JobService(job_set_id="test_job_set_id", queue="test_queue")
 
-        # Cancel the jobs
-        response = self.armada_client.cancel_jobset(queue=self.queue, job_set_id=self.job_set_id)
+        job_service.on_kill()
 
-        # Assert that the jobs were successfully canceled
-        self.assertEqual(response, empty_pb2.Empty())
+        mock_cancel_jobs.assert_called_once_with(
+            job_set_id="test_job_set_id", queue="test_queue"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
