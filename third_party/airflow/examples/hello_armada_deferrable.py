@@ -11,9 +11,6 @@ from armada_client.armada import (
     submit_pb2,
 )
 
-from armada.operators.jobservice import default_jobservice_channel_options
-
-
 import pendulum
 
 
@@ -80,7 +77,8 @@ with DAG(
     """
     This is creating an Armada task with the task_id of armada and name of armada.
     The Airflow operator needs queue and job-set for Armada
-    You also specify the PythonClient and JobServiceClient channel arguments for each task.
+    You also specify the PythonClient and JobServiceClient channel arguments
+    for each task.
     This job will use the podspec defined above.
     """
     armada = ArmadaDeferrableOperator(

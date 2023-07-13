@@ -1,5 +1,5 @@
 import json
-from typing import List, Optional, Tuple
+from typing import Optional
 
 from armada.jobservice import jobservice_pb2_grpc, jobservice_pb2
 

@@ -16,10 +16,7 @@ import grpc
 
 import pendulum
 
-from armada.operators.jobservice import (
-    JobServiceClient,
-    get_retryable_job_service_client,
-)
+from armada.operators.jobservice import get_retryable_job_service_client
 
 
 def submit_sleep_container(image: str):
