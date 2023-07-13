@@ -68,7 +68,7 @@ class ArmadaDeferrableOperator(BaseOperator):
     submitting its job_request_items.
 
     See
-        https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html
+    https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html
     for more information about deferrable airflow operators.
 
     Airflow operators inherit from BaseOperator.

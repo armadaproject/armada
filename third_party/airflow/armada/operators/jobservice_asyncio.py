@@ -1,8 +1,8 @@
 from armada.jobservice import (
     jobservice_pb2_grpc,
     jobservice_pb2,
-    default_jobservice_channel_options,
 )
+from armada.operators.jobservice import default_jobservice_channel_options
 
 import grpc
 from typing import Optional
