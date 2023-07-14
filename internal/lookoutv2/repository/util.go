@@ -675,7 +675,6 @@ func prefixAnnotations(prefix string, annotations map[string]string) map[string]
 func logQuery(query *Query) {
 	log.Debug(removeNewlinesAndTabs(query.Sql))
 	log.Debugf("%v", query.Args)
-	fmt.Println(removeNewlinesAndTabs(query.Sql))
 }
 
 func removeNewlinesAndTabs(s string) string {
