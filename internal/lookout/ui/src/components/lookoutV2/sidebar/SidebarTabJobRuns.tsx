@@ -199,11 +199,11 @@ export const SidebarTabJobRuns = ({ job, runErrorService, cordonService }: Sideb
 }
 
 function getRunScheduledTime(run: JobRun): string {
-  if (run.pending !== undefined && run.pending !== "") {
-    return run.pending
-  }
   if (run.leased !== undefined && run.leased !== "") {
     return run.leased
+  }
+  if (run.pending !== undefined && run.pending !== "") {
+    return run.pending
   }
   return ""
 }
