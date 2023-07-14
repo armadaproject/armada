@@ -9,7 +9,7 @@ requires-python = ">=3.7"
 # extremely difficult.
 dependencies = [
 	"armada-client",
-	"apache-airflow>=2.3.1",
+	"apache-airflow>=2.6.3",
 	"grpcio>=1.46.3",
 	"grpcio-tools>=1.46.3",
 	"types-protobuf>=3.19.22"
