@@ -29,7 +29,10 @@ from airflow.utils.context import Context
 from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.client import ArmadaClient
 
-from armada.operators.jobservice import JobServiceClient
+from armada.operators.jobservice import (
+    JobServiceClient,
+    default_jobservice_channel_options,
+)
 from armada.operators.jobservice_asyncio import JobServiceAsyncIOClient
 from armada.operators.utils import (
     airflow_error,
@@ -65,7 +68,7 @@ class ArmadaDeferrableOperator(BaseOperator):
     submitting its job_request_items.
 
     See
-        https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html
+    https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html
     for more information about deferrable airflow operators.
 
     Airflow operators inherit from BaseOperator.
@@ -100,6 +103,10 @@ class ArmadaDeferrableOperator(BaseOperator):
         super().__init__(**kwargs)
         self.name = name
         self.armada_channel_args = GrpcChannelArguments(**armada_channel_args)
+
+        if "options" not in job_service_channel_args:
+            job_service_channel_args["options"] = default_jobservice_channel_options
+
         self.job_service_channel_args = GrpcChannelArguments(**job_service_channel_args)
         self.armada_queue = armada_queue
         self.job_request_items = job_request_items
