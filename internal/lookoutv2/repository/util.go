@@ -56,6 +56,7 @@ type runPatch struct {
 	finished    *time.Time
 	jobRunState *string
 	node        *string
+	leased      *time.Time
 	pending     *time.Time
 	started     *time.Time
 }
@@ -185,7 +186,7 @@ func (js *JobSimulator) Lease(runId string, timestamp time.Time) *JobSimulator {
 	updateRun(js.job, &runPatch{
 		runId:       runId,
 		jobRunState: pointer.String(string(lookout.JobRunLeased)),
-		pending:     &ts,
+		leased:      &ts,
 	})
 	return js
 }
@@ -221,12 +222,16 @@ func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Tim
 	js.job.LastActiveRunId = &runId
 	js.job.LastTransitionTime = ts
 	js.job.State = string(lookout.JobPending)
-	updateRun(js.job, &runPatch{
+	rp := &runPatch{
 		runId:       runId,
 		cluster:     &cluster,
 		jobRunState: pointer.String(string(lookout.JobRunPending)),
 		pending:     &ts,
-	})
+	}
+	if js.converter.IsLegacy() {
+		rp.leased = &ts
+	}
+	updateRun(js.job, rp)
 	return js
 }
 
@@ -348,6 +353,7 @@ func (js *JobSimulator) Cancelled(timestamp time.Time) *JobSimulator {
 	}
 	js.events = append(js.events, cancelled)
 
+	js.job.State = string(lookout.JobCancelled)
 	js.job.Cancelled = &ts
 	js.job.LastTransitionTime = ts
 	return js
@@ -618,17 +624,14 @@ func updateRun(job *model.Job, patch *runPatch) {
 	if patch.jobRunState != nil {
 		state = *patch.jobRunState
 	}
-	pending := time.Time{}
-	if patch.pending != nil {
-		pending = *patch.pending
-	}
 	job.Runs = append(job.Runs, &model.Run{
 		Cluster:     cluster,
 		ExitCode:    patch.exitCode,
 		Finished:    patch.finished,
 		JobRunState: state,
 		Node:        patch.node,
-		Pending:     pending,
+		Leased:      patch.leased,
+		Pending:     patch.pending,
 		RunId:       patch.runId,
 		Started:     patch.started,
 	})
@@ -650,8 +653,11 @@ func patchRun(run *model.Run, patch *runPatch) {
 	if patch.node != nil {
 		run.Node = patch.node
 	}
+	if patch.leased != nil {
+		run.Leased = patch.leased
+	}
 	if patch.pending != nil {
-		run.Pending = *patch.pending
+		run.Pending = patch.pending
 	}
 	if patch.started != nil {
 		run.Started = patch.started
@@ -669,6 +675,7 @@ func prefixAnnotations(prefix string, annotations map[string]string) map[string]
 func logQuery(query *Query) {
 	log.Debug(removeNewlinesAndTabs(query.Sql))
 	log.Debugf("%v", query.Args)
+	fmt.Println(removeNewlinesAndTabs(query.Sql))
 }
 
 func removeNewlinesAndTabs(s string) string {

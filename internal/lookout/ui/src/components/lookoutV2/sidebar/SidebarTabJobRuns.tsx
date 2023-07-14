@@ -13,7 +13,7 @@ import {
   DialogActions,
 } from "@mui/material"
 import { Button, Tooltip } from "@mui/material"
-import { Job } from "models/lookoutV2Models"
+import { Job, JobRun } from "models/lookoutV2Models"
 import { formatJobRunState, formatUtcDate } from "utils/jobsTableFormatters"
 
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
@@ -120,7 +120,7 @@ export const SidebarTabJobRuns = ({ job, runErrorService, cordonService }: Sideb
           <Accordion key={run.runId} defaultExpanded={i === 0}>
             <AccordionSummary expandIcon={<ExpandMore />} aria-controls="panel1a-content">
               <Typography>
-                {formatUtcDate(run.pending)} UTC ({formatJobRunState(run.jobRunState)})
+                {formatUtcDate(getRunScheduledTime(run))} UTC ({formatJobRunState(run.jobRunState)})
               </Typography>
             </AccordionSummary>
             <AccordionDetails sx={{ padding: 0 }}>
@@ -128,6 +128,7 @@ export const SidebarTabJobRuns = ({ job, runErrorService, cordonService }: Sideb
                 data={[
                   { key: "Run ID", value: run.runId },
                   { key: "State", value: formatJobRunState(run.jobRunState) },
+                  { key: "Leased (UTC)", value: formatUtcDate(run.leased) },
                   { key: "Pending (UTC)", value: formatUtcDate(run.pending) },
                   { key: "Started (UTC)", value: formatUtcDate(run.started) },
                   { key: "Finished (UTC)", value: formatUtcDate(run.finished) },
@@ -195,4 +196,14 @@ export const SidebarTabJobRuns = ({ job, runErrorService, cordonService }: Sideb
       {runsNewestFirst.length === 0 && <>This job has not run.</>}
     </div>
   )
+}
+
+function getRunScheduledTime(run: JobRun): string {
+  if (run.pending !== undefined && run.pending !== "") {
+    return run.pending
+  }
+  if (run.leased !== undefined && run.leased !== "") {
+    return run.leased
+  }
+  return ""
 }
