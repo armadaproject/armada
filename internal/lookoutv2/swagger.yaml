@@ -115,7 +115,6 @@ definitions:
     required:
       - runId
       - cluster
-      - pending
       - jobRunState
     properties:
       runId:
@@ -129,11 +128,16 @@ definitions:
       node:
         type: string
         x-nullable: true
+      leased:
+        type: string
+        format: date-time
+        minLength: 1
+        x-nullable: true
       pending:
         type: string
         format: date-time
         minLength: 1
-        x-nullable: false
+        x-nullable: true
       started:
         type: string
         format: date-time
@@ -277,6 +281,9 @@ paths:
                 description: "Ordering to apply to jobs."
                 $ref: "#/definitions/order"
                 x-nullable: true
+              activeJobSets:
+                type: boolean
+                description: "Only include jobs in active job sets"
               skip:
                 type: integer
                 description: "First elements to ignore from the full set of results. Used for pagination."
@@ -416,6 +423,9 @@ paths:
                 description: "Ordering to apply to job groups."
                 $ref: "#/definitions/order"
                 x-nullable: true
+              activeJobSets:
+                type: boolean
+                description: "Only include jobs in active job sets"
               groupedField:
                 type: object
                 required:

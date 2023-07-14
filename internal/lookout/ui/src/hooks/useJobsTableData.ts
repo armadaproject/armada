@@ -35,6 +35,7 @@ export interface UseFetchJobsTableDataArgs {
   expandedState: ExpandedStateList
   lookoutOrder: LookoutColumnOrder
   lookoutFilters: LookoutColumnFilter[]
+  activeJobSets: boolean
   columnMatches: Record<string, Match>
   paginationState: PaginationState
   allColumns: JobTableColumn[]
@@ -120,6 +121,7 @@ export const useFetchJobsTableData = ({
   lookoutOrder,
   paginationState,
   lookoutFilters,
+  activeJobSets,
   columnMatches,
   allColumns,
   selectedRows,
@@ -153,6 +155,7 @@ export const useFetchJobsTableData = ({
       const order = getOrder(lookoutOrder, isJobFetch)
       const rowRequest: FetchRowRequest = {
         filters: getFiltersForRows(lookoutFilters, columnMatches, parentRowInfo?.rowIdPartsPath ?? []),
+        activeJobSets: activeJobSets,
         skip: nextRequest.skip ?? 0,
         take: nextRequest.take ?? paginationState.pageSize,
         order: order,

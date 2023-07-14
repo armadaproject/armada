@@ -183,6 +183,7 @@ export const JobsTableContainer = ({
   const [columnMatches, setColumnMatches] = useState<Record<string, Match>>(initialPrefs.columnMatches)
   const [parseErrors, setParseErrors] = useState<Record<string, string | undefined>>({})
   const [textFieldRefs, setTextFieldRefs] = useState<Record<string, RefObject<HTMLInputElement>>>({})
+  const [activeJobSets, setActiveJobSets] = useState<boolean>(false)
 
   // Sorting
   const [lookoutOrder, setLookoutOrder] = useState<LookoutColumnOrder>(initialPrefs.order)
@@ -196,6 +197,7 @@ export const JobsTableContainer = ({
     paginationState: pagination,
     lookoutOrder: lookoutOrder,
     lookoutFilters: lookoutFilters,
+    activeJobSets: activeJobSets,
     columnMatches: columnMatches,
     allColumns,
     selectedRows,
@@ -333,10 +335,10 @@ export const JobsTableContainer = ({
     }
   }
 
-  const onRefresh = useCallback(() => {
+  const onRefresh = () => {
     setSelectedRows({})
     setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
-  }, [expanded, data, pageSize, pageIndex])
+  }
 
   const onColumnVisibilityChange = (colIdToToggle: ColumnId) => {
     // Refresh if we make a new aggregate column visible
@@ -675,6 +677,11 @@ export const JobsTableContainer = ({
           visibleColumns={visibleColumnIds}
           selectedItemFilters={selectedItemsFilters}
           customViews={customViews}
+          activeJobSets={activeJobSets}
+          onActiveJobSetsChanged={(newVal) => {
+            setActiveJobSets(newVal)
+            onRefresh()
+          }}
           onRefresh={onRefresh}
           onAddAnnotationColumn={addAnnotationCol}
           onRemoveAnnotationColumn={removeAnnotationCol}
