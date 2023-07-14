@@ -94,7 +94,7 @@ services:
     networks:
       - kind
     ports:
-      - 8082:8082
+      - 8082:8080
       - 4002:4000
     depends_on:
       - server
@@ -104,6 +104,8 @@ services:
       - "gomod-cache:/go/pkg/mod:rw"
     environment:
       - KUBECONFIG=/.kube/config
+    env_file:
+      - ./developer/env/binoculars.env
     working_dir: /app
     command: ./binoculars
 
