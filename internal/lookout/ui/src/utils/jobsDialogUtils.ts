@@ -4,6 +4,7 @@ import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 
 export const getAllJobsMatchingFilters = async (
   filters: JobFilter[],
+  activeJobSets: boolean,
   getJobsService: IGetJobsService,
 ): Promise<Job[]> => {
   const MAX_JOBS_PER_REQUEST = 10000
@@ -12,6 +13,7 @@ export const getAllJobsMatchingFilters = async (
   while (continuePaginating) {
     const { jobs, count: totalJobs } = await getJobsService.getJobs(
       filters,
+      activeJobSets,
       { direction: "DESC", field: "jobId" },
       receivedJobs.length,
       MAX_JOBS_PER_REQUEST,
@@ -27,10 +29,11 @@ export const getAllJobsMatchingFilters = async (
 
 export const getUniqueJobsMatchingFilters = async (
   filtersGroups: JobFilter[][],
+  activeJobSets: boolean,
   getJobsService: IGetJobsService,
 ): Promise<Job[]> => {
   const jobsBySelectedItem = await Promise.all(
-    filtersGroups.map(async (filters) => await getAllJobsMatchingFilters(filters, getJobsService)),
+    filtersGroups.map(async (filters) => await getAllJobsMatchingFilters(filters, activeJobSets, getJobsService)),
   )
   return _.uniqBy(jobsBySelectedItem.flat(), (job) => job.jobId)
 }

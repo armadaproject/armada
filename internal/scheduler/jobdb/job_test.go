@@ -54,7 +54,6 @@ func TestJob_TestGetter(t *testing.T) {
 	assert.Equal(t, baseJob.queue, baseJob.Queue())
 	assert.Equal(t, baseJob.queue, baseJob.GetQueue())
 	assert.Equal(t, baseJob.created, baseJob.Created())
-	assert.Equal(t, schedulingInfo, baseJob.GetRequirements(nil))
 	assert.Equal(t, schedulingInfo, baseJob.JobSchedulingInfo())
 	assert.Equal(t, baseJob.GetAnnotations(), map[string]string{
 		"foo": "bar",
@@ -124,11 +123,11 @@ func TestJob_TestInTerminalState(t *testing.T) {
 
 func TestJob_TestHasRuns(t *testing.T) {
 	assert.Equal(t, false, baseJob.HasRuns())
-	assert.Equal(t, true, baseJob.WithNewRun("test-executor", "test-node").HasRuns())
+	assert.Equal(t, true, baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId").HasRuns())
 }
 
 func TestJob_TestWithNewRun(t *testing.T) {
-	jobWithRun := baseJob.WithNewRun("test-executor", "test-node")
+	jobWithRun := baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId")
 	assert.Equal(t, true, jobWithRun.HasRuns())
 	run := jobWithRun.LatestRun()
 	assert.NotNil(t, run)
@@ -137,7 +136,8 @@ func TestJob_TestWithNewRun(t *testing.T) {
 		jobId:    "test-job",
 		created:  run.created,
 		executor: "test-executor",
-		node:     "test-node",
+		nodeId:   "test-nodeId",
+		nodeName: "nodeId",
 	}, run)
 }
 

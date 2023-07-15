@@ -52,6 +52,10 @@ func init() {
                 "take"
               ],
               "properties": {
+                "activeJobSets": {
+                  "description": "Only include jobs in active job sets",
+                  "type": "boolean"
+                },
                 "aggregates": {
                   "description": "Additional fields to compute aggregates on",
                   "type": "array",
@@ -70,10 +74,21 @@ func init() {
                   "x-nullable": true
                 },
                 "groupedField": {
-                  "description": "Field to group jobs by",
-                  "type": "string",
-                  "minLength": 1,
-                  "x-nullable": false
+                  "type": "object",
+                  "required": [
+                    "field"
+                  ],
+                  "properties": {
+                    "field": {
+                      "description": "Field or annotation key to group by",
+                      "type": "string",
+                      "x-nullable": false
+                    },
+                    "isAnnotation": {
+                      "type": "boolean",
+                      "x-nullable": false
+                    }
+                  }
                 },
                 "order": {
                   "description": "Ordering to apply to job groups.",
@@ -269,6 +284,10 @@ func init() {
                 "take"
               ],
               "properties": {
+                "activeJobSets": {
+                  "description": "Only include jobs in active job sets",
+                  "type": "boolean"
+                },
                 "filters": {
                   "description": "Filters to apply to jobs.",
                   "type": "array",
@@ -394,7 +413,8 @@ func init() {
             "greaterThan",
             "lessThan",
             "greaterThanOrEqualTo",
-            "lessThanOrEqualTo"
+            "lessThanOrEqualTo",
+            "exists"
           ],
           "x-nullable": false
         },
@@ -414,7 +434,7 @@ func init() {
         "aggregates": {
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": "object"
           },
           "x-nullable": false
         },
@@ -544,7 +564,8 @@ func init() {
             "SUCCEEDED",
             "FAILED",
             "CANCELLED",
-            "PREEMPTED"
+            "PREEMPTED",
+            "LEASED"
           ],
           "x-nullable": false
         },
@@ -583,7 +604,6 @@ func init() {
       "required": [
         "runId",
         "cluster",
-        "pending",
         "jobRunState"
       ],
       "properties": {
@@ -614,9 +634,16 @@ func init() {
             "RUN_UNABLE_TO_SCHEDULE",
             "RUN_LEASE_RETURNED",
             "RUN_LEASE_EXPIRED",
-            "RUN_MAX_RUNS_EXCEEDED"
+            "RUN_MAX_RUNS_EXCEEDED",
+            "RUN_LEASED"
           ],
           "x-nullable": false
+        },
+        "leased": {
+          "type": "string",
+          "format": "date-time",
+          "minLength": 1,
+          "x-nullable": true
         },
         "node": {
           "type": "string",
@@ -626,7 +653,7 @@ func init() {
           "type": "string",
           "format": "date-time",
           "minLength": 1,
-          "x-nullable": false
+          "x-nullable": true
         },
         "runId": {
           "type": "string",
@@ -677,6 +704,10 @@ func init() {
                 "take"
               ],
               "properties": {
+                "activeJobSets": {
+                  "description": "Only include jobs in active job sets",
+                  "type": "boolean"
+                },
                 "aggregates": {
                   "description": "Additional fields to compute aggregates on",
                   "type": "array",
@@ -695,10 +726,21 @@ func init() {
                   "x-nullable": true
                 },
                 "groupedField": {
-                  "description": "Field to group jobs by",
-                  "type": "string",
-                  "minLength": 1,
-                  "x-nullable": false
+                  "type": "object",
+                  "required": [
+                    "field"
+                  ],
+                  "properties": {
+                    "field": {
+                      "description": "Field or annotation key to group by",
+                      "type": "string",
+                      "x-nullable": false
+                    },
+                    "isAnnotation": {
+                      "type": "boolean",
+                      "x-nullable": false
+                    }
+                  }
                 },
                 "order": {
                   "description": "Ordering to apply to job groups.",
@@ -894,6 +936,10 @@ func init() {
                 "take"
               ],
               "properties": {
+                "activeJobSets": {
+                  "description": "Only include jobs in active job sets",
+                  "type": "boolean"
+                },
                 "filters": {
                   "description": "Filters to apply to jobs.",
                   "type": "array",
@@ -979,6 +1025,23 @@ func init() {
     }
   },
   "definitions": {
+    "GroupJobsParamsBodyGroupedField": {
+      "type": "object",
+      "required": [
+        "field"
+      ],
+      "properties": {
+        "field": {
+          "description": "Field or annotation key to group by",
+          "type": "string",
+          "x-nullable": false
+        },
+        "isAnnotation": {
+          "type": "boolean",
+          "x-nullable": false
+        }
+      }
+    },
     "error": {
       "type": "object",
       "required": [
@@ -1019,7 +1082,8 @@ func init() {
             "greaterThan",
             "lessThan",
             "greaterThanOrEqualTo",
-            "lessThanOrEqualTo"
+            "lessThanOrEqualTo",
+            "exists"
           ],
           "x-nullable": false
         },
@@ -1039,7 +1103,7 @@ func init() {
         "aggregates": {
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": "object"
           },
           "x-nullable": false
         },
@@ -1169,7 +1233,8 @@ func init() {
             "SUCCEEDED",
             "FAILED",
             "CANCELLED",
-            "PREEMPTED"
+            "PREEMPTED",
+            "LEASED"
           ],
           "x-nullable": false
         },
@@ -1208,7 +1273,6 @@ func init() {
       "required": [
         "runId",
         "cluster",
-        "pending",
         "jobRunState"
       ],
       "properties": {
@@ -1239,9 +1303,16 @@ func init() {
             "RUN_UNABLE_TO_SCHEDULE",
             "RUN_LEASE_RETURNED",
             "RUN_LEASE_EXPIRED",
-            "RUN_MAX_RUNS_EXCEEDED"
+            "RUN_MAX_RUNS_EXCEEDED",
+            "RUN_LEASED"
           ],
           "x-nullable": false
+        },
+        "leased": {
+          "type": "string",
+          "format": "date-time",
+          "minLength": 1,
+          "x-nullable": true
         },
         "node": {
           "type": "string",
@@ -1251,7 +1322,7 @@ func init() {
           "type": "string",
           "format": "date-time",
           "minLength": 1,
-          "x-nullable": false
+          "x-nullable": true
         },
         "runId": {
           "type": "string",

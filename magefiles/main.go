@@ -11,7 +11,7 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// BootstrapTools installs all tools needed tobuild and release armada
+// BootstrapTools installs all tools needed tobuild and release Armada.
 // For the list of tools this will install, see tools.yaml in the root directory
 func BootstrapTools() error {
 	mg.Deps(goCheck)
@@ -34,19 +34,20 @@ func BootstrapTools() error {
 	return nil
 }
 
-// check dependent tools are present and the correct version
+// Check dependent tools are present and the correct version.
 func CheckDeps() error {
 	checks := []struct {
 		name  string
 		check func() error
 	}{
 		{"docker", dockerCheck},
-		{"docker-compose", dockerComposeCheck},
 		{"go", goCheck},
 		{"kind", kindCheck},
 		{"kubectl", kubectlCheck},
 		{"protoc", protocCheck},
 		{"sqlc", sqlcCheck},
+		{"docker compose", dockerComposeCheck},
+		{"docker buildx", dockerBuildxCheck},
 	}
 	failures := false
 	for _, check := range checks {
@@ -64,7 +65,7 @@ func CheckDeps() error {
 	return nil
 }
 
-// cleans proto files
+// Cleans proto files.
 func Clean() {
 	fmt.Println("Cleaning...")
 	for _, path := range []string{"proto", "protoc", ".goreleaser-minimal.yml", "dist", ".kube"} {
@@ -72,7 +73,7 @@ func Clean() {
 	}
 }
 
-// setup kind and wait for it to be ready
+// Setup Kind and wait for it to be ready
 func Kind() {
 	timeTaken := time.Now()
 	mg.Deps(kindCheck)
@@ -81,29 +82,31 @@ func Kind() {
 	fmt.Println("Time to setup kind:", time.Since(timeTaken))
 }
 
-// teardown kind
+// Teardown Kind Cluster
 func KindTeardown() {
 	mg.Deps(kindCheck)
 	mg.Deps(kindTeardown)
 }
 
-// generate scheduler sql
+// Generate scheduler SQL.
 func Sql() error {
 	mg.Deps(sqlcCheck)
 	return sqlcRun("generate", "-f", "internal/scheduler/database/sql.yaml")
 }
 
-// generate protos
+// Generate Protos.
 func Proto() {
 	mg.Deps(BootstrapProto)
 	mg.Deps(protoGenerate)
 }
 
+// Ensures the Protobuf dependencies are installed.
 func BootstrapProto() {
 	mg.Deps(protocCheck)
 	mg.Deps(protoInstallProtocArmadaPlugin, protoPrepareThirdPartyProtos)
 }
 
+// Builds the specified docker images.
 func BuildDockers(arg string) error {
 	dockerIds := make([]string, 0)
 	timeTaken := time.Now()
@@ -117,17 +120,11 @@ func BuildDockers(arg string) error {
 	return nil
 }
 
-// Create a Local Armada Cluster
+// Create a Local Armada Cluster.
 func LocalDev(arg string) error {
 	timeTaken := time.Now()
 	mg.Deps(BootstrapTools)
 	fmt.Println("Time to bootstrap tools:", time.Since(timeTaken))
-
-	validArgs := []string{"minimal", "full", "no-build"}
-
-	if !strings.Contains(strings.Join(validArgs, ","), arg) {
-		return errors.Errorf("invalid argument: %s", arg)
-	}
 
 	switch arg {
 	case "minimal":
@@ -136,28 +133,28 @@ func LocalDev(arg string) error {
 		fmt.Printf("Time to build, setup kind and download images: %s\n", time.Since(timeTaken))
 	case "full":
 		mg.Deps(mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"), Kind, downloadDependencyImages)
-	case "no-build":
+	case "no-build", "debug":
 		mg.Deps(Kind, downloadDependencyImages)
+	default:
+		return errors.Errorf("invalid argument: %s", arg)
 	}
 
 	mg.Deps(StartDependencies)
 	fmt.Println("Waiting for dependencies to start...")
 	mg.Deps(CheckForPulsarRunning)
 
-	if arg == "minimal" {
-		err := dockerComposeRun("up", "-d", "executor")
-		if err != nil {
-			return err
-		}
-		err = dockerComposeRun("up", "-d", "server")
-		if err != nil {
-			return err
-		}
-	} else {
+	switch arg {
+	case "minimal":
+		os.Setenv("ARMADA_COMPONENTS", "executor,server")
+		mg.Deps(StartComponents)
+	case "debug":
+		fmt.Println("Dependencies started, ending localdev...")
+		return nil
+	default:
 		mg.Deps(StartComponents)
 	}
 
-	fmt.Println("Run: `docker-compose logs -f` to see logs")
+	fmt.Println("Run: `docker compose logs -f` to see logs")
 	return nil
 }
 
@@ -170,11 +167,14 @@ func LocalDevStop() {
 
 // Build the lookout UI from internal/lookout/ui
 func UI() error {
+	timeTaken := time.Now()
 	mg.Deps(yarnCheck)
 
 	mg.Deps(yarnInstall)
 	mg.Deps(yarnOpenAPI)
 	mg.Deps(yarnBuild)
+
+	fmt.Println("Time to build UI:", time.Since(timeTaken))
 	return nil
 }
 

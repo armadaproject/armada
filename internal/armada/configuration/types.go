@@ -7,10 +7,13 @@ import (
 	"github.com/go-redis/redis"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 type ArmadaConfig struct {
@@ -19,10 +22,14 @@ type ArmadaConfig struct {
 	GrpcPort    uint16
 	HttpPort    uint16
 	MetricsPort uint16
+	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
+	PprofPort *uint16
 
 	CorsAllowedOrigins []string
 
 	Grpc grpcconfig.GrpcConfig
+
+	SchedulerApiConnection client.ApiConnectionDetails
 
 	PriorityHalfTime                  time.Duration
 	CancelJobsBatchSize               int
@@ -84,7 +91,10 @@ type PulsarConfig struct {
 type SchedulingConfig struct {
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
-	Preemption       PreemptionConfig
+	// If true, schedule jobs across all executors in the same pool in a unified manner.
+	// Otherwise, schedule each executor separately.
+	UnifiedSchedulingByPool bool
+	Preemption              PreemptionConfig
 	// Number of jobs to load from the database at a time.
 	MaxQueueLookback uint
 	// In each invocation of the scheduler, no more jobs are scheduled once this limit has been exceeded.
@@ -110,7 +120,11 @@ type SchedulingConfig struct {
 	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
-	// Weights used when computing fair share.
+	// Controls how fairness is calculated. Can be either AssetFairness or DominantResourceFairness.
+	FairnessModel FairnessModel
+	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness.
+	DominantResourceFairnessResourcesToConsider []string
+	// Weights used to compute fair share when using AssetFairness.
 	// Overrides dynamic scarcity calculation if provided.
 	// Applies to both the new and old scheduler.
 	ResourceScarcity map[string]float64
@@ -127,7 +141,7 @@ type SchedulingConfig struct {
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
 	// for which the scheduler creates indexes for efficient lookup.
 	// Applies only to the new scheduler.
-	IndexedResources []string
+	IndexedResources []IndexedResource
 	// Node labels that the scheduler creates indexes for efficient lookup of.
 	// Should include node labels frequently used for scheduling.
 	// Since the scheduler can efficiently sort out nodes for which these labels
@@ -146,6 +160,8 @@ type SchedulingConfig struct {
 	//
 	// Applies only to the new scheduler.
 	IndexedTaints []string
+	// Default value of GangNodeUniformityLabelAnnotation if none is provided.
+	DefaultGangNodeUniformityLabel string
 	// Kubernetes pods may specify a termination grace period.
 	// When Pods are cancelled/preempted etc., they are first sent a SIGTERM.
 	// If a pod has not exited within its termination grace period,
@@ -184,6 +200,27 @@ type SchedulingConfig struct {
 	AlwaysAttemptScheduling bool
 }
 
+// FairnessModel controls how fairness is computed.
+// More specifically, each queue has a cost associated with it and the next job to schedule
+// is taken from the queue with smallest cost. FairnessModel determines how that cost is computed.
+type FairnessModel string
+
+const (
+	// AssetFairness sets the cost associated with a queue to a linear combination of its total allocation.
+	// E.g., w_CPU * "CPU allocation" + w_memory * "memory allocation".
+	AssetFairness FairnessModel = "AssetFairness"
+	// DominantResourceFairness set the cost associated with a queue to
+	// max("CPU allocation" / "CPU capacity", "memory allocation" / "mamory capacity", ...).
+	DominantResourceFairness FairnessModel = "DominantResourceFairness"
+)
+
+type IndexedResource struct {
+	// Resource name. E.g., "cpu", "memory", or "nvidia.com/gpu".
+	Name string
+	// See NodeDb docs.
+	Resolution resource.Quantity
+}
+
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.
 // This scheduler will eventually replace the current scheduler.
 type NewSchedulerConfig struct {
@@ -199,6 +236,8 @@ type PreemptionConfig struct {
 	// the probability of evicting jobs on oversubscribed nodes, i.e.,
 	// nodes on which the total resource requests are greater than the available resources.
 	NodeOversubscriptionEvictionProbability float64
+	// Only queues allocated more than this fraction of their fair share are considered for preemption.
+	ProtectedFractionOfFairShare float64
 	// If true, the Armada scheduler will add to scheduled pods a node selector
 	// NodeIdLabel: <value of label on node selected by scheduler>.
 	// If true, NodeIdLabel must be non-empty.
@@ -211,7 +250,7 @@ type PreemptionConfig struct {
 	// Map from priority class names to priority classes.
 	// Must be consistent with Kubernetes priority classes.
 	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
-	PriorityClasses map[string]PriorityClass
+	PriorityClasses map[string]types.PriorityClass
 	// Priority class assigned to pods that do not specify one.
 	// Must be an entry in PriorityClasses above.
 	DefaultPriorityClass string
@@ -219,24 +258,11 @@ type PreemptionConfig struct {
 	PriorityClassNameOverride *string
 }
 
-type PriorityClass struct {
-	Priority int32
-	// If true, Armada may preempt jobs of this class to improve fairness.
-	Preemptible bool
-	// Limits resources assigned to jobs of priority equal to or lower than that of this priority class.
-	// Specifically, jobs of this priority class are only scheduled if doing so does not exceed this limit.
-	//
-	// For example, if priority is 10 and MaximumResourceFractionPerQueue is map[string]float64{"cpu": 0.3},
-	// jobs of this priority class are not scheduled if doing so would cause the total resources assigned
-	// to jobs of priority 10 or lower from the same queue to exceed 30% of the total.
-	MaximumResourceFractionPerQueue map[string]float64
-}
-
 func (p PreemptionConfig) PriorityByPriorityClassName() map[string]int32 {
 	return PriorityByPriorityClassName(p.PriorityClasses)
 }
 
-func PriorityByPriorityClassName(priorityClasses map[string]PriorityClass) map[string]int32 {
+func PriorityByPriorityClassName(priorityClasses map[string]types.PriorityClass) map[string]int32 {
 	rv := make(map[string]int32, len(priorityClasses))
 	for name, pc := range priorityClasses {
 		rv[name] = pc.Priority
@@ -248,7 +274,7 @@ func (p PreemptionConfig) AllowedPriorities() []int32 {
 	return AllowedPriorities(p.PriorityClasses)
 }
 
-func AllowedPriorities(priorityClasses map[string]PriorityClass) []int32 {
+func AllowedPriorities(priorityClasses map[string]types.PriorityClass) []int32 {
 	rv := make([]int32, 0, len(priorityClasses))
 	for _, v := range priorityClasses {
 		rv = append(rv, v.Priority)
@@ -276,8 +302,9 @@ type QueueManagementConfig struct {
 }
 
 type MetricsConfig struct {
-	Port            uint16
-	RefreshInterval time.Duration
+	Port                    uint16
+	RefreshInterval         time.Duration
+	ExposeSchedulingMetrics bool
 }
 
 type EventApiConfig struct {

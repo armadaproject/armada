@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
@@ -23,7 +24,7 @@ var defaultRunInfoMeta = &RunMeta{
 	JobSet: "job-set-1",
 }
 
-func TestOnStartUp_ReconcilesWithKubernetes(t *testing.T) {
+func TestOnStartUp_ReconcilesWithKubernetes_ActivePod(t *testing.T) {
 	existingPod := createPod()
 
 	jobRunStateManager, _ := setup(t, []*v1.Pod{existingPod})
@@ -36,6 +37,18 @@ func TestOnStartUp_ReconcilesWithKubernetes(t *testing.T) {
 	assert.Equal(t, allKnownJobRuns[0].Meta.JobSet, util.ExtractJobSet(existingPod))
 	assert.Equal(t, allKnownJobRuns[0].KubernetesId, string(existingPod.UID))
 	assert.Equal(t, allKnownJobRuns[0].Phase, Active)
+}
+
+func TestOnStartUp_ReconcilesWithKubernetes_IgnoresDonePods(t *testing.T) {
+	donePod := createPod()
+	donePod.Status.Phase = v1.PodSucceeded
+	donePod.Annotations[domain.JobDoneAnnotation] = "true"
+	donePod.Annotations[string(donePod.Status.Phase)] = fmt.Sprintf("%s", time.Now())
+
+	jobRunStateManager, _ := setup(t, []*v1.Pod{donePod})
+	allKnownJobRuns := jobRunStateManager.GetAll()
+
+	assert.Len(t, allKnownJobRuns, 0)
 }
 
 func TestReportRunLeased(t *testing.T) {

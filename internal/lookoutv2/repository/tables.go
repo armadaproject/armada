@@ -41,9 +41,10 @@ const (
 type AggregateType int
 
 const (
-	Unknown AggregateType = -1
-	Max                   = 0
-	Average               = 1
+	Unknown     AggregateType = -1
+	Max                       = 0
+	Average                   = 1
+	StateCounts               = 2
 )
 
 type LookoutTables struct {
@@ -134,6 +135,7 @@ func NewTables() *LookoutTables {
 		groupAggregates: map[string]AggregateType{
 			submittedCol:          Max,
 			lastTransitionTimeCol: Average,
+			stateCol:              StateCounts,
 		},
 	}
 }

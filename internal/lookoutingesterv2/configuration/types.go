@@ -34,4 +34,7 @@ type LookoutIngesterV2Configuration struct {
 	// Between each attempt to store data in the database, there is an exponential backoff (starting out as 1s).
 	// MaxBackoff caps this backoff to whatever it is specified (in seconds)
 	MaxBackoff int
+	// If the ingester should process events using the legacy event conversion logic
+	// The two schedulers produce slightly different events - so need to be processed differently
+	UseLegacyEventConversion bool
 }

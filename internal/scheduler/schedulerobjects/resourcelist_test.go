@@ -8,11 +8,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 )
 
-func TestQuantityByPriorityAndResourceTypeAdd(t *testing.T) {
+func TestQuantityByTAndResourceTypeAdd(t *testing.T) {
 	tests := map[string]struct {
-		a        QuantityByPriorityAndResourceType
-		b        QuantityByPriorityAndResourceType
-		expected QuantityByPriorityAndResourceType
+		a        QuantityByTAndResourceType[int32]
+		b        QuantityByTAndResourceType[int32]
+		expected QuantityByTAndResourceType[int32]
 	}{
 		"nil and nil": {
 			a:        nil,
@@ -20,34 +20,34 @@ func TestQuantityByPriorityAndResourceTypeAdd(t *testing.T) {
 			expected: nil,
 		},
 		"empty and nil": {
-			a:        QuantityByPriorityAndResourceType{},
+			a:        QuantityByTAndResourceType[int32]{},
 			b:        nil,
-			expected: QuantityByPriorityAndResourceType{},
+			expected: QuantityByTAndResourceType[int32]{},
 		},
 		"nil and empty": {
 			a:        nil,
-			b:        QuantityByPriorityAndResourceType{},
+			b:        QuantityByTAndResourceType[int32]{},
 			expected: nil,
 		},
 		"matching": {
-			a: QuantityByPriorityAndResourceType{
+			a: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("3")}},
 			},
-			b: QuantityByPriorityAndResourceType{
+			b: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("1")}},
 			},
-			expected: QuantityByPriorityAndResourceType{
+			expected: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("4")}},
 			},
 		},
 		"mismatched resources": {
-			a: QuantityByPriorityAndResourceType{
+			a: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("3")}},
 			},
-			b: QuantityByPriorityAndResourceType{
+			b: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"bar": resource.MustParse("1")}},
 			},
-			expected: QuantityByPriorityAndResourceType{
+			expected: QuantityByTAndResourceType[int32]{
 				0: ResourceList{
 					Resources: map[string]resource.Quantity{
 						"foo": resource.MustParse("3"),
@@ -57,13 +57,13 @@ func TestQuantityByPriorityAndResourceTypeAdd(t *testing.T) {
 			},
 		},
 		"mismatched priorities": {
-			a: QuantityByPriorityAndResourceType{
+			a: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("3")}},
 			},
-			b: QuantityByPriorityAndResourceType{
+			b: QuantityByTAndResourceType[int32]{
 				1: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("1")}},
 			},
-			expected: QuantityByPriorityAndResourceType{
+			expected: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("3")}},
 				1: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("1")}},
 			},
@@ -77,11 +77,11 @@ func TestQuantityByPriorityAndResourceTypeAdd(t *testing.T) {
 	}
 }
 
-func TestQuantityByPriorityAndResourceTypeSub(t *testing.T) {
+func TestQuantityByTAndResourceTypeSub(t *testing.T) {
 	tests := map[string]struct {
-		a        QuantityByPriorityAndResourceType
-		b        QuantityByPriorityAndResourceType
-		expected QuantityByPriorityAndResourceType
+		a        QuantityByTAndResourceType[int32]
+		b        QuantityByTAndResourceType[int32]
+		expected QuantityByTAndResourceType[int32]
 	}{
 		"nil and nil": {
 			a:        nil,
@@ -89,34 +89,34 @@ func TestQuantityByPriorityAndResourceTypeSub(t *testing.T) {
 			expected: nil,
 		},
 		"empty and nil": {
-			a:        QuantityByPriorityAndResourceType{},
+			a:        QuantityByTAndResourceType[int32]{},
 			b:        nil,
-			expected: QuantityByPriorityAndResourceType{},
+			expected: QuantityByTAndResourceType[int32]{},
 		},
 		"nil and empty": {
 			a:        nil,
-			b:        QuantityByPriorityAndResourceType{},
+			b:        QuantityByTAndResourceType[int32]{},
 			expected: nil,
 		},
 		"matching": {
-			a: QuantityByPriorityAndResourceType{
+			a: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("3")}},
 			},
-			b: QuantityByPriorityAndResourceType{
+			b: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("1")}},
 			},
-			expected: QuantityByPriorityAndResourceType{
+			expected: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("2")}},
 			},
 		},
 		"mismatched resources": {
-			a: QuantityByPriorityAndResourceType{
+			a: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("3")}},
 			},
-			b: QuantityByPriorityAndResourceType{
+			b: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"bar": resource.MustParse("1")}},
 			},
-			expected: QuantityByPriorityAndResourceType{
+			expected: QuantityByTAndResourceType[int32]{
 				0: ResourceList{
 					Resources: map[string]resource.Quantity{
 						"foo": resource.MustParse("3"),
@@ -126,13 +126,13 @@ func TestQuantityByPriorityAndResourceTypeSub(t *testing.T) {
 			},
 		},
 		"mismatched priorities": {
-			a: QuantityByPriorityAndResourceType{
+			a: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("3")}},
 			},
-			b: QuantityByPriorityAndResourceType{
+			b: QuantityByTAndResourceType[int32]{
 				1: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("1")}},
 			},
-			expected: QuantityByPriorityAndResourceType{
+			expected: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("3")}},
 				1: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("-1")}},
 			},
@@ -146,66 +146,66 @@ func TestQuantityByPriorityAndResourceTypeSub(t *testing.T) {
 	}
 }
 
-func TestQuantityByPriorityAndResourceTypeEqual(t *testing.T) {
+func TestQuantityByTAndResourceTypeEqual(t *testing.T) {
 	tests := map[string]struct {
-		a        QuantityByPriorityAndResourceType
-		b        QuantityByPriorityAndResourceType
+		a        QuantityByTAndResourceType[int32]
+		b        QuantityByTAndResourceType[int32]
 		expected bool
 	}{
 		"both empty": {
-			a:        QuantityByPriorityAndResourceType{},
-			b:        QuantityByPriorityAndResourceType{},
+			a:        QuantityByTAndResourceType[int32]{},
+			b:        QuantityByTAndResourceType[int32]{},
 			expected: true,
 		},
 		"both with an empty map": {
-			a: QuantityByPriorityAndResourceType{
+			a: QuantityByTAndResourceType[int32]{
 				0: ResourceList{},
 			},
-			b: QuantityByPriorityAndResourceType{
+			b: QuantityByTAndResourceType[int32]{
 				0: ResourceList{},
 			},
 			expected: true,
 		},
 		"one empty map": {
-			a: QuantityByPriorityAndResourceType{
+			a: QuantityByTAndResourceType[int32]{
 				0: ResourceList{},
 			},
-			b:        QuantityByPriorityAndResourceType{},
+			b:        QuantityByTAndResourceType[int32]{},
 			expected: true,
 		},
 		"zero equals empty": {
-			a: QuantityByPriorityAndResourceType{
+			a: QuantityByTAndResourceType[int32]{
 				0: ResourceList{
 					Resources: map[string]resource.Quantity{
 						"foo": resource.MustParse("0"),
 					},
 				},
 			},
-			b: QuantityByPriorityAndResourceType{
+			b: QuantityByTAndResourceType[int32]{
 				0: ResourceList{},
 			},
 			expected: true,
 		},
 		"zero equals missing": {
-			a: QuantityByPriorityAndResourceType{
+			a: QuantityByTAndResourceType[int32]{
 				0: ResourceList{},
 			},
-			b:        QuantityByPriorityAndResourceType{},
+			b:        QuantityByTAndResourceType[int32]{},
 			expected: true,
 		},
 		"zero equals missing with empty ResourceList": {
-			a: QuantityByPriorityAndResourceType{
+			a: QuantityByTAndResourceType[int32]{
 				0: ResourceList{
 					Resources: map[string]resource.Quantity{
 						"foo": resource.MustParse("0"),
 					},
 				},
 			},
-			b:        QuantityByPriorityAndResourceType{},
+			b:        QuantityByTAndResourceType[int32]{},
 			expected: true,
 		},
 		"simple equal": {
-			a: QuantityByPriorityAndResourceType{
+			a: QuantityByTAndResourceType[int32]{
 				0: ResourceList{
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("1"),
@@ -214,7 +214,7 @@ func TestQuantityByPriorityAndResourceTypeEqual(t *testing.T) {
 					},
 				},
 			},
-			b: QuantityByPriorityAndResourceType{
+			b: QuantityByTAndResourceType[int32]{
 				0: ResourceList{
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("1"),
@@ -226,7 +226,7 @@ func TestQuantityByPriorityAndResourceTypeEqual(t *testing.T) {
 			expected: true,
 		},
 		"equal with two priorities": {
-			a: QuantityByPriorityAndResourceType{
+			a: QuantityByTAndResourceType[int32]{
 				0: ResourceList{
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("1"),
@@ -242,7 +242,7 @@ func TestQuantityByPriorityAndResourceTypeEqual(t *testing.T) {
 					},
 				},
 			},
-			b: QuantityByPriorityAndResourceType{
+			b: QuantityByTAndResourceType[int32]{
 				0: ResourceList{
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("1"),
@@ -261,7 +261,7 @@ func TestQuantityByPriorityAndResourceTypeEqual(t *testing.T) {
 			expected: true,
 		},
 		"simple unequal": {
-			a: QuantityByPriorityAndResourceType{
+			a: QuantityByTAndResourceType[int32]{
 				0: ResourceList{
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("1"),
@@ -270,7 +270,7 @@ func TestQuantityByPriorityAndResourceTypeEqual(t *testing.T) {
 					},
 				},
 			},
-			b: QuantityByPriorityAndResourceType{
+			b: QuantityByTAndResourceType[int32]{
 				0: ResourceList{
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("1"),
@@ -282,7 +282,7 @@ func TestQuantityByPriorityAndResourceTypeEqual(t *testing.T) {
 			expected: false,
 		},
 		"unequal differing priority": {
-			a: QuantityByPriorityAndResourceType{
+			a: QuantityByTAndResourceType[int32]{
 				0: ResourceList{
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("1"),
@@ -291,7 +291,7 @@ func TestQuantityByPriorityAndResourceTypeEqual(t *testing.T) {
 					},
 				},
 			},
-			b: QuantityByPriorityAndResourceType{
+			b: QuantityByTAndResourceType[int32]{
 				1: ResourceList{
 					Resources: map[string]resource.Quantity{
 						"cpu":    resource.MustParse("1"),
@@ -311,9 +311,9 @@ func TestQuantityByPriorityAndResourceTypeEqual(t *testing.T) {
 	}
 }
 
-func TestQuantityByPriorityAndResourceTypeIsStrictlyNonNegative(t *testing.T) {
+func TestQuantityByTAndResourceTypeIsStrictlyNonNegative(t *testing.T) {
 	tests := map[string]struct {
-		m        QuantityByPriorityAndResourceType
+		m        QuantityByTAndResourceType[int32]
 		expected bool
 	}{
 		"nil": {
@@ -321,23 +321,23 @@ func TestQuantityByPriorityAndResourceTypeIsStrictlyNonNegative(t *testing.T) {
 			expected: true,
 		},
 		"empty": {
-			m:        QuantityByPriorityAndResourceType{},
+			m:        QuantityByTAndResourceType[int32]{},
 			expected: true,
 		},
 		"simple zero": {
-			m: QuantityByPriorityAndResourceType{
+			m: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("0")}},
 			},
 			expected: true,
 		},
 		"simple positive": {
-			m: QuantityByPriorityAndResourceType{
+			m: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("1")}},
 			},
 			expected: true,
 		},
 		"simple positive and negative": {
-			m: QuantityByPriorityAndResourceType{
+			m: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"foo": resource.MustParse("1")}},
 				1: ResourceList{Resources: map[string]resource.Quantity{"bar": resource.MustParse("-1")}},
 			},
@@ -351,80 +351,80 @@ func TestQuantityByPriorityAndResourceTypeIsStrictlyNonNegative(t *testing.T) {
 	}
 }
 
-func TestQuantityByPriorityAndResourceTypeMaxAggregatedByResource(t *testing.T) {
+func TestQuantityByTAndResourceTypeMaxAggregatedByResource(t *testing.T) {
 	tests := map[string]struct {
-		q        QuantityByPriorityAndResourceType
+		q        QuantityByTAndResourceType[int32]
 		p        int32
 		rl       ResourceList
-		expected QuantityByPriorityAndResourceType
+		expected QuantityByTAndResourceType[int32]
 	}{
 		"no change": {
-			q: QuantityByPriorityAndResourceType{
+			q: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
 			},
 			p:  1,
 			rl: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
-			expected: QuantityByPriorityAndResourceType{
+			expected: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
 			},
 		},
 		"empty": {
-			q:  QuantityByPriorityAndResourceType{},
+			q:  QuantityByTAndResourceType[int32]{},
 			p:  0,
 			rl: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
-			expected: QuantityByPriorityAndResourceType{
+			expected: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
 			},
 		},
 		"add same resource at same priority": {
-			q: QuantityByPriorityAndResourceType{
+			q: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
 			},
 			p:  0,
 			rl: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("2")}},
-			expected: QuantityByPriorityAndResourceType{
+			expected: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("2")}},
 			},
 		},
 		"add different resource at same priority": {
-			q: QuantityByPriorityAndResourceType{
+			q: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
 			},
 			p:  0,
 			rl: ResourceList{Resources: map[string]resource.Quantity{"memory": resource.MustParse("1Gi")}},
-			expected: QuantityByPriorityAndResourceType{
+			expected: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1"), "memory": resource.MustParse("1Gi")}},
 			},
 		},
 		"add same resource at different priority": {
-			q: QuantityByPriorityAndResourceType{
+			q: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
 			},
 			p:  1,
 			rl: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("2")}},
-			expected: QuantityByPriorityAndResourceType{
+			expected: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
 				1: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
 			},
 		},
 		"add different resource at different priority": {
-			q: QuantityByPriorityAndResourceType{
+			q: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
 			},
 			p:  1,
 			rl: ResourceList{Resources: map[string]resource.Quantity{"memory": resource.MustParse("1Gi")}},
-			expected: QuantityByPriorityAndResourceType{
+			expected: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
 				1: ResourceList{Resources: map[string]resource.Quantity{"memory": resource.MustParse("1Gi")}},
 			},
 		},
 		"multiple resources": {
-			q: QuantityByPriorityAndResourceType{
+			q: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("100m"), "memory": resource.MustParse("50Mi")}},
 			},
 			p:  1,
 			rl: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("10"), "memory": resource.MustParse("4000Mi")}},
-			expected: QuantityByPriorityAndResourceType{
+			expected: QuantityByTAndResourceType[int32]{
 				0: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("100m"), "memory": resource.MustParse("50Mi")}},
 				1: ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("9900m"), "memory": resource.MustParse("3950Mi")}},
 			},
@@ -877,6 +877,32 @@ func TestResourceListIsStrictlyLessOrEqual(t *testing.T) {
 	}
 }
 
+func TestResourceListZero(t *testing.T) {
+	rl := ResourceList{
+		Resources: map[string]resource.Quantity{
+			"foo": resource.MustParse("1"),
+			"bar": resource.MustParse("10Gi"),
+			"baz": resource.MustParse("0"),
+		},
+	}
+	rl.Zero()
+	assert.True(t, rl.Equal(ResourceList{}))
+}
+
+func BenchmarkResourceListZero(b *testing.B) {
+	rl := ResourceList{
+		Resources: map[string]resource.Quantity{
+			"foo": resource.MustParse("1"),
+			"bar": resource.MustParse("10Gi"),
+			"baz": resource.MustParse("0"),
+		},
+	}
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		rl.Zero()
+	}
+}
+
 func TestV1ResourceListConversion(t *testing.T) {
 	rl := ResourceList{
 		Resources: map[string]resource.Quantity{
@@ -901,4 +927,47 @@ func TestV1ResourceListConversion(t *testing.T) {
 
 	v1rlCopy := V1ResourceListFromResourceList(rl)
 	assert.True(t, maps.Equal(v1rlCopy, v1rl))
+}
+
+func BenchmarkResourceListZeroAdd(b *testing.B) {
+	rla := NewResourceList(3)
+	rlb := NewResourceList(3)
+	rlb.AddQuantity("cpu", resource.MustParse("2"))
+	rlb.AddQuantity("memory", resource.MustParse("10Gi"))
+	rlb.AddQuantity("nvidia.com/gpu", resource.MustParse("1"))
+	for n := 0; n < b.N; n++ {
+		rla.Zero()
+		rla.Add(rlb)
+	}
+}
+
+func BenchmarkQuantityByTAndResourceTypeAdd(b *testing.B) {
+	dst := make(QuantityByTAndResourceType[string], 3)
+	src := QuantityByTAndResourceType[string]{
+		"1": ResourceList{
+			Resources: map[string]resource.Quantity{
+				"foo": resource.MustParse("1"),
+				"bar": resource.MustParse("2"),
+				"baz": resource.MustParse("3"),
+			},
+		},
+		"2": ResourceList{
+			Resources: map[string]resource.Quantity{
+				"foo": resource.MustParse("1"),
+				"bar": resource.MustParse("2"),
+				"baz": resource.MustParse("3"),
+			},
+		},
+		"3": ResourceList{
+			Resources: map[string]resource.Quantity{
+				"foo": resource.MustParse("1"),
+				"bar": resource.MustParse("2"),
+				"baz": resource.MustParse("3"),
+			},
+		},
+	}
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		dst.Add(src)
+	}
 }

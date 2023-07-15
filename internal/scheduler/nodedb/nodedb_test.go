@@ -1,6 +1,7 @@
 package nodedb
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -11,135 +12,156 @@ import (
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
 func TestNodeDbSchema(t *testing.T) {
-	err := nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResources).Validate()
-	assert.NoError(t, err)
+	schema, _ := nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResourceNames)
+	assert.NoError(t, schema.Validate())
 }
 
 // Test the accounting of total resources across all nodes.
 func TestTotalResources(t *testing.T) {
-	nodeDb, err := createNodeDb([]*schedulerobjects.Node{})
-	if !assert.NoError(t, err) {
-		return
-	}
+	nodeDb, err := newNodeDbWithNodes([]*schedulerobjects.Node{})
+	require.NoError(t, err)
+
 	expected := schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)}
-	assert.True(t, expected.Equal(nodeDb.totalResources))
+	assert.True(t, expected.Equal(nodeDb.TotalResources()))
 
 	// Upserting nodes for the first time should increase the resource count.
-	nodes := testfixtures.TestNCpuNode(2, testfixtures.TestPriorities)
+	nodes := testfixtures.N32CpuNodes(2, testfixtures.TestPriorities)
 	for _, node := range nodes {
 		expected.Add(node.TotalResources)
 	}
-	err = nodeDb.UpsertMany(nodes)
-	if !assert.NoError(t, err) {
-		return
+	txn := nodeDb.Txn(true)
+	for _, node := range nodes {
+		err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
+		require.NoError(t, err)
 	}
-	assert.True(t, expected.Equal(nodeDb.totalResources))
+	txn.Commit()
 
-	// Upserting the same nodes again should not affect total resource count.
-	err = nodeDb.UpsertMany(nodes)
-	if !assert.NoError(t, err) {
-		return
-	}
-	assert.True(t, expected.Equal(nodeDb.totalResources))
+	assert.True(t, expected.Equal(nodeDb.TotalResources()))
 
 	// Upserting new nodes should increase the resource count.
-	nodes = testfixtures.TestNGpuNode(3, testfixtures.TestPriorities)
+	nodes = testfixtures.N8GpuNodes(3, testfixtures.TestPriorities)
 	for _, node := range nodes {
 		expected.Add(node.TotalResources)
 	}
-	err = nodeDb.UpsertMany(nodes)
-	if !assert.NoError(t, err) {
-		return
+	txn = nodeDb.Txn(true)
+	for _, node := range nodes {
+		err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
+		require.NoError(t, err)
 	}
-	assert.True(t, expected.Equal(nodeDb.totalResources))
+	txn.Commit()
+
+	assert.True(t, expected.Equal(nodeDb.TotalResources()))
 }
 
 func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {
-	nodes := testfixtures.TestNCpuNode(2, testfixtures.TestPriorities)
+	nodes := testfixtures.N32CpuNodes(2, testfixtures.TestPriorities)
 	nodeId := nodes[1].Id
 	require.NotEmpty(t, nodeId)
-	db, err := createNodeDb(nodes)
+	db, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
-	reqs := testfixtures.WithNodeSelectorPodReqs(
+	jobs := testfixtures.WithNodeSelectorJobs(
 		map[string]string{schedulerconfig.NodeIdLabel: nodeId},
-		testfixtures.TestNSmallCpuJob("A", 0, 1),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 	)
-	for _, req := range reqs {
-		pctx, err := db.SelectNodeForPod(req)
+	jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
+	for _, jctx := range jctxs {
+		txn := db.Txn(false)
+		node, err := db.SelectNodeForJobWithTxn(txn, jctx)
+		txn.Abort()
 		if !assert.NoError(t, err) {
 			continue
 		}
-		require.NotNil(t, pctx.Node)
-		assert.Equal(t, nodeId, pctx.Node.Id)
+		pctx := jctx.PodSchedulingContext
+		require.NotNil(t, node)
+		assert.Equal(t, nodeId, node.Id)
+
+		require.NotNil(t, pctx)
+		assert.Equal(t, nodeId, pctx.NodeId)
 		assert.Equal(t, 0, len(pctx.NumExcludedNodesByReason))
 		assert.Empty(t, pctx.NumExcludedNodesByReason)
 	}
 }
 
 func TestSelectNodeForPod_NodeIdLabel_Failure(t *testing.T) {
-	nodes := testfixtures.TestNCpuNode(1, testfixtures.TestPriorities)
+	nodes := testfixtures.N32CpuNodes(1, testfixtures.TestPriorities)
 	nodeId := nodes[0].Id
 	require.NotEmpty(t, nodeId)
-	db, err := createNodeDb(nodes)
+	db, err := newNodeDbWithNodes(nodes)
 	require.NoError(t, err)
-	reqs := testfixtures.WithNodeSelectorPodReqs(
+	jobs := testfixtures.WithNodeSelectorJobs(
 		map[string]string{schedulerconfig.NodeIdLabel: "this node does not exist"},
-		testfixtures.TestNSmallCpuJob("A", 0, 1),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 	)
-	for _, req := range reqs {
-		pctx, err := db.SelectNodeForPod(req)
+	jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
+	for _, jctx := range jctxs {
+		txn := db.Txn(false)
+		node, err := db.SelectNodeForJobWithTxn(txn, jctx)
+		txn.Abort()
 		if !assert.NoError(t, err) {
 			continue
 		}
-		assert.Nil(t, pctx.Node)
+		assert.Nil(t, node)
+
+		pctx := jctx.PodSchedulingContext
+		require.NotNil(t, pctx)
+		assert.Equal(t, "", pctx.NodeId)
 		assert.Equal(t, 1, len(pctx.NumExcludedNodesByReason))
 	}
 }
 
 func TestNodeBindingEvictionUnbinding(t *testing.T) {
-	node := testfixtures.TestGpuNode(append(testfixtures.TestPriorities, evictedPriority))
-	req := testfixtures.TestNGpuJob("A", 0, 1)[0]
-	request := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
-	jobId, err := JobIdFromPodRequirements(req)
+	node := testfixtures.Test8GpuNode(testfixtures.TestPriorities)
+	nodeDb, err := newNodeDbWithNodes([]*schedulerobjects.Node{node})
+	require.NoError(t, err)
+	entry, err := nodeDb.GetNode(node.Id)
 	require.NoError(t, err)
 
-	boundNode, err := BindPodToNode(req, node)
+	jobFilter := func(job interfaces.LegacySchedulerJob) bool { return true }
+	job := testfixtures.Test1GpuJob("A", testfixtures.PriorityClass0)
+	request := schedulerobjects.ResourceListFromV1ResourceList(job.GetResourceRequirements().Requests)
+	jobId := job.GetId()
+
+	boundNode, err := bindJobToNode(testfixtures.TestPriorityClasses, job, entry)
 	require.NoError(t, err)
 
-	unboundNode, err := UnbindPodFromNode(req, boundNode)
+	unboundNode, err := UnbindJobFromNode(testfixtures.TestPriorityClasses, job, boundNode)
 	require.NoError(t, err)
 
-	unboundMultipleNode, err := UnbindPodsFromNode([]*schedulerobjects.PodRequirements{req}, boundNode)
+	unboundMultipleNode, err := UnbindJobsFromNode(testfixtures.TestPriorityClasses, []interfaces.LegacySchedulerJob{job}, boundNode)
 	require.NoError(t, err)
 
-	evictedNode, err := EvictPodFromNode(req, boundNode)
+	evictedJobs, evictedNode, err := EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, boundNode)
+	require.NoError(t, err)
+	assert.Equal(t, []interfaces.LegacySchedulerJob{job}, evictedJobs)
+
+	evictedUnboundNode, err := UnbindJobFromNode(testfixtures.TestPriorityClasses, job, evictedNode)
 	require.NoError(t, err)
 
-	evictedUnboundNode, err := UnbindPodFromNode(req, evictedNode)
+	evictedBoundNode, err := bindJobToNode(testfixtures.TestPriorityClasses, job, evictedNode)
 	require.NoError(t, err)
 
-	evictedBoundNode, err := BindPodToNode(req, evictedNode)
-	require.NoError(t, err)
-
-	_, err = EvictPodFromNode(req, node)
+	_, _, err = EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, entry)
 	require.Error(t, err)
 
-	_, err = UnbindPodFromNode(req, node)
+	_, err = UnbindJobFromNode(testfixtures.TestPriorityClasses, job, entry)
 	require.Error(t, err)
 
-	_, err = BindPodToNode(req, boundNode)
+	_, err = bindJobToNode(testfixtures.TestPriorityClasses, job, boundNode)
 	require.Error(t, err)
 
-	_, err = EvictPodFromNode(req, evictedNode)
+	_, _, err = EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, evictedNode)
 	require.Error(t, err)
 
-	assertNodeAccountingEqual(t, node, unboundNode)
-	assertNodeAccountingEqual(t, node, evictedUnboundNode)
+	assertNodeAccountingEqual(t, entry, unboundNode)
+	assertNodeAccountingEqual(t, entry, evictedUnboundNode)
 	assertNodeAccountingEqual(t, unboundNode, evictedUnboundNode)
 	assertNodeAccountingEqual(t, boundNode, evictedBoundNode)
 	assertNodeAccountingEqual(t, unboundNode, unboundMultipleNode)
@@ -176,29 +198,25 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 
 	expectedAllocatable := boundNode.TotalResources.DeepCopy()
 	expectedAllocatable.Sub(request)
-	assert.True(t, expectedAllocatable.Equal(boundNode.AllocatableByPriorityAndResource[req.Priority]))
+	priority := testfixtures.TestPriorityClasses[job.GetPriorityClassName()].Priority
+	assert.True(t, expectedAllocatable.Equal(boundNode.AllocatableByPriority[priority]))
 
 	assert.Empty(t, unboundNode.AllocatedByJobId)
 	assert.Empty(t, unboundNode.AllocatedByQueue)
 	assert.Empty(t, unboundNode.EvictedJobRunIds)
 }
 
-func assertNodeAccountingEqual(t *testing.T, node1, node2 *schedulerobjects.Node) bool {
-	rv := true
-	rv = rv && assert.True(
+func assertNodeAccountingEqual(t *testing.T, node1, node2 *Node) {
+	allocatable1 := schedulerobjects.QuantityByTAndResourceType[int32](node1.AllocatableByPriority)
+	allocatable2 := schedulerobjects.QuantityByTAndResourceType[int32](node2.AllocatableByPriority)
+	assert.True(
 		t,
-		schedulerobjects.QuantityByPriorityAndResourceType(
-			node1.AllocatableByPriorityAndResource,
-		).Equal(
-			schedulerobjects.QuantityByPriorityAndResourceType(
-				node2.AllocatableByPriorityAndResource,
-			),
-		),
+		allocatable1.Equal(allocatable2),
 		"expected %v, but got %v",
-		node1.AllocatableByPriorityAndResource,
-		node2.AllocatableByPriorityAndResource,
+		node1.AllocatableByPriority,
+		node2.AllocatableByPriority,
 	)
-	rv = rv && assert.True(
+	assert.True(
 		t,
 		armadamaps.DeepEqual(
 			node1.AllocatedByJobId,
@@ -208,7 +226,7 @@ func assertNodeAccountingEqual(t *testing.T, node1, node2 *schedulerobjects.Node
 		node1.AllocatedByJobId,
 		node2.AllocatedByJobId,
 	)
-	rv = rv && assert.True(
+	assert.True(
 		t,
 		armadamaps.DeepEqual(
 			node1.AllocatedByQueue,
@@ -218,7 +236,7 @@ func assertNodeAccountingEqual(t *testing.T, node1, node2 *schedulerobjects.Node
 		node1.AllocatedByQueue,
 		node2.AllocatedByQueue,
 	)
-	rv = rv && assert.True(
+	assert.True(
 		t,
 		maps.Equal(
 			node1.EvictedJobRunIds,
@@ -228,77 +246,135 @@ func assertNodeAccountingEqual(t *testing.T, node1, node2 *schedulerobjects.Node
 		node1.EvictedJobRunIds,
 		node2.EvictedJobRunIds,
 	)
-	rv = rv && assert.True(
-		t,
-		armadamaps.DeepEqual(
-			node1.NonArmadaAllocatedResources,
-			node2.NonArmadaAllocatedResources,
-		),
-		"expected %v, but got %v",
-		node1.NonArmadaAllocatedResources,
-		node2.NonArmadaAllocatedResources,
-	)
-	return rv
 }
 
-func TestSelectAndBindNodeToPod(t *testing.T) {
+func TestEviction(t *testing.T) {
+	tests := map[string]struct {
+		jobFilter         func(interfaces.LegacySchedulerJob) bool
+		expectedEvictions []int32
+	}{
+		"jobFilter always returns false": {
+			jobFilter:         func(_ interfaces.LegacySchedulerJob) bool { return false },
+			expectedEvictions: []int32{},
+		},
+		"jobFilter always returns true": {
+			jobFilter:         func(_ interfaces.LegacySchedulerJob) bool { return true },
+			expectedEvictions: []int32{0, 1},
+		},
+		"jobFilter returns true for preemptible jobs": {
+			jobFilter: func(job interfaces.LegacySchedulerJob) bool {
+				priorityClassName := job.GetPriorityClassName()
+				priorityClass := testfixtures.TestPriorityClasses[priorityClassName]
+				return priorityClass.Preemptible
+			},
+			expectedEvictions: []int32{0},
+		},
+		"jobFilter nil": {
+			jobFilter:         nil,
+			expectedEvictions: []int32{0, 1},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			nodeDb, err := newNodeDbWithNodes([]*schedulerobjects.Node{})
+			require.NoError(t, err)
+			txn := nodeDb.Txn(true)
+			jobs := []*jobdb.Job{
+				testfixtures.Test1Cpu4GiJob("queue-alice", testfixtures.PriorityClass0),
+				testfixtures.Test1Cpu4GiJob("queue-alice", testfixtures.PriorityClass3),
+			}
+			node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
+			err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobs, node)
+			txn.Commit()
+			require.NoError(t, err)
+			entry, err := nodeDb.GetNode(node.Id)
+			require.NoError(t, err)
+
+			existingJobs := make([]interfaces.LegacySchedulerJob, len(jobs))
+			for i, job := range jobs {
+				existingJobs[i] = job
+			}
+			actualEvictions, _, err := EvictJobsFromNode(testfixtures.TestPriorityClasses, tc.jobFilter, existingJobs, entry)
+			require.NoError(t, err)
+			expectedEvictions := make([]interfaces.LegacySchedulerJob, 0, len(tc.expectedEvictions))
+			for _, i := range tc.expectedEvictions {
+				expectedEvictions = append(expectedEvictions, jobs[i])
+			}
+			assert.Equal(t, expectedEvictions, actualEvictions)
+		})
+	}
+}
+
+func TestScheduleIndividually(t *testing.T) {
 	tests := map[string]struct {
 		Nodes         []*schedulerobjects.Node
-		Reqs          []*schedulerobjects.PodRequirements
+		Jobs          []*jobdb.Job
 		ExpectSuccess []bool
 	}{
 		"all jobs fit": {
-			Nodes:         testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Reqs:          testfixtures.TestNSmallCpuJob("A", 0, 32),
+			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs:          testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
 			ExpectSuccess: testfixtures.Repeat(true, 32),
 		},
 		"not all jobs fit": {
-			Nodes:         testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Reqs:          testfixtures.TestNSmallCpuJob("A", 0, 33),
+			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs:          testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33),
 			ExpectSuccess: append(testfixtures.Repeat(true, 32), testfixtures.Repeat(false, 1)...),
 		},
 		"unavailable resource": {
-			Nodes:         testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Reqs:          testfixtures.TestNGpuJob("A", 0, 1),
+			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs:          testfixtures.N1GpuJobs("A", testfixtures.PriorityClass0, 1),
 			ExpectSuccess: testfixtures.Repeat(false, 1),
 		},
 		"unsupported resource": {
-			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Reqs: testfixtures.WithRequestsPodReqs(
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs: testfixtures.WithRequestsJobs(
 				schedulerobjects.ResourceList{
 					Resources: map[string]resource.Quantity{
 						"gibberish": resource.MustParse("1"),
 					},
 				},
-				testfixtures.TestNSmallCpuJob("A", 0, 1),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 			),
 			ExpectSuccess: testfixtures.Repeat(false, 1),
 		},
 		"preemption": {
-			Nodes:         testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Reqs:          append(append(testfixtures.TestNSmallCpuJob("A", 0, 32), testfixtures.TestNSmallCpuJob("A", 1, 32)...), testfixtures.TestNSmallCpuJob("A", 0, 32)...),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs: append(
+				append(
+					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
+					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 32)...,
+				),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)...,
+			),
 			ExpectSuccess: append(testfixtures.Repeat(true, 64), testfixtures.Repeat(false, 32)...),
 		},
 		"taints/tolerations": {
-			Nodes:         testfixtures.TestNTaintedCpuNode(1, testfixtures.TestPriorities),
-			Reqs:          append(append(testfixtures.TestNSmallCpuJob("A", 0, 1), testfixtures.TestNGpuJob("A", 0, 1)...), testfixtures.TestNLargeCpuJob("A", 0, 1)...),
+			Nodes: testfixtures.NTainted32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs: append(
+				append(
+					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
+					testfixtures.N1GpuJobs("A", testfixtures.PriorityClass0, 1)...,
+				),
+				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)...,
+			),
 			ExpectSuccess: []bool{false, false, true},
 		},
 		"node selector": {
 			Nodes: append(
-				testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				testfixtures.WithLabelsNodes(
 					map[string]string{
 						"key": "value",
 					},
-					testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				)...,
 			),
-			Reqs: testfixtures.WithNodeSelectorPodReqs(
+			Jobs: testfixtures.WithNodeSelectorJobs(
 				map[string]string{
 					"key": "value",
 				},
-				testfixtures.TestNSmallCpuJob("A", 0, 33),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33),
 			),
 			ExpectSuccess: append(testfixtures.Repeat(true, 32), testfixtures.Repeat(false, 1)...),
 		},
@@ -307,37 +383,37 @@ func TestSelectAndBindNodeToPod(t *testing.T) {
 				map[string]string{
 					"key": "value",
 				},
-				testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			),
-			Reqs: testfixtures.WithNodeSelectorPodReqs(
+			Jobs: testfixtures.WithNodeSelectorJobs(
 				map[string]string{
 					"key": "this is the wrong value",
 				},
-				testfixtures.TestNSmallCpuJob("A", 0, 1),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 			),
 			ExpectSuccess: testfixtures.Repeat(false, 1),
 		},
 		"node selector with missing label": {
-			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Reqs: testfixtures.WithNodeSelectorPodReqs(
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs: testfixtures.WithNodeSelectorJobs(
 				map[string]string{
 					"this label does not exist": "value",
 				},
-				testfixtures.TestNSmallCpuJob("A", 0, 1),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 			),
 			ExpectSuccess: testfixtures.Repeat(false, 1),
 		},
 		"node affinity": {
 			Nodes: append(
-				testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				testfixtures.WithLabelsNodes(
 					map[string]string{
 						"key": "value",
 					},
-					testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				)...,
 			),
-			Reqs: testfixtures.WithNodeAffinityPodReqs(
+			Jobs: testfixtures.WithNodeAffinityJobs(
 				[]v1.NodeSelectorTerm{
 					{
 						MatchExpressions: []v1.NodeSelectorRequirement{
@@ -349,30 +425,47 @@ func TestSelectAndBindNodeToPod(t *testing.T) {
 						},
 					},
 				},
-				testfixtures.TestNSmallCpuJob("A", 0, 33),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33),
 			),
 			ExpectSuccess: append(testfixtures.Repeat(true, 32), testfixtures.Repeat(false, 1)...),
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := createNodeDb(tc.Nodes)
+			nodeDb, err := newNodeDbWithNodes(tc.Nodes)
 			require.NoError(t, err)
-			for i, req := range tc.Reqs {
-				report, err := nodeDb.SelectAndBindNodeToPod(req)
+
+			jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, tc.Jobs)
+
+			for i, jctx := range jctxs {
+				ok, err := nodeDb.ScheduleMany([]*schedulercontext.JobSchedulingContext{jctx})
 				require.NoError(t, err)
+				pctx := jctx.PodSchedulingContext
+
 				if !tc.ExpectSuccess[i] {
-					assert.Nil(t, report.Node)
+					assert.False(t, ok)
+					if pctx != nil {
+						assert.Equal(t, "", pctx.NodeId)
+					}
 					continue
 				}
-				assert.NotNil(t, report.Node)
 
-				node, err := nodeDb.GetNode(report.Node.Id)
+				assert.True(t, ok)
+				require.NotNil(t, pctx)
+
+				nodeId := pctx.NodeId
+				if !tc.ExpectSuccess[i] {
+					assert.Equal(t, "", nodeId)
+					continue
+				}
+				require.NotEqual(t, "", nodeId)
+
+				job := jctx.Job
+				node, err := nodeDb.GetNode(nodeId)
 				require.NoError(t, err)
-				jobId, err := JobIdFromPodRequirements(req)
-				require.NoError(t, err)
-				expected := schedulerobjects.ResourceListFromV1ResourceList(req.ResourceRequirements.Requests)
-				actual, ok := node.AllocatedByJobId[jobId]
+				require.NotNil(t, node)
+				expected := schedulerobjects.ResourceListFromV1ResourceList(job.GetResourceRequirements().Requests)
+				actual, ok := node.AllocatedByJobId[job.GetId()]
 				require.True(t, ok)
 				assert.True(t, actual.Equal(expected))
 			}
@@ -386,59 +479,56 @@ func TestScheduleMany(t *testing.T) {
 		Nodes []*schedulerobjects.Node
 		// Schedule one group of jobs at a time.
 		// Each group is composed of a slice of pods.
-		Reqs [][]*schedulerobjects.PodRequirements
+		Jobs [][]*jobdb.Job
 		// For each group, whether we expect scheduling to succeed.
 		ExpectSuccess []bool
 	}{
 		"simple success": {
-			Nodes:         testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Reqs:          [][]*schedulerobjects.PodRequirements{testfixtures.TestNSmallCpuJob("A", 0, 32)},
+			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs:          [][]*jobdb.Job{testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)},
 			ExpectSuccess: []bool{true},
 		},
 		"simple failure": {
-			Nodes:         testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-			Reqs:          [][]*schedulerobjects.PodRequirements{testfixtures.TestNSmallCpuJob("A", 0, 33)},
+			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs:          [][]*jobdb.Job{testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33)},
 			ExpectSuccess: []bool{false},
 		},
 		"correct rollback": {
-			Nodes: testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
-			Reqs: [][]*schedulerobjects.PodRequirements{
-				testfixtures.TestNSmallCpuJob("A", 0, 32),
-				testfixtures.TestNSmallCpuJob("A", 0, 33),
-				testfixtures.TestNSmallCpuJob("A", 0, 32),
+			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+			Jobs: [][]*jobdb.Job{
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
 			},
 			ExpectSuccess: []bool{true, false, true},
 		},
 		"varying job size": {
-			Nodes: testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
-			Reqs: [][]*schedulerobjects.PodRequirements{
-				append(testfixtures.TestNLargeCpuJob("A", 0, 1), testfixtures.TestNSmallCpuJob("A", 0, 32)...),
-				testfixtures.TestNSmallCpuJob("A", 0, 1),
+			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+			Jobs: [][]*jobdb.Job{
+				append(
+					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
+					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32)...,
+				),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 			},
 			ExpectSuccess: []bool{true, false},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := createNodeDb(tc.Nodes)
-			if !assert.NoError(t, err) {
-				return
-			}
-			for i, reqs := range tc.Reqs {
-				reports, ok, err := nodeDb.ScheduleMany(reqs)
-				if !assert.NoError(t, err) {
-					return
-				}
-				if tc.ExpectSuccess[i] {
-					assert.Equal(t, len(reqs), len(reports))
-					for _, report := range reports {
-						if !assert.NotNil(t, report.Node) {
-							return
-						}
+			nodeDb, err := newNodeDbWithNodes(tc.Nodes)
+			require.NoError(t, err)
+			for i, jobs := range tc.Jobs {
+				jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
+				ok, err := nodeDb.ScheduleMany(jctxs)
+				require.NoError(t, err)
+				assert.Equal(t, tc.ExpectSuccess[i], ok)
+				for _, jctx := range jctxs {
+					pctx := jctx.PodSchedulingContext
+					require.NotNil(t, pctx)
+					if tc.ExpectSuccess[i] {
+						assert.NotEqual(t, "", pctx.NodeId)
 					}
-					assert.True(t, ok)
-				} else {
-					assert.False(t, ok)
 				}
 			}
 		})
@@ -446,166 +536,168 @@ func TestScheduleMany(t *testing.T) {
 }
 
 func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
-	db, err := NewNodeDb(
+	nodeDb, err := NewNodeDb(
 		testfixtures.TestPriorityClasses,
 		testfixtures.TestMaxExtraNodesToConsider,
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
 	)
-	if !assert.NoError(b, err) {
-		return
+	require.NoError(b, err)
+	txn := nodeDb.Txn(true)
+	entries := make([]*Node, len(nodes))
+	for i, node := range nodes {
+		err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
+		require.NoError(b, err)
+		entry, err := nodeDb.GetNode(node.Id)
+		require.NoError(b, err)
+		entries[i] = entry
 	}
+	txn.Commit()
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		err := db.UpsertMany(nodes)
-		if !assert.NoError(b, err) {
-			return
-		}
+		err := nodeDb.UpsertMany(entries)
+		require.NoError(b, err)
 	}
 }
 
 func BenchmarkUpsert1(b *testing.B) {
-	benchmarkUpsert(testfixtures.TestNCpuNode(1, testfixtures.TestPriorities), b)
+	benchmarkUpsert(testfixtures.N32CpuNodes(1, testfixtures.TestPriorities), b)
 }
 
 func BenchmarkUpsert1000(b *testing.B) {
-	benchmarkUpsert(testfixtures.TestNCpuNode(1000, testfixtures.TestPriorities), b)
+	benchmarkUpsert(testfixtures.N32CpuNodes(1000, testfixtures.TestPriorities), b)
 }
 
 func BenchmarkUpsert100000(b *testing.B) {
-	benchmarkUpsert(testfixtures.TestNCpuNode(100000, testfixtures.TestPriorities), b)
+	benchmarkUpsert(testfixtures.N32CpuNodes(100000, testfixtures.TestPriorities), b)
 }
 
-func benchmarkSelectAndBindNodeToPod(nodes []*schedulerobjects.Node, reqs []*schedulerobjects.PodRequirements, b *testing.B) {
-	db, err := NewNodeDb(
+func benchmarkScheduleMany(b *testing.B, nodes []*schedulerobjects.Node, jobs []*jobdb.Job) {
+	nodeDb, err := NewNodeDb(
 		testfixtures.TestPriorityClasses,
 		testfixtures.TestMaxExtraNodesToConsider,
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
 	)
-	if !assert.NoError(b, err) {
-		return
+	require.NoError(b, err)
+	txn := nodeDb.Txn(true)
+	for _, node := range nodes {
+		err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
+		require.NoError(b, err)
 	}
-
-	err = db.UpsertMany(nodes)
-	if !assert.NoError(b, err) {
-		return
-	}
+	txn.Commit()
 
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		txn := db.db.Txn(true)
-		for _, req := range reqs {
-			_, err := db.SelectAndBindNodeToPodWithTxn(txn, req)
-			if !assert.NoError(b, err) {
-				return
-			}
-		}
+		jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs)
+		txn := nodeDb.Txn(true)
+		_, err := nodeDb.ScheduleManyWithTxn(txn, jctxs)
 		txn.Abort()
+		require.NoError(b, err)
 	}
 }
 
-func BenchmarkSelectAndBindNodeToPod10CpuNodes320SmallJobs(b *testing.B) {
-	benchmarkSelectAndBindNodeToPod(
-		testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-		testfixtures.TestNSmallCpuJob("A", 0, 320),
+func BenchmarkScheduleMany10CpuNodes320SmallJobs(b *testing.B) {
+	benchmarkScheduleMany(
 		b,
+		testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 320),
 	)
 }
 
-func BenchmarkSelectAndBindNodeToPod10CpuNodes640SmallJobs(b *testing.B) {
-	benchmarkSelectAndBindNodeToPod(
-		testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
-		testfixtures.TestNSmallCpuJob("A", 0, 640),
+func BenchmarkScheduleMany10CpuNodes640SmallJobs(b *testing.B) {
+	benchmarkScheduleMany(
 		b,
+		testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 640),
 	)
 }
 
-func BenchmarkSelectAndBindNodeToPod100CpuNodes3200SmallJobs(b *testing.B) {
-	benchmarkSelectAndBindNodeToPod(
-		testfixtures.TestNCpuNode(100, testfixtures.TestPriorities),
-		testfixtures.TestNSmallCpuJob("A", 0, 3200),
+func BenchmarkScheduleMany100CpuNodes3200SmallJobs(b *testing.B) {
+	benchmarkScheduleMany(
 		b,
+		testfixtures.N32CpuNodes(100, testfixtures.TestPriorities),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 3200),
 	)
 }
 
-func BenchmarkSelectAndBindNodeToPod100CpuNodes6400SmallJobs(b *testing.B) {
-	benchmarkSelectAndBindNodeToPod(
-		testfixtures.TestNCpuNode(100, testfixtures.TestPriorities),
-		testfixtures.TestNSmallCpuJob("A", 0, 6400),
+func BenchmarkScheduleMany100CpuNodes6400SmallJobs(b *testing.B) {
+	benchmarkScheduleMany(
 		b,
+		testfixtures.N32CpuNodes(100, testfixtures.TestPriorities),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 6400),
 	)
 }
 
-func BenchmarkSelectAndBindNodeToPod1000CpuNodes32000SmallJobs(b *testing.B) {
-	benchmarkSelectAndBindNodeToPod(
-		testfixtures.TestNCpuNode(1000, testfixtures.TestPriorities),
-		testfixtures.TestNSmallCpuJob("A", 0, 32000),
+func BenchmarkScheduleMany1000CpuNodes32000SmallJobs(b *testing.B) {
+	benchmarkScheduleMany(
 		b,
+		testfixtures.N32CpuNodes(1000, testfixtures.TestPriorities),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32000),
 	)
 }
 
-func BenchmarkSelectAndBindNodeToPod1000CpuNodes64000SmallJobs(b *testing.B) {
-	benchmarkSelectAndBindNodeToPod(
-		testfixtures.TestNCpuNode(1000, testfixtures.TestPriorities),
-		testfixtures.TestNSmallCpuJob("A", 0, 64000),
+func BenchmarkScheduleMany1000CpuNodes64000SmallJobs(b *testing.B) {
+	benchmarkScheduleMany(
 		b,
+		testfixtures.N32CpuNodes(1000, testfixtures.TestPriorities),
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 64000),
 	)
 }
 
-func BenchmarkSelectAndBindNodeToPod100CpuNodes1CpuUnused(b *testing.B) {
-	benchmarkSelectAndBindNodeToPod(
+func BenchmarkScheduleMany100CpuNodes1CpuUnused(b *testing.B) {
+	benchmarkScheduleMany(
+		b,
 		testfixtures.WithUsedResourcesNodes(
 			0,
 			schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("31")}},
-			testfixtures.TestNCpuNode(100, testfixtures.TestPriorities),
+			testfixtures.N32CpuNodes(100, testfixtures.TestPriorities),
 		),
-		testfixtures.TestNSmallCpuJob("A", 0, 100),
-		b,
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 100),
 	)
 }
 
-func BenchmarkSelectAndBindNodeToPod1000CpuNodes1CpuUnused(b *testing.B) {
-	benchmarkSelectAndBindNodeToPod(
+func BenchmarkScheduleMany1000CpuNodes1CpuUnused(b *testing.B) {
+	benchmarkScheduleMany(
+		b,
 		testfixtures.WithUsedResourcesNodes(
 			0,
 			schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("31")}},
-			testfixtures.TestNCpuNode(1000, testfixtures.TestPriorities),
+			testfixtures.N32CpuNodes(1000, testfixtures.TestPriorities),
 		),
-		testfixtures.TestNSmallCpuJob("A", 0, 1000),
-		b,
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1000),
 	)
 }
 
-func BenchmarkSelectAndBindNodeToPod10000CpuNodes1CpuUnused(b *testing.B) {
-	benchmarkSelectAndBindNodeToPod(
+func BenchmarkScheduleMany10000CpuNodes1CpuUnused(b *testing.B) {
+	benchmarkScheduleMany(
+		b,
 		testfixtures.WithUsedResourcesNodes(
 			0,
 			schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("31")}},
-			testfixtures.TestNCpuNode(10000, testfixtures.TestPriorities),
+			testfixtures.N32CpuNodes(10000, testfixtures.TestPriorities),
 		),
-		testfixtures.TestNSmallCpuJob("A", 0, 10000),
-		b,
+		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10000),
 	)
 }
 
-func BenchmarkSelectAndBindNodeToPodResourceConstrained(b *testing.B) {
+func BenchmarkScheduleManyResourceConstrained(b *testing.B) {
 	nodes := append(append(
-		testfixtures.TestNCpuNode(500, testfixtures.TestPriorities),
-		testfixtures.TestNGpuNode(1, testfixtures.TestPriorities)...),
-		testfixtures.TestNCpuNode(499, testfixtures.TestPriorities)...,
+		testfixtures.N32CpuNodes(500, testfixtures.TestPriorities),
+		testfixtures.N8GpuNodes(1, testfixtures.TestPriorities)...),
+		testfixtures.N32CpuNodes(499, testfixtures.TestPriorities)...,
 	)
-	benchmarkSelectAndBindNodeToPod(
-		nodes,
-		testfixtures.TestNGpuJob("A", 0, 1),
+	benchmarkScheduleMany(
 		b,
+		nodes,
+		testfixtures.N1GpuJobs("A", testfixtures.PriorityClass0, 1),
 	)
 }
 
-func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
-	db, err := NewNodeDb(
+func newNodeDbWithNodes(nodes []*schedulerobjects.Node) (*NodeDb, error) {
+	nodeDb, err := NewNodeDb(
 		testfixtures.TestPriorityClasses,
 		testfixtures.TestMaxExtraNodesToConsider,
 		testfixtures.TestResources,
@@ -615,8 +707,34 @@ func createNodeDb(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := db.UpsertMany(nodes); err != nil {
-		return nil, err
+	txn := nodeDb.Txn(true)
+	for _, node := range nodes {
+		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
+			return nil, err
+		}
 	}
-	return db, nil
+	txn.Commit()
+	return nodeDb, nil
+}
+
+func BenchmarkNodeDbStringFromPodRequirementsNotMetReason(b *testing.B) {
+	nodeDb := &NodeDb{
+		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
+	}
+	reason := &schedulerobjects.UntoleratedTaint{
+		Taint: v1.Taint{Key: randomString(100), Value: randomString(100), Effect: v1.TaintEffectNoSchedule},
+	}
+	nodeDb.stringFromPodRequirementsNotMetReason(reason)
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		nodeDb.stringFromPodRequirementsNotMetReason(reason)
+	}
+}
+
+func randomString(n int) string {
+	s := ""
+	for i := 0; i < n; i++ {
+		s += fmt.Sprint(i)
+	}
+	return s
 }

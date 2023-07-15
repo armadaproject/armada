@@ -21,6 +21,8 @@ func (node *Node) DeepCopy() *Node {
 	return &Node{
 		Id:             node.Id,
 		Name:           node.Name,
+		Executor:       node.Executor,
+		NodeDbKeys:     slices.Clone(node.NodeDbKeys),
 		LastSeen:       node.LastSeen,
 		NodeType:       node.NodeType.DeepCopy(),
 		NodeTypeId:     node.NodeTypeId,

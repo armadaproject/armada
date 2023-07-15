@@ -23,7 +23,7 @@ var _ JobEventReader = &JobEventReaderMock{}
 //			CloseFunc: func()  {
 //				panic("mock out the Close method")
 //			},
-//			GetJobEventMessageFunc: func(ctx context.Context, jobReq *api.JobSetRequest) (*api.EventStreamMessage, error) {
+//			GetJobEventMessageFunc: func(ctx context.Context, jobReq *api.JobSetRequest) (api.Event_GetJobSetEventsClient, error) {
 //				panic("mock out the GetJobEventMessage method")
 //			},
 //			HealthFunc: func(ctx context.Context, empty *types.Empty) (*api.HealthCheckResponse, error) {
@@ -41,6 +41,7 @@ type JobEventReaderMock struct {
 
 	// GetJobEventMessageFunc mocks the GetJobEventMessage method.
 	GetJobEventMessageFunc func(ctx context.Context, jobReq *api.JobSetRequest) (api.Event_GetJobSetEventsClient, error)
+
 	// HealthFunc mocks the Health method.
 	HealthFunc func(ctx context.Context, empty *types.Empty) (*api.HealthCheckResponse, error)
 

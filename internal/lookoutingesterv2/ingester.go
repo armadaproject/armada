@@ -32,7 +32,7 @@ func Run(config *configuration.LookoutIngesterV2Configuration) {
 		panic(errors.WithMessage(err, "Error creating compressor"))
 	}
 
-	converter := instructions.NewInstructionConverter(m, config.UserAnnotationPrefix, compressor)
+	converter := instructions.NewInstructionConverter(m, config.UserAnnotationPrefix, compressor, config.UseLegacyEventConversion)
 
 	ingester := ingest.NewIngestionPipeline[*model.InstructionSet](
 		config.Pulsar,
