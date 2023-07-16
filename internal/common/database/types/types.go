@@ -30,10 +30,10 @@ type DatabaseConn interface {
 	// QueryRow executes a query that returns one row. It returns a DatabaseRow interface representing the result row, and any error encountered.
 	QueryRow(context.Context, string, ...any) DatabaseRow
 
-	// BeginTx starts a transcation with the given DatabaseTxOptions, or returns an error if any occured.
+	// BeginTx starts a transcation with the given DatabaseTxOptions, or returns an error if any occurred.
 	BeginTx(context.Context, DatabaseTxOptions) (DatabaseTx, error)
 
-	// BeginTxFunc starts a transaction and executes the given function within the transaction. It the function runs successfuly, BeginTxFunc commits the transaction, otherwise it rolls back and return an errorr.
+	// BeginTxFunc starts a transaction and executes the given function within the transaction. It the function runs successfully, BeginTxFunc commits the transaction, otherwise it rolls back and return an errorr.
 	BeginTxFunc(context.Context, DatabaseTxOptions, func(DatabaseTx) error) error
 }
 
@@ -87,18 +87,18 @@ type DatabasePool interface {
 	// It returns a DatabaseRows interface that allows you to iterate over the result set, and any error encountered.
 	Query(context.Context, string, ...any) (DatabaseRows, error)
 
-	// BeginTx starts a transcation with the given DatabaseTxOptions, or returns an error if any occured.
+	// BeginTx starts a transcation with the given DatabaseTxOptions, or returns an error if any occurred.
 	BeginTx(context.Context, DatabaseTxOptions) (DatabaseTx, error)
 
 	// BeginTxFunc starts a transaction and executes the given function within the transaction.
-	// It the function runs successfuly, BeginTxFunc commits the transaction, otherwise it rolls back and return an error.
+	// It the function runs successfully, BeginTxFunc commits the transaction, otherwise it rolls back and return an error.
 	BeginTxFunc(context.Context, DatabaseTxOptions, func(DatabaseTx) error) error
 }
 
 // DatabaseRow represents a single row in a result set.
 type DatabaseRow interface {
 	// Scan reads the values from the current row into dest values positionally.
-	// It returns an error if any occured during the read operation.
+	// It returns an error if any occurred during the read operation.
 	Scan(dest ...any) error
 }
 
@@ -113,6 +113,6 @@ type DatabaseRows interface {
 	// Err returns the error, if any, encountered during iteration over the result set.
 	Err() error
 
-	// Scan reads the values from the current row into dest values positionally. It returns an error if any occured during the read operation.
+	// Scan reads the values from the current row into dest values positionally. It returns an error if any occurred during the read operation.
 	Scan(dest ...any) error
 }
