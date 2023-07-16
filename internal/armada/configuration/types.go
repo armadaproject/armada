@@ -89,25 +89,21 @@ type PulsarConfig struct {
 }
 
 // DatabaseConfig represents the configuration of the database connection.
-type DatabaseConfig interface {
-	// GetMaxOpenConns gets the maximum number of open connections to the database.
-	GetMaxOpenConns() int
+type DatabaseConfig struct {
+	// MaxOpenConns represents the maximum number of open connections to the database.
+	MaxOpenConns int
 
-	// GetMaxIdleConns gets the maximum number of connections in the idle connection pool.
-	GetMaxIdleConns() int
+	// MaxIdleConns represents the maximum number of connections in the idle connection pool.
+	MaxIdleConns int
 
-	// GetConnMaxLifetime gets the maximum amount of time a connection may be reused.
-	GetConnMaxLifetime() time.Duration
+	// ConnMaxLifetime represents the maximum amount of time a connection may be reused.
+	ConnMaxLifetime time.Duration
 
-	// GetConnection gets the database connection details in a key/value pairs format.
-	GetConnection() map[string]string
+	// Connection represents the database connection details in a key/value pairs format.
+	Connection map[string]string
 
-	// GetConnection gets the database connection string that can typically be used
-	// to establish connection to the database.
-	GetConnectionString() string
-
-	// GetDialect gets the dialect of the configured database.
-	GetDialect() string
+	// Dialect represents the dialect of the configured database.
+	Dialect string
 }
 
 type SchedulingConfig struct {
