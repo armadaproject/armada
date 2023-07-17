@@ -16,10 +16,20 @@ import (
 type JobServiceServer struct {
 	jobServiceConfig *configuration.JobServiceConfiguration
 	jobRepository    repository.SQLJobService
+	newSubChan       chan *repository.SubscribedTuple
 }
 
 func NewJobService(config *configuration.JobServiceConfiguration, sqlService repository.SQLJobService) *JobServiceServer {
-	return &JobServiceServer{jobServiceConfig: config, jobRepository: sqlService}
+	return &JobServiceServer{
+		jobServiceConfig: config,
+		jobRepository:    sqlService,
+		// TODO: What's a reasonable buffer length?
+		newSubChan: make(chan *repository.SubscribedTuple, 1000),
+	}
+}
+
+func (s *JobServiceServer) GetNewSubscriptionChannel() <-chan *repository.SubscribedTuple {
+	return s.newSubChan
 }
 
 func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobServiceRequest) (*js.JobServiceResponse, error) {
@@ -37,6 +47,14 @@ func (s *JobServiceServer) GetJobStatus(ctx context.Context, opts *js.JobService
 		errsubscribe := s.jobRepository.SubscribeJobSet(ctx, opts.Queue, opts.JobSetId, fromMessageId)
 		if errsubscribe != nil {
 			log.Error("unable to subscribe job set", err)
+		} else {
+			s.newSubChan <- &repository.SubscribedTuple{
+				JobSetKey: repository.JobSetKey{
+					Queue:    opts.Queue,
+					JobSetId: opts.JobSetId,
+				},
+				FromMessageId: fromMessageId,
+			}
 		}
 		log.Infof("Subscribing %s-%s with messageId %s", opts.Queue, opts.JobSetId, fromMessageId)
 	} else {

@@ -24,11 +24,15 @@ import grpc
 from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator
 from airflow.triggers.base import BaseTrigger, TriggerEvent
+from airflow.utils.context import Context
 
 from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.client import ArmadaClient
 
-from armada.operators.jobservice import JobServiceClient
+from armada.operators.jobservice import (
+    JobServiceClient,
+    default_jobservice_channel_options,
+)
 from armada.operators.jobservice_asyncio import JobServiceAsyncIOClient
 from armada.operators.utils import (
     airflow_error,
@@ -36,6 +40,10 @@ from armada.operators.utils import (
     annotate_job_request_items,
 )
 from armada.jobservice import jobservice_pb2
+
+from google.protobuf.json_format import MessageToDict, ParseDict
+
+import jinja2
 
 
 armada_logger = logging.getLogger("airflow.task")
@@ -60,7 +68,7 @@ class ArmadaDeferrableOperator(BaseOperator):
     submitting its job_request_items.
 
     See
-        https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html
+    https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html
     for more information about deferrable airflow operators.
 
     Airflow operators inherit from BaseOperator.
@@ -77,9 +85,10 @@ class ArmadaDeferrableOperator(BaseOperator):
         The format should be:
         "https://lookout.armada.domain/jobs?job_id=<job_id>" where <job_id> will
         be replaced with the actual job ID.
-
     :return: A deferrable armada operator instance.
     """
+
+    template_fields: Sequence[str] = ("job_request_items",)
 
     def __init__(
         self,
@@ -94,6 +103,10 @@ class ArmadaDeferrableOperator(BaseOperator):
         super().__init__(**kwargs)
         self.name = name
         self.armada_channel_args = GrpcChannelArguments(**armada_channel_args)
+
+        if "options" not in job_service_channel_args:
+            job_service_channel_args["options"] = default_jobservice_channel_options
+
         self.job_service_channel_args = GrpcChannelArguments(**job_service_channel_args)
         self.armada_queue = armada_queue
         self.job_request_items = job_request_items
@@ -183,6 +196,20 @@ class ArmadaDeferrableOperator(BaseOperator):
         if self.lookout_url_template is None:
             return ""
         return self.lookout_url_template.replace("<job_id>", job_id)
+
+    def render_template_fields(
+        self,
+        context: Context,
+        jinja_env: Optional[jinja2.Environment] = None,
+    ) -> None:
+        self.job_request_items = [
+            MessageToDict(x, preserving_proto_field_name=True)
+            for x in self.job_request_items
+        ]
+        super().render_template_fields(context, jinja_env)
+        self.job_request_items = [
+            ParseDict(x, JobSubmitRequestItem()) for x in self.job_request_items
+        ]
 
 
 class ArmadaJobCompleteTrigger(BaseTrigger):

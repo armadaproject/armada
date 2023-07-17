@@ -42,7 +42,8 @@ var (
 				Finished:    &baseTimeSwagger,
 				JobRunState: string(lookout.JobRunLeaseReturned),
 				Node:        pointer.String("node"),
-				Pending:     baseTimeSwagger,
+				Leased:      &baseTimeSwagger,
+				Pending:     &baseTimeSwagger,
 				RunID:       "run-id",
 				Started:     &baseTimeSwagger,
 			},
@@ -76,7 +77,8 @@ var (
 				Finished:    &baseTime,
 				JobRunState: string(lookout.JobRunLeaseReturned),
 				Node:        pointer.String("node"),
-				Pending:     baseTime,
+				Leased:      &baseTime,
+				Pending:     &baseTime,
 				RunId:       "run-id",
 				Started:     &baseTime,
 			},
@@ -86,16 +88,22 @@ var (
 	}
 
 	swaggerGroup = &models.Group{
-		Aggregates: map[string]string{
+		Aggregates: map[string]interface{}{
 			"averageTimeInState": "3d",
+			"state": map[string]int{
+				"QUEUED": 321,
+			},
 		},
 		Count: 1000,
 		Name:  "queue-1",
 	}
 
 	group = &model.JobGroup{
-		Aggregates: map[string]string{
+		Aggregates: map[string]interface{}{
 			"averageTimeInState": "3d",
+			"state": map[string]int{
+				"QUEUED": 321,
+			},
 		},
 		Count: 1000,
 		Name:  "queue-1",

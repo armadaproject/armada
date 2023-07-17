@@ -7,6 +7,7 @@ application:
   deleteConcurrencyLimit: 2
   useExecutorApi: false
   useLegacyApi: true
+  jobLeaseRequestTimeout: "30s"
 task:
   utilisationReportingInterval: 1s
   missingJobEventReconciliationInterval: 15s
@@ -58,6 +59,9 @@ kubernetes:
   fatalPodSubmissionErrors:
     - "admission webhook"
     - "namespaces \".*\" not found"
+  stateChecks:
+    deadlineForSubmittedPodConsideredMissing: 15m
+    deadlineForActivePodConsideredMissing: 5m
   pendingPodChecks:
     deadlineForUpdates: 10m
     deadlineForNodeAssignment: 5m

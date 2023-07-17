@@ -5,32 +5,33 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
+	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // Job is the scheduler-internal representation of a job.
 type Job struct {
-	// String representation of the job id
+	// String representation of the job id.
 	id string
 	// Name of the queue this job belongs to.
 	queue string
-	// Jobset the job belongs to
-	// We store this as it's needed for sending job event messages
+	// Jobset the job belongs to.
+	// We store this as it's needed for sending job event messages.
 	jobset string
 	// Per-queue priority of this job.
 	priority uint32
 	// Requested per queue priority of this job.
-	// This is used when syncing the postgres database with the scheduler-internal database
+	// This is used when syncing the postgres database with the scheduler-internal database.
 	requestedPriority uint32
 	// Logical timestamp indicating the order in which jobs are submitted.
 	// Jobs with identical Queue and Priority are sorted by this.
 	created int64
 	// True if the job is currently queued.
-	// If this is set then the job will not be considered for scheduling
+	// If this is set then the job will not be considered for scheduling.
 	queued bool
-	// The current version of the queued state
+	// The current version of the queued state.
 	queuedVersion int32
 	// Scheduling requirements of this job.
 	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo
@@ -70,6 +71,20 @@ func NewJob(
 	cancelled bool,
 	created int64,
 ) *Job {
+	// Initialise the annotation and nodeSelector maps if nil.
+	// Since those need to be mutated in-place.
+	if schedulingInfo != nil {
+		for _, req := range schedulingInfo.ObjectRequirements {
+			if podReq := req.GetPodRequirements(); podReq != nil {
+				if podReq.Annotations == nil {
+					podReq.Annotations = make(map[string]string)
+				}
+				if podReq.NodeSelector == nil {
+					podReq.NodeSelector = make(map[string]string)
+				}
+			}
+		}
+	}
 	return &Job{
 		id:                      jobId,
 		jobset:                  jobset,
@@ -125,6 +140,19 @@ func (job *Job) Priority() uint32 {
 	return job.priority
 }
 
+// GetPerQueuePriority exists for compatibility with the LegacyJob interface.
+func (job *Job) GetPerQueuePriority() uint32 {
+	return job.priority
+}
+
+// GetSubmitTime exists for compatibility with the LegacyJob interface.
+func (job *Job) GetSubmitTime() time.Time {
+	if job.jobSchedulingInfo == nil {
+		return time.Time{}
+	}
+	return job.jobSchedulingInfo.SubmitTime
+}
+
 // RequestedPriority returns the requested priority of the job.
 func (job *Job) RequestedPriority() uint32 {
 	return job.requestedPriority
@@ -149,16 +177,59 @@ func (job *Job) JobSchedulingInfo() *schedulerobjects.JobSchedulingInfo {
 	return job.jobSchedulingInfo
 }
 
-// GetRequirements  returns the scheduling requirements associated with the job.
-// this is needed for compatibility with interfaces.LegacySchedulerJob
-func (job *Job) GetRequirements(_ map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
-	return job.JobSchedulingInfo()
+// GetAnnotations returns the annotations on the job.
+// This is needed for compatibility with interfaces.LegacySchedulerJob
+func (job *Job) GetAnnotations() map[string]string {
+	if req := job.PodRequirements(); req != nil {
+		return req.Annotations
+	}
+	return nil
 }
 
-// GetPriorityClassName returns the priorityClassName of the job.
 // Needed for compatibility with interfaces.LegacySchedulerJob
 func (job *Job) GetPriorityClassName() string {
 	return job.JobSchedulingInfo().PriorityClassName
+}
+
+// Needed for compatibility with interfaces.LegacySchedulerJob
+func (job *Job) GetNodeSelector() map[string]string {
+	if req := job.PodRequirements(); req != nil {
+		return req.NodeSelector
+	}
+	return nil
+}
+
+// Needed for compatibility with interfaces.LegacySchedulerJob
+func (job *Job) GetAffinity() *v1.Affinity {
+	if req := job.PodRequirements(); req != nil {
+		return req.Affinity
+	}
+	return nil
+}
+
+// Needed for compatibility with interfaces.LegacySchedulerJob
+func (job *Job) GetTolerations() []v1.Toleration {
+	if req := job.PodRequirements(); req != nil {
+		return req.Tolerations
+	}
+	return nil
+}
+
+// Needed for compatibility with interfaces.LegacySchedulerJob
+func (job *Job) GetResourceRequirements() v1.ResourceRequirements {
+	if req := job.PodRequirements(); req != nil {
+		return req.ResourceRequirements
+	}
+	return v1.ResourceRequirements{}
+}
+
+func (job *Job) PodRequirements() *schedulerobjects.PodRequirements {
+	return job.jobSchedulingInfo.GetPodRequirements()
+}
+
+// GetPodRequirements is needed for compatibility with interfaces.LegacySchedulerJob.
+func (job *Job) GetPodRequirements(_ map[string]types.PriorityClass) *schedulerobjects.PodRequirements {
+	return job.PodRequirements()
 }
 
 // Queued returns true if the job should be considered by the scheduler for assignment or false otherwise.
@@ -250,19 +321,6 @@ func (job *Job) Created() int64 {
 	return job.created
 }
 
-// GetAnnotations returns the annotations on the job.
-// This is needed for compatibility with interfaces.LegacySchedulerJob
-func (job *Job) GetAnnotations() map[string]string {
-	requirements := job.jobSchedulingInfo.GetObjectRequirements()
-	if len(requirements) == 0 {
-		return nil
-	}
-	if podReqs := requirements[0].GetPodRequirements(); podReqs != nil {
-		return podReqs.GetAnnotations()
-	}
-	return nil
-}
-
 // InTerminalState returns true if the job  is in a terminal state
 func (job *Job) InTerminalState() bool {
 	return job.succeeded || job.cancelled || job.failed
@@ -275,13 +333,14 @@ func (job *Job) HasRuns() bool {
 }
 
 // WithNewRun creates a copy of the job with a new run on the given executor.
-func (job *Job) WithNewRun(executor string, node string) *Job {
+func (job *Job) WithNewRun(executor string, nodeId, nodeName string) *Job {
 	run := &JobRun{
 		id:       uuid.New(),
 		jobId:    job.id,
 		created:  time.Now().UnixNano(),
 		executor: executor,
-		node:     node,
+		nodeId:   nodeId,
+		nodeName: nodeName,
 	}
 	return job.WithUpdatedRun(run)
 }

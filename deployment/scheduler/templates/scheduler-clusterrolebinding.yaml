@@ -14,7 +14,7 @@ subjects:
     name: {{ .Values.scheduler.customServiceAccount | default (include "armada-scheduler.name" .) }}
     namespace: {{ .Release.Namespace }}
 {{- $root := . -}}
-{{ range .Values.additionalClusterRoleBindings }}
+{{ range .Values.scheduler.additionalClusterRoleBindings }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -28,6 +28,6 @@ roleRef:
   name: {{ .clusterRoleName }}
 subjects:
   - kind: ServiceAccount
-    name: {{ $root.Values.customServiceAccount | default (include "armada-scheduler.name" $root) }}
+    name: {{ $root.Values.scheduler.customServiceAccount | default (include "armada-scheduler.name" $root) }}
     namespace: {{ $root.Release.Namespace }}
 {{ end }}

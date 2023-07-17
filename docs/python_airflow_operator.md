@@ -95,6 +95,30 @@ Stops the JobService from listening to the JobSet and cancels the jobs.
   None
 
 
+
+#### render_template_fields(context, jinja_env=None)
+Template all attributes listed in *self.template_fields*.
+
+This mutates the attributes in-place and is irreversible.
+
+
+* **Parameters**
+
+    
+    * **context** (*Context*) – Context dict with values to apply on content.
+
+
+    * **jinja_env** (*Environment** | **None*) – Jinja’s environment to use for rendering.
+
+
+
+* **Return type**
+
+    None
+
+
+
+#### template_fields(_: Sequence[str_ _ = ('job_request_items',_ )
 ## armada.operators.armada_deferrable module
 
 
@@ -107,9 +131,7 @@ Distinguished from ArmadaOperator by its ability to defer itself after
 submitting its job_request_items.
 
 See
-
-    [https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html](https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html)
-
+[https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html](https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html)
 for more information about deferrable airflow operators.
 
 Airflow operators inherit from BaseOperator.
@@ -174,6 +196,28 @@ until the job completes.
 
 
 
+#### render_template_fields(context, jinja_env=None)
+Template all attributes listed in *self.template_fields*.
+
+This mutates the attributes in-place and is irreversible.
+
+
+* **Parameters**
+
+    
+    * **context** (*Context*) – Context dict with values to apply on content.
+
+
+    * **jinja_env** (*Environment** | **None*) – Jinja’s environment to use for rendering.
+
+
+
+* **Return type**
+
+    None
+
+
+
 #### resume_job_complete(context, event, job_id)
 Resumes this operator after deferring itself to ArmadaJobCompleteTrigger.
 Only meant to be called from within Airflow.
@@ -206,6 +250,8 @@ Reports the result of the job and returns.
   None
 
 
+
+#### template_fields(_: Sequence[str_ _ = ('job_request_items',_ )
 
 ### _class_ armada.operators.armada_deferrable.ArmadaJobCompleteTrigger(job_id, job_service_channel_args, armada_queue, job_set_id, airflow_task_name)
 Bases: `BaseTrigger`
@@ -412,6 +458,38 @@ Health Check for GRPC Request
   *HealthCheckResponse*
 
 
+
+### armada.operators.jobservice.get_retryable_job_service_client(target, credentials=None, compression=None)
+Get a JobServiceClient that has retry configured
+
+
+* **Parameters**
+
+    
+    * **target** (*str*) – grpc channel target
+
+
+    * **credentials** (*ChannelCredentials** | **None*) – grpc channel credentials (if needed)
+
+
+    * **compresion** – grpc channel compression
+
+
+    * **compression** (*Compression** | **None*) – 
+
+
+
+* **Returns**
+
+    A job service client instance
+
+
+
+* **Return type**
+
+    *JobServiceClient*
+
+
 ## armada.operators.jobservice_asyncio module
 
 
@@ -475,6 +553,38 @@ Health Check for GRPC Request
 * **Return type**
 
   *HealthCheckResponse*
+
+
+
+### armada.operators.jobservice_asyncio.get_retryable_job_service_asyncio_client(target, credentials, compression)
+Get a JobServiceAsyncIOClient that has retry configured
+
+
+* **Parameters**
+
+    
+    * **target** (*str*) – grpc channel target
+
+
+    * **credentials** (*ChannelCredentials** | **None*) – grpc channel credentials (if needed)
+
+
+    * **compresion** – grpc channel compression
+
+
+    * **compression** (*Compression** | **None*) – 
+
+
+
+* **Returns**
+
+    A job service asyncio client instance
+
+
+
+* **Return type**
+
+    *JobServiceAsyncIOClient*
 
 
 ## armada.operators.utils module

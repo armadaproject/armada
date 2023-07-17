@@ -2,6 +2,8 @@ package scheduler
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"testing"
 	"time"
 
@@ -12,549 +14,494 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
+	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
-func TestLegacySchedulingAlgo_TestSchedule(t *testing.T) {
+func TestSchedule(t *testing.T) {
+	type scheduledJobs struct {
+		jobs         []*jobdb.Job
+		acknowledged bool
+	}
 	tests := map[string]struct {
 		schedulingConfig configuration.SchedulingConfig
 
-		executors []*schedulerobjects.Executor
-		queues    []*database.Queue
-
-		existingJobs []*jobdb.Job
-		// Map from (executor ID, node name) to indices of acknowledged jobs for that node.
-		existingRunningIndices map[string]map[string][]int
-		// Map from (executor ID, node name) to indices of unacknowledged jobs for that node.
-		existingUnacknowledgedIndices map[string]map[string][]int
-
+		executors  []*schedulerobjects.Executor
+		queues     []*database.Queue
 		queuedJobs []*jobdb.Job
 
-		// Indices of jobs that we expect to be preempted.
-		expectedPreemptedIndices []int
-		// Map from executor ID to indices of jobs that we expect to be scheduled.
-		expectedScheduledIndices map[string][]int
-	}{
-		"fill up both clusters": {
-			schedulingConfig: testfixtures.TestSchedulingConfig(),
+		// Already scheduled jobs. Specifically,
+		// [executorIndex][nodeIndex] = jobs scheduled onto this executor and node,
+		// where executorIndex refers to the index of executors, and nodeIndex the index of the node on that executor.
+		scheduledJobsByExecutorIndexAndNodeIndex map[int]map[int]scheduledJobs
 
+		// Indices of existing jobs expected to be preempted.
+		// Uses the same structure as scheduledJobsByExecutorIndexAndNodeIndex.
+		expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex map[int]map[int][]int
+
+		// Indices of queued jobs expected to be scheduled.
+		expectedScheduledIndices []int
+	}{
+		"scheduling": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			executors: []*schedulerobjects.Executor{
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
-			queues: []*database.Queue{testfixtures.TestDbQueue()},
-
-			queuedJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
-			expectedScheduledIndices: map[string][]int{
-				"executor1": {0, 1},
-				"executor2": {2, 3},
-			},
+			queues:                   []*database.Queue{testfixtures.TestDbQueue()},
+			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			expectedScheduledIndices: []int{0, 1, 2, 3},
 		},
-		"one executor stale": {
+		"do not schedule onto stale executors": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
-
 			executors: []*schedulerobjects.Executor{
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.WithLastUpdateTimeExecutor(testfixtures.BaseTime.Add(-1*time.Hour), testfixtures.Test1Node32CoreExecutor("executor2")),
 			},
-			queues: []*database.Queue{testfixtures.TestDbQueue()},
-
-			queuedJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
-			expectedScheduledIndices: map[string][]int{
-				"executor1": {0, 1},
-			},
+			queues:                   []*database.Queue{testfixtures.TestDbQueue()},
+			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			expectedScheduledIndices: []int{0, 1},
 		},
-		"one executor exceeds unacknowledged": {
+		"do not schedule onto executors with too many unacknowledged jobs": {
+			// TODO: This test doesn't look right; we never set MaxUnacknowledgedJobsPerExecutor.
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
-
 			executors: []*schedulerobjects.Executor{
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
-			queues: []*database.Queue{testfixtures.TestDbQueue()},
-
-			existingJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 2),
-			existingUnacknowledgedIndices: map[string]map[string][]int{
-				"executor1": {"executor1-node": {0, 1}},
+			queues:     []*database.Queue{testfixtures.TestDbQueue()},
+			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 2),
+						acknowledged: false,
+					},
+				},
 			},
-
-			queuedJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
-
-			expectedScheduledIndices: map[string][]int{
-				"executor2": {0, 1},
-			},
+			expectedScheduledIndices: []int{0, 1},
 		},
 		"one executor full": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
-
 			executors: []*schedulerobjects.Executor{
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
-			queues: []*database.Queue{testfixtures.TestDbQueue()},
-
-			existingJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 2),
-			existingRunningIndices: map[string]map[string][]int{
-				"executor1": {"executor1-node": {0, 1}},
+			queues:     []*database.Queue{testfixtures.TestDbQueue()},
+			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 2),
+						acknowledged: true,
+					},
+				},
 			},
-
-			queuedJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
-
-			expectedScheduledIndices: map[string][]int{
-				"executor2": {0, 1},
-			},
+			expectedScheduledIndices: []int{0, 1},
 		},
-		"user is at usage cap before scheduling": {
+		"MaximumResourceFractionPerQueue hit before scheduling": {
 			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
-				map[int32]map[string]float64{
-					testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority: {"cpu": 0.5},
+				map[string]map[string]float64{
+					testfixtures.PriorityClass3: {"cpu": 0.5},
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
-
 			executors: []*schedulerobjects.Executor{
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
-			queues: []*database.Queue{testfixtures.TestDbQueue()},
-
-			existingJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 2),
-			existingRunningIndices: map[string]map[string][]int{
-				"executor1": {"executor1-node": {0, 1}},
+			queues:     []*database.Queue{testfixtures.TestDbQueue()},
+			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 2),
+						acknowledged: true,
+					},
+				},
 			},
-
-			queuedJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
-
-			expectedScheduledIndices: nil,
 		},
-		"user hits usage cap during scheduling": {
+		"MaximumResourceFractionPerQueue hit during scheduling": {
 			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
-				map[int32]map[string]float64{
-					testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority: {"cpu": 0.5},
+				map[string]map[string]float64{
+					testfixtures.PriorityClass3: {"cpu": 0.5},
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
-
 			executors: []*schedulerobjects.Executor{
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
-			queues: []*database.Queue{testfixtures.TestDbQueue()},
-
-			existingJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 1),
-			existingRunningIndices: map[string]map[string][]int{
-				"executor1": {"executor1-node": {0}},
+			queues:     []*database.Queue{testfixtures.TestDbQueue()},
+			queuedJobs: testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 1),
+						acknowledged: true,
+					},
+				},
 			},
-
-			queuedJobs: testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
-
-			expectedScheduledIndices: map[string][]int{
-				"executor1": {0},
-			},
+			expectedScheduledIndices: []int{0},
 		},
-		"no queuedJobs to schedule": {
+		"no queued jobs": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
-
 			executors: []*schedulerobjects.Executor{
 				testfixtures.Test1Node32CoreExecutor("executor1"),
 				testfixtures.Test1Node32CoreExecutor("executor2"),
 			},
 			queues: []*database.Queue{testfixtures.TestDbQueue()},
-
-			expectedScheduledIndices: nil,
 		},
-		"no executor available": {
+		"no executors": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
-
-			executors: []*schedulerobjects.Executor{},
-			queues:    []*database.Queue{testfixtures.TestDbQueue()},
-
-			queuedJobs:               testfixtures.N16CpuJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
-			expectedScheduledIndices: nil,
+			executors:        []*schedulerobjects.Executor{},
+			queues:           []*database.Queue{testfixtures.TestDbQueue()},
+			queuedJobs:       testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
 		},
-		"The scheduling algorithm computes allocated resources by priority class, not by per-queue priority.": {
+		"computation of allocated resources does not confuse priority class with per-queue priority": {
 			schedulingConfig: testfixtures.WithPerPriorityLimitsConfig(
-				map[int32]map[string]float64{
-					testfixtures.TestPriorityClasses[testfixtures.PriorityClass3].Priority: {"cpu": 0.5},
+				map[string]map[string]float64{
+					testfixtures.PriorityClass3: {"cpu": 0.5},
 				},
 				testfixtures.TestSchedulingConfig(),
 			),
-
 			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
 			queues:    []*database.Queue{testfixtures.TestDbQueue()},
-
-			existingJobs: []*jobdb.Job{testfixtures.Test16CpuJob(testfixtures.TestQueue, testfixtures.PriorityClass3).WithPriority(0)},
-			existingRunningIndices: map[string]map[string][]int{
-				"executor1": {"executor1-node": {0}},
-			},
-
 			queuedJobs: []*jobdb.Job{
 				// Submit the next job with a per-queue priority number (i.e., 1) that is larger
 				// than the per-queue priority of the already-running job (i.e., 0), but smaller
 				// than the priority class number of the two jobs (i.e., 3); if the scheduler were
 				// to use the per-queue priority instead of the priority class number in its
 				// accounting, then it would schedule this job.
-				testfixtures.Test16CpuJob(testfixtures.TestQueue, testfixtures.PriorityClass3).WithPriority(1),
+				testfixtures.Test16Cpu128GiJob(testfixtures.TestQueue, testfixtures.PriorityClass3).WithPriority(1),
 			},
-
-			expectedScheduledIndices: nil,
-		},
-		"Urgency-based preemption within a single queue.": {
-			schedulingConfig: testfixtures.TestSchedulingConfig(),
-
-			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
-			queues:    []*database.Queue{{Name: "queue1", Weight: 100}},
-
-			existingJobs: testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 2),
-			existingRunningIndices: map[string]map[string][]int{
-				"executor1": {"executor1-node": {0, 1}},
-			},
-
-			queuedJobs: testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass1, 2),
-
-			expectedPreemptedIndices: []int{0, 1},
-			expectedScheduledIndices: map[string][]int{
-				"executor1": {0, 1},
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         []*jobdb.Job{testfixtures.Test16Cpu128GiJob(testfixtures.TestQueue, testfixtures.PriorityClass3).WithPriority(0)},
+						acknowledged: true,
+					},
+				},
 			},
 		},
-		"Urgency-based preemption across queues.": {
+		"urgency-based preemption within a single queue": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
-
-			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
-			queues:    []*database.Queue{{Name: "queue1", Weight: 100}, {Name: "queue2", Weight: 100}},
-
-			existingJobs: testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 2),
-			existingRunningIndices: map[string]map[string][]int{
-				"executor1": {"executor1-node": {0, 1}},
+			executors:        []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			queues:           []*database.Queue{{Name: "A"}},
+			queuedJobs:       testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass1, 2),
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 1),
+						acknowledged: true,
+					},
+				},
 			},
-
-			queuedJobs: testfixtures.N16CpuJobs("queue2", testfixtures.PriorityClass1, 2),
-
-			expectedPreemptedIndices: []int{0, 1},
-			expectedScheduledIndices: map[string][]int{
-				"executor1": {0, 1},
+			expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
 			},
+			expectedScheduledIndices: []int{0, 1},
 		},
-		"Fair share preemption.": {
+		"urgency-based preemption between queues": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
-
-			executors: []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
-			queues:    []*database.Queue{{Name: "queue1", Weight: 100}, {Name: "queue2", Weight: 100}},
-
-			existingJobs: testfixtures.N16CpuJobs("queue1", testfixtures.PriorityClass0, 2),
-			existingRunningIndices: map[string]map[string][]int{
-				"executor1": {"executor1-node": {0, 1}},
+			executors:        []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			queues:           []*database.Queue{{Name: "A"}, {Name: "B"}},
+			queuedJobs:       testfixtures.N16Cpu128GiJobs("B", testfixtures.PriorityClass1, 2),
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N16Cpu128GiJobs("B", testfixtures.PriorityClass0, 1),
+						acknowledged: true,
+					},
+				},
 			},
-
-			queuedJobs: testfixtures.N16CpuJobs("queue2", testfixtures.PriorityClass0, 2),
-
-			expectedPreemptedIndices: []int{1},
-			expectedScheduledIndices: map[string][]int{
-				"executor1": {0},
+			expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0},
+				},
 			},
+			expectedScheduledIndices: []int{0, 1},
+		},
+		"preemption to fair share": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors:        []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			queues:           []*database.Queue{{Name: "A", Weight: 100}, {Name: "B", Weight: 100}},
+			queuedJobs:       testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2),
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.N16Cpu128GiJobs("B", testfixtures.PriorityClass0, 2),
+						acknowledged: true,
+					},
+				},
+			},
+			expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {1},
+				},
+			},
+			expectedScheduledIndices: []int{0},
+		},
+		"gang scheduling": {
+			schedulingConfig:         testfixtures.TestSchedulingConfig(),
+			executors:                []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			queues:                   []*database.Queue{{Name: "A", Weight: 100}},
+			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2)),
+			expectedScheduledIndices: []int{0, 1},
+		},
+		"not scheduling a gang that does not fit on any executor": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1"),
+				testfixtures.Test1Node32CoreExecutor("executor2"),
+			},
+			queues:     []*database.Queue{{Name: "A", Weight: 100}},
+			queuedJobs: testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("queue1", testfixtures.PriorityClass0, 3)),
+		},
+		"urgency-based gang preemption": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1"),
+			},
+			queues:     []*database.Queue{{Name: "queue1", Weight: 100}, {Name: "queue2", Weight: 100}},
+			queuedJobs: testfixtures.N16Cpu128GiJobs("queue2", testfixtures.PriorityClass1, 1),
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("queue1", testfixtures.PriorityClass0, 2)),
+						acknowledged: true,
+					},
+				},
+			},
+			expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0, 1},
+				},
+			},
+			expectedScheduledIndices: []int{0},
+		},
+		"preemption to fair share evicting a gang": {
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors:        []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			queues:           []*database.Queue{{Name: "queue1", Weight: 100}, {Name: "queue2", Weight: 100}},
+			queuedJobs:       testfixtures.N16Cpu128GiJobs("queue2", testfixtures.PriorityClass0, 1),
+			scheduledJobsByExecutorIndexAndNodeIndex: map[int]map[int]scheduledJobs{
+				0: {
+					0: scheduledJobs{
+						jobs:         testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("queue1", testfixtures.PriorityClass0, 2)),
+						acknowledged: true,
+					},
+				},
+			},
+			expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex: map[int]map[int][]int{
+				0: {
+					0: {0, 1},
+				},
+			},
+			expectedScheduledIndices: []int{0},
+		},
+		"UnifiedSchedulingByPool": {
+			schedulingConfig: testfixtures.WithUnifiedSchedulingByPoolConfig(testfixtures.TestSchedulingConfig()),
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1"),
+				testfixtures.Test1Node32CoreExecutor("executor2"),
+			},
+			queues:                   []*database.Queue{testfixtures.TestDbQueue()},
+			queuedJobs:               testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass3, 10),
+			expectedScheduledIndices: []int{0, 1, 2, 3},
+		},
+		"UnifiedSchedulingByPool schedule gang job over multiple executors": {
+			schedulingConfig: testfixtures.WithUnifiedSchedulingByPoolConfig(testfixtures.TestSchedulingConfig()),
+			executors: []*schedulerobjects.Executor{
+				testfixtures.Test1Node32CoreExecutor("executor1"),
+				testfixtures.Test1Node32CoreExecutor("executor2"),
+			},
+			queues:                   []*database.Queue{testfixtures.TestDbQueue()},
+			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs(testfixtures.TestQueue, testfixtures.PriorityClass0, 4)),
+			expectedScheduledIndices: []int{0, 1, 2, 3},
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctx := testfixtures.ContextWithDefaultLogger(context.Background())
-			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			timeout := 5 * time.Second
+			ctx, cancel := context.WithTimeout(ctx, timeout)
 			defer cancel()
 
 			ctrl := gomock.NewController(t)
-
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
-
 			mockQueueRepo := schedulermocks.NewMockQueueRepository(ctrl)
 			mockQueueRepo.EXPECT().GetAllQueues().Return(tc.queues, nil).AnyTimes()
 
-			algo, err := NewFairSchedulingAlgo(
+			schedulingContextRepo, err := NewSchedulingContextRepository(1024)
+			require.NoError(t, err)
+			sch, err := NewFairSchedulingAlgo(
 				tc.schedulingConfig,
-				time.Second*5,
+				timeout,
 				mockExecutorRepo,
 				mockQueueRepo,
+				schedulingContextRepo,
 			)
 			require.NoError(t, err)
 
 			// Use a test clock so we can control time
-			algo.clock = clock.NewFakeClock(testfixtures.BaseTime)
+			sch.clock = clock.NewFakeClock(testfixtures.BaseTime)
 
-			nodes := make(map[string]map[string]*schedulerobjects.Node)
-			for _, executor := range tc.executors {
-				nodesByName := make(map[string]*schedulerobjects.Node)
-				for _, node := range executor.Nodes {
-					nodesByName[node.Name] = node
-				}
-				nodes[executor.Id] = nodesByName
-			}
-
+			// Add queued jobs to the jobDb.
 			jobsToUpsert := make([]*jobdb.Job, 0)
-
-			for executorId, jobsByNodeName := range tc.existingRunningIndices {
-				for nodeName, jobIndices := range jobsByNodeName {
-					for _, i := range jobIndices {
-						job := tc.existingJobs[i].WithQueued(false).WithNewRun(executorId, nodeName)
-						jobsToUpsert = append(jobsToUpsert, job)
-						run := job.LatestRun()
-						node := nodes[executorId][nodeName]
-						if node.StateByJobRunId == nil {
-							node.StateByJobRunId = make(map[string]schedulerobjects.JobRunState)
-						}
-						node.StateByJobRunId[run.Id().String()] = schedulerobjects.JobRunState_RUNNING
-					}
-				}
-			}
-
-			for executorId, jobsByNodeName := range tc.existingUnacknowledgedIndices {
-				for nodeName, jobIndices := range jobsByNodeName {
-					for _, i := range jobIndices {
-						job := tc.existingJobs[i].WithQueued(false).WithNewRun(executorId, nodeName)
-						jobsToUpsert = append(jobsToUpsert, job)
-					}
-				}
-			}
-
-			for _, job := range tc.queuedJobs {
+			queueIndexByJobId := make(map[string]int)
+			for i, job := range tc.queuedJobs {
 				job = job.WithQueued(true)
 				jobsToUpsert = append(jobsToUpsert, job)
+				queueIndexByJobId[job.Id()] = i
 			}
 
+			// Add scheduled jobs to the jobDb. Bind acknowledged jobs to nodes.
+			executorIndexByJobId := make(map[string]int)
+			executorNodeIndexByJobId := make(map[string]int)
+			jobIndexByJobId := make(map[string]int)
+			for executorIndex, existingJobsByExecutorNodeIndex := range tc.scheduledJobsByExecutorIndexAndNodeIndex {
+				executor := tc.executors[executorIndex]
+				for nodeIndex, existingJobs := range existingJobsByExecutorNodeIndex {
+					node := executor.Nodes[nodeIndex]
+					for jobIndex, job := range existingJobs.jobs {
+						job = job.WithQueued(false).WithNewRun(executor.Id, node.Id, node.Name)
+						if existingJobs.acknowledged {
+							run := job.LatestRun()
+							node.StateByJobRunId[run.Id().String()] = schedulerobjects.JobRunState_RUNNING
+						}
+						jobsToUpsert = append(jobsToUpsert, job)
+						executorIndexByJobId[job.Id()] = executorIndex
+						executorNodeIndexByJobId[job.Id()] = nodeIndex
+						jobIndexByJobId[job.Id()] = jobIndex
+					}
+				}
+			}
+
+			// Setup jobDb.
 			jobDb := jobdb.NewJobDb()
 			txn := jobDb.WriteTxn()
 			err = jobDb.Upsert(txn, jobsToUpsert)
 			require.NoError(t, err)
 
-			schedulerResult, err := algo.Schedule(ctx, txn, jobDb)
+			// Run a scheduling round.
+			schedulerResult, err := sch.Schedule(ctx, txn, jobDb)
 			require.NoError(t, err)
 
-			expectedScheduledJobs := make(map[string]string)
-			for executorId, jobIndices := range tc.expectedScheduledIndices {
-				for _, i := range jobIndices {
-					expectedScheduledJobs[tc.queuedJobs[i].Id()] = executorId
+			// Check that the expected preemptions took place.
+			preemptedJobs := PreemptedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
+			actualPreemptedJobsByExecutorIndexAndNodeIndex := make(map[int]map[int][]int)
+			for _, job := range preemptedJobs {
+				executorIndex := executorIndexByJobId[job.Id()]
+				nodeIndex := executorNodeIndexByJobId[job.Id()]
+				jobIndex := jobIndexByJobId[job.Id()]
+				m := actualPreemptedJobsByExecutorIndexAndNodeIndex[executorIndex]
+				if m == nil {
+					m = make(map[int][]int)
+					actualPreemptedJobsByExecutorIndexAndNodeIndex[executorIndex] = m
+				}
+				m[nodeIndex] = append(m[nodeIndex], jobIndex)
+			}
+			for _, m := range actualPreemptedJobsByExecutorIndexAndNodeIndex {
+				for _, s := range m {
+					slices.Sort(s)
 				}
 			}
-
-			assert.Equal(t, len(expectedScheduledJobs), len(schedulerResult.ScheduledJobs))
-
-			scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
-			for _, job := range scheduledJobs {
-				assert.Equal(t, false, job.Queued())
-				expectedExecutor, ok := expectedScheduledJobs[job.Id()]
-				require.True(t, ok)
-				run := job.LatestRun()
-				require.NotNil(t, run)
-				assert.Equal(t, expectedExecutor, run.Executor())
+			if len(tc.expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex) == 0 {
+				assert.Equal(t, 0, len(actualPreemptedJobsByExecutorIndexAndNodeIndex))
+			} else {
+				assert.Equal(t, tc.expectedPreemptedJobIndicesByExecutorIndexAndNodeIndex, actualPreemptedJobsByExecutorIndexAndNodeIndex)
 			}
 
-			// check all scheduled queuedJobs are up-to-date in db
+			// Check that jobs were scheduled as expected.
+			scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
+			actualScheduledIndices := make([]int, 0)
+			for _, job := range scheduledJobs {
+				actualScheduledIndices = append(actualScheduledIndices, queueIndexByJobId[job.Id()])
+			}
+			slices.Sort(actualScheduledIndices)
+			if len(tc.expectedScheduledIndices) == 0 {
+				assert.Equal(t, 0, len(actualScheduledIndices))
+			} else {
+				assert.Equal(t, tc.expectedScheduledIndices, actualScheduledIndices)
+			}
+
+			// Check that preempted jobs are marked as such consistently.
+			for _, job := range preemptedJobs {
+				dbJob := jobDb.GetById(txn, job.Id())
+				assert.True(t, dbJob.Failed())
+				assert.False(t, dbJob.Queued())
+			}
+
+			// Check that scheduled jobs are marked as such consistently.
 			for _, job := range scheduledJobs {
 				dbJob := jobDb.GetById(txn, job.Id())
-				require.NoError(t, err)
+				assert.False(t, dbJob.Failed())
+				assert.False(t, dbJob.Queued())
+				dbRun := dbJob.LatestRun()
+				assert.False(t, dbRun.Failed())
+				assert.Equal(t, schedulerResult.NodeIdByJobId[dbJob.Id()], dbRun.NodeId())
+				assert.NotEmpty(t, dbRun.NodeName())
+			}
+
+			// Check that jobDb was updated correctly.
+			// TODO: Check that there are no unexpected jobs in the jobDb.
+			for _, job := range preemptedJobs {
+				dbJob := jobDb.GetById(txn, job.Id())
 				assert.Equal(t, job, dbJob)
 			}
-
-			expectedPreemptedJobs := make([]string, 0)
-			for _, i := range tc.expectedPreemptedIndices {
-				expectedPreemptedJobs = append(expectedPreemptedJobs, tc.existingJobs[i].Id())
+			for _, job := range scheduledJobs {
+				dbJob := jobDb.GetById(txn, job.Id())
+				assert.Equal(t, job, dbJob)
 			}
-			slices.Sort(expectedPreemptedJobs)
-			preemptedJobs := make([]string, 0)
-			for _, job := range PreemptedJobsFromSchedulerResult[*jobdb.Job](schedulerResult) {
-				preemptedJobs = append(preemptedJobs, job.Id())
-			}
-			slices.Sort(preemptedJobs)
-			assert.Equal(t, expectedPreemptedJobs, preemptedJobs)
 		})
 	}
 }
 
-func TestGetExecutorsToSchedule(t *testing.T) {
-	executorA := testfixtures.Test1Node32CoreExecutor("a")
-	executorA1 := testfixtures.Test1Node32CoreExecutor("a1")
-	executorB := testfixtures.Test1Node32CoreExecutor("b")
-	executorC := testfixtures.Test1Node32CoreExecutor("c")
-
-	tests := map[string]struct {
-		executors          []*schedulerobjects.Executor
-		expectedExecutors  []*schedulerobjects.Executor
-		previousExecutorId string
-	}{
-		"sorts executors lexographically": {
-			executors: []*schedulerobjects.Executor{
-				executorB,
-				executorA,
-				executorA1,
-			},
-			expectedExecutors: []*schedulerobjects.Executor{
-				executorA,
-				executorA1,
-				executorB,
-			},
-			previousExecutorId: "",
-		},
-		"adjusts order based on previous executor id": {
-			executors: []*schedulerobjects.Executor{
-				executorC,
-				executorB,
-				executorA,
-			},
-			expectedExecutors: []*schedulerobjects.Executor{
-				executorB,
-				executorC,
-				executorA,
-			},
-			previousExecutorId: "a",
-		},
-		"previous executor id greater than any known executor": {
-			executors: []*schedulerobjects.Executor{
-				executorC,
-				executorA,
-				executorB,
-			},
-			expectedExecutors: []*schedulerobjects.Executor{
-				executorA,
-				executorB,
-				executorC,
-			},
-			previousExecutorId: "d",
-		},
-	}
-
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			schedulingAlgoContext := fairSchedulingAlgoContext{executors: tc.executors}
-			result := schedulingAlgoContext.getExecutorsToSchedule(tc.previousExecutorId)
-			assert.Equal(t, tc.expectedExecutors, result)
-		})
-	}
-}
-
-type executorOrderingTest struct {
-	executors                           []*schedulerobjects.Executor
-	expectedExecutorsScheduled          []string
-	expectedPreviousScheduledExecutorId string
-}
-
-func TestLegacySchedulingAlgo_TestSchedule_ExecutorOrdering(t *testing.T) {
-	tests := map[string]struct {
-		onExecutorScheduled func(executor *schedulerobjects.Executor)
-		maxScheduleDuration time.Duration
-		rounds              []executorOrderingTest
-	}{
-		"considers all executors in order": {
-			onExecutorScheduled: func(executor *schedulerobjects.Executor) {},
-			maxScheduleDuration: time.Second * 1,
-			rounds: []executorOrderingTest{
-				{
-					executors: []*schedulerobjects.Executor{
-						testfixtures.Test1Node32CoreExecutor("executor1"),
-						testfixtures.Test1Node32CoreExecutor("executor2"),
-					},
-					expectedExecutorsScheduled:          []string{"executor1", "executor2"},
-					expectedPreviousScheduledExecutorId: "executor2",
-				},
-			},
-		},
-		"maintains state between schedule calls": {
-			onExecutorScheduled: func(executor *schedulerobjects.Executor) { time.Sleep(time.Millisecond * 200) },
-			maxScheduleDuration: time.Millisecond * 100,
-			rounds: []executorOrderingTest{
-				{
-					executors: []*schedulerobjects.Executor{
-						testfixtures.Test1Node32CoreExecutor("executor1"),
-						testfixtures.Test1Node32CoreExecutor("executor2"),
-					},
-					expectedExecutorsScheduled:          []string{"executor1"},
-					expectedPreviousScheduledExecutorId: "executor1",
-				},
-				{
-					executors: []*schedulerobjects.Executor{
-						testfixtures.Test1Node32CoreExecutor("executor1"),
-						testfixtures.Test1Node32CoreExecutor("executor2"),
-					},
-					expectedExecutorsScheduled:          []string{"executor2"},
-					expectedPreviousScheduledExecutorId: "executor2",
-				},
-			},
-		},
-		"handles executors changing between schedule calls": {
-			onExecutorScheduled: func(executor *schedulerobjects.Executor) { time.Sleep(time.Millisecond * 200) },
-			maxScheduleDuration: time.Millisecond * 100,
-			rounds: []executorOrderingTest{
-				{
-					executors: []*schedulerobjects.Executor{
-						testfixtures.Test1Node32CoreExecutor("executor1"),
-						testfixtures.Test1Node32CoreExecutor("executor3"),
-					},
-					expectedExecutorsScheduled:          []string{"executor1"},
-					expectedPreviousScheduledExecutorId: "executor1",
-				},
-				{
-					executors: []*schedulerobjects.Executor{
-						testfixtures.Test1Node32CoreExecutor("executor1"),
-						testfixtures.Test1Node32CoreExecutor("executor2"),
-						testfixtures.Test1Node32CoreExecutor("executor3"),
-					},
-					expectedExecutorsScheduled:          []string{"executor2"},
-					expectedPreviousScheduledExecutorId: "executor2",
-				},
-				{
-					executors: []*schedulerobjects.Executor{
-						testfixtures.Test1Node32CoreExecutor("executor1"),
-						testfixtures.Test1Node32CoreExecutor("executor2"),
-					},
-					expectedExecutorsScheduled:          []string{"executor1"},
-					expectedPreviousScheduledExecutorId: "executor1",
-				},
-			},
-		},
-	}
-	for name, tc := range tests {
-		t.Run(name, func(t *testing.T) {
-			ctx := testfixtures.ContextWithDefaultLogger(context.Background())
-			ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			defer cancel()
-			config := testfixtures.TestSchedulingConfig()
-
-			ctrl := gomock.NewController(t)
-			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
-			mockQueueRepo := schedulermocks.NewMockQueueRepository(ctrl)
-			mockQueueRepo.EXPECT().GetAllQueues().Return([]*database.Queue{}, nil).AnyTimes()
-
-			algo, err := NewFairSchedulingAlgo(
-				config,
-				tc.maxScheduleDuration,
-				mockExecutorRepo,
-				mockQueueRepo,
-			)
-			require.NoError(t, err)
-			scheduledExecutorsIds := []string{}
-			// Use a test clock so we can control time
-			algo.clock = clock.NewFakeClock(testfixtures.BaseTime)
-			algo.onExecutorScheduled = func(executor *schedulerobjects.Executor) {
-				scheduledExecutorsIds = append(scheduledExecutorsIds, executor.Id)
-				tc.onExecutorScheduled(executor)
+func BenchmarkNodeDbConstruction(b *testing.B) {
+	for e := 1; e <= 4; e++ {
+		numNodes := int(math.Pow10(e))
+		b.Run(fmt.Sprintf("%d nodes", numNodes), func(b *testing.B) {
+			jobs := testfixtures.N1Cpu4GiJobs("queue-alice", testfixtures.PriorityClass0, 32*numNodes)
+			nodes := testfixtures.N32CpuNodes(numNodes, testfixtures.TestPriorities)
+			for i, node := range nodes {
+				for j := 32 * i; j < 32*(i+1); j++ {
+					jobs[j] = jobs[j].WithNewRun("executor-01", node.Id, node.Name)
+				}
 			}
+			armadaslices.Shuffle(jobs)
+			schedulingConfig := testfixtures.TestSchedulingConfig()
+			b.ResetTimer()
+			for n := 0; n < b.N; n++ {
+				b.StopTimer()
+				algo, err := NewFairSchedulingAlgo(
+					schedulingConfig,
+					time.Second*5,
+					nil,
+					nil,
+					nil,
+				)
+				require.NoError(b, err)
+				b.StartTimer()
 
-			// Set up JobDb
-			jobDb := jobdb.NewJobDb()
-
-			txn := jobDb.WriteTxn()
-			for _, round := range tc.rounds {
-				scheduledExecutorsIds = []string{}
-
-				roundMockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
-				roundMockExecutorRepo.EXPECT().GetExecutors(ctx).Return(round.executors, nil).AnyTimes()
-				algo.executorRepository = roundMockExecutorRepo
-
-				_, err := algo.Schedule(ctx, txn, jobDb)
-				require.NoError(t, err)
-				assert.Equal(t, scheduledExecutorsIds, round.expectedExecutorsScheduled)
-				assert.Equal(t, round.expectedPreviousScheduledExecutorId, algo.previousScheduleClusterId)
+				nodeDb, err := nodedb.NewNodeDb(
+					schedulingConfig.Preemption.PriorityClasses,
+					schedulingConfig.MaxExtraNodesToConsider,
+					schedulingConfig.IndexedResources,
+					schedulingConfig.IndexedTaints,
+					schedulingConfig.IndexedNodeLabels,
+				)
+				require.NoError(b, err)
+				err = algo.addExecutorToNodeDb(nodeDb, jobs, nodes)
+				require.NoError(b, err)
 			}
 		})
 	}

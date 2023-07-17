@@ -47,13 +47,14 @@ type Run struct {
 	Finished    *time.Time
 	JobRunState string
 	Node        *string
-	Pending     time.Time
+	Leased      *time.Time
+	Pending     *time.Time
 	RunId       string
 	Started     *time.Time
 }
 
 type JobGroup struct {
-	Aggregates map[string]string
+	Aggregates map[string]interface{}
 	Count      int64
 	Name       string
 }

@@ -41,6 +41,7 @@ func TestGroupByQueue(t *testing.T) {
 		result, err := repo.GroupBy(
 			context.TODO(),
 			[]*model.Filter{},
+			false,
 			&model.Order{
 				Field:     "count",
 				Direction: "DESC",
@@ -59,17 +60,17 @@ func TestGroupByQueue(t *testing.T) {
 			{
 				Name:       "queue-1",
 				Count:      10,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       "queue-2",
 				Count:      5,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       "queue-3",
 				Count:      3,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 		})
 		return nil
@@ -99,6 +100,7 @@ func TestGroupByJobSet(t *testing.T) {
 		result, err := repo.GroupBy(
 			context.TODO(),
 			[]*model.Filter{},
+			false,
 			&model.Order{
 				Field:     "count",
 				Direction: "DESC",
@@ -117,17 +119,17 @@ func TestGroupByJobSet(t *testing.T) {
 			{
 				Name:       "job-set-1",
 				Count:      10,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       "job-set-2",
 				Count:      5,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       "job-set-3",
 				Count:      3,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 		})
 		return nil
@@ -165,6 +167,7 @@ func TestGroupByState(t *testing.T) {
 		result, err := repo.GroupBy(
 			context.TODO(),
 			[]*model.Filter{},
+			false,
 			&model.Order{
 				Field:     "count",
 				Direction: "DESC",
@@ -183,22 +186,22 @@ func TestGroupByState(t *testing.T) {
 			{
 				Name:       string(lookout.JobQueued),
 				Count:      10,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       string(lookout.JobPending),
 				Count:      5,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       string(lookout.JobRunning),
 				Count:      3,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       string(lookout.JobFailed),
 				Count:      2,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 		})
 		return nil
@@ -352,6 +355,7 @@ func TestGroupByWithFilters(t *testing.T) {
 					IsAnnotation: true,
 				},
 			},
+			false,
 			&model.Order{
 				Field:     "count",
 				Direction: "DESC",
@@ -370,22 +374,22 @@ func TestGroupByWithFilters(t *testing.T) {
 			{
 				Name:       string(lookout.JobQueued),
 				Count:      10,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       string(lookout.JobPending),
 				Count:      5,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       string(lookout.JobRunning),
 				Count:      3,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       string(lookout.JobFailed),
 				Count:      2,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 		})
 		return nil
@@ -450,6 +454,7 @@ func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
 		result, err := repo.GroupBy(
 			context.TODO(),
 			[]*model.Filter{},
+			false,
 			&model.Order{
 				Field:     "submitted",
 				Direction: "DESC",
@@ -468,21 +473,21 @@ func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
 			{
 				Name:  "job-set-1",
 				Count: 15,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"submitted": baseTime.Format(time.RFC3339),
 				},
 			},
 			{
 				Name:  "job-set-2",
 				Count: 12,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"submitted": baseTime.Add(-4 * time.Minute).Format(time.RFC3339),
 				},
 			},
 			{
 				Name:  "job-set-3",
 				Count: 18,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"submitted": baseTime.Add(-7 * time.Minute).Format(time.RFC3339),
 				},
 			},
@@ -549,6 +554,7 @@ func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
 		result, err := repo.GroupBy(
 			context.TODO(),
 			[]*model.Filter{},
+			false,
 			&model.Order{
 				Field:     "lastTransitionTime",
 				Direction: "ASC",
@@ -567,22 +573,255 @@ func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
 			{
 				Name:  "queue-3",
 				Count: 18,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"lastTransitionTime": baseTime.Add(-8 * time.Minute).Format(time.RFC3339),
 				},
 			},
 			{
 				Name:  "queue-2",
 				Count: 12,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"lastTransitionTime": baseTime.Add(-5 * time.Minute).Format(time.RFC3339),
 				},
 			},
 			{
 				Name:  "queue-1",
 				Count: 15,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"lastTransitionTime": baseTime.Add(-1 * time.Minute).Format(time.RFC3339),
+				},
+			},
+		}, result.Groups)
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestGroupJobsWithAllStateCounts(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, false)
+		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+
+		manyJobs(5, &createJobsOpts{
+			queue:  "queue-1",
+			jobSet: "job-set-1",
+			state:  lookout.JobQueued,
+		}, converter, store)
+		manyJobs(6, &createJobsOpts{
+			queue:  "queue-1",
+			jobSet: "job-set-1",
+			state:  lookout.JobPending,
+		}, converter, store)
+		manyJobs(7, &createJobsOpts{
+			queue:  "queue-1",
+			jobSet: "job-set-1",
+			state:  lookout.JobRunning,
+		}, converter, store)
+
+		manyJobs(8, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: "job-set-2",
+			state:  lookout.JobLeased,
+		}, converter, store)
+		manyJobs(9, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: "job-set-2",
+			state:  lookout.JobPreempted,
+		}, converter, store)
+		manyJobs(10, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: "job-set-2",
+			state:  lookout.JobCancelled,
+		}, converter, store)
+
+		manyJobs(11, &createJobsOpts{
+			queue:  "queue-3",
+			jobSet: "job-set-3",
+			state:  lookout.JobSucceeded,
+		}, converter, store)
+		manyJobs(12, &createJobsOpts{
+			queue:  "queue-3",
+			jobSet: "job-set-3",
+			state:  lookout.JobFailed,
+		}, converter, store)
+		manyJobs(13, &createJobsOpts{
+			queue:  "queue-3",
+			jobSet: "job-set-3",
+			state:  lookout.JobQueued,
+		}, converter, store)
+
+		repo := NewSqlGroupJobsRepository(db)
+		result, err := repo.GroupBy(
+			context.TODO(),
+			[]*model.Filter{},
+			false,
+			&model.Order{
+				Field:     "count",
+				Direction: "ASC",
+			},
+			&model.GroupedField{
+				Field: "jobSet",
+			},
+			[]string{"state"},
+			0,
+			10,
+		)
+		assert.NoError(t, err)
+		assert.Len(t, result.Groups, 3)
+		assert.Equal(t, 3, result.Count)
+		assert.Equal(t, []*model.JobGroup{
+			{
+				Name:  "job-set-1",
+				Count: 18,
+				Aggregates: map[string]interface{}{
+					"state": map[string]int{
+						string(lookout.JobQueued):    5,
+						string(lookout.JobLeased):    0,
+						string(lookout.JobPending):   6,
+						string(lookout.JobRunning):   7,
+						string(lookout.JobSucceeded): 0,
+						string(lookout.JobFailed):    0,
+						string(lookout.JobCancelled): 0,
+						string(lookout.JobPreempted): 0,
+					},
+				},
+			},
+			{
+				Name:  "job-set-2",
+				Count: 27,
+				Aggregates: map[string]interface{}{
+					"state": map[string]int{
+						string(lookout.JobQueued):    0,
+						string(lookout.JobLeased):    8,
+						string(lookout.JobPending):   0,
+						string(lookout.JobRunning):   0,
+						string(lookout.JobSucceeded): 0,
+						string(lookout.JobFailed):    0,
+						string(lookout.JobCancelled): 10,
+						string(lookout.JobPreempted): 9,
+					},
+				},
+			},
+			{
+				Name:  "job-set-3",
+				Count: 36,
+				Aggregates: map[string]interface{}{
+					"state": map[string]int{
+						string(lookout.JobQueued):    13,
+						string(lookout.JobLeased):    0,
+						string(lookout.JobPending):   0,
+						string(lookout.JobRunning):   0,
+						string(lookout.JobSucceeded): 11,
+						string(lookout.JobFailed):    12,
+						string(lookout.JobCancelled): 0,
+						string(lookout.JobPreempted): 0,
+					},
+				},
+			},
+		}, result.Groups)
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestGroupJobsWithFilteredStateCounts(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, false)
+		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+
+		manyJobs(5, &createJobsOpts{
+			queue:  "queue-1",
+			jobSet: "job-set-1",
+			state:  lookout.JobQueued,
+		}, converter, store)
+		manyJobs(6, &createJobsOpts{
+			queue:  "queue-1",
+			jobSet: "job-set-1",
+			state:  lookout.JobPending,
+		}, converter, store)
+		manyJobs(7, &createJobsOpts{
+			queue:  "queue-1",
+			jobSet: "job-set-1",
+			state:  lookout.JobRunning,
+		}, converter, store)
+
+		manyJobs(9, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: "job-set-2",
+			state:  lookout.JobPreempted,
+		}, converter, store)
+		manyJobs(10, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: "job-set-2",
+			state:  lookout.JobCancelled,
+		}, converter, store)
+
+		manyJobs(11, &createJobsOpts{
+			queue:  "queue-3",
+			jobSet: "job-set-3",
+			state:  lookout.JobSucceeded,
+		}, converter, store)
+		manyJobs(12, &createJobsOpts{
+			queue:  "queue-3",
+			jobSet: "job-set-3",
+			state:  lookout.JobFailed,
+		}, converter, store)
+		manyJobs(13, &createJobsOpts{
+			queue:  "queue-3",
+			jobSet: "job-set-3",
+			state:  lookout.JobQueued,
+		}, converter, store)
+
+		repo := NewSqlGroupJobsRepository(db)
+		result, err := repo.GroupBy(
+			context.TODO(),
+			[]*model.Filter{
+				{
+					Field: stateField,
+					Match: model.MatchAnyOf,
+					Value: []string{
+						string(lookout.JobQueued),
+						string(lookout.JobPending),
+						string(lookout.JobRunning),
+					},
+				},
+			},
+			false,
+			&model.Order{
+				Field:     "count",
+				Direction: "DESC",
+			},
+			&model.GroupedField{
+				Field: "jobSet",
+			},
+			[]string{"state"},
+			0,
+			10,
+		)
+		assert.NoError(t, err)
+		assert.Len(t, result.Groups, 2)
+		assert.Equal(t, 2, result.Count)
+		assert.Equal(t, []*model.JobGroup{
+			{
+				Name:  "job-set-1",
+				Count: 18,
+				Aggregates: map[string]interface{}{
+					"state": map[string]int{
+						string(lookout.JobQueued):  5,
+						string(lookout.JobPending): 6,
+						string(lookout.JobRunning): 7,
+					},
+				},
+			},
+			{
+				Name:  "job-set-3",
+				Count: 13,
+				Aggregates: map[string]interface{}{
+					"state": map[string]int{
+						string(lookout.JobQueued):  13,
+						string(lookout.JobPending): 0,
+						string(lookout.JobRunning): 0,
+					},
 				},
 			},
 		}, result.Groups)
@@ -688,6 +927,7 @@ func TestGroupJobsComplex(t *testing.T) {
 					IsAnnotation: true,
 				},
 			},
+			false,
 			&model.Order{
 				Field:     "lastTransitionTime",
 				Direction: "DESC",
@@ -709,7 +949,7 @@ func TestGroupJobsComplex(t *testing.T) {
 			{
 				Name:  "job-set-2",
 				Count: 2,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"submitted":          baseTime.Add(20 * time.Minute).Format(time.RFC3339),
 					"lastTransitionTime": baseTime.Add(50 * time.Minute).Format(time.RFC3339),
 				},
@@ -717,7 +957,7 @@ func TestGroupJobsComplex(t *testing.T) {
 			{
 				Name:  "job-set-1",
 				Count: 15,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"submitted":          baseTime.Add(3 * time.Minute).Format(time.RFC3339),
 					"lastTransitionTime": baseTime.Add(5 * time.Minute).Format(time.RFC3339),
 				},
@@ -759,6 +999,7 @@ func TestGroupByAnnotation(t *testing.T) {
 		result, err := repo.GroupBy(
 			context.TODO(),
 			[]*model.Filter{},
+			false,
 			&model.Order{
 				Field:     "count",
 				Direction: "DESC",
@@ -778,17 +1019,17 @@ func TestGroupByAnnotation(t *testing.T) {
 			{
 				Name:       "test-value-1",
 				Count:      10,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       "test-value-2",
 				Count:      5,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 			{
 				Name:       "test-value-3",
 				Count:      3,
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			},
 		})
 		return nil
@@ -885,6 +1126,7 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 					Match:        model.MatchExact,
 				},
 			},
+			false,
 			&model.Order{
 				Field:     "lastTransitionTime",
 				Direction: "DESC",
@@ -907,7 +1149,7 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 			{
 				Name:  "4",
 				Count: 2,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"submitted":          baseTime.Add(20 * time.Minute).Format(time.RFC3339),
 					"lastTransitionTime": baseTime.Add(50 * time.Minute).Format(time.RFC3339),
 				},
@@ -915,7 +1157,7 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 			{
 				Name:  "2",
 				Count: 5,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"submitted":          baseTime.Add(1 * time.Minute).Format(time.RFC3339),
 					"lastTransitionTime": baseTime.Add(10 * time.Minute).Format(time.RFC3339),
 				},
@@ -923,7 +1165,7 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 			{
 				Name:  "3",
 				Count: 5,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"submitted":          baseTime.Add(3 * time.Minute).Format(time.RFC3339),
 					"lastTransitionTime": baseTime.Add(5 * time.Minute).Format(time.RFC3339),
 				},
@@ -931,7 +1173,7 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 			{
 				Name:  "1",
 				Count: 5,
-				Aggregates: map[string]string{
+				Aggregates: map[string]interface{}{
 					"submitted":          baseTime.Format(time.RFC3339),
 					"lastTransitionTime": baseTime.Format(time.RFC3339),
 				},
@@ -960,7 +1202,7 @@ func TestGroupJobsSkip(t *testing.T) {
 			return &model.JobGroup{
 				Name:       fmt.Sprintf("queue-%d", i),
 				Count:      int64(i),
-				Aggregates: map[string]string{},
+				Aggregates: map[string]interface{}{},
 			}
 		}
 
@@ -972,6 +1214,7 @@ func TestGroupJobsSkip(t *testing.T) {
 			result, err := repo.GroupBy(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "count",
 					Direction: "ASC",
@@ -1001,6 +1244,7 @@ func TestGroupJobsSkip(t *testing.T) {
 			result, err := repo.GroupBy(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "count",
 					Direction: "ASC",
@@ -1030,6 +1274,7 @@ func TestGroupJobsSkip(t *testing.T) {
 			result, err := repo.GroupBy(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "count",
 					Direction: "ASC",
@@ -1063,6 +1308,7 @@ func TestGroupJobsValidation(t *testing.T) {
 			_, err := repo.GroupBy(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "count",
 					Direction: "ASC",
@@ -1081,6 +1327,7 @@ func TestGroupJobsValidation(t *testing.T) {
 			_, err := repo.GroupBy(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "count",
 					Direction: "ASC",
@@ -1099,6 +1346,7 @@ func TestGroupJobsValidation(t *testing.T) {
 			_, err := repo.GroupBy(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "count",
 					Direction: "ASC",
@@ -1118,6 +1366,7 @@ func TestGroupJobsValidation(t *testing.T) {
 			_, err := repo.GroupBy(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "count",
 					Direction: "ASC",
@@ -1133,6 +1382,80 @@ func TestGroupJobsValidation(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestGroupByActiveJobSets(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
+		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+
+		manyJobs(10, &createJobsOpts{
+			queue:  "queue-1",
+			jobSet: "job-set-1",
+			state:  lookout.JobQueued,
+		}, converter, store)
+		manyJobs(10, &createJobsOpts{
+			queue:  "queue-1",
+			jobSet: "job-set-1",
+			state:  lookout.JobSucceeded,
+		}, converter, store)
+
+		manyJobs(10, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: "job-set-2",
+			state:  lookout.JobPreempted,
+		}, converter, store)
+		manyJobs(10, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: "job-set-2",
+			state:  lookout.JobCancelled,
+		}, converter, store)
+
+		manyJobs(20, &createJobsOpts{
+			queue:  "queue-3",
+			jobSet: "job-set-2",
+			state:  lookout.JobRunning,
+		}, converter, store)
+		manyJobs(20, &createJobsOpts{
+			queue:  "queue-3",
+			jobSet: "job-set-2",
+			state:  lookout.JobCancelled,
+		}, converter, store)
+
+		repo := NewSqlGroupJobsRepository(db)
+		result, err := repo.GroupBy(
+			context.TODO(),
+			[]*model.Filter{},
+			true,
+			&model.Order{
+				Field:     "count",
+				Direction: "DESC",
+			},
+			&model.GroupedField{
+				Field: "jobSet",
+			},
+			[]string{},
+			0,
+			10,
+		)
+		assert.NoError(t, err)
+		assert.Len(t, result.Groups, 2)
+		assert.Equal(t, 2, result.Count)
+		assert.Equal(t, result.Groups, []*model.JobGroup{
+			{
+				Name:       "job-set-2",
+				Count:      40,
+				Aggregates: map[string]interface{}{},
+			},
+			{
+				Name:       "job-set-1",
+				Count:      20,
+				Aggregates: map[string]interface{}{},
+			},
+		})
 		return nil
 	})
 	assert.NoError(t, err)
@@ -1160,12 +1483,20 @@ func getCreateJobsFn(state lookout.JobState) createJobsFn {
 	switch state {
 	case lookout.JobQueued:
 		return makeQueued
+	case lookout.JobLeased:
+		return makeLeased
 	case lookout.JobPending:
 		return makePending
 	case lookout.JobRunning:
 		return makeRunning
+	case lookout.JobSucceeded:
+		return makeSucceeded
 	case lookout.JobFailed:
 		return makeFailed
+	case lookout.JobCancelled:
+		return makeCancelled
+	case lookout.JobPreempted:
+		return makePreempted
 	default:
 		return makeQueued
 	}
@@ -1183,6 +1514,23 @@ func makeQueued(opts *createJobsOpts, converter *instructions.InstructionConvert
 		Submit(opts.queue, opts.jobSet, owner, tSubmit, &JobOptions{
 			Annotations: opts.annotations,
 		}).
+		Build()
+}
+
+func makeLeased(opts *createJobsOpts, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
+	tSubmit := baseTime
+	if opts.submittedTime != nil {
+		tSubmit = *opts.submittedTime
+	}
+	lastTransitionTime := baseTime
+	if opts.lastTransitionTime != nil {
+		lastTransitionTime = *opts.lastTransitionTime
+	}
+	NewJobSimulator(converter, store).
+		Submit(opts.queue, opts.jobSet, owner, tSubmit, &JobOptions{
+			Annotations: opts.annotations,
+		}).
+		Lease(uuid.NewString(), lastTransitionTime).
 		Build()
 }
 
@@ -1222,6 +1570,27 @@ func makeRunning(opts *createJobsOpts, converter *instructions.InstructionConver
 		Build()
 }
 
+func makeSucceeded(opts *createJobsOpts, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
+	tSubmit := baseTime
+	if opts.submittedTime != nil {
+		tSubmit = *opts.submittedTime
+	}
+	lastTransitionTime := baseTime
+	if opts.lastTransitionTime != nil {
+		lastTransitionTime = *opts.lastTransitionTime
+	}
+	runId := uuid.NewString()
+	NewJobSimulator(converter, store).
+		Submit(opts.queue, opts.jobSet, owner, tSubmit, &JobOptions{
+			Annotations: opts.annotations,
+		}).
+		Pending(runId, cluster, lastTransitionTime.Add(-2*time.Minute)).
+		Running(runId, cluster, lastTransitionTime.Add(-1*time.Minute)).
+		RunSucceeded(runId, lastTransitionTime).
+		Succeeded(lastTransitionTime).
+		Build()
+}
+
 func makeFailed(opts *createJobsOpts, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
 	tSubmit := baseTime
 	if opts.submittedTime != nil {
@@ -1240,5 +1609,42 @@ func makeFailed(opts *createJobsOpts, converter *instructions.InstructionConvert
 		Running(runId, cluster, lastTransitionTime.Add(-1*time.Minute)).
 		RunFailed(runId, node, 1, "error", lastTransitionTime).
 		Failed(node, 1, "error", lastTransitionTime).
+		Build()
+}
+
+func makeCancelled(opts *createJobsOpts, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
+	tSubmit := baseTime
+	if opts.submittedTime != nil {
+		tSubmit = *opts.submittedTime
+	}
+	lastTransitionTime := baseTime
+	if opts.lastTransitionTime != nil {
+		lastTransitionTime = *opts.lastTransitionTime
+	}
+	NewJobSimulator(converter, store).
+		Submit(opts.queue, opts.jobSet, owner, tSubmit, &JobOptions{
+			Annotations: opts.annotations,
+		}).
+		Cancelled(lastTransitionTime).
+		Build()
+}
+
+func makePreempted(opts *createJobsOpts, converter *instructions.InstructionConverter, store *lookoutdb.LookoutDb) {
+	tSubmit := baseTime
+	if opts.submittedTime != nil {
+		tSubmit = *opts.submittedTime
+	}
+	lastTransitionTime := baseTime
+	if opts.lastTransitionTime != nil {
+		lastTransitionTime = *opts.lastTransitionTime
+	}
+	runId := uuid.NewString()
+	NewJobSimulator(converter, store).
+		Submit(opts.queue, opts.jobSet, owner, tSubmit, &JobOptions{
+			Annotations: opts.annotations,
+		}).
+		Pending(runId, cluster, lastTransitionTime.Add(-2*time.Minute)).
+		Running(runId, cluster, lastTransitionTime.Add(-1*time.Minute)).
+		Preempted(lastTransitionTime).
 		Build()
 }

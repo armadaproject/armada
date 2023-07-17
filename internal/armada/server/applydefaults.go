@@ -10,6 +10,21 @@ import (
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 )
 
+func applyDefaultsToAnnotations(annotations map[string]string, config configuration.SchedulingConfig) {
+	if annotations == nil {
+		return
+	}
+	applyDefaultNodeUniformityLabelAnnotation(annotations, config)
+}
+
+func applyDefaultNodeUniformityLabelAnnotation(annotations map[string]string, config configuration.SchedulingConfig) {
+	if _, ok := annotations[configuration.GangIdAnnotation]; ok {
+		if _, ok := annotations[configuration.GangNodeUniformityLabelAnnotation]; !ok {
+			annotations[configuration.GangNodeUniformityLabelAnnotation] = config.DefaultGangNodeUniformityLabel
+		}
+	}
+}
+
 func applyDefaultsToPodSpec(spec *v1.PodSpec, config configuration.SchedulingConfig) {
 	if spec == nil {
 		return

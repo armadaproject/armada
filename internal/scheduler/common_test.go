@@ -9,13 +9,13 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
-	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-func TestPodRequirementFromLegacySchedulerJob(t *testing.T) {
+func TestGetPodRequirements(t *testing.T) {
 	resourceLimit := v1.ResourceList{
 		"cpu":               resource.MustParse("1"),
 		"memory":            resource.MustParse("128Mi"),
@@ -64,13 +64,12 @@ func TestPodRequirementFromLegacySchedulerJob(t *testing.T) {
 		PreemptionPolicy:     string(v1.PreemptLowerPriority),
 		ResourceRequirements: requirements,
 		Annotations: map[string]string{
+			"something":                             "test",
 			configuration.GangIdAnnotation:          "gang-id",
 			configuration.GangCardinalityAnnotation: "1",
-			schedulerconfig.JobIdAnnotation:         j.Id,
-			schedulerconfig.QueueAnnotation:         j.Queue,
 		},
 	}
-	actual := PodRequirementFromLegacySchedulerJob(j, map[string]configuration.PriorityClass{"armada-default": {Priority: int32(1)}})
+	actual := j.GetPodRequirements(map[string]types.PriorityClass{"armada-default": {Priority: int32(1)}})
 	assert.Equal(t, expected, actual)
 }
 
@@ -134,7 +133,7 @@ func TestResourceListAsWeightedMillis(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, ResourceListAsWeightedMillis(tc.weights, tc.rl))
+			assert.Equal(t, tc.expected, tc.rl.AsWeightedMillis(tc.weights))
 		})
 	}
 }
@@ -151,6 +150,6 @@ func BenchmarkResourceListAsWeightedMillis(b *testing.B) {
 	}
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
-		ResourceListAsWeightedMillis(weights, rl)
+		rl.AsWeightedMillis(weights)
 	}
 }

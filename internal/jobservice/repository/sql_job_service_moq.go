@@ -5,30 +5,53 @@ package repository
 
 import (
 	"context"
+	js "github.com/armadaproject/armada/pkg/api/jobservice"
 	"sync"
+	"time"
 )
 
-// Ensure, that JobTableUpdaterMock does implement JobTableUpdater.
+// Ensure, that SQLJobServiceMock does implement SQLJobService.
 // If this is not the case, regenerate this file with moq.
-var _ JobTableUpdater = &JobTableUpdaterMock{}
+var _ SQLJobService = &SQLJobServiceMock{}
 
-// JobTableUpdaterMock is a mock implementation of JobTableUpdater.
+// SQLJobServiceMock is a mock implementation of SQLJobService.
 //
-//	func TestSomethingThatUsesJobTableUpdater(t *testing.T) {
+//	func TestSomethingThatUsesSQLJobService(t *testing.T) {
 //
-//		// make and configure a mocked JobTableUpdater
-//		mockedJobTableUpdater := &JobTableUpdaterMock{
-//			AddMessageIdAndClearSubscriptionErrorFunc: func(ctx context.Context, queue string, jobSet string, messageId string) error {
+//		// make and configure a mocked SQLJobService
+//		mockedSQLJobService := &SQLJobServiceMock{
+//			AddMessageIdAndClearSubscriptionErrorFunc: func(ctx context.Context, queue string, jobSet string, fromMessageId string) error {
 //				panic("mock out the AddMessageIdAndClearSubscriptionError method")
+//			},
+//			CheckToUnSubscribeFunc: func(ctx context.Context, queue string, jobSet string, configTimeWithoutUpdates time.Duration) (bool, error) {
+//				panic("mock out the CheckToUnSubscribe method")
+//			},
+//			DeleteJobsInJobSetFunc: func(ctx context.Context, queue string, jobSet string) (int64, error) {
+//				panic("mock out the DeleteJobsInJobSet method")
+//			},
+//			GetJobStatusFunc: func(ctx context.Context, jobId string) (*js.JobServiceResponse, error) {
+//				panic("mock out the GetJobStatus method")
+//			},
+//			GetSubscribedJobSetsFunc: func(ctx context.Context) ([]SubscribedTuple, error) {
+//				panic("mock out the GetSubscribedJobSets method")
 //			},
 //			GetSubscriptionErrorFunc: func(ctx context.Context, queue string, jobSet string) (string, error) {
 //				panic("mock out the GetSubscriptionError method")
 //			},
+//			HealthCheckFunc: func(ctx context.Context) (bool, error) {
+//				panic("mock out the HealthCheck method")
+//			},
 //			IsJobSetSubscribedFunc: func(ctx context.Context, queue string, jobSet string) (bool, string, error) {
 //				panic("mock out the IsJobSetSubscribed method")
 //			},
-//			SetSubscriptionErrorFunc: func(ctx context.Context, queue string, jobSet string, err string, fromMessageId string) error {
+//			PurgeExpiredJobSetsFunc: func(ctx context.Context)  {
+//				panic("mock out the PurgeExpiredJobSets method")
+//			},
+//			SetSubscriptionErrorFunc: func(ctx context.Context, queue string, jobSet string, connErr string, fromMessageId string) error {
 //				panic("mock out the SetSubscriptionError method")
+//			},
+//			SetupFunc: func(ctx context.Context)  {
+//				panic("mock out the Setup method")
 //			},
 //			SubscribeJobSetFunc: func(ctx context.Context, queue string, jobSet string, fromMessageId string) error {
 //				panic("mock out the SubscribeJobSet method")
@@ -44,22 +67,43 @@ var _ JobTableUpdater = &JobTableUpdaterMock{}
 //			},
 //		}
 //
-//		// use mockedJobTableUpdater in code that requires JobTableUpdater
+//		// use mockedSQLJobService in code that requires SQLJobService
 //		// and then make assertions.
 //
 //	}
-type JobTableUpdaterMock struct {
+type SQLJobServiceMock struct {
 	// AddMessageIdAndClearSubscriptionErrorFunc mocks the AddMessageIdAndClearSubscriptionError method.
-	AddMessageIdAndClearSubscriptionErrorFunc func(ctx context.Context, queue string, jobSet string, messageId string) error
+	AddMessageIdAndClearSubscriptionErrorFunc func(ctx context.Context, queue string, jobSet string, fromMessageId string) error
+
+	// CheckToUnSubscribeFunc mocks the CheckToUnSubscribe method.
+	CheckToUnSubscribeFunc func(ctx context.Context, queue string, jobSet string, configTimeWithoutUpdates time.Duration) (bool, error)
+
+	// DeleteJobsInJobSetFunc mocks the DeleteJobsInJobSet method.
+	DeleteJobsInJobSetFunc func(ctx context.Context, queue string, jobSet string) (int64, error)
+
+	// GetJobStatusFunc mocks the GetJobStatus method.
+	GetJobStatusFunc func(ctx context.Context, jobId string) (*js.JobServiceResponse, error)
+
+	// GetSubscribedJobSetsFunc mocks the GetSubscribedJobSets method.
+	GetSubscribedJobSetsFunc func(ctx context.Context) ([]SubscribedTuple, error)
 
 	// GetSubscriptionErrorFunc mocks the GetSubscriptionError method.
 	GetSubscriptionErrorFunc func(ctx context.Context, queue string, jobSet string) (string, error)
 
+	// HealthCheckFunc mocks the HealthCheck method.
+	HealthCheckFunc func(ctx context.Context) (bool, error)
+
 	// IsJobSetSubscribedFunc mocks the IsJobSetSubscribed method.
 	IsJobSetSubscribedFunc func(ctx context.Context, queue string, jobSet string) (bool, string, error)
 
+	// PurgeExpiredJobSetsFunc mocks the PurgeExpiredJobSets method.
+	PurgeExpiredJobSetsFunc func(ctx context.Context)
+
 	// SetSubscriptionErrorFunc mocks the SetSubscriptionError method.
-	SetSubscriptionErrorFunc func(ctx context.Context, queue string, jobSet string, err string, fromMessageId string) error
+	SetSubscriptionErrorFunc func(ctx context.Context, queue string, jobSet string, connErr string, fromMessageId string) error
+
+	// SetupFunc mocks the Setup method.
+	SetupFunc func(ctx context.Context)
 
 	// SubscribeJobSetFunc mocks the SubscribeJobSet method.
 	SubscribeJobSetFunc func(ctx context.Context, queue string, jobSet string, fromMessageId string) error
@@ -83,8 +127,40 @@ type JobTableUpdaterMock struct {
 			Queue string
 			// JobSet is the jobSet argument value.
 			JobSet string
-			// MessageId is the messageId argument value.
-			MessageId string
+			// FromMessageId is the fromMessageId argument value.
+			FromMessageId string
+		}
+		// CheckToUnSubscribe holds details about calls to the CheckToUnSubscribe method.
+		CheckToUnSubscribe []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Queue is the queue argument value.
+			Queue string
+			// JobSet is the jobSet argument value.
+			JobSet string
+			// ConfigTimeWithoutUpdates is the configTimeWithoutUpdates argument value.
+			ConfigTimeWithoutUpdates time.Duration
+		}
+		// DeleteJobsInJobSet holds details about calls to the DeleteJobsInJobSet method.
+		DeleteJobsInJobSet []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// Queue is the queue argument value.
+			Queue string
+			// JobSet is the jobSet argument value.
+			JobSet string
+		}
+		// GetJobStatus holds details about calls to the GetJobStatus method.
+		GetJobStatus []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+			// JobId is the jobId argument value.
+			JobId string
+		}
+		// GetSubscribedJobSets holds details about calls to the GetSubscribedJobSets method.
+		GetSubscribedJobSets []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
 		}
 		// GetSubscriptionError holds details about calls to the GetSubscriptionError method.
 		GetSubscriptionError []struct {
@@ -95,6 +171,11 @@ type JobTableUpdaterMock struct {
 			// JobSet is the jobSet argument value.
 			JobSet string
 		}
+		// HealthCheck holds details about calls to the HealthCheck method.
+		HealthCheck []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+		}
 		// IsJobSetSubscribed holds details about calls to the IsJobSetSubscribed method.
 		IsJobSetSubscribed []struct {
 			// Ctx is the ctx argument value.
@@ -104,6 +185,11 @@ type JobTableUpdaterMock struct {
 			// JobSet is the jobSet argument value.
 			JobSet string
 		}
+		// PurgeExpiredJobSets holds details about calls to the PurgeExpiredJobSets method.
+		PurgeExpiredJobSets []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
+		}
 		// SetSubscriptionError holds details about calls to the SetSubscriptionError method.
 		SetSubscriptionError []struct {
 			// Ctx is the ctx argument value.
@@ -112,10 +198,15 @@ type JobTableUpdaterMock struct {
 			Queue string
 			// JobSet is the jobSet argument value.
 			JobSet string
-			// Err is the err argument value.
-			Err string
+			// ConnErr is the connErr argument value.
+			ConnErr string
 			// FromMessageId is the fromMessageId argument value.
 			FromMessageId string
+		}
+		// Setup holds details about calls to the Setup method.
+		Setup []struct {
+			// Ctx is the ctx argument value.
+			Ctx context.Context
 		}
 		// SubscribeJobSet holds details about calls to the SubscribeJobSet method.
 		SubscribeJobSet []struct {
@@ -157,9 +248,16 @@ type JobTableUpdaterMock struct {
 		}
 	}
 	lockAddMessageIdAndClearSubscriptionError sync.RWMutex
+	lockCheckToUnSubscribe                    sync.RWMutex
+	lockDeleteJobsInJobSet                    sync.RWMutex
+	lockGetJobStatus                          sync.RWMutex
+	lockGetSubscribedJobSets                  sync.RWMutex
 	lockGetSubscriptionError                  sync.RWMutex
+	lockHealthCheck                           sync.RWMutex
 	lockIsJobSetSubscribed                    sync.RWMutex
+	lockPurgeExpiredJobSets                   sync.RWMutex
 	lockSetSubscriptionError                  sync.RWMutex
+	lockSetup                                 sync.RWMutex
 	lockSubscribeJobSet                       sync.RWMutex
 	lockUnsubscribeJobSet                     sync.RWMutex
 	lockUpdateJobServiceDb                    sync.RWMutex
@@ -167,42 +265,42 @@ type JobTableUpdaterMock struct {
 }
 
 // AddMessageIdAndClearSubscriptionError calls AddMessageIdAndClearSubscriptionErrorFunc.
-func (mock *JobTableUpdaterMock) AddMessageIdAndClearSubscriptionError(ctx context.Context, queue string, jobSet string, messageId string) error {
+func (mock *SQLJobServiceMock) AddMessageIdAndClearSubscriptionError(ctx context.Context, queue string, jobSet string, fromMessageId string) error {
 	if mock.AddMessageIdAndClearSubscriptionErrorFunc == nil {
-		panic("JobTableUpdaterMock.AddMessageIdAndClearSubscriptionErrorFunc: method is nil but JobTableUpdater.AddMessageIdAndClearSubscriptionError was just called")
+		panic("SQLJobServiceMock.AddMessageIdAndClearSubscriptionErrorFunc: method is nil but SQLJobService.AddMessageIdAndClearSubscriptionError was just called")
 	}
 	callInfo := struct {
-		Ctx       context.Context
-		Queue     string
-		JobSet    string
-		MessageId string
+		Ctx           context.Context
+		Queue         string
+		JobSet        string
+		FromMessageId string
 	}{
-		Ctx:       ctx,
-		Queue:     queue,
-		JobSet:    jobSet,
-		MessageId: messageId,
+		Ctx:           ctx,
+		Queue:         queue,
+		JobSet:        jobSet,
+		FromMessageId: fromMessageId,
 	}
 	mock.lockAddMessageIdAndClearSubscriptionError.Lock()
 	mock.calls.AddMessageIdAndClearSubscriptionError = append(mock.calls.AddMessageIdAndClearSubscriptionError, callInfo)
 	mock.lockAddMessageIdAndClearSubscriptionError.Unlock()
-	return mock.AddMessageIdAndClearSubscriptionErrorFunc(ctx, queue, jobSet, messageId)
+	return mock.AddMessageIdAndClearSubscriptionErrorFunc(ctx, queue, jobSet, fromMessageId)
 }
 
 // AddMessageIdAndClearSubscriptionErrorCalls gets all the calls that were made to AddMessageIdAndClearSubscriptionError.
 // Check the length with:
 //
-//	len(mockedJobTableUpdater.AddMessageIdAndClearSubscriptionErrorCalls())
-func (mock *JobTableUpdaterMock) AddMessageIdAndClearSubscriptionErrorCalls() []struct {
-	Ctx       context.Context
-	Queue     string
-	JobSet    string
-	MessageId string
+//	len(mockedSQLJobService.AddMessageIdAndClearSubscriptionErrorCalls())
+func (mock *SQLJobServiceMock) AddMessageIdAndClearSubscriptionErrorCalls() []struct {
+	Ctx           context.Context
+	Queue         string
+	JobSet        string
+	FromMessageId string
 } {
 	var calls []struct {
-		Ctx       context.Context
-		Queue     string
-		JobSet    string
-		MessageId string
+		Ctx           context.Context
+		Queue         string
+		JobSet        string
+		FromMessageId string
 	}
 	mock.lockAddMessageIdAndClearSubscriptionError.RLock()
 	calls = mock.calls.AddMessageIdAndClearSubscriptionError
@@ -210,10 +308,162 @@ func (mock *JobTableUpdaterMock) AddMessageIdAndClearSubscriptionErrorCalls() []
 	return calls
 }
 
+// CheckToUnSubscribe calls CheckToUnSubscribeFunc.
+func (mock *SQLJobServiceMock) CheckToUnSubscribe(ctx context.Context, queue string, jobSet string, configTimeWithoutUpdates time.Duration) (bool, error) {
+	if mock.CheckToUnSubscribeFunc == nil {
+		panic("SQLJobServiceMock.CheckToUnSubscribeFunc: method is nil but SQLJobService.CheckToUnSubscribe was just called")
+	}
+	callInfo := struct {
+		Ctx                      context.Context
+		Queue                    string
+		JobSet                   string
+		ConfigTimeWithoutUpdates time.Duration
+	}{
+		Ctx:                      ctx,
+		Queue:                    queue,
+		JobSet:                   jobSet,
+		ConfigTimeWithoutUpdates: configTimeWithoutUpdates,
+	}
+	mock.lockCheckToUnSubscribe.Lock()
+	mock.calls.CheckToUnSubscribe = append(mock.calls.CheckToUnSubscribe, callInfo)
+	mock.lockCheckToUnSubscribe.Unlock()
+	return mock.CheckToUnSubscribeFunc(ctx, queue, jobSet, configTimeWithoutUpdates)
+}
+
+// CheckToUnSubscribeCalls gets all the calls that were made to CheckToUnSubscribe.
+// Check the length with:
+//
+//	len(mockedSQLJobService.CheckToUnSubscribeCalls())
+func (mock *SQLJobServiceMock) CheckToUnSubscribeCalls() []struct {
+	Ctx                      context.Context
+	Queue                    string
+	JobSet                   string
+	ConfigTimeWithoutUpdates time.Duration
+} {
+	var calls []struct {
+		Ctx                      context.Context
+		Queue                    string
+		JobSet                   string
+		ConfigTimeWithoutUpdates time.Duration
+	}
+	mock.lockCheckToUnSubscribe.RLock()
+	calls = mock.calls.CheckToUnSubscribe
+	mock.lockCheckToUnSubscribe.RUnlock()
+	return calls
+}
+
+// DeleteJobsInJobSet calls DeleteJobsInJobSetFunc.
+func (mock *SQLJobServiceMock) DeleteJobsInJobSet(ctx context.Context, queue string, jobSet string) (int64, error) {
+	if mock.DeleteJobsInJobSetFunc == nil {
+		panic("SQLJobServiceMock.DeleteJobsInJobSetFunc: method is nil but SQLJobService.DeleteJobsInJobSet was just called")
+	}
+	callInfo := struct {
+		Ctx    context.Context
+		Queue  string
+		JobSet string
+	}{
+		Ctx:    ctx,
+		Queue:  queue,
+		JobSet: jobSet,
+	}
+	mock.lockDeleteJobsInJobSet.Lock()
+	mock.calls.DeleteJobsInJobSet = append(mock.calls.DeleteJobsInJobSet, callInfo)
+	mock.lockDeleteJobsInJobSet.Unlock()
+	return mock.DeleteJobsInJobSetFunc(ctx, queue, jobSet)
+}
+
+// DeleteJobsInJobSetCalls gets all the calls that were made to DeleteJobsInJobSet.
+// Check the length with:
+//
+//	len(mockedSQLJobService.DeleteJobsInJobSetCalls())
+func (mock *SQLJobServiceMock) DeleteJobsInJobSetCalls() []struct {
+	Ctx    context.Context
+	Queue  string
+	JobSet string
+} {
+	var calls []struct {
+		Ctx    context.Context
+		Queue  string
+		JobSet string
+	}
+	mock.lockDeleteJobsInJobSet.RLock()
+	calls = mock.calls.DeleteJobsInJobSet
+	mock.lockDeleteJobsInJobSet.RUnlock()
+	return calls
+}
+
+// GetJobStatus calls GetJobStatusFunc.
+func (mock *SQLJobServiceMock) GetJobStatus(ctx context.Context, jobId string) (*js.JobServiceResponse, error) {
+	if mock.GetJobStatusFunc == nil {
+		panic("SQLJobServiceMock.GetJobStatusFunc: method is nil but SQLJobService.GetJobStatus was just called")
+	}
+	callInfo := struct {
+		Ctx   context.Context
+		JobId string
+	}{
+		Ctx:   ctx,
+		JobId: jobId,
+	}
+	mock.lockGetJobStatus.Lock()
+	mock.calls.GetJobStatus = append(mock.calls.GetJobStatus, callInfo)
+	mock.lockGetJobStatus.Unlock()
+	return mock.GetJobStatusFunc(ctx, jobId)
+}
+
+// GetJobStatusCalls gets all the calls that were made to GetJobStatus.
+// Check the length with:
+//
+//	len(mockedSQLJobService.GetJobStatusCalls())
+func (mock *SQLJobServiceMock) GetJobStatusCalls() []struct {
+	Ctx   context.Context
+	JobId string
+} {
+	var calls []struct {
+		Ctx   context.Context
+		JobId string
+	}
+	mock.lockGetJobStatus.RLock()
+	calls = mock.calls.GetJobStatus
+	mock.lockGetJobStatus.RUnlock()
+	return calls
+}
+
+// GetSubscribedJobSets calls GetSubscribedJobSetsFunc.
+func (mock *SQLJobServiceMock) GetSubscribedJobSets(ctx context.Context) ([]SubscribedTuple, error) {
+	if mock.GetSubscribedJobSetsFunc == nil {
+		panic("SQLJobServiceMock.GetSubscribedJobSetsFunc: method is nil but SQLJobService.GetSubscribedJobSets was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+	}{
+		Ctx: ctx,
+	}
+	mock.lockGetSubscribedJobSets.Lock()
+	mock.calls.GetSubscribedJobSets = append(mock.calls.GetSubscribedJobSets, callInfo)
+	mock.lockGetSubscribedJobSets.Unlock()
+	return mock.GetSubscribedJobSetsFunc(ctx)
+}
+
+// GetSubscribedJobSetsCalls gets all the calls that were made to GetSubscribedJobSets.
+// Check the length with:
+//
+//	len(mockedSQLJobService.GetSubscribedJobSetsCalls())
+func (mock *SQLJobServiceMock) GetSubscribedJobSetsCalls() []struct {
+	Ctx context.Context
+} {
+	var calls []struct {
+		Ctx context.Context
+	}
+	mock.lockGetSubscribedJobSets.RLock()
+	calls = mock.calls.GetSubscribedJobSets
+	mock.lockGetSubscribedJobSets.RUnlock()
+	return calls
+}
+
 // GetSubscriptionError calls GetSubscriptionErrorFunc.
-func (mock *JobTableUpdaterMock) GetSubscriptionError(ctx context.Context, queue string, jobSet string) (string, error) {
+func (mock *SQLJobServiceMock) GetSubscriptionError(ctx context.Context, queue string, jobSet string) (string, error) {
 	if mock.GetSubscriptionErrorFunc == nil {
-		panic("JobTableUpdaterMock.GetSubscriptionErrorFunc: method is nil but JobTableUpdater.GetSubscriptionError was just called")
+		panic("SQLJobServiceMock.GetSubscriptionErrorFunc: method is nil but SQLJobService.GetSubscriptionError was just called")
 	}
 	callInfo := struct {
 		Ctx    context.Context
@@ -233,8 +483,8 @@ func (mock *JobTableUpdaterMock) GetSubscriptionError(ctx context.Context, queue
 // GetSubscriptionErrorCalls gets all the calls that were made to GetSubscriptionError.
 // Check the length with:
 //
-//	len(mockedJobTableUpdater.GetSubscriptionErrorCalls())
-func (mock *JobTableUpdaterMock) GetSubscriptionErrorCalls() []struct {
+//	len(mockedSQLJobService.GetSubscriptionErrorCalls())
+func (mock *SQLJobServiceMock) GetSubscriptionErrorCalls() []struct {
 	Ctx    context.Context
 	Queue  string
 	JobSet string
@@ -250,10 +500,42 @@ func (mock *JobTableUpdaterMock) GetSubscriptionErrorCalls() []struct {
 	return calls
 }
 
+// HealthCheck calls HealthCheckFunc.
+func (mock *SQLJobServiceMock) HealthCheck(ctx context.Context) (bool, error) {
+	if mock.HealthCheckFunc == nil {
+		panic("SQLJobServiceMock.HealthCheckFunc: method is nil but SQLJobService.HealthCheck was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+	}{
+		Ctx: ctx,
+	}
+	mock.lockHealthCheck.Lock()
+	mock.calls.HealthCheck = append(mock.calls.HealthCheck, callInfo)
+	mock.lockHealthCheck.Unlock()
+	return mock.HealthCheckFunc(ctx)
+}
+
+// HealthCheckCalls gets all the calls that were made to HealthCheck.
+// Check the length with:
+//
+//	len(mockedSQLJobService.HealthCheckCalls())
+func (mock *SQLJobServiceMock) HealthCheckCalls() []struct {
+	Ctx context.Context
+} {
+	var calls []struct {
+		Ctx context.Context
+	}
+	mock.lockHealthCheck.RLock()
+	calls = mock.calls.HealthCheck
+	mock.lockHealthCheck.RUnlock()
+	return calls
+}
+
 // IsJobSetSubscribed calls IsJobSetSubscribedFunc.
-func (mock *JobTableUpdaterMock) IsJobSetSubscribed(ctx context.Context, queue string, jobSet string) (bool, string, error) {
+func (mock *SQLJobServiceMock) IsJobSetSubscribed(ctx context.Context, queue string, jobSet string) (bool, string, error) {
 	if mock.IsJobSetSubscribedFunc == nil {
-		panic("JobTableUpdaterMock.IsJobSetSubscribedFunc: method is nil but JobTableUpdater.IsJobSetSubscribed was just called")
+		panic("SQLJobServiceMock.IsJobSetSubscribedFunc: method is nil but SQLJobService.IsJobSetSubscribed was just called")
 	}
 	callInfo := struct {
 		Ctx    context.Context
@@ -273,8 +555,8 @@ func (mock *JobTableUpdaterMock) IsJobSetSubscribed(ctx context.Context, queue s
 // IsJobSetSubscribedCalls gets all the calls that were made to IsJobSetSubscribed.
 // Check the length with:
 //
-//	len(mockedJobTableUpdater.IsJobSetSubscribedCalls())
-func (mock *JobTableUpdaterMock) IsJobSetSubscribedCalls() []struct {
+//	len(mockedSQLJobService.IsJobSetSubscribedCalls())
+func (mock *SQLJobServiceMock) IsJobSetSubscribedCalls() []struct {
 	Ctx    context.Context
 	Queue  string
 	JobSet string
@@ -290,46 +572,78 @@ func (mock *JobTableUpdaterMock) IsJobSetSubscribedCalls() []struct {
 	return calls
 }
 
+// PurgeExpiredJobSets calls PurgeExpiredJobSetsFunc.
+func (mock *SQLJobServiceMock) PurgeExpiredJobSets(ctx context.Context) {
+	if mock.PurgeExpiredJobSetsFunc == nil {
+		panic("SQLJobServiceMock.PurgeExpiredJobSetsFunc: method is nil but SQLJobService.PurgeExpiredJobSets was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+	}{
+		Ctx: ctx,
+	}
+	mock.lockPurgeExpiredJobSets.Lock()
+	mock.calls.PurgeExpiredJobSets = append(mock.calls.PurgeExpiredJobSets, callInfo)
+	mock.lockPurgeExpiredJobSets.Unlock()
+	mock.PurgeExpiredJobSetsFunc(ctx)
+}
+
+// PurgeExpiredJobSetsCalls gets all the calls that were made to PurgeExpiredJobSets.
+// Check the length with:
+//
+//	len(mockedSQLJobService.PurgeExpiredJobSetsCalls())
+func (mock *SQLJobServiceMock) PurgeExpiredJobSetsCalls() []struct {
+	Ctx context.Context
+} {
+	var calls []struct {
+		Ctx context.Context
+	}
+	mock.lockPurgeExpiredJobSets.RLock()
+	calls = mock.calls.PurgeExpiredJobSets
+	mock.lockPurgeExpiredJobSets.RUnlock()
+	return calls
+}
+
 // SetSubscriptionError calls SetSubscriptionErrorFunc.
-func (mock *JobTableUpdaterMock) SetSubscriptionError(ctx context.Context, queue string, jobSet string, err string, fromMessageId string) error {
+func (mock *SQLJobServiceMock) SetSubscriptionError(ctx context.Context, queue string, jobSet string, connErr string, fromMessageId string) error {
 	if mock.SetSubscriptionErrorFunc == nil {
-		panic("JobTableUpdaterMock.SetSubscriptionErrorFunc: method is nil but JobTableUpdater.SetSubscriptionError was just called")
+		panic("SQLJobServiceMock.SetSubscriptionErrorFunc: method is nil but SQLJobService.SetSubscriptionError was just called")
 	}
 	callInfo := struct {
 		Ctx           context.Context
 		Queue         string
 		JobSet        string
-		Err           string
+		ConnErr       string
 		FromMessageId string
 	}{
 		Ctx:           ctx,
 		Queue:         queue,
 		JobSet:        jobSet,
-		Err:           err,
+		ConnErr:       connErr,
 		FromMessageId: fromMessageId,
 	}
 	mock.lockSetSubscriptionError.Lock()
 	mock.calls.SetSubscriptionError = append(mock.calls.SetSubscriptionError, callInfo)
 	mock.lockSetSubscriptionError.Unlock()
-	return mock.SetSubscriptionErrorFunc(ctx, queue, jobSet, err, fromMessageId)
+	return mock.SetSubscriptionErrorFunc(ctx, queue, jobSet, connErr, fromMessageId)
 }
 
 // SetSubscriptionErrorCalls gets all the calls that were made to SetSubscriptionError.
 // Check the length with:
 //
-//	len(mockedJobTableUpdater.SetSubscriptionErrorCalls())
-func (mock *JobTableUpdaterMock) SetSubscriptionErrorCalls() []struct {
+//	len(mockedSQLJobService.SetSubscriptionErrorCalls())
+func (mock *SQLJobServiceMock) SetSubscriptionErrorCalls() []struct {
 	Ctx           context.Context
 	Queue         string
 	JobSet        string
-	Err           string
+	ConnErr       string
 	FromMessageId string
 } {
 	var calls []struct {
 		Ctx           context.Context
 		Queue         string
 		JobSet        string
-		Err           string
+		ConnErr       string
 		FromMessageId string
 	}
 	mock.lockSetSubscriptionError.RLock()
@@ -338,10 +652,42 @@ func (mock *JobTableUpdaterMock) SetSubscriptionErrorCalls() []struct {
 	return calls
 }
 
+// Setup calls SetupFunc.
+func (mock *SQLJobServiceMock) Setup(ctx context.Context) {
+	if mock.SetupFunc == nil {
+		panic("SQLJobServiceMock.SetupFunc: method is nil but SQLJobService.Setup was just called")
+	}
+	callInfo := struct {
+		Ctx context.Context
+	}{
+		Ctx: ctx,
+	}
+	mock.lockSetup.Lock()
+	mock.calls.Setup = append(mock.calls.Setup, callInfo)
+	mock.lockSetup.Unlock()
+	mock.SetupFunc(ctx)
+}
+
+// SetupCalls gets all the calls that were made to Setup.
+// Check the length with:
+//
+//	len(mockedSQLJobService.SetupCalls())
+func (mock *SQLJobServiceMock) SetupCalls() []struct {
+	Ctx context.Context
+} {
+	var calls []struct {
+		Ctx context.Context
+	}
+	mock.lockSetup.RLock()
+	calls = mock.calls.Setup
+	mock.lockSetup.RUnlock()
+	return calls
+}
+
 // SubscribeJobSet calls SubscribeJobSetFunc.
-func (mock *JobTableUpdaterMock) SubscribeJobSet(ctx context.Context, queue string, jobSet string, fromMessageId string) error {
+func (mock *SQLJobServiceMock) SubscribeJobSet(ctx context.Context, queue string, jobSet string, fromMessageId string) error {
 	if mock.SubscribeJobSetFunc == nil {
-		panic("JobTableUpdaterMock.SubscribeJobSetFunc: method is nil but JobTableUpdater.SubscribeJobSet was just called")
+		panic("SQLJobServiceMock.SubscribeJobSetFunc: method is nil but SQLJobService.SubscribeJobSet was just called")
 	}
 	callInfo := struct {
 		Ctx           context.Context
@@ -363,8 +709,8 @@ func (mock *JobTableUpdaterMock) SubscribeJobSet(ctx context.Context, queue stri
 // SubscribeJobSetCalls gets all the calls that were made to SubscribeJobSet.
 // Check the length with:
 //
-//	len(mockedJobTableUpdater.SubscribeJobSetCalls())
-func (mock *JobTableUpdaterMock) SubscribeJobSetCalls() []struct {
+//	len(mockedSQLJobService.SubscribeJobSetCalls())
+func (mock *SQLJobServiceMock) SubscribeJobSetCalls() []struct {
 	Ctx           context.Context
 	Queue         string
 	JobSet        string
@@ -383,9 +729,9 @@ func (mock *JobTableUpdaterMock) SubscribeJobSetCalls() []struct {
 }
 
 // UnsubscribeJobSet calls UnsubscribeJobSetFunc.
-func (mock *JobTableUpdaterMock) UnsubscribeJobSet(ctx context.Context, queue string, jobSet string) (int64, error) {
+func (mock *SQLJobServiceMock) UnsubscribeJobSet(ctx context.Context, queue string, jobSet string) (int64, error) {
 	if mock.UnsubscribeJobSetFunc == nil {
-		panic("JobTableUpdaterMock.UnsubscribeJobSetFunc: method is nil but JobTableUpdater.UnsubscribeJobSet was just called")
+		panic("SQLJobServiceMock.UnsubscribeJobSetFunc: method is nil but SQLJobService.UnsubscribeJobSet was just called")
 	}
 	callInfo := struct {
 		Ctx    context.Context
@@ -405,8 +751,8 @@ func (mock *JobTableUpdaterMock) UnsubscribeJobSet(ctx context.Context, queue st
 // UnsubscribeJobSetCalls gets all the calls that were made to UnsubscribeJobSet.
 // Check the length with:
 //
-//	len(mockedJobTableUpdater.UnsubscribeJobSetCalls())
-func (mock *JobTableUpdaterMock) UnsubscribeJobSetCalls() []struct {
+//	len(mockedSQLJobService.UnsubscribeJobSetCalls())
+func (mock *SQLJobServiceMock) UnsubscribeJobSetCalls() []struct {
 	Ctx    context.Context
 	Queue  string
 	JobSet string
@@ -423,9 +769,9 @@ func (mock *JobTableUpdaterMock) UnsubscribeJobSetCalls() []struct {
 }
 
 // UpdateJobServiceDb calls UpdateJobServiceDbFunc.
-func (mock *JobTableUpdaterMock) UpdateJobServiceDb(ctx context.Context, jobTable *JobStatus) error {
+func (mock *SQLJobServiceMock) UpdateJobServiceDb(ctx context.Context, jobTable *JobStatus) error {
 	if mock.UpdateJobServiceDbFunc == nil {
-		panic("JobTableUpdaterMock.UpdateJobServiceDbFunc: method is nil but JobTableUpdater.UpdateJobServiceDb was just called")
+		panic("SQLJobServiceMock.UpdateJobServiceDbFunc: method is nil but SQLJobService.UpdateJobServiceDb was just called")
 	}
 	callInfo := struct {
 		Ctx      context.Context
@@ -443,8 +789,8 @@ func (mock *JobTableUpdaterMock) UpdateJobServiceDb(ctx context.Context, jobTabl
 // UpdateJobServiceDbCalls gets all the calls that were made to UpdateJobServiceDb.
 // Check the length with:
 //
-//	len(mockedJobTableUpdater.UpdateJobServiceDbCalls())
-func (mock *JobTableUpdaterMock) UpdateJobServiceDbCalls() []struct {
+//	len(mockedSQLJobService.UpdateJobServiceDbCalls())
+func (mock *SQLJobServiceMock) UpdateJobServiceDbCalls() []struct {
 	Ctx      context.Context
 	JobTable *JobStatus
 } {
@@ -459,9 +805,9 @@ func (mock *JobTableUpdaterMock) UpdateJobServiceDbCalls() []struct {
 }
 
 // UpdateJobSetDb calls UpdateJobSetDbFunc.
-func (mock *JobTableUpdaterMock) UpdateJobSetDb(ctx context.Context, queue string, jobSet string, fromMessageId string) error {
+func (mock *SQLJobServiceMock) UpdateJobSetDb(ctx context.Context, queue string, jobSet string, fromMessageId string) error {
 	if mock.UpdateJobSetDbFunc == nil {
-		panic("JobTableUpdaterMock.UpdateJobSetDbFunc: method is nil but JobTableUpdater.UpdateJobSetDb was just called")
+		panic("SQLJobServiceMock.UpdateJobSetDbFunc: method is nil but SQLJobService.UpdateJobSetDb was just called")
 	}
 	callInfo := struct {
 		Ctx           context.Context
@@ -483,8 +829,8 @@ func (mock *JobTableUpdaterMock) UpdateJobSetDb(ctx context.Context, queue strin
 // UpdateJobSetDbCalls gets all the calls that were made to UpdateJobSetDb.
 // Check the length with:
 //
-//	len(mockedJobTableUpdater.UpdateJobSetDbCalls())
-func (mock *JobTableUpdaterMock) UpdateJobSetDbCalls() []struct {
+//	len(mockedSQLJobService.UpdateJobSetDbCalls())
+func (mock *SQLJobServiceMock) UpdateJobSetDbCalls() []struct {
 	Ctx           context.Context
 	Queue         string
 	JobSet        string
