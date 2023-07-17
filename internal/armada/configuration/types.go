@@ -88,6 +88,13 @@ type PulsarConfig struct {
 	BackoffTime time.Duration
 }
 
+type DatabaseDialect string
+
+const (
+	PostgresDialect DatabaseDialect = "postgres"
+	SqliteDialect   DatabaseDialect = "sqlite"
+)
+
 // DatabaseConfig represents the configuration of the database connection.
 type DatabaseConfig struct {
 	// MaxOpenConns represents the maximum number of open connections to the database.
@@ -103,7 +110,7 @@ type DatabaseConfig struct {
 	Connection map[string]string
 
 	// Dialect represents the dialect of the configured database.
-	Dialect string
+	Dialect DatabaseDialect
 }
 
 type SchedulingConfig struct {
