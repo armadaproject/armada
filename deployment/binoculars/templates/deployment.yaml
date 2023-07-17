@@ -38,9 +38,15 @@ spec:
           args:
             - --config
             - /config/application_config.yaml
-          {{- if .Values.env }}
+          {{- if or (include "binoculars.gomemlimit" .) .Values.env}}
           env:
-            {{- toYaml .Values.env | nindent 12 -}}
+            {{- with include "binoculars.gomemlimit" . }}
+            - name: GOMEMLIMIT
+              value: {{ quote . }}
+            {{- end }}
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 -}}
+            {{- end }}
           {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}

@@ -41,6 +41,10 @@ spec:
             - --config
             - /config/application_config.yaml
           env:
+            {{- with include "armada-scheduler.gomemlimit" . }}
+            - name: GOMEMLIMIT
+              value: {{ quote . }}
+            {{- end }}
             - name: ARMADA_LEADER_PODNAME
               valueFrom:
                 fieldRef:

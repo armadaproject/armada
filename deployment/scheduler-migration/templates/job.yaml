@@ -31,9 +31,15 @@ spec:
             - --timeout
             - {{ .Values.args.timeout }}
             {{- end }}
-          {{- if .Values.env }}
+          {{- if or (include "armada-scheduler.gomemlimit" .) .Values.env}}
           env:
-            {{- toYaml .Values.env | nindent 12 -}}
+            {{- with include "armada-scheduler.gomemlimit" . }}
+            - name: GOMEMLIMIT
+              value: {{ quote . }}
+            {{- end }}
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 -}}
+            {{- end }}
           {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
