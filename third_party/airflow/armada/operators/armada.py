@@ -139,7 +139,6 @@ class ArmadaOperator(BaseOperator):
             return ""
         return self.lookout_url_template.replace("<job_id>", job_id)
 
-
     def on_kill(self) -> None:
         """
         Stops the JobService from listening to the JobSet and cancels the jobs.
@@ -173,4 +172,3 @@ class ArmadaOperator(BaseOperator):
         self.job_request_items = [
             ParseDict(x, JobSubmitRequestItem()) for x in self.job_request_items
         ]
-

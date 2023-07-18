@@ -52,5 +52,6 @@ class TestJobService(unittest.TestCase):
             job_set_id="test_job_set_id", queue="test_queue"
         )
 
+
 if __name__ == "__main__":
     unittest.main()
