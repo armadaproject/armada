@@ -14,8 +14,12 @@ type JobRun struct {
 	created int64
 	// The name of the executor this run has been leased to.
 	executor string
-	// The name of the nodes this run has been leased to.
-	node string
+	// The id of the node this run has been leased to.
+	// Identifies the node within the Armada scheduler.
+	nodeId string
+	// The name of the node this run has been leased to.
+	// Identifies the node within the target executor cluster.
+	nodeName string
 	// True if the job has been reported as running by the executor.
 	running bool
 	// True if the job has been reported as succeeded by the executor.
@@ -43,7 +47,8 @@ func CreateRun(
 	jobId string,
 	creationTime int64,
 	executor string,
-	node string,
+	nodeId string,
+	nodeName string,
 	running bool,
 	succeeded bool,
 	failed bool,
@@ -56,7 +61,8 @@ func CreateRun(
 		jobId:        jobId,
 		created:      creationTime,
 		executor:     executor,
-		node:         node,
+		nodeId:       nodeId,
+		nodeName:     nodeName,
 		running:      running,
 		succeeded:    succeeded,
 		failed:       failed,
@@ -81,9 +87,14 @@ func (run *JobRun) Executor() string {
 	return run.executor
 }
 
-// Node returns the node to which the JobRun is assigned.
-func (run *JobRun) Node() string {
-	return run.node
+// NodeId returns the id of the node to which the JobRun is assigned.
+func (run *JobRun) NodeId() string {
+	return run.nodeId
+}
+
+// NodeId returns the name of the node to which the JobRun is assigned.
+func (run *JobRun) NodeName() string {
+	return run.nodeName
 }
 
 // Succeeded Returns true if the executor has reported the job run as successful

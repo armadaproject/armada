@@ -68,6 +68,9 @@ func (o *GroupJobs) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 // swagger:model GroupJobsBody
 type GroupJobsBody struct {
 
+	// Only include jobs in active job sets
+	ActiveJobSets bool `json:"activeJobSets,omitempty"`
+
 	// Additional fields to compute aggregates on
 	// Required: true
 	Aggregates []string `json:"aggregates"`

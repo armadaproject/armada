@@ -19,6 +19,7 @@ import (
 const (
 	countCol                   = "count"
 	annotationGroupTableAbbrev = "ual_group"
+	activeJobSetsTableAbbrev   = "active_job_sets"
 )
 
 type Query struct {
@@ -80,7 +81,7 @@ func (qb *QueryBuilder) CreateTempTable() (*Query, string) {
 }
 
 // JobCount Returns SQL Query that when executed will return the total number of jobs that match the list of filters
-func (qb *QueryBuilder) JobCount(filters []*model.Filter) (*Query, error) {
+func (qb *QueryBuilder) JobCount(filters []*model.Filter, activeJobSets bool) (*Query, error) {
 	err := qb.validateFilters(filters)
 	if err != nil {
 		return nil, errors.Wrap(err, "filters are invalid")
@@ -105,7 +106,7 @@ func (qb *QueryBuilder) JobCount(filters []*model.Filter) (*Query, error) {
 	if err != nil {
 		return nil, err
 	}
-	fromBuilder, err := qb.makeFromSql(queryTables, normalFilters, annotationFilters)
+	fromBuilder, err := qb.makeFromSql(queryTables, normalFilters, annotationFilters, activeJobSets)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +138,7 @@ func (qb *QueryBuilder) JobCount(filters []*model.Filter) (*Query, error) {
 
 // InsertIntoTempTable returns Query that returns Job IDs according to filters, order, skip and take, and inserts them
 // in the temp table with name tempTableName
-func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*model.Filter, order *model.Order, skip, take int) (*Query, error) {
+func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*model.Filter, activeJobSets bool, order *model.Order, skip, take int) (*Query, error) {
 	err := qb.validateFilters(filters)
 	if err != nil {
 		return nil, errors.Wrap(err, "filters are invalid")
@@ -172,7 +173,7 @@ func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*mod
 	if err != nil {
 		return nil, err
 	}
-	fromBuilder, err := qb.makeFromSql(queryTables, normalFilters, annotationFilters)
+	fromBuilder, err := qb.makeFromSql(queryTables, normalFilters, annotationFilters, activeJobSets)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +205,7 @@ func (qb *QueryBuilder) InsertIntoTempTable(tempTableName string, filters []*mod
 
 // CountGroups returns Query that counts the total number of groups created by grouping by groupedField and filtering
 // with filters
-func (qb *QueryBuilder) CountGroups(filters []*model.Filter, groupedField *model.GroupedField) (*Query, error) {
+func (qb *QueryBuilder) CountGroups(filters []*model.Filter, activeJobSets bool, groupedField *model.GroupedField) (*Query, error) {
 	err := qb.validateFilters(filters)
 	if err != nil {
 		return nil, errors.Wrap(err, "filters are invalid")
@@ -237,7 +238,7 @@ func (qb *QueryBuilder) CountGroups(filters []*model.Filter, groupedField *model
 		return nil, err
 	}
 
-	fromBuilder, err := qb.makeFromSql(queryTables, normalFilters, annotationFilters)
+	fromBuilder, err := qb.makeFromSql(queryTables, normalFilters, annotationFilters, activeJobSets)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +253,7 @@ func (qb *QueryBuilder) CountGroups(filters []*model.Filter, groupedField *model
 		if err != nil {
 			return nil, err
 		}
-		fromBuilder.Join(Inner, fmt.Sprintf("( %s )", annotationGroupTable), annotationGroupTableAbbrev, jobIdCol)
+		fromBuilder.Join(Inner, fmt.Sprintf("( %s )", annotationGroupTable), annotationGroupTableAbbrev, []string{jobIdCol})
 	} else {
 		groupCol, err = qb.getGroupByQueryCol(groupedField.Field, queryTables)
 		if err != nil {
@@ -284,6 +285,7 @@ func (qb *QueryBuilder) CountGroups(filters []*model.Filter, groupedField *model
 // GroupBy returns Query that performs a group by on filters
 func (qb *QueryBuilder) GroupBy(
 	filters []*model.Filter,
+	activeJobSets bool,
 	order *model.Order,
 	groupedField *model.GroupedField,
 	aggregates []string,
@@ -332,7 +334,7 @@ func (qb *QueryBuilder) GroupBy(
 		return nil, err
 	}
 
-	fromBuilder, err := qb.makeFromSql(queryTables, normalFilters, annotationFilters)
+	fromBuilder, err := qb.makeFromSql(queryTables, normalFilters, annotationFilters, activeJobSets)
 	if err != nil {
 		return nil, err
 	}
@@ -347,7 +349,7 @@ func (qb *QueryBuilder) GroupBy(
 		if err != nil {
 			return nil, err
 		}
-		fromBuilder.Join(Inner, fmt.Sprintf("( %s )", annotationGroupTable), annotationGroupTableAbbrev, jobIdCol)
+		fromBuilder.Join(Inner, fmt.Sprintf("( %s )", annotationGroupTable), annotationGroupTableAbbrev, []string{jobIdCol})
 	} else {
 		groupCol, err = qb.getGroupByQueryCol(groupedField.Field, queryTables)
 		if err != nil {
@@ -516,7 +518,7 @@ func splitFilters(filters []*model.Filter) ([]*model.Filter, []*model.Filter) {
 // makeFromSql creates FROM clause using a set of tables,
 // joining them on jobId if multiple tables are present
 // If annotations filters are present, inner joins on a table to select matching job ids with all the annotations
-func (qb *QueryBuilder) makeFromSql(queryTables map[string]bool, normalFilters []*model.Filter, annotationFilters []*model.Filter) (*FromBuilder, error) {
+func (qb *QueryBuilder) makeFromSql(queryTables map[string]bool, normalFilters []*model.Filter, annotationFilters []*model.Filter, activeJobSets bool) (*FromBuilder, error) {
 	sortedTables := make([]string, len(queryTables))
 	idx := 0
 	for _, table := range qb.lookoutTables.TablePrecedence() {
@@ -539,7 +541,7 @@ func (qb *QueryBuilder) makeFromSql(queryTables map[string]bool, normalFilters [
 		if err != nil {
 			return nil, err
 		}
-		fromBuilder.Join(Left, table, abbrev, jobIdCol)
+		fromBuilder.Join(Left, table, abbrev, []string{jobIdCol})
 	}
 
 	if len(annotationFilters) > 0 {
@@ -557,8 +559,21 @@ func (qb *QueryBuilder) makeFromSql(queryTables map[string]bool, normalFilters [
 				Inner,
 				fmt.Sprintf("( %s )", table),
 				fmt.Sprintf("%s%d", userAnnotationLookupTableAbbrev, i),
-				jobIdCol)
+				[]string{jobIdCol})
 		}
+	}
+
+	if activeJobSets {
+		activeJobSetsTable := `
+			SELECT DISTINCT queue, jobset
+			FROM job
+			WHERE state IN (1, 2, 3, 8)
+		`
+		fromBuilder.Join(
+			Inner,
+			fmt.Sprintf("( %s )", activeJobSetsTable),
+			activeJobSetsTableAbbrev,
+			[]string{queueCol, jobSetCol})
 	}
 
 	return fromBuilder, nil

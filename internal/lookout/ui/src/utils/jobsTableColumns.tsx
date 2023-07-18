@@ -221,6 +221,22 @@ export const JOB_COLUMNS: JobTableColumn[] = [
           )
         }
       },
+      aggregatedCell: (cell) => {
+        if (
+          cell.row.original &&
+          isJobGroupRow(cell.row.original) &&
+          cell.row.original.stateCounts &&
+          cell.row.original.groupedField !== "state"
+        ) {
+          return <JobGroupStateCounts stateCounts={cell.row.original.stateCounts} />
+        } else {
+          return (
+            <JobStateLabel state={cell.getValue() as JobState}>
+              {formatJobState(cell.getValue() as JobState)}
+            </JobStateLabel>
+          )
+        }
+      },
     },
     additionalMetadata: {
       filterType: FilterType.Enum,
