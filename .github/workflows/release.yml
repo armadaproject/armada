@@ -93,7 +93,7 @@ jobs:
   invoke-chart-push:
     name: Invoke Chart push
     needs: release
-    uses: armadaproject/charts/.github/workflows/invoke-push.yaml@master
+    uses: G-Research/charts/.github/workflows/invoke-push.yaml@master
     secrets:
       APP_ID: ${{ secrets.APP_ID }}
       APP_PRIVATE_KEY: ${{ secrets.GH_APP_PEM }}
