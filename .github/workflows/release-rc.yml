@@ -84,7 +84,7 @@ jobs:
 
       - name: Set next RC version
         id: "set_next_version"
-        run: echo "next_version=${{ steps.gitversion.outputs.majorMinorPatch }}-rc-${{ steps.gitversion.outputs.shortSha }}" >> $GITHUB_OUTPUT
+        run: echo "next_version=${{ steps.gitversion.outputs.majorMinorPatch }}-${{ steps.gitversion.outputs.shortSha }}" >> $GITHUB_OUTPUT
 
       - uses: rickstaa/action-create-tag@v1
         id: "tag_create"
