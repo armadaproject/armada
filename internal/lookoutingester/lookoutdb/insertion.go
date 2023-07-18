@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
@@ -662,28 +662,30 @@ func (l *LookoutDb) CreateJobRunContainersScalar(ctx context.Context, instructio
 func batchInsert(ctx context.Context, db *pgxpool.Pool, createTmp func(pgx.Tx) error,
 	insertTmp func(pgx.Tx) error, copyToDest func(pgx.Tx) error,
 ) error {
-	return db.BeginTxFunc(ctx, pgx.TxOptions{
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
-	}, func(tx pgx.Tx) error {
-		// Create a temporary table to hold the staging data
-		err := createTmp(tx)
-		if err != nil {
-			return err
-		}
-
-		err = insertTmp(tx)
-		if err != nil {
-			return err
-		}
-
-		err = copyToDest(tx)
-		if err != nil {
-			return err
-		}
-		return nil
 	})
+	if err != nil {
+		return err
+	}
+	// Create a temporary table to hold the staging data
+	err = createTmp(tx)
+	if err != nil {
+		return err
+	}
+
+	err = insertTmp(tx)
+	if err != nil {
+		return err
+	}
+
+	err = copyToDest(tx)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJobInstruction {

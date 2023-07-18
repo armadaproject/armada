@@ -6,10 +6,10 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
 )
 
@@ -17,13 +17,15 @@ func UpsertWithTransaction[T any](ctx context.Context, db *pgxpool.Pool, tableNa
 	if len(records) == 0 {
 		return nil
 	}
-	return db.BeginTxFunc(ctx, pgx.TxOptions{
+	tx, err := db.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
-	}, func(tx pgx.Tx) error {
-		return Upsert(ctx, tx, tableName, records)
 	})
+	if err != nil {
+		return err
+	}
+	return Upsert(ctx, tx, tableName, records)
 }
 
 // Upsert is an optimised SQL call for bulk upserts.
@@ -35,7 +37,7 @@ func UpsertWithTransaction[T any](ctx context.Context, db *pgxpool.Pool, tableNa
 //
 // The COPY protocol can be faster than repeated inserts for as little as 5 rows; see
 // https://www.postgresql.org/docs/current/populate.html
-// https://pkg.go.dev/github.com/jackc/pgx/v4#hdr-Copy_Protocol
+// https://pkg.go.dev/github.com/jackc/pgx/v5#hdr-Copy_Protocol
 //
 // The records to write should be structs with fields marked with "db" tags.
 // Field names and values are extracted using the NamesValuesFromRecord function;
@@ -67,7 +69,7 @@ func Upsert[T any](ctx context.Context, tx pgx.Tx, tableName string, records []T
 	// Use the postgres-specific COPY wire protocol to load data into the new table in a single operation.
 	// The COPY protocol can be faster than repeated inserts for as little as 5 rows; see
 	// https://www.postgresql.org/docs/current/populate.html
-	// https://pkg.go.dev/github.com/jackc/pgx/v4#hdr-Copy_Protocol
+	// https://pkg.go.dev/github.com/jackc/pgx/v5#hdr-Copy_Protocol
 	//
 	// We're guaranteed there is at least one record.
 	names, _ := NamesValuesFromRecord(records[0])

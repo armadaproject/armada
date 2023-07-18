@@ -4,7 +4,7 @@ import (
 	ctx "context"
 	"time"
 
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
@@ -52,47 +52,45 @@ func PruneDb(ctx ctx.Context, db *pgx.Conn, batchLimit int, keepAfterCompletion 
 		return errors.WithStack(err)
 	}
 	jobsDeleted := 0
-	keepGoing := true
-	for keepGoing {
+	for {
 		batchStart := time.Now()
 		batchSize := 0
-		err = db.BeginTxFunc(ctx, pgx.TxOptions{
+		tx, err := db.BeginTx(ctx, pgx.TxOptions{
 			IsoLevel:       pgx.ReadCommitted,
 			AccessMode:     pgx.ReadWrite,
 			DeferrableMode: pgx.Deferrable,
-		}, func(tx pgx.Tx) error {
-			// insert into the batch table
-			_, err = tx.Exec(ctx, "INSERT INTO batch(job_id) SELECT job_id FROM rows_to_delete LIMIT $1;", batchLimit)
-			if err != nil {
-				return err
-			}
-			err := tx.QueryRow(ctx, "SELECT COUNT(*) FROM batch").Scan(&batchSize)
-			if err != nil {
-				return err
-			}
+		})
+		if err != nil {
+			return errors.Wrapf(err, "Error deleting batch from postgres")
+		}
 
-			if batchSize == 0 {
-				// nothing more to delete
-				keepGoing = false
-				return nil
-			}
+		// insert into the batch table
+		_, err = tx.Exec(ctx, "INSERT INTO batch(job_id) SELECT job_id FROM rows_to_delete LIMIT $1;", batchLimit)
+		if err != nil {
+			return errors.Wrapf(err, "Error deleting batch from postgres")
+		}
+		err = tx.QueryRow(ctx, "SELECT COUNT(*) FROM batch").Scan(&batchSize)
+		if err != nil {
+			return errors.Wrapf(err, "Error deleting batch from postgres")
+		}
 
-			// Delete everything that's present in the batch table
-			// Do this all in one call so as to be more terse with the syntax
-			_, err = tx.Exec(ctx, `
+		if batchSize == 0 {
+			// nothing more to delete
+			break
+		}
+
+		// Delete everything that's present in the batch table
+		// Do this all in one call so as to be more terse with the syntax
+		_, err = tx.Exec(ctx, `
 						DELETE FROM runs WHERE job_id in (SELECT job_id from batch);
 						DELETE FROM jobs WHERE job_id in (SELECT job_id from batch);
 						DELETE FROM job_run_errors WHERE job_id in (SELECT job_id from batch);
 						DELETE FROM rows_to_delete WHERE job_id in (SELECT job_id from batch);
 						TRUNCATE TABLE batch;`)
-			if err != nil {
-				return err
-			}
-			return nil
-		})
 		if err != nil {
 			return errors.Wrapf(err, "Error deleting batch from postgres")
 		}
+
 		taken := time.Now().Sub(batchStart)
 		jobsDeleted += batchSize
 		log.Infof("Deleted %d jobs in %s.  Deleted %d jobs out of %d", batchSize, taken, jobsDeleted, totalJobsToDelete)

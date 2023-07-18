@@ -7,8 +7,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
@@ -83,61 +83,59 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 	var annotationRows []*annotationRow
 	var count int
 
-	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
-	}, func(tx pgx.Tx) error {
-		countQuery, err := NewQueryBuilder(r.lookoutTables).JobCount(filters, activeJobSets)
-		if err != nil {
-			return err
-		}
-		logQuery(countQuery)
-		rows, err := tx.Query(ctx, countQuery.Sql, countQuery.Args...)
-		if err != nil {
-			return err
-		}
-		count, err = database.ReadInt(rows)
-		if err != nil {
-			return err
-		}
-
-		createTempTableQuery, tempTableName := NewQueryBuilder(r.lookoutTables).CreateTempTable()
-		logQuery(createTempTableQuery)
-		_, err = tx.Exec(ctx, createTempTableQuery.Sql, createTempTableQuery.Args...)
-		if err != nil {
-			return err
-		}
-
-		insertQuery, err := NewQueryBuilder(r.lookoutTables).InsertIntoTempTable(tempTableName, filters, activeJobSets, order, skip, take)
-		if err != nil {
-			return err
-		}
-		logQuery(createTempTableQuery)
-		_, err = tx.Exec(ctx, insertQuery.Sql, insertQuery.Args...)
-		if err != nil {
-			return err
-		}
-
-		jobRows, err = makeJobRows(ctx, tx, tempTableName)
-		if err != nil {
-			log.WithError(err).Error("failed getting job rows")
-			return err
-		}
-		runRows, err = makeRunRows(ctx, tx, tempTableName)
-		if err != nil {
-			log.WithError(err).Error("failed getting run rows")
-			return err
-		}
-		annotationRows, err = makeAnnotationRows(ctx, tx, tempTableName)
-		if err != nil {
-			log.WithError(err).Error("failed getting annotation rows")
-			return err
-		}
-
-		return nil
 	})
 	if err != nil {
+		return nil, err
+	}
+
+	countQuery, err := NewQueryBuilder(r.lookoutTables).JobCount(filters, activeJobSets)
+	if err != nil {
+		return nil, err
+	}
+	logQuery(countQuery)
+	rows, err := tx.Query(ctx, countQuery.Sql, countQuery.Args...)
+	if err != nil {
+		return nil, err
+	}
+	count, err = database.ReadInt(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	createTempTableQuery, tempTableName := NewQueryBuilder(r.lookoutTables).CreateTempTable()
+	logQuery(createTempTableQuery)
+	_, err = tx.Exec(ctx, createTempTableQuery.Sql, createTempTableQuery.Args...)
+	if err != nil {
+		return nil, err
+	}
+
+	insertQuery, err := NewQueryBuilder(r.lookoutTables).InsertIntoTempTable(tempTableName, filters, activeJobSets, order, skip, take)
+	if err != nil {
+		return nil, err
+	}
+	logQuery(createTempTableQuery)
+	_, err = tx.Exec(ctx, insertQuery.Sql, insertQuery.Args...)
+	if err != nil {
+		return nil, err
+	}
+
+	jobRows, err = makeJobRows(ctx, tx, tempTableName)
+	if err != nil {
+		log.WithError(err).Error("failed getting job rows")
+		return nil, err
+	}
+	runRows, err = makeRunRows(ctx, tx, tempTableName)
+	if err != nil {
+		log.WithError(err).Error("failed getting run rows")
+		return nil, err
+	}
+	annotationRows, err = makeAnnotationRows(ctx, tx, tempTableName)
+	if err != nil {
+		log.WithError(err).Error("failed getting annotation rows")
 		return nil, err
 	}
 

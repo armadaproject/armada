@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/database"
@@ -59,36 +59,38 @@ func (r *SqlGroupJobsRepository) GroupBy(
 	var groups []*model.JobGroup
 	var count int
 
-	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
 		AccessMode:     pgx.ReadOnly,
 		DeferrableMode: pgx.Deferrable,
-	}, func(tx pgx.Tx) error {
-		countQuery, err := NewQueryBuilder(r.lookoutTables).CountGroups(filters, activeJobSets, groupedField)
-		if err != nil {
-			return err
-		}
-		logQuery(countQuery)
-		rows, err := tx.Query(ctx, countQuery.Sql, countQuery.Args...)
-		if err != nil {
-			return err
-		}
-		count, err = database.ReadInt(rows)
-		if err != nil {
-			return err
-		}
-		groupByQuery, err := NewQueryBuilder(r.lookoutTables).GroupBy(filters, activeJobSets, order, groupedField, aggregates, skip, take)
-		if err != nil {
-			return err
-		}
-		logQuery(groupByQuery)
-		groupRows, err := tx.Query(ctx, groupByQuery.Sql, groupByQuery.Args...)
-		if err != nil {
-			return err
-		}
-		groups, err = rowsToGroups(groupRows, groupedField, aggregates, filters)
-		return err
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	countQuery, err := NewQueryBuilder(r.lookoutTables).CountGroups(filters, activeJobSets, groupedField)
+	if err != nil {
+		return nil, err
+	}
+	logQuery(countQuery)
+	rows, err := tx.Query(ctx, countQuery.Sql, countQuery.Args...)
+	if err != nil {
+		return nil, err
+	}
+	count, err = database.ReadInt(rows)
+	if err != nil {
+		return nil, err
+	}
+	groupByQuery, err := NewQueryBuilder(r.lookoutTables).GroupBy(filters, activeJobSets, order, groupedField, aggregates, skip, take)
+	if err != nil {
+		return nil, err
+	}
+	logQuery(groupByQuery)
+	groupRows, err := tx.Query(ctx, groupByQuery.Sql, groupByQuery.Args...)
+	if err != nil {
+		return nil, err
+	}
+	groups, err = rowsToGroups(groupRows, groupedField, aggregates, filters)
 	if err != nil {
 		return nil, err
 	}

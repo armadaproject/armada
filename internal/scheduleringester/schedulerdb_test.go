@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -316,13 +316,15 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 	defer cancel()
 
 	// Apply the op to the database.
-	err := schedulerDb.db.BeginTxFunc(ctx, pgx.TxOptions{
+	tx, err := schedulerDb.db.BeginTx(ctx, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
-	}, func(tx pgx.Tx) error {
-		return schedulerDb.WriteDbOp(ctx, tx, op)
 	})
+	if err != nil {
+		return err
+	}
+	err = schedulerDb.WriteDbOp(ctx, tx, op)
 	if err != nil {
 		return err
 	}
