@@ -31,7 +31,7 @@ jobs:
           sha='${{ github.event.workflow_run.head_sha }}'
 
           [[ $ref =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] &&
-          [ $(git rev-parse refs/tags/$ref) == $sha ] &&
+          [ $(git tag --points-at $sha | grep -E "^$ref\$" | wc -l) -eq 1 ] &&
           [ $(git branch --contains=$sha master | wc -l) -eq 1 ]
           if [ $? -ne 0 ]; then
             echo "::error ::Invalid ref $ref $sha: must be a tag, belong to the master branch and match the semver regex"
