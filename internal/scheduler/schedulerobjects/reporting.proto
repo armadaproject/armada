@@ -1,6 +1,5 @@
 syntax = 'proto3';
 package schedulerobjects;
-import "google/protobuf/empty.proto";
 option go_package = "github.com/armadaproject/armada/internal/scheduler/schedulerobjects";
 
 message MostRecentForQueue {

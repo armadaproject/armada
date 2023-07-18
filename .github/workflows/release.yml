@@ -70,8 +70,12 @@ jobs:
       - name: Set up Syft
         run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
-      - name: Set GORELEASER_PREVIOUS_TAG # Workaround, GoReleaser uses 'git-describe' to determine a previous tag.
-        run: echo "GORELEASER_PREVIOUS_TAG=$(git -c 'versionsort.suffix=-rc' tag --list --sort=version:refname | grep -Eo '^v[0-9]{1,}.[0-9]{1,}.[0-9]{1,}$' | tail -n 2 | head -n 1)" >> $GITHUB_ENV
+      - name: Set current and previous tag # Workaround, GoReleaser uses 'git-describe' to determine a previous tag.
+        run: |
+          current_tag='${{ github.event.workflow_run.head_branch }}'
+          echo "GORELEASER_CURRENT_TAG=$current_tag" >> $GITHUB_ENV
+          previous_tag=$(git -c 'versionsort.suffix=-rc' tag --list --sort=version:refname | grep -Eo '^v[0-9]{1,}.[0-9]{1,}.[0-9]{1,}$' | tail -n 2 | head -n 1)
+          echo "GORELEASER_PREVIOUS_TAG=$previous_tag" >> $GITHUB_ENV
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v4
@@ -86,10 +90,3 @@ jobs:
           DOCKER_BUILDX_BUILDER: "${{ steps.buildx.outputs.name }}"
           DOCKER_BUILDX_CACHE_FROM: "type=gha"
           DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
-
-      - name: Push Docker image README.md's
-        uses: ./.github/workflows/docker-readme
-        with:
-          docker_owner: "gresearch"
-          docker_user: "${{ secrets.DOCKERHUB_USER }}"
-          docker_pwd: "${{ secrets.DOCKERHUB_PASS }}"

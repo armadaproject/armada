@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/types"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -31,7 +32,7 @@ type executor struct {
 
 type DefaultPoolAssigner struct {
 	executorTimeout        time.Duration
-	priorityClasses        map[string]configuration.PriorityClass
+	priorityClasses        map[string]types.PriorityClass
 	priorities             []int32
 	indexedResources       []configuration.IndexedResource
 	indexedTaints          []string

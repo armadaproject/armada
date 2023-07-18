@@ -61,6 +61,10 @@ func NewInstructionConverter(m *metrics.Metrics, userAnnotationPrefix string, co
 	}
 }
 
+func (c *InstructionConverter) IsLegacy() bool {
+	return c.useLegacyEventConversion
+}
+
 func (c *InstructionConverter) Convert(ctx context.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
 	updateInstructions := &model.InstructionSet{
 		MessageIds: sequencesWithIds.MessageIds,

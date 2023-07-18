@@ -37,6 +37,8 @@ leader:
   renewDeadline: 10s
   retryPeriod: 2s
   podName: "" # This must be set so viper allows env vars to overwrite it
+  leaderConnection:
+    armadaUrl: "" # <name> will get replaced with the lease owners name
 http:
   port: 8080
 grpc:
@@ -48,6 +50,8 @@ grpc:
   keepaliveEnforcementPolicy:
     minTime: 10s
     permitWithoutStream: true
+  tls:
+    enabled: false
 scheduling:
   executorTimeout: 10m
   enableAssertions: true

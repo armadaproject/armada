@@ -3,6 +3,7 @@ import { Job, JobFilter, JobOrder } from "models/lookoutV2Models"
 export interface IGetJobsService {
   getJobs(
     filters: JobFilter[],
+    activeJobSets: boolean,
     order: JobOrder,
     skip: number,
     take: number,
@@ -20,6 +21,7 @@ export class GetJobsService implements IGetJobsService {
 
   async getJobs(
     filters: JobFilter[],
+    activeJobSets: boolean,
     order: JobOrder,
     skip: number,
     take: number,
@@ -30,6 +32,7 @@ export class GetJobsService implements IGetJobsService {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         filters,
+        activeJobSets,
         order,
         skip,
         take,

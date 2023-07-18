@@ -9,7 +9,7 @@ resources:
     memory: 512Mi
     cpu: 200m
 # -- Tolerations
-tolerations: []    
+tolerations: []
 additionalLabels: {}
 additionalClusterRoleBindings: []
 additionalVolumeMounts: []
@@ -32,5 +32,10 @@ serviceAccount: null
 
 applicationConfig:
   grpcPort: 50051
+  grpc:
+    tls:
+      enabled: false
+      certPath: /certs/tls.crt
+      keyPath: /certs/tls.key
   httpPort: 8080
   metricsPort: 9000

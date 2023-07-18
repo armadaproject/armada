@@ -1,6 +1,6 @@
 [project]
 name = "armada_airflow"
-version = "0.4.1"
+version = "0.4.2"
 description = "Armada Airflow Operator"
 requires-python = ">=3.7"
 # Note(JayF): This dependency value is not suitable for release. Whatever
@@ -9,7 +9,7 @@ requires-python = ">=3.7"
 # extremely difficult.
 dependencies = [
 	"armada-client",
-	"apache-airflow>=2.3.1",
+	"apache-airflow>=2.6.3",
 	"grpcio>=1.46.3",
 	"grpcio-tools>=1.46.3",
 	"types-protobuf>=3.19.22"
