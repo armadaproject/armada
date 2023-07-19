@@ -308,6 +308,30 @@ func TestJob_TestWithJobSchedulingInfo(t *testing.T) {
 	assert.Equal(t, newSchedInfo, newJob.JobSchedulingInfo())
 }
 
+func TestJobSchedulingInfoFieldsInitialised(t *testing.T) {
+	infoWithNilFields := &schedulerobjects.JobSchedulingInfo{
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{},
+				},
+			},
+		},
+	}
+
+	assert.NotNil(t, infoWithNilFields.GetPodRequirements())
+	assert.Nil(t, infoWithNilFields.GetPodRequirements().NodeSelector)
+	assert.Nil(t, infoWithNilFields.GetPodRequirements().Annotations)
+
+	job := NewJob("test-job", "test-jobset", "test-queue", 2, infoWithNilFields, true, 0, false, false, false, 3)
+	assert.NotNil(t, job.GetNodeSelector())
+	assert.NotNil(t, job.GetAnnotations())
+
+	updatedJob := baseJob.WithJobSchedulingInfo(infoWithNilFields)
+	assert.NotNil(t, updatedJob.GetNodeSelector())
+	assert.NotNil(t, updatedJob.GetAnnotations())
+}
+
 func TestJobPriorityComparer(t *testing.T) {
 	job1 := &Job{
 		id:       "a",
