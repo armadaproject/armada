@@ -36,7 +36,6 @@ Armada adheres to the CNCF [Code of Conduct](https://github.com/cncf/foundation/
 
 For an overview of the architecture and design of Armada, and instructions for submitting jobs, see:
 
-- [System diagram](./docs/design/diagrams/relationships/README.md)
 - [Components overview](./docs/design/relationships_diagram.md)
 - [Scheduler](./docs/design/scheduler.md)
 - [Architecture](./docs/design/architecture.md)
