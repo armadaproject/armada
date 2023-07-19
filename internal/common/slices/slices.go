@@ -97,6 +97,16 @@ func GroupByFunc[S ~[]E, E any, K comparable](s S, keyFunc func(E) K) map[K]S {
 	return rv
 }
 
+// GroupByFuncUnique returns a map keyFunc(e) to e for each element e in s.
+func GroupByFuncUnique[S ~[]E, E any, K comparable](s S, keyFunc func(E) K) map[K]E {
+	rv := make(map[K]E, len(s))
+	for _, e := range s {
+		k := keyFunc(e)
+		rv[k] = e
+	}
+	return rv
+}
+
 // MapAndGroupByFuncs groups the elements e_1, ..., e_n of s into separate slices by keyFunc(e)
 // and then maps those resulting elements by mapFunc(e).
 func MapAndGroupByFuncs[S ~[]E, E any, K comparable, V any](s S, keyFunc func(E) K, mapFunc func(E) V) map[K][]V {
@@ -106,6 +116,14 @@ func MapAndGroupByFuncs[S ~[]E, E any, K comparable, V any](s S, keyFunc func(E)
 		rv[k] = append(rv[k], mapFunc(e))
 	}
 	return rv
+}
+
+// Pop removes the last item from s and returns it.
+// Calling pop on an empty slice causes a panic.
+func Pop[S ~[]E, E any](s *S) E {
+	v := (*s)[len(*s)-1]
+	*s = (*s)[:len(*s)-1]
+	return v
 }
 
 func Subtract[T comparable](list []T, toRemove []T) []T {

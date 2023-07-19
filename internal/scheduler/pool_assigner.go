@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/types"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -31,7 +32,7 @@ type executor struct {
 
 type DefaultPoolAssigner struct {
 	executorTimeout        time.Duration
-	priorityClasses        map[string]configuration.PriorityClass
+	priorityClasses        map[string]types.PriorityClass
 	priorities             []int32
 	indexedResources       []configuration.IndexedResource
 	indexedTaints          []string
@@ -137,13 +138,12 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 				Job:             j,
 				PodRequirements: j.GetPodRequirements(p.priorityClasses),
 			}
-			err := nodeDb.SelectNodeForJobWithTxn(txn, jctx)
+			node, err := nodeDb.SelectNodeForJobWithTxn(txn, jctx)
 			txn.Abort()
 			if err != nil {
 				return "", errors.WithMessagef(err, "error selecting node for job %s", j.Id())
 			}
-			pctx := jctx.PodSchedulingContext
-			if pctx != nil && pctx.Node != nil {
+			if node != nil {
 				p.poolCache.Add(schedulingKey, pool)
 				return pool, nil
 			}
@@ -164,10 +164,14 @@ func (p *DefaultPoolAssigner) constructNodeDb(nodes []*schedulerobjects.Node) (*
 	if err != nil {
 		return nil, err
 	}
-	err = nodeDb.UpsertMany(nodes)
-	if err != nil {
-		return nil, err
+	txn := nodeDb.Txn(true)
+	defer txn.Abort()
+	for _, node := range nodes {
+		if err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node); err != nil {
+			return nil, err
+		}
 	}
+	txn.Commit()
 	err = nodeDb.ClearAllocated()
 	if err != nil {
 		return nil, err

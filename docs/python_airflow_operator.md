@@ -115,9 +115,7 @@ Distinguished from ArmadaOperator by its ability to defer itself after
 submitting its job_request_items.
 
 See
-
-    [https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html](https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html)
-
+[https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html](https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html)
 for more information about deferrable airflow operators.
 
 Airflow operators inherit from BaseOperator.
@@ -455,6 +453,38 @@ Health Check for GRPC Request
     *HealthCheckResponse*
 
 
+
+### armada.operators.jobservice.get_retryable_job_service_client(target, credentials=None, compression=None)
+Get a JobServiceClient that has retry configured
+
+
+* **Parameters**
+
+    
+    * **target** (*str*) – grpc channel target
+
+
+    * **credentials** (*ChannelCredentials** | **None*) – grpc channel credentials (if needed)
+
+
+    * **compresion** – grpc channel compression
+
+
+    * **compression** (*Compression** | **None*) – 
+
+
+
+* **Returns**
+
+    A job service client instance
+
+
+
+* **Return type**
+
+    *JobServiceClient*
+
+
 ## armada.operators.jobservice_asyncio module
 
 
@@ -518,6 +548,38 @@ Health Check for GRPC Request
 * **Return type**
 
     *HealthCheckResponse*
+
+
+
+### armada.operators.jobservice_asyncio.get_retryable_job_service_asyncio_client(target, credentials, compression)
+Get a JobServiceAsyncIOClient that has retry configured
+
+
+* **Parameters**
+
+    
+    * **target** (*str*) – grpc channel target
+
+
+    * **credentials** (*ChannelCredentials** | **None*) – grpc channel credentials (if needed)
+
+
+    * **compresion** – grpc channel compression
+
+
+    * **compression** (*Compression** | **None*) – 
+
+
+
+* **Returns**
+
+    A job service asyncio client instance
+
+
+
+* **Return type**
+
+    *JobServiceAsyncIOClient*
 
 
 ## armada.operators.utils module

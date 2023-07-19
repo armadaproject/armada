@@ -9,12 +9,10 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/api/resource"
-
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 type NodeIterator interface {
-	NextNode() *schedulerobjects.Node
+	NextNode() *Node
 }
 
 // NodesIterator is an iterator over all nodes in the db.
@@ -36,16 +34,12 @@ func (it *NodesIterator) WatchCh() <-chan struct{} {
 	panic("not implemented")
 }
 
-func (it *NodesIterator) NextNode() *schedulerobjects.Node {
+func (it *NodesIterator) NextNode() *Node {
 	obj := it.it.Next()
 	if obj == nil {
 		return nil
 	}
-	node, ok := obj.(*schedulerobjects.Node)
-	if !ok {
-		panic(fmt.Sprintf("expected *Node, but got %T", obj))
-	}
-	return node
+	return obj.(*Node)
 }
 
 func (it *NodesIterator) Next() interface{} {
@@ -55,13 +49,13 @@ func (it *NodesIterator) Next() interface{} {
 type NodePairIterator struct {
 	itA   *NodesIterator
 	itB   *NodesIterator
-	nodeA *schedulerobjects.Node
-	nodeB *schedulerobjects.Node
+	nodeA *Node
+	nodeB *Node
 }
 
 type NodePairIteratorItem struct {
-	NodeA *schedulerobjects.Node
-	NodeB *schedulerobjects.Node
+	NodeA *Node
+	NodeB *Node
 }
 
 func NewNodePairIterator(txnA, txnB *memdb.Txn) (*NodePairIterator, error) {
@@ -144,10 +138,10 @@ func (index *NodeIndex) FromArgs(args ...interface{}) ([]byte, error) {
 	return args[0].([]byte), nil
 }
 
-// FromObject extracts the index key from a *schedulerobjects.Node.
+// FromObject extracts the index key from a *Node.
 func (index *NodeIndex) FromObject(raw interface{}) (bool, []byte, error) {
-	node := raw.(*schedulerobjects.Node)
-	return true, node.NodeDbKeys[index.KeyIndex], nil
+	node := raw.(*Node)
+	return true, node.Keys[index.KeyIndex], nil
 }
 
 // NodeTypesIterator is an iterator over all nodes of the given nodeTypes
@@ -212,7 +206,7 @@ func (it *NodeTypesIterator) Next() interface{} {
 	return v
 }
 
-func (it *NodeTypesIterator) NextNode() (*schedulerobjects.Node, error) {
+func (it *NodeTypesIterator) NextNode() (*Node, error) {
 	if it.pq.Len() == 0 {
 		return nil, nil
 	}
@@ -236,7 +230,7 @@ type nodeTypesIteratorPQ struct {
 }
 
 type nodeTypesIteratorPQItem struct {
-	node *schedulerobjects.Node
+	node *Node
 	it   *NodeTypeIterator
 	// The index of the item in the heap. Maintained by the heap.Interface methods.
 	index int
@@ -248,9 +242,9 @@ func (pq *nodeTypesIteratorPQ) Less(i, j int) bool {
 	return pq.less(pq.items[i].node, pq.items[j].node)
 }
 
-func (it *nodeTypesIteratorPQ) less(a, b *schedulerobjects.Node) bool {
-	allocatableByPriorityA := a.AllocatableByPriorityAndResource[it.priority]
-	allocatableByPriorityB := b.AllocatableByPriorityAndResource[it.priority]
+func (it *nodeTypesIteratorPQ) less(a, b *Node) bool {
+	allocatableByPriorityA := a.AllocatableByPriority[it.priority]
+	allocatableByPriorityB := b.AllocatableByPriority[it.priority]
 	for _, t := range it.indexedResources {
 		qa := allocatableByPriorityA.Get(t)
 		qb := allocatableByPriorityB.Get(t)
@@ -376,13 +370,13 @@ func (it *NodeTypeIterator) Next() interface{} {
 	return v
 }
 
-func (it *NodeTypeIterator) NextNode() (*schedulerobjects.Node, error) {
+func (it *NodeTypeIterator) NextNode() (*Node, error) {
 	for {
 		v := it.memdbIterator.Next()
 		if v == nil {
 			return nil, nil
 		}
-		node := v.(*schedulerobjects.Node)
+		node := v.(*Node)
 		if node.Id == it.previousNodeId {
 			panic(fmt.Sprintf("iterator received the same node twice consecutively: %s", node.Id))
 		}
@@ -391,9 +385,9 @@ func (it *NodeTypeIterator) NextNode() (*schedulerobjects.Node, error) {
 			// There are no more nodes of this nodeType.
 			return nil, nil
 		}
-		allocatableByPriority := node.AllocatableByPriorityAndResource[it.priority]
+		allocatableByPriority := node.AllocatableByPriority[it.priority]
 		if len(allocatableByPriority.Resources) == 0 {
-			return nil, errors.Errorf("node %s has no resources registered at priority %d: %v", node.Id, it.priority, node.AllocatableByPriorityAndResource)
+			return nil, errors.Errorf("node %s has no resources registered at priority %d: %v", node.Id, it.priority, node.AllocatableByPriority)
 		}
 		for i, t := range it.indexedResources {
 			nodeQuantity := allocatableByPriority.Get(t)

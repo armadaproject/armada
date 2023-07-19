@@ -41,6 +41,7 @@ func TestGroupByQueue(t *testing.T) {
 		result, err := repo.GroupBy(
 			context.TODO(),
 			[]*model.Filter{},
+			false,
 			&model.Order{
 				Field:     "count",
 				Direction: "DESC",
@@ -99,6 +100,7 @@ func TestGroupByJobSet(t *testing.T) {
 		result, err := repo.GroupBy(
 			context.TODO(),
 			[]*model.Filter{},
+			false,
 			&model.Order{
 				Field:     "count",
 				Direction: "DESC",
@@ -165,6 +167,7 @@ func TestGroupByState(t *testing.T) {
 		result, err := repo.GroupBy(
 			context.TODO(),
 			[]*model.Filter{},
+			false,
 			&model.Order{
 				Field:     "count",
 				Direction: "DESC",
@@ -352,6 +355,7 @@ func TestGroupByWithFilters(t *testing.T) {
 					IsAnnotation: true,
 				},
 			},
+			false,
 			&model.Order{
 				Field:     "count",
 				Direction: "DESC",
@@ -450,6 +454,7 @@ func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
 		result, err := repo.GroupBy(
 			context.TODO(),
 			[]*model.Filter{},
+			false,
 			&model.Order{
 				Field:     "submitted",
 				Direction: "DESC",
@@ -549,6 +554,7 @@ func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
 		result, err := repo.GroupBy(
 			context.TODO(),
 			[]*model.Filter{},
+			false,
 			&model.Order{
 				Field:     "lastTransitionTime",
 				Direction: "ASC",
@@ -648,6 +654,7 @@ func TestGroupJobsWithAllStateCounts(t *testing.T) {
 		result, err := repo.GroupBy(
 			context.TODO(),
 			[]*model.Filter{},
+			false,
 			&model.Order{
 				Field:     "count",
 				Direction: "ASC",
@@ -779,6 +786,7 @@ func TestGroupJobsWithFilteredStateCounts(t *testing.T) {
 					},
 				},
 			},
+			false,
 			&model.Order{
 				Field:     "count",
 				Direction: "DESC",
@@ -919,6 +927,7 @@ func TestGroupJobsComplex(t *testing.T) {
 					IsAnnotation: true,
 				},
 			},
+			false,
 			&model.Order{
 				Field:     "lastTransitionTime",
 				Direction: "DESC",
@@ -990,6 +999,7 @@ func TestGroupByAnnotation(t *testing.T) {
 		result, err := repo.GroupBy(
 			context.TODO(),
 			[]*model.Filter{},
+			false,
 			&model.Order{
 				Field:     "count",
 				Direction: "DESC",
@@ -1116,6 +1126,7 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 					Match:        model.MatchExact,
 				},
 			},
+			false,
 			&model.Order{
 				Field:     "lastTransitionTime",
 				Direction: "DESC",
@@ -1203,6 +1214,7 @@ func TestGroupJobsSkip(t *testing.T) {
 			result, err := repo.GroupBy(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "count",
 					Direction: "ASC",
@@ -1232,6 +1244,7 @@ func TestGroupJobsSkip(t *testing.T) {
 			result, err := repo.GroupBy(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "count",
 					Direction: "ASC",
@@ -1261,6 +1274,7 @@ func TestGroupJobsSkip(t *testing.T) {
 			result, err := repo.GroupBy(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "count",
 					Direction: "ASC",
@@ -1294,6 +1308,7 @@ func TestGroupJobsValidation(t *testing.T) {
 			_, err := repo.GroupBy(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "count",
 					Direction: "ASC",
@@ -1312,6 +1327,7 @@ func TestGroupJobsValidation(t *testing.T) {
 			_, err := repo.GroupBy(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "count",
 					Direction: "ASC",
@@ -1330,6 +1346,7 @@ func TestGroupJobsValidation(t *testing.T) {
 			_, err := repo.GroupBy(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "count",
 					Direction: "ASC",
@@ -1349,6 +1366,7 @@ func TestGroupJobsValidation(t *testing.T) {
 			_, err := repo.GroupBy(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "count",
 					Direction: "ASC",
@@ -1364,6 +1382,80 @@ func TestGroupJobsValidation(t *testing.T) {
 			assert.NoError(t, err)
 		})
 
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestGroupByActiveJobSets(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
+		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+
+		manyJobs(10, &createJobsOpts{
+			queue:  "queue-1",
+			jobSet: "job-set-1",
+			state:  lookout.JobQueued,
+		}, converter, store)
+		manyJobs(10, &createJobsOpts{
+			queue:  "queue-1",
+			jobSet: "job-set-1",
+			state:  lookout.JobSucceeded,
+		}, converter, store)
+
+		manyJobs(10, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: "job-set-2",
+			state:  lookout.JobPreempted,
+		}, converter, store)
+		manyJobs(10, &createJobsOpts{
+			queue:  "queue-2",
+			jobSet: "job-set-2",
+			state:  lookout.JobCancelled,
+		}, converter, store)
+
+		manyJobs(20, &createJobsOpts{
+			queue:  "queue-3",
+			jobSet: "job-set-2",
+			state:  lookout.JobRunning,
+		}, converter, store)
+		manyJobs(20, &createJobsOpts{
+			queue:  "queue-3",
+			jobSet: "job-set-2",
+			state:  lookout.JobCancelled,
+		}, converter, store)
+
+		repo := NewSqlGroupJobsRepository(db)
+		result, err := repo.GroupBy(
+			context.TODO(),
+			[]*model.Filter{},
+			true,
+			&model.Order{
+				Field:     "count",
+				Direction: "DESC",
+			},
+			&model.GroupedField{
+				Field: "jobSet",
+			},
+			[]string{},
+			0,
+			10,
+		)
+		assert.NoError(t, err)
+		assert.Len(t, result.Groups, 2)
+		assert.Equal(t, 2, result.Count)
+		assert.Equal(t, result.Groups, []*model.JobGroup{
+			{
+				Name:       "job-set-2",
+				Count:      40,
+				Aggregates: map[string]interface{}{},
+			},
+			{
+				Name:       "job-set-1",
+				Count:      20,
+				Aggregates: map[string]interface{}{},
+			},
+		})
 		return nil
 	})
 	assert.NoError(t, err)

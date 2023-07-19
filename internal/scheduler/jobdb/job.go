@@ -7,7 +7,7 @@ import (
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -228,7 +228,7 @@ func (job *Job) PodRequirements() *schedulerobjects.PodRequirements {
 }
 
 // GetPodRequirements is needed for compatibility with interfaces.LegacySchedulerJob.
-func (job *Job) GetPodRequirements(_ map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
+func (job *Job) GetPodRequirements(_ map[string]types.PriorityClass) *schedulerobjects.PodRequirements {
 	return job.PodRequirements()
 }
 
@@ -333,13 +333,14 @@ func (job *Job) HasRuns() bool {
 }
 
 // WithNewRun creates a copy of the job with a new run on the given executor.
-func (job *Job) WithNewRun(executor string, node string) *Job {
+func (job *Job) WithNewRun(executor string, nodeId, nodeName string) *Job {
 	run := &JobRun{
 		id:       uuid.New(),
 		jobId:    job.id,
 		created:  time.Now().UnixNano(),
 		executor: executor,
-		node:     node,
+		nodeId:   nodeId,
+		nodeName: nodeName,
 	}
 	return job.WithUpdatedRun(run)
 }

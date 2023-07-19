@@ -424,8 +424,14 @@ func TestQueueScheduler(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := NewNodeDb(tc.Nodes)
+			nodeDb, err := NewNodeDb()
 			require.NoError(t, err)
+			txn := nodeDb.Txn(true)
+			for _, node := range tc.Nodes {
+				err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
+				require.NoError(t, err)
+			}
+			txn.Commit()
 			if tc.TotalResources.Resources == nil {
 				// Default to NodeDb total.
 				tc.TotalResources = nodeDb.TotalResources()
@@ -551,12 +557,11 @@ func TestQueueScheduler(t *testing.T) {
 			for _, qctx := range sctx.QueueSchedulingContexts {
 				for _, jctx := range qctx.SuccessfulJobSchedulingContexts {
 					assert.NotNil(t, jctx.PodSchedulingContext)
-					assert.NotNil(t, jctx.PodSchedulingContext.Node)
-					assert.Equal(t, result.NodeIdByJobId[jctx.JobId], jctx.PodSchedulingContext.Node.Id)
+					assert.Equal(t, result.NodeIdByJobId[jctx.JobId], jctx.PodSchedulingContext.NodeId)
 				}
 				for _, jctx := range qctx.UnsuccessfulJobSchedulingContexts {
 					if jctx.PodSchedulingContext != nil {
-						assert.Nil(t, jctx.PodSchedulingContext.Node)
+						assert.Equal(t, "", jctx.PodSchedulingContext.NodeId)
 					}
 				}
 			}
@@ -596,8 +601,8 @@ func TestQueueScheduler(t *testing.T) {
 	}
 }
 
-func NewNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
-	db, err := nodedb.NewNodeDb(
+func NewNodeDb() (*nodedb.NodeDb, error) {
+	nodeDb, err := nodedb.NewNodeDb(
 		testfixtures.TestPriorityClasses,
 		testfixtures.TestMaxExtraNodesToConsider,
 		testfixtures.TestResources,
@@ -607,8 +612,5 @@ func NewNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := db.UpsertMany(nodes); err != nil {
-		return nil, err
-	}
-	return db, nil
+	return nodeDb, nil
 }

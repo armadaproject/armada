@@ -86,7 +86,7 @@ var leasedJob = jobdb.NewJob(
 	false,
 	false,
 	false,
-	1).WithQueued(false).WithNewRun("testExecutor", "test-node")
+	1).WithQueued(false).WithNewRun("testExecutor", "test-node", "node")
 
 var (
 	requeuedJobId = util.NewULID()
@@ -102,7 +102,20 @@ var (
 		false,
 		false,
 		1).WithUpdatedRun(
-		jobdb.CreateRun(uuid.New(), requeuedJobId, time.Now().Unix(), "testExecutor", "test-node", false, false, true, false, true, true),
+		jobdb.CreateRun(
+			uuid.New(),
+			requeuedJobId,
+			time.Now().Unix(),
+			"testExecutor",
+			"test-node",
+			"node",
+			false,
+			false,
+			true,
+			false,
+			true,
+			true,
+		),
 	)
 )
 
@@ -216,7 +229,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedQueued:   []string{leasedJob.Id()},
 			expectedRequeued: []string{leasedJob.Id()},
 			// Should add node anti affinities for nodes of any attempted runs
-			expectedNodeAntiAffinities:       []string{leasedJob.LatestRun().Node()},
+			expectedNodeAntiAffinities:       []string{leasedJob.LatestRun().NodeName()},
 			expectedJobSchedulingInfoVersion: 2,
 			expectedQueuedVersion:            leasedJob.QueuedVersion() + 1,
 		},
@@ -707,6 +720,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 						queuedJob.Id(),
 						123,
 						"test-executor",
+						"test-executor-test-node",
 						"test-node",
 						false,
 						false,
@@ -933,7 +947,7 @@ func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb
 		if !job.Queued() {
 			return nil, errors.Errorf("was asked to lease %s but job was already leased", job.Id())
 		}
-		job = job.WithQueued(false).WithNewRun("test-executor", "test-node")
+		job = job.WithQueued(false).WithNewRun("test-executor", "test-node", "node")
 		scheduledJobs = append(scheduledJobs, job)
 	}
 	if err := jobDb.Upsert(txn, preemptedJobs); err != nil {

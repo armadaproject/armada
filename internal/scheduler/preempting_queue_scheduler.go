@@ -16,12 +16,12 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/types"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // PreemptingQueueScheduler is a scheduler that makes a unified decisions on which jobs to preempt and schedule.
@@ -276,10 +276,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 	}
 	if sch.enableAssertions {
 		err := sch.assertions(
-			ctxlogrus.ToContext(
-				ctx,
-				log.WithField("stage", "validate consistency"),
-			),
 			snapshot,
 			preemptedJobsById,
 			scheduledJobsById,
@@ -450,7 +446,7 @@ func (sch *PreemptingQueueScheduler) setEvictedGangCardinality(evictedJobsById m
 	return nil
 }
 
-func (sch *PreemptingQueueScheduler) evictionAssertions(evictedJobsById map[string]interfaces.LegacySchedulerJob, affectedNodesById map[string]*schedulerobjects.Node) error {
+func (sch *PreemptingQueueScheduler) evictionAssertions(evictedJobsById map[string]interfaces.LegacySchedulerJob, affectedNodesById map[string]*nodedb.Node) error {
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		if !qctx.AllocatedByPriorityClass.IsStrictlyNonNegative() {
 			return errors.Errorf("negative allocation for queue %s after eviction: %s", qctx.Queue, qctx.AllocatedByPriorityClass)
@@ -590,7 +586,6 @@ func (sch *PreemptingQueueScheduler) updateGangAccounting(preemptedJobs, schedul
 // Compare the nodedb.NodeJobDiff with expected preempted/scheduled jobs to ensure NodeDb is consistent.
 // This is only to validate that nothing unexpected happened during scheduling.
 func (sch *PreemptingQueueScheduler) assertions(
-	ctx context.Context,
 	snapshot *memdb.Txn,
 	preemptedJobsById,
 	scheduledJobsById map[string]interfaces.LegacySchedulerJob,
@@ -658,24 +653,24 @@ func (sch *PreemptingQueueScheduler) assertions(
 
 type Evictor struct {
 	jobRepo         JobRepository
-	priorityClasses map[string]configuration.PriorityClass
-	nodeFilter      func(context.Context, *schedulerobjects.Node) bool
+	priorityClasses map[string]types.PriorityClass
+	nodeFilter      func(context.Context, *nodedb.Node) bool
 	jobFilter       func(context.Context, interfaces.LegacySchedulerJob) bool
-	postEvictFunc   func(context.Context, interfaces.LegacySchedulerJob, *schedulerobjects.Node)
+	postEvictFunc   func(context.Context, interfaces.LegacySchedulerJob, *nodedb.Node)
 }
 
 type EvictorResult struct {
 	// Map from job id to job, containing all evicted jobs.
 	EvictedJobsById map[string]interfaces.LegacySchedulerJob
 	// Map from node id to node, containing all nodes on which at least one job was evicted.
-	AffectedNodesById map[string]*schedulerobjects.Node
+	AffectedNodesById map[string]*nodedb.Node
 	// For each evicted job, maps the id of the job to the id of the node it was evicted from.
 	NodeIdByJobId map[string]string
 }
 
 func NewNodeEvictor(
 	jobRepo JobRepository,
-	priorityClasses map[string]configuration.PriorityClass,
+	priorityClasses map[string]types.PriorityClass,
 	perNodeEvictionProbability float64,
 	jobFilter func(context.Context, interfaces.LegacySchedulerJob) bool,
 	random *rand.Rand,
@@ -689,7 +684,7 @@ func NewNodeEvictor(
 	return &Evictor{
 		jobRepo:         jobRepo,
 		priorityClasses: priorityClasses,
-		nodeFilter: func(_ context.Context, node *schedulerobjects.Node) bool {
+		nodeFilter: func(_ context.Context, node *nodedb.Node) bool {
 			return len(node.AllocatedByJobId) > 0 && random.Float64() < perNodeEvictionProbability
 		},
 		jobFilter:     jobFilter,
@@ -701,7 +696,7 @@ func NewNodeEvictor(
 // on nodes for which nodeIdsToEvict[nodeId] is true.
 func NewFilteredEvictor(
 	jobRepo JobRepository,
-	priorityClasses map[string]configuration.PriorityClass,
+	priorityClasses map[string]types.PriorityClass,
 	nodeIdsToEvict map[string]bool,
 	jobIdsToEvict map[string]bool,
 ) *Evictor {
@@ -711,7 +706,7 @@ func NewFilteredEvictor(
 	return &Evictor{
 		jobRepo:         jobRepo,
 		priorityClasses: priorityClasses,
-		nodeFilter: func(_ context.Context, node *schedulerobjects.Node) bool {
+		nodeFilter: func(_ context.Context, node *nodedb.Node) bool {
 			shouldEvict := nodeIdsToEvict[node.Id]
 			return shouldEvict
 		},
@@ -728,7 +723,7 @@ func NewFilteredEvictor(
 // with probability perNodeEvictionProbability.
 func NewOversubscribedEvictor(
 	jobRepo JobRepository,
-	priorityClasses map[string]configuration.PriorityClass,
+	priorityClasses map[string]types.PriorityClass,
 	defaultPriorityClass string,
 	perNodeEvictionProbability float64,
 	random *rand.Rand,
@@ -746,9 +741,9 @@ func NewOversubscribedEvictor(
 	return &Evictor{
 		jobRepo:         jobRepo,
 		priorityClasses: priorityClasses,
-		nodeFilter: func(_ context.Context, node *schedulerobjects.Node) bool {
+		nodeFilter: func(_ context.Context, node *nodedb.Node) bool {
 			overSubscribedPriorities = make(map[int32]bool)
-			for p, rl := range node.AllocatableByPriorityAndResource {
+			for p, rl := range node.AllocatableByPriority {
 				if p < 0 {
 					// Negative priorities correspond to already evicted jobs.
 					continue
@@ -792,7 +787,7 @@ func (evi *Evictor) Evict(ctx context.Context, it nodedb.NodeIterator) (*Evictor
 		jobFilter = func(job interfaces.LegacySchedulerJob) bool { return evi.jobFilter(ctx, job) }
 	}
 	evictedJobsById := make(map[string]interfaces.LegacySchedulerJob)
-	affectedNodesById := make(map[string]*schedulerobjects.Node)
+	affectedNodesById := make(map[string]*nodedb.Node)
 	nodeIdByJobId := make(map[string]string)
 	for node := it.NextNode(); node != nil; node = it.NextNode() {
 		if evi.nodeFilter != nil && !evi.nodeFilter(ctx, node) {
@@ -833,7 +828,7 @@ func (evi *Evictor) Evict(ctx context.Context, it nodedb.NodeIterator) (*Evictor
 
 // TODO: This is only necessary for jobs not scheduled in this cycle.
 // Since jobs scheduled in this cycle can be re-scheduled onto another node without triggering a preemption.
-func defaultPostEvictFunc(ctx context.Context, job interfaces.LegacySchedulerJob, node *schedulerobjects.Node) {
+func defaultPostEvictFunc(ctx context.Context, job interfaces.LegacySchedulerJob, node *nodedb.Node) {
 	// Add annotation indicating to the scheduler this this job was evicted.
 	annotations := job.GetAnnotations()
 	if annotations == nil {

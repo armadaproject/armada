@@ -56,6 +56,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			{
 				Id:                          "test-executor-test-node",
 				Name:                        "test-node",
+				Executor:                    "test-executor",
 				TotalResources:              schedulerobjects.ResourceList{},
 				StateByJobRunId:             map[string]schedulerobjects.JobRunState{runId1.String(): schedulerobjects.JobRunState_RUNNING, runId2.String(): schedulerobjects.JobRunState_RUNNING},
 				NonArmadaAllocatedResources: map[int32]schedulerobjects.ResourceList{},

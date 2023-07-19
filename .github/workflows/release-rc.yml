@@ -1,18 +1,45 @@
 name: Release Armada components - RC
 
 on:
-  push:
+  workflow_run:
+    types: [completed]
+    workflows: [CI]
     branches:
-      - main
       - master
 
 permissions:
   contents: write
 
 jobs:
+  validate:
+    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.repository_owner == 'armadaproject'
+    name: "Validate revision"
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: "Checkout"
+        uses: "actions/checkout@v3"
+        with:
+          fetch-depth: 0
+
+      # The given ref should belong to the master branch.
+      # If it's master, it shouldn't be more than 2 commits away (in case another push happened in the meantime).
+      # Anything else is invalid.
+      - name: Validate ref
+        run: |
+          ref='${{ github.event.workflow_run.head_branch }}'
+          sha='${{ github.event.workflow_run.head_sha }}'
+
+          [ "$ref" == "master" ] &&
+          [ $(git branch --contains=$sha master | wc -l) -eq 1 ] &&
+          [ $(git rev-list --count $sha..master) -le 2 ]
+          if [ $? -ne 0 ]; then
+            echo "::error ::Invalid ref $ref $sha: must be a merge to master branch and not more than 2 commits away"
+            exit 1
+          fi
   release:
-    if: github.repository_owner == 'armadaproject'
     name: Release
+    needs: validate
     runs-on: "ubuntu-22.04"
     environment: armada-dockerhub
 
@@ -57,14 +84,14 @@ jobs:
 
       - name: Set next RC version
         id: "set_next_version"
-        run: echo "next_version=${{ steps.gitversion.outputs.majorMinorPatch }}-rc-${{ steps.gitversion.outputs.shortSha }}" >> $GITHUB_OUTPUT
+        run: echo "next_version=${{ steps.gitversion.outputs.shortSha }}" >> $GITHUB_OUTPUT
 
       - uses: rickstaa/action-create-tag@v1
         id: "tag_create"
         with:
           tag: "v${{ steps.set_next_version.outputs.next_version }}"
           force_push_tag: true
-          message: "Armada Release Candidate for version v${{ steps.gitversion.outputs.majorMinorPatch }}"
+          message: "Armada Release Candidate for commit ${{ steps.gitversion.outputs.shortSha }}"
 
       - name: "Run GoReleaser"
         uses: "goreleaser/goreleaser-action@v4"

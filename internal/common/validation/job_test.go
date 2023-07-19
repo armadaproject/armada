@@ -325,11 +325,33 @@ func TestValidateGangs(t *testing.T) {
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation: "bar",
+						configuration.GangIdAnnotation:          "bar",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 					PodSpec: &v1.PodSpec{
 						PriorityClassName: "zab",
 					},
+				},
+			},
+			ExpectSuccess: false,
+		},
+		"inconsistent NodeUniformityLabel": {
+			Jobs: []*api.Job{
+				{
+					Annotations: map[string]string{
+						configuration.GangIdAnnotation:                  "bar",
+						configuration.GangCardinalityAnnotation:         strconv.Itoa(2),
+						configuration.GangNodeUniformityLabelAnnotation: "foo",
+					},
+					PodSpec: &v1.PodSpec{},
+				},
+				{
+					Annotations: map[string]string{
+						configuration.GangIdAnnotation:                  "bar",
+						configuration.GangCardinalityAnnotation:         strconv.Itoa(2),
+						configuration.GangNodeUniformityLabelAnnotation: "bar",
+					},
+					PodSpec: &v1.PodSpec{},
 				},
 			},
 			ExpectSuccess: false,
