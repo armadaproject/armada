@@ -427,7 +427,7 @@ func (job *Job) WithCreated(created int64) *Job {
 func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSchedulingInfo) *Job {
 	j := copyJob(*job)
 	j.jobSchedulingInfo = jobSchedulingInfo
-	// j.ensureJobSchedulingInfoFieldsInitialised()
+	j.ensureJobSchedulingInfoFieldsInitialised()
 	return j
 }
 
