@@ -45,7 +45,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         -h|--help)
             print_usage
-            shift
+            exit 0
             ;;
         *)
             echo "::error ::invalid argument $1" >&2
