@@ -69,7 +69,7 @@ jobs:
         with:
           distribution: "goreleaser"
           version: v1.19.2
-          args: "-f ./.goreleaser.yml release --snapshot --clean"
+          args: "-f ./.goreleaser.yml release --snapshot --skip-sbom --skip-sign --clean"
         env:
           DOCKER_REPO: "gresearch"
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
