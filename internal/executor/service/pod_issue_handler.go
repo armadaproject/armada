@@ -107,26 +107,39 @@ func NewIssueHandler(
 	return issueHandler
 }
 
+func (p *IssueHandler) hasIssue(runId string) bool {
+	p.podIssueMutex.Lock()
+	defer p.podIssueMutex.Unlock()
+
+	if runId == "" {
+		return false
+	}
+
+	_, exists := p.knownPodIssues[runId]
+	return exists
+}
+
 func (p *IssueHandler) registerIssue(issue *runIssue) {
 	p.podIssueMutex.Lock()
 	defer p.podIssueMutex.Unlock()
 
 	runId := issue.RunId
 	if runId == "" {
-		log.Warnf("Not registering an issue for job %s as run id was empty", issue.JobId)
+		log.Debugf("Not registering an issue for job %s as run id was empty", issue.JobId)
 		return
 	}
 	_, exists := p.knownPodIssues[issue.RunId]
 	if !exists {
 		p.knownPodIssues[issue.RunId] = issue
 	} else {
-		log.Warnf("Not registering an issue for job %s (runId %s) as it already has an issue set", issue.JobId, issue.RunId)
+		log.Debugf("Not registering an issue for job %s (runId %s) as it already has an issue set", issue.JobId, issue.RunId)
 	}
 }
 
 func (p *IssueHandler) markIssuesResolved(issue *runIssue) {
 	p.podIssueMutex.Lock()
 	defer p.podIssueMutex.Unlock()
+	log.Infof("Issue for job %s run %s is resolved", issue.JobId, issue.RunId)
 
 	delete(p.knownPodIssues, issue.RunId)
 }
@@ -152,6 +165,9 @@ func (p *IssueHandler) HandlePodIssues() {
 
 func (p *IssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 	for _, pod := range allManagedPods {
+		if p.hasIssue(util.ExtractJobRunId(pod)) {
+			continue
+		}
 		if pod.DeletionTimestamp != nil && pod.DeletionTimestamp.Add(p.stuckTerminatingPodExpiry).Before(p.clock.Now()) {
 			// pod is stuck in terminating phase, this sometimes happen on node failure
 			// it is safer to produce failed event than retrying as the job might have run already
@@ -273,7 +289,7 @@ func (p *IssueHandler) handlePodIssue(issue *issue) {
 // Once that is done we are free to cleanup the pod
 func (p *IssueHandler) handleNonRetryableJobIssue(issue *issue) {
 	if !issue.RunIssue.Reported {
-		log.Infof("Non-retryable issue detected for job %s run %s - %s", issue.RunIssue.JobId, issue.RunIssue.RunId, issue.RunIssue.PodIssue.Message)
+		log.Infof("Handling non-retryable issue detected for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 		message := issue.RunIssue.PodIssue.Message
 
 		events := make([]reporter.EventMessage, 0, 2)
@@ -307,7 +323,7 @@ func (p *IssueHandler) handleNonRetryableJobIssue(issue *issue) {
 // If the pod becomes Running/Completed/Failed in the middle of being deleted - swap this issue to a nonRetryableIssue where it will be Failed
 func (p *IssueHandler) handleRetryableJobIssue(issue *issue) {
 	if !issue.RunIssue.Reported {
-		log.Infof("Retryable issue detected for job %s run %s - %s", issue.RunIssue.JobId, issue.RunIssue.RunId, issue.RunIssue.PodIssue.Message)
+		log.Infof("Handling retryable issue for job %s run %s", issue.RunIssue.JobId, issue.RunIssue.RunId)
 		if issue.RunIssue.PodIssue.Type == StuckStartingUp || issue.RunIssue.PodIssue.Type == UnableToSchedule {
 			event := reporter.CreateJobUnableToScheduleEvent(issue.RunIssue.PodIssue.OriginalPodState, issue.RunIssue.PodIssue.Message, p.clusterContext.GetClusterId())
 			err := p.eventReporter.Report([]reporter.EventMessage{{Event: event, JobRunId: issue.RunIssue.RunId}})
