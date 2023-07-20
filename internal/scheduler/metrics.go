@@ -232,7 +232,9 @@ func (c *MetricsCollector) updateClusterMetrics(ctx context.Context) ([]promethe
 				pool:     executor.Pool,
 				nodeType: node.ReportingNodeType,
 			}
-			addToResourceListMap(availableResourceByCluster, clusterKey, node.AvailableArmadaResource())
+			if !node.Unschedulable {
+				addToResourceListMap(availableResourceByCluster, clusterKey, node.AvailableArmadaResource())
+			}
 			addToResourceListMap(totalResourceByCluster, clusterKey, node.TotalResources)
 
 			for queueName, resourceUsage := range node.ResourceUsageByQueue {
