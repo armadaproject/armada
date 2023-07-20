@@ -125,14 +125,15 @@ func (p *IssueHandler) registerIssue(issue *runIssue) {
 
 	runId := issue.RunId
 	if runId == "" {
-		log.Debugf("Not registering an issue for job %s as run id was empty", issue.JobId)
+		log.Warnf("Not registering an issue for job %s as run id was empty", issue.JobId)
 		return
 	}
 	_, exists := p.knownPodIssues[issue.RunId]
 	if !exists {
+		log.Infof("Issue for job %s run %s is registered", issue.JobId, issue.RunId)
 		p.knownPodIssues[issue.RunId] = issue
 	} else {
-		log.Debugf("Not registering an issue for job %s (runId %s) as it already has an issue set", issue.JobId, issue.RunId)
+		log.Warnf("Not registering an issue for job %s (runId %s) as it already has an issue set", issue.JobId, issue.RunId)
 	}
 }
 
@@ -502,6 +503,9 @@ func (p *IssueHandler) detectReconciliationIssues(pods []*v1.Pod) {
 	for _, run := range runs {
 		_, present := runIdsToPod[run.Meta.RunId]
 		if !present {
+			if p.hasIssue(run.Meta.RunId) {
+				continue
+			}
 			p.registerIssue(&runIssue{
 				JobId: run.Meta.JobId,
 				RunId: run.Meta.RunId,
