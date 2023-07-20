@@ -8,7 +8,7 @@ dist: "dist"
 #  proxy: true
 
 snapshot:
-  name_template: "{{ .Tag }}"
+  name_template: "{{ .FullCommit }}"
 
 env:
   - GOPROXY={{ if index .Env "GOPROXY"  }}{{ .Env.GOPROXY }}{{ else }}https://proxy.golang.org,direct{{ end }}
