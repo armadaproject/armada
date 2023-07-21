@@ -3,7 +3,7 @@ postgres:
   maxIdleConns: 1
   connMaxLifetime: 30m
   connection:
-    host: localhost
+    host: postgres
     port: 5432
     user: postgres
     password: psw
@@ -14,7 +14,7 @@ metrics:
   port: 9003
 
 pulsar:
-  URL: "pulsar://localhost:6650"
+  URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
   receiveTimeout: 5s
   backoffTime: 1s
