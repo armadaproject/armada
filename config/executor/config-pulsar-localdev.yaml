@@ -5,8 +5,8 @@ application:
   submitConcurrencyLimit: 2
   updateConcurrencyLimit: 10
   deleteConcurrencyLimit: 2
-  useExecutorApi: false
-  useLegacyApi: true
+  useExecutorApi: true
+  useLegacyApi: false
   jobLeaseRequestTimeout: "30s"
 task:
   utilisationReportingInterval: 1s
@@ -22,7 +22,7 @@ task:
   stateProcessorInterval: 1s
 # The executor api section should only be needed until we migrate to it fully - then we go back to just using apiConnection
 executorApiConnection:
-  armadaUrl: "server:50052"
+  armadaUrl: "scheduler:50052"
   forceNoTls: true
 apiConnection:
   armadaUrl: "server:50051"
