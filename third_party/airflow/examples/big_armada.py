@@ -11,11 +11,7 @@ from armada_client.armada import (
     submit_pb2,
 )
 
-from armada_client.client import ArmadaClient
-import grpc
-
 import pendulum
-from armada.operators.jobservice import get_retryable_job_service_client
 
 
 def submit_sleep_job():
@@ -66,13 +62,12 @@ with DAG(
     default_args={"retries": 2},
 ) as dag:
     """
-    The ArmadaOperator requires a python client and a JobServiceClient
-    so we initialize them and set up their channel arguments.
+    The ArmadaDeferrableOperator requires grpc.channel arguments for armada and
+    the jobservice.
     """
-    no_auth_client = ArmadaClient(
-        channel=grpc.insecure_channel(target="127.0.0.1:50051")
-    )
-    job_service_client = get_retryable_job_service_client(target="127.0.0.1:60003")
+    armada_channel_args = {"target": "127.0.0.1:50051"}
+    job_service_channel_args = {"target": "127.0.0.1:60003"}
+
     """
     This defines an Airflow task that runs Hello World and it gives the airflow
     task name of dummy.
@@ -89,8 +84,8 @@ with DAG(
         task_id="armada1",
         name="armada1",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -99,8 +94,8 @@ with DAG(
         task_id="armada2",
         name="armada2",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -109,8 +104,8 @@ with DAG(
         task_id="armada3",
         name="armada3",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -119,8 +114,8 @@ with DAG(
         task_id="armada4",
         name="armada4",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -129,8 +124,8 @@ with DAG(
         task_id="armada5",
         name="armada5",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -139,8 +134,8 @@ with DAG(
         task_id="armada6",
         name="armada6",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -149,8 +144,8 @@ with DAG(
         task_id="armada7",
         name="armada7",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -159,8 +154,8 @@ with DAG(
         task_id="armada8",
         name="armada8",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -169,8 +164,8 @@ with DAG(
         task_id="armada9",
         name="armada9",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -179,8 +174,8 @@ with DAG(
         task_id="armada10",
         name="armada10",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -189,8 +184,8 @@ with DAG(
         task_id="armada11",
         name="armada11",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -199,8 +194,8 @@ with DAG(
         task_id="armada12",
         name="armada12",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -208,8 +203,8 @@ with DAG(
         task_id="armada13",
         name="armada13",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -218,8 +213,8 @@ with DAG(
         task_id="armada14",
         name="armada14",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -228,8 +223,8 @@ with DAG(
         task_id="armada15",
         name="armada15",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -238,8 +233,8 @@ with DAG(
         task_id="armada16",
         name="armada16",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -248,8 +243,8 @@ with DAG(
         task_id="armada17",
         name="armada17",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -258,8 +253,8 @@ with DAG(
         task_id="armada18",
         name="armada18",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -267,8 +262,8 @@ with DAG(
         task_id="armada19",
         name="armada19",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
@@ -277,8 +272,8 @@ with DAG(
         task_id="armada20",
         name="armada20",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submit_sleep_job(),
         lookout_url_template="http://127.0.0.1:8089/jobs?job_id=<job_id>",
     )
