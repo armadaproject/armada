@@ -134,6 +134,11 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 	executor := createExecutor("cluster-1", createNode("type-1"), createNode("type-1"))
 	executorWithMultipleNodeTypes := createExecutor("cluster-1", createNode("type-1"), createNode("type-2"))
 
+	unschedulableNode := createNode("type-1")
+	unschedulableNode.Unschedulable = true
+
+	executorWithUnschedulableNodes := createExecutor("cluster-1", createNode("type-1"), unschedulableNode)
+
 	job1 := testfixtures.TestRunningJobDbJob(0)
 	job2 := testfixtures.TestRunningJobDbJob(0)
 	nodeWithJobs := createNode("type-1")
@@ -174,6 +179,16 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 				commonmetrics.NewClusterTotalCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 				commonmetrics.NewClusterTotalCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-2"),
 				commonmetrics.NewClusterTotalCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-2"),
+			},
+		},
+		"empty cluster with unschedulable node": {
+			jobDbJobs: []*jobdb.Job{},
+			executors: []*schedulerobjects.Executor{executorWithUnschedulableNodes},
+			expected: []prometheus.Metric{
+				commonmetrics.NewClusterAvailableCapacity(32, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
+				commonmetrics.NewClusterAvailableCapacity(256*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
+				commonmetrics.NewClusterTotalCapacity(64, "cluster-1", testfixtures.TestPool, "cpu", "type-1"),
+				commonmetrics.NewClusterTotalCapacity(512*1024*1024*1024, "cluster-1", testfixtures.TestPool, "memory", "type-1"),
 			},
 		},
 		"cluster with jobs": {

@@ -132,7 +132,7 @@ func LocalDev(arg string) error {
 		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)
 		fmt.Printf("Time to build, setup kind and download images: %s\n", time.Since(timeTaken))
 	case "full":
-		mg.Deps(mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"), Kind, downloadDependencyImages)
+		mg.Deps(BuildPython, mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"), Kind, downloadDependencyImages)
 	case "no-build", "debug":
 		mg.Deps(Kind, downloadDependencyImages)
 	default:
