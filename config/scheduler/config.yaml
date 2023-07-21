@@ -40,7 +40,7 @@ leader:
   leaderConnection:
     armadaUrl: "" # <name> will get replaced with the lease owners name
 http:
-  port: 8080
+  port: 8081
 grpc:
   port: 50052
   keepaliveParams:

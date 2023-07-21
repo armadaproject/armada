@@ -131,6 +131,8 @@ func LocalDev(arg string) error {
 		timeTaken := time.Now()
 		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)
 		fmt.Printf("Time to build, setup kind and download images: %s\n", time.Since(timeTaken))
+	case "minimal-pulsar":
+		mg.Deps(mg.F(BuildDockers, "bundle, scheduler, scheduleringester"), Kind, downloadDependencyImages)
 	case "full":
 		mg.Deps(mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"), Kind, downloadDependencyImages)
 	case "no-build", "debug":
@@ -146,6 +148,9 @@ func LocalDev(arg string) error {
 	switch arg {
 	case "minimal":
 		os.Setenv("ARMADA_COMPONENTS", "executor,server")
+		mg.Deps(StartComponents)
+	case "minimal-pulsar":
+		os.Setenv("ARMADA_COMPONENTS", "executor,server,postgresPulsarMigration,scheduler,scheduleringester")
 		mg.Deps(StartComponents)
 	case "debug":
 		fmt.Println("Dependencies started, ending localdev...")
