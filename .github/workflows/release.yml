@@ -81,7 +81,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v4
         with:
           distribution: goreleaser
-          version: v1.18.2
+          version: v1.19.2
           args: "-f ./.goreleaser.yml release --clean"
         env:
           FULL_RELEASE: true
@@ -96,4 +96,4 @@ jobs:
     uses: G-Research/charts/.github/workflows/invoke-push.yaml@master
     secrets:
       APP_ID: ${{ secrets.APP_ID }}
-      APP_PRIVATE_KEY: ${{ secrets.GH_APP_PEM }}
+      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
