@@ -134,7 +134,7 @@ func LocalDev(arg string) error {
 	case "minimal-pulsar":
 		mg.Deps(mg.F(BuildDockers, "bundle, scheduler, scheduleringester"), Kind, downloadDependencyImages)
 	case "full":
-		mg.Deps(mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"), Kind, downloadDependencyImages)
+		mg.Deps(BuildPython, mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"), Kind, downloadDependencyImages)
 	case "no-build", "debug":
 		mg.Deps(Kind, downloadDependencyImages)
 	default:
