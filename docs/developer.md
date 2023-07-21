@@ -113,14 +113,19 @@ export ARMADA_COMPONENTS="server,executor"
 
 ### Running Pulsar backed scheduler with LocalDev
 
-First backup the `config.yaml` files present in armada, executor, scheduler and scheduleringester
-directories of the config directory and replace them each with `config-pulsar-localdev.yaml`.
+Ensure your local environment is completely torn down with
+```bash
+mage LocalDevStop
+```
 
-Then run the following command
+And then run
 
 ```bash
 mage LocalDev minimal-pulsar
 ```
+
+Ensure your local dev environment is completely torn down when switching between pulsar backed and legacy
+setups.
 
 ## Debugging
 
