@@ -61,6 +61,7 @@ scheduling:
         preemptible: true
     defaultPriorityClass: armada-default
     priorityClassNameOverride: armada-default
+  executorTimeout: 60m
   maxQueueLookback: 1000
   maxExtraNodesToConsider: 1
   maximumResourceFractionToSchedule:
