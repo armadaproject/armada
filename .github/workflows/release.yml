@@ -31,7 +31,7 @@ jobs:
           sha='${{ github.event.workflow_run.head_sha }}'
 
           [[ $ref =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] &&
-          [ $(git rev-parse refs/tags/$ref) == $sha ] &&
+          [ $(git tag --points-at $sha | grep -E "^$ref\$" | wc -l) -eq 1 ] &&
           [ $(git branch --contains=$sha master | wc -l) -eq 1 ]
           if [ $? -ne 0 ]; then
             echo "::error ::Invalid ref $ref $sha: must be a tag, belong to the master branch and match the semver regex"
@@ -81,7 +81,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v4
         with:
           distribution: goreleaser
-          version: v1.18.2
+          version: v1.19.2
           args: "-f ./.goreleaser.yml release --clean"
         env:
           FULL_RELEASE: true
@@ -90,3 +90,10 @@ jobs:
           DOCKER_BUILDX_BUILDER: "${{ steps.buildx.outputs.name }}"
           DOCKER_BUILDX_CACHE_FROM: "type=gha"
           DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
+  invoke-chart-push:
+    name: Invoke Chart push
+    needs: release
+    uses: G-Research/charts/.github/workflows/invoke-push.yaml@master
+    secrets:
+      APP_ID: ${{ secrets.APP_ID }}
+      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
