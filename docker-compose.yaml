@@ -69,7 +69,7 @@ services:
 
   scheduler:
     container_name: scheduler
-    image: ${ARMADA_IMAGE:-gresearch/armada-scheduler}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
@@ -81,22 +81,22 @@ services:
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
     working_dir: /app
-    command: run --config /config/insecure-armada.yaml
+    command: ./scheduler run --config /config/insecure-armada.yaml
 
   postgresPulsarMigration:
     container_name: postgresPulsarMigration
-    image: ${ARMADA_IMAGE:-gresearch/armada-scheduler}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     volumes:
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
     working_dir: /app
-    command: migrateDatabase
+    command: ./scheduler migrateDatabase
 
   scheduleringester:
     container_name: scheduleringester
-    image: ${ARMADA_IMAGE:-gresearch/armada-scheduler-ingester}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
@@ -104,9 +104,10 @@ services:
     volumes:
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
-    working_dir: /app
     env_file:
       - ./developer/env/server.env
+    working_dir: /app
+    command: ./scheduleringester
 
   executor:
     container_name: executor

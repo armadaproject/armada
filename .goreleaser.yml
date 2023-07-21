@@ -209,12 +209,16 @@ dockers:
       - scheduleringester
     extra_files:
       - config/armada/config.yaml
+      - config/armada/config-pulsar-localdev.yaml
       - config/executor/config.yaml
+      - config/executor/config-pulsar-localdev.yaml
       - config/binoculars/config.yaml
       - config/eventingester/config.yaml
       - config/scheduler/config.yaml
+      - config/scheduler/config-pulsar-localdev.yaml
       - config/scheduleringester/config.yaml
-    dockerfile: ./build_goreleaser/bundles/armada/Dockerfile
+      - config/scheduleringester/config-pulsar-localdev.yaml
+    dockerfile: ./build_goreleaser/bundles/armada{{ .Env.PULSAR_BACKED }}/Dockerfile
 
   - id: lookout-bundle
     use: buildx

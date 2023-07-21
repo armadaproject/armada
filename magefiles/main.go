@@ -129,10 +129,12 @@ func LocalDev(arg string) error {
 	switch arg {
 	case "minimal":
 		timeTaken := time.Now()
+		os.Setenv("PULSAR_BACKED", "")
 		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)
 		fmt.Printf("Time to build, setup kind and download images: %s\n", time.Since(timeTaken))
 	case "minimal-pulsar":
-		mg.Deps(mg.F(BuildDockers, "bundle, scheduler, scheduleringester"), Kind, downloadDependencyImages)
+		os.Setenv("PULSAR_BACKED", "-pulsar-backed")
+		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)
 	case "full":
 		mg.Deps(BuildPython, mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"), Kind, downloadDependencyImages)
 	case "no-build", "debug":
