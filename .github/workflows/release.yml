@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   validate:
-    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success'
+    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.repository_owner == 'armadaproject'
     name: "Validate revision"
     runs-on: ubuntu-22.04
 
@@ -61,11 +61,11 @@ jobs:
         id: buildx
         uses: docker/setup-buildx-action@v2
 
-      # - name: "Docker login"
-      #   uses: "docker/login-action@v2"
-      #   with:
-      #     username: "${{ secrets.DOCKERHUB_USER }}"
-      #     password: "${{ secrets.DOCKERHUB_PASS }}"
+      - name: "Docker login"
+        uses: "docker/login-action@v2"
+        with:
+          username: "${{ secrets.DOCKERHUB_USER }}"
+          password: "${{ secrets.DOCKERHUB_PASS }}"
 
       - name: Set up Syft
         run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b ${HOME}/bin
@@ -93,10 +93,10 @@ jobs:
           DOCKER_BUILDX_BUILDER: "${{ steps.buildx.outputs.name }}"
           DOCKER_BUILDX_CACHE_FROM: "type=gha"
           DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
-  # invoke-chart-push:
-  #   name: Invoke Chart push
-  #   needs: release
-  #   uses: G-Research/charts/.github/workflows/invoke-push.yaml@master
-  #   secrets:
-  #     APP_ID: ${{ secrets.APP_ID }}
-  #     APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+  invoke-chart-push:
+    name: Invoke Chart push
+    needs: release
+    uses: G-Research/charts/.github/workflows/invoke-push.yaml@master
+    secrets:
+      APP_ID: ${{ secrets.APP_ID }}
+      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
