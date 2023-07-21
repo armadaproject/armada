@@ -62,7 +62,7 @@ with DAG(
     default_args={"retries": 2},
 ) as dag:
     """
-    The ArmadaDeferrableOperator requires grpc.channel arguments for armada and
+    The ArmadaOperator requires grpc.channel arguments for armada and
     the jobservice.
     """
     armada_channel_args = {"target": "127.0.0.1:50051"}
