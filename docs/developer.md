@@ -111,6 +111,17 @@ You can set the `ARMADA_COMPONENTS` environment variable to choose which compone
 export ARMADA_COMPONENTS="server,executor"
 ```
 
+### Running Pulsar backed scheduler with LocalDev
+
+First backup the `config.yaml` files present in armada, executor, scheduler and scheduleringester
+directories of the config directory and replace them each with `config-pulsar-localdev.yaml`.
+
+Then run the following command
+
+```bash
+mage LocalDev minimal-pulsar
+```
+
 ## Debugging
 
 The mage target `mage debug` supports multiple methods for debugging, and runs the appropriate parts of localdev as required.
