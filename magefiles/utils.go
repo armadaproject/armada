@@ -17,6 +17,13 @@ func binaryWithExt(name string) string {
 	return name
 }
 
+func checkOs() string {
+	if runtime.GOOS == "windows" {
+		return "windows"
+	}
+	return runtime.GOOS
+}
+
 func copy(srcPath, dstPath string) error {
 	if err := os.MkdirAll(filepath.Dir(dstPath), os.ModeDir|0o755); err != nil {
 		return err
