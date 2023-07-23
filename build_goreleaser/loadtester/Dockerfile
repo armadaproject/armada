@@ -3,7 +3,7 @@ ARG BASE_IMAGE=alpine:3.17.0
 FROM ${BASE_IMAGE}
 LABEL org.opencontainers.image.title=loadtester
 LABEL org.opencontainers.image.description="Load Tester"
-LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearch/armada-loadtester
+LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearch/loadtester
 
 RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
 USER armada

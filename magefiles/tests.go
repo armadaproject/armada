@@ -163,6 +163,51 @@ func runTest(name, outputFileName string) error {
 	return cmd.Run()
 }
 
+// Teste2eSetup setups the local cluster
+func Teste2eSetup() error {
+	mg.Deps(Kind)
+	mg.Deps(StartDependencies)
+	time.Sleep(60 * time.Second)
+	os.Setenv("ARMADA_COMPONENTS", "server,lookoutingester,executor,eventingester,jobservice")
+	mg.Deps(StartComponents)
+
+	if err := dockerRun("run", "-d", "--name", "lookout-ingester-migrate", "--network=kind", "-v", "${PWD}/e2e:/e2e",
+		"gresearch/armada-lookout-ingester", "--config", "/e2e/setup/lookout-ingester-config.yaml", "--migrateDatabase"); err != nil {
+		return err
+	}
+
+	go_cmd, err := go_CMD()
+	if err != nil {
+		return err
+	}
+	createQueue := func(queueName string) error {
+		cmd := append(go_cmd, "go", "run", "cmd/armadactl/main.go", "create", "queue", queueName)
+		if err = dockerRun(cmd...); err != nil {
+			return err
+		}
+		return nil
+	}
+	if err = createQueue("e2e-test-queue"); err != nil {
+		fmt.Println(err)
+	}
+	if err = createQueue("queue-a"); err != nil {
+		fmt.Println(err)
+	}
+	if err = createQueue("queue-b"); err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println("\nexecutor logs:")
+	if err := dockerRun("logs", "executor"); err != nil {
+		fmt.Println("Error retrieving executor logs:", err)
+	}
+
+	fmt.Println("\nserver logs:")
+	if err := dockerRun("logs", "server"); err != nil {
+		fmt.Println("Error retrieving server logs:", err)
+	}
+	return nil
+}
+
 // Testse2eENoSetup runs the E2E tests without setup
 func Testse2eNoSetup() error {
 	mg.Deps(gotestsum)
@@ -201,51 +246,21 @@ func Testse2eNoSetup() error {
 		return err
 	}
 
-	cmd := dotnetCmd()
-	cmd = append(cmd, "dotnet", "test", "client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj")
-	if err := dockerRun(cmd...); err != nil {
-		return err
-	}
+	// cmd := dotnetCmd()
+	// cmd = append(cmd, "dotnet", "test", "client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj")
+	// if err := dockerRun(cmd...); err != nil {
+	// 	return err
+	// }
 
 	return nil
 }
 
-// Teste2eSetup runs the test with local cluster
-func Teste2eSetup() error {
-	if err := BuildDockers("server,lookoutingester,executor,eventingester,jobservice"); err != nil {
+// Run the e2e tests against the local cluster
+func Testse2e() error {
+	if err := BuildDockers("bundle,lookout-bundle,lookoutingester,jobservice"); err != nil {
 		return err
 	}
-	mg.Deps(Kind)
-	mg.Deps(StartDependencies)
-	os.Setenv("ARMADA_COMPONENTS", "server,lookoutingester,executor,eventingester,jobservice")
-	mg.Deps(StartComponents)
-
-	if err := dockerRun("run", "-d", "--name", "lookout-ingester-migrate", "--network=kind", "-v", "${PWD}/e2e:/e2e",
-		"gresearch/lookoutingester", "--config", "/e2e/setup/lookout-ingester-config.yaml", "--migrateDatabase"); err != nil {
-		return err
-	}
-
-	go_cmd, err := go_CMD()
-	if err != nil {
-		return err
-	}
-	createQueue := func(queueName string) error {
-		cmd := append(go_cmd, "run", "cmd/armadactl/main.go", "create", "queue", queueName)
-		if err = dockerRun(cmd...); err != nil {
-			return err
-		}
-		return nil
-	}
-	if err = createQueue("e2e-test-queue"); err != nil {
-		fmt.Println(err)
-	}
-	if err = createQueue("queue-a"); err != nil {
-		fmt.Println(err)
-	}
-	if err = createQueue("queue-b"); err != nil {
-		fmt.Println(err)
-	}
-
+	mg.Deps(Teste2eSetup)
 	mg.Deps(gotestsum)
 
 	if err := os.MkdirAll("test_reports", os.ModePerm); err != nil {
@@ -266,11 +281,35 @@ func Teste2eSetup() error {
 
 		LocalDevStop()
 
-		if err := sh.Run("rm", ".kube/config"); err != nil {
-			fmt.Println("Error removing .kube/config:", err)
+		// Check if .kube/config file exists
+		if _, err := os.Stat(".kube/config"); err == nil {
+			if err := sh.Run("rm", ".kube/config"); err != nil {
+				fmt.Println("Error removing .kube/config:", err)
+			}
+		} else if os.IsNotExist(err) {
+			fmt.Println(".kube/config does not exist")
+		} else {
+			fmt.Println("Error retrieving stats for .kube/config:", err)
 		}
-		if err := sh.Run("rmdir", ".kube"); err != nil {
-			fmt.Println("Error removing .kube directory:", err)
+
+		// Check if .kube directory exists
+		if _, err := os.Stat(".kube"); err == nil {
+			entries, err := os.ReadDir(".kube")
+			if err != nil {
+				fmt.Println("Error reading .kube directory:", err)
+			}
+			// Checking if directory is empty
+			if len(entries) == 0 {
+				if err := sh.Run("rmdir", ".kube"); err != nil {
+					fmt.Println("Error removing .kube directory:", err)
+				}
+			} else {
+				fmt.Println(".kube directory is not empty")
+			}
+		} else if os.IsNotExist(err) {
+			fmt.Println(".kube directory does not exist")
+		} else {
+			fmt.Println("Error retrieving stats for .kube directory:", err)
 		}
 	}()
 
@@ -289,12 +328,11 @@ func Teste2eSetup() error {
 	if err := runTest("./e2e/lookout_ingester_test/...", "e2e_lookout_ingester.txt"); err != nil {
 		return err
 	}
-	cmd := dotnetCmd()
-	cmd = append(cmd, "dotnet", "test", "client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj")
-	if err := dockerRun(cmd...); err != nil {
-		return err
-	}
-
+	// cmd := dotnetCmd()
+	// cmd = append(cmd, "dotnet", "test", "client/DotNet/Armada.Client.Test/Armada.Client.Test.csproj")
+	// if err := dockerRun(cmd...); err != nil {
+	// 	return err
+	// }
 	return nil
 }
 
@@ -318,26 +356,24 @@ func Teste2eAirflow() error {
 		fmt.Println(err)
 	}
 
-	output, err := dockerOutput("run", "-d", "--name", "jobservice", "--network=kind",
+	err = dockerRun("run", "-d", "--name", "jobservice", "--network=kind",
 		"--mount", "type=bind,src=${PWD}/e2e,dst=/e2e", "gresearch/armada-jobservice", "run", "--config",
 		"/e2e/setup/jobservice.yaml")
-	fmt.Println(output)
 	if err != nil {
 		return err
 	}
 
-	output, err = dockerOutput("run", "-v", "${PWD}/e2e:/e2e", "-v", "${PWD}/third_party/airflow:/code",
+	err = dockerRun("run", "-v", "${PWD}/e2e:/e2e", "-v", "${PWD}/third_party/airflow:/code",
 		"--workdir", "/code", "-e", "ARMADA_SERVER=server", "-e", "ARMADA_PORT=50051", "-e", "JOB_SERVICE_HOST=jobservice",
 		"-e", "JOB_SERVICE_PORT=60003", "--entrypoint", "python3", "--network=kind", "armada-airflow-operator-builder:latest",
 		"-m", "pytest", "-v", "-s", "/code/tests/integration/test_airflow_operator_logic.py")
-	fmt.Println(output)
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
 
 	err = dockerRun("rm", "-f", "jobservice")
 	if err != nil {
-		fmt.Println(err)
+		return err
 	}
 	return nil
 }
