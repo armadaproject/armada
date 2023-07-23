@@ -166,6 +166,17 @@ archives:
     files:
       - LICENSE
 
+  - id: kubectl-armadactl
+    builds:
+      - armadactl
+    allow_different_binary_count: true
+    name_template: 'kubectl-armadactl_{{ replace .Version "-" "_" }}_{{ .Os }}_{{ .Arch }}'
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+
 # macOS Universal Binaries-*
 universal_binaries:
   - replace: true
