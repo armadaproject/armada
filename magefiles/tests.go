@@ -336,6 +336,42 @@ func Testse2e() error {
 	return nil
 }
 
+// Testse2eTearDown tears down the local cluster
+func Testse2eTearDown() error {
+	mg.Deps(LocalDevStop)
+	// Check if .kube/config file exists
+	if _, err := os.Stat(".kube/config"); err == nil {
+		if err := sh.Run("rm", ".kube/config"); err != nil {
+			fmt.Println("Error removing .kube/config:", err)
+		}
+	} else if os.IsNotExist(err) {
+		fmt.Println(".kube/config does not exist")
+	} else {
+		fmt.Println("Error retrieving stats for .kube/config:", err)
+	}
+
+	// Check if .kube directory exists
+	if _, err := os.Stat(".kube"); err == nil {
+		entries, err := os.ReadDir(".kube")
+		if err != nil {
+			fmt.Println("Error reading .kube directory:", err)
+		}
+		// Checking if directory is empty
+		if len(entries) == 0 {
+			if err := sh.Run("rmdir", ".kube"); err != nil {
+				fmt.Println("Error removing .kube directory:", err)
+			}
+		} else {
+			fmt.Println(".kube directory is not empty")
+		}
+	} else if os.IsNotExist(err) {
+		fmt.Println(".kube directory does not exist")
+	} else {
+		fmt.Println("Error retrieving stats for .kube directory:", err)
+	}
+	return nil
+}
+
 // Teste2eAirflow runs e2e tests for airflow
 func Teste2eAirflow() error {
 	mg.Deps(AirflowOperator)
