@@ -4,7 +4,7 @@
 
 This diagram shows the high-level relationships between components of Armada and third-party softwares.
 
-For a more detailed view of Armada, see the [Scheduler Architecture Doc](../architecture.md).
+For a more detailed view of Armada, see the [Scheduler Architecture Doc](./architecture.md).
 
 ### Armada Client
 
