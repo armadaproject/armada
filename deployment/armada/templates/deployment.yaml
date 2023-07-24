@@ -45,6 +45,14 @@ spec:
             - name: GOMEMLIMIT
               value: {{ quote . }}
             {{- end }}
+            - name: SERVICE_ACCOUNT
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.serviceAccountName
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 -}}
             {{- end }}
@@ -74,6 +82,11 @@ spec:
             {{- if .Values.applicationConfig.pulsar.tlsEnabled }}
             - name: pulsar-ca
               mountPath: "/pulsar/ca"
+              readOnly: true
+            {{- end }}
+            {{- if .Values.applicationConfig.grpc.tls.enabled }}
+            - name: tls-certs
+              mountPath: /certs
               readOnly: true
             {{- end }}
             {{- if .Values.additionalVolumeMounts }}
@@ -128,6 +141,11 @@ spec:
             items:
               - key: ca.crt
                 path: ca.crt
+        {{- end }}
+        {{- if .Values.applicationConfig.grpc.tls.enabled }}
+        - name: tls-certs
+          secret:
+            secretName: armada-service-tls
         {{- end }}
         {{- if .Values.additionalVolumes }}
         {{- toYaml .Values.additionalVolumes | nindent 8 }}

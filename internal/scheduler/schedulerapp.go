@@ -3,6 +3,7 @@ package scheduler
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"strings"
 	"time"
 
@@ -23,10 +24,12 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth"
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
+	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
@@ -35,6 +38,17 @@ func Run(config schedulerconfig.Configuration) error {
 	g, ctx := errgroup.WithContext(app.CreateContextWithShutdown())
 	logrusLogger := log.NewEntry(log.StandardLogger())
 	ctx = ctxlogrus.ToContext(ctx, logrusLogger)
+
+	//////////////////////////////////////////////////////////////////////////
+	// Health Checks
+	//////////////////////////////////////////////////////////////////////////
+	mux := http.NewServeMux()
+
+	startupCompleteCheck := health.NewStartupCompleteChecker()
+	healthChecks := health.NewMultiChecker(startupCompleteCheck)
+	health.SetupHttpMux(mux, healthChecks)
+	shutdownHttpServer := common.ServeHttp(uint16(config.Http.Port), mux)
+	defer shutdownHttpServer()
 
 	// List of services to run concurrently.
 	// Because we want to start services only once all input validation has been completed,
@@ -111,7 +125,7 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating auth services")
 	}
-	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls)
 	defer grpcServer.GracefulStop()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Grpc.Port))
 	if err != nil {
@@ -159,8 +173,23 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating submit checker")
 	}
-	// TODO(reports): Pass in a non-nil SchedulingContextRepository.
-	schedulingAlgo, err := NewFairSchedulingAlgo(config.Scheduling, config.MaxSchedulingDuration, executorRepository, queueRepository, nil)
+
+	schedulingContextRepository, err := NewSchedulingContextRepository(config.Scheduling.MaxJobSchedulingContextsPerExecutor)
+	if err != nil {
+		return errors.WithMessage(err, "error creating scheduling context repository")
+	}
+
+	leaderClientConnectionProvider := NewLeaderConnectionProvider(leaderController, config.Leader)
+	schedulingReportServer := NewLeaderProxyingSchedulingReportsServer(schedulingContextRepository, leaderClientConnectionProvider)
+	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportServer)
+
+	schedulingAlgo, err := NewFairSchedulingAlgo(
+		config.Scheduling,
+		config.MaxSchedulingDuration,
+		executorRepository,
+		queueRepository,
+		schedulingContextRepository,
+	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
 	}
@@ -206,6 +235,9 @@ func Run(config schedulerconfig.Configuration) error {
 		g.Go(service)
 	}
 
+	// Mark startup as complete, will allow the health check to return healthy
+	startupCompleteCheck.MarkComplete()
+
 	return g.Wait()
 }
 
@@ -224,7 +256,11 @@ func createLeaderController(config schedulerconfig.LeaderConfig) (LeaderControll
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error creating kubernetes client")
 		}
-		return NewKubernetesLeaderController(config, clientSet.CoordinationV1()), nil
+		leaderController := NewKubernetesLeaderController(config, clientSet.CoordinationV1())
+		leaderStatusMetrics := NewLeaderStatusMetricsCollector(config.PodName)
+		leaderController.RegisterListener(leaderStatusMetrics)
+		prometheus.MustRegister(leaderStatusMetrics)
+		return leaderController, nil
 	default:
 		return nil, errors.Errorf("%s is not a value leader mode", config.Mode)
 	}

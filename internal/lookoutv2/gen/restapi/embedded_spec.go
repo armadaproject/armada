@@ -52,6 +52,10 @@ func init() {
                 "take"
               ],
               "properties": {
+                "activeJobSets": {
+                  "description": "Only include jobs in active job sets",
+                  "type": "boolean"
+                },
                 "aggregates": {
                   "description": "Additional fields to compute aggregates on",
                   "type": "array",
@@ -280,6 +284,10 @@ func init() {
                 "take"
               ],
               "properties": {
+                "activeJobSets": {
+                  "description": "Only include jobs in active job sets",
+                  "type": "boolean"
+                },
                 "filters": {
                   "description": "Filters to apply to jobs.",
                   "type": "array",
@@ -596,7 +604,6 @@ func init() {
       "required": [
         "runId",
         "cluster",
-        "pending",
         "jobRunState"
       ],
       "properties": {
@@ -632,6 +639,12 @@ func init() {
           ],
           "x-nullable": false
         },
+        "leased": {
+          "type": "string",
+          "format": "date-time",
+          "minLength": 1,
+          "x-nullable": true
+        },
         "node": {
           "type": "string",
           "x-nullable": true
@@ -640,7 +653,7 @@ func init() {
           "type": "string",
           "format": "date-time",
           "minLength": 1,
-          "x-nullable": false
+          "x-nullable": true
         },
         "runId": {
           "type": "string",
@@ -691,6 +704,10 @@ func init() {
                 "take"
               ],
               "properties": {
+                "activeJobSets": {
+                  "description": "Only include jobs in active job sets",
+                  "type": "boolean"
+                },
                 "aggregates": {
                   "description": "Additional fields to compute aggregates on",
                   "type": "array",
@@ -919,6 +936,10 @@ func init() {
                 "take"
               ],
               "properties": {
+                "activeJobSets": {
+                  "description": "Only include jobs in active job sets",
+                  "type": "boolean"
+                },
                 "filters": {
                   "description": "Filters to apply to jobs.",
                   "type": "array",
@@ -1252,7 +1273,6 @@ func init() {
       "required": [
         "runId",
         "cluster",
-        "pending",
         "jobRunState"
       ],
       "properties": {
@@ -1288,6 +1308,12 @@ func init() {
           ],
           "x-nullable": false
         },
+        "leased": {
+          "type": "string",
+          "format": "date-time",
+          "minLength": 1,
+          "x-nullable": true
+        },
         "node": {
           "type": "string",
           "x-nullable": true
@@ -1296,7 +1322,7 @@ func init() {
           "type": "string",
           "format": "date-time",
           "minLength": 1,
-          "x-nullable": false
+          "x-nullable": true
         },
         "runId": {
           "type": "string",

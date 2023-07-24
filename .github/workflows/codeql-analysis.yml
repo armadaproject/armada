@@ -38,7 +38,7 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3.3.0
     # The ArmadaProject.Io.Client needs the generated proto files
     - name: Install Protoc
       uses: arduino/setup-protoc@v1

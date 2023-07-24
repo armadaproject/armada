@@ -8,7 +8,7 @@ dist: "dist"
 #  proxy: true
 
 snapshot:
-  name_template: "{{ .Tag }}"
+  name_template: "{{ .FullCommit }}"
 
 env:
   - GOPROXY={{ if index .Env "GOPROXY"  }}{{ .Env.GOPROXY }}{{ else }}https://proxy.golang.org,direct{{ end }}
@@ -122,6 +122,15 @@ builds:
     id: jobservice
     binary: jobservice
     main: ./cmd/jobservice/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: fakeexecutor
+    binary: fakeexecutor
+    main: ./cmd/fakeexecutor/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
     goos:
       - linux
@@ -254,6 +263,7 @@ dockers:
       - lookoutv2
       - lookoutingester
       - lookoutingesterv2
+      - fakeexecutor
     extra_files:
       - config/armada/config.yaml
       - config/executor/config.yaml
@@ -301,6 +311,20 @@ dockers:
     extra_files:
       - config/executor/config.yaml
     dockerfile: ./build_goreleaser/executor/Dockerfile
+
+  - id: fakeexecutor
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-fakeexecutor:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-fakeexecutor:{{ .Version }}"
+    build_flag_templates: *BUILD_FLAG_TEMPLATES
+    ids:
+      - fakeexecutor
+    extra_files:
+      - config/executor/config.yaml
+    dockerfile: ./build_goreleaser/fakeexecutor/Dockerfile
 
   - id: lookoutingester
     use: buildx
@@ -479,6 +503,7 @@ checksum:
 
 release:
   disable: '{{ if index .Env "FULL_RELEASE" }}false{{ else }}true{{ end }}'
+  mode: replace
   header: |
     ## Armada v{{ .Version }}
 

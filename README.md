@@ -36,7 +36,6 @@ Armada adheres to the CNCF [Code of Conduct](https://github.com/cncf/foundation/
 
 For an overview of the architecture and design of Armada, and instructions for submitting jobs, see:
 
-- [System overview](./docs/design/README.md)
 - [Components overview](./docs/design/relationships_diagram.md)
 - [Scheduler](./docs/design/scheduler.md)
 - [Architecture](./docs/design/architecture.md)
@@ -56,9 +55,9 @@ We expect readers of the documentation to have a basic understanding of Docker a
 - [Kubernetes overview](https://kubernetes.io/docs/concepts/overview/)
 
 ## Contributions
-Thank you for considering contributing to Armada!  
-We want everyone to feel that they can contribute to the Armada Project.  
-Your contributions are valuable, whether it's fixing a bug, implementing a new feature, improving documentation, or suggesting enhancements.  
+Thank you for considering contributing to Armada!
+We want everyone to feel that they can contribute to the Armada Project.
+Your contributions are valuable, whether it's fixing a bug, implementing a new feature, improving documentation, or suggesting enhancements.
 We appreciate your time and effort in helping make this project better for everyone.
 For more information about contributing to Armada see [CONTRIBUTING.md](https://github.com/armadaproject/armada/blob/master/CONTRIBUTING.md) and before proceeding to contributions see [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 

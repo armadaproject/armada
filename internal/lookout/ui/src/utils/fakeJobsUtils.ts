@@ -98,6 +98,7 @@ function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () =>
       jobId: jobId,
       jobRunState: runState,
       node: node,
+      leased: "2022-12-13T12:16:14.956Z",
       pending: "2022-12-13T12:16:14.956Z",
       runId: uuid(),
       started: "2022-12-13T12:15:14.956Z",
@@ -232,4 +233,17 @@ export function makeManyTestJobs(numJobs: number, numFinishedJobs: number): Job[
     jobs.push(makeTestJob(`queue-0`, `job-set-${i}`, `job-id-${i}`, state))
   }
   return jobs
+}
+
+export function getActiveJobSets(jobs: Job[]): Record<string, string[]> {
+  const result: Record<string, string[]> = {}
+  for (const job of jobs) {
+    if ([JobState.Queued, JobState.Leased, JobState.Pending, JobState.Running].includes(job.state)) {
+      if (!(job.queue in result)) {
+        result[job.queue] = []
+      }
+      result[job.queue].push(job.jobSet)
+    }
+  }
+  return result
 }

@@ -45,7 +45,8 @@ func ToSwaggerRun(run *model.Run) *models.Run {
 		Finished:    toSwaggerTimePtr(run.Finished),
 		JobRunState: run.JobRunState,
 		Node:        run.Node,
-		Pending:     strfmt.DateTime(run.Pending),
+		Leased:      toSwaggerTimePtr(run.Leased),
+		Pending:     toSwaggerTimePtr(run.Pending),
 		RunID:       run.RunId,
 		Started:     toSwaggerTimePtr(run.Started),
 	}

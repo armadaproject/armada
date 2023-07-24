@@ -49,6 +49,7 @@ func NewSqlGroupJobsRepository(db *pgxpool.Pool) *SqlGroupJobsRepository {
 func (r *SqlGroupJobsRepository) GroupBy(
 	ctx context.Context,
 	filters []*model.Filter,
+	activeJobSets bool,
 	order *model.Order,
 	groupedField *model.GroupedField,
 	aggregates []string,
@@ -63,7 +64,7 @@ func (r *SqlGroupJobsRepository) GroupBy(
 		AccessMode:     pgx.ReadOnly,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-		countQuery, err := NewQueryBuilder(r.lookoutTables).CountGroups(filters, groupedField)
+		countQuery, err := NewQueryBuilder(r.lookoutTables).CountGroups(filters, activeJobSets, groupedField)
 		if err != nil {
 			return err
 		}
@@ -76,7 +77,7 @@ func (r *SqlGroupJobsRepository) GroupBy(
 		if err != nil {
 			return err
 		}
-		groupByQuery, err := NewQueryBuilder(r.lookoutTables).GroupBy(filters, order, groupedField, aggregates, skip, take)
+		groupByQuery, err := NewQueryBuilder(r.lookoutTables).GroupBy(filters, activeJobSets, order, groupedField, aggregates, skip, take)
 		if err != nil {
 			return err
 		}

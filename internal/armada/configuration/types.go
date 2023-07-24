@@ -12,6 +12,8 @@ import (
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 type ArmadaConfig struct {
@@ -26,6 +28,8 @@ type ArmadaConfig struct {
 	CorsAllowedOrigins []string
 
 	Grpc grpcconfig.GrpcConfig
+
+	SchedulerApiConnection client.ApiConnectionDetails
 
 	PriorityHalfTime                  time.Duration
 	CancelJobsBatchSize               int
@@ -84,10 +88,31 @@ type PulsarConfig struct {
 	BackoffTime time.Duration
 }
 
+// DatabaseConfig represents the configuration of the database connection.
+type DatabaseConfig struct {
+	// MaxOpenConns represents the maximum number of open connections to the database.
+	MaxOpenConns int
+
+	// MaxIdleConns represents the maximum number of connections in the idle connection pool.
+	MaxIdleConns int
+
+	// ConnMaxLifetime represents the maximum amount of time a connection may be reused.
+	ConnMaxLifetime time.Duration
+
+	// Connection represents the database connection details in a key/value pairs format.
+	Connection map[string]string
+
+	// Dialect represents the dialect of the configured database.
+	Dialect string
+}
+
 type SchedulingConfig struct {
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
-	Preemption       PreemptionConfig
+	// If true, schedule jobs across all executors in the same pool in a unified manner.
+	// Otherwise, schedule each executor separately.
+	UnifiedSchedulingByPool bool
+	Preemption              PreemptionConfig
 	// Number of jobs to load from the database at a time.
 	MaxQueueLookback uint
 	// In each invocation of the scheduler, no more jobs are scheduled once this limit has been exceeded.
@@ -153,6 +178,8 @@ type SchedulingConfig struct {
 	//
 	// Applies only to the new scheduler.
 	IndexedTaints []string
+	// Default value of GangNodeUniformityLabelAnnotation if none is provided.
+	DefaultGangNodeUniformityLabel string
 	// Kubernetes pods may specify a termination grace period.
 	// When Pods are cancelled/preempted etc., they are first sent a SIGTERM.
 	// If a pod has not exited within its termination grace period,
@@ -241,7 +268,7 @@ type PreemptionConfig struct {
 	// Map from priority class names to priority classes.
 	// Must be consistent with Kubernetes priority classes.
 	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
-	PriorityClasses map[string]PriorityClass
+	PriorityClasses map[string]types.PriorityClass
 	// Priority class assigned to pods that do not specify one.
 	// Must be an entry in PriorityClasses above.
 	DefaultPriorityClass string
@@ -249,23 +276,11 @@ type PreemptionConfig struct {
 	PriorityClassNameOverride *string
 }
 
-type PriorityClass struct {
-	Priority int32
-	// If true, Armada may preempt jobs of this class to improve fairness.
-	Preemptible bool
-	// Limits resources assigned to jobs of this priority class.
-	// Specifically, jobs of this priority class are only scheduled if doing so does not exceed this limit.
-	MaximumResourceFractionPerQueue map[string]float64
-	// Per-pool override of MaximumResourceFractionPerQueue.
-	// If missing for a particular pool, MaximumResourceFractionPerQueue is used instead for that pool.
-	MaximumResourceFractionPerQueueByPool map[string]map[string]float64
-}
-
 func (p PreemptionConfig) PriorityByPriorityClassName() map[string]int32 {
 	return PriorityByPriorityClassName(p.PriorityClasses)
 }
 
-func PriorityByPriorityClassName(priorityClasses map[string]PriorityClass) map[string]int32 {
+func PriorityByPriorityClassName(priorityClasses map[string]types.PriorityClass) map[string]int32 {
 	rv := make(map[string]int32, len(priorityClasses))
 	for name, pc := range priorityClasses {
 		rv[name] = pc.Priority
@@ -277,7 +292,7 @@ func (p PreemptionConfig) AllowedPriorities() []int32 {
 	return AllowedPriorities(p.PriorityClasses)
 }
 
-func AllowedPriorities(priorityClasses map[string]PriorityClass) []int32 {
+func AllowedPriorities(priorityClasses map[string]types.PriorityClass) []int32 {
 	rv := make([]int32, 0, len(priorityClasses))
 	for _, v := range priorityClasses {
 		rv = append(rv, v.Priority)

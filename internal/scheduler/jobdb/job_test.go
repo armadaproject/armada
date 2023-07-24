@@ -3,6 +3,7 @@ package jobdb
 import (
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
@@ -123,11 +124,11 @@ func TestJob_TestInTerminalState(t *testing.T) {
 
 func TestJob_TestHasRuns(t *testing.T) {
 	assert.Equal(t, false, baseJob.HasRuns())
-	assert.Equal(t, true, baseJob.WithNewRun("test-executor", "test-node").HasRuns())
+	assert.Equal(t, true, baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId").HasRuns())
 }
 
 func TestJob_TestWithNewRun(t *testing.T) {
-	jobWithRun := baseJob.WithNewRun("test-executor", "test-node")
+	jobWithRun := baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId")
 	assert.Equal(t, true, jobWithRun.HasRuns())
 	run := jobWithRun.LatestRun()
 	assert.NotNil(t, run)
@@ -136,7 +137,8 @@ func TestJob_TestWithNewRun(t *testing.T) {
 		jobId:    "test-job",
 		created:  run.created,
 		executor: "test-executor",
-		node:     "test-node",
+		nodeId:   "test-nodeId",
+		nodeName: "nodeId",
 	}, run)
 }
 
@@ -305,6 +307,33 @@ func TestJob_TestWithJobSchedulingInfo(t *testing.T) {
 	newJob := baseJob.WithJobSchedulingInfo(newSchedInfo)
 	assert.Equal(t, schedulingInfo, baseJob.JobSchedulingInfo())
 	assert.Equal(t, newSchedInfo, newJob.JobSchedulingInfo())
+}
+
+func TestJobSchedulingInfoFieldsInitialised(t *testing.T) {
+	infoWithNilFields := &schedulerobjects.JobSchedulingInfo{
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{},
+				},
+			},
+		},
+	}
+
+	infoWithNilFieldsCopy := proto.Clone(infoWithNilFields).(*schedulerobjects.JobSchedulingInfo)
+	assert.NotNil(t, infoWithNilFields.GetPodRequirements())
+	assert.Nil(t, infoWithNilFields.GetPodRequirements().NodeSelector)
+	assert.Nil(t, infoWithNilFields.GetPodRequirements().Annotations)
+
+	job := NewJob("test-job", "test-jobset", "test-queue", 2, infoWithNilFieldsCopy, true, 0, false, false, false, 3)
+	assert.NotNil(t, job.GetNodeSelector())
+	assert.NotNil(t, job.GetAnnotations())
+
+	// Copy again here, as the fields get mutated so we want a clean copy
+	infoWithNilFieldsCopy2 := proto.Clone(infoWithNilFields).(*schedulerobjects.JobSchedulingInfo)
+	updatedJob := baseJob.WithJobSchedulingInfo(infoWithNilFieldsCopy2)
+	assert.NotNil(t, updatedJob.GetNodeSelector())
+	assert.NotNil(t, updatedJob.GetAnnotations())
 }
 
 func TestJobPriorityComparer(t *testing.T) {

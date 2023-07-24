@@ -7,7 +7,7 @@ import (
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -71,21 +71,7 @@ func NewJob(
 	cancelled bool,
 	created int64,
 ) *Job {
-	// Initialise the annotation and nodeSelector maps if nil.
-	// Since those need to be mutated in-place.
-	if schedulingInfo != nil {
-		for _, req := range schedulingInfo.ObjectRequirements {
-			if podReq := req.GetPodRequirements(); podReq != nil {
-				if podReq.Annotations == nil {
-					podReq.Annotations = make(map[string]string)
-				}
-				if podReq.NodeSelector == nil {
-					podReq.NodeSelector = make(map[string]string)
-				}
-			}
-		}
-	}
-	return &Job{
+	job := &Job{
 		id:                      jobId,
 		jobset:                  jobset,
 		queue:                   queue,
@@ -99,6 +85,25 @@ func NewJob(
 		cancelled:               cancelled,
 		created:                 created,
 		runsById:                map[uuid.UUID]*JobRun{},
+	}
+	job.ensureJobSchedulingInfoFieldsInitialised()
+	return job
+}
+
+func (job *Job) ensureJobSchedulingInfoFieldsInitialised() {
+	// Initialise the annotation and nodeSelector maps if nil.
+	// Since those need to be mutated in-place.
+	if job.jobSchedulingInfo != nil {
+		for _, req := range job.jobSchedulingInfo.ObjectRequirements {
+			if podReq := req.GetPodRequirements(); podReq != nil {
+				if podReq.Annotations == nil {
+					podReq.Annotations = make(map[string]string)
+				}
+				if podReq.NodeSelector == nil {
+					podReq.NodeSelector = make(map[string]string)
+				}
+			}
+		}
 	}
 }
 
@@ -228,7 +233,7 @@ func (job *Job) PodRequirements() *schedulerobjects.PodRequirements {
 }
 
 // GetPodRequirements is needed for compatibility with interfaces.LegacySchedulerJob.
-func (job *Job) GetPodRequirements(_ map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
+func (job *Job) GetPodRequirements(_ map[string]types.PriorityClass) *schedulerobjects.PodRequirements {
 	return job.PodRequirements()
 }
 
@@ -333,13 +338,14 @@ func (job *Job) HasRuns() bool {
 }
 
 // WithNewRun creates a copy of the job with a new run on the given executor.
-func (job *Job) WithNewRun(executor string, node string) *Job {
+func (job *Job) WithNewRun(executor string, nodeId, nodeName string) *Job {
 	run := &JobRun{
 		id:       uuid.New(),
 		jobId:    job.id,
 		created:  time.Now().UnixNano(),
 		executor: executor,
-		node:     node,
+		nodeId:   nodeId,
+		nodeName: nodeName,
 	}
 	return job.WithUpdatedRun(run)
 }
@@ -421,6 +427,7 @@ func (job *Job) WithCreated(created int64) *Job {
 func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSchedulingInfo) *Job {
 	j := copyJob(*job)
 	j.jobSchedulingInfo = jobSchedulingInfo
+	j.ensureJobSchedulingInfoFieldsInitialised()
 	return j
 }
 

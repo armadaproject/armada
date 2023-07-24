@@ -86,7 +86,8 @@ export type JobRun = {
   jobId: string
   cluster: string
   node?: string
-  pending: string
+  leased?: string
+  pending?: string
   started?: string
   finished?: string
   jobRunState: JobRunState
@@ -129,7 +130,7 @@ export type JobFilter = {
 export type JobGroup = {
   name: string
   count: number
-  aggregates: Record<string, string | number>
+  aggregates: Record<string, string | number | Record<string, number>>
 }
 
 export type SortDirection = "ASC" | "DESC"

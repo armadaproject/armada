@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
@@ -68,7 +69,7 @@ func TestGetPodRequirements(t *testing.T) {
 			configuration.GangCardinalityAnnotation: "1",
 		},
 	}
-	actual := j.GetPodRequirements(map[string]configuration.PriorityClass{"armada-default": {Priority: int32(1)}})
+	actual := j.GetPodRequirements(map[string]types.PriorityClass{"armada-default": {Priority: int32(1)}})
 	assert.Equal(t, expected, actual)
 }
 

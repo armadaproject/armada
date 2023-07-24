@@ -111,8 +111,9 @@ func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, erro
 		} else if ok {
 			for _, jctx := range gctx.JobSchedulingContexts {
 				scheduledJobs = append(scheduledJobs, jctx.Job)
-				if jctx.PodSchedulingContext != nil && jctx.PodSchedulingContext.Node != nil {
-					nodeIdByJobId[jctx.JobId] = jctx.PodSchedulingContext.Node.Id
+				pctx := jctx.PodSchedulingContext
+				if pctx != nil && pctx.NodeId != "" {
+					nodeIdByJobId[jctx.JobId] = pctx.NodeId
 				}
 			}
 		} else if schedulerconstraints.IsTerminalUnschedulableReason(unschedulableReason) {
