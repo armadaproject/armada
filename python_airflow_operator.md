@@ -12,7 +12,7 @@ This class provides integration with Airflow and Armada
 ## armada.operators.armada module
 
 
-### _class_ armada.operators.armada.ArmadaOperator(name, armada_client, job_service_client, armada_queue, job_request_items, lookout_url_template=None, poll_interval=30, \*\*kwargs)
+### _class_ armada.operators.armada.ArmadaOperator(name, armada_channel_args, job_service_channel_args, armada_queue, job_request_items, lookout_url_template=None, poll_interval=30, \*\*kwargs)
 Bases: `BaseOperator`
 
 Implementation of an ArmadaOperator for airflow.
@@ -26,11 +26,12 @@ Airflow operators inherit from BaseOperator.
     * **name** (*str*) – The name of the airflow task
 
 
-    * **armada_client** (*ArmadaClient*) – The Armada Python GRPC client
-    that is used for interacting with Armada
+    * **armada_channel_args** (*GrpcChannelArgsDict*) – GRPC channel arguments to be used when creating
+    a grpc channel to connect to the armada server instance.
 
 
-    * **job_service_client** (*JobServiceClient*) – The JobServiceClient that is used for polling
+    * **job_service_channel_args** (*GrpcChannelArgsDict*) – GRPC channel arguments to be used when creating
+    a grpc channel to connect to the job service instance.
 
 
     * **armada_queue** (*str*) – The queue name for Armada.
@@ -289,103 +290,6 @@ Returns the information needed to reconstruct this Trigger.
 * **Return type**
 
     tuple
-
-
-
-### _class_ armada.operators.armada_deferrable.GrpcChannelArgsDict()
-Bases: `TypedDict`
-
-Helper class to provide stronger type checking on Grpc channel arugments.
-
-
-#### compression(_: Compression | Non_ )
-
-#### credentials(_: ChannelCredentials | Non_ )
-
-#### options(_: Sequence[Tuple[str, Any]] | Non_ )
-
-#### target(_: st_ )
-
-### _class_ armada.operators.armada_deferrable.GrpcChannelArguments(target, credentials=None, options=None, compression=None)
-Bases: `object`
-
-A Serializable GRPC Arguments Object.
-
-
-* **Parameters**
-
-    
-    * **target** (*str*) – Target keyword argument used
-    when instantiating a grpc channel.
-
-
-    * **credentials** (*ChannelCredentials** | **None*) – credentials keyword argument used
-    when instantiating a grpc channel.
-
-
-    * **options** (*Sequence**[**Tuple**[**str**, **Any**]**] **| **None*) – options keyword argument used
-    when instantiating a grpc channel.
-
-
-    * **compression** (*Compression** | **None*) – compression keyword argument used
-    when instantiating a grpc channel.
-
-
-
-* **Returns**
-
-    a GrpcChannelArguments instance
-
-
-
-#### aio_channel()
-Create a grpc.aio.Channel (asyncio) based on arguments supplied to this object.
-
-
-* **Returns**
-
-    Return grpc.aio.insecure_channel if credentials is None. Otherwise
-    returns grpc.aio.secure_channel.
-
-
-
-* **Return type**
-
-    *Channel*
-
-
-
-#### channel()
-Create a grpc.Channel based on arguments supplied to this object.
-
-
-* **Returns**
-
-    Return grpc.insecure_channel if credentials is None. Otherwise
-    returns grpc.secure_channel.
-
-
-
-* **Return type**
-
-    *Channel*
-
-
-
-#### serialize()
-Get a serialized version of this object.
-
-
-* **Returns**
-
-    A dict of keyword arguments used when calling
-    a grpc channel or instantiating this object.
-
-
-
-* **Return type**
-
-    dict
 
 
 ## armada.operators.jobservice module
