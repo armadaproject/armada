@@ -169,15 +169,12 @@ archives:
   - id: kubectl-armadactl
     builds:
       - armadactl
+    binary: kubectl-armadactl
     allow_different_binary_count: true
     name_template: 'kubectl-armadactl_{{ replace .Version "-" "_" }}_{{ .Os }}_{{ .Arch }}'
     format_overrides:
       - goos: windows
         format: zip
-    rename:
-      # Here, we specify the desired filename for the new archive.
-      - binary: armadactl
-        to: kubectl-armadactl
     files:
       - LICENSE
 
