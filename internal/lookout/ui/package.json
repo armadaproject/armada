@@ -36,7 +36,7 @@
     "@types/react-dom": "^16.9.9",
     "@types/react-virtualized": "^9.21.10",
     "@types/uuid": "^8.3.0",
-    "@typescript-eslint/eslint-plugin": "^5.52.0",
+    "@typescript-eslint/eslint-plugin": "^5.61.0",
     "@typescript-eslint/parser": "^5.52.0",
     "@visx/mock-data": "^1.0.0",
     "@visx/stats": "^1.4.0",
