@@ -446,11 +446,11 @@ setup-cluster:
 	kind create cluster --config e2e/setup/kind.yaml
 
 	# Load images necessary for tests.
-	docker pull "alpine:3.10" # used for e2e tests
+	docker pull "alpine:3.14" # used for e2e tests
 	docker pull "nginx:1.21.6" # used for e2e tests (ingress)
 	docker pull "registry.k8s.io/ingress-nginx/controller:v1.4.0"
 	docker pull "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343"
-	kind load docker-image "alpine:3.10" --name armada-test
+	kind load docker-image "alpine:3.14" --name armada-test
 	kind load docker-image "nginx:1.21.6" --name armada-test
 	kind load docker-image "registry.k8s.io/ingress-nginx/controller:v1.4.0" --name armada-test
 	kind load docker-image "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343" --name armada-test

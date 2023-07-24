@@ -354,7 +354,7 @@ func createJobRequest(namespace string, args []string) *api.JobSubmitRequest {
 					Containers: []v1.Container{
 						{
 							Name:    "container1",
-							Image:   "alpine:3.10",
+							Image:   "alpine:3.14",
 							Command: []string{"/bin/sh", "-c"},
 							Args:    args,
 							Resources: v1.ResourceRequirements{
