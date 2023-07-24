@@ -24,7 +24,7 @@
     "@material-ui/lab": "^4.0.0-alpha.58",
     "@mui/icons-material": "^5.10.16",
     "@mui/lab": "^5.0.0-alpha.111",
-    "@mui/material": "^5.10.17",
+    "@mui/material": "^5.13.6",
     "@tanstack/react-table": "^8.7.0",
     "@testing-library/jest-dom": "^5.11.5",
     "@testing-library/react": "^12.1.5",
