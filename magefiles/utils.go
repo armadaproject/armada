@@ -18,9 +18,6 @@ func binaryWithExt(name string) string {
 }
 
 func checkOs() string {
-	if runtime.GOOS == "windows" {
-		return "windows"
-	}
 	return runtime.GOOS
 }
 
