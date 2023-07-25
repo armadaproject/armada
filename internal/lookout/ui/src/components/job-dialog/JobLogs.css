@@ -2,6 +2,8 @@
   white-space: pre-wrap;
   max-height: 800px;
   font-family: monospace;
+  border:1px solid #000000;
+  padding:10px 0 0 10px;
 }
 
 .job-logs-options {
