@@ -1,15 +1,15 @@
 .job-logs {
   white-space: nowrap;
+
+
   max-height: 800px;
+  min-height:250px;
   font-family: monospace;
   border:1px solid #000000;
   padding:10px 0 0 10px;
   overflow-x: auto;
 }
-/* .job-logs p{
-  max-width: 300px;
 
-} */
 .job-logs-options {
   display: flex;
   flex-direction: row;
