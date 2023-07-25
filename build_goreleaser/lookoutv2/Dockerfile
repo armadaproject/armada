@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=alpine:3.18.2.0
+ARG BASE_IMAGE=alpine:3.18.0
 FROM ${BASE_IMAGE}
 RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
 LABEL org.opencontainers.image.title=lookoutv2

@@ -21,7 +21,7 @@ const (
 
 func getImages() []string {
 	images := []string{
-		"alpine:3.18.2",
+		"alpine:3.18",
 		"nginx:1.21.6",
 		"registry.k8s.io/ingress-nginx/controller:v1.4.0",
 		"registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343",

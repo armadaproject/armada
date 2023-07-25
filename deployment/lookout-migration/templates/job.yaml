@@ -25,7 +25,7 @@ spec:
       {{- end }}
       initContainers:
         - name: db-wait
-          image: alpine:3.18.2
+          image: alpine:3.18
           command:
             - /bin/sh
             - -c
