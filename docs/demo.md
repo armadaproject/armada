@@ -25,6 +25,7 @@ cd armada
 All commands are intended to be run from the root of the repository.
 
 ## Setup an easy-to-use alias
+If you are on a Windows System, use a linux-supported terminal to run this command, for example [Git Bash](https://git-scm.com/downloads) or [Hyper](https://hyper.is/)
 ```bash
 alias armadactl='go run cmd/armadactl/main.go --armadaUrl armada.demo.armadaproject.io:443'
 ```
@@ -33,6 +34,7 @@ alias armadactl='go run cmd/armadactl/main.go --armadaUrl armada.demo.armadaproj
 Create queues, submit some jobs, and monitor progress:
 
 ### Queue Creation
+Change the name of the queue to something unique (`queue-a` and `queue-b`). You would need these names in next steps for Job Submission.
 ```bash
 armadactl create queue queue-a --priorityFactor 1
 armadactl create queue queue-b --priorityFactor 2
@@ -51,10 +53,21 @@ armadactl create -f ./docs/quickstart/queue-a.yaml
 armadactl create -f ./docs/quickstart/queue-b.yaml
 ```
 
+Make sure to manually edit both of these `yaml` files using a code or text editor before running the commands above. For demo purpose, you only need to change the following line. Use a easy and unique name as it would be required in the next steps.
+
+```
+name: queue-a
+```
+
 ### Job Submission
 ```
 armadactl submit ./docs/quickstart/job-queue-a.yaml
 armadactl submit ./docs/quickstart/job-queue-b.yaml
+```
+
+Make sure to manually edit both of these `yaml` files using a code or text editor before running the commands above. The following line need to be changed with the name of each queue you created in the previous steps.
+```
+queue: queue-a
 ```
 
 ### Monitor Job Progress
@@ -65,16 +78,38 @@ armadactl watch queue-a job-set-1
 ```bash
 armadactl watch queue-b job-set-1
 ```
+Again, you need to change the `queue-a` and `queue-b` to the names you kept in previous steps.
 
 Try submitting lots of jobs and see queues get built and processed:
 
-```bash
+#### Windows (using Git Bash):
+
+Open a text editor like Notepad.
+Copy and paste the following lines into the text editor:
+```
+#!/bin/bash
+
 for i in {1..50}
 do
   armadactl submit ./docs/quickstart/job-queue-a.yaml
   armadactl submit ./docs/quickstart/job-queue-b.yaml
 done
 ```
+Save the file with a ".sh" extension (e.g., myscript.sh) in the root directory of the project.
+Open Git Bash, navigate to the project's directory using the 'cd' command, and then run the script by typing ./myscript.sh and pressing Enter.
+
+#### Linux:
+
+Open a text editor (e.g., Nano or Vim) in the terminal and create a new file by running: nano myscript.sh (replace "nano" with your preferred text editor if needed).
+Copy and paste the script content from above into the text editor.
+Save the file and exit the text editor.
+Make the script file executable by running: chmod +x myscript.sh.
+Run the script by typing ./myscript.sh in the terminal and pressing Enter.
+
+#### macOS:
+
+Follow the same steps as for Linux, as macOS uses the Bash shell by default.
+With this approach, you create a shell script file that contains your multi-line script, and you can run it as a whole by executing the script file in the terminal.
 
 ## Observing job progress
 
