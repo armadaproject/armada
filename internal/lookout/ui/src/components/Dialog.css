@@ -1,7 +1,7 @@
 .lookout-dialog {
   display: flex;
   flex-direction: column;
-  padding: 0 4em 1em 4em !important;
+  padding: 0 3em 1em 3em !important;
   overflow-y: hidden !important;
 }
 
@@ -29,4 +29,10 @@
 
 .MuiDialog-scrollPaper {
     align-items: baseline !important;
+}
+
+@media screen and (max-width:750px) {
+  .lookout-dialog {
+    padding: 0 0.5em 1em 0.5em !important;
+  }
 }

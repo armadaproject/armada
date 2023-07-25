@@ -1,0 +1,22 @@
+.header-job-log-divider{
+  display:none;
+}
+
+@media screen and (max-width:550px) {
+
+  .header-job-log{
+    display:flex;
+    align-items: center;
+    gap:1em;
+  }
+
+  .header-job-log h4{
+    display:flex;
+    align-items: center;
+    gap:0.5em;
+  }
+
+  .header-job-log-divider{
+    display: flex;
+  }
+}

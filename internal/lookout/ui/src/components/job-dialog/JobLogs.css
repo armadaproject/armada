@@ -11,6 +11,9 @@
   flex-direction: row;
   margin-top: 0.5em;
   align-items: center;
+  flex: 0 1 auto;
+  margin-left: 0.5em;
+  margin-right: 0.5em;
 }
 
 .job-logs-option{
@@ -24,13 +27,40 @@
   gap:2.5em;
 }
 
-.job-logs-option .css-1kb1p32-MuiButtonBase-root-MuiButton-root{
+.job-logs-options .css-1kb1p32-MuiButtonBase-root-MuiButton-root{
 height: 45px !important;
-align-self: center;
+min-width: 180px !important;
 }
 
-/* .job-logs-option {
-  flex: 0 1 auto;
-  margin-left: 0.5em;
-  margin-right: 0.5em;
-} */
+
+@media screen and (max-width:990px) {
+  .job-logs-options {
+    flex-direction: column;
+    gap:3em;
+    align-items: flex-start;
+  }
+
+  .job-logs-option, .job-logs-option-group{
+    gap:3em;
+  }
+}
+
+@media screen and (max-width:750px) {
+  .job-logs-option{
+    flex-direction: column;
+  }
+
+  .job-logs-option-group{
+    justify-content: space-between;
+    display:grid;
+    grid-column-gap: 0.5em;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  }
+}
+
+
+@media screen and (max-width:550px) {
+  .job-logs-options, .job-logs-option, .job-logs-option-group{
+      gap:0.3em
+  }
+}

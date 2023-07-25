@@ -52,9 +52,8 @@ export default function JobLogs(props: JobLogsProps) {
                <JobLogsHeader header='Command' headerValue= {container} />
                </span>
             ))}
-            <JobLogsLoadMoreBtn text='Load from start'/>
-
         </div>
+        <JobLogsLoadMoreBtn text='Load from start'/>
       </div>
       {!props.error && (
         <>
