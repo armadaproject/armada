@@ -12,7 +12,7 @@ task:
   utilisationReportingInterval: 1s
   missingJobEventReconciliationInterval: 15s
   jobLeaseRenewalInterval: 15s
-  podIssueHandlingInterval: 5s
+  podIssueHandlingInterval: 10s
   podDeletionInterval: 5s
   resourceCleanupInterval: 15s
   allocateSpareClusterCapacityInterval: 5s

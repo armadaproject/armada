@@ -12,7 +12,7 @@ This class provides integration with Airflow and Armada
 ## armada.operators.armada module
 
 
-### _class_ armada.operators.armada.ArmadaOperator(name, armada_client, job_service_client, armada_queue, job_request_items, lookout_url_template=None, poll_interval=30, \*\*kwargs)
+### _class_ armada.operators.armada.ArmadaOperator(name, armada_channel_args, job_service_channel_args, armada_queue, job_request_items, lookout_url_template=None, poll_interval=30, \*\*kwargs)
 Bases: `BaseOperator`
 
 Implementation of an ArmadaOperator for airflow.
@@ -26,11 +26,12 @@ Airflow operators inherit from BaseOperator.
     * **name** (*str*) – The name of the airflow task
 
 
-    * **armada_client** (*ArmadaClient*) – The Armada Python GRPC client
-    that is used for interacting with Armada
+    * **armada_channel_args** (*GrpcChannelArgsDict*) – GRPC channel arguments to be used when creating
+    a grpc channel to connect to the armada server instance.
 
 
-    * **job_service_client** (*JobServiceClient*) – The JobServiceClient that is used for polling
+    * **job_service_channel_args** (*GrpcChannelArgsDict*) – GRPC channel arguments to be used when creating
+    a grpc channel to connect to the job service instance.
 
 
     * **armada_queue** (*str*) – The queue name for Armada.
@@ -243,6 +244,7 @@ Returns the information needed to reconstruct this Trigger.
 
 
 
+
 ### _class_ armada.operators.armada_deferrable.GrpcChannelArgsDict()
 Bases: `TypedDict`
 
@@ -367,6 +369,8 @@ insecure_
 ```
 
 }channel or instantiating this object.
+
+=======
 
 ## armada.operators.jobservice module
 
