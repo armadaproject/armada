@@ -34,7 +34,7 @@ alias armadactl='go run cmd/armadactl/main.go --armadaUrl armada.demo.armadaproj
 Create queues, submit some jobs, and monitor progress:
 
 ### Queue Creation
-Change the name of the queue to something unique (`queue-a` and `queue-b`). You would need these names in next steps for Job Submission.
+Change the name of the queue to something unique instead of `queue-a` and `queue-b`. You would need these names in next steps for Job Submission.
 ```bash
 armadactl create queue queue-a --priorityFactor 1
 armadactl create queue queue-b --priorityFactor 2
