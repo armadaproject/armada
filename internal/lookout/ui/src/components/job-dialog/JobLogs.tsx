@@ -57,7 +57,11 @@ export default function JobLogs(props: JobLogsProps) {
       </div>
       {!props.error && (
         <>
-          <p className="lookout-dialog-varying job-logs">{props.log.map((l) => l.line).join("\n")}</p>
+          <p className="lookout-dialog-varying job-logs">
+            {props.log.map((l) => <p key={l?.timestamp}>
+                {l.line}
+            </p>
+            )}</p>
           <div className="lookout-dialog-centered lookout-dialog-fixed">
             <Button onClick={props.onLoadMoreClick}>Load more</Button>
           </div>

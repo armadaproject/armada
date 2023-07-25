@@ -1,11 +1,15 @@
 .job-logs {
-  white-space: pre-wrap;
+  white-space: nowrap;
   max-height: 800px;
   font-family: monospace;
   border:1px solid #000000;
   padding:10px 0 0 10px;
+  overflow-x: auto;
 }
+/* .job-logs p{
+  max-width: 300px;
 
+} */
 .job-logs-options {
   display: flex;
   flex-direction: row;
@@ -33,6 +37,7 @@ min-width: 180px !important;
 }
 
 
+/* Tablet View */
 @media screen and (max-width:990px) {
   .job-logs-options {
     flex-direction: column;
@@ -59,6 +64,7 @@ min-width: 180px !important;
 }
 
 
+/* Mobile View */
 @media screen and (max-width:550px) {
   .job-logs-options, .job-logs-option, .job-logs-option-group{
       gap:0.3em
