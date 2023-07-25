@@ -52,7 +52,7 @@ var loadtestCmd = &cobra.Command{
 			  containers:
 				- name: sleep
 				  imagePullPolicy: IfNotPresent
-				  image: alpine:3.17
+				  image: alpine:3.18.2
 				  command:
 					- sh
 				  args:

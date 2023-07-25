@@ -32,7 +32,7 @@ builds:
     id: server
     binary: server
     main: ./cmd/armada/main.go
-    mod_timestamp: '{{ .CommitTimestamp }}'
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
     goarch:
@@ -41,7 +41,7 @@ builds:
     id: executor
     binary: executor
     main: ./cmd/executor/main.go
-    mod_timestamp: '{{ .CommitTimestamp }}'
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
     goarch:
@@ -50,7 +50,7 @@ builds:
     id: binoculars
     binary: binoculars
     main: ./cmd/binoculars/main.go
-    mod_timestamp: '{{ .CommitTimestamp }}'
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
     goarch:
@@ -59,7 +59,7 @@ builds:
     id: lookout
     binary: lookout
     main: ./cmd/lookout/main.go
-    mod_timestamp: '{{ .CommitTimestamp }}'
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
     goarch:
@@ -68,7 +68,7 @@ builds:
     id: lookoutv2
     binary: lookoutv2
     main: ./cmd/lookoutv2/main.go
-    mod_timestamp: '{{ .CommitTimestamp }}'
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
     goarch:
@@ -77,7 +77,7 @@ builds:
     id: lookoutingester
     binary: lookoutingester
     main: ./cmd/lookoutingester/main.go
-    mod_timestamp: '{{ .CommitTimestamp }}'
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
     goarch:
@@ -86,7 +86,7 @@ builds:
     id: lookoutingesterv2
     binary: lookoutingesterv2
     main: ./cmd/lookoutingesterv2/main.go
-    mod_timestamp: '{{ .CommitTimestamp }}'
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
     goarch:
@@ -95,7 +95,7 @@ builds:
     id: eventingester
     binary: eventingester
     main: ./cmd/eventingester/main.go
-    mod_timestamp: '{{ .CommitTimestamp }}'
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
     goarch:
@@ -104,7 +104,7 @@ builds:
     id: scheduler
     binary: scheduler
     main: ./cmd/scheduler/main.go
-    mod_timestamp: '{{ .CommitTimestamp }}'
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
     goarch:
@@ -113,7 +113,7 @@ builds:
     id: scheduleringester
     binary: scheduleringester
     main: ./cmd/scheduleringester/main.go
-    mod_timestamp: '{{ .CommitTimestamp }}'
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
     goarch:
@@ -122,7 +122,7 @@ builds:
     id: jobservice
     binary: jobservice
     main: ./cmd/jobservice/main.go
-    mod_timestamp: '{{ .CommitTimestamp }}'
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
     goarch:
@@ -131,7 +131,7 @@ builds:
     id: fakeexecutor
     binary: fakeexecutor
     main: ./cmd/fakeexecutor/main.go
-    mod_timestamp: '{{ .CommitTimestamp }}'
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
     goarch:
@@ -140,7 +140,7 @@ builds:
     id: armadactl
     binary: armadactl
     main: ./cmd/armadactl/main.go
-    mod_timestamp: '{{ .CommitTimestamp }}'
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - windows
       - darwin
@@ -170,7 +170,7 @@ archives:
 universal_binaries:
   - replace: true
     id: armadactl
-    name_template: 'armadactl'
+    name_template: "armadactl"
 
 sboms:
   - artifacts: archive
@@ -196,7 +196,7 @@ dockers:
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
-      - --label=org.opencontainers.image.base.name=alpine:3.17.0
+      - --label=org.opencontainers.image.base.name=alpine:3.18.2.0
       - --label=org.opencontainers.image.base.digest=c0d488a800e4
       - --label=org.opencontainers.image.licenses=Apache-2.0
       - --label=org.opencontainers.image.vendor=G-Research
@@ -473,28 +473,27 @@ dockers:
     dockerfile: ./build_goreleaser/armadactl/Dockerfile
 
 changelog:
-  use:
-    github
+  use: github
   sort: asc
   abbrev: 0
   groups: # Regex use RE2 syntax as defined here: https://github.com/google/re2/wiki/Syntax.
-    - title: 'Features'
+    - title: "Features"
       regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
       order: 100
-    - title: 'Bug fixes'
+    - title: "Bug fixes"
       regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
       order: 200
-    - title: 'Documentation'
+    - title: "Documentation"
       regexp: '^.*?docs(\([[:word:]]+\))??!?:.+$'
       order: 300
-    - title: 'Dependency updates'
+    - title: "Dependency updates"
       regexp: '^.*?(feat|fix|chore)\(deps?.+\)!?:.+$'
       order: 400
-    - title: 'Other work'
+    - title: "Other work"
       order: 999
   filters:
     exclude:
-      - '^test:'
+      - "^test:"
       - '^.*?Bump(\([[:word:]]+\))?.+$'
 
 checksum:
