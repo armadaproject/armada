@@ -1,7 +1,7 @@
 numBatches: 1
 batchSize: 10
 queue: e2e-test-queue
-jobSetId: job-set-1
+jobSetId: gang-erFgiHqvCC9zYLGtHWrCPn
 randomClientId: true
 jobs:
   - priority: 0

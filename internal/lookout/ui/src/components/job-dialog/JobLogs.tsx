@@ -9,6 +9,10 @@ import { LogLine } from "../../services/LogService"
 
 import "./JobLogs.css"
 import "../Dialog.css"
+import JobLogsHeader from "./JobLogsHeader"
+import JobLogsLoadMoreBtn from "./JobLogsLoadMoreBtn";
+
+
 
 type JobLogsProps = {
   job: Job
@@ -36,59 +40,20 @@ export default function JobLogs(props: JobLogsProps) {
     <div className="lookout-dialog-container">
       <div className="lookout-dialog-fixed job-logs-options">
         <div className="job-logs-option">
-          <FormControl>
-            <InputLabel>Job Run</InputLabel>
-            <Select
-              value={props.runIndex}
-              onChange={(e) => {
-                const index = e.target.value as number
-                props.onRunIndexChange(index)
-                props.onContainerChange(getContainer(index, 0))
-              }}
-            >
-              {props.job.runs?.map((run, i) => (
-                <MenuItem value={i} key={i}>
-                  {run.cluster} pod {run.podNumber} (start: {run.podStartTime})
-                </MenuItem>
+          {props.job.runs?.map((run, i) => (
+              <section key={i} className="job-logs-option-group">
+              <JobLogsHeader header='Cluster' headerValue={run?.cluster} />
+              <JobLogsHeader header='Pod number' headerValue={run?.podNumber} />
+              <JobLogsHeader header='Start time' headerValue= {run?.podStartTime} />
+              </section>
               ))}
-            </Select>
-          </FormControl>
-        </div>
-        <div className="job-logs-option">
-          <FormControl>
-            <InputLabel>Container</InputLabel>
-            {
-              <Select
-                value={props.container}
-                onChange={(e) => {
-                  const container = e.target.value as string
-                  props.onContainerChange(container)
-                }}
-              >
-                {getContainersForRun(props.job, props.runIndex).map((container) => (
-                  <MenuItem value={container} key={container}>
-                    {container}
-                  </MenuItem>
-                ))}
-              </Select>
-            }
-          </FormControl>
-        </div>
-        <div className="job-logs-option">
-          <FormControl>
-            <FormControlLabel
-              className="no-label"
-              label="Load from start"
-              control={
-                <Checkbox
-                  checked={props.loadFromStart}
-                  onChange={(e) => {
-                    props.onLoadFromStartChange(e.target.checked)
-                  }}
-                />
-              }
-            />
-          </FormControl>
+          {getContainersForRun(props.job, props.runIndex).map((container) => (
+               <span key={container}>
+               <JobLogsHeader header='Command' headerValue= {container} />
+               </span>
+            ))}
+            <JobLogsLoadMoreBtn text='Load from start'/>
+
         </div>
       </div>
       {!props.error && (

@@ -13,8 +13,24 @@
   align-items: center;
 }
 
-.job-logs-option {
+.job-logs-option{
+  display: flex;
+  gap:2.5em;
+  width:100%;
+}
+
+.job-logs-option-group{
+  display: flex;
+  gap:2.5em;
+}
+
+.job-logs-option .css-1kb1p32-MuiButtonBase-root-MuiButton-root{
+height: 45px !important;
+align-self: center;
+}
+
+/* .job-logs-option {
   flex: 0 1 auto;
   margin-left: 0.5em;
   margin-right: 0.5em;
-}
+} */
