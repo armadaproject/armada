@@ -8,7 +8,7 @@ import (
 
 // Create golang code to build the UI
 func yarnBinary() string {
-	return binaryWithExt("yarn")
+	return "yarn"
 }
 
 func yarnRun(args ...string) error {
