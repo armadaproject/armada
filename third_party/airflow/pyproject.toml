@@ -1,6 +1,6 @@
 [project]
 name = "armada_airflow"
-version = "0.5.0"
+version = "0.5.1"
 description = "Armada Airflow Operator"
 requires-python = ">=3.7"
 # Note(JayF): This dependency value is not suitable for release. Whatever
