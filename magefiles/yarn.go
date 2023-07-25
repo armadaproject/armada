@@ -32,7 +32,7 @@ func yarnInstall() error {
 }
 
 func yarnOpenAPI() error {
-	if checkOs() == "windows" {
+	if onWindows() {
 		return yarnRun("run", "openapi:win")
 	}
 	return yarnRun("run", "openapi")

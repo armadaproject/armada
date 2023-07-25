@@ -17,10 +17,6 @@ func binaryWithExt(name string) string {
 	return name
 }
 
-func checkOs() string {
-	return runtime.GOOS
-}
-
 func copy(srcPath, dstPath string) error {
 	if err := os.MkdirAll(filepath.Dir(dstPath), os.ModeDir|0o755); err != nil {
 		return err
@@ -50,6 +46,11 @@ func set[S ~[]E, E comparable](s S) map[E]bool {
 // Check if the user is on an arm system
 func onArm() bool {
 	return runtime.GOARCH == "arm64"
+}
+
+// Check if the user is on a windows system
+func onWindows() bool {
+	return runtime.GOOS == "windows"
 }
 
 // Validates that arg is one of validArgs.
