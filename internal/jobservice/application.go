@@ -38,12 +38,30 @@ var DefaultConfiguration = &configuration.JobServiceConfiguration{
 		InitialConnections: 5,
 		Capacity:           5,
 	},
-	SubscriberPoolSize: 30,
+	SubscriberPoolSize:     30,
+	SubscriptionExpirySecs: 300,
+	PurgeJobSetTime:        600,
 }
 
 // Mutates config where possible to correct mis-configurations.
 func RectifyConfig(config *configuration.JobServiceConfiguration) {
 	logger := log.WithField("JobService", "RectifyConfig")
+
+	if config.SubscriptionExpirySecs == 0 {
+		logger.WithFields(log.Fields{
+			"default":    DefaultConfiguration.SubscriptionExpirySecs,
+			"configured": config.SubscriptionExpirySecs,
+		}).Warn("config.SubscriptionExpirySecs invalid, using default instead")
+		config.SubscriptionExpirySecs = DefaultConfiguration.SubscriptionExpirySecs
+	}
+
+	if config.PurgeJobSetTime == 0 {
+		logger.WithFields(log.Fields{
+			"default":    DefaultConfiguration.PurgeJobSetTime,
+			"configured": config.PurgeJobSetTime,
+		}).Warn("config.PurgeJobSetTime invalid, using default instead")
+		config.PurgeJobSetTime = DefaultConfiguration.PurgeJobSetTime
+	}
 
 	// Grpc Pool
 	if config.GrpcPool.InitialConnections <= 0 {
