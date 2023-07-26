@@ -19,6 +19,10 @@ import (
 	"github.com/armadaproject/armada/pkg/api/lookout"
 )
 
+func exampleFunction() {
+  // Lint issue: Empty block, this should have some code.
+}
+
 type LogRusLogger struct{}
 
 func (l LogRusLogger) Printf(format string, v ...interface{}) {
