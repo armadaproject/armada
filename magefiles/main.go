@@ -151,7 +151,10 @@ func LocalDev(arg string) error {
 		os.Setenv("ARMADA_COMPONENTS", "executor,server")
 		mg.Deps(StartComponents)
 	case "minimal-pulsar":
-		os.Setenv("ARMADA_COMPONENTS", "executor-pulsar,server-pulsar,postgresPulsarMigration,scheduler,scheduleringester")
+		// This 20s sleep is to remedy an issue caused by pods coming up too fast after pulsar
+		// TODO: Deal with this internally somehow?
+		time.Sleep(20 * time.Second)
+		os.Setenv("ARMADA_COMPONENTS", "executor-pulsar,server-pulsar,scheduler,scheduleringester")
 		mg.Deps(StartComponents)
 	case "debug":
 		fmt.Println("Dependencies started, ending localdev...")

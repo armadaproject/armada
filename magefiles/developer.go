@@ -10,7 +10,7 @@ import (
 
 var services = []string{"pulsar", "redis", "postgres"}
 
-var componentsStr string = "server,lookout,lookoutingester,lookoutv2,lookoutingesterv2,executor,binoculars,eventingester,jobservice,scheduler,scheduleringester"
+var componentsStr string = "server,lookout,lookoutingester,lookoutv2,lookoutingesterv2,executor,binoculars,eventingester,jobservice"
 
 func getComposeFile() string {
 	if os.Getenv("COMPOSE_FILE") != "" {
@@ -68,6 +68,11 @@ func StartComponents() error {
 func StopComponents() error {
 	composeFile := getComposeFile()
 	components := getComponentsList()
+
+	// Adding the pulsar components here temporarily so that they can be stopped without
+	// adding them to the full run (which is still on legacy scheduler)
+	// TODO: remove this when pulsar backed scheduler is the default
+	components = append(components, "server-pulsar", "executor-pulsar", "scheduler", "scheduleringester")
 
 	componentsArg := append([]string{"compose", "-f", composeFile, "stop"}, components...)
 	if err := dockerRun(componentsArg...); err != nil {

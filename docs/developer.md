@@ -127,6 +127,8 @@ mage LocalDev minimal-pulsar
 Ensure your local dev environment is completely torn down when switching between pulsar backed and legacy
 setups.
 
+If the eventsingester or the scheduleringester don't come up then just manually spin them up with `docker-compose up`.
+
 ## Debugging
 
 The mage target `mage debug` supports multiple methods for debugging, and runs the appropriate parts of localdev as required.

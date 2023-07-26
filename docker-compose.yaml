@@ -100,6 +100,8 @@ services:
       - ./developer/config/insecure-armada.yaml:/config/insecure-armada.yaml
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
+    depends_on:
+      - postgresPulsarMigration
     working_dir: /app
     env_file:
       - ./developer/env/scheduler.env
