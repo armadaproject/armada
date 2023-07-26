@@ -306,11 +306,11 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*jobdb.Job, error) {
 	}
 
 	jobsToUpdate := maps.Values(jobsToUpdateById)
-	err = s.jobDb.BatchDelete(txn, jobsToDelete)
+	err = s.jobDb.Upsert(txn, jobsToUpdate)
 	if err != nil {
 		return nil, err
 	}
-	err = s.jobDb.Upsert(txn, jobsToUpdate)
+	err = s.jobDb.BatchDelete(txn, jobsToDelete)
 	if err != nil {
 		return nil, err
 	}

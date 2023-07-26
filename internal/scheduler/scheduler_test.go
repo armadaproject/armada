@@ -734,20 +734,28 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			expectedJobDbIds: []string{queuedJob.Id()},
 		},
 		"job succeeded": {
-			initialJobs: []*jobdb.Job{queuedJob},
+			initialJobs: []*jobdb.Job{leasedJob},
 			jobUpdates: []database.Job{
 				{
-					JobID:          queuedJob.Id(),
-					JobSet:         queuedJob.Jobset(),
-					Queue:          queuedJob.Queue(),
-					Submitted:      queuedJob.Created(),
-					Priority:       int64(queuedJob.Priority()),
+					JobID:          leasedJob.Id(),
+					JobSet:         leasedJob.Jobset(),
+					Queue:          leasedJob.Queue(),
+					Submitted:      leasedJob.Created(),
+					Priority:       int64(leasedJob.Priority()),
 					SchedulingInfo: schedulingInfoBytes,
 					Succeeded:      true,
 					Serial:         1,
 				},
 			},
-			expectedUpdatedJobs: []*jobdb.Job{},
+			runUpdates: []database.Run{
+				{
+					RunID:     leasedJob.LatestRun().Id(),
+					JobID:     leasedJob.LatestRun().JobId(),
+					JobSet:    leasedJob.GetJobSet(),
+					Succeeded: true,
+				},
+			},
+			expectedUpdatedJobs: []*jobdb.Job{leasedJob.WithUpdatedRun(leasedJob.LatestRun().WithSucceeded(true))},
 			expectedJobDbIds:    []string{},
 		},
 		"job requeued": {
