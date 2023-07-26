@@ -160,17 +160,17 @@ jobs:
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             chmod +x kubectl
             mv kubectl /home/circleci/bin/
-            make download # no-op if we restored from cache
+            go run github.com/magefile/mage@v1.14.0 -v download
 
       - run:
           name: Build
           command: |
-            make build-ci
-            make build-docker-full-bundle
+            go run github.com/magefile/mage@v1.14.0 -v buildCI
+            go run github.com/magefile/mage@v1.14.0 -v buildDockers full-bundle
 
       - run:
           name: e2e test environment setup
-          command: make tests-e2e-setup
+          command: go run github.com/magefile/mage@v1.14.0 -v teste2eSetup
 
       - run:
           name: Enable integration tests
@@ -178,15 +178,15 @@ jobs:
 
       - run:
           name: e2e tests
-          command: make tests-e2e-no-setup
+          command: go run github.com/magefile/mage@v1.14.0 -v testse2eNoSetup
 
       - run:
           name: e2e test environment teardown
-          command: make tests-e2e-teardown
+          command: go run github.com/magefile/mage@v1.14.0 -v testse2eTearDown
 
       - run:
           name: Prepare reports
-          command: make junit-report
+          command: go run github.com/magefile/mage@v1.14.0 -v junitReport
           when: always
 
       - store_test_results:
@@ -288,7 +288,7 @@ jobs:
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             chmod +x kubectl
             sudo mv kubectl /usr/local/bin/
-            make download # no-op if we restored from cache
+            go run github.com/magefile/mage@v1.14.0 -v download
 
       - run:
           name: Build armadactl release artifacts
@@ -429,7 +429,7 @@ jobs:
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             chmod +x kubectl
             sudo mv kubectl /usr/local/bin/
-            make download # no-op if we restored from cache
+            go run github.com/magefile/mage@v1.14.0 -v download # no-op if we restored from cache
 
       - run:
           name: Push dotnet clients to nuget
@@ -440,7 +440,7 @@ jobs:
             go mod download
             go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
             go run github.com/magefile/mage@v1.14.0 -v proto
-            RELEASE_TAG=${CIRCLE_TAG#"v"} make push-nuget
+            RELEASE_TAG=${CIRCLE_TAG#"v"} go run github.com/magefile/mage@v1.14.0 -v pushNuget
 
       - store_artifacts:
           path: bin/client/DotNet

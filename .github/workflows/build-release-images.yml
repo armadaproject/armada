@@ -17,12 +17,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3.3.0
       - uses: ./.github/workflows/go-setup
-      - run: make build-ci
-      - run: make tests-e2e-setup
-      - run: make tests-e2e-no-setup
+      - run: go run github.com/magefile/mage@v1.14.0 -v BuildCI
+      - run: go run github.com/magefile/mage@v1.14.0 -v teste2eSetup
+      - run: go run github.com/magefile/mage@v1.14.0 -v testse2eNoSetup
         env:
           INTEGRATION_ENABLED: true
-      - run: make junit-report
+      - run: go run github.com/magefile/mage@v1.14.0 -v junitReport
       - name: Upload junit report
         uses: actions/upload-artifact@v3.1.1
         with:
@@ -33,7 +33,7 @@ jobs:
       - name: Save docker images to artifact
         run: |
           mkdir -p docker-images
-          docker save armada | gzip > docker-images/armada.tar.gz
+          docker save armada-server | gzip > docker-images/armada-server.tar.gz 
           docker save armada-executor | gzip > docker-images/armada-executor.tar.gz
           docker save armadactl | gzip > docker-images/armadactl.tar.gz
           docker save testsuite | gzip > docker-images/testsuite.tar.gz
