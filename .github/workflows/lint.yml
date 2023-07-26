@@ -10,7 +10,7 @@ permissions:
 jobs:
   ts-lint:
     # TODO(JayF): Determine what nodejs versions we target, and setup matrix-based testing similar to what we do for go
-    name: "Lint TypeScript"
+    name: Lint TypeScript
     runs-on: ubuntu-22.04
 
     steps:
