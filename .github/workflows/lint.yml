@@ -33,22 +33,23 @@ jobs:
           git status -s -uno | grep '^.T' >> $GITHUB_ENV.LINT_ISSUES || true
         working-directory: ./internal/lookout/ui
 
+      - name: Set Lint issues output for Typescript
+        if: failure()
+        run: echo "::set-output name=lint-issues::$(cat $GITHUB_ENV.LINT_ISSUES)"
+
       - name: Generate list using Markdown
+        if: always()
         run: |
           echo "- ✔️ Checked out the repository" >> $GITHUB_STEP_SUMMARY
           echo "- ✔️ Set up Node.js with version 16.14.2 and cached Yarn dependencies" >> $GITHUB_STEP_SUMMARY
           echo "- ✔️ Checked TypeScript formatting" >> $GITHUB_STEP_SUMMARY
-          if [ -z "$(git status -s -uno)" ]; then
-            echo "- ✔️ No lint issues in TypeScript code" >> $GITHUB_STEP_SUMMARY
-          else
+          if [ -s "$GITHUB_ENV.LINT_ISSUES" ]; then
             echo "- ❌ TypeScript lint issues found:" >> $GITHUB_STEP_SUMMARY
             cat "$GITHUB_ENV.LINT_ISSUES" >> $GITHUB_STEP_SUMMARY
             exit 1
+          else
+            echo "- ✔️ No lint issues in TypeScript code" >> $GITHUB_STEP_SUMMARY
           fi
-        
-      - name: Set Lint issues output for Typescript
-        if: failure()
-        run: echo "::set-output name=lint-issues::$(cat $GITHUB_ENV.LINT_ISSUES)"   
 
   go-lint:
     name: Lint Go
@@ -75,19 +76,21 @@ jobs:
           only-new-issues: true
           args: --timeout=10m --issues-exit-code=1 --sort-results ./...
 
+      - name: Set Lint issues output for Go
+        if: failure()
+        run: echo "::set-output name=lint-issues::$(cat ${{ steps.go-lint.outputs.lint-result-path }})"
+
       - name: Generate list using Markdown
+        if: always()
         run: |
           echo "- ✔️ Checked out the repository" >> $GITHUB_STEP_SUMMARY
           echo "- ✔️ Set up Go with version 1.20 and cached dependencies" >> $GITHUB_STEP_SUMMARY
           echo "- ✔️ Linted Go code using golangci-lint" >> $GITHUB_STEP_SUMMARY
-          if [ -z "$(git status -s -uno)" ]; then
-             echo "- ✔️ No lint issues in Golang code" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ steps.go-lint.outputs.lint-result-path }}" ]; then
+            echo "- ❌ Lint issues found in Golang code" >> $GITHUB_STEP_SUMMARY
+            echo "Lint issues:"
+            echo "$(cat ${{ steps.go-lint.outputs.lint-result-path }})"
+            exit 1
           else
-             echo "- ❌ Lint issues found in Golang code" >> $GITHUB_STEP_SUMMARY
-             echo "Lint issues:"
-             echo "$(cat ${{ steps.go-lint.outputs.lint-result-path }})"
+            echo "- ✔️ No lint issues in Golang code" >> $GITHUB_STEP_SUMMARY
           fi
-
-      - name: Set Lint issues output for Go
-        if: failure()
-        run: echo "::set-output name=go-lint-issues::$(cat ${{ steps.go-lint.outputs.lint-result-path }})"    
