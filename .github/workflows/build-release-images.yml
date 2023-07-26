@@ -15,7 +15,7 @@ jobs:
       matrix:
         go: [ '1.20' ]
     steps:
-      - uses: actions/checkout@v3.1.0
+      - uses: actions/checkout@v3.3.0
       - uses: ./.github/workflows/go-setup
       - run: go run github.com/magefile/mage@v1.14.0 -v BuildCI
       - run: go run github.com/magefile/mage@v1.14.0 -v teste2eSetup

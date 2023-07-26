@@ -10,3 +10,4 @@ runs:
     - name: Setup dependencies
       shell: bash
       run: go run github.com/magefile/mage@v1.14.0 download
+
