@@ -662,30 +662,28 @@ func (l *LookoutDb) CreateJobRunContainersScalar(ctx context.Context, instructio
 func batchInsert(ctx context.Context, db *pgxpool.Pool, createTmp func(pgx.Tx) error,
 	insertTmp func(pgx.Tx) error, copyToDest func(pgx.Tx) error,
 ) error {
-	tx, err := db.BeginTx(ctx, pgx.TxOptions{
+	return pgx.BeginTxFunc(ctx, db, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		// Create a temporary table to hold the staging data
+		err := createTmp(tx)
+		if err != nil {
+			return err
+		}
+
+		err = insertTmp(tx)
+		if err != nil {
+			return err
+		}
+
+		err = copyToDest(tx)
+		if err != nil {
+			return err
+		}
+		return nil
 	})
-	if err != nil {
-		return err
-	}
-	// Create a temporary table to hold the staging data
-	err = createTmp(tx)
-	if err != nil {
-		return err
-	}
-
-	err = insertTmp(tx)
-	if err != nil {
-		return err
-	}
-
-	err = copyToDest(tx)
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func conflateJobUpdates(updates []*model.UpdateJobInstruction) []*model.UpdateJobInstruction {

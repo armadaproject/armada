@@ -52,41 +52,41 @@ func PruneDb(ctx ctx.Context, db *pgx.Conn, batchLimit int, keepAfterCompletion 
 		return errors.WithStack(err)
 	}
 	jobsDeleted := 0
-	for {
+	keepGoing := true
+	for keepGoing {
 		batchStart := time.Now()
 		batchSize := 0
-		tx, err := db.BeginTx(ctx, pgx.TxOptions{
+		err := pgx.BeginTxFunc(ctx, db, pgx.TxOptions{
 			IsoLevel:       pgx.ReadCommitted,
 			AccessMode:     pgx.ReadWrite,
 			DeferrableMode: pgx.Deferrable,
-		})
-		if err != nil {
-			return errors.Wrapf(err, "Error deleting batch from postgres")
-		}
+		}, func(tx pgx.Tx) error {
+			// insert into the batch table
+			_, err = tx.Exec(ctx, "INSERT INTO batch(job_id) SELECT job_id FROM rows_to_delete LIMIT $1;", batchLimit)
+			if err != nil {
+				return err
+			}
+			err := tx.QueryRow(ctx, "SELECT COUNT(*) FROM batch").Scan(&batchSize)
+			if err != nil {
+				return err
+			}
 
-		// insert into the batch table
-		_, err = tx.Exec(ctx, "INSERT INTO batch(job_id) SELECT job_id FROM rows_to_delete LIMIT $1;", batchLimit)
-		if err != nil {
-			return errors.Wrapf(err, "Error deleting batch from postgres")
-		}
-		err = tx.QueryRow(ctx, "SELECT COUNT(*) FROM batch").Scan(&batchSize)
-		if err != nil {
-			return errors.Wrapf(err, "Error deleting batch from postgres")
-		}
+			if batchSize == 0 {
+				// nothing more to delete
+				keepGoing = false
+				return nil
+			}
 
-		if batchSize == 0 {
-			// nothing more to delete
-			break
-		}
-
-		// Delete everything that's present in the batch table
-		// Do this all in one call so as to be more terse with the syntax
-		_, err = tx.Exec(ctx, `
+			// Delete everything that's present in the batch table
+			// Do this all in one call so as to be more terse with the syntax
+			_, err = tx.Exec(ctx, `
 						DELETE FROM runs WHERE job_id in (SELECT job_id from batch);
 						DELETE FROM jobs WHERE job_id in (SELECT job_id from batch);
 						DELETE FROM job_run_errors WHERE job_id in (SELECT job_id from batch);
 						DELETE FROM rows_to_delete WHERE job_id in (SELECT job_id from batch);
 						TRUNCATE TABLE batch;`)
+			return err
+		})
 		if err != nil {
 			return errors.Wrapf(err, "Error deleting batch from postgres")
 		}

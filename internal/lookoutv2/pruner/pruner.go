@@ -32,20 +32,23 @@ func PruneDb(ctx context.Context, db *pgx.Conn, keepAfterCompletion time.Duratio
 	for keepGoing {
 		batchStart := clock.Now()
 		batchSize := 0
-		tx, err := db.BeginTx(ctx, pgx.TxOptions{
+		err = pgx.BeginTxFunc(ctx, db, pgx.TxOptions{
 			IsoLevel:       pgx.ReadCommitted,
 			AccessMode:     pgx.ReadWrite,
 			DeferrableMode: pgx.Deferrable,
+		}, func(tx pgx.Tx) error {
+			batchSize, err = deleteBatch(ctx, tx, batchLimit)
+			if err != nil {
+				return err
+			}
+			if batchSize == 0 {
+				keepGoing = false
+				return nil
+			}
+			return nil
 		})
 		if err != nil {
 			return errors.Wrap(err, "error deleting batch from postgres")
-		}
-		batchSize, err = deleteBatch(ctx, tx, batchLimit)
-		if err != nil {
-			return errors.Wrap(err, "error deleting batch from postgres")
-		}
-		if batchSize == 0 {
-			keepGoing = false
 		}
 		batchDuration := clock.Since(batchStart)
 		jobsDeleted += batchSize

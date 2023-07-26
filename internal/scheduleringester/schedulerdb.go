@@ -47,25 +47,24 @@ func NewSchedulerDb(
 // This function locks the postgres table to avoid write conflicts; see acquireLock() for details.
 func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithMessageIds) error {
 	return ingest.WithRetry(func() (bool, error) {
-		tx, err := s.db.BeginTx(ctx, pgx.TxOptions{
+		err := pgx.BeginTxFunc(ctx, s.db, pgx.TxOptions{
 			IsoLevel:       pgx.ReadCommitted,
 			AccessMode:     pgx.ReadWrite,
 			DeferrableMode: pgx.Deferrable,
-		})
-		if err != nil {
-			return false, err
-		}
-		lockCtx, cancel := context.WithTimeout(ctx, s.lockTimeout)
-		defer cancel()
-		// The lock is released automatically on transaction rollback/commit.
-		if err := s.acquireLock(lockCtx, tx); err != nil {
-			return false, err
-		}
-		for _, dbOp := range instructions.Ops {
-			if err := s.WriteDbOp(ctx, tx, dbOp); err != nil {
-				return false, err
+		}, func(tx pgx.Tx) error {
+			lockCtx, cancel := context.WithTimeout(ctx, s.lockTimeout)
+			defer cancel()
+			// The lock is released automatically on transaction rollback/commit.
+			if err := s.acquireLock(lockCtx, tx); err != nil {
+				return err
 			}
-		}
+			for _, dbOp := range instructions.Ops {
+				if err := s.WriteDbOp(ctx, tx, dbOp); err != nil {
+					return err
+				}
+			}
+			return nil
+		})
 		return true, err
 	}, s.initialBackOff, s.maxBackOff)
 }

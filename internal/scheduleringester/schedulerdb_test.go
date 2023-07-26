@@ -316,15 +316,13 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 	defer cancel()
 
 	// Apply the op to the database.
-	tx, err := schedulerDb.db.BeginTx(ctx, pgx.TxOptions{
+	err := pgx.BeginTxFunc(ctx, schedulerDb.db, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		return schedulerDb.WriteDbOp(ctx, tx, op)
 	})
-	if err != nil {
-		return err
-	}
-	err = schedulerDb.WriteDbOp(ctx, tx, op)
 	if err != nil {
 		return err
 	}

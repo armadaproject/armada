@@ -170,25 +170,28 @@ func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bo
 
 	// Otherwise, get and set the key in a transaction.
 	var exists *bool
-	tx, err := c.db.BeginTx(ctx, pgx.TxOptions{})
+	err := pgx.BeginTxFunc(ctx, c.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
+		// Check if the key already exists in postgres.
+		sql := fmt.Sprintf("select exists(select 1 from %s where key=$1) AS \"exists\"", c.tableName)
+		if err := tx.QueryRow(ctx, sql, key).Scan(&exists); err != nil {
+			return err
+		}
+
+		// Only write the key-value pair if it doesn't already exist (overwriting not allowed).
+		if !*exists {
+			sql = fmt.Sprintf("insert into %s (key, value, inserted) values ($1, $2, now());", c.tableName)
+			_, err := tx.Exec(ctx, sql, key, value)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
 	// We need to return on error (in particular tx rollback)
 	// to avoid writing to the cache after failing to write to postgres.
 	if err != nil {
 		return false, errors.WithStack(err)
-	}
-	// Check if the key already exists in postgres.
-	sql := fmt.Sprintf("select exists(select 1 from %s where key=$1) AS \"exists\"", c.tableName)
-	if err := tx.QueryRow(ctx, sql, key).Scan(&exists); err != nil {
-		return false, errors.WithStack(err)
-	}
-
-	// Only write the key-value pair if it doesn't already exist (overwriting not allowed).
-	if !*exists {
-		sql = fmt.Sprintf("insert into %s (key, value, inserted) values ($1, $2, now());", c.tableName)
-		_, err := tx.Exec(ctx, sql, key, value)
-		if err != nil {
-			return false, errors.WithStack(err)
-		}
 	}
 
 	// Only add to cache if we also wrote to postgres.

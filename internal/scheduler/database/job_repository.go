@@ -82,46 +82,43 @@ func (r *PostgresJobRepository) FetchJobRunErrors(ctx context.Context, runIds []
 	errorsByRunId := make(map[uuid.UUID]*armadaevents.Error, len(runIds))
 	decompressor := compress.NewZlibDecompressor()
 
-	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
-	})
-	if err != nil {
-		return errorsByRunId, err
-	}
+	}, func(tx pgx.Tx) error {
+		for _, chunk := range chunks {
+			tmpTable, err := insertRunIdsToTmpTable(ctx, tx, chunk)
+			if err != nil {
+				return err
+			}
 
-	for _, chunk := range chunks {
-		tmpTable, err := insertRunIdsToTmpTable(ctx, tx, chunk)
-		if err != nil {
-			return errorsByRunId, err
-		}
-
-		query := `
+			query := `
 		SELECT  job_run_errors.run_id, job_run_errors.error
 		FROM %s as tmp
 		JOIN job_run_errors ON job_run_errors.run_id = tmp.run_id`
 
-		rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable))
-		if err != nil {
-			return errorsByRunId, err
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var runId uuid.UUID
-			var errorBytes []byte
-			err := rows.Scan(&runId, &errorBytes)
+			rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable))
 			if err != nil {
-				return errorsByRunId, errors.WithStack(err)
+				return err
 			}
-			jobError, err := protoutil.DecompressAndUnmarshall(errorBytes, &armadaevents.Error{}, decompressor)
-			if err != nil {
-				return errorsByRunId, errors.WithStack(err)
+			defer rows.Close()
+			for rows.Next() {
+				var runId uuid.UUID
+				var errorBytes []byte
+				err := rows.Scan(&runId, &errorBytes)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				jobError, err := protoutil.DecompressAndUnmarshall(errorBytes, &armadaevents.Error{}, decompressor)
+				if err != nil {
+					return errors.WithStack(err)
+				}
+				errorsByRunId[runId] = jobError
 			}
-			errorsByRunId[runId] = jobError
 		}
-	}
+		return nil
+	})
 
 	return errorsByRunId, err
 }
@@ -133,48 +130,49 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx context.Context, jobSerial i
 	var updatedRuns []Run = nil
 
 	// Use a RepeatableRead transaction here so that we get consistency between jobs and dbRuns
-	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
 		AccessMode:     pgx.ReadOnly,
 		DeferrableMode: pgx.Deferrable,
-	})
-	if err != nil {
-		return updatedJobs, updatedRuns, err
-	}
+	}, func(tx pgx.Tx) error {
+		var err error
+		queries := New(tx)
 
-	queries := New(tx)
-
-	// Fetch jobs
-	updatedJobRows, err := fetch(jobSerial, r.batchSize, func(from int64) ([]SelectUpdatedJobsRow, error) {
-		return queries.SelectUpdatedJobs(ctx, SelectUpdatedJobsParams{Serial: from, Limit: r.batchSize})
-	})
-	updatedJobs = make([]Job, len(updatedJobRows))
-	for i, row := range updatedJobRows {
-		updatedJobs[i] = Job{
-			JobID:                   row.JobID,
-			JobSet:                  row.JobSet,
-			Queue:                   row.Queue,
-			Priority:                row.Priority,
-			Submitted:               row.Submitted,
-			Queued:                  row.Queued,
-			QueuedVersion:           row.QueuedVersion,
-			CancelRequested:         row.CancelRequested,
-			Cancelled:               row.Cancelled,
-			CancelByJobsetRequested: row.CancelByJobsetRequested,
-			Succeeded:               row.Succeeded,
-			Failed:                  row.Failed,
-			SchedulingInfo:          row.SchedulingInfo,
-			SchedulingInfoVersion:   row.SchedulingInfoVersion,
-			Serial:                  row.Serial,
+		// Fetch jobs
+		updatedJobRows, err := fetch(jobSerial, r.batchSize, func(from int64) ([]SelectUpdatedJobsRow, error) {
+			return queries.SelectUpdatedJobs(ctx, SelectUpdatedJobsParams{Serial: from, Limit: r.batchSize})
+		})
+		updatedJobs = make([]Job, len(updatedJobRows))
+		for i, row := range updatedJobRows {
+			updatedJobs[i] = Job{
+				JobID:                   row.JobID,
+				JobSet:                  row.JobSet,
+				Queue:                   row.Queue,
+				Priority:                row.Priority,
+				Submitted:               row.Submitted,
+				Queued:                  row.Queued,
+				QueuedVersion:           row.QueuedVersion,
+				CancelRequested:         row.CancelRequested,
+				Cancelled:               row.Cancelled,
+				CancelByJobsetRequested: row.CancelByJobsetRequested,
+				Succeeded:               row.Succeeded,
+				Failed:                  row.Failed,
+				SchedulingInfo:          row.SchedulingInfo,
+				SchedulingInfoVersion:   row.SchedulingInfoVersion,
+				Serial:                  row.Serial,
+			}
 		}
-	}
-	if err != nil {
-		return updatedJobs, updatedRuns, err
-	}
 
-	// Fetch dbRuns
-	updatedRuns, err = fetch(jobRunSerial, r.batchSize, func(from int64) ([]Run, error) {
-		return queries.SelectNewRuns(ctx, SelectNewRunsParams{Serial: from, Limit: r.batchSize})
+		if err != nil {
+			return err
+		}
+
+		// Fetch dbRuns
+		updatedRuns, err = fetch(jobRunSerial, r.batchSize, func(from int64) ([]Run, error) {
+			return queries.SelectNewRuns(ctx, SelectNewRunsParams{Serial: from, Limit: r.batchSize})
+		})
+
+		return err
 	})
 
 	return updatedJobs, updatedRuns, err
@@ -184,20 +182,17 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx context.Context, jobSerial i
 // Runs are inactive if they don't exist or if they have succeeded, failed or been cancelled
 func (r *PostgresJobRepository) FindInactiveRuns(ctx context.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
 	var inactiveRuns []uuid.UUID
-	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
-	})
-	if err != nil {
-		return inactiveRuns, err
-	}
-	tmpTable, err := insertRunIdsToTmpTable(ctx, tx, runIds)
-	if err != nil {
-		return inactiveRuns, err
-	}
+	}, func(tx pgx.Tx) error {
+		tmpTable, err := insertRunIdsToTmpTable(ctx, tx, runIds)
+		if err != nil {
+			return err
+		}
 
-	query := `
+		query := `
 		SELECT tmp.run_id
 		FROM %s as tmp
 		LEFT JOIN runs ON (tmp.run_id = runs.run_id)
@@ -206,19 +201,21 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx context.Context, runIds []u
  		OR runs.failed = true
 		OR runs.cancelled = true;`
 
-	rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable))
-	if err != nil {
-		return inactiveRuns, err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		runId := uuid.UUID{}
-		err = rows.Scan(&runId)
+		rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable))
 		if err != nil {
-			return inactiveRuns, errors.WithStack(err)
+			return err
 		}
-		inactiveRuns = append(inactiveRuns, runId)
-	}
+		defer rows.Close()
+		for rows.Next() {
+			runId := uuid.UUID{}
+			err = rows.Scan(&runId)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			inactiveRuns = append(inactiveRuns, runId)
+		}
+		return nil
+	})
 	return inactiveRuns, err
 }
 
@@ -226,21 +223,17 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx context.Context, runIds []u
 // in excludedRunIds will be excluded
 func (r *PostgresJobRepository) FetchJobRunLeases(ctx context.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*JobRunLease, error) {
 	var newRuns []*JobRunLease
-	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
-	})
-	if err != nil {
-		return newRuns, err
-	}
+	}, func(tx pgx.Tx) error {
+		tmpTable, err := insertRunIdsToTmpTable(ctx, tx, excludedRunIds)
+		if err != nil {
+			return err
+		}
 
-	tmpTable, err := insertRunIdsToTmpTable(ctx, tx, excludedRunIds)
-	if err != nil {
-		return newRuns, err
-	}
-
-	query := `
+		query := `
 				SELECT jr.run_id, jr.node, j.queue, j.job_set, j.user_id, j.groups, j.submit_message
 				FROM runs jr
 				LEFT JOIN %s as tmp ON (tmp.run_id = jr.run_id)
@@ -253,19 +246,22 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx context.Context, executor 
 				AND jr.cancelled = false
 				LIMIT %d;
 `
-	rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable, maxResults), executor)
-	if err != nil {
-		return newRuns, errors.WithStack(err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		run := JobRunLease{}
-		err = rows.Scan(&run.RunID, &run.Node, &run.Queue, &run.JobSet, &run.UserID, &run.Groups, &run.SubmitMessage)
+
+		rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable, maxResults), executor)
 		if err != nil {
-			return newRuns, errors.WithStack(err)
+			return errors.WithStack(err)
 		}
-		newRuns = append(newRuns, &run)
-	}
+		defer rows.Close()
+		for rows.Next() {
+			run := JobRunLease{}
+			err = rows.Scan(&run.RunID, &run.Node, &run.Queue, &run.JobSet, &run.UserID, &run.Groups, &run.SubmitMessage)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			newRuns = append(newRuns, &run)
+		}
+		return nil
+	})
 	return newRuns, err
 }
 

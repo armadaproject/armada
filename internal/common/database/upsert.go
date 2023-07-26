@@ -17,15 +17,13 @@ func UpsertWithTransaction[T any](ctx context.Context, db *pgxpool.Pool, tableNa
 	if len(records) == 0 {
 		return nil
 	}
-	tx, err := db.BeginTx(ctx, pgx.TxOptions{
+	return pgx.BeginTxFunc(ctx, db, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
+	}, func(tx pgx.Tx) error {
+		return Upsert(ctx, tx, tableName, records)
 	})
-	if err != nil {
-		return err
-	}
-	return Upsert(ctx, tx, tableName, records)
 }
 
 // Upsert is an optimised SQL call for bulk upserts.
