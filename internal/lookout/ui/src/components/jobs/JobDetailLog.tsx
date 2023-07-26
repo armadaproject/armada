@@ -1,12 +1,13 @@
 import React, { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import './JobDetailLog.css'
 
 type JobDetailLogProps = {
   line: string
   timestamp: string
 }
 
-// For displaying only job log strings
+
 export default function JobDetailLog() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -15,9 +16,12 @@ export default function JobDetailLog() {
     if(!jobLogList) navigate('/')
   },[])
   return (
-    <div>
+    <div className='job-detail-log'>
+      <h2 className='job-detail-log-header'>Job Log View</h2>
+      <div>
        {jobLogList.map((l: JobDetailLogProps) => <p key={l?.timestamp}>{l?.line} </p>
             )}
+      </div>
    </div>
   )
 }
