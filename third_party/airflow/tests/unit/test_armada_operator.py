@@ -21,11 +21,14 @@ get_lookout_url_test_cases = [
     "lookout_url_template, job_id, expected_url", get_lookout_url_test_cases
 )
 def test_get_lookout_url(lookout_url_template, job_id, expected_url):
+    armada_channel_args = {"target": "127.0.0.1:50051"}
+    job_service_channel_args = {"target": "127.0.0.1:60003"}
+
     operator = ArmadaOperator(
         task_id="test_task_id",
         name="test_task",
-        armada_client=None,
-        job_service_client=None,
+        armada_channel_args=armada_channel_args,
+        job_service_channel_args=job_service_channel_args,
         armada_queue="test_queue",
         job_request_items=[],
         lookout_url_template=lookout_url_template,
