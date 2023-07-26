@@ -65,8 +65,8 @@ export default function JobLogs(props: JobLogsProps) {
             )}</p>
           <div className="lookout-dialog-centered lookout-dialog-fixed">
             <Button onClick={props.onLoadMoreClick}>Load more</Button>
-            <Link to={`/job/${props?.job?.jobId}`} state = {{jobLogList: props?.log}}  >
-              <OpenInNewTwoToneIcon style={{ color: '#00aae1' }}  />
+            <Link to={`/job/${props?.job?.jobId}`} state = {{jobLogList: props?.log}} className="lookout-dialog-centered-link" >
+              <OpenInNewTwoToneIcon style={{ color: '#00aae1', fontSize: '2em' }}  />
             </Link>
           </div>
         </>

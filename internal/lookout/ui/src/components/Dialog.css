@@ -28,6 +28,17 @@
   gap:2em;
 }
 
+.lookout-dialog-centered button{
+  border: 2px solid #00aae1;
+  box-shadow: rgba(0, 0, 0, 0.15) 0px 5px 15px 0px;
+}
+
+.lookout-dialog-centered-link{
+text-decoration: none;
+align-self: center;
+padding-top:4px;
+}
+
 .MuiDialog-scrollPaper {
     align-items: baseline !important;
 }
@@ -35,5 +46,9 @@
 @media screen and (max-width:750px) {
   .lookout-dialog {
     padding: 0 0.5em 1em 0.5em !important;
+  }
+
+  .lookout-dialog-centered {
+flex-direction: column;
   }
 }
