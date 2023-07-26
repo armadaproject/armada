@@ -11,6 +11,7 @@ import "./JobLogs.css"
 import "../Dialog.css"
 import JobLogsHeader from "./JobLogsHeader"
 import JobLogsLoadMoreBtn from "./JobLogsLoadMoreBtn";
+import JobDetailLog from "components/jobs/JobDetailLog"
 
 
 
@@ -58,9 +59,7 @@ export default function JobLogs(props: JobLogsProps) {
       {!props.error && (
         <>
           <p className="lookout-dialog-varying job-logs">
-            {props.log.map((l) => <p key={l?.timestamp}>
-                {l.line}
-            </p>
+            {props.log.map((l) => <JobDetailLog jobLog={l?.line} key={l?.timestamp} />
             )}</p>
           <div className="lookout-dialog-centered lookout-dialog-fixed">
             <Button onClick={props.onLoadMoreClick}>Load more</Button>
