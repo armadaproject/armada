@@ -30,7 +30,7 @@ jobs:
       - name: Check TypeScript formatting 
         run: |
           yarn install --frozen-lockfile && yarn run fmt || exit 1
-          exit $(git status -s -uno | wc -l)
+          git status -s -uno | grep '^.T' >> $GITHUB_ENV.LINT_ISSUES || true
         working-directory: ./internal/lookout/ui
 
       - name: Generate list using Markdown
@@ -38,6 +38,17 @@ jobs:
           echo "- ✔️ Checked out the repository" >> $GITHUB_STEP_SUMMARY
           echo "- ✔️ Set up Node.js with version 16.14.2 and cached Yarn dependencies" >> $GITHUB_STEP_SUMMARY
           echo "- ✔️ Checked TypeScript formatting" >> $GITHUB_STEP_SUMMARY
+          if [ -z "$(git status -s -uno)" ]; then
+            echo "- ✔️ No lint issues in TypeScript code" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ TypeScript lint issues found:" >> $GITHUB_STEP_SUMMARY
+            cat "$GITHUB_ENV.LINT_ISSUES" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+        
+      - name: Set Lint issues output for Typescript
+        if: failure()
+        run: echo "::set-output name=lint-issues::$(cat $GITHUB_ENV.LINT_ISSUES)"   
 
   go-lint:
     name: Lint Go
@@ -69,4 +80,14 @@ jobs:
           echo "- ✔️ Checked out the repository" >> $GITHUB_STEP_SUMMARY
           echo "- ✔️ Set up Go with version 1.20 and cached dependencies" >> $GITHUB_STEP_SUMMARY
           echo "- ✔️ Linted Go code using golangci-lint" >> $GITHUB_STEP_SUMMARY
+          if [ -z "$(git status -s -uno)" ]; then
+             echo "- ✔️ No lint issues in Golang code" >> $GITHUB_STEP_SUMMARY
+          else
+             echo "- ❌ Lint issues found in Golang code" >> $GITHUB_STEP_SUMMARY
+             echo "Lint issues:"
+             echo "$(cat ${{ steps.go-lint.outputs.lint-result-path }})"
+          fi
 
+      - name: Set Lint issues output for Go
+        if: failure()
+        run: echo "::set-output name=go-lint-issues::$(cat ${{ steps.go-lint.outputs.lint-result-path }})"    
