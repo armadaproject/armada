@@ -1,14 +1,24 @@
-import React from 'react'
+import React, { useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 type JobDetailLogProps = {
-  jobLog: string
-  key: string
+  line: string
+  timestamp: string
 }
 
 // For displaying only job log strings
-export default function JobDetailLog (props: JobDetailLogProps) {
+export default function JobDetailLog() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const {jobLogList} = location.state
+  useEffect(() => {
+    if(!jobLogList) navigate('/')
+  },[])
   return (
-    <p key={props?.key}>{props?.jobLog}</p>
+    <div>
+       {jobLogList.map((l: JobDetailLogProps) => <p key={l?.timestamp}>{l?.line} </p>
+            )}
+   </div>
   )
 }
 

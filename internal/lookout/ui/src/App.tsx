@@ -22,6 +22,7 @@ import { IGetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
 import { ILogService } from "./services/lookoutV2/LogService"
 
 import "./App.css"
+import JobDetailLog from "components/jobs/JobDetailLog"
 
 // Required for Mui V4 and V5 to be compatible with each other
 // See https://mui.com/x/react-data-grid/migration-v4/#using-mui-core-v4-with-v5
@@ -101,6 +102,7 @@ export function App(props: AppProps) {
                     <Route path="/" element={<OverviewContainer {...props} />} />
                     <Route path="/job-sets" element={<JobSetsContainer {...props} />} />
                     <Route path="/jobs" element={<JobsContainer {...props} />} />
+                    <Route path="/job/:id" element={<JobDetailLog  />} />
                     <Route
                       path="/v2"
                       element={

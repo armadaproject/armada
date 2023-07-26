@@ -1,8 +1,8 @@
 import React from "react"
 
-import { Button, Checkbox, FormControl, FormControlLabel, InputLabel, Select, MenuItem } from "@material-ui/core"
+import { Button, Checkbox, FormControl, FormControlLabel, InputLabel, Select, MenuItem, LinkProps } from "@material-ui/core"
 import Alert from "@material-ui/lab/Alert"
-
+import OpenInNewTwoToneIcon from '@mui/icons-material/OpenInNewTwoTone';
 import { getContainersForRun } from "../../containers/JobLogsContainer"
 import { Job, UNKNOWN_CONTAINER } from "../../services/JobService"
 import { LogLine } from "../../services/LogService"
@@ -12,6 +12,7 @@ import "../Dialog.css"
 import JobLogsHeader from "./JobLogsHeader"
 import JobLogsLoadMoreBtn from "./JobLogsLoadMoreBtn";
 import JobDetailLog from "components/jobs/JobDetailLog"
+import { Link } from "react-router-dom"
 
 
 
@@ -36,6 +37,7 @@ export default function JobLogs(props: JobLogsProps) {
     }
     return containers[containerIndex]
   }
+  const jobData = {jobLog: props?.log}
 
   return (
     <div className="lookout-dialog-container">
@@ -59,10 +61,13 @@ export default function JobLogs(props: JobLogsProps) {
       {!props.error && (
         <>
           <p className="lookout-dialog-varying job-logs">
-            {props.log.map((l) => <JobDetailLog jobLog={l?.line} key={l?.timestamp} />
+            {props.log.map((l) => <p key={l?.timestamp}>{l?.line} </p>
             )}</p>
           <div className="lookout-dialog-centered lookout-dialog-fixed">
             <Button onClick={props.onLoadMoreClick}>Load more</Button>
+            <Link to={`/job/${props?.job?.jobId}`} state = {{jobLogList: props?.log}}  >
+              <OpenInNewTwoToneIcon style={{ color: '#00aae1' }}  />
+            </Link>
           </div>
         </>
       )}
