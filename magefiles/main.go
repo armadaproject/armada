@@ -170,8 +170,11 @@ func LocalDev(arg string) error {
 	switch arg {
 	case "minimal":
 		timeTaken := time.Now()
+		os.Setenv("PULSAR_BACKED", "")
 		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)
 		fmt.Printf("Time to build, setup kind and download images: %s\n", time.Since(timeTaken))
+	case "minimal-pulsar":
+		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)
 	case "full":
 		mg.Deps(BuildPython, mg.F(BuildDockers, "bundle, lookout-bundle, jobservice"), Kind, downloadDependencyImages)
 	case "no-build", "debug":
@@ -187,6 +190,12 @@ func LocalDev(arg string) error {
 	switch arg {
 	case "minimal":
 		os.Setenv("ARMADA_COMPONENTS", "executor,server")
+		mg.Deps(StartComponents)
+	case "minimal-pulsar":
+		// This 20s sleep is to remedy an issue caused by pods coming up too fast after pulsar
+		// TODO: Deal with this internally somehow?
+		time.Sleep(20 * time.Second)
+		os.Setenv("ARMADA_COMPONENTS", "executor-pulsar,server-pulsar,scheduler,scheduleringester")
 		mg.Deps(StartComponents)
 	case "debug":
 		fmt.Println("Dependencies started, ending localdev...")

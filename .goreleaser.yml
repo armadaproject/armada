@@ -187,11 +187,14 @@ archives:
       - armadactl
     allow_different_binary_count: true
     name_template: 'armadactl_{{ replace .Version "-" "_" }}_{{ .Os }}_{{ .Arch }}'
+    format: tar.gz
     format_overrides:
       - goos: windows
         format: zip
     files:
       - LICENSE
+      - README.md
+      - MAINTAINERS.md
 
 # macOS Universal Binaries-*
 universal_binaries:
