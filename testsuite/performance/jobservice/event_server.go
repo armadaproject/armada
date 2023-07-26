@@ -58,12 +58,12 @@ var messageScript = []*scriptedMessage{
 			return &api.EventMessage{
 				Events: &api.EventMessage_Submitted{
 					Submitted: &api.JobSubmittedEvent{
-						JobId:    request.Id, // FIXME: request.Id is the jobsetid
+						JobId:    "fake_job_id",
 						JobSetId: request.Id,
 						Queue:    request.Queue,
 						Created:  time.Now(),
 						Job: api.Job{
-							Id:        request.Id, // FIXME: request.Id is the jobsetid,
+							Id:        "fake_job_id",
 							ClientId:  "",
 							Queue:     request.Queue,
 							JobSetId:  request.Id,
@@ -81,7 +81,7 @@ var messageScript = []*scriptedMessage{
 			return &api.EventMessage{
 				Events: &api.EventMessage_Queued{
 					Queued: &api.JobQueuedEvent{
-						JobId:    request.Id, // FIXME: request.Id is the jobsetid
+						JobId:    "fake_job_id",
 						JobSetId: request.Id,
 						Queue:    request.Queue,
 						Created:  time.Now(),
@@ -96,7 +96,7 @@ var messageScript = []*scriptedMessage{
 			return &api.EventMessage{
 				Events: &api.EventMessage_Running{
 					Running: &api.JobRunningEvent{
-						JobId:        request.Id, // FIXME: request.Id is the jobsetid
+						JobId:        "fake_job_id",
 						JobSetId:     request.Id,
 						Queue:        request.Queue,
 						Created:      time.Now(),
@@ -112,12 +112,12 @@ var messageScript = []*scriptedMessage{
 		},
 	},
 	{ // Success
-		Delay: time.Duration(time.Second * 5),
+		Delay: time.Duration(time.Second * 10),
 		MessageFunc: func(request *api.JobSetRequest) *api.EventMessage {
 			return &api.EventMessage{
 				Events: &api.EventMessage_Succeeded{
 					Succeeded: &api.JobSucceededEvent{
-						JobId:        request.Id, // FIXME: request.Id is the jobsetid
+						JobId:        "fake_job_id",
 						JobSetId:     request.Id,
 						Queue:        request.Queue,
 						Created:      time.Now(),
