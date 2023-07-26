@@ -23,6 +23,7 @@ task:
 # The executor api section should only be needed until we migrate to it fully - then we go back to just using apiConnection
 executorApiConnection:
   armadaUrl: "server:50052"
+  forceNoTls: false
 apiConnection:
   armadaUrl: "server:50051"
   forceNoTls: false
