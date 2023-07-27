@@ -69,3 +69,11 @@ func validateArg(arg string, validArgs []string) error {
 	}
 	return nil
 }
+
+func getEnvWithDefault(key string, defValue string) string {
+	value, exists := os.LookupEnv(key)
+	if !exists {
+		value = defValue
+	}
+	return value
+}
