@@ -83,7 +83,7 @@ Try submitting lots of jobs and see queues get built and processed:
 
 #### Windows (using Git Bash):
 
-Open a text editor like Notepad.
+Use a text editor of your choice.
 Copy and paste the following lines into the text editor:
 ```
 #!/bin/bash
