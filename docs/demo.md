@@ -34,10 +34,10 @@ alias armadactl='go run cmd/armadactl/main.go --armadaUrl armada.demo.armadaproj
 Create queues, submit some jobs, and monitor progress:
 
 ### Queue Creation
-Change the name of the queue to something unique instead of `queue-a` and `queue-b`. You would need these names in next steps for Job Submission.
+Use a unique name for the queue. Make sure you remember it for the next steps.
 ```bash
-armadactl create queue queue-a --priorityFactor 1
-armadactl create queue queue-b --priorityFactor 2
+armadactl create queue $QUEUE_NAME --priorityFactor 1
+armadactl create queue $QUEUE_NAME --priorityFactor 2
 ```
 
 For queues created in this way, user and group owners of the queue have permissions to:
@@ -53,10 +53,10 @@ armadactl create -f ./docs/quickstart/queue-a.yaml
 armadactl create -f ./docs/quickstart/queue-b.yaml
 ```
 
-Make sure to manually edit both of these `yaml` files using a code or text editor before running the commands above. For demo purpose, you only need to change the following line. Use a easy and unique name as it would be required in the next steps.
+Make sure to manually edit both of these `yaml` files using a code or text editor before running the commands above.
 
 ```
-name: queue-a
+name: $QUEUE_NAME
 ```
 
 ### Job Submission
@@ -65,18 +65,18 @@ armadactl submit ./docs/quickstart/job-queue-a.yaml
 armadactl submit ./docs/quickstart/job-queue-b.yaml
 ```
 
-Make sure to manually edit both of these `yaml` files using a code or text editor before running the commands above. The following line need to be changed with the name of each queue you created in the previous steps.
+Make sure to manually edit both of these `yaml` files using a code or text editor before running the commands above.
 ```
-queue: queue-a
+queue: $QUEUE_NAME
 ```
 
 ### Monitor Job Progress
 
 ```bash
-armadactl watch queue-a job-set-1
+armadactl watch $QUEUE_NAME job-set-1
 ```
 ```bash
-armadactl watch queue-b job-set-1
+armadactl watch $QUEUE_NAME job-set-1
 ```
 Again, you need to change the `queue-a` and `queue-b` to the names you kept in previous steps.
 
