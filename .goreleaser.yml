@@ -187,6 +187,7 @@ archives:
       - armadactl
     allow_different_binary_count: true
     name_template: 'armadactl_{{ replace .Version "-" "_" }}_{{ .Os }}_{{ .Arch }}'
+    wrap_in_directory: false
     format: tar.gz
     format_overrides:
       - goos: windows
