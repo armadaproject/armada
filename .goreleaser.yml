@@ -356,18 +356,6 @@ dockers:
       - config/executor/config.yaml
     dockerfile: ./build_goreleaser/fakeexecutor/Dockerfile
 
-  - id: armadaloadtester
-    use: buildx
-    goos: linux
-    goarch: amd64
-    image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-loadtester:latest"
-      - "{{ .Env.DOCKER_REPO }}armada-loadtester:{{ .Version }}"
-    build_flag_templates: *BUILD_FLAG_TEMPLATES
-    ids:
-      - armadaloadtester
-    dockerfile: ./build_goreleaser/loadtester/Dockerfile
-
   - id: testsuite
     use: buildx
     goos: linux
