@@ -6,7 +6,7 @@ import OpenInNewTwoToneIcon from "@mui/icons-material/OpenInNewTwoTone"
 import { Link } from "react-router-dom"
 
 import { getContainersForRun } from "../../containers/JobLogsContainer"
-import { Job, UNKNOWN_CONTAINER } from "../../services/JobService"
+import { Job } from "../../services/JobService"
 import { LogLine } from "../../services/LogService"
 import JobLogsHeader from "./JobLogsHeader"
 import JobLogsLoadMoreBtn from "./JobLogsLoadMoreBtn"
@@ -28,14 +28,6 @@ type JobLogsProps = {
 }
 
 export default function JobLogs(props: JobLogsProps) {
-  function getContainer(runIndex: number, containerIndex: number): string {
-    const containers = getContainersForRun(props.job, runIndex)
-    if (containerIndex >= containers.length) {
-      return UNKNOWN_CONTAINER
-    }
-    return containers[containerIndex]
-  }
-
   // Cache job logs
   const setCache = () => {
     localStorage.setItem("jobLog", JSON.stringify(props?.log))
@@ -60,7 +52,7 @@ export default function JobLogs(props: JobLogsProps) {
             </span>
           ))}
         </div>
-        <JobLogsLoadMoreBtn text="Load from start" func={()=>{}} />
+        <JobLogsLoadMoreBtn text="Load from start" func={() => ({})} />
       </div>
       {!props.error && (
         <>

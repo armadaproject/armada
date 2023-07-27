@@ -22,7 +22,7 @@ declare module "@mui/material/Button" {
 }
 
 type JobLogsLoadMoreBtnProps = {
-  text: string,
+  text: string
   func: () => void
 }
 
@@ -38,7 +38,7 @@ const theme = createTheme({
 export default function JobLogsLoadMoreBtn(props: JobLogsLoadMoreBtnProps) {
   return (
     <ThemeProvider theme={theme}>
-      <Button variant="contained" color="jobLogBtn" onClick={()=> props?.func ? props?.func() : {}}>
+      <Button variant="contained" color="jobLogBtn" onClick={() => (props?.func ? props?.func() : {})}>
         {props?.text}
       </Button>
     </ThemeProvider>
