@@ -14,7 +14,6 @@ on:
       - 'docs/python_airflow_operator.md'
       - 'docs/python_armada_client.md'
       - 'internal/jobservice/*'
-      - 'makefile'
       - 'pkg/api/*.proto'
       - 'pkg/api/jobservice/*.proto'
       - 'scripts/build-airflow-operator.sh'
@@ -34,7 +33,6 @@ on:
       - 'docs/python_airflow_operator.md'
       - 'docs/python_armada_client.md'
       - 'internal/jobservice/*'
-      - 'makefile'
       - 'pkg/api/*.proto'
       - 'pkg/api/jobservice/*.proto'
       - 'scripts/build-airflow-operator.sh'
@@ -62,7 +60,7 @@ jobs:
         with:
           version: '3.17.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: make airflow-operator
+      - run: go run github.com/magefile/mage@v1.14.0 -v airflowOperator
       - uses: ./.github/workflows/python-tests
         with:
           python-version: ${{ matrix.python }}
@@ -106,5 +104,5 @@ jobs:
         with:
           version: '3.17.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: make tests-e2e-airflow
+      - run: go run github.com/magefile/mage@v1.14.0 -v teste2eAirflow
 

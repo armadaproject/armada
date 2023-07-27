@@ -111,6 +111,24 @@ You can set the `ARMADA_COMPONENTS` environment variable to choose which compone
 export ARMADA_COMPONENTS="server,executor"
 ```
 
+### Running Pulsar backed scheduler with LocalDev
+
+Ensure your local environment is completely torn down with
+```bash
+mage LocalDevStop
+```
+
+And then run
+
+```bash
+mage LocalDev minimal-pulsar
+```
+
+Ensure your local dev environment is completely torn down when switching between pulsar backed and legacy
+setups.
+
+If the eventsingester or the scheduleringester don't come up then just manually spin them up with `docker-compose up`.
+
 ## Debugging
 
 The mage target `mage debug` supports multiple methods for debugging, and runs the appropriate parts of localdev as required.
