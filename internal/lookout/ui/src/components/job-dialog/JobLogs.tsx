@@ -1,20 +1,18 @@
-import React from "react"
+import React, { useEffect } from "react"
 
-import { Button, Checkbox, FormControl, FormControlLabel, InputLabel, Select, MenuItem, LinkProps } from "@material-ui/core"
+import { Button } from "@material-ui/core"
 import Alert from "@material-ui/lab/Alert"
-import OpenInNewTwoToneIcon from '@mui/icons-material/OpenInNewTwoTone';
+import OpenInNewTwoToneIcon from "@mui/icons-material/OpenInNewTwoTone"
+import { Link } from "react-router-dom"
+
 import { getContainersForRun } from "../../containers/JobLogsContainer"
 import { Job, UNKNOWN_CONTAINER } from "../../services/JobService"
 import { LogLine } from "../../services/LogService"
+import JobLogsHeader from "./JobLogsHeader"
+import JobLogsLoadMoreBtn from "./JobLogsLoadMoreBtn"
 
 import "./JobLogs.css"
 import "../Dialog.css"
-import JobLogsHeader from "./JobLogsHeader"
-import JobLogsLoadMoreBtn from "./JobLogsLoadMoreBtn";
-import JobDetailLog from "components/jobs/JobDetailLog"
-import { Link } from "react-router-dom"
-
-
 
 type JobLogsProps = {
   job: Job
@@ -37,36 +35,44 @@ export default function JobLogs(props: JobLogsProps) {
     }
     return containers[containerIndex]
   }
-  const jobData = {jobLog: props?.log}
+
+  // Cache job logs
+  const setCache = () => {
+    localStorage.setItem("jobLog", JSON.stringify(props?.log))
+  }
+
+  useEffect(() => setCache(), [props?.log])
 
   return (
     <div className="lookout-dialog-container">
       <div className="lookout-dialog-fixed job-logs-options">
         <div className="job-logs-option">
           {props.job.runs?.map((run, i) => (
-              <section key={i} className="job-logs-option-group">
-              <JobLogsHeader header='Cluster' headerValue={run?.cluster} />
-              <JobLogsHeader header='Pod number' headerValue={run?.podNumber} />
-              <JobLogsHeader header='Start time' headerValue= {run?.podStartTime} />
-              </section>
-              ))}
+            <section key={i} className="job-logs-option-group">
+              <JobLogsHeader header="Cluster" headerValue={run?.cluster} />
+              <JobLogsHeader header="Pod number" headerValue={run?.podNumber} />
+              <JobLogsHeader header="Start time" headerValue={run?.podStartTime} />
+            </section>
+          ))}
           {getContainersForRun(props.job, props.runIndex).map((container) => (
-               <span key={container}>
-               <JobLogsHeader header='Command' headerValue= {container} />
-               </span>
-            ))}
+            <span key={container}>
+              <JobLogsHeader header="Command" headerValue={container} />
+            </span>
+          ))}
         </div>
-        <JobLogsLoadMoreBtn text='Load from start'/>
+        <JobLogsLoadMoreBtn text="Load from start" />
       </div>
       {!props.error && (
         <>
           <p className="lookout-dialog-varying job-logs">
-            {props.log.map((l) => <p key={l?.timestamp}>{l?.line} </p>
-            )}</p>
+            {props.log.map((l) => (
+              <p key={l?.timestamp}>{l?.line} </p>
+            ))}
+          </p>
           <div className="lookout-dialog-centered lookout-dialog-fixed">
             <Button onClick={props.onLoadMoreClick}>Load more</Button>
-            <Link to={`/job/${props?.job?.jobId}`} state = {{jobLogList: props?.log}} className="lookout-dialog-centered-link" >
-              <OpenInNewTwoToneIcon style={{ color: '#00aae1', fontSize: '2em' }}  />
+            <Link to={`/job/${props?.job?.jobId}`} target="_blank" className="lookout-dialog-centered-link">
+              <OpenInNewTwoToneIcon style={{ color: "#00aae1", fontSize: "2em" }} />
             </Link>
           </div>
         </>

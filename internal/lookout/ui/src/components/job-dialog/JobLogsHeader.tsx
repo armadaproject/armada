@@ -1,21 +1,19 @@
-import React from 'react'
+import React from "react"
 import "./JobLogsHeader.css"
 
 type JobLogsHeaderProps = {
-  header: string,
+  header: string
   headerValue: string | number | undefined
 }
 
-export default  function JobLogsHeader(props: JobLogsHeaderProps) {
+export default function JobLogsHeader(props: JobLogsHeaderProps) {
   return (
-    <div className='header-job-log'>
-      <h4>{ props?.header}
-      <span className='header-job-log-divider'> : </span>
+    <div className="header-job-log">
+      <h4>
+        {props?.header}
+        <span className="header-job-log-divider"> : </span>
       </h4>
-    <div>{props?.headerValue} </div>
-  </div>
+      <div>{props?.headerValue} </div>
+    </div>
   )
 }
-
-
-

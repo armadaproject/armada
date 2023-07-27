@@ -3,6 +3,7 @@ import React, { useEffect } from "react"
 import { ThemeProvider as ThemeProviderV4, createTheme as createThemeV4, StylesProvider } from "@material-ui/core"
 import { createGenerateClassName } from "@material-ui/core/styles"
 import { ThemeProvider as ThemeProviderV5, createTheme as createThemeV5 } from "@mui/material/styles"
+import JobDetailLog from "components/jobs/JobDetailLog"
 import { JobsTableContainer } from "containers/lookoutV2/JobsTableContainer"
 import { SnackbarProvider } from "notistack"
 import { Route, BrowserRouter, Routes } from "react-router-dom"
@@ -22,7 +23,6 @@ import { IGetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
 import { ILogService } from "./services/lookoutV2/LogService"
 
 import "./App.css"
-import JobDetailLog from "components/jobs/JobDetailLog"
 
 // Required for Mui V4 and V5 to be compatible with each other
 // See https://mui.com/x/react-data-grid/migration-v4/#using-mui-core-v4-with-v5
@@ -102,7 +102,7 @@ export function App(props: AppProps) {
                     <Route path="/" element={<OverviewContainer {...props} />} />
                     <Route path="/job-sets" element={<JobSetsContainer {...props} />} />
                     <Route path="/jobs" element={<JobsContainer {...props} />} />
-                    <Route path="/job/:id" element={<JobDetailLog  />} />
+                    <Route path="/job/:id" element={<JobDetailLog />} />
                     <Route
                       path="/v2"
                       element={
