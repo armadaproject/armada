@@ -87,4 +87,4 @@ jobs:
         with:
           version: '3.17.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: make tests-e2e-python
+      - run: go run github.com/magefile/mage@v1.14.0 -v teste2epython
