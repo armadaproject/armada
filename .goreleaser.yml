@@ -187,7 +187,7 @@ archives:
       - armadactl
     allow_different_binary_count: true
     name_template: 'armadactl_{{ replace .Version "-" "_" }}_{{ .Os }}_{{ .Arch }}'
-# wrap_in_directory is set to false will extract all files seperately, otherwise will bundle them all together in a folder
+# wrap_in_directory when set to false will extract all files seperately, otherwise will bundle them all together in a folder
     wrap_in_directory: false
     format: tar.gz
     format_overrides:
