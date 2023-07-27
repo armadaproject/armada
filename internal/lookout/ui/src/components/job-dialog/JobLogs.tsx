@@ -60,7 +60,7 @@ export default function JobLogs(props: JobLogsProps) {
             </span>
           ))}
         </div>
-        <JobLogsLoadMoreBtn text="Load from start" />
+        <JobLogsLoadMoreBtn text="Load from start" func={()=>{}} />
       </div>
       {!props.error && (
         <>
