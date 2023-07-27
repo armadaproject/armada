@@ -78,7 +78,6 @@ armadactl watch $QUEUE_NAME job-set-1
 ```bash
 armadactl watch $QUEUE_NAME job-set-1
 ```
-Again, you need to change the `queue-a` and `queue-b` to the names you kept in previous steps.
 
 Try submitting lots of jobs and see queues get built and processed:
 
