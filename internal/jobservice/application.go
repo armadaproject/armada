@@ -123,7 +123,8 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	jobService := server.NewJobService(config, sqlJobRepo)
 	js.RegisterJobServiceServer(grpcServer, jobService)
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
+	lc := net.ListenConfig{}
+	lis, err := lc.Listen(ctx, "tcp", fmt.Sprintf(":%d", config.GrpcPort))
 	if err != nil {
 		return err
 	}
@@ -157,10 +158,19 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	g.Go(func() error {
 		defer log.Infof("stopping server.")
 
+		go func() {
+			select {
+			case <-ctx.Done():
+				log.Info("Got context done for grpc server.")
+				grpcServer.Stop()
+			}
+		}()
+
 		log.Info("jobservice service listening on ", config.GrpcPort)
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}
+
 		return nil
 	})
 	g.Go(func() error {
