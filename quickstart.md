@@ -22,19 +22,18 @@ cd armada
 
 All commands are intended to be run from the root of the repository.
 
-Armada is a resource intensive application due to the need to run multiple Kubernetes clusters - for a local installation you will need at least 16GB of RAM available.
+Armada is a resource-intensive application due to the need to run multiple Kubernetes clusters - for a local installation you will need at least 16GB of RAM available.
 
 ### One-click Setup
 
 To install Armada and all its dependencies, you can use this script:  
-[https://github.com/G-Research/armada/blob/master/docs/local/setup.sh](https://github.com/G-Research/armada/blob/master/docs/local/setup.sh)
+[`docs/local/setup.sh`](https://github.com/armadaproject/armada/blob/master/docs/local/setup.sh)
 
 Likewise, to remove the Armada components from your system, you can utilize this script:  
-[https://github.com/G-Research/armada/blob/master/docs/local/destroy.sh](https://github.com/G-Research/armada/blob/master/docs/local/destroy.sh)
-
+[`docs/local/destroy.sh`](https://github.com/armadaproject/armada/blob/master/docs/local/destroy.sh)
 
 ## Usage
-Create queues, submit some jobs and monitor progress:
+Create queues, submit some jobs, and monitor progress:
 
 ### Queue Creation
 ```bash
