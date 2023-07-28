@@ -3,13 +3,19 @@ package main
 import (
 	"fmt"
 	"net"
+	"sync"
 
 	"github.com/armadaproject/armada/pkg/api"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/encoding"
+	"google.golang.org/grpc/encoding/gzip"
 )
 
 func ServePerformanceTestArmadaServer(port int) error {
+	comp := encoding.GetCompressor(gzip.Name)
+	encoding.RegisterCompressor(comp)
+
 	server := grpc.NewServer([]grpc.ServerOption{}...)
 
 	performanceTestEventServer := NewPerformanceTestEventServer()
@@ -22,4 +28,19 @@ func ServePerformanceTestArmadaServer(port int) error {
 		return err
 	}
 	return server.Serve(lis)
+}
+
+func main() {
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		err := ServePerformanceTestArmadaServer(1337)
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+		wg.Done()
+	}()
+
+	wg.Wait()
 }
