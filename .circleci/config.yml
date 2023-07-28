@@ -262,50 +262,6 @@ jobs:
             docker tag armada-full-bundle gresearchdev/armada-full-bundle-dev:${TAG}
             docker push gresearchdev/armada-full-bundle-dev:${TAG}
 
-
-  release-armadactl:
-    machine:
-      docker_layer_caching: true
-      image: ubuntu-2204:2023.02.1
-      resource_class: large
-      # resource_class: xlarge
-    environment:
-      GO111MODULE: "on"
-      GOPATH: "/home/circleci/go"
-      GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/armadaproject/armada
-    steps:
-      - checkout
-      - install-protobuf
-
-      - restore_cache: # restore dependencies
-          keys:
-            - go-mod-v3-{{ checksum "go.sum" }}
-
-      - run:
-          name: Download dependencies
-          command: |
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            chmod +x kubectl
-            sudo mv kubectl /usr/local/bin/
-            go run github.com/magefile/mage@v1.14.0 -v download
-
-      - run:
-          name: Build armadactl release artifacts
-          command: make build-armadactl-release RELEASE_VERSION=${CIRCLE_TAG}
-
-      - store_artifacts:
-          path: dist
-
-      - run:
-          name: Upload artifacts to Github release
-          command: |
-            for artifact in ./dist/*; do
-              ./scripts/upload-github-release-asset.sh ${GITHUB_TOKEN} ${CIRCLE_TAG} $artifact
-            done
-
-            ./scripts/add-checksum-summary.sh ${GITHUB_TOKEN} ${CIRCLE_TAG}
-
   release-docker-images:
     machine:
       docker_layer_caching: true
@@ -450,12 +406,6 @@ workflows:
   build_and_deploy:
     jobs:
       -  build_and_integration_tests
-      - release-armadactl:
-          filters:
-            tags:
-              only: /v[0-9]+\.[0-9]+\.[0-9]+/
-            branches:
-              ignore: /.*/
       - release-docker-images:
           filters:
             tags:

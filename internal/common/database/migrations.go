@@ -9,8 +9,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jackc/pgtype/pgxtype"
-
 	stakikfs "github.com/rakyll/statik/fs"
 	log "github.com/sirupsen/logrus"
 )
@@ -30,7 +28,7 @@ func NewMigration(id int, name string, sql string) Migration {
 	}
 }
 
-func UpdateDatabase(ctx context.Context, db pgxtype.Querier, migrations []Migration) error {
+func UpdateDatabase(ctx context.Context, db Querier, migrations []Migration) error {
 	log.Info("Updating postgres...")
 	version, err := readVersion(ctx, db)
 	if err != nil {
@@ -57,7 +55,7 @@ func UpdateDatabase(ctx context.Context, db pgxtype.Querier, migrations []Migrat
 	return nil
 }
 
-func readVersion(ctx context.Context, db pgxtype.Querier) (int, error) {
+func readVersion(ctx context.Context, db Querier) (int, error) {
 	_, err := db.Exec(ctx,
 		`CREATE SEQUENCE IF NOT EXISTS database_version START WITH 0 MINVALUE 0;`)
 	if err != nil {
@@ -77,7 +75,7 @@ func readVersion(ctx context.Context, db pgxtype.Querier) (int, error) {
 	return version, err
 }
 
-func setVersion(ctx context.Context, db pgxtype.Querier, version int) error {
+func setVersion(ctx context.Context, db Querier, version int) error {
 	_, err := db.Exec(ctx, `SELECT setval('database_version', $1)`, version)
 	return err
 }

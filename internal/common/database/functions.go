@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -35,7 +35,7 @@ func OpenPgxConn(config configuration.PostgresConfig) (*pgx.Conn, error) {
 }
 
 func OpenPgxPool(config configuration.PostgresConfig) (*pgxpool.Pool, error) {
-	db, err := pgxpool.Connect(context.Background(), CreateConnectionString(config.Connection))
+	db, err := pgxpool.New(context.Background(), CreateConnectionString(config.Connection))
 	if err != nil {
 		return nil, err
 	}
