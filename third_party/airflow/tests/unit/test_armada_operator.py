@@ -1,10 +1,13 @@
 import copy
+from unittest.mock import patch, Mock, MagicMock
 
 import grpc
 import pytest
 
+from armada.jobservice import jobservice_pb2
 from armada.operators.armada import ArmadaOperator
 from armada.operators.grpc import CredentialsCallback
+from armada.operators.utils import JobState
 
 get_lookout_url_test_cases = [
     (
@@ -131,3 +134,64 @@ def test_credentials_callback():
 
     result = callback.call()
     assert result == "fake_cred bar"
+
+
+@patch("armada.operators.armada.search_for_job_complete")
+@patch("armada.operators.armada.ArmadaClient", autospec=True)
+@patch("armada.operators.armada.JobServiceClient", autospec=True)
+def test_armada_operator_execute(
+    JobServiceClientMock, ArmadaClientMock, search_for_job_complete_mock
+):
+    jsclient_mock = Mock()
+    jsclient_mock.health.return_value = jobservice_pb2.HealthCheckResponse(
+        status=jobservice_pb2.HealthCheckResponse.SERVING
+    )
+
+    JobServiceClientMock.return_value = jsclient_mock
+
+    item = Mock()
+    item.job_id = "fake_id"
+
+    job = Mock()
+    job.job_response_items = [
+        item,
+    ]
+
+    aclient_mock = Mock()
+    aclient_mock.submit_jobs.return_value = job
+    ArmadaClientMock.return_value = aclient_mock
+
+    search_for_job_complete_mock.return_value = (JobState.SUCCEEDED, "No error")
+
+    armada_channel_args = {"target": "127.0.0.1:50051"}
+    job_service_channel_args = {"target": "127.0.0.1:60003"}
+
+    operator = ArmadaOperator(
+        task_id="test_task_id",
+        name="test_task",
+        armada_channel_args=armada_channel_args,
+        job_service_channel_args=job_service_channel_args,
+        armada_queue="test_queue",
+        job_request_items=[],
+        lookout_url_template="https://lookout.armada.domain/jobs?job_id=<job_id>",
+    )
+
+    task_instance = Mock()
+    task_instance.task_id = "mock_task_id"
+
+    dag = Mock()
+    dag.dag_id = "mock_dag_id"
+
+    context = {
+        "run_id": "mock_run_id",
+        "ti": task_instance,
+        "dag": dag,
+    }
+
+    try:
+        operator.execute(context)
+    except Exception as e:
+        assert False, f"{e}"
+
+    jsclient_mock.health.assert_called()
+    aclient_mock.submit_jobs.assert_called()
