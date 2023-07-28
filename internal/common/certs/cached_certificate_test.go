@@ -105,6 +105,8 @@ func TestCachedCertificateService_ReloadsCertPeriodically_WhenUsingRun(t *testin
 }
 
 func writeCerts(t *testing.T, certData *bytes.Buffer, keyData *bytes.Buffer) {
+	err := os.MkdirAll("testdata", 0o755)
+	require.NoError(t, err)
 	if certData != nil {
 		err := os.WriteFile(certFilePath, certData.Bytes(), 0o644)
 		require.NoError(t, err)
@@ -117,8 +119,7 @@ func writeCerts(t *testing.T, certData *bytes.Buffer, keyData *bytes.Buffer) {
 }
 
 func cleanup() {
-	os.Remove(certFilePath)
-	os.Remove(keyFilePath)
+	os.RemoveAll("testdata")
 }
 
 func createCerts(t *testing.T) (*tls.Certificate, *bytes.Buffer, *bytes.Buffer) {
