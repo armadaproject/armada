@@ -62,14 +62,17 @@ with Diagram(
     # Databases
     postgres_lookout = PostgreSQL("Postgres (Lookout)")
     redis_events = Redis("Redis (Events)")
-    redis_scheduler = Redis("Redis Scheduler")
+    redis_scheduler = Custom("Redis Scheduler", armada_logo)
 
     # Components
     server = Custom("Server", armada_logo)
+    client = Custom("Client", armada_logo)
     executorAPI = Custom("Executor API", armada_logo)
+    lookoutV2API = Custom("Lookout V2 API", armada_logo)
+    lookoutV1UI = Custom("Lookout V1 UI", armada_logo)
 
     # Ingesters
-    lookout_ingester = Custom("Lookout Ingester", armada_logo)
+    lookout_ingester = Custom("Lookout V2 Ingester", armada_logo)
 
     with Cluster("Executor Cluster", graph_attr=cluster_attr_server):
         executor = Custom("Executor", armada_logo)
@@ -87,11 +90,22 @@ with Diagram(
     # Pulsar talks to lookout_ingester
     pulsar >> Edge(color="red") >> lookout_ingester
 
+    # Lookout V2 Ingester talks to Lookout V2 API
+    lookout_ingester >> Edge(color="black") >> lookoutV2API
+
+    # Pulsar talks to Lookout V1 UI
+    pulsar >> Edge(color="red") >> lookoutV1UI
+
     # Pulsar talks to server
     pulsar >> Edge(color="red") >> server
 
-    # Pulsar talks to executorAPI
-    pulsar >> Edge(color="red") >> executorAPI
+    # Server and client talks to each other
+    server >> Edge(color="black") >> client
+    client >> Edge(color="black") >> server
+
+    # Executor API and server talks to each other
+    executorAPI >> Edge(color="black") >> server
+    server >> Edge(color="black") >> executorAPI
 
     # server talks to redis_events
     server >> Edge(color="orange") >> redis_events
