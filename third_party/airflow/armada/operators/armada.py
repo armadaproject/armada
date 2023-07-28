@@ -88,6 +88,7 @@ class ArmadaOperator(BaseOperator):
         if "options" not in job_service_channel_args:
             job_service_channel_args["options"] = default_jobservice_channel_options
 
+        self.job_service_channel_args = GrpcChannelArguments(**job_service_channel_args)
         self.armada_queue = armada_queue
         self.job_request_items = job_request_items
         self.lookout_url_template = lookout_url_template
