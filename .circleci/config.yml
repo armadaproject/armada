@@ -169,20 +169,16 @@ jobs:
             go run github.com/magefile/mage@v1.14.0 -v buildDockers full-bundle
 
       - run:
-          name: e2e test environment setup
-          command: go run github.com/magefile/mage@v1.14.0 -v teste2eSetup
-
-      - run:
           name: Enable integration tests
           command: echo 'export INTEGRATION_ENABLED="true"' >> $BASH_ENV
 
       - run:
           name: e2e tests
-          command: go run github.com/magefile/mage@v1.14.0 -v testse2eNoSetup
+          command: go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
 
       - run:
           name: e2e test environment teardown
-          command: go run github.com/magefile/mage@v1.14.0 -v testse2eTearDown
+          command: go run github.com/magefile/mage@v1.14.0 -v localdevstop
 
       - run:
           name: Prepare reports
