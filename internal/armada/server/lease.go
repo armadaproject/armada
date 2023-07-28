@@ -456,7 +456,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	// At this point we've written updated usage information to Redis and are ready to start scheduling.
 	// Exit here if scheduling is disabled.
 	if q.schedulingConfig.DisableScheduling {
-		log.Info("skipping scheduling on %s - scheduling disabled", req.ClusterId)
+		log.Infof("skipping scheduling on %s - scheduling disabled", req.ClusterId)
 		return make([]*api.Job, 0), nil
 	}
 
