@@ -62,7 +62,6 @@ with Diagram(
     # Databases
     postgres_lookout = PostgreSQL("Postgres (Lookout)")
     redis_events = Redis("Redis (Events)")
-    redis_scheduler = Custom("Redis Scheduler", armada_logo)
 
     # Components
     server = Custom("Server", armada_logo)
@@ -84,6 +83,9 @@ with Diagram(
 
     # Relationships
 
+    # The lookout V2 API talks to The Lookout V1 UI
+    lookoutV2API >> Edge(color="black") >> lookoutV1UI
+
     # Lookout ingester talks to each other Postgres lookout
     lookout_ingester >> Edge(color="blue") >> postgres_lookout
 
@@ -92,9 +94,6 @@ with Diagram(
 
     # Lookout V2 Ingester talks to Lookout V2 API
     lookout_ingester >> Edge(color="black") >> lookoutV2API
-
-    # Pulsar talks to Lookout V1 UI
-    pulsar >> Edge(color="red") >> lookoutV1UI
 
     # Pulsar talks to server
     pulsar >> Edge(color="red") >> server
@@ -109,12 +108,6 @@ with Diagram(
 
     # server talks to redis_events
     server >> Edge(color="orange") >> redis_events
-
-    # server talks to redis_scheduler
-    server >> Edge(color="orange") >> redis_scheduler
-
-    # executorAPI talks to redis_scheduler
-    executorAPI >> Edge(color="orange") >> redis_scheduler
 
     # in Executor Cluster
     executor >> Edge(color="blue") >> k8s_api
