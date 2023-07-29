@@ -95,6 +95,7 @@ func Tests() error {
 
 	return err
 }
+
 func filterPackages(packages []string, filter string) []string {
 	var filtered []string
 	for _, pkg := range packages {
