@@ -3,7 +3,7 @@ package pulsar_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -449,7 +449,7 @@ func TestIngress(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		httpResBytes, err := ioutil.ReadAll(httpRes.Body)
+		httpResBytes, err := io.ReadAll(httpRes.Body)
 		if err != nil {
 			return err
 		}
