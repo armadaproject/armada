@@ -81,6 +81,22 @@ Runs an Armada job and calls the job_service_client for polling.
 
 
 
+#### on_kill()
+Stops the JobService from listening to the JobSet and cancels the jobs.
+
+
+* **Returns**
+
+    None
+
+
+
+* **Return type**
+
+    None
+
+
+
 #### render_template_fields(context, jinja_env=None)
 Template all attributes listed in *self.template_fields*.
 
