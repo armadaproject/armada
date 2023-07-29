@@ -1,73 +1,60 @@
 name: "Lint"
-
 on:
   workflow_call:
-
 permissions:
   contents: read
   pull-requests: read
-
 jobs:
   ts-lint:
-    # TODO(JayF): Determine what nodejs versions we target, and setup matrix-based testing similar to what we do for go
     name: Lint TypeScript
     runs-on: ubuntu-22.04
-
     steps:
-      - name: Adding markdown
+      - name: Adding markdown for Typescript
         run: echo '### Lint TypeScript ✨' >> $GITHUB_STEP_SUMMARY
-
       - name: Checkout 
         uses: actions/checkout@v3.3.0
-
       - name: Setup Node 
         uses: actions/setup-node@v3
         with:
           node-version: 16.14.2
           cache: yarn
           cache-dependency-path: ./internal/lookout/ui/yarn.lock
-
       - name: Check TypeScript formatting 
+        id: ts-lint
         run: |
-          yarn install --frozen-lockfile && yarn run fmt || exit 1
-          git status -s -uno | grep '^.T' >> $GITHUB_ENV.LINT_ISSUES || true
+          yarn install --frozen-lockfile && yarn run fmt > lint_results.txt || exit 0
+          echo "::set-output name=lint_results::$(cat lint_results.txt)"
+          exit $(git status -s -uno | wc -l)
         working-directory: ./internal/lookout/ui
-
-      - name: Set Lint issues output for Typescript
-        if: failure()
-        run: echo "::set-output name=lint-issues::$(cat $GITHUB_ENV.LINT_ISSUES)"
-
       - name: Generate list using Markdown
-        if: always()
+        id: ts-lint-summary
         run: |
-          echo "- ✔️ Checked out the repository" >> $GITHUB_STEP_SUMMARY
-          echo "- ✔️ Set up Node.js with version 16.14.2 and cached Yarn dependencies" >> $GITHUB_STEP_SUMMARY
-          echo "- ✔️ Checked TypeScript formatting" >> $GITHUB_STEP_SUMMARY
-          if [ -s "$GITHUB_ENV.LINT_ISSUES" ]; then
-            echo "- ❌ TypeScript lint issues found:" >> $GITHUB_STEP_SUMMARY
-            cat "$GITHUB_ENV.LINT_ISSUES" >> $GITHUB_STEP_SUMMARY
-            exit 1
+          if [ ${{ steps.ts-lint.outcome }} == 'success' ]; then
+            echo "- ✔️ Checked out the repository" >> $GITHUB_STEP_SUMMARY
+            echo "- ✔️ Set up Node.js with version 16.14.2 and cached Yarn dependencies" >> $GITHUB_STEP_SUMMARY
+            echo "- ✔️ Checked TypeScript formatting" >> $GITHUB_STEP_SUMMARY
           else
-            echo "- ✔️ No lint issues in TypeScript code" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ Checked out the repository" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ Set up Node.js with version 16.14.2 and cached Yarn dependencies" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ TypeScript formatting check failed" >> $GITHUB_STEP_SUMMARY
+            echo "::error::Linting issues found. Check the details below." >> $GITHUB_STEP_SUMMARY
+            cat lint_results.txt >> $GITHUB_STEP_SUMMARY
           fi
-
+        continue-on-error: true
   go-lint:
     name: Lint Go
     runs-on: ubuntu-22.04
-
     steps:
       - name: Adding markdown
         run: echo '### Lint Go ✨' >> $GITHUB_STEP_SUMMARY
-
       - name: Checkout 
         uses: actions/checkout@v3.3.0
-
       - name: Setup Golang with Cache 
         uses: magnetikonline/action-golang-cache@v4
         with:
           go-version: "1.20"
-
       - name: Lint using golangci-lint 
+        id: go-lint
         uses: golangci/golangci-lint-action@v3
         with:
           skip-pkg-cache: true
@@ -76,21 +63,35 @@ jobs:
           only-new-issues: true
           args: --timeout=10m --issues-exit-code=1 --sort-results ./...
 
-      - name: Set Lint issues output for Go
-        if: failure()
-        run: echo "::set-output name=lint-issues::$(cat ${{ steps.go-lint.outputs.lint-result-path }})"
+      - name: Save Go linting results
+        if: ${{ always() }}
+        run: |
+          echo "GolangCI-Lint Results:" > lint_results.txt
+          echo "\`\`\`" >> lint_results.txt
+          echo "${{ steps.go-lint.outputs.stdout }}" >> lint_results.txt
+          echo "\`\`\`" >> lint_results.txt
+          cat lint_results.txt
+        continue-on-error: true      
 
       - name: Generate list using Markdown
-        if: always()
+        id: go-lint-summary
         run: |
-          echo "- ✔️ Checked out the repository" >> $GITHUB_STEP_SUMMARY
-          echo "- ✔️ Set up Go with version 1.20 and cached dependencies" >> $GITHUB_STEP_SUMMARY
-          echo "- ✔️ Linted Go code using golangci-lint" >> $GITHUB_STEP_SUMMARY
-          if [ -n "${{ steps.go-lint.outputs.lint-result-path }}" ]; then
-            echo "- ❌ Lint issues found in Golang code" >> $GITHUB_STEP_SUMMARY
-            echo "Lint issues:"
-            echo "$(cat ${{ steps.go-lint.outputs.lint-result-path }})"
-            exit 1
+          if [ ${{ steps.go-lint.outcome }} == 'success' ]; then
+               echo "- ✔️ Checked out the repository" >> $GITHUB_STEP_SUMMARY
+               echo "- ✔️ Set up Go with version 1.20 and cached dependencies" >> $GITHUB_STEP_SUMMARY
+               echo "- ✔️ Linted Go code using golangci-lint" >> $GITHUB_STEP_SUMMARY
           else
-            echo "- ✔️ No lint issues in Golang code" >> $GITHUB_STEP_SUMMARY
+               echo "- ❌ Checked out the repository" >> $GITHUB_STEP_SUMMARY
+               echo "- ❌ Set up Go with version 1.20 and cached dependencies" >> $GITHUB_STEP_SUMMARY
+               echo "- ❌ Go lint check failed" >> $GITHUB_STEP_SUMMARY
+               echo "::error::Linting issues found. Check the details below." >> $GITHUB_STEP_SUMMARY
+               while read -r line; do
+                    file=$(echo "$line" | cut -d':' -f1)
+                    linenum=$(echo "$line" | cut -d':' -f2)
+                    message=$(echo "$line" | cut -d':' -f4-)
+                    echo "::error file=$file,line=$linenum::${message}" >> $GITHUB_STEP_SUMMARY
+               done < lint_results.txt
           fi
+        continue-on-error: true
+        if: always()
+
