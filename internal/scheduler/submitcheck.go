@@ -87,9 +87,6 @@ func NewSubmitChecker(
 func (srv *SubmitChecker) Run(ctx context.Context) error {
 	srv.updateExecutors(ctx)
 
-	fmt.Println("ExecutorUpdateFrequency")
-	fmt.Println(srv.ExecutorUpdateFrequency)
-
 	ticker := time.NewTicker(srv.ExecutorUpdateFrequency)
 	for {
 		select {
