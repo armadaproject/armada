@@ -48,7 +48,6 @@ func StopDependencies() error {
 		return err
 	}
 
-	// Remove the containers
 	servicesArg = append([]string{"compose", "rm", "-f"}, services...)
 	if err := dockerRun(servicesArg...); err != nil {
 		return err
@@ -85,7 +84,6 @@ func StopComponents() error {
 		return err
 	}
 
-	// Do the same thing as the above but remove the containers
 	componentsArg = append([]string{"compose", "-f", composeFile, "rm", "-f"}, components...)
 	if err := dockerRun(componentsArg...); err != nil {
 		return err
@@ -109,7 +107,7 @@ func CheckForPulsarRunning() error {
 				return err
 			}
 			if strings.Contains(out, "alive") {
-				// if seconds is less than 3, it means that pulsar had already started
+				// if seconds is less than 1, it means that pulsar had already started
 				if seconds < 1 {
 					fmt.Printf("\nPulsar had already started!\n\n")
 					return nil
