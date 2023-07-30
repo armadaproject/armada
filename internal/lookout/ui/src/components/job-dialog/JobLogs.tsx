@@ -3,7 +3,9 @@ import React, { useEffect } from "react"
 import { Button } from "@material-ui/core"
 import Alert from "@material-ui/lab/Alert"
 import OpenInNewTwoToneIcon from "@mui/icons-material/OpenInNewTwoTone"
+import { useDispatch } from "react-redux"
 import { Link } from "react-router-dom"
+import { setJobLog } from "store/features/jobLogSlice"
 
 import { getContainersForRun } from "../../containers/JobLogsContainer"
 import { Job } from "../../services/JobService"
@@ -13,8 +15,6 @@ import JobLogsLoadMoreBtn from "./JobLogsLoadMoreBtn"
 
 import "./JobLogs.css"
 import "../Dialog.css"
-import { useDispatch } from "react-redux"
-import { setJobLog } from "store/features/jobLogSlice"
 
 type JobLogsProps = {
   job: Job

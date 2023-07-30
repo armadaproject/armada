@@ -1,4 +1,6 @@
 import ReactDOM from "react-dom"
+import { Provider } from "react-redux"
+import { PersistGate } from "redux-persist/integration/react"
 import { GetJobsService } from "services/lookoutV2/GetJobsService"
 import { GroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
@@ -7,8 +9,6 @@ import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
 import { makeRandomJobs } from "utils/fakeJobsUtils"
 
 import { App } from "./App"
-import { Provider } from "react-redux"
-import { store } from "./store/index"
 import { SubmitApi, Configuration as SubmitConfiguration } from "./openapi/armada"
 import { LookoutApi, Configuration as LookoutConfiguration } from "./openapi/lookout"
 import reportWebVitals from "./reportWebVitals"
@@ -22,6 +22,7 @@ import { FakeCordonService } from "./services/lookoutV2/mocks/FakeCordonService"
 import FakeGetJobSpecService from "./services/lookoutV2/mocks/FakeGetJobSpecService"
 import { FakeGetRunErrorService } from "./services/lookoutV2/mocks/FakeGetRunErrorService"
 import { FakeLogService } from "./services/lookoutV2/mocks/FakeLogService"
+import { persistor, store } from "./store/index"
 import { getUIConfig } from "./utils"
 
 import "react-virtualized/styles.css"
@@ -68,22 +69,24 @@ import "./index.css"
 
   ReactDOM.render(
     <Provider store={store}>
-      <App
-        customTitle={uiConfig.customTitle}
-        jobService={jobService}
-        v2GetJobsService={v2GetJobsService}
-        v2GroupJobsService={v2GroupJobsService}
-        v2UpdateJobsService={v2UpdateJobsService}
-        v2RunErrorService={v2RunErrorService}
-        v2JobSpecService={v2JobSpecService}
-        v2LogService={v2LogService}
-        v2CordonService={v2CordonService}
-        logService={logService}
-        overviewAutoRefreshMs={uiConfig.overviewAutoRefreshMs}
-        jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}
-        jobsAutoRefreshMs={uiConfig.jobsAutoRefreshMs}
-        debugEnabled={uiConfig.debugEnabled}
-      />
+      <PersistGate loading={null} persistor={persistor}>
+        <App
+          customTitle={uiConfig.customTitle}
+          jobService={jobService}
+          v2GetJobsService={v2GetJobsService}
+          v2GroupJobsService={v2GroupJobsService}
+          v2UpdateJobsService={v2UpdateJobsService}
+          v2RunErrorService={v2RunErrorService}
+          v2JobSpecService={v2JobSpecService}
+          v2LogService={v2LogService}
+          v2CordonService={v2CordonService}
+          logService={logService}
+          overviewAutoRefreshMs={uiConfig.overviewAutoRefreshMs}
+          jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}
+          jobsAutoRefreshMs={uiConfig.jobsAutoRefreshMs}
+          debugEnabled={uiConfig.debugEnabled}
+        />
+      </PersistGate>
     </Provider>,
     document.getElementById("root"),
   )

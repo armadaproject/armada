@@ -13,11 +13,10 @@ const initialState = [
 ]
 
 const jobLogSlice = createSlice({
-  name: "jobLog",
+  name: "jobLogSlice",
   initialState,
   reducers: {
     setJobLog(state, action: PayloadAction<JobDetailLogProps[]>) {
-      console.log("in Set Job")
       return [...action.payload]
     },
   },
