@@ -216,6 +216,8 @@ type SchedulingConfig struct {
 	MaxUnacknowledgedJobsPerExecutor uint
 	// If true, do not during scheduling skip jobs with requirements known to be impossible to meet.
 	AlwaysAttemptScheduling bool
+	// The frequency at which the scheduler updates the cluster state.
+	ExecutorUpdateFrequency time.Duration
 }
 
 // FairnessModel controls how fairness is computed.
