@@ -7,6 +7,8 @@ import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
 import { makeRandomJobs } from "utils/fakeJobsUtils"
 
 import { App } from "./App"
+import { Provider } from "react-redux"
+import { store } from "./store/index"
 import { SubmitApi, Configuration as SubmitConfiguration } from "./openapi/armada"
 import { LookoutApi, Configuration as LookoutConfiguration } from "./openapi/lookout"
 import reportWebVitals from "./reportWebVitals"
@@ -65,22 +67,24 @@ import "./index.css"
     : new CordonService({ credentials: "include" }, uiConfig.binocularsBaseUrlPattern)
 
   ReactDOM.render(
-    <App
-      customTitle={uiConfig.customTitle}
-      jobService={jobService}
-      v2GetJobsService={v2GetJobsService}
-      v2GroupJobsService={v2GroupJobsService}
-      v2UpdateJobsService={v2UpdateJobsService}
-      v2RunErrorService={v2RunErrorService}
-      v2JobSpecService={v2JobSpecService}
-      v2LogService={v2LogService}
-      v2CordonService={v2CordonService}
-      logService={logService}
-      overviewAutoRefreshMs={uiConfig.overviewAutoRefreshMs}
-      jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}
-      jobsAutoRefreshMs={uiConfig.jobsAutoRefreshMs}
-      debugEnabled={uiConfig.debugEnabled}
-    />,
+    <Provider store={store}>
+      <App
+        customTitle={uiConfig.customTitle}
+        jobService={jobService}
+        v2GetJobsService={v2GetJobsService}
+        v2GroupJobsService={v2GroupJobsService}
+        v2UpdateJobsService={v2UpdateJobsService}
+        v2RunErrorService={v2RunErrorService}
+        v2JobSpecService={v2JobSpecService}
+        v2LogService={v2LogService}
+        v2CordonService={v2CordonService}
+        logService={logService}
+        overviewAutoRefreshMs={uiConfig.overviewAutoRefreshMs}
+        jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}
+        jobsAutoRefreshMs={uiConfig.jobsAutoRefreshMs}
+        debugEnabled={uiConfig.debugEnabled}
+      />
+    </Provider>,
     document.getElementById("root"),
   )
 
