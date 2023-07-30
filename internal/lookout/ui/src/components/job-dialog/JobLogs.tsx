@@ -13,6 +13,8 @@ import JobLogsLoadMoreBtn from "./JobLogsLoadMoreBtn"
 
 import "./JobLogs.css"
 import "../Dialog.css"
+import { useDispatch } from "react-redux"
+import { setJobLog } from "store/features/jobLogSlice"
 
 type JobLogsProps = {
   job: Job
@@ -28,12 +30,13 @@ type JobLogsProps = {
 }
 
 export default function JobLogs(props: JobLogsProps) {
-  // Cache job logs
-  const setCache = () => {
-    localStorage.setItem("jobLog", JSON.stringify(props?.log))
+  const dispatch = useDispatch()
+
+  const setJobLogState = () => {
+    dispatch(setJobLog(props?.log))
   }
 
-  useEffect(() => setCache(), [props?.log])
+  useEffect(() => setJobLogState(), [props?.log])
 
   return (
     <div className="lookout-dialog-container">

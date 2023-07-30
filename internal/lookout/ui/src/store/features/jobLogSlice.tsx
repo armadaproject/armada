@@ -17,7 +17,8 @@ const jobLogSlice = createSlice({
   initialState,
   reducers: {
     setJobLog(state, action: PayloadAction<JobDetailLogProps[]>) {
-      return action.payload
+      console.log("in Set Job")
+      return [...action.payload]
     },
   },
 })
