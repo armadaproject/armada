@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
@@ -32,7 +32,7 @@ func PruneDb(ctx context.Context, db *pgx.Conn, keepAfterCompletion time.Duratio
 	for keepGoing {
 		batchStart := clock.Now()
 		batchSize := 0
-		err = db.BeginTxFunc(ctx, pgx.TxOptions{
+		err = pgx.BeginTxFunc(ctx, db, pgx.TxOptions{
 			IsoLevel:       pgx.ReadCommitted,
 			AccessMode:     pgx.ReadWrite,
 			DeferrableMode: pgx.Deferrable,
