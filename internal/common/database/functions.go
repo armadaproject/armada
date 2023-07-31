@@ -7,13 +7,34 @@ import (
 	"strings"
 	"time"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/database/postgres"
+	"github.com/armadaproject/armada/internal/common/database/types"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
-
-	"github.com/armadaproject/armada/internal/armada/configuration"
 )
+
+func OpenPool(config configuration.DatabaseConfig) (types.DatabasePool, error) {
+	// only Postgres pooling is supported at the moment
+	if config.Dialect != configuration.PostgresDialect {
+		return nil, nil
+	}
+
+	return postgres.OpenPool(config)
+}
+
+func NewConnection(config configuration.DatabaseConfig) types.DatabaseConnection {
+	// only Postgres is supported at the moment
+	if config.Dialect != configuration.PostgresDialect {
+		return nil
+	}
+
+	return postgres.PostgresConnection{
+		Config: config,
+	}
+}
 
 func CreateConnectionString(values map[string]string) string {
 	// https://www.postgresql.org/docs/10/libpq-connect.html#id-1.7.3.8.3.5
