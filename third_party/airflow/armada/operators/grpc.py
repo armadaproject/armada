@@ -132,7 +132,7 @@ class GrpcChannelArguments(object):
 
         return {
             "target": self.target,
-            "credentials_callback": self.credentials_callback,
+            "credentials_callback_args": self.credentials_callback_args
             "options": self.options,
             "compression": self.compression,
         }
