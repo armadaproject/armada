@@ -2,13 +2,12 @@ package types
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 )
 
 type DatabaseConnection interface {
-	Open() (*sql.DB, error)
+	Open() (DatabaseConn, error)
 	GetConfig() configuration.DatabaseConfig
 }
 
@@ -22,7 +21,7 @@ type DatabaseConn interface {
 	Ping(context.Context) error
 
 	// Exec executes a query that doesn't return rows. It returns any error encountered.
-	Exec(context.Context, string, ...any) (any, error)
+	Exec(context.Context, string, ...any) (DatabaseQueryResult, error)
 
 	// Query executes a query that returns multiple rows. It returns a DatabaseRows interface that allows you to iterate over the result set, and any error encountered.
 	Query(context.Context, string, ...any) (DatabaseRows, error)
@@ -47,7 +46,7 @@ type DatabaseTxOptions struct {
 // managing transactions, and performing bulk insertions.
 type DatabaseTx interface {
 	// Exec executes a query that doesn't return rows. It returns any error encountered.
-	Exec(context.Context, string, ...any) (any, error)
+	Exec(context.Context, string, ...any) (DatabaseQueryResult, error)
 
 	// Query executes a query that returns multiple rows.
 	// It returns a DatabaseRows interface that allows you to iterate over the result set, and any error encountered.
@@ -81,11 +80,14 @@ type DatabasePool interface {
 	Close()
 
 	// Exec executes a query that doesn't return rows. It returns any error encountered.
-	Exec(context.Context, string, ...any) (any, error)
+	Exec(context.Context, string, ...any) (DatabaseQueryResult, error)
 
 	// Query executes a query that returns multiple rows.
 	// It returns a DatabaseRows interface that allows you to iterate over the result set, and any error encountered.
 	Query(context.Context, string, ...any) (DatabaseRows, error)
+
+	// QueryRow executes a query that returns one row. It returns a DatabaseRow interface representing the result row, and any error encountered.
+	QueryRow(context.Context, string, ...any) DatabaseRow
 
 	// BeginTx starts a transcation with the given DatabaseTxOptions, or returns an error if any occurred.
 	BeginTx(context.Context, DatabaseTxOptions) (DatabaseTx, error)
@@ -115,4 +117,10 @@ type DatabaseRows interface {
 
 	// Scan reads the values from the current row into dest values positionally. It returns an error if any occurred during the read operation.
 	Scan(dest ...any) error
+}
+
+// DatabaseQueryReuslt represents the results of executing a query that doesn't return any rows.
+type DatabaseQueryResult interface {
+	// RowsAffected represents the number of rows that were affected by the executed query.
+	RowsAffected() int64
 }
