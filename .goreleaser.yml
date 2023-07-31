@@ -373,8 +373,8 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "{{ .Env.DOCKER_REPO }}testsuite:latest"
-      - "{{ .Env.DOCKER_REPO }}testsuite:{{ .Version }}"
+      - "{{ .Env.DOCKER_REPO }}armada-testsuite:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-testsuite:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
       - testsuite

@@ -102,6 +102,7 @@ scheduling:
       resolution: "1Mi"
   minTerminationGracePeriod: 1s
   maxTerminationGracePeriod: 300s
+  executorUpdateFrequency: 1m
 queueManagement:
   defaultPriorityFactor: 1000
   defaultQueuedJobsLimit: 0  # No Limit
