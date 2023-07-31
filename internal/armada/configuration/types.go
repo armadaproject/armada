@@ -107,6 +107,8 @@ type DatabaseConfig struct {
 }
 
 type SchedulingConfig struct {
+	// Set to true to disable scheduling
+	DisableScheduling bool
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
 	// If true, schedule jobs across all executors in the same pool in a unified manner.
