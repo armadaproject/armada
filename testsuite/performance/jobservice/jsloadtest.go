@@ -44,7 +44,10 @@ func main() {
 
 	for i := 0; i < maxJob; i++ {
 		go func(n int) {
-			queryJobStatus(ctx, conn, n, prefix)
+			err := queryJobStatus(ctx, conn, n, prefix)
+			if err != nil {
+				fmt.Printf("Error querying job status: %v\n", err)
+			}
 			wg.Done()
 		}(i)
 	}

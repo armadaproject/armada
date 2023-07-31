@@ -5,11 +5,12 @@ import (
 	"net"
 	"sync"
 
-	"github.com/armadaproject/armada/pkg/api"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding"
 	"google.golang.org/grpc/encoding/gzip"
+
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 func ServePerformanceTestArmadaServer(port int) error {

@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/armadaproject/armada/pkg/api"
 	"github.com/gogo/protobuf/types"
+
+	"github.com/armadaproject/armada/pkg/api"
 )
 
 type PerformanceTestEventServer struct{}

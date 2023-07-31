@@ -9,11 +9,12 @@ import (
 	"sync"
 	"time"
 
+	"google.golang.org/grpc/encoding"
+	"google.golang.org/grpc/encoding/gzip"
+
 	"github.com/armadaproject/armada/internal/jobservice"
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
 	"github.com/armadaproject/armada/pkg/client"
-	"google.golang.org/grpc/encoding"
-	"google.golang.org/grpc/encoding/gzip"
 
 	_ "net/http/pprof"
 )
@@ -38,7 +39,7 @@ func main() {
 	}()
 
 	go func() {
-		http.ListenAndServe("localhost:6060", nil)
+		_ = http.ListenAndServe("localhost:6060", nil)
 	}()
 
 	comp := encoding.GetCompressor(gzip.Name)
@@ -62,7 +63,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		os.Setenv("JOBSERVICE_DEBUG", "TRUE")
-		js.StartUp(ctx, &configuration.JobServiceConfiguration{
+		err := js.StartUp(ctx, &configuration.JobServiceConfiguration{
 			GrpcPort:     2000,
 			MetricsPort:  2001,
 			HttpPort:     2002,
@@ -85,6 +86,9 @@ func main() {
 				},
 			},
 		})
+		if err != nil {
+			fmt.Printf("Error starting Job Service: %v\n", err)
+		}
 		wg.Done()
 	}()
 
