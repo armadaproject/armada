@@ -86,6 +86,7 @@ class ArmadaDeferrableOperator(BaseOperator):
         armada_queue: str,
         job_request_items: List[JobSubmitRequestItem],
         lookout_url_template: Optional[str] = None,
+        poll_interval: int = 30,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
@@ -99,6 +100,7 @@ class ArmadaDeferrableOperator(BaseOperator):
         self.armada_queue = armada_queue
         self.job_request_items = job_request_items
         self.lookout_url_template = lookout_url_template
+        self.poll_interval = poll_interval
 
     def execute(self, context) -> None:
         """
@@ -255,6 +257,7 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
             job_service_client=job_service_client,
             armada_queue=self.armada_queue,
             job_set_id=self.job_set_id,
+            poll_interval=self.poll_interval,
             airflow_task_name=self.airflow_task_name,
             job_id=self.job_id,
             log=self.log,
