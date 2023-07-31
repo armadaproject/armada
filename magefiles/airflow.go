@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/magefile/mage/sh"
 )
@@ -68,4 +69,31 @@ func stopAirflow() error {
 	}
 
 	return sh.Run("rm", "-rf", "localdev/airflow/opt/")
+}
+
+// AirflowOperator builds the Airflow Operator
+func AirflowOperator() error {
+	fmt.Println("Building Airflow Operator...")
+
+	err := os.RemoveAll("proto-airflow")
+	if err != nil {
+		return fmt.Errorf("failed to remove proto-airflow directory: %w", err)
+	}
+
+	err = os.MkdirAll("proto-airflow", os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("failed to create proto-airflow directory: %w", err)
+	}
+
+	err = dockerRun("buildx", "build", "-o", "type=docker", "-t", "armada-airflow-operator-builder", "-f", "./build/airflow-operator/Dockerfile", ".")
+	if err != nil {
+		return fmt.Errorf("failed to build Airflow Operator: %w", err)
+	}
+
+	err = dockerRun("run", "--rm", "-v", "${PWD}/proto-airflow:/proto-airflow", "-v", "${PWD}:/go/src/armada", "-w", "/go/src/armada", "armada-airflow-operator-builder", "./scripts/build-airflow-operator.sh")
+	if err != nil {
+		return fmt.Errorf("failed to run build-airflow-operator.sh script: %w", err)
+	}
+
+	return nil
 }
