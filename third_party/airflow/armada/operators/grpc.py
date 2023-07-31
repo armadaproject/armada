@@ -4,6 +4,16 @@ from typing import Optional, Sequence, Tuple, Any, TypedDict
 import grpc
 
 
+class CredentialsCallbackDict(TypedDict):
+    """
+    Helper class to provide stronger type checking on Credential callback args.
+    """
+
+    module_name: str
+    function_name: str
+    function_kwargs: dict
+
+
 class GrpcChannelArgsDict(TypedDict):
     """
     Helper class to provide stronger type checking on Grpc channel arugments.
@@ -12,12 +22,7 @@ class GrpcChannelArgsDict(TypedDict):
     target: str
     options: Optional[Sequence[Tuple[str, Any]]]
     compression: Optional[grpc.Compression]
-
-
-class CredentialsCallbackDict(TypedDict):
-    module_name: str
-    function_name: str
-    function_kwargs: dict
+    credentials_callback_args: Optional[CredentialsCallbackDict]
 
 
 class CredentialsCallback(object):

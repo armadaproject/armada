@@ -118,16 +118,16 @@ def test_deepcopy_operator_with_grpc_credentials_callback():
         assert False, f"{e}"
 
 
-def __example_test_callback():
-    return "fake_cred"
+def __example_test_callback(foo=None):
+    return f"fake_cred {foo}"
 
 
 def test_credentials_callback():
     callback = CredentialsCallback(
         module_name="tests.unit.test_armada_operator",
         function_name="__example_test_callback",
-        function_kwargs={},
+        function_kwargs={"foo": "bar"},
     )
 
     result = callback.call()
-    assert result == "fake_cred"
+    assert result == "fake_cred bar"
