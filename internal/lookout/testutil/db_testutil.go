@@ -5,8 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/jackc/pgx/v4/pgxpool"
-	_ "github.com/jackc/pgx/v4/stdlib"
+	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/util"
@@ -79,7 +79,7 @@ func WithDatabasePgx(action func(db *pgxpool.Pool) error) error {
 	}
 
 	// Connect again- this time to the database we just created and using pgx pool.  This will be used for tests
-	testDbPool, err := pgxpool.Connect(ctx, connectionString+" dbname="+dbName)
+	testDbPool, err := pgxpool.New(ctx, connectionString+" dbname="+dbName)
 	if err != nil {
 		return errors.WithStack(err)
 	}
