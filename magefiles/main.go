@@ -167,6 +167,9 @@ func LocalDev(arg string) error {
 	mg.Deps(BootstrapTools)
 	fmt.Println("Time to bootstrap tools:", time.Since(timeTaken))
 
+	// Set the Executor Update Frequency to 1 second for local development
+	os.Setenv("ARMADA_SCHEDULING_EXECUTORUPDATEFREQUENCY", "1s")
+
 	switch arg {
 	case "minimal":
 		timeTaken := time.Now()
@@ -180,7 +183,7 @@ func LocalDev(arg string) error {
 	case "no-build", "debug":
 		mg.Deps(Kind, downloadDependencyImages)
 	default:
-		return errors.Errorf("invalid argument: %s", arg)
+		return errors.Errorf("invalid argument for Localdev: %s", arg)
 	}
 
 	mg.Deps(StartDependencies)
