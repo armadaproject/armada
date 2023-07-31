@@ -10,14 +10,14 @@ jobs:
       matrix:
         go: [ '1.20' ]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3.3.0
       - uses: ./.github/workflows/go-setup
       - name: Install Protoc
         uses: arduino/setup-protoc@v1
         with:
           version: '3.17.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: make airflow-operator
+      - run: go run github.com/magefile/mage@v1.14.0 -v airflowOperator
       - uses: ./.github/workflows/python-tests
         with:
           python-version: '3.8'
