@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=alpine:3.18.0
+ARG BASE_IMAGE=alpine:3.0
 FROM ${BASE_IMAGE}
 LABEL org.opencontainers.image.title=armada
 LABEL org.opencontainers.image.description="Armada Bundle"
