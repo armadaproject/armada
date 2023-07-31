@@ -8,7 +8,9 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/armadaproject/armada/internal/jobservice/configuration"
+	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/slices"
+	jsconfig "github.com/armadaproject/armada/internal/jobservice/configuration"
 	js "github.com/armadaproject/armada/pkg/api/jobservice"
 )
 
@@ -46,14 +48,23 @@ type SQLJobService interface {
 	PurgeExpiredJobSets(ctx context.Context)
 }
 
-func NewSQLJobService(cfg *configuration.JobServiceConfiguration, log *log.Entry) (error, SQLJobService, func()) {
-	if cfg.DatabaseType == "postgres" {
-		return NewJSRepoPostgres(cfg, log)
-	} else if cfg.DatabaseType == "sqlite" {
+var (
+	supportedDBDialects = []configuration.DatabaseDialect{
+		configuration.PostgresDialect,
+		configuration.SqliteDialect,
+	}
+)
+
+func NewSQLJobService(cfg *jsconfig.JobServiceConfiguration, log *log.Entry) (error, SQLJobService, func()) {
+	if slices.Contains[configuration.DatabaseDialect](supportedDBDialects, cfg.DatabaseConfig.Dialect) {
+		return errors.New("database type must be either 'postgres' or 'sqlite'"), nil, func() {}
+	}
+
+	if cfg.DatabaseConfig.Dialect == configuration.SqliteDialect {
 		return NewJSRepoSQLite(cfg, log)
 	}
 
-	return errors.New("database type must be either 'postgres' or 'sqlite'"), nil, func() {}
+	return NewJSRepository(cfg, log)
 }
 
 type JobSetKey struct {

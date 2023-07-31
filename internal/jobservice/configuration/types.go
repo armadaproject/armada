@@ -3,6 +3,7 @@ package configuration
 import (
 	"time"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -39,4 +40,8 @@ type JobServiceConfiguration struct {
 	// Configuration details for using a Postgres database; this field is
 	// ignored if the DatabaseType above is not 'postgres'
 	PostgresConfig PostgresConfig
+
+	// Configuration details for using a SQL database
+	// only Postgres is supported at the moment
+	DatabaseConfig configuration.DatabaseConfig
 }

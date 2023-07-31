@@ -157,3 +157,12 @@ func Filter[S ~[]E, E any](s S, predicate func(e E) bool) S {
 	}
 	return out
 }
+
+func Contains[T comparable](list []T, item T) bool {
+	for _, val := range list {
+		if val == item {
+			return true
+		}
+	}
+	return false
+}

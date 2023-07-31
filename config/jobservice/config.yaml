@@ -9,6 +9,7 @@ databaseType: "postgres"
 # storage file when using database type 'sqlite'
 databasePath: "/var/jobservice.db"
 # Connection details when using database type 'postgres'
+# to be replaced with databaseConfig
 postgresConfig:
   poolMaxConns: 50
   poolMinConns: 10
