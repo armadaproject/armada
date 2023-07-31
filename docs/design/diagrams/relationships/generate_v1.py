@@ -58,7 +58,6 @@ with Diagram(
 ):
     pulsar = Custom("Pulsar", pulsar_logo)
 
-
     # Databases
     postgres_lookout = PostgreSQL("Postgres (Lookout)")
     redis_events = Redis("Redis (Events)")
@@ -68,10 +67,12 @@ with Diagram(
     client = Custom("Client", armada_logo)
     executorAPI = Custom("Executor API", armada_logo)
     lookoutV2API = Custom("Lookout V2 API", armada_logo)
+    lookoutV1API = Custom("Lookout V1 API", armada_logo)
     lookoutV1UI = Custom("Lookout V1 UI", armada_logo)
 
     # Ingesters
-    lookout_ingester = Custom("Lookout V2 Ingester", armada_logo)
+    lookout_v2_ingester = Custom("Lookout V2 Ingester", armada_logo)
+    lookout_v1_ingester = Custom("Lookout V1 Ingester", armada_logo)
 
     with Cluster("Executor Cluster", graph_attr=cluster_attr_server):
         executor = Custom("Executor", armada_logo)
@@ -86,14 +87,23 @@ with Diagram(
     # The lookout V2 API talks to The Lookout V1 UI
     lookoutV2API >> Edge(color="black") >> lookoutV1UI
 
-    # Lookout ingester talks to each other Postgres lookout
-    lookout_ingester >> Edge(color="blue") >> postgres_lookout
+    # Lookout V2 ingester talks to each other Postgres lookout
+    lookout_v2_ingester >> Edge(color="blue") >> postgres_lookout
 
     # Pulsar talks to lookout_ingester
-    pulsar >> Edge(color="red") >> lookout_ingester
+    pulsar >> Edge(color="red") >> lookout_v1_ingester
+
+    # Lookout V1 Ingester talks to Lookout V1 API
+    lookout_v1_ingester >> Edge(color="black") >> lookoutV1API
+
+    # Lookout V1 Ingester talks to Postgres(Lookout)
+    lookout_v1_ingester >> Edge(color="blue") >> postgres_lookout
+
+    # Pulsar talks to lookout_ingester
+    pulsar >> Edge(color="red") >> lookout_v2_ingester
 
     # Lookout V2 Ingester talks to Lookout V2 API
-    lookout_ingester >> Edge(color="black") >> lookoutV2API
+    lookout_v2_ingester >> Edge(color="black") >> lookoutV2API
 
     # Pulsar talks to server
     pulsar >> Edge(color="red") >> server
@@ -124,6 +134,9 @@ with Diagram(
     # Executor 2 talks to executor API
     executor2 >> Edge(color="black") >> executorAPI
     executorAPI >> Edge(color="black") >> executor2
+
+    # lookout v1 api talks to lookout v1 UI
+    lookoutV1API >> Edge(color="black") >> lookoutV1UI
 
 
 
