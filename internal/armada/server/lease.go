@@ -453,6 +453,13 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		log.WithError(err).Warnf("could not store executor details for cluster %s", req.ClusterId)
 	}
 
+	// At this point we've written updated usage information to Redis and are ready to start scheduling.
+	// Exit here if scheduling is disabled.
+	if q.schedulingConfig.DisableScheduling {
+		log.Infof("skipping scheduling on %s - scheduling disabled", req.ClusterId)
+		return make([]*api.Job, 0), nil
+	}
+
 	// Give Schedule() a 3 second shorter deadline than ctx to give it a chance to finish up before ctx deadline.
 	if deadline, ok := ctx.Deadline(); ok {
 		var cancel context.CancelFunc
