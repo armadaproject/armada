@@ -160,17 +160,13 @@ jobs:
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             chmod +x kubectl
             mv kubectl /home/circleci/bin/
-            make download # no-op if we restored from cache
+            go run github.com/magefile/mage@v1.14.0 -v download
 
       - run:
           name: Build
           command: |
-            make build-ci
-            make build-docker-full-bundle
-
-      - run:
-          name: e2e test environment setup
-          command: make tests-e2e-setup
+            go run github.com/magefile/mage@v1.14.0 -v buildCI
+            go run github.com/magefile/mage@v1.14.0 -v buildDockers full-bundle
 
       - run:
           name: Enable integration tests
@@ -178,15 +174,15 @@ jobs:
 
       - run:
           name: e2e tests
-          command: make tests-e2e-no-setup
+          command: go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
 
       - run:
           name: e2e test environment teardown
-          command: make tests-e2e-teardown
+          command: go run github.com/magefile/mage@v1.14.0 -v localdevstop
 
       - run:
           name: Prepare reports
-          command: make junit-report
+          command: go run github.com/magefile/mage@v1.14.0 -v junitReport
           when: always
 
       - store_test_results:
@@ -261,50 +257,6 @@ jobs:
 
             docker tag armada-full-bundle gresearchdev/armada-full-bundle-dev:${TAG}
             docker push gresearchdev/armada-full-bundle-dev:${TAG}
-
-
-  release-armadactl:
-    machine:
-      docker_layer_caching: true
-      image: ubuntu-2204:2023.02.1
-      resource_class: large
-      # resource_class: xlarge
-    environment:
-      GO111MODULE: "on"
-      GOPATH: "/home/circleci/go"
-      GOCACHE: "/home/circleci/go/cache"
-    working_directory: ~/go/src/github.com/armadaproject/armada
-    steps:
-      - checkout
-      - install-protobuf
-
-      - restore_cache: # restore dependencies
-          keys:
-            - go-mod-v3-{{ checksum "go.sum" }}
-
-      - run:
-          name: Download dependencies
-          command: |
-            curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-            chmod +x kubectl
-            sudo mv kubectl /usr/local/bin/
-            make download # no-op if we restored from cache
-
-      - run:
-          name: Build armadactl release artifacts
-          command: make build-armadactl-release RELEASE_VERSION=${CIRCLE_TAG}
-
-      - store_artifacts:
-          path: dist
-
-      - run:
-          name: Upload artifacts to Github release
-          command: |
-            for artifact in ./dist/*; do
-              ./scripts/upload-github-release-asset.sh ${GITHUB_TOKEN} ${CIRCLE_TAG} $artifact
-            done
-
-            ./scripts/add-checksum-summary.sh ${GITHUB_TOKEN} ${CIRCLE_TAG}
 
   release-docker-images:
     machine:
@@ -429,7 +381,7 @@ jobs:
             curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
             chmod +x kubectl
             sudo mv kubectl /usr/local/bin/
-            make download # no-op if we restored from cache
+            go run github.com/magefile/mage@v1.14.0 -v download # no-op if we restored from cache
 
       - run:
           name: Push dotnet clients to nuget
@@ -440,7 +392,7 @@ jobs:
             go mod download
             go run github.com/magefile/mage@v1.14.0 -v BootstrapTools
             go run github.com/magefile/mage@v1.14.0 -v proto
-            RELEASE_TAG=${CIRCLE_TAG#"v"} make push-nuget
+            RELEASE_TAG=${CIRCLE_TAG#"v"} go run github.com/magefile/mage@v1.14.0 -v pushNuget
 
       - store_artifacts:
           path: bin/client/DotNet
@@ -450,12 +402,6 @@ workflows:
   build_and_deploy:
     jobs:
       -  build_and_integration_tests
-      - release-armadactl:
-          filters:
-            tags:
-              only: /v[0-9]+\.[0-9]+\.[0-9]+/
-            branches:
-              ignore: /.*/
       - release-docker-images:
           filters:
             tags:

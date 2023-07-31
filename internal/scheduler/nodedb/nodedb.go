@@ -39,8 +39,9 @@ const (
 var empty struct{}
 
 type Node struct {
-	Id   string
-	Name string
+	Id       string
+	Name     string
+	Executor string
 
 	// We need to store taints and labels separately from the node type: the latter only includes
 	// indexed taints and labels, but we need all of them when checking pod requirements.
@@ -64,8 +65,9 @@ type Node struct {
 // shallow copies of fields that are not mutated by methods of NodeDb.
 func (node *Node) UnsafeCopy() *Node {
 	return &Node{
-		Id:   node.Id,
-		Name: node.Name,
+		Id:       node.Id,
+		Name:     node.Name,
+		Executor: node.Executor,
 
 		Taints: node.Taints,
 		Labels: node.Labels,
@@ -144,8 +146,9 @@ func (nodeDb *NodeDb) create(node *schedulerobjects.Node) (*Node, error) {
 	nodeDb.mu.Unlock()
 
 	entry := &Node{
-		Id:   node.Id,
-		Name: node.Name,
+		Id:       node.Id,
+		Name:     node.Name,
+		Executor: node.Executor,
 
 		Taints: taints,
 		Labels: labels,

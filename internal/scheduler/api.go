@@ -40,9 +40,9 @@ type ExecutorApi struct {
 	maxJobsPerCall uint
 	// Max size of Pulsar messages produced.
 	maxPulsarMessageSizeBytes uint
-	// See scheduling config.
+	// See scheduling schedulingConfig.
 	nodeIdLabel string
-	// See scheduling config.
+	// See scheduling schedulingConfig.
 	priorityClassNameOverride *string
 	clock                     clock.Clock
 }

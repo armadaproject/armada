@@ -151,12 +151,8 @@ def test_mock_cancelled_job():
 
 
 def test_annotate_job_request_items():
-    no_auth_client = ArmadaClient(
-        channel=grpc.insecure_channel(target="127.0.0.1:50051")
-    )
-    job_service_client = JobServiceClient(
-        channel=grpc.insecure_channel(target="127.0.0.1:60003")
-    )
+    armada_channel_args = {"target": "127.0.0.1:50051"}
+    job_service_channel_args = {"target": "127.0.0.1:60003"}
 
     job_request_items = sleep_job()
     task_id = "58896abbfr9"
@@ -164,8 +160,8 @@ def test_annotate_job_request_items():
         task_id=task_id,
         name="armada-task",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=job_request_items,
         lookout_url_template="http://127.0.0.1:8089",
     )
@@ -189,12 +185,8 @@ def test_annotate_job_request_items():
 
 
 def test_parameterize_armada_operator():
-    no_auth_client = ArmadaClient(
-        channel=grpc.insecure_channel(target="127.0.0.1:50051")
-    )
-    job_service_client = JobServiceClient(
-        channel=grpc.insecure_channel(target="127.0.0.1:60003")
-    )
+    armada_channel_args = {"target": "127.0.0.1:50051"}
+    job_service_channel_args = {"target": "127.0.0.1:60003"}
 
     submitted_job_request_items = pre_template_sleep_job()
     expected_job_request_items = expected_sleep_job()
@@ -203,8 +195,8 @@ def test_parameterize_armada_operator():
         task_id=task_id,
         name="armada-task",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=submitted_job_request_items,
         lookout_url_template="http://127.0.0.1:8089",
     )

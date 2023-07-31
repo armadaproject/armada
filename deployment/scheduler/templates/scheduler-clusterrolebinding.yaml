@@ -28,6 +28,6 @@ roleRef:
   name: {{ .clusterRoleName }}
 subjects:
   - kind: ServiceAccount
-    name: {{ $root.Values.customServiceAccount | default (include "armada-scheduler.name" $root) }}
+    name: {{ $root.Values.scheduler.customServiceAccount | default (include "armada-scheduler.name" $root) }}
     namespace: {{ $root.Release.Namespace }}
 {{ end }}

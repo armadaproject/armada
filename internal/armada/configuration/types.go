@@ -116,7 +116,10 @@ type DatabaseConfig struct {
 type SchedulingConfig struct {
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
-	Preemption       PreemptionConfig
+	// If true, schedule jobs across all executors in the same pool in a unified manner.
+	// Otherwise, schedule each executor separately.
+	UnifiedSchedulingByPool bool
+	Preemption              PreemptionConfig
 	// Number of jobs to load from the database at a time.
 	MaxQueueLookback uint
 	// In each invocation of the scheduler, no more jobs are scheduled once this limit has been exceeded.

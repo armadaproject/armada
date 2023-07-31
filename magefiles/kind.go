@@ -21,7 +21,7 @@ const (
 
 func getImages() []string {
 	images := []string{
-		"alpine:3.10",
+		"alpine:3.17",
 		"nginx:1.21.6",
 		"registry.k8s.io/ingress-nginx/controller:v1.4.0",
 		"registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343",
@@ -84,8 +84,7 @@ func kindCheck() error {
 // e.g., images required for e2e tests.
 func kindGetImages() error {
 	for _, image := range getImages() {
-		err := dockerRun("pull", image)
-		if err != nil {
+		if err := dockerRun("pull", image); err != nil {
 			return err
 		}
 	}
