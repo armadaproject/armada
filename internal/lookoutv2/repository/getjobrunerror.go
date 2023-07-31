@@ -30,10 +30,12 @@ func NewSqlGetJobRunErrorRepository(db *pgxpool.Pool, decompressor compress.Deco
 func (r *SqlGetJobRunErrorRepository) GetJobRunError(ctx context.Context, runId string) (string, error) {
 	var rawBytes []byte
 	err := r.db.QueryRow(ctx, "SELECT error FROM job_run WHERE run_id = $1 AND error IS NOT NULL", runId).Scan(&rawBytes)
-	if err == pgx.ErrNoRows {
-		return "", errors.Errorf("no error found for run with id %s", runId)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", errors.Errorf("no error found for run with id %s", runId)
+		}
+		return "", err
 	}
-
 	decompressed, err := r.decompressor.Decompress(rawBytes)
 	if err != nil {
 		log.WithError(err).Error("failed to decompress")

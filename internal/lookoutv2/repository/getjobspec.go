@@ -32,10 +32,12 @@ func NewSqlGetJobSpecRepository(db *pgxpool.Pool, decompressor compress.Decompre
 func (r *SqlGetJobSpecRepository) GetJobSpec(ctx context.Context, jobId string) (*api.Job, error) {
 	var rawBytes []byte
 	err := r.db.QueryRow(ctx, "SELECT job_spec FROM job WHERE job_id = $1", jobId).Scan(&rawBytes)
-	if err == pgx.ErrNoRows {
-		return nil, errors.Errorf("job with id %s not found", jobId)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, errors.Errorf("job with id %s not found", jobId)
+		}
+		return nil, err
 	}
-
 	decompressed, err := r.decompressor.Decompress(rawBytes)
 	if err != nil {
 		log.WithError(err).Error("failed to decompress")
