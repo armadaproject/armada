@@ -73,6 +73,7 @@ class ArmadaDeferrableOperator(BaseOperator):
         The format should be:
         "https://lookout.armada.domain/jobs?job_id=<job_id>" where <job_id> will
         be replaced with the actual job ID.
+    :param poll_interval: How often to poll jobservice to get status.
     :return: A deferrable armada operator instance.
     """
 
@@ -257,9 +258,9 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
             job_service_client=job_service_client,
             armada_queue=self.armada_queue,
             job_set_id=self.job_set_id,
-            poll_interval=self.poll_interval,
             airflow_task_name=self.airflow_task_name,
             job_id=self.job_id,
+            poll_interval=self.poll_interval,
             log=self.log,
         )
         yield TriggerEvent({"job_state": job_state, "job_message": job_message})
