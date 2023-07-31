@@ -5,26 +5,18 @@ inputs:
   path:
     description: "Path to python package root relative to repo root"
     required: true
-    type: string
   python-version:
     description: "Version of python to setup and run tests against"
     required: true
-    type: string
   tox-env:
     description: "Tox environment to use for running the tests"
     required: true
-    type: string
   github-token:
     description: "Token for authenticated github requests"
     required: true
-    type: string
-
 runs:
   using: "composite"
   steps:
-    - uses: actions/setup-go@v4
-      with:
-        go-version: ${{ matrix.go }}
     - uses: actions/setup-python@v2
       with:
         python-version: ${{ inputs.python-version }}
