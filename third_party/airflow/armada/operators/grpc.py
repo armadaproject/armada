@@ -77,6 +77,8 @@ class GrpcChannelArguments(object):
         self.target = target
         self.options = options
         self.compression = compression
+        self.credentials_callback = None
+
         if credentials_callback_args is not None:
             self.credentials_callback = CredentialsCallback(**credentials_callback_args)
 
