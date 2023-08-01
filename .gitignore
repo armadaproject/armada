@@ -93,13 +93,13 @@ typings.py
 third_party/airflow/docs/build/
 third_party/airflow/build/
 build/ssl/certs/ca-certificates.crt
-localdev/volumes/go/pkg/
+developer/volumes/go/pkg/
 .coverage
 coverage.xml
 
 # Yarn
-localdev/yarn.lock
-localdev/node_modules/
+developer/yarn.lock
+developer/node_modules/
 
 # Vim
 .*.sw*
