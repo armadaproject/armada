@@ -124,7 +124,7 @@ def __example_test_callback(foo=None):
 
 def test_credentials_callback():
     callback = CredentialsCallback(
-        module_name="tests.unit.test_armada_operator",
+        module_name="test_armada_operator",
         function_name="__example_test_callback",
         function_kwargs={"foo": "bar"},
     )
