@@ -70,11 +70,11 @@ jobs:
 
       - name: Setup dependencies
         shell: bash
-        run: make download
+        run: go run github.com/magefile/mage@v1.14.0 -v download
 
       - name: Unit Tests
         id: unit_test
-        run: make tests
+        run: go run github.com/magefile/mage@v1.14.0 -v tests
 
       - name: Publish JUnit Report
         uses: mikepenz/action-junit-report@v3
@@ -133,7 +133,7 @@ jobs:
 
       - name: Setup dependencies
         shell: bash
-        run: make download
+        run: go run github.com/magefile/mage@v1.14.0 -v download
 
       - name: Setup and Run Integration Tests
         run: |
@@ -219,14 +219,14 @@ jobs:
 
       - name: Setup dependencies
         shell: bash
-        run: make download
+        run: go run github.com/magefile/mage@v1.14.0 -v download
 
       # TODO(JayF): Consider moving this into its own job, that runs under a larger set of circumstances
       #             since it's possible for this to fail without any go changes being made.
       - name: Validate no changes in generated proto files
         run: |
-          make proto
-          make dotnet
+          go run github.com/magefile/mage@v1.14.0 -v proto
+          go run github.com/magefile/mage@v1.14.0 -v dotnet
 
           changed=$(git status -s -uno | wc -l)
 
