@@ -48,6 +48,11 @@ func onArm() bool {
 	return runtime.GOARCH == "arm64"
 }
 
+// Check if the user is on a windows system
+func onWindows() bool {
+	return runtime.GOOS == "windows"
+}
+
 // Validates that arg is one of validArgs.
 // Returns nil if arg is valid, error otherwise.
 func validateArg(arg string, validArgs []string) error {

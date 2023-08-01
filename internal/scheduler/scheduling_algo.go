@@ -84,6 +84,17 @@ func (l *FairSchedulingAlgo) Schedule(
 	jobDb *jobdb.JobDb,
 ) (*SchedulerResult, error) {
 	log := ctxlogrus.Extract(ctx)
+
+	overallSchedulerResult := &SchedulerResult{
+		NodeIdByJobId: make(map[string]string),
+	}
+
+	// Exit immediately if scheduling is disabled.
+	if l.schedulingConfig.DisableScheduling {
+		log.Info("skipping scheduling - scheduling disabled")
+		return overallSchedulerResult, nil
+	}
+
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, l.maxSchedulingDuration)
 	defer cancel()
 
@@ -91,9 +102,7 @@ func (l *FairSchedulingAlgo) Schedule(
 	if err != nil {
 		return nil, err
 	}
-	overallSchedulerResult := &SchedulerResult{
-		NodeIdByJobId: make(map[string]string),
-	}
+
 	executorGroups := l.groupExecutors(fsctx.executors)
 	if len(l.executorGroupsToSchedule) == 0 {
 		// Cycle over groups in a consistent order.
