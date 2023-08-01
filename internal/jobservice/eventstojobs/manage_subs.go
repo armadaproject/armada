@@ -2,7 +2,6 @@ package eventstojobs
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -60,7 +59,7 @@ func NewJobSetSubscriptionExecutor(ctx context.Context,
 		sqlJobService: sqlJobService,
 		subscriptions: make(map[repository.JobSetKey]*JobSetSubscription),
 		newSubChan:    newSubChan,
-		subDoneChan:   make(chan *repository.JobSetKey),
+		subDoneChan:   make(chan *repository.JobSetKey, 1000),
 		subTimeout:    subTimeout,
 	}
 }
@@ -191,7 +190,13 @@ func (jse *JobSetSubscriptionExecutor) NumActiveSubscriptions() int {
 	return len(jse.subscriptions)
 }
 
-func NewJobSetSubscription(ctx context.Context, eventReader events.JobEventReader, subInfo *repository.SubscribedTuple, subTimeout time.Duration, subDoneChan chan<- *repository.JobSetKey, sqlJobService repository.SQLJobService) *JobSetSubscription {
+func NewJobSetSubscription(ctx context.Context,
+	eventReader events.JobEventReader,
+	subInfo *repository.SubscribedTuple,
+	subTimeout time.Duration,
+	subDoneChan chan<- *repository.JobSetKey,
+	sqlJobService repository.SQLJobService,
+) *JobSetSubscription {
 	newCtx, cancel := context.WithCancel(ctx)
 	return &JobSetSubscription{
 		ctx:           newCtx,
@@ -217,6 +222,7 @@ func (js *JobSetSubscription) Subscribe() error {
 			Queue:    js.Queue,
 			JobSetId: js.JobSetId,
 		}
+		log.WithFields(requestFields).Debugf("Sent message to subDoneChan")
 	}()
 
 	log.WithFields(requestFields).Debugf("Calling GetJobEventMessage")
@@ -229,7 +235,6 @@ func (js *JobSetSubscription) Subscribe() error {
 	})
 	if err != nil {
 		log.WithFields(requestFields).WithError(err).Error("error from GetJobEventMessage")
-		js.cancel()
 		return err
 	}
 
@@ -266,6 +271,11 @@ func (js *JobSetSubscription) Subscribe() error {
 	g.Go(func() error {
 		nextRecv := time.After(1 * time.Nanosecond)
 
+		defer func() {
+			js.cancel()
+			log.WithFields(requestFields).Debugf("Called cancel")
+		}()
+
 		// this loop will run until the context is canceled
 		for {
 			select {
@@ -275,7 +285,7 @@ func (js *JobSetSubscription) Subscribe() error {
 			case <-nextRecv:
 				msg, err := stream.Recv()
 				if err != nil {
-					if errors.Is(err, io.EOF) {
+					if strings.Contains(err.Error(), io.EOF.Error()) {
 						log.WithFields(requestFields).Info("Reached stream end for JobSetSubscription")
 						return nil
 					} else if strings.Contains(err.Error(), "context canceled") {
@@ -304,7 +314,7 @@ func (js *JobSetSubscription) Subscribe() error {
 					log.WithFields(requestFields).WithFields(log.Fields{
 						"job_id":     currentJobId,
 						"job_status": jobStatus.GetState().String(),
-					}).Info("Got event")
+					}).Debug("Got event")
 					jobStatus := repository.NewJobStatus(js.Queue, js.JobSetId, currentJobId, *jobStatus)
 					err := js.sqlJobService.UpdateJobServiceDb(js.ctx, jobStatus)
 					if err != nil {
