@@ -36,6 +36,9 @@ func (m *MockEventClient) Recv() (*api.EventStreamMessage, error) {
 	m.messagesSent += 1
 
 	if m.messagesSent > 3 {
+		// Sleep a bit to mimick the stream being open but no events
+		// currently available.
+		time.Sleep(time.Second * 5)
 		return nil, io.EOF
 	}
 
@@ -227,7 +230,7 @@ func TestJobSetSubscriptionExecutor(t *testing.T) {
 	sawSubs := false
 	numberSeen := 0
 	func() {
-		watchDog := time.After(time.Second * 5)
+		watchDog := time.After(time.Second * 10)
 		ticker := time.NewTicker(time.Millisecond * 200)
 		for {
 			select {
