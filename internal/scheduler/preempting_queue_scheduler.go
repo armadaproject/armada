@@ -296,7 +296,6 @@ func (sch *PreemptingQueueScheduler) evict(ctx context.Context, evictor *Evictor
 	if evictor == nil {
 		return &EvictorResult{}, NewInMemoryJobRepository(sch.schedulingContext.PriorityClasses), nil
 	}
-	log := ctxlogrus.Extract(ctx)
 	txn := sch.nodeDb.Txn(true)
 	defer txn.Abort()
 
