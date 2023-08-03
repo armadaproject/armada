@@ -55,6 +55,7 @@ grpc:
     enabled: false
 scheduling:
   executorTimeout: 10m
+  executorUpdateFrequency: 1m
   enableAssertions: true
   fairnessModel: "AssetFairness"
   dominantResourceFairnessResourcesToConsider:
