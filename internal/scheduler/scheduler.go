@@ -13,6 +13,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -549,7 +550,11 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 			}
 			events = append(events, jobSucceeded)
 		} else if lastRun.Failed() && !job.Queued() {
-			requeueJob := lastRun.Returned() && job.NumAttempts() < s.maxAttemptedRuns
+			maxAttempts := s.maxAttemptedRuns
+			if job.GetAnnotations()[configuration.FailFastAnnotation] == "true" {
+				maxAttempts = 1
+			}
+			requeueJob := lastRun.Returned() && job.NumAttempts() < maxAttempts
 
 			if requeueJob && lastRun.RunAttempted() {
 				jobWithAntiAffinity, schedulable, err := s.addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job)
@@ -585,8 +590,8 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 				runError := jobRunErrors[lastRun.Id()]
 				job = job.WithFailed(true).WithQueued(false)
 				if lastRun.Returned() {
-					errorMessage := fmt.Sprintf("Maximum number of attempts (%d) reached - this job will no longer be retried", s.maxAttemptedRuns)
-					if job.NumAttempts() < s.maxAttemptedRuns {
+					errorMessage := fmt.Sprintf("Maximum number of attempts (%d) reached - this job will no longer be retried", maxAttempts)
+					if job.NumAttempts() < maxAttempts {
 						errorMessage = fmt.Sprintf("Job was attempted %d times, and has been tried once on all nodes it can run on - this job will no longer be retried", job.NumAttempts())
 					}
 					runError = &armadaevents.Error{
