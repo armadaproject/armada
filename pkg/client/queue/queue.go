@@ -7,10 +7,10 @@ import (
 )
 
 type Queue struct {
-	Name           string         `json:"name"`
-	Permissions    []Permissions  `json:"permissions"`
-	PriorityFactor PriorityFactor `json:"priorityFactor"`
-	ResourceLimits ResourceLimits `json:"resourceLimits"`
+	Name                              string         `json:"name"`
+	Permissions                       []Permissions  `json:"permissions"`
+	PriorityFactor                    PriorityFactor `json:"priorityFactor"`
+	ResourceLimitsByPriorityClassName map[string]api.PriorityClassResourceLimits
 }
 
 // NewQueue returnes new Queue using the in parameter. Error is returned if
@@ -23,11 +23,6 @@ func NewQueue(in *api.Queue) (Queue, error) {
 	priorityFactor, err := NewPriorityFactor(in.PriorityFactor)
 	if err != nil {
 		return Queue{}, fmt.Errorf("failed to map priority factor. %s", err)
-	}
-
-	resourceLimits, err := NewResourceLimits(in.ResourceLimits)
-	if err != nil {
-		return Queue{}, fmt.Errorf("failed to map resource limits: %v. %s", in.ResourceLimits, err)
 	}
 
 	permissions := []Permissions{}
@@ -44,32 +39,24 @@ func NewQueue(in *api.Queue) (Queue, error) {
 	}
 
 	return Queue{
-		Name: in.Name,
-		// Kind:           "Queue",
-		PriorityFactor: priorityFactor,
-		ResourceLimits: resourceLimits,
-		Permissions:    permissions,
+		Name:                              in.Name,
+		PriorityFactor:                    priorityFactor,
+		Permissions:                       permissions,
+		ResourceLimitsByPriorityClassName: in.ResourceLimitsByPriorityClassName,
 	}, nil
 }
 
 // ToAPI transforms Queue to *api.Queue structure
 func (q Queue) ToAPI() *api.Queue {
-	result := &api.Queue{
-		Name: q.Name,
-		// Kind:           q.Kind,
-		PriorityFactor: float64(q.PriorityFactor),
-		ResourceLimits: map[string]float64{},
+	rv := &api.Queue{
+		Name:                              q.Name,
+		PriorityFactor:                    float64(q.PriorityFactor),
+		ResourceLimitsByPriorityClassName: q.ResourceLimitsByPriorityClassName,
 	}
-
-	for resourceName, resourceLimit := range q.ResourceLimits {
-		result.ResourceLimits[string(resourceName)] = float64(resourceLimit)
-	}
-
 	for _, permission := range q.Permissions {
-		result.Permissions = append(result.Permissions, permission.ToAPI())
+		rv.Permissions = append(rv.Permissions, permission.ToAPI())
 	}
-
-	return result
+	return rv
 }
 
 // HasPermission returns true if the inputSubject is allowed to peform a queue operation

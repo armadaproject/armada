@@ -339,11 +339,12 @@ func TestGangScheduler(t *testing.T) {
 				err := sctx.AddQueueSchedulingContext(queue, priorityFactor, nil)
 				require.NoError(t, err)
 			}
-			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+			constraints := schedulerconstraints.NewSchedulingConstraints(
 				"pool",
 				tc.TotalResources,
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
+				nil,
 			)
 			sch, err := NewGangScheduler(sctx, constraints, nodeDb)
 			require.NoError(t, err)

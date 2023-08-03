@@ -463,11 +463,12 @@ func TestQueueScheduler(t *testing.T) {
 				err := sctx.AddQueueSchedulingContext(queue, weight, tc.InitialAllocatedByQueueAndPriorityClass[queue])
 				require.NoError(t, err)
 			}
-			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+			constraints := schedulerconstraints.NewSchedulingConstraints(
 				"pool",
 				tc.TotalResources,
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
+				nil,
 			)
 			jobIteratorByQueue := make(map[string]JobIterator)
 			for queue := range tc.PriorityFactorByQueue {

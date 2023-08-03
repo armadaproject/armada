@@ -5,6 +5,7 @@ import (
 
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
+	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -44,25 +45,43 @@ func NewRedisQueueRepository(db redis.UniversalClient) *RedisQueueRepository {
 	return &RedisQueueRepository{db: db}
 }
 
+// func (r *RedisQueueRepository) GetAllApiQueues() ([]api.Queue, error) {
+// 	result, err := r.db.HGetAll(queueHashKey).Result()
+// 	if err != nil {
+// 		return nil, errors.WithStack(err)
+// 	}
+// 	queues := make([]api.Queue, len(result))
+// 	i := 0
+// 	for _, queueData := range result {
+// 		var queue api.Queue
+// 		if err := proto.Unmarshal([]byte(queueData), &queue); err != nil {
+// 			return nil, errors.WithStack(err)
+// 		}
+// 		queues[i] = queue
+// 		i++
+// 	}
+// 	return queues, nil
+// }
+
 func (r *RedisQueueRepository) GetAllQueues() ([]queue.Queue, error) {
 	result, err := r.db.HGetAll(queueHashKey).Result()
 	if err != nil {
-		return nil, fmt.Errorf("[RedisQueueRepository.GetAllQueues] error reading from database: %s", err)
+		return nil, errors.WithStack(err)
 	}
 
-	queues := make([]queue.Queue, 0)
+	queues := make([]queue.Queue, len(result))
+	i := 0
 	for _, v := range result {
 		apiQueue := &api.Queue{}
-		e := proto.Unmarshal([]byte(v), apiQueue)
-		if e != nil {
-			return nil, fmt.Errorf("[RedisQueueRepository.GetAllQueues] error unmarshalling queue: %s", err)
+		if err := proto.Unmarshal([]byte(v), apiQueue); err != nil {
+			return nil, errors.WithStack(err)
 		}
 		queue, err := queue.NewQueue(apiQueue)
 		if err != nil {
 			return nil, err
 		}
-
-		queues = append(queues, queue)
+		queues[i] = queue
+		i++
 	}
 	return queues, nil
 }

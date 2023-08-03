@@ -19,6 +19,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
 	"github.com/armadaproject/armada/internal/common/auth"
@@ -74,7 +75,7 @@ func Run(config schedulerconfig.Configuration) error {
 			log.WithError(errors.WithStack(err)).Warnf("Redis client didn't close down cleanly")
 		}
 	}()
-	queueRepository := database.NewLegacyQueueRepository(redisClient)
+	queueRepository := repository.NewRedisQueueRepository(redisClient)
 	legacyExecutorRepository := database.NewRedisExecutorRepository(redisClient, "pulsar")
 
 	//////////////////////////////////////////////////////////////////////////

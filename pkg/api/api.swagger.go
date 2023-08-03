@@ -1604,6 +1604,38 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"apiPriorityClassPoolResourceLimits\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"maximumResourceFraction\": {\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"number\",\n" +
+		"            \"format\": \"double\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
+		"    \"apiPriorityClassResourceLimits\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"maximumResourceFraction\": {\n" +
+		"          \"description\": \"Limits resources assigned to jobs of this priority class.\\nSpecifically, jobs of this priority class are only scheduled if doing so does not exceed this limit.\",\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"type\": \"number\",\n" +
+		"            \"format\": \"double\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"maximumResourceFractionByPool\": {\n" +
+		"          \"description\": \"Per-pool override of maximum_resource_fraction.\\nIf missing for a particular pool, maximum_resource_fraction is used instead for that pool.\",\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"$ref\": \"#/definitions/apiPriorityClassPoolResourceLimits\"\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"apiQueue\": {\n" +
 		"      \"type\": \"object\",\n" +
 		"      \"title\": \"swagger:model\",\n" +
@@ -1632,6 +1664,13 @@ func SwaggerJsonTemplate() string {
 		"          \"additionalProperties\": {\n" +
 		"            \"type\": \"number\",\n" +
 		"            \"format\": \"double\"\n" +
+		"          }\n" +
+		"        },\n" +
+		"        \"resourceLimitsByPriorityClassName\": {\n" +
+		"          \"description\": \"Map from priority class name to resource limit overrides for this queue and priority class.\\nIf provided for a priority class, global limits for that priority class do not apply to this queue.\",\n" +
+		"          \"type\": \"object\",\n" +
+		"          \"additionalProperties\": {\n" +
+		"            \"$ref\": \"#/definitions/apiPriorityClassResourceLimits\"\n" +
 		"          }\n" +
 		"        },\n" +
 		"        \"userOwners\": {\n" +

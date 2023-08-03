@@ -11,6 +11,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/armada/repository"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -49,7 +50,7 @@ func (m metricProvider) GetRunningJobMetrics(queueName string) []*commonmetrics.
 // The metrics themselves are calculated asynchronously every refreshPeriod
 type MetricsCollector struct {
 	jobDb              *jobdb.JobDb
-	queueRepository    database.QueueRepository
+	queueRepository    repository.QueueRepository
 	executorRepository database.ExecutorRepository
 	poolAssigner       PoolAssigner
 	refreshPeriod      time.Duration
@@ -59,7 +60,7 @@ type MetricsCollector struct {
 
 func NewMetricsCollector(
 	jobDb *jobdb.JobDb,
-	queueRepository database.QueueRepository,
+	queueRepository repository.QueueRepository,
 	executorRepository database.ExecutorRepository,
 	poolAssigner PoolAssigner,
 	refreshPeriod time.Duration,

@@ -404,7 +404,6 @@ func withEventServer(t *testing.T, action func(s *EventServer)) {
 		Name:           "",
 		Permissions:    nil,
 		PriorityFactor: 1,
-		ResourceLimits: nil,
 	})
 	require.NoError(t, err)
 	action(server)

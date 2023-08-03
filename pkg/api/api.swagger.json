@@ -1593,6 +1593,38 @@
         }
       }
     },
+    "apiPriorityClassPoolResourceLimits": {
+      "type": "object",
+      "properties": {
+        "maximumResourceFraction": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      }
+    },
+    "apiPriorityClassResourceLimits": {
+      "type": "object",
+      "properties": {
+        "maximumResourceFraction": {
+          "description": "Limits resources assigned to jobs of this priority class.\nSpecifically, jobs of this priority class are only scheduled if doing so does not exceed this limit.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "maximumResourceFractionByPool": {
+          "description": "Per-pool override of maximum_resource_fraction.\nIf missing for a particular pool, maximum_resource_fraction is used instead for that pool.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/apiPriorityClassPoolResourceLimits"
+          }
+        }
+      }
+    },
     "apiQueue": {
       "type": "object",
       "title": "swagger:model",
@@ -1621,6 +1653,13 @@
           "additionalProperties": {
             "type": "number",
             "format": "double"
+          }
+        },
+        "resourceLimitsByPriorityClassName": {
+          "description": "Map from priority class name to resource limit overrides for this queue and priority class.\nIf provided for a priority class, global limits for that priority class do not apply to this queue.",
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/apiPriorityClassResourceLimits"
           }
         },
         "userOwners": {

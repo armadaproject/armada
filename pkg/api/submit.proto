@@ -133,8 +133,24 @@ message Queue {
     double priority_factor = 2;
     repeated string user_owners = 3;
     repeated string group_owners = 4;
-    map<string, double> resource_limits = 5;
+    map<string, double> resource_limits = 5 [deprecated = true];
+    // Map from priority class name to resource limit overrides for this queue and priority class.
+    // If provided for a priority class, global limits for that priority class do not apply to this queue.
+    map<string, PriorityClassResourceLimits> resource_limits_by_priority_class_name = 7 [(gogoproto.nullable) = false];
     repeated Permissions permissions = 6;
+}
+
+message PriorityClassResourceLimits {
+	// Limits resources assigned to jobs of this priority class.
+	// Specifically, jobs of this priority class are only scheduled if doing so does not exceed this limit.
+	map<string, double> maximum_resource_fraction = 1 [(gogoproto.nullable) = false];
+	// Per-pool override of maximum_resource_fraction.
+	// If missing for a particular pool, maximum_resource_fraction is used instead for that pool.
+	map<string, PriorityClassPoolResourceLimits> maximum_resource_fraction_by_pool = 2 [(gogoproto.nullable) = false];
+}
+
+message PriorityClassPoolResourceLimits {
+    map<string, double> maximum_resource_fraction = 1 [(gogoproto.nullable) = false];
 }
 
 // swagger:model

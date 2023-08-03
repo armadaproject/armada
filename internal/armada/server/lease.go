@@ -491,11 +491,12 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			return nil, err
 		}
 	}
-	constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+	constraints := schedulerconstraints.NewSchedulingConstraints(
 		req.Pool,
 		schedulerobjects.ResourceList{Resources: totalCapacity},
 		schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
 		q.schedulingConfig,
+		queues,
 	)
 	sch := scheduler.NewPreemptingQueueScheduler(
 		sctx,
