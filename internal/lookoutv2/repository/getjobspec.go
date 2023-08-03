@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
@@ -31,24 +31,16 @@ func NewSqlGetJobSpecRepository(db *pgxpool.Pool, decompressor compress.Decompre
 
 func (r *SqlGetJobSpecRepository) GetJobSpec(ctx context.Context, jobId string) (*api.Job, error) {
 	var rawBytes []byte
-	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
 		AccessMode:     pgx.ReadOnly,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx, "SELECT job_spec FROM job WHERE job_id = $1", jobId)
-		if err != nil {
-			return err
+		err := tx.QueryRow(ctx, "SELECT job_spec FROM job WHERE job_id = $1", jobId).Scan(&rawBytes)
+		if err == pgx.ErrNoRows {
+			return errors.Errorf("job with id %s not found", jobId)
 		}
-		defer rows.Close()
-		for rows.Next() {
-			err := rows.Scan(&rawBytes)
-			if err != nil {
-				return err
-			}
-			return nil
-		}
-		return errors.Errorf("job with id %s not found", jobId)
+		return err
 	})
 	if err != nil {
 		return nil, err

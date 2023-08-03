@@ -86,7 +86,8 @@ export type JobRun = {
   jobId: string
   cluster: string
   node?: string
-  pending: string
+  leased?: string
+  pending?: string
   started?: string
   finished?: string
   jobRunState: JobRunState

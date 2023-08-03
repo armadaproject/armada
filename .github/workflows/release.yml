@@ -18,7 +18,7 @@ jobs:
 
     steps:
       - name: "Checkout"
-        uses: "actions/checkout@v3"
+        uses: "actions/checkout@v3.3.0"
         with:
           fetch-depth: 0
 
@@ -31,7 +31,7 @@ jobs:
           sha='${{ github.event.workflow_run.head_sha }}'
 
           [[ $ref =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] &&
-          [ $(git rev-parse refs/tags/$ref) == $sha ] &&
+          [ $(git tag --points-at $sha | grep -E "^$ref\$" | wc -l) -eq 1 ] &&
           [ $(git branch --contains=$sha master | wc -l) -eq 1 ]
           if [ $? -ne 0 ]; then
             echo "::error ::Invalid ref $ref $sha: must be a tag, belong to the master branch and match the semver regex"
@@ -45,7 +45,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.3.0
         with:
           fetch-depth: 0
 
@@ -70,14 +70,18 @@ jobs:
       - name: Set up Syft
         run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
-      - name: Set GORELEASER_PREVIOUS_TAG # Workaround, GoReleaser uses 'git-describe' to determine a previous tag.
-        run: echo "GORELEASER_PREVIOUS_TAG=$(git -c 'versionsort.suffix=-rc' tag --list --sort=version:refname | grep -Eo '^v[0-9]{1,}.[0-9]{1,}.[0-9]{1,}$' | tail -n 2 | head -n 1)" >> $GITHUB_ENV
+      - name: Set current and previous tag # Workaround, GoReleaser uses 'git-describe' to determine a previous tag.
+        run: |
+          current_tag='${{ github.event.workflow_run.head_branch }}'
+          echo "GORELEASER_CURRENT_TAG=$current_tag" >> $GITHUB_ENV
+          previous_tag=$(git -c 'versionsort.suffix=-rc' tag --list --sort=version:refname | grep -Eo '^v[0-9]{1,}.[0-9]{1,}.[0-9]{1,}$' | tail -n 2 | head -n 1)
+          echo "GORELEASER_PREVIOUS_TAG=$previous_tag" >> $GITHUB_ENV
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v4
         with:
           distribution: goreleaser
-          version: v1.18.2
+          version: v1.19.2
           args: "-f ./.goreleaser.yml release --clean"
         env:
           FULL_RELEASE: true
@@ -86,3 +90,10 @@ jobs:
           DOCKER_BUILDX_BUILDER: "${{ steps.buildx.outputs.name }}"
           DOCKER_BUILDX_CACHE_FROM: "type=gha"
           DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
+  invoke-chart-push:
+    name: Invoke Chart push
+    needs: release
+    uses: G-Research/charts/.github/workflows/invoke-push.yaml@master
+    secrets:
+      APP_ID: ${{ secrets.APP_ID }}
+      APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}

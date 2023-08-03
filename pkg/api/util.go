@@ -69,7 +69,7 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		jobRunsByState[jobId] = JobRunStateFromApiJobState(state)
 	}
 	return &schedulerobjects.Node{
-		Id:                               fmt.Sprintf("%s-%s", executor, nodeInfo.Name),
+		Id:                               NodeIdFromExecutorAndNodeName(executor, nodeInfo.Name),
 		Name:                             nodeInfo.Name,
 		Executor:                         executor,
 		LastSeen:                         lastSeen,
@@ -83,6 +83,10 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		ResourceUsageByQueue:             resourceUsageByQueue,
 		ReportingNodeType:                nodeInfo.NodeType,
 	}, nil
+}
+
+func NodeIdFromExecutorAndNodeName(executor, nodeName string) string {
+	return fmt.Sprintf("%s-%s", executor, nodeName)
 }
 
 func JobRunStateFromApiJobState(s JobState) schedulerobjects.JobRunState {

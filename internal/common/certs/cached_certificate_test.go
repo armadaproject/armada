@@ -19,8 +19,9 @@ import (
 )
 
 const (
-	certFilePath = "testdata/tls.crt"
-	keyFilePath  = "testdata/tls.key"
+	certFilePath  = "testdata/tls.crt"
+	keyFilePath   = "testdata/tls.key"
+	directoryName = "testdata"
 )
 
 func TestCachedCertificateService_LoadsCertificateOnStartup(t *testing.T) {
@@ -105,6 +106,8 @@ func TestCachedCertificateService_ReloadsCertPeriodically_WhenUsingRun(t *testin
 }
 
 func writeCerts(t *testing.T, certData *bytes.Buffer, keyData *bytes.Buffer) {
+	err := os.MkdirAll(directoryName, 0o755)
+	require.NoError(t, err)
 	if certData != nil {
 		err := os.WriteFile(certFilePath, certData.Bytes(), 0o644)
 		require.NoError(t, err)
@@ -117,8 +120,7 @@ func writeCerts(t *testing.T, certData *bytes.Buffer, keyData *bytes.Buffer) {
 }
 
 func cleanup() {
-	os.Remove(certFilePath)
-	os.Remove(keyFilePath)
+	os.RemoveAll(directoryName)
 }
 
 func createCerts(t *testing.T) (*tls.Certificate, *bytes.Buffer, *bytes.Buffer) {

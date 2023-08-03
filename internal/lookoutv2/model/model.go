@@ -47,7 +47,8 @@ type Run struct {
 	Finished    *time.Time
 	JobRunState string
 	Node        *string
-	Pending     time.Time
+	Leased      *time.Time
+	Pending     *time.Time
 	RunId       string
 	Started     *time.Time
 }

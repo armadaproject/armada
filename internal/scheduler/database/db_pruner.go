@@ -4,7 +4,7 @@ import (
 	ctx "context"
 	"time"
 
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
@@ -56,7 +56,7 @@ func PruneDb(ctx ctx.Context, db *pgx.Conn, batchLimit int, keepAfterCompletion 
 	for keepGoing {
 		batchStart := time.Now()
 		batchSize := 0
-		err = db.BeginTxFunc(ctx, pgx.TxOptions{
+		err := pgx.BeginTxFunc(ctx, db, pgx.TxOptions{
 			IsoLevel:       pgx.ReadCommitted,
 			AccessMode:     pgx.ReadWrite,
 			DeferrableMode: pgx.Deferrable,
@@ -85,14 +85,12 @@ func PruneDb(ctx ctx.Context, db *pgx.Conn, batchLimit int, keepAfterCompletion 
 						DELETE FROM job_run_errors WHERE job_id in (SELECT job_id from batch);
 						DELETE FROM rows_to_delete WHERE job_id in (SELECT job_id from batch);
 						TRUNCATE TABLE batch;`)
-			if err != nil {
-				return err
-			}
-			return nil
+			return err
 		})
 		if err != nil {
 			return errors.Wrapf(err, "Error deleting batch from postgres")
 		}
+
 		taken := time.Now().Sub(batchStart)
 		jobsDeleted += batchSize
 		log.Infof("Deleted %d jobs in %s.  Deleted %d jobs out of %d", batchSize, taken, jobsDeleted, totalJobsToDelete)
