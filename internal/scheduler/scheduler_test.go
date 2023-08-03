@@ -341,7 +341,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					Executor:     "testExecutor",
 					Failed:       true,
 					Returned:     true,
-					RunAttempted: true,
+					RunAttempted: false,
 					Serial:       1,
 				},
 			},

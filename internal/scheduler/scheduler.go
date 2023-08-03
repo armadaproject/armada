@@ -550,11 +550,8 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 			}
 			events = append(events, jobSucceeded)
 		} else if lastRun.Failed() && !job.Queued() {
-			maxAttempts := s.maxAttemptedRuns
-			if job.GetAnnotations()[configuration.FailFastAnnotation] == "true" {
-				maxAttempts = 1
-			}
-			requeueJob := lastRun.Returned() && job.NumAttempts() < maxAttempts
+			failFast := job.GetAnnotations()[configuration.FailFastAnnotation] == "true"
+			requeueJob := !failFast && lastRun.Returned() && job.NumAttempts() < s.maxAttemptedRuns
 
 			if requeueJob && lastRun.RunAttempted() {
 				jobWithAntiAffinity, schedulable, err := s.addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job)
@@ -590,9 +587,12 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 				runError := jobRunErrors[lastRun.Id()]
 				job = job.WithFailed(true).WithQueued(false)
 				if lastRun.Returned() {
-					errorMessage := fmt.Sprintf("Maximum number of attempts (%d) reached - this job will no longer be retried", maxAttempts)
-					if job.NumAttempts() < maxAttempts {
+					errorMessage := fmt.Sprintf("Maximum number of attempts (%d) reached - this job will no longer be retried", s.maxAttemptedRuns)
+					if job.NumAttempts() < s.maxAttemptedRuns {
 						errorMessage = fmt.Sprintf("Job was attempted %d times, and has been tried once on all nodes it can run on - this job will no longer be retried", job.NumAttempts())
+					}
+					if failFast {
+						errorMessage = fmt.Sprintf("Job has fail fast flag set - this job will no longer be retried")
 					}
 					runError = &armadaevents.Error{
 						Terminal: true,
