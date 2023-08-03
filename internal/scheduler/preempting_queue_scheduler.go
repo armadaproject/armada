@@ -342,9 +342,6 @@ func (sch *PreemptingQueueScheduler) evict(ctx context.Context, evictor *Evictor
 	if err := sch.evictionAssertions(result.EvictedJobsById, result.AffectedNodesById); err != nil {
 		return nil, nil, err
 	}
-	if s := JobsSummary(evictedJobs); s != "" {
-		log.Infof("evicted %d jobs on nodes %v; %s", len(evictedJobs), maps.Keys(result.AffectedNodesById), s)
-	}
 	inMemoryJobRepo := NewInMemoryJobRepository(sch.schedulingContext.PriorityClasses)
 	inMemoryJobRepo.EnqueueMany(evictedJobs)
 	txn.Commit()
