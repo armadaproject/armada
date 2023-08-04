@@ -72,6 +72,8 @@ type Scheduler struct {
 	runsSerial int64
 	// Function that is called every time a cycle is completed. Useful for testing.
 	onCycleCompleted func()
+	// Metrics set for the scheduler.
+	Metrics SchedulerMetrics
 }
 
 func NewScheduler(
@@ -107,6 +109,7 @@ func NewScheduler(
 		nodeIdLabel:                nodeIdLabel,
 		jobsSerial:                 -1,
 		runsSerial:                 -1,
+		Metrics:                    NewSchedulerMetrics(),
 	}, nil
 }
 
@@ -163,7 +166,12 @@ func (s *Scheduler) Run(ctx context.Context) error {
 				logging.WithStacktrace(log, err).Error("scheduling cycle failure")
 				leaderToken = InvalidLeaderToken()
 			}
-			log.Infof("scheduling cycle completed in %s", s.clock.Since(start))
+
+			// MEMO: Extracting this out to publish as a metric
+			cycleTime := s.clock.Since(start)
+			log.Infof("scheduling cycle completed in %s", cycleTime)
+			s.Metrics.ReportCycleTime(float64(cycleTime))
+
 			prevLeaderToken = leaderToken
 			if s.onCycleCompleted != nil {
 				s.onCycleCompleted()

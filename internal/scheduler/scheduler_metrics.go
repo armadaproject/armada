@@ -12,7 +12,7 @@ type SchedulerMetrics struct {
 	CycleTimeHistogram prometheus.Histogram
 }
 
-func NewSchedulerMetrics() *SchedulerMetrics {
+func NewSchedulerMetrics() SchedulerMetrics {
 	cycleTime := prometheus.NewGauge(
 		prometheus.GaugeOpts{
 			Namespace:   NAMESPACE,
@@ -35,7 +35,7 @@ func NewSchedulerMetrics() *SchedulerMetrics {
 	prometheus.MustRegister(cycleTime)
 	prometheus.MustRegister(cycleTimeHistogram)
 
-	return &SchedulerMetrics{
+	return SchedulerMetrics{
 		CycleTime:          cycleTime,
 		CycleTimeHistogram: cycleTimeHistogram,
 	}
