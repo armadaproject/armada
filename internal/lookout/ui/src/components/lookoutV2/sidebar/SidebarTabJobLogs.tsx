@@ -12,7 +12,7 @@ import {
   MenuItem,
   Select,
 } from "@mui/material"
-import { Job } from "models/lookoutV2Models"
+import { Job, JobRun } from "models/lookoutV2Models"
 
 import styles from "./SidebarTabJobLogs.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
@@ -250,7 +250,7 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
             >
               {runsNewestFirst.map((run, i) => (
                 <MenuItem value={i} key={i}>
-                  {run.started === "" || run.started === undefined ? run.pending : run.started}
+                  {getJobRunTime(run)}
                 </MenuItem>
               ))}
             </Select>
@@ -393,4 +393,17 @@ function LogView({ logLines, showTimestamps }: { logLines: LogLine[]; showTimest
       <div ref={logsEndRef} key={"END"} />
     </div>
   )
+}
+
+function getJobRunTime(run: JobRun): string {
+  if (run.started !== undefined && run.started !== "") {
+    return run.started
+  }
+  if (run.pending !== undefined && run.pending !== "") {
+    return run.pending
+  }
+  if (run.leased !== undefined && run.leased !== "") {
+    return run.leased
+  }
+  return ""
 }

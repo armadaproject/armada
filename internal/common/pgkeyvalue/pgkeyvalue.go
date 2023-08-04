@@ -7,10 +7,10 @@ import (
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
-	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
@@ -170,7 +170,7 @@ func (c *PGKeyValueStore) add(ctx context.Context, key string, value []byte) (bo
 
 	// Otherwise, get and set the key in a transaction.
 	var exists *bool
-	err := c.db.BeginTxFunc(ctx, pgx.TxOptions{}, func(tx pgx.Tx) error {
+	err := pgx.BeginTxFunc(ctx, c.db, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		// Check if the key already exists in postgres.
 		sql := fmt.Sprintf("select exists(select 1 from %s where key=$1) AS \"exists\"", c.tableName)
 		if err := tx.QueryRow(ctx, sql, key).Scan(&exists); err != nil {

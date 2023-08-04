@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useMemo, useState } from "react"
 
-import { Divider, Button } from "@mui/material"
+import { Divider, Button, Checkbox, FormControlLabel, FormGroup } from "@mui/material"
 import RefreshButton from "components/RefreshButton"
 import ColumnSelect from "components/lookoutV2/ColumnSelect"
 import GroupBySelect from "components/lookoutV2/GroupBySelect"
@@ -22,6 +22,8 @@ export interface JobsTableActionBarProps {
   visibleColumns: ColumnId[]
   selectedItemFilters: JobFilter[][]
   customViews: string[]
+  activeJobSets: boolean
+  onActiveJobSetsChanged: (newVal: boolean) => void
   onRefresh: () => void
   onAddAnnotationColumn: (annotationKey: string) => void
   onRemoveAnnotationColumn: (colId: ColumnId) => void
@@ -44,6 +46,8 @@ export const JobsTableActionBar = memo(
     visibleColumns,
     selectedItemFilters,
     customViews,
+    activeJobSets,
+    onActiveJobSetsChanged,
     onRefresh,
     onAddAnnotationColumn,
     onRemoveAnnotationColumn,
@@ -90,6 +94,20 @@ export const JobsTableActionBar = memo(
         </div>
 
         <div className={styles.actionGroup}>
+          <FormGroup>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={activeJobSets}
+                  onChange={(e) => {
+                    onActiveJobSetsChanged(e.target.checked)
+                  }}
+                />
+              }
+              label="Active Job Sets"
+            />
+          </FormGroup>
+          <Divider orientation="vertical" />
           <Button variant="text" onClick={onClearFilters} color="secondary">
             Clear Filters
           </Button>

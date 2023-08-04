@@ -61,6 +61,7 @@ scheduling:
         preemptible: true
     defaultPriorityClass: armada-default
     priorityClassNameOverride: armada-default
+  executorTimeout: 60m
   maxQueueLookback: 1000
   maxExtraNodesToConsider: 1
   maximumResourceFractionToSchedule:
@@ -101,6 +102,7 @@ scheduling:
       resolution: "1Mi"
   minTerminationGracePeriod: 1s
   maxTerminationGracePeriod: 300s
+  executorUpdateFrequency: 1m
 queueManagement:
   defaultPriorityFactor: 1000
   defaultQueuedJobsLimit: 0  # No Limit

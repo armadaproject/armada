@@ -48,7 +48,7 @@ export const CancelDialog = ({
 
     setIsLoadingJobs(true)
 
-    const uniqueJobsToCancel = await getUniqueJobsMatchingFilters(selectedItemFilters, getJobsService)
+    const uniqueJobsToCancel = await getUniqueJobsMatchingFilters(selectedItemFilters, false, getJobsService)
     const sortedJobs = _.orderBy(uniqueJobsToCancel, (job) => job.jobId, "desc")
 
     if (!mounted.current) {
