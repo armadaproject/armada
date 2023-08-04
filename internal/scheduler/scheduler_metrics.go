@@ -8,41 +8,44 @@ const NAMESPACE = "armada"
 const SUBSYSTEM = "scheduler"
 
 type SchedulerMetrics struct {
-	CycleTime          prometheus.Gauge
-	CycleTimeHistogram prometheus.Histogram
+	// Cycle time when scheduling, as leader.
+	ScheduleCycleTime prometheus.Histogram
+	// Cycle time when reconciling, as leader or follower.
+	ReconcileCycleTime prometheus.Histogram
 }
 
 func NewSchedulerMetrics() SchedulerMetrics {
-	cycleTime := prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace:   NAMESPACE,
-			Subsystem:   SUBSYSTEM,
-			Name:        "last_cycle_time",
-			Help:        "Time to complete most recent scheduling cycle.",
-			ConstLabels: map[string]string{},
-		})
 
-	cycleTimeHistogram := prometheus.NewHistogram(
+	scheduleCycleTime := prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Namespace: NAMESPACE,
 			Subsystem: SUBSYSTEM,
-			Name:      "cycle_times",
-			Help:      "Histogram of cycle times observed.",
+			Name:      "schedule_cycle_times",
+			Help:      "Cycle time when in a scheduling round.",
 			Buckets:   []float64{0, 1, 2, 3, 4, 5},
 		},
 	)
 
-	prometheus.MustRegister(cycleTime)
-	prometheus.MustRegister(cycleTimeHistogram)
+	reconcileCycleTime := prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: NAMESPACE,
+			Subsystem: SUBSYSTEM,
+			Name:      "schedule_cycle_times",
+			Help:      "Cycle time when in a scheduling round.",
+			Buckets:   []float64{0, 1, 2, 3, 4, 5},
+		},
+	)
+
+	prometheus.MustRegister(scheduleCycleTime)
+	prometheus.MustRegister(reconcileCycleTime)
 
 	return SchedulerMetrics{
-		CycleTime:          cycleTime,
-		CycleTimeHistogram: cycleTimeHistogram,
+		ScheduleCycleTime:  scheduleCycleTime,
+		ReconcileCycleTime: reconcileCycleTime,
 	}
 
 }
 
 func (metrics *SchedulerMetrics) ReportCycleTime(cycleTime float64) {
-	metrics.CycleTime.Add(cycleTime)
-	metrics.CycleTimeHistogram.Observe(cycleTime)
+
 }
