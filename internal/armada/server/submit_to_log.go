@@ -10,12 +10,12 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/types"
+	"github.com/gogo/status"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
@@ -95,16 +95,27 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	// We use the legacy code for the conversion to ensure that behaviour doesn't change.
 	apiJobs, responseItems, err := srv.SubmitServer.createJobs(req, userId, groups)
 	if err != nil {
-		result := &api.JobSubmitResponse{
+		details := &api.JobSubmitResponse{
 			JobResponseItems: responseItems,
 		}
-		return result, err
+
+		st, e := status.Newf(codes.InvalidArgument, "[SubmitJobs] Failed to parse job request: %s", err.Error()).WithDetails(details)
+		if e != nil {
+			return nil, status.Newf(codes.Internal, "[SubmitJobs] Failed to parse job request: %s", e.Error()).Err()
+		}
+
+		return nil, st.Err()
 	}
 	if responseItems, err := commonvalidation.ValidateApiJobs(apiJobs, *srv.SubmitServer.schedulingConfig); err != nil {
-		result := &api.JobSubmitResponse{
+		details := &api.JobSubmitResponse{
 			JobResponseItems: responseItems,
 		}
-		return result, err
+
+		st, e := status.Newf(codes.InvalidArgument, "[SubmitJobs] Failed to parse job request: %s", err.Error()).WithDetails(details)
+		if e != nil {
+			return nil, status.Newf(codes.Internal, "[SubmitJobs] Failed to parse job request: %s", e.Error()).Err()
+		}
+		return nil, st.Err()
 	}
 
 	schedulersByJobId, err := srv.assignScheduler(apiJobs)
