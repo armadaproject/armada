@@ -17,10 +17,10 @@ import (
 	proto "github.com/gogo/protobuf/proto"
 	github_com_gogo_protobuf_sortkeys "github.com/gogo/protobuf/sortkeys"
 	types "github.com/gogo/protobuf/types"
+	"github.com/gogo/status"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
-	status "google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -1760,6 +1760,13 @@ func (c *submitClient) SubmitJobs(ctx context.Context, in *JobSubmitRequest, opt
 	out := new(JobSubmitResponse)
 	err := c.cc.Invoke(ctx, "/api.Submit/SubmitJobs", in, out, opts...)
 	if err != nil {
+		st := status.Convert(err)
+		for _, detail := range st.Details() {
+			switch t := detail.(type) {
+			case *JobSubmitResponse:
+				return t, err
+			}
+		}
 		return nil, err
 	}
 	return out, nil
@@ -1817,6 +1824,7 @@ func (c *submitClient) UpdateQueue(ctx context.Context, in *Queue, opts ...grpc.
 		return nil, err
 	}
 	return out, nil
+
 }
 
 func (c *submitClient) UpdateQueues(ctx context.Context, in *QueueList, opts ...grpc.CallOption) (*BatchQueueUpdateResponse, error) {
