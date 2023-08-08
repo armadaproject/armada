@@ -39,9 +39,10 @@ type HasNodeName interface {
 }
 
 type InstructionConverter struct {
-	metrics              *metrics.Metrics
-	userAnnotationPrefix string
-	compressor           compress.Compressor
+	metrics                  *metrics.Metrics
+	userAnnotationPrefix     string
+	compressor               compress.Compressor
+	useLegacyEventConversion bool
 }
 
 type jobResources struct {
@@ -51,8 +52,17 @@ type jobResources struct {
 	Gpu              int64
 }
 
-func NewInstructionConverter(m *metrics.Metrics, userAnnotationPrefix string, compressor compress.Compressor) *InstructionConverter {
-	return &InstructionConverter{metrics: m, userAnnotationPrefix: userAnnotationPrefix, compressor: compressor}
+func NewInstructionConverter(m *metrics.Metrics, userAnnotationPrefix string, compressor compress.Compressor, useLegacyEventConversion bool) *InstructionConverter {
+	return &InstructionConverter{
+		metrics:                  m,
+		userAnnotationPrefix:     userAnnotationPrefix,
+		compressor:               compressor,
+		useLegacyEventConversion: useLegacyEventConversion,
+	}
+}
+
+func (c *InstructionConverter) IsLegacy() bool {
+	return c.useLegacyEventConversion
 }
 
 func (c *InstructionConverter) Convert(ctx context.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
@@ -88,13 +98,17 @@ func (c *InstructionConverter) convertSequence(
 		case *armadaevents.EventSequence_Event_ReprioritisedJob:
 			err = c.handleReprioritiseJob(ts, event.GetReprioritisedJob(), update)
 		case *armadaevents.EventSequence_Event_CancelledJob:
-			err = c.handleCancelJob(ts, event.GetCancelledJob(), update)
+			err = c.handleCancelledJob(ts, event.GetCancelledJob(), update)
 		case *armadaevents.EventSequence_Event_JobSucceeded:
 			err = c.handleJobSucceeded(ts, event.GetJobSucceeded(), update)
 		case *armadaevents.EventSequence_Event_JobErrors:
 			err = c.handleJobErrors(ts, event.GetJobErrors(), update)
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
-			err = c.handleJobRunAssigned(ts, event.GetJobRunAssigned(), update)
+			if c.useLegacyEventConversion {
+				err = c.handleLegacyJobRunAssigned(ts, event.GetJobRunAssigned(), update)
+			} else {
+				err = c.handleJobRunAssigned(ts, event.GetJobRunAssigned(), update)
+			}
 		case *armadaevents.EventSequence_Event_JobRunRunning:
 			err = c.handleJobRunRunning(ts, event.GetJobRunRunning(), update)
 		case *armadaevents.EventSequence_Event_JobRunSucceeded:
@@ -105,8 +119,12 @@ func (c *InstructionConverter) convertSequence(
 			err = c.handleJobDuplicateDetected(ts, event.GetJobDuplicateDetected(), update)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
 			err = c.handleJobRunPreempted(ts, event.GetJobRunPreempted(), update)
-		case *armadaevents.EventSequence_Event_CancelJob:
+		case *armadaevents.EventSequence_Event_JobRequeued:
+			err = c.handleJobRequeued(ts, event.GetJobRequeued(), update)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
+			if !c.useLegacyEventConversion {
+				err = c.handleJobRunLeased(ts, event.GetJobRunLeased(), update)
+			}
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
 		case *armadaevents.EventSequence_Event_ResourceUtilisation:
@@ -254,17 +272,22 @@ func (c *InstructionConverter) handleJobDuplicateDetected(ts time.Time, event *a
 	return nil
 }
 
-func (c *InstructionConverter) handleCancelJob(ts time.Time, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
+func (c *InstructionConverter) handleCancelledJob(ts time.Time, event *armadaevents.CancelledJob, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
 		return err
 	}
 
+	var reason *string
+	if event.Reason != "" {
+		reason = &event.Reason
+	}
 	jobUpdate := model.UpdateJobInstruction{
 		JobId:                     jobId,
 		State:                     pointer.Int32(int32(lookout.JobCancelledOrdinal)),
 		Cancelled:                 &ts,
+		CancelReason:              reason,
 		LastTransitionTime:        &ts,
 		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
 	}
@@ -353,7 +376,92 @@ func (c *InstructionConverter) handleJobRunRunning(ts time.Time, event *armadaev
 	return nil
 }
 
+func (c *InstructionConverter) handleJobRequeued(ts time.Time, event *armadaevents.JobRequeued, update *model.InstructionSet) error {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
+	if err != nil {
+		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		return err
+	}
+
+	jobUpdate := model.UpdateJobInstruction{
+		JobId:                     jobId,
+		State:                     pointer.Int32(int32(lookout.JobQueuedOrdinal)),
+		LastTransitionTime:        &ts,
+		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
+	}
+	update.JobsToUpdate = append(update.JobsToUpdate, &jobUpdate)
+	return nil
+}
+
+func (c *InstructionConverter) handleJobRunLeased(ts time.Time, event *armadaevents.JobRunLeased, update *model.InstructionSet) error {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
+	if err != nil {
+		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		return err
+	}
+
+	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
+	if err != nil {
+		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		return err
+	}
+
+	// Update Job
+	job := model.UpdateJobInstruction{
+		JobId:                     jobId,
+		State:                     pointer.Int32(int32(lookout.JobLeasedOrdinal)),
+		LastTransitionTime:        &ts,
+		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
+		LatestRunId:               &runId,
+	}
+
+	update.JobsToUpdate = append(update.JobsToUpdate, &job)
+	// Now create a job run
+	jobRun := model.CreateJobRunInstruction{
+		RunId:       runId,
+		JobId:       jobId,
+		Cluster:     event.ExecutorId,
+		Node:        pointer.String(event.NodeId),
+		Leased:      &ts,
+		JobRunState: lookout.JobRunLeasedOrdinal,
+	}
+	update.JobRunsToCreate = append(update.JobRunsToCreate, &jobRun)
+	return nil
+}
+
 func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned, update *model.InstructionSet) error {
+	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
+	if err != nil {
+		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		return err
+	}
+
+	runId, err := armadaevents.UuidStringFromProtoUuid(event.RunId)
+	if err != nil {
+		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
+		return err
+	}
+
+	// Update Job
+	job := model.UpdateJobInstruction{
+		JobId:                     jobId,
+		State:                     pointer.Int32(int32(lookout.JobPendingOrdinal)),
+		LastTransitionTime:        &ts,
+		LastTransitionTimeSeconds: pointer.Int64(ts.Unix()),
+		LatestRunId:               &runId,
+	}
+
+	update.JobsToUpdate = append(update.JobsToUpdate, &job)
+	jobRun := model.UpdateJobRunInstruction{
+		RunId:       runId,
+		Pending:     &ts,
+		JobRunState: pointer.Int32(lookout.JobRunPendingOrdinal),
+	}
+	update.JobRunsToUpdate = append(update.JobRunsToUpdate, &jobRun)
+	return nil
+}
+
+func (c *InstructionConverter) handleLegacyJobRunAssigned(ts time.Time, event *armadaevents.JobRunAssigned, update *model.InstructionSet) error {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(event.GetJobId())
 	if err != nil {
 		c.metrics.RecordPulsarMessageError(metrics.PulsarMessageErrorProcessing)
@@ -385,7 +493,8 @@ func (c *InstructionConverter) handleJobRunAssigned(ts time.Time, event *armadae
 		RunId:       runId,
 		JobId:       jobId,
 		Cluster:     cluster,
-		Pending:     ts,
+		Leased:      &ts,
+		Pending:     &ts,
 		JobRunState: lookout.JobRunPendingOrdinal,
 	}
 	update.JobRunsToCreate = append(update.JobRunsToCreate, &jobRun)
@@ -423,66 +532,60 @@ func (c *InstructionConverter) handleJobRunErrors(ts time.Time, event *armadaeve
 	}
 
 	for _, e := range event.GetErrors() {
-		// We just interpret the first terminal error
-		if e.Terminal {
-
-			// Certain legacy events mean we don't have a valid run id
-			// In this case we have to invent a fake run
-			// TODO: remove this when the legacy messages go away!
-			isLegacyEvent := runId == eventutil.LEGACY_RUN_ID
-			if isLegacyEvent {
-				jobRun := createFakeJobRun(jobId, ts)
-				runId = jobRun.RunId
-				objectMeta := extractMetaFromError(e)
-				if objectMeta != nil && objectMeta.ExecutorId != "" {
-					jobRun.Cluster = util.Truncate(objectMeta.ExecutorId, maxClusterLen)
-				}
-				update.JobRunsToCreate = append(update.JobRunsToCreate, jobRun)
+		// Certain legacy events mean we don't have a valid run id
+		// In this case we have to invent a fake run
+		// TODO: remove this when the legacy messages go away!
+		isLegacyEvent := runId == eventutil.LEGACY_RUN_ID
+		if isLegacyEvent {
+			jobRun := createFakeJobRun(jobId, ts)
+			runId = jobRun.RunId
+			objectMeta := extractMetaFromError(e)
+			if objectMeta != nil && objectMeta.ExecutorId != "" {
+				jobRun.Cluster = util.Truncate(objectMeta.ExecutorId, maxClusterLen)
 			}
-
-			jobRunUpdate := &model.UpdateJobRunInstruction{
-				RunId:    runId,
-				Finished: &ts,
-			}
-			if isLegacyEvent {
-				jobRunUpdate.Started = &ts
-			}
-
-			switch reason := e.Reason.(type) {
-			case *armadaevents.Error_PodError:
-				jobRunUpdate.Node = extractNodeName(reason.PodError)
-				jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunFailedOrdinal)
-				jobRunUpdate.Error = tryCompressError(jobId, reason.PodError.GetMessage(), c.compressor)
-				var exitCode int32 = 0
-				for _, containerError := range reason.PodError.ContainerErrors {
-					if containerError.ExitCode != 0 {
-						exitCode = containerError.ExitCode
-						break
-					}
-				}
-				jobRunUpdate.ExitCode = pointer.Int32(exitCode)
-			case *armadaevents.Error_PodTerminated:
-				jobRunUpdate.Node = extractNodeName(reason.PodTerminated)
-				jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunTerminatedOrdinal)
-				jobRunUpdate.Error = tryCompressError(jobId, reason.PodTerminated.GetMessage(), c.compressor)
-			case *armadaevents.Error_PodUnschedulable:
-				jobRunUpdate.Node = extractNodeName(reason.PodUnschedulable)
-				jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunUnableToScheduleOrdinal)
-				jobRunUpdate.Error = tryCompressError(jobId, reason.PodUnschedulable.GetMessage(), c.compressor)
-			case *armadaevents.Error_PodLeaseReturned:
-				jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunLeaseReturnedOrdinal)
-				jobRunUpdate.Error = tryCompressError(jobId, reason.PodLeaseReturned.GetMessage(), c.compressor)
-			case *armadaevents.Error_LeaseExpired:
-				jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunLeaseExpiredOrdinal)
-				jobRunUpdate.Error = tryCompressError(jobId, "Lease expired", c.compressor)
-			default:
-				jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunFailedOrdinal)
-				jobRunUpdate.Error = tryCompressError(jobId, "Unknown error", c.compressor)
-				log.Debugf("Ignoring event %T", reason)
-			}
-			update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
-			break
+			update.JobRunsToCreate = append(update.JobRunsToCreate, jobRun)
 		}
+
+		jobRunUpdate := &model.UpdateJobRunInstruction{
+			RunId: runId,
+		}
+		if e.Terminal {
+			jobRunUpdate.Finished = &ts
+		}
+		if isLegacyEvent {
+			jobRunUpdate.Started = &ts
+		}
+
+		switch reason := e.Reason.(type) {
+		case *armadaevents.Error_PodError:
+			jobRunUpdate.Node = extractNodeName(reason.PodError)
+			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunFailedOrdinal)
+			jobRunUpdate.Error = tryCompressError(jobId, reason.PodError.GetMessage(), c.compressor)
+			var exitCode int32 = 0
+			for _, containerError := range reason.PodError.ContainerErrors {
+				if containerError.ExitCode != 0 {
+					exitCode = containerError.ExitCode
+					break
+				}
+			}
+			jobRunUpdate.ExitCode = pointer.Int32(exitCode)
+		case *armadaevents.Error_PodTerminated:
+			continue
+		case *armadaevents.Error_PodUnschedulable:
+			jobRunUpdate.Node = extractNodeName(reason.PodUnschedulable)
+		case *armadaevents.Error_PodLeaseReturned:
+			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunLeaseReturnedOrdinal)
+			jobRunUpdate.Error = tryCompressError(jobId, reason.PodLeaseReturned.GetMessage(), c.compressor)
+		case *armadaevents.Error_LeaseExpired:
+			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunLeaseExpiredOrdinal)
+			jobRunUpdate.Error = tryCompressError(jobId, "Lease expired", c.compressor)
+		default:
+			jobRunUpdate.JobRunState = pointer.Int32(lookout.JobRunFailedOrdinal)
+			jobRunUpdate.Error = tryCompressError(jobId, "Unknown error", c.compressor)
+			log.Debugf("Ignoring event %T", reason)
+		}
+		update.JobRunsToUpdate = append(update.JobRunsToUpdate, jobRunUpdate)
+		break
 	}
 	return nil
 }
@@ -583,7 +686,7 @@ func createFakeJobRun(jobId string, ts time.Time) *model.CreateJobRunInstruction
 		RunId:       runId,
 		JobId:       jobId,
 		Cluster:     "UNKNOWN",
-		Pending:     ts,
+		Pending:     &ts,
 		JobRunState: lookout.JobRunPendingOrdinal,
 	}
 }

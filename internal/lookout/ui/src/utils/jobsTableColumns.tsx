@@ -1,10 +1,12 @@
 import { Checkbox } from "@mui/material"
+import { CellContext, Row } from "@tanstack/react-table"
 import { ColumnDef, createColumnHelper, VisibilityState } from "@tanstack/table-core"
 import { JobStateLabel } from "components/lookoutV2/JobStateLabel"
 import { EnumFilterOption } from "components/lookoutV2/JobsTableFilter"
 import { isJobGroupRow, JobTableRow } from "models/jobsTableModels"
 import { JobState, Match } from "models/lookoutV2Models"
 
+import { JobGroupStateCounts } from "../components/lookoutV2/JobGroupStateCounts"
 import { LookoutColumnOrder } from "../containers/lookoutV2/JobsTableContainer"
 import { formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
 import { formatBytes, formatCpu, parseBytes, parseCpu, parseInteger } from "./resourceUtils"
@@ -112,22 +114,43 @@ export const JOB_COLUMNS: JobTableColumn[] = [
       <Checkbox
         checked={table.getIsAllRowsSelected()}
         indeterminate={table.getIsSomeRowsSelected()}
-        onChange={table.getToggleAllRowsSelectedHandler()}
+        onChange={(event) => {
+          if (!event.currentTarget.checked || table.getIsSomeRowsSelected()) {
+            table.toggleAllRowsSelected(false)
+            return
+          }
+          table.toggleAllRowsSelected(true)
+        }}
         size="small"
         sx={{ p: 0 }}
       />
     ),
-    cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsGrouped() ? row.getIsAllSubRowsSelected() : row.getIsSelected()}
-        indeterminate={row.getIsSomeSelected()}
-        size="small"
-        sx={{
-          p: 0,
-          ml: `${row.depth * 6}px`,
-        }}
-      />
-    ),
+    cell: (item: unknown) => {
+      const itemCasted = item as CellContext<JobTableRow, unknown>
+      const row = itemCasted.row
+      const onClickRowCheckbox = (itemCasted as any).onClickRowCheckbox as (row: Row<JobTableRow>) => void
+      return (
+        <Checkbox
+          checked={row.getIsGrouped() ? row.getIsAllSubRowsSelected() : row.getIsSelected()}
+          indeterminate={row.getIsSomeSelected()}
+          size="small"
+          onClick={(e) => {
+            // Do normal flow for when the shift key is pressed
+            if (e.shiftKey) {
+              return
+            }
+            if (onClickRowCheckbox !== undefined) {
+              onClickRowCheckbox(row)
+            }
+            e.stopPropagation()
+          }}
+          sx={{
+            p: 0,
+            ml: `${row.depth * 6}px`,
+          }}
+        />
+      )
+    },
     meta: {
       displayName: "Select Column",
     } as JobTableColumnMetadata,
@@ -182,9 +205,38 @@ export const JOB_COLUMNS: JobTableColumn[] = [
       enableGrouping: true,
       enableColumnFilter: true,
       size: 300,
-      cell: (cell) => (
-        <JobStateLabel state={cell.getValue() as JobState}>{formatJobState(cell.getValue() as JobState)}</JobStateLabel>
-      ),
+      cell: (cell) => {
+        if (
+          cell.row.original &&
+          isJobGroupRow(cell.row.original) &&
+          cell.row.original.stateCounts &&
+          cell.row.original.groupedField !== "state"
+        ) {
+          return <JobGroupStateCounts stateCounts={cell.row.original.stateCounts} />
+        } else {
+          return (
+            <JobStateLabel state={cell.getValue() as JobState}>
+              {formatJobState(cell.getValue() as JobState)}
+            </JobStateLabel>
+          )
+        }
+      },
+      aggregatedCell: (cell) => {
+        if (
+          cell.row.original &&
+          isJobGroupRow(cell.row.original) &&
+          cell.row.original.stateCounts &&
+          cell.row.original.groupedField !== "state"
+        ) {
+          return <JobGroupStateCounts stateCounts={cell.row.original.stateCounts} />
+        } else {
+          return (
+            <JobStateLabel state={cell.getValue() as JobState}>
+              {formatJobState(cell.getValue() as JobState)}
+            </JobStateLabel>
+          )
+        }
+      },
     },
     additionalMetadata: {
       filterType: FilterType.Enum,
@@ -446,6 +498,7 @@ export const createAnnotationColumn = (annotationKey: string): JobTableColumn =>
     displayName: annotationKey,
     additionalOptions: {
       enableColumnFilter: true,
+      enableGrouping: true,
     },
     additionalMetadata: {
       annotation: {

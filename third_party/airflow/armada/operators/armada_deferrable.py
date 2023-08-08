@@ -17,18 +17,21 @@
 # under the License.
 
 import logging
-from typing import Optional, Sequence, Tuple, Any, TypedDict, List
-
-import grpc
+from typing import Optional, Sequence, List
 
 from airflow.exceptions import AirflowException
 from airflow.models import BaseOperator
 from airflow.triggers.base import BaseTrigger, TriggerEvent
+from airflow.utils.context import Context
 
 from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.client import ArmadaClient
 
-from armada.operators.jobservice import JobServiceClient
+from armada.operators.jobservice import (
+    JobServiceClient,
+    default_jobservice_channel_options,
+)
+from armada.operators.grpc import GrpcChannelArgsDict, GrpcChannelArguments
 from armada.operators.jobservice_asyncio import JobServiceAsyncIOClient
 from armada.operators.utils import (
     airflow_error,
@@ -37,19 +40,12 @@ from armada.operators.utils import (
 )
 from armada.jobservice import jobservice_pb2
 
+from google.protobuf.json_format import MessageToDict, ParseDict
+
+import jinja2
+
 
 armada_logger = logging.getLogger("airflow.task")
-
-
-class GrpcChannelArgsDict(TypedDict):
-    """
-    Helper class to provide stronger type checking on Grpc channel arugments.
-    """
-
-    target: str
-    credentials: Optional[grpc.ChannelCredentials] = None
-    options: Optional[Sequence[Tuple[str, Any]]] = None
-    compression: Optional[grpc.Compression] = None
 
 
 class ArmadaDeferrableOperator(BaseOperator):
@@ -59,7 +55,8 @@ class ArmadaDeferrableOperator(BaseOperator):
     Distinguished from ArmadaOperator by its ability to defer itself after
     submitting its job_request_items.
 
-    See https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html
+    See
+    https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html
     for more information about deferrable airflow operators.
 
     Airflow operators inherit from BaseOperator.
@@ -76,9 +73,10 @@ class ArmadaDeferrableOperator(BaseOperator):
         The format should be:
         "https://lookout.armada.domain/jobs?job_id=<job_id>" where <job_id> will
         be replaced with the actual job ID.
-
     :return: A deferrable armada operator instance.
-    """  # noqa
+    """
+
+    template_fields: Sequence[str] = ("job_request_items",)
 
     def __init__(
         self,
@@ -93,6 +91,10 @@ class ArmadaDeferrableOperator(BaseOperator):
         super().__init__(**kwargs)
         self.name = name
         self.armada_channel_args = GrpcChannelArguments(**armada_channel_args)
+
+        if "options" not in job_service_channel_args:
+            job_service_channel_args["options"] = default_jobservice_channel_options
+
         self.job_service_channel_args = GrpcChannelArguments(**job_service_channel_args)
         self.armada_queue = armada_queue
         self.job_request_items = job_request_items
@@ -167,7 +169,6 @@ class ArmadaDeferrableOperator(BaseOperator):
         :param event: The payload from the TriggerEvent raised by
             ArmadaJobCompleteTrigger.
         :param job_id: The job ID.
-
         :return: None
         """
 
@@ -184,6 +185,20 @@ class ArmadaDeferrableOperator(BaseOperator):
             return ""
         return self.lookout_url_template.replace("<job_id>", job_id)
 
+    def render_template_fields(
+        self,
+        context: Context,
+        jinja_env: Optional[jinja2.Environment] = None,
+    ) -> None:
+        self.job_request_items = [
+            MessageToDict(x, preserving_proto_field_name=True)
+            for x in self.job_request_items
+        ]
+        super().render_template_fields(context, jinja_env)
+        self.job_request_items = [
+            ParseDict(x, JobSubmitRequestItem()) for x in self.job_request_items
+        ]
+
 
 class ArmadaJobCompleteTrigger(BaseTrigger):
     """
@@ -198,8 +213,7 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
     :param job_set_id: The ID of the job set.
     :param airflow_task_name: Name of the airflow task to which this trigger
       belongs.
-
-    :returns: An armada job complete trigger instance.
+    :return: An armada job complete trigger instance.
     """
 
     def __init__(
@@ -246,82 +260,3 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
             log=self.log,
         )
         yield TriggerEvent({"job_state": job_state, "job_message": job_message})
-
-
-class GrpcChannelArguments(object):
-    """
-    A Serializable GRPC Arguments Object.
-
-    :target: Target keyword argument used when instantiating a grpc channel.
-    :credentials: credentials keyword argument used when instantiating a grpc channel.
-    :options: options keyword argument used when instantiating a grpc channel.
-    :compression: compression keyword argument used when instantiating a grpc channel.
-
-    :return: a GrpcChannelArguments instance
-    """
-
-    def __init__(
-        self,
-        target: str,
-        credentials: Optional[grpc.ChannelCredentials] = None,
-        options: Optional[Sequence[Tuple[str, Any]]] = None,
-        compression: Optional[grpc.Compression] = None,
-    ) -> None:
-        self.target = target
-        self.credentials = credentials
-        self.options = options
-        self.compression = compression
-
-    def channel(self) -> grpc.Channel:
-        """
-        Create a grpc.Channel based on arguments supplied to this object.
-
-        :return: Return grpc.insecure_channel if credentials is None. Otherwise
-        returns grpc.secure_channel.
-        """
-        if self.credentials is None:
-            return grpc.insecure_channel(
-                target=self.target,
-                options=self.options,
-                compression=self.compression,
-            )
-        return grpc.secure_channel(
-            target=self.target,
-            credentials=self.credentials,
-            options=self.options,
-            compression=self.compression,
-        )
-
-    def aio_channel(self) -> grpc.aio.Channel:
-        """
-        Create a grpc.aio.Channel (asyncio) based on arguments supplied to this object.
-
-        :return: Return grpc.aio.insecure_channel if credentials is None. Otherwise
-        returns grpc.aio.secure_channel.
-        """
-        if self.credentials is None:
-            return grpc.aio.insecure_channel(
-                target=self.target,
-                options=self.options,
-                compression=self.compression,
-            )
-        return grpc.aio.secure_channel(
-            target=self.target,
-            credentials=self.credentials,
-            options=self.options,
-            compression=self.compression,
-        )
-
-    def serialize(self) -> dict:
-        """
-        Get a serialized version of this object.
-
-        :return: A dict of keyword arguments used when calling
-        grpc{.aio}.{insecure_}channel or instantiating this object.
-        """
-        return {
-            "target": self.target,
-            "credentials": self.credentials,
-            "options": self.options,
-            "compression": self.compression,
-        }

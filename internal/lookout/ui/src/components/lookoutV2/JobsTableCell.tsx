@@ -2,8 +2,8 @@ import { RefObject } from "react"
 
 import { KeyboardArrowRight, KeyboardArrowDown } from "@mui/icons-material"
 import { TableCell, IconButton, TableSortLabel, Box } from "@mui/material"
-import { Cell, ColumnResizeMode, flexRender, Header } from "@tanstack/react-table"
-import { JobRow } from "models/jobsTableModels"
+import { Cell, ColumnResizeMode, flexRender, Header, Row } from "@tanstack/react-table"
+import { JobRow, JobTableRow } from "models/jobsTableModels"
 import { Match } from "models/lookoutV2Models"
 import { getColumnMetadata, toColId } from "utils/jobsTableColumns"
 
@@ -192,8 +192,9 @@ export interface BodyCellProps {
   rowIsGroup: boolean
   rowIsExpanded: boolean
   onExpandedChange: () => void
+  onClickRowCheckbox: (row: Row<JobTableRow>) => void
 }
-export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange }: BodyCellProps) => {
+export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange, onClickRowCheckbox }: BodyCellProps) => {
   const columnMetadata = getColumnMetadata(cell.column.columnDef)
   const cellHasValue = cell.renderValue()
   const isRightAligned = columnMetadata.isRightAligned ?? false
@@ -243,9 +244,15 @@ export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange }: 
       ) : cell.getIsAggregated() ? (
         // If the cell is aggregated, use the Aggregated
         // renderer for cell
-        flexRender(cell.column.columnDef.aggregatedCell ?? cell.column.columnDef.cell, cell.getContext())
+        flexRender(cell.column.columnDef.aggregatedCell ?? cell.column.columnDef.cell, {
+          ...cell.getContext(),
+          onClickRowCheckbox,
+        })
       ) : (
-        flexRender(cell.column.columnDef.cell, cell.getContext())
+        flexRender(cell.column.columnDef.cell, {
+          ...cell.getContext(),
+          onClickRowCheckbox,
+        })
       )}
     </TableCell>
   )

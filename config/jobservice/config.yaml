@@ -1,7 +1,8 @@
 grpcPort: 60003
 httpPort: 8090
 purgeJobSetTime: 1000
-subscribeJobSetTime: 100
+subscriptionExpirySecs: 300
+subscriberPoolSize: 30
 # databaseType can be either 'postgres' or 'sqlite'
 databaseType: "postgres"
 # databasePath specifies the location of the back-end
@@ -27,6 +28,8 @@ grpc:
   keepaliveEnforcementPolicy:
     minTime: 5m
     permitWithoutStream: false
+  tls:
+    enabled: false
 # gRPC connection pool to armada server configuration.
 grpcPool:
   initialConnections: 5
@@ -36,4 +39,4 @@ grpcPool:
 # If you want that for local testing, then use an override.
 apiConnection:
   armadaUrl: "server:50051"
-
+  forceNoTls: true

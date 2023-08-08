@@ -2,7 +2,7 @@ import React, { useState, MouseEvent } from "react"
 
 import { TableRow } from "@mui/material"
 import { Row } from "@tanstack/table-core"
-import { JobTableRow, JobRow, isJobGroupRow } from "models/jobsTableModels"
+import { JobTableRow, isJobGroupRow } from "models/jobsTableModels"
 
 import { BodyCell } from "./JobsTableCell"
 import styles from "./JobsTableRow.module.css"
@@ -10,9 +10,10 @@ import styles from "./JobsTableRow.module.css"
 export interface JobsTableRowProps {
   row: Row<JobTableRow>
   isOpenInSidebar: boolean
-  onClick?: (row: JobRow, e: MouseEvent<HTMLTableRowElement>) => void
+  onClick?: (e: MouseEvent<HTMLTableRowElement>) => void
+  onClickRowCheckbox: (row: Row<JobTableRow>) => void
 }
-export const JobsTableRow = ({ row, isOpenInSidebar, onClick }: JobsTableRowProps) => {
+export const JobsTableRow = ({ row, isOpenInSidebar, onClick, onClickRowCheckbox }: JobsTableRowProps) => {
   // Helpers to avoid triggering onClick if the user is selecting text
   const [{ pageX, pageY }, setPagePosition] = useState({ pageX: -1, pageY: -1 })
   const isDragging = (e: React.MouseEvent) => {
@@ -47,7 +48,7 @@ export const JobsTableRow = ({ row, isOpenInSidebar, onClick }: JobsTableRowProp
       onMouseDown={(e) => setPagePosition(e)}
       onClick={(e) => {
         if (!isDragging(e) && onClick) {
-          onClick(row.original, e)
+          onClick(e)
         }
       }}
     >
@@ -57,6 +58,7 @@ export const JobsTableRow = ({ row, isOpenInSidebar, onClick }: JobsTableRowProp
           rowIsGroup={rowIsGroup}
           rowIsExpanded={row.getIsExpanded()}
           onExpandedChange={row.toggleExpanded}
+          onClickRowCheckbox={onClickRowCheckbox}
           key={cell.id}
         />
       ))}

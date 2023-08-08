@@ -1,0 +1,81 @@
+name: Release Armada components - RC
+
+on:
+  workflow_run:
+    types: [completed]
+    workflows: [CI]
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  validate:
+    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.repository_owner == 'armadaproject'
+    name: "Validate revision"
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: "Checkout"
+        uses: "actions/checkout@v3.3.0"
+        with:
+          fetch-depth: 0
+
+      # The given ref should belong to the master branch.
+      # If it's master, it shouldn't be more than 2 commits away (in case another push happened in the meantime).
+      # Anything else is invalid.
+      - name: Validate ref
+        run: |
+          ref='${{ github.event.workflow_run.head_branch }}'
+          sha='${{ github.event.workflow_run.head_sha }}'
+
+          [ "$ref" == "master" ] &&
+          [ $(git branch --contains=$sha master | wc -l) -eq 1 ] &&
+          [ $(git rev-list --count $sha..master) -le 2 ]
+          if [ $? -ne 0 ]; then
+            echo "::error ::Invalid ref $ref $sha: must be a merge to master branch and not more than 2 commits away"
+            exit 1
+          fi
+  release:
+    name: Release
+    needs: validate
+    runs-on: "ubuntu-22.04"
+    environment: armada-dockerhub
+
+    steps:
+      - name: "Checkout"
+        uses: "actions/checkout@v3.3.0"
+        with:
+          fetch-depth: 0
+
+      - name: Setup Golang with Cache
+        uses: magnetikonline/action-golang-cache@v4
+        with:
+          go-version: "1.20"
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: "Docker login"
+        uses: "docker/login-action@v2"
+        with:
+          username: "${{ secrets.DOCKERHUB_USER }}"
+          password: "${{ secrets.DOCKERHUB_PASS }}"
+
+      - name: "Run GoReleaser"
+        uses: "goreleaser/goreleaser-action@v4"
+        with:
+          distribution: "goreleaser"
+          version: v1.19.2
+          args: "-f ./.goreleaser.yml release --snapshot --skip-sbom --skip-sign --clean"
+        env:
+          DOCKER_REPO: "gresearch"
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          DOCKER_BUILDX_BUILDER: "${{ steps.buildx.outputs.name }}"
+          DOCKER_BUILDX_CACHE_FROM: "type=gha"
+          DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
+
+      - name: Run Docker push script
+        run: ./scripts/docker-push.sh -t '${{ github.event.workflow_run.head_sha }}'

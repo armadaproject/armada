@@ -259,7 +259,13 @@ build-lookoutv2:
 build-lookoutingesterv2:
 	$(GO_CMD) $(gobuild) -o ./bin/lookoutingesterv2 cmd/lookoutingesterv2/main.go
 
-build: build-lookoutingesterv2 build-lookoutv2 build-lookout build-jobservice build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-event-ingester
+build-scheduler:
+	$(GO_CMD) $(gobuild) -o ./bin/scheduler cmd/scheduler/main.go
+
+build-scheduler-ingester:
+	$(GO_CMD) $(gobuild) -o ./bin/scheduleringester cmd/scheduleringester/main.go
+
+build: build-lookoutingesterv2 build-lookoutv2 build-lookout build-jobservice build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-event-ingester build-scheduler build-scheduler-ingester
 
 build-docker-server:
 	mkdir -p .build/server
@@ -357,6 +363,8 @@ build-docker-full-bundle: build
 	cp -a ./bin/executor ./executor
 	cp -a ./bin/lookoutingester ./lookoutingester
 	cp -a ./bin/lookoutingesterv2 ./lookoutingesterv2
+	cp -a ./bin/scheduler ./scheduler
+	cp -a ./bin/scheduleringester ./scheduleringester
 	cp -a ./bin/eventingester ./eventingester
 	cp -a ./bin/binoculars ./binoculars
 	cp -a ./bin/jobservice ./jobservice
@@ -394,14 +402,7 @@ tests: gotestsum
 	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 	sleep 3
 	function tearDown { docker rm -f redis postgres; }; trap tearDown EXIT
-	$(GOTESTSUM) -- $(shell go list ./internal/... | grep -v 'jobservice/repository') \
-		-coverprofile internal_coverage.xml -v  2>&1 | tee test_reports/internal.txt
-	env JSDBTYPE=sqlite $(GOTESTSUM) -- -v \
-			 ./internal/jobservice/repository/... 2>&1 | tee -a test_reports/internal.txt
-	env JSDBTYPE=postgres $(GOTESTSUM) -- -v \
-			 ./internal/jobservice/repository/... 2>&1 | tee -a test_reports/internal.txt
-	$(GOTESTSUM) -- -coverprofile pkg_coverage.xml -v ./pkg... 2>&1 | tee test_reports/pkg.txt
-	$(GOTESTSUM) -- -coverprofile cmd_coverage.xml -v ./cmd... 2>&1 | tee test_reports/cmd.txt
+	$(GOTESTSUM) --format short-verbose --junitfile test-reports/unit-tests.xml --jsonfile test-reports/unit-tests.json -- -coverprofile=test-reports/coverage.out -covermode=atomic ./cmd/... ./pkg/... $(go list ./internal/... | grep -v 'jobservice/repository')
 
 .ONESHELL:
 lint-fix:
@@ -445,11 +446,11 @@ setup-cluster:
 	kind create cluster --config e2e/setup/kind.yaml
 
 	# Load images necessary for tests.
-	docker pull "alpine:3.10" # used for e2e tests
+	docker pull "alpine:3.17" # used for e2e tests
 	docker pull "nginx:1.21.6" # used for e2e tests (ingress)
 	docker pull "registry.k8s.io/ingress-nginx/controller:v1.4.0"
 	docker pull "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343"
-	kind load docker-image "alpine:3.10" --name armada-test
+	kind load docker-image "alpine:3.17" --name armada-test
 	kind load docker-image "nginx:1.21.6" --name armada-test
 	kind load docker-image "registry.k8s.io/ingress-nginx/controller:v1.4.0" --name armada-test
 	kind load docker-image "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343" --name armada-test
@@ -596,7 +597,7 @@ dotnet: dotnet-setup proto-setup
 	$(DOTNET_CMD) dotnet build ./client/DotNet/ArmadaProject.Io.Client
 
 # Pack and push dotnet clients to nuget. Requires RELEASE_TAG and NUGET_API_KEY env vars to be set
-push-nuget: dotnet-setup proto-setup
+push-nuget: dotnet-setup proto
 	$(DOTNET_CMD) dotnet pack client/DotNet/Armada.Client/Armada.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
 	$(DOTNET_CMD) dotnet nuget push ./bin/client/DotNet/G-Research.Armada.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
 	$(DOTNET_CMD) dotnet pack client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet

@@ -2,9 +2,11 @@ package scheduler
 
 import (
 	"context"
+	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
@@ -13,22 +15,21 @@ import (
 	"github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-// stores the metrics state associated with a queue
+// Metrics Recorders associated with a queue
 type queueState struct {
-	numQueuedJobs      int
 	queuedJobRecorder  *commonmetrics.JobMetricsRecorder
 	runningJobRecorder *commonmetrics.JobMetricsRecorder
 }
 
-// a snapshot of metrics.  Implements QueueMetricProvider
-type metricsState struct {
-	queues      []*database.Queue
+// metricProvider is a simple implementation of QueueMetricProvider
+type metricProvider struct {
 	queueStates map[string]*queueState
 }
 
-func (m metricsState) GetQueuedJobMetrics(queueName string) []*commonmetrics.QueueMetrics {
+func (m metricProvider) GetQueuedJobMetrics(queueName string) []*commonmetrics.QueueMetrics {
 	state, ok := m.queueStates[queueName]
 	if ok {
 		return state.queuedJobRecorder.Metrics()
@@ -36,7 +37,7 @@ func (m metricsState) GetQueuedJobMetrics(queueName string) []*commonmetrics.Que
 	return nil
 }
 
-func (m metricsState) GetRunningJobMetrics(queueName string) []*commonmetrics.QueueMetrics {
+func (m metricProvider) GetRunningJobMetrics(queueName string) []*commonmetrics.QueueMetrics {
 	state, ok := m.queueStates[queueName]
 	if ok {
 		return state.runningJobRecorder.Metrics()
@@ -44,54 +45,44 @@ func (m metricsState) GetRunningJobMetrics(queueName string) []*commonmetrics.Qu
 	return nil
 }
 
-func (m metricsState) numQueuedJobs() map[string]int {
-	queueCounts := make(map[string]int)
-	for _, queue := range m.queues {
-		state, ok := m.queueStates[queue.Name]
-		count := 0
-		if ok {
-			count = state.numQueuedJobs
-		}
-		queueCounts[queue.Name] = count
-	}
-	return queueCounts
-}
-
 // MetricsCollector is a Prometheus Collector that handles scheduler metrics.
 // The metrics themselves are calculated asynchronously every refreshPeriod
 type MetricsCollector struct {
-	jobDb           *jobdb.JobDb
-	queueRepository database.QueueRepository
-	poolAssigner    PoolAssigner
-	refreshPeriod   time.Duration
-	clock           clock.Clock
-	state           atomic.Value
+	jobDb              *jobdb.JobDb
+	queueRepository    database.QueueRepository
+	executorRepository database.ExecutorRepository
+	poolAssigner       PoolAssigner
+	refreshPeriod      time.Duration
+	clock              clock.Clock
+	state              atomic.Value
 }
 
 func NewMetricsCollector(
 	jobDb *jobdb.JobDb,
 	queueRepository database.QueueRepository,
+	executorRepository database.ExecutorRepository,
 	poolAssigner PoolAssigner,
 	refreshPeriod time.Duration,
 ) *MetricsCollector {
 	return &MetricsCollector{
-		jobDb:           jobDb,
-		queueRepository: queueRepository,
-		poolAssigner:    poolAssigner,
-		refreshPeriod:   refreshPeriod,
-		clock:           clock.RealClock{},
-		state:           atomic.Value{},
+		jobDb:              jobDb,
+		queueRepository:    queueRepository,
+		executorRepository: executorRepository,
+		poolAssigner:       poolAssigner,
+		refreshPeriod:      refreshPeriod,
+		clock:              clock.RealClock{},
+		state:              atomic.Value{},
 	}
 }
 
-// Run enters s a loop which updates the metrics every refreshPeriod until the supplied comtext is cancelled
+// Run enters s a loop which updates the metrics every refreshPeriod until the supplied context is cancelled
 func (c *MetricsCollector) Run(ctx context.Context) error {
 	ticker := c.clock.NewTicker(c.refreshPeriod)
 	log.Infof("Will update metrics every %s", c.refreshPeriod)
 	for {
 		select {
 		case <-ctx.Done():
-			log.Infof("Context cancelled, returning..")
+			log.Debugf("Context cancelled, returning..")
 			return nil
 		case <-ticker.C():
 			err := c.refresh(ctx)
@@ -109,35 +100,50 @@ func (c *MetricsCollector) Describe(out chan<- *prometheus.Desc) {
 
 // Collect returns the current state of all metrics of the collector.
 func (c *MetricsCollector) Collect(metrics chan<- prometheus.Metric) {
-	state, ok := c.state.Load().(metricsState)
+	state, ok := c.state.Load().([]prometheus.Metric)
 	if ok {
-		commonmetrics.CollectQueueMetrics(state.numQueuedJobs(), state, metrics)
+		for _, m := range state {
+			metrics <- m
+		}
 	}
 }
 
 func (c *MetricsCollector) refresh(ctx context.Context) error {
 	log.Debugf("Refreshing prometheus metrics")
 	start := time.Now()
-
-	queues, err := c.queueRepository.GetAllQueues()
+	queueMetrics, err := c.updateQueueMetrics(ctx)
 	if err != nil {
 		return err
+	}
+	clusterMetrics, err := c.updateClusterMetrics(ctx)
+	if err != nil {
+		return err
+	}
+	allMetrics := append(queueMetrics, clusterMetrics...)
+	c.state.Store(allMetrics)
+	log.Debugf("Refreshed prometheus metrics in %s", time.Since(start))
+	return nil
+}
+
+func (c *MetricsCollector) updateQueueMetrics(ctx context.Context) ([]prometheus.Metric, error) {
+	queues, err := c.queueRepository.GetAllQueues()
+	if err != nil {
+		return nil, err
+	}
+
+	provider := metricProvider{queueStates: make(map[string]*queueState, len(queues))}
+	queuedJobsCount := make(map[string]int, len(queues))
+	for _, queue := range queues {
+		provider.queueStates[queue.Name] = &queueState{
+			queuedJobRecorder:  commonmetrics.NewJobMetricsRecorder(),
+			runningJobRecorder: commonmetrics.NewJobMetricsRecorder(),
+		}
+		queuedJobsCount[queue.Name] = 0
 	}
 
 	err = c.poolAssigner.Refresh(ctx)
 	if err != nil {
-		return err
-	}
-
-	ms := metricsState{
-		queues:      queues,
-		queueStates: map[string]*queueState{},
-	}
-	for _, queue := range queues {
-		ms.queueStates[queue.Name] = &queueState{
-			queuedJobRecorder:  commonmetrics.NewJobMetricsRecorder(),
-			runningJobRecorder: commonmetrics.NewJobMetricsRecorder(),
-		}
+		return nil, err
 	}
 
 	currentTime := c.clock.Now()
@@ -146,15 +152,15 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 		if job.InTerminalState() {
 			continue
 		}
-		qs, ok := ms.queueStates[job.Queue()]
+		qs, ok := provider.queueStates[job.Queue()]
 		if !ok {
-			log.Warnf("Job %s is in queue %s, but this queue does not exist.  Skipping", job.Id(), job.Queue())
+			log.Warnf("job %s is in queue %s, but this queue does not exist; skipping", job.Id(), job.Queue())
 			continue
 		}
 
 		pool, err := c.poolAssigner.AssignPool(job)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		priorityClass := job.JobSchedulingInfo().PriorityClassName
@@ -169,7 +175,7 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 		if job.Queued() {
 			recorder = qs.queuedJobRecorder
 			timeInState = currentTime.Sub(time.Unix(0, job.Created()))
-			qs.numQueuedJobs++
+			queuedJobsCount[job.Queue()]++
 		} else if job.HasRuns() {
 			run := job.LatestRun()
 			timeInState = currentTime.Sub(time.Unix(0, run.Created()))
@@ -180,7 +186,138 @@ func (c *MetricsCollector) refresh(ctx context.Context) error {
 		recorder.RecordJobRuntime(pool, priorityClass, timeInState)
 		recorder.RecordResources(pool, priorityClass, jobResources)
 	}
-	c.state.Store(ms)
-	log.Debugf("Refreshed prometheus metrics in %s", time.Since(start))
-	return nil
+
+	queueMetrics := commonmetrics.CollectQueueMetrics(queuedJobsCount, provider)
+	return queueMetrics, nil
+}
+
+type queueMetricKey struct {
+	cluster   string
+	pool      string
+	queueName string
+	nodeType  string
+}
+
+type queuePhaseMetricKey struct {
+	cluster   string
+	pool      string
+	queueName string
+	nodeType  string
+	phase     string
+}
+
+type clusterMetricKey struct {
+	cluster  string
+	pool     string
+	nodeType string
+}
+
+func (c *MetricsCollector) updateClusterMetrics(ctx context.Context) ([]prometheus.Metric, error) {
+	executors, err := c.executorRepository.GetExecutors(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	phaseCountByQueue := map[queuePhaseMetricKey]int{}
+	allocatedResourceByQueue := map[queueMetricKey]schedulerobjects.ResourceList{}
+	usedResourceByQueue := map[queueMetricKey]schedulerobjects.ResourceList{}
+	availableResourceByCluster := map[clusterMetricKey]schedulerobjects.ResourceList{}
+	totalResourceByCluster := map[clusterMetricKey]schedulerobjects.ResourceList{}
+	schedulableNodeCountByCluster := map[clusterMetricKey]int{}
+	totalNodeCountByCluster := map[clusterMetricKey]int{}
+
+	txn := c.jobDb.ReadTxn()
+	for _, executor := range executors {
+		for _, node := range executor.Nodes {
+			clusterKey := clusterMetricKey{
+				cluster:  executor.Id,
+				pool:     executor.Pool,
+				nodeType: node.ReportingNodeType,
+			}
+			if !node.Unschedulable {
+				addToResourceListMap(availableResourceByCluster, clusterKey, node.AvailableArmadaResource())
+				schedulableNodeCountByCluster[clusterKey]++
+			}
+			addToResourceListMap(totalResourceByCluster, clusterKey, node.TotalResources)
+			totalNodeCountByCluster[clusterKey]++
+
+			for queueName, resourceUsage := range node.ResourceUsageByQueue {
+				queueKey := queueMetricKey{
+					cluster:   executor.Id,
+					pool:      executor.Pool,
+					queueName: queueName,
+					nodeType:  node.ReportingNodeType,
+				}
+				addToResourceListMap(usedResourceByQueue, queueKey, *resourceUsage)
+			}
+
+			for runId, jobRunState := range node.StateByJobRunId {
+				job := c.jobDb.GetByRunId(txn, uuid.MustParse(runId))
+				if job != nil {
+					phase := schedulerobjects.JobRunState_name[int32(jobRunState)]
+					key := queuePhaseMetricKey{
+						cluster:   executor.Id,
+						pool:      executor.Pool,
+						queueName: job.Queue(),
+						nodeType:  node.ReportingNodeType,
+						// Convert to string with first letter capitalised
+						phase: strings.Title(strings.ToLower(phase)),
+					}
+					phaseCountByQueue[key]++
+
+					podRequirements := job.PodRequirements()
+					if podRequirements != nil {
+						queueKey := queueMetricKey{
+							cluster:   executor.Id,
+							pool:      executor.Pool,
+							queueName: job.Queue(),
+							nodeType:  node.ReportingNodeType,
+						}
+						addToResourceListMap(allocatedResourceByQueue, queueKey, schedulerobjects.ResourceListFromV1ResourceList(podRequirements.ResourceRequirements.Requests))
+					}
+				}
+			}
+		}
+	}
+
+	clusterMetrics := make([]prometheus.Metric, 0, len(phaseCountByQueue))
+	for k, v := range phaseCountByQueue {
+		clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueLeasedPodCount(float64(v), k.cluster, k.pool, k.queueName, k.phase, k.nodeType))
+	}
+	for k, r := range allocatedResourceByQueue {
+		for resourceKey, resourceValue := range r.Resources {
+			clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueAllocated(resource.QuantityAsFloat64(resourceValue), k.queueName, k.cluster, k.pool, resourceKey, k.nodeType))
+		}
+	}
+	for k, r := range usedResourceByQueue {
+		for resourceKey, resourceValue := range r.Resources {
+			clusterMetrics = append(clusterMetrics, commonmetrics.NewQueueUsed(resource.QuantityAsFloat64(resourceValue), k.queueName, k.cluster, k.pool, resourceKey, k.nodeType))
+		}
+	}
+	for k, r := range availableResourceByCluster {
+		for resourceKey, resourceValue := range r.Resources {
+			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterAvailableCapacity(resource.QuantityAsFloat64(resourceValue), k.cluster, k.pool, resourceKey, k.nodeType))
+		}
+	}
+	for k, r := range totalResourceByCluster {
+		for resourceKey, resourceValue := range r.Resources {
+			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterTotalCapacity(resource.QuantityAsFloat64(resourceValue), k.cluster, k.pool, resourceKey, k.nodeType))
+		}
+	}
+	for k, v := range schedulableNodeCountByCluster {
+		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterAvailableCapacity(float64(v), k.cluster, k.pool, "nodes", k.nodeType))
+	}
+	for k, v := range totalNodeCountByCluster {
+		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterTotalCapacity(float64(v), k.cluster, k.pool, "nodes", k.nodeType))
+	}
+	return clusterMetrics, nil
+}
+
+func addToResourceListMap[K comparable](m map[K]schedulerobjects.ResourceList, key K, value schedulerobjects.ResourceList) {
+	if _, exists := m[key]; !exists {
+		m[key] = schedulerobjects.ResourceList{}
+	}
+	newValue := m[key]
+	newValue.Add(value)
+	m[key] = newValue
 }

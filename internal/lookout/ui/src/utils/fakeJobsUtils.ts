@@ -45,6 +45,8 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
   const rand = mulberry32(seed)
   const uuid = seededUuid(rand)
   const annotationKeys = ["hyperparameter", "some/very/long/annotation/key/name/with/forward/slashes", "region"]
+  const numAnnotationValues = 10
+  const annotationValues = [...Array(numAnnotationValues)].map(() => uuid())
 
   const queues = Array.from(Array(nQueues).keys()).map((i) => `queue-${i + 1}`)
   const jobSets = Array.from(Array(nJobSets).keys()).map((i) => `job-set-${i + 1}`)
@@ -65,7 +67,7 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
       ephemeralStorage: randomInt(2, 2048, rand) * 1024 ** 3,
       memory: randomInt(2, 1024, rand) * 1024 ** 2,
       queue: queues[i % queues.length],
-      annotations: createAnnotations(annotationKeys, uuid),
+      annotations: createAnnotations(annotationKeys, annotationValues, rand),
       jobId: jobId,
       jobSet: jobSets[i % jobSets.length],
       state: state ? state : randomProperty(JobState, rand),
@@ -84,13 +86,19 @@ function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () =>
 
   const runs: JobRun[] = []
   for (let i = 0; i < n; i++) {
+    const runState = randomProperty(JobRunState, rand)
+    let node = undefined
+    if (runState !== JobRunState.RunPending && runState !== JobRunState.RunLeased) {
+      node = uuid()
+    }
     runs.push({
       cluster: uuid(),
       exitCode: randomInt(0, 64, rand),
       finished: "2022-12-13T12:19:14.956Z",
       jobId: jobId,
-      jobRunState: randomProperty(JobRunState, rand),
-      node: uuid(),
+      jobRunState: runState,
+      node: node,
+      leased: "2022-12-13T12:16:14.956Z",
       pending: "2022-12-13T12:16:14.956Z",
       runId: uuid(),
       started: "2022-12-13T12:15:14.956Z",
@@ -104,10 +112,14 @@ function randomProperty<T>(obj: Record<string, T>, rand: () => number): T {
   return obj[keys[(keys.length * rand()) << 0]]
 }
 
-function createAnnotations(annotationKeys: string[], uuid: () => string): Record<string, string> {
+function createAnnotations(
+  annotationKeys: string[],
+  annotationValues: string[],
+  rand: () => number,
+): Record<string, string> {
   const annotations: Record<string, string> = {}
   for (const key of annotationKeys) {
-    annotations[key] = uuid()
+    annotations[key] = annotationValues[randomInt(0, annotationValues.length, rand)]
   }
   return annotations
 }
@@ -125,7 +137,7 @@ export function filterFn(filter: JobFilter): (job: Job) => boolean {
 
     if (!Object.prototype.hasOwnProperty.call(objectToFilter, filter.field)) {
       if (filter.isAnnotation === undefined || !filter.isAnnotation) {
-        console.error(`Unknown filter field provided: ${filter}`)
+        console.error(`Unknown filter field provided: ${JSON.stringify(filter)}`)
       }
       return false
     }
@@ -221,4 +233,17 @@ export function makeManyTestJobs(numJobs: number, numFinishedJobs: number): Job[
     jobs.push(makeTestJob(`queue-0`, `job-set-${i}`, `job-id-${i}`, state))
   }
   return jobs
+}
+
+export function getActiveJobSets(jobs: Job[]): Record<string, string[]> {
+  const result: Record<string, string[]> = {}
+  for (const job of jobs) {
+    if ([JobState.Queued, JobState.Leased, JobState.Pending, JobState.Running].includes(job.state)) {
+      if (!(job.queue in result)) {
+        result[job.queue] = []
+      }
+      result[job.queue].push(job.jobSet)
+    }
+  }
+  return result
 }

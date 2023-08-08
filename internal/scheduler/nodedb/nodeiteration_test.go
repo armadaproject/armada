@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hashicorp/go-memdb"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -21,13 +20,13 @@ func TestNodesIterator(t *testing.T) {
 		Nodes []*schedulerobjects.Node
 	}{
 		"1 node": {
-			Nodes: testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 		},
 		"0 nodes": {
-			Nodes: testfixtures.TestNCpuNode(0, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(0, testfixtures.TestPriorities),
 		},
 		"3 nodes": {
-			Nodes: testfixtures.TestNCpuNode(3, testfixtures.TestPriorities),
+			Nodes: testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 		},
 	}
 	for name, tc := range tests {
@@ -36,7 +35,7 @@ func TestNodesIterator(t *testing.T) {
 			for i, node := range tc.Nodes {
 				indexById[node.Id] = i
 			}
-			nodeDb, err := createNodeDb(tc.Nodes)
+			nodeDb, err := newNodeDbWithNodes(tc.Nodes)
 			if !assert.NoError(t, err) {
 				return
 			}
@@ -64,24 +63,28 @@ func TestNodesIterator(t *testing.T) {
 
 func TestNodePairIterator(t *testing.T) {
 	nodes := testfixtures.TestCluster()
-	for i, c := range []string{"A", "B", "C"} {
-		nodes[i].Id = c
+	for i, nodeId := range []string{"A", "B", "C"} {
+		nodes[i].Id = nodeId
+	}
+	nodeDb, err := newNodeDbWithNodes(nodes)
+	require.NoError(t, err)
+	entries := make([]*Node, len(nodes))
+	for i, node := range nodes {
+		entry, err := nodeDb.GetNode(node.Id)
+		require.NoError(t, err)
+		entries[i] = entry
 	}
 
-	db, err := memdb.NewMemDB(nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResources))
-	require.NoError(t, err)
-
-	txn := db.Txn(true)
-	require.NoError(t, txn.Insert("nodes", nodes[0]))
-	require.NoError(t, txn.Insert("nodes", nodes[1]))
+	txn := nodeDb.Txn(true)
+	require.NoError(t, txn.Delete("nodes", entries[2]))
 	txn.Commit()
-	txnA := db.Txn(false)
+	txnA := nodeDb.Txn(false)
 
-	txn = db.Txn(true)
-	require.NoError(t, txn.Delete("nodes", nodes[0]))
-	require.NoError(t, txn.Insert("nodes", nodes[2]))
+	txn = nodeDb.Txn(true)
+	require.NoError(t, txn.Delete("nodes", entries[0]))
+	require.NoError(t, txn.Insert("nodes", entries[2]))
 	txn.Commit()
-	txnB := db.Txn(false)
+	txnB := nodeDb.Txn(false)
 
 	it, err := NewNodePairIterator(txnA, txnB)
 	require.NoError(t, err)
@@ -92,16 +95,16 @@ func TestNodePairIterator(t *testing.T) {
 	}
 	expected := []*NodePairIteratorItem{
 		{
-			NodeA: nodes[0],
+			NodeA: entries[0],
 			NodeB: nil,
 		},
 		{
-			NodeA: nodes[1],
-			NodeB: nodes[1],
+			NodeA: entries[1],
+			NodeB: entries[1],
 		},
 		{
 			NodeA: nil,
-			NodeB: nodes[2],
+			NodeB: entries[2],
 		},
 	}
 	assert.Equal(t, expected, actual)
@@ -110,7 +113,7 @@ func TestNodePairIterator(t *testing.T) {
 func TestNodeTypeIterator(t *testing.T) {
 	tests := map[string]struct {
 		nodes            []*schedulerobjects.Node
-		nodeTypeId       string
+		nodeTypeId       uint64
 		priority         int32
 		resourceRequests schedulerobjects.ResourceList
 		expected         []int
@@ -118,19 +121,19 @@ func TestNodeTypeIterator(t *testing.T) {
 		"only yield nodes of the right nodeType": {
 			nodes: armadaslices.Concatenate(
 				testfixtures.WithNodeTypeIdNodes(
-					"foo",
-					testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+					1,
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				),
 				testfixtures.WithNodeTypeIdNodes(
-					"bar",
-					testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
+					2,
+					testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 				),
 				testfixtures.WithNodeTypeIdNodes(
-					"foo",
-					testfixtures.TestNCpuNode(3, testfixtures.TestPriorities),
+					1,
+					testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 				),
 			),
-			nodeTypeId:       "foo",
+			nodeTypeId:       1,
 			priority:         0,
 			resourceRequests: schedulerobjects.ResourceList{},
 			expected: armadaslices.Concatenate(
@@ -140,89 +143,89 @@ func TestNodeTypeIterator(t *testing.T) {
 		},
 		"filter nodes with insufficient resources and return in increasing order": {
 			nodes: testfixtures.WithNodeTypeIdNodes(
-				"foo",
+				1,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 			),
-			nodeTypeId:       "foo",
+			nodeTypeId:       1,
 			priority:         0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
 			expected:         []int{1, 0},
 		},
 		"filter nodes with insufficient resources at priority and return in increasing order": {
 			nodes: testfixtures.WithNodeTypeIdNodes(
-				"foo",
+				1,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						1,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						1,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						1,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						2,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						2,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						2,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 			),
-			nodeTypeId:       "foo",
+			nodeTypeId:       1,
 			priority:         1,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
 			expected:         []int{4, 7, 3, 6, 0, 1, 2},
 		},
 		"nested ordering": {
 			nodes: testfixtures.WithNodeTypeIdNodes(
-				"foo",
+				1,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -230,7 +233,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("1Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -238,7 +241,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("2Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -246,7 +249,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("129Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -254,7 +257,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("130Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -262,7 +265,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("131Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -270,7 +273,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("16"),
 							"memory": resource.MustParse("130Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -278,7 +281,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("16"),
 							"memory": resource.MustParse("128Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -286,18 +289,18 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("16"),
 							"memory": resource.MustParse("129Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 							"cpu": resource.MustParse("17"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 			),
-			nodeTypeId: "foo",
+			nodeTypeId: 1,
 			priority:   0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 				"cpu":    resource.MustParse("16"),
@@ -307,7 +310,7 @@ func TestNodeTypeIterator(t *testing.T) {
 		},
 		"double-nested ordering": {
 			nodes: testfixtures.WithNodeTypeIdNodes(
-				"foo",
+				1,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -315,7 +318,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("31"),
 							"memory": resource.MustParse("1Gi"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -324,7 +327,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"memory": resource.MustParse("1Gi"),
 							"gpu":    resource.MustParse("1"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -333,7 +336,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"memory": resource.MustParse("1Gi"),
 							"gpu":    resource.MustParse("2"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -342,7 +345,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"memory": resource.MustParse("1Gi"),
 							"gpu":    resource.MustParse("5"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -350,7 +353,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("31"),
 							"memory": resource.MustParse("2Gi"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -359,7 +362,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"memory": resource.MustParse("2Gi"),
 							"gpu":    resource.MustParse("1"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -367,7 +370,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("32"),
 							"memory": resource.MustParse("514Gi"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -375,7 +378,7 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("32"),
 							"memory": resource.MustParse("512Gi"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -383,18 +386,18 @@ func TestNodeTypeIterator(t *testing.T) {
 							"cpu":    resource.MustParse("32"),
 							"memory": resource.MustParse("513Gi"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 							"cpu": resource.MustParse("33"),
 						}},
-						testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 			),
-			nodeTypeId: "foo",
+			nodeTypeId: 1,
 			priority:   0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 				"cpu":    resource.MustParse("32"),
@@ -406,43 +409,67 @@ func TestNodeTypeIterator(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			// Set monotonically increaseing node ids to ensure nodes appear in predictable order.
-			for i, node := range tc.nodes {
-				node.Id = fmt.Sprintf("%d", i)
-			}
-
-			indexByNodeId := make(map[string]int)
-			for i, node := range tc.nodes {
-				indexByNodeId[node.Id] = i
-			}
-			db, err := newTestNodeDb(tc.nodes)
+			nodeDb, err := newNodeDbWithNodes(nil)
 			require.NoError(t, err)
+
+			entries := make([]*Node, len(tc.nodes))
+			for i, node := range tc.nodes {
+				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
+				node.Id = fmt.Sprintf("%d", i)
+
+				entry, err := nodeDb.create(node)
+				require.NoError(t, err)
+
+				// We can safely override NodeTypeId, because Keys is recomputed upon insertion.
+				entry.NodeTypeId = node.NodeTypeId
+
+				entries[i] = entry
+			}
+			require.NoError(t, nodeDb.UpsertMany(entries))
 
 			indexedResourceRequests := make([]resource.Quantity, len(testfixtures.TestResources))
-			for i, t := range testfixtures.TestResources {
+			for i, t := range nodeDb.indexedResources {
 				indexedResourceRequests[i] = tc.resourceRequests.Get(t)
 			}
-			it, err := NewNodeTypeIterator(db.Txn(false), tc.nodeTypeId, tc.priority, testfixtures.TestResources, indexedResourceRequests)
+			keyIndex := -1
+			for i, p := range nodeDb.prioritiesToTryAssigningAt {
+				if p == tc.priority {
+					keyIndex = i
+				}
+			}
+			require.NotEqual(t, -1, keyIndex)
+			it, err := NewNodeTypeIterator(
+				nodeDb.Txn(false),
+				tc.nodeTypeId,
+				nodeIndexName(keyIndex),
+				tc.priority,
+				testfixtures.TestResourceNames,
+				indexedResourceRequests,
+				testfixtures.TestIndexedResourceResolutionMillis,
+			)
 			require.NoError(t, err)
 
-			// Compare actual with expected order.
-			actual := make([]int, 0)
+			expected := make([]string, len(tc.expected))
+			for i, nodeId := range tc.expected {
+				expected[i] = fmt.Sprintf("%d", nodeId)
+			}
+			actual := make([]string, 0)
 			for {
 				node, err := it.NextNode()
 				require.NoError(t, err)
 				if node == nil {
 					break
 				}
-				i, ok := indexByNodeId[node.Id]
-				require.True(t, ok)
-				actual = append(actual, i)
+				actual = append(actual, node.Id)
 			}
-			assert.Equal(t, tc.expected, actual)
+			assert.Equal(t, expected, actual)
 
-			// Calling next again should still return nil.
-			node, err := it.NextNode()
-			require.NoError(t, err)
-			require.Nil(t, node)
+			// Calling next should always return nil from now on.
+			for i := 0; i < 100; i++ {
+				node, err := it.NextNode()
+				require.NoError(t, err)
+				require.Nil(t, node)
+			}
 		})
 	}
 }
@@ -450,7 +477,7 @@ func TestNodeTypeIterator(t *testing.T) {
 func TestNodeTypesIterator(t *testing.T) {
 	tests := map[string]struct {
 		nodes            []*schedulerobjects.Node
-		nodeTypeIds      []string
+		nodeTypeIds      []uint64
 		priority         int32
 		resourceRequests schedulerobjects.ResourceList
 		expected         []int
@@ -458,19 +485,19 @@ func TestNodeTypesIterator(t *testing.T) {
 		"only yield nodes of the right nodeType": {
 			nodes: armadaslices.Concatenate(
 				testfixtures.WithNodeTypeIdNodes(
-					"foo",
-					testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+					1,
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 				),
 				testfixtures.WithNodeTypeIdNodes(
-					"bar",
-					testfixtures.TestNCpuNode(2, testfixtures.TestPriorities),
+					2,
+					testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 				),
 				testfixtures.WithNodeTypeIdNodes(
-					"baz",
-					testfixtures.TestNCpuNode(3, testfixtures.TestPriorities),
+					3,
+					testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 				),
 			),
-			nodeTypeIds:      []string{"foo", "baz"},
+			nodeTypeIds:      []uint64{1, 3},
 			priority:         0,
 			resourceRequests: schedulerobjects.ResourceList{},
 			expected: armadaslices.Concatenate(
@@ -481,102 +508,102 @@ func TestNodeTypesIterator(t *testing.T) {
 		"filter nodes with insufficient resources and return in increasing order": {
 			nodes: armadaslices.Concatenate(
 				testfixtures.WithNodeTypeIdNodes(
-					"foo",
+					1,
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 				testfixtures.WithNodeTypeIdNodes(
-					"bar",
+					2,
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 				testfixtures.WithNodeTypeIdNodes(
-					"baz",
+					3,
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 				testfixtures.WithNodeTypeIdNodes(
-					"foobar",
+					4,
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("14")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 			),
-			nodeTypeIds:      []string{"foo", "bar", "baz"},
+			nodeTypeIds:      []uint64{1, 2, 3},
 			priority:         0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
 			expected:         []int{1, 0},
 		},
 		"filter nodes with insufficient resources at priority and return in increasing order": {
 			nodes: testfixtures.WithNodeTypeIdNodes(
-				"foo",
+				1,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						1,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						1,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						1,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						2,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("15")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						2,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						2,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("17")}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 			),
-			nodeTypeIds:      []string{"foo"},
+			nodeTypeIds:      []uint64{1},
 			priority:         1,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("16")}},
 			expected:         []int{4, 7, 3, 6, 0, 1, 2},
 		},
 		"nested ordering": {
 			nodes: testfixtures.WithNodeTypeIdNodes(
-				"foo",
+				1,
 				armadaslices.Concatenate(
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -584,7 +611,7 @@ func TestNodeTypesIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("1Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -592,7 +619,7 @@ func TestNodeTypesIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("2Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -600,7 +627,7 @@ func TestNodeTypesIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("129Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -608,7 +635,7 @@ func TestNodeTypesIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("130Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -616,7 +643,7 @@ func TestNodeTypesIterator(t *testing.T) {
 							"cpu":    resource.MustParse("15"),
 							"memory": resource.MustParse("131Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -624,7 +651,7 @@ func TestNodeTypesIterator(t *testing.T) {
 							"cpu":    resource.MustParse("16"),
 							"memory": resource.MustParse("130Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -632,7 +659,7 @@ func TestNodeTypesIterator(t *testing.T) {
 							"cpu":    resource.MustParse("16"),
 							"memory": resource.MustParse("128Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
@@ -640,18 +667,18 @@ func TestNodeTypesIterator(t *testing.T) {
 							"cpu":    resource.MustParse("16"),
 							"memory": resource.MustParse("129Gi"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 					testfixtures.WithUsedResourcesNodes(
 						0,
 						schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 							"cpu": resource.MustParse("17"),
 						}},
-						testfixtures.TestNCpuNode(1, testfixtures.TestPriorities),
+						testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 					),
 				),
 			),
-			nodeTypeIds: []string{"foo"},
+			nodeTypeIds: []uint64{1},
 			priority:    0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 				"cpu":    resource.MustParse("16"),
@@ -662,7 +689,7 @@ func TestNodeTypesIterator(t *testing.T) {
 		"double-nested ordering": {
 			nodes: armadaslices.Concatenate(
 				testfixtures.WithNodeTypeIdNodes(
-					"foo",
+					1,
 					armadaslices.Concatenate(
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -670,7 +697,7 @@ func TestNodeTypesIterator(t *testing.T) {
 								"cpu":    resource.MustParse("31"),
 								"memory": resource.MustParse("1Gi"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -679,7 +706,7 @@ func TestNodeTypesIterator(t *testing.T) {
 								"memory": resource.MustParse("1Gi"),
 								"gpu":    resource.MustParse("1"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -688,7 +715,7 @@ func TestNodeTypesIterator(t *testing.T) {
 								"memory": resource.MustParse("1Gi"),
 								"gpu":    resource.MustParse("2"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -697,12 +724,12 @@ func TestNodeTypesIterator(t *testing.T) {
 								"memory": resource.MustParse("1Gi"),
 								"gpu":    resource.MustParse("5"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 					),
 				),
 				testfixtures.WithNodeTypeIdNodes(
-					"bar",
+					2,
 					armadaslices.Concatenate(
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -710,7 +737,7 @@ func TestNodeTypesIterator(t *testing.T) {
 								"cpu":    resource.MustParse("31"),
 								"memory": resource.MustParse("2Gi"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -719,7 +746,7 @@ func TestNodeTypesIterator(t *testing.T) {
 								"memory": resource.MustParse("2Gi"),
 								"gpu":    resource.MustParse("1"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -727,7 +754,7 @@ func TestNodeTypesIterator(t *testing.T) {
 								"cpu":    resource.MustParse("32"),
 								"memory": resource.MustParse("514Gi"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -735,12 +762,12 @@ func TestNodeTypesIterator(t *testing.T) {
 								"cpu":    resource.MustParse("32"),
 								"memory": resource.MustParse("512Gi"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 					),
 				),
 				testfixtures.WithNodeTypeIdNodes(
-					"baz",
+					3,
 					armadaslices.Concatenate(
 						testfixtures.WithUsedResourcesNodes(
 							0,
@@ -748,19 +775,19 @@ func TestNodeTypesIterator(t *testing.T) {
 								"cpu":    resource.MustParse("32"),
 								"memory": resource.MustParse("513Gi"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 						testfixtures.WithUsedResourcesNodes(
 							0,
 							schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 								"cpu": resource.MustParse("33"),
 							}},
-							testfixtures.TestNGpuNode(1, testfixtures.TestPriorities),
+							testfixtures.N8GpuNodes(1, testfixtures.TestPriorities),
 						),
 					),
 				),
 			),
-			nodeTypeIds: []string{"foo", "bar", "baz"},
+			nodeTypeIds: []uint64{1, 2, 3},
 			priority:    0,
 			resourceRequests: schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{
 				"cpu":    resource.MustParse("32"),
@@ -772,38 +799,53 @@ func TestNodeTypesIterator(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			// Set monotonically increaseing node ids to ensure nodes appear in predictable order.
-			for i, node := range tc.nodes {
-				node.Id = fmt.Sprintf("%d", i)
-			}
-
-			indexByNodeId := make(map[string]int)
-			for i, node := range tc.nodes {
-				indexByNodeId[node.Id] = i
-			}
-			db, err := newTestNodeDb(tc.nodes)
+			nodeDb, err := newNodeDbWithNodes(nil)
 			require.NoError(t, err)
+
+			entries := make([]*Node, len(tc.nodes))
+			for i, node := range tc.nodes {
+				// Set monotonically increasing node IDs to ensure nodes appear in predictable order.
+				node.Id = fmt.Sprintf("%d", i)
+
+				entry, err := nodeDb.create(node)
+				require.NoError(t, err)
+
+				// We can safely override NodeTypeId, because Keys is recomputed upon insertion.
+				entry.NodeTypeId = node.NodeTypeId
+
+				entries[i] = entry
+			}
+			require.NoError(t, nodeDb.UpsertMany(entries))
 
 			indexedResourceRequests := make([]resource.Quantity, len(testfixtures.TestResources))
-			for i, t := range testfixtures.TestResources {
+			for i, t := range testfixtures.TestResourceNames {
 				indexedResourceRequests[i] = tc.resourceRequests.Get(t)
 			}
-			it, err := NewNodeTypesIterator(db.Txn(false), tc.nodeTypeIds, tc.priority, testfixtures.TestResources, indexedResourceRequests)
+			it, err := NewNodeTypesIterator(
+				nodeDb.Txn(false),
+				tc.nodeTypeIds,
+				nodeDb.indexNameByPriority[tc.priority],
+				tc.priority,
+				testfixtures.TestResourceNames,
+				indexedResourceRequests,
+				testfixtures.TestIndexedResourceResolutionMillis,
+			)
 			require.NoError(t, err)
 
-			// Compare actual with expected order.
-			actual := make([]int, 0)
+			expected := make([]string, len(tc.expected))
+			for i, nodeId := range tc.expected {
+				expected[i] = fmt.Sprintf("%d", nodeId)
+			}
+			actual := make([]string, 0)
 			for {
 				node, err := it.NextNode()
 				require.NoError(t, err)
 				if node == nil {
 					break
 				}
-				i, ok := indexByNodeId[node.Id]
-				require.True(t, ok)
-				actual = append(actual, i)
+				actual = append(actual, node.Id)
 			}
-			assert.Equal(t, tc.expected, actual)
+			assert.Equal(t, expected, actual)
 
 			// Calling next again should still return nil.
 			node, err := it.NextNode()
@@ -813,27 +855,46 @@ func TestNodeTypesIterator(t *testing.T) {
 	}
 }
 
-func newTestNodeDb(nodes []*schedulerobjects.Node) (*memdb.MemDB, error) {
-	db, err := memdb.NewMemDB(nodeDbSchema(testfixtures.TestPriorities, testfixtures.TestResources))
-	if err != nil {
-		return nil, err
+func BenchmarkNodeTypeIterator(b *testing.B) {
+	// Create nodes with varying amounts of CPU available.
+	numNodes := 1000
+	allocatedMilliCpus := []int64{
+		1, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900,
+		2, 2100, 2200, 2300, 2400, 2500, 2600, 2700, 2800, 2900,
+		3, 4, 5, 6, 7, 8, 9,
 	}
-	err = populateDatabase(db, nodes)
-	if err != nil {
-		return nil, err
+	nodes := testfixtures.N32CpuNodes(numNodes, testfixtures.TestPriorities)
+	for i, node := range nodes {
+		var q resource.Quantity
+		q.SetMilli(allocatedMilliCpus[i%len(allocatedMilliCpus)])
+		testfixtures.WithUsedResourcesNodes(
+			testfixtures.TestPriorities[len(testfixtures.TestPriorities)-1],
+			schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": q}},
+			[]*schedulerobjects.Node{node},
+		)
 	}
-	return db, nil
-}
+	nodeDb, err := newNodeDbWithNodes(nodes)
+	require.NoError(b, err)
 
-func populateDatabase(db *memdb.MemDB, items []*schedulerobjects.Node) error {
-	txn := db.Txn(true)
+	// Create iterator for 0 CPU required and an unfeasible memory request,
+	// such that the iterator has to consider all nodes.
+	indexedResourceRequests := make([]resource.Quantity, len(nodeDb.indexedResources))
+	indexedResourceRequests[1] = resource.MustParse("1Ti")
+	nodeTypeId := maps.Keys(nodeDb.nodeTypes)[0]
+	var priority int32
+	txn := nodeDb.Txn(false)
 	defer txn.Abort()
-	for _, item := range items {
-		err := txn.Insert("nodes", item)
-		if err != nil {
-			return errors.WithStack(err)
+
+	b.ResetTimer()
+	for n := 0; n < b.N; n++ {
+		it, err := NewNodeTypeIterator(txn, nodeTypeId, nodeDb.indexNameByPriority[priority], priority, nodeDb.indexedResources, indexedResourceRequests, testfixtures.TestIndexedResourceResolutionMillis)
+		require.NoError(b, err)
+		for {
+			node, err := it.NextNode()
+			require.NoError(b, err)
+			if node == nil {
+				break
+			}
 		}
 	}
-	txn.Commit()
-	return nil
 }

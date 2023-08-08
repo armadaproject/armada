@@ -58,7 +58,7 @@ export const ReprioritiseDialog = ({
 
     setIsLoadingJobs(true)
 
-    const uniqueJobsToReprioritise = await getUniqueJobsMatchingFilters(selectedItemFilters, getJobsService)
+    const uniqueJobsToReprioritise = await getUniqueJobsMatchingFilters(selectedItemFilters, false, getJobsService)
     const sortedJobs = _.orderBy(uniqueJobsToReprioritise, (job) => job.jobId, "desc")
 
     if (!mounted.current) {

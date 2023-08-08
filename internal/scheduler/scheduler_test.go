@@ -86,7 +86,7 @@ var leasedJob = jobdb.NewJob(
 	false,
 	false,
 	false,
-	1).WithQueued(false).WithNewRun("testExecutor", "test-node")
+	1).WithQueued(false).WithNewRun("testExecutor", "test-node", "node")
 
 var (
 	requeuedJobId = util.NewULID()
@@ -102,7 +102,20 @@ var (
 		false,
 		false,
 		1).WithUpdatedRun(
-		jobdb.CreateRun(uuid.New(), requeuedJobId, time.Now().Unix(), "testExecutor", "test-node", false, false, true, false, true, true),
+		jobdb.CreateRun(
+			uuid.New(),
+			requeuedJobId,
+			time.Now().Unix(),
+			"testExecutor",
+			"test-node",
+			"node",
+			false,
+			false,
+			true,
+			false,
+			true,
+			true,
+		),
 	)
 )
 
@@ -216,7 +229,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedQueued:   []string{leasedJob.Id()},
 			expectedRequeued: []string{leasedJob.Id()},
 			// Should add node anti affinities for nodes of any attempted runs
-			expectedNodeAntiAffinities:       []string{leasedJob.LatestRun().Node()},
+			expectedNodeAntiAffinities:       []string{leasedJob.LatestRun().NodeName()},
 			expectedJobSchedulingInfoVersion: 2,
 			expectedQueuedVersion:            leasedJob.QueuedVersion() + 1,
 		},
@@ -423,6 +436,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				stringInterner,
 				submitChecker,
 				1*time.Second,
+				5*time.Second,
 				clusterTimeout,
 				maxNumberOfAttempts,
 				nodeIdLabel,
@@ -439,7 +453,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 
 			// run a scheduler cycle
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			err = sched.cycle(ctx, false, sched.leaderController.GetToken())
+			err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true)
 			if tc.fetchError || tc.publishError || tc.scheduleError {
 				assert.Error(t, err)
 			} else {
@@ -511,7 +525,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					expectedAffinity := createAntiAffinity(t, nodeIdLabel, tc.expectedNodeAntiAffinities)
 					assert.Equal(t, expectedAffinity, affinity)
 				}
-				podRequirements := PodRequirementFromJobSchedulingInfo(job.JobSchedulingInfo())
+				podRequirements := job.PodRequirements()
 				assert.NotNil(t, podRequirements)
 
 				expectedQueuedVersion := int32(1)
@@ -586,6 +600,7 @@ func TestRun(t *testing.T) {
 		stringInterner,
 		submitChecker,
 		1*time.Second,
+		15*time.Second,
 		1*time.Hour,
 		maxNumberOfAttempts,
 		nodeIdLabel)
@@ -616,16 +631,19 @@ func TestRun(t *testing.T) {
 	// fire a cycle and assert that we became leader and published
 	fireCycle()
 	assert.Equal(t, 1, len(publisher.events))
+	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 1)
 
 	// invalidate our leadership: we should not publish
 	leaderController.token = InvalidLeaderToken()
 	fireCycle()
 	assert.Equal(t, 0, len(publisher.events))
+	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 1)
 
 	// become master again: we should publish
 	leaderController.token = NewLeaderToken()
 	fireCycle()
 	assert.Equal(t, 1, len(publisher.events))
+	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 2)
 
 	cancel()
 }
@@ -702,6 +720,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 						queuedJob.Id(),
 						123,
 						"test-executor",
+						"test-executor-test-node",
 						"test-node",
 						false,
 						false,
@@ -715,20 +734,28 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			expectedJobDbIds: []string{queuedJob.Id()},
 		},
 		"job succeeded": {
-			initialJobs: []*jobdb.Job{queuedJob},
+			initialJobs: []*jobdb.Job{leasedJob},
 			jobUpdates: []database.Job{
 				{
-					JobID:          queuedJob.Id(),
-					JobSet:         queuedJob.Jobset(),
-					Queue:          queuedJob.Queue(),
-					Submitted:      queuedJob.Created(),
-					Priority:       int64(queuedJob.Priority()),
+					JobID:          leasedJob.Id(),
+					JobSet:         leasedJob.Jobset(),
+					Queue:          leasedJob.Queue(),
+					Submitted:      leasedJob.Created(),
+					Priority:       int64(leasedJob.Priority()),
 					SchedulingInfo: schedulingInfoBytes,
 					Succeeded:      true,
 					Serial:         1,
 				},
 			},
-			expectedUpdatedJobs: []*jobdb.Job{},
+			runUpdates: []database.Run{
+				{
+					RunID:     leasedJob.LatestRun().Id(),
+					JobID:     leasedJob.LatestRun().JobId(),
+					JobSet:    leasedJob.GetJobSet(),
+					Succeeded: true,
+				},
+			},
+			expectedUpdatedJobs: []*jobdb.Job{leasedJob.WithUpdatedRun(leasedJob.LatestRun().WithSucceeded(true))},
 			expectedJobDbIds:    []string{},
 		},
 		"job requeued": {
@@ -782,6 +809,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				stringInterner,
 				nil,
 				1*time.Second,
+				5*time.Second,
 				1*time.Hour,
 				maxNumberOfAttempts,
 				nodeIdLabel)
@@ -813,12 +841,20 @@ type testSubmitChecker struct {
 	checkSuccess bool
 }
 
-func (t *testSubmitChecker) CheckPodRequirements(podRequirement *schedulerobjects.PodRequirements) (bool, string) {
-	return t.checkSuccess, ""
+func (t *testSubmitChecker) CheckApiJobs(_ []*api.Job) (bool, string) {
+	reason := ""
+	if !t.checkSuccess {
+		reason = "CheckApiJobs failed"
+	}
+	return t.checkSuccess, reason
 }
 
-func (t *testSubmitChecker) CheckApiJobs(jobs []*api.Job) (bool, string) {
-	return t.checkSuccess, "2"
+func (t *testSubmitChecker) CheckJobDbJobs(_ []*jobdb.Job) (bool, string) {
+	reason := ""
+	if !t.checkSuccess {
+		reason = "CheckJobDbJobs failed"
+	}
+	return t.checkSuccess, reason
 }
 
 // Test implementations of the interfaces needed by the Scheduler
@@ -882,12 +918,14 @@ func (t testExecutorRepository) StoreExecutor(ctx context.Context, executor *sch
 }
 
 type testSchedulingAlgo struct {
-	jobsToPreempt  []string
-	jobsToSchedule []string
-	shouldError    bool
+	numberOfScheduleCalls int
+	jobsToPreempt         []string
+	jobsToSchedule        []string
+	shouldError           bool
 }
 
 func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error) {
+	t.numberOfScheduleCalls++
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")
 	}
@@ -917,7 +955,7 @@ func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb
 		if !job.Queued() {
 			return nil, errors.Errorf("was asked to lease %s but job was already leased", job.Id())
 		}
-		job = job.WithQueued(false).WithNewRun("test-executor", "test-node")
+		job = job.WithQueued(false).WithNewRun("test-executor", "test-node", "node")
 		scheduledJobs = append(scheduledJobs, job)
 	}
 	if err := jobDb.Upsert(txn, preemptedJobs); err != nil {

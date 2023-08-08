@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -82,7 +82,7 @@ func (r *PostgresJobRepository) FetchJobRunErrors(ctx context.Context, runIds []
 	errorsByRunId := make(map[uuid.UUID]*armadaevents.Error, len(runIds))
 	decompressor := compress.NewZlibDecompressor()
 
-	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
@@ -130,7 +130,7 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx context.Context, jobSerial i
 	var updatedRuns []Run = nil
 
 	// Use a RepeatableRead transaction here so that we get consistency between jobs and dbRuns
-	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
 		AccessMode:     pgx.ReadOnly,
 		DeferrableMode: pgx.Deferrable,
@@ -182,7 +182,7 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx context.Context, jobSerial i
 // Runs are inactive if they don't exist or if they have succeeded, failed or been cancelled
 func (r *PostgresJobRepository) FindInactiveRuns(ctx context.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
 	var inactiveRuns []uuid.UUID
-	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
@@ -223,7 +223,7 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx context.Context, runIds []u
 // in excludedRunIds will be excluded
 func (r *PostgresJobRepository) FetchJobRunLeases(ctx context.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*JobRunLease, error) {
 	var newRuns []*JobRunLease
-	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,

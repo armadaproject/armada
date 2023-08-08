@@ -8,6 +8,8 @@ resources:
   requests:
     memory: 512Mi
     cpu: 200m
+# -- Tolerations
+tolerations: []
 additionalLabels: {}
 terminationGracePeriodSeconds: 30
 replicas: 1
@@ -28,3 +30,8 @@ serviceAccount: null
 
 applicationConfig:
   grpcPort: 60063
+  grpc:
+    tls:
+      enabled: false
+      certPath: /certs/tls.crt
+      keyPath: /certs/tls.key

@@ -34,17 +34,21 @@ type Run struct {
 
 	// job run state
 	// Required: true
-	// Enum: [RUN_PENDING RUN_RUNNING RUN_SUCCEEDED RUN_FAILED RUN_TERMINATED RUN_PREEMPTED RUN_UNABLE_TO_SCHEDULE RUN_LEASE_RETURNED RUN_LEASE_EXPIRED RUN_MAX_RUNS_EXCEEDED]
+	// Enum: [RUN_PENDING RUN_RUNNING RUN_SUCCEEDED RUN_FAILED RUN_TERMINATED RUN_PREEMPTED RUN_UNABLE_TO_SCHEDULE RUN_LEASE_RETURNED RUN_LEASE_EXPIRED RUN_MAX_RUNS_EXCEEDED RUN_LEASED]
 	JobRunState string `json:"jobRunState"`
+
+	// leased
+	// Min Length: 1
+	// Format: date-time
+	Leased *strfmt.DateTime `json:"leased,omitempty"`
 
 	// node
 	Node *string `json:"node,omitempty"`
 
 	// pending
-	// Required: true
 	// Min Length: 1
 	// Format: date-time
-	Pending strfmt.DateTime `json:"pending"`
+	Pending *strfmt.DateTime `json:"pending,omitempty"`
 
 	// run Id
 	// Required: true
@@ -69,6 +73,10 @@ func (m *Run) Validate(formats strfmt.Registry) error {
 	}
 
 	if err := m.validateJobRunState(formats); err != nil {
+		res = append(res, err)
+	}
+
+	if err := m.validateLeased(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -119,7 +127,7 @@ var runTypeJobRunStatePropEnum []interface{}
 
 func init() {
 	var res []string
-	if err := json.Unmarshal([]byte(`["RUN_PENDING","RUN_RUNNING","RUN_SUCCEEDED","RUN_FAILED","RUN_TERMINATED","RUN_PREEMPTED","RUN_UNABLE_TO_SCHEDULE","RUN_LEASE_RETURNED","RUN_LEASE_EXPIRED","RUN_MAX_RUNS_EXCEEDED"]`), &res); err != nil {
+	if err := json.Unmarshal([]byte(`["RUN_PENDING","RUN_RUNNING","RUN_SUCCEEDED","RUN_FAILED","RUN_TERMINATED","RUN_PREEMPTED","RUN_UNABLE_TO_SCHEDULE","RUN_LEASE_RETURNED","RUN_LEASE_EXPIRED","RUN_MAX_RUNS_EXCEEDED","RUN_LEASED"]`), &res); err != nil {
 		panic(err)
 	}
 	for _, v := range res {
@@ -158,6 +166,9 @@ const (
 
 	// RunJobRunStateRUNMAXRUNSEXCEEDED captures enum value "RUN_MAX_RUNS_EXCEEDED"
 	RunJobRunStateRUNMAXRUNSEXCEEDED string = "RUN_MAX_RUNS_EXCEEDED"
+
+	// RunJobRunStateRUNLEASED captures enum value "RUN_LEASED"
+	RunJobRunStateRUNLEASED string = "RUN_LEASED"
 )
 
 // prop value enum
@@ -182,10 +193,25 @@ func (m *Run) validateJobRunState(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *Run) validatePending(formats strfmt.Registry) error {
+func (m *Run) validateLeased(formats strfmt.Registry) error {
+	if swag.IsZero(m.Leased) { // not required
+		return nil
+	}
 
-	if err := validate.Required("pending", "body", strfmt.DateTime(m.Pending)); err != nil {
+	if err := validate.MinLength("leased", "body", m.Leased.String(), 1); err != nil {
 		return err
+	}
+
+	if err := validate.FormatOf("leased", "body", "date-time", m.Leased.String(), formats); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *Run) validatePending(formats strfmt.Registry) error {
+	if swag.IsZero(m.Pending) { // not required
+		return nil
 	}
 
 	if err := validate.MinLength("pending", "body", m.Pending.String(), 1); err != nil {

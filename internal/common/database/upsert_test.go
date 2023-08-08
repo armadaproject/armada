@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,27 +30,6 @@ const TABLE_NAME = "records"
 
 func (r Record) Schema() string {
 	return SCHEMA
-}
-
-func TestNamesFromRecord(t *testing.T) {
-	r := Record{
-		Id:      uuid.New(),
-		Value:   123,
-		Message: "abcö",
-	}
-	names := NamesFromRecord(r)
-	assert.Equal(t, []string{"id", "value", "message", "serial"}, names)
-}
-
-func TestValuesFromRecord(t *testing.T) {
-	r := Record{
-		Id:      uuid.New(),
-		Value:   123,
-		Message: "abcö",
-		Serial:  0,
-	}
-	values := ValuesFromRecord(r)
-	assert.Equal(t, []interface{}{r.Id, r.Value, r.Message, r.Serial}, values)
 }
 
 func TestNamesValuesFromRecord(t *testing.T) {

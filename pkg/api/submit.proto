@@ -68,6 +68,7 @@ message JobCancelRequest {
     string job_set_id = 2;
     string queue = 3;
     repeated string job_ids = 4;
+    string reason = 5;
 }
 
 // swagger:model
@@ -75,6 +76,7 @@ message JobSetCancelRequest {
     string job_set_id = 1;
     string queue = 2;
     JobSetFilter filter = 3;
+    string reason = 4;
 }
 
 // swagger:model

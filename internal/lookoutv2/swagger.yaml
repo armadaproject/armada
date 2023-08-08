@@ -84,6 +84,7 @@ definitions:
           - FAILED
           - CANCELLED
           - PREEMPTED
+          - LEASED
         x-nullable: false
       lastTransitionTime:
         type: string
@@ -106,12 +107,14 @@ definitions:
         items:
           $ref: "#/definitions/run"
         x-nullable: false
+      cancelReason:
+        type: string
+        x-nullable: true
   run:
     type: object
     required:
       - runId
       - cluster
-      - pending
       - jobRunState
     properties:
       runId:
@@ -125,11 +128,16 @@ definitions:
       node:
         type: string
         x-nullable: true
+      leased:
+        type: string
+        format: date-time
+        minLength: 1
+        x-nullable: true
       pending:
         type: string
         format: date-time
         minLength: 1
-        x-nullable: false
+        x-nullable: true
       started:
         type: string
         format: date-time
@@ -151,6 +159,7 @@ definitions:
           - RUN_LEASE_RETURNED
           - RUN_LEASE_EXPIRED
           - RUN_MAX_RUNS_EXCEEDED
+          - RUN_LEASED
         x-nullable: false
       exitCode:
         type: integer
@@ -173,7 +182,7 @@ definitions:
       aggregates:
         type: object
         additionalProperties:
-          type: string
+          type: object
         x-nullable: false
   filter:
     type: object
@@ -199,6 +208,7 @@ definitions:
           - lessThan
           - greaterThanOrEqualTo
           - lessThanOrEqualTo
+          - exists
         x-nullable: false
       isAnnotation:
         type: boolean
@@ -271,6 +281,9 @@ paths:
                 description: "Ordering to apply to jobs."
                 $ref: "#/definitions/order"
                 x-nullable: true
+              activeJobSets:
+                type: boolean
+                description: "Only include jobs in active job sets"
               skip:
                 type: integer
                 description: "First elements to ignore from the full set of results. Used for pagination."
@@ -410,11 +423,21 @@ paths:
                 description: "Ordering to apply to job groups."
                 $ref: "#/definitions/order"
                 x-nullable: true
+              activeJobSets:
+                type: boolean
+                description: "Only include jobs in active job sets"
               groupedField:
-                type: string
-                description: "Field to group jobs by"
-                minLength: 1
-                x-nullable: false
+                type: object
+                required:
+                  - field
+                properties:
+                  field:
+                    type: string
+                    description: Field or annotation key to group by
+                    x-nullable: false
+                  isAnnotation:
+                    type: boolean
+                    x-nullable: false
               aggregates:
                 type: array
                 description: "Additional fields to compute aggregates on"

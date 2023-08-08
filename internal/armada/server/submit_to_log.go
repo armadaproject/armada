@@ -27,6 +27,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/schedulers"
+	"github.com/armadaproject/armada/internal/common/util"
 	commonvalidation "github.com/armadaproject/armada/internal/common/validation"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/scheduler"
@@ -105,7 +106,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	}
 
 	// Convert the API jobs to log jobs.
-	responses := make([]*api.JobSubmitResponseItem, len(req.JobRequestItems), len(req.JobRequestItems))
+	responses := make([]*api.JobSubmitResponseItem, len(req.JobRequestItems))
 
 	originalIds, err := srv.getOriginalJobIds(ctx, apiJobs)
 	if err != nil {
@@ -156,8 +157,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 
 		// Try converting the log job back to an API job to make sure there are no errors.
 		// The log consumer will do this again; we do it here to ensure that any errors are noticed immediately.
-		_, err = eventutil.ApiJobFromLogSubmitJob(userId, groups, req.Queue, req.JobSetId, time.Now(), logJob)
-		if err != nil {
+		if _, err := eventutil.ApiJobFromLogSubmitJob(userId, groups, req.Queue, req.JobSetId, time.Now(), logJob); err != nil {
 			return nil, err
 		}
 
@@ -231,7 +231,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
 	// separate code path for multiple jobs
 	if len(req.JobIds) > 0 {
-		return srv.cancelJobsByIdsQueueJobset(ctx, req.JobIds, req.Queue, req.JobSetId)
+		return srv.cancelJobsByIdsQueueJobset(ctx, req.JobIds, req.Queue, req.JobSetId, req.Reason)
 	}
 
 	// Another separate code path for cancelling an entire job set
@@ -241,6 +241,7 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 		_, err := srv.CancelJobSet(ctx, &api.JobSetCancelRequest{
 			Queue:    req.Queue,
 			JobSetId: req.JobSetId,
+			Reason:   req.Reason,
 		})
 		if err != nil {
 			return nil, err
@@ -292,7 +293,10 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 			{
 				Created: pointer.Now(),
 				Event: &armadaevents.EventSequence_Event_CancelJob{
-					CancelJob: &armadaevents.CancelJob{JobId: jobId},
+					CancelJob: &armadaevents.CancelJob{
+						JobId:  jobId,
+						Reason: util.Truncate(req.Reason, 512),
+					},
 				},
 			},
 		},
@@ -312,7 +316,7 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 }
 
 // Assumes all Job IDs are in the queue and job set provided
-func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(ctx context.Context, jobIds []string, q, jobSet string) (*api.CancellationResult, error) {
+func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(ctx context.Context, jobIds []string, q, jobSet string, reason string) (*api.CancellationResult, error) {
 	if q == "" {
 		return nil, &armadaerrors.ErrInvalidArgument{
 			Name:    "Queue",
@@ -332,7 +336,7 @@ func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(ctx context.Context, j
 		return nil, err
 	}
 	var cancelledIds []string
-	sequence, cancelledIds := eventSequenceForJobIds(jobIds, q, jobSet, userId, groups)
+	sequence, cancelledIds := eventSequenceForJobIds(jobIds, q, jobSet, userId, groups, reason)
 	// send the message to both schedulers because jobs may be on either
 	err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{sequence}, schedulers.All)
 	if err != nil {
@@ -345,7 +349,7 @@ func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(ctx context.Context, j
 }
 
 // Returns event sequence along with all valid job ids in the sequence
-func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []string) (*armadaevents.EventSequence, []string) {
+func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []string, reason string) (*armadaevents.EventSequence, []string) {
 	sequence := &armadaevents.EventSequence{
 		Queue:      q,
 		JobSetName: jobSet,
@@ -364,7 +368,10 @@ func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []
 		sequence.Events = append(sequence.Events, &armadaevents.EventSequence_Event{
 			Created: pointer.Now(),
 			Event: &armadaevents.EventSequence_Event_CancelJob{
-				CancelJob: &armadaevents.CancelJob{JobId: jobId},
+				CancelJob: &armadaevents.CancelJob{
+					JobId:  jobId,
+					Reason: util.Truncate(reason, 512),
+				},
 			},
 		})
 	}
@@ -420,7 +427,10 @@ func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSet
 		legacySchedulerSequence.Events = append(legacySchedulerSequence.Events, &armadaevents.EventSequence_Event{
 			Created: pointer.Now(),
 			Event: &armadaevents.EventSequence_Event_CancelJob{
-				CancelJob: &armadaevents.CancelJob{JobId: jobId},
+				CancelJob: &armadaevents.CancelJob{
+					JobId:  jobId,
+					Reason: util.Truncate(req.Reason, 512),
+				},
 			},
 		})
 	}
@@ -454,6 +464,7 @@ func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSet
 					Event: &armadaevents.EventSequence_Event_CancelJobSet{
 						CancelJobSet: &armadaevents.CancelJobSet{
 							States: states,
+							Reason: util.Truncate(req.Reason, 512),
 						},
 					},
 				},

@@ -55,6 +55,7 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 			result, err := getJobsRepo.GetJobs(
 				params.HTTPRequest.Context(),
 				filters,
+				params.GetJobsRequest.ActiveJobSets,
 				order,
 				skip,
 				int(params.GetJobsRequest.Take))
@@ -79,8 +80,9 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 			result, err := groupJobsRepo.GroupBy(
 				params.HTTPRequest.Context(),
 				filters,
+				params.GroupJobsRequest.ActiveJobSets,
 				order,
-				params.GroupJobsRequest.GroupedField,
+				conversions.FromSwaggerGroupedField(params.GroupJobsRequest.GroupedField),
 				params.GroupJobsRequest.Aggregates,
 				skip,
 				int(params.GroupJobsRequest.Take))

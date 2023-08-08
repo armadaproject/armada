@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -52,7 +52,7 @@ var (
 
 func TestGetJobsSingle(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
@@ -77,7 +77,7 @@ func TestGetJobsSingle(t *testing.T) {
 			Job()
 
 		repo := NewSqlGetJobsRepository(db)
-		result, err := repo.GetJobs(context.TODO(), []*model.Filter{}, &model.Order{}, 0, 1)
+		result, err := repo.GetJobs(context.TODO(), []*model.Filter{}, false, &model.Order{}, 0, 1)
 		assert.NoError(t, err)
 		assert.Len(t, result.Jobs, 1)
 		assert.Equal(t, 1, result.Count)
@@ -89,7 +89,7 @@ func TestGetJobsSingle(t *testing.T) {
 
 func TestGetJobsMultipleRuns(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
@@ -105,7 +105,7 @@ func TestGetJobsMultipleRuns(t *testing.T) {
 
 		// Runs should be sorted from oldest -> newest
 		repo := NewSqlGetJobsRepository(db)
-		result, err := repo.GetJobs(context.TODO(), []*model.Filter{}, &model.Order{}, 0, 1)
+		result, err := repo.GetJobs(context.TODO(), []*model.Filter{}, false, &model.Order{}, 0, 1)
 		assert.NoError(t, err)
 		assert.Len(t, result.Jobs, 1)
 		assert.Equal(t, 1, result.Count)
@@ -121,6 +121,7 @@ func TestOrderByUnsupportedField(t *testing.T) {
 		_, err := repo.GetJobs(
 			context.TODO(),
 			[]*model.Filter{},
+			false,
 			&model.Order{
 				Field:     "someField",
 				Direction: "ASC",
@@ -141,6 +142,7 @@ func TestOrderByUnsupportedDirection(t *testing.T) {
 		_, err := repo.GetJobs(
 			context.TODO(),
 			[]*model.Filter{},
+			false,
 			&model.Order{
 				Field:     "jobId",
 				Direction: "INTERLEAVED",
@@ -158,7 +160,7 @@ func TestOrderByUnsupportedDirection(t *testing.T) {
 // Since job ids are ULIDs, it is comparable to sorting by submission time
 func TestGetJobsOrderByJobId(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		firstId := "01f3j0g1md4qx7z5qb148qnh4d"
@@ -192,6 +194,7 @@ func TestGetJobsOrderByJobId(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -211,6 +214,7 @@ func TestGetJobsOrderByJobId(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionDesc,
@@ -233,7 +237,7 @@ func TestGetJobsOrderByJobId(t *testing.T) {
 
 func TestGetJobsOrderBySubmissionTime(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		third := NewJobSimulator(converter, store).
@@ -257,6 +261,7 @@ func TestGetJobsOrderBySubmissionTime(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "submitted",
 					Direction: model.DirectionAsc,
@@ -276,6 +281,7 @@ func TestGetJobsOrderBySubmissionTime(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "submitted",
 					Direction: model.DirectionDesc,
@@ -298,7 +304,7 @@ func TestGetJobsOrderBySubmissionTime(t *testing.T) {
 
 func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		runId1 := uuid.NewString()
@@ -326,6 +332,7 @@ func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "lastTransitionTime",
 					Direction: model.DirectionAsc,
@@ -345,6 +352,7 @@ func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "lastTransitionTime",
 					Direction: model.DirectionDesc,
@@ -375,6 +383,7 @@ func TestFilterByUnsupportedField(t *testing.T) {
 				Match: model.MatchExact,
 				Value: "something",
 			}},
+			false,
 			&model.Order{},
 			0,
 			10,
@@ -397,6 +406,7 @@ func TestFilterByUnsupportedMatch(t *testing.T) {
 				Match: model.MatchLessThan,
 				Value: "something",
 			}},
+			false,
 			&model.Order{},
 			0,
 			10,
@@ -411,7 +421,7 @@ func TestFilterByUnsupportedMatch(t *testing.T) {
 
 func TestGetJobsById(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
@@ -439,6 +449,7 @@ func TestGetJobsById(t *testing.T) {
 					Match: model.MatchExact,
 					Value: jobId,
 				}},
+				false,
 				&model.Order{},
 				0,
 				10,
@@ -456,7 +467,7 @@ func TestGetJobsById(t *testing.T) {
 
 func TestGetJobsByQueue(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
@@ -494,6 +505,7 @@ func TestGetJobsByQueue(t *testing.T) {
 					Match: model.MatchExact,
 					Value: queue,
 				}},
+				false,
 				&model.Order{},
 				0,
 				10,
@@ -512,6 +524,7 @@ func TestGetJobsByQueue(t *testing.T) {
 					Match: model.MatchStartsWith,
 					Value: "queue-",
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -535,6 +548,7 @@ func TestGetJobsByQueue(t *testing.T) {
 					Match: model.MatchContains,
 					Value: "queue",
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -558,7 +572,7 @@ func TestGetJobsByQueue(t *testing.T) {
 
 func TestGetJobsByJobSet(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
@@ -596,6 +610,7 @@ func TestGetJobsByJobSet(t *testing.T) {
 					Match: model.MatchExact,
 					Value: "job\\set\\1",
 				}},
+				false,
 				&model.Order{},
 				0,
 				10,
@@ -614,6 +629,7 @@ func TestGetJobsByJobSet(t *testing.T) {
 					Match: model.MatchStartsWith,
 					Value: "job\\set\\",
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -637,6 +653,7 @@ func TestGetJobsByJobSet(t *testing.T) {
 					Match: model.MatchContains,
 					Value: "job\\set",
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -660,7 +677,7 @@ func TestGetJobsByJobSet(t *testing.T) {
 
 func TestGetJobsByOwner(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
@@ -698,6 +715,7 @@ func TestGetJobsByOwner(t *testing.T) {
 					Match: model.MatchExact,
 					Value: owner,
 				}},
+				false,
 				&model.Order{},
 				0,
 				10,
@@ -716,6 +734,7 @@ func TestGetJobsByOwner(t *testing.T) {
 					Match: model.MatchStartsWith,
 					Value: "user-",
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -739,6 +758,7 @@ func TestGetJobsByOwner(t *testing.T) {
 					Match: model.MatchContains,
 					Value: "user",
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -762,7 +782,7 @@ func TestGetJobsByOwner(t *testing.T) {
 
 func TestGetJobsByState(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		queued := NewJobSimulator(converter, store).
@@ -803,6 +823,7 @@ func TestGetJobsByState(t *testing.T) {
 					Match: model.MatchExact,
 					Value: string(lookout.JobRunning),
 				}},
+				false,
 				&model.Order{},
 				0,
 				10,
@@ -825,6 +846,7 @@ func TestGetJobsByState(t *testing.T) {
 						string(lookout.JobRunning),
 					},
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -847,10 +869,10 @@ func TestGetJobsByState(t *testing.T) {
 
 func TestGetJobsByAnnotation(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-		job := NewJobSimulator(converter, store).
+		job1 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-1",
@@ -860,7 +882,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Build().
 			Job()
 
-		_ = NewJobSimulator(converter, store).
+		job2 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-2",
@@ -869,7 +891,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Build().
 			Job()
 
-		_ = NewJobSimulator(converter, store).
+		job3 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-3",
@@ -887,7 +909,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Build().
 			Job()
 
-		job2 := NewJobSimulator(converter, store).
+		job5 := NewJobSimulator(converter, store).
 			Submit(queue, jobSet, owner, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-6",
@@ -908,6 +930,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 					Value:        "annotation-value-1",
 					IsAnnotation: true,
 				}},
+				false,
 				&model.Order{},
 				0,
 				10,
@@ -915,7 +938,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, result.Jobs, 1)
 			assert.Equal(t, 1, result.Count)
-			assert.Equal(t, job, result.Jobs[0])
+			assert.Equal(t, job1, result.Jobs[0])
 		})
 
 		t.Run("exact, multiple annotations", func(t *testing.T) {
@@ -935,6 +958,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 						IsAnnotation: true,
 					},
 				},
+				false,
 				&model.Order{},
 				0,
 				10,
@@ -942,7 +966,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, result.Jobs, 1)
 			assert.Equal(t, 1, result.Count)
-			assert.Equal(t, job, result.Jobs[0])
+			assert.Equal(t, job1, result.Jobs[0])
 		})
 
 		t.Run("startsWith, multiple annotations", func(t *testing.T) {
@@ -962,6 +986,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 						IsAnnotation: true,
 					},
 				},
+				false,
 				&model.Order{},
 				0,
 				10,
@@ -969,8 +994,8 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, result.Jobs, 2)
 			assert.Equal(t, 2, result.Count)
-			assert.Equal(t, job, result.Jobs[0])
-			assert.Equal(t, job2, result.Jobs[1])
+			assert.Equal(t, job1, result.Jobs[0])
+			assert.Equal(t, job5, result.Jobs[1])
 		})
 
 		t.Run("contains, multiple annotations", func(t *testing.T) {
@@ -990,6 +1015,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 						IsAnnotation: true,
 					},
 				},
+				false,
 				&model.Order{},
 				0,
 				10,
@@ -997,8 +1023,32 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Len(t, result.Jobs, 2)
 			assert.Equal(t, 2, result.Count)
-			assert.Equal(t, job, result.Jobs[0])
+			assert.Equal(t, job1, result.Jobs[0])
+			assert.Equal(t, job5, result.Jobs[1])
+		})
+
+		t.Run("exists", func(t *testing.T) {
+			result, err := repo.GetJobs(
+				context.TODO(),
+				[]*model.Filter{
+					{
+						Field:        "annotation-key-1",
+						Match:        model.MatchExists,
+						IsAnnotation: true,
+					},
+				},
+				false,
+				&model.Order{},
+				0,
+				10,
+			)
+			assert.NoError(t, err)
+			assert.Len(t, result.Jobs, 4)
+			assert.Equal(t, 4, result.Count)
+			assert.Equal(t, job1, result.Jobs[0])
 			assert.Equal(t, job2, result.Jobs[1])
+			assert.Equal(t, job3, result.Jobs[2])
+			assert.Equal(t, job5, result.Jobs[3])
 		})
 
 		return nil
@@ -1008,7 +1058,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 
 func TestGetJobsByCpu(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job1 := NewJobSimulator(converter, store).
@@ -1049,6 +1099,7 @@ func TestGetJobsByCpu(t *testing.T) {
 					Match: model.MatchExact,
 					Value: 3000,
 				}},
+				false,
 				&model.Order{},
 				0,
 				10,
@@ -1067,6 +1118,7 @@ func TestGetJobsByCpu(t *testing.T) {
 					Match: model.MatchGreaterThan,
 					Value: 3000,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1089,6 +1141,7 @@ func TestGetJobsByCpu(t *testing.T) {
 					Match: model.MatchLessThan,
 					Value: 5000,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1111,6 +1164,7 @@ func TestGetJobsByCpu(t *testing.T) {
 					Match: model.MatchGreaterThanOrEqualTo,
 					Value: 3000,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1134,6 +1188,7 @@ func TestGetJobsByCpu(t *testing.T) {
 					Match: model.MatchLessThanOrEqualTo,
 					Value: 5000,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1156,7 +1211,7 @@ func TestGetJobsByCpu(t *testing.T) {
 
 func TestGetJobsByMemory(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job1 := NewJobSimulator(converter, store).
@@ -1197,6 +1252,7 @@ func TestGetJobsByMemory(t *testing.T) {
 					Match: model.MatchExact,
 					Value: 3000,
 				}},
+				false,
 				&model.Order{},
 				0,
 				10,
@@ -1215,6 +1271,7 @@ func TestGetJobsByMemory(t *testing.T) {
 					Match: model.MatchGreaterThan,
 					Value: 3000,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1237,6 +1294,7 @@ func TestGetJobsByMemory(t *testing.T) {
 					Match: model.MatchLessThan,
 					Value: 5000,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1259,6 +1317,7 @@ func TestGetJobsByMemory(t *testing.T) {
 					Match: model.MatchGreaterThanOrEqualTo,
 					Value: 3000,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1282,6 +1341,7 @@ func TestGetJobsByMemory(t *testing.T) {
 					Match: model.MatchLessThanOrEqualTo,
 					Value: 5000,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1304,7 +1364,7 @@ func TestGetJobsByMemory(t *testing.T) {
 
 func TestGetJobsByEphemeralStorage(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job1 := NewJobSimulator(converter, store).
@@ -1345,6 +1405,7 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 					Match: model.MatchExact,
 					Value: 3000,
 				}},
+				false,
 				&model.Order{},
 				0,
 				10,
@@ -1363,6 +1424,7 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 					Match: model.MatchGreaterThan,
 					Value: 3000,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1385,6 +1447,7 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 					Match: model.MatchLessThan,
 					Value: 5000,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1407,6 +1470,7 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 					Match: model.MatchGreaterThanOrEqualTo,
 					Value: 3000,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1430,6 +1494,7 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 					Match: model.MatchLessThanOrEqualTo,
 					Value: 5000,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1452,7 +1517,7 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 
 func TestGetJobsByGpu(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job1 := NewJobSimulator(converter, store).
@@ -1493,6 +1558,7 @@ func TestGetJobsByGpu(t *testing.T) {
 					Match: model.MatchExact,
 					Value: 3,
 				}},
+				false,
 				&model.Order{},
 				0,
 				10,
@@ -1511,6 +1577,7 @@ func TestGetJobsByGpu(t *testing.T) {
 					Match: model.MatchGreaterThan,
 					Value: 3,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1533,6 +1600,7 @@ func TestGetJobsByGpu(t *testing.T) {
 					Match: model.MatchLessThan,
 					Value: 5,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1555,6 +1623,7 @@ func TestGetJobsByGpu(t *testing.T) {
 					Match: model.MatchGreaterThanOrEqualTo,
 					Value: 3,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1578,6 +1647,7 @@ func TestGetJobsByGpu(t *testing.T) {
 					Match: model.MatchLessThanOrEqualTo,
 					Value: 5,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1600,7 +1670,7 @@ func TestGetJobsByGpu(t *testing.T) {
 
 func TestGetJobsByPriority(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job1 := NewJobSimulator(converter, store).
@@ -1641,6 +1711,7 @@ func TestGetJobsByPriority(t *testing.T) {
 					Match: model.MatchExact,
 					Value: 20,
 				}},
+				false,
 				&model.Order{},
 				0,
 				10,
@@ -1659,6 +1730,7 @@ func TestGetJobsByPriority(t *testing.T) {
 					Match: model.MatchGreaterThan,
 					Value: 20,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1681,6 +1753,7 @@ func TestGetJobsByPriority(t *testing.T) {
 					Match: model.MatchLessThan,
 					Value: 30,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1703,6 +1776,7 @@ func TestGetJobsByPriority(t *testing.T) {
 					Match: model.MatchGreaterThanOrEqualTo,
 					Value: 20,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1726,6 +1800,7 @@ func TestGetJobsByPriority(t *testing.T) {
 					Match: model.MatchLessThanOrEqualTo,
 					Value: 30,
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1748,7 +1823,7 @@ func TestGetJobsByPriority(t *testing.T) {
 
 func TestGetJobsByPriorityClass(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
@@ -1796,6 +1871,7 @@ func TestGetJobsByPriorityClass(t *testing.T) {
 					Match: model.MatchExact,
 					Value: "priority-class-1",
 				}},
+				false,
 				&model.Order{},
 				0,
 				10,
@@ -1814,6 +1890,7 @@ func TestGetJobsByPriorityClass(t *testing.T) {
 					Match: model.MatchStartsWith,
 					Value: "priority-class-",
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1837,6 +1914,7 @@ func TestGetJobsByPriorityClass(t *testing.T) {
 					Match: model.MatchContains,
 					Value: "priority-class",
 				}},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: model.DirectionAsc,
@@ -1860,7 +1938,7 @@ func TestGetJobsByPriorityClass(t *testing.T) {
 
 func TestGetJobsSkip(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		nJobs := 15
@@ -1881,6 +1959,7 @@ func TestGetJobsSkip(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: "ASC",
@@ -1900,6 +1979,7 @@ func TestGetJobsSkip(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: "ASC",
@@ -1919,6 +1999,7 @@ func TestGetJobsSkip(t *testing.T) {
 			result, err := repo.GetJobs(
 				context.TODO(),
 				[]*model.Filter{},
+				false,
 				&model.Order{
 					Field:     "jobId",
 					Direction: "ASC",
@@ -1939,7 +2020,7 @@ func TestGetJobsSkip(t *testing.T) {
 
 func TestGetJobsComplex(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{})
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		nJobs := 15
@@ -1996,6 +2077,7 @@ func TestGetJobsComplex(t *testing.T) {
 					IsAnnotation: true,
 				},
 			},
+			false,
 			&model.Order{
 				Field:     "jobId",
 				Direction: "ASC",
@@ -2007,6 +2089,55 @@ func TestGetJobsComplex(t *testing.T) {
 		assert.Len(t, result.Jobs, take)
 		assert.Equal(t, nJobs, result.Count)
 		assert.Equal(t, jobs[skip:skip+take], result.Jobs)
+
+		return nil
+	})
+	assert.NoError(t, err)
+}
+
+func TestGetJobsActiveJobSet(t *testing.T) {
+	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
+		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
+		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+
+		activeJobSet1 := NewJobSimulator(converter, store).
+			Submit("queue-1", "job-set-1", owner, baseTime, &JobOptions{}).
+			Build().
+			Job()
+
+		inactiveJobSet1 := NewJobSimulator(converter, store).
+			Submit("queue-1", "job-set-1", owner, baseTime, &JobOptions{}).
+			Cancelled(baseTime.Add(1 * time.Minute)).
+			Build().
+			Job()
+
+		NewJobSimulator(converter, store).
+			Submit("queue-2", "job-set-2", owner, baseTime, &JobOptions{}).
+			Cancelled(baseTime.Add(1 * time.Minute)).
+			Build().
+			Job()
+
+		fmt.Println(inactiveJobSet1)
+		repo := NewSqlGetJobsRepository(db)
+
+		result, err := repo.GetJobs(
+			context.TODO(),
+			[]*model.Filter{},
+			true,
+			&model.Order{
+				Field:     "jobId",
+				Direction: "ASC",
+			},
+			0,
+			10,
+		)
+		assert.NoError(t, err)
+		assert.Len(t, result.Jobs, 2)
+		assert.Equal(t, 2, result.Count)
+		assert.Equal(t, []*model.Job{
+			activeJobSet1,
+			inactiveJobSet1,
+		}, result.Jobs)
 
 		return nil
 	})

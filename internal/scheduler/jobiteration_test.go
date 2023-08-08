@@ -24,33 +24,39 @@ func TestInMemoryJobRepository(t *testing.T) {
 			Id:       "3",
 			Priority: 1,
 			Created:  T.Add(3 * time.Second),
+			PodSpec:  &v1.PodSpec{},
 		},
 		{
 			Queue:    "A",
 			Id:       "1",
 			Priority: 1,
 			Created:  T.Add(1 * time.Second),
+			PodSpec:  &v1.PodSpec{},
 		},
 		{
 			Queue:    "A",
 			Id:       "2",
 			Priority: 1,
 			Created:  T.Add(2 * time.Second),
+			PodSpec:  &v1.PodSpec{},
 		},
 		{
 			Queue:    "A",
 			Id:       "5",
 			Priority: 3,
+			PodSpec:  &v1.PodSpec{},
 		},
 		{
 			Queue:    "A",
 			Id:       "0",
 			Priority: 0,
+			PodSpec:  &v1.PodSpec{},
 		},
 		{
 			Queue:    "A",
 			Id:       "4",
 			Priority: 2,
+			PodSpec:  &v1.PodSpec{},
 		},
 	}
 	legacySchedulerjobs := make([]interfaces.LegacySchedulerJob, len(jobs))
@@ -68,13 +74,13 @@ func TestInMemoryJobRepository(t *testing.T) {
 func TestMultiJobsIterator_TwoQueues(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
-	for _, req := range testfixtures.TestNSmallCpuJob("A", 0, 5) {
+	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 5) {
 		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
 		job.Queue = "A"
 		repo.Enqueue(job)
 		expected = append(expected, job.Id)
 	}
-	for _, req := range testfixtures.TestNSmallCpuJob("B", 0, 5) {
+	for _, req := range testfixtures.N1CpuPodReqs("B", 0, 5) {
 		job := apiJobFromPodSpec("B", podSpecFromPodRequirements(req))
 		job.Queue = "B"
 		repo.Enqueue(job)
@@ -108,7 +114,7 @@ func TestMultiJobsIterator_TwoQueues(t *testing.T) {
 func TestQueuedJobsIterator_OneQueue(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
-	for _, req := range testfixtures.TestNSmallCpuJob("A", 0, 10) {
+	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 10) {
 		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
 		job.Queue = "A"
 		repo.Enqueue(job)
@@ -133,7 +139,7 @@ func TestQueuedJobsIterator_OneQueue(t *testing.T) {
 func TestQueuedJobsIterator_ExceedsBufferSize(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
-	for _, req := range testfixtures.TestNSmallCpuJob("A", 0, 17) {
+	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 17) {
 		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
 		job.Queue = "A"
 		repo.Enqueue(job)
@@ -158,7 +164,7 @@ func TestQueuedJobsIterator_ExceedsBufferSize(t *testing.T) {
 func TestQueuedJobsIterator_ManyJobs(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
-	for _, req := range testfixtures.TestNSmallCpuJob("A", 0, 113) {
+	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 113) {
 		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
 		job.Queue = "A"
 		repo.Enqueue(job)
@@ -183,13 +189,13 @@ func TestQueuedJobsIterator_ManyJobs(t *testing.T) {
 func TestCreateQueuedJobsIterator_TwoQueues(t *testing.T) {
 	repo := newMockJobRepository()
 	expected := make([]string, 0)
-	for _, req := range testfixtures.TestNSmallCpuJob("A", 0, 10) {
+	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 10) {
 		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
 		repo.Enqueue(job)
 		expected = append(expected, job.Id)
 	}
 
-	for _, req := range testfixtures.TestNSmallCpuJob("B", 0, 10) {
+	for _, req := range testfixtures.N1CpuPodReqs("B", 0, 10) {
 		job := apiJobFromPodSpec("B", podSpecFromPodRequirements(req))
 		repo.Enqueue(job)
 	}
@@ -211,7 +217,7 @@ func TestCreateQueuedJobsIterator_TwoQueues(t *testing.T) {
 
 func TestCreateQueuedJobsIterator_RespectsTimeout(t *testing.T) {
 	repo := newMockJobRepository()
-	for _, req := range testfixtures.TestNSmallCpuJob("A", 0, 10) {
+	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 10) {
 		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
 		job.Queue = "A"
 		repo.Enqueue(job)
@@ -236,7 +242,7 @@ func TestCreateQueuedJobsIterator_RespectsTimeout(t *testing.T) {
 
 func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
 	repo := newMockJobRepository()
-	for _, req := range testfixtures.TestNSmallCpuJob("A", 0, 10) {
+	for _, req := range testfixtures.N1CpuPodReqs("A", 0, 10) {
 		job := apiJobFromPodSpec("A", podSpecFromPodRequirements(req))
 		job.Queue = "A"
 		repo.Enqueue(job)

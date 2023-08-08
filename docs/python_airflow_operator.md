@@ -12,7 +12,7 @@ This class provides integration with Airflow and Armada
 ## armada.operators.armada module
 
 
-### _class_ armada.operators.armada.ArmadaOperator(name, armada_client, job_service_client, armada_queue, job_request_items, lookout_url_template=None, \*\*kwargs)
+### _class_ armada.operators.armada.ArmadaOperator(name, armada_channel_args, job_service_channel_args, armada_queue, job_request_items, lookout_url_template=None, poll_interval=30, \*\*kwargs)
 Bases: `BaseOperator`
 
 Implementation of an ArmadaOperator for airflow.
@@ -26,11 +26,12 @@ Airflow operators inherit from BaseOperator.
     * **name** (*str*) – The name of the airflow task
 
 
-    * **armada_client** (*ArmadaClient*) – The Armada Python GRPC client
-    that is used for interacting with Armada
+    * **armada_channel_args** (*GrpcChannelArgsDict*) – GRPC channel arguments to be used when creating
+    a grpc channel to connect to the armada server instance.
 
 
-    * **job_service_client** (*JobServiceClient*) – The JobServiceClient that is used for polling
+    * **job_service_channel_args** (*GrpcChannelArgsDict*) – GRPC channel arguments to be used when creating
+    a grpc channel to connect to the job service instance.
 
 
     * **armada_queue** (*str*) – The queue name for Armada.
@@ -44,6 +45,9 @@ Airflow operators inherit from BaseOperator.
     The format should be:
     “[https://lookout.armada.domain/jobs](https://lookout.armada.domain/jobs)?job_id=<job_id>” where <job_id> will
     be replaced with the actual job ID.
+
+
+    * **poll_interval** (*int*) – How often to poll jobservice to get status.
 
 
 
@@ -76,6 +80,30 @@ Runs an Armada job and calls the job_service_client for polling.
     None
 
 
+
+#### render_template_fields(context, jinja_env=None)
+Template all attributes listed in *self.template_fields*.
+
+This mutates the attributes in-place and is irreversible.
+
+
+* **Parameters**
+
+    
+    * **context** (*Context*) – Context dict with values to apply on content.
+
+
+    * **jinja_env** (*Environment** | **None*) – Jinja’s environment to use for rendering.
+
+
+
+* **Return type**
+
+    None
+
+
+
+#### template_fields(_: Sequence[str_ _ = ('job_request_items',_ )
 ## armada.operators.armada_deferrable module
 
 
@@ -87,7 +115,8 @@ Implementation of a deferrable armada operator for airflow.
 Distinguished from ArmadaOperator by its ability to defer itself after
 submitting its job_request_items.
 
-See [https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html](https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html)
+See
+[https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html](https://airflow.apache.org/docs/apache-airflow/stable/authoring-and-scheduling/deferring.html)
 for more information about deferrable airflow operators.
 
 Airflow operators inherit from BaseOperator.
@@ -152,6 +181,28 @@ until the job completes.
 
 
 
+#### render_template_fields(context, jinja_env=None)
+Template all attributes listed in *self.template_fields*.
+
+This mutates the attributes in-place and is irreversible.
+
+
+* **Parameters**
+
+    
+    * **context** (*Context*) – Context dict with values to apply on content.
+
+
+    * **jinja_env** (*Environment** | **None*) – Jinja’s environment to use for rendering.
+
+
+
+* **Return type**
+
+    None
+
+
+
 #### resume_job_complete(context, event, job_id)
 Resumes this operator after deferring itself to ArmadaJobCompleteTrigger.
 Only meant to be called from within Airflow.
@@ -184,6 +235,8 @@ Reports the result of the job and returns.
     None
 
 
+
+#### template_fields(_: Sequence[str_ _ = ('job_request_items',_ )
 
 ### _class_ armada.operators.armada_deferrable.ArmadaJobCompleteTrigger(job_id, job_service_channel_args, armada_queue, job_set_id, airflow_task_name)
 Bases: `BaseTrigger`
@@ -238,132 +291,6 @@ Returns the information needed to reconstruct this Trigger.
 
     tuple
 
-
-
-### _class_ armada.operators.armada_deferrable.GrpcChannelArgsDict()
-Bases: `TypedDict`
-
-Helper class to provide stronger type checking on Grpc channel arugments.
-
-
-#### compression(_: Compression | Non_ _ = Non_ )
-
-#### credentials(_: ChannelCredentials | Non_ _ = Non_ )
-
-#### options(_: Sequence[Tuple[str, Any]] | Non_ _ = Non_ )
-
-#### target(_: st_ )
-
-### _class_ armada.operators.armada_deferrable.GrpcChannelArguments(target, credentials=None, options=None, compression=None)
-Bases: `object`
-
-A Serializable GRPC Arguments Object.
-
-
-* **Target**
-
-    Target keyword argument used when instantiating a grpc channel.
-
-
-
-* **Credentials**
-
-    credentials keyword argument used when instantiating a grpc channel.
-
-
-
-* **Options**
-
-    options keyword argument used when instantiating a grpc channel.
-
-
-
-* **Compression**
-
-    compression keyword argument used when instantiating a grpc channel.
-
-
-
-* **Returns**
-
-    a GrpcChannelArguments instance
-
-
-
-* **Parameters**
-
-    
-    * **target** (*str*) – 
-
-
-    * **credentials** (*ChannelCredentials** | **None*) – 
-
-
-    * **options** (*Sequence**[**Tuple**[**str**, **Any**]**] **| **None*) – 
-
-
-    * **compression** (*Compression** | **None*) – 
-
-
-
-#### aio_channel()
-Create a grpc.aio.Channel (asyncio) based on arguments supplied to this object.
-
-
-* **Returns**
-
-    Return grpc.aio.insecure_channel if credentials is None. Otherwise
-
-
-
-* **Return type**
-
-    *Channel*
-
-
-returns grpc.aio.secure_channel.
-
-
-#### channel()
-Create a grpc.Channel based on arguments supplied to this object.
-
-
-* **Returns**
-
-    Return grpc.insecure_channel if credentials is None. Otherwise
-
-
-
-* **Return type**
-
-    *Channel*
-
-
-returns grpc.secure_channel.
-
-
-#### serialize()
-Get a serialized version of this object.
-
-
-* **Returns**
-
-    A dict of keyword arguments used when calling
-
-
-
-* **Return type**
-
-    dict
-
-
-grpc{.aio}.{
-
-```
-insecure_
-```
-
-}channel or instantiating this object.
 
 ## armada.operators.jobservice module
 
@@ -430,6 +357,38 @@ Health Check for GRPC Request
     *HealthCheckResponse*
 
 
+
+### armada.operators.jobservice.get_retryable_job_service_client(target, credentials=None, compression=None)
+Get a JobServiceClient that has retry configured
+
+
+* **Parameters**
+
+    
+    * **target** (*str*) – grpc channel target
+
+
+    * **credentials** (*ChannelCredentials** | **None*) – grpc channel credentials (if needed)
+
+
+    * **compresion** – grpc channel compression
+
+
+    * **compression** (*Compression** | **None*) – 
+
+
+
+* **Returns**
+
+    A job service client instance
+
+
+
+* **Return type**
+
+    *JobServiceClient*
+
+
 ## armada.operators.jobservice_asyncio module
 
 
@@ -493,6 +452,38 @@ Health Check for GRPC Request
 * **Return type**
 
     *HealthCheckResponse*
+
+
+
+### armada.operators.jobservice_asyncio.get_retryable_job_service_asyncio_client(target, credentials, compression)
+Get a JobServiceAsyncIOClient that has retry configured
+
+
+* **Parameters**
+
+    
+    * **target** (*str*) – grpc channel target
+
+
+    * **credentials** (*ChannelCredentials** | **None*) – grpc channel credentials (if needed)
+
+
+    * **compresion** – grpc channel compression
+
+
+    * **compression** (*Compression** | **None*) – 
+
+
+
+* **Returns**
+
+    A job service asyncio client instance
+
+
+
+* **Return type**
+
+    *JobServiceAsyncIOClient*
 
 
 ## armada.operators.utils module
@@ -621,7 +612,7 @@ A default is provided if the env var is not defined
 
 
 
-### armada.operators.utils.search_for_job_complete(armada_queue, job_set_id, airflow_task_name, job_id, job_service_client=None, job_status_callable=<function default_job_status_callable>, time_out_for_failure=7200)
+### armada.operators.utils.search_for_job_complete(armada_queue, job_set_id, airflow_task_name, job_id, poll_interval=30, job_service_client=None, job_status_callable=<function default_job_status_callable>, time_out_for_failure=7200)
 Poll JobService cache until you get a terminated event.
 
 A terminated event is SUCCEEDED, FAILED or CANCELLED
@@ -637,6 +628,9 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
 
 
     * **airflow_task_name** (*str*) – The name of your armada job
+
+
+    * **poll_interval** (*int*) – Polling interval for jobservice to get status.
 
 
     * **job_id** (*str*) – The name of the job id that armada assigns to it

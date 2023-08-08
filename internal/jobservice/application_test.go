@@ -9,64 +9,45 @@ import (
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
 )
 
-var knownGoodConfig = &configuration.JobServiceConfiguration{
-	GrpcPool: grpcconfig.GrpcPoolConfig{
-		InitialConnections: 10,
-		Capacity:           10,
-	},
-}
+var knownGoodConfig = DefaultConfiguration
 
 func TestRectifyConfig(t *testing.T) {
 	testCases := []struct {
 		name           string
 		config         *configuration.JobServiceConfiguration
-		expectedError  error
 		expectedConfig *configuration.JobServiceConfiguration
 	}{
 		{
 			name:           "S'all good",
 			config:         knownGoodConfig,
-			expectedError:  nil,
+			expectedConfig: knownGoodConfig,
+		},
+		{
+			name: "Zero-length SubscriberPoolSize",
+			config: &configuration.JobServiceConfiguration{
+				SubscriberPoolSize: 0,
+			},
 			expectedConfig: knownGoodConfig,
 		},
 		{
 			name: "Incorrect GrpcPool.InitialConnections",
 			config: &configuration.JobServiceConfiguration{
-				GrpcPool: grpcconfig.GrpcPoolConfig{
-					InitialConnections: 0,
-					Capacity:           10,
-				},
+				GrpcPool: grpcconfig.GrpcPoolConfig{InitialConnections: 0, Capacity: knownGoodConfig.GrpcPool.Capacity},
 			},
-			expectedError: nil,
-			expectedConfig: &configuration.JobServiceConfiguration{
-				GrpcPool: grpcconfig.GrpcPoolConfig{
-					InitialConnections: DefaultConfiguration.GrpcPool.InitialConnections,
-					Capacity:           10,
-				},
-			},
+			expectedConfig: knownGoodConfig,
 		},
 		{
 			name: "Incorrect GrpcPool.Capacity",
 			config: &configuration.JobServiceConfiguration{
-				GrpcPool: grpcconfig.GrpcPoolConfig{
-					InitialConnections: 10,
-					Capacity:           0,
-				},
+				GrpcPool: grpcconfig.GrpcPoolConfig{InitialConnections: knownGoodConfig.GrpcPool.InitialConnections, Capacity: 0},
 			},
-			expectedError: nil,
-			expectedConfig: &configuration.JobServiceConfiguration{
-				GrpcPool: grpcconfig.GrpcPoolConfig{
-					InitialConnections: 10,
-					Capacity:           DefaultConfiguration.GrpcPool.Capacity,
-				},
-			},
+			expectedConfig: knownGoodConfig,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := RectifyConfig(tc.config)
-			require.Equal(t, tc.expectedError, err)
+			RectifyConfig(tc.config)
 			require.Equal(t, tc.expectedConfig, tc.config)
 		})
 	}

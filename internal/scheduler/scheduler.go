@@ -19,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -47,8 +48,10 @@ type Scheduler struct {
 	submitChecker SubmitScheduleChecker
 	// Responsible for publishing messages to Pulsar. Only the leader publishes.
 	publisher Publisher
-	// Minimum duration between scheduling cycles.
+	// Minimum duration between scheduler cycles.
 	cyclePeriod time.Duration
+	// Minimum duration between Schedule() calls - calls that actually schedule new jobs.
+	schedulePeriod time.Duration
 	// Maximum number of times a job can be attempted before being considered failed.
 	maxAttemptedRuns uint
 	// The label used when setting node anti affinities.
@@ -56,6 +59,8 @@ type Scheduler struct {
 	// If an executor fails to report in for this amount of time,
 	// all jobs assigne to that executor are cancelled.
 	executorTimeout time.Duration
+	// The time the previous scheduling round ended
+	previousSchedulingRoundEnd time.Time
 	// Used for timing decisions (e.g., sleep).
 	// Injected here so that we can mock it out for testing.
 	clock clock.Clock
@@ -78,27 +83,30 @@ func NewScheduler(
 	stringInterner *stringinterner.StringInterner,
 	submitChecker SubmitScheduleChecker,
 	cyclePeriod time.Duration,
+	schedulePeriod time.Duration,
 	executorTimeout time.Duration,
 	maxAttemptedRuns uint,
 	nodeIdLabel string,
 ) (*Scheduler, error) {
 	jobDb := jobdb.NewJobDb()
 	return &Scheduler{
-		jobRepository:      jobRepository,
-		executorRepository: executorRepository,
-		schedulingAlgo:     schedulingAlgo,
-		leaderController:   leaderController,
-		publisher:          publisher,
-		stringInterner:     stringInterner,
-		submitChecker:      submitChecker,
-		jobDb:              jobDb,
-		clock:              clock.RealClock{},
-		cyclePeriod:        cyclePeriod,
-		executorTimeout:    executorTimeout,
-		maxAttemptedRuns:   maxAttemptedRuns,
-		nodeIdLabel:        nodeIdLabel,
-		jobsSerial:         -1,
-		runsSerial:         -1,
+		jobRepository:              jobRepository,
+		executorRepository:         executorRepository,
+		schedulingAlgo:             schedulingAlgo,
+		leaderController:           leaderController,
+		publisher:                  publisher,
+		stringInterner:             stringInterner,
+		submitChecker:              submitChecker,
+		jobDb:                      jobDb,
+		clock:                      clock.RealClock{},
+		cyclePeriod:                cyclePeriod,
+		schedulePeriod:             schedulePeriod,
+		previousSchedulingRoundEnd: time.Time{},
+		executorTimeout:            executorTimeout,
+		maxAttemptedRuns:           maxAttemptedRuns,
+		nodeIdLabel:                nodeIdLabel,
+		jobsSerial:                 -1,
+		runsSerial:                 -1,
 	}, nil
 }
 
@@ -151,7 +159,10 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			// and we must invalidate the held leader token to trigger flushing Pulsar at the next cycle.
 			//
 			// TODO: Once the Pulsar client supports transactions, we can guarantee consistency even in case of errors.
-			if err := s.cycle(ctx, fullUpdate, leaderToken); err != nil {
+
+			shouldSchedule := s.clock.Now().Sub(s.previousSchedulingRoundEnd) > s.schedulePeriod
+
+			if err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule); err != nil {
 				logging.WithStacktrace(log, err).Error("scheduling cycle failure")
 				leaderToken = InvalidLeaderToken()
 			}
@@ -167,7 +178,9 @@ func (s *Scheduler) Run(ctx context.Context) error {
 // cycle is a single iteration of the main scheduling loop.
 // If updateAll is true, we generate events from all jobs in the jobDb.
 // Otherwise, we only generate events from jobs updated since the last cycle.
-func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken LeaderToken) error {
+func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) error {
+	log := ctxlogrus.Extract(ctx)
+	log = log.WithField("function", "cycle")
 	// Update job state.
 	updatedJobs, err := s.syncState(ctx)
 	if err != nil {
@@ -201,16 +214,19 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	events = append(events, expirationEvents...)
 
 	// Schedule jobs.
-	overallSchedulerResult, err := s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
-	if err != nil {
-		return err
-	}
+	if shouldSchedule {
+		overallSchedulerResult, err := s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
+		if err != nil {
+			return err
+		}
 
-	resultEvents, err := s.eventsFromSchedulerResult(txn, overallSchedulerResult)
-	if err != nil {
-		return err
+		resultEvents, err := s.eventsFromSchedulerResult(txn, overallSchedulerResult)
+		if err != nil {
+			return err
+		}
+		events = append(events, resultEvents...)
+		s.previousSchedulingRoundEnd = s.clock.Now()
 	}
-	events = append(events, resultEvents...)
 
 	// Publish to Pulsar.
 	isLeader := func() bool {
@@ -250,7 +266,7 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*jobdb.Job, error) {
 		// Try and retrieve the job from the jobDb. If it doesn't exist then create it.
 		job := s.jobDb.GetById(txn, dbJob.JobID)
 		if job == nil {
-			job, err = s.createSchedulerJob(&dbJob)
+			job, err = s.schedulerJobFromDatabaseJob(&dbJob)
 			if err != nil {
 				return nil, err
 			}
@@ -293,11 +309,11 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*jobdb.Job, error) {
 	}
 
 	jobsToUpdate := maps.Values(jobsToUpdateById)
-	err = s.jobDb.BatchDelete(txn, jobsToDelete)
+	err = s.jobDb.Upsert(txn, jobsToUpdate)
 	if err != nil {
 		return nil, err
 	}
-	err = s.jobDb.Upsert(txn, jobsToUpdate)
+	err = s.jobDb.BatchDelete(txn, jobsToDelete)
 	if err != nil {
 		return nil, err
 	}
@@ -314,26 +330,24 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*jobdb.Job, error) {
 func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job *jobdb.Job) (*schedulerobjects.JobSchedulingInfo, error) {
 	newSchedulingInfo := proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
 	newSchedulingInfo.Version = job.JobSchedulingInfo().Version + 1
-	podSchedulingRequirement := PodRequirementFromJobSchedulingInfo(newSchedulingInfo)
-	if podSchedulingRequirement == nil {
+	podRequirements := newSchedulingInfo.GetPodRequirements()
+	if podRequirements == nil {
 		return nil, errors.Errorf("no pod scheduling requirement found for job %s", job.GetId())
 	}
-	newAffinity := podSchedulingRequirement.Affinity
+	newAffinity := podRequirements.Affinity
 	if newAffinity == nil {
 		newAffinity = &v1.Affinity{}
 	}
 
 	for _, run := range job.AllRuns() {
 		if run.RunAttempted() {
-			err := affinity.AddNodeAntiAffinity(newAffinity, s.nodeIdLabel, run.Node())
+			err := affinity.AddNodeAntiAffinity(newAffinity, s.nodeIdLabel, run.NodeName())
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
-	podSchedulingRequirement.Affinity = newAffinity
-	podSchedulingRequirement.ClearCachedSchedulingKey()
-
+	podRequirements.Affinity = newAffinity
 	return newSchedulingInfo, nil
 }
 
@@ -342,12 +356,9 @@ func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job *jobd
 	if err != nil {
 		return nil, false, err
 	}
-	podSchedulingRequirement := PodRequirementFromJobSchedulingInfo(schedulingInfoWithNodeAntiAffinity)
-	if podSchedulingRequirement == nil {
-		return nil, false, errors.Errorf("no pod scheduling requirement found for job %s", job.GetId())
-	}
-	isSchedulable, _ := s.submitChecker.CheckPodRequirements(podSchedulingRequirement)
-	return job.WithJobSchedulingInfo(schedulingInfoWithNodeAntiAffinity), isSchedulable, nil
+	job = job.WithJobSchedulingInfo(schedulingInfoWithNodeAntiAffinity)
+	isSchedulable, _ := s.submitChecker.CheckJobDbJobs([]*jobdb.Job{job})
+	return job, isSchedulable, nil
 }
 
 // eventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
@@ -433,10 +444,12 @@ func (s *Scheduler) eventsFromSchedulerResult(txn *jobdb.Txn, result *SchedulerR
 						Created: s.now(),
 						Event: &armadaevents.EventSequence_Event_JobRunLeased{
 							JobRunLeased: &armadaevents.JobRunLeased{
-								RunId:                armadaevents.ProtoUuidFromUuid(job.LatestRun().Id()),
-								JobId:                jobId,
-								ExecutorId:           job.LatestRun().Executor(),
-								NodeId:               job.LatestRun().Node(),
+								RunId:      armadaevents.ProtoUuidFromUuid(job.LatestRun().Id()),
+								JobId:      jobId,
+								ExecutorId: job.LatestRun().Executor(),
+								// NodeId here refers to the unique identifier of the node in an executor cluster,
+								// which is referred to as the NodeName within the scheduler.
+								NodeId:               job.LatestRun().NodeName(),
 								UpdateSequenceNumber: job.QueuedVersion(),
 							},
 						},
@@ -577,7 +590,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 				if lastRun.Returned() {
 					errorMessage := fmt.Sprintf("Maximum number of attempts (%d) reached - this job will no longer be retried", s.maxAttemptedRuns)
 					if job.NumAttempts() < s.maxAttemptedRuns {
-						errorMessage = fmt.Sprintf("Job was attempeted %d times, and has been tried once on all nodes it can run on - this job will no longer be retried", job.NumAttempts())
+						errorMessage = fmt.Sprintf("Job was attempted %d times, and has been tried once on all nodes it can run on - this job will no longer be retried", job.NumAttempts())
 					}
 					runError = &armadaevents.Error{
 						Terminal: true,
@@ -803,8 +816,8 @@ func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Dura
 	}
 }
 
-// createSchedulerJob creates a new scheduler job from a database job.
-func (s *Scheduler) createSchedulerJob(dbJob *database.Job) (*jobdb.Job, error) {
+// schedulerJobFromDatabaseJob creates a new scheduler job from a database job.
+func (s *Scheduler) schedulerJobFromDatabaseJob(dbJob *database.Job) (*jobdb.Job, error) {
 	schedulingInfo := &schedulerobjects.JobSchedulingInfo{}
 	err := proto.Unmarshal(dbJob.SchedulingInfo, schedulingInfo)
 	if err != nil {
@@ -828,11 +841,13 @@ func (s *Scheduler) createSchedulerJob(dbJob *database.Job) (*jobdb.Job, error) 
 
 // createSchedulerRun creates a new scheduler job run from a database job run
 func (s *Scheduler) createSchedulerRun(dbRun *database.Run) *jobdb.JobRun {
+	nodeId := api.NodeIdFromExecutorAndNodeName(dbRun.Executor, dbRun.Node)
 	return jobdb.CreateRun(
 		dbRun.RunID,
 		dbRun.JobID,
 		dbRun.Created,
 		s.stringInterner.Intern(dbRun.Executor),
+		s.stringInterner.Intern(nodeId),
 		s.stringInterner.Intern(dbRun.Node),
 		dbRun.Running,
 		dbRun.Succeeded,
@@ -878,7 +893,7 @@ func updateSchedulerRun(run *jobdb.JobRun, dbRun *database.Run) *jobdb.JobRun {
 	return run
 }
 
-// updateSchedulerJob updates the scheduler job  (in-place) to match the database job
+// updateSchedulerJob updates the scheduler job in-place to match the database job.
 func updateSchedulerJob(job *jobdb.Job, dbJob *database.Job) (*jobdb.Job, error) {
 	if dbJob.CancelRequested && !job.CancelRequested() {
 		job = job.WithCancelRequested(true)

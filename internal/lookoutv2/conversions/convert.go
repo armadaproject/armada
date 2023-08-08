@@ -6,6 +6,7 @@ import (
 	"github.com/go-openapi/strfmt"
 
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/models"
+	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi/operations"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
@@ -33,6 +34,7 @@ func ToSwaggerJob(job *model.Job) *models.Job {
 		Runs:               runs,
 		State:              job.State,
 		Submitted:          strfmt.DateTime(job.Submitted),
+		CancelReason:       job.CancelReason,
 	}
 }
 
@@ -43,7 +45,8 @@ func ToSwaggerRun(run *model.Run) *models.Run {
 		Finished:    toSwaggerTimePtr(run.Finished),
 		JobRunState: run.JobRunState,
 		Node:        run.Node,
-		Pending:     strfmt.DateTime(run.Pending),
+		Leased:      toSwaggerTimePtr(run.Leased),
+		Pending:     toSwaggerTimePtr(run.Pending),
 		RunID:       run.RunId,
 		Started:     toSwaggerTimePtr(run.Started),
 	}
@@ -76,6 +79,13 @@ func FromSwaggerOrder(order *models.Order) *model.Order {
 	return &model.Order{
 		Direction: order.Direction,
 		Field:     order.Field,
+	}
+}
+
+func FromSwaggerGroupedField(groupedField *operations.GroupJobsParamsBodyGroupedField) *model.GroupedField {
+	return &model.GroupedField{
+		Field:        groupedField.Field,
+		IsAnnotation: groupedField.IsAnnotation,
 	}
 }
 

@@ -3,8 +3,8 @@ package scheduler
 import (
 	"container/heap"
 	"context"
-	"math"
 	"reflect"
+	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
@@ -15,13 +15,8 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
-
-// If a job fails to schedule for one of these reasons, stop trying more jobs.
-var terminalUnschedulableReasons = []string{
-	schedulerconstraints.UnschedulableReasonMaximumNumberOfJobsScheduled,
-	schedulerconstraints.UnschedulableReasonMaximumNumberOfGangsScheduled,
-}
 
 // QueueScheduler is responsible for choosing the order in which to attempt scheduling queued gangs.
 // Relies on GangScheduler for scheduling once a gang is chosen.
@@ -48,7 +43,7 @@ func NewQueueScheduler(
 	}
 	gangIteratorsByQueue := make(map[string]*QueuedGangIterator)
 	for queue, it := range jobIteratorByQueue {
-		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, constraints.MaxLookbackPerQueue)
+		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, constraints.MaxQueueLookback)
 	}
 	candidateGangIterator, err := NewCandidateGangIterator(sctx, gangIteratorsByQueue)
 	if err != nil {
@@ -61,9 +56,13 @@ func NewQueueScheduler(
 	}, nil
 }
 
+func (sch *QueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
+	sch.gangScheduler.SkipUnsuccessfulSchedulingKeyCheck()
+}
+
 func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, error) {
 	log := ctxlogrus.Extract(ctx)
-	if ResourceListAsWeightedApproximateFloat64(sch.schedulingContext.ResourceScarcity, sch.schedulingContext.TotalResources) == 0 {
+	if sch.schedulingContext.TotalResources.AsWeightedMillis(sch.schedulingContext.ResourceScarcity) == 0 {
 		// This refers to resources available across all clusters, i.e.,
 		// it may include resources not currently considered for scheduling.
 		log.Infof(
@@ -72,8 +71,8 @@ func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, erro
 		)
 		return &SchedulerResult{}, nil
 	}
-	if ResourceListAsWeightedApproximateFloat64(sch.schedulingContext.ResourceScarcity, sch.gangScheduler.nodeDb.TotalResources()) == 0 {
-		// This refers to the resources currently considered for schedling.
+	if rl := sch.gangScheduler.nodeDb.TotalResources(); rl.AsWeightedMillis(sch.schedulingContext.ResourceScarcity) == 0 {
+		// This refers to the resources currently considered for scheduling.
 		log.Infof(
 			"no resources with non-zero weight available for scheduling in NodeDb: resource scarcity %v, total resources %v",
 			sch.schedulingContext.ResourceScarcity, sch.gangScheduler.nodeDb.TotalResources(),
@@ -83,7 +82,9 @@ func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, erro
 	nodeIdByJobId := make(map[string]string)
 	scheduledJobs := make([]interfaces.LegacySchedulerJob, 0)
 	for {
-		gctx, err := sch.candidateGangIterator.Next()
+		// Peek() returns the next gang to try to schedule. Call Clear() before calling Peek() again.
+		// Calling Clear() after (failing to) schedule ensures we get the next gang in order of smallest fair share.
+		gctx, err := sch.candidateGangIterator.Peek()
 		if err != nil {
 			sch.schedulingContext.TerminationReason = err.Error()
 			return nil, err
@@ -92,12 +93,16 @@ func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, erro
 			break
 		}
 		if len(gctx.JobSchedulingContexts) == 0 {
+			if err := sch.candidateGangIterator.Clear(); err != nil {
+				return nil, err
+			}
 			continue
 		}
 		select {
 		case <-ctx.Done():
 			// TODO: Better to push ctx into next and have that control it.
-			sch.schedulingContext.TerminationReason = ctx.Err().Error()
+			err := ctx.Err()
+			sch.schedulingContext.TerminationReason = err.Error()
 			return nil, err
 		default:
 		}
@@ -106,22 +111,20 @@ func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, erro
 		} else if ok {
 			for _, jctx := range gctx.JobSchedulingContexts {
 				scheduledJobs = append(scheduledJobs, jctx.Job)
-				if jctx.PodSchedulingContext != nil && jctx.PodSchedulingContext.Node != nil {
-					nodeIdByJobId[jctx.JobId] = jctx.PodSchedulingContext.Node.Id
+				pctx := jctx.PodSchedulingContext
+				if pctx != nil && pctx.NodeId != "" {
+					nodeIdByJobId[jctx.JobId] = pctx.NodeId
 				}
 			}
-		} else {
-			unschedulableReasonIsTerminal := false
-			for _, reason := range terminalUnschedulableReasons {
-				if unschedulableReason == reason {
-					unschedulableReasonIsTerminal = true
-					sch.schedulingContext.TerminationReason = reason
-					break
-				}
-			}
-			if unschedulableReasonIsTerminal {
-				break
-			}
+		} else if schedulerconstraints.IsTerminalUnschedulableReason(unschedulableReason) {
+			// If unschedulableReason indicates no more new jobs can be scheduled,
+			// instruct the underlying iterator to only yield evicted jobs from now on.
+			sch.candidateGangIterator.OnlyYieldEvicted()
+		}
+		// Clear() to get the next gang in order of smallest fair share.
+		// Calling clear here ensures the gang scheduled in this iteration is accounted for.
+		if err := sch.candidateGangIterator.Clear(); err != nil {
+			return nil, err
 		}
 	}
 	if sch.schedulingContext.TerminationReason == "" {
@@ -162,13 +165,13 @@ func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobItera
 }
 
 func (it *QueuedGangIterator) Next() (*schedulercontext.GangSchedulingContext, error) {
-	if v, err := it.Peek(); err != nil {
+	if gctx, err := it.Peek(); err != nil {
 		return nil, err
 	} else {
 		if err := it.Clear(); err != nil {
 			return nil, err
 		}
-		return v, nil
+		return gctx, nil
 	}
 }
 
@@ -199,16 +202,33 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 		if reflect.ValueOf(job).IsNil() {
 			return nil, nil
 		}
-		// Rescheduled jobs don't count towards the limit.
 		if !isEvictedJob(job) {
+			// Rescheduled jobs don't count towards the limit.
 			it.jobsSeen++
 		}
 		if it.hitLookbackLimit() {
 			return nil, nil
 		}
-		gangId, gangCardinality, isGangJob, err := GangIdAndCardinalityFromAnnotations(
-			job.GetAnnotations(),
-		)
+
+		// Skip this job if it's known to be unschedulable.
+		if len(it.schedulingContext.UnfeasibleSchedulingKeys) > 0 {
+			schedulingKey := it.schedulingContext.SchedulingKeyFromLegacySchedulerJob(job)
+			if unsuccessfulJctx, ok := it.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; ok {
+				jctx := &schedulercontext.JobSchedulingContext{
+					Created:              time.Now(),
+					JobId:                job.GetId(),
+					Job:                  job,
+					UnschedulableReason:  unsuccessfulJctx.UnschedulableReason,
+					PodSchedulingContext: unsuccessfulJctx.PodSchedulingContext,
+				}
+				if _, err := it.schedulingContext.AddJobSchedulingContext(jctx); err != nil {
+					return nil, err
+				}
+				continue
+			}
+		}
+
+		gangId, gangCardinality, isGangJob, err := GangIdAndCardinalityFromAnnotations(job.GetAnnotations())
 		if err != nil {
 			// TODO: Get from context passed in.
 			log := logrus.NewEntry(logrus.New())
@@ -221,20 +241,18 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 			if len(gang) == gangCardinality {
 				delete(it.jobsByGangId, gangId)
 				it.next = schedulercontext.NewGangSchedulingContext(
-					jobSchedulingContextsFromJobs(
-						gang,
-						it.schedulingContext.ExecutorId,
+					schedulercontext.JobSchedulingContextsFromJobs(
 						it.schedulingContext.PriorityClasses,
+						gang,
 					),
 				)
 				return it.next, nil
 			}
 		} else {
 			it.next = schedulercontext.NewGangSchedulingContext(
-				jobSchedulingContextsFromJobs(
-					[]interfaces.LegacySchedulerJob{job},
-					it.schedulingContext.ExecutorId,
+				schedulercontext.JobSchedulingContextsFromJobs(
 					it.schedulingContext.PriorityClasses,
+					[]interfaces.LegacySchedulerJob{job},
 				),
 			)
 			return it.next, nil
@@ -254,10 +272,10 @@ func (it *QueuedGangIterator) hitLookbackLimit() bool {
 // where the fraction of fair share computation includes the yielded gang.
 type CandidateGangIterator struct {
 	SchedulingContext *schedulercontext.SchedulingContext
-	// For each queue, weight is the inverse of the priority factor.
-	weightByQueue map[string]float64
-	// Sum of all weights.
-	weightSum float64
+	// If true, this iterator only yields gangs where all jobs are evicted.
+	onlyYieldEvicted bool
+	// Reusable buffer to avoid allocations.
+	buffer schedulerobjects.ResourceList
 	// Priority queue containing per-queue iterators.
 	// Determines the order in which queues are processed.
 	pq QueueCandidateGangIteratorPQ
@@ -267,67 +285,75 @@ func NewCandidateGangIterator(
 	sctx *schedulercontext.SchedulingContext,
 	iteratorsByQueue map[string]*QueuedGangIterator,
 ) (*CandidateGangIterator, error) {
-	weightSum := 0.0
-	weightByQueue := make(map[string]float64)
-	for queue := range iteratorsByQueue {
-		qctx := sctx.QueueSchedulingContexts[queue]
-		if qctx == nil {
-			return nil, errors.Errorf("no scheduling context for queue %s", queue)
-		}
-		weight := 1 / math.Max(qctx.PriorityFactor, 1)
-		weightByQueue[queue] = weight
-		weightSum += weight
-	}
-	rv := &CandidateGangIterator{
+	it := &CandidateGangIterator{
 		SchedulingContext: sctx,
-		weightByQueue:     weightByQueue,
-		weightSum:         weightSum,
+		buffer:            schedulerobjects.NewResourceListWithDefaultSize(),
 		pq:                make(QueueCandidateGangIteratorPQ, 0, len(iteratorsByQueue)),
 	}
 	for queue, queueIt := range iteratorsByQueue {
-		if err := rv.pushToPQ(queue, queueIt); err != nil {
+		if _, err := it.updateAndPushPQItem(it.newPQItem(queue, queueIt)); err != nil {
 			return nil, err
 		}
 	}
-	return rv, nil
+	return it, nil
 }
 
-func (it *CandidateGangIterator) pushToPQ(queue string, queueIt *QueuedGangIterator) error {
-	gctx, err := queueIt.Peek()
+func (it *CandidateGangIterator) OnlyYieldEvicted() {
+	it.onlyYieldEvicted = true
+}
+
+func (it *CandidateGangIterator) newPQItem(queue string, queueIt *QueuedGangIterator) *QueueCandidateGangIteratorItem {
+	return &QueueCandidateGangIteratorItem{
+		queue: queue,
+		it:    queueIt,
+	}
+}
+
+func (it *CandidateGangIterator) updateAndPushPQItem(item *QueueCandidateGangIteratorItem) (bool, error) {
+	if err := it.updatePQItem(item); err != nil {
+		return false, err
+	}
+	if item.gctx == nil {
+		return false, nil
+	}
+	if it.onlyYieldEvicted && !item.gctx.AllJobsEvicted {
+		// We assume here that all evicted jobs appear before non-evicted jobs in the queue.
+		// Hence, it's safe to drop a queue once a non-evicted job has been seen.
+		return false, nil
+	}
+	heap.Push(&it.pq, item)
+	return true, nil
+}
+
+func (it *CandidateGangIterator) updatePQItem(item *QueueCandidateGangIteratorItem) error {
+	item.gctx = nil
+	item.fractionOfFairShare = 0
+	gctx, err := item.it.Peek()
 	if err != nil {
 		return err
 	}
 	if gctx == nil {
 		return nil
 	}
-	totalResourcesForQueue := it.SchedulingContext.QueueSchedulingContexts[queue].AllocatedByPriority
-	totalResourcesForQueueWithGang := totalResourcesForQueue.AggregateByResource()
-	totalResourcesForQueueWithGang.Add(gctx.TotalResourceRequests)
-	fairShare := it.weightByQueue[queue] / it.weightSum
-	used := ResourceListAsWeightedApproximateFloat64(it.SchedulingContext.ResourceScarcity, totalResourcesForQueueWithGang)
-	total := math.Max(ResourceListAsWeightedApproximateFloat64(it.SchedulingContext.ResourceScarcity, it.SchedulingContext.TotalResources), 1)
-	fractionOfFairShare := (used / total) / fairShare
-	item := &QueueCandidateGangIteratorItem{
-		queue:               queue,
-		it:                  queueIt,
-		v:                   gctx,
-		fractionOfFairShare: fractionOfFairShare,
+	if gctx.Queue != item.queue {
+		return errors.Errorf("mismatched queue %s and %s for gctx", gctx.Queue, item.queue)
 	}
-	heap.Push(&it.pq, item)
+	item.gctx = gctx
+	item.fractionOfFairShare = it.fractionOfFairShareWithGctx(gctx)
 	return nil
 }
 
-func (it *CandidateGangIterator) Next() (*schedulercontext.GangSchedulingContext, error) {
-	if v, err := it.Peek(); err != nil {
-		return nil, err
-	} else {
-		if err := it.Clear(); err != nil {
-			return nil, err
-		}
-		return v, nil
-	}
+// fractionOfFairShareWithGctx returns the fraction of its fair share this queue would have if the jobs in gctx were scheduled.
+func (it *CandidateGangIterator) fractionOfFairShareWithGctx(gctx *schedulercontext.GangSchedulingContext) float64 {
+	qctx := it.SchedulingContext.QueueSchedulingContexts[gctx.Queue]
+	it.buffer.Zero()
+	it.buffer.Add(qctx.Allocated)
+	it.buffer.Add(gctx.TotalResourceRequests)
+	return qctx.TotalCostForQueueWithAllocation(it.buffer)
 }
 
+// Clear removes the first item in the iterator.
+// If it.onlyYieldEvicted is true, any consecutive non-evicted jobs are also removed.
 func (it *CandidateGangIterator) Clear() error {
 	if len(it.pq) == 0 {
 		return nil
@@ -336,37 +362,21 @@ func (it *CandidateGangIterator) Clear() error {
 	if err := item.it.Clear(); err != nil {
 		return err
 	}
-	if err := it.pushToPQ(item.queue, item.it); err != nil {
+	if _, err := it.updateAndPushPQItem(item); err != nil {
 		return err
+	}
+	for len(it.pq) > 0 && it.onlyYieldEvicted && !it.pq[0].gctx.AllJobsEvicted {
+		heap.Pop(&it.pq)
 	}
 	return nil
 }
 
 func (it *CandidateGangIterator) Peek() (*schedulercontext.GangSchedulingContext, error) {
-	// Yield a gang.
-	// To ensure the last scheduled gang is accounted for,
-	// pop and push items from/to the pq until we've seen the same queue twice consecutively,
-	// since at that point we're sure pq priority for that item is correct.
-	activeQueue := ""
-	for {
-		if len(it.pq) == 0 {
-			// No queued jobs left.
-			return nil, nil
-		}
-		item := heap.Pop(&it.pq).(*QueueCandidateGangIteratorItem)
-		if item.queue != activeQueue {
-			activeQueue = item.queue
-			if err := it.pushToPQ(item.queue, item.it); err != nil {
-				return nil, err
-			}
-			continue
-		}
-		gctx := item.v // Cached value is guaranteed to be fresh here.
-		if err := it.pushToPQ(item.queue, item.it); err != nil {
-			return nil, err
-		}
-		return gctx, nil
+	if len(it.pq) == 0 {
+		// No queued jobs left.
+		return nil, nil
 	}
+	return it.pq[0].gctx, nil
 }
 
 // Priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.
@@ -379,7 +389,7 @@ type QueueCandidateGangIteratorItem struct {
 	it *QueuedGangIterator
 	// Most recent value produced by the iterator.
 	// Cached here to avoid repeating scheduling checks unnecessarily.
-	v *schedulercontext.GangSchedulingContext
+	gctx *schedulercontext.GangSchedulingContext
 	// Fraction of its fair share this queue would have
 	// if its next schedulable job were to be scheduled.
 	fractionOfFairShare float64

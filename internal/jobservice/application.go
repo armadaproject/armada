@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"sync"
+	"os"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -15,7 +15,6 @@ import (
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/internal/common/grpc/grpcpool"
-	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
 	"github.com/armadaproject/armada/internal/jobservice/events"
 	"github.com/armadaproject/armada/internal/jobservice/eventstojobs"
@@ -39,12 +38,30 @@ var DefaultConfiguration = &configuration.JobServiceConfiguration{
 		InitialConnections: 5,
 		Capacity:           5,
 	},
+	SubscriberPoolSize:     30,
+	SubscriptionExpirySecs: 300,
+	PurgeJobSetTime:        600,
 }
 
 // Mutates config where possible to correct mis-configurations.
-// Returns a non-nil error if mis-configuration is unrecoverable.
-func RectifyConfig(config *configuration.JobServiceConfiguration) error {
+func RectifyConfig(config *configuration.JobServiceConfiguration) {
 	logger := log.WithField("JobService", "RectifyConfig")
+
+	if config.SubscriptionExpirySecs == 0 {
+		logger.WithFields(log.Fields{
+			"default":    DefaultConfiguration.SubscriptionExpirySecs,
+			"configured": config.SubscriptionExpirySecs,
+		}).Warn("config.SubscriptionExpirySecs invalid, using default instead")
+		config.SubscriptionExpirySecs = DefaultConfiguration.SubscriptionExpirySecs
+	}
+
+	if config.PurgeJobSetTime == 0 {
+		logger.WithFields(log.Fields{
+			"default":    DefaultConfiguration.PurgeJobSetTime,
+			"configured": config.PurgeJobSetTime,
+		}).Warn("config.PurgeJobSetTime invalid, using default instead")
+		config.PurgeJobSetTime = DefaultConfiguration.PurgeJobSetTime
+	}
 
 	// Grpc Pool
 	if config.GrpcPool.InitialConnections <= 0 {
@@ -62,16 +79,31 @@ func RectifyConfig(config *configuration.JobServiceConfiguration) error {
 		config.GrpcPool.Capacity = DefaultConfiguration.GrpcPool.Capacity
 	}
 
-	return nil
+	if config.SubscriberPoolSize <= 0 {
+		logger.WithFields(log.Fields{
+			"default":    DefaultConfiguration.SubscriberPoolSize,
+			"configured": config.SubscriberPoolSize,
+		}).Warn("config.SubscriberPoolSize invalid, using default instead")
+		config.SubscriberPoolSize = DefaultConfiguration.SubscriberPoolSize
+	}
+
+	if config.ApiConnection.ForceNoTls {
+		logger.Warn("Armada Server connection will be unsecured! TLS is forced OFF!")
+	}
+
+	return
 }
 
 func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfiguration) error {
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
 	g, _ := errgroup.WithContext(ctx)
 
-	err := RectifyConfig(config)
-	if err != nil {
-		panic(err)
+	RectifyConfig(config)
+
+	if os.Getenv("JOBSERVICE_DEBUG") != "" {
+		log.SetLevel(log.DebugLevel)
+		log.Debug("Set logging to debug level")
+		log.Debugf("Subscription expiry time: %d", config.SubscriptionExpirySecs)
 	}
 
 	log := log.WithField("JobService", "Startup")
@@ -79,6 +111,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		config.Grpc.KeepaliveParams,
 		config.Grpc.KeepaliveEnforcementPolicy,
 		[]authorization.AuthService{&authorization.AnonymousAuthService{}},
+		config.Grpc.Tls,
 	)
 
 	err, sqlJobRepo, dbCallbackFn := repository.NewSQLJobService(config, log)
@@ -90,7 +123,8 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	jobService := server.NewJobService(config, sqlJobRepo)
 	js.RegisterJobServiceServer(grpcServer, jobService)
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
+	lc := net.ListenConfig{}
+	lis, err := lc.Listen(ctx, "tcp", fmt.Sprintf(":%d", config.GrpcPort))
 	if err != nil {
 		return err
 	}
@@ -100,7 +134,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	}
 
 	// Start a pool
-	pool, err := grpcpool.NewWithContext(ctx, connFactory,
+	evConnPool, err := grpcpool.NewWithContext(ctx, connFactory,
 		config.GrpcPool.InitialConnections,
 		config.GrpcPool.Capacity,
 		0)
@@ -108,49 +142,39 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		return err
 	}
 
-	// This function runs in the background every 30 seconds
-	// We will loop over the subscribed jobsets
-	// And we check if we have already subscribed via subscribeMap
-	// If we have then we skip that jobset
 	g.Go(func() error {
-		ticker := time.NewTicker(30 * time.Second)
-		eventClient := events.NewPooledEventClient(pool)
-		var subscribeMap sync.Map
-		for range ticker.C {
-
-			jobSets, err := sqlJobRepo.GetSubscribedJobSets(ctx)
-			log.Infof("job service has %d subscribed job sets", len(jobSets))
-			if err != nil {
-				logging.WithStacktrace(log, err).Warn("error getting jobsets")
-			}
-			for _, value := range jobSets {
-				queueJobSet := value.Queue + value.JobSet
-				_, ok := subscribeMap.LoadOrStore(queueJobSet, true)
-				if !ok {
-					eventJob := eventstojobs.NewEventsToJobService(value.Queue, value.JobSet, eventClient, sqlJobRepo)
-					go func(value repository.SubscribedTuple) {
-						err := eventJob.SubscribeToJobSetId(context.Background(), config.SubscribeJobSetTime, value.FromMessageId)
-						if err != nil {
-							log.Error("error on subscribing", err)
-						}
-						queueJobSet := value.Queue + value.JobSet
-						log.Infof("deleting %s from map", queueJobSet)
-						subscribeMap.Delete(queueJobSet)
-					}(value)
-				} else {
-					log.Infof("job set %s/%s is subscribed", value.Queue, value.JobSet)
-				}
-			}
-		}
+		eventClient := events.NewPooledEventClient(evConnPool)
+		// Runs continuously until ctx is canceled or it runs into an unrecoverable error
+		jobSubExecutor := eventstojobs.NewJobSetSubscriptionExecutor(
+			ctx,
+			eventClient,
+			sqlJobRepo,
+			jobService.GetNewSubscriptionChannel(),
+			time.Duration(config.SubscriptionExpirySecs)*time.Second)
+		jobSubExecutor.Manage()
 		return nil
 	})
+
 	g.Go(func() error {
 		defer log.Infof("stopping server.")
+
+		go func() {
+			select {
+			case <-ctx.Done():
+				log.Info("Got context done for grpc server.")
+				grpcServer.Stop()
+			}
+		}()
 
 		log.Info("jobservice service listening on ", config.GrpcPort)
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}
+
+		return nil
+	})
+	g.Go(func() error {
+		sqlJobRepo.PurgeExpiredJobSets(ctx)
 		return nil
 	})
 

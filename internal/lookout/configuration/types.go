@@ -8,6 +8,8 @@ import (
 )
 
 type LookoutUIConfig struct {
+	CustomTitle string
+
 	ArmadaApiBaseUrl         string
 	UserAnnotationPrefix     string
 	BinocularsEnabled        bool
