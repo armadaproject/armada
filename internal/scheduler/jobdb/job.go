@@ -433,7 +433,6 @@ func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSch
 }
 
 // DeepCopy makes a full copy of the job
-// This is more expensive than the WithX functions, so use those where possible
 func (job *Job) DeepCopy() *Job {
 	copiedSchedulingInfo := proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
 	j := job.WithJobSchedulingInfo(copiedSchedulingInfo)
