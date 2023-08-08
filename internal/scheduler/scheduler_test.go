@@ -501,7 +501,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 
 			// run a scheduler cycle
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			err = sched.cycle(ctx, false, sched.leaderController.GetToken())
+			err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true)
 			if tc.fetchError || tc.publishError || tc.scheduleError {
 				assert.Error(t, err)
 			} else {
