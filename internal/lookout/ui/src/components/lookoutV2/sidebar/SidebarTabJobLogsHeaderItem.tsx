@@ -4,12 +4,11 @@ import styles from "./SidebarTabJobLogsHeaderItem.module.css"
 type SidebarTabJobLogsHeaderItemProps = {
   header: string
   headerValue: string | number | undefined
-  keyValue: number | string
 }
 
 export default function SidebarTabJobLogsHeaderItem(props: SidebarTabJobLogsHeaderItemProps) {
   return (
-    <div className={styles.headerJobLog} key={props?.keyValue}>
+    <div className={styles.headerJobLog}>
       <h4>
         {props?.header}
         <span className={styles.headerJobLogDivider}> : </span>

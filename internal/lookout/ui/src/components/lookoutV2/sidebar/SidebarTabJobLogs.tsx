@@ -235,13 +235,17 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
       <div className={styles.logsHeader}>
         <div className={styles.logOption}>
           {runsNewestFirst.map((run, i) => (
-            <SidebarTabJobLogsHeaderItem header={"Start time"} headerValue={getJobRunTime(run)} keyValue={i} />
+            <React.Fragment key={i}>
+              <SidebarTabJobLogsHeaderItem header={"Start time"} headerValue={getJobRunTime(run)} />
+            </React.Fragment>
           ))}
         </div>
 
         <div className={styles.logOption}>
           {containers.map((container) => (
-            <SidebarTabJobLogsHeaderItem header={"Command"} headerValue={container} keyValue={container} />
+            <React.Fragment key={container}>
+              <SidebarTabJobLogsHeaderItem header={"Command"} headerValue={container} />
+            </React.Fragment>
           ))}
         </div>
         <div className={styles.logOption}>
