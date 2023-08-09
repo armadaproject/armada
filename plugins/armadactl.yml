@@ -3,7 +3,7 @@ kind: Plugin
 metadata:
   name: armadactl
 spec:
-  version: v0.3.8655
+  version: v0.3.88
   homepage: https://github.com/armadaproject/armada
   shortDescription: Command line utility to submit many jobs to armada
   description: |
