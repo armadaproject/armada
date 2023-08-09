@@ -235,13 +235,13 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
       <div className={styles.logsHeader}>
         <div className={styles.logOption}>
           {runsNewestFirst.map((run, i) => (
-            <SidebarTabJobLogsHeaderItem header={"Start time"} headerValue={getJobRunTime(run)} key={i} />
+            <SidebarTabJobLogsHeaderItem header={"Start time"} headerValue={getJobRunTime(run)} keyValue={i} />
           ))}
         </div>
 
         <div className={styles.logOption}>
           {containers.map((container) => (
-            <SidebarTabJobLogsHeaderItem header={"Command"} headerValue={container} key={container} />
+            <SidebarTabJobLogsHeaderItem header={"Command"} headerValue={container} keyValue={container} />
           ))}
         </div>
         <div className={styles.logOption}>
