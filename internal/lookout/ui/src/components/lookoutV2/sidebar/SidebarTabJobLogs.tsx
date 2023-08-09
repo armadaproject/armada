@@ -21,6 +21,10 @@ import { ILogService, LogLine } from "../../../services/lookoutV2/LogService"
 import { getErrorMessage, RequestStatus } from "../../../utils"
 import styles from "./SidebarTabJobLogs.module.css"
 import SidebarTabJobLogsHeaderItem from "./SidebarTabJobLogsHeaderItem"
+import { Link, useParams, useSearchParams } from "react-router-dom"
+import OpenInNewTwoToneIcon from "@mui/icons-material/OpenInNewTwoTone"
+import { useDispatch } from "react-redux"
+import { setJobLog } from "store/features/jobLogSlice"
 
 export interface SidebarTabJobLogsProps {
   job: Job
@@ -74,6 +78,7 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
   const [logsRequestStatus, setLogsRequestStatus] = useState<RequestStatus>("Idle")
   const [logsRequestError, setLogsRequestError] = useState<string | undefined>(undefined)
   const logsRequestErrorRef = useRef<string | undefined>(undefined)
+  const [param] = useSearchParams()
 
   const jobSpecState = useJobSpec(job, jobSpecService, openSnackbar)
 
@@ -229,7 +234,11 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
       <div className={styles.logsHeader}>
         <div className={styles.logOption}>
           {runsNewestFirst.map((run, i) => (
-            <SidebarTabJobLogsHeaderItem header={"Start time"} headerValue={getJobRunTime(run)} key={i} />
+            <>
+              <SidebarTabJobLogsHeaderItem header={"Start time"} headerValue={getJobRunTime(run)} key={i} />
+
+              {console.log(run, "This is run")}
+            </>
           ))}
         </div>
 
@@ -259,7 +268,7 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
           </button>
         </div>
       </div>
-      <LogView logLines={logs} showTimestamps={showTimestamps} />
+      <LogView logLines={logs} showTimestamps={showTimestamps} jobId={param.get("sb")} />
       <div className={styles.gutter}>
         {logsRequestStatus === "Loading" && (
           <div className={styles.loading}>
@@ -281,7 +290,15 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
   )
 }
 
-function LogView({ logLines, showTimestamps }: { logLines: LogLine[]; showTimestamps: boolean }) {
+function LogView({
+  logLines,
+  showTimestamps,
+  jobId,
+}: {
+  logLines: LogLine[]
+  showTimestamps: boolean
+  jobId: string | null
+}) {
   if (logLines.length === 0) {
     return (
       <div key={"EMPTY"} className={styles.emptyLogView}>
@@ -290,6 +307,7 @@ function LogView({ logLines, showTimestamps }: { logLines: LogLine[]; showTimest
     )
   }
 
+  const dispatch = useDispatch()
   const [shouldScrollDown, setShouldScrollDown] = useState<boolean>(true)
   const logsEndRef = useRef<HTMLDivElement>(null)
   const previousScrollTopRef = useRef<number | undefined>()
@@ -322,16 +340,26 @@ function LogView({ logLines, showTimestamps }: { logLines: LogLine[]; showTimest
     }
   }
 
+  const setJobLogState = () => {
+    dispatch(setJobLog(logLines))
+  }
+
+  useEffect(() => setJobLogState(), [logLines, showTimestamps])
   return (
-    <div className={styles.logView} onScroll={handleScroll}>
-      {logLines.map((logLine, i) => (
-        <span key={`${i}-${logLine.timestamp}`}>
-          {showTimestamps && <span className={styles.timestamp}>{logLine.timestamp}</span>}
-          {logLine.line + "\n"}
-        </span>
-      ))}
-      <div ref={logsEndRef} key={"END"} />
-    </div>
+    <>
+      <Link to={`/v2/jobLog/${jobId}`} target="_blank">
+        <OpenInNewTwoToneIcon style={{ color: "#00aae1", fontSize: "2em" }} />
+      </Link>
+      <div className={styles.logView} onScroll={handleScroll}>
+        {logLines.map((logLine, i) => (
+          <span key={`${i}-${logLine.timestamp}`}>
+            {showTimestamps && <span className={styles.timestamp}>{logLine.timestamp}</span>}
+            {logLine.line + "\n"}
+          </span>
+        ))}
+        <div ref={logsEndRef} key={"END"} />
+      </div>
+    </>
   )
 }
 
