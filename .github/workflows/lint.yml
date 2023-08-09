@@ -38,11 +38,11 @@ jobs:
            yarn run lint > lint_results.txt || true
            lint_results=$(cat lint_results.txt)
            echo -e "## 🪧 Typescript Lint Results\n" >> $GITHUB_STEP_SUMMARY
-           echo -e "* ### ✅ Checked out the repository\n" >> $GITHUB_STEP_SUMMARY
-           echo -e "* ### ✅ Set up tslint and dependencies\n" >> $GITHUB_STEP_SUMMARY
-           if [ ! -z "$lint_results" ]; then
-              echo -e "* ### ⌛ Typescript lint check Passed✅  | Failed❌ | Warning⚠️ \n" >> $GITHUB_STEP_SUMMARY
+           if [[ $lint_results =~ "problem" ]]; then
+              echo -e "### List of Lint Issues \n" >> $GITHUB_STEP_SUMMARY
               echo -e "${lint_results}" >> $GITHUB_STEP_SUMMARY
+           else
+              echo -e "### No Lint issues found.\n" >> $GITHUB_STEP_SUMMARY   
            fi   
         continue-on-error: true
 
@@ -72,15 +72,11 @@ jobs:
         run: |
           golangci-lint run > lint_results.txt || true
           lint_results=$(cat lint_results.txt)
-          echo -e "## 🪧 Golang Lint Results\n" >> $GITHUB_STEP_SUMMARY
-          echo -e "* ### ✅ Checked out the repository\n" >> $GITHUB_STEP_SUMMARY
-          echo -e "* ### ✅ Set up golint and cached dependencies\n" >> $GITHUB_STEP_SUMMARY
+          echo -e "## 🪧 Go Lint Results\n" >> $GITHUB_STEP_SUMMARY
           if [ -z "$lint_results" ]; then
-            echo -e "* ✅ Go lint check passed\n" >> $GITHUB_STEP_SUMMARY
-            echo -e "⚠️  No linting issues found.\n" >> $GITHUB_STEP_SUMMARY
+            echo -e "### No Lint Issues found\n" >> $GITHUB_STEP_SUMMARY
           else
-              echo -e "* ### ❌ Go lint check failed\n" >> $GITHUB_STEP_SUMMARY
+              echo -e "###  List of Lint Issues \n" >> $GITHUB_STEP_SUMMARY
               echo -e "${lint_results}" >> $GITHUB_STEP_SUMMARY
           fi
         continue-on-error: true
-
