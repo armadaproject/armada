@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=alpine:3.18.3
+ARG BASE_IMAGE=alpine:3.18.3.3
 
 FROM ${BASE_IMAGE}
 LABEL org.opencontainers.image.title=armada-server
