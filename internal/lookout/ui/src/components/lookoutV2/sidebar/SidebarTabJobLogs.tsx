@@ -1,31 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState, UIEvent } from "react"
 
 import { Refresh } from "@mui/icons-material"
-import {
-  Checkbox,
-  CircularProgress,
-  FormControl,
-  FormControlLabel,
-  FormGroup,
-  IconButton,
-  InputLabel,
-  MenuItem,
-  Select,
-} from "@mui/material"
+import OpenInNewTwoToneIcon from "@mui/icons-material/OpenInNewTwoTone"
+import { CircularProgress, IconButton } from "@mui/material"
 import { Job, JobRun } from "models/lookoutV2Models"
+import { useDispatch } from "react-redux"
+import { Link, useSearchParams } from "react-router-dom"
+import { setJobLog } from "store/features/jobLogSlice"
 
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { useJobSpec } from "../../../hooks/useJobSpec"
 import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
 import { ILogService, LogLine } from "../../../services/lookoutV2/LogService"
 import { getErrorMessage, RequestStatus } from "../../../utils"
+import ActionButton from "../ActionButton"
 import styles from "./SidebarTabJobLogs.module.css"
 import SidebarTabJobLogsHeaderItem from "./SidebarTabJobLogsHeaderItem"
-import { Link, useSearchParams } from "react-router-dom"
-import OpenInNewTwoToneIcon from "@mui/icons-material/OpenInNewTwoTone"
-import { useDispatch } from "react-redux"
-import { setJobLog } from "store/features/jobLogSlice"
-import ActionButton from "../ActionButton"
 
 export interface SidebarTabJobLogsProps {
   job: Job
@@ -70,7 +60,7 @@ const TIMEOUT = 1000
 export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTabJobLogsProps) => {
   const openSnackbar = useCustomSnackbar()
   const runsNewestFirst = useMemo(() => [...job.runs].reverse(), [job])
-  const [runIndex, setRunIndex] = useState(0)
+  const [runIndex] = useState(0)
   const [selectedContainer, setSelectedContainer] = useState("")
   const [loadFromStart, setLoadFromStart] = useState(false)
   const [showTimestamps, setShowTimestamps] = useState(false)
@@ -330,6 +320,7 @@ function LogView({
     }
   }
 
+  // Saving JobLog to State
   const setJobLogState = () => {
     dispatch(setJobLog(logLines))
   }

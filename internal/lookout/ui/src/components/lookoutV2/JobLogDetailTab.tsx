@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from "react"
+
 import { useSelector } from "react-redux"
 import { useNavigate } from "react-router-dom"
-import styles from "./JobLogDetailTab.module.css"
+
 import ActionButton from "./ActionButton"
+import styles from "./JobLogDetailTab.module.css"
 
 type JobLogDetailTabProps = {
   line: string
@@ -18,10 +20,13 @@ export default function JobLogDetailTab() {
   const [showTimestamps, setShowTimestamps] = useState<boolean>(false)
 
   const { jobLogSlice } = useSelector((state: JobDetailLogInterface) => state)
+  const [jobLogState, setJobLogState] = useState(jobLogSlice)
 
   useEffect(() => {
     if (!jobLogSlice) navigate("/")
-  }, [])
+
+    setJobLogState(jobLogSlice)
+  }, [jobLogSlice])
 
   return (
     <section className={styles.jobLogTabContainer}>
@@ -35,7 +40,7 @@ export default function JobLogDetailTab() {
           />
         </div>
         <div className={styles.logView}>
-          {jobLogSlice.map((logLine: JobLogDetailTabProps, i) => (
+          {jobLogState.map((logLine: JobLogDetailTabProps, i) => (
             <span key={`${i}-${logLine.timestamp}`}>
               {showTimestamps && <span className={styles.timestamp}>{logLine.timestamp}</span>}
               {logLine.line + "\n"}
