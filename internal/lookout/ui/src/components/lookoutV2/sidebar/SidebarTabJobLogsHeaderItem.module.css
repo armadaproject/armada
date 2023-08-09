@@ -2,6 +2,10 @@
   display: none;
 }
 
+.headerJobLog h4 {
+  color: rgba(0, 0, 0, 0.87);
+}
+
 @media screen and (max-width: 550px) {
   .headerJobLog {
     display: flex;

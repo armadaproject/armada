@@ -243,24 +243,20 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
             onClick={(e) => {
               setLoadFromStart((prevState) => !prevState)
             }}
+            className={styles.JobLogBtn}
           >
             Load from start
           </button>
         </div>
         <div className={styles.logOption}>
-          <FormGroup>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={showTimestamps}
-                  onChange={(e) => {
-                    setShowTimestamps(e.target.checked)
-                  }}
-                />
-              }
-              label="Show timestamps"
-            />
-          </FormGroup>
+          <button
+            onClick={(e) => {
+              setShowTimestamps((prevState) => !prevState)
+            }}
+            className={styles.JobLogBtn}
+          >
+            {showTimestamps ? "Hide timestamps" : "Show timestamps"}
+          </button>
         </div>
       </div>
       <LogView logLines={logs} showTimestamps={showTimestamps} />
