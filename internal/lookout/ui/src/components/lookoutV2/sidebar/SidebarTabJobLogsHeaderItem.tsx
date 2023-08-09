@@ -1,4 +1,5 @@
 import React from "react"
+import styles from "./SidebarTabJobLogsHeaderItem.module.css"
 
 type SidebarTabJobLogsHeaderItemProps = {
   header: string
@@ -7,10 +8,10 @@ type SidebarTabJobLogsHeaderItemProps = {
 
 export default function SidebarTabJobLogsHeaderItem(props: SidebarTabJobLogsHeaderItemProps) {
   return (
-    <div className="header-job-log">
+    <div className={styles.headerJobLog}>
       <h4>
         {props?.header}
-        <span className="header-job-log-divider"> : </span>
+        <span className={styles.headerJobLogDivider}> : </span>
       </h4>
       <div>{props?.headerValue} </div>
     </div>
