@@ -11,9 +11,8 @@ import (
 )
 
 func TestWatch(t *testing.T) {
-	// TODO there are no tests for invalid input because cobra silently discards those inputs without raising errors
 	tests := map[string]struct {
-		Flags               []flag
+		flags               []flag
 		raw                 bool
 		exit_if_inactive    bool
 		force_new_events    bool
@@ -29,7 +28,7 @@ func TestWatch(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			a := armadactl.New()
 			cmd := watchCmd()
-			for _, flag := range test.Flags {
+			for _, flag := range test.flags {
 				require.NoError(t, cmd.Flags().Set(flag.name, flag.value))
 			}
 			cmd.PreRunE = func(cmd *cobra.Command, args []string) error {
