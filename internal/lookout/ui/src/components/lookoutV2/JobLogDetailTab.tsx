@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react"
 import { useSelector } from "react-redux"
 import { useNavigate } from "react-router-dom"
 import styles from "./JobLogDetailTab.module.css"
+import ActionButton from "./ActionButton"
 
 type JobLogDetailTabProps = {
   line: string
@@ -23,16 +24,25 @@ export default function JobLogDetailTab() {
   }, [])
 
   return (
-    <div className="job-detail-log">
-      <h2 className="job-detail-log-header">V2 Job Log View</h2>
-      <div className={styles.logView}>
-        {jobLogSlice.map((logLine: JobLogDetailTabProps, i) => (
-          <span key={`${i}-${logLine.timestamp}`}>
-            {showTimestamps && <span className={styles.timestamp}>{logLine.timestamp}</span>}
-            {logLine.line + "\n"}
-          </span>
-        ))}
+    <section className={styles.jobLogTabContainer}>
+      <h2>Job Log View</h2>
+
+      <div>
+        <div className={styles.jobLogBtnContainer}>
+          <ActionButton
+            text={showTimestamps ? "Hide timestamps" : "Show timestamps"}
+            actionFunc={() => setShowTimestamps((prevState) => !prevState)}
+          />
+        </div>
+        <div className={styles.logView}>
+          {jobLogSlice.map((logLine: JobLogDetailTabProps, i) => (
+            <span key={`${i}-${logLine.timestamp}`}>
+              {showTimestamps && <span className={styles.timestamp}>{logLine.timestamp}</span>}
+              {logLine.line + "\n"}
+            </span>
+          ))}
+        </div>
       </div>
-    </div>
+    </section>
   )
 }

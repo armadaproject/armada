@@ -21,10 +21,11 @@ import { ILogService, LogLine } from "../../../services/lookoutV2/LogService"
 import { getErrorMessage, RequestStatus } from "../../../utils"
 import styles from "./SidebarTabJobLogs.module.css"
 import SidebarTabJobLogsHeaderItem from "./SidebarTabJobLogsHeaderItem"
-import { Link, useParams, useSearchParams } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import OpenInNewTwoToneIcon from "@mui/icons-material/OpenInNewTwoTone"
 import { useDispatch } from "react-redux"
 import { setJobLog } from "store/features/jobLogSlice"
+import ActionButton from "../ActionButton"
 
 export interface SidebarTabJobLogsProps {
   job: Job
@@ -234,11 +235,7 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
       <div className={styles.logsHeader}>
         <div className={styles.logOption}>
           {runsNewestFirst.map((run, i) => (
-            <>
-              <SidebarTabJobLogsHeaderItem header={"Start time"} headerValue={getJobRunTime(run)} key={i} />
-
-              {console.log(run, "This is run")}
-            </>
+            <SidebarTabJobLogsHeaderItem header={"Start time"} headerValue={getJobRunTime(run)} key={i} />
           ))}
         </div>
 
@@ -248,24 +245,13 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
           ))}
         </div>
         <div className={styles.logOption}>
-          <button
-            onClick={(e) => {
-              setLoadFromStart((prevState) => !prevState)
-            }}
-            className={styles.JobLogBtn}
-          >
-            Load from start
-          </button>
+          <ActionButton text="Load from start" actionFunc={() => setLoadFromStart((prevState) => !prevState)} />
         </div>
         <div className={styles.logOption}>
-          <button
-            onClick={(e) => {
-              setShowTimestamps((prevState) => !prevState)
-            }}
-            className={styles.JobLogBtn}
-          >
-            {showTimestamps ? "Hide timestamps" : "Show timestamps"}
-          </button>
+          <ActionButton
+            text={showTimestamps ? "Hide timestamps" : "Show timestamps"}
+            actionFunc={() => setShowTimestamps((prevState) => !prevState)}
+          />
         </div>
       </div>
       <LogView logLines={logs} showTimestamps={showTimestamps} jobId={param.get("sb")} />
@@ -346,8 +332,8 @@ function LogView({
 
   useEffect(() => setJobLogState(), [logLines, showTimestamps])
   return (
-    <>
-      <Link to={`/v2/jobLog/${jobId}`} target="_blank">
+    <section className={styles.logViewContainer}>
+      <Link to={`/v2/jobLog/${jobId}`} target="_blank" className={styles.logViewNewTab}>
         <OpenInNewTwoToneIcon style={{ color: "#00aae1", fontSize: "2em" }} />
       </Link>
       <div className={styles.logView} onScroll={handleScroll}>
@@ -359,7 +345,7 @@ function LogView({
         ))}
         <div ref={logsEndRef} key={"END"} />
       </div>
-    </>
+    </section>
   )
 }
 

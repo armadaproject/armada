@@ -1,0 +1,18 @@
+.actionBtn {
+  outline: none;
+  border: none;
+  background-color: #00aae1;
+  padding: 0.7rem 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  cursor: pointer;
+  font-weight: bold;
+  border-radius: 4px;
+  box-shadow: rgba(0, 0, 0, 0.1) 0px 4px 6px -1px, rgba(0, 0, 0, 0.06) 0px 2px 4px -1px;
+}
+
+.actionBtn:hover {
+  background-color: #00769d;
+}

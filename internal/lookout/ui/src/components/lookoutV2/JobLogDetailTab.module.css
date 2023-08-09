@@ -1,4 +1,6 @@
 .timestamp {
+  background-color: #e0e0e0;
+  margin-right: 10px;
 }
 
 .logView {
@@ -14,4 +16,19 @@
   overflow-y: auto;
   overflow-x: auto;
   padding: 15px 0 15px 15px;
+}
+
+.jobLogTabContainer {
+  padding: 1.5rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.jobLogTabContainer h2 {
+  text-align: center;
+}
+
+.jobLogBtnContainer {
+  margin-bottom: 1rem;
 }
