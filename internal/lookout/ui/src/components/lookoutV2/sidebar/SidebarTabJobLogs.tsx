@@ -20,6 +20,7 @@ import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecServic
 import { ILogService, LogLine } from "../../../services/lookoutV2/LogService"
 import { getErrorMessage, RequestStatus } from "../../../utils"
 import styles from "./SidebarTabJobLogs.module.css"
+import SidebarTabJobLogsHeaderItem from "./SidebarTabJobLogsHeaderItem"
 
 export interface SidebarTabJobLogsProps {
   job: Job
@@ -227,81 +228,24 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
       )}
       <div className={styles.logsHeader}>
         <div className={styles.logOption}>
-          <FormControl
-            variant="standard"
-            style={{
-              width: "100%",
-            }}
-          >
-            <InputLabel id="select-job-run-label">Job Run</InputLabel>
-            <Select
-              labelId="select-job-run-label"
-              variant="standard"
-              disabled={runsNewestFirst.length === 0}
-              value={runIndex}
-              size="small"
-              onChange={(e) => {
-                const index = e.target.value as number
-                setRunIndex(index)
-              }}
-              style={{
-                maxWidth: "300px",
-              }}
-            >
-              {runsNewestFirst.map((run, i) => (
-                <MenuItem value={i} key={i}>
-                  {getJobRunTime(run)}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
+          {runsNewestFirst.map((run, i) => (
+            <SidebarTabJobLogsHeaderItem header={"Start time"} headerValue={getJobRunTime(run)} key={i} />
+          ))}
+        </div>
+
+        <div className={styles.logOption}>
+          {containers.map((container) => (
+            <SidebarTabJobLogsHeaderItem header={"Command"} headerValue={container} key={container} />
+          ))}
         </div>
         <div className={styles.logOption}>
-          <FormControl
-            variant="standard"
-            style={{
-              width: "100%",
+          <button
+            onClick={(e) => {
+              setLoadFromStart((prevState) => !prevState)
             }}
           >
-            <InputLabel id="select-container-label">Container</InputLabel>
-            {
-              <Select
-                labelId="select-container-label"
-                variant="standard"
-                value={selectedContainer}
-                displayEmpty={true}
-                onChange={(e) => {
-                  const container = e.target.value as string
-                  setSelectedContainer(container)
-                }}
-                size="small"
-                style={{
-                  maxWidth: "250px",
-                }}
-              >
-                {containers.map((container) => (
-                  <MenuItem value={container} key={container}>
-                    {container}
-                  </MenuItem>
-                ))}
-              </Select>
-            }
-          </FormControl>
-        </div>
-        <div className={styles.logOption}>
-          <FormGroup>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={loadFromStart}
-                  onChange={(e) => {
-                    setLoadFromStart(e.target.checked)
-                  }}
-                />
-              }
-              label="Load from start"
-            />
-          </FormGroup>
+            Load from start
+          </button>
         </div>
         <div className={styles.logOption}>
           <FormGroup>
