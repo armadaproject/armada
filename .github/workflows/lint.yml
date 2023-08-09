@@ -74,7 +74,7 @@ jobs:
           lint_results=$(cat lint_results.txt)
           echo -e "## 🪧 Go Lint Results\n" >> $GITHUB_STEP_SUMMARY
           if [ -z "$lint_results" ]; then
-            echo -e "### No Lint Issues found\n" >> $GITHUB_STEP_SUMMARY
+            echo -e "### No Lint Issues found.\n" >> $GITHUB_STEP_SUMMARY
           else
               echo -e "###  List of Lint Issues \n" >> $GITHUB_STEP_SUMMARY
               echo -e "${lint_results}" >> $GITHUB_STEP_SUMMARY
