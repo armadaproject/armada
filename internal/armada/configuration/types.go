@@ -107,6 +107,8 @@ type DatabaseConfig struct {
 }
 
 type SchedulingConfig struct {
+	// Set to true to disable scheduling
+	DisableScheduling bool
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
 	// If true, schedule jobs across all executors in the same pool in a unified manner.
@@ -216,6 +218,8 @@ type SchedulingConfig struct {
 	MaxUnacknowledgedJobsPerExecutor uint
 	// If true, do not during scheduling skip jobs with requirements known to be impossible to meet.
 	AlwaysAttemptScheduling bool
+	// The frequency at which the scheduler updates the cluster state.
+	ExecutorUpdateFrequency time.Duration
 }
 
 // FairnessModel controls how fairness is computed.
