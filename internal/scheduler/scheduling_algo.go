@@ -384,10 +384,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		l.schedulingConfig.Preemption.NodeEvictionProbability,
 		l.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
 		l.schedulingConfig.Preemption.ProtectedFractionOfFairShare,
-		&schedulerJobRepositoryAdapter{
-			txn: fsctx.txn,
-			db:  fsctx.jobDb,
-		},
+		NewSchedulerJobRepositoryAdapter(fsctx.jobDb, fsctx.txn),
 		nodeDb,
 		fsctx.nodeIdByJobId,
 		fsctx.jobIdsByGangId,
@@ -429,14 +426,23 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 }
 
 // Adapter to make jobDb implement the JobRepository interface.
-type schedulerJobRepositoryAdapter struct {
+//
+// TODO: Pass JobDb into the scheduler instead of using this shim to convert to a JobRepo.
+type SchedulerJobRepositoryAdapter struct {
 	db  *jobdb.JobDb
 	txn *jobdb.Txn
 }
 
+func NewSchedulerJobRepositoryAdapter(db *jobdb.JobDb, txn *jobdb.Txn) *SchedulerJobRepositoryAdapter {
+	return &SchedulerJobRepositoryAdapter{
+		db:  db,
+		txn: txn,
+	}
+}
+
 // GetQueueJobIds is necessary to implement the JobRepository interface, which we need while transitioning from the old
 // to new scheduler.
-func (repo *schedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]string, error) {
+func (repo *SchedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]string, error) {
 	rv := make([]string, 0)
 	it := repo.db.QueuedJobs(repo.txn, queue)
 	for v, _ := it.Next(); v != nil; v, _ = it.Next() {
@@ -447,7 +453,7 @@ func (repo *schedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]strin
 
 // GetExistingJobsByIds is necessary to implement the JobRepository interface which we need while transitioning from the
 // old to new scheduler.
-func (repo *schedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([]interfaces.LegacySchedulerJob, error) {
+func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([]interfaces.LegacySchedulerJob, error) {
 	rv := make([]interfaces.LegacySchedulerJob, 0, len(ids))
 	for _, id := range ids {
 		if job := repo.db.GetById(repo.txn, id); job != nil {
