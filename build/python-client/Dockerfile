@@ -1,4 +1,4 @@
-ARG PYTHON_VERSION=3.10
+ARG PYTHON_VERSION=3.8.15
 
 FROM --platform=x86_64 python:${PYTHON_VERSION}-buster
 
