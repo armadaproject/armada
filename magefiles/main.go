@@ -183,7 +183,7 @@ func LocalDev(arg string) error {
 	case "no-build", "debug":
 		mg.Deps(Kind, downloadDependencyImages)
 	default:
-		return errors.Errorf("invalid argument for Localdev: %s", arg)
+		return fmt.Errorf("invalid argument: %s Please enter one the following argument: minimal, minimal-pulsar, full, no-build, debug ", arg)
 	}
 
 	mg.Deps(StartDependencies)
