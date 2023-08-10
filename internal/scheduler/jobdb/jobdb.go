@@ -97,7 +97,7 @@ func (jobDb *JobDb) GetAll(txn *Txn) []*Job {
 }
 
 // BatchDelete deletes the jobs with the given ids from the database.
-// Any ids not in the database re ignored.
+// Any ids not in the database are ignored.
 func (jobDb *JobDb) BatchDelete(txn *Txn, ids []string) error {
 	if err := jobDb.checkWritableTransaction(txn); err != nil {
 		return err
