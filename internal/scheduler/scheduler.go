@@ -219,13 +219,6 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 		if err != nil {
 			return err
 		}
-		for _, job := range ScheduledJobsFromSchedulerResult[*jobdb.Job](overallSchedulerResult) {
-			job = job.WithQueuedVersion(job.QueuedVersion() + 1)
-			job = job.WithQueued(false)
-			if err := s.jobDb.Upsert(txn, []*jobdb.Job{job}); err != nil {
-				return err
-			}
-		}
 		resultEvents, err := s.eventsFromSchedulerResult(txn, overallSchedulerResult)
 		if err != nil {
 			return err
