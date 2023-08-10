@@ -39,7 +39,13 @@ func Airflow(arg string) error {
 func startAirflow() error {
 	fmt.Println("Starting airflow...")
 
-	err := sh.Run("mkdir", "-p", "developer/airflow/opt")
+	// Remove developer/airflow/opt
+	err := sh.Run("rm", "-rf", "developer/airflow/opt/")
+	if err != nil {
+		return err
+	}
+
+	err = sh.Run("mkdir", "-p", "developer/airflow/opt")
 	if err != nil {
 		return err
 	}
@@ -85,7 +91,7 @@ func AirflowOperator() error {
 		return fmt.Errorf("failed to create proto-airflow directory: %w", err)
 	}
 
-	err = dockerRun("buildx", "build", "-o", "type=docker", "-t", "armada-airflow-operator-builder", "-f", "./build/airflow-operator/Dockerfile", ".")
+	err = dockerRun("buildx", "build", "-o", "type=docker", "--network=host", "-t", "armada-airflow-operator-builder", "-f", "./build/airflow-operator/Dockerfile", ".")
 	if err != nil {
 		return fmt.Errorf("failed to build Airflow Operator: %w", err)
 	}

@@ -27,6 +27,9 @@ executorApiConnection:
 apiConnection:
   armadaUrl: "server:50051"
   forceNoTls: false
+  basicAuth:
+    Username: armada-user
+    Password: armada-pass
 client:
   maxMessageSizeBytes: 8388608 # 1024 * 1024 * 8
 metric:

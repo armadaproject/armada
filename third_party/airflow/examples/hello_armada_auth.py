@@ -12,6 +12,21 @@ from armada_client.armada import (
 )
 
 import pendulum
+import base64
+import grpc
+
+
+class GrpcBasicAuth(grpc.AuthMetadataPlugin):
+    def __init__(self, username: str, password: str):
+        self._username = username
+        self._password = password
+        super().__init__()
+
+    def __call__(self, context, callback):
+        b64encoded_auth = base64.b64encode(
+            bytes(f"{self._username}:{self._password}", "utf-8")
+        ).decode("ascii")
+        callback((("authorization", f"basic {b64encoded_auth}"),), None)
 
 
 def submit_sleep_job():
@@ -52,10 +67,11 @@ def submit_sleep_job():
 
 
 """
-This is an example of a Airflow dag that uses a BashOperator and an ArmadaOperator
+This is an example of a Airflow dag that
+uses a BashOperator and an ArmadaOperator
 """
 with DAG(
-    dag_id="hello_armada",
+    dag_id="hello_armada_auth",
     start_date=pendulum.datetime(2016, 1, 1, tz="UTC"),
     schedule_interval="@daily",
     catchup=False,
@@ -65,7 +81,17 @@ with DAG(
     The ArmadaOperator requires grpc.channel arguments for armada and
     the jobservice.
     """
-    armada_channel_args = {"target": "server:50051"}
+    channel_credentials = grpc.local_channel_credentials()
+
+    armada_channel_args = {
+        "target": "http://server:50051",
+        "credentials": grpc.composite_channel_credentials(
+            channel_credentials,
+            grpc.metadata_call_credentials(
+                GrpcBasicAuth(username="armada-user", password="armada-pass")
+            ),
+        ),
+    }
     job_service_channel_args = {"target": "jobservice:60003"}
 
     """

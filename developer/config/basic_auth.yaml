@@ -1,0 +1,20 @@
+auth:
+  basicAuth:
+    enableAuthentication: true
+    users:
+      armada-user:
+        password: armada-pass
+        groups: ["armada-user"]
+  anonymousAuth: false
+  permissionGroupMapping:
+    submit_jobs: ["armada-user"]
+    submit_any_jobs: ["armada-user"]
+    create_queue: ["armada-user"]
+    delete_queue: ["armada-user"]
+    cancel_jobs: ["armada-user"]
+    cancel_any_jobs: ["armada-user"]
+    reprioritize_jobs: ["armada-user"]
+    reprioritize_any_jobs: ["armada-user"]
+    watch_events: ["armada-user"]
+    watch_all_events: ["armada-user"]
+    execute_jobs: ["armada-user"]

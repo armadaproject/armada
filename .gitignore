@@ -94,6 +94,7 @@ build/ssl/certs/ca-certificates.crt
 developer/volumes/go/pkg/
 .coverage
 coverage.xml
+.venv
 
 # Yarn
 developer/yarn.lock
