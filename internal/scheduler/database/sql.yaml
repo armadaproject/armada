@@ -8,7 +8,7 @@ sql:
       go:
         out: "."
         package: "database"
-        sql_package: "pgx/v4"
+        sql_package: "pgx/v5"
         emit_prepared_queries: true
         emit_db_tags: true
         emit_interface: false

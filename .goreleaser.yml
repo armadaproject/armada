@@ -47,6 +47,33 @@ builds:
     goarch:
       - amd64
   - env: [CGO_ENABLED=0]
+    id: armadaloadtester
+    binary: armada-load-tester
+    main: ./cmd/armada-load-tester/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: pulsartest
+    binary: pulsartest
+    main: ./cmd/pulsartest/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: testsuite
+    binary: testsuite
+    main: ./cmd/testsuite/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
     id: binoculars
     binary: binoculars
     main: ./cmd/binoculars/main.go
@@ -199,8 +226,7 @@ dockers:
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
-      - --label=org.opencontainers.image.base.name=alpine:3.17.0
-      - --label=org.opencontainers.image.base.digest=c0d488a800e4
+      - --label=org.opencontainers.image.base.name=alpine:3.18.3
       - --label=org.opencontainers.image.licenses=Apache-2.0
       - --label=org.opencontainers.image.vendor=G-Research
     ids:
@@ -328,6 +354,30 @@ dockers:
     extra_files:
       - config/executor/config.yaml
     dockerfile: ./build_goreleaser/fakeexecutor/Dockerfile
+
+  - id: armadaloadtester
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-loadtester:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-loadtester:{{ .Version }}"
+    build_flag_templates: *BUILD_FLAG_TEMPLATES
+    ids:
+      - armadaloadtester
+    dockerfile: ./build_goreleaser/loadtester/Dockerfile
+
+  - id: testsuite
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-testsuite:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-testsuite:{{ .Version }}"
+    build_flag_templates: *BUILD_FLAG_TEMPLATES
+    ids:
+      - testsuite
+    dockerfile: ./build_goreleaser/testsuite/Dockerfile
 
   - id: lookoutingester
     use: buildx
