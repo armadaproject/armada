@@ -31,7 +31,7 @@ func DeleteQueue(submitClient api.SubmitClient, name string) error {
 	return e
 }
 
-func SubmitJobs(submitClient api.SubmitClient, request *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
+func SubmitJobs(submitClient api.CustomSubmitClient, request *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 	AddClientIds(request.JobRequestItems)
 	ctx, cancel := common.ContextWithDefaultTimeout()
 	defer cancel()
