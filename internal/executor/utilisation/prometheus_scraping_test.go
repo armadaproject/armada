@@ -2,7 +2,7 @@ package utilisation
 
 import (
 	"errors"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -157,7 +157,7 @@ func makeTestResponse() *http.Response {
 func makeResponse(header http.Header, body string) *http.Response {
 	response := http.Response{
 		Header: header,
-		Body:   ioutil.NopCloser(strings.NewReader((body))),
+		Body:   io.NopCloser(strings.NewReader((body))),
 	}
 	return &response
 }
