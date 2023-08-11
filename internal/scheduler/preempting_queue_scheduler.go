@@ -21,6 +21,7 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 )
 
@@ -803,6 +804,13 @@ func (evi *Evictor) Evict(ctx context.Context, it nodedb.NodeIterator) (*Evictor
 		if err != nil {
 			return nil, err
 		}
+
+		for i, evictedJob := range evictedJobs {
+			if dbJob, ok := evictedJob.(*jobdb.Job); ok {
+				evictedJobs[i] = dbJob.DeepCopy()
+			}
+		}
+
 		for _, job := range evictedJobs {
 			evictedJobsById[job.GetId()] = job
 			nodeIdByJobId[job.GetId()] = node.Id
