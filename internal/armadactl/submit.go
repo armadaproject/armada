@@ -35,7 +35,7 @@ func (a *App) Submit(path string, dryRun bool) error {
 		c := api.CustomSubmitClient{Inner: originalClient}
 
 		for _, request := range requests {
-			response, err := client.SubmitJobs(c, request)
+			response, err := client.CustomClientSubmitJobs(c, request)
 			if err != nil {
 				if response != nil {
 					fmt.Fprintln(a.Out, "[JobSubmitResponse]")
