@@ -835,6 +835,7 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 				Error: fmt.Sprintf("[createJobs] job %d in job set %s contains no podSpec", i, request.JobSetId),
 			}
 			responseItems = append(responseItems, response)
+			continue // Safety check, to avoid possible nil pointer dereference below
 		}
 		if err := validation.ValidateJobSubmitRequestItem(item); err != nil {
 			response := &api.JobSubmitResponseItem{
