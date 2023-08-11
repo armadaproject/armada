@@ -55,6 +55,25 @@ const (
 	Missing
 )
 
+func (r RunPhase) String() string {
+	switch r {
+	case Invalid:
+		return "invalid"
+	case Leased:
+		return "leased"
+	case SuccessfulSubmission:
+		return "successful-submission"
+	case FailedSubmission:
+		return "failed-submission"
+	case Active:
+		return "active"
+	case Missing:
+		return "missing"
+	default:
+		return "unknown"
+	}
+}
+
 type RunState struct {
 	Meta                    *RunMeta
 	Job                     *SubmitJob

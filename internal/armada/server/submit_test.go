@@ -23,6 +23,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	schedulertypes "github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -1637,7 +1638,7 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 		MaxPodSpecSizeBytes: 65535,
 		Preemption: configuration.PreemptionConfig{
 			DefaultPriorityClass: "high",
-			PriorityClasses:      map[string]configuration.PriorityClass{"high": {0, false, nil, nil}},
+			PriorityClasses:      map[string]schedulertypes.PriorityClass{"high": {0, false, nil, nil}},
 		},
 		MinTerminationGracePeriod: time.Duration(30 * time.Second),
 		MaxTerminationGracePeriod: time.Duration(300 * time.Second),

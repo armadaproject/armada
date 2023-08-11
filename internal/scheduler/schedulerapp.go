@@ -29,6 +29,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
@@ -124,7 +125,7 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating auth services")
 	}
-	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls)
 	defer grpcServer.GracefulStop()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Grpc.Port))
 	if err != nil {
@@ -137,7 +138,7 @@ func Run(config schedulerconfig.Configuration) error {
 		executorRepository,
 		legacyExecutorRepository,
 		allowedPcs,
-		config.Scheduling.MaximumJobsToSchedule,
+		config.MaxJobsLeasedPerCall,
 		config.Scheduling.Preemption.NodeIdLabel,
 		config.Scheduling.Preemption.PriorityClassNameOverride,
 		config.Pulsar.MaxAllowedMessageSize,
@@ -172,8 +173,23 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating submit checker")
 	}
-	// TODO(reports): Pass in a non-nil SchedulingContextRepository.
-	schedulingAlgo, err := NewFairSchedulingAlgo(config.Scheduling, config.MaxSchedulingDuration, executorRepository, queueRepository, nil)
+
+	schedulingContextRepository, err := NewSchedulingContextRepository(config.Scheduling.MaxJobSchedulingContextsPerExecutor)
+	if err != nil {
+		return errors.WithMessage(err, "error creating scheduling context repository")
+	}
+
+	leaderClientConnectionProvider := NewLeaderConnectionProvider(leaderController, config.Leader)
+	schedulingReportServer := NewLeaderProxyingSchedulingReportsServer(schedulingContextRepository, leaderClientConnectionProvider)
+	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportServer)
+
+	schedulingAlgo, err := NewFairSchedulingAlgo(
+		config.Scheduling,
+		config.MaxSchedulingDuration,
+		executorRepository,
+		queueRepository,
+		schedulingContextRepository,
+	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
 	}

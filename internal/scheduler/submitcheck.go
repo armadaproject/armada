@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/types"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -43,7 +43,7 @@ type SubmitScheduleChecker interface {
 
 type SubmitChecker struct {
 	executorTimeout           time.Duration
-	priorityClasses           map[string]configuration.PriorityClass
+	priorityClasses           map[string]types.PriorityClass
 	gangIdAnnotation          string
 	executorById              map[string]minimalExecutor
 	priorities                []int32
@@ -55,6 +55,7 @@ type SubmitChecker struct {
 	mu                        sync.Mutex
 	schedulingKeyGenerator    *schedulerobjects.SchedulingKeyGenerator
 	jobSchedulingResultsCache *lru.Cache
+	ExecutorUpdateFrequency   time.Duration
 }
 
 func NewSubmitChecker(
@@ -79,23 +80,14 @@ func NewSubmitChecker(
 		clock:                     clock.RealClock{},
 		schedulingKeyGenerator:    schedulerobjects.NewSchedulingKeyGenerator(),
 		jobSchedulingResultsCache: jobSchedulingResultsCache,
+		ExecutorUpdateFrequency:   schedulingConfig.ExecutorUpdateFrequency,
 	}
 }
 
 func (srv *SubmitChecker) Run(ctx context.Context) error {
 	srv.updateExecutors(ctx)
 
-	var ticker *time.Ticker
-	intervalStr, set := os.LookupEnv("EXECUTOR_UPDATE_INTERVAL")
-	if !set {
-		intervalStr = "1m"
-	}
-
-	interval, err := time.ParseDuration(strings.TrimSpace(intervalStr))
-	if err != nil {
-		return err
-	}
-	ticker = time.NewTicker(interval)
+	ticker := time.NewTicker(srv.ExecutorUpdateFrequency)
 	for {
 		select {
 		case <-ctx.Done():

@@ -1,6 +1,11 @@
-from armada.jobservice import jobservice_pb2_grpc, jobservice_pb2
+from armada.jobservice import (
+    jobservice_pb2_grpc,
+    jobservice_pb2,
+)
+from armada.operators.jobservice import default_jobservice_channel_options
 
 import grpc
+from typing import Optional
 
 from google.protobuf import empty_pb2
 
@@ -42,3 +47,34 @@ class JobServiceAsyncIOClient:
         """Health Check for GRPC Request"""
         response = await self.job_stub.Health(request=empty_pb2.Empty())
         return response
+
+
+def get_retryable_job_service_asyncio_client(
+    target: str,
+    credentials: Optional[grpc.ChannelCredentials],
+    compression: Optional[grpc.Compression],
+) -> JobServiceAsyncIOClient:
+    """
+    Get a JobServiceAsyncIOClient that has retry configured
+
+    :param target: grpc channel target
+    :param credentials: grpc channel credentials (if needed)
+    :param compresion: grpc channel compression
+
+    :return: A job service asyncio client instance
+    """
+    channel = None
+    if credentials is None:
+        channel = grpc.aio.insecure_channel(
+            target=target,
+            options=default_jobservice_channel_options,
+            compression=compression,
+        )
+    else:
+        channel = grpc.aio.secure_channel(
+            target=target,
+            credentials=credentials,
+            options=default_jobservice_channel_options,
+            compression=compression,
+        )
+    return JobServiceAsyncIOClient(channel)

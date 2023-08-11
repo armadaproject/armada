@@ -68,6 +68,9 @@ func (o *GetJobs) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 // swagger:model GetJobsBody
 type GetJobsBody struct {
 
+	// Only include jobs in active job sets
+	ActiveJobSets bool `json:"activeJobSets,omitempty"`
+
 	// Filters to apply to jobs.
 	// Required: true
 	Filters []*models.Filter `json:"filters"`

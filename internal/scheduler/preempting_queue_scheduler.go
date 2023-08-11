@@ -16,10 +16,12 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/types"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 )
 
@@ -295,7 +297,6 @@ func (sch *PreemptingQueueScheduler) evict(ctx context.Context, evictor *Evictor
 	if evictor == nil {
 		return &EvictorResult{}, NewInMemoryJobRepository(sch.schedulingContext.PriorityClasses), nil
 	}
-	log := ctxlogrus.Extract(ctx)
 	txn := sch.nodeDb.Txn(true)
 	defer txn.Abort()
 
@@ -340,9 +341,6 @@ func (sch *PreemptingQueueScheduler) evict(ctx context.Context, evictor *Evictor
 	}
 	if err := sch.evictionAssertions(result.EvictedJobsById, result.AffectedNodesById); err != nil {
 		return nil, nil, err
-	}
-	if s := JobsSummary(evictedJobs); s != "" {
-		log.Infof("evicted %d jobs on nodes %v; %s", len(evictedJobs), maps.Keys(result.AffectedNodesById), s)
 	}
 	inMemoryJobRepo := NewInMemoryJobRepository(sch.schedulingContext.PriorityClasses)
 	inMemoryJobRepo.EnqueueMany(evictedJobs)
@@ -652,7 +650,7 @@ func (sch *PreemptingQueueScheduler) assertions(
 
 type Evictor struct {
 	jobRepo         JobRepository
-	priorityClasses map[string]configuration.PriorityClass
+	priorityClasses map[string]types.PriorityClass
 	nodeFilter      func(context.Context, *nodedb.Node) bool
 	jobFilter       func(context.Context, interfaces.LegacySchedulerJob) bool
 	postEvictFunc   func(context.Context, interfaces.LegacySchedulerJob, *nodedb.Node)
@@ -669,7 +667,7 @@ type EvictorResult struct {
 
 func NewNodeEvictor(
 	jobRepo JobRepository,
-	priorityClasses map[string]configuration.PriorityClass,
+	priorityClasses map[string]types.PriorityClass,
 	perNodeEvictionProbability float64,
 	jobFilter func(context.Context, interfaces.LegacySchedulerJob) bool,
 	random *rand.Rand,
@@ -695,7 +693,7 @@ func NewNodeEvictor(
 // on nodes for which nodeIdsToEvict[nodeId] is true.
 func NewFilteredEvictor(
 	jobRepo JobRepository,
-	priorityClasses map[string]configuration.PriorityClass,
+	priorityClasses map[string]types.PriorityClass,
 	nodeIdsToEvict map[string]bool,
 	jobIdsToEvict map[string]bool,
 ) *Evictor {
@@ -722,7 +720,7 @@ func NewFilteredEvictor(
 // with probability perNodeEvictionProbability.
 func NewOversubscribedEvictor(
 	jobRepo JobRepository,
-	priorityClasses map[string]configuration.PriorityClass,
+	priorityClasses map[string]types.PriorityClass,
 	defaultPriorityClass string,
 	perNodeEvictionProbability float64,
 	random *rand.Rand,
@@ -806,6 +804,13 @@ func (evi *Evictor) Evict(ctx context.Context, it nodedb.NodeIterator) (*Evictor
 		if err != nil {
 			return nil, err
 		}
+
+		for i, evictedJob := range evictedJobs {
+			if dbJob, ok := evictedJob.(*jobdb.Job); ok {
+				evictedJobs[i] = dbJob.DeepCopy()
+			}
+		}
+
 		for _, job := range evictedJobs {
 			evictedJobsById[job.GetId()] = job
 			nodeIdByJobId[job.GetId()] = node.Id

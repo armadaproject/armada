@@ -38,12 +38,30 @@ var DefaultConfiguration = &configuration.JobServiceConfiguration{
 		InitialConnections: 5,
 		Capacity:           5,
 	},
-	SubscriberPoolSize: 30,
+	SubscriberPoolSize:     30,
+	SubscriptionExpirySecs: 300,
+	PurgeJobSetTime:        600,
 }
 
 // Mutates config where possible to correct mis-configurations.
 func RectifyConfig(config *configuration.JobServiceConfiguration) {
 	logger := log.WithField("JobService", "RectifyConfig")
+
+	if config.SubscriptionExpirySecs == 0 {
+		logger.WithFields(log.Fields{
+			"default":    DefaultConfiguration.SubscriptionExpirySecs,
+			"configured": config.SubscriptionExpirySecs,
+		}).Warn("config.SubscriptionExpirySecs invalid, using default instead")
+		config.SubscriptionExpirySecs = DefaultConfiguration.SubscriptionExpirySecs
+	}
+
+	if config.PurgeJobSetTime == 0 {
+		logger.WithFields(log.Fields{
+			"default":    DefaultConfiguration.PurgeJobSetTime,
+			"configured": config.PurgeJobSetTime,
+		}).Warn("config.PurgeJobSetTime invalid, using default instead")
+		config.PurgeJobSetTime = DefaultConfiguration.PurgeJobSetTime
+	}
 
 	// Grpc Pool
 	if config.GrpcPool.InitialConnections <= 0 {
@@ -93,6 +111,7 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 		config.Grpc.KeepaliveParams,
 		config.Grpc.KeepaliveEnforcementPolicy,
 		[]authorization.AuthService{&authorization.AnonymousAuthService{}},
+		config.Grpc.Tls,
 	)
 
 	err, sqlJobRepo, dbCallbackFn := repository.NewSQLJobService(config, log)
@@ -104,7 +123,8 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	jobService := server.NewJobService(config, sqlJobRepo)
 	js.RegisterJobServiceServer(grpcServer, jobService)
 
-	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.GrpcPort))
+	lc := net.ListenConfig{}
+	lis, err := lc.Listen(ctx, "tcp", fmt.Sprintf(":%d", config.GrpcPort))
 	if err != nil {
 		return err
 	}
@@ -138,10 +158,19 @@ func (a *App) StartUp(ctx context.Context, config *configuration.JobServiceConfi
 	g.Go(func() error {
 		defer log.Infof("stopping server.")
 
+		go func() {
+			select {
+			case <-ctx.Done():
+				log.Info("Got context done for grpc server.")
+				grpcServer.Stop()
+			}
+		}()
+
 		log.Info("jobservice service listening on ", config.GrpcPort)
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatalf("failed to serve: %v", err)
 		}
+
 		return nil
 	})
 	g.Go(func() error {

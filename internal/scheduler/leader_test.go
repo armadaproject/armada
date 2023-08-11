@@ -107,7 +107,7 @@ func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 			// Run the test
 			controller := NewKubernetesLeaderController(testLeaderConfig(), client)
 			testListener := NewTestLeaseListener(controller)
-			controller.listener = testListener
+			controller.RegisterListener(testListener)
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			go func() {
 				err := controller.Run(ctx)

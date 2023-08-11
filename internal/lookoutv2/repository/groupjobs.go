@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/database"
@@ -49,6 +49,7 @@ func NewSqlGroupJobsRepository(db *pgxpool.Pool) *SqlGroupJobsRepository {
 func (r *SqlGroupJobsRepository) GroupBy(
 	ctx context.Context,
 	filters []*model.Filter,
+	activeJobSets bool,
 	order *model.Order,
 	groupedField *model.GroupedField,
 	aggregates []string,
@@ -58,12 +59,12 @@ func (r *SqlGroupJobsRepository) GroupBy(
 	var groups []*model.JobGroup
 	var count int
 
-	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
 		AccessMode:     pgx.ReadOnly,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-		countQuery, err := NewQueryBuilder(r.lookoutTables).CountGroups(filters, groupedField)
+		countQuery, err := NewQueryBuilder(r.lookoutTables).CountGroups(filters, activeJobSets, groupedField)
 		if err != nil {
 			return err
 		}
@@ -76,7 +77,7 @@ func (r *SqlGroupJobsRepository) GroupBy(
 		if err != nil {
 			return err
 		}
-		groupByQuery, err := NewQueryBuilder(r.lookoutTables).GroupBy(filters, order, groupedField, aggregates, skip, take)
+		groupByQuery, err := NewQueryBuilder(r.lookoutTables).GroupBy(filters, activeJobSets, order, groupedField, aggregates, skip, take)
 		if err != nil {
 			return err
 		}

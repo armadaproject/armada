@@ -19,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -158,7 +159,10 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			// and we must invalidate the held leader token to trigger flushing Pulsar at the next cycle.
 			//
 			// TODO: Once the Pulsar client supports transactions, we can guarantee consistency even in case of errors.
-			if err := s.cycle(ctx, fullUpdate, leaderToken); err != nil {
+
+			shouldSchedule := s.clock.Now().Sub(s.previousSchedulingRoundEnd) > s.schedulePeriod
+
+			if err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule); err != nil {
 				logging.WithStacktrace(log, err).Error("scheduling cycle failure")
 				leaderToken = InvalidLeaderToken()
 			}
@@ -174,7 +178,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 // cycle is a single iteration of the main scheduling loop.
 // If updateAll is true, we generate events from all jobs in the jobDb.
 // Otherwise, we only generate events from jobs updated since the last cycle.
-func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken LeaderToken) error {
+func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) error {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("function", "cycle")
 	// Update job state.
@@ -210,7 +214,7 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	events = append(events, expirationEvents...)
 
 	// Schedule jobs.
-	if s.clock.Now().Sub(s.previousSchedulingRoundEnd) > s.schedulePeriod {
+	if shouldSchedule {
 		overallSchedulerResult, err := s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
 		if err != nil {
 			return err
@@ -305,11 +309,11 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*jobdb.Job, error) {
 	}
 
 	jobsToUpdate := maps.Values(jobsToUpdateById)
-	err = s.jobDb.BatchDelete(txn, jobsToDelete)
+	err = s.jobDb.Upsert(txn, jobsToUpdate)
 	if err != nil {
 		return nil, err
 	}
-	err = s.jobDb.Upsert(txn, jobsToUpdate)
+	err = s.jobDb.BatchDelete(txn, jobsToDelete)
 	if err != nil {
 		return nil, err
 	}
@@ -337,7 +341,7 @@ func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job
 
 	for _, run := range job.AllRuns() {
 		if run.RunAttempted() {
-			err := affinity.AddNodeAntiAffinity(newAffinity, s.nodeIdLabel, run.Node())
+			err := affinity.AddNodeAntiAffinity(newAffinity, s.nodeIdLabel, run.NodeName())
 			if err != nil {
 				return nil, err
 			}
@@ -440,10 +444,12 @@ func (s *Scheduler) eventsFromSchedulerResult(txn *jobdb.Txn, result *SchedulerR
 						Created: s.now(),
 						Event: &armadaevents.EventSequence_Event_JobRunLeased{
 							JobRunLeased: &armadaevents.JobRunLeased{
-								RunId:                armadaevents.ProtoUuidFromUuid(job.LatestRun().Id()),
-								JobId:                jobId,
-								ExecutorId:           job.LatestRun().Executor(),
-								NodeId:               job.LatestRun().Node(),
+								RunId:      armadaevents.ProtoUuidFromUuid(job.LatestRun().Id()),
+								JobId:      jobId,
+								ExecutorId: job.LatestRun().Executor(),
+								// NodeId here refers to the unique identifier of the node in an executor cluster,
+								// which is referred to as the NodeName within the scheduler.
+								NodeId:               job.LatestRun().NodeName(),
 								UpdateSequenceNumber: job.QueuedVersion(),
 							},
 						},
@@ -594,6 +600,12 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 							},
 						},
 					}
+				}
+				if runError == nil {
+					panic(
+						fmt.Sprintf("No run error found for run %s (job id = %s), this must mean we're out of sync with the database",
+							lastRun.Id().String(), job.Id()),
+					)
 				}
 				jobErrors := &armadaevents.EventSequence_Event{
 					Created: s.now(),
@@ -835,11 +847,13 @@ func (s *Scheduler) schedulerJobFromDatabaseJob(dbJob *database.Job) (*jobdb.Job
 
 // createSchedulerRun creates a new scheduler job run from a database job run
 func (s *Scheduler) createSchedulerRun(dbRun *database.Run) *jobdb.JobRun {
+	nodeId := api.NodeIdFromExecutorAndNodeName(dbRun.Executor, dbRun.Node)
 	return jobdb.CreateRun(
 		dbRun.RunID,
 		dbRun.JobID,
 		dbRun.Created,
 		s.stringInterner.Intern(dbRun.Executor),
+		s.stringInterner.Intern(nodeId),
 		s.stringInterner.Intern(dbRun.Node),
 		dbRun.Running,
 		dbRun.Succeeded,

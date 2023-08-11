@@ -7,6 +7,7 @@ import (
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	"github.com/armadaproject/armada/internal/common/config"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 const (
@@ -50,6 +51,8 @@ type Configuration struct {
 	DatabaseFetchSize int `validate:"required"`
 	// Timeout to use when sending messages to pulsar
 	PulsarSendTimeout time.Duration `validate:"required"`
+	// Maximum jobs to return from a single lease call
+	MaxJobsLeasedPerCall uint `validate:"required"`
 }
 
 type LeaderConfig struct {
@@ -68,6 +71,8 @@ type LeaderConfig struct {
 	RenewDeadline time.Duration
 	// RetryPeriod is the duration the LeaderElector clients should waite between tries of actions.
 	RetryPeriod time.Duration
+	// Connection details to the leader
+	LeaderConnection client.ApiConnectionDetails
 }
 
 type HttpConfig struct {
