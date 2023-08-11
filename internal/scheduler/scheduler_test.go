@@ -104,6 +104,15 @@ var leasedJob = jobdb.NewJob(
 	false,
 	1).WithQueued(false).WithNewRun("testExecutor", "test-node", "node")
 
+var defaultJobRunError = &armadaevents.Error{
+	Terminal: true,
+	Reason: &armadaevents.Error_PodError{
+		PodError: &armadaevents.PodError{
+			Message: "generic pod error",
+		},
+	},
+}
+
 var leasedFailFastJob = jobdb.NewJob(
 	util.NewULID(),
 	"testJobset",
@@ -151,29 +160,30 @@ var (
 // Test a single scheduler cycle
 func TestScheduler_TestCycle(t *testing.T) {
 	tests := map[string]struct {
-		initialJobs                      []*jobdb.Job      // jobs in the jobdb at the start of the cycle
-		jobUpdates                       []database.Job    // job updates from the database
-		runUpdates                       []database.Run    // run updates from the database
-		staleExecutor                    bool              // if true then the executorRepository will report the executor as stale
-		fetchError                       bool              // if true then the jobRepository will throw an error
-		scheduleError                    bool              // if true then the schedulingalgo will throw an error
-		publishError                     bool              // if true the publisher will throw an error
-		submitCheckerFailure             bool              // if true the submit checker will say the job is unschedulable
-		expectedJobRunLeased             []string          // ids of jobs we expect to have produced leased messages
-		expectedJobRunErrors             []string          // ids of jobs we expect to have produced jobRunErrors messages
-		expectedJobErrors                []string          // ids of jobs we expect to have produced jobErrors messages
-		expectedJobRunPreempted          []string          // ids of jobs we expect to have produced jobRunPreempted messages
-		expectedJobCancelled             []string          // ids of jobs we expect to have  produced cancelled messages
-		expectedJobReprioritised         []string          // ids of jobs we expect to have  produced reprioritised messages
-		expectedQueued                   []string          // ids of jobs we expect to have  produced requeued messages
-		expectedJobSucceeded             []string          // ids of jobs we expect to have  produced succeeeded messages
-		expectedLeased                   []string          // ids of jobs we expected to be leased in jobdb at the end of the cycle
-		expectedRequeued                 []string          // ids of jobs we expected to be requeued in jobdb at the end of the cycle
-		expectedTerminal                 []string          // ids of jobs we expected to be terminal in jobdb at the end of the cycle
-		expectedJobPriority              map[string]uint32 // expected priority of jobs at the end of the cycle
-		expectedNodeAntiAffinities       []string          // list of nodes there is expected to be anti affinities for on job scheduling info
-		expectedJobSchedulingInfoVersion int               // expected scheduling info version of jobs at the end of the cycle
-		expectedQueuedVersion            int32             // expected queued version of jobs atthe end of the cycle
+		initialJobs                      []*jobdb.Job                      // jobs in the jobdb at the start of the cycle
+		jobUpdates                       []database.Job                    // job updates from the database
+		runUpdates                       []database.Run                    // run updates from the database
+		jobRunErrors                     map[uuid.UUID]*armadaevents.Error // job run errors in the database
+		staleExecutor                    bool                              // if true then the executorRepository will report the executor as stale
+		fetchError                       bool                              // if true then the jobRepository will throw an error
+		scheduleError                    bool                              // if true then the scheduling algo will throw an error
+		publishError                     bool                              // if true the publisher will throw an error
+		submitCheckerFailure             bool                              // if true the submit checker will say the job is unschedulable
+		expectedJobRunLeased             []string                          // ids of jobs we expect to have produced leased messages
+		expectedJobRunErrors             []string                          // ids of jobs we expect to have produced jobRunErrors messages
+		expectedJobErrors                []string                          // ids of jobs we expect to have produced jobErrors messages
+		expectedJobRunPreempted          []string                          // ids of jobs we expect to have produced jobRunPreempted messages
+		expectedJobCancelled             []string                          // ids of jobs we expect to have  produced cancelled messages
+		expectedJobReprioritised         []string                          // ids of jobs we expect to have  produced reprioritised messages
+		expectedQueued                   []string                          // ids of jobs we expect to have  produced requeued messages
+		expectedJobSucceeded             []string                          // ids of jobs we expect to have  produced succeeeded messages
+		expectedLeased                   []string                          // ids of jobs we expected to be leased in jobdb at the end of the cycle
+		expectedRequeued                 []string                          // ids of jobs we expected to be requeued in jobdb at the end of the cycle
+		expectedTerminal                 []string                          // ids of jobs we expected to be terminal in jobdb at the end of the cycle
+		expectedJobPriority              map[string]uint32                 // expected priority of jobs at the end of the cycle
+		expectedNodeAntiAffinities       []string                          // list of nodes there is expected to be anti affinities for on job scheduling info
+		expectedJobSchedulingInfoVersion int                               // expected scheduling info version of jobs at the end of the cycle
+		expectedQueuedVersion            int32                             // expected queued version of jobs at the end of the cycle
 	}{
 		"Lease a single job already in the db": {
 			initialJobs:           []*jobdb.Job{queuedJob},
@@ -400,6 +410,9 @@ func TestScheduler_TestCycle(t *testing.T) {
 					Serial:   1,
 				},
 			},
+			jobRunErrors: map[uuid.UUID]*armadaevents.Error{
+				leasedJob.LatestRun().Id(): defaultJobRunError,
+			},
 			expectedJobErrors:     []string{leasedJob.Id()},
 			expectedTerminal:      []string{leasedJob.Id()},
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
@@ -455,6 +468,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			jobRepo := &testJobRepository{
 				updatedJobs: tc.jobUpdates,
 				updatedRuns: tc.runUpdates,
+				errors:      tc.jobRunErrors,
 				shouldError: tc.fetchError,
 			}
 			testClock := clock.NewFakeClock(time.Now())

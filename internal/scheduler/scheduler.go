@@ -233,9 +233,11 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	isLeader := func() bool {
 		return s.leaderController.ValidateToken(leaderToken)
 	}
+	start := s.clock.Now()
 	if err := s.publisher.PublishMessages(ctx, events, isLeader); err != nil {
 		return err
 	}
+	log.Infof("published %d events to pulsar in %s", len(events), s.clock.Since(start))
 	txn.Commit()
 	return nil
 }
@@ -245,11 +247,12 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*jobdb.Job, error) {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("function", "syncState")
 
+	start := s.clock.Now()
 	updatedJobs, updatedRuns, err := s.jobRepository.FetchJobUpdates(ctx, s.jobsSerial, s.runsSerial)
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("received %d updated jobs and %d updated job runs", len(updatedJobs), len(updatedRuns))
+	log.Infof("received %d updated jobs and %d updated job runs in %s", len(updatedJobs), len(updatedRuns), s.clock.Since(start))
 
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
@@ -605,6 +608,12 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 							},
 						},
 					}
+				}
+				if runError == nil {
+					panic(
+						fmt.Sprintf("No run error found for run %s (job id = %s), this must mean we're out of sync with the database",
+							lastRun.Id().String(), job.Id()),
+					)
 				}
 				jobErrors := &armadaevents.EventSequence_Event{
 					Created: s.now(),
