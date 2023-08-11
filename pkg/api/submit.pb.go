@@ -7,7 +7,6 @@ import (
 	context "context"
 	encoding_binary "encoding/binary"
 	fmt "fmt"
-	"google.golang.org/grpc/status"
 	io "io"
 	math "math"
 	math_bits "math/bits"
@@ -21,6 +20,7 @@ import (
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -1817,7 +1817,6 @@ func (c *submitClient) UpdateQueue(ctx context.Context, in *Queue, opts ...grpc.
 		return nil, err
 	}
 	return out, nil
-
 }
 
 func (c *submitClient) UpdateQueues(ctx context.Context, in *QueueList, opts ...grpc.CallOption) (*BatchQueueUpdateResponse, error) {
