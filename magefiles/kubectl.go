@@ -53,7 +53,7 @@ func kubectlCheck() error {
 		return errors.Errorf("error parsing constraint: %v", err)
 	}
 	if !constraint.Check(version) {
-		return errors.Errorf("found version %v but it failed constaint %v", version, constraint)
+		return errors.Errorf("found version %v but it failed constraint %v", version, constraint)
 	}
 	return nil
 }
