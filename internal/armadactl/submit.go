@@ -31,7 +31,9 @@ func (a *App) Submit(path string, dryRun bool) error {
 	}
 
 	requests := client.CreateChunkedSubmitRequests(submitFile.Queue, submitFile.JobSetId, submitFile.Jobs)
-	return client.WithSubmitClient(a.Params.ApiConnectionDetails, func(c api.SubmitClient) error {
+	return client.WithSubmitClient(a.Params.ApiConnectionDetails, func(originalClient api.SubmitClient) error {
+		c := api.CustomSubmitClient{Inner: originalClient}
+
 		for _, request := range requests {
 			response, err := client.SubmitJobs(c, request)
 			if err != nil {
