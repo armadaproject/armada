@@ -604,6 +604,12 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 						},
 					}
 				}
+				if runError == nil {
+					panic(
+						fmt.Sprintf("No run error found for run %s (job id = %s), this must mean we're out of sync with the database",
+							lastRun.Id().String(), job.Id()),
+					)
+				}
 				jobErrors := &armadaevents.EventSequence_Event{
 					Created: s.now(),
 					Event: &armadaevents.EventSequence_Event_JobErrors{
