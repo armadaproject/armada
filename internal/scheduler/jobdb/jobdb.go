@@ -35,7 +35,7 @@ func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 	}
 	for _, job := range jobs {
 		existingJob, ok := txn.jobsById.Get(job.id)
-		if !ok {
+		if ok {
 			existingQueue, ok := txn.jobsByQueue[existingJob.queue]
 			if ok {
 				txn.jobsByQueue[existingJob.queue] = existingQueue.Delete(existingJob)
