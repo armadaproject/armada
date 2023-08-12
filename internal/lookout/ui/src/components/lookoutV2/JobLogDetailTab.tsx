@@ -12,7 +12,14 @@ type JobLogDetailTabProps = {
 }
 
 interface JobDetailLogInterface {
-  jobLogSlice: JobLogDetailTabProps[]
+  jobLogSlice: {
+    jobLog: { line: string; timestamp: string }[] | []
+    loginfo: {
+      runId: string
+      jobRun: string
+      container: string
+    }
+  }
 }
 
 export default function JobLogDetailTab() {
@@ -40,7 +47,7 @@ export default function JobLogDetailTab() {
           />
         </div>
         <div className={styles.logView}>
-          {jobLogState.map((logLine: JobLogDetailTabProps, i) => (
+          {jobLogState?.jobLog.map((logLine: JobLogDetailTabProps, i) => (
             <span key={`${i}-${logLine.timestamp}`}>
               {showTimestamps && <span className={styles.timestamp}>{logLine.timestamp}</span>}
               {logLine.line + "\n"}

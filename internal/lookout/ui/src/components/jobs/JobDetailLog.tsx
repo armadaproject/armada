@@ -10,7 +10,14 @@ type JobDetailLogProps = {
 }
 
 interface JobDetailLogInterface {
-  jobLogSlice: JobDetailLogProps[]
+  jobLogSlice: {
+    jobLog: { line: string; timestamp: string }[] | []
+    loginfo: {
+      runId: string
+      jobRun: string
+      container: string
+    }
+  }
 }
 
 export default function JobDetailLog() {
@@ -26,7 +33,7 @@ export default function JobDetailLog() {
     <div className="job-detail-log">
       <h2 className="job-detail-log-header">Job Log View</h2>
       <div>
-        {jobLogSlice.map((l: JobDetailLogProps) => (
+        {jobLogSlice?.jobLog.map((l: JobDetailLogProps) => (
           <p key={l?.timestamp}>{l?.line} </p>
         ))}
       </div>

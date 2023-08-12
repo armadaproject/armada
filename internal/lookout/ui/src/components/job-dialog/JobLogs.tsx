@@ -33,7 +33,7 @@ export default function JobLogs(props: JobLogsProps) {
   const dispatch = useDispatch()
 
   const setJobLogState = () => {
-    dispatch(setJobLog(props?.log))
+    dispatch(setJobLog({ jobLog: [...props?.log], loginfo: { runId: "", jobRun: "", container: "" } }))
   }
 
   useEffect(() => setJobLogState(), [props?.log])

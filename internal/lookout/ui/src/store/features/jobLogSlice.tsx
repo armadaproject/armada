@@ -1,23 +1,34 @@
 import { PayloadAction, createSlice } from "@reduxjs/toolkit"
 
 type JobDetailLogProps = {
-  line: string
-  timestamp: string
+  jobLog: { line: string; timestamp: string }[] | []
+  loginfo: {
+    runId: string
+    jobRun: string
+    container: string
+  }
 }
 
-const initialState = [
-  {
-    line: "",
-    timestamp: "",
+const initialState = {
+  jobLog: [
+    {
+      line: "",
+      timestamp: "",
+    },
+  ],
+  loginfo: {
+    runId: "",
+    jobRun: "",
+    container: "",
   },
-]
+}
 
 const jobLogSlice = createSlice({
   name: "jobLogSlice",
   initialState,
   reducers: {
-    setJobLog(state, action: PayloadAction<JobDetailLogProps[]>) {
-      return [...action.payload]
+    setJobLog(state, action: PayloadAction<JobDetailLogProps>) {
+      return { jobLog: [...action.payload?.jobLog], loginfo: action.payload?.loginfo }
     },
   },
 })

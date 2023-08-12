@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState, UIEvent } from "react"
 
 import { Refresh } from "@mui/icons-material"
 import OpenInNewTwoToneIcon from "@mui/icons-material/OpenInNewTwoTone"
-import { CircularProgress, IconButton } from "@mui/material"
+import { CircularProgress, FormControl, IconButton, InputLabel, MenuItem, Select } from "@mui/material"
 import { Job, JobRun } from "models/lookoutV2Models"
 import { useDispatch } from "react-redux"
 import { Link, useSearchParams } from "react-router-dom"
@@ -15,12 +15,18 @@ import { ILogService, LogLine } from "../../../services/lookoutV2/LogService"
 import { getErrorMessage, RequestStatus } from "../../../utils"
 import ActionButton from "../ActionButton"
 import styles from "./SidebarTabJobLogs.module.css"
-import SidebarTabJobLogsHeaderItem from "./SidebarTabJobLogsHeaderItem"
 
 export interface SidebarTabJobLogsProps {
   job: Job
   jobSpecService: IGetJobSpecService
   logService: ILogService
+}
+
+// Interface for job log info state
+interface JobLogInfoProps {
+  runId: string
+  jobRun: string
+  container: string
 }
 
 function getContainers(jobSpec: Record<string, any> | undefined): string[] {
@@ -60,7 +66,7 @@ const TIMEOUT = 1000
 export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTabJobLogsProps) => {
   const openSnackbar = useCustomSnackbar()
   const runsNewestFirst = useMemo(() => [...job.runs].reverse(), [job])
-  const [runIndex] = useState(0)
+  const [runIndex, setRunIndex] = useState(0)
   const [selectedContainer, setSelectedContainer] = useState("")
   const [loadFromStart, setLoadFromStart] = useState(false)
   const [showTimestamps, setShowTimestamps] = useState(false)
@@ -69,6 +75,7 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
   const [logsRequestStatus, setLogsRequestStatus] = useState<RequestStatus>("Idle")
   const [logsRequestError, setLogsRequestError] = useState<string | undefined>(undefined)
   const logsRequestErrorRef = useRef<string | undefined>(undefined)
+  const [jobLogInfo, setJobLoginfo] = useState<JobLogInfoProps>({ runId: "", jobRun: "", container: "" })
   const [param] = useSearchParams()
 
   const jobSpecState = useJobSpec(job, jobSpecService, openSnackbar)
@@ -84,6 +91,7 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
   }
 
   const containers = useMemo(() => getContainers(jobSpecState.jobSpec), [job, jobSpecState])
+
   const namespace = useMemo(() => {
     if (jobSpecState.jobSpec === undefined) {
       return ""
@@ -197,6 +205,18 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
 
     refresh()
 
+    //  Job Log info
+    setJobLoginfo({
+      runId: runsNewestFirst[runIndex]?.runId,
+      jobRun:
+        (runsNewestFirst[runIndex]?.started
+          ? runsNewestFirst[runIndex]?.started
+          : runsNewestFirst[runIndex]?.pending
+          ? runsNewestFirst[runIndex]?.pending
+          : runsNewestFirst[runIndex]?.leased) ?? "",
+      container: selectedContainer,
+    })
+
     return () => {
       setLogsRequestErrorFull(undefined)
       clearTimeout(timeoutRef.current)
@@ -224,19 +244,67 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
       )}
       <div className={styles.logsHeader}>
         <div className={styles.logOption}>
-          {runsNewestFirst.map((run, i) => (
-            <React.Fragment key={i}>
-              <SidebarTabJobLogsHeaderItem header={"Start time"} headerValue={getJobRunTime(run)} />
-            </React.Fragment>
-          ))}
+          <FormControl
+            variant="standard"
+            style={{
+              width: "100%",
+            }}
+          >
+            <InputLabel id="select-job-run-label">Job Run</InputLabel>
+            <Select
+              labelId="select-job-run-label"
+              variant="standard"
+              disabled={runsNewestFirst.length === 0}
+              value={runIndex}
+              size="small"
+              onChange={(e) => {
+                const index = e.target.value as number
+                setRunIndex(index)
+              }}
+              style={{
+                maxWidth: "300px",
+              }}
+            >
+              {runsNewestFirst.map((run, i) => (
+                <MenuItem value={i} key={i}>
+                  {getJobRunTime(run)}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
         </div>
 
         <div className={styles.logOption}>
-          {containers.map((container) => (
-            <React.Fragment key={container}>
-              <SidebarTabJobLogsHeaderItem header={"Command"} headerValue={container} />
-            </React.Fragment>
-          ))}
+          <FormControl
+            variant="standard"
+            style={{
+              width: "100%",
+            }}
+          >
+            <InputLabel id="select-container-label">Container</InputLabel>
+            {
+              <Select
+                labelId="select-container-label"
+                variant="standard"
+                value={selectedContainer}
+                displayEmpty={true}
+                onChange={(e) => {
+                  const container = e.target.value as string
+                  setSelectedContainer(container)
+                }}
+                size="small"
+                style={{
+                  maxWidth: "250px",
+                }}
+              >
+                {containers.map((container) => (
+                  <MenuItem value={container} key={container}>
+                    {container}
+                  </MenuItem>
+                ))}
+              </Select>
+            }
+          </FormControl>
         </div>
         <div className={styles.logOption}>
           <ActionButton text="Load from start" actionFunc={() => setLoadFromStart((prevState) => !prevState)} />
@@ -248,7 +316,7 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
           />
         </div>
       </div>
-      <LogView logLines={logs} showTimestamps={showTimestamps} jobId={param.get("sb")} />
+      <LogView logLines={logs} showTimestamps={showTimestamps} jobId={param.get("sb")} jobLogInfo={jobLogInfo} />
       <div className={styles.gutter}>
         {logsRequestStatus === "Loading" && (
           <div className={styles.loading}>
@@ -274,10 +342,12 @@ function LogView({
   logLines,
   showTimestamps,
   jobId,
+  jobLogInfo,
 }: {
   logLines: LogLine[]
   showTimestamps: boolean
   jobId: string | null
+  jobLogInfo: JobLogInfoProps
 }) {
   if (logLines.length === 0) {
     return (
@@ -322,7 +392,7 @@ function LogView({
 
   // Saving JobLog to State
   const setJobLogState = () => {
-    dispatch(setJobLog(logLines))
+    dispatch(setJobLog({ jobLog: [...logLines], loginfo: { ...jobLogInfo, jobRun: jobLogInfo?.jobRun } }))
   }
 
   useEffect(() => setJobLogState(), [logLines, showTimestamps])
