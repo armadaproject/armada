@@ -98,14 +98,14 @@ func readEnvironmentLogFormat() log.Formatter {
 	}
 	switch strings.ToLower(formatStr) {
 	case "json":
-		return &log.JSONFormatter{}
+		return &log.JSONFormatter{TimestampFormat: time.RFC3339Nano}
 	case "colourful":
-		return &log.TextFormatter{ForceColors: true, FullTimestamp: true}
+		return &log.TextFormatter{ForceColors: true, FullTimestamp: true, TimestampFormat: time.RFC3339Nano}
 	case "text":
-		return &log.TextFormatter{DisableColors: true, FullTimestamp: true}
+		return &log.TextFormatter{DisableColors: true, FullTimestamp: true, TimestampFormat: time.RFC3339Nano}
 	default:
 		println(os.Stderr, fmt.Sprintf("Unknown log format %s, defaulting to colourful format", formatStr))
-		return &log.TextFormatter{ForceColors: true, FullTimestamp: true}
+		return &log.TextFormatter{ForceColors: true, FullTimestamp: true, TimestampFormat: time.RFC3339Nano}
 	}
 }
 
