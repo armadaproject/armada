@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react"
 
 import { useSelector } from "react-redux"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useParams } from "react-router-dom"
 
 import ActionButton from "./ActionButton"
 import styles from "./JobLogDetailTab.module.css"
@@ -24,8 +24,8 @@ interface JobDetailLogInterface {
 
 export default function JobLogDetailTab() {
   const navigate = useNavigate()
+  const { id } = useParams()
   const [showTimestamps, setShowTimestamps] = useState<boolean>(false)
-
   const { jobLogSlice } = useSelector((state: JobDetailLogInterface) => state)
   const [jobLogState, setJobLogState] = useState(jobLogSlice)
 
@@ -37,7 +37,26 @@ export default function JobLogDetailTab() {
 
   return (
     <section className={styles.jobLogTabContainer}>
-      <h2>Job Log View</h2>
+      <div className={styles.jobLogTabHeaderContainer}>
+        <div>
+          <h4>Job Id</h4>
+          {id}
+        </div>
+        <div>
+          <h4>Start Time</h4>
+          {jobLogSlice?.loginfo?.jobRun}
+        </div>
+
+        <div>
+          <h4>Job Run Id</h4>
+          {jobLogSlice?.loginfo?.runId}
+        </div>
+
+        <div>
+          <h4>Container</h4>
+          {jobLogSlice?.loginfo?.container}
+        </div>
+      </div>
 
       <div>
         <div className={styles.jobLogBtnContainer}>

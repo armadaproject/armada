@@ -25,8 +25,11 @@
   gap: 2rem;
 }
 
-.jobLogTabContainer h2 {
-  text-align: center;
+.jobLogTabHeaderContainer {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-column-gap: 1.3rem;
+  grid-row-gap: 1rem;
 }
 
 .jobLogBtnContainer {
