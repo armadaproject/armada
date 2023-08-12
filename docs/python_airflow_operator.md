@@ -22,7 +22,7 @@ Airflow operators inherit from BaseOperator.
 
 * **Parameters**
 
-
+    
     * **name** (*str*) – The name of the airflow task
 
 
@@ -53,7 +53,7 @@ Airflow operators inherit from BaseOperator.
 
 * **Returns**
 
-  an armada operator instance
+    an armada operator instance
 
 
 
@@ -65,19 +65,19 @@ Runs an Armada job and calls the job_service_client for polling.
 
 * **Parameters**
 
-  **context** – The airflow context.
+    **context** – The airflow context.
 
 
 
 * **Returns**
 
-  None
+    None
 
 
 
 * **Return type**
 
-  None
+    None
 
 
 
@@ -89,7 +89,7 @@ This mutates the attributes in-place and is irreversible.
 
 * **Parameters**
 
-
+    
     * **context** (*Context*) – Context dict with values to apply on content.
 
 
@@ -99,7 +99,7 @@ This mutates the attributes in-place and is irreversible.
 
 * **Return type**
 
-  None
+    None
 
 
 
@@ -124,7 +124,7 @@ Airflow operators inherit from BaseOperator.
 
 * **Parameters**
 
-
+    
     * **name** (*str*) – The name of the airflow task.
 
 
@@ -155,7 +155,7 @@ Airflow operators inherit from BaseOperator.
 
 * **Returns**
 
-  A deferrable armada operator instance.
+    A deferrable armada operator instance.
 
 
 
@@ -168,19 +168,19 @@ until the job completes.
 
 * **Parameters**
 
-  **context** – The airflow context.
+    **context** – The airflow context.
 
 
 
 * **Returns**
 
-  None
+    None
 
 
 
 * **Return type**
 
-  None
+    None
 
 
 
@@ -192,7 +192,7 @@ This mutates the attributes in-place and is irreversible.
 
 * **Parameters**
 
-
+    
     * **context** (*Context*) – Context dict with values to apply on content.
 
 
@@ -202,7 +202,7 @@ This mutates the attributes in-place and is irreversible.
 
 * **Return type**
 
-  None
+    None
 
 
 
@@ -215,7 +215,7 @@ Reports the result of the job and returns.
 
 * **Parameters**
 
-
+    
     * **context** – The airflow context.
 
 
@@ -229,13 +229,13 @@ Reports the result of the job and returns.
 
 * **Returns**
 
-  None
+    None
 
 
 
 * **Return type**
 
-  None
+    None
 
 
 
@@ -251,7 +251,7 @@ Triggers when the job is complete.
 
 * **Parameters**
 
-
+    
     * **job_id** (*str*) – The job ID to monitor.
 
 
@@ -272,7 +272,7 @@ Triggers when the job is complete.
 
 * **Returns**
 
-  An armada job complete trigger instance.
+    An armada job complete trigger instance.
 
 
 
@@ -286,13 +286,13 @@ Returns the information needed to reconstruct this Trigger.
 
 * **Returns**
 
-  Tuple of (class path, keyword arguments needed to re-instantiate).
+    Tuple of (class path, keyword arguments needed to re-instantiate).
 
 
 
 * **Return type**
 
-  tuple
+    tuple
 
 
 ## armada.operators.jobservice module
@@ -308,15 +308,15 @@ Implementation of gRPC stubs from JobService
 
 * **Parameters**
 
-  **channel** – gRPC channel used for authentication. See
-  [https://grpc.github.io/grpc/python/grpc.html](https://grpc.github.io/grpc/python/grpc.html)
-  for more information.
+    **channel** – gRPC channel used for authentication. See
+    [https://grpc.github.io/grpc/python/grpc.html](https://grpc.github.io/grpc/python/grpc.html)
+    for more information.
 
 
 
 * **Returns**
 
-  a job service client instance
+    a job service client instance
 
 
 
@@ -328,7 +328,7 @@ Uses the GetJobStatus rpc to get a status of your job
 
 * **Parameters**
 
-
+    
     * **queue** (*str*) – The name of the queue
 
 
@@ -341,13 +341,13 @@ Uses the GetJobStatus rpc to get a status of your job
 
 * **Returns**
 
-  A Job Service Request (State, Error)
+    A Job Service Request (State, Error)
 
 
 
 * **Return type**
 
-  *JobServiceResponse*
+    *JobServiceResponse*
 
 
 
@@ -357,7 +357,7 @@ Health Check for GRPC Request
 
 * **Return type**
 
-  *HealthCheckResponse*
+    *HealthCheckResponse*
 
 
 
@@ -367,7 +367,7 @@ Get a JobServiceClient that has retry configured
 
 * **Parameters**
 
-
+    
     * **target** (*str*) – grpc channel target
 
 
@@ -383,13 +383,13 @@ Get a JobServiceClient that has retry configured
 
 * **Returns**
 
-  A job service client instance
+    A job service client instance
 
 
 
 * **Return type**
 
-  *JobServiceClient*
+    *JobServiceClient*
 
 
 ## armada.operators.jobservice_asyncio module
@@ -405,15 +405,15 @@ AsyncIO implementation of gRPC stubs from JobService
 
 * **Parameters**
 
-  **channel** (*Channel*) – AsyncIO gRPC channel used for authentication. See
-  [https://grpc.github.io/grpc/python/grpc_asyncio.html](https://grpc.github.io/grpc/python/grpc_asyncio.html)
-  for more information.
+    **channel** (*Channel*) – AsyncIO gRPC channel used for authentication. See
+    [https://grpc.github.io/grpc/python/grpc_asyncio.html](https://grpc.github.io/grpc/python/grpc_asyncio.html)
+    for more information.
 
 
 
 * **Returns**
 
-  A job service client instance
+    A job service client instance
 
 
 
@@ -425,7 +425,7 @@ Uses the GetJobStatus rpc to get a status of your job
 
 * **Parameters**
 
-
+    
     * **queue** (*str*) – The name of the queue
 
 
@@ -438,13 +438,13 @@ Uses the GetJobStatus rpc to get a status of your job
 
 * **Returns**
 
-  A Job Service Request (State, Error)
+    A Job Service Request (State, Error)
 
 
 
 * **Return type**
 
-  *JobServiceResponse*
+    *JobServiceResponse*
 
 
 
@@ -454,7 +454,7 @@ Health Check for GRPC Request
 
 * **Return type**
 
-  *HealthCheckResponse*
+    *HealthCheckResponse*
 
 
 
@@ -464,7 +464,7 @@ Get a JobServiceAsyncIOClient that has retry configured
 
 * **Parameters**
 
-
+    
     * **target** (*str*) – grpc channel target
 
 
@@ -480,13 +480,13 @@ Get a JobServiceAsyncIOClient that has retry configured
 
 * **Returns**
 
-  A job service asyncio client instance
+    A job service asyncio client instance
 
 
 
 * **Return type**
 
-  *JobServiceAsyncIOClient*
+    *JobServiceAsyncIOClient*
 
 
 ## armada.operators.utils module
@@ -520,7 +520,7 @@ Throw an error on a terminal event if job errored out
 
 * **Parameters**
 
-
+    
     * **job_state** (*JobState*) – A JobState enum class
 
 
@@ -533,7 +533,7 @@ Throw an error on a terminal event if job errored out
 
 * **Returns**
 
-  No Return or an AirflowFailException.
+    No Return or an AirflowFailException.
 
 
 AirflowFailException tells Airflow Schedule to not reschedule the task
@@ -545,7 +545,7 @@ Annotates the inbound job request items with Airflow context elements
 
 * **Parameters**
 
-
+    
     * **context** – The airflow context.
 
 
@@ -555,13 +555,13 @@ Annotates the inbound job request items with Airflow context elements
 
 * **Returns**
 
-  annotated job request items for armada
+    annotated job request items for armada
 
 
 
 * **Return type**
 
-  *List*[*JobSubmitRequestItem*]
+    *List*[*JobSubmitRequestItem*]
 
 
 
@@ -569,7 +569,7 @@ Annotates the inbound job request items with Airflow context elements
 
 * **Parameters**
 
-
+    
     * **armada_queue** (*str*) – 
 
 
@@ -585,7 +585,7 @@ Annotates the inbound job request items with Airflow context elements
 
 * **Return type**
 
-  *JobServiceResponse*
+    *JobServiceResponse*
 
 
 
@@ -597,13 +597,13 @@ A default is provided if the env var is not defined
 
 * **Returns**
 
-  string annotation key prefix
+    string annotation key prefix
 
 
 
 * **Return type**
 
-  str
+    str
 
 
 
@@ -611,7 +611,7 @@ A default is provided if the env var is not defined
 
 * **Return type**
 
-  *JobState*
+    *JobState*
 
 
 
@@ -623,7 +623,7 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
 
 * **Parameters**
 
-
+    
     * **armada_queue** (*str*) – The queue for armada
 
 
@@ -654,13 +654,13 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
 
 * **Returns**
 
-  A tuple of JobStateEnum, message
+    A tuple of JobStateEnum, message
 
 
 
 * **Return type**
 
-  *Tuple*[*JobState*, str]
+    *Tuple*[*JobState*, str]
 
 
 
@@ -672,7 +672,7 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
 
 * **Parameters**
 
-
+    
     * **armada_queue** (*str*) – The queue for armada
 
 
@@ -697,10 +697,10 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
 
 * **Returns**
 
-  A tuple of JobStateEnum, message
+    A tuple of JobStateEnum, message
 
 
 
 * **Return type**
 
-  *Tuple*[*JobState*, str]
+    *Tuple*[*JobState*, str]
