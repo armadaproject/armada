@@ -3,15 +3,15 @@ package pgkeyvalue
 import (
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/database"
-	"k8s.io/apimachinery/pkg/util/clock"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/logging"
 )
 
