@@ -40,7 +40,6 @@ Airflow with the Armada operator can be run alongside the other Armada services 
 environment. It is manually started in this way:
 
 ```
-cd localdev
 docker-compose up -d airflow
 ```
 
