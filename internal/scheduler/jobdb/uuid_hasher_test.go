@@ -1,9 +1,9 @@
 package jobdb
 
 import (
-	"github.com/google/uuid"
-
 	"testing"
+
+	"github.com/google/uuid"
 )
 
 func TestUUIDHasher_Hash(t *testing.T) {

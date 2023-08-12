@@ -2,6 +2,7 @@ package jobdb
 
 import (
 	"bytes"
+
 	"github.com/google/uuid"
 )
 
