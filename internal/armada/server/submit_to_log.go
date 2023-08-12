@@ -715,7 +715,6 @@ func jobKey(j *api.Job) string {
 // on the job) has not been seen before then jobId -> jobId.  If the job has been seen before then jobId -> originalJobId
 // Note that if srv.KVStore is nil then this function simply returns jobId -> jobId
 func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []*api.Job) (map[string]string, error) {
-
 	// Default is the current id
 	ret := make(map[string]string, len(apiJobs))
 	for _, apiJob := range apiJobs {
