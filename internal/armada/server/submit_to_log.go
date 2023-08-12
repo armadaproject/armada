@@ -715,12 +715,15 @@ func jobKey(j *api.Job) string {
 // on the job) has not been seen before then jobId -> jobId.  If the job has been seen before then jobId -> originalJobId
 // Note that if srv.KVStore is nil then this function simply returns jobId -> jobId
 func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []*api.Job) (map[string]string, error) {
+
+	// Default is the current id
+	ret := make(map[string]string, len(apiJobs))
+	for _, apiJob := range apiJobs {
+		ret[apiJob.GetId()] = apiJob.GetId()
+	}
+
 	// If we don't have a KV store, then just return original mappings
 	if srv.KVStore == nil {
-		ret := make(map[string]string, len(apiJobs))
-		for _, apiJob := range apiJobs {
-			ret[apiJob.GetId()] = apiJob.GetId()
-		}
 		return ret, nil
 	}
 
@@ -737,21 +740,18 @@ func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []
 	// If we have any client Ids, retrieve their job ids
 	if len(kvs) > 0 {
 		keys := maps.Keys(kvs)
-		addedKvs, err := srv.KVStore.Load(ctx, keys)
+		existingKvs, err := srv.KVStore.Load(ctx, keys)
 		if err != nil {
-			return nil, err
+			return ret, err
 		}
-		ret := make(map[string]string, len(addedKvs))
 		for _, apiJob := range apiJobs {
 			if apiJob.ClientId != "" {
-				originalJobId := addedKvs[jobKey(apiJob)]
+				originalJobId := existingKvs[jobKey(apiJob)]
 				ret[apiJob.GetId()] = string(originalJobId)
 			}
 		}
-		return ret, nil
 	}
-
-	return nil, nil
+	return ret, nil
 }
 
 func (srv *PulsarSubmitServer) storeOriginalJobIds(ctx context.Context, apiJobs []*api.Job) error {
