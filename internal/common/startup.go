@@ -21,6 +21,9 @@ import (
 
 const baseConfigFileName = "config"
 
+// RFC3339Millis
+const logTimestampFormat = "2006-01-02T15:04:05.999Z07:00"
+
 func BindCommandlineArguments() {
 	err := viper.BindPFlags(pflag.CommandLine)
 	if err != nil {
@@ -98,14 +101,14 @@ func readEnvironmentLogFormat() log.Formatter {
 	}
 	switch strings.ToLower(formatStr) {
 	case "json":
-		return &log.JSONFormatter{TimestampFormat: time.RFC3339Nano}
+		return &log.JSONFormatter{TimestampFormat: logTimestampFormat}
 	case "colourful":
-		return &log.TextFormatter{ForceColors: true, FullTimestamp: true, TimestampFormat: time.RFC3339Nano}
+		return &log.TextFormatter{ForceColors: true, FullTimestamp: true, TimestampFormat: logTimestampFormat}
 	case "text":
-		return &log.TextFormatter{DisableColors: true, FullTimestamp: true, TimestampFormat: time.RFC3339Nano}
+		return &log.TextFormatter{DisableColors: true, FullTimestamp: true, TimestampFormat: logTimestampFormat}
 	default:
 		println(os.Stderr, fmt.Sprintf("Unknown log format %s, defaulting to colourful format", formatStr))
-		return &log.TextFormatter{ForceColors: true, FullTimestamp: true, TimestampFormat: time.RFC3339Nano}
+		return &log.TextFormatter{ForceColors: true, FullTimestamp: true, TimestampFormat: logTimestampFormat}
 	}
 }
 
