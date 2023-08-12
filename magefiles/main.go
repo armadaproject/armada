@@ -183,7 +183,7 @@ func LocalDev(arg string) error {
 	case "no-build", "debug":
 		mg.Deps(Kind, downloadDependencyImages)
 	default:
-		return errors.Errorf("invalid argument for Localdev: %s", arg)
+		return fmt.Errorf("invalid argument: %s Please enter one the following argument: minimal, minimal-pulsar, full, no-build, debug ", arg)
 	}
 
 	mg.Deps(StartDependencies)
@@ -197,10 +197,9 @@ func LocalDev(arg string) error {
 	case "minimal-pulsar":
 		// This 20s sleep is to remedy an issue caused by pods coming up too fast after pulsar
 		// TODO: Deal with this internally somehow?
-		time.Sleep(20 * time.Second)
 		os.Setenv("ARMADA_COMPONENTS", "executor-pulsar,server-pulsar,scheduler,scheduleringester")
 		mg.Deps(StartComponents)
-	case "debug":
+	case "debug", "no-build":
 		fmt.Println("Dependencies started, ending localdev...")
 		return nil
 	default:
