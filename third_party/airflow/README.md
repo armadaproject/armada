@@ -41,6 +41,7 @@ environment. It is manually started in this way:
 
 ```
 docker-compose up -d airflow
+mage airflow start
 ```
 
 Airflow's web UI will then be accessible at http://localhost:8081 (login with admin/admin).
