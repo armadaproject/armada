@@ -84,7 +84,7 @@ with DAG(
     channel_credentials = grpc.local_channel_credentials()
 
     armada_channel_args = {
-        "target": "http://server:50051",
+        "target": "server:50051",
         "credentials": grpc.composite_channel_credentials(
             channel_credentials,
             grpc.metadata_call_credentials(
@@ -118,4 +118,10 @@ with DAG(
     """
     Airflow dag syntax for running op and then armada.
     """
+
     op >> armada
+
+
+if __name__ == "__main__":
+    # Will need to run `airflow db init` first
+    dag.test()
