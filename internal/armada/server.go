@@ -209,7 +209,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		}
 		log.Info("Pulsar submit API deduplication enabled")
 
-		store, err := pgkeyvalue.New(pool, 1000000, config.Pulsar.DedupTable)
+		store, err := pgkeyvalue.New(ctx, pool, config.Pulsar.DedupTable)
 		if err != nil {
 			return err
 		}
