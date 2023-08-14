@@ -82,7 +82,7 @@ func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 			jobsByRunId := immutable.NewMapBuilder[uuid.UUID, string](&UUIDHasher{})
 			for _, job := range jobs {
 				for _, run := range job.runsById {
-					txn.jobsByRunId.Set(run.id, job.id)
+					jobsByRunId.Set(run.id, job.id)
 				}
 			}
 			txn.jobsByRunId = jobsByRunId.Map()
