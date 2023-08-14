@@ -435,7 +435,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		if node, err := nodeDb.GetNode(nodeId); err != nil {
 			return nil, nil, err
 		} else {
-			result.ScheduledJobs[i] = jobDbJob.WithQueuedVersion(jobDbJob.QueuedVersion()+1).WithQueued(false).WithNewRun(node.Executor, node.Id, node.Name)
+			result.ScheduledJobs[i] = jobDbJob.WithQueued(false).WithNewRun(node.Executor, node.Id, node.Name)
 		}
 	}
 	return result, sctx, nil
