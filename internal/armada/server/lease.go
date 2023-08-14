@@ -531,6 +531,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if q.schedulingConfig.EnableAssertions {
 		sch.EnableAssertions()
 	}
+	if q.schedulingConfig.EnableNewPreemptionStrategy {
+		sch.EnableNewPreemptionStrategy()
+	}
 	result, err := sch.Schedule(
 		ctxlogrus.ToContext(
 			ctx,
