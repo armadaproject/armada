@@ -744,8 +744,8 @@ func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []
 			return ret, err
 		}
 		for _, apiJob := range apiJobs {
-			if apiJob.ClientId != "" {
-				originalJobId := existingKvs[jobKey(apiJob)]
+			originalJobId, ok := existingKvs[jobKey(apiJob)]
+			if apiJob.ClientId != "" && ok {
 				ret[apiJob.GetId()] = string(originalJobId)
 			}
 		}
