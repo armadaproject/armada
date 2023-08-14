@@ -3,6 +3,7 @@ package jobdb
 import (
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
@@ -428,6 +429,21 @@ func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSch
 	j := copyJob(*job)
 	j.jobSchedulingInfo = jobSchedulingInfo
 	j.ensureJobSchedulingInfoFieldsInitialised()
+	return j
+}
+
+func (job *Job) DeepCopy() *Job {
+	copiedSchedulingInfo := proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
+	j := job.WithJobSchedulingInfo(copiedSchedulingInfo)
+
+	j.runsById = maps.Clone(j.runsById)
+	for key, run := range j.runsById {
+		j.runsById[key] = run.DeepCopy()
+	}
+	if j.activeRun != nil {
+		j.activeRun = job.activeRun.DeepCopy()
+	}
+
 	return j
 }
 

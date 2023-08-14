@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -30,7 +29,7 @@ func createDelveImage() error {
 func CreateDelveCompose() error {
 	mg.Deps(createDelveImage)
 
-	data, err := ioutil.ReadFile("docker-compose.yaml")
+	data, err := os.ReadFile("docker-compose.yaml")
 	if err != nil {
 		return err
 	}
@@ -83,7 +82,7 @@ func CreateDelveCompose() error {
 	}
 
 	output := strings.Join(lines, "\n")
-	err = ioutil.WriteFile("docker-compose.dev.yaml", []byte(output), os.ModePerm)
+	err = os.WriteFile("docker-compose.dev.yaml", []byte(output), os.ModePerm)
 	if err != nil {
 		return err
 	}
