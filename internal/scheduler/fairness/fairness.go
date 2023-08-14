@@ -57,11 +57,6 @@ func NewDominantResourceFairness(totalResources schedulerobjects.ResourceList, r
 	if len(resourcesToConsider) == 0 {
 		return nil, errors.New("resourcesToConsider is empty")
 	}
-	for _, t := range resourcesToConsider {
-		if totalResources.Get(t).Equal(resource.Quantity{}) {
-			return nil, errors.Errorf("resourcesToConsider includes %s, but there's no capacity for this resource: %v", t, totalResources)
-		}
-	}
 	return &DominantResourceFairness{
 		totalResources:      totalResources,
 		resourcesToConsider: resourcesToConsider,
