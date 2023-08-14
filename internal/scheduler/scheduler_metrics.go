@@ -46,6 +46,10 @@ func NewSchedulerMetrics() SchedulerMetrics {
 
 }
 
-func (metrics *SchedulerMetrics) ReportCycleTime(cycleTime float64) {
+func (metrics *SchedulerMetrics) ReportScheduleCycleTime(cycleTime float64) {
+	metrics.ScheduleCycleTime.Observe(cycleTime)
+}
 
+func (metrics *SchedulerMetrics) ReportReconcileCycleTime(cycleTime float64) {
+	metrics.ReconcileCycleTime.Observe(cycleTime)
 }

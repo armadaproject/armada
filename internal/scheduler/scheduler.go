@@ -173,7 +173,13 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			// MEMO: Extracting this out to publish as a metric
 			cycleTime := s.clock.Since(start)
 			log.Infof("scheduling cycle completed in %s", cycleTime)
-			s.Metrics.ReportCycleTime(float64(cycleTime))
+
+			if shouldSchedule && leaderToken.leader {
+				// Only the leader token does real scheduling rounds.
+				s.Metrics.ReportScheduleCycleTime(float64(cycleTime))
+			} else {
+				s.Metrics.ReportReconcileCycleTime(float64(cycleTime))
+			}
 
 			prevLeaderToken = leaderToken
 			if s.onCycleCompleted != nil {
