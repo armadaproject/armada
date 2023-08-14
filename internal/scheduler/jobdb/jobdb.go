@@ -55,6 +55,7 @@ func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 
 	// jobs
 	go func() {
+		defer wg.Done()
 		if hasJobs {
 			for _, job := range jobs {
 				txn.jobsById = txn.jobsById.Set(job.id, job)
@@ -66,11 +67,11 @@ func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 			}
 			txn.jobsById = jobsById.Map()
 		}
-		wg.Done()
 	}()
 
 	// runs
 	go func() {
+		defer wg.Done()
 		if hasJobs {
 			for _, job := range jobs {
 				for _, run := range job.runsById {
@@ -86,11 +87,11 @@ func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 			}
 			txn.jobsByRunId = jobsByRunId.Map()
 		}
-		wg.Done()
 	}()
 
 	// queued Jobs
 	go func() {
+		defer wg.Done()
 		for _, job := range jobs {
 			if job.Queued() {
 				newQueue, ok := txn.jobsByQueue[job.queue]
@@ -102,7 +103,6 @@ func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 				txn.jobsByQueue[job.queue] = newQueue
 			}
 		}
-		wg.Done()
 	}()
 	wg.Wait()
 	return nil
