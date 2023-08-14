@@ -3,15 +3,18 @@ package repository
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"time"
 
 	_ "modernc.org/sqlite"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/database/postgres"
 	"github.com/armadaproject/armada/internal/common/database/types"
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
 	js "github.com/armadaproject/armada/pkg/api/jobservice"
@@ -22,7 +25,26 @@ type JSRepository struct {
 	dbpool           types.DatabasePool
 }
 
+func newJSPostgresRepository(cfg *configuration.JobServiceConfiguration, log *log.Entry) (error, *JSRepository, func()) {
+	poolCfg, err := pgxpool.ParseConfig(database.CreateConnectionString(cfg.PostgresConfig.Connection))
+	if err != nil {
+		return errors.Wrap(err, "cannot parse Postgres connection config"), nil, func() {}
+	}
+
+	pool, err := pgxpool.NewWithConfig(context.Background(), poolCfg)
+	if err != nil {
+		return errors.Wrap(err, "cannot create Postgres connection pool"), nil, func() {}
+	}
+
+	return nil, &JSRepository{jobServiceConfig: cfg, dbpool: postgres.PostgresPoolAdapter{Pool: pool}}, func() {}
+}
+
 func NewJSRepository(cfg *configuration.JobServiceConfiguration, log *log.Entry) (error, *JSRepository, func()) {
+	if !reflect.ValueOf(cfg.PostgresConfig).IsZero() {
+		log.Warn("`postgresConfig` will be deperacted in future releases, please use databaseConfig instead.")
+		return newJSPostgresRepository(cfg, log)
+	}
+
 	pool, err := database.OpenPool(cfg.DatabaseConfig)
 	if err != nil {
 		return errors.Wrap(err, "cannot create database connection pool"), nil, func() {}

@@ -97,6 +97,15 @@ const (
 
 // DatabaseConfig represents the configuration of the database connection.
 type DatabaseConfig struct {
+	// PoolMaxConns represents the maximum number of open connections in a connection pool.
+	PoolMaxConns int
+
+	// PoolMinConns represents the minimum number of open connections in a connection pool.
+	PoolMinConns int
+
+	// PoolMaxConnLifetime  represents the maximum amount of time a connection may be reused.
+	PoolMaxConnLifetime time.Duration
+
 	// MaxOpenConns represents the maximum number of open connections to the database.
 	MaxOpenConns int
 
