@@ -21,6 +21,7 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -344,17 +345,30 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	if len(executors) == 1 {
 		executorId = executors[0].Id
 	}
+	totalResources := fsctx.totalCapacityByPool[pool]
+	var fairnessCostProvider fairness.FairnessCostProvider
+	if l.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
+		fairnessCostProvider, err = fairness.NewDominantResourceFairness(
+			totalResources,
+			l.schedulingConfig.DominantResourceFairnessResourcesToConsider,
+		)
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		fairnessCostProvider, err = fairness.NewAssetFairness(l.schedulingConfig.ResourceScarcity)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
 	sctx := schedulercontext.NewSchedulingContext(
 		executorId,
 		pool,
 		l.schedulingConfig.Preemption.PriorityClasses,
 		l.schedulingConfig.Preemption.DefaultPriorityClass,
-		l.schedulingConfig.ResourceScarcity,
-		fsctx.totalCapacityByPool[pool],
+		fairnessCostProvider,
+		totalResources,
 	)
-	if l.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
-		sctx.EnableDominantResourceFairness(l.schedulingConfig.DominantResourceFairnessResourcesToConsider)
-	}
 	for queue, priorityFactor := range fsctx.priorityFactorByQueue {
 		if !fsctx.isActiveByQueueName[queue] {
 			// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.

@@ -6,13 +6,13 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/logging"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
+	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -45,7 +45,7 @@ func NewQueueScheduler(
 	for queue, it := range jobIteratorByQueue {
 		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, constraints.MaxQueueLookback)
 	}
-	candidateGangIterator, err := NewCandidateGangIterator(sctx, gangIteratorsByQueue)
+	candidateGangIterator, err := NewCandidateGangIterator(sctx, sctx.FairnessCostProvider, gangIteratorsByQueue)
 	if err != nil {
 		return nil, err
 	}
@@ -61,24 +61,6 @@ func (sch *QueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 }
 
 func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, error) {
-	log := ctxlogrus.Extract(ctx)
-	if sch.schedulingContext.TotalResources.AsWeightedMillis(sch.schedulingContext.ResourceScarcity) == 0 {
-		// This refers to resources available across all clusters, i.e.,
-		// it may include resources not currently considered for scheduling.
-		log.Infof(
-			"no resources with non-zero weight available for scheduling on any cluster: resource scarcity %v, total resources %v",
-			sch.schedulingContext.ResourceScarcity, sch.schedulingContext.TotalResources,
-		)
-		return &SchedulerResult{}, nil
-	}
-	if rl := sch.gangScheduler.nodeDb.TotalResources(); rl.AsWeightedMillis(sch.schedulingContext.ResourceScarcity) == 0 {
-		// This refers to the resources currently considered for scheduling.
-		log.Infof(
-			"no resources with non-zero weight available for scheduling in NodeDb: resource scarcity %v, total resources %v",
-			sch.schedulingContext.ResourceScarcity, sch.gangScheduler.nodeDb.TotalResources(),
-		)
-		return &SchedulerResult{}, nil
-	}
 	nodeIdByJobId := make(map[string]string)
 	scheduledJobs := make([]interfaces.LegacySchedulerJob, 0)
 	for {
@@ -271,7 +253,8 @@ func (it *QueuedGangIterator) hitLookbackLimit() bool {
 // Specifically, it yields the next gang in the queue with smallest fraction of its fair share,
 // where the fraction of fair share computation includes the yielded gang.
 type CandidateGangIterator struct {
-	SchedulingContext *schedulercontext.SchedulingContext
+	queueProvier         fairness.QueueRepository
+	fairnessCostProvider fairness.FairnessCostProvider
 	// If true, this iterator only yields gangs where all jobs are evicted.
 	onlyYieldEvicted bool
 	// Reusable buffer to avoid allocations.
@@ -282,13 +265,15 @@ type CandidateGangIterator struct {
 }
 
 func NewCandidateGangIterator(
-	sctx *schedulercontext.SchedulingContext,
+	queueProvier fairness.QueueRepository,
+	fairnessCostProvider fairness.FairnessCostProvider,
 	iteratorsByQueue map[string]*QueuedGangIterator,
 ) (*CandidateGangIterator, error) {
 	it := &CandidateGangIterator{
-		SchedulingContext: sctx,
-		buffer:            schedulerobjects.NewResourceListWithDefaultSize(),
-		pq:                make(QueueCandidateGangIteratorPQ, 0, len(iteratorsByQueue)),
+		queueProvier:         queueProvier,
+		fairnessCostProvider: fairnessCostProvider,
+		buffer:               schedulerobjects.NewResourceListWithDefaultSize(),
+		pq:                   make(QueueCandidateGangIteratorPQ, 0, len(iteratorsByQueue)),
 	}
 	for queue, queueIt := range iteratorsByQueue {
 		if _, err := it.updateAndPushPQItem(it.newPQItem(queue, queueIt)); err != nil {
@@ -327,7 +312,7 @@ func (it *CandidateGangIterator) updateAndPushPQItem(item *QueueCandidateGangIte
 
 func (it *CandidateGangIterator) updatePQItem(item *QueueCandidateGangIteratorItem) error {
 	item.gctx = nil
-	item.fractionOfFairShare = 0
+	item.queueCost = 0
 	gctx, err := item.it.Peek()
 	if err != nil {
 		return err
@@ -339,17 +324,24 @@ func (it *CandidateGangIterator) updatePQItem(item *QueueCandidateGangIteratorIt
 		return errors.Errorf("mismatched queue %s and %s for gctx", gctx.Queue, item.queue)
 	}
 	item.gctx = gctx
-	item.fractionOfFairShare = it.fractionOfFairShareWithGctx(gctx)
+	cost, err := it.queueCostWithGctx(gctx)
+	if err != nil {
+		return err
+	}
+	item.queueCost = cost
 	return nil
 }
 
-// fractionOfFairShareWithGctx returns the fraction of its fair share this queue would have if the jobs in gctx were scheduled.
-func (it *CandidateGangIterator) fractionOfFairShareWithGctx(gctx *schedulercontext.GangSchedulingContext) float64 {
-	qctx := it.SchedulingContext.QueueSchedulingContexts[gctx.Queue]
+// queueCostWithGctx returns the cost associated with a queue if gctx were to be scheduled.
+func (it *CandidateGangIterator) queueCostWithGctx(gctx *schedulercontext.GangSchedulingContext) (float64, error) {
+	queue, ok := it.queueProvier.GetQueue(gctx.Queue)
+	if !ok {
+		return 0, errors.Errorf("unknown queue %s", gctx.Queue)
+	}
 	it.buffer.Zero()
-	it.buffer.Add(qctx.Allocated)
+	it.buffer.Add(queue.GetAllocation())
 	it.buffer.Add(gctx.TotalResourceRequests)
-	return qctx.TotalCostForQueueWithAllocation(it.buffer)
+	return it.fairnessCostProvider.CostFromAllocationAndWeight(it.buffer, queue.GetWeight()), nil
 }
 
 // Clear removes the first item in the iterator.
@@ -390,9 +382,9 @@ type QueueCandidateGangIteratorItem struct {
 	// Most recent value produced by the iterator.
 	// Cached here to avoid repeating scheduling checks unnecessarily.
 	gctx *schedulercontext.GangSchedulingContext
-	// Fraction of its fair share this queue would have
-	// if its next schedulable job were to be scheduled.
-	fractionOfFairShare float64
+	// Cost associated with the queue if the topmost gang in the queue were to be scheduled.
+	// Used to order queues fairly.
+	queueCost float64
 	// The index of the item in the heap.
 	// maintained by the heap.Interface methods.
 	index int
@@ -402,10 +394,10 @@ func (pq QueueCandidateGangIteratorPQ) Len() int { return len(pq) }
 
 func (pq QueueCandidateGangIteratorPQ) Less(i, j int) bool {
 	// Tie-break by queue name.
-	if pq[i].fractionOfFairShare == pq[j].fractionOfFairShare {
+	if pq[i].queueCost == pq[j].queueCost {
 		return pq[i].queue < pq[j].queue
 	}
-	return pq[i].fractionOfFairShare < pq[j].fractionOfFairShare
+	return pq[i].queueCost < pq[j].queueCost
 }
 
 func (pq QueueCandidateGangIteratorPQ) Swap(i, j int) {

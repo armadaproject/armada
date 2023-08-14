@@ -20,8 +20,10 @@ import (
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
+	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // PreemptingQueueScheduler is a scheduler that makes a unified decisions on which jobs to preempt and schedule.
@@ -46,6 +48,8 @@ type PreemptingQueueScheduler struct {
 	skipUnsuccessfulSchedulingKeyCheck bool
 	// If true, asserts that the nodeDb state is consistent with expected changes.
 	enableAssertions bool
+	// If true, a newer preemption strategy is used.
+	enableNewPreemptionStrategy bool
 }
 
 func NewPreemptingQueueScheduler(
@@ -95,29 +99,16 @@ func (sch *PreemptingQueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 	sch.skipUnsuccessfulSchedulingKeyCheck = true
 }
 
+func (sch *PreemptingQueueScheduler) EnableNewPreemptionStrategy() {
+	sch.enableNewPreemptionStrategy = true
+}
+
 // Schedule
 // - preempts jobs belonging to queues with total allocation above their fair share and
 // - schedules new jobs belonging to queues with total allocation less than their fair share.
 func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, error) {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("service", "PreemptingQueueScheduler")
-	if sch.schedulingContext.TotalResources.AsWeightedMillis(sch.schedulingContext.ResourceScarcity) == 0 {
-		// This refers to resources available across all clusters, i.e.,
-		// it may include resources not currently considered for scheduling.
-		log.Infof(
-			"no resources with non-zero weight available for scheduling on any cluster: resource scarcity %v, total resources %v",
-			sch.schedulingContext.ResourceScarcity, sch.schedulingContext.TotalResources,
-		)
-		return &SchedulerResult{}, nil
-	}
-	if rl := sch.nodeDb.TotalResources(); rl.AsWeightedMillis(sch.schedulingContext.ResourceScarcity) == 0 {
-		// This refers to the resources currently considered for scheduling.
-		log.Infof(
-			"no resources with non-zero weight available for scheduling in NodeDb: resource scarcity %v, total resources %v",
-			sch.schedulingContext.ResourceScarcity, sch.nodeDb.TotalResources(),
-		)
-		return &SchedulerResult{}, nil
-	}
 	defer func() {
 		sch.schedulingContext.Finished = time.Now()
 	}()
@@ -153,7 +144,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 				}
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.GetQueue()]; ok {
 					fairShare := qctx.Weight / sch.schedulingContext.WeightSum
-					actualShare := qctx.TotalCostForQueue() / totalCost
+					actualShare := sch.schedulingContext.FairnessCostProvider.CostFromQueue(qctx) / totalCost
 					fractionOfFairShare := actualShare / fairShare
 					if fractionOfFairShare <= sch.protectedFractionOfFairShare {
 						return false
@@ -288,6 +279,73 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 	}, nil
 }
 
+type MinimalQueueRepository struct {
+	queues map[string]MinimalQueue
+}
+
+func (qr *MinimalQueueRepository) GetQueue(name string) (fairness.Queue, bool) {
+	queue, ok := qr.queues[name]
+	return queue, ok
+}
+
+func NewMinimalQueueRepositoryFromSchedulingContext(sctx *schedulercontext.SchedulingContext) *MinimalQueueRepository {
+	queues := make(map[string]MinimalQueue, len(sctx.QueueSchedulingContexts))
+	for name, qctx := range sctx.QueueSchedulingContexts {
+		queues[name] = MinimalQueue{allocation: qctx.Allocated.DeepCopy(), weight: qctx.Weight}
+	}
+	return &MinimalQueueRepository{queues: queues}
+}
+
+type MinimalQueue struct {
+	allocation schedulerobjects.ResourceList
+	weight     float64
+}
+
+func (q MinimalQueue) GetAllocation() schedulerobjects.ResourceList {
+	return q.allocation
+}
+
+func (q MinimalQueue) GetWeight() float64 {
+	return q.weight
+}
+
+// addEvictedJobsToNodeDb adds evicted jobs to the NodeDb.
+// Needed to enable the nodeDb accounting for these when preempting.
+func addEvictedJobsToNodeDb(ctx context.Context, sctx *schedulercontext.SchedulingContext, nodeDb *nodedb.NodeDb, inMemoryJobRepo *InMemoryJobRepository) error {
+	gangItByQueue := make(map[string]*QueuedGangIterator)
+	for _, qctx := range sctx.QueueSchedulingContexts {
+		jobIt, err := inMemoryJobRepo.GetJobIterator(ctx, qctx.Queue)
+		if err != nil {
+			return err
+		}
+		gangItByQueue[qctx.Queue] = NewQueuedGangIterator(sctx, jobIt, 0)
+	}
+	qr := NewMinimalQueueRepositoryFromSchedulingContext(sctx)
+	candidateGangIterator, err := NewCandidateGangIterator(qr, sctx.FairnessCostProvider, gangItByQueue)
+	if err != nil {
+		return err
+	}
+	txn := nodeDb.Txn(true)
+	defer txn.Abort()
+	i := 0
+	for {
+		if gctx, err := candidateGangIterator.Peek(); err != nil {
+			return err
+		} else if gctx == nil {
+			break
+		} else {
+			for _, jctx := range gctx.JobSchedulingContexts {
+				nodeDb.AddEvictedJobSchedulingContextWithTxn(txn, i, jctx)
+				i++
+			}
+			q := qr.queues[gctx.Queue]
+			q.allocation.Add(gctx.TotalResourceRequests)
+		}
+	}
+	txn.Commit()
+	return nil
+}
+
 func (sch *PreemptingQueueScheduler) evict(ctx context.Context, evictor *Evictor) (*EvictorResult, *InMemoryJobRepository, error) {
 	if evictor == nil {
 		return &EvictorResult{}, NewInMemoryJobRepository(sch.schedulingContext.PriorityClasses), nil
@@ -340,6 +398,12 @@ func (sch *PreemptingQueueScheduler) evict(ctx context.Context, evictor *Evictor
 	inMemoryJobRepo := NewInMemoryJobRepository(sch.schedulingContext.PriorityClasses)
 	inMemoryJobRepo.EnqueueMany(evictedJobs)
 	txn.Commit()
+
+	if sch.enableNewPreemptionStrategy {
+		if err := addEvictedJobsToNodeDb(ctx, sch.schedulingContext, sch.nodeDb, inMemoryJobRepo); err != nil {
+			return nil, nil, err
+		}
+	}
 	return result, inMemoryJobRepo, nil
 }
 

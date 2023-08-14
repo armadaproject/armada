@@ -25,7 +25,7 @@ func NodeIndexKey(out []byte, nodeTypeId uint64, resources []resource.Quantity) 
 	return out
 }
 
-// RoundedNodeIndexKeyFromResourceList works like NodeIndexKey, except that prior to constructing a the key
+// RoundedNodeIndexKeyFromResourceList works like NodeIndexKey, except that prior to constructing the key
 // the i-th resource is rounded down to the closest multiple of resourceResolutionMillis[i].
 // It also takes as arguments a list of resource names and a resourceList, instead of a list of resources.
 func RoundedNodeIndexKeyFromResourceList(out []byte, nodeTypeId uint64, resourceNames []string, resourceResolutionMillis []int64, rl schedulerobjects.ResourceList) []byte {

@@ -220,6 +220,8 @@ type SchedulingConfig struct {
 	AlwaysAttemptScheduling bool
 	// The frequency at which the scheduler updates the cluster state.
 	ExecutorUpdateFrequency time.Duration
+	// Enable new preemption strategy.
+	EnableNewPreemptionStrategy bool
 }
 
 // FairnessModel controls how fairness is computed.
