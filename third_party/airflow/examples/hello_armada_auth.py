@@ -66,6 +66,15 @@ def submit_sleep_job():
     ]
 
 
+def creds_callback():
+    return grpc.composite_channel_credentials(
+        channel_credentials,
+        grpc.metadata_call_credentials(
+            GrpcBasicAuth(username="armada-user", password="armada-pass")
+        ),
+    )
+
+
 """
 This is an example of a Airflow dag that
 uses a BashOperator and an ArmadaOperator
@@ -84,15 +93,14 @@ with DAG(
     channel_credentials = grpc.local_channel_credentials()
 
     armada_channel_args = {
-        "target": "server:50051",
-        "credentials": grpc.composite_channel_credentials(
-            channel_credentials,
-            grpc.metadata_call_credentials(
-                GrpcBasicAuth(username="armada-user", password="armada-pass")
-            ),
-        ),
+        "target": "localhost:50051",
+        "credentials_callback_args": {
+            "module_name": "hello_armada_auth",
+            "function_name": "creds_callback",
+            "function_kwargs": {},
+        },
     }
-    job_service_channel_args = {"target": "jobservice:60003"}
+    job_service_channel_args = {"target": "localhost:60003"}
 
     """
     This defines an Airflow task that runs Hello World and it gives the airflow
@@ -123,5 +131,16 @@ with DAG(
 
 
 if __name__ == "__main__":
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm.session import Session
+
+    engine = create_engine("postgresql://airflow:airflow@172.20.0.3:5432/airflow")
+    session = Session(engine)
+
     # Will need to run `airflow db init` first
-    dag.test()
+    dag.test(
+        run_conf={
+            "sql_alchemy_conn": "postgresql://airflow:airflow@172.20.0.3:5432/airflow"
+        },
+        session=session,
+    )
