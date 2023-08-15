@@ -14,6 +14,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -32,6 +33,21 @@ const (
 )
 
 var (
+	failFastSchedulingInfo = &schedulerobjects.JobSchedulingInfo{
+		AtMostOnce: true,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						Annotations: map[string]string{
+							configuration.FailFastAnnotation: "true",
+						},
+					},
+				},
+			},
+		},
+		Version: 1,
+	}
 	schedulingInfo = &schedulerobjects.JobSchedulingInfo{
 		AtMostOnce: true,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
@@ -96,6 +112,19 @@ var defaultJobRunError = &armadaevents.Error{
 		},
 	},
 }
+
+var leasedFailFastJob = jobdb.NewJob(
+	util.NewULID(),
+	"testJobset",
+	"testQueue",
+	uint32(10),
+	failFastSchedulingInfo,
+	false,
+	2,
+	false,
+	false,
+	false,
+	1).WithQueued(false).WithNewRun("testExecutor", "test-node", "node")
 
 var (
 	requeuedJobId = util.NewULID()
@@ -310,6 +339,25 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedJobErrors:     []string{leasedJob.Id()},
 			expectedTerminal:      []string{leasedJob.Id()},
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
+		},
+		"Lease returned for fail fast job": {
+			initialJobs: []*jobdb.Job{leasedFailFastJob},
+			// Fail fast should mean there is only ever 1 attempted run
+			runUpdates: []database.Run{
+				{
+					RunID:        leasedFailFastJob.LatestRun().Id(),
+					JobID:        leasedFailFastJob.Id(),
+					JobSet:       "testJobSet",
+					Executor:     "testExecutor",
+					Failed:       true,
+					Returned:     true,
+					RunAttempted: false,
+					Serial:       1,
+				},
+			},
+			expectedJobErrors:     []string{leasedFailFastJob.Id()},
+			expectedTerminal:      []string{leasedFailFastJob.Id()},
+			expectedQueuedVersion: leasedFailFastJob.QueuedVersion(),
 		},
 		"Job cancelled": {
 			initialJobs: []*jobdb.Job{leasedJob},
