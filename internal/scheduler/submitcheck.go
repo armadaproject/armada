@@ -3,7 +3,6 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -56,6 +55,7 @@ type SubmitChecker struct {
 	mu                        sync.Mutex
 	schedulingKeyGenerator    *schedulerobjects.SchedulingKeyGenerator
 	jobSchedulingResultsCache *lru.Cache
+	ExecutorUpdateFrequency   time.Duration
 }
 
 func NewSubmitChecker(
@@ -80,23 +80,14 @@ func NewSubmitChecker(
 		clock:                     clock.RealClock{},
 		schedulingKeyGenerator:    schedulerobjects.NewSchedulingKeyGenerator(),
 		jobSchedulingResultsCache: jobSchedulingResultsCache,
+		ExecutorUpdateFrequency:   schedulingConfig.ExecutorUpdateFrequency,
 	}
 }
 
 func (srv *SubmitChecker) Run(ctx context.Context) error {
 	srv.updateExecutors(ctx)
 
-	var ticker *time.Ticker
-	intervalStr, set := os.LookupEnv("EXECUTOR_UPDATE_INTERVAL")
-	if !set {
-		intervalStr = "1m"
-	}
-
-	interval, err := time.ParseDuration(strings.TrimSpace(intervalStr))
-	if err != nil {
-		return err
-	}
-	ticker = time.NewTicker(interval)
+	ticker := time.NewTicker(srv.ExecutorUpdateFrequency)
 	for {
 		select {
 		case <-ctx.Done():

@@ -13,11 +13,11 @@ jobs:
       - uses: actions/checkout@v3.3.0
       - uses: ./.github/workflows/go-setup
       - name: Install Protoc
-        uses: arduino/setup-protoc@v1
+        uses: arduino/setup-protoc@v2
         with:
-          version: '3.17.3'
+          version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: make airflow-operator
+      - run: go run github.com/magefile/mage@v1.14.0 -v airflowOperator
       - uses: ./.github/workflows/python-tests
         with:
           python-version: '3.8'
