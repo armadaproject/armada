@@ -1,9 +1,10 @@
 package fairness
 
 import (
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // QueueRepository is a minimal representation of a queue repository used for computing fairness.

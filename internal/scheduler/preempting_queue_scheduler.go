@@ -337,7 +337,9 @@ func addEvictedJobsToNodeDb(ctx context.Context, sctx *schedulercontext.Scheduli
 			break
 		} else {
 			for _, jctx := range gctx.JobSchedulingContexts {
-				nodeDb.AddEvictedJobSchedulingContextWithTxn(txn, i, jctx)
+				if err := nodeDb.AddEvictedJobSchedulingContextWithTxn(txn, i, jctx); err != nil {
+					return err
+				}
 				i++
 			}
 			q := qr.queues[gctx.Queue]
