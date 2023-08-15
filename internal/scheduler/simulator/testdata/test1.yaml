@@ -1,0 +1,66 @@
+name: "Test1"
+pools:
+  - name: "CPU"
+    executorGroups:
+      - executors:
+          - name: "Executor-CPU-1"
+            nodeTemplates:
+              - number: 1
+                totalResources:
+                  resources:
+                    cpu: "1"
+                    memory: "1Gi"
+          - name: "Executor-CPU-2"
+            nodeTemplates:
+              - number: 2
+                totalResources:
+                  resources:
+                    cpu: "1"
+                    memory: "1Gi"                    
+  - name: "GPU"
+    executorGroups:                    
+      - executors:
+          - name: "Executor-GPU"
+            nodeTemplates:
+              - number: 2
+                totalResources:
+                  resources:
+                    cpu: "1"
+                    memory: "1Gi"                    
+                    ndivia.com/gpu: "1"
+queues:
+  - name: A
+    weight: 1
+    jobTemplates:
+      - id: "myJobTemplate"
+        number: 3
+        jobSet: "JobSet"
+        queuePriority: 10
+        priorityClassName: "armada-default"
+        requirements:
+          resourceRequirements:
+            limits:
+              memory: "10Mi"
+              cpu: "1"
+            requests:
+              memory: "10Mi"
+              cpu: "1"
+        runtimeMean: 10
+      - number: 1
+        jobSet: "JobSet"
+        queuePriority: 10
+        priorityClassName: "armada-default"
+        requirements:
+          resourceRequirements:
+            limits:
+              memory: "10Mi"
+              cpu: "1"
+            requests:
+              memory: "10Mi"
+              cpu: "1"
+        runtimeMean: 10
+        minSubmitTime: 60
+        dependencies:
+          - "myJobSet"
+
+          

@@ -1,0 +1,63 @@
+enableAssertions: true
+fairnessModel: "DominantResourceFairness"
+dominantResourceFairnessResourcesToConsider:
+  - "cpu"
+  - "memory"
+  - "nvidia.com/gpu"
+resourceScarcity:
+  cpu: 1.0
+preemption:
+  nodeEvictionProbability: 1.0
+  nodeOversubscriptionEvictionProbability: 1.0
+  protectedFractionOfFairShare: 1.0
+  setNodeIdSelector: true
+  nodeIdLabel: kubernetes.io/hostname
+  setNodeName: false
+  priorityClasses:
+    armada-default:
+      priority: 1000
+      preemptible: false
+      maximumResourceFractionPerQueue:
+        memory: 1.0
+        cpu: 1.0
+    armada-preemptible:
+      priority: 1000
+      preemptible: true
+  defaultPriorityClass: armada-default
+  priorityClassNameOverride: armada-default
+executorTimeout: 60m
+maxQueueLookback: 1000
+maxExtraNodesToConsider: 1
+maximumResourceFractionToSchedule:
+  memory: 1.0
+  cpu: 1.0
+maxJobSchedulingContextsPerExecutor: 10000
+lease:
+  expireAfter: 15m
+  expiryLoopInterval: 5s
+defaultJobTolerations:
+  - key: "armadaproject.io/armada"
+    operator: "Equal"
+    value: "true"
+    effect: "NoSchedule"
+defaultJobTolerationsByPriorityClass:
+  armada-default:
+    - key: "armadaproject.io/pc-armada-default"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+  armada-preemptible:
+    - key: "armadaproject.io/pc-armada-preemptible"
+      operator: "Equal"
+      value: "true"
+      effect: "NoSchedule"
+minJobResources:
+  memory: "1Mi"
+indexedResources:
+  - name: "cpu"
+    resolution: "100m"
+  - name: "memory"
+    resolution: "1Mi"  
+minTerminationGracePeriod: "1s"
+maxTerminationGracePeriod: "300s"
+executorUpdateFrequency: "1m"

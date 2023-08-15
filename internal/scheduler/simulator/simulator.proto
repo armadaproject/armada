@@ -1,0 +1,71 @@
+syntax = 'proto3';
+package simulator;
+option go_package = "github.com/armadaproject/armada/internal/scheduler/simulator";
+
+import "google/protobuf/timestamp.proto";
+import "k8s.io/api/core/v1/generated.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "internal/scheduler/schedulerobjects/schedulerobjects.proto";
+
+// TODO:
+// Runtime family.
+// Workflow manager delay.
+// Job pending delay.
+message TestCase {
+    string name = 1;
+    int64 random_seed = 2;
+    repeated Pool pools = 3;
+    repeated Queue queues = 4 [(gogoproto.nullable) = false];
+}
+
+message Pool {
+    string name = 1;
+    repeated ExecutorGroup executor_groups = 2;
+}
+
+message ExecutorGroup {
+    repeated Executor executors = 1;
+}
+
+message Executor {
+    string name = 1;
+    repeated NodeTemplate node_templates = 2;
+}
+
+message NodeTemplate {
+    int64 number = 1;
+    repeated k8s.io.api.core.v1.Taint taints = 2 [(gogoproto.nullable) = false];
+    map<string, string> labels = 3;
+    schedulerobjects.ResourceList total_resources = 4 [(gogoproto.nullable) = false];
+}
+
+message Queue {
+    string name = 1;
+    double weight = 2;
+    repeated JobTemplate job_templates = 3;
+}
+
+message JobTemplate {
+    // Number of jobs to create from this template.
+    int64 number = 1;
+    // Number of jobs created from this template that have succeeded.
+    // Maintained by the simulator.
+    int64 numberSuccessful = 2;
+    // Queue to which this template belongs. Populated automatically.
+    string queue = 3;
+    // Unique id for this template. An id is generated if empty.
+    string id = 4;
+    string job_set = 5;
+    uint32 queue_priority = 6;
+    string priority_class_name = 7;
+    schedulerobjects.PodRequirements requirements = 8 [(gogoproto.nullable) = false];
+    // List of template ids that must be completed before this template is submitted.
+    repeated string dependencies = 9;
+    // Minimum time from which jobs are created from this template.
+    google.protobuf.Timestamp min_submit_time = 10 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
+    // Job runtime mean in seconds.
+    int64 runtime_mean = 11;
+    // Job runtime variance in seconds squared.
+    // If zero, runtime is deterministic.
+    int64 runtime_variance = 12;
+}
