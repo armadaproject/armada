@@ -578,7 +578,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					delete(remainingLeased, job.Id())
 				}
 				if expectedPriority, ok := tc.expectedJobPriority[job.Id()]; ok {
-					assert.Equal(t, job.Priority(), expectedPriority)
+					assert.Equal(t, expectedPriority, job.Priority())
 				}
 				if len(tc.expectedNodeAntiAffinities) > 0 {
 					assert.Len(t, job.JobSchedulingInfo().ObjectRequirements, 1)
@@ -594,12 +594,12 @@ func TestScheduler_TestCycle(t *testing.T) {
 				if tc.expectedQueuedVersion != 0 {
 					expectedQueuedVersion = tc.expectedQueuedVersion
 				}
-				assert.Equal(t, job.QueuedVersion(), expectedQueuedVersion)
+				assert.Equal(t, expectedQueuedVersion, job.QueuedVersion())
 				expectedSchedulingInfoVersion := 1
 				if tc.expectedJobSchedulingInfoVersion != 0 {
 					expectedSchedulingInfoVersion = tc.expectedJobSchedulingInfoVersion
 				}
-				assert.Equal(t, job.JobSchedulingInfo().Version, uint32(expectedSchedulingInfoVersion))
+				assert.Equal(t, uint32(expectedSchedulingInfoVersion), job.JobSchedulingInfo().Version)
 			}
 			assert.Equal(t, 0, len(remainingLeased))
 			assert.Equal(t, 0, len(remainingQueued))
