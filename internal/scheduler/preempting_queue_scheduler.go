@@ -102,6 +102,7 @@ func (sch *PreemptingQueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 
 func (sch *PreemptingQueueScheduler) EnableNewPreemptionStrategy() {
 	sch.enableNewPreemptionStrategy = true
+	sch.nodeDb.EnableNewPreemptionStrategy()
 }
 
 // Schedule
@@ -342,6 +343,9 @@ func addEvictedJobsToNodeDb(ctx context.Context, sctx *schedulercontext.Scheduli
 			q := qr.queues[gctx.Queue]
 			q.allocation.Add(gctx.TotalResourceRequests)
 		}
+		if err := candidateGangIterator.Clear(); err != nil {
+			return err
+		}
 	}
 	txn.Commit()
 	return nil
@@ -401,6 +405,9 @@ func (sch *PreemptingQueueScheduler) evict(ctx context.Context, evictor *Evictor
 	txn.Commit()
 
 	if sch.enableNewPreemptionStrategy {
+		if err := sch.nodeDb.Reset(); err != nil {
+			return nil, nil, err
+		}
 		if err := addEvictedJobsToNodeDb(ctx, sch.schedulingContext, sch.nodeDb, inMemoryJobRepo); err != nil {
 			return nil, nil, err
 		}
