@@ -170,7 +170,6 @@ func (s *Scheduler) Run(ctx context.Context) error {
 				leaderToken = InvalidLeaderToken()
 			}
 
-			// MEMO: Extracting this out to publish as a metric
 			cycleTime := s.clock.Since(start)
 			log.Infof("scheduling cycle completed in %s", cycleTime)
 
@@ -233,6 +232,10 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 		if err != nil {
 			return err
 		}
+
+		// Report counts of scheduled jobs per queue.
+		// TODO: preemptible jobs, possibly other metrics here.
+		s.Metrics.ReportScheduledJobs(overallSchedulerResult.ScheduledJobs)
 
 		resultEvents, err := s.eventsFromSchedulerResult(txn, overallSchedulerResult)
 		if err != nil {
