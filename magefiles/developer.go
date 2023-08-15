@@ -28,10 +28,6 @@ func getComponentsList() []string {
 
 // Dependencies include pulsar, postgres (v1 and v2) as well as redis.
 func StartDependencies() error {
-	if onArm() {
-		os.Setenv("PULSAR_IMAGE", "richgross/pulsar:2.11.0")
-	}
-
 	// append "up", "-d" to the beginning of services
 	servicesArg := append([]string{"compose", "up", "-d"}, services...)
 	if err := dockerRun(servicesArg...); err != nil {
