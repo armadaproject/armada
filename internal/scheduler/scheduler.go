@@ -73,8 +73,8 @@ type Scheduler struct {
 	runsSerial int64
 	// Function that is called every time a cycle is completed. Useful for testing.
 	onCycleCompleted func()
-	// Metrics set for the scheduler.
-	Metrics SchedulerMetrics
+	// metrics set for the scheduler.
+	metrics SchedulerMetrics
 }
 
 func NewScheduler(
@@ -110,7 +110,7 @@ func NewScheduler(
 		nodeIdLabel:                nodeIdLabel,
 		jobsSerial:                 -1,
 		runsSerial:                 -1,
-		Metrics:                    NewSchedulerMetrics(),
+		metrics:                    NewSchedulerMetrics(),
 	}, nil
 }
 
@@ -176,9 +176,9 @@ func (s *Scheduler) Run(ctx context.Context) error {
 
 			if shouldSchedule && leaderToken.leader {
 				// Only the leader token does real scheduling rounds.
-				s.Metrics.ReportScheduleCycleTime(float64(cycleTime))
+				s.metrics.ReportScheduleCycleTime(float64(cycleTime))
 			} else {
-				s.Metrics.ReportReconcileCycleTime(float64(cycleTime))
+				s.metrics.ReportReconcileCycleTime(float64(cycleTime))
 			}
 
 			prevLeaderToken = leaderToken
@@ -236,7 +236,8 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 
 		// Report counts of scheduled jobs per queue.
 		// TODO: preemptible jobs, possibly other metrics here.
-		s.Metrics.ReportScheduledJobs(overallSchedulerResult.ScheduledJobs)
+		s.metrics.ReportScheduledJobs(overallSchedulerResult.ScheduledJobs)
+		s.metrics.ReportPreemptedJobs(overallSchedulerResult.PreemptedJobs)
 
 		resultEvents, err := s.eventsFromSchedulerResult(txn, overallSchedulerResult)
 		if err != nil {

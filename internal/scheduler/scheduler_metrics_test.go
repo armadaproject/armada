@@ -22,10 +22,10 @@ func TestAggregateJobs(t *testing.T) {
 	actual := aggregateJobs(testJobs)
 
 	expected := map[collectionKey]int{
-		{Queue: "queue_a", PriorityClass: testfixtures.PriorityClass0}: 4,
-		{Queue: "queue_a", PriorityClass: testfixtures.PriorityClass1}: 1,
-		{Queue: "queue_b", PriorityClass: testfixtures.PriorityClass0}: 1,
-		{Queue: "queue_b", PriorityClass: testfixtures.PriorityClass1}: 1,
+		{queue: "queue_a", priorityClass: testfixtures.PriorityClass0}: 4,
+		{queue: "queue_a", priorityClass: testfixtures.PriorityClass1}: 1,
+		{queue: "queue_b", priorityClass: testfixtures.PriorityClass0}: 1,
+		{queue: "queue_b", priorityClass: testfixtures.PriorityClass1}: 1,
 	}
 
 	assert.Equal(t, expected, actual)

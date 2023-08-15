@@ -11,11 +11,13 @@ const SUBSYSTEM = "scheduler"
 
 type SchedulerMetrics struct {
 	// Cycle time when scheduling, as leader.
-	ScheduleCycleTime prometheus.Histogram
+	scheduleCycleTime prometheus.Histogram
 	// Cycle time when reconciling, as leader or follower.
-	ReconcileCycleTime prometheus.Histogram
-	// Number of jobs scheduled per queue
-	ScheduledJobs prometheus.HistogramVec
+	reconcileCycleTime prometheus.Histogram
+	// Number of jobs scheduled per queue.
+	scheduledJobs prometheus.HistogramVec
+	// Number of jobs preempted per queue.
+	preemptedJobs prometheus.HistogramVec
 }
 
 func NewSchedulerMetrics() SchedulerMetrics {
@@ -54,34 +56,68 @@ func NewSchedulerMetrics() SchedulerMetrics {
 		},
 	)
 
+	preemptedJobs := prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: NAMESPACE,
+			Subsystem: SUBSYSTEM,
+			Name:      "preempted_jobs",
+			Help:      "Number of jobs preempted each round.",
+			Buckets:   []float64{0, 1, 2, 3, 4, 5}, // TODO: parametrise in config
+		},
+		[]string{
+			"queue",
+			"priority_class",
+		},
+	)
+
 	prometheus.MustRegister(scheduleCycleTime)
 	prometheus.MustRegister(reconcileCycleTime)
 	prometheus.MustRegister(scheduledJobs)
+	prometheus.MustRegister(preemptedJobs)
 
 	return SchedulerMetrics{
-		ScheduleCycleTime:  scheduleCycleTime,
-		ReconcileCycleTime: reconcileCycleTime,
-		ScheduledJobs:      *scheduledJobs,
+		scheduleCycleTime:  scheduleCycleTime,
+		reconcileCycleTime: reconcileCycleTime,
+		scheduledJobs:      *scheduledJobs,
+		preemptedJobs:      *preemptedJobs,
 	}
 
 }
 
 func (metrics *SchedulerMetrics) ReportScheduleCycleTime(cycleTime float64) {
-	metrics.ScheduleCycleTime.Observe(cycleTime)
+	metrics.scheduleCycleTime.Observe(cycleTime)
 }
 
 func (metrics *SchedulerMetrics) ReportReconcileCycleTime(cycleTime float64) {
-	metrics.ReconcileCycleTime.Observe(cycleTime)
+	metrics.reconcileCycleTime.Observe(cycleTime)
 }
 
 func (metrics *SchedulerMetrics) ReportScheduledJobs(scheduledJobs []interfaces.LegacySchedulerJob) {
 	jobAggregates := aggregateJobs(scheduledJobs)
 
 	for key, count := range jobAggregates {
-		queue := key.Queue
-		priorityClassName := key.PriorityClass
+		queue := key.queue
+		priorityClassName := key.priorityClass
 
-		observer, err := metrics.ScheduledJobs.GetMetricWithLabelValues(queue, priorityClassName)
+		observer, err := metrics.scheduledJobs.GetMetricWithLabelValues(queue, priorityClassName)
+
+		if err != nil {
+			// A metric failure isn't reason to kill the programme.
+			log.Error(err)
+		}
+
+		observer.Observe(float64(count))
+	}
+}
+
+func (metrics *SchedulerMetrics) ReportPreemptedJobs(preemptedJobs []interfaces.LegacySchedulerJob) {
+	jobAggregates := aggregateJobs(preemptedJobs)
+
+	for key, count := range jobAggregates {
+		queue := key.queue
+		priorityClassName := key.priorityClass
+
+		observer, err := metrics.preemptedJobs.GetMetricWithLabelValues(queue, priorityClassName)
 
 		if err != nil {
 			// A metric failure isn't reason to kill the programme.
@@ -93,15 +129,15 @@ func (metrics *SchedulerMetrics) ReportScheduledJobs(scheduledJobs []interfaces.
 }
 
 type collectionKey struct {
-	Queue         string
-	PriorityClass string
+	queue         string
+	priorityClass string
 }
 
 func aggregateJobs[S ~[]E, E interfaces.LegacySchedulerJob](scheduledJobs S) map[collectionKey]int {
 	groups := make(map[collectionKey]int)
 
 	for _, job := range scheduledJobs {
-		key := collectionKey{Queue: job.GetQueue(), PriorityClass: job.GetPriorityClassName()}
+		key := collectionKey{queue: job.GetQueue(), priorityClass: job.GetPriorityClassName()}
 		groups[key] += 1
 	}
 
