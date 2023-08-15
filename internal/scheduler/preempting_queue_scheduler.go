@@ -281,78 +281,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 	}, nil
 }
 
-type MinimalQueueRepository struct {
-	queues map[string]MinimalQueue
-}
-
-func (qr *MinimalQueueRepository) GetQueue(name string) (fairness.Queue, bool) {
-	queue, ok := qr.queues[name]
-	return queue, ok
-}
-
-func NewMinimalQueueRepositoryFromSchedulingContext(sctx *schedulercontext.SchedulingContext) *MinimalQueueRepository {
-	queues := make(map[string]MinimalQueue, len(sctx.QueueSchedulingContexts))
-	for name, qctx := range sctx.QueueSchedulingContexts {
-		queues[name] = MinimalQueue{allocation: qctx.Allocated.DeepCopy(), weight: qctx.Weight}
-	}
-	return &MinimalQueueRepository{queues: queues}
-}
-
-type MinimalQueue struct {
-	allocation schedulerobjects.ResourceList
-	weight     float64
-}
-
-func (q MinimalQueue) GetAllocation() schedulerobjects.ResourceList {
-	return q.allocation
-}
-
-func (q MinimalQueue) GetWeight() float64 {
-	return q.weight
-}
-
-// addEvictedJobsToNodeDb adds evicted jobs to the NodeDb.
-// Needed to enable the nodeDb accounting for these when preempting.
-func addEvictedJobsToNodeDb(ctx context.Context, sctx *schedulercontext.SchedulingContext, nodeDb *nodedb.NodeDb, inMemoryJobRepo *InMemoryJobRepository) error {
-	gangItByQueue := make(map[string]*QueuedGangIterator)
-	for _, qctx := range sctx.QueueSchedulingContexts {
-		jobIt, err := inMemoryJobRepo.GetJobIterator(ctx, qctx.Queue)
-		if err != nil {
-			return err
-		}
-		gangItByQueue[qctx.Queue] = NewQueuedGangIterator(sctx, jobIt, 0)
-	}
-	qr := NewMinimalQueueRepositoryFromSchedulingContext(sctx)
-	candidateGangIterator, err := NewCandidateGangIterator(qr, sctx.FairnessCostProvider, gangItByQueue)
-	if err != nil {
-		return err
-	}
-	txn := nodeDb.Txn(true)
-	defer txn.Abort()
-	i := 0
-	for {
-		if gctx, err := candidateGangIterator.Peek(); err != nil {
-			return err
-		} else if gctx == nil {
-			break
-		} else {
-			for _, jctx := range gctx.JobSchedulingContexts {
-				if err := nodeDb.AddEvictedJobSchedulingContextWithTxn(txn, i, jctx); err != nil {
-					return err
-				}
-				i++
-			}
-			q := qr.queues[gctx.Queue]
-			q.allocation.Add(gctx.TotalResourceRequests)
-		}
-		if err := candidateGangIterator.Clear(); err != nil {
-			return err
-		}
-	}
-	txn.Commit()
-	return nil
-}
-
 func (sch *PreemptingQueueScheduler) evict(ctx context.Context, evictor *Evictor) (*EvictorResult, *InMemoryJobRepository, error) {
 	if evictor == nil {
 		return &EvictorResult{}, NewInMemoryJobRepository(sch.schedulingContext.PriorityClasses), nil
@@ -548,6 +476,78 @@ func (sch *PreemptingQueueScheduler) evictionAssertions(evictedJobsById map[stri
 			)
 		}
 	}
+	return nil
+}
+
+type MinimalQueueRepository struct {
+	queues map[string]MinimalQueue
+}
+
+func (qr *MinimalQueueRepository) GetQueue(name string) (fairness.Queue, bool) {
+	queue, ok := qr.queues[name]
+	return queue, ok
+}
+
+func NewMinimalQueueRepositoryFromSchedulingContext(sctx *schedulercontext.SchedulingContext) *MinimalQueueRepository {
+	queues := make(map[string]MinimalQueue, len(sctx.QueueSchedulingContexts))
+	for name, qctx := range sctx.QueueSchedulingContexts {
+		queues[name] = MinimalQueue{allocation: qctx.Allocated.DeepCopy(), weight: qctx.Weight}
+	}
+	return &MinimalQueueRepository{queues: queues}
+}
+
+type MinimalQueue struct {
+	allocation schedulerobjects.ResourceList
+	weight     float64
+}
+
+func (q MinimalQueue) GetAllocation() schedulerobjects.ResourceList {
+	return q.allocation
+}
+
+func (q MinimalQueue) GetWeight() float64 {
+	return q.weight
+}
+
+// addEvictedJobsToNodeDb adds evicted jobs to the NodeDb.
+// Needed to enable the nodeDb accounting for these when preempting.
+func addEvictedJobsToNodeDb(ctx context.Context, sctx *schedulercontext.SchedulingContext, nodeDb *nodedb.NodeDb, inMemoryJobRepo *InMemoryJobRepository) error {
+	gangItByQueue := make(map[string]*QueuedGangIterator)
+	for _, qctx := range sctx.QueueSchedulingContexts {
+		jobIt, err := inMemoryJobRepo.GetJobIterator(ctx, qctx.Queue)
+		if err != nil {
+			return err
+		}
+		gangItByQueue[qctx.Queue] = NewQueuedGangIterator(sctx, jobIt, 0)
+	}
+	qr := NewMinimalQueueRepositoryFromSchedulingContext(sctx)
+	candidateGangIterator, err := NewCandidateGangIterator(qr, sctx.FairnessCostProvider, gangItByQueue)
+	if err != nil {
+		return err
+	}
+	txn := nodeDb.Txn(true)
+	defer txn.Abort()
+	i := 0
+	for {
+		if gctx, err := candidateGangIterator.Peek(); err != nil {
+			return err
+		} else if gctx == nil {
+			break
+		} else {
+			for _, jctx := range gctx.JobSchedulingContexts {
+				if err := nodeDb.AddEvictedJobSchedulingContextWithTxn(txn, i, jctx); err != nil {
+					return err
+				}
+				i++
+			}
+			q := qr.queues[gctx.Queue]
+			q.allocation.Add(gctx.TotalResourceRequests)
+		}
+		if err := candidateGangIterator.Clear(); err != nil {
+			return err
+		}
+	}
+	txn.Commit()
 	return nil
 }
 
