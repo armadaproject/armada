@@ -200,9 +200,15 @@ func (nodeDb *NodeDb) CreateAndInsertWithJobDbJobsWithTxn(txn *memdb.Txn, jobs [
 }
 
 // EvictedJobSchedulingContext represents an evicted job.
+// NodeDb may track these to ensure preemptions are fair.
 type EvictedJobSchedulingContext struct {
+	// Id of the evicted job.
 	JobId string
-	// Order in which this job would be re-scheduled among all evicted jobs.
+	// Each evicted job is assigned a unique integer indicating the order in which it is re-scheduled.
+	// I.e., index establishes a global order among all evicted jobs.
+	//
+	// When choosing on which node to schedule a job that would prevent re-scheduling evicted jobs,
+	// nodeDb choses the node that would prevent re-scheduling jobs with as a large an index as possible.
 	Index                int
 	JobSchedulingContext *schedulercontext.JobSchedulingContext
 }
@@ -275,7 +281,7 @@ type NodeDb struct {
 	// Used to avoid allocs.
 	podRequirementsNotMetReasonStringCache map[uint64]string
 
-	// If true, a newer preemption strategy is used.
+	// If true, use experimental preemption strategy.
 	enableNewPreemptionStrategy bool
 }
 
@@ -357,6 +363,7 @@ func NewNodeDb(
 }
 
 // Reset clears out data specific to one scheduling round to prepare for a new scheduling round.
+// Only necessary when nodeDb.enableNewPreemptionStrategy is true.
 func (nodeDb *NodeDb) Reset() error {
 	txn := nodeDb.Txn(true)
 	defer txn.Abort()
@@ -370,16 +377,6 @@ func (nodeDb *NodeDb) Reset() error {
 		}
 	}
 	return nil
-}
-
-func deleteEvictedJobSchedulingContextIfExistsWithTxn(txn *memdb.Txn, jobId string) error {
-	if err := txn.Delete("evictedJobs", &EvictedJobSchedulingContext{JobId: jobId}); err == memdb.ErrNotFound {
-		return nil
-	} else if err != nil {
-		return errors.WithStack(err)
-	} else {
-		return nil
-	}
 }
 
 func (nodeDb *NodeDb) EnableNewPreemptionStrategy() {
@@ -527,7 +524,7 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, jctxs []*schedulercont
 			return false, nil
 		}
 
-		// Ensure scheduled jobs are not considered for preemption.
+		// Once a job is scheduled, it should no longer be considered for preemption.
 		if nodeDb.enableNewPreemptionStrategy {
 			if err := deleteEvictedJobSchedulingContextIfExistsWithTxn(txn, jctx.JobId); err != nil {
 				return false, err
@@ -535,6 +532,16 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, jctxs []*schedulercont
 		}
 	}
 	return true, nil
+}
+
+func deleteEvictedJobSchedulingContextIfExistsWithTxn(txn *memdb.Txn, jobId string) error {
+	if err := txn.Delete("evictedJobs", &EvictedJobSchedulingContext{JobId: jobId}); err == memdb.ErrNotFound {
+		return nil
+	} else if err != nil {
+		return errors.WithStack(err)
+	} else {
+		return nil
+	}
 }
 
 // SelectNodeForJobWithTxn selects a node on which the job can be scheduled.
@@ -572,8 +579,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 		}
 	}()
 
-	// If the targetNodeIdAnnocation is set, consider only that node,
-	// and schedule onto that node even if it requires preempting other jobs.
+	// If the targetNodeIdAnnocation is set, consider only that node.
 	if nodeId, ok := req.NodeSelector[schedulerconfig.NodeIdLabel]; ok {
 		if it, err := txn.Get("nodes", "id", nodeId); err != nil {
 			return nil, errors.WithStack(err)
@@ -586,59 +592,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 		}
 	}
 
-	// Try to schedule this pod normally.
-	// To avoid preempting running jobs, try scheduling at each available priority from lowest to highest.
-	if nodeDb.enableNewPreemptionStrategy {
-		if node, err := nodeDb.selectNodeForJobWithOrderedPreemption(txn, jctx); err != nil {
-			return nil, err
-		} else {
-			return node, nil
-		}
-	} else {
-		if node, err := nodeDb.selectNodeForPodAtMinPriority(txn, pctx, req); err != nil {
-			return nil, err
-		} else {
-			return node, nil
-		}
-	}
-
-	// // Try to schedule this pod normally.
-	// // To avoid preempting running jobs, try scheduling at each available priority from lowest to highest.
-	// for _, priority := range nodeDb.prioritiesToTryAssigningAt {
-	// 	if priority > req.Priority {
-	// 		break
-	// 	}
-
-	// 	// Reset NumExcludedNodesByReason to avoid double-counting nodes
-	// 	// (since we may consider all nodes at each priority).
-	// 	pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
-
-	// 	// Try to find a node at this priority.
-	// 	node, err := nodeDb.selectNodeForPodAtPriority(txn, pctx, priority, req)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	if node != nil {
-	// 		if pctx.NodeId == "" {
-	// 			return nil, errors.New("pctx.NodeId not set")
-	// 		}
-	// 		if node.Id != pctx.NodeId {
-	// 			return nil, errors.New("pctx.NodeId does not match that of the returned node")
-	// 		}
-	// 		return node, nil
-	// 	}
-	// 	if pctx.NodeId != "" {
-	// 		return nil, errors.New("pctx.NodeId is set, but no node was returned")
-	// 	}
-	// }
-	// return nil, nil
-}
-
-func (nodeDb *NodeDb) selectNodeForJobWithOrderedPreemption(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext) (*Node, error) {
-	pctx := jctx.PodSchedulingContext
-	numExcludedNodesByReason := pctx.NumExcludedNodesByReason
-
-	// Try scheduling at evictecPriority. If this succeeds, no preemption is necessary.
+	// Try scheduling at evictedPriority. If this succeeds, no preemption is necessary.
 	pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
 	if node, err := nodeDb.selectNodeForPodAtPriority(txn, pctx, evictedPriority, jctx.PodRequirements); err != nil {
 		return nil, err
@@ -648,7 +602,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithOrderedPreemption(txn *memdb.Txn, jctx
 		return node, nil
 	}
 
-	// Try scheduling at the job priority. If this fails, scheduling is impossible.
+	// Try scheduling at the job priority. If this fails, scheduling is impossible and we return.
 	// This is an optimisation to avoid looking for preemption targets for unschedulable jobs.
 	pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
 	if node, err := nodeDb.selectNodeForPodAtPriority(txn, pctx, jctx.PodRequirements.Priority, jctx.PodRequirements); err != nil {
@@ -662,53 +616,31 @@ func (nodeDb *NodeDb) selectNodeForJobWithOrderedPreemption(txn *memdb.Txn, jctx
 	pctx.Score = 0
 	pctx.ScheduledAtPriority = 0
 
-	// Schedule the job with preemption.
-	if node, err := nodeDb.selectNodeForJobWithPreemptionWithTxn(txn, jctx, false); err != nil {
-		return nil, err
-	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
-		return nil, err
-	} else if node != nil {
-		return node, nil
-	}
-
-	// Schedule the job with less clever preemption.
-	if node, err := nodeDb.selectNodeForPodAtMinPriority(txn, pctx, jctx.PodRequirements); err != nil {
-		return nil, err
-	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
-		return nil, err
-	} else if node != nil {
-		return node, nil
-	}
-	return nil, nil
-}
-
-func (nodeDb *NodeDb) selectNodeForPodAtMinPriority(
-	txn *memdb.Txn,
-	pctx *schedulercontext.PodSchedulingContext,
-	req *schedulerobjects.PodRequirements,
-) (*Node, error) {
-	numExcludedNodesByReason := pctx.NumExcludedNodesByReason
-	for _, priority := range nodeDb.prioritiesToTryAssigningAt {
-		if priority > req.Priority {
-			break
-		}
-
-		// Reset NumExcludedNodesByReason to avoid double-counting nodes
-		// (since we may consider all nodes at each priority).
-		pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
-
-		// Try to find a node at this priority.
-		node, err := nodeDb.selectNodeForPodAtPriority(txn, pctx, priority, req)
-		if err != nil {
+	// Schedule by preventing evicted jobs from being re-scheduled.
+	// This method respect fairness by preventing from re-scheduling jobs that appear as far back in the total order as possible.
+	if nodeDb.enableNewPreemptionStrategy {
+		if node, err := nodeDb.selectNodeForJobWithFairPreemption(txn, jctx); err != nil {
 			return nil, err
-		}
-		if err := assertPodSchedulingContextNode(pctx, node); err != nil {
+		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 			return nil, err
-		}
-		if node != nil {
+		} else if node != nil {
 			return node, nil
 		}
 	}
+	pctx.NodeId = ""
+	pctx.Score = 0
+	pctx.ScheduledAtPriority = 0
+
+	// Schedule by kicking off jobs currently bound to a node.
+	// This method does not respect fairness when choosing on which node to schedule the job.
+	if node, err := nodeDb.selectNodeForJobWithUrgencyPreemption(txn, jctx); err != nil {
+		return nil, err
+	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
+		return nil, err
+	} else if node != nil {
+		return node, nil
+	}
+
 	return nil, nil
 }
 
@@ -724,6 +656,35 @@ func assertPodSchedulingContextNode(pctx *schedulercontext.PodSchedulingContext,
 		return errors.New("pctx.NodeId is set, but no node was returned")
 	}
 	return nil
+}
+
+func (nodeDb *NodeDb) selectNodeForJobWithUrgencyPreemption(
+	txn *memdb.Txn,
+	jctx *schedulercontext.JobSchedulingContext,
+) (*Node, error) {
+	pctx := jctx.PodSchedulingContext
+	req := jctx.PodRequirements
+	numExcludedNodesByReason := pctx.NumExcludedNodesByReason
+	// TODO: This doesn't need to include the evictedPriority now.
+	for _, priority := range nodeDb.prioritiesToTryAssigningAt {
+		if priority > req.Priority {
+			break
+		}
+
+		// Reset NumExcludedNodesByReason to avoid double-counting nodes
+		// (since we may consider all nodes at each priority).
+		pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
+
+		// Try to find a node at this priority.
+		if node, err := nodeDb.selectNodeForPodAtPriority(txn, pctx, priority, req); err != nil {
+			return nil, err
+		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
+			return nil, err
+		} else if node != nil {
+			return node, nil
+		}
+	}
+	return nil, nil
 }
 
 func (nodeDb *NodeDb) selectNodeForPodAtPriority(
@@ -821,6 +782,72 @@ func (nodeDb *NodeDb) selectNodeForPodWithIt(
 		pctx.NodeId = selectedNode.Id
 		pctx.Score = selectedNodeScore
 		pctx.ScheduledAtPriority = priority
+	}
+	return selectedNode, nil
+}
+
+// selectNodeForJobWithFairPreemption returns a node onto which the provided job could be scheduled, or nil if none can be found.
+// Specifically, it returns the node for which scheduling would result in the most "fair" preemptions.
+//
+// It does this by considering all evicted jobs in the reverse order they would be scheduled in and preventing
+// from being re-scheduled the jobs that would be scheduled last.
+func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext) (*Node, error) {
+	pctx := jctx.PodSchedulingContext
+	var selectedNode *Node
+	nodesById := make(map[string]*Node)
+	evictedJobSchedulingContextsByNodeId := make(map[string][]*EvictedJobSchedulingContext)
+	it, err := txn.ReverseLowerBound("evictedJobs", "index", math.MaxInt)
+	if err != nil {
+		return nil, errors.WithStack(err)
+	}
+	for obj := it.Next(); obj != nil && selectedNode == nil; obj = it.Next() {
+		evictedJobSchedulingContext := obj.(*EvictedJobSchedulingContext)
+		evictedJctx := evictedJobSchedulingContext.JobSchedulingContext
+		evictedReq := evictedJctx.PodRequirements
+
+		nodeId, ok := evictedReq.NodeSelector[schedulerconfig.NodeIdLabel]
+		if !ok {
+			return nil, errors.Errorf("evicted job %s does not have a nodeIdLabel", evictedJctx.JobId)
+		}
+		node, ok := nodesById[nodeId]
+		if !ok {
+			node, err = nodeDb.GetNodeWithTxn(txn, nodeId)
+			if err != nil {
+				return nil, errors.WithStack(err)
+			}
+		}
+		node, err = UnbindJobFromNode(nodeDb.priorityClasses, evictedJctx.Job, node)
+		if err != nil {
+			return nil, err
+		}
+		nodesById[nodeId] = node
+		evictedJobSchedulingContextsByNodeId[nodeId] = append(evictedJobSchedulingContextsByNodeId[nodeId], evictedJobSchedulingContext)
+
+		matches, _, reason, err := schedulerobjects.PodRequirementsMet(
+			node.Taints,
+			node.Labels,
+			node.TotalResources,
+			node.AllocatableByPriority[evictedPriority],
+			jctx.PodRequirements,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if matches {
+			selectedNode = node
+		} else {
+			s := nodeDb.stringFromPodRequirementsNotMetReason(reason)
+			pctx.NumExcludedNodesByReason[s] += 1
+		}
+	}
+	if selectedNode != nil {
+		pctx.NodeId = selectedNode.Id
+		pctx.ScheduledAtPriority = jctx.PodRequirements.Priority
+		for _, evictedJobSchedulingContext := range evictedJobSchedulingContextsByNodeId[selectedNode.Id] {
+			if err := txn.Delete("evictedJobs", evictedJobSchedulingContext); err != nil {
+				return nil, errors.WithStack(err)
+			}
+		}
 	}
 	return selectedNode, nil
 }
@@ -1071,68 +1098,6 @@ func (nodeDb *NodeDb) ClearAllocated() error {
 	}
 	txn.Commit()
 	return nil
-}
-
-func (nodeDb *NodeDb) selectNodeForJobWithPreemptionWithTxn(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext, onlyCheckDynamicRequirements bool) (*Node, error) {
-	req := jctx.PodRequirements
-	pctx := jctx.PodSchedulingContext
-	nodesById := make(map[string]*Node, 128)
-	var selectedNode *Node
-	evictedJobSchedulingContextsByNodeId := make(map[string][]*EvictedJobSchedulingContext)
-	it, err := txn.ReverseLowerBound("evictedJobs", "index", math.MaxInt)
-	if err != nil {
-		return nil, errors.WithStack(err)
-	}
-	for obj := it.Next(); obj != nil && selectedNode == nil; obj = it.Next() {
-		evictedJobSchedulingContext := obj.(*EvictedJobSchedulingContext)
-		evictedJctx := evictedJobSchedulingContext.JobSchedulingContext
-		evictedReq := evictedJctx.PodRequirements
-
-		nodeId, ok := evictedReq.NodeSelector[schedulerconfig.NodeIdLabel]
-		if !ok {
-			return nil, errors.Errorf("evicted job %s does not have a nodeIdLabel", evictedJctx.JobId)
-		}
-		node, ok := nodesById[nodeId]
-		if !ok {
-			node, err = nodeDb.GetNodeWithTxn(txn, nodeId)
-			if err != nil {
-				return nil, errors.WithStack(err)
-			}
-		}
-		node, err = UnbindJobFromNode(nodeDb.priorityClasses, evictedJctx.Job, node)
-		if err != nil {
-			return nil, err
-		}
-		nodesById[nodeId] = node
-		evictedJobSchedulingContextsByNodeId[nodeId] = append(evictedJobSchedulingContextsByNodeId[nodeId], evictedJobSchedulingContext)
-
-		var matches bool
-		var reason schedulerobjects.PodRequirementsNotMetReason
-		if onlyCheckDynamicRequirements {
-			matches, _, reason, err = schedulerobjects.DynamicPodRequirementsMet(node.AllocatableByPriority[evictedPriority], req)
-		} else {
-			matches, _, reason, err = schedulerobjects.PodRequirementsMet(node.Taints, node.Labels, node.TotalResources, node.AllocatableByPriority[evictedPriority], req)
-		}
-		if err != nil {
-			return nil, err
-		}
-		if matches {
-			selectedNode = node
-		} else {
-			s := nodeDb.stringFromPodRequirementsNotMetReason(reason)
-			pctx.NumExcludedNodesByReason[s] += 1
-		}
-	}
-	if selectedNode != nil {
-		pctx.NodeId = selectedNode.Id
-		pctx.ScheduledAtPriority = jctx.PodRequirements.Priority
-		for _, evictedJobSchedulingContext := range evictedJobSchedulingContextsByNodeId[selectedNode.Id] {
-			if err := txn.Delete("evictedJobs", evictedJobSchedulingContext); err != nil {
-				return nil, errors.WithStack(err)
-			}
-		}
-	}
-	return selectedNode, nil
 }
 
 func (nodeDb *NodeDb) AddEvictedJobSchedulingContextWithTxn(txn *memdb.Txn, index int, jctx *schedulercontext.JobSchedulingContext) error {
