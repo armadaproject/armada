@@ -190,7 +190,7 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 		fmt.Fprint(w, "Scheduled queues:\n")
 		for queueName, qctx := range scheduled {
 			fmt.Fprintf(w, "\t%s:\n", queueName)
-			fmt.Fprintf(w, indent.String("\t\t", qctx.ReportString(verbosity-2)))
+			fmt.Fprint(w, indent.String("\t\t", qctx.ReportString(verbosity-2)))
 		}
 	}
 	preempted := armadamaps.Filter(
@@ -205,7 +205,7 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 		fmt.Fprint(w, "Preempted queues:\n")
 		for queueName, qctx := range preempted {
 			fmt.Fprintf(w, "\t%s:\n", queueName)
-			fmt.Fprintf(w, indent.String("\t\t", qctx.ReportString(verbosity-2)))
+			fmt.Fprint(w, indent.String("\t\t", qctx.ReportString(verbosity-2)))
 		}
 	}
 	w.Flush()
@@ -519,50 +519,6 @@ func (qctx *QueueSchedulingContext) ClearJobSpecs() {
 		jctx.Job = nil
 	}
 }
-
-// // TotalCostForQueue returns the total cost of this queue.
-// func (qctx *QueueSchedulingContext) TotalCostForQueue() float64 {
-// 	return qctx.TotalCostForQueueWithAllocation(qctx.Allocated)
-// }
-
-// // TotalCostForQueueWithAllocation returns the total cost of this queue if its total allocation is given by allocated.
-// func (qctx *QueueSchedulingContext) TotalCostForQueueWithAllocation(allocated schedulerobjects.ResourceList) float64 {
-// 	switch qctx.SchedulingContext.FairnessModel {
-// 	case configuration.AssetFairness:
-// 		return qctx.assetFairnessCostWithAllocation(allocated)
-// 	case configuration.DominantResourceFairness:
-// 		return qctx.dominantResourceFairnessCostWithAllocation(allocated)
-// 	default:
-// 		panic(fmt.Sprintf("unknown fairness type: %s", qctx.SchedulingContext.FairnessModel))
-// 	}
-// }
-
-// func (qctx *QueueSchedulingContext) assetFairnessCostWithAllocation(allocated schedulerobjects.ResourceList) float64 {
-// 	if len(qctx.SchedulingContext.ResourceScarcity) == 0 {
-// 		panic("ResourceScarcity is not set")
-// 	}
-// 	return float64(allocated.AsWeightedMillis(qctx.SchedulingContext.ResourceScarcity)) / qctx.Weight
-// }
-
-// func (qctx *QueueSchedulingContext) dominantResourceFairnessCostWithAllocation(allocated schedulerobjects.ResourceList) float64 {
-// 	if len(qctx.SchedulingContext.DominantResourceFairnessResourcesToConsider) == 0 {
-// 		panic("DominantResourceFairnessResourcesToConsider is not set")
-// 	}
-// 	var cost float64
-// 	for _, t := range qctx.SchedulingContext.DominantResourceFairnessResourcesToConsider {
-// 		capacity := qctx.SchedulingContext.TotalResources.Get(t)
-// 		if capacity.Equal(resource.Quantity{}) {
-// 			// Ignore any resources with zero capacity.
-// 			continue
-// 		}
-// 		q := allocated.Get(t)
-// 		tcost := float64(q.MilliValue()) / float64(capacity.MilliValue())
-// 		if tcost > cost {
-// 			cost = tcost
-// 		}
-// 	}
-// 	return cost / qctx.Weight
-// }
 
 type GangSchedulingContext struct {
 	Created               time.Time
