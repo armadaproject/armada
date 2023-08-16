@@ -27,7 +27,7 @@ type SchedulerResult struct {
 	NodeIdByJobId map[string]string
 	// The Scheduling Context. Being passed up for metrics decisions made in scheduler.go and scheduler_metrics.go.
 	// Passing a pointer as the structure is enormous
-	SchedulingContext *schedulercontext.SchedulingContext
+	SchedulingContextList []*schedulercontext.SchedulingContext
 }
 
 func NewSchedulerResult[S ~[]T, T interfaces.LegacySchedulerJob](

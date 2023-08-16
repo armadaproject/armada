@@ -287,10 +287,10 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 		}
 	}
 	return &SchedulerResult{
-		PreemptedJobs:     preemptedJobs,
-		ScheduledJobs:     scheduledJobs,
-		NodeIdByJobId:     sch.nodeIdByJobId,
-		SchedulingContext: sch.schedulingContext,
+		PreemptedJobs:         preemptedJobs,
+		ScheduledJobs:         scheduledJobs,
+		NodeIdByJobId:         sch.nodeIdByJobId,
+		SchedulingContextList: []*schedulercontext.SchedulingContext{sch.schedulingContext},
 	}, nil
 }
 
