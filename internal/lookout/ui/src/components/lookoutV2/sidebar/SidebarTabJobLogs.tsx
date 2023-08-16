@@ -306,17 +306,15 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
             }
           </FormControl>
         </div>
-        <div className={styles.logOption}>
-          <ActionButton text="Load from start" actionFunc={() => setLoadFromStart((prevState) => !prevState)} />
-        </div>
-        <div className={styles.logOption}>
-          <ActionButton
-            text={showTimestamps ? "Hide timestamps" : "Show timestamps"}
-            actionFunc={() => setShowTimestamps((prevState) => !prevState)}
-          />
-        </div>
       </div>
-      <LogView logLines={logs} showTimestamps={showTimestamps} jobId={param.get("sb")} jobLogInfo={jobLogInfo} />
+      <LogView
+        logLines={logs}
+        showTimestamps={showTimestamps}
+        jobId={param.get("sb")}
+        jobLogInfo={jobLogInfo}
+        setShowTimestamps={() => setShowTimestamps((prevState) => !prevState)}
+        setLoadFromStart={() => setLoadFromStart((prevState) => !prevState)}
+      />
       <div className={styles.gutter}>
         {logsRequestStatus === "Loading" && (
           <div className={styles.loading}>
@@ -343,11 +341,15 @@ function LogView({
   showTimestamps,
   jobId,
   jobLogInfo,
+  setLoadFromStart,
+  setShowTimestamps,
 }: {
   logLines: LogLine[]
   showTimestamps: boolean
   jobId: string | null
   jobLogInfo: JobLogInfoProps
+  setLoadFromStart: () => void
+  setShowTimestamps: () => void
 }) {
   if (logLines.length === 0) {
     return (
@@ -398,9 +400,17 @@ function LogView({
   useEffect(() => setJobLogState(), [logLines, showTimestamps])
   return (
     <section className={styles.logViewContainer}>
-      <Link to={`/v2/jobLog/${jobId}`} target="_blank" className={styles.logViewNewTab}>
-        <OpenInNewTwoToneIcon style={{ color: "#00aae1", fontSize: "2em" }} />
-      </Link>
+      <section className={styles.logViewHeader}>
+        <div className={styles.logOption}>
+          <ActionButton text="Load from start" actionFunc={setLoadFromStart} />
+        </div>
+        <div className={styles.logOption}>
+          <ActionButton text={showTimestamps ? "Hide timestamps" : "Show timestamps"} actionFunc={setShowTimestamps} />
+        </div>
+        <Link to={`/v2/jobLog/${jobId}`} target="_blank" className={styles.logViewNewTab}>
+          <OpenInNewTwoToneIcon style={{ color: "#00aae1", fontSize: "2em" }} />
+        </Link>
+      </section>
       <div className={styles.logView} onScroll={handleScroll}>
         {logLines.map((logLine, i) => (
           <span key={`${i}-${logLine.timestamp}`}>

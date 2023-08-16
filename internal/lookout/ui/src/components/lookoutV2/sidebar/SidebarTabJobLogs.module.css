@@ -9,10 +9,8 @@
 .logsHeader {
   flex: 0 0 auto;
   max-width: 100%;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  grid-column-gap: 1.5rem;
-  grid-row-gap: 1.2rem;
+  display: flex;
+  gap: 1.5rem;
   align-items: center;
   margin-bottom: 2rem;
 }
@@ -61,12 +59,18 @@
   gap: 0.4rem;
 }
 
-.logViewNewTab {
+.logViewContainer .logViewHeader {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+  width: 100%;
+  max-width: 400px;
+  align-self: flex-end;
+}
+
+.logViewContainer .logViewHeader .logViewNewTab {
   text-align: center;
   display: flex;
-  margin-right: 0.5rem;
-  max-width: 100px;
-  align-self: flex-end;
 }
 
 .logView {
