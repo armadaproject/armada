@@ -39,6 +39,7 @@ func Run(config Configuration) {
 		config.BatchSize,
 		config.BatchDuration,
 		pulsar.Failover,
+		config.PulsarReceiverQueueSize,
 		schedulers.ForPulsarScheduler,
 		converter,
 		schedulerDb,

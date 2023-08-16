@@ -25,6 +25,8 @@ type EventIngesterConfiguration struct {
 	BatchSize int
 	// Maximum time since the last batch before a batch will be inserted into the database
 	BatchDuration time.Duration
+	// Number of pulsar messages that will be queued by the pulsar consumer.
+	PulsarReceiverQueueSize int
 	// Time after which events will be deleted from the db
 	EventRetentionPolicy EventRetentionPolicy
 	// List of Regexes which will identify fatal errors when inserting into redis

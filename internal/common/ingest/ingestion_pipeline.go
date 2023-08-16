@@ -53,17 +53,18 @@ type EventSequencesWithIds struct {
 // Callers must supply two structs, an InstructionConverter for converting event sequences into something that can be
 // exhausted and a Sink capable of exhausting these objects
 type IngestionPipeline[T HasPulsarMessageIds] struct {
-	pulsarConfig           configuration.PulsarConfig
-	metricsConfig          configuration.MetricsConfig
-	metrics                *commonmetrics.Metrics
-	pulsarSubscriptionName string
-	pulsarBatchSize        int
-	pulsarBatchDuration    time.Duration
-	pulsarSubscriptionType pulsar.SubscriptionType
-	msgFilter              func(msg pulsar.Message) bool
-	converter              InstructionConverter[T]
-	sink                   Sink[T]
-	consumer               pulsar.Consumer // for test purposes only
+	pulsarConfig            configuration.PulsarConfig
+	metricsConfig           configuration.MetricsConfig
+	metrics                 *commonmetrics.Metrics
+	pulsarSubscriptionName  string
+	pulsarBatchSize         int
+	pulsarBatchDuration     time.Duration
+	pulsarSubscriptionType  pulsar.SubscriptionType
+	pulsarReceiverQueueSize int
+	msgFilter               func(msg pulsar.Message) bool
+	converter               InstructionConverter[T]
+	sink                    Sink[T]
+	consumer                pulsar.Consumer // for test purposes only
 }
 
 // NewIngestionPipeline creates an IngestionPipeline that processes all pulsar messages
@@ -73,6 +74,7 @@ func NewIngestionPipeline[T HasPulsarMessageIds](
 	pulsarBatchSize int,
 	pulsarBatchDuration time.Duration,
 	pulsarSubscriptionType pulsar.SubscriptionType,
+	pulsarReceiverQueueSize int,
 	converter InstructionConverter[T],
 	sink Sink[T],
 	metricsConfig configuration.MetricsConfig,
@@ -84,6 +86,7 @@ func NewIngestionPipeline[T HasPulsarMessageIds](
 		pulsarBatchSize,
 		pulsarBatchDuration,
 		pulsarSubscriptionType,
+		pulsarReceiverQueueSize,
 		func(_ pulsar.Message) bool { return true },
 		converter,
 		sink,
@@ -100,6 +103,7 @@ func NewFilteredMsgIngestionPipeline[T HasPulsarMessageIds](
 	pulsarBatchSize int,
 	pulsarBatchDuration time.Duration,
 	pulsarSubscriptionType pulsar.SubscriptionType,
+	pulsarReceiverQueueSize int,
 	msgFilter func(msg pulsar.Message) bool,
 	converter InstructionConverter[T],
 	sink Sink[T],
@@ -107,16 +111,17 @@ func NewFilteredMsgIngestionPipeline[T HasPulsarMessageIds](
 	metrics *commonmetrics.Metrics,
 ) *IngestionPipeline[T] {
 	return &IngestionPipeline[T]{
-		pulsarConfig:           pulsarConfig,
-		metricsConfig:          metricsConfig,
-		metrics:                metrics,
-		pulsarSubscriptionName: pulsarSubscriptionName,
-		pulsarBatchSize:        pulsarBatchSize,
-		pulsarBatchDuration:    pulsarBatchDuration,
-		pulsarSubscriptionType: pulsarSubscriptionType,
-		msgFilter:              msgFilter,
-		converter:              converter,
-		sink:                   sink,
+		pulsarConfig:            pulsarConfig,
+		metricsConfig:           metricsConfig,
+		metrics:                 metrics,
+		pulsarSubscriptionName:  pulsarSubscriptionName,
+		pulsarBatchSize:         pulsarBatchSize,
+		pulsarBatchDuration:     pulsarBatchDuration,
+		pulsarReceiverQueueSize: pulsarReceiverQueueSize,
+		pulsarSubscriptionType:  pulsarSubscriptionType,
+		msgFilter:               msgFilter,
+		converter:               converter,
+		sink:                    sink,
 	}
 }
 
@@ -229,6 +234,7 @@ func (ingester *IngestionPipeline[T]) subscribe() (pulsar.Consumer, func(), erro
 		Topic:                       ingester.pulsarConfig.JobsetEventsTopic,
 		SubscriptionName:            ingester.pulsarSubscriptionName,
 		Type:                        ingester.pulsarSubscriptionType,
+		ReceiverQueueSize:           ingester.pulsarReceiverQueueSize,
 		SubscriptionInitialPosition: pulsar.SubscriptionPositionEarliest,
 	})
 	if err != nil {

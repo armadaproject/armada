@@ -58,6 +58,7 @@ func Run(config *configuration.EventIngesterConfiguration) {
 			config.BatchSize,
 			config.BatchDuration,
 			pulsar.KeyShared,
+			config.PulsarReceiverQueueSize,
 			converter,
 			eventDb,
 			config.Metrics,
