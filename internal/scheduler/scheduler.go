@@ -172,13 +172,14 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			}
 
 			cycleTime := s.clock.Since(start)
-			log.Infof("scheduling cycle completed in %s", cycleTime)
 
 			if shouldSchedule && leaderToken.leader {
 				// Only the leader token does real scheduling rounds.
-				s.metrics.ReportScheduleCycleTime(float64(cycleTime))
+				s.metrics.ReportScheduleCycleTime(float64(cycleTime.Milliseconds()))
+				log.Infof("scheduling cycle completed in %s", cycleTime)
 			} else {
-				s.metrics.ReportReconcileCycleTime(float64(cycleTime))
+				s.metrics.ReportReconcileCycleTime(float64(cycleTime.Milliseconds()))
+				log.Infof("reconciliation cycle completed in %s", cycleTime)
 			}
 
 			prevLeaderToken = leaderToken

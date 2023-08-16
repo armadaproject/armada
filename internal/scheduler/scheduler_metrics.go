@@ -28,7 +28,7 @@ func NewSchedulerMetrics() SchedulerMetrics {
 			Subsystem: SUBSYSTEM,
 			Name:      "schedule_cycle_times",
 			Help:      "Cycle time when in a scheduling round.",
-			Buckets:   []float64{0, 1, 2, 3, 4, 5},
+			Buckets:   prometheus.LinearBuckets(0, 5, 20),
 		},
 	)
 
@@ -38,7 +38,7 @@ func NewSchedulerMetrics() SchedulerMetrics {
 			Subsystem: SUBSYSTEM,
 			Name:      "reconcile_cycle_times",
 			Help:      "Cycle time when outside of a scheduling round.",
-			Buckets:   []float64{0, 1, 2, 3, 4, 5},
+			Buckets:   prometheus.LinearBuckets(0, 5, 20),
 		},
 	)
 
@@ -48,7 +48,7 @@ func NewSchedulerMetrics() SchedulerMetrics {
 			Subsystem: SUBSYSTEM,
 			Name:      "scheduled_jobs",
 			Help:      "Number of jobs scheduled each round.",
-			Buckets:   []float64{0, 1, 2, 3, 4, 5}, // TODO: parametrise in config
+			Buckets:   prometheus.LinearBuckets(0, 5, 20), // TODO: parametrise in config
 		},
 		[]string{
 			"queue",
@@ -62,7 +62,7 @@ func NewSchedulerMetrics() SchedulerMetrics {
 			Subsystem: SUBSYSTEM,
 			Name:      "preempted_jobs",
 			Help:      "Number of jobs preempted each round.",
-			Buckets:   []float64{0, 1, 2, 3, 4, 5}, // TODO: parametrise in config
+			Buckets:   prometheus.LinearBuckets(0, 5, 20), // TODO: parametrise in config
 		},
 		[]string{
 			"queue",
@@ -94,38 +94,12 @@ func (metrics *SchedulerMetrics) ReportReconcileCycleTime(cycleTime float64) {
 
 func (metrics *SchedulerMetrics) ReportScheduledJobs(scheduledJobs []interfaces.LegacySchedulerJob) {
 	jobAggregates := aggregateJobs(scheduledJobs)
-
-	for key, count := range jobAggregates {
-		queue := key.queue
-		priorityClassName := key.priorityClass
-
-		observer, err := metrics.scheduledJobs.GetMetricWithLabelValues(queue, priorityClassName)
-
-		if err != nil {
-			// A metric failure isn't reason to kill the programme.
-			log.Error(err)
-		}
-
-		observer.Observe(float64(count))
-	}
+	observeJobAggregates(metrics.scheduledJobs, jobAggregates)
 }
 
 func (metrics *SchedulerMetrics) ReportPreemptedJobs(preemptedJobs []interfaces.LegacySchedulerJob) {
 	jobAggregates := aggregateJobs(preemptedJobs)
-
-	for key, count := range jobAggregates {
-		queue := key.queue
-		priorityClassName := key.priorityClass
-
-		observer, err := metrics.preemptedJobs.GetMetricWithLabelValues(queue, priorityClassName)
-
-		if err != nil {
-			// A metric failure isn't reason to kill the programme.
-			log.Error(err)
-		}
-
-		observer.Observe(float64(count))
-	}
+	observeJobAggregates(metrics.preemptedJobs, jobAggregates)
 }
 
 type collectionKey struct {
@@ -133,6 +107,7 @@ type collectionKey struct {
 	priorityClass string
 }
 
+// aggregateJobs takes a list of jobs and counts how many there are of each queue, priorityClass pair.
 func aggregateJobs[S ~[]E, E interfaces.LegacySchedulerJob](scheduledJobs S) map[collectionKey]int {
 	groups := make(map[collectionKey]int)
 
@@ -142,4 +117,21 @@ func aggregateJobs[S ~[]E, E interfaces.LegacySchedulerJob](scheduledJobs S) map
 	}
 
 	return groups
+}
+
+// observeJobAggregates reports a set of job aggregates to a given HistogramVec by queue and priorityClass.
+func observeJobAggregates(metric prometheus.HistogramVec, jobAggregates map[collectionKey]int) {
+	for key, count := range jobAggregates {
+		queue := key.queue
+		priorityClassName := key.priorityClass
+
+		observer, err := metric.GetMetricWithLabelValues(queue, priorityClassName)
+
+		if err != nil {
+			// A metric failure isn't reason to kill the programme.
+			log.Error(err)
+		} else {
+			observer.Observe(float64(count))
+		}
+	}
 }
