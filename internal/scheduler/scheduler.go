@@ -13,6 +13,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -232,9 +233,11 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	isLeader := func() bool {
 		return s.leaderController.ValidateToken(leaderToken)
 	}
+	start := s.clock.Now()
 	if err := s.publisher.PublishMessages(ctx, events, isLeader); err != nil {
 		return err
 	}
+	log.Infof("published %d events to pulsar in %s", len(events), s.clock.Since(start))
 	txn.Commit()
 	return nil
 }
@@ -244,11 +247,12 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*jobdb.Job, error) {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("function", "syncState")
 
+	start := s.clock.Now()
 	updatedJobs, updatedRuns, err := s.jobRepository.FetchJobUpdates(ctx, s.jobsSerial, s.runsSerial)
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("received %d updated jobs and %d updated job runs", len(updatedJobs), len(updatedRuns))
+	log.Infof("received %d updated jobs and %d updated job runs in %s", len(updatedJobs), len(updatedRuns), s.clock.Since(start))
 
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
@@ -552,7 +556,8 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 			}
 			events = append(events, jobSucceeded)
 		} else if lastRun.Failed() && !job.Queued() {
-			requeueJob := lastRun.Returned() && job.NumAttempts() < s.maxAttemptedRuns
+			failFast := job.GetAnnotations()[configuration.FailFastAnnotation] == "true"
+			requeueJob := !failFast && lastRun.Returned() && job.NumAttempts() < s.maxAttemptedRuns
 
 			if requeueJob && lastRun.RunAttempted() {
 				jobWithAntiAffinity, schedulable, err := s.addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job)
@@ -591,6 +596,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 					errorMessage := fmt.Sprintf("Maximum number of attempts (%d) reached - this job will no longer be retried", s.maxAttemptedRuns)
 					if job.NumAttempts() < s.maxAttemptedRuns {
 						errorMessage = fmt.Sprintf("Job was attempted %d times, and has been tried once on all nodes it can run on - this job will no longer be retried", job.NumAttempts())
+					}
+					if failFast {
+						errorMessage = fmt.Sprintf("Job has fail fast flag set - this job will no longer be retried")
 					}
 					runError = &armadaevents.Error{
 						Terminal: true,

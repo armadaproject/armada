@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/codes"
 
 	"github.com/armadaproject/armada/internal/armada/permissions"
@@ -122,12 +123,13 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		return nil, err
 	}
 
-	// Convert the API jobs to log jobs.
+	jobsSubmitted := make([]*api.Job, 0, len(req.JobRequestItems))
 	responses := make([]*api.JobSubmitResponseItem, len(req.JobRequestItems))
 
 	originalIds, err := srv.getOriginalJobIds(ctx, apiJobs)
 	if err != nil {
-		return nil, err
+		// Deduplication is best-effort, therefore this is not fatal
+		log.WithError(err).Warn("Error fetching original job ids, deduplication will not occur.")
 	}
 
 	pulsarJobDetails := make([]*schedulerobjects.PulsarSchedulerJobDetails, 0)
@@ -215,6 +217,8 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 					apiJob.ClientId,
 					apiJob.GetId())
 			}
+		} else {
+			jobsSubmitted = append(jobsSubmitted, apiJob)
 		}
 	}
 
@@ -242,6 +246,14 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 		}
 	}
 
+	// Store the deduplication ids. note that this will not be called if pulsar submission has failed, which means that
+	// a partial pulsar submission will not cause deduplication ids to be updated and thus we may get duplicate jobs
+	// if the user then resubmits.  Likewise, if there is a failure in persisting the ids, we treat this as non-fatal so
+	// we could get duplicate events.
+	err = srv.storeOriginalJobIds(ctx, jobsSubmitted)
+	if err != nil {
+		log.WithError(err).Warn("failed to satore deduplicattion ids")
+	}
 	return &api.JobSubmitResponse{JobResponseItems: responses}, nil
 }
 
@@ -710,56 +722,68 @@ func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []
 	return pulsarutils.PublishSequences(ctx, srv.Producer, sequences, scheduler)
 }
 
+func jobKey(j *api.Job) string {
+	combined := fmt.Sprintf("%s:%s", j.Queue, j.ClientId)
+	h := sha1.Sum([]byte(combined))
+	return fmt.Sprintf("%x", h)
+}
+
 // getOriginalJobIds returns the mapping between jobId and originalJobId.  If the job (or more specifically the clientId
 // on the job) has not been seen before then jobId -> jobId.  If the job has been seen before then jobId -> originalJobId
 // Note that if srv.KVStore is nil then this function simply returns jobId -> jobId
 func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []*api.Job) (map[string]string, error) {
-	// If we don't have a KV store, then just return original mappings
-	if srv.KVStore == nil {
-		ret := make(map[string]string, len(apiJobs))
-		for _, apiJob := range apiJobs {
-			ret[apiJob.GetId()] = apiJob.GetId()
-		}
-		return ret, nil
+	// Default is the current id
+	ret := make(map[string]string, len(apiJobs))
+	for _, apiJob := range apiJobs {
+		ret[apiJob.GetId()] = apiJob.GetId()
 	}
 
-	hash := func(queue string, clientId string) [20]byte {
-		combined := fmt.Sprintf("%s:%s", queue, clientId)
-		return sha1.Sum([]byte(combined))
+	// If we don't have a KV store, then just return original mappings
+	if srv.KVStore == nil {
+		return ret, nil
 	}
 
 	// Armada checks for duplicate job submissions if a ClientId (i.e., a deduplication id) is provided.
 	// Deduplication is based on storing the combined hash of the ClientId and queue.
 	// For storage efficiency, we store hashes instead of user-provided strings.
-	kvs := make([]*pgkeyvalue.KeyValue, 0, len(apiJobs))
+	kvs := make(map[string][]byte, len(apiJobs))
 	for _, apiJob := range apiJobs {
 		if apiJob.ClientId != "" {
-			clientIdHash := hash(apiJob.Queue, apiJob.ClientId)
-			kvs = append(kvs, &pgkeyvalue.KeyValue{
-				Key:   fmt.Sprintf("%x", clientIdHash),
-				Value: []byte(apiJob.GetId()),
-			})
+			kvs[jobKey(apiJob)] = []byte(apiJob.GetId())
 		}
 	}
 
-	// If we have any client Ids add them to store
+	// If we have any client Ids, retrieve their job ids
 	if len(kvs) > 0 {
-		addedKvs, err := srv.KVStore.LoadOrStoreBatch(ctx, kvs)
+		keys := maps.Keys(kvs)
+		existingKvs, err := srv.KVStore.Load(ctx, keys)
 		if err != nil {
-			return nil, err
+			return ret, err
 		}
-		ret := make(map[string]string, len(addedKvs))
 		for _, apiJob := range apiJobs {
-			if apiJob.ClientId != "" {
-				clientIdHash := hash(apiJob.Queue, apiJob.ClientId)
-				originalJobId := addedKvs[fmt.Sprintf("%x", clientIdHash)]
+			originalJobId, ok := existingKvs[jobKey(apiJob)]
+			if apiJob.ClientId != "" && ok {
 				ret[apiJob.GetId()] = string(originalJobId)
 			}
 		}
-		return ret, nil
 	}
+	return ret, nil
+}
 
-	return nil, nil
+func (srv *PulsarSubmitServer) storeOriginalJobIds(ctx context.Context, apiJobs []*api.Job) error {
+	if srv.KVStore == nil {
+		return nil
+	}
+	kvs := make(map[string][]byte, 0)
+	for _, apiJob := range apiJobs {
+		if apiJob.ClientId != "" {
+			kvs[jobKey(apiJob)] = []byte(apiJob.GetId())
+		}
+	}
+	if len(kvs) == 0 {
+		return nil
+	}
+	return srv.KVStore.Store(ctx, kvs)
 }
 
 // assignScheduler assigns each job to either the legacy or pulsar scheduler.
