@@ -134,10 +134,10 @@ func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, erro
 		return nil, errors.Errorf("only %d out of %d jobs mapped to a node", len(nodeIdByJobId), len(scheduledJobs))
 	}
 	return &SchedulerResult{
-		PreemptedJobs:         nil,
-		ScheduledJobs:         scheduledJobs,
-		NodeIdByJobId:         nodeIdByJobId,
-		SchedulingContextList: []*schedulercontext.SchedulingContext{sch.schedulingContext},
+		PreemptedJobs:      nil,
+		ScheduledJobs:      scheduledJobs,
+		NodeIdByJobId:      nodeIdByJobId,
+		SchedulingContexts: []*schedulercontext.SchedulingContext{sch.schedulingContext},
 	}, nil
 }
 
