@@ -11,6 +11,7 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -24,6 +25,9 @@ type SchedulerResult struct {
 	// For each preempted job, maps the job id to the id of the node on which the job was running.
 	// For each scheduled job, maps the job id to the id of the node on which the job should be scheduled.
 	NodeIdByJobId map[string]string
+	// The Scheduling Context. Being passed up for metrics decisions made in scheduler.go and scheduler_metrics.go.
+	// Passing a pointer as the structure is enormous
+	SchedulingContexts []*schedulercontext.SchedulingContext
 }
 
 func NewSchedulerResult[S ~[]T, T interfaces.LegacySchedulerJob](
