@@ -1,4 +1,1 @@
 target: "server:50051"
-basicAuth:
-  Username: "armada-user"
-  Password: "armada-pass"

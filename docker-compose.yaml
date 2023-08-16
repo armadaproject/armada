@@ -57,7 +57,7 @@ services:
       - 8080:8080
       - 4000:4000
     volumes:
-      - ./developer/config/:/custom-config/
+      - ./developer/config/insecure-armada.yaml:/config/insecure-armada.yaml
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
     depends_on:
@@ -65,7 +65,7 @@ services:
     working_dir: /app
     env_file:
       - ./developer/env/server.env
-    command: ./server --config /custom-config/${ARMADA_SERVER_CONFIG:-basic_auth}.yaml
+    command: ./server --config /config/insecure-armada.yaml
 
   server-pulsar:
     container_name: server

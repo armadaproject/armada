@@ -153,7 +153,8 @@ services:
 
   airflow-worker:
     <<: *airflow-common
-    networks:
+    network_mode: host
+      networks:
       - default
       - kind
     command: celery worker

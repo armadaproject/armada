@@ -40,6 +40,3 @@ grpcPool:
 apiConnection:
   armadaUrl: "server:50051"
   forceNoTls: true
-  basicAuth:
-    Username: "armada-user"
-    Password: "armada-pass"
