@@ -8,7 +8,7 @@ import (
 func BuildPython() error {
 	mg.Deps(BootstrapProto)
 
-	err := dockerRun("buildx", "build", "--network=host", "-o", "type=docker", "-t", "armada-python-client-builder", "-f", "./build/python-client/Dockerfile", ".")
+	err := dockerRun("buildx", "build", "-o", "type=docker", "-t", "armada-python-client-builder", "-f", "./build/python-client/Dockerfile", ".")
 	if err != nil {
 		return err
 	}
