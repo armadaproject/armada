@@ -235,10 +235,15 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 			return err
 		}
 
-		// Report counts of scheduled jobs per queue.
-		// TODO: preemptible jobs, possibly other metrics here.
-		s.metrics.ReportScheduledJobs(overallSchedulerResult.ScheduledJobs)
-		s.metrics.ReportPreemptedJobs(overallSchedulerResult.PreemptedJobs)
+		// This check feels redundant. It feels like we shouldn't have got here without
+		// a leader token.
+		if leaderToken.leader {
+			// Report various metrics computed from the scheduling cycle.
+			// TODO: preemptible jobs, possibly other metrics
+			// TODO: Return this information and deal with metrics after the cycle?
+			s.metrics.ReportScheduledJobs(overallSchedulerResult.ScheduledJobs)
+			s.metrics.ReportPreemptedJobs(overallSchedulerResult.PreemptedJobs)
+		}
 
 		resultEvents, err := s.eventsFromSchedulerResult(txn, overallSchedulerResult)
 		if err != nil {
