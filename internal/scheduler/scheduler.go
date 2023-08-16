@@ -13,6 +13,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -159,7 +160,10 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			// and we must invalidate the held leader token to trigger flushing Pulsar at the next cycle.
 			//
 			// TODO: Once the Pulsar client supports transactions, we can guarantee consistency even in case of errors.
-			if err := s.cycle(ctx, fullUpdate, leaderToken); err != nil {
+
+			shouldSchedule := s.clock.Now().Sub(s.previousSchedulingRoundEnd) > s.schedulePeriod
+
+			if err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule); err != nil {
 				logging.WithStacktrace(log, err).Error("scheduling cycle failure")
 				leaderToken = InvalidLeaderToken()
 			}
@@ -175,7 +179,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 // cycle is a single iteration of the main scheduling loop.
 // If updateAll is true, we generate events from all jobs in the jobDb.
 // Otherwise, we only generate events from jobs updated since the last cycle.
-func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken LeaderToken) error {
+func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) error {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("function", "cycle")
 	// Update job state.
@@ -211,7 +215,7 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	events = append(events, expirationEvents...)
 
 	// Schedule jobs.
-	if s.clock.Now().Sub(s.previousSchedulingRoundEnd) > s.schedulePeriod {
+	if shouldSchedule {
 		overallSchedulerResult, err := s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
 		if err != nil {
 			return err
@@ -229,9 +233,11 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	isLeader := func() bool {
 		return s.leaderController.ValidateToken(leaderToken)
 	}
+	start := s.clock.Now()
 	if err := s.publisher.PublishMessages(ctx, events, isLeader); err != nil {
 		return err
 	}
+	log.Infof("published %d events to pulsar in %s", len(events), s.clock.Since(start))
 	txn.Commit()
 	return nil
 }
@@ -241,11 +247,12 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*jobdb.Job, error) {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("function", "syncState")
 
+	start := s.clock.Now()
 	updatedJobs, updatedRuns, err := s.jobRepository.FetchJobUpdates(ctx, s.jobsSerial, s.runsSerial)
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("received %d updated jobs and %d updated job runs", len(updatedJobs), len(updatedRuns))
+	log.Infof("received %d updated jobs and %d updated job runs in %s", len(updatedJobs), len(updatedRuns), s.clock.Since(start))
 
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
@@ -549,7 +556,8 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 			}
 			events = append(events, jobSucceeded)
 		} else if lastRun.Failed() && !job.Queued() {
-			requeueJob := lastRun.Returned() && job.NumAttempts() < s.maxAttemptedRuns
+			failFast := job.GetAnnotations()[configuration.FailFastAnnotation] == "true"
+			requeueJob := !failFast && lastRun.Returned() && job.NumAttempts() < s.maxAttemptedRuns
 
 			if requeueJob && lastRun.RunAttempted() {
 				jobWithAntiAffinity, schedulable, err := s.addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job)
@@ -589,6 +597,9 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 					if job.NumAttempts() < s.maxAttemptedRuns {
 						errorMessage = fmt.Sprintf("Job was attempted %d times, and has been tried once on all nodes it can run on - this job will no longer be retried", job.NumAttempts())
 					}
+					if failFast {
+						errorMessage = fmt.Sprintf("Job has fail fast flag set - this job will no longer be retried")
+					}
 					runError = &armadaevents.Error{
 						Terminal: true,
 						Reason: &armadaevents.Error_MaxRunsExceeded{
@@ -597,6 +608,12 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 							},
 						},
 					}
+				}
+				if runError == nil {
+					panic(
+						fmt.Sprintf("No run error found for run %s (job id = %s), this must mean we're out of sync with the database",
+							lastRun.Id().String(), job.Id()),
+					)
 				}
 				jobErrors := &armadaevents.EventSequence_Event{
 					Created: s.now(),

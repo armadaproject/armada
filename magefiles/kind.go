@@ -21,7 +21,7 @@ const (
 
 func getImages() []string {
 	images := []string{
-		"alpine:3.17",
+		"alpine:3.18.3",
 		"nginx:1.21.6",
 		"registry.k8s.io/ingress-nginx/controller:v1.4.0",
 		"registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343",
@@ -75,7 +75,7 @@ func kindCheck() error {
 		return errors.Errorf("error parsing constraint: %v", err)
 	}
 	if !constraint.Check(version) {
-		return errors.Errorf("found version %v but it failed constaint %v", version, constraint)
+		return errors.Errorf("found version %v but it failed constraint %v", version, constraint)
 	}
 	return nil
 }
