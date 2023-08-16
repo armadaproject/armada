@@ -84,6 +84,7 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence, u
 			err = c.handleJobRunPreempted(*event.Created, event.GetJobRunPreempted(), update)
 		case *armadaevents.EventSequence_Event_CancelJob,
 			*armadaevents.EventSequence_Event_JobRunLeased,
+			*armadaevents.EventSequence_Event_JobRequeued,
 			*armadaevents.EventSequence_Event_ReprioritiseJobSet,
 			*armadaevents.EventSequence_Event_CancelJobSet,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
