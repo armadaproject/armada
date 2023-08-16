@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/compress"

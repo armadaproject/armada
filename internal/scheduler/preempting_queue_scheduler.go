@@ -21,6 +21,7 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 )
 
@@ -296,7 +297,6 @@ func (sch *PreemptingQueueScheduler) evict(ctx context.Context, evictor *Evictor
 	if evictor == nil {
 		return &EvictorResult{}, NewInMemoryJobRepository(sch.schedulingContext.PriorityClasses), nil
 	}
-	log := ctxlogrus.Extract(ctx)
 	txn := sch.nodeDb.Txn(true)
 	defer txn.Abort()
 
@@ -341,9 +341,6 @@ func (sch *PreemptingQueueScheduler) evict(ctx context.Context, evictor *Evictor
 	}
 	if err := sch.evictionAssertions(result.EvictedJobsById, result.AffectedNodesById); err != nil {
 		return nil, nil, err
-	}
-	if s := JobsSummary(evictedJobs); s != "" {
-		log.Infof("evicted %d jobs on nodes %v; %s", len(evictedJobs), maps.Keys(result.AffectedNodesById), s)
 	}
 	inMemoryJobRepo := NewInMemoryJobRepository(sch.schedulingContext.PriorityClasses)
 	inMemoryJobRepo.EnqueueMany(evictedJobs)
@@ -807,6 +804,13 @@ func (evi *Evictor) Evict(ctx context.Context, it nodedb.NodeIterator) (*Evictor
 		if err != nil {
 			return nil, err
 		}
+
+		for i, evictedJob := range evictedJobs {
+			if dbJob, ok := evictedJob.(*jobdb.Job); ok {
+				evictedJobs[i] = dbJob.DeepCopy()
+			}
+		}
+
 		for _, job := range evictedJobs {
 			evictedJobsById[job.GetId()] = job
 			nodeIdByJobId[job.GetId()] = node.Id

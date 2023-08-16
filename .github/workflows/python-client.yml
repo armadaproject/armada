@@ -41,7 +41,7 @@ jobs:
           - tox-env: 'py310'
             python: '3.10'
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3.3.0
       - uses: ./.github/workflows/go-setup
       - uses: ./.github/workflows/python-tests
         with:
@@ -70,7 +70,7 @@ jobs:
       DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
       DOCKER_BUILDX_BUILDER: "builder"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v3.3.0
       - run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
       - run: docker buildx install
       - uses: actions/setup-go@v4
@@ -83,8 +83,8 @@ jobs:
           mkdir -p .kube/external
           go run github.com/magefile/mage@v1.14.0 -v localdev minimal
       - name: Install Protoc
-        uses: arduino/setup-protoc@v1
+        uses: arduino/setup-protoc@v2
         with:
-          version: '3.17.3'
+          version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: make tests-e2e-python
+      - run: go run github.com/magefile/mage@v1.14.0 -v teste2epython

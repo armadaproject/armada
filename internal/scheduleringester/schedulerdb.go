@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 
@@ -47,7 +47,7 @@ func NewSchedulerDb(
 // This function locks the postgres table to avoid write conflicts; see acquireLock() for details.
 func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithMessageIds) error {
 	return ingest.WithRetry(func() (bool, error) {
-		err := s.db.BeginTxFunc(ctx, pgx.TxOptions{
+		err := pgx.BeginTxFunc(ctx, s.db, pgx.TxOptions{
 			IsoLevel:       pgx.ReadCommitted,
 			AccessMode:     pgx.ReadWrite,
 			DeferrableMode: pgx.Deferrable,
