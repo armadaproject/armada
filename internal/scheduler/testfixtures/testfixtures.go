@@ -233,6 +233,13 @@ func WithNodeSelectorPodReq(selector map[string]string, req *schedulerobjects.Po
 	return req
 }
 
+func WithPriorityJobs(priority uint32, jobs []*jobdb.Job) []*jobdb.Job {
+	for i, job := range jobs {
+		jobs[i] = job.WithPriority(priority)
+	}
+	return jobs
+}
+
 func WithNodeUniformityLabelAnnotationJobs(label string, jobs []*jobdb.Job) []*jobdb.Job {
 	for _, job := range jobs {
 		req := job.PodRequirements()
