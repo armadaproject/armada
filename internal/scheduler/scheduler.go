@@ -73,6 +73,8 @@ type Scheduler struct {
 	runsSerial int64
 	// Function that is called every time a cycle is completed. Useful for testing.
 	onCycleCompleted func()
+	// metrics set for the scheduler.
+	metrics *SchedulerMetrics
 }
 
 func NewScheduler(
@@ -108,6 +110,7 @@ func NewScheduler(
 		nodeIdLabel:                nodeIdLabel,
 		jobsSerial:                 -1,
 		runsSerial:                 -1,
+		metrics:                    GetSchedulerMetrics(),
 	}, nil
 }
 
@@ -167,7 +170,18 @@ func (s *Scheduler) Run(ctx context.Context) error {
 				logging.WithStacktrace(log, err).Error("scheduling cycle failure")
 				leaderToken = InvalidLeaderToken()
 			}
-			log.Infof("scheduling cycle completed in %s", s.clock.Since(start))
+
+			cycleTime := s.clock.Since(start)
+
+			if shouldSchedule && leaderToken.leader {
+				// Only the leader token does real scheduling rounds.
+				s.metrics.ReportScheduleCycleTime(float64(cycleTime.Milliseconds()))
+				log.Infof("scheduling cycle completed in %s", cycleTime)
+			} else {
+				s.metrics.ReportReconcileCycleTime(float64(cycleTime.Milliseconds()))
+				log.Infof("reconciliation cycle completed in %s", cycleTime)
+			}
+
 			prevLeaderToken = leaderToken
 			if s.onCycleCompleted != nil {
 				s.onCycleCompleted()
@@ -220,6 +234,16 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 		if err != nil {
 			return err
 		}
+
+		// This check feels redundant. It feels like we shouldn't have got here without
+		// a leader token.
+		if leaderToken.leader {
+			// Report various metrics computed from the scheduling cycle.
+			// TODO: preemptible jobs, possibly other metrics
+			// TODO: Return this information and deal with metrics after the cycle?
+			s.metrics.ReportSchedulerResult(overallSchedulerResult)
+		}
+
 		resultEvents, err := s.eventsFromSchedulerResult(txn, overallSchedulerResult)
 		if err != nil {
 			return err
