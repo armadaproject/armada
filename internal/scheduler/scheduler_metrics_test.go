@@ -3,9 +3,10 @@ package scheduler
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestAggregateJobs(t *testing.T) {

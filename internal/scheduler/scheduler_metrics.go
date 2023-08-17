@@ -1,8 +1,6 @@
 package scheduler
 
 import (
-	"sync"
-
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
@@ -20,25 +18,19 @@ type SchedulerMetrics struct {
 	// Cycle time when reconciling, as leader or follower.
 	reconcileCycleTime prometheus.Histogram
 	// Number of jobs scheduled per queue.
-	scheduledJobs prometheus.HistogramVec
+	scheduledJobsPerQueue prometheus.GaugeVec
 	// Number of jobs preempted per queue.
-	preemptedJobs prometheus.HistogramVec
+	preemptedJobsPerQueue prometheus.GaugeVec
 }
 
-var (
-	schedulerMetricsPointer *SchedulerMetrics
-	singletonLock           sync.Mutex
-)
+var schedulerMetrics *SchedulerMetrics
+
+func init() {
+	schedulerMetrics = newSchedulerMetrics()
+}
 
 func GetSchedulerMetrics() *SchedulerMetrics {
-	singletonLock.Lock()
-	defer singletonLock.Unlock()
-
-	if schedulerMetricsPointer == nil {
-		schedulerMetricsPointer = newSchedulerMetrics()
-	}
-
-	return schedulerMetricsPointer
+	return schedulerMetrics
 }
 
 func newSchedulerMetrics() *SchedulerMetrics {
@@ -62,13 +54,12 @@ func newSchedulerMetrics() *SchedulerMetrics {
 		},
 	)
 
-	scheduledJobs := prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
+	scheduledJobs := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
 			Namespace: NAMESPACE,
 			Subsystem: SUBSYSTEM,
 			Name:      "scheduled_jobs",
 			Help:      "Number of jobs scheduled each round.",
-			Buckets:   prometheus.LinearBuckets(0, 5, 20), // TODO: parametrise in config
 		},
 		[]string{
 			"queue",
@@ -76,13 +67,12 @@ func newSchedulerMetrics() *SchedulerMetrics {
 		},
 	)
 
-	preemptedJobs := prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
+	preemptedJobs := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
 			Namespace: NAMESPACE,
 			Subsystem: SUBSYSTEM,
 			Name:      "preempted_jobs",
 			Help:      "Number of jobs preempted each round.",
-			Buckets:   prometheus.LinearBuckets(0, 5, 20), // TODO: parametrise in config
 		},
 		[]string{
 			"queue",
@@ -96,10 +86,10 @@ func newSchedulerMetrics() *SchedulerMetrics {
 	prometheus.MustRegister(preemptedJobs)
 
 	return &SchedulerMetrics{
-		scheduleCycleTime:  scheduleCycleTime,
-		reconcileCycleTime: reconcileCycleTime,
-		scheduledJobs:      *scheduledJobs,
-		preemptedJobs:      *preemptedJobs,
+		scheduleCycleTime:     scheduleCycleTime,
+		reconcileCycleTime:    reconcileCycleTime,
+		scheduledJobsPerQueue: *scheduledJobs,
+		preemptedJobsPerQueue: *preemptedJobs,
 	}
 }
 
@@ -118,12 +108,12 @@ func (metrics *SchedulerMetrics) ReportSchedulerResult(result *SchedulerResult) 
 
 func (metrics *SchedulerMetrics) reportScheduledJobs(scheduledJobs []interfaces.LegacySchedulerJob) {
 	jobAggregates := aggregateJobs(scheduledJobs)
-	observeJobAggregates(metrics.scheduledJobs, jobAggregates)
+	observeJobAggregates(metrics.scheduledJobsPerQueue, jobAggregates)
 }
 
 func (metrics *SchedulerMetrics) reportPreemptedJobs(preemptedJobs []interfaces.LegacySchedulerJob) {
 	jobAggregates := aggregateJobs(preemptedJobs)
-	observeJobAggregates(metrics.preemptedJobs, jobAggregates)
+	observeJobAggregates(metrics.preemptedJobsPerQueue, jobAggregates)
 }
 
 type collectionKey struct {
@@ -144,7 +134,7 @@ func aggregateJobs[S ~[]E, E interfaces.LegacySchedulerJob](scheduledJobs S) map
 }
 
 // observeJobAggregates reports a set of job aggregates to a given HistogramVec by queue and priorityClass.
-func observeJobAggregates(metric prometheus.HistogramVec, jobAggregates map[collectionKey]int) {
+func observeJobAggregates(metric prometheus.GaugeVec, jobAggregates map[collectionKey]int) {
 	for key, count := range jobAggregates {
 		queue := key.queue
 		priorityClassName := key.priorityClass
@@ -155,7 +145,7 @@ func observeJobAggregates(metric prometheus.HistogramVec, jobAggregates map[coll
 			// A metric failure isn't reason to kill the programme.
 			log.Error(err)
 		} else {
-			observer.Observe(float64(count))
+			observer.Add(float64(count))
 		}
 	}
 }
