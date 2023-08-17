@@ -3,10 +3,11 @@ package fairness
 import (
 	"testing"
 
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 type MinimalQueue struct {
