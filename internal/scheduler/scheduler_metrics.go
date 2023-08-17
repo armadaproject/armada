@@ -3,9 +3,10 @@ package scheduler
 import (
 	"sync"
 
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 )
 
 const (
