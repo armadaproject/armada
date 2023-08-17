@@ -16,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
+	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -461,12 +462,17 @@ func TestQueueScheduler(t *testing.T) {
 			jobRepo := NewInMemoryJobRepository(tc.SchedulingConfig.Preemption.PriorityClasses)
 			jobRepo.EnqueueMany(legacySchedulerJobs)
 
+			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
+				tc.TotalResources,
+				tc.SchedulingConfig.DominantResourceFairnessResourcesToConsider,
+			)
+			require.NoError(t, err)
 			sctx := schedulercontext.NewSchedulingContext(
 				"executor",
 				"pool",
 				tc.SchedulingConfig.Preemption.PriorityClasses,
 				tc.SchedulingConfig.Preemption.DefaultPriorityClass,
-				tc.SchedulingConfig.ResourceScarcity,
+				fairnessCostProvider,
 				tc.TotalResources,
 			)
 			for queue, priorityFactor := range tc.PriorityFactorByQueue {
