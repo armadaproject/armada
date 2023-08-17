@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -229,12 +230,13 @@ type NodeDb struct {
 	// Because the number of database indices scales linearly with the number of distinct priorities,
 	// the efficiency of the NodeDb relies on the number of distinct priorities being small.
 	priorityClasses map[string]types.PriorityClass
-	// Priorities, in increasing order, to try to schedule pods at.
-	// In particular, if a pod has priority class priority p, try to schedule that pod at priority
-	// prioritiesToTryAssigningAt[0], ..., prioritiesToTryAssigningAt[i],
-	// for all i such that prioritiesToTryAssigningAt[i] <= the priority of the pod.
-	// We do this to, when possible, avoid preempting running jobs. Includes evictedPriority.
-	prioritiesToTryAssigningAt []int32
+	// Prioritiy class priorities in increasing order.
+	priorityClassPriorities []int32
+	// Job priorities supported by the NodeDb. Composed of priority class priorities and nodeDb-internal priorities.
+	// In particular, if a job has priority class priority p, nodeDb tries to schedule that job at priority
+	// nodeDbPriorities[0], ..., nodeDbPriorities[i],
+	// for all i such that nodeDbPriorities[i] <= the priority of the job.
+	nodeDbPriorities []int32
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
 	// for which indexes are created to enable efficient lookup.
 	indexedResources []string
@@ -292,13 +294,6 @@ func NewNodeDb(
 	indexedTaints,
 	indexedNodeLabels []string,
 ) (*NodeDb, error) {
-	allowedPriorities := map[int32]bool{evictedPriority: true}
-	for _, pc := range priorityClasses {
-		allowedPriorities[pc.Priority] = true
-	}
-	prioritiesToTryAssigningAt := maps.Keys(allowedPriorities)
-	slices.Sort(prioritiesToTryAssigningAt)
-
 	if len(indexedResources) == 0 {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "indexedResources",
@@ -307,7 +302,14 @@ func NewNodeDb(
 		})
 	}
 	indexedResourceNames := util.Map(indexedResources, func(v configuration.IndexedResource) string { return v.Name })
-	schema, indexNameByPriority := nodeDbSchema(prioritiesToTryAssigningAt, indexedResourceNames)
+	allowedPriorities := make(map[int32]bool, len(priorityClasses))
+	for _, pc := range priorityClasses {
+		allowedPriorities[pc.Priority] = true
+	}
+	priorityClassPriorities := maps.Keys(allowedPriorities)
+	slices.Sort(priorityClassPriorities)
+	nodeDbPriorities := armadaslices.Concatenate([]int32{evictedPriority}, priorityClassPriorities)
+	schema, indexNameByPriority := nodeDbSchema(nodeDbPriorities, indexedResourceNames)
 	db, err := memdb.NewMemDB(schema)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -340,11 +342,12 @@ func NewNodeDb(
 	}
 
 	return &NodeDb{
-		priorityClasses:            priorityClasses,
-		prioritiesToTryAssigningAt: prioritiesToTryAssigningAt,
-		maxExtraNodesToConsider:    maxExtraNodesToConsider,
-		indexedResources:           indexedResourceNames,
-		indexedResourcesSet:        mapFromSlice(indexedResourceNames),
+		priorityClasses:         priorityClasses,
+		priorityClassPriorities: priorityClassPriorities,
+		nodeDbPriorities:        nodeDbPriorities,
+		maxExtraNodesToConsider: maxExtraNodesToConsider,
+		indexedResources:        indexedResourceNames,
+		indexedResourcesSet:     mapFromSlice(indexedResourceNames),
 		indexedResourceResolutionMillis: util.Map(
 			indexedResources,
 			func(v configuration.IndexedResource) int64 { return v.Resolution.MilliValue() },
@@ -666,7 +669,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithUrgencyPreemption(
 	req := jctx.PodRequirements
 	numExcludedNodesByReason := pctx.NumExcludedNodesByReason
 	// TODO: This doesn't need to include the evictedPriority now.
-	for _, priority := range nodeDb.prioritiesToTryAssigningAt {
+	for _, priority := range nodeDb.priorityClassPriorities {
 		if priority > req.Priority {
 			break
 		}
@@ -1064,8 +1067,8 @@ func (nodeDb *NodeDb) Upsert(node *Node) error {
 }
 
 func (nodeDb *NodeDb) UpsertWithTxn(txn *memdb.Txn, node *Node) error {
-	keys := make([][]byte, len(nodeDb.prioritiesToTryAssigningAt))
-	for i, p := range nodeDb.prioritiesToTryAssigningAt {
+	keys := make([][]byte, len(nodeDb.nodeDbPriorities))
+	for i, p := range nodeDb.nodeDbPriorities {
 		keys[i] = nodeDb.nodeDbKey(keys[i], node.NodeTypeId, node.AllocatableByPriority[p])
 	}
 	node.Keys = keys
@@ -1088,7 +1091,7 @@ func (nodeDb *NodeDb) ClearAllocated() error {
 	for node := it.NextNode(); node != nil; node = it.NextNode() {
 		node = node.UnsafeCopy()
 		node.AllocatableByPriority = schedulerobjects.NewAllocatableByPriorityAndResourceType(
-			nodeDb.prioritiesToTryAssigningAt,
+			nodeDb.nodeDbPriorities,
 			node.TotalResources,
 		)
 		newNodes = append(newNodes, node)
