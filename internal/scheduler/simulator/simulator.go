@@ -458,8 +458,24 @@ func (s *Simulator) handleScheduleEvent() error {
 			}
 
 			// Update jobDb to reflect the decisions by the scheduler.
+			// Sort jobs to ensure deterministic event ordering.
 			preemptedJobs := scheduler.PreemptedJobsFromSchedulerResult[*jobdb.Job](result)
 			scheduledJobs := scheduler.ScheduledJobsFromSchedulerResult[*jobdb.Job](result)
+			less := func(a, b *jobdb.Job) bool {
+				if a.Queue() < b.Queue() {
+					return true
+				} else if a.Queue() > b.Queue() {
+					return false
+				}
+				if a.Id() < b.Id() {
+					return true
+				} else if a.Id() > b.Id() {
+					return false
+				}
+				return false
+			}
+			slices.SortFunc(preemptedJobs, less)
+			slices.SortFunc(scheduledJobs, less)
 			for i, job := range preemptedJobs {
 				if run := job.LatestRun(); run != nil {
 					job = job.WithUpdatedRun(run.WithFailed(true))
