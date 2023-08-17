@@ -363,8 +363,7 @@ func (el *EventLog) Pop() any {
 }
 
 // scheduleEvent is an event indicating the scheduler should be run.
-type scheduleEvent struct {
-}
+type scheduleEvent struct{}
 
 func (s *Simulator) Run() error {
 	defer close(s.c)
