@@ -257,6 +257,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	log = log.WithFields(logrus.Fields{
 		"function": "getJobs",
 		"cluster":  req.ClusterId,
+		"pool":     req.Pool,
 	})
 	ctx = ctxlogrus.ToContext(ctx, log)
 
@@ -517,6 +518,10 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if q.schedulingConfig.EnableAssertions {
 		sch.EnableAssertions()
 	}
+	log.Infof(
+		"starting scheduling with total resources %s",
+		schedulerobjects.ResourceList{Resources: totalCapacity}.CompactString(),
+	)
 	result, err := sch.Schedule(
 		ctxlogrus.ToContext(
 			ctx,
