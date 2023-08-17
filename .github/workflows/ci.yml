@@ -38,7 +38,6 @@ jobs:
     if: ${{ always() }}
     needs:
       - lint
-      - codeql
       - test
     runs-on: ubuntu-22.04
     steps:

@@ -86,7 +86,8 @@ func (l *FairSchedulingAlgo) Schedule(
 	log := ctxlogrus.Extract(ctx)
 
 	overallSchedulerResult := &SchedulerResult{
-		NodeIdByJobId: make(map[string]string),
+		NodeIdByJobId:      make(map[string]string),
+		SchedulingContexts: make([]*schedulercontext.SchedulingContext, 0, 0),
 	}
 
 	// Exit immediately if scheduling is disabled.
@@ -172,6 +173,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		// Aggregate changes across executors.
 		overallSchedulerResult.PreemptedJobs = append(overallSchedulerResult.PreemptedJobs, schedulerResult.PreemptedJobs...)
 		overallSchedulerResult.ScheduledJobs = append(overallSchedulerResult.ScheduledJobs, schedulerResult.ScheduledJobs...)
+		overallSchedulerResult.SchedulingContexts = append(overallSchedulerResult.SchedulingContexts, schedulerResult.SchedulingContexts...)
 		maps.Copy(overallSchedulerResult.NodeIdByJobId, schedulerResult.NodeIdByJobId)
 
 		// Update fsctx.
