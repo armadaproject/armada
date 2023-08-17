@@ -100,6 +100,7 @@ func TestSchedulingConfig() configuration.SchedulingConfig {
 		DominantResourceFairnessResourcesToConsider: TestResourceNames,
 		ExecutorTimeout:                  15 * time.Minute,
 		MaxUnacknowledgedJobsPerExecutor: math.MaxInt,
+		EnableNewPreemptionStrategy:      true,
 	}
 }
 
