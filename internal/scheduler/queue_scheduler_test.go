@@ -422,6 +422,17 @@ func TestQueueScheduler(t *testing.T) {
 			PriorityFactorByQueue:    map[string]float64{"A": 1},
 			ExpectedScheduledIndices: []int{1},
 		},
+		"job priority": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs: armadaslices.Concatenate(
+				testfixtures.WithPriorityJobs(10, testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
+				testfixtures.WithPriorityJobs(1, testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
+				testfixtures.WithPriorityJobs(20, testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
+			),
+			PriorityFactorByQueue:    map[string]float64{"A": 1},
+			ExpectedScheduledIndices: []int{1},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
