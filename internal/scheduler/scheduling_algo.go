@@ -132,7 +132,10 @@ func (l *FairSchedulingAlgo) Schedule(
 		// Assume pool and minimumJobSize are consistent within the group.
 		pool := executorGroup[0].Pool
 		minimumJobSize := executorGroup[0].MinimumJobSize
-		log.Infof("scheduling on executor group %s", executorGroupLabel)
+		log.Infof(
+			"scheduling on executor group %s with capacity %s",
+			executorGroupLabel, fsctx.totalCapacityByPool[pool].CompactString(),
+		)
 		schedulerResult, sctx, err := l.scheduleOnExecutors(
 			ctxWithTimeout,
 			fsctx,
