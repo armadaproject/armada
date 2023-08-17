@@ -8,8 +8,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const NAMESPACE = "armada"
-const SUBSYSTEM = "scheduler"
+const (
+	NAMESPACE = "armada"
+	SUBSYSTEM = "scheduler"
+)
 
 type SchedulerMetrics struct {
 	// Cycle time when scheduling, as leader.
@@ -22,8 +24,10 @@ type SchedulerMetrics struct {
 	preemptedJobs prometheus.HistogramVec
 }
 
-var schedulerMetricsPointer *SchedulerMetrics
-var singletonLock sync.Mutex
+var (
+	schedulerMetricsPointer *SchedulerMetrics
+	singletonLock           sync.Mutex
+)
 
 func GetSchedulerMetrics() *SchedulerMetrics {
 	singletonLock.Lock()
@@ -37,7 +41,6 @@ func GetSchedulerMetrics() *SchedulerMetrics {
 }
 
 func newSchedulerMetrics() *SchedulerMetrics {
-
 	scheduleCycleTime := prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Namespace: NAMESPACE,
@@ -97,7 +100,6 @@ func newSchedulerMetrics() *SchedulerMetrics {
 		scheduledJobs:      *scheduledJobs,
 		preemptedJobs:      *preemptedJobs,
 	}
-
 }
 
 func (metrics *SchedulerMetrics) ReportScheduleCycleTime(cycleTime float64) {
