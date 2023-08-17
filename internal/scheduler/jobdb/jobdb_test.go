@@ -91,7 +91,8 @@ func TestJobDb_TestQueuedJobs(t *testing.T) {
 	jobs := make([]*Job, 10)
 	for i := 0; i < len(jobs); i++ {
 		jobs[i] = newJob().WithQueued(true)
-		jobs[i].created = int64(i) // forces an order
+		jobs[i].priority = 1000
+		jobs[i].created = int64(i) // Ensures jobs are ordered.
 	}
 	shuffledJobs := slices.Clone(jobs)
 	rand.Shuffle(len(shuffledJobs), func(i, j int) { shuffledJobs[i], shuffledJobs[j] = shuffledJobs[j], jobs[i] })
@@ -122,7 +123,7 @@ func TestJobDb_TestQueuedJobs(t *testing.T) {
 	assert.Equal(t, []*Job{jobs[0], jobs[2], jobs[6], jobs[8], jobs[9]}, collect())
 
 	// change the priority of a job to put it to the front of the queue
-	updatedJob := jobs[8].WithPriority(100)
+	updatedJob := jobs[8].WithPriority(0)
 	err = jobDb.Upsert(txn, []*Job{updatedJob})
 	require.NoError(t, err)
 	assert.Equal(t, []*Job{updatedJob, jobs[0], jobs[2], jobs[6], jobs[9]}, collect())
