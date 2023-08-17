@@ -1,6 +1,8 @@
 package scheduler
 
 import (
+	"sync"
+
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -20,7 +22,21 @@ type SchedulerMetrics struct {
 	preemptedJobs prometheus.HistogramVec
 }
 
-func NewSchedulerMetrics() SchedulerMetrics {
+var schedulerMetricsPointer *SchedulerMetrics
+var singletonLock sync.Mutex
+
+func GetSchedulerMetrics() *SchedulerMetrics {
+	singletonLock.Lock()
+	defer singletonLock.Unlock()
+
+	if schedulerMetricsPointer == nil {
+		schedulerMetricsPointer = newSchedulerMetrics()
+	}
+
+	return schedulerMetricsPointer
+}
+
+func newSchedulerMetrics() *SchedulerMetrics {
 
 	scheduleCycleTime := prometheus.NewHistogram(
 		prometheus.HistogramOpts{
@@ -75,7 +91,7 @@ func NewSchedulerMetrics() SchedulerMetrics {
 	prometheus.MustRegister(scheduledJobs)
 	prometheus.MustRegister(preemptedJobs)
 
-	return SchedulerMetrics{
+	return &SchedulerMetrics{
 		scheduleCycleTime:  scheduleCycleTime,
 		reconcileCycleTime: reconcileCycleTime,
 		scheduledJobs:      *scheduledJobs,
@@ -92,12 +108,17 @@ func (metrics *SchedulerMetrics) ReportReconcileCycleTime(cycleTime float64) {
 	metrics.reconcileCycleTime.Observe(cycleTime)
 }
 
-func (metrics *SchedulerMetrics) ReportScheduledJobs(scheduledJobs []interfaces.LegacySchedulerJob) {
+func (metrics *SchedulerMetrics) ReportSchedulerResult(result *SchedulerResult) {
+	metrics.reportScheduledJobs(result.ScheduledJobs)
+	metrics.reportPreemptedJobs(result.PreemptedJobs)
+}
+
+func (metrics *SchedulerMetrics) reportScheduledJobs(scheduledJobs []interfaces.LegacySchedulerJob) {
 	jobAggregates := aggregateJobs(scheduledJobs)
 	observeJobAggregates(metrics.scheduledJobs, jobAggregates)
 }
 
-func (metrics *SchedulerMetrics) ReportPreemptedJobs(preemptedJobs []interfaces.LegacySchedulerJob) {
+func (metrics *SchedulerMetrics) reportPreemptedJobs(preemptedJobs []interfaces.LegacySchedulerJob) {
 	jobAggregates := aggregateJobs(preemptedJobs)
 	observeJobAggregates(metrics.preemptedJobs, jobAggregates)
 }

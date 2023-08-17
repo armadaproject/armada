@@ -74,7 +74,7 @@ type Scheduler struct {
 	// Function that is called every time a cycle is completed. Useful for testing.
 	onCycleCompleted func()
 	// metrics set for the scheduler.
-	metrics SchedulerMetrics
+	metrics *SchedulerMetrics
 }
 
 func NewScheduler(
@@ -110,7 +110,7 @@ func NewScheduler(
 		nodeIdLabel:                nodeIdLabel,
 		jobsSerial:                 -1,
 		runsSerial:                 -1,
-		metrics:                    NewSchedulerMetrics(),
+		metrics:                    GetSchedulerMetrics(),
 	}, nil
 }
 
@@ -241,8 +241,7 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 			// Report various metrics computed from the scheduling cycle.
 			// TODO: preemptible jobs, possibly other metrics
 			// TODO: Return this information and deal with metrics after the cycle?
-			s.metrics.ReportScheduledJobs(overallSchedulerResult.ScheduledJobs)
-			s.metrics.ReportPreemptedJobs(overallSchedulerResult.PreemptedJobs)
+			s.metrics.ReportSchedulerResult(overallSchedulerResult)
 		}
 
 		resultEvents, err := s.eventsFromSchedulerResult(txn, overallSchedulerResult)
