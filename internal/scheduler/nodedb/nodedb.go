@@ -379,6 +379,7 @@ func (nodeDb *NodeDb) Reset() error {
 			return errors.WithStack(err)
 		}
 	}
+	txn.Commit()
 	return nil
 }
 
