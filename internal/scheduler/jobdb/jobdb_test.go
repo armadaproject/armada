@@ -92,7 +92,7 @@ func TestJobDb_TestQueuedJobs(t *testing.T) {
 	for i := 0; i < len(jobs); i++ {
 		jobs[i] = newJob().WithQueued(true)
 		jobs[i].priority = 1000
-		jobs[i].created = int64(i) // forces an order
+		jobs[i].created = int64(i) // Ensures jobs are ordered.
 	}
 	shuffledJobs := slices.Clone(jobs)
 	rand.Shuffle(len(shuffledJobs), func(i, j int) { shuffledJobs[i], shuffledJobs[j] = shuffledJobs[j], jobs[i] })
