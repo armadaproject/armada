@@ -133,7 +133,10 @@ func (l *FairSchedulingAlgo) Schedule(
 		// Assume pool and minimumJobSize are consistent within the group.
 		pool := executorGroup[0].Pool
 		minimumJobSize := executorGroup[0].MinimumJobSize
-		log.Infof("scheduling on executor group %s", executorGroupLabel)
+		log.Infof(
+			"scheduling on executor group %s with capacity %s",
+			executorGroupLabel, fsctx.totalCapacityByPool[pool].CompactString(),
+		)
 		schedulerResult, sctx, err := l.scheduleOnExecutors(
 			ctxWithTimeout,
 			fsctx,
@@ -386,10 +389,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		l.schedulingConfig.Preemption.NodeEvictionProbability,
 		l.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
 		l.schedulingConfig.Preemption.ProtectedFractionOfFairShare,
-		&schedulerJobRepositoryAdapter{
-			txn: fsctx.txn,
-			db:  fsctx.jobDb,
-		},
+		NewSchedulerJobRepositoryAdapter(fsctx.jobDb, fsctx.txn),
 		nodeDb,
 		fsctx.nodeIdByJobId,
 		fsctx.jobIdsByGangId,
@@ -405,7 +405,6 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	if err != nil {
 		return nil, nil, err
 	}
-
 	for i, job := range result.PreemptedJobs {
 		jobDbJob := job.(*jobdb.Job)
 		if run := jobDbJob.LatestRun(); run != nil {
@@ -424,21 +423,30 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		if node, err := nodeDb.GetNode(nodeId); err != nil {
 			return nil, nil, err
 		} else {
-			result.ScheduledJobs[i] = jobDbJob.WithQueued(false).WithNewRun(node.Executor, node.Id, node.Name)
+			result.ScheduledJobs[i] = jobDbJob.WithQueuedVersion(jobDbJob.QueuedVersion()+1).WithQueued(false).WithNewRun(node.Executor, node.Id, node.Name)
 		}
 	}
 	return result, sctx, nil
 }
 
 // Adapter to make jobDb implement the JobRepository interface.
-type schedulerJobRepositoryAdapter struct {
+//
+// TODO: Pass JobDb into the scheduler instead of using this shim to convert to a JobRepo.
+type SchedulerJobRepositoryAdapter struct {
 	db  *jobdb.JobDb
 	txn *jobdb.Txn
 }
 
+func NewSchedulerJobRepositoryAdapter(db *jobdb.JobDb, txn *jobdb.Txn) *SchedulerJobRepositoryAdapter {
+	return &SchedulerJobRepositoryAdapter{
+		db:  db,
+		txn: txn,
+	}
+}
+
 // GetQueueJobIds is necessary to implement the JobRepository interface, which we need while transitioning from the old
 // to new scheduler.
-func (repo *schedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]string, error) {
+func (repo *SchedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]string, error) {
 	rv := make([]string, 0)
 	it := repo.db.QueuedJobs(repo.txn, queue)
 	for v, _ := it.Next(); v != nil; v, _ = it.Next() {
@@ -449,7 +457,7 @@ func (repo *schedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]strin
 
 // GetExistingJobsByIds is necessary to implement the JobRepository interface which we need while transitioning from the
 // old to new scheduler.
-func (repo *schedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([]interfaces.LegacySchedulerJob, error) {
+func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([]interfaces.LegacySchedulerJob, error) {
 	rv := make([]interfaces.LegacySchedulerJob, 0, len(ids))
 	for _, id := range ids {
 		if job := repo.db.GetById(repo.txn, id); job != nil {

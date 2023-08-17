@@ -125,10 +125,6 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 
 	preemptedJobsById := make(map[string]interfaces.LegacySchedulerJob)
 	scheduledJobsById := make(map[string]interfaces.LegacySchedulerJob)
-	log.Infof(
-		"starting scheduling with total resources %s",
-		sch.schedulingContext.TotalResources.CompactString(),
-	)
 
 	// NodeDb snapshot prior to making any changes.
 	// We compare against this snapshot after scheduling to detect changes.
@@ -484,7 +480,6 @@ func (sch *PreemptingQueueScheduler) evictionAssertions(evictedJobsById map[stri
 }
 
 func (sch *PreemptingQueueScheduler) schedule(ctx context.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository) (*SchedulerResult, error) {
-	log := ctxlogrus.Extract(ctx)
 	jobIteratorByQueue := make(map[string]JobIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		evictedIt, err := inMemoryJobRepo.GetJobIterator(ctx, qctx.Queue)
@@ -522,9 +517,6 @@ func (sch *PreemptingQueueScheduler) schedule(ctx context.Context, inMemoryJobRe
 	}
 	if err := sch.updateGangAccounting(nil, result.ScheduledJobs); err != nil {
 		return nil, err
-	}
-	if s := JobsSummary(result.ScheduledJobs); s != "" {
-		log.Infof("re-scheduled %d jobs; %s", len(result.ScheduledJobs), s)
 	}
 	return result, nil
 }
