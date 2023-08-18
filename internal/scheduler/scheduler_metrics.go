@@ -23,17 +23,7 @@ type SchedulerMetrics struct {
 	preemptedJobsPerQueue prometheus.GaugeVec
 }
 
-var schedulerMetrics *SchedulerMetrics
-
-func init() {
-	schedulerMetrics = newSchedulerMetrics()
-}
-
-func GetSchedulerMetrics() *SchedulerMetrics {
-	return schedulerMetrics
-}
-
-func newSchedulerMetrics() *SchedulerMetrics {
+func NewSchedulerMetrics() *SchedulerMetrics {
 	scheduleCycleTime := prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Namespace: NAMESPACE,

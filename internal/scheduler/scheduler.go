@@ -90,6 +90,7 @@ func NewScheduler(
 	executorTimeout time.Duration,
 	maxAttemptedRuns uint,
 	nodeIdLabel string,
+	schedulerMetrics *SchedulerMetrics,
 ) (*Scheduler, error) {
 	jobDb := jobdb.NewJobDb()
 	return &Scheduler{
@@ -110,7 +111,7 @@ func NewScheduler(
 		nodeIdLabel:                nodeIdLabel,
 		jobsSerial:                 -1,
 		runsSerial:                 -1,
-		metrics:                    GetSchedulerMetrics(),
+		metrics:                    schedulerMetrics,
 	}, nil
 }
 

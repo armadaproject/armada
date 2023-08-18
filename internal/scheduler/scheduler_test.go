@@ -76,6 +76,7 @@ var (
 		Version: 2,
 	}
 	updatedSchedulingInfoBytes = protoutil.MustMarshall(updatedSchedulingInfo)
+	schedulerMetrics           = NewSchedulerMetrics()
 )
 
 var queuedJob = jobdb.NewJob(
@@ -502,6 +503,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				clusterTimeout,
 				maxNumberOfAttempts,
 				nodeIdLabel,
+				schedulerMetrics,
 			)
 			require.NoError(t, err)
 
@@ -665,7 +667,8 @@ func TestRun(t *testing.T) {
 		15*time.Second,
 		1*time.Hour,
 		maxNumberOfAttempts,
-		nodeIdLabel)
+		nodeIdLabel,
+		schedulerMetrics)
 	require.NoError(t, err)
 
 	sched.clock = testClock
