@@ -1,5 +1,5 @@
 from armada.operators.utils import JobState, airflow_error
-from airflow.exceptions import AirflowFailException
+from airflow.exceptions import AirflowException
 import pytest
 
 testdata_success = [JobState.SUCCEEDED]
