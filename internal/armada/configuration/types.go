@@ -329,12 +329,12 @@ type MetricsConfig struct {
 	Port                    uint16
 	RefreshInterval         time.Duration
 	ExposeSchedulingMetrics bool
-	SchedulerMetrics        SchedulerMetricsConfig
+	Metrics                 SchedulerMetricsConfig
 }
 
 type SchedulerMetricsConfig struct {
-	ScheduleCycleTime  HistogramConfig
-	ReconcileCycleTime HistogramConfig
+	ScheduleCycleTimeHistogramSettings  HistogramConfig
+	ReconcileCycleTimeHistogramSettings HistogramConfig
 }
 
 type HistogramConfig struct {

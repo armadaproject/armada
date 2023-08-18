@@ -206,7 +206,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.ExecutorTimeout,
 		config.Scheduling.MaxRetries+1,
 		config.Scheduling.Preemption.NodeIdLabel,
-		NewSchedulerMetrics(config.Metrics.SchedulerMetrics),
+		NewSchedulerMetrics(config.Metrics.Metrics),
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")

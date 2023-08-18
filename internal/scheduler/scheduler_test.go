@@ -77,12 +77,12 @@ var (
 	}
 	updatedSchedulingInfoBytes = protoutil.MustMarshall(updatedSchedulingInfo)
 	schedulerMetrics           = NewSchedulerMetrics(configuration.SchedulerMetricsConfig{
-		ScheduleCycleTime: configuration.HistogramConfig{
+		ScheduleCycleTimeHistogramSettings: configuration.HistogramConfig{
 			Start:  1,
 			Factor: 1.1,
 			Count:  100,
 		},
-		ReconcileCycleTime: configuration.HistogramConfig{
+		ReconcileCycleTimeHistogramSettings: configuration.HistogramConfig{
 			Start:  1,
 			Factor: 1.1,
 			Count:  100,

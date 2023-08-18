@@ -9,12 +9,12 @@ internedStringsCacheSize: 100000
 metrics:
   port: 9000
   refreshInterval: 30s
-  schedulerMetrics:
-    scheduleCycleTime:
+  metrics:
+    scheduleCycleTimeHistogramSettings:
       start: 1.0
       factor: 1.1
       count: 110
-    reconcileCycleTime:
+    reconcileCycleTimeHistogramSettings:
       start: 1.0
       factor: 1.1
       count: 110

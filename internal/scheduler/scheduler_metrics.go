@@ -34,9 +34,9 @@ func NewSchedulerMetrics(config configuration.SchedulerMetricsConfig) *Scheduler
 			Name:      "schedule_cycle_times",
 			Help:      "Cycle time when in a scheduling round.",
 			Buckets: prometheus.ExponentialBuckets(
-				config.ScheduleCycleTime.Start,
-				config.ScheduleCycleTime.Factor,
-				config.ScheduleCycleTime.Count),
+				config.ScheduleCycleTimeHistogramSettings.Start,
+				config.ScheduleCycleTimeHistogramSettings.Factor,
+				config.ScheduleCycleTimeHistogramSettings.Count),
 		},
 	)
 
@@ -47,9 +47,9 @@ func NewSchedulerMetrics(config configuration.SchedulerMetricsConfig) *Scheduler
 			Name:      "reconcile_cycle_times",
 			Help:      "Cycle time when outside of a scheduling round.",
 			Buckets: prometheus.ExponentialBuckets(
-				config.ReconcileCycleTime.Start,
-				config.ReconcileCycleTime.Factor,
-				config.ReconcileCycleTime.Count),
+				config.ReconcileCycleTimeHistogramSettings.Start,
+				config.ReconcileCycleTimeHistogramSettings.Factor,
+				config.ReconcileCycleTimeHistogramSettings.Count),
 		},
 	)
 
