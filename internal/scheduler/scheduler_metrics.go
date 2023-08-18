@@ -1,9 +1,12 @@
 package scheduler
 
 import (
+	"time"
+
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 )
 
@@ -23,14 +26,17 @@ type SchedulerMetrics struct {
 	preemptedJobsPerQueue prometheus.GaugeVec
 }
 
-func NewSchedulerMetrics() *SchedulerMetrics {
+func NewSchedulerMetrics(config configuration.SchedulerMetricsConfig) *SchedulerMetrics {
 	scheduleCycleTime := prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Namespace: NAMESPACE,
 			Subsystem: SUBSYSTEM,
 			Name:      "schedule_cycle_times",
 			Help:      "Cycle time when in a scheduling round.",
-			Buckets:   prometheus.LinearBuckets(0, 5, 20),
+			Buckets: prometheus.ExponentialBuckets(
+				config.ScheduleCycleTime.Start,
+				config.ScheduleCycleTime.Factor,
+				config.ScheduleCycleTime.Count),
 		},
 	)
 
@@ -40,7 +46,10 @@ func NewSchedulerMetrics() *SchedulerMetrics {
 			Subsystem: SUBSYSTEM,
 			Name:      "reconcile_cycle_times",
 			Help:      "Cycle time when outside of a scheduling round.",
-			Buckets:   prometheus.LinearBuckets(0, 5, 20),
+			Buckets: prometheus.ExponentialBuckets(
+				config.ReconcileCycleTime.Start,
+				config.ReconcileCycleTime.Factor,
+				config.ReconcileCycleTime.Count),
 		},
 	)
 
@@ -83,12 +92,12 @@ func NewSchedulerMetrics() *SchedulerMetrics {
 	}
 }
 
-func (metrics *SchedulerMetrics) ReportScheduleCycleTime(cycleTime float64) {
-	metrics.scheduleCycleTime.Observe(cycleTime)
+func (metrics *SchedulerMetrics) ReportScheduleCycleTime(cycleTime time.Duration) {
+	metrics.scheduleCycleTime.Observe(float64(cycleTime.Milliseconds()))
 }
 
-func (metrics *SchedulerMetrics) ReportReconcileCycleTime(cycleTime float64) {
-	metrics.reconcileCycleTime.Observe(cycleTime)
+func (metrics *SchedulerMetrics) ReportReconcileCycleTime(cycleTime time.Duration) {
+	metrics.reconcileCycleTime.Observe(float64(cycleTime.Milliseconds()))
 }
 
 func (metrics *SchedulerMetrics) ReportSchedulerResult(result *SchedulerResult) {

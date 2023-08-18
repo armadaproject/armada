@@ -76,7 +76,18 @@ var (
 		Version: 2,
 	}
 	updatedSchedulingInfoBytes = protoutil.MustMarshall(updatedSchedulingInfo)
-	schedulerMetrics           = NewSchedulerMetrics()
+	schedulerMetrics           = NewSchedulerMetrics(configuration.SchedulerMetricsConfig{
+		ScheduleCycleTime: configuration.HistogramConfig{
+			Start:  1,
+			Factor: 1.1,
+			Count:  100,
+		},
+		ReconcileCycleTime: configuration.HistogramConfig{
+			Start:  1,
+			Factor: 1.1,
+			Count:  100,
+		},
+	})
 )
 
 var queuedJob = jobdb.NewJob(
