@@ -877,7 +877,8 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				5*time.Second,
 				1*time.Hour,
 				maxNumberOfAttempts,
-				nodeIdLabel)
+				nodeIdLabel,
+				schedulerMetrics)
 			require.NoError(t, err)
 
 			// insert initial jobs
