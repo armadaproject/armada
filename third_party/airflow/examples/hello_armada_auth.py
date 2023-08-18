@@ -130,6 +130,7 @@ with DAG(
     op >> armada
 
 
-if __name__ == "__main__":
-    # Will need to run `airflow db init` first
-    dag.test()
+# FIXME: This doesn't work with integration tests that run every .py file in /examples
+# Will need to run `airflow db init` first
+# if __name__ == "__main__":
+#     dag.test()
