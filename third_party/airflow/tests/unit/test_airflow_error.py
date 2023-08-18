@@ -19,6 +19,6 @@ testdata_error = [
 
 @pytest.mark.parametrize("state, expected_exception_message", testdata_error)
 def test_airflow_error_states(state, expected_exception_message):
-    with pytest.raises(AirflowFailException) as airflow:
+    with pytest.raises(AirflowException) as airflow:
         airflow_error(state, "hello", "id")
     assert str(airflow.value) == expected_exception_message
