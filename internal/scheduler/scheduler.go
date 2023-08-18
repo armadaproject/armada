@@ -90,6 +90,7 @@ func NewScheduler(
 	executorTimeout time.Duration,
 	maxAttemptedRuns uint,
 	nodeIdLabel string,
+	schedulerMetrics *SchedulerMetrics,
 ) (*Scheduler, error) {
 	jobDb := jobdb.NewJobDb()
 	return &Scheduler{
@@ -110,7 +111,7 @@ func NewScheduler(
 		nodeIdLabel:                nodeIdLabel,
 		jobsSerial:                 -1,
 		runsSerial:                 -1,
-		metrics:                    GetSchedulerMetrics(),
+		metrics:                    schedulerMetrics,
 	}, nil
 }
 
@@ -175,10 +176,10 @@ func (s *Scheduler) Run(ctx context.Context) error {
 
 			if shouldSchedule && leaderToken.leader {
 				// Only the leader token does real scheduling rounds.
-				s.metrics.ReportScheduleCycleTime(float64(cycleTime.Milliseconds()))
+				s.metrics.ReportScheduleCycleTime(cycleTime)
 				log.Infof("scheduling cycle completed in %s", cycleTime)
 			} else {
-				s.metrics.ReportReconcileCycleTime(float64(cycleTime.Milliseconds()))
+				s.metrics.ReportReconcileCycleTime(cycleTime)
 				log.Infof("reconciliation cycle completed in %s", cycleTime)
 			}
 

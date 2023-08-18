@@ -329,6 +329,18 @@ type MetricsConfig struct {
 	Port                    uint16
 	RefreshInterval         time.Duration
 	ExposeSchedulingMetrics bool
+	Metrics                 SchedulerMetricsConfig
+}
+
+type SchedulerMetricsConfig struct {
+	ScheduleCycleTimeHistogramSettings  HistogramConfig
+	ReconcileCycleTimeHistogramSettings HistogramConfig
+}
+
+type HistogramConfig struct {
+	Start  float64
+	Factor float64
+	Count  int
 }
 
 type EventApiConfig struct {
