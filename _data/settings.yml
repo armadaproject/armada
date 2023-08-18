@@ -71,6 +71,7 @@ social_settings:
   github_url: 'https://github.com/G-Research/armada'
   reddit_url: ''
   linkedin_url: ''
+  slack_url: 'https://cloud-native.slack.com/archives/C03T9CBCEMC'
 
 authors:
 
