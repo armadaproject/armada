@@ -61,7 +61,8 @@ def airflow_error(job_state: JobState, name: str, job_id: str):
         or job_state == JobState.JOB_ID_NOT_FOUND
     ):
         job_message = job_state.name
-        # AirflowException allows operator-level retries. AirflowFailException does *not*.
+        # AirflowException allows operator-level retries. AirflowFailException
+        # does *not*.
         raise AirflowException(f"The Armada job {name}:{job_id} {job_message}")
 
 
