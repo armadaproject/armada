@@ -9,6 +9,15 @@ internedStringsCacheSize: 100000
 metrics:
   port: 9000
   refreshInterval: 30s
+  schedulerMetrics:
+    scheduleCycleTime:
+      start: 1.0
+      factor: 1.1
+      count: 110
+    reconcileCycleTime:
+      start: 1.0
+      factor: 1.1
+      count: 110
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
