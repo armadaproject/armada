@@ -77,6 +77,7 @@ require (
 require (
 	github.com/Masterminds/semver/v3 v3.2.0
 	github.com/benbjohnson/immutable v0.4.3
+	github.com/caarlos0/log v0.2.1
 	github.com/go-openapi/errors v0.20.3
 	github.com/go-openapi/strfmt v0.21.3
 	github.com/go-openapi/swag v0.22.3
@@ -107,7 +108,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bits-and-blooms/bitset v1.4.0 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
-	github.com/caarlos0/log v0.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/charmbracelet/lipgloss v0.6.1-0.20220911181249-6304a734e792 // indirect
 	github.com/danieljoos/wincred v1.1.2 // indirect

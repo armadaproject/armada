@@ -70,14 +70,7 @@ func kindCheck() error {
 	if err != nil {
 		return errors.Errorf("error getting version: %v", err)
 	}
-	constraint, err := semver.NewConstraint(KIND_VERSION_CONSTRAINT)
-	if err != nil {
-		return errors.Errorf("error parsing constraint: %v", err)
-	}
-	if !constraint.Check(version) {
-		return errors.Errorf("found version %v but it failed constraint %v", version, constraint)
-	}
-	return nil
+	return constraintCheck(version, KIND_VERSION_CONSTRAINT, "kind")
 }
 
 // Images that need to be available in the Kind cluster,

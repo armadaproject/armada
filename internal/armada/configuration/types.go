@@ -222,6 +222,8 @@ type SchedulingConfig struct {
 	AlwaysAttemptScheduling bool
 	// The frequency at which the scheduler updates the cluster state.
 	ExecutorUpdateFrequency time.Duration
+	// Enable new preemption strategy.
+	EnableNewPreemptionStrategy bool
 }
 
 // FairnessModel controls how fairness is computed.
@@ -329,6 +331,18 @@ type MetricsConfig struct {
 	Port                    uint16
 	RefreshInterval         time.Duration
 	ExposeSchedulingMetrics bool
+	Metrics                 SchedulerMetricsConfig
+}
+
+type SchedulerMetricsConfig struct {
+	ScheduleCycleTimeHistogramSettings  HistogramConfig
+	ReconcileCycleTimeHistogramSettings HistogramConfig
+}
+
+type HistogramConfig struct {
+	Start  float64
+	Factor float64
+	Count  int
 }
 
 type EventApiConfig struct {

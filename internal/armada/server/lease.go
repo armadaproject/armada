@@ -40,6 +40,7 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	schedulerinterfaces "github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -257,6 +258,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	log = log.WithFields(logrus.Fields{
 		"function": "getJobs",
 		"cluster":  req.ClusterId,
+		"pool":     req.Pool,
 	})
 	ctx = ctxlogrus.ToContext(ctx, log)
 
@@ -467,17 +469,30 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		defer cancel()
 	}
 
+	var fairnessCostProvider fairness.FairnessCostProvider
+	totalResources := schedulerobjects.ResourceList{Resources: totalCapacity}
+	if q.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
+		fairnessCostProvider, err = fairness.NewDominantResourceFairness(
+			totalResources,
+			q.schedulingConfig.DominantResourceFairnessResourcesToConsider,
+		)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		fairnessCostProvider, err = fairness.NewAssetFairness(q.schedulingConfig.ResourceScarcity)
+		if err != nil {
+			return nil, err
+		}
+	}
 	sctx := schedulercontext.NewSchedulingContext(
 		req.ClusterId,
 		req.Pool,
 		q.schedulingConfig.Preemption.PriorityClasses,
 		q.schedulingConfig.Preemption.DefaultPriorityClass,
-		q.schedulingConfig.ResourceScarcity,
-		schedulerobjects.ResourceList{Resources: totalCapacity},
+		fairnessCostProvider,
+		totalResources,
 	)
-	if q.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
-		sctx.EnableDominantResourceFairness(q.schedulingConfig.DominantResourceFairnessResourcesToConsider)
-	}
 	for queue, priorityFactor := range priorityFactorByQueue {
 		if !isActiveByQueueName[queue] {
 			// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.
@@ -517,6 +532,13 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if q.schedulingConfig.EnableAssertions {
 		sch.EnableAssertions()
 	}
+	if q.schedulingConfig.EnableNewPreemptionStrategy {
+		sch.EnableNewPreemptionStrategy()
+	}
+	log.Infof(
+		"starting scheduling with total resources %s",
+		schedulerobjects.ResourceList{Resources: totalCapacity}.CompactString(),
+	)
 	result, err := sch.Schedule(
 		ctxlogrus.ToContext(
 			ctx,
