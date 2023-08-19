@@ -65,8 +65,6 @@ type LookoutIngesterConfiguration struct {
 	BatchSize int
 	// Maximum time since the last batch before a batch will be inserted into the database
 	BatchDuration time.Duration
-	// Number of pulsar messages that will be queued by the pulsar consumer.
-	PulsarReceiverQueueSize int
 	// User annotations have a common prefix to avoid clashes with other annotations.  This prefix will be stripped from
 	// The annotation before storing in the db
 	UserAnnotationPrefix string
