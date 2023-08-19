@@ -204,7 +204,15 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 				break
 			} else {
 				for _, msgId := range msg.GetMessageIDs() {
-					ingester.consumer.AckID(msgId)
+					for {
+						err = ingester.consumer.AckID(msgId)
+						if err == nil {
+							break
+						} else {
+							log.WithError(err).Warnf("Pulsar ack failed; backing off for %s", ingester.pulsarConfig.BackoffTime)
+							time.Sleep(ingester.pulsarConfig.BackoffTime)
+						}
+					}
 				}
 			}
 		}

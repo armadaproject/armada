@@ -31,7 +31,16 @@ func PrintEvents(url, topic, subscription string, verbose bool) error {
 				time.Sleep(time.Second)
 				continue
 			}
-			consumer.Ack(msg)
+			unacked := true
+			for unacked {
+				err = consumer.Ack(msg)
+				if err != nil {
+					fmt.Println(err)
+					time.Sleep(time.Second)
+				} else {
+					unacked = false
+				}
+			}
 
 			sequence := &armadaevents.EventSequence{}
 			err = proto.Unmarshal(msg.Payload(), sequence)

@@ -73,8 +73,9 @@ func (srv *EventsPrinter) Run(ctx context.Context) error {
 		default:
 
 			// Get a message from Pulsar, which consists of a sequence of events (i.e., state transitions).
-			ctxWithTimeout, _ := context.WithTimeout(ctx, 10*time.Second)
+			ctxWithTimeout, cancel := context.WithTimeout(ctx, 10*time.Second)
 			msg, err := consumer.Receive(ctxWithTimeout)
+			cancel()
 			if errors.Is(err, context.DeadlineExceeded) { // expected
 				log.Info("no new messages from Pulsar (or another instance holds the subscription)")
 				break
@@ -82,7 +83,14 @@ func (srv *EventsPrinter) Run(ctx context.Context) error {
 				logging.WithStacktrace(log, err).Warnf("receiving from Pulsar failed")
 				break
 			}
-			consumer.Ack(msg)
+			for {
+				err = consumer.Ack(msg)
+				if err == nil {
+					break
+				} else {
+					logging.WithStacktrace(log, err).Warnf("acking pulsar message failed")
+				}
+			}
 
 			sequence := &armadaevents.EventSequence{}
 			if err := proto.Unmarshal(msg.Payload(), sequence); err != nil {

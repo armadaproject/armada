@@ -113,8 +113,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			// If this message isn't for us we can simply ack it
 			// and go to the next message
 			if !schedulers.ForLegacyScheduler(msg) {
-				srv.Consumer.Ack(msg)
-				break
+				srv.ack(ctx, msg)
 			}
 
 			lastMessageId = msg.ID()
@@ -137,7 +136,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			// Unmarshal and validate the message.
 			sequence, err := eventutil.UnmarshalEventSequence(ctxWithLogger, msg.Payload())
 			if err != nil {
-				srv.Consumer.Ack(msg)
+				srv.ack(ctx, msg)
 				logging.WithStacktrace(messageLogger, err).Warnf("processing message failed; ignoring")
 				numErrored++
 				break
@@ -146,7 +145,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			messageLogger.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
 			// TODO: Improve retry logic.
 			srv.ProcessSequence(ctxWithLogger, sequence)
-			srv.Consumer.Ack(msg)
+			srv.ack(ctx, msg)
 		}
 	}
 }
@@ -765,4 +764,21 @@ func (srv *SubmitFromLog) ReprioritizeJobSet(
 	}
 
 	return true, nil
+}
+
+func (srv *SubmitFromLog) ack(ctx context.Context, msg pulsar.Message) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			err := srv.Consumer.Ack(msg)
+			if err == nil {
+				break
+			} else {
+				logrus.WithError(err).Warnf("Error acking Pulsar message")
+				time.Sleep(time.Second)
+			}
+		}
+	}
 }
