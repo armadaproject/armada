@@ -20,8 +20,6 @@ type Configuration struct {
 	SubscriptionName string
 	// Number of messages that will be batched together before being inserted into the database
 	BatchSize int
-	// Number of pulsar messages that will be queued by the pulsar consumer.
-	PulsarReceiverQueueSize int
 	// Maximum time since the last batch before a batch will be inserted into the database
 	BatchDuration time.Duration
 	// Time for which the pulsar consumer will wait for a new message before retrying
