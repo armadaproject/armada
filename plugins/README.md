@@ -60,11 +60,3 @@ In order to uninstall the `armadactl` plugin, just run this command:
 ```
 kubectl krew uninstall armadactl
 ```
-
-
-
-
-
-
-
-
