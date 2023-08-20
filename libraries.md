@@ -25,4 +25,4 @@ This client can be accessed in the [Armada git repository](https://github.com/ar
 ## Armadactl (Command-Line Tool)
 Armadactl is a command-line tool used for managing jobs in the Armada workload orchestration system.
 
-To learn how to use `armadactl`, refer to the [armadactl readme](https://github.com/armadaproject/armada/tree/master/cmd/armadactl).
+To learn how to use `armadactl`, refer to the [armadactl readme](https://github.com/armadaproject/armada/blob/master/cmd/armadactl/README.md).
