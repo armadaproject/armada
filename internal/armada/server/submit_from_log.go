@@ -767,18 +767,14 @@ func (srv *SubmitFromLog) ReprioritizeJobSet(
 }
 
 func (srv *SubmitFromLog) ack(ctx context.Context, msg pulsar.Message) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			err := srv.Consumer.Ack(msg)
-			if err == nil {
-				return
-			} else {
-				logrus.WithError(err).Warnf("Error acking Pulsar message")
-				time.Sleep(time.Second)
-			}
-		}
-	}
+	util.RetryUntilSuccess(
+		ctx,
+		func() error {
+			return srv.Consumer.Ack(msg)
+		},
+		func(err error) {
+			logrus.WithError(err).Warnf("Error acking pulsar message")
+			time.Sleep(time.Second)
+		},
+	)
 }
