@@ -637,6 +637,12 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 					if failFast {
 						errorMessage = fmt.Sprintf("Job has fail fast flag set - this job will no longer be retried")
 					}
+
+					if runError != nil && runError.GetPodLeaseReturned() != nil {
+						errorMessage += "\n\n" + "Final run error:"
+						errorMessage += "\n" + runError.GetPodLeaseReturned().GetMessage()
+					}
+
 					runError = &armadaevents.Error{
 						Terminal: true,
 						Reason: &armadaevents.Error_MaxRunsExceeded{
