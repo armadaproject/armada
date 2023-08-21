@@ -74,13 +74,13 @@ func dockerVersion() (*semver.Version, error) {
 	return version, nil
 }
 
-func constraintCheck(version *semver.Version, versionRequirement string) error {
+func constraintCheck(version *semver.Version, versionRequirement string, dependencyName string) error {
 	constraint, err := semver.NewConstraint(versionRequirement)
 	if err != nil {
 		return errors.Errorf("error parsing constraint: %v", err)
 	}
 	if !constraint.Check(version) {
-		return errors.Errorf("found version %v but it failed constraint %v", version, constraint)
+		return errors.Errorf("found %s version %v but it failed constraint %v", dependencyName, version, constraint)
 	}
 	return nil
 }
@@ -90,7 +90,7 @@ func dockerComposeCheck() error {
 	if err != nil {
 		return errors.Errorf("error getting version: %v", err)
 	}
-	return constraintCheck(version, DOCKER_COMPOSE_VERSION_CONSTRAINT)
+	return constraintCheck(version, DOCKER_COMPOSE_VERSION_CONSTRAINT, "docker-compose")
 }
 
 func dockerBuildxCheck() error {
@@ -98,7 +98,7 @@ func dockerBuildxCheck() error {
 	if err != nil {
 		return errors.Errorf("error getting version: %v", err)
 	}
-	return constraintCheck(version, DOCKER_BUILDX_VERSION_CONSTRAINT)
+	return constraintCheck(version, DOCKER_BUILDX_VERSION_CONSTRAINT, "docker-buildx")
 }
 
 func dockerCheck() error {
@@ -111,7 +111,7 @@ func dockerCheck() error {
 		return errors.Errorf("error parsing constraint: %v", err)
 	}
 	if !constraint.Check(version) {
-		return errors.Errorf("found version %v but it failed constraint %v", version, constraint)
+		return errors.Errorf("found docker version %v but it failed constraint %v", version, constraint)
 	}
 	return nil
 }

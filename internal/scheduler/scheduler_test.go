@@ -14,6 +14,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -32,6 +33,21 @@ const (
 )
 
 var (
+	failFastSchedulingInfo = &schedulerobjects.JobSchedulingInfo{
+		AtMostOnce: true,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						Annotations: map[string]string{
+							configuration.FailFastAnnotation: "true",
+						},
+					},
+				},
+			},
+		},
+		Version: 1,
+	}
 	schedulingInfo = &schedulerobjects.JobSchedulingInfo{
 		AtMostOnce: true,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
@@ -60,6 +76,18 @@ var (
 		Version: 2,
 	}
 	updatedSchedulingInfoBytes = protoutil.MustMarshall(updatedSchedulingInfo)
+	schedulerMetrics           = NewSchedulerMetrics(configuration.SchedulerMetricsConfig{
+		ScheduleCycleTimeHistogramSettings: configuration.HistogramConfig{
+			Start:  1,
+			Factor: 1.1,
+			Count:  100,
+		},
+		ReconcileCycleTimeHistogramSettings: configuration.HistogramConfig{
+			Start:  1,
+			Factor: 1.1,
+			Count:  100,
+		},
+	})
 )
 
 var queuedJob = jobdb.NewJob(
@@ -96,6 +124,19 @@ var defaultJobRunError = &armadaevents.Error{
 		},
 	},
 }
+
+var leasedFailFastJob = jobdb.NewJob(
+	util.NewULID(),
+	"testJobset",
+	"testQueue",
+	uint32(10),
+	failFastSchedulingInfo,
+	false,
+	2,
+	false,
+	false,
+	false,
+	1).WithQueued(false).WithNewRun("testExecutor", "test-node", "node")
 
 var (
 	requeuedJobId = util.NewULID()
@@ -311,6 +352,25 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedTerminal:      []string{leasedJob.Id()},
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
 		},
+		"Lease returned for fail fast job": {
+			initialJobs: []*jobdb.Job{leasedFailFastJob},
+			// Fail fast should mean there is only ever 1 attempted run
+			runUpdates: []database.Run{
+				{
+					RunID:        leasedFailFastJob.LatestRun().Id(),
+					JobID:        leasedFailFastJob.Id(),
+					JobSet:       "testJobSet",
+					Executor:     "testExecutor",
+					Failed:       true,
+					Returned:     true,
+					RunAttempted: false,
+					Serial:       1,
+				},
+			},
+			expectedJobErrors:     []string{leasedFailFastJob.Id()},
+			expectedTerminal:      []string{leasedFailFastJob.Id()},
+			expectedQueuedVersion: leasedFailFastJob.QueuedVersion(),
+		},
 		"Job cancelled": {
 			initialJobs: []*jobdb.Job{leasedJob},
 			jobUpdates: []database.Job{
@@ -454,6 +514,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				clusterTimeout,
 				maxNumberOfAttempts,
 				nodeIdLabel,
+				schedulerMetrics,
 			)
 			require.NoError(t, err)
 
@@ -530,7 +591,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					delete(remainingLeased, job.Id())
 				}
 				if expectedPriority, ok := tc.expectedJobPriority[job.Id()]; ok {
-					assert.Equal(t, job.Priority(), expectedPriority)
+					assert.Equal(t, expectedPriority, job.Priority())
 				}
 				if len(tc.expectedNodeAntiAffinities) > 0 {
 					assert.Len(t, job.JobSchedulingInfo().ObjectRequirements, 1)
@@ -546,12 +607,12 @@ func TestScheduler_TestCycle(t *testing.T) {
 				if tc.expectedQueuedVersion != 0 {
 					expectedQueuedVersion = tc.expectedQueuedVersion
 				}
-				assert.Equal(t, job.QueuedVersion(), expectedQueuedVersion)
+				assert.Equal(t, expectedQueuedVersion, job.QueuedVersion())
 				expectedSchedulingInfoVersion := 1
 				if tc.expectedJobSchedulingInfoVersion != 0 {
 					expectedSchedulingInfoVersion = tc.expectedJobSchedulingInfoVersion
 				}
-				assert.Equal(t, job.JobSchedulingInfo().Version, uint32(expectedSchedulingInfoVersion))
+				assert.Equal(t, uint32(expectedSchedulingInfoVersion), job.JobSchedulingInfo().Version)
 			}
 			assert.Equal(t, 0, len(remainingLeased))
 			assert.Equal(t, 0, len(remainingQueued))
@@ -617,7 +678,8 @@ func TestRun(t *testing.T) {
 		15*time.Second,
 		1*time.Hour,
 		maxNumberOfAttempts,
-		nodeIdLabel)
+		nodeIdLabel,
+		schedulerMetrics)
 	require.NoError(t, err)
 
 	sched.clock = testClock
@@ -826,7 +888,8 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				5*time.Second,
 				1*time.Hour,
 				maxNumberOfAttempts,
-				nodeIdLabel)
+				nodeIdLabel,
+				schedulerMetrics)
 			require.NoError(t, err)
 
 			// insert initial jobs
@@ -969,7 +1032,7 @@ func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb
 		if !job.Queued() {
 			return nil, errors.Errorf("was asked to lease %s but job was already leased", job.Id())
 		}
-		job = job.WithQueued(false).WithNewRun("test-executor", "test-node", "node")
+		job = job.WithQueuedVersion(job.QueuedVersion()+1).WithQueued(false).WithNewRun("test-executor", "test-node", "node")
 		scheduledJobs = append(scheduledJobs, job)
 	}
 	if err := jobDb.Upsert(txn, preemptedJobs); err != nil {

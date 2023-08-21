@@ -17,11 +17,14 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
+// This test used to assert that submitting a job twice with the same clientId resulted
+// in  the same job id being returned.  We now perform the client id check earlier in the process
+// so now we assert that different ids are returned.
 func TestJobDoubleSubmit(t *testing.T) {
 	withRepository(func(r *RedisJobRepository) {
 		job1 := addTestJobWithClientId(t, r, "queue1", "my-job-1")
 		job2 := addTestJobWithClientId(t, r, "queue1", "my-job-1")
-		assert.Equal(t, job1.Id, job2.Id)
+		assert.NotEqual(t, job1.Id, job2.Id)
 	})
 }
 

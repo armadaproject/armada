@@ -126,6 +126,7 @@ pulsar:
   eventsPrinter: false
   eventsPrinterSubscription: "EventsPrinter"
   maxAllowedMessageSize: 4194304 # 4MB
+  receiverQueueSize: 100
 postgres:
   maxOpenConns: 100
   maxIdleConns: 25
