@@ -25,7 +25,7 @@ Krew also helps kubectl plugin developers: You can package and distribute your p
   ./"${KREW}" install krew
 )
 ```
-  3. Add the $HOME/.krew/bin directory to your PATH environment variable. To do this, update your .bashrc or .zshrc file and append the following line:
+  3. Add the `$HOME/.krew/bin` directory to your PATH environment variable. To do this, update your `.bashrc` or `.zshrc` file and append the following line:
 ```
 export PATH="${KREW_ROOT:-$HOME/.krew}/bin:$PATH"
 ```
