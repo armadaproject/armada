@@ -13,6 +13,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils/pulsarrequestid"
 	"github.com/armadaproject/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -83,14 +84,11 @@ func (srv *EventsPrinter) Run(ctx context.Context) error {
 				logging.WithStacktrace(log, err).Warnf("receiving from Pulsar failed")
 				break
 			}
-			for {
-				err = consumer.Ack(msg)
-				if err == nil {
-					break
-				} else {
-					logging.WithStacktrace(log, err).Warnf("acking pulsar message failed")
-				}
-			}
+			util.RetryUntilSuccess(
+				context.Background(),
+				func() error { return consumer.Ack(msg) },
+				func(err error) { logging.WithStacktrace(log, err).Warnf("acking pulsar message failed") },
+			)
 
 			sequence := &armadaevents.EventSequence{}
 			if err := proto.Unmarshal(msg.Payload(), sequence); err != nil {
