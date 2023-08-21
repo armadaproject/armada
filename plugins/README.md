@@ -1,4 +1,4 @@
-This documnetation will walk you through how you can self-host `armadactl` on your local machine but first let's take a look at what Krew is.
+This documentation will walk you through how you can self-host `armadactl` on your local machine but first let's take a look at what Krew is.
 
 ### Krew
 
