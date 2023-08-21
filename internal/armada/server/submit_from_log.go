@@ -774,7 +774,7 @@ func (srv *SubmitFromLog) ack(ctx context.Context, msg pulsar.Message) {
 		default:
 			err := srv.Consumer.Ack(msg)
 			if err == nil {
-				break
+				return
 			} else {
 				logrus.WithError(err).Warnf("Error acking Pulsar message")
 				time.Sleep(time.Second)
