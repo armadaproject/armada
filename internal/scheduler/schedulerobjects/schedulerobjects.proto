@@ -7,8 +7,6 @@ import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
-// option (gogoproto.stable_marshaler) = true;
-
 // Executor represents an executor running on a worker cluster
 message Executor {
     // Name of the executor.

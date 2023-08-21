@@ -7,6 +7,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -354,9 +355,13 @@ func (c *InstructionConverter) handlePartitionMarker(pm *armadaevents.PartitionM
 	}}, nil
 }
 
-// schedulingInfoFromSubmitJob returns a minimal representation of a job
-// containing only the info needed by the scheduler.
+// schedulingInfoFromSubmitJob returns a minimal representation of a job containing only the info needed by the scheduler.
 func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime time.Time) (*schedulerobjects.JobSchedulingInfo, error) {
+	return SchedulingInfoFromSubmitJob(submitJob, submitTime, c.priorityClasses)
+}
+
+// SchedulingInfoFromSubmitJob returns a minimal representation of a job containing only the info needed by the scheduler.
+func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime time.Time, priorityClasses map[string]types.PriorityClass) (*schedulerobjects.JobSchedulingInfo, error) {
 	// Component common to all jobs.
 	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
 		Lifetime:        submitJob.Lifetime,
@@ -373,8 +378,16 @@ func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaeven
 	case *armadaevents.KubernetesMainObject_PodSpec:
 		podSpec := object.PodSpec.PodSpec
 		schedulingInfo.PriorityClassName = podSpec.PriorityClassName
-		podRequirements := adapters.PodRequirementsFromPodSpec(podSpec, c.priorityClasses)
-		podRequirements.Annotations = submitJob.ObjectMeta.Annotations
+		podRequirements := adapters.PodRequirementsFromPodSpec(podSpec, priorityClasses)
+		if submitJob.ObjectMeta != nil {
+			podRequirements.Annotations = maps.Clone(submitJob.ObjectMeta.Annotations)
+		}
+		if submitJob.MainObject.ObjectMeta != nil {
+			if podRequirements.Annotations == nil {
+				podRequirements.Annotations = make(map[string]string, len(submitJob.MainObject.ObjectMeta.Annotations))
+			}
+			maps.Copy(podRequirements.Annotations, submitJob.MainObject.ObjectMeta.Annotations)
+		}
 		schedulingInfo.ObjectRequirements = append(
 			schedulingInfo.ObjectRequirements,
 			&schedulerobjects.ObjectRequirements{

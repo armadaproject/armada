@@ -20,9 +20,11 @@ import (
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
+	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // PreemptingQueueScheduler is a scheduler that makes a unified decisions on which jobs to preempt and schedule.
@@ -47,6 +49,8 @@ type PreemptingQueueScheduler struct {
 	skipUnsuccessfulSchedulingKeyCheck bool
 	// If true, asserts that the nodeDb state is consistent with expected changes.
 	enableAssertions bool
+	// If true, a newer preemption strategy is used.
+	enableNewPreemptionStrategy bool
 }
 
 func NewPreemptingQueueScheduler(
@@ -96,39 +100,23 @@ func (sch *PreemptingQueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 	sch.skipUnsuccessfulSchedulingKeyCheck = true
 }
 
+func (sch *PreemptingQueueScheduler) EnableNewPreemptionStrategy() {
+	sch.enableNewPreemptionStrategy = true
+	sch.nodeDb.EnableNewPreemptionStrategy()
+}
+
 // Schedule
 // - preempts jobs belonging to queues with total allocation above their fair share and
 // - schedules new jobs belonging to queues with total allocation less than their fair share.
 func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, error) {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("service", "PreemptingQueueScheduler")
-	if sch.schedulingContext.TotalResources.AsWeightedMillis(sch.schedulingContext.ResourceScarcity) == 0 {
-		// This refers to resources available across all clusters, i.e.,
-		// it may include resources not currently considered for scheduling.
-		log.Infof(
-			"no resources with non-zero weight available for scheduling on any cluster: resource scarcity %v, total resources %v",
-			sch.schedulingContext.ResourceScarcity, sch.schedulingContext.TotalResources,
-		)
-		return &SchedulerResult{}, nil
-	}
-	if rl := sch.nodeDb.TotalResources(); rl.AsWeightedMillis(sch.schedulingContext.ResourceScarcity) == 0 {
-		// This refers to the resources currently considered for scheduling.
-		log.Infof(
-			"no resources with non-zero weight available for scheduling in NodeDb: resource scarcity %v, total resources %v",
-			sch.schedulingContext.ResourceScarcity, sch.nodeDb.TotalResources(),
-		)
-		return &SchedulerResult{}, nil
-	}
 	defer func() {
 		sch.schedulingContext.Finished = time.Now()
 	}()
 
 	preemptedJobsById := make(map[string]interfaces.LegacySchedulerJob)
 	scheduledJobsById := make(map[string]interfaces.LegacySchedulerJob)
-	log.Infof(
-		"starting scheduling with total resources %s",
-		sch.schedulingContext.TotalResources.CompactString(),
-	)
 
 	// NodeDb snapshot prior to making any changes.
 	// We compare against this snapshot after scheduling to detect changes.
@@ -158,7 +146,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx context.Context) (*SchedulerRe
 				}
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.GetQueue()]; ok {
 					fairShare := qctx.Weight / sch.schedulingContext.WeightSum
-					actualShare := qctx.TotalCostForQueue() / totalCost
+					actualShare := sch.schedulingContext.FairnessCostProvider.CostFromQueue(qctx) / totalCost
 					fractionOfFairShare := actualShare / fairShare
 					if fractionOfFairShare <= sch.protectedFractionOfFairShare {
 						return false
@@ -346,6 +334,15 @@ func (sch *PreemptingQueueScheduler) evict(ctx context.Context, evictor *Evictor
 	inMemoryJobRepo := NewInMemoryJobRepository(sch.schedulingContext.PriorityClasses)
 	inMemoryJobRepo.EnqueueMany(evictedJobs)
 	txn.Commit()
+
+	if sch.enableNewPreemptionStrategy {
+		if err := sch.nodeDb.Reset(); err != nil {
+			return nil, nil, err
+		}
+		if err := addEvictedJobsToNodeDb(ctx, sch.schedulingContext, sch.nodeDb, inMemoryJobRepo); err != nil {
+			return nil, nil, err
+		}
+	}
 	return result, inMemoryJobRepo, nil
 }
 
@@ -483,8 +480,79 @@ func (sch *PreemptingQueueScheduler) evictionAssertions(evictedJobsById map[stri
 	return nil
 }
 
+type MinimalQueueRepository struct {
+	queues map[string]MinimalQueue
+}
+
+func (qr *MinimalQueueRepository) GetQueue(name string) (fairness.Queue, bool) {
+	queue, ok := qr.queues[name]
+	return queue, ok
+}
+
+func NewMinimalQueueRepositoryFromSchedulingContext(sctx *schedulercontext.SchedulingContext) *MinimalQueueRepository {
+	queues := make(map[string]MinimalQueue, len(sctx.QueueSchedulingContexts))
+	for name, qctx := range sctx.QueueSchedulingContexts {
+		queues[name] = MinimalQueue{allocation: qctx.Allocated.DeepCopy(), weight: qctx.Weight}
+	}
+	return &MinimalQueueRepository{queues: queues}
+}
+
+type MinimalQueue struct {
+	allocation schedulerobjects.ResourceList
+	weight     float64
+}
+
+func (q MinimalQueue) GetAllocation() schedulerobjects.ResourceList {
+	return q.allocation
+}
+
+func (q MinimalQueue) GetWeight() float64 {
+	return q.weight
+}
+
+// addEvictedJobsToNodeDb adds evicted jobs to the NodeDb.
+// Needed to enable the nodeDb accounting for these when preempting.
+func addEvictedJobsToNodeDb(ctx context.Context, sctx *schedulercontext.SchedulingContext, nodeDb *nodedb.NodeDb, inMemoryJobRepo *InMemoryJobRepository) error {
+	gangItByQueue := make(map[string]*QueuedGangIterator)
+	for _, qctx := range sctx.QueueSchedulingContexts {
+		jobIt, err := inMemoryJobRepo.GetJobIterator(ctx, qctx.Queue)
+		if err != nil {
+			return err
+		}
+		gangItByQueue[qctx.Queue] = NewQueuedGangIterator(sctx, jobIt, 0)
+	}
+	qr := NewMinimalQueueRepositoryFromSchedulingContext(sctx)
+	candidateGangIterator, err := NewCandidateGangIterator(qr, sctx.FairnessCostProvider, gangItByQueue)
+	if err != nil {
+		return err
+	}
+	txn := nodeDb.Txn(true)
+	defer txn.Abort()
+	i := 0
+	for {
+		if gctx, err := candidateGangIterator.Peek(); err != nil {
+			return err
+		} else if gctx == nil {
+			break
+		} else {
+			for _, jctx := range gctx.JobSchedulingContexts {
+				if err := nodeDb.AddEvictedJobSchedulingContextWithTxn(txn, i, jctx); err != nil {
+					return err
+				}
+				i++
+			}
+			q := qr.queues[gctx.Queue]
+			q.allocation.Add(gctx.TotalResourceRequests)
+		}
+		if err := candidateGangIterator.Clear(); err != nil {
+			return err
+		}
+	}
+	txn.Commit()
+	return nil
+}
+
 func (sch *PreemptingQueueScheduler) schedule(ctx context.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository) (*SchedulerResult, error) {
-	log := ctxlogrus.Extract(ctx)
 	jobIteratorByQueue := make(map[string]JobIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		evictedIt, err := inMemoryJobRepo.GetJobIterator(ctx, qctx.Queue)
@@ -522,9 +590,6 @@ func (sch *PreemptingQueueScheduler) schedule(ctx context.Context, inMemoryJobRe
 	}
 	if err := sch.updateGangAccounting(nil, result.ScheduledJobs); err != nil {
 		return nil, err
-	}
-	if s := JobsSummary(result.ScheduledJobs); s != "" {
-		log.Infof("re-scheduled %d jobs; %s", len(result.ScheduledJobs), s)
 	}
 	return result, nil
 }
