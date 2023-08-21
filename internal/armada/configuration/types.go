@@ -86,6 +86,8 @@ type PulsarConfig struct {
 	ReceiveTimeout time.Duration
 	// Backoff from polling when Pulsar returns an error
 	BackoffTime time.Duration
+	// Number of pulsar messages that will be queued by the pulsar consumer.
+	ReceiverQueueSize int
 }
 
 // DatabaseConfig represents the configuration of the database connection.
@@ -329,6 +331,18 @@ type MetricsConfig struct {
 	Port                    uint16
 	RefreshInterval         time.Duration
 	ExposeSchedulingMetrics bool
+	Metrics                 SchedulerMetricsConfig
+}
+
+type SchedulerMetricsConfig struct {
+	ScheduleCycleTimeHistogramSettings  HistogramConfig
+	ReconcileCycleTimeHistogramSettings HistogramConfig
+}
+
+type HistogramConfig struct {
+	Start  float64
+	Factor float64
+	Count  int
 }
 
 type EventApiConfig struct {
