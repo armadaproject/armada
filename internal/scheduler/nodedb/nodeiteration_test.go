@@ -432,7 +432,7 @@ func TestNodeTypeIterator(t *testing.T) {
 				indexedResourceRequests[i] = tc.resourceRequests.Get(t)
 			}
 			keyIndex := -1
-			for i, p := range nodeDb.prioritiesToTryAssigningAt {
+			for i, p := range nodeDb.nodeDbPriorities {
 				if p == tc.priority {
 					keyIndex = i
 				}

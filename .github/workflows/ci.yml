@@ -35,12 +35,18 @@ jobs:
   # Virtual job that can be configured as a required check before a PR can be merged.
   all-required-checks-done:
     name: All required checks done
+    if: ${{ always() }}
     needs:
       - lint
-      - codeql
       - test
     runs-on: ubuntu-22.04
     steps:
-      - run: |
-          echo "All required checks done"
-
+      - uses: actions/github-script@v6
+        with:
+          script: |
+            const results = ${{ toJSON(needs.*.result) }};
+            if (results.every(res => res === 'success')) {
+              core.info('All required checks succeeded');
+            } else {
+              core.setFailed('Some required checks failed');
+            }

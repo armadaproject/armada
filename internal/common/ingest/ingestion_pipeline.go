@@ -229,6 +229,7 @@ func (ingester *IngestionPipeline[T]) subscribe() (pulsar.Consumer, func(), erro
 		Topic:                       ingester.pulsarConfig.JobsetEventsTopic,
 		SubscriptionName:            ingester.pulsarSubscriptionName,
 		Type:                        ingester.pulsarSubscriptionType,
+		ReceiverQueueSize:           ingester.pulsarConfig.ReceiverQueueSize,
 		SubscriptionInitialPosition: pulsar.SubscriptionPositionEarliest,
 	})
 	if err != nil {
