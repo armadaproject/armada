@@ -4,12 +4,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/armada/repository/sequence"
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/armada/repository/sequence"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -176,7 +176,6 @@ func TestRead(t *testing.T) {
 		assert.True(t, lastMessageId.IsAfter(offSetId))
 		assert.Equal(t, 0, len(events))
 	})
-
 }
 
 func TestGetLastId(t *testing.T) {
