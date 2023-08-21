@@ -225,9 +225,10 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 
 	// Service that consumes Pulsar messages and writes to Redis
 	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
-		Topic:            config.Pulsar.JobsetEventsTopic,
-		SubscriptionName: config.Pulsar.RedisFromPulsarSubscription,
-		Type:             pulsar.KeyShared,
+		Topic:             config.Pulsar.JobsetEventsTopic,
+		SubscriptionName:  config.Pulsar.RedisFromPulsarSubscription,
+		Type:              pulsar.KeyShared,
+		ReceiverQueueSize: config.Pulsar.ReceiverQueueSize,
 	})
 	if err != nil {
 		return errors.WithStack(err)

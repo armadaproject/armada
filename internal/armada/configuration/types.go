@@ -86,6 +86,8 @@ type PulsarConfig struct {
 	ReceiveTimeout time.Duration
 	// Backoff from polling when Pulsar returns an error
 	BackoffTime time.Duration
+	// Number of pulsar messages that will be queued by the pulsar consumer.
+	ReceiverQueueSize int
 }
 
 // DatabaseConfig represents the configuration of the database connection.
