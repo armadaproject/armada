@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io/fs"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -133,21 +132,21 @@ func protoGenerate() error {
 	if s, err := goOutput("run", "./scripts/merge_swagger/merge_swagger.go", "api.swagger.json"); err != nil {
 		return err
 	} else {
-		if err := ioutil.WriteFile("pkg/api/api.swagger.json", []byte(s), 0o755); err != nil {
+		if err := os.WriteFile("pkg/api/api.swagger.json", []byte(s), 0o755); err != nil {
 			return err
 		}
 	}
 	if s, err := goOutput("run", "./scripts/merge_swagger/merge_swagger.go", "lookout/api.swagger.json"); err != nil {
 		return err
 	} else {
-		if err := ioutil.WriteFile("pkg/api/lookout/api.swagger.json", []byte(s), 0o755); err != nil {
+		if err := os.WriteFile("pkg/api/lookout/api.swagger.json", []byte(s), 0o755); err != nil {
 			return err
 		}
 	}
 	if s, err := goOutput("run", "./scripts/merge_swagger/merge_swagger.go", "binoculars/api.swagger.json"); err != nil {
 		return err
 	} else {
-		if err := ioutil.WriteFile("pkg/api/binoculars/api.swagger.json", []byte(s), 0o755); err != nil {
+		if err := os.WriteFile("pkg/api/binoculars/api.swagger.json", []byte(s), 0o755); err != nil {
 			return err
 		}
 	}

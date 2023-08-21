@@ -315,18 +315,23 @@ func (s *JSRepoPostgres) PurgeExpiredJobSets(ctx context.Context) {
 	log := log.WithField("JobService", "ExpiredJobSetsPurge")
 
 	log.Info("Starting purge of expired jobsets")
-	for range ticker.C {
-		result, err := s.dbpool.Exec(ctx, jobSetStmt)
-		if err != nil {
-			log.Error("error deleting expired jobsets: ", err)
-		} else {
-			log.Debugf("Deleted %d expired jobsets", result.RowsAffected())
-		}
-		result, err = s.dbpool.Exec(ctx, jobStmt)
-		if err != nil {
-			log.Error("error deleting expired jobs: ", err)
-		} else {
-			log.Debugf("Deleted %d expired jobs", result.RowsAffected())
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			result, err := s.dbpool.Exec(ctx, jobSetStmt)
+			if err != nil {
+				log.Error("error deleting expired jobsets: ", err)
+			} else {
+				log.Debugf("Deleted %d expired jobsets", result.RowsAffected())
+			}
+			result, err = s.dbpool.Exec(ctx, jobStmt)
+			if err != nil {
+				log.Error("error deleting expired jobs: ", err)
+			} else {
+				log.Debugf("Deleted %d expired jobs", result.RowsAffected())
+			}
 		}
 	}
 }
