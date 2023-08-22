@@ -3,7 +3,7 @@ import logging
 import os
 import time
 
-from airflow.exceptions import AirflowFailException
+from airflow.exceptions import AirflowException
 from typing import List, Optional, Tuple
 from enum import Enum
 
@@ -61,7 +61,9 @@ def airflow_error(job_state: JobState, name: str, job_id: str):
         or job_state == JobState.JOB_ID_NOT_FOUND
     ):
         job_message = job_state.name
-        raise AirflowFailException(f"The Armada job {name}:{job_id} {job_message}")
+        # AirflowException allows operator-level retries. AirflowFailException
+        # does *not*.
+        raise AirflowException(f"The Armada job {name}:{job_id} {job_message}")
 
 
 def default_job_status_callable(
