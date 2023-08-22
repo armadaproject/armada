@@ -27,6 +27,10 @@ type SchedulerMetrics struct {
 	preemptedJobsPerQueue prometheus.CounterVec
 	// Number of jobs considered per queue/pool.
 	consideredJobs prometheus.CounterVec
+	// Fair share of each queue.
+	fairSharePerQueue prometheus.GaugeVec
+	// Actual share of each queue.
+	actualSharePerQueue prometheus.GaugeVec
 }
 
 func NewSchedulerMetrics(config configuration.SchedulerMetricsConfig) *SchedulerMetrics {
@@ -95,17 +99,48 @@ func NewSchedulerMetrics(config configuration.SchedulerMetricsConfig) *Scheduler
 		},
 	)
 
+	fairSharePerQueue := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: NAMESPACE,
+			Subsystem: SUBSYSTEM,
+			Name:      "fair_share",
+			Help:      "Fair share of each queue and pool.",
+		},
+		[]string{
+			"queue",
+			"pool",
+		},
+	)
+
+	actualSharePerQueue := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: NAMESPACE,
+			Subsystem: SUBSYSTEM,
+			Name:      "actual_share",
+			Help:      "Actual share of each queue and pool.",
+		},
+		[]string{
+			"queue",
+			"pool",
+		},
+	)
+
 	prometheus.MustRegister(scheduleCycleTime)
 	prometheus.MustRegister(reconcileCycleTime)
 	prometheus.MustRegister(scheduledJobs)
 	prometheus.MustRegister(preemptedJobs)
 	prometheus.MustRegister(consideredJobs)
+	prometheus.MustRegister(fairSharePerQueue)
+	prometheus.MustRegister(actualSharePerQueue)
 
 	return &SchedulerMetrics{
 		scheduleCycleTime:     scheduleCycleTime,
 		reconcileCycleTime:    reconcileCycleTime,
 		scheduledJobsPerQueue: *scheduledJobs,
 		preemptedJobsPerQueue: *preemptedJobs,
+		consideredJobs:        *consideredJobs,
+		fairSharePerQueue:     *fairSharePerQueue,
+		actualSharePerQueue:   *actualSharePerQueue,
 	}
 }
 
@@ -125,6 +160,7 @@ func (metrics *SchedulerMetrics) ReportSchedulerResult(result *SchedulerResult) 
 	// TODO: When more metrics are added, consider consolidating into a single loop over the data.
 	// Report the number of considered jobs.
 	metrics.reportNumberOfJobsConsidered(result.SchedulingContexts)
+	metrics.reportQueueShares(result.SchedulingContexts)
 }
 
 func (metrics *SchedulerMetrics) reportScheduledJobs(scheduledJobs []interfaces.LegacySchedulerJob) {
@@ -177,27 +213,45 @@ type poolQueueKey struct {
 }
 
 func (metrics *SchedulerMetrics) reportNumberOfJobsConsidered(schedulingContexts []*schedulercontext.SchedulingContext) {
-	consideredJobs := make(map[poolQueueKey]int)
-
 	for _, schedContext := range schedulingContexts {
-		for _, queueContext := range schedContext.QueueSchedulingContexts {
-			consideredJobs[poolQueueKey{
-				pool:  schedContext.Pool,
-				queue: queueContext.Queue,
-			}] += len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts)
+		pool := schedContext.Pool
+		for queue, queueContext := range schedContext.QueueSchedulingContexts {
+			count := len(queueContext.UnsuccessfulJobSchedulingContexts) + len(queueContext.SuccessfulJobSchedulingContexts)
+
+			observer, err := metrics.consideredJobs.GetMetricWithLabelValues(queue, pool)
+			if err != nil {
+				log.Error(err)
+			} else {
+				observer.Add(float64(count))
+			}
 		}
 	}
+}
 
-	for key, count := range consideredJobs {
-		pool := key.pool
-		queue := key.queue
+func (metrics *SchedulerMetrics) reportQueueShares(schedulingContexts []*schedulercontext.SchedulingContext) {
+	for _, schedContext := range schedulingContexts {
+		totalCost := schedContext.TotalCost()
+		totalWeight := schedContext.WeightSum
+		pool := schedContext.Pool
 
-		observer, err := metrics.consideredJobs.GetMetricWithLabelValues(queue, pool)
+		for queue, queueContext := range schedContext.QueueSchedulingContexts {
+			fairShare := queueContext.Weight / totalWeight
 
-		if err != nil {
-			log.Error(err)
-		} else {
-			observer.Add(float64(count))
+			observer, err := metrics.fairSharePerQueue.GetMetricWithLabelValues(queue, pool)
+			if err != nil {
+				log.Error(err)
+			} else {
+				observer.Set(fairShare)
+			}
+
+			actualShare := schedContext.FairnessCostProvider.CostFromQueue(queueContext) / totalCost
+
+			observer, err = metrics.actualSharePerQueue.GetMetricWithLabelValues(queue, pool)
+			if err != nil {
+				log.Error(err)
+			} else {
+				observer.Set(actualShare)
+			}
 		}
 	}
 }
