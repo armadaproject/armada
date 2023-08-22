@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	commonmetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -204,7 +205,14 @@ func (ingester *IngestionPipeline[T]) Run(ctx context.Context) error {
 				break
 			} else {
 				for _, msgId := range msg.GetMessageIDs() {
-					ingester.consumer.AckID(msgId)
+					util.RetryUntilSuccess(
+						context.Background(),
+						func() error { return ingester.consumer.AckID(msgId) },
+						func(err error) {
+							log.WithError(err).Warnf("Pulsar ack failed; backing off for %s", ingester.pulsarConfig.BackoffTime)
+							time.Sleep(ingester.pulsarConfig.BackoffTime)
+						},
+					)
 				}
 			}
 		}

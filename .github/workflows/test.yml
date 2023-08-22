@@ -46,15 +46,6 @@ jobs:
           path: ./internal/lookout/ui/junit.xml
           if-no-files-found: error
 
-      - name: Send Coverage Report to Codecov
-        if: always()
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./internal/lookout/ui/coverage/cobertura-coverage.xml
-          flags: unittests
-          name: codecov-armada-ts-unit-tests
-          verbose: true
-
   go-unit-tests:
     name: Golang Unit Tests
     runs-on: ubuntu-22.04
@@ -93,15 +84,6 @@ jobs:
           name: go-unit-test-reports
           path: test-reports/
           if-no-files-found: error
-
-      - name: Send Coverage Report to Codecov
-        if: always()
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./test-reports/coverage.out
-          flags: unittests
-          name: codecov-armada-go-unit-tests
-          verbose: true
 
   go-integration-tests:
     name: Golang Integration Tests
