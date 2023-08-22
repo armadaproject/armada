@@ -212,11 +212,6 @@ func observeJobAggregates(metric prometheus.CounterVec, jobAggregates map[collec
 	}
 }
 
-type poolQueueKey struct {
-	pool  string
-	queue string
-}
-
 func (metrics *SchedulerMetrics) reportNumberOfJobsConsidered(schedulingContexts []*schedulercontext.SchedulingContext) {
 	for _, schedContext := range schedulingContexts {
 		pool := schedContext.Pool
