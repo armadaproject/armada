@@ -144,6 +144,11 @@ func NewSchedulerMetrics(config configuration.SchedulerMetricsConfig) *Scheduler
 	}
 }
 
+func (metrics *SchedulerMetrics) ResetGaugeMetrics() {
+	metrics.fairSharePerQueue.Reset()
+	metrics.actualSharePerQueue.Reset()
+}
+
 func (metrics *SchedulerMetrics) ReportScheduleCycleTime(cycleTime time.Duration) {
 	metrics.scheduleCycleTime.Observe(float64(cycleTime.Milliseconds()))
 }
