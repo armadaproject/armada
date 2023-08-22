@@ -9,6 +9,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -31,16 +32,15 @@ func PrintEvents(url, topic, subscription string, verbose bool) error {
 				time.Sleep(time.Second)
 				continue
 			}
-			unacked := true
-			for unacked {
-				err = consumer.Ack(msg)
-				if err != nil {
+
+			util.RetryUntilSuccess(
+				ctx,
+				func() error { return consumer.Ack(msg) },
+				func(err error) {
 					fmt.Println(err)
 					time.Sleep(time.Second)
-				} else {
-					unacked = false
-				}
-			}
+				},
+			)
 
 			sequence := &armadaevents.EventSequence{}
 			err = proto.Unmarshal(msg.Payload(), sequence)
