@@ -3,12 +3,12 @@ package scheduler
 import (
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
