@@ -13,6 +13,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/util"
 )
 
 // ConsumerMessageId wraps a pulsar message id  and an identifier for the consumer which originally received the
@@ -118,18 +119,17 @@ func Ack(ctx context.Context, consumers []pulsar.Consumer, msgs chan []*Consumer
 						"Asked to ack message belonging to consumer %d, however this is outside the bounds of the consumers array which is of length %d",
 						id.ConsumerId, len(consumers)))
 			}
-			for {
-				err := consumers[id.ConsumerId].AckID(id.MessageId)
-				if err == nil {
-					break
-				} else {
+			util.RetryUntilSuccess(
+				ctx,
+				func() error { return consumers[id.ConsumerId].AckID(id.MessageId) },
+				func(err error) {
 					logging.
 						WithStacktrace(msgLogger, err).
 						WithField("lastMessageId", id.MessageId).
 						Warnf("Pulsar ack failed; backing off for %s", backoffTime)
 					time.Sleep(backoffTime)
-				}
-			}
+				},
+			)
 		}
 	}
 	msgLogger.Info("Shutting down Ackker")

@@ -87,7 +87,10 @@ func (srv *EventsPrinter) Run(ctx context.Context) error {
 			util.RetryUntilSuccess(
 				context.Background(),
 				func() error { return consumer.Ack(msg) },
-				func(err error) { logging.WithStacktrace(log, err).Warnf("acking pulsar message failed") },
+				func(err error) {
+					logging.WithStacktrace(log, err).Warnf("acking pulsar message failed")
+					time.Sleep(time.Second) // Not sure what the right backoff is here
+				},
 			)
 
 			sequence := &armadaevents.EventSequence{}
