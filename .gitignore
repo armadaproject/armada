@@ -44,3 +44,6 @@ msbuild.log
 msbuild.err
 msbuild.wrn
 packages
+
+# macOS
+.DS_Store
