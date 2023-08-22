@@ -114,6 +114,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			// and go to the next message
 			if !schedulers.ForLegacyScheduler(msg) {
 				srv.ack(ctx, msg)
+				break
 			}
 
 			lastMessageId = msg.ID()
