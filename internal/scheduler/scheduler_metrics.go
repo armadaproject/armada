@@ -209,7 +209,7 @@ func observeJobAggregates(metric prometheus.CounterVec, jobAggregates map[collec
 
 		if err != nil {
 			// A metric failure isn't reason to kill the programme.
-			log.Error(err)
+			log.Errorf("error reteriving considered jobs observer for queue %s, priorityClass %s", queue, priorityClassName)
 		} else {
 			observer.Add(float64(count))
 		}
@@ -224,7 +224,7 @@ func (metrics *SchedulerMetrics) reportNumberOfJobsConsidered(schedulingContexts
 
 			observer, err := metrics.consideredJobs.GetMetricWithLabelValues(queue, pool)
 			if err != nil {
-				log.Error(err)
+				log.Errorf("error reteriving considered jobs observer for queue %s, pool %s", queue, pool)
 			} else {
 				observer.Add(float64(count))
 			}
@@ -243,7 +243,7 @@ func (metrics *SchedulerMetrics) reportQueueShares(schedulingContexts []*schedul
 
 			observer, err := metrics.fairSharePerQueue.GetMetricWithLabelValues(queue, pool)
 			if err != nil {
-				log.Error(err)
+				log.Errorf("error reteriving considered jobs observer for queue %s, pool %s", queue, pool)
 			} else {
 				observer.Set(fairShare)
 			}
@@ -252,7 +252,7 @@ func (metrics *SchedulerMetrics) reportQueueShares(schedulingContexts []*schedul
 
 			observer, err = metrics.actualSharePerQueue.GetMetricWithLabelValues(queue, pool)
 			if err != nil {
-				log.Error(err)
+				log.Errorf("error reteriving considered jobs observer for queue %s, pool %s", queue, pool)
 			} else {
 				observer.Set(actualShare)
 			}
