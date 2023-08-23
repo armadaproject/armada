@@ -111,7 +111,8 @@ func readEnvironmentLogFormat() log.Formatter {
 		CallerPrettyfier: func(frame *runtime.Frame) (function string, file string) {
 			fileName := path.Base(frame.File) + ":" + strconv.Itoa(frame.Line)
 			return "", fileName
-		}}
+		},
+	}
 
 	switch strings.ToLower(formatStr) {
 	case "json":
