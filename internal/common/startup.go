@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -80,6 +81,7 @@ func ConfigureCommandLineLogging() {
 func ConfigureLogging() {
 	log.SetLevel(readEnvironmentLogLevel())
 	log.SetFormatter(readEnvironmentLogFormat())
+	log.SetReportCaller(readEnvironmentLogCallSite())
 	log.SetOutput(os.Stdout)
 }
 
@@ -92,6 +94,17 @@ func readEnvironmentLogLevel() log.Level {
 		}
 	}
 	return log.InfoLevel
+}
+
+func readEnvironmentLogCallSite() bool {
+	level, ok := os.LookupEnv("LOG_REPORT_CALLER")
+	if ok {
+		logCallSite, err := strconv.ParseBool(level)
+		if err == nil {
+			return logCallSite
+		}
+	}
+	return false
 }
 
 func readEnvironmentLogFormat() log.Formatter {
