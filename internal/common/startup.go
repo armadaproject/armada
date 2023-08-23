@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path"
+	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -80,6 +83,7 @@ func ConfigureCommandLineLogging() {
 func ConfigureLogging() {
 	log.SetLevel(readEnvironmentLogLevel())
 	log.SetFormatter(readEnvironmentLogFormat())
+	log.SetReportCaller(true)
 	log.SetOutput(os.Stdout)
 }
 
@@ -99,16 +103,29 @@ func readEnvironmentLogFormat() log.Formatter {
 	if !ok {
 		formatStr = "colourful"
 	}
+
+	textFormatter := &log.TextFormatter{
+		ForceColors:     true,
+		FullTimestamp:   true,
+		TimestampFormat: logTimestampFormat,
+		CallerPrettyfier: func(frame *runtime.Frame) (function string, file string) {
+			fileName := path.Base(frame.File) + ":" + strconv.Itoa(frame.Line)
+			return "", fileName
+		},
+	}
+
 	switch strings.ToLower(formatStr) {
 	case "json":
 		return &log.JSONFormatter{TimestampFormat: logTimestampFormat}
 	case "colourful":
-		return &log.TextFormatter{ForceColors: true, FullTimestamp: true, TimestampFormat: logTimestampFormat}
+		return textFormatter
 	case "text":
-		return &log.TextFormatter{DisableColors: true, FullTimestamp: true, TimestampFormat: logTimestampFormat}
+		textFormatter.ForceColors = false
+		textFormatter.DisableColors = true
+		return textFormatter
 	default:
 		println(os.Stderr, fmt.Sprintf("Unknown log format %s, defaulting to colourful format", formatStr))
-		return &log.TextFormatter{ForceColors: true, FullTimestamp: true, TimestampFormat: logTimestampFormat}
+		return textFormatter
 	}
 }
 
