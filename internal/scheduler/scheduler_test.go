@@ -76,6 +76,18 @@ var (
 		Version: 2,
 	}
 	updatedSchedulingInfoBytes = protoutil.MustMarshall(updatedSchedulingInfo)
+	schedulerMetrics           = NewSchedulerMetrics(configuration.SchedulerMetricsConfig{
+		ScheduleCycleTimeHistogramSettings: configuration.HistogramConfig{
+			Start:  1,
+			Factor: 1.1,
+			Count:  100,
+		},
+		ReconcileCycleTimeHistogramSettings: configuration.HistogramConfig{
+			Start:  1,
+			Factor: 1.1,
+			Count:  100,
+		},
+	})
 )
 
 var queuedJob = jobdb.NewJob(
@@ -502,6 +514,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				clusterTimeout,
 				maxNumberOfAttempts,
 				nodeIdLabel,
+				schedulerMetrics,
 			)
 			require.NoError(t, err)
 
@@ -665,7 +678,8 @@ func TestRun(t *testing.T) {
 		15*time.Second,
 		1*time.Hour,
 		maxNumberOfAttempts,
-		nodeIdLabel)
+		nodeIdLabel,
+		schedulerMetrics)
 	require.NoError(t, err)
 
 	sched.clock = testClock
@@ -874,7 +888,8 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				5*time.Second,
 				1*time.Hour,
 				maxNumberOfAttempts,
-				nodeIdLabel)
+				nodeIdLabel,
+				schedulerMetrics)
 			require.NoError(t, err)
 
 			// insert initial jobs
