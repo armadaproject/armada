@@ -290,6 +290,26 @@ func TestJob_TestWithCreated(t *testing.T) {
 	assert.Equal(t, int64(456), newJob.Created())
 }
 
+func TestJob_DeepCopy(t *testing.T) {
+	original := NewJob("test-job", "test-jobset", "test-queue", 2, schedulingInfo, true, 0, false, false, false, 3)
+	original = original.WithUpdatedRun(baseJobRun.DeepCopy())
+	expected := NewJob("test-job", "test-jobset", "test-queue", 2, schedulingInfo, true, 0, false, false, false, 3)
+	expected = expected.WithUpdatedRun(baseJobRun.DeepCopy())
+
+	result := original.DeepCopy()
+	assert.Equal(t, expected, result)
+	assert.Equal(t, expected, original)
+
+	// Modify and confirm original hasn't changed
+	result.activeRun.nodeName = "test"
+	result.runsById[baseJobRun.id].nodeName = "test"
+	result.queue = "test"
+	result.jobSchedulingInfo.Priority = 1
+
+	assert.NotEqual(t, expected, result)
+	assert.Equal(t, expected, original)
+}
+
 func TestJob_TestWithJobSchedulingInfo(t *testing.T) {
 	newSchedInfo := &schedulerobjects.JobSchedulingInfo{
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
@@ -346,8 +366,8 @@ func TestJobPriorityComparer(t *testing.T) {
 	comparer := JobPriorityComparer{}
 
 	assert.Equal(t, 0, comparer.Compare(job1, job1))
-	assert.Equal(t, -1, comparer.Compare(job1, job1.WithPriority(9)))
+	assert.Equal(t, 1, comparer.Compare(job1, job1.WithPriority(9)))
 	assert.Equal(t, -1, comparer.Compare(job1, job1.WithCreated(6)))
-	assert.Equal(t, 1, comparer.Compare(job1, job1.WithPriority(11)))
+	assert.Equal(t, -1, comparer.Compare(job1, job1.WithPriority(11)))
 	assert.Equal(t, 1, comparer.Compare(job1, job1.WithCreated(4)))
 }
