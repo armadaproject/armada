@@ -157,7 +157,11 @@ func (metrics *SchedulerMetrics) ReportReconcileCycleTime(cycleTime time.Duratio
 	metrics.reconcileCycleTime.Observe(float64(cycleTime.Milliseconds()))
 }
 
-func (metrics *SchedulerMetrics) ReportSchedulerResult(result *SchedulerResult) {
+func (metrics *SchedulerMetrics) ReportSchedulerResult(result SchedulerResult) {
+	if result.EmptyResult {
+		return // TODO: Add logging or maybe place to add failure metric?
+	}
+
 	// Report the total scheduled jobs (possibly we can get these out of contexts?)
 	metrics.reportScheduledJobs(result.ScheduledJobs)
 	metrics.reportPreemptedJobs(result.PreemptedJobs)

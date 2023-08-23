@@ -198,20 +198,20 @@ func (s *Scheduler) Run(ctx context.Context) error {
 // cycle is a single iteration of the main scheduling loop.
 // If updateAll is true, we generate events from all jobs in the jobDb.
 // Otherwise, we only generate events from jobs updated since the last cycle.
-func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) (*SchedulerResult, error) {
-	var overallSchedulerResult *SchedulerResult
+func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) (overallSchedulerResult SchedulerResult, err error) {
+	overallSchedulerResult = SchedulerResult{EmptyResult: true}
 
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("function", "cycle")
 	// Update job state.
 	updatedJobs, err := s.syncState(ctx)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	// Only the leader may make decisions; exit if not leader.
 	if !s.leaderController.ValidateToken(leaderToken) {
-		return nil, nil
+		return
 	}
 
 	// If we've been asked to generate messages for all jobs, do so.
@@ -225,29 +225,33 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	// Generate any events that came out of synchronising the db state.
 	events, err := s.generateUpdateMessages(ctx, updatedJobs, txn)
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	// Expire any jobs running on clusters that haven't heartbeated within the configured deadline.
 	expirationEvents, err := s.expireJobsIfNecessary(ctx, txn)
 	if err != nil {
-		return nil, err
+		return
 	}
 	events = append(events, expirationEvents...)
 
 	// Schedule jobs.
 	if shouldSchedule {
-		overallSchedulerResult, err = s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
+		var result *SchedulerResult
+		result, err = s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
 		if err != nil {
-			return nil, err
+			return
 		}
 
-		resultEvents, err := s.eventsFromSchedulerResult(txn, overallSchedulerResult)
+		var resultEvents []*armadaevents.EventSequence
+		resultEvents, err = s.eventsFromSchedulerResult(txn, result)
 		if err != nil {
-			return nil, err
+			return
 		}
 		events = append(events, resultEvents...)
 		s.previousSchedulingRoundEnd = s.clock.Now()
+
+		overallSchedulerResult = *result
 	}
 
 	// Publish to Pulsar.
@@ -255,12 +259,12 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 		return s.leaderController.ValidateToken(leaderToken)
 	}
 	start := s.clock.Now()
-	if err := s.publisher.PublishMessages(ctx, events, isLeader); err != nil {
-		return nil, err
+	if err = s.publisher.PublishMessages(ctx, events, isLeader); err != nil {
+		return
 	}
 	log.Infof("published %d events to pulsar in %s", len(events), s.clock.Since(start))
 	txn.Commit()
-	return overallSchedulerResult, nil
+	return
 }
 
 // syncState updates jobs in jobDb to match state in postgres and returns all updated jobs.
