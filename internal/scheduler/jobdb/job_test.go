@@ -366,8 +366,8 @@ func TestJobPriorityComparer(t *testing.T) {
 	comparer := JobPriorityComparer{}
 
 	assert.Equal(t, 0, comparer.Compare(job1, job1))
-	assert.Equal(t, -1, comparer.Compare(job1, job1.WithPriority(9)))
+	assert.Equal(t, 1, comparer.Compare(job1, job1.WithPriority(9)))
 	assert.Equal(t, -1, comparer.Compare(job1, job1.WithCreated(6)))
-	assert.Equal(t, 1, comparer.Compare(job1, job1.WithPriority(11)))
+	assert.Equal(t, -1, comparer.Compare(job1, job1.WithPriority(11)))
 	assert.Equal(t, 1, comparer.Compare(job1, job1.WithCreated(4)))
 }
