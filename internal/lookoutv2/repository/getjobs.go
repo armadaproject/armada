@@ -7,8 +7,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
@@ -48,6 +48,7 @@ type jobRow struct {
 	duplicate          bool
 	priorityClass      sql.NullString
 	latestRunId        sql.NullString
+	cancelReason       sql.NullString
 }
 
 type runRow struct {
@@ -55,7 +56,8 @@ type runRow struct {
 	runId       string
 	cluster     string
 	node        sql.NullString
-	pending     time.Time
+	leased      sql.NullTime
+	pending     sql.NullTime
 	started     sql.NullTime
 	finished    sql.NullTime
 	jobRunState int
@@ -75,18 +77,18 @@ func NewSqlGetJobsRepository(db *pgxpool.Pool) *SqlGetJobsRepository {
 	}
 }
 
-func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Filter, order *model.Order, skip int, take int) (*GetJobsResult, error) {
+func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Filter, activeJobSets bool, order *model.Order, skip int, take int) (*GetJobsResult, error) {
 	var jobRows []*jobRow
 	var runRows []*runRow
 	var annotationRows []*annotationRow
 	var count int
 
-	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-		countQuery, err := NewQueryBuilder(r.lookoutTables).JobCount(filters)
+		countQuery, err := NewQueryBuilder(r.lookoutTables).JobCount(filters, activeJobSets)
 		if err != nil {
 			return err
 		}
@@ -107,7 +109,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 			return err
 		}
 
-		insertQuery, err := NewQueryBuilder(r.lookoutTables).InsertIntoTempTable(tempTableName, filters, order, skip, take)
+		insertQuery, err := NewQueryBuilder(r.lookoutTables).InsertIntoTempTable(tempTableName, filters, activeJobSets, order, skip, take)
 		if err != nil {
 			return err
 		}
@@ -132,7 +134,6 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 			log.WithError(err).Error("failed getting annotation rows")
 			return err
 		}
-
 		return nil
 	})
 	if err != nil {
@@ -173,6 +174,7 @@ func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotati
 			Runs:               []*model.Run{},
 			State:              string(lookout.JobStateMap[row.state]),
 			Submitted:          row.submitted,
+			CancelReason:       database.ParseNullString(row.cancelReason),
 		}
 		jobMap[row.jobId] = job
 		orderedJobIds[i] = row.jobId
@@ -185,7 +187,8 @@ func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotati
 			Finished:    database.ParseNullTime(row.finished),
 			JobRunState: string(lookout.JobRunStateMap[row.jobRunState]),
 			Node:        database.ParseNullString(row.node),
-			Pending:     row.pending,
+			Leased:      database.ParseNullTime(row.leased),
+			Pending:     database.ParseNullTime(row.pending),
 			RunId:       row.runId,
 			Started:     database.ParseNullTime(row.started),
 		}
@@ -216,8 +219,28 @@ func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotati
 
 func sortRuns(runs []*model.Run) {
 	sort.Slice(runs, func(i, j int) bool {
-		return runs[i].Pending.Before(runs[j].Pending)
+		timeA, err := getJobRunTime(runs[i])
+		if err != nil {
+			log.WithError(err).Error("failed to get time for run")
+			return true
+		}
+		timeB, err := getJobRunTime(runs[j])
+		if err != nil {
+			log.WithError(err).Error("failed to get time for run")
+			return true
+		}
+		return timeA.Before(timeB)
 	})
+}
+
+func getJobRunTime(run *model.Run) (time.Time, error) {
+	if run.Leased != nil {
+		return *run.Leased, nil
+	}
+	if run.Pending != nil {
+		return *run.Pending, nil
+	}
+	return time.Time{}, errors.Errorf("error when getting run time for run with id %s", run.RunId)
 }
 
 func makeJobRows(ctx context.Context, tx pgx.Tx, tmpTableName string) ([]*jobRow, error) {
@@ -238,7 +261,8 @@ func makeJobRows(ctx context.Context, tx pgx.Tx, tmpTableName string) ([]*jobRow
 			j.last_transition_time,
 			j.duplicate,
 			j.priority_class,
-			j.latest_run_id
+			j.latest_run_id,
+			j.cancel_reason
 		FROM %s AS t
 		INNER JOIN job AS j ON t.job_id = j.job_id
 	`, tmpTableName)
@@ -268,6 +292,7 @@ func makeJobRows(ctx context.Context, tx pgx.Tx, tmpTableName string) ([]*jobRow
 			&row.duplicate,
 			&row.priorityClass,
 			&row.latestRunId,
+			&row.cancelReason,
 		)
 		if err != nil {
 			log.WithError(err).Errorf("failed to scan job row at index %d", len(rows))
@@ -284,6 +309,7 @@ func makeRunRows(ctx context.Context, tx pgx.Tx, tmpTableName string) ([]*runRow
 			jr.run_id,
 			jr.cluster,
 			jr.node,
+			jr.leased,
 			jr.pending,
 			jr.started,
 			jr.finished,
@@ -306,6 +332,7 @@ func makeRunRows(ctx context.Context, tx pgx.Tx, tmpTableName string) ([]*runRow
 			&row.runId,
 			&row.cluster,
 			&row.node,
+			&row.leased,
 			&row.pending,
 			&row.started,
 			&row.finished,

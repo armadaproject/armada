@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -82,7 +82,7 @@ func (r *PostgresJobRepository) FetchJobRunErrors(ctx context.Context, runIds []
 	errorsByRunId := make(map[uuid.UUID]*armadaevents.Error, len(runIds))
 	decompressor := compress.NewZlibDecompressor()
 
-	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
@@ -130,7 +130,7 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx context.Context, jobSerial i
 	var updatedRuns []Run = nil
 
 	// Use a RepeatableRead transaction here so that we get consistency between jobs and dbRuns
-	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
 		AccessMode:     pgx.ReadOnly,
 		DeferrableMode: pgx.Deferrable,
@@ -150,12 +150,15 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx context.Context, jobSerial i
 				Queue:                   row.Queue,
 				Priority:                row.Priority,
 				Submitted:               row.Submitted,
+				Queued:                  row.Queued,
+				QueuedVersion:           row.QueuedVersion,
 				CancelRequested:         row.CancelRequested,
 				Cancelled:               row.Cancelled,
 				CancelByJobsetRequested: row.CancelByJobsetRequested,
 				Succeeded:               row.Succeeded,
 				Failed:                  row.Failed,
 				SchedulingInfo:          row.SchedulingInfo,
+				SchedulingInfoVersion:   row.SchedulingInfoVersion,
 				Serial:                  row.Serial,
 			}
 		}
@@ -179,7 +182,7 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx context.Context, jobSerial i
 // Runs are inactive if they don't exist or if they have succeeded, failed or been cancelled
 func (r *PostgresJobRepository) FindInactiveRuns(ctx context.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
 	var inactiveRuns []uuid.UUID
-	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
@@ -194,8 +197,8 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx context.Context, runIds []u
 		FROM %s as tmp
 		LEFT JOIN runs ON (tmp.run_id = runs.run_id)
 		WHERE runs.run_id IS NULL
-		OR runs.succeeded = true 
- 		OR runs.failed = true 
+		OR runs.succeeded = true
+ 		OR runs.failed = true
 		OR runs.cancelled = true;`
 
 		rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable))
@@ -220,7 +223,7 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx context.Context, runIds []u
 // in excludedRunIds will be excluded
 func (r *PostgresJobRepository) FetchJobRunLeases(ctx context.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*JobRunLease, error) {
 	var newRuns []*JobRunLease
-	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
@@ -233,13 +236,13 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx context.Context, executor 
 		query := `
 				SELECT jr.run_id, jr.node, j.queue, j.job_set, j.user_id, j.groups, j.submit_message
 				FROM runs jr
-				LEFT JOIN %s as tmp ON (tmp.run_id = jr.run_id)    
+				LEFT JOIN %s as tmp ON (tmp.run_id = jr.run_id)
 			    JOIN jobs j
 			    ON jr.job_id = j.job_id
 				WHERE jr.executor = $1
 			    AND tmp.run_id IS NULL
-				AND jr.succeeded = false 
-				AND jr.failed = false 
+				AND jr.succeeded = false
+				AND jr.failed = false
 				AND jr.cancelled = false
 				LIMIT %d;
 `

@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.models.taskinstance import TaskInstance
+from airflow.utils.context import Context
 from armada_client.client import ArmadaClient
 from armada_client.k8s.io.api.core.v1 import generated_pb2 as core_v1
 from armada_client.k8s.io.apimachinery.pkg.api.resource import (
@@ -25,7 +26,7 @@ def server_mock():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     submit_pb2_grpc.add_SubmitServicer_to_server(SubmitService(), server)
     event_pb2_grpc.add_EventServicer_to_server(EventService(), server)
-    server.add_insecure_port("[::]:50052")
+    server.add_insecure_port("[::]:50099")
     server.start()
 
     yield
@@ -36,7 +37,7 @@ def server_mock():
 def job_service_mock():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     jobservice_pb2_grpc.add_JobServiceServicer_to_server(JobService(), server)
-    server.add_insecure_port("[::]:60008")
+    server.add_insecure_port("[::]:60081")
     server.start()
 
     yield
@@ -45,17 +46,17 @@ def job_service_mock():
 
 tester_client = ArmadaClient(
     grpc.insecure_channel(
-        target="127.0.0.1:50052",
+        target="127.0.0.1:50099",
     )
 )
-tester_jobservice = JobServiceClient(grpc.insecure_channel(target="127.0.0.1:60008"))
+tester_jobservice = JobServiceClient(grpc.insecure_channel(target="127.0.0.1:60081"))
 
 
-def sleep_job():
-    pod = core_v1.PodSpec(
+def generate_pod_spec(name: str = "container-1") -> core_v1.PodSpec:
+    ps = core_v1.PodSpec(
         containers=[
             core_v1.Container(
-                name="container-1",
+                name=name,
                 image="busybox",
                 args=["sleep", "10s"],
                 securityContext=core_v1.SecurityContext(runAsUser=1000),
@@ -72,6 +73,21 @@ def sleep_job():
             )
         ],
     )
+    return ps
+
+
+def sleep_job():
+    pod = generate_pod_spec()
+    return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
+
+
+def pre_template_sleep_job():
+    pod = generate_pod_spec(name="name-{{ run_id }}")
+    return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
+
+
+def expected_sleep_job():
+    pod = generate_pod_spec(name="name-another-run-id")
     return [submit_pb2.JobSubmitRequestItem(priority=0, pod_spec=pod)]
 
 
@@ -135,12 +151,8 @@ def test_mock_cancelled_job():
 
 
 def test_annotate_job_request_items():
-    no_auth_client = ArmadaClient(
-        channel=grpc.insecure_channel(target="127.0.0.1:50051")
-    )
-    job_service_client = JobServiceClient(
-        channel=grpc.insecure_channel(target="127.0.0.1:60003")
-    )
+    armada_channel_args = {"target": "127.0.0.1:50051"}
+    job_service_channel_args = {"target": "127.0.0.1:60003"}
 
     job_request_items = sleep_job()
     task_id = "58896abbfr9"
@@ -148,8 +160,8 @@ def test_annotate_job_request_items():
         task_id=task_id,
         name="armada-task",
         armada_queue="test",
-        job_service_client=job_service_client,
-        armada_client=no_auth_client,
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
         job_request_items=job_request_items,
         lookout_url_template="http://127.0.0.1:8089",
     )
@@ -170,3 +182,36 @@ def test_annotate_job_request_items():
         "armadaproject.io/taskRunId": "some-run-id",
         "armadaproject.io/dagId": "hello_armada",
     }
+
+
+def test_parameterize_armada_operator():
+    armada_channel_args = {"target": "127.0.0.1:50051"}
+    job_service_channel_args = {"target": "127.0.0.1:60003"}
+
+    submitted_job_request_items = pre_template_sleep_job()
+    expected_job_request_items = expected_sleep_job()
+    task_id = "123456789ab"
+    operator = ArmadaOperator(
+        task_id=task_id,
+        name="armada-task",
+        armada_queue="test",
+        job_service_channel_args=job_service_channel_args,
+        armada_channel_args=armada_channel_args,
+        job_request_items=submitted_job_request_items,
+        lookout_url_template="http://127.0.0.1:8089",
+    )
+    task_instance = TaskInstance(operator)
+    dag = DAG(
+        dag_id="hello_armada",
+        start_date=pendulum.datetime(2016, 1, 1, tz="UTC"),
+        schedule_interval="@daily",
+        catchup=False,
+        default_args={"retries": 2},
+    )
+    context = Context(ti=task_instance, dag=dag, run_id="another-run-id")
+
+    assert operator.job_request_items != expected_job_request_items
+
+    operator.render_template_fields(context)
+
+    assert operator.job_request_items == expected_job_request_items

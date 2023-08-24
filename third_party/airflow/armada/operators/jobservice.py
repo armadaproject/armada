@@ -1,9 +1,32 @@
-from concurrent.futures import ThreadPoolExecutor
-import os
+import json
 from typing import Optional
+
 from armada.jobservice import jobservice_pb2_grpc, jobservice_pb2
 
+import grpc
 from google.protobuf import empty_pb2
+
+default_jobservice_channel_options = [
+    (
+        "grpc.service_config",
+        json.dumps(
+            {
+                "methodConfig": [
+                    {
+                        "name": [{"service": "jobservice.JobService"}],
+                        "retryPolicy": {
+                            "maxAttempts": 6 * 5,  # A little under 5 minutes.
+                            "initialBackoff": "0.1s",
+                            "maxBackoff": "10s",
+                            "backoffMultiplier": 2,
+                            "retryableStatusCodes": ["UNAVAILABLE"],
+                        },
+                    }
+                ]
+            }
+        ),
+    )
+]
 
 
 class JobServiceClient:
@@ -15,14 +38,10 @@ class JobServiceClient:
     :param channel: gRPC channel used for authentication. See
                     https://grpc.github.io/grpc/python/grpc.html
                     for more information.
-    :param max_workers: number of cores for thread pools, if unset, defaults
-                        to number of CPUs
     :return: a job service client instance
     """
 
-    def __init__(self, channel, max_workers: Optional[int] = None):
-        self.executor = ThreadPoolExecutor(max_workers=max_workers or os.cpu_count())
-
+    def __init__(self, channel):
         self.job_stub = jobservice_pb2_grpc.JobServiceStub(channel)
 
     def get_job_status(
@@ -45,3 +64,34 @@ class JobServiceClient:
     def health(self) -> jobservice_pb2.HealthCheckResponse:
         """Health Check for GRPC Request"""
         return self.job_stub.Health(request=empty_pb2.Empty())
+
+
+def get_retryable_job_service_client(
+    target: str,
+    credentials: Optional[grpc.ChannelCredentials] = None,
+    compression: Optional[grpc.Compression] = None,
+) -> JobServiceClient:
+    """
+    Get a JobServiceClient that has retry configured
+
+    :param target: grpc channel target
+    :param credentials: grpc channel credentials (if needed)
+    :param compresion: grpc channel compression
+
+    :return: A job service client instance
+    """
+    channel = None
+    if credentials is None:
+        channel = grpc.insecure_channel(
+            target=target,
+            options=default_jobservice_channel_options,
+            compression=compression,
+        )
+    else:
+        channel = grpc.secure_channel(
+            target=target,
+            credentials=credentials,
+            options=default_jobservice_channel_options,
+            compression=compression,
+        )
+    return JobServiceClient(channel)

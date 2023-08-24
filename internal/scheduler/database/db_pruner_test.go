@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
@@ -116,11 +116,11 @@ func TestPruneDb_RemoveJobs(t *testing.T) {
 				jobsToInsert := commonutil.Map(tc.jobs, populateRequiredJobFields)
 				err := removeTriggers(ctx, db)
 				require.NoError(t, err)
-				err = database.Upsert(ctx, db, "jobs", jobsToInsert)
+				err = database.UpsertWithTransaction(ctx, db, "jobs", jobsToInsert)
 				require.NoError(t, err)
-				err = database.Upsert(ctx, db, "runs", tc.runs)
+				err = database.UpsertWithTransaction(ctx, db, "runs", tc.runs)
 				require.NoError(t, err)
-				err = database.Upsert(ctx, db, "job_run_errors", tc.errors)
+				err = database.UpsertWithTransaction(ctx, db, "job_run_errors", tc.errors)
 				require.NoError(t, err)
 				queries := New(db)
 				dbConn, err := db.Acquire(ctx)

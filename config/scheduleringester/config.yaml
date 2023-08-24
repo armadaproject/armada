@@ -18,6 +18,7 @@ pulsar:
   jobsetEventsTopic: "events"
   receiveTimeout: 5s
   backoffTime: 1s
+  receiverQueueSize: 100
 
 subscriptionName: "scheduler-ingester"
 batchSize: 10000
@@ -26,6 +27,6 @@ priorityClasses:
   armada-default:
     priority: 1000
   armada-preemptible:
-    priority: 900
+    priority: 1000
 
 

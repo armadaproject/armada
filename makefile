@@ -80,7 +80,7 @@ DOCKER_GOPATH_DIR = $(word 1,$(DOCKER_GOPATH_TOKS))
 GO_CMD = docker run --rm $(DOCKER_RUN_AS_USER) -v ${PWD}:/go/src/armada -w /go/src/armada $(DOCKER_NET) \
 	-e GOPROXY -e GOPRIVATE -e GOCACHE=/go/cache -e INTEGRATION_ENABLED=true -e CGO_ENABLED=0 -e GOOS=linux -e GARCH=amd64 \
 	-v $(DOCKER_GOPATH_DIR):/go \
-	golang:1.18-buster
+	golang:1.20.2-buster
 
 # Versions of third party API
 # Bump if you are updating
@@ -250,7 +250,22 @@ build-event-ingester:
 build-jobservice:
 	$(GO_CMD) $(gobuild) -o ./bin/jobservice cmd/jobservice/main.go
 
-build: build-jobservice build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-event-ingester
+build-lookout:
+	$(GO_CMD) $(gobuild) -o ./bin/lookout cmd/lookout/main.go
+
+build-lookoutv2:
+	$(GO_CMD) $(gobuild) -o ./bin/lookoutv2 cmd/lookoutv2/main.go
+
+build-lookoutingesterv2:
+	$(GO_CMD) $(gobuild) -o ./bin/lookoutingesterv2 cmd/lookoutingesterv2/main.go
+
+build-scheduler:
+	$(GO_CMD) $(gobuild) -o ./bin/scheduler cmd/scheduler/main.go
+
+build-scheduler-ingester:
+	$(GO_CMD) $(gobuild) -o ./bin/scheduleringester cmd/scheduleringester/main.go
+
+build: build-lookoutingesterv2 build-lookoutv2 build-lookout build-jobservice build-server build-executor build-fakeexecutor build-armadactl build-load-tester build-testsuite build-binoculars build-lookout-ingester build-event-ingester build-scheduler build-scheduler-ingester
 
 build-docker-server:
 	mkdir -p .build/server
@@ -343,6 +358,22 @@ build-docker-scheduler-ingester:
 	cp -a ./config/scheduleringester ./.build/scheduleringester/config
 	docker buildx build -o type=docker $(dockerFlags) -t armada-scheduler-ingester -f ./build/scheduleringester/Dockerfile ./.build/scheduleringester
 
+build-docker-full-bundle: build
+	cp -a ./bin/server ./server
+	cp -a ./bin/executor ./executor
+	cp -a ./bin/lookoutingester ./lookoutingester
+	cp -a ./bin/lookoutingesterv2 ./lookoutingesterv2
+	cp -a ./bin/scheduler ./scheduler
+	cp -a ./bin/scheduleringester ./scheduleringester
+	cp -a ./bin/eventingester ./eventingester
+	cp -a ./bin/binoculars ./binoculars
+	cp -a ./bin/jobservice ./jobservice
+	cp -a ./bin/lookout ./lookout
+	cp -a ./bin/lookoutv2 ./lookoutv2
+	cp -a ./bin/armadactl ./armadactl
+
+	docker buildx build -o type=docker $(dockerFlags) -t armada-full-bundle -f ./build_goreleaser/bundles/full/Dockerfile .
+
 build-docker: build-docker-no-lookout build-docker-lookout build-docker-lookout-v2
 
 # Build target without lookout (to avoid needing to load npm packages from the Internet).
@@ -362,6 +393,8 @@ tests-no-setup: gotestsum
 	$(GOTESTSUM) -- -v ./pkg... 2>&1 | tee test_reports/pkg.txt
 	$(GOTESTSUM) -- -v ./cmd... 2>&1 | tee test_reports/cmd.txt
 
+
+# Note that we do separate Job Service repository test runs for both sqlite and postgres database types
 .ONESHELL:
 tests: gotestsum
 	mkdir -p test_reports
@@ -369,9 +402,7 @@ tests: gotestsum
 	docker run -d --name=postgres $(DOCKER_NET) -p 5432:5432 -e POSTGRES_PASSWORD=psw postgres:14.2
 	sleep 3
 	function tearDown { docker rm -f redis postgres; }; trap tearDown EXIT
-	$(GOTESTSUM) -- -coverprofile internal_coverage.xml -v ./internal... 2>&1 | tee test_reports/internal.txt
-	$(GOTESTSUM) -- -coverprofile pkg_coverage.xml -v ./pkg... 2>&1 | tee test_reports/pkg.txt
-	$(GOTESTSUM) -- -coverprofile cmd_coverage.xml -v ./cmd... 2>&1 | tee test_reports/cmd.txt
+	$(GOTESTSUM) --format short-verbose --junitfile test-reports/unit-tests.xml --jsonfile test-reports/unit-tests.json -- -coverprofile=test-reports/coverage.out -covermode=atomic ./cmd/... ./pkg/... $(go list ./internal/... | grep -v 'jobservice/repository')
 
 .ONESHELL:
 lint-fix:
@@ -415,11 +446,11 @@ setup-cluster:
 	kind create cluster --config e2e/setup/kind.yaml
 
 	# Load images necessary for tests.
-	docker pull "alpine:3.10" # used for e2e tests
+	docker pull "alpine:3.18.3" # used for e2e tests
 	docker pull "nginx:1.21.6" # used for e2e tests (ingress)
 	docker pull "registry.k8s.io/ingress-nginx/controller:v1.4.0"
 	docker pull "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343"
-	kind load docker-image "alpine:3.10" --name armada-test
+	kind load docker-image "alpine:3.18.3" --name armada-test
 	kind load docker-image "nginx:1.21.6" --name armada-test
 	kind load docker-image "registry.k8s.io/ingress-nginx/controller:v1.4.0" --name armada-test
 	kind load docker-image "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343" --name armada-test
@@ -566,7 +597,7 @@ dotnet: dotnet-setup proto-setup
 	$(DOTNET_CMD) dotnet build ./client/DotNet/ArmadaProject.Io.Client
 
 # Pack and push dotnet clients to nuget. Requires RELEASE_TAG and NUGET_API_KEY env vars to be set
-push-nuget: dotnet-setup proto-setup
+push-nuget: dotnet-setup proto
 	$(DOTNET_CMD) dotnet pack client/DotNet/Armada.Client/Armada.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet
 	$(DOTNET_CMD) dotnet nuget push ./bin/client/DotNet/G-Research.Armada.Client.${RELEASE_TAG}.nupkg -k ${NUGET_API_KEY} -s https://api.nuget.org/v3/index.json
 	$(DOTNET_CMD) dotnet pack client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj -c Release -p:PackageVersion=${RELEASE_TAG} -o ./bin/client/DotNet

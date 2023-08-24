@@ -1,4 +1,7 @@
-cyclePeriod: 10s
+cyclePeriod: 1s
+schedulePeriod: 10s
+maxSchedulingDuration: 5s
+maxJobsLeasedPerCall: 1000
 executorTimeout: 1h
 databaseFetchSize: 1000
 pulsarSendTimeout: 5s
@@ -6,6 +9,15 @@ internedStringsCacheSize: 100000
 metrics:
   port: 9000
   refreshInterval: 30s
+  metrics:
+    scheduleCycleTimeHistogramSettings:
+      start: 1.0
+      factor: 1.1
+      count: 110
+    reconcileCycleTimeHistogramSettings:
+      start: 1.0
+      factor: 1.1
+      count: 110
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"
@@ -35,6 +47,10 @@ leader:
   renewDeadline: 10s
   retryPeriod: 2s
   podName: "" # This must be set so viper allows env vars to overwrite it
+  leaderConnection:
+    armadaUrl: "" # <name> will get replaced with the lease owners name
+http:
+  port: 8080
 grpc:
   port: 50052
   keepaliveParams:
@@ -44,39 +60,45 @@ grpc:
   keepaliveEnforcementPolicy:
     minTime: 10s
     permitWithoutStream: true
+  tls:
+    enabled: false
 scheduling:
   executorTimeout: 10m
-  nodeIdLabel: kubernetes.io/hostname
+  executorUpdateFrequency: 1m
+  enableAssertions: true
+  fairnessModel: "AssetFairness"
+  dominantResourceFairnessResourcesToConsider:
+    - "cpu"
+    - "memory"
+    - "nvidia.com/gpu"
+  resourceScarcity:
+    cpu: 1.0
   preemption:
+    alwaysAttemptScheduling: false
     enabled: true
+    nodeEvictionProbability: 1.0
+    nodeOversubscriptionEvictionProbability: 1.0
+    nodeIdLabel: kubernetes.io/hostname
     priorityClasses:
       armada-default:
         priority: 1000
-        maximalResourceFractionPerQueue:
-          memory: 0.99
-          cpu: 0.99
+        preemptible: false
+        maximumResourceFractionPerQueue:
+          memory: 1.0
+          cpu: 1.0
       armada-preemptible:
-        priority: 900
-        maximalResourceFractionPerQueue:
-          memory: 0.99
-          cpu: 0.99
+        priority: 1000
+        preemptible: true
     defaultPriorityClass: armada-default
-  queueLeaseBatchSize: 1000
-  minimumResourceToSchedule:
-    memory: 1000000 # 1Mb
-    cpu: 0.1
-  maximalResourceFractionToSchedulePerQueue:
-    memory: 1.0
-    cpu: 1.0
-  maximalResourceFractionPerQueue:
-    memory: 1.0
-    cpu: 1.0
-  maximalClusterFractionToSchedule:
+    priorityClassNameOverride: armada-default
+  maxQueueLookback: 1000
+  maxExtraNodesToConsider: 1
+  maximumResourceFractionToSchedule:
     memory: 1.0
     cpu: 1.0
   maximumJobsToSchedule: 5000
-  maxQueueReportsToStore: 1000
-  MaxJobReportsToStore: 10000
+  maxUnacknowledgedJobsPerExecutor: 2500
+  maxJobSchedulingContextsPerExecutor: 10000
   defaultJobLimits:
     cpu: 1
     memory: 1Gi
@@ -87,11 +109,6 @@ scheduling:
       value: "true"
       effect: "NoSchedule"
   defaultJobTolerationsByPriorityClass:
-    "":
-      - key: "armadaproject.io/pc-armada-default"
-        operator: "Equal"
-        value: "true"
-        effect: "NoSchedule"
     armada-default:
       - key: "armadaproject.io/pc-armada-default"
         operator: "Equal"
@@ -103,11 +120,11 @@ scheduling:
         value: "true"
         effect: "NoSchedule"
   maxRetries: 5
-  resourceScarcity:
-    cpu: 1.0
   indexedResources:
-    - cpu
-    - memory
+    - name: "cpu"
+      resolution: "100m"
+    - name: "memory"
+      resolution: "1Mi"
   gangIdAnnotation: armadaproject.io/gangId
   gangCardinalityAnnotation: armadaproject.io/gangCardinality
 

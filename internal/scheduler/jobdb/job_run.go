@@ -14,8 +14,12 @@ type JobRun struct {
 	created int64
 	// The name of the executor this run has been leased to.
 	executor string
-	// The name of the nodes this run has been leased to.
-	node string
+	// The id of the node this run has been leased to.
+	// Identifies the node within the Armada scheduler.
+	nodeId string
+	// The name of the node this run has been leased to.
+	// Identifies the node within the target executor cluster.
+	nodeName string
 	// True if the job has been reported as running by the executor.
 	running bool
 	// True if the job has been reported as succeeded by the executor.
@@ -26,6 +30,8 @@ type JobRun struct {
 	cancelled bool
 	// True if the job has been returned by the executor.
 	returned bool
+	// True if the job has been returned and the job was given a chance to run.
+	runAttempted bool
 }
 
 func MinimalRun(id uuid.UUID, creationTime int64) *JobRun {
@@ -41,24 +47,28 @@ func CreateRun(
 	jobId string,
 	creationTime int64,
 	executor string,
-	node string,
+	nodeId string,
+	nodeName string,
 	running bool,
 	succeeded bool,
 	failed bool,
 	cancelled bool,
 	returned bool,
+	runAttempted bool,
 ) *JobRun {
 	return &JobRun{
-		id:        id,
-		jobId:     jobId,
-		created:   creationTime,
-		executor:  executor,
-		node:      node,
-		running:   running,
-		succeeded: succeeded,
-		failed:    failed,
-		cancelled: cancelled,
-		returned:  returned,
+		id:           id,
+		jobId:        jobId,
+		created:      creationTime,
+		executor:     executor,
+		nodeId:       nodeId,
+		nodeName:     nodeName,
+		running:      running,
+		succeeded:    succeeded,
+		failed:       failed,
+		cancelled:    cancelled,
+		returned:     returned,
+		runAttempted: runAttempted,
 	}
 }
 
@@ -77,9 +87,14 @@ func (run *JobRun) Executor() string {
 	return run.executor
 }
 
-// Node returns the node to which the JobRun is assigned.
-func (run *JobRun) Node() string {
-	return run.node
+// NodeId returns the id of the node to which the JobRun is assigned.
+func (run *JobRun) NodeId() string {
+	return run.nodeId
+}
+
+// NodeId returns the name of the node to which the JobRun is assigned.
+func (run *JobRun) NodeName() string {
+	return run.nodeName
 }
 
 // Succeeded Returns true if the executor has reported the job run as successful
@@ -135,10 +150,21 @@ func (run *JobRun) Returned() bool {
 	return run.returned
 }
 
-// WithReturned returns a copy of the job run with the returned status updated.
 func (run *JobRun) WithReturned(returned bool) *JobRun {
 	run = run.DeepCopy()
 	run.returned = returned
+	return run
+}
+
+// RunAttempted Returns true if the executor has attempted to run the job.
+func (run *JobRun) RunAttempted() bool {
+	return run.runAttempted
+}
+
+// WithAttempted returns a copy of the job run with the runAttempted status updated.
+func (run *JobRun) WithAttempted(attempted bool) *JobRun {
+	run = run.DeepCopy()
+	run.runAttempted = attempted
 	return run
 }
 

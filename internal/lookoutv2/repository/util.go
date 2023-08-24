@@ -56,6 +56,7 @@ type runPatch struct {
 	finished    *time.Time
 	jobRunState *string
 	node        *string
+	leased      *time.Time
 	pending     *time.Time
 	started     *time.Time
 }
@@ -166,6 +167,30 @@ func (js *JobSimulator) Submit(queue, jobSet, owner string, timestamp time.Time,
 	return js
 }
 
+func (js *JobSimulator) Lease(runId string, timestamp time.Time) *JobSimulator {
+	ts := timestampOrNow(timestamp)
+	leasedEvent := &armadaevents.EventSequence_Event{
+		Created: &ts,
+		Event: &armadaevents.EventSequence_Event_JobRunLeased{
+			JobRunLeased: &armadaevents.JobRunLeased{
+				RunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(runId)),
+				JobId: js.jobId,
+			},
+		},
+	}
+	js.events = append(js.events, leasedEvent)
+
+	js.job.LastActiveRunId = &runId
+	js.job.LastTransitionTime = ts
+	js.job.State = string(lookout.JobLeased)
+	updateRun(js.job, &runPatch{
+		runId:       runId,
+		jobRunState: pointer.String(string(lookout.JobRunLeased)),
+		leased:      &ts,
+	})
+	return js
+}
+
 func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	assignedEvent := &armadaevents.EventSequence_Event{
@@ -197,12 +222,16 @@ func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Tim
 	js.job.LastActiveRunId = &runId
 	js.job.LastTransitionTime = ts
 	js.job.State = string(lookout.JobPending)
-	updateRun(js.job, &runPatch{
+	rp := &runPatch{
 		runId:       runId,
 		cluster:     &cluster,
 		jobRunState: pointer.String(string(lookout.JobRunPending)),
 		pending:     &ts,
-	})
+	}
+	if js.converter.IsLegacy() {
+		rp.leased = &ts
+	}
+	updateRun(js.job, rp)
 	return js
 }
 
@@ -324,6 +353,7 @@ func (js *JobSimulator) Cancelled(timestamp time.Time) *JobSimulator {
 	}
 	js.events = append(js.events, cancelled)
 
+	js.job.State = string(lookout.JobCancelled)
 	js.job.Cancelled = &ts
 	js.job.LastTransitionTime = ts
 	return js
@@ -417,6 +447,31 @@ func (js *JobSimulator) Failed(node string, exitCode int32, message string, time
 	return js
 }
 
+func (js *JobSimulator) Preempted(timestamp time.Time) *JobSimulator {
+	ts := timestampOrNow(timestamp)
+	jobIdProto, err := armadaevents.ProtoUuidFromUlidString(util.NewULID())
+	if err != nil {
+		log.WithError(err).Errorf("Could not convert job ID to UUID: %s", util.NewULID())
+	}
+
+	preempted := &armadaevents.EventSequence_Event{
+		Created: &ts,
+		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+			JobRunPreempted: &armadaevents.JobRunPreempted{
+				PreemptedJobId:  js.jobId,
+				PreemptiveJobId: jobIdProto,
+				PreemptedRunId:  armadaevents.ProtoUuidFromUuid(uuid.MustParse(uuid.NewString())),
+				PreemptiveRunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(uuid.NewString())),
+			},
+		},
+	}
+	js.events = append(js.events, preempted)
+
+	js.job.LastTransitionTime = ts
+	js.job.State = string(lookout.JobPreempted)
+	return js
+}
+
 func (js *JobSimulator) RunTerminated(runId string, cluster string, node string, message string, timestamp time.Time) *JobSimulator {
 	ts := timestampOrNow(timestamp)
 	terminated := &armadaevents.EventSequence_Event{
@@ -427,7 +482,7 @@ func (js *JobSimulator) RunTerminated(runId string, cluster string, node string,
 				RunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(runId)),
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: true,
+						Terminal: false,
 						Reason: &armadaevents.Error_PodTerminated{
 							PodTerminated: &armadaevents.PodTerminated{
 								NodeName: node,
@@ -464,7 +519,7 @@ func (js *JobSimulator) RunUnschedulable(runId string, cluster string, node stri
 				RunId: armadaevents.ProtoUuidFromUuid(uuid.MustParse(runId)),
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: true,
+						Terminal: false,
 						Reason: &armadaevents.Error_PodUnschedulable{
 							PodUnschedulable: &armadaevents.PodUnschedulable{
 								NodeName: node,
@@ -569,17 +624,14 @@ func updateRun(job *model.Job, patch *runPatch) {
 	if patch.jobRunState != nil {
 		state = *patch.jobRunState
 	}
-	pending := time.Time{}
-	if patch.pending != nil {
-		pending = *patch.pending
-	}
 	job.Runs = append(job.Runs, &model.Run{
 		Cluster:     cluster,
 		ExitCode:    patch.exitCode,
 		Finished:    patch.finished,
 		JobRunState: state,
 		Node:        patch.node,
-		Pending:     pending,
+		Leased:      patch.leased,
+		Pending:     patch.pending,
 		RunId:       patch.runId,
 		Started:     patch.started,
 	})
@@ -601,8 +653,11 @@ func patchRun(run *model.Run, patch *runPatch) {
 	if patch.node != nil {
 		run.Node = patch.node
 	}
+	if patch.leased != nil {
+		run.Leased = patch.leased
+	}
 	if patch.pending != nil {
-		run.Pending = *patch.pending
+		run.Pending = patch.pending
 	}
 	if patch.started != nil {
 		run.Started = patch.started

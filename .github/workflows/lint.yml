@@ -1,0 +1,82 @@
+name: "Lint"
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  ts-lint:
+    # TODO(JayF): Determine what nodejs versions we target, and setup matrix-based testing similar to what we do for go
+    name: Lint TypeScript
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.3.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16.14.2
+          cache: yarn
+          cache-dependency-path: ./internal/lookout/ui/yarn.lock
+
+      - name: Check TypeScript formatting
+        run: |
+          yarn install --frozen-lockfile && yarn run fmt || true
+          exit $(git status -s -uno | wc -l)
+        working-directory: ./internal/lookout/ui
+        continue-on-error: true  
+
+      - name: Generating TypeScript lint results as summary
+        working-directory: ./internal/lookout/ui
+        if: ${{ always() }}
+        run: |
+           yarn run lint > lint_results.txt || true
+           lint_results=$(cat lint_results.txt)
+           echo -e "## 🪧 Typescript Lint Results\n" >> $GITHUB_STEP_SUMMARY
+           if [[ $lint_results =~ "problem" ]]; then
+              echo -e "### List of Lint Issues \n" >> $GITHUB_STEP_SUMMARY
+              echo -e "${lint_results}" >> $GITHUB_STEP_SUMMARY
+           else
+              echo -e "### No Lint issues found.\n" >> $GITHUB_STEP_SUMMARY   
+           fi   
+        continue-on-error: true
+
+  go-lint:
+    name: Lint Go
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.3.0
+
+      - name: Setup Golang with Cache
+        uses: magnetikonline/action-golang-cache@v4
+        with:
+          go-version: "1.20"
+
+      - name: Lint using golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          skip-pkg-cache: true
+          skip-build-cache: true
+          version: v1.52.2
+          only-new-issues: true
+          args: --timeout=10m --issues-exit-code=1 --sort-results ./...
+
+      - name: Generating Golang lint results as summary
+        if: ${{ always() }}
+        run: |
+          golangci-lint run > lint_results.txt || true
+          lint_results=$(cat lint_results.txt)
+          echo -e "## 🪧 Go Lint Results\n" >> $GITHUB_STEP_SUMMARY
+          if [ -z "$lint_results" ]; then
+            echo -e "### No Lint Issues found.\n" >> $GITHUB_STEP_SUMMARY
+          else
+              echo -e "###  List of Lint Issues \n" >> $GITHUB_STEP_SUMMARY
+              echo -e "${lint_results}" >> $GITHUB_STEP_SUMMARY
+          fi
+        continue-on-error: true

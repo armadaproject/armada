@@ -60,7 +60,7 @@ export default class JobSetsLocalStorageService {
       return
     }
 
-    const loadedState = convertToLocalStorageState(loadedData)
+    const loadedState = convertToLocalStorageState(loadedData as Record<string, unknown>)
     if (loadedState.autoRefresh != undefined) state.autoRefresh = loadedState.autoRefresh
     if (loadedState.queue) state.queue = loadedState.queue
     if (loadedState.currentView && isJobSetsView(loadedState.currentView)) state.currentView = loadedState.currentView

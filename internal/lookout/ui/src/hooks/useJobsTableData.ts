@@ -1,24 +1,25 @@
 import { useEffect, useState } from "react"
 
-import {
-  ColumnFiltersState,
-  ColumnSort,
-  ExpandedStateList,
-  PaginationState,
-  RowSelectionState,
-  SortingState,
-} from "@tanstack/react-table"
+import { ExpandedStateList, PaginationState, RowSelectionState } from "@tanstack/react-table"
 import { JobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
-import { Job, JobId, JobOrder } from "models/lookoutV2Models"
+import { Job, JobFilter, JobId, JobOrder, Match } from "models/lookoutV2Models"
 import { VariantType } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
-import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { GroupedField, IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { getErrorMessage } from "utils"
-import { ColumnId, JobTableColumn, StandardColumnId } from "utils/jobsTableColumns"
+import {
+  AnnotationColumnId,
+  ColumnId,
+  fromAnnotationColId,
+  isStandardColId,
+  JobTableColumn,
+  StandardColumnId,
+} from "utils/jobsTableColumns"
 import {
   fetchJobGroups,
   fetchJobs,
   FetchRowRequest,
+  getFiltersForGroupedAnnotations,
   getFiltersForRows,
   groupsToRows,
   jobsToRows,
@@ -26,13 +27,17 @@ import {
 } from "utils/jobsTableUtils"
 import { fromRowId, mergeSubRows } from "utils/reactTableUtils"
 
+import { LookoutColumnFilter, LookoutColumnOrder } from "../containers/lookoutV2/JobsTableContainer"
+
 export interface UseFetchJobsTableDataArgs {
   groupedColumns: ColumnId[]
   visibleColumns: ColumnId[]
   expandedState: ExpandedStateList
-  sortingState: SortingState
+  lookoutOrder: LookoutColumnOrder
+  lookoutFilters: LookoutColumnFilter[]
+  activeJobSets: boolean
+  columnMatches: Record<string, Match>
   paginationState: PaginationState
-  columnFilters: ColumnFiltersState
   allColumns: JobTableColumn[]
   selectedRows: RowSelectionState
   updateSelectedRows: (newState: RowSelectionState) => void
@@ -55,6 +60,7 @@ const aggregatableFields = new Map<ColumnId, string>([
   [StandardColumnId.TimeSubmittedAgo, "submitted"],
   [StandardColumnId.LastTransitionTimeUtc, "lastTransitionTime"],
   [StandardColumnId.TimeInState, "lastTransitionTime"],
+  [StandardColumnId.State, "state"],
 ])
 
 export function columnIsAggregatable(columnId: ColumnId): boolean {
@@ -78,7 +84,7 @@ const columnToGroupSortFieldMap = new Map<ColumnId, string>([
 ])
 
 // Return ordering to request to API based on column
-function getOrder(sortedField: ColumnSort, isJobFetch: boolean): JobOrder {
+function getOrder(lookoutOrder: LookoutColumnOrder, isJobFetch: boolean): JobOrder {
   const defaultJobOrder: JobOrder = {
     field: "jobId",
     direction: "DESC",
@@ -91,20 +97,20 @@ function getOrder(sortedField: ColumnSort, isJobFetch: boolean): JobOrder {
 
   let field = ""
   if (isJobFetch) {
-    if (!columnToJobSortFieldMap.has(sortedField.id as ColumnId)) {
+    if (!columnToJobSortFieldMap.has(lookoutOrder.id as ColumnId)) {
       return defaultJobOrder
     }
-    field = columnToJobSortFieldMap.get(sortedField.id as ColumnId) as string
+    field = columnToJobSortFieldMap.get(lookoutOrder.id as ColumnId) as string
   } else {
-    if (!columnToGroupSortFieldMap.has(sortedField.id as ColumnId)) {
+    if (!columnToGroupSortFieldMap.has(lookoutOrder.id as ColumnId)) {
       return defaultGroupOrder
     }
-    field = columnToGroupSortFieldMap.get(sortedField.id as ColumnId) as string
+    field = columnToGroupSortFieldMap.get(lookoutOrder.id as ColumnId) as string
   }
 
   return {
     field: field,
-    direction: sortedField.desc ? "DESC" : "ASC",
+    direction: lookoutOrder.direction,
   }
 }
 
@@ -112,9 +118,11 @@ export const useFetchJobsTableData = ({
   groupedColumns,
   visibleColumns,
   expandedState,
-  sortingState,
+  lookoutOrder,
   paginationState,
-  columnFilters,
+  lookoutFilters,
+  activeJobSets,
+  columnMatches,
   allColumns,
   selectedRows,
   updateSelectedRows,
@@ -144,11 +152,10 @@ export const useFetchJobsTableData = ({
       const expandedLevel = parentRowInfo ? parentRowInfo.rowIdPathFromRoot.length : 0
       const isJobFetch = expandedLevel === groupingLevel
 
-      const sortedField = sortingState[0]
-
-      const order = getOrder(sortedField, isJobFetch)
+      const order = getOrder(lookoutOrder, isJobFetch)
       const rowRequest: FetchRowRequest = {
-        filters: getFiltersForRows(columnFilters, allColumns, parentRowInfo?.rowIdPartsPath ?? []),
+        filters: getFiltersForRows(lookoutFilters, columnMatches, parentRowInfo?.rowIdPartsPath ?? []),
+        activeJobSets: activeJobSets,
         skip: nextRequest.skip ?? 0,
         take: nextRequest.take ?? paginationState.pageSize,
         order: order,
@@ -164,19 +171,20 @@ export const useFetchJobsTableData = ({
           setJobInfoMap(new Map([...jobInfoMap.entries(), ...jobs.map((j): [JobId, Job] => [j.jobId, j])]))
         } else {
           const groupedCol = groupedColumns[expandedLevel]
+          const groupedField = columnToGroupedField(groupedCol)
 
-          const colsToAggregate = visibleColumns
-            .filter((col) => aggregatableFields.has(col))
-            .map((col) => aggregatableFields.get(col))
-            .filter((val) => val !== undefined) as string[]
+          // Only relevant if we are grouping by annotations: Filter by all remaining annotations in the group by filter
+          rowRequest.filters.push(...getFiltersForGroupedAnnotations(groupedColumns.slice(expandedLevel + 1)))
+
+          const colsToAggregate = getColsToAggregate(visibleColumns, rowRequest.filters)
           const { groups, count: totalGroups } = await fetchJobGroups(
             rowRequest,
             groupJobsService,
-            groupedCol,
+            groupedField,
             colsToAggregate,
             abortController.signal,
           )
-          newData = groupsToRows(groups, parentRowInfo?.rowId, groupedCol)
+          newData = groupsToRows(groups, parentRowInfo?.rowId, groupedField)
           totalCount = totalGroups
         }
       } catch (err) {
@@ -227,7 +235,7 @@ export const useFetchJobsTableData = ({
     return () => {
       abortController.abort("Request is no longer needed")
     }
-  }, [pendingData, paginationState, groupedColumns, expandedState, columnFilters, sortingState, allColumns])
+  }, [pendingData, paginationState, groupedColumns, expandedState, lookoutFilters, lookoutOrder, allColumns])
 
   return {
     data,
@@ -237,4 +245,37 @@ export const useFetchJobsTableData = ({
     setRowsToFetch: setPendingData,
     totalRowCount,
   }
+}
+
+const columnToGroupedField = (colId: ColumnId): GroupedField => {
+  if (isStandardColId(colId)) {
+    return {
+      field: colId,
+      isAnnotation: false,
+    }
+  }
+  return {
+    field: fromAnnotationColId(colId as AnnotationColumnId),
+    isAnnotation: true,
+  }
+}
+
+const getColsToAggregate = (visibleCols: ColumnId[], filters: JobFilter[]): string[] => {
+  const aggregates = visibleCols
+    .filter((col) => aggregatableFields.has(col))
+    .map((col) => aggregatableFields.get(col))
+    .filter((val) => val !== undefined) as string[]
+
+  const stateIndex = aggregates.indexOf(StandardColumnId.State)
+  if (stateIndex > -1) {
+    const stateFilter = filters.find((f) => f.field === StandardColumnId.State)
+    if (
+      stateFilter &&
+      ((stateFilter.match === Match.AnyOf && (stateFilter.value as string[]).length === 1) ||
+        stateFilter.match === Match.Exact)
+    ) {
+      aggregates.splice(stateIndex, 1)
+    }
+  }
+  return aggregates
 }

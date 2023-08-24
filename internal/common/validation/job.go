@@ -12,8 +12,7 @@ import (
 )
 
 func ValidateApiJobs(jobs []*api.Job, config configuration.SchedulingConfig) error {
-	err := validateGangs(jobs)
-	if err != nil {
+	if err := validateGangs(jobs); err != nil {
 		return err
 	}
 	for _, job := range jobs {
@@ -26,13 +25,15 @@ func ValidateApiJobs(jobs []*api.Job, config configuration.SchedulingConfig) err
 
 func validateGangs(jobs []*api.Job) error {
 	gangDetailsByGangId := make(map[string]struct {
-		actualCardinality         int
-		expectedCardinality       int
-		expectedPriorityClassName string
+		actualCardinality           int
+		expectedCardinality         int
+		expectedPriorityClassName   string
+		expectedNodeUniformityLabel string
 	})
 	for i, job := range jobs {
 		annotations := job.Annotations
 		gangId, gangCardinality, isGangJob, err := scheduler.GangIdAndCardinalityFromAnnotations(annotations)
+		nodeUniformityLabel := annotations[configuration.GangNodeUniformityLabelAnnotation]
 		if err != nil {
 			return errors.WithMessagef(err, "%d-th job with id %s in gang %s", i, job.Id, gangId)
 		}
@@ -56,6 +57,12 @@ func validateGangs(jobs []*api.Job) error {
 					i, job.Id, gangId, details.expectedPriorityClassName, podSpec.PriorityClassName,
 				)
 			}
+			if nodeUniformityLabel != details.expectedNodeUniformityLabel {
+				return errors.Errorf(
+					"inconsistent nodeUniformityLabel for %d-th job with id %s in gang %s: expected %s but got %s",
+					i, job.Id, gangId, details.expectedNodeUniformityLabel, nodeUniformityLabel,
+				)
+			}
 			details.actualCardinality++
 			gangDetailsByGangId[gangId] = details
 		} else {
@@ -64,6 +71,7 @@ func validateGangs(jobs []*api.Job) error {
 			if podSpec != nil {
 				details.expectedPriorityClassName = podSpec.PriorityClassName
 			}
+			details.expectedNodeUniformityLabel = nodeUniformityLabel
 			gangDetailsByGangId[gangId] = details
 		}
 	}
@@ -82,17 +90,14 @@ func ValidateApiJob(job *api.Job, config configuration.SchedulingConfig) error {
 	if err := ValidateApiJobPodSpecs(job); err != nil {
 		return err
 	}
-	if config.Preemption.Enabled {
-		if err := validatePodSpecPriorityClass(job.PodSpec, config.Preemption.Enabled, config.Preemption.PriorityClasses); err != nil {
+	if err := validatePodSpecPriorityClass(job.PodSpec, true, config.Preemption.PriorityClasses); err != nil {
+		return err
+	}
+	for _, podSpec := range job.PodSpecs {
+		if err := validatePodSpecPriorityClass(podSpec, true, config.Preemption.PriorityClasses); err != nil {
 			return err
 		}
-		for _, podSpec := range job.PodSpecs {
-			if err := validatePodSpecPriorityClass(podSpec, config.Preemption.Enabled, config.Preemption.PriorityClasses); err != nil {
-				return err
-			}
-		}
 	}
-
 	return nil
 }
 

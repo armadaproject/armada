@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/pointer"
 
@@ -71,6 +71,7 @@ type JobRow struct {
 	Duplicate                 bool
 	PriorityClass             string
 	LatestRunId               *string
+	CancelReason              *string
 }
 
 type JobRunRow struct {
@@ -108,7 +109,8 @@ func defaultInstructionSet() *model.InstructionSet {
 			RunId:       runIdString,
 			JobId:       jobIdString,
 			Cluster:     executorId,
-			Pending:     updateTime,
+			Leased:      &updateTime,
+			Pending:     &updateTime,
 			JobRunState: lookout.JobRunPendingOrdinal,
 		}},
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
@@ -354,6 +356,7 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 				JobId:                     jobIdString,
 				State:                     pointer.Int32(lookout.JobCancelledOrdinal),
 				Cancelled:                 &baseTime,
+				CancelReason:              pointer.String("some reason"),
 				LastTransitionTime:        &baseTime,
 				LastTransitionTimeSeconds: pointer.Int64(baseTime.Unix()),
 			},
@@ -407,6 +410,7 @@ func TestUpdateJobsWithTerminal(t *testing.T) {
 		// Assert the states are still terminal
 		job := getJob(t, db, jobIdString)
 		assert.Equal(t, lookout.JobCancelledOrdinal, int(job.State))
+		assert.Equal(t, "some reason", *job.CancelReason)
 
 		job2 := getJob(t, db, "job2")
 		assert.Equal(t, lookout.JobSucceededOrdinal, int(job2.State))
@@ -956,7 +960,8 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
     		job_spec,
     		duplicate,
 			priority_class,
-			latest_run_id
+			latest_run_id,
+			cancel_reason
 		FROM job WHERE job_id = $1`,
 		jobId)
 	err := r.Scan(
@@ -978,6 +983,7 @@ func getJob(t *testing.T, db *pgxpool.Pool, jobId string) JobRow {
 		&job.Duplicate,
 		&job.PriorityClass,
 		&job.LatestRunId,
+		&job.CancelReason,
 	)
 	assert.Nil(t, err)
 	return job

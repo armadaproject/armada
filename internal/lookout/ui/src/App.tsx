@@ -1,4 +1,4 @@
-import React from "react"
+import React, { useEffect } from "react"
 
 import { ThemeProvider as ThemeProviderV4, createTheme as createThemeV4, StylesProvider } from "@material-ui/core"
 import { createGenerateClassName } from "@material-ui/core/styles"
@@ -16,6 +16,7 @@ import JobsContainer from "./containers/JobsContainer"
 import OverviewContainer from "./containers/OverviewContainer"
 import { JobService } from "./services/JobService"
 import LogService from "./services/LogService"
+import { ICordonService } from "./services/lookoutV2/CordonService"
 import { IGetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
 import { ILogService } from "./services/lookoutV2/LogService"
@@ -61,6 +62,7 @@ const themeV4 = createThemeV4(theme)
 const themeV5 = createThemeV5(theme)
 
 type AppProps = {
+  customTitle: string
   jobService: JobService
   v2GetJobsService: IGetJobsService
   v2GroupJobsService: IGroupJobsService
@@ -68,6 +70,7 @@ type AppProps = {
   v2JobSpecService: IGetJobSpecService
   v2LogService: ILogService
   v2UpdateJobsService: UpdateJobsService
+  v2CordonService: ICordonService
   logService: LogService
   overviewAutoRefreshMs: number
   jobSetsAutoRefreshMs: number
@@ -76,6 +79,11 @@ type AppProps = {
 }
 
 export function App(props: AppProps) {
+  useEffect(() => {
+    if (props.customTitle) {
+      document.title = `${props.customTitle} - Armada Lookout`
+    }
+  }, [props.customTitle])
   return (
     <StylesProvider generateClassName={generateClassName}>
       <ThemeProviderV4 theme={themeV4}>
@@ -87,7 +95,7 @@ export function App(props: AppProps) {
           >
             <BrowserRouter>
               <div className="app-container">
-                <NavBar />
+                <NavBar customTitle={props.customTitle} />
                 <div className="app-content">
                   <Routes>
                     <Route path="/" element={<OverviewContainer {...props} />} />
@@ -103,6 +111,7 @@ export function App(props: AppProps) {
                           runErrorService={props.v2RunErrorService}
                           jobSpecService={props.v2JobSpecService}
                           logService={props.v2LogService}
+                          cordonService={props.v2CordonService}
                           debug={props.debugEnabled}
                         />
                       }

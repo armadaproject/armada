@@ -21,6 +21,32 @@ func (d *DbOperationsWithMessageIds) GetMessageIDs() []pulsar.MessageID {
 
 type JobRunFailed struct {
 	LeaseReturned bool
+	RunAttempted  bool
+}
+
+type JobSchedulingInfoUpdate struct {
+	JobSchedulingInfo        []byte
+	JobSchedulingInfoVersion int32
+}
+
+type JobSetCancelAction struct {
+	cancelQueued bool
+	cancelLeased bool
+}
+
+type JobSetKey struct {
+	queue  string
+	jobSet string
+}
+
+type JobRunDetails struct {
+	queue string
+	dbRun *schedulerdb.Run
+}
+
+type JobQueuedStateUpdate struct {
+	Queued             bool
+	QueuedStateVersion int32
 }
 
 // DbOperation captures a generic batch database operation.
@@ -73,7 +99,7 @@ func AppendDbOperation(ops []DbOperation, op DbOperation) []DbOperation {
 			break
 		}
 	}
-	return discardNilOps(ops) // TODO: Can be made more efficient.
+	return discardNilOps(ops)
 }
 
 func discardNilOps(ops []DbOperation) []DbOperation {
@@ -89,14 +115,16 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 type InsertJobs map[string]*schedulerdb.Job
 
 type (
-	InsertRuns                 map[uuid.UUID]*schedulerdb.Run
-	UpdateJobSetPriorities     map[string]int64
-	MarkJobSetsCancelRequested map[string]bool
+	InsertRuns                 map[uuid.UUID]*JobRunDetails
+	UpdateJobSetPriorities     map[JobSetKey]int64
+	MarkJobSetsCancelRequested map[JobSetKey]*JobSetCancelAction
 	MarkJobsCancelRequested    map[string]bool
 	MarkJobsCancelled          map[string]bool
 	MarkJobsSucceeded          map[string]bool
 	MarkJobsFailed             map[string]bool
 	UpdateJobPriorities        map[string]int64
+	UpdateJobSchedulingInfo    map[string]*JobSchedulingInfoUpdate
+	UpdateJobQueuedState       map[string]*JobQueuedStateUpdate
 	MarkRunsSucceeded          map[uuid.UUID]bool
 	MarkRunsFailed             map[uuid.UUID]*JobRunFailed
 	MarkRunsRunning            map[uuid.UUID]bool
@@ -107,16 +135,16 @@ type (
 )
 
 type JobSetOperation interface {
-	AffectsJobSet(string) bool
+	AffectsJobSet(queue string, jobSet string) bool
 }
 
-func (a UpdateJobSetPriorities) AffectsJobSet(jobSet string) bool {
-	_, ok := a[jobSet]
+func (a UpdateJobSetPriorities) AffectsJobSet(queue string, jobSet string) bool {
+	_, ok := a[JobSetKey{queue: queue, jobSet: jobSet}]
 	return ok
 }
 
-func (a MarkJobSetsCancelRequested) AffectsJobSet(jobSet string) bool {
-	_, ok := a[jobSet]
+func (a MarkJobSetsCancelRequested) AffectsJobSet(queue string, jobSet string) bool {
+	_, ok := a[JobSetKey{queue: queue, jobSet: jobSet}]
 	return ok
 }
 
@@ -138,6 +166,42 @@ func (a MarkJobSetsCancelRequested) Merge(b DbOperation) bool {
 
 func (a MarkJobsCancelRequested) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
+}
+
+func (a UpdateJobSchedulingInfo) Merge(b DbOperation) bool {
+	switch op := b.(type) {
+	case UpdateJobSchedulingInfo:
+		for key, value := range op {
+			aValue, present := a[key]
+			if !present {
+				a[key] = value
+			} else {
+				if value.JobSchedulingInfoVersion > aValue.JobSchedulingInfoVersion {
+					a[key] = value
+				}
+			}
+		}
+		return true
+	}
+	return false
+}
+
+func (a UpdateJobQueuedState) Merge(b DbOperation) bool {
+	switch op := b.(type) {
+	case UpdateJobQueuedState:
+		for key, value := range op {
+			currentValue, present := a[key]
+			if !present {
+				a[key] = value
+			} else {
+				if value.QueuedStateVersion > currentValue.QueuedStateVersion {
+					a[key] = value
+				}
+			}
+		}
+		return true
+	}
+	return false
 }
 
 func (a MarkJobsCancelled) Merge(b DbOperation) bool {
@@ -201,7 +265,7 @@ func (a InsertJobs) CanBeAppliedBefore(b DbOperation) bool {
 	switch op := b.(type) {
 	case JobSetOperation:
 		for _, job := range a {
-			if op.AffectsJobSet(job.JobSet) {
+			if op.AffectsJobSet(job.Queue, job.JobSet) {
 				return false
 			}
 		}
@@ -215,13 +279,13 @@ func (a InsertRuns) CanBeAppliedBefore(b DbOperation) bool {
 	switch op := b.(type) {
 	case JobSetOperation:
 		for _, run := range a {
-			if op.AffectsJobSet(run.JobSet) {
+			if op.AffectsJobSet(run.queue, run.dbRun.JobSet) {
 				return false
 			}
 		}
 	case InsertJobs:
 		for _, run := range a {
-			if _, ok := op[run.JobID]; ok {
+			if _, ok := op[run.dbRun.JobID]; ok {
 				return false
 			}
 		}
@@ -251,6 +315,14 @@ func (a MarkJobsFailed) CanBeAppliedBefore(b DbOperation) bool {
 }
 
 func (a MarkJobsCancelled) CanBeAppliedBefore(b DbOperation) bool {
+	return !definesJob(a, b)
+}
+
+func (a UpdateJobSchedulingInfo) CanBeAppliedBefore(b DbOperation) bool {
+	return !definesJob(a, b)
+}
+
+func (a UpdateJobQueuedState) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesJob(a, b)
 }
 
@@ -285,10 +357,10 @@ func (a InsertJobRunErrors) CanBeAppliedBefore(_ DbOperation) bool {
 // definesJobInSet returns true if b is an InsertJobs operation
 // that inserts at least one job in any of the job sets that make
 // up the keys of a.
-func definesJobInSet[M ~map[string]V, V any](a M, b DbOperation) bool {
+func definesJobInSet[M ~map[JobSetKey]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertJobs); ok {
 		for _, job := range op {
-			if _, ok := a[job.JobSet]; ok {
+			if _, ok := a[JobSetKey{queue: job.Queue, jobSet: job.JobSet}]; ok {
 				return true
 			}
 		}
@@ -297,10 +369,10 @@ func definesJobInSet[M ~map[string]V, V any](a M, b DbOperation) bool {
 }
 
 // Like definesJobInSet, but checks if b defines a run.
-func definesRunInSet[M ~map[string]V, V any](a M, b DbOperation) bool {
+func definesRunInSet[M ~map[JobSetKey]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertRuns); ok {
 		for _, run := range op {
-			if _, ok := a[run.JobSet]; ok {
+			if _, ok := a[JobSetKey{queue: run.queue, jobSet: run.dbRun.JobSet}]; ok {
 				return true
 			}
 		}
@@ -326,7 +398,7 @@ func definesJob[M ~map[string]V, V any](a M, b DbOperation) bool {
 func definesRun[M ~map[uuid.UUID]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertRuns); ok {
 		for _, run := range op {
-			if _, ok := a[run.RunID]; ok {
+			if _, ok := a[run.dbRun.RunID]; ok {
 				return true
 			}
 		}
@@ -339,7 +411,7 @@ func definesRun[M ~map[uuid.UUID]V, V any](a M, b DbOperation) bool {
 func definesRunForJob[M ~map[string]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertRuns); ok {
 		for _, run := range op {
-			if _, ok := a[run.JobID]; ok {
+			if _, ok := a[run.dbRun.JobID]; ok {
 				return true
 			}
 		}

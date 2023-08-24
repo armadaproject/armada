@@ -41,6 +41,7 @@ The location of this file can be passed in using --config argument or picked fro
 		submitCmd(),
 		versionCmd(),
 		watchCmd(),
+		getSchedulingReportCmd(armadactl.New()),
 		getQueueSchedulingReportCmd(armadactl.New()),
 		getJobSchedulingReportCmd(armadactl.New()),
 	)

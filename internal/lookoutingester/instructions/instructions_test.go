@@ -516,7 +516,7 @@ func TestHandlePodTerminated(t *testing.T) {
 				RunId: runIdProto,
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: true,
+						Terminal: false,
 						Reason: &armadaevents.Error_PodTerminated{
 							PodTerminated: &armadaevents.PodTerminated{
 								NodeName: nodeName,
@@ -536,13 +536,6 @@ func TestHandlePodTerminated(t *testing.T) {
 	msg := NewMsg(podTerminated)
 	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
-		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-			RunId:     runIdString,
-			Node:      pointer.String(nodeName),
-			Finished:  &baseTime,
-			Succeeded: pointer.Bool(false),
-			Error:     pointer.String(terminatedMsg),
-		}},
 		MessageIds: msg.MessageIds,
 	}
 	assert.Equal(t, expected, instructions)
@@ -605,7 +598,7 @@ func TestHandlePodUnschedulable(t *testing.T) {
 				RunId: runIdProto,
 				Errors: []*armadaevents.Error{
 					{
-						Terminal: true,
+						Terminal: false,
 						Reason: &armadaevents.Error_PodUnschedulable{
 							PodUnschedulable: &armadaevents.PodUnschedulable{
 								NodeName: nodeName,
@@ -626,12 +619,8 @@ func TestHandlePodUnschedulable(t *testing.T) {
 	instructions := svc.Convert(context.Background(), msg)
 	expected := &model.InstructionSet{
 		JobRunsToUpdate: []*model.UpdateJobRunInstruction{{
-			RunId:            runIdString,
-			Node:             pointer.String(nodeName),
-			Finished:         &baseTime,
-			Succeeded:        pointer.Bool(false),
-			UnableToSchedule: pointer.Bool(true),
-			Error:            pointer.String(unschedulableMsg),
+			RunId: runIdString,
+			Node:  pointer.String(nodeName),
 		}},
 		MessageIds: msg.MessageIds,
 	}

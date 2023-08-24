@@ -9,6 +9,7 @@ import (
 	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
@@ -23,6 +24,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/job/processors"
 	"github.com/armadaproject/armada/internal/executor/metrics"
 	"github.com/armadaproject/armada/internal/executor/metrics/pod_metrics"
+	"github.com/armadaproject/armada/internal/executor/metrics/runstate"
 	"github.com/armadaproject/armada/internal/executor/node"
 	"github.com/armadaproject/armada/internal/executor/podchecks"
 	"github.com/armadaproject/armada/internal/executor/reporter"
@@ -155,8 +157,8 @@ func setupExecutorApiComponents(
 		nil,
 		config.Kubernetes.TrackedNodeLabels,
 		config.Kubernetes.NodeIdLabel,
-		config.Kubernetes.NodeReservedResources,
-		config.Kubernetes.NodeReservedResourcesPriority,
+		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
+		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
 	)
 
 	eventReporter, stopReporter := reporter.NewJobEventReporter(
@@ -189,9 +191,11 @@ func setupExecutorApiComponents(
 		jobRunState,
 		submitter,
 		etcdHealthMonitor)
-	podIssueService := service.NewPodIssueService(
+	podIssueService := service.NewIssueHandler(
+		jobRunState,
 		clusterContext,
 		eventReporter,
+		config.Kubernetes.StateChecks,
 		pendingPodChecker,
 		config.Kubernetes.StuckTerminatingPodExpiry)
 
@@ -202,6 +206,8 @@ func setupExecutorApiComponents(
 	taskManager.Register(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "submit_runs")
 	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
 	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, podUtilisationService, nodeInfoService)
+	runStateMetricsCollector := runstate.NewJobRunStateStoreMetricsCollector(jobRunState)
+	prometheus.MustRegister(runStateMetricsCollector)
 
 	if config.Metric.ExposeQueueUsageMetrics && config.Task.UtilisationEventReportingInterval > 0 {
 		podUtilisationReporter := utilisation.NewUtilisationEventReporter(
@@ -232,6 +238,9 @@ func setupServerApiComponents(
 	nodeInfoService node.NodeInfoService,
 	podUtilisationService utilisation.PodUtilisationService,
 ) func() {
+	if !config.Application.UseLegacyApi {
+		return func() {}
+	}
 	conn, err := createConnectionToApi(config.ApiConnection, config.Client.MaxMessageSizeBytes, config.GRPC)
 	if err != nil {
 		log.Errorf("Failed to connect to API because: %s", err)
@@ -261,8 +270,8 @@ func setupServerApiComponents(
 		usageClient,
 		config.Kubernetes.TrackedNodeLabels,
 		config.Kubernetes.NodeIdLabel,
-		config.Kubernetes.NodeReservedResources,
-		config.Kubernetes.NodeReservedResourcesPriority,
+		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNode,
+		config.Kubernetes.MinimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority,
 	)
 
 	jobLeaseService := service.NewJobLeaseService(
@@ -270,6 +279,7 @@ func setupServerApiComponents(
 		queueClient,
 		config.Kubernetes.MinimumJobSize,
 		config.Kubernetes.AvoidNodeLabelsOnRetry,
+		config.Application.JobLeaseRequestTimeout,
 	)
 
 	submitter := job.NewSubmitter(
@@ -286,7 +296,6 @@ func setupServerApiComponents(
 		clusterUtilisationService,
 		submitter,
 		etcdHealthMonitor,
-		config.Kubernetes.NodeReservedResources,
 	)
 
 	jobManager := service.NewJobManager(

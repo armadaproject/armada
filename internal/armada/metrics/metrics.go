@@ -61,7 +61,9 @@ func (c *QueueInfoCollector) Collect(metrics chan<- prometheus.Metric) {
 		queueCounts[queues[i].Name] = int(count)
 	}
 
-	commonmetrics.CollectQueueMetrics(queueCounts, c.queueMetrics, metrics)
+	for _, m := range commonmetrics.CollectQueueMetrics(queueCounts, c.queueMetrics) {
+		metrics <- m
+	}
 
 	usageReports, e := c.usageRepository.GetClusterUsageReports()
 	if e != nil {
@@ -179,7 +181,7 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 				}
 				for resourceType, value := range nodeTypeUsage.AvailableCapacity {
 					metrics <- prometheus.MustNewConstMetric(
-						commonmetrics.ClusterAvailableCapacity,
+						commonmetrics.ClusterAvailableCapacityDesc,
 						prometheus.GaugeValue,
 						armadaresource.QuantityAsFloat64(value),
 						cluster,
@@ -199,7 +201,7 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 					nodeTypeUsage.NodeType.Id)
 
 				metrics <- prometheus.MustNewConstMetric(
-					commonmetrics.ClusterAvailableCapacity,
+					commonmetrics.ClusterAvailableCapacityDesc,
 					prometheus.GaugeValue,
 					float64(nodeTypeUsage.SchedulableNodes),
 					cluster,
@@ -221,7 +223,7 @@ func (c *QueueInfoCollector) recordClusterCapacityMetrics(metrics chan<- prometh
 
 			for resourceType, value := range report.ClusterAvailableCapacity {
 				metrics <- prometheus.MustNewConstMetric(
-					commonmetrics.ClusterAvailableCapacity,
+					commonmetrics.ClusterAvailableCapacityDesc,
 					prometheus.GaugeValue,
 					armadaresource.QuantityAsFloat64(value),
 					cluster,

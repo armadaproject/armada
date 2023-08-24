@@ -12,3 +12,13 @@ rules:
   - groups
   verbs:
   - impersonate
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  verbs:
+  - get
+  - list
+  - watch
+  - patch
+

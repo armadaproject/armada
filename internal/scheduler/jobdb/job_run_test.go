@@ -12,7 +12,9 @@ var baseJobRun = CreateRun(
 	uuid.NewString(),
 	5,
 	"test-executor",
-	"test-node",
+	"test-nodeId",
+	"test-nodeName",
+	false,
 	false,
 	false,
 	false,
@@ -25,7 +27,7 @@ func TestJobRun_TestGetter(t *testing.T) {
 	assert.Equal(t, baseJobRun.id, baseJobRun.Id())
 	assert.Equal(t, baseJobRun.created, baseJobRun.Created())
 	assert.Equal(t, baseJobRun.executor, baseJobRun.Executor())
-	assert.Equal(t, baseJobRun.node, baseJobRun.Node())
+	assert.Equal(t, baseJobRun.nodeId, baseJobRun.NodeId())
 }
 
 func TestJobRun_TestRunning(t *testing.T) {
@@ -53,9 +55,15 @@ func TestJobRun_TestCancelled(t *testing.T) {
 }
 
 func TestJobRun_TestReturned(t *testing.T) {
-	cancelledRun := baseJobRun.WithReturned(true)
+	returnedRun := baseJobRun.WithReturned(true)
 	assert.False(t, baseJobRun.Returned())
-	assert.True(t, cancelledRun.Returned())
+	assert.True(t, returnedRun.Returned())
+}
+
+func TestJobRun_TestRunAttempted(t *testing.T) {
+	attemptedRun := baseJobRun.WithAttempted(true)
+	assert.False(t, baseJobRun.RunAttempted())
+	assert.True(t, attemptedRun.RunAttempted())
 }
 
 func TestDeepCopy(t *testing.T) {
@@ -64,7 +72,9 @@ func TestDeepCopy(t *testing.T) {
 		"job id",
 		1,
 		"executor",
-		"node",
+		"nodeId",
+		"nodeName",
+		true,
 		true,
 		true,
 		true,
@@ -76,7 +86,9 @@ func TestDeepCopy(t *testing.T) {
 		"job id",
 		1,
 		"executor",
-		"node",
+		"nodeId",
+		"nodeName",
+		true,
 		true,
 		true,
 		true,
@@ -84,7 +96,7 @@ func TestDeepCopy(t *testing.T) {
 		true,
 	)
 	actual := run.DeepCopy()
-	run.node = "new node"
+	run.nodeId = "new nodeId"
 	run.executor = "new executor"
 	assert.Equal(t, expected, actual)
 }

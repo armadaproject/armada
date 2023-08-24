@@ -11,6 +11,36 @@
     "version": "version not set"
   },
   "paths": {
+    "/v1/binoculars/cordon": {
+      "post": {
+        "tags": [
+          "Binoculars"
+        ],
+        "operationId": "Cordon",
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/binocularsCordonRequest"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {}
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/binoculars/log": {
       "post": {
         "tags": [
@@ -45,6 +75,15 @@
     }
   },
   "definitions": {
+    "binocularsCordonRequest": {
+      "type": "object",
+      "title": "swagger:model",
+      "properties": {
+        "nodeName": {
+          "type": "string"
+        }
+      }
+    },
     "binocularsLogLine": {
       "type": "object",
       "title": "swagger:model",

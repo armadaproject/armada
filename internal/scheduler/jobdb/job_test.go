@@ -3,6 +3,7 @@ package jobdb
 import (
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
@@ -29,6 +30,8 @@ var baseJob = NewJob(
 	"test-queue",
 	2,
 	schedulingInfo,
+	true,
+	0,
 	false,
 	false,
 	false,
@@ -52,7 +55,6 @@ func TestJob_TestGetter(t *testing.T) {
 	assert.Equal(t, baseJob.queue, baseJob.Queue())
 	assert.Equal(t, baseJob.queue, baseJob.GetQueue())
 	assert.Equal(t, baseJob.created, baseJob.Created())
-	assert.Equal(t, schedulingInfo, baseJob.GetRequirements(nil))
 	assert.Equal(t, schedulingInfo, baseJob.JobSchedulingInfo())
 	assert.Equal(t, baseJob.GetAnnotations(), map[string]string{
 		"foo": "bar",
@@ -75,6 +77,12 @@ func TestJob_TestQueued(t *testing.T) {
 	newJob := baseJob.WithQueued(false)
 	assert.Equal(t, true, baseJob.Queued())
 	assert.Equal(t, false, newJob.Queued())
+}
+
+func TestJob_QueuedVersion(t *testing.T) {
+	newJob := baseJob.WithQueuedVersion(1)
+	assert.Equal(t, int32(0), baseJob.QueuedVersion())
+	assert.Equal(t, int32(1), newJob.QueuedVersion())
 }
 
 func TestJob_TestCancelRequested(t *testing.T) {
@@ -116,11 +124,11 @@ func TestJob_TestInTerminalState(t *testing.T) {
 
 func TestJob_TestHasRuns(t *testing.T) {
 	assert.Equal(t, false, baseJob.HasRuns())
-	assert.Equal(t, true, baseJob.WithNewRun("test-executor", "test-node").HasRuns())
+	assert.Equal(t, true, baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId").HasRuns())
 }
 
 func TestJob_TestWithNewRun(t *testing.T) {
-	jobWithRun := baseJob.WithNewRun("test-executor", "test-node")
+	jobWithRun := baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId")
 	assert.Equal(t, true, jobWithRun.HasRuns())
 	run := jobWithRun.LatestRun()
 	assert.NotNil(t, run)
@@ -129,7 +137,8 @@ func TestJob_TestWithNewRun(t *testing.T) {
 		jobId:    "test-job",
 		created:  run.created,
 		executor: "test-executor",
-		node:     "test-node",
+		nodeId:   "test-nodeId",
+		nodeName: "nodeId",
 	}, run)
 }
 
@@ -217,6 +226,40 @@ func TestJob_TestNumReturned(t *testing.T) {
 	assert.Equal(t, uint(2), returned3.NumReturned())
 }
 
+func TestJob_TestNumAttempts(t *testing.T) {
+	attemptedRun := func() *JobRun {
+		return &JobRun{
+			id:           uuid.New(),
+			created:      baseRun.created,
+			returned:     true,
+			runAttempted: true,
+		}
+	}
+
+	nonAttemptedRun := func() *JobRun {
+		return &JobRun{
+			id:           uuid.New(),
+			created:      baseRun.created,
+			returned:     true,
+			runAttempted: false,
+		}
+	}
+	// initial job has no runs
+	assert.Equal(t, uint(0), baseJob.NumAttempts())
+
+	// one returned run
+	returned1 := baseJob.WithUpdatedRun(attemptedRun())
+	assert.Equal(t, uint(1), returned1.NumAttempts())
+
+	// still one returned run
+	returned2 := returned1.WithUpdatedRun(nonAttemptedRun())
+	assert.Equal(t, uint(1), returned2.NumAttempts())
+
+	// two returned runs
+	returned3 := returned2.WithUpdatedRun(attemptedRun())
+	assert.Equal(t, uint(2), returned3.NumAttempts())
+}
+
 func TestJob_TestRunsById(t *testing.T) {
 	runs := make([]*JobRun, 10)
 	job := baseJob
@@ -247,6 +290,26 @@ func TestJob_TestWithCreated(t *testing.T) {
 	assert.Equal(t, int64(456), newJob.Created())
 }
 
+func TestJob_DeepCopy(t *testing.T) {
+	original := NewJob("test-job", "test-jobset", "test-queue", 2, schedulingInfo, true, 0, false, false, false, 3)
+	original = original.WithUpdatedRun(baseJobRun.DeepCopy())
+	expected := NewJob("test-job", "test-jobset", "test-queue", 2, schedulingInfo, true, 0, false, false, false, 3)
+	expected = expected.WithUpdatedRun(baseJobRun.DeepCopy())
+
+	result := original.DeepCopy()
+	assert.Equal(t, expected, result)
+	assert.Equal(t, expected, original)
+
+	// Modify and confirm original hasn't changed
+	result.activeRun.nodeName = "test"
+	result.runsById[baseJobRun.id].nodeName = "test"
+	result.queue = "test"
+	result.jobSchedulingInfo.Priority = 1
+
+	assert.NotEqual(t, expected, result)
+	assert.Equal(t, expected, original)
+}
+
 func TestJob_TestWithJobSchedulingInfo(t *testing.T) {
 	newSchedInfo := &schedulerobjects.JobSchedulingInfo{
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
@@ -266,6 +329,33 @@ func TestJob_TestWithJobSchedulingInfo(t *testing.T) {
 	assert.Equal(t, newSchedInfo, newJob.JobSchedulingInfo())
 }
 
+func TestJobSchedulingInfoFieldsInitialised(t *testing.T) {
+	infoWithNilFields := &schedulerobjects.JobSchedulingInfo{
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{},
+				},
+			},
+		},
+	}
+
+	infoWithNilFieldsCopy := proto.Clone(infoWithNilFields).(*schedulerobjects.JobSchedulingInfo)
+	assert.NotNil(t, infoWithNilFields.GetPodRequirements())
+	assert.Nil(t, infoWithNilFields.GetPodRequirements().NodeSelector)
+	assert.Nil(t, infoWithNilFields.GetPodRequirements().Annotations)
+
+	job := NewJob("test-job", "test-jobset", "test-queue", 2, infoWithNilFieldsCopy, true, 0, false, false, false, 3)
+	assert.NotNil(t, job.GetNodeSelector())
+	assert.NotNil(t, job.GetAnnotations())
+
+	// Copy again here, as the fields get mutated so we want a clean copy
+	infoWithNilFieldsCopy2 := proto.Clone(infoWithNilFields).(*schedulerobjects.JobSchedulingInfo)
+	updatedJob := baseJob.WithJobSchedulingInfo(infoWithNilFieldsCopy2)
+	assert.NotNil(t, updatedJob.GetNodeSelector())
+	assert.NotNil(t, updatedJob.GetAnnotations())
+}
+
 func TestJobPriorityComparer(t *testing.T) {
 	job1 := &Job{
 		id:       "a",
@@ -276,8 +366,8 @@ func TestJobPriorityComparer(t *testing.T) {
 	comparer := JobPriorityComparer{}
 
 	assert.Equal(t, 0, comparer.Compare(job1, job1))
-	assert.Equal(t, -1, comparer.Compare(job1, job1.WithPriority(9)))
+	assert.Equal(t, 1, comparer.Compare(job1, job1.WithPriority(9)))
 	assert.Equal(t, -1, comparer.Compare(job1, job1.WithCreated(6)))
-	assert.Equal(t, 1, comparer.Compare(job1, job1.WithPriority(11)))
+	assert.Equal(t, -1, comparer.Compare(job1, job1.WithPriority(11)))
 	assert.Equal(t, 1, comparer.Compare(job1, job1.WithCreated(4)))
 }

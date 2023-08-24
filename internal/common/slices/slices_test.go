@@ -164,3 +164,137 @@ func TestSubtract(t *testing.T) {
 		})
 	}
 }
+
+func TestUnique(t *testing.T) {
+	tests := map[string]struct {
+		s        []int
+		expected []int
+	}{
+		"nil": {
+			s:        nil,
+			expected: nil,
+		},
+		"empty": {
+			s:        make([]int, 0),
+			expected: make([]int, 0),
+		},
+		"no duplicates": {
+			s:        []int{1, 2, 3},
+			expected: []int{1, 2, 3},
+		},
+		"consecutive duplicates": {
+			s:        []int{1, 2, 3, 3},
+			expected: []int{1, 2, 3},
+		},
+		"non-consecutive duplicates": {
+			s:        []int{3, 1, 2, 3},
+			expected: []int{3, 1, 2},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, Unique(tc.s))
+		})
+	}
+}
+
+func TestFilter(t *testing.T) {
+	includeOver5 := func(val int) bool { return val > 5 }
+	input := []int{1, 3, 5, 7, 9}
+	expectedOutput := []int{7, 9}
+
+	output := Filter(input, includeOver5)
+	assert.Equal(t, expectedOutput, output)
+}
+
+func TestFilter_ExcludeAllFilter(t *testing.T) {
+	excludeAll := func(val int) bool { return false }
+	input := []int{1, 3, 5, 7, 9}
+	expectedOutput := []int{}
+	output := Filter(input, excludeAll)
+	assert.Equal(t, expectedOutput, output)
+}
+
+func TestFilter_IncludeAllFilter(t *testing.T) {
+	includeAll := func(val int) bool { return true }
+	input := []int{1, 3, 5, 7, 9}
+	expectedOutput := input
+
+	output := Filter(input, includeAll)
+	assert.Equal(t, expectedOutput, output)
+}
+
+func TestFilter_Empty(t *testing.T) {
+	includeAll := func(val int) bool { return true }
+	input := []int{}
+	expectedOutput := input
+
+	output := Filter(input, includeAll)
+	assert.Equal(t, expectedOutput, output)
+}
+
+func TestFilter_Nil(t *testing.T) {
+	includeAll := func(val int) bool { return true }
+	var input []int = nil
+	expectedOutput := input
+
+	output := Filter(input, includeAll)
+	assert.Equal(t, expectedOutput, output)
+}
+
+func TestPop(t *testing.T) {
+	s := []int{1, 2, 3}
+	expected := []int{3, 2, 1}
+	var actual []int
+	for len(s) > 0 {
+		actual = append(actual, Pop(&s))
+	}
+	assert.Equal(t, expected, actual)
+	assert.Panics(
+		t,
+		func() {
+			Pop(&s)
+		},
+	)
+	assert.Panics(
+		t,
+		func() {
+			var s []int
+			Pop(&s)
+		},
+	)
+}
+
+func TestRepeat(t *testing.T) {
+	tests := map[string]struct {
+		n        int
+		vs       []int
+		expected []int
+	}{
+		"n: 0": {
+			n:        0,
+			vs:       []int{1, 2, 3},
+			expected: []int{},
+		},
+		"vs emptyy": {
+			n:        3,
+			vs:       []int{},
+			expected: []int{},
+		},
+		"one entry": {
+			n:        3,
+			vs:       []int{0},
+			expected: []int{0, 0, 0},
+		},
+		"multiple entries": {
+			n:        3,
+			vs:       []int{0, 1},
+			expected: []int{0, 1, 0, 1, 0, 1},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, Repeat(tc.n, tc.vs...))
+		})
+	}
+}

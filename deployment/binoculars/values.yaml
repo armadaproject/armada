@@ -1,6 +1,6 @@
 image:
   repository: gresearchdev/armada-binoculars
-  tag: LATEST
+  tag: 0.0.0-latest
 resources:
   limits:
     memory: 1Gi
@@ -8,6 +8,8 @@ resources:
   requests:
     memory: 512Mi
     cpu: 200m
+# -- Tolerations
+tolerations: []
 additionalLabels: {}
 additionalClusterRoleBindings: []
 additionalVolumeMounts: []
@@ -30,5 +32,10 @@ serviceAccount: null
 
 applicationConfig:
   grpcPort: 50051
+  grpc:
+    tls:
+      enabled: false
+      certPath: /certs/tls.crt
+      keyPath: /certs/tls.key
   httpPort: 8080
   metricsPort: 9000

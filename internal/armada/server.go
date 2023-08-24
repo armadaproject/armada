@@ -10,11 +10,11 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/armada/cache"
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -36,18 +36,14 @@ import (
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
 	log.Info("Armada server starting")
+	log.Infof("Armada priority classes: %v", config.Scheduling.Preemption.PriorityClasses)
+	log.Infof("Default priority class: %s", config.Scheduling.Preemption.DefaultPriorityClass)
 	defer log.Info("Armada server shutting down")
-	if config.Scheduling.Preemption.Enabled {
-		log.Info("Armada Job preemption is enabled")
-		log.Infof("Armada priority classes: %v", config.Scheduling.Preemption.PriorityClasses)
-		log.Infof("Default priority class: %s", config.Scheduling.Preemption.DefaultPriorityClass)
-	} else {
-		log.Info("Armada Job preemption is disabled")
-	}
 
 	// We call startupCompleteCheck.MarkComplete() when all services have been started.
 	startupCompleteCheck := health.NewStartupCompleteChecker()
@@ -81,7 +77,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	if err != nil {
 		return err
 	}
-	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls)
 
 	// Shut down grpcServer if the context is cancelled.
 	// Give the server 5 seconds to shut down gracefully.
@@ -213,7 +209,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		}
 		log.Info("Pulsar submit API deduplication enabled")
 
-		store, err := pgkeyvalue.New(pool, 1000000, config.Pulsar.DedupTable)
+		store, err := pgkeyvalue.New(ctx, pool, config.Pulsar.DedupTable)
 		if err != nil {
 			return err
 		}
@@ -229,9 +225,10 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 
 	// Service that consumes Pulsar messages and writes to Redis
 	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
-		Topic:            config.Pulsar.JobsetEventsTopic,
-		SubscriptionName: config.Pulsar.RedisFromPulsarSubscription,
-		Type:             pulsar.KeyShared,
+		Topic:             config.Pulsar.JobsetEventsTopic,
+		SubscriptionName:  config.Pulsar.RedisFromPulsarSubscription,
+		Type:              pulsar.KeyShared,
+		ReceiverQueueSize: config.Pulsar.ReceiverQueueSize,
 	})
 	if err != nil {
 		return errors.WithStack(err)
@@ -259,7 +256,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	}
 
 	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
-	queueCache := cache.NewQueueCache(&util.UTCClock{}, queueRepository, jobRepository, schedulingInfoRepository)
+
 	aggregatedQueueServer := server.NewAggregatedQueueServer(
 		permissions,
 		config.Scheduling,
@@ -272,11 +269,23 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		config.Pulsar.MaxAllowedMessageSize,
 		legacyExecutorRepo,
 	)
-	if config.Scheduling.MaxQueueReportsToStore > 0 || config.Scheduling.MaxJobReportsToStore > 0 {
-		aggregatedQueueServer.SchedulingReportsRepository = scheduler.NewSchedulingReportsRepository(
-			config.Scheduling.MaxQueueReportsToStore,
-			config.Scheduling.MaxJobReportsToStore,
-		)
+
+	schedulingContextRepository, err := scheduler.NewSchedulingContextRepository(config.Scheduling.MaxJobSchedulingContextsPerExecutor)
+	if err != nil {
+		return err
+	}
+	aggregatedQueueServer.SchedulingContextRepository = schedulingContextRepository
+
+	var schedulingReportsServer schedulerobjects.SchedulerReportingServer
+	if config.PulsarSchedulerEnabled {
+		schedulerApiConnection, err := createApiConnection(config.SchedulerApiConnection)
+		if err != nil {
+			return errors.Wrapf(err, "error creating connection to scheduler api")
+		}
+		schedulerApiReportsClient := schedulerobjects.NewSchedulerReportingClient(schedulerApiConnection)
+		schedulingReportsServer = scheduler.NewProxyingSchedulingReportsServer(schedulerApiReportsClient)
+	} else {
+		schedulingReportsServer = schedulingContextRepository
 	}
 
 	eventServer := server.NewEventServer(
@@ -291,20 +300,18 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	// Allows for registering functions to be run periodically in the background.
 	taskManager := task.NewBackgroundTaskManager(commonmetrics.MetricPrefix)
 	defer taskManager.StopAll(time.Second * 2)
-	taskManager.Register(queueCache.Refresh, config.Metrics.RefreshInterval, "refresh_queue_cache")
 	taskManager.Register(leaseManager.ExpireLeases, config.Scheduling.Lease.ExpiryLoopInterval, "lease_expiry")
 
-	metrics.ExposeDataMetrics(queueRepository, jobRepository, usageRepository, schedulingInfoRepository, queueCache)
+	if config.Metrics.ExposeSchedulingMetrics {
+		queueCache := cache.NewQueueCache(&util.UTCClock{}, queueRepository, jobRepository, schedulingInfoRepository)
+		taskManager.Register(queueCache.Refresh, config.Metrics.RefreshInterval, "refresh_queue_cache")
+		metrics.ExposeDataMetrics(queueRepository, jobRepository, usageRepository, schedulingInfoRepository, queueCache)
+	}
 
 	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
 	api.RegisterUsageServer(grpcServer, usageServer)
 	api.RegisterEventServer(grpcServer, eventServer)
-	if aggregatedQueueServer.SchedulingReportsRepository != nil {
-		schedulerobjects.RegisterSchedulerReportingServer(
-			grpcServer,
-			aggregatedQueueServer.SchedulingReportsRepository,
-		)
-	}
+	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
 
 	api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
 	grpc_prometheus.Register(grpcServer)
@@ -343,11 +350,7 @@ func validateCancelJobsBatchSizeConfig(config *configuration.ArmadaConfig) error
 }
 
 func validatePreemptionConfig(config configuration.PreemptionConfig) error {
-	if !config.Enabled {
-		return nil
-	}
-
-	// validate that the default priority class is in the priority class map
+	// Check that the default priority class is in the priority class map.
 	if config.DefaultPriorityClass != "" {
 		_, ok := config.PriorityClasses[config.DefaultPriorityClass]
 		if !ok {
@@ -355,52 +358,15 @@ func validatePreemptionConfig(config configuration.PreemptionConfig) error {
 		}
 	}
 
-	// validate that as priority increase, the limit decreases
-	type priorityClass struct {
-		name     string
-		priority int32
-		limits   map[string]float64
-	}
-	priorityClasses := make([]priorityClass, 0, len(config.PriorityClasses))
-	for k, pc := range config.PriorityClasses {
-		priorityClasses = append(priorityClasses, priorityClass{
-			name:     k,
-			priority: pc.Priority,
-			limits:   pc.MaximalResourceFractionPerQueue,
-		})
-	}
-
-	slices.SortFunc(priorityClasses, func(a priorityClass, b priorityClass) bool {
-		return a.priority > b.priority
-	})
-
-	var prevLimits map[string]float64 = nil
-	prevPriorityName := ""
-	for i, pc := range priorityClasses {
-		if i != 0 {
-			// check that the limit exists and that it is greater than the previous limit
-			for k, v := range prevLimits {
-				limit, ok := pc.limits[k]
-				if !ok {
-					return errors.WithStack(fmt.Errorf("invalid priority class configuration: Limit for resource %s missing at priority %s", k, pc.name))
-				}
-				if limit < v {
-					return errors.WithStack(
-						fmt.Errorf("invalid priority class configuration: Limit for resource %s at priority %s [%.3f] is lower than at priority %s [%.3f] ", k, pc.name, limit, prevPriorityName, v))
-				}
-			}
-
-			// Check that we don't have a limit for some new resource defined
-			for k := range pc.limits {
-				_, ok := prevLimits[k]
-				if !ok {
-					return errors.WithStack(fmt.Errorf("invalid priority class configuration: Limit for resource %s missing at priority %s", k, prevPriorityName))
-				}
-			}
-		}
-		prevLimits = pc.limits
-		prevPriorityName = pc.name
-	}
-
 	return nil
+}
+
+func createApiConnection(connectionDetails client.ApiConnectionDetails) (*grpc.ClientConn, error) {
+	grpc_prometheus.EnableClientHandlingTimeHistogram()
+	return client.CreateApiConnectionWithCallOptions(
+		&connectionDetails,
+		[]grpc.CallOption{},
+		grpc.WithChainUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
+		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
+	)
 }

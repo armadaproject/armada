@@ -709,6 +709,11 @@
           "description": "Indicates which scheduler should manage this job.\nIf empty, the default scheduler is used.",
           "type": "string"
         },
+        "schedulingResourceRequirements": {
+          "description": "max(\n\n\tsum across all containers,\n\tmax over all init containers,\n\n)\n\nThis is because containers run in parallel, whereas initContainers run serially.\nThis field is populated automatically at submission.\nSubmitting a job with this field already populated results in an error.",
+          "title": "Resource requests and limits necessary for scheduling the main pod of this job.\nThe requests and limits herein are set to:",
+          "$ref": "#/definitions/v1ResourceRequirements"
+        },
         "services": {
           "type": "array",
           "items": {
@@ -735,6 +740,9 @@
         },
         "queue": {
           "type": "string"
+        },
+        "reason": {
+          "type": "string"
         }
       }
     },
@@ -752,6 +760,9 @@
           "type": "string"
         },
         "queue": {
+          "type": "string"
+        },
+        "reason": {
           "type": "string"
         },
         "requestor": {
@@ -773,6 +784,9 @@
           "type": "string"
         },
         "queue": {
+          "type": "string"
+        },
+        "reason": {
           "type": "string"
         },
         "requestor": {
@@ -1197,6 +1211,9 @@
           "type": "string"
         },
         "queue": {
+          "type": "string"
+        },
+        "reason": {
           "type": "string"
         }
       }

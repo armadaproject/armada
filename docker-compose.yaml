@@ -4,6 +4,10 @@ networks:
   kind:
     external: true
 
+volumes:
+  gomod-cache:
+  go-cache:
+
 services:
   #
   # Infrastructure services.
@@ -30,7 +34,7 @@ services:
       - kind
 
   pulsar:
-    image: ${PULSAR_IMAGE:-apachepulsar/pulsar:2.10.0}
+    image: ${PULSAR_IMAGE:-apachepulsar/pulsar:2.10.4}
     container_name: pulsar
     volumes:
       - ./developer/dependencies/pulsar.conf:/conf/pulsar.conf
@@ -45,88 +49,200 @@ services:
   #
   server:
     container_name: server
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
       - 50051:50051
       - 8080:8080
+      - 4000:4000
     volumes:
       - ./developer/config/insecure-armada.yaml:/config/insecure-armada.yaml
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
     depends_on:
-      - redis
-      - postgres
-      - pulsar
       - eventingester
+    working_dir: /app
+    env_file:
+      - ./developer/env/server.env
     command: ./server --config /config/insecure-armada.yaml
+
+  server-pulsar:
+    container_name: server
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - 50051:50051
+      - 8080:8080
+      - 4000:4000
+    volumes:
+      - ./developer/config/insecure-armada.yaml:/config/insecure-armada.yaml
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
+    depends_on:
+      - eventingester
+    working_dir: /app
+    env_file:
+      - ./developer/env/server-pulsar.env
+    command: ./server --config /config/insecure-armada.yaml
+
+  scheduler:
+    container_name: scheduler
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - 9000:9000
+      - 8081:8081
+      - 50052:50052
+    volumes:
+      - ./developer/config/insecure-armada.yaml:/config/insecure-armada.yaml
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
+    depends_on:
+      - postgresPulsarMigration
+    working_dir: /app
+    env_file:
+      - ./developer/env/scheduler.env
+    command: ./scheduler run --config /config/insecure-armada.yaml
+
+  postgresPulsarMigration:
+    container_name: postgresPulsarMigration
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    volumes:
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
+    working_dir: /app
+    command: ./scheduler migrateDatabase
+
+  scheduleringester:
+    container_name: scheduleringester
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - 9003:9003
+    volumes:
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
+    env_file:
+      - ./developer/env/scheduleringester.env
+    working_dir: /app
+    command: ./scheduleringester
 
   executor:
     container_name: executor
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
       - 9001:9001
+      - 4001:4000
     depends_on:
       - server
     volumes:
       - ./.kube/internal:/.kube
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
     environment:
       - KUBECONFIG=/.kube/config
     env_file:
       - ./developer/env/executor.env
+    working_dir: /app
+    command: ./executor
+
+  executor-pulsar:
+    container_name: executor
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - 9001:9001
+      - 4001:4000
+    depends_on:
+      - server-pulsar
+    volumes:
+      - ./.kube/internal:/.kube
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
+    environment:
+      - KUBECONFIG=/.kube/config
+    env_file:
+      - ./developer/env/executor-pulsar.env
+    working_dir: /app
     command: ./executor
 
   binoculars:
     container_name: binoculars
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
-      - 8082:8082
+      - 8082:8080
+      - 4002:4000
     depends_on:
       - server
     volumes:
       - ./.kube/internal:/.kube
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
     environment:
       - KUBECONFIG=/.kube/config
+    env_file:
+      - ./developer/env/binoculars.env
+    working_dir: /app
     command: ./binoculars
 
   eventingester:
     container_name: eventingester
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
-    depends_on:
-      - redis
+    ports:
+      - 4003:4000
+    volumes:
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
+    working_dir: /app
     command: ./eventingester
 
   lookout:
     container_name: lookout
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
       - "8089:8080"
+      - "4004:4000"
     depends_on:
       - server
       - lookoutingester
     volumes:
       - ./internal/lookout/ui/build:/app/internal/lookout/ui/build
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
     env_file:
       - ./developer/env/lookout.env
+    working_dir: /app
     entrypoint: sh -c "./lookout --migrateDatabase && ./lookout"
 
   lookoutv2:
     container_name: lookoutv2
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
     networks:
       - kind
     ports:
       - "10000:10000"
+      - "4005:4000"
     depends_on:
       - server
       - lookoutingesterv2
+    volumes:
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
     env_file:
       - ./developer/env/lookoutv2.env
     working_dir: "/app"
@@ -134,31 +250,47 @@ services:
 
   lookoutingester:
     container_name: lookoutingester
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    ports:
+      - 4006:4000
+    volumes:
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
     networks:
       - kind
     command: ./lookoutingester
 
   lookoutingesterv2:
     container_name: lookoutingesterv2
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    ports:
+      - 4007:4000
+    volumes:
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
     networks:
       - kind
     env_file:
       - ./developer/env/lookoutv2.env
+    working_dir: /app
     command: ./lookoutingesterv2
 
   jobservice:
     container_name: jobservice
-    image: ${ARMADA_IMAGE:-gresearch/armada}:${ARMADA_IMAGE_TAG:-latest}
+    image: ${ARMADA_IMAGE:-gresearch/armada-jobservice}:${ARMADA_IMAGE_TAG:-latest}
+    volumes:
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
     networks:
       - kind
     ports:
       - 60003:60003
+      - 4008:4000
     depends_on:
       - server
     env_file:
       - ./developer/env/jobservice.env
+    working_dir: /app
     command: ./jobservice run
 
   airflow:
@@ -171,4 +303,4 @@ services:
     volumes:
       - ".:/app:rw"
     working_dir: "/app"
-    entrypoint: sh -c "localdev/scripts/airflow-start.sh"
+    entrypoint: sh -c "developer/dependencies/airflow-start.sh"

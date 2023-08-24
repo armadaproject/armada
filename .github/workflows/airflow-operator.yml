@@ -5,46 +5,46 @@ on:
     branches-ignore:
       - master
     paths:
-      - 'client/python/**'
-      - 'build/python-client/**'
-      - 'pkg/api/*.proto'
+      - '.github/workflows/airflow-operator.yml'
       - '.github/workflows/python-client.yml'
+      - '.github/workflows/python-tests/*'
+      - 'build/airflow-operator/**'
+      - 'build/python-client/**'
+      - 'client/python/**'
+      - 'docs/python_airflow_operator.md'
       - 'docs/python_armada_client.md'
+      - 'internal/jobservice/*'
+      - 'pkg/api/*.proto'
+      - 'pkg/api/jobservice/*.proto'
+      - 'scripts/build-airflow-operator.sh'
       - 'scripts/build-python-client.sh'
       - 'third_party/airflow/**'
-      - 'build/airflow-operator/**'
-      - 'pkg/api/jobservice/*.proto'
-      - '.github/workflows/airflow-operator.yml'
-      - 'docs/python_airflow_operator.md'
-      - 'scripts/build-airflow-operator.sh'
-      - 'makefile'
-      - '.github/workflows/python-tests/*'
 
   pull_request:
     branches-ignore:
       - gh-pages
     paths:
-      - 'client/python/**'
-      - 'build/python-client/**'
-      - 'pkg/api/*.proto'
+      - '.github/workflows/airflow-operator.yml'
       - '.github/workflows/python-client.yml'
+      - '.github/workflows/python-tests/*'
+      - 'build/airflow-operator/**'
+      - 'build/python-client/**'
+      - 'client/python/**'
+      - 'docs/python_airflow_operator.md'
       - 'docs/python_armada_client.md'
+      - 'internal/jobservice/*'
+      - 'pkg/api/*.proto'
+      - 'pkg/api/jobservice/*.proto'
+      - 'scripts/build-airflow-operator.sh'
       - 'scripts/build-python-client.sh'
       - 'third_party/airflow/**'
-      - 'build/airflow-operator/**'
-      - 'pkg/api/jobservice/*.proto'
-      - '.github/workflows/airflow-operator.yml'
-      - 'docs/python_airflow_operator.md'
-      - 'scripts/build-airflow-operator.sh'
-      - 'makefile'
-      - '.github/workflows/python-tests/*'
 
 jobs:
   airflow-tox:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
-        go: [ '1.18' ]
+        go: [ '1.20' ]
         python: [ '3.8', '3.9', '3.10' ]
         include:
           - tox-env: 'py38'
@@ -53,14 +53,14 @@ jobs:
           - tox-env: 'py310'
             python: '3.10'
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3.3.0
       - uses: ./.github/workflows/go-setup
       - name: Install Protoc
-        uses: arduino/setup-protoc@v1
+        uses: arduino/setup-protoc@v2
         with:
-          version: '3.17.3'
+          version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: make airflow-operator
+      - run: go run github.com/magefile/mage@v1.14.0 -v airflowOperator
       - uses: ./.github/workflows/python-tests
         with:
           python-version: ${{ matrix.python }}
@@ -76,36 +76,33 @@ jobs:
         # we'll have to ensure that we don't use the same artifact name for
         # both versions in the matrix -- this will lead to them overwriting
         # each other.
-        go: [ '1.18' ]
+        go: [ '1.20' ]
     # As of December 2022, using 8vcpu runners is slower overall,
     # due to longer queue times.
     runs-on: ubuntu-22.04
     env:
-      ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
-      ARMADA_EXECUTOR_INGRESS_PORT: 5001
       # Cache Docker layers in the Github actions cache.
       # These variables are picked up by the goreleaser config.
       DOCKER_BUILDX_CACHE_FROM: "type=gha"
       DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
       DOCKER_BUILDX_BUILDER: "builder"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v3.3.0
       - run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
       - run: docker buildx install
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go }}
-          cache: true
       - name: Setup and integration tests
         run: |
           # Manually create folders to ensure perms are correct.
           mkdir -p .kube/internal
           mkdir -p .kube/external
-          go run github.com/magefile/mage@v1.14.0 -v BuildCICluster
+          go run github.com/magefile/mage@v1.14.0 -v localdev minimal
       - name: Install Protoc
-        uses: arduino/setup-protoc@v1
+        uses: arduino/setup-protoc@v2
         with:
-          version: '3.17.3'
+          version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - run: make tests-e2e-airflow
+      - run: go run github.com/magefile/mage@v1.14.0 -v teste2eAirflow
 
