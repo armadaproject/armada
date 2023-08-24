@@ -244,6 +244,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx context.Context, executor 
 				AND jr.succeeded = false
 				AND jr.failed = false
 				AND jr.cancelled = false
+				ORDER BY jr.serial
 				LIMIT %d;
 `
 
