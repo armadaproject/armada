@@ -36,12 +36,10 @@ python3.8 -m pip install armada-airflow
 
 From the top level of the repo, you should run `make airflow-operator`.  This will generate proto/grpc files in the jobservice folder.
 
-Airflow with the Armada operator can be run alongside the other Armada services via the localdev docker-compose 
-environment. It is manually started in this way:
+Airflow with the Armada operator can be run alongside the other Armada services via the docker-compose environment. It is manually started in this way:
 
 ```
-cd localdev
-docker-compose up -d airflow
+mage airflow start
 ```
 
 Airflow's web UI will then be accessible at http://localhost:8081 (login with admin/admin).
