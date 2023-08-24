@@ -9,6 +9,7 @@ import (
 	"time"
 
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
@@ -23,6 +24,7 @@ import (
 	"github.com/armadaproject/armada/internal/executor/job/processors"
 	"github.com/armadaproject/armada/internal/executor/metrics"
 	"github.com/armadaproject/armada/internal/executor/metrics/pod_metrics"
+	"github.com/armadaproject/armada/internal/executor/metrics/runstate"
 	"github.com/armadaproject/armada/internal/executor/node"
 	"github.com/armadaproject/armada/internal/executor/podchecks"
 	"github.com/armadaproject/armada/internal/executor/reporter"
@@ -204,6 +206,8 @@ func setupExecutorApiComponents(
 	taskManager.Register(clusterAllocationService.AllocateSpareClusterCapacity, config.Task.AllocateSpareClusterCapacityInterval, "submit_runs")
 	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
 	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, podUtilisationService, nodeInfoService)
+	runStateMetricsCollector := runstate.NewJobRunStateStoreMetricsCollector(jobRunState)
+	prometheus.MustRegister(runStateMetricsCollector)
 
 	if config.Metric.ExposeQueueUsageMetrics && config.Task.UtilisationEventReportingInterval > 0 {
 		podUtilisationReporter := utilisation.NewUtilisationEventReporter(

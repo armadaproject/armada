@@ -138,7 +138,7 @@ func Run(config schedulerconfig.Configuration) error {
 		executorRepository,
 		legacyExecutorRepository,
 		allowedPcs,
-		config.Scheduling.MaximumJobsToSchedule,
+		config.MaxJobsLeasedPerCall,
 		config.Scheduling.Preemption.NodeIdLabel,
 		config.Scheduling.Preemption.PriorityClassNameOverride,
 		config.Pulsar.MaxAllowedMessageSize,
@@ -206,6 +206,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.ExecutorTimeout,
 		config.Scheduling.MaxRetries+1,
 		config.Scheduling.Preemption.NodeIdLabel,
+		NewSchedulerMetrics(config.Metrics.Metrics),
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")

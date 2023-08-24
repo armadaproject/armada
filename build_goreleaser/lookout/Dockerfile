@@ -1,6 +1,6 @@
 ARG NODE_BUILD_IMAGE=node:16.14-buster
 ARG OPENAPI_BUILD_IMAGE=openapitools/openapi-generator-cli:v5.4.0
-ARG BASE_IMAGE=alpine:3.17.0
+ARG BASE_IMAGE=alpine:3.18.3
 
 FROM ${OPENAPI_BUILD_IMAGE} AS OPENAPI
 

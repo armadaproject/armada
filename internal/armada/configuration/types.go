@@ -86,6 +86,8 @@ type PulsarConfig struct {
 	ReceiveTimeout time.Duration
 	// Backoff from polling when Pulsar returns an error
 	BackoffTime time.Duration
+	// Number of pulsar messages that will be queued by the pulsar consumer.
+	ReceiverQueueSize int
 }
 
 // DatabaseConfig represents the configuration of the database connection.
@@ -107,6 +109,8 @@ type DatabaseConfig struct {
 }
 
 type SchedulingConfig struct {
+	// Set to true to disable scheduling
+	DisableScheduling bool
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
 	// If true, schedule jobs across all executors in the same pool in a unified manner.
@@ -216,6 +220,10 @@ type SchedulingConfig struct {
 	MaxUnacknowledgedJobsPerExecutor uint
 	// If true, do not during scheduling skip jobs with requirements known to be impossible to meet.
 	AlwaysAttemptScheduling bool
+	// The frequency at which the scheduler updates the cluster state.
+	ExecutorUpdateFrequency time.Duration
+	// Enable new preemption strategy.
+	EnableNewPreemptionStrategy bool
 }
 
 // FairnessModel controls how fairness is computed.
@@ -323,6 +331,18 @@ type MetricsConfig struct {
 	Port                    uint16
 	RefreshInterval         time.Duration
 	ExposeSchedulingMetrics bool
+	Metrics                 SchedulerMetricsConfig
+}
+
+type SchedulerMetricsConfig struct {
+	ScheduleCycleTimeHistogramSettings  HistogramConfig
+	ReconcileCycleTimeHistogramSettings HistogramConfig
+}
+
+type HistogramConfig struct {
+	Start  float64
+	Factor float64
+	Count  int
 }
 
 type EventApiConfig struct {

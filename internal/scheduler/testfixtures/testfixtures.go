@@ -100,6 +100,7 @@ func TestSchedulingConfig() configuration.SchedulingConfig {
 		DominantResourceFairnessResourcesToConsider: TestResourceNames,
 		ExecutorTimeout:                  15 * time.Minute,
 		MaxUnacknowledgedJobsPerExecutor: math.MaxInt,
+		EnableNewPreemptionStrategy:      true,
 	}
 }
 
@@ -231,6 +232,13 @@ func WithNodeSelectorPodReqs(selector map[string]string, reqs []*schedulerobject
 func WithNodeSelectorPodReq(selector map[string]string, req *schedulerobjects.PodRequirements) *schedulerobjects.PodRequirements {
 	req.NodeSelector = maps.Clone(selector)
 	return req
+}
+
+func WithPriorityJobs(priority uint32, jobs []*jobdb.Job) []*jobdb.Job {
+	for i, job := range jobs {
+		jobs[i] = job.WithPriority(priority)
+	}
+	return jobs
 }
 
 func WithNodeUniformityLabelAnnotationJobs(label string, jobs []*jobdb.Job) []*jobdb.Job {
