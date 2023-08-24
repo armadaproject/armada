@@ -3,7 +3,7 @@ fullnameOverride: ""
 
 image:
   repository: gresearchdev/armada-server
-  tag: LATEST
+  tag: 0.0.0-latest
 
 resources:
   limits:
@@ -18,6 +18,8 @@ containerSecurityContext:
   allowPrivilegeEscalation: false
 # -- Pod Security Context
 podSecurityContext: {}
+# -- Tolerations
+tolerations: []
 
 # -- Additional labels for all Armada Server K8s resources
 additionalLabels: {}
@@ -82,6 +84,11 @@ serviceAccount: {}
 applicationConfig:
   # -- Armada Server gRPC port
   grpcPort: 50051
+  grpc:
+    tls:
+      enabled: false
+      certPath: /certs/tls.crt
+      keyPath: /certs/tls.key
   # -- Armada Server REST port
   httpPort: 8080
   pulsar:

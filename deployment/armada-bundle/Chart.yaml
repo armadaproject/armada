@@ -2,7 +2,7 @@ apiVersion: v2
 description: A helm chart which bundles Armada components
 name: armada-bundle
 version: 0.0.1
-appVersion: LATEST
+appVersion: 0.0.0-latest
 dependencies:
   - name: redis-ha
     version: 4.15.0

@@ -12,13 +12,11 @@
 name: "CodeQL"
 
 on:
-  push:
-    branches: [ master ]
-  pull_request:
-    # The branches below must be a subset of the branches above
-    branches: [ master ]
-  schedule:
-    - cron: '15 2 * * 4'
+  workflow_call:
+
+permissions:
+  actions: read
+  security-events: write
 
 jobs:
   analyze:
@@ -40,16 +38,16 @@ jobs:
 
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3.3.0
     # The ArmadaProject.Io.Client needs the generated proto files
     - name: Install Protoc
-      uses: arduino/setup-protoc@v1
+      uses: arduino/setup-protoc@v2
       with:
-        version: '3.17.3'
+        version: '23.3'
         repo-token: ${{ secrets.GITHUB_TOKEN }}
     - uses: ./.github/workflows/go-setup
-    - name: Make Proto
-      run: make proto
+    - name: Mage Proto
+      run: go run github.com/magefile/mage@v1.14.0 -v proto
 
     # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL

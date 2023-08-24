@@ -7,13 +7,14 @@ import (
 	time "time"
 
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
-	"github.com/armadaproject/armada/internal/scheduler/adapters"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -58,14 +59,19 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 	for p, rl := range nodeInfo.NonArmadaAllocatedResources {
 		nonArmadaAllocatedResources[p] = schedulerobjects.ResourceList{Resources: rl.Resources}
 	}
+	resourceUsageByQueue := make(map[string]*schedulerobjects.ResourceList)
+	for queueName, resourceUsage := range nodeInfo.ResourceUsageByQueue {
+		resourceUsageByQueue[queueName] = &schedulerobjects.ResourceList{Resources: resourceUsage.Resources}
+	}
 
 	jobRunsByState := make(map[string]schedulerobjects.JobRunState)
 	for jobId, state := range nodeInfo.RunIdsByState {
 		jobRunsByState[jobId] = JobRunStateFromApiJobState(state)
 	}
 	return &schedulerobjects.Node{
-		Id:                               fmt.Sprintf("%s-%s", executor, nodeInfo.Name),
+		Id:                               NodeIdFromExecutorAndNodeName(executor, nodeInfo.Name),
 		Name:                             nodeInfo.Name,
+		Executor:                         executor,
 		LastSeen:                         lastSeen,
 		Taints:                           nodeInfo.GetTaints(),
 		Labels:                           nodeInfo.GetLabels(),
@@ -73,7 +79,14 @@ func NewNodeFromNodeInfo(nodeInfo *NodeInfo, executor string, allowedPriorities 
 		AllocatableByPriorityAndResource: allocatableByPriorityAndResource,
 		NonArmadaAllocatedResources:      nonArmadaAllocatedResources,
 		StateByJobRunId:                  jobRunsByState,
+		Unschedulable:                    nodeInfo.Unschedulable,
+		ResourceUsageByQueue:             resourceUsageByQueue,
+		ReportingNodeType:                nodeInfo.NodeType,
 	}, nil
+}
+
+func NodeIdFromExecutorAndNodeName(executor, nodeName string) string {
+	return fmt.Sprintf("%s-%s", executor, nodeName)
 }
 
 func JobRunStateFromApiJobState(s JobState) schedulerobjects.JobRunState {
@@ -94,55 +107,151 @@ func JobRunStateFromApiJobState(s JobState) schedulerobjects.JobRunState {
 	return schedulerobjects.JobRunState_UNKNOWN
 }
 
-func NewNodeTypeFromNodeInfo(nodeInfo *NodeInfo, indexedTaints map[string]interface{}, indexedLabels map[string]interface{}) *schedulerobjects.NodeType {
-	return schedulerobjects.NewNodeType(nodeInfo.GetTaints(), nodeInfo.GetLabels(), indexedTaints, indexedLabels)
+func (job *Job) GetPerQueuePriority() uint32 {
+	priority := job.Priority
+	if priority < 0 {
+		return 0
+	}
+	if priority > math.MaxUint32 {
+		return math.MaxUint32
+	}
+	return uint32(math.Round(priority))
 }
 
-func (job *Job) GetRequirements(priorityClasses map[string]configuration.PriorityClass) *schedulerobjects.JobSchedulingInfo {
-	podSpecs := job.GetAllPodSpecs()
-	objectRequirements := make([]*schedulerobjects.ObjectRequirements, len(podSpecs))
-	for i, podSpec := range podSpecs {
-		if podSpec == nil {
-			continue
+func (job *Job) GetSubmitTime() time.Time {
+	return job.Created
+}
+
+func (job *Job) GetPodRequirements(priorityClasses map[string]types.PriorityClass) *schedulerobjects.PodRequirements {
+	podSpec := job.GetMainPodSpec()
+
+	priority, ok := PriorityFromPodSpec(podSpec, priorityClasses)
+	if priorityClasses != nil && !ok {
+		// Ignore this error if priorityByPriorityClassName is explicitly set to nil.
+		// We assume that in this case the caller is sure the priority does not need to be set.
+		err := errors.Errorf("unknown priorityClassName %s", podSpec.PriorityClassName)
+		logging.WithStacktrace(logrus.NewEntry(logrus.New()), err).Error("failed to get priority from priorityClassName")
+	}
+
+	preemptionPolicy := string(v1.PreemptLowerPriority)
+	if podSpec.PreemptionPolicy != nil {
+		preemptionPolicy = string(*podSpec.PreemptionPolicy)
+	}
+
+	return &schedulerobjects.PodRequirements{
+		NodeSelector:         podSpec.NodeSelector,
+		Affinity:             podSpec.Affinity,
+		Tolerations:          podSpec.Tolerations,
+		Annotations:          maps.Clone(job.Annotations),
+		Priority:             priority,
+		PreemptionPolicy:     preemptionPolicy,
+		ResourceRequirements: job.GetResourceRequirements(),
+	}
+}
+
+// SchedulingResourceRequirementsFromPodSpec returns resource requests and limits necessary for scheduling a pod.
+// The requests and limits are set to:
+//
+// max(
+//
+//	sum across all containers,
+//	max over all init containers,
+//
+// )
+//
+// This is because containers run in parallel, whereas initContainers run serially.
+func SchedulingResourceRequirementsFromPodSpec(podSpec *v1.PodSpec) v1.ResourceRequirements {
+	rv := v1.ResourceRequirements{
+		Requests: make(v1.ResourceList),
+		Limits:   make(v1.ResourceList),
+	}
+	for _, c := range podSpec.Containers {
+		for t, request := range c.Resources.Requests {
+			q := rv.Requests[t]
+			q.Add(request)
+			rv.Requests[t] = q
 		}
-		objectRequirements[i] = &schedulerobjects.ObjectRequirements{
-			Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-				PodRequirements: adapters.PodRequirementsFromPod(&v1.Pod{
-					ObjectMeta: metav1.ObjectMeta{
-						Annotations: job.Annotations,
-					},
-					Spec: *podSpec,
-				}, priorityClasses),
-			},
+		for t, limit := range c.Resources.Limits {
+			q := rv.Limits[t]
+			q.Add(limit)
+			rv.Limits[t] = q
 		}
 	}
-	priorityClassName := ""
-	if len(podSpecs) > 0 {
-		priorityClassName = podSpecs[0].PriorityClassName
+	for _, c := range podSpec.InitContainers {
+		for t, request := range c.Resources.Requests {
+			if request.Cmp(rv.Requests[t]) == 1 {
+				rv.Requests[t] = request
+			}
+		}
+		for t, limit := range c.Resources.Limits {
+			if limit.Cmp(rv.Limits[t]) == 1 {
+				rv.Limits[t] = limit
+			}
+		}
 	}
-	return &schedulerobjects.JobSchedulingInfo{
-		PriorityClassName:  priorityClassName,
-		Priority:           LogSubmitPriorityFromApiPriority(job.GetPriority()),
-		SubmitTime:         job.GetCreated(),
-		ObjectRequirements: objectRequirements,
+	return rv
+}
+
+// PriorityFromPodSpec returns the priority in a pod spec.
+// If priority is set directly, that value is returned.
+// Otherwise, it returns the value of the key podSpec.
+// In both cases the value along with true boolean is returned.
+// PriorityClassName in priorityByPriorityClassName map.
+// If no priority is set for the pod spec, 0 along with a false boolean would be returned
+func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityClasses map[string]types.PriorityClass) (int32, bool) {
+	// If there's no podspec there's nothing we can do
+	if podSpec == nil {
+		return 0, false
+	}
+
+	// If a priority is directly specified, use that
+	if podSpec.Priority != nil {
+		return *podSpec.Priority, true
+	}
+
+	// If we find a priority class use that
+	priorityClass, ok := priorityClasses[podSpec.PriorityClassName]
+	if ok {
+		return priorityClass.Priority, true
+	}
+
+	// Couldn't find anything
+	return 0, false
+}
+
+func (job *Job) GetPriorityClassName() string {
+	podSpec := job.GetMainPodSpec()
+	return podSpec.PriorityClassName
+}
+
+func (job *Job) GetNodeSelector() map[string]string {
+	podSpec := job.GetMainPodSpec()
+	return podSpec.NodeSelector
+}
+
+func (job *Job) GetAffinity() *v1.Affinity {
+	podSpec := job.GetMainPodSpec()
+	return podSpec.Affinity
+}
+
+func (job *Job) GetTolerations() []v1.Toleration {
+	podSpec := job.GetMainPodSpec()
+	return podSpec.Tolerations
+}
+
+func (job *Job) GetResourceRequirements() v1.ResourceRequirements {
+	// Use pre-computed schedulingResourceRequirements if available.
+	// Otherwise compute it from the containers in podSpec.
+	podSpec := job.GetMainPodSpec()
+	if len(job.SchedulingResourceRequirements.Requests) > 0 || len(job.SchedulingResourceRequirements.Limits) > 0 {
+		return job.SchedulingResourceRequirements
+	} else {
+		return SchedulingResourceRequirementsFromPodSpec(podSpec)
 	}
 }
 
 func (job *Job) GetJobSet() string {
 	return job.JobSetId
-}
-
-// LogSubmitPriorityFromApiPriority returns the uint32 representation of the priority included with a submitted job,
-// or an error if the conversion fails.
-func LogSubmitPriorityFromApiPriority(priority float64) uint32 {
-	if priority < 0 {
-		priority = 0
-	}
-	if priority > math.MaxUint32 {
-		priority = math.MaxUint32
-	}
-	priority = math.Round(priority)
-	return uint32(priority)
 }
 
 func (job *Job) GetMainPodSpec() *v1.PodSpec {
@@ -157,13 +266,18 @@ func (job *Job) GetMainPodSpec() *v1.PodSpec {
 	return nil
 }
 
-func (job *Job) TotalResourceRequest() armadaresource.ComputeResources {
-	totalResources := make(armadaresource.ComputeResources)
-	for _, podSpec := range job.GetAllPodSpecs() {
-		podResource := armadaresource.TotalPodResourceRequest(podSpec)
-		totalResources.Add(podResource)
+func (job *JobSubmitRequestItem) GetMainPodSpec() *v1.PodSpec {
+	if job.PodSpec != nil {
+		return job.PodSpec
+	} else if len(job.PodSpecs) > 0 {
+		return job.PodSpecs[0]
 	}
-	return totalResources
+	return nil
+}
+
+func (job *Job) TotalResourceRequest() armadaresource.ComputeResources {
+	podSpec := job.GetMainPodSpec()
+	return armadaresource.TotalPodResourceRequest(podSpec)
 }
 
 func ShortStringFromEventMessages(msgs []*EventMessage) string {

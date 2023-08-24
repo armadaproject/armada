@@ -6,8 +6,7 @@ import (
 	_ "embed"
 	"time"
 
-	"github.com/jackc/pgtype/pgxtype"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/database"
@@ -16,7 +15,7 @@ import (
 //go:embed migrations/*.sql
 var fs embed.FS
 
-func Migrate(ctx context.Context, db pgxtype.Querier) error {
+func Migrate(ctx context.Context, db database.Querier) error {
 	start := time.Now()
 	migrations, err := database.ReadMigrations(fs, "migrations")
 	if err != nil {

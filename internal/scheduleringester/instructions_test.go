@@ -32,45 +32,17 @@ func TestConvertSequence(t *testing.T) {
 		"submit": {
 			events: []*armadaevents.EventSequence_Event{f.Submit},
 			expected: []DbOperation{InsertJobs{f.JobIdString: &schedulerdb.Job{
-				JobID:         f.JobIdString,
-				JobSet:        f.JobSetName,
-				UserID:        f.UserId,
-				Groups:        compress.MustCompressStringArray(f.Groups, compressor),
-				Queue:         f.Queue,
-				Queued:        true,
-				QueuedVersion: 0,
-				Priority:      int64(f.Priority),
-				Submitted:     f.BaseTime.UnixNano(),
-				SubmitMessage: protoutil.MustMarshallAndCompress(f.Submit.GetSubmitJob(), compressor),
-				SchedulingInfo: protoutil.MustMarshall(&schedulerobjects.JobSchedulingInfo{
-					Lifetime:        0,
-					AtMostOnce:      true,
-					Preemptible:     true,
-					ConcurrencySafe: true,
-					Version:         0,
-					ObjectRequirements: []*schedulerobjects.ObjectRequirements{
-						{
-							Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
-								PodRequirements: &schedulerobjects.PodRequirements{
-									NodeSelector:     f.NodeSelector,
-									Tolerations:      f.Tolerations,
-									PreemptionPolicy: "PreemptLowerPriority",
-									Priority:         f.PriorityClassValue,
-									ResourceRequirements: v1.ResourceRequirements{
-										Limits: map[v1.ResourceName]resource.Quantity{
-											"memory": resource.MustParse("64Mi"),
-											"cpu":    resource.MustParse("150m"),
-										},
-										Requests: map[v1.ResourceName]resource.Quantity{
-											"memory": resource.MustParse("64Mi"),
-											"cpu":    resource.MustParse("150m"),
-										},
-									},
-								},
-							},
-						},
-					},
-				}),
+				JobID:          f.JobIdString,
+				JobSet:         f.JobSetName,
+				UserID:         f.UserId,
+				Groups:         compress.MustCompressStringArray(f.Groups, compressor),
+				Queue:          f.Queue,
+				Queued:         true,
+				QueuedVersion:  0,
+				Priority:       int64(f.Priority),
+				Submitted:      f.BaseTime.UnixNano(),
+				SubmitMessage:  protoutil.MustMarshallAndCompress(f.Submit.GetSubmitJob(), compressor),
+				SchedulingInfo: protoutil.MustMarshall(getExpectedSubmitMessageSchedulingInfo(t)),
 			}}},
 		},
 		"ignores duplicate submit": {
@@ -80,13 +52,13 @@ func TestConvertSequence(t *testing.T) {
 		"job run leased": {
 			events: []*armadaevents.EventSequence_Event{f.Leased},
 			expected: []DbOperation{
-				InsertRuns{f.RunIdUuid: &schedulerdb.Run{
+				InsertRuns{f.RunIdUuid: &JobRunDetails{queue: f.Queue, dbRun: &schedulerdb.Run{
 					RunID:    f.RunIdUuid,
 					JobID:    f.JobIdString,
 					JobSet:   f.JobSetName,
 					Executor: f.ExecutorId,
 					Node:     f.NodeName,
-				}},
+				}}},
 				UpdateJobQueuedState{f.JobIdString: &JobQueuedStateUpdate{
 					Queued:             false,
 					QueuedStateVersion: 1,
@@ -144,7 +116,7 @@ func TestConvertSequence(t *testing.T) {
 		"reprioritise jobset": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetReprioritiseRequested},
 			expected: []DbOperation{
-				UpdateJobSetPriorities{f.JobSetName: f.NewPriority},
+				UpdateJobSetPriorities{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: f.NewPriority},
 			},
 		},
 		"JobCancelRequested": {
@@ -156,7 +128,25 @@ func TestConvertSequence(t *testing.T) {
 		"JobSetCancelRequested": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{f.JobSetName: true},
+				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}},
+			},
+		},
+		"JobSetCancelRequested - Queued only": {
+			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_QUEUED)},
+			expected: []DbOperation{
+				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: false}},
+			},
+		},
+		"JobSetCancelRequested - Pending only": {
+			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_PENDING)},
+			expected: []DbOperation{
+				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: false, cancelLeased: true}},
+			},
+		},
+		"JobSetCancelRequested - Running only": {
+			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_RUNNING)},
+			expected: []DbOperation{
+				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: false, cancelLeased: true}},
 			},
 		},
 		"JobCancelled": {
@@ -193,7 +183,7 @@ func TestConvertSequence(t *testing.T) {
 		"multiple events": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested, f.Running, f.JobSucceeded},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{f.JobSetName: true},
+				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}},
 				MarkRunsRunning{f.RunIdUuid: true},
 				MarkJobsSucceeded{f.JobIdString: true},
 			},
@@ -211,7 +201,7 @@ func TestConvertSequence(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			converter := InstructionConverter{m, f.PriorityClasses, compressor}
 			es := f.NewEventSequence(tc.events...)
-			results := converter.convertSequence(es)
+			results := converter.dbOperationsFromEventSequence(es)
 			assertOperationsEqual(t, tc.expected, results)
 		})
 	}
@@ -278,4 +268,40 @@ func assertErrorMessagesEqual(t *testing.T, expectedBytes []byte, actualBytes []
 	expectedError, err := protoutil.DecompressAndUnmarshall(expectedBytes, &armadaevents.Error{}, decompressor)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedError, actualError)
+}
+
+func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobSchedulingInfo {
+	expectedSubmitSchedulingInfo := &schedulerobjects.JobSchedulingInfo{
+		Lifetime:          0,
+		AtMostOnce:        true,
+		Preemptible:       true,
+		ConcurrencySafe:   true,
+		Version:           0,
+		PriorityClassName: "test-priority",
+		Priority:          3,
+		SubmitTime:        f.BaseTime,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						NodeSelector:     f.NodeSelector,
+						Tolerations:      f.Tolerations,
+						PreemptionPolicy: "PreemptLowerPriority",
+						Priority:         f.PriorityClassValue,
+						ResourceRequirements: v1.ResourceRequirements{
+							Limits: map[v1.ResourceName]resource.Quantity{
+								"memory": resource.MustParse("64Mi"),
+								"cpu":    resource.MustParse("150m"),
+							},
+							Requests: map[v1.ResourceName]resource.Quantity{
+								"memory": resource.MustParse("64Mi"),
+								"cpu":    resource.MustParse("150m"),
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	return expectedSubmitSchedulingInfo
 }

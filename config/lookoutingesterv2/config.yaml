@@ -17,6 +17,7 @@ pulsar:
   jobsetEventsTopic: "events"
   receiveTimeout: 5s
   backoffTime: 1s
+  receiverQueueSize: 100
 subscriptionName: "lookout-ingester-v2"
 batchSize: 10000
 batchDuration: 500ms
@@ -24,3 +25,4 @@ minJobSpecCompressionSize: 1024
 userAnnotationPrefix: "armadaproject.io/"
 maxAttempts: 10
 maxBackoff: 60
+useLegacyEventConversion: true

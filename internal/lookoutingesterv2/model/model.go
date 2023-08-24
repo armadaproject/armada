@@ -31,6 +31,7 @@ type UpdateJobInstruction struct {
 	Priority                  *int64
 	State                     *int32
 	Cancelled                 *time.Time
+	CancelReason              *string
 	LastTransitionTime        *time.Time
 	LastTransitionTimeSeconds *int64
 	Duplicate                 *bool
@@ -51,7 +52,9 @@ type CreateJobRunInstruction struct {
 	RunId       string
 	JobId       string
 	Cluster     string
-	Pending     time.Time
+	Node        *string
+	Leased      *time.Time
+	Pending     *time.Time
 	JobRunState int32
 }
 
@@ -59,6 +62,7 @@ type CreateJobRunInstruction struct {
 type UpdateJobRunInstruction struct {
 	RunId       string
 	Node        *string
+	Pending     *time.Time
 	Started     *time.Time
 	Finished    *time.Time
 	JobRunState *int32

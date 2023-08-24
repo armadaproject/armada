@@ -6,7 +6,7 @@ import CancelJobSets from "../components/job-sets/cancel-job-sets/CancelJobSets"
 import CancelJobSetsOutcome from "../components/job-sets/cancel-job-sets/CancelJobSetsOutcome"
 import { ApiJobState } from "../openapi/armada"
 import { JobService, CancelJobSetsResponse, JobSet } from "../services/JobService"
-import { ApiResult, RequestStatus } from "../utils"
+import { ApiResult, PlatformCancelReason, RequestStatus } from "../utils"
 
 export type CancelJobSetsDialogState = "CancelJobSets" | "CancelJobSetsResult"
 
@@ -44,6 +44,7 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
 
   const [includeQueued, setIncludeQueued] = useState<boolean>(true)
   const [includeRunning, setIncludeRunning] = useState<boolean>(true)
+  const [isPlatformCancel, setIsPlatformCancel] = useState(false)
 
   const jobSetsToCancel = getCancellableJobSets(props.selectedJobSets)
 
@@ -55,7 +56,13 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
     }
 
     setRequestStatus("Loading")
-    const cancelJobSetsResponse = await props.jobService.cancelJobSets(props.queue, jobSetsToCancel, statesToCancel)
+    const reason = isPlatformCancel ? PlatformCancelReason : ""
+    const cancelJobSetsResponse = await props.jobService.cancelJobSets(
+      props.queue,
+      jobSetsToCancel,
+      statesToCancel,
+      reason,
+    )
     setRequestStatus("Idle")
 
     setResponse(cancelJobSetsResponse)
@@ -75,6 +82,7 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
       cancelledJobSets: [],
       failedJobSetCancellations: [],
     })
+    setIsPlatformCancel(false)
   }
 
   return (
@@ -100,6 +108,8 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
             onCancelJobSets={cancelJobSets}
             onQueuedSelectedChange={setIncludeQueued}
             onRunningSelectedChange={setIncludeRunning}
+            isPlatformCancel={isPlatformCancel}
+            setIsPlatformCancel={setIsPlatformCancel}
           />
         )}
         {state === "CancelJobSetsResult" && (
@@ -111,6 +121,8 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
             onCancelJobs={cancelJobSets}
             onQueuedSelectedChange={setIncludeQueued}
             onRunningSelectedChange={setIncludeRunning}
+            isPlatformCancel={isPlatformCancel}
+            setIsPlatformCancel={setIsPlatformCancel}
           />
         )}
       </DialogContent>

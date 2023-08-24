@@ -10,6 +10,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/types"
 )
 
 func Test_ValidatePodSpec_checkForMissingValues(t *testing.T) {
@@ -60,9 +61,8 @@ func Test_ValidatePodSpec_checkForResources(t *testing.T) {
 func Test_ValidatePodSpec_terminationGracePeriod(t *testing.T) {
 	schedulingConfig := &configuration.SchedulingConfig{
 		Preemption: configuration.PreemptionConfig{
-			Enabled:              true,
 			DefaultPriorityClass: "high",
-			PriorityClasses:      map[string]configuration.PriorityClass{"high": {Priority: 0}},
+			PriorityClasses:      map[string]types.PriorityClass{"high": {Priority: 0}},
 		},
 		MinTerminationGracePeriod: time.Duration(30 * time.Second),
 		MaxTerminationGracePeriod: time.Duration(300 * time.Second),
@@ -287,7 +287,7 @@ func minimalValidPodSpec() *v1.PodSpec {
 
 func Test_ValidatePodSpecPriorityClass(t *testing.T) {
 	validPriorityClass := &v1.PodSpec{PriorityClassName: "some-priority-class"}
-	allowedPriorityClasses := map[string]configuration.PriorityClass{"some-priority-class": {Priority: 10}}
+	allowedPriorityClasses := map[string]types.PriorityClass{"some-priority-class": {Priority: 10}}
 	assert.NoError(
 		t,
 		validatePodSpecPriorityClass(validPriorityClass, true, allowedPriorityClasses),

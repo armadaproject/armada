@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	semver "github.com/Masterminds/semver/v3"
+	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
 	"github.com/pkg/errors"
 )
@@ -17,6 +18,24 @@ const (
 	KIND_CONFIG_EXTERNAL    = ".kube/external/config"
 	KIND_NAME               = "armada-test"
 )
+
+func getImages() []string {
+	images := []string{
+		"alpine:3.18.3",
+		"nginx:1.21.6",
+		"registry.k8s.io/ingress-nginx/controller:v1.4.0",
+		"registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343",
+	}
+	// TODO: find suitable kubectl image for arm64
+	if !isAppleSilicon() {
+		images = append(images, "bitnami/kubectl:1.24.8")
+	}
+	return images
+}
+
+func isAppleSilicon() bool {
+	return runtime.GOOS == "darwin" && runtime.GOARCH == "arm64"
+}
 
 func kindBinary() string {
 	return binaryWithExt("kind")
@@ -51,17 +70,22 @@ func kindCheck() error {
 	if err != nil {
 		return errors.Errorf("error getting version: %v", err)
 	}
-	constraint, err := semver.NewConstraint(KIND_VERSION_CONSTRAINT)
-	if err != nil {
-		return errors.Errorf("error parsing constraint: %v", err)
+	return constraintCheck(version, KIND_VERSION_CONSTRAINT, "kind")
+}
+
+// Images that need to be available in the Kind cluster,
+// e.g., images required for e2e tests.
+func kindGetImages() error {
+	for _, image := range getImages() {
+		if err := dockerRun("pull", image); err != nil {
+			return err
+		}
 	}
-	if !constraint.Check(version) {
-		return errors.Errorf("found version %v but it failed constaint %v", version, constraint)
-	}
+
 	return nil
 }
 
-func kindSetup() error {
+func kindInitCluster() error {
 	out, err := kindOutput("get", "clusters")
 	if err != nil {
 		return err
@@ -76,32 +100,18 @@ func kindSetup() error {
 	if err := kindWriteKubeConfig(); err != nil {
 		return err
 	}
+	return nil
+}
 
-	// Images that need to be available in the Kind cluster,
-	// e.g., images required for e2e tests.
-	images := []string{
-		"alpine:3.10",
-		"nginx:1.21.6",
-		"registry.k8s.io/ingress-nginx/controller:v1.4.0",
-		"registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343",
-	}
-	if !isAppleSilicon() {
-		// TODO: find suitable kubectl image for arm64
-		images = append(images, "bitnami/kubectl:1.24.8")
-	}
-	for _, image := range images {
-		err := dockerRun("pull", image)
-		if err != nil {
-			return err
-		}
-	}
-	for _, image := range images {
+func kindSetup() error {
+	mg.Deps(kindInitCluster, kindGetImages)
+
+	for _, image := range getImages() {
 		err := kindRun("load", "docker-image", image, "--name", KIND_NAME)
 		if err != nil {
 			return err
 		}
 	}
-
 	// Resources to create in the Kind cluster.
 	resources := []string{
 		"e2e/setup/ingress-nginx.yaml",
@@ -162,13 +172,10 @@ func kindWaitUntilReady() error {
 		"--for=condition=ready", "pod",
 		"--selector=app.kubernetes.io/component=controller",
 		"--timeout=2m",
+		"--context", "kind-armada-test",
 	)
 }
 
 func kindTeardown() error {
 	return kindRun("delete", "cluster", "--name", KIND_NAME)
-}
-
-func isAppleSilicon() bool {
-	return runtime.GOOS == "darwin" && runtime.GOARCH == "arm64"
 }

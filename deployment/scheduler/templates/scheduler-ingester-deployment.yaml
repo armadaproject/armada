@@ -27,6 +27,10 @@ spec:
       securityContext:
         runAsUser: 1000
         runAsGroup: 2000
+      {{- if .Values.tolerations }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      {{- end }}
       containers:
         - name: armada-scheduler-ingester
           imagePullPolicy: IfNotPresent

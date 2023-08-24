@@ -1,6 +1,6 @@
 image:
   repository: gresearchdev/armada-lookout
-  tag: LATEST
+  tag: 0.0.0-latest
 resources:
   limits:
     memory: 256Mi
@@ -8,6 +8,8 @@ resources:
   requests:
     memory: 128Mi
     cpu: 100m
+# -- Tolerations
+tolerations: []    
 additionalLabels: {}
 additionalVolumeMounts: []
 additionalVolumes: []

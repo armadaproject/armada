@@ -5,7 +5,7 @@ CHART_VERSION_ARMADA="v0.3.20"
 CHART_VERSION_ARMADA_EXECUTOR_MONITORING="v0.1.9"
 CHART_VERSION_KUBE_PROMETHEUS_STACK="13.0.0"
 CHART_VERSION_NATS="0.13.0"
-CHART_VERSION_POSTGRES="11.9.12"
+CHART_VERSION_POSTGRES="12.4.2"
 CHART_VERSION_PULSAR="2.9.4"
 CHART_VERSION_REDIS="4.22.3"
 
@@ -162,29 +162,4 @@ printf "\n\t* open %bhttp://localhost:8081%b in your browser" "$bs" "$be"
 printf "\n\t* use %badmin:prom-operator%b as default admin credentials for login" "$bs" "$be"
 printf "\n\t* open the %bArmada - Overview%b dashboard\n" "$bs" "$be"
 
-echo "Downloading armadactl for your platform"
-
-# Determine Platform
-SYSTEM=$(uname | sed 's/MINGW.*/windows/' | tr A-Z a-z)
-if [ $SYSTEM == "windows" ]; then
-  ARCHIVE_TYPE=zip
-  UNARCHIVE="zcat > armadactl.exe"
-else
-  ARCHIVE_TYPE=tar.gz
-  UNARCHIVE="tar xzf -"
-fi
-
-# Find the latest Armada version
-LATEST_GH_URL=$(curl -fsSLI -o /dev/null -w %{url_effective} https://github.com/armadaproject/armada/releases/latest)
-ARMADA_VERSION=${LATEST_GH_URL##*/}
-ARMADACTL_URL="https://github.com/armadaproject/armada/releases/download/$ARMADA_VERSION/armadactl-$ARMADA_VERSION-$SYSTEM-amd64.$ARCHIVE_TYPE"
-
-# Download and untar/unzip armadactl
-if curl -sL $ARMADACTL_URL | sh -c "$UNARCHIVE" ; then
-	echo "armadactl downloaded successfully"
-else
-	echo "Something is amiss!"
-	echo "Please visit:"
-	echo "  - https://github.com/armadaproject/armada/releases/latest"
-	echo "to find the latest armadactl binary for your platform"
-fi
+./docs/local/armadactl.sh

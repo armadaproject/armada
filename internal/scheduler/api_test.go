@@ -44,6 +44,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 					runId1.String(): api.JobState_RUNNING,
 					runId2.String(): api.JobState_RUNNING,
 				},
+				NodeType: "node-type-1",
 			},
 		},
 		UnassignedJobRunIds: []armadaevents.Uuid{*armadaevents.ProtoUuidFromUuid(runId3)},
@@ -55,6 +56,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			{
 				Id:                          "test-executor-test-node",
 				Name:                        "test-node",
+				Executor:                    "test-executor",
 				TotalResources:              schedulerobjects.ResourceList{},
 				StateByJobRunId:             map[string]schedulerobjects.JobRunState{runId1.String(): schedulerobjects.JobRunState_RUNNING, runId2.String(): schedulerobjects.JobRunState_RUNNING},
 				NonArmadaAllocatedResources: map[int32]schedulerobjects.ResourceList{},
@@ -66,7 +68,9 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 						Resources: nil,
 					},
 				},
-				LastSeen: testClock.Now().UTC(),
+				LastSeen:             testClock.Now().UTC(),
+				ResourceUsageByQueue: map[string]*schedulerobjects.ResourceList{},
+				ReportingNodeType:    "node-type-1",
 			},
 		},
 		MinimumJobSize:    schedulerobjects.ResourceList{},
@@ -168,7 +172,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			mockLegacyExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
 
-			runIds, err := extractRunIds(tc.request)
+			runIds, err := runIdsFromLeaseRequest(tc.request)
 			require.NoError(t, err)
 
 			// set up mocks
@@ -200,6 +204,8 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				[]int32{1000, 2000},
 				maxJobsPerCall,
 				"kubernetes.io/hostname",
+				nil,
+				4*1024*1024,
 			)
 			require.NoError(t, err)
 			server.clock = testClock
@@ -326,6 +332,8 @@ func TestExecutorApi_Publish(t *testing.T) {
 				[]int32{1000, 2000},
 				100,
 				"kubernetes.io/hostname",
+				nil,
+				4*1024*1024,
 			)
 
 			require.NoError(t, err)

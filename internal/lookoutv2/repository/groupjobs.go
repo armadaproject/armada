@@ -2,16 +2,14 @@ package repository
 
 import (
 	"context"
-	"math"
-	"time"
+	"fmt"
+	"strings"
 
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/database"
-	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
@@ -39,15 +37,7 @@ type SqlGroupJobsRepository struct {
 	lookoutTables *LookoutTables
 }
 
-type scanVarInit func() interface{}
-
-type parserFn func(interface{}) (string, error)
-
-type scanContext struct {
-	field   string
-	varInit scanVarInit
-	parser  parserFn
-}
+const stateAggregatePrefix = "state_"
 
 func NewSqlGroupJobsRepository(db *pgxpool.Pool) *SqlGroupJobsRepository {
 	return &SqlGroupJobsRepository{
@@ -59,8 +49,9 @@ func NewSqlGroupJobsRepository(db *pgxpool.Pool) *SqlGroupJobsRepository {
 func (r *SqlGroupJobsRepository) GroupBy(
 	ctx context.Context,
 	filters []*model.Filter,
+	activeJobSets bool,
 	order *model.Order,
-	groupedField string,
+	groupedField *model.GroupedField,
 	aggregates []string,
 	skip int,
 	take int,
@@ -68,12 +59,12 @@ func (r *SqlGroupJobsRepository) GroupBy(
 	var groups []*model.JobGroup
 	var count int
 
-	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
 		AccessMode:     pgx.ReadOnly,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-		countQuery, err := NewQueryBuilder(r.lookoutTables).CountGroups(filters, groupedField)
+		countQuery, err := NewQueryBuilder(r.lookoutTables).CountGroups(filters, activeJobSets, groupedField)
 		if err != nil {
 			return err
 		}
@@ -86,7 +77,7 @@ func (r *SqlGroupJobsRepository) GroupBy(
 		if err != nil {
 			return err
 		}
-		groupByQuery, err := NewQueryBuilder(r.lookoutTables).GroupBy(filters, order, groupedField, aggregates, skip, take)
+		groupByQuery, err := NewQueryBuilder(r.lookoutTables).GroupBy(filters, activeJobSets, order, groupedField, aggregates, skip, take)
 		if err != nil {
 			return err
 		}
@@ -95,7 +86,7 @@ func (r *SqlGroupJobsRepository) GroupBy(
 		if err != nil {
 			return err
 		}
-		groups, err = rowsToGroups(groupRows, groupedField, aggregates)
+		groups, err = rowsToGroups(groupRows, groupedField, aggregates, filters)
 		return err
 	})
 	if err != nil {
@@ -108,10 +99,10 @@ func (r *SqlGroupJobsRepository) GroupBy(
 	}, nil
 }
 
-func rowsToGroups(rows pgx.Rows, groupedField string, aggregates []string) ([]*model.JobGroup, error) {
+func rowsToGroups(rows pgx.Rows, groupedField *model.GroupedField, aggregates []string, filters []*model.Filter) ([]*model.JobGroup, error) {
 	var groups []*model.JobGroup
 	for rows.Next() {
-		jobGroup, err := scanGroup(rows, groupedField, aggregates)
+		jobGroup, err := scanGroup(rows, groupedField.Field, aggregates, filters)
 		if err != nil {
 			return nil, err
 		}
@@ -120,143 +111,59 @@ func rowsToGroups(rows pgx.Rows, groupedField string, aggregates []string) ([]*m
 	return groups, nil
 }
 
-func scanGroup(rows pgx.Rows, field string, aggregates []string) (*model.JobGroup, error) {
-	groupScanContext, err := groupScanContextForField(field)
-	if err != nil {
-		return nil, err
-	}
-	group := groupScanContext.varInit()
+func scanGroup(rows pgx.Rows, field string, aggregates []string, filters []*model.Filter) (*model.JobGroup, error) {
+	groupParser := ParserForGroup(field)
 	var count int64
-
-	scanContexts := make([]*scanContext, len(aggregates))
-	aggregateVars := make([]interface{}, len(aggregates))
-	for i, aggregate := range aggregates {
-		sc, err := aggregateScanContextForField(aggregate)
+	var aggregateParsers []FieldParser
+	for _, aggregate := range aggregates {
+		parsers, err := ParsersForAggregate(aggregate, filters)
 		if err != nil {
 			return nil, err
 		}
-		aggregateVars[i] = sc.varInit()
-		scanContexts[i] = sc
+		aggregateParsers = append(aggregateParsers, parsers...)
 	}
-	aggregateRefs := make([]interface{}, len(aggregates))
-	for i := 0; i < len(aggregates); i++ {
-		aggregateRefs[i] = &aggregateVars[i]
+	aggregateRefs := make([]interface{}, len(aggregateParsers))
+	for i, parser := range aggregateParsers {
+		aggregateRefs[i] = parser.GetVariableRef()
 	}
-	varAddresses := util.Concat([]interface{}{&group, &count}, aggregateRefs)
-	err = rows.Scan(varAddresses...)
+	varAddresses := util.Concat([]interface{}{groupParser.GetVariableRef(), &count}, aggregateRefs)
+	err := rows.Scan(varAddresses...)
 	if err != nil {
 		return nil, err
 	}
-	parsedGroup, err := groupScanContext.parser(group)
+	parsedGroup, err := groupParser.ParseValue()
 	if err != nil {
 		return nil, err
 	}
-	aggregatesMap := make(map[string]string)
-	for i, sc := range scanContexts {
-		val := aggregateVars[i]
-		parsedVal, err := sc.parser(val)
+	aggregatesMap := make(map[string]interface{})
+	for _, parser := range aggregateParsers {
+		val, err := parser.ParseValue()
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to parse value for field %s", sc.field)
+			return nil, errors.Wrapf(err, "failed to parse value for field %s", parser.GetField())
 		}
-		aggregatesMap[sc.field] = parsedVal
+		if strings.HasPrefix(parser.GetField(), stateAggregatePrefix) {
+			singleStateCount, ok := val.(int)
+			if !ok {
+				return nil, errors.Errorf("failed to parse value for state aggregate: cannot convert value to int: %v: %T", singleStateCount, singleStateCount)
+			}
+			stateCountsVal, ok := aggregatesMap[stateField]
+			if !ok {
+				stateCountsVal = map[string]int{}
+				aggregatesMap[stateField] = stateCountsVal
+			}
+			stateCounts, ok := stateCountsVal.(map[string]int)
+			if !ok {
+				return nil, errors.Errorf("failed to parse value for state aggregate: cannot cast state counts to map")
+			}
+			state := parser.GetField()[len(stateAggregatePrefix):]
+			stateCounts[state] = singleStateCount
+		} else {
+			aggregatesMap[parser.GetField()] = val
+		}
 	}
 	return &model.JobGroup{
-		Name:       parsedGroup,
+		Name:       fmt.Sprintf("%s", parsedGroup),
 		Count:      count,
 		Aggregates: aggregatesMap,
 	}, nil
-}
-
-func groupScanContextForField(field string) (*scanContext, error) {
-	switch field {
-	case stateField:
-		return &scanContext{
-			field:   field,
-			varInit: int16ScanVar,
-			parser:  stateParser,
-		}, nil
-	default:
-		return &scanContext{
-			field:   field,
-			varInit: stringScanVar,
-			parser:  stringParser,
-		}, nil
-	}
-}
-
-func aggregateScanContextForField(field string) (*scanContext, error) {
-	switch field {
-	case lastTransitionTimeField:
-		return &scanContext{
-			field:   lastTransitionTimeField,
-			varInit: numericScanVar,
-			parser:  avgLastTransitionTimeParser,
-		}, nil
-	case submittedField:
-		return &scanContext{
-			field:   submittedField,
-			varInit: timeScanVar,
-			parser:  maxSubmittedTimeParser,
-		}, nil
-	default:
-		return nil, errors.Errorf("no aggregate found for field %s", field)
-	}
-}
-
-func stringScanVar() interface{} {
-	return ""
-}
-
-func int16ScanVar() interface{} {
-	return int16(0)
-}
-
-func numericScanVar() interface{} {
-	return pgtype.Numeric{}
-}
-
-func timeScanVar() interface{} {
-	return time.Time{}
-}
-
-func avgLastTransitionTimeParser(val interface{}) (string, error) {
-	lastTransitionTimeSeconds, ok := val.(pgtype.Numeric)
-	if !ok {
-		return "", errors.Errorf("could not convert %v: %T to int64", val, val)
-	}
-	var dst float64
-	err := lastTransitionTimeSeconds.AssignTo(&dst)
-	if err != nil {
-		return "", err
-	}
-	t := time.Unix(int64(math.Round(dst)), 0)
-	return t.Format(time.RFC3339), nil
-}
-
-func maxSubmittedTimeParser(val interface{}) (string, error) {
-	maxSubmittedTime, ok := val.(time.Time)
-	if !ok {
-		return "", errors.Errorf("could not convert %v: %T to time", val, val)
-	}
-	return maxSubmittedTime.Format(time.RFC3339), nil
-}
-
-func stateParser(val interface{}) (string, error) {
-	stateInt, ok := val.(int16)
-	if !ok {
-		return "", errors.Errorf("could not convert %v: %T to int for state", val, val)
-	}
-	state, ok := lookout.JobStateMap[int(stateInt)]
-	if !ok {
-		return "", errors.Errorf("state not found: %d", stateInt)
-	}
-	return string(state), nil
-}
-
-func stringParser(val interface{}) (string, error) {
-	str, ok := val.(string)
-	if !ok {
-		return "", errors.Errorf("could not convert %v: %T to string", val, val)
-	}
-	return str, nil
 }

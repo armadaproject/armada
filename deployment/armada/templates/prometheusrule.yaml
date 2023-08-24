@@ -15,10 +15,10 @@ spec:
       interval: {{ .Values.prometheus.scrapeInterval }}
       rules:
         - record: armada:queue:size
-          expr: avg(sum(armada_queue_size) by (queueName, pod)) by (queueName) > 0
+          expr: max(sum(armada_queue_size) by (queueName, pod)) by (queueName) > 0
 
         - record: armada:queue:priority
-          expr: avg(sum(armada_queue_priority) by (pool, queueName, pod)) by (pool, queueName)
+          expr: max(sum(armada_queue_priority) by (pool, queueName, pod)) by (pool, queueName)
 
         - record: armada:queue:ideal_current_share
           expr: >
@@ -28,13 +28,13 @@ spec:
             * 100
 
         - record: armada:queue:resource:queued
-          expr: avg(armada_queue_resource_queued) by (pool, queueName, resourceType)
+          expr: max(armada_queue_resource_queued) by (pool, queueName, resourceType)
 
         - record: armada:queue:resource:allocated
-          expr: avg(armada_queue_resource_allocated) by (pool, cluster, queueName, resourceType, nodeType)
+          expr: max(armada_queue_resource_allocated) by (pool, cluster, queueName, resourceType, nodeType)
 
         - record: armada:queue:resource:used
-          expr: avg(armada_queue_resource_used) by (pool, cluster, queueName, resourceType, nodeType)
+          expr: max(armada_queue_resource_used) by (pool, cluster, queueName, resourceType, nodeType)
 
         - record: armada:grpc:server:histogram95
           expr: histogram_quantile(0.95, sum(rate(grpc_server_handling_seconds_bucket{grpc_type!="server_stream"}[2m])) by (grpc_method,grpc_service, le))
@@ -46,10 +46,10 @@ spec:
           expr: sum(rate(log_messages[2m])) by (level)
 
         - record: armada:resource:available_capacity
-          expr: avg(armada_cluster_available_capacity) by (pool, cluster, resourceType, nodeType)
+          expr: max(armada_cluster_available_capacity) by (pool, cluster, resourceType, nodeType)
 
         - record: armada:resource:capacity
-          expr: avg(armada_cluster_capacity) by (pool, cluster, resourceType, nodeType)
+          expr: max(armada_cluster_capacity) by (pool, cluster, resourceType, nodeType)
 
         - record: armada:queue:pod_phase:count
           expr: max(armada_queue_leased_pod_count) by (pool, cluster, queueName, phase, nodeType)

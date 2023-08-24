@@ -1,13 +1,8 @@
-import { green, grey, orange, pink, purple, red, yellow } from "@mui/material/colors"
+import { cyan, green, grey, orange, pink, purple, red, yellow } from "@mui/material/colors"
 import { intervalToDuration } from "date-fns"
 import { formatInTimeZone } from "date-fns-tz"
 import { parseISO } from "date-fns/fp"
 import { JobRunState, jobRunStateDisplayInfo, JobState, jobStateDisplayInfo } from "models/lookoutV2Models"
-import prettyBytes from "pretty-bytes"
-const numFormatter = Intl.NumberFormat()
-
-export const formatCPU = (cpuMillis?: number): string =>
-  cpuMillis !== undefined ? numFormatter.format(cpuMillis / 1000) : ""
 
 export const formatJobState = (state?: JobState): string =>
   state !== undefined ? jobStateDisplayInfo[state]?.displayName ?? state : ""
@@ -31,12 +26,12 @@ export const colorForJobState = (state?: JobState): string | undefined => {
       return grey[300]
     case JobState.Preempted:
       return pink[100]
+    case JobState.Leased:
+      return cyan[100]
     default:
       return purple["A100"]
   }
 }
-
-export const formatBytes = (bytes?: number): string => (bytes !== undefined ? prettyBytes(bytes, { binary: true }) : "")
 
 export const formatUtcDate = (date?: string): string => {
   if (date !== undefined) {

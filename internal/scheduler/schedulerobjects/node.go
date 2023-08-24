@@ -11,37 +11,7 @@ import (
 )
 
 func (node *Node) AvailableQuantityByPriorityAndResource(priority int32, resourceType string) resource.Quantity {
-	if node.AllocatableByPriorityAndResource == nil {
-		return resource.Quantity{}
-	}
 	return AllocatableByPriorityAndResourceType(node.AllocatableByPriorityAndResource).Get(priority, resourceType)
-}
-
-// DominantQueue returns the name of the queue with largest CPU request on this node.
-// If a tie, the lexicographically smaller queue is returned.
-func (node *Node) DominantQueue() string {
-	dominantQueue := ""
-	dominantQueueCombinedResources := 0.0
-	for queue, rl := range node.AllocatedByQueue {
-		r := rl.Get("cpu")
-		v := r.AsApproximateFloat64()
-		if dominantQueue == "" || v > dominantQueueCombinedResources || (v == dominantQueueCombinedResources && queue < dominantQueue) {
-			dominantQueue = queue
-			dominantQueueCombinedResources = v
-		}
-	}
-	return dominantQueue
-}
-
-// NumActiveQueues returns the number of queues requesting a non-zero amount of resources on the node.
-func (node *Node) NumActiveQueues() int {
-	rv := 0
-	for _, rl := range node.AllocatedByQueue {
-		if !rl.IsZero() {
-			rv++
-		}
-	}
-	return rv
 }
 
 func (node *Node) DeepCopy() *Node {
@@ -51,6 +21,8 @@ func (node *Node) DeepCopy() *Node {
 	return &Node{
 		Id:             node.Id,
 		Name:           node.Name,
+		Executor:       node.Executor,
+		NodeDbKeys:     slices.Clone(node.NodeDbKeys),
 		LastSeen:       node.LastSeen,
 		NodeType:       node.NodeType.DeepCopy(),
 		NodeTypeId:     node.NodeTypeId,
@@ -65,6 +37,7 @@ func (node *Node) DeepCopy() *Node {
 		AllocatedByQueue:            armadamaps.DeepCopy(node.AllocatedByQueue),
 		EvictedJobRunIds:            maps.Clone(node.EvictedJobRunIds),
 		NonArmadaAllocatedResources: armadamaps.DeepCopy(node.NonArmadaAllocatedResources),
+		Unschedulable:               node.Unschedulable,
 	}
 }
 
@@ -73,4 +46,12 @@ func (node *Node) CompactString() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("Node{Id; %s}", node.Id)
+}
+
+func (node *Node) AvailableArmadaResource() ResourceList {
+	tr := node.TotalResources.DeepCopy()
+	for _, rl := range node.NonArmadaAllocatedResources {
+		tr.Sub(rl)
+	}
+	return tr
 }

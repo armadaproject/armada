@@ -48,12 +48,5 @@ func kubectlCheck() error {
 	if err != nil {
 		return errors.Errorf("error getting version: %v", err)
 	}
-	constraint, err := semver.NewConstraint(KUBECTL_VERSION_CONSTRAINT)
-	if err != nil {
-		return errors.Errorf("error parsing constraint: %v", err)
-	}
-	if !constraint.Check(version) {
-		return errors.Errorf("found version %v but it failed constaint %v", version, constraint)
-	}
-	return nil
+	return constraintCheck(version, KUBECTL_VERSION_CONSTRAINT, "kubectl")
 }

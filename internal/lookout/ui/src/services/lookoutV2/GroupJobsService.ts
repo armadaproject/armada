@@ -3,13 +3,19 @@ import { JobFilter, JobGroup, JobOrder } from "models/lookoutV2Models"
 export interface IGroupJobsService {
   groupJobs(
     filters: JobFilter[],
+    activeJobSets: boolean,
     order: JobOrder,
-    groupedField: string,
+    groupedField: GroupedField,
     aggregates: string[],
     skip: number,
     take: number,
     abortSignal: AbortSignal | undefined,
   ): Promise<GroupJobsResponse>
+}
+
+export type GroupedField = {
+  field: string
+  isAnnotation: boolean
 }
 
 export type GroupJobsResponse = {
@@ -22,8 +28,9 @@ export class GroupJobsService implements IGroupJobsService {
 
   async groupJobs(
     filters: JobFilter[],
+    activeJobSets: boolean,
     order: JobOrder,
-    groupedField: string,
+    groupedField: GroupedField,
     aggregates: string[],
     skip: number,
     take: number,
@@ -34,6 +41,7 @@ export class GroupJobsService implements IGroupJobsService {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         filters,
+        activeJobSets,
         order,
         groupedField,
         aggregates,

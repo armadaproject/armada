@@ -25,6 +25,9 @@ type Job struct {
 	// Required: true
 	Annotations map[string]string `json:"annotations"`
 
+	// cancel reason
+	CancelReason *string `json:"cancelReason,omitempty"`
+
 	// cancelled
 	// Format: date-time
 	Cancelled *strfmt.DateTime `json:"cancelled,omitempty"`
@@ -91,7 +94,7 @@ type Job struct {
 
 	// state
 	// Required: true
-	// Enum: [QUEUED PENDING RUNNING SUCCEEDED FAILED CANCELLED PREEMPTED]
+	// Enum: [QUEUED PENDING RUNNING SUCCEEDED FAILED CANCELLED PREEMPTED LEASED]
 	State string `json:"state"`
 
 	// submitted
@@ -350,7 +353,7 @@ var jobTypeStatePropEnum []interface{}
 
 func init() {
 	var res []string
-	if err := json.Unmarshal([]byte(`["QUEUED","PENDING","RUNNING","SUCCEEDED","FAILED","CANCELLED","PREEMPTED"]`), &res); err != nil {
+	if err := json.Unmarshal([]byte(`["QUEUED","PENDING","RUNNING","SUCCEEDED","FAILED","CANCELLED","PREEMPTED","LEASED"]`), &res); err != nil {
 		panic(err)
 	}
 	for _, v := range res {
@@ -380,6 +383,9 @@ const (
 
 	// JobStatePREEMPTED captures enum value "PREEMPTED"
 	JobStatePREEMPTED string = "PREEMPTED"
+
+	// JobStateLEASED captures enum value "LEASED"
+	JobStateLEASED string = "LEASED"
 )
 
 // prop value enum

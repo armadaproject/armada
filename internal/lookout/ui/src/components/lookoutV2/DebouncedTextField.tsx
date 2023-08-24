@@ -6,6 +6,7 @@ export interface DebouncedTextFieldProps {
   debouncedOnChange: (newValue: string) => void
   debounceWaitMs: number
 }
+
 export const DebouncedTextField = ({ debouncedOnChange, debounceWaitMs, textFieldProps }: DebouncedTextFieldProps) => {
   const onChange = _.debounce(debouncedOnChange, debounceWaitMs)
   return <TextField {...textFieldProps} onChange={(e) => onChange(e.currentTarget.value)} />

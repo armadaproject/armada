@@ -12,15 +12,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
 func TestPoolAssigner_AssignPool(t *testing.T) {
 	executorTimeout := 15 * time.Minute
-	cpuJob := testQueuedJobDbJob()
-	gpuJob := WithJobDbJobPodRequirements(testQueuedJobDbJob(), testGpuJob(testQueue, testPriorities[0]))
+	cpuJob := testfixtures.TestQueuedJobDbJob()
+	gpuJob := testfixtures.WithJobDbJobPodRequirements(testfixtures.TestQueuedJobDbJob(), testfixtures.Test1GpuPodReqs(testfixtures.TestQueue, util.ULID(), testfixtures.TestPriorities[0]))
 
 	tests := map[string]struct {
 		executorTimout time.Duration
@@ -31,15 +33,15 @@ func TestPoolAssigner_AssignPool(t *testing.T) {
 	}{
 		"matches pool": {
 			executorTimout: executorTimeout,
-			config:         testSchedulingConfig(),
-			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
+			config:         testfixtures.TestSchedulingConfig(),
+			executors:      []*schedulerobjects.Executor{testExecutor(testfixtures.BaseTime)},
 			job:            cpuJob,
 			expectedPool:   "cpu",
 		},
 		"doesn't match pool": {
 			executorTimout: executorTimeout,
-			config:         testSchedulingConfig(),
-			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
+			config:         testfixtures.TestSchedulingConfig(),
+			executors:      []*schedulerobjects.Executor{testExecutor(testfixtures.BaseTime)},
 			job:            gpuJob,
 			expectedPool:   "",
 		},
@@ -52,7 +54,7 @@ func TestPoolAssigner_AssignPool(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			mockExecutorRepo := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockExecutorRepo.EXPECT().GetExecutors(ctx).Return(tc.executors, nil).AnyTimes()
-			fakeClock := clock.NewFakeClock(baseTime)
+			fakeClock := clock.NewFakeClock(testfixtures.BaseTime)
 			assigner, err := NewPoolAssigner(tc.executorTimout, tc.config, mockExecutorRepo)
 			require.NoError(t, err)
 			assigner.clock = fakeClock

@@ -45,6 +45,8 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
   const rand = mulberry32(seed)
   const uuid = seededUuid(rand)
   const annotationKeys = ["hyperparameter", "some/very/long/annotation/key/name/with/forward/slashes", "region"]
+  const numAnnotationValues = 10
+  const annotationValues = [...Array(numAnnotationValues)].map(() => uuid())
 
   const queues = Array.from(Array(nQueues).keys()).map((i) => `queue-${i + 1}`)
   const jobSets = Array.from(Array(nJobSets).keys()).map((i) => `job-set-${i + 1}`)
@@ -62,14 +64,15 @@ export function makeRandomJobs(nJobs: number, seed: number, nQueues = 10, nJobSe
       runs: runs,
       submitted: randomDate(new Date("2022-12-13T11:57:25.733Z"), new Date("2022-12-27T11:57:25.733Z")),
       cpu: randomInt(2, 200, rand) * 100,
-      ephemeralStorage: 34359738368,
-      memory: 134217728,
+      ephemeralStorage: randomInt(2, 2048, rand) * 1024 ** 3,
+      memory: randomInt(2, 1024, rand) * 1024 ** 2,
       queue: queues[i % queues.length],
-      annotations: createAnnotations(annotationKeys, uuid),
+      annotations: createAnnotations(annotationKeys, annotationValues, rand),
       jobId: jobId,
       jobSet: jobSets[i % jobSets.length],
       state: state ? state : randomProperty(JobState, rand),
       lastTransitionTime: randomDate(new Date("2022-12-13T12:19:14.956Z"), new Date("2022-12-31T11:57:25.733Z")),
+      priorityClass: rand() > 0.5 ? "armada-preemptible" : "armada-default",
     })
   }
 
@@ -83,13 +86,19 @@ function createJobRuns(n: number, jobId: string, rand: () => number, uuid: () =>
 
   const runs: JobRun[] = []
   for (let i = 0; i < n; i++) {
+    const runState = randomProperty(JobRunState, rand)
+    let node = undefined
+    if (runState !== JobRunState.RunPending && runState !== JobRunState.RunLeased) {
+      node = uuid()
+    }
     runs.push({
       cluster: uuid(),
       exitCode: randomInt(0, 64, rand),
       finished: "2022-12-13T12:19:14.956Z",
       jobId: jobId,
-      jobRunState: randomProperty(JobRunState, rand),
-      node: uuid(),
+      jobRunState: runState,
+      node: node,
+      leased: "2022-12-13T12:16:14.956Z",
       pending: "2022-12-13T12:16:14.956Z",
       runId: uuid(),
       started: "2022-12-13T12:15:14.956Z",
@@ -103,10 +112,14 @@ function randomProperty<T>(obj: Record<string, T>, rand: () => number): T {
   return obj[keys[(keys.length * rand()) << 0]]
 }
 
-function createAnnotations(annotationKeys: string[], uuid: () => string): Record<string, string> {
+function createAnnotations(
+  annotationKeys: string[],
+  annotationValues: string[],
+  rand: () => number,
+): Record<string, string> {
   const annotations: Record<string, string> = {}
   for (const key of annotationKeys) {
-    annotations[key] = uuid()
+    annotations[key] = annotationValues[randomInt(0, annotationValues.length, rand)]
   }
   return annotations
 }
@@ -123,7 +136,9 @@ export function filterFn(filter: JobFilter): (job: Job) => boolean {
     const objectToFilter = filter.isAnnotation ? job.annotations : job
 
     if (!Object.prototype.hasOwnProperty.call(objectToFilter, filter.field)) {
-      console.error(`Unknown filter field provided: ${filter}`)
+      if (filter.isAnnotation === undefined || !filter.isAnnotation) {
+        console.error(`Unknown filter field provided: ${JSON.stringify(filter)}`)
+      }
       return false
     }
     const matcher = getMatch(filter.match)
@@ -137,13 +152,15 @@ export function getMatch(match: Match): (a: any, b: any) => boolean {
       return (a, b) => a === b
     case "startsWith":
       return (a, b) => isString(a) && isString(b) && a.startsWith(b)
-    case "greater":
+    case "contains":
+      return (a, b) => isString(a) && isString(b) && a.includes(b)
+    case "greaterThan":
       return (a, b) => a > b
-    case "less":
+    case "lessThan":
       return (a, b) => a < b
-    case "greaterOrEqual":
+    case "greaterThanOrEqualTo":
       return (a, b) => a >= b
-    case "lessOrEqual":
+    case "lessThanOrEqualTo":
       return (a, b) => a <= b
     case "anyOf":
       return (a, b) => b.includes(a)
@@ -172,22 +189,37 @@ function randomDate(start: Date, end: Date): string {
   return new Date(start.getTime() + Math.random() * (end.getTime() - start.getTime())).toISOString()
 }
 
-export function makeTestJob(queue: string, jobSet: string, jobId: string, state: JobState): Job {
+type Resources = {
+  cpu: number
+  memory: number
+  ephemeralStorage: number
+  gpu: number
+}
+
+export function makeTestJob(
+  queue: string,
+  jobSet: string,
+  jobId: string,
+  state: JobState,
+  resources?: Resources,
+  runs?: JobRun[],
+): Job {
   return {
     queue: queue,
     jobSet: jobSet,
     jobId: jobId,
     owner: queue,
     priority: 10,
-    cpu: 1,
-    memory: 1024,
-    ephemeralStorage: 1024,
-    gpu: 1,
+    cpu: resources?.cpu ?? 1,
+    memory: resources?.memory ?? 1024,
+    ephemeralStorage: resources?.ephemeralStorage ?? 1024,
+    gpu: resources?.gpu ?? 1,
     submitted: new Date().toISOString(),
     lastTransitionTime: new Date().toISOString(),
     state: state,
-    runs: [],
+    runs: runs ?? [],
     annotations: {},
+    priorityClass: "armada-preemptible",
   }
 }
 
@@ -201,4 +233,17 @@ export function makeManyTestJobs(numJobs: number, numFinishedJobs: number): Job[
     jobs.push(makeTestJob(`queue-0`, `job-set-${i}`, `job-id-${i}`, state))
   }
   return jobs
+}
+
+export function getActiveJobSets(jobs: Job[]): Record<string, string[]> {
+  const result: Record<string, string[]> = {}
+  for (const job of jobs) {
+    if ([JobState.Queued, JobState.Leased, JobState.Pending, JobState.Running].includes(job.state)) {
+      if (!(job.queue in result)) {
+        result[job.queue] = []
+      }
+      result[job.queue].push(job.jobSet)
+    }
+  }
+  return result
 }

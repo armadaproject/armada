@@ -3,6 +3,7 @@ package slices
 import (
 	"fmt"
 	"math"
+	"math/rand"
 
 	goslices "golang.org/x/exp/slices"
 )
@@ -60,12 +61,48 @@ func Flatten[S ~[]E, E any](s []S) S {
 	return rv
 }
 
+// Concatenate returns a single slice created by concatenating the input slices.
+func Concatenate[S ~[]E, E any](s ...S) S {
+	return Flatten(s)
+}
+
+// Shuffle shuffles s.
+func Shuffle[S ~[]E, E any](s ...S) {
+	rand.Shuffle(len(s), func(i, j int) { s[i], s[j] = s[j], s[i] })
+}
+
+// Unique returns a copy of s with duplicate elements removed, keeping only the first occurrence.
+func Unique[S ~[]E, E comparable](s S) S {
+	if s == nil {
+		return nil
+	}
+	rv := make(S, 0)
+	seen := make(map[E]bool)
+	for _, v := range s {
+		if !seen[v] {
+			rv = append(rv, v)
+			seen[v] = true
+		}
+	}
+	return rv
+}
+
 // GroupByFunc groups the elements e_1, ..., e_n of s into separate slices by keyFunc(e).
 func GroupByFunc[S ~[]E, E any, K comparable](s S, keyFunc func(E) K) map[K]S {
 	rv := make(map[K]S)
 	for _, e := range s {
 		k := keyFunc(e)
 		rv[k] = append(rv[k], e)
+	}
+	return rv
+}
+
+// GroupByFuncUnique returns a map keyFunc(e) to e for each element e in s.
+func GroupByFuncUnique[S ~[]E, E any, K comparable](s S, keyFunc func(E) K) map[K]E {
+	rv := make(map[K]E, len(s))
+	for _, e := range s {
+		k := keyFunc(e)
+		rv[k] = e
 	}
 	return rv
 }
@@ -79,6 +116,14 @@ func MapAndGroupByFuncs[S ~[]E, E any, K comparable, V any](s S, keyFunc func(E)
 		rv[k] = append(rv[k], mapFunc(e))
 	}
 	return rv
+}
+
+// Pop removes the last item from s and returns it.
+// Calling pop on an empty slice causes a panic.
+func Pop[S ~[]E, E any](s *S) E {
+	v := (*s)[len(*s)-1]
+	*s = (*s)[:len(*s)-1]
+	return v
 }
 
 func Subtract[T comparable](list []T, toRemove []T) []T {
@@ -98,4 +143,28 @@ func Subtract[T comparable](list []T, toRemove []T) []T {
 		}
 	}
 	return out
+}
+
+func Filter[S ~[]E, E any](s S, predicate func(e E) bool) S {
+	if s == nil {
+		return nil
+	}
+	out := make(S, 0, len(s))
+	for _, e := range s {
+		if predicate(e) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// Repeat returns a slice []T of length n*len(vs) consisting of n copies of vs.
+func Repeat[T any](n int, vs ...T) []T {
+	rv := make([]T, n*len(vs))
+	for i := 0; i < n; i++ {
+		for j, v := range vs {
+			rv[i*len(vs)+j] = v
+		}
+	}
+	return rv
 }

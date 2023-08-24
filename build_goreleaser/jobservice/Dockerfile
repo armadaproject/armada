@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=alpine:3.17.0
+ARG BASE_IMAGE=alpine:3.18.3
 
 FROM ${BASE_IMAGE}
 LABEL org.opencontainers.image.title=jobservice
@@ -13,4 +13,4 @@ COPY config/jobservice/config.yaml /app/config/jobservice/config.yaml
 
 WORKDIR /app
 
-ENTRYPOINT ["./jobservice"]
+ENTRYPOINT ["./jobservice", "run"]

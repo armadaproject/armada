@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -100,7 +99,7 @@ func TestSpecsFromFilePaths(filePaths []string) ([]*api.TestSpec, error) {
 
 func TestSpecFromFilePath(filePath string) (*api.TestSpec, error) {
 	testSpec := &api.TestSpec{}
-	yamlBytes, err := ioutil.ReadFile(filePath)
+	yamlBytes, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
@@ -192,9 +191,9 @@ func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSui
 			rv.TestCaseReports[i] = testRunner.TestCaseReport
 			wg.Done()
 		}()
+		time.Sleep(100 * time.Millisecond)
 	}
 
-	time.Sleep(100 * time.Millisecond)
 	fmt.Fprintf(a.Out, "---\n")
 	g.Go(func() error { return eventLogger.Run(ctx) })
 

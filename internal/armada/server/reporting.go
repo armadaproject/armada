@@ -136,7 +136,7 @@ func reportJobLeaseReturned(repository repository.EventStore, job *api.Job, leas
 	return nil
 }
 
-func reportJobsCancelling(repository repository.EventStore, requestorName string, jobs []*api.Job) error {
+func reportJobsCancelling(repository repository.EventStore, requestorName string, jobs []*api.Job, reason string) error {
 	events := []*api.EventMessage{}
 	now := time.Now()
 	for _, job := range jobs {
@@ -146,6 +146,7 @@ func reportJobsCancelling(repository repository.EventStore, requestorName string
 			JobSetId:  job.JobSetId,
 			Created:   now,
 			Requestor: requestorName,
+			Reason:    reason,
 		})
 		if err != nil {
 			return fmt.Errorf("[reportJobsCancelling] error wrapping event: %w", err)
@@ -239,16 +240,18 @@ func reportJobsUpdated(repository repository.EventStore, requestorName string, j
 	return nil
 }
 
-func reportJobsCancelled(repository repository.EventStore, requestorName string, jobs []*api.Job) error {
+func reportJobsCancelled(repository repository.EventStore, requestorName string, cancelledJobsPayloads []*CancelledJobPayload) error {
 	events := []*api.EventMessage{}
 	now := time.Now()
-	for _, job := range jobs {
+	for _, payload := range cancelledJobsPayloads {
+		job := payload.job
 		event, err := api.Wrap(&api.JobCancelledEvent{
 			JobId:     job.Id,
 			Queue:     job.Queue,
 			JobSetId:  job.JobSetId,
 			Created:   now,
 			Requestor: requestorName,
+			Reason:    payload.reason,
 		})
 		if err != nil {
 			return fmt.Errorf("[reportJobsCancelled] error wrapping event: %w", err)
