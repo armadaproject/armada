@@ -12,6 +12,7 @@ import (
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
+	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -327,12 +328,18 @@ func TestGangScheduler(t *testing.T) {
 					priorityFactorByQueue[job.GetQueue()] = 1
 				}
 			}
+
+			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
+				tc.TotalResources,
+				tc.SchedulingConfig.DominantResourceFairnessResourcesToConsider,
+			)
+			require.NoError(t, err)
 			sctx := schedulercontext.NewSchedulingContext(
 				"executor",
 				"pool",
 				tc.SchedulingConfig.Preemption.PriorityClasses,
 				tc.SchedulingConfig.Preemption.DefaultPriorityClass,
-				tc.SchedulingConfig.ResourceScarcity,
+				fairnessCostProvider,
 				tc.TotalResources,
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {

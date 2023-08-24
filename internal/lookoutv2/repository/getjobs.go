@@ -7,8 +7,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
@@ -83,7 +83,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 	var annotationRows []*annotationRow
 	var count int
 
-	err := r.db.BeginTxFunc(ctx, pgx.TxOptions{
+	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
@@ -134,7 +134,6 @@ func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Fil
 			log.WithError(err).Error("failed getting annotation rows")
 			return err
 		}
-
 		return nil
 	})
 	if err != nil {

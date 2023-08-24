@@ -13,6 +13,7 @@
     "test": "react-scripts test --coverage",
     "eject": "react-scripts eject",
     "openapi": "docker run --rm -u $(id -u ${USER}):$(id -g ${USER}) -v \"${PWD}/../../../:/project\" openapitools/openapi-generator-cli:v5.4.0 /project/internal/lookout/ui/openapi.sh",
+    "openapi:win": "powershell -Command \"$uid = (New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).Identity.User.Value; $gid = (Get-WmiObject Win32_UserAccount | Where-Object { $_.SID -eq $uid }).SID.Value; docker run --rm -e USERID=$uid -e GROUPID=$gid -v \"%cd%/../../../:/project\" openapitools/openapi-generator-cli:v5.4.0 /project/internal/lookout/ui/openapi.sh\"",
     "lint": "eslint './src/**/*.{js,ts,tsx}' --max-warnings 0 --no-error-on-unmatched-pattern",
     "fmt": "eslint './src/**/*.{js,ts,tsx}' --max-warnings 0 --no-error-on-unmatched-pattern --fix"
   },
