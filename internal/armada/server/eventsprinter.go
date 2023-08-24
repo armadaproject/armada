@@ -13,6 +13,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils/pulsarrequestid"
 	"github.com/armadaproject/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -73,8 +74,9 @@ func (srv *EventsPrinter) Run(ctx context.Context) error {
 		default:
 
 			// Get a message from Pulsar, which consists of a sequence of events (i.e., state transitions).
-			ctxWithTimeout, _ := context.WithTimeout(ctx, 10*time.Second)
+			ctxWithTimeout, cancel := context.WithTimeout(ctx, 10*time.Second)
 			msg, err := consumer.Receive(ctxWithTimeout)
+			cancel()
 			if errors.Is(err, context.DeadlineExceeded) { // expected
 				log.Info("no new messages from Pulsar (or another instance holds the subscription)")
 				break
@@ -82,7 +84,14 @@ func (srv *EventsPrinter) Run(ctx context.Context) error {
 				logging.WithStacktrace(log, err).Warnf("receiving from Pulsar failed")
 				break
 			}
-			consumer.Ack(msg)
+			util.RetryUntilSuccess(
+				context.Background(),
+				func() error { return consumer.Ack(msg) },
+				func(err error) {
+					logging.WithStacktrace(log, err).Warnf("acking pulsar message failed")
+					time.Sleep(time.Second) // Not sure what the right backoff is here
+				},
+			)
 
 			sequence := &armadaevents.EventSequence{}
 			if err := proto.Unmarshal(msg.Payload(), sequence); err != nil {

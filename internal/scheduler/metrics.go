@@ -223,6 +223,8 @@ func (c *MetricsCollector) updateClusterMetrics(ctx context.Context) ([]promethe
 	usedResourceByQueue := map[queueMetricKey]schedulerobjects.ResourceList{}
 	availableResourceByCluster := map[clusterMetricKey]schedulerobjects.ResourceList{}
 	totalResourceByCluster := map[clusterMetricKey]schedulerobjects.ResourceList{}
+	schedulableNodeCountByCluster := map[clusterMetricKey]int{}
+	totalNodeCountByCluster := map[clusterMetricKey]int{}
 
 	txn := c.jobDb.ReadTxn()
 	for _, executor := range executors {
@@ -234,8 +236,10 @@ func (c *MetricsCollector) updateClusterMetrics(ctx context.Context) ([]promethe
 			}
 			if !node.Unschedulable {
 				addToResourceListMap(availableResourceByCluster, clusterKey, node.AvailableArmadaResource())
+				schedulableNodeCountByCluster[clusterKey]++
 			}
 			addToResourceListMap(totalResourceByCluster, clusterKey, node.TotalResources)
+			totalNodeCountByCluster[clusterKey]++
 
 			for queueName, resourceUsage := range node.ResourceUsageByQueue {
 				queueKey := queueMetricKey{
@@ -299,6 +303,12 @@ func (c *MetricsCollector) updateClusterMetrics(ctx context.Context) ([]promethe
 		for resourceKey, resourceValue := range r.Resources {
 			clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterTotalCapacity(resource.QuantityAsFloat64(resourceValue), k.cluster, k.pool, resourceKey, k.nodeType))
 		}
+	}
+	for k, v := range schedulableNodeCountByCluster {
+		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterAvailableCapacity(float64(v), k.cluster, k.pool, "nodes", k.nodeType))
+	}
+	for k, v := range totalNodeCountByCluster {
+		clusterMetrics = append(clusterMetrics, commonmetrics.NewClusterTotalCapacity(float64(v), k.cluster, k.pool, "nodes", k.nodeType))
 	}
 	return clusterMetrics, nil
 }
