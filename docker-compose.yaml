@@ -34,7 +34,7 @@ services:
       - kind
 
   pulsar:
-    image: ${PULSAR_IMAGE:-apachepulsar/pulsar:2.10.0}
+    image: ${PULSAR_IMAGE:-apachepulsar/pulsar:2.10.4}
     container_name: pulsar
     volumes:
       - ./developer/dependencies/pulsar.conf:/conf/pulsar.conf
@@ -67,6 +67,72 @@ services:
       - ./developer/env/server.env
     command: ./server --config /config/insecure-armada.yaml
 
+  server-pulsar:
+    container_name: server
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - 50051:50051
+      - 8080:8080
+      - 4000:4000
+    volumes:
+      - ./developer/config/insecure-armada.yaml:/config/insecure-armada.yaml
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
+    depends_on:
+      - eventingester
+    working_dir: /app
+    env_file:
+      - ./developer/env/server-pulsar.env
+    command: ./server --config /config/insecure-armada.yaml
+
+  scheduler:
+    container_name: scheduler
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - 9000:9000
+      - 8081:8081
+      - 50052:50052
+    volumes:
+      - ./developer/config/insecure-armada.yaml:/config/insecure-armada.yaml
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
+    depends_on:
+      - postgresPulsarMigration
+    working_dir: /app
+    env_file:
+      - ./developer/env/scheduler.env
+    command: ./scheduler run --config /config/insecure-armada.yaml
+
+  postgresPulsarMigration:
+    container_name: postgresPulsarMigration
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    volumes:
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
+    working_dir: /app
+    command: ./scheduler migrateDatabase
+
+  scheduleringester:
+    container_name: scheduleringester
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - 9003:9003
+    volumes:
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
+    env_file:
+      - ./developer/env/scheduleringester.env
+    working_dir: /app
+    command: ./scheduleringester
+
   executor:
     container_name: executor
     image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
@@ -85,6 +151,27 @@ services:
       - KUBECONFIG=/.kube/config
     env_file:
       - ./developer/env/executor.env
+    working_dir: /app
+    command: ./executor
+
+  executor-pulsar:
+    container_name: executor
+    image: ${ARMADA_IMAGE:-gresearch/armada-bundle}:${ARMADA_IMAGE_TAG:-latest}
+    networks:
+      - kind
+    ports:
+      - 9001:9001
+      - 4001:4000
+    depends_on:
+      - server-pulsar
+    volumes:
+      - ./.kube/internal:/.kube
+      - "go-cache:/root/.cache/go-build:rw"
+      - "gomod-cache:/go/pkg/mod:rw"
+    environment:
+      - KUBECONFIG=/.kube/config
+    env_file:
+      - ./developer/env/executor-pulsar.env
     working_dir: /app
     command: ./executor
 

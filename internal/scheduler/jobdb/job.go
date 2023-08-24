@@ -3,6 +3,7 @@ package jobdb
 import (
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
@@ -431,6 +432,21 @@ func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSch
 	return j
 }
 
+func (job *Job) DeepCopy() *Job {
+	copiedSchedulingInfo := proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
+	j := job.WithJobSchedulingInfo(copiedSchedulingInfo)
+
+	j.runsById = maps.Clone(j.runsById)
+	for key, run := range j.runsById {
+		j.runsById[key] = run.DeepCopy()
+	}
+	if j.activeRun != nil {
+		j.activeRun = job.activeRun.DeepCopy()
+	}
+
+	return j
+}
+
 // copyJob makes a copy of the job
 func copyJob(j Job) *Job {
 	return &j
@@ -441,20 +457,16 @@ type JobPriorityComparer struct{}
 // Compare jobs first by priority then by created and finally by id.
 // returns -1 if a should come before b, 1 if a should come after b and 0 if the two jobs are equal
 func (j JobPriorityComparer) Compare(a, b *Job) int {
-	if a == b {
-		return 0
-	}
-
-	// Compare the jobs by priority
+	// Compare the jobs by priority.
 	if a.priority != b.priority {
-		if a.priority > b.priority {
+		if a.priority < b.priority {
 			return -1
 		} else {
 			return 1
 		}
 	}
 
-	// If the jobs have the same priority, compare them by created timestamp
+	// If the jobs have the same priority, compare them by created timestamp.
 	if a.created != b.created {
 		if a.created < b.created {
 			return -1
@@ -463,7 +475,7 @@ func (j JobPriorityComparer) Compare(a, b *Job) int {
 		}
 	}
 
-	// If the jobs have the same priority and created timestamp, compare them by ID
+	// If the jobs have the same priority and created timestamp, compare them by id.
 	if a.id != b.id {
 		if a.id < b.id {
 			return -1
@@ -472,6 +484,6 @@ func (j JobPriorityComparer) Compare(a, b *Job) int {
 		}
 	}
 
-	// If the jobs have the same ID, return 0
+	// Jobs are equal; return 0.
 	return 0
 }
