@@ -21,8 +21,9 @@ type mockConsumer struct {
 	ackedIds []pulsar.MessageID
 }
 
-func (c *mockConsumer) AckID(message pulsar.MessageID) {
+func (c *mockConsumer) AckID(message pulsar.MessageID) error {
 	c.ackedIds = append(c.ackedIds, message)
+	return nil
 }
 
 func (c *mockConsumer) Receive(ctx context.Context) (pulsar.Message, error) {
@@ -70,7 +71,7 @@ func TestAcks(t *testing.T) {
 	consumers := []pulsar.Consumer{&mockConsumer}
 	wg := sync.WaitGroup{}
 	wg.Add(1)
-	go Ack(ctx.Background(), consumers, input, &wg)
+	go Ack(ctx.Background(), consumers, input, 1*time.Second, &wg)
 	input <- []*ConsumerMessageId{
 		{NewMessageId(1), 0, 0}, {NewMessageId(2), 0, 0},
 	}

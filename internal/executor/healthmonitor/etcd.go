@@ -52,7 +52,7 @@ type EtcdHealthMonitor struct {
 }
 
 var etcdInstanceUpDesc = prometheus.NewDesc(
-	metrics.ArmadaExecutorMetricsPrefix+"_etcd_instance_up",
+	metrics.ArmadaExecutorMetricsPrefix+"etcd_instance_up",
 	"Shows if an etcd instance is sufficiently live to get metrics from",
 	[]string{etcdMemberUrl}, nil,
 )

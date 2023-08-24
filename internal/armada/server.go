@@ -10,7 +10,7 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
@@ -209,7 +209,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		}
 		log.Info("Pulsar submit API deduplication enabled")
 
-		store, err := pgkeyvalue.New(pool, 1000000, config.Pulsar.DedupTable)
+		store, err := pgkeyvalue.New(ctx, pool, config.Pulsar.DedupTable)
 		if err != nil {
 			return err
 		}
@@ -225,9 +225,10 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 
 	// Service that consumes Pulsar messages and writes to Redis
 	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
-		Topic:            config.Pulsar.JobsetEventsTopic,
-		SubscriptionName: config.Pulsar.RedisFromPulsarSubscription,
-		Type:             pulsar.KeyShared,
+		Topic:             config.Pulsar.JobsetEventsTopic,
+		SubscriptionName:  config.Pulsar.RedisFromPulsarSubscription,
+		Type:              pulsar.KeyShared,
+		ReceiverQueueSize: config.Pulsar.ReceiverQueueSize,
 	})
 	if err != nil {
 		return errors.WithStack(err)

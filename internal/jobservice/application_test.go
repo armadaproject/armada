@@ -9,13 +9,7 @@ import (
 	"github.com/armadaproject/armada/internal/jobservice/configuration"
 )
 
-var knownGoodConfig = &configuration.JobServiceConfiguration{
-	GrpcPool: grpcconfig.GrpcPoolConfig{
-		InitialConnections: 10,
-		Capacity:           10,
-	},
-	SubscriberPoolSize: 30,
-}
+var knownGoodConfig = DefaultConfiguration
 
 func TestRectifyConfig(t *testing.T) {
 	testCases := []struct {
@@ -31,7 +25,6 @@ func TestRectifyConfig(t *testing.T) {
 		{
 			name: "Zero-length SubscriberPoolSize",
 			config: &configuration.JobServiceConfiguration{
-				GrpcPool:           grpcconfig.GrpcPoolConfig{InitialConnections: 10, Capacity: 10},
 				SubscriberPoolSize: 0,
 			},
 			expectedConfig: knownGoodConfig,
@@ -39,30 +32,16 @@ func TestRectifyConfig(t *testing.T) {
 		{
 			name: "Incorrect GrpcPool.InitialConnections",
 			config: &configuration.JobServiceConfiguration{
-				GrpcPool:           grpcconfig.GrpcPoolConfig{InitialConnections: 0, Capacity: 10},
-				SubscriberPoolSize: 30,
+				GrpcPool: grpcconfig.GrpcPoolConfig{InitialConnections: 0, Capacity: knownGoodConfig.GrpcPool.Capacity},
 			},
-			expectedConfig: &configuration.JobServiceConfiguration{
-				GrpcPool: grpcconfig.GrpcPoolConfig{
-					InitialConnections: DefaultConfiguration.GrpcPool.InitialConnections,
-					Capacity:           10,
-				},
-				SubscriberPoolSize: 30,
-			},
+			expectedConfig: knownGoodConfig,
 		},
 		{
 			name: "Incorrect GrpcPool.Capacity",
 			config: &configuration.JobServiceConfiguration{
-				GrpcPool:           grpcconfig.GrpcPoolConfig{InitialConnections: 10, Capacity: 0},
-				SubscriberPoolSize: 30,
+				GrpcPool: grpcconfig.GrpcPoolConfig{InitialConnections: knownGoodConfig.GrpcPool.InitialConnections, Capacity: 0},
 			},
-			expectedConfig: &configuration.JobServiceConfiguration{
-				GrpcPool: grpcconfig.GrpcPoolConfig{
-					InitialConnections: 10,
-					Capacity:           DefaultConfiguration.GrpcPool.Capacity,
-				},
-				SubscriberPoolSize: 30,
-			},
+			expectedConfig: knownGoodConfig,
 		},
 	}
 

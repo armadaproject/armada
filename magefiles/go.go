@@ -43,14 +43,7 @@ func goCheck() error {
 	if err != nil {
 		return errors.Errorf("error getting version: %v", err)
 	}
-	constraint, err := semver.NewConstraint(GO_VERSION_CONSTRAINT)
-	if err != nil {
-		return errors.Errorf("error parsing constraint: %v", err)
-	}
-	if !constraint.Check(version) {
-		return errors.Errorf("found version %v but it failed constaint %v", version, constraint)
-	}
-	return nil
+	return constraintCheck(version, GO_VERSION_CONSTRAINT, "Go")
 }
 
 func goEnv(name string) (string, error) {
