@@ -17,7 +17,7 @@ require (
 	github.com/doug-martin/goqu/v9 v9.18.0
 	github.com/go-ldap/ldap/v3 v3.4.4
 	github.com/go-openapi/analysis v0.21.4
-	github.com/go-openapi/jsonreference v0.20.0
+	github.com/go-openapi/jsonreference v0.20.2
 	github.com/go-openapi/loads v0.21.2
 	github.com/go-openapi/runtime v0.24.2
 	github.com/go-openapi/spec v0.20.7
@@ -120,7 +120,7 @@ require (
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.4 // indirect
 	github.com/go-logr/logr v0.4.0 // indirect
-	github.com/go-openapi/jsonpointer v0.19.5 // indirect
+	github.com/go-openapi/jsonpointer v0.19.6 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
