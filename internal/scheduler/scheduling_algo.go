@@ -7,7 +7,6 @@ import (
 
 	"github.com/benbjohnson/immutable"
 	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
@@ -33,7 +32,7 @@ import (
 type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes.
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided.
-	Schedule(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error)
+	Schedule(ctx context.Context, log *logrus.Entry, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error)
 }
 
 // FairSchedulingAlgo is a SchedulingAlgo based on PreemptingQueueScheduler.
@@ -81,11 +80,10 @@ func NewFairSchedulingAlgo(
 // Newly leased jobs are updated as such in the jobDb using the transaction provided and are also returned to the caller.
 func (l *FairSchedulingAlgo) Schedule(
 	ctx context.Context,
+	log *logrus.Entry,
 	txn *jobdb.Txn,
 	jobDb *jobdb.JobDb,
 ) (*SchedulerResult, error) {
-	log := ctxlogrus.Extract(ctx)
-
 	overallSchedulerResult := &SchedulerResult{
 		NodeIdByJobId:      make(map[string]string),
 		SchedulingContexts: make([]*schedulercontext.SchedulingContext, 0, 0),
@@ -100,7 +98,7 @@ func (l *FairSchedulingAlgo) Schedule(
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, l.maxSchedulingDuration)
 	defer cancel()
 
-	fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, jobDb)
+	fsctx, err := l.newFairSchedulingAlgoContext(ctx, log, txn, jobDb)
 	if err != nil {
 		return nil, err
 	}
@@ -140,6 +138,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		)
 		schedulerResult, sctx, err := l.scheduleOnExecutors(
 			ctxWithTimeout,
+			log,
 			fsctx,
 			pool,
 			minimumJobSize,
@@ -231,7 +230,7 @@ type fairSchedulingAlgoContext struct {
 	jobDb                                    *jobdb.JobDb
 }
 
-func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*fairSchedulingAlgoContext, error) {
+func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, log *logrus.Entry, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*fairSchedulingAlgoContext, error) {
 	executors, err := l.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		return nil, err
@@ -303,7 +302,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, t
 
 	// Filter out any executor that isn't acknowledging jobs in a timely fashion
 	// Note that we do this after aggregating allocation across clusters for fair share.
-	executors = l.filterLaggingExecutors(ctx, executors, jobsByExecutorId)
+	executors = l.filterLaggingExecutors(log, executors, jobsByExecutorId)
 
 	return &fairSchedulingAlgoContext{
 		priorityFactorByQueue:                    priorityFactorByQueue,
@@ -323,6 +322,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, t
 // scheduleOnExecutors schedules jobs on a specified set of executors.
 func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	ctx context.Context,
+	log *logrus.Entry,
 	fsctx *fairSchedulingAlgoContext,
 	pool string,
 	minimumJobSize schedulerobjects.ResourceList,
@@ -418,7 +418,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	if l.schedulingConfig.EnableNewPreemptionStrategy {
 		scheduler.EnableNewPreemptionStrategy()
 	}
-	result, err := scheduler.Schedule(ctx)
+	result, err := scheduler.Schedule(ctx, log)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -538,11 +538,10 @@ func (l *FairSchedulingAlgo) filterStaleExecutors(executors []*schedulerobjects.
 //
 // TODO: Let's also check that jobs are on the right nodes.
 func (l *FairSchedulingAlgo) filterLaggingExecutors(
-	ctx context.Context,
+	log *logrus.Entry,
 	executors []*schedulerobjects.Executor,
 	leasedJobsByExecutor map[string][]*jobdb.Job,
 ) []*schedulerobjects.Executor {
-	log := ctxlogrus.Extract(ctx)
 	activeExecutors := make([]*schedulerobjects.Executor, 0, len(executors))
 	for _, executor := range executors {
 		leasedJobs := leasedJobsByExecutor[executor.Id]

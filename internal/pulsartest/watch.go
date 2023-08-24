@@ -22,11 +22,10 @@ func (a *App) Watch() error {
 			log.Fatal(err)
 		}
 
-		ctx := context.Background()
 		msgId := pulsarutils.New(msg.ID().LedgerID(), msg.ID().EntryID(),
 			msg.ID().PartitionIdx(), msg.ID().BatchIdx())
 
-		es, err := eventutil.UnmarshalEventSequence(ctx, msg.Payload())
+		es, err := eventutil.UnmarshalEventSequence(msg.Payload())
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Could not unmarshal proto for msg %s\n", msgId.String())
 		}

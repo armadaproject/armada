@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -474,6 +476,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			log := logrus.WithField("test", "TestScheduler_TestCycle")
 			clusterTimeout := 1 * time.Hour
 
 			// Test objects
@@ -528,7 +531,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 
 			// run a scheduler cycle
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true)
+			err = sched.cycle(ctx, log, false, sched.leaderController.GetToken(), true)
 			if tc.fetchError || tc.publishError || tc.scheduleError {
 				assert.Error(t, err)
 			} else {
@@ -687,7 +690,7 @@ func TestRun(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	//nolint:errcheck
-	go sched.Run(ctx)
+	go sched.Run(ctx, logrus.WithField("test", "TestRun"))
 
 	time.Sleep(1 * time.Second)
 
@@ -898,7 +901,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			require.NoError(t, err)
 			txn.Commit()
 
-			updatedJobs, err := sched.syncState(ctx)
+			updatedJobs, err := sched.syncState(ctx, logrus.WithField("test", "TestScheduler_TestSyncState"))
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedUpdatedJobs, updatedJobs)
@@ -1001,7 +1004,7 @@ type testSchedulingAlgo struct {
 	shouldError           bool
 }
 
-func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error) {
+func (t *testSchedulingAlgo) Schedule(_ context.Context, _ *logrus.Entry, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error) {
 	t.numberOfScheduleCalls++
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")
@@ -1049,7 +1052,7 @@ type testPublisher struct {
 	shouldError bool
 }
 
-func (t *testPublisher) PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, _ func() bool) error {
+func (t *testPublisher) PublishMessages(_ context.Context, _ *logrus.Entry, events []*armadaevents.EventSequence, _ func() bool) error {
 	t.events = events
 	if t.shouldError {
 		return errors.New("Error when publishing")

@@ -92,7 +92,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("executor", req.ExecutorId)
 
-	executor := srv.executorFromLeaseRequest(ctx, req)
+	executor := srv.executorFromLeaseRequest(log, req)
 	if err := srv.executorRepository.StoreExecutor(ctx, executor); err != nil {
 		return err
 	}
@@ -229,8 +229,7 @@ func (srv *ExecutorApi) ReportEvents(ctx context.Context, list *executorapi.Even
 }
 
 // executorFromLeaseRequest extracts a schedulerobjects.Executor from the request.
-func (srv *ExecutorApi) executorFromLeaseRequest(ctx context.Context, req *executorapi.LeaseRequest) *schedulerobjects.Executor {
-	log := ctxlogrus.Extract(ctx)
+func (srv *ExecutorApi) executorFromLeaseRequest(log *logrus.Entry, req *executorapi.LeaseRequest) *schedulerobjects.Executor {
 	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
 	now := srv.clock.Now().UTC()
 	for _, nodeInfo := range req.Nodes {

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -393,7 +395,7 @@ func TestSchedule(t *testing.T) {
 			require.NoError(t, err)
 
 			// Run a scheduling round.
-			schedulerResult, err := sch.Schedule(ctx, txn, jobDb)
+			schedulerResult, err := sch.Schedule(ctx, logrus.WithField("test", "TestSchedule"), txn, jobDb)
 			require.NoError(t, err)
 
 			// Check that the expected preemptions took place.

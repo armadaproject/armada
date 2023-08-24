@@ -5,8 +5,9 @@ import (
 	"sync"
 	"sync/atomic"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coordinationv1client "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	"k8s.io/client-go/tools/leaderelection"
@@ -139,8 +140,6 @@ func (lc *KubernetesLeaderController) ValidateToken(tok LeaderToken) bool {
 // Run starts the controller.
 // This is a blocking call that returns when the provided context is cancelled.
 func (lc *KubernetesLeaderController) Run(ctx context.Context) error {
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("service", "KubernetesLeaderController")
 	for {
 		select {
 		case <-ctx.Done():

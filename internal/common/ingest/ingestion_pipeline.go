@@ -265,7 +265,7 @@ func unmarshalEventSequences(batch []pulsar.Message, msgFilter func(msg pulsar.M
 		}
 
 		// Try and unmarshall the proto
-		es, err := eventutil.UnmarshalEventSequence(context.Background(), msg.Payload())
+		es, err := eventutil.UnmarshalEventSequence(msg.Payload())
 		if err != nil {
 			metrics.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorDeserialization)
 			log.WithError(err).Warnf("Could not unmarshal proto for msg %s", msg.ID())

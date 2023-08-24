@@ -15,7 +15,6 @@ import (
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
@@ -128,6 +127,7 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	if err != nil {
 		return errors.WithStack(err)
 	}
+	log := ctxlogrus.Extract(stream.Context())
 
 	// Old scheduler resource accounting logic.
 	err = q.usageRepository.UpdateClusterLeased(&req.ClusterLeasedReport)
@@ -142,12 +142,12 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	}
 
 	// Get jobs to be leased.
-	jobs, err := q.getJobs(stream.Context(), req)
+	jobs, err := q.getJobs(stream.Context(), log, req)
 	if err != nil {
 		return err
 	}
 
-	err = q.decompressJobOwnershipGroups(jobs)
+	err = q.decompressJobOwnershipGroups(log, jobs)
 	if err != nil {
 		return err
 	}
@@ -253,14 +253,11 @@ func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([
 	return rv, nil
 }
 
-func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
-	log := ctxlogrus.Extract(ctx)
+func (q *AggregatedQueueServer) getJobs(ctx context.Context, log *logrus.Entry, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
 	log = log.WithFields(logrus.Fields{
-		"function": "getJobs",
-		"cluster":  req.ClusterId,
-		"pool":     req.Pool,
+		"cluster": req.ClusterId,
+		"pool":    req.Pool,
 	})
-	ctx = ctxlogrus.ToContext(ctx, log)
 
 	// Get the total capacity available across all clusters.
 	usageReports, err := q.usageRepository.GetClusterUsageReports()
@@ -539,12 +536,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		"starting scheduling with total resources %s",
 		schedulerobjects.ResourceList{Resources: totalCapacity}.CompactString(),
 	)
-	result, err := sch.Schedule(
-		ctxlogrus.ToContext(
-			ctx,
-			logrus.NewEntry(logrus.New()),
-		),
-	)
+	result, err := sch.Schedule(ctx, log)
 	if err != nil {
 		return nil, err
 	}
@@ -843,13 +835,13 @@ func (q *AggregatedQueueServer) aggregateAllocationAcrossExecutor(reportsByExecu
 	return allocatedByQueueAndPriorityClass
 }
 
-func (q *AggregatedQueueServer) decompressJobOwnershipGroups(jobs []*api.Job) error {
+func (q *AggregatedQueueServer) decompressJobOwnershipGroups(log *logrus.Entry, jobs []*api.Job) error {
 	for _, j := range jobs {
 		// No need to decompress, if compressed groups not set
 		if len(j.CompressedQueueOwnershipUserGroups) == 0 {
 			continue
 		}
-		groups, err := q.decompressOwnershipGroups(j.CompressedQueueOwnershipUserGroups)
+		groups, err := q.decompressOwnershipGroups(log, j.CompressedQueueOwnershipUserGroups)
 		if err != nil {
 			return fmt.Errorf("failed to decompress ownership groups for job %s because %s", j.Id, err)
 		}
@@ -860,7 +852,7 @@ func (q *AggregatedQueueServer) decompressJobOwnershipGroups(jobs []*api.Job) er
 	return nil
 }
 
-func (q *AggregatedQueueServer) decompressOwnershipGroups(compressedOwnershipGroups []byte) ([]string, error) {
+func (q *AggregatedQueueServer) decompressOwnershipGroups(log *logrus.Entry, compressedOwnershipGroups []byte) ([]string, error) {
 	decompressor, err := q.decompressorPool.BorrowObject(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to borrow decompressior because %s", err)
@@ -885,6 +877,8 @@ func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.Ren
 }
 
 func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
+	log := ctxlogrus.Extract(ctx)
+
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
@@ -895,7 +889,7 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 		return nil, err
 	}
 
-	err = q.reportLeaseReturned(ctx, request)
+	err = q.reportLeaseReturned(request)
 	if err != nil {
 		return nil, err
 	}
@@ -920,7 +914,7 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 	}
 
 	if request.AvoidNodeLabels != nil && len(request.AvoidNodeLabels.Entries) > 0 {
-		err = q.addAvoidNodeAffinity(request.JobId, request.AvoidNodeLabels, authorization.GetPrincipal(ctx).GetName())
+		err = q.addAvoidNodeAffinity(log, request.JobId, request.AvoidNodeLabels, authorization.GetPrincipal(ctx).GetName())
 		if err != nil {
 			log.Warnf("Failed to set avoid node affinity for job %s: %v", request.JobId, err)
 		}
@@ -938,6 +932,7 @@ func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.Re
 }
 
 func (q *AggregatedQueueServer) addAvoidNodeAffinity(
+	log *logrus.Entry,
 	jobId string,
 	labels *api.OrderedStringMap,
 	principalName string,
@@ -1008,7 +1003,7 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 	return &api.IdList{Ids: cleanedIds}, returnedError
 }
 
-func (q *AggregatedQueueServer) reportLeaseReturned(ctx context.Context, leaseReturnRequest *api.ReturnLeaseRequest) error {
+func (q *AggregatedQueueServer) reportLeaseReturned(leaseReturnRequest *api.ReturnLeaseRequest) error {
 	job, err := q.getJobById(leaseReturnRequest.JobId)
 	if err != nil {
 		return err

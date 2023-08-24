@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/mock/gomock"
@@ -122,7 +124,11 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 			options := pulsar.ProducerOptions{Topic: topic}
 			publisher, err := NewPulsarPublisher(mockPulsarClient, options, 5*time.Second)
 			require.NoError(t, err)
-			err = publisher.PublishMessages(ctx, tc.eventSequences, func() bool { return tc.amLeader })
+			err = publisher.PublishMessages(
+				ctx,
+				logrus.WithField("Test", "TestPulsarPublisher_TestPublish"),
+				tc.eventSequences,
+				func() bool { return tc.amLeader })
 
 			// Check that we get an error if one is expected
 			if tc.expectedError {

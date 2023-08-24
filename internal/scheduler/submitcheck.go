@@ -9,7 +9,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/util/clock"
 
@@ -101,7 +101,7 @@ func (srv *SubmitChecker) Run(ctx context.Context) error {
 func (srv *SubmitChecker) updateExecutors(ctx context.Context) {
 	executors, err := srv.executorRepository.GetExecutors(ctx)
 	if err != nil {
-		log.WithError(err).Error("Error fetching executors")
+		logrus.WithError(err).Error("Error fetching executors")
 		return
 	}
 	for _, executor := range executors {
@@ -114,10 +114,10 @@ func (srv *SubmitChecker) updateExecutors(ctx context.Context) {
 			}
 			srv.mu.Unlock()
 			if err != nil {
-				log.WithError(err).Errorf("Error constructing node db for executor %s", executor.Id)
+				logrus.WithError(err).Errorf("Error constructing node db for executor %s", executor.Id)
 			}
 		} else {
-			log.WithError(err).Warnf("Error clearing nodedb for executor %s", executor.Id)
+			logrus.WithError(err).Warnf("Error clearing nodedb for executor %s", executor.Id)
 		}
 	}
 

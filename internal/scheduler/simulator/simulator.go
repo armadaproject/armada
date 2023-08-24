@@ -4,14 +4,12 @@ import (
 	"bytes"
 	"container/heap"
 	"context"
-	fmt "fmt"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/caarlos0/log"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/mattn/go-zglob"
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
@@ -450,8 +448,8 @@ func (s *Simulator) handleScheduleEvent() error {
 			if s.schedulingConfig.EnableNewPreemptionStrategy {
 				sch.EnableNewPreemptionStrategy()
 			}
-			ctx := ctxlogrus.ToContext(context.Background(), logrus.NewEntry(logrus.New()))
-			result, err := sch.Schedule(ctx)
+
+			result, err := sch.Schedule(context.Background(), logrus.WithField("pool", "pool"))
 			if err != nil {
 				return err
 			}
@@ -565,10 +563,10 @@ func (s *Simulator) handleEventSequence(es *armadaevents.EventSequence) error {
 			*armadaevents.EventSequence_Event_CancelJob,
 			*armadaevents.EventSequence_Event_CancelJobSet:
 			// These events can be safely ignored.
-			log.Debugf("Ignoring event type %T", event)
+			logrus.Debugf("Ignoring event type %T", event)
 		default:
 			// This is an event type we haven't consider; log a warning.
-			log.Warnf("Ignoring unknown event type %T", eventType)
+			logrus.Warnf("Ignoring unknown event type %T", eventType)
 		}
 		if err != nil {
 			return err

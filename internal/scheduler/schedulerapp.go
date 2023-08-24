@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -36,8 +36,7 @@ import (
 // Run sets up a Scheduler application and runs it until a SIGTERM is received
 func Run(config schedulerconfig.Configuration) error {
 	g, ctx := errgroup.WithContext(app.CreateContextWithShutdown())
-	logrusLogger := log.NewEntry(log.StandardLogger())
-	ctx = ctxlogrus.ToContext(ctx, logrusLogger)
+	log := logrus.WithField("App", "scheduler")
 
 	//////////////////////////////////////////////////////////////////////////
 	// Health Checks
@@ -100,7 +99,7 @@ func Run(config schedulerconfig.Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	// Leader Election
 	//////////////////////////////////////////////////////////////////////////
-	leaderController, err := createLeaderController(config.Leader)
+	leaderController, err := createLeaderController(log, config.Leader)
 	if err != nil {
 		return errors.WithMessage(err, "error creating leader controller")
 	}
@@ -211,7 +210,7 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")
 	}
-	services = append(services, func() error { return scheduler.Run(ctx) })
+	services = append(services, func() error { return scheduler.Run(ctx, log) })
 
 	//////////////////////////////////////////////////////////////////////////
 	// Metrics
@@ -242,14 +241,14 @@ func Run(config schedulerconfig.Configuration) error {
 	return g.Wait()
 }
 
-func createLeaderController(config schedulerconfig.LeaderConfig) (LeaderController, error) {
+func createLeaderController(log *logrus.Entry, config schedulerconfig.LeaderConfig) (LeaderController, error) {
 	switch mode := strings.ToLower(config.Mode); mode {
 	case "standalone":
 		log.Infof("Scheduler will run in standalone mode")
 		return NewStandaloneLeaderController(), nil
 	case "kubernetes":
 		log.Infof("Scheduler will run kubernetes mode")
-		clusterConfig, err := loadClusterConfig()
+		clusterConfig, err := loadClusterConfig(log)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error creating kubernetes client")
 		}
@@ -267,7 +266,7 @@ func createLeaderController(config schedulerconfig.LeaderConfig) (LeaderControll
 	}
 }
 
-func loadClusterConfig() (*rest.Config, error) {
+func loadClusterConfig(log *logrus.Entry) (*rest.Config, error) {
 	config, err := rest.InClusterConfig()
 	if err == rest.ErrNotInCluster {
 		log.Info("Running with default client configuration")

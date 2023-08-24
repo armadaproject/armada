@@ -11,7 +11,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/schedulers"
@@ -28,7 +28,7 @@ const (
 type Publisher interface {
 	// PublishMessages will publish the supplied messages. A LeaderToken is provided and the
 	// implementor may decide whether to publish based on the status of this token
-	PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, shouldPublish func() bool) error
+	PublishMessages(ctx context.Context, log *logrus.Entry, events []*armadaevents.EventSequence, shouldPublish func() bool) error
 
 	// PublishMarkers publishes a single marker message for each Pulsar partition.  Each marker
 	// massage contains the supplied group id, which allows all marker messages for a given call
@@ -77,7 +77,7 @@ func NewPulsarPublisher(
 
 // PublishMessages publishes all event sequences to pulsar. Event sequences for a given jobset will be combined into
 // single event sequences up to maxMessageBatchSize.
-func (p *PulsarPublisher) PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, shouldPublish func() bool) error {
+func (p *PulsarPublisher) PublishMessages(ctx context.Context, log *logrus.Entry, events []*armadaevents.EventSequence, shouldPublish func() bool) error {
 	sequences := eventutil.CompactEventSequences(events)
 	sequences, err := eventutil.LimitSequencesByteSize(sequences, p.maxMessageBatchSize, true)
 	if err != nil {

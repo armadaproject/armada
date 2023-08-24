@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/hashicorp/go-multierror"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
@@ -18,8 +17,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/common/pulsarutils/pulsarrequestid"
-	"github.com/armadaproject/armada/internal/common/requestid"
 	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
@@ -121,21 +118,10 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 			lastPublishTime = msg.PublishTime()
 			numReceived++
 
-			// Incoming gRPC requests are annotated with a unique id,
-			// which is included with the corresponding Pulsar message.
-			requestId := pulsarrequestid.FromMessageOrMissing(msg)
-
-			// Put the requestId into a message-specific context and logger,
-			// which are passed on to sub-functions.
-			messageCtx, ok := requestid.AddToIncomingContext(ctx, requestId)
-			if !ok {
-				messageCtx = ctx
-			}
-			messageLogger := log.WithFields(logrus.Fields{"messageId": msg.ID(), requestid.MetadataKey: requestId})
-			ctxWithLogger := ctxlogrus.ToContext(messageCtx, messageLogger)
+			messageLogger := log.WithField("messageId", msg.ID())
 
 			// Unmarshal and validate the message.
-			sequence, err := eventutil.UnmarshalEventSequence(ctxWithLogger, msg.Payload())
+			sequence, err := eventutil.UnmarshalEventSequence(msg.Payload())
 			if err != nil {
 				srv.ack(ctx, msg)
 				logging.WithStacktrace(messageLogger, err).Warnf("processing message failed; ignoring")
@@ -143,9 +129,9 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 				break
 			}
 
-			messageLogger.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
+			messageLogger.Info("processing sequence with %d events", len(sequence.Events))
 			// TODO: Improve retry logic.
-			srv.ProcessSequence(ctxWithLogger, sequence)
+			srv.ProcessSequence(ctx, messageLogger, sequence)
 			srv.ack(ctx, msg)
 		}
 	}
@@ -155,9 +141,7 @@ func (srv *SubmitFromLog) Run(ctx context.Context) error {
 // For efficiency, we may process several events at a time.
 // To maintain ordering, we only do so for subsequences of consecutive events of equal type.
 // The returned bool indicates if the corresponding Pulsar message should be ack'd or not.
-func (srv *SubmitFromLog) ProcessSequence(ctx context.Context, sequence *armadaevents.EventSequence) bool {
-	log := ctxlogrus.Extract(ctx)
-
+func (srv *SubmitFromLog) ProcessSequence(ctx context.Context, log *logrus.Entry, sequence *armadaevents.EventSequence) bool {
 	// Sub-functions should always increment the events index unless they experience a transient error.
 	// However, if a permanent error is mis-categorised as transient, we may get stuck forever.
 	// To avoid that issue, we return immediately if timeout time has passed
@@ -170,7 +154,11 @@ func (srv *SubmitFromLog) ProcessSequence(ctx context.Context, sequence *armadae
 	for i < len(sequence.Events) && time.Since(lastProgress) < timeout {
 		j, err := srv.ProcessSubSequence(ctx, i, sequence)
 		if err != nil {
-			logging.WithStacktrace(log, err).WithFields(logrus.Fields{"lowerIndex": i, "upperIndex": j}).Warnf("processing subsequence failed; ignoring")
+			logging.
+				WithStacktrace(log, err).
+				WithFields(
+					logrus.Fields{"lowerIndex": i, "upperIndex": j}).
+				Warnf("processing subsequence failed; ignoring")
 		}
 
 		if j == i {
