@@ -639,7 +639,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 						errorMessage = fmt.Sprintf("Job has fail fast flag set - this job will no longer be retried")
 					}
 
-					if runError.GetPodLeaseReturned() != nil &&	runError.GetPodLeaseReturned().GetMessage() != "" {
+					if runError.GetPodLeaseReturned() != nil && runError.GetPodLeaseReturned().GetMessage() != "" {
 						errorMessage += "\n\n" + "Final run error:"
 						errorMessage += "\n" + runError.GetPodLeaseReturned().GetMessage()
 					}
