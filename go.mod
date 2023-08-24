@@ -10,14 +10,14 @@ replace github.com/AthenZ/athenz v1.10.39 => github.com/AthenZ/athenz v1.10.4
 require (
 	github.com/alexbrainman/sspi v0.0.0-20180613141037-e580b900e9f5
 	github.com/alicebob/miniredis v2.5.0+incompatible
-	github.com/apache/pulsar-client-go v0.8.1-0.20220429133321-5ee63303d43e
+	github.com/apache/pulsar-client-go v0.11.0
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
 	github.com/doug-martin/goqu/v9 v9.18.0
 	github.com/go-ldap/ldap/v3 v3.4.4
 	github.com/go-openapi/analysis v0.21.4
-	github.com/go-openapi/jsonreference v0.20.0
+	github.com/go-openapi/jsonreference v0.20.2
 	github.com/go-openapi/loads v0.21.2
 	github.com/go-openapi/runtime v0.24.2
 	github.com/go-openapi/spec v0.20.7
@@ -102,11 +102,11 @@ require (
 	github.com/Azure/go-ntlmssp v0.0.0-20220621081337-cb9428e4ac1e // indirect
 	github.com/DataDog/zstd v1.5.0 // indirect
 	github.com/alicebob/gopher-json v0.0.0-20180125190556-5a6b3ba71ee6 // indirect
-	github.com/apache/pulsar-client-go/oauth2 v0.0.0-20220120090717-25e59572242e // indirect
 	github.com/ardielle/ardielle-go v1.5.2 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d // indirect
 	github.com/aymanbagabas/go-osc52 v1.2.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
+	github.com/bits-and-blooms/bitset v1.4.0 // indirect
 	github.com/blang/semver v3.5.1+incompatible // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/charmbracelet/lipgloss v0.6.1-0.20220911181249-6304a734e792 // indirect
@@ -120,7 +120,7 @@ require (
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.4 // indirect
 	github.com/go-logr/logr v0.4.0 // indirect
-	github.com/go-openapi/jsonpointer v0.19.5 // indirect
+	github.com/go-openapi/jsonpointer v0.19.6 // indirect
 	github.com/go-playground/locales v0.14.0 // indirect
 	github.com/go-playground/universal-translator v0.18.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
@@ -168,8 +168,6 @@ require (
 	github.com/mtibben/percent v0.2.1 // indirect
 	github.com/muesli/reflow v0.3.0 // indirect
 	github.com/muesli/termenv v0.14.0 // indirect
-	github.com/onsi/ginkgo v1.16.5 // indirect
-	github.com/onsi/gomega v1.19.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.0.6 // indirect
 	github.com/pierrec/lz4 v2.0.5+incompatible // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
@@ -197,7 +195,7 @@ require (
 	golang.org/x/text v0.7.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/protobuf v1.28.1 // indirect
+	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
