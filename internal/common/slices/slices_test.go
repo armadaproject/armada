@@ -264,3 +264,37 @@ func TestPop(t *testing.T) {
 		},
 	)
 }
+
+func TestRepeat(t *testing.T) {
+	tests := map[string]struct {
+		n        int
+		vs       []int
+		expected []int
+	}{
+		"n: 0": {
+			n:        0,
+			vs:       []int{1, 2, 3},
+			expected: []int{},
+		},
+		"vs emptyy": {
+			n:        3,
+			vs:       []int{},
+			expected: []int{},
+		},
+		"one entry": {
+			n:        3,
+			vs:       []int{0},
+			expected: []int{0, 0, 0},
+		},
+		"multiple entries": {
+			n:        3,
+			vs:       []int{0, 1},
+			expected: []int{0, 1, 0, 1, 0, 1},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, Repeat(tc.n, tc.vs...))
+		})
+	}
+}

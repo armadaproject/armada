@@ -152,7 +152,7 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	require.Error(t, err)
 
 	_, err = UnbindJobFromNode(testfixtures.TestPriorityClasses, job, entry)
-	require.Error(t, err)
+	require.NoError(t, err)
 
 	_, err = bindJobToNode(testfixtures.TestPriorityClasses, job, boundNode)
 	require.Error(t, err)
