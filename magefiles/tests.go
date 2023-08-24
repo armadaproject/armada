@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -83,13 +84,28 @@ func Tests() error {
 		"--format", "short-verbose",
 		"--junitfile", "test-reports/unit-tests.xml",
 		"--jsonfile", "test-reports/unit-tests.json",
+		"--no-color=false",
 		"--", "-coverprofile=test-reports/coverage.out",
 		"-covermode=atomic", "./cmd/...",
 		"./pkg/...",
 	}
 	cmd = append(cmd, internalPackages...)
 
-	if err = sh.Run(Gotestsum, cmd...); err != nil {
+	testCmd := exec.Command(Gotestsum, cmd...)
+
+	// If -verbose was set, we let os.Stdout handles the output.
+	// Otherwise, we need to capture the tests output and print it in the case of failures.
+	var buffer bytes.Buffer
+	if os.Getenv("MAGEFILE_VERBOSE") == "1" {
+		testCmd.Stdout = os.Stdout
+	} else {
+		testCmd.Stdout = &buffer
+	}
+
+	if err := testCmd.Run(); err != nil {
+		if os.Getenv("MAGEFILE_VERBOSE") == "0" {
+			fmt.Println(buffer.String())
+		}
 		return err
 	}
 
