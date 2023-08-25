@@ -80,6 +80,9 @@ spec:
           {{- end }}
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- if .Values.priorityClass }}
+      priorityClassName: {{- .Values.priorityClass }}
+      {{- end }}
       tolerations:
         {{- toYaml .Values.tolerations | nindent 8 }}
       volumes:
