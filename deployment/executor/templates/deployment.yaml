@@ -80,8 +80,8 @@ spec:
           {{- end }}
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
-      {{- if .Values.priorityClass }}
-      priorityClassName: {{- .Values.priorityClass }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{- .Values.priorityClassName }}
       {{- end }}
       tolerations:
         {{- toYaml .Values.tolerations | nindent 8 }}
