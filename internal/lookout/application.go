@@ -33,6 +33,7 @@ func StartUp(config configuration.LookoutConfiguration, healthChecks *health.Mul
 		config.Grpc.KeepaliveParams,
 		config.Grpc.KeepaliveEnforcementPolicy,
 		[]authorization.AuthService{&authorization.AnonymousAuthService{}},
+		config.Grpc.Tls,
 	)
 
 	db, err := postgres.Open(config.Postgres)

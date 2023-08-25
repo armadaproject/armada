@@ -241,3 +241,60 @@ func TestFilter_Nil(t *testing.T) {
 	output := Filter(input, includeAll)
 	assert.Equal(t, expectedOutput, output)
 }
+
+func TestPop(t *testing.T) {
+	s := []int{1, 2, 3}
+	expected := []int{3, 2, 1}
+	var actual []int
+	for len(s) > 0 {
+		actual = append(actual, Pop(&s))
+	}
+	assert.Equal(t, expected, actual)
+	assert.Panics(
+		t,
+		func() {
+			Pop(&s)
+		},
+	)
+	assert.Panics(
+		t,
+		func() {
+			var s []int
+			Pop(&s)
+		},
+	)
+}
+
+func TestRepeat(t *testing.T) {
+	tests := map[string]struct {
+		n        int
+		vs       []int
+		expected []int
+	}{
+		"n: 0": {
+			n:        0,
+			vs:       []int{1, 2, 3},
+			expected: []int{},
+		},
+		"vs emptyy": {
+			n:        3,
+			vs:       []int{},
+			expected: []int{},
+		},
+		"one entry": {
+			n:        3,
+			vs:       []int{0},
+			expected: []int{0, 0, 0},
+		},
+		"multiple entries": {
+			n:        3,
+			vs:       []int{0, 1},
+			expected: []int{0, 1, 0, 1, 0, 1},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			assert.Equal(t, tc.expected, Repeat(tc.n, tc.vs...))
+		})
+	}
+}

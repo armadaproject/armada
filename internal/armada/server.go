@@ -10,10 +10,11 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/armada/cache"
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -35,6 +36,7 @@ import (
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
@@ -75,7 +77,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	if err != nil {
 		return err
 	}
-	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls)
 
 	// Shut down grpcServer if the context is cancelled.
 	// Give the server 5 seconds to shut down gracefully.
@@ -207,7 +209,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		}
 		log.Info("Pulsar submit API deduplication enabled")
 
-		store, err := pgkeyvalue.New(pool, 1000000, config.Pulsar.DedupTable)
+		store, err := pgkeyvalue.New(ctx, pool, config.Pulsar.DedupTable)
 		if err != nil {
 			return err
 		}
@@ -223,9 +225,10 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 
 	// Service that consumes Pulsar messages and writes to Redis
 	consumer, err := pulsarClient.Subscribe(pulsar.ConsumerOptions{
-		Topic:            config.Pulsar.JobsetEventsTopic,
-		SubscriptionName: config.Pulsar.RedisFromPulsarSubscription,
-		Type:             pulsar.KeyShared,
+		Topic:             config.Pulsar.JobsetEventsTopic,
+		SubscriptionName:  config.Pulsar.RedisFromPulsarSubscription,
+		Type:              pulsar.KeyShared,
+		ReceiverQueueSize: config.Pulsar.ReceiverQueueSize,
 	})
 	if err != nil {
 		return errors.WithStack(err)
@@ -266,12 +269,23 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 		config.Pulsar.MaxAllowedMessageSize,
 		legacyExecutorRepo,
 	)
-	if schedulingContextRepository, err := scheduler.NewSchedulingContextRepository(
-		config.Scheduling.MaxJobSchedulingContextsPerExecutor,
-	); err != nil {
+
+	schedulingContextRepository, err := scheduler.NewSchedulingContextRepository(config.Scheduling.MaxJobSchedulingContextsPerExecutor)
+	if err != nil {
 		return err
+	}
+	aggregatedQueueServer.SchedulingContextRepository = schedulingContextRepository
+
+	var schedulingReportsServer schedulerobjects.SchedulerReportingServer
+	if config.PulsarSchedulerEnabled {
+		schedulerApiConnection, err := createApiConnection(config.SchedulerApiConnection)
+		if err != nil {
+			return errors.Wrapf(err, "error creating connection to scheduler api")
+		}
+		schedulerApiReportsClient := schedulerobjects.NewSchedulerReportingClient(schedulerApiConnection)
+		schedulingReportsServer = scheduler.NewProxyingSchedulingReportsServer(schedulerApiReportsClient)
 	} else {
-		aggregatedQueueServer.SchedulingContextRepository = schedulingContextRepository
+		schedulingReportsServer = schedulingContextRepository
 	}
 
 	eventServer := server.NewEventServer(
@@ -297,12 +311,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	api.RegisterSubmitServer(grpcServer, submitServerToRegister)
 	api.RegisterUsageServer(grpcServer, usageServer)
 	api.RegisterEventServer(grpcServer, eventServer)
-	if aggregatedQueueServer.SchedulingContextRepository != nil {
-		schedulerobjects.RegisterSchedulerReportingServer(
-			grpcServer,
-			aggregatedQueueServer.SchedulingContextRepository,
-		)
-	}
+	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportsServer)
 
 	api.RegisterAggregatedQueueServer(grpcServer, aggregatedQueueServer)
 	grpc_prometheus.Register(grpcServer)
@@ -350,4 +359,14 @@ func validatePreemptionConfig(config configuration.PreemptionConfig) error {
 	}
 
 	return nil
+}
+
+func createApiConnection(connectionDetails client.ApiConnectionDetails) (*grpc.ClientConn, error) {
+	grpc_prometheus.EnableClientHandlingTimeHistogram()
+	return client.CreateApiConnectionWithCallOptions(
+		&connectionDetails,
+		[]grpc.CallOption{},
+		grpc.WithChainUnaryInterceptor(grpc_prometheus.UnaryClientInterceptor),
+		grpc.WithChainStreamInterceptor(grpc_prometheus.StreamClientInterceptor),
+	)
 }

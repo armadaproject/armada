@@ -8,7 +8,7 @@ dist: "dist"
 #  proxy: true
 
 snapshot:
-  name_template: "{{ .Tag }}"
+  name_template: "{{ .FullCommit }}"
 
 env:
   - GOPROXY={{ if index .Env "GOPROXY"  }}{{ .Env.GOPROXY }}{{ else }}https://proxy.golang.org,direct{{ end }}
@@ -41,6 +41,33 @@ builds:
     id: executor
     binary: executor
     main: ./cmd/executor/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: armadaloadtester
+    binary: armada-load-tester
+    main: ./cmd/armada-load-tester/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: pulsartest
+    binary: pulsartest
+    main: ./cmd/pulsartest/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
+    id: testsuite
+    binary: testsuite
+    main: ./cmd/testsuite/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
     goos:
       - linux
@@ -128,6 +155,15 @@ builds:
     goarch:
       - amd64
   - env: [CGO_ENABLED=0]
+    id: fakeexecutor
+    binary: fakeexecutor
+    main: ./cmd/fakeexecutor/main.go
+    mod_timestamp: '{{ .CommitTimestamp }}'
+    goos:
+      - linux
+    goarch:
+      - amd64
+  - env: [CGO_ENABLED=0]
     id: armadactl
     binary: armadactl
     main: ./cmd/armadactl/main.go
@@ -151,11 +187,14 @@ archives:
       - armadactl
     allow_different_binary_count: true
     name_template: 'armadactl_{{ replace .Version "-" "_" }}_{{ .Os }}_{{ .Arch }}'
+    format: tar.gz
     format_overrides:
       - goos: windows
         format: zip
     files:
       - LICENSE
+      - README.md
+      - MAINTAINERS.md
 
 # macOS Universal Binaries-*
 universal_binaries:
@@ -187,8 +226,7 @@ dockers:
       - --label=org.opencontainers.image.version={{ .Version }}
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
-      - --label=org.opencontainers.image.base.name=alpine:3.17.0
-      - --label=org.opencontainers.image.base.digest=c0d488a800e4
+      - --label=org.opencontainers.image.base.name=alpine:3.18.3
       - --label=org.opencontainers.image.licenses=Apache-2.0
       - --label=org.opencontainers.image.vendor=G-Research
     ids:
@@ -254,6 +292,7 @@ dockers:
       - lookoutv2
       - lookoutingester
       - lookoutingesterv2
+      - fakeexecutor
     extra_files:
       - config/armada/config.yaml
       - config/executor/config.yaml
@@ -301,6 +340,44 @@ dockers:
     extra_files:
       - config/executor/config.yaml
     dockerfile: ./build_goreleaser/executor/Dockerfile
+
+  - id: fakeexecutor
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-fakeexecutor:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-fakeexecutor:{{ .Version }}"
+    build_flag_templates: *BUILD_FLAG_TEMPLATES
+    ids:
+      - fakeexecutor
+    extra_files:
+      - config/executor/config.yaml
+    dockerfile: ./build_goreleaser/fakeexecutor/Dockerfile
+
+  - id: armadaloadtester
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-loadtester:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-loadtester:{{ .Version }}"
+    build_flag_templates: *BUILD_FLAG_TEMPLATES
+    ids:
+      - armadaloadtester
+    dockerfile: ./build_goreleaser/loadtester/Dockerfile
+
+  - id: testsuite
+    use: buildx
+    goos: linux
+    goarch: amd64
+    image_templates:
+      - "{{ .Env.DOCKER_REPO }}armada-testsuite:latest"
+      - "{{ .Env.DOCKER_REPO }}armada-testsuite:{{ .Version }}"
+    build_flag_templates: *BUILD_FLAG_TEMPLATES
+    ids:
+      - testsuite
+    dockerfile: ./build_goreleaser/testsuite/Dockerfile
 
   - id: lookoutingester
     use: buildx
@@ -479,6 +556,7 @@ checksum:
 
 release:
   disable: '{{ if index .Env "FULL_RELEASE" }}false{{ else }}true{{ end }}'
+  mode: replace
   header: |
     ## Armada v{{ .Version }}
 

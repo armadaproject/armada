@@ -13,6 +13,7 @@ export type JobGroupRow = JobRow & {
   subRowCount?: number
   subRows: JobTableRow[]
   groupedField: string
+  stateCounts: Record<string, number> | undefined
 }
 
 export type JobTableRow = JobRow | JobGroupRow

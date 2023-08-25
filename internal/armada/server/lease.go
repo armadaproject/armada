@@ -40,6 +40,7 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	schedulerinterfaces "github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -257,6 +258,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	log = log.WithFields(logrus.Fields{
 		"function": "getJobs",
 		"cluster":  req.ClusterId,
+		"pool":     req.Pool,
 	})
 	ctx = ctxlogrus.ToContext(ctx, log)
 
@@ -453,6 +455,13 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		log.WithError(err).Warnf("could not store executor details for cluster %s", req.ClusterId)
 	}
 
+	// At this point we've written updated usage information to Redis and are ready to start scheduling.
+	// Exit here if scheduling is disabled.
+	if q.schedulingConfig.DisableScheduling {
+		log.Infof("skipping scheduling on %s - scheduling disabled", req.ClusterId)
+		return make([]*api.Job, 0), nil
+	}
+
 	// Give Schedule() a 3 second shorter deadline than ctx to give it a chance to finish up before ctx deadline.
 	if deadline, ok := ctx.Deadline(); ok {
 		var cancel context.CancelFunc
@@ -460,17 +469,30 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		defer cancel()
 	}
 
+	var fairnessCostProvider fairness.FairnessCostProvider
+	totalResources := schedulerobjects.ResourceList{Resources: totalCapacity}
+	if q.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
+		fairnessCostProvider, err = fairness.NewDominantResourceFairness(
+			totalResources,
+			q.schedulingConfig.DominantResourceFairnessResourcesToConsider,
+		)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		fairnessCostProvider, err = fairness.NewAssetFairness(q.schedulingConfig.ResourceScarcity)
+		if err != nil {
+			return nil, err
+		}
+	}
 	sctx := schedulercontext.NewSchedulingContext(
 		req.ClusterId,
 		req.Pool,
 		q.schedulingConfig.Preemption.PriorityClasses,
 		q.schedulingConfig.Preemption.DefaultPriorityClass,
-		q.schedulingConfig.ResourceScarcity,
-		schedulerobjects.ResourceList{Resources: totalCapacity},
+		fairnessCostProvider,
+		totalResources,
 	)
-	if q.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
-		sctx.EnableDominantResourceFairness(q.schedulingConfig.DominantResourceFairnessResourcesToConsider)
-	}
 	for queue, priorityFactor := range priorityFactorByQueue {
 		if !isActiveByQueueName[queue] {
 			// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.
@@ -510,6 +532,13 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if q.schedulingConfig.EnableAssertions {
 		sch.EnableAssertions()
 	}
+	if q.schedulingConfig.EnableNewPreemptionStrategy {
+		sch.EnableNewPreemptionStrategy()
+	}
+	log.Infof(
+		"starting scheduling with total resources %s",
+		schedulerobjects.ResourceList{Resources: totalCapacity}.CompactString(),
+	)
 	result, err := sch.Schedule(
 		ctxlogrus.ToContext(
 			ctx,
@@ -693,8 +722,8 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			v := node.Labels[q.schedulingConfig.Preemption.NodeIdLabel]
 			if v == "" {
 				log.Warnf(
-					"failed to set node id selector on job %s to target node %s: nodeIdLabel missing from %s",
-					apiJob.Id, node.Name, node.Labels,
+					"failed to set node id selector on job %s to target node %s (id %s): nodeIdLabel missing from %s",
+					apiJob.Id, node.Name, node.Id, node.Labels,
 				)
 				continue
 			}

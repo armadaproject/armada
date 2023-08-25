@@ -3,11 +3,12 @@ package jobdb
 import (
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -71,21 +72,7 @@ func NewJob(
 	cancelled bool,
 	created int64,
 ) *Job {
-	// Initialise the annotation and nodeSelector maps if nil.
-	// Since those need to be mutated in-place.
-	if schedulingInfo != nil {
-		for _, req := range schedulingInfo.ObjectRequirements {
-			if podReq := req.GetPodRequirements(); podReq != nil {
-				if podReq.Annotations == nil {
-					podReq.Annotations = make(map[string]string)
-				}
-				if podReq.NodeSelector == nil {
-					podReq.NodeSelector = make(map[string]string)
-				}
-			}
-		}
-	}
-	return &Job{
+	job := &Job{
 		id:                      jobId,
 		jobset:                  jobset,
 		queue:                   queue,
@@ -99,6 +86,25 @@ func NewJob(
 		cancelled:               cancelled,
 		created:                 created,
 		runsById:                map[uuid.UUID]*JobRun{},
+	}
+	job.ensureJobSchedulingInfoFieldsInitialised()
+	return job
+}
+
+func (job *Job) ensureJobSchedulingInfoFieldsInitialised() {
+	// Initialise the annotation and nodeSelector maps if nil.
+	// Since those need to be mutated in-place.
+	if job.jobSchedulingInfo != nil {
+		for _, req := range job.jobSchedulingInfo.ObjectRequirements {
+			if podReq := req.GetPodRequirements(); podReq != nil {
+				if podReq.Annotations == nil {
+					podReq.Annotations = make(map[string]string)
+				}
+				if podReq.NodeSelector == nil {
+					podReq.NodeSelector = make(map[string]string)
+				}
+			}
+		}
 	}
 }
 
@@ -228,7 +234,7 @@ func (job *Job) PodRequirements() *schedulerobjects.PodRequirements {
 }
 
 // GetPodRequirements is needed for compatibility with interfaces.LegacySchedulerJob.
-func (job *Job) GetPodRequirements(_ map[string]configuration.PriorityClass) *schedulerobjects.PodRequirements {
+func (job *Job) GetPodRequirements(_ map[string]types.PriorityClass) *schedulerobjects.PodRequirements {
 	return job.PodRequirements()
 }
 
@@ -333,13 +339,14 @@ func (job *Job) HasRuns() bool {
 }
 
 // WithNewRun creates a copy of the job with a new run on the given executor.
-func (job *Job) WithNewRun(executor string, node string) *Job {
+func (job *Job) WithNewRun(executor string, nodeId, nodeName string) *Job {
 	run := &JobRun{
 		id:       uuid.New(),
 		jobId:    job.id,
 		created:  time.Now().UnixNano(),
 		executor: executor,
-		node:     node,
+		nodeId:   nodeId,
+		nodeName: nodeName,
 	}
 	return job.WithUpdatedRun(run)
 }
@@ -421,6 +428,22 @@ func (job *Job) WithCreated(created int64) *Job {
 func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSchedulingInfo) *Job {
 	j := copyJob(*job)
 	j.jobSchedulingInfo = jobSchedulingInfo
+	j.ensureJobSchedulingInfoFieldsInitialised()
+	return j
+}
+
+func (job *Job) DeepCopy() *Job {
+	copiedSchedulingInfo := proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
+	j := job.WithJobSchedulingInfo(copiedSchedulingInfo)
+
+	j.runsById = maps.Clone(j.runsById)
+	for key, run := range j.runsById {
+		j.runsById[key] = run.DeepCopy()
+	}
+	if j.activeRun != nil {
+		j.activeRun = job.activeRun.DeepCopy()
+	}
+
 	return j
 }
 
@@ -434,20 +457,16 @@ type JobPriorityComparer struct{}
 // Compare jobs first by priority then by created and finally by id.
 // returns -1 if a should come before b, 1 if a should come after b and 0 if the two jobs are equal
 func (j JobPriorityComparer) Compare(a, b *Job) int {
-	if a == b {
-		return 0
-	}
-
-	// Compare the jobs by priority
+	// Compare the jobs by priority.
 	if a.priority != b.priority {
-		if a.priority > b.priority {
+		if a.priority < b.priority {
 			return -1
 		} else {
 			return 1
 		}
 	}
 
-	// If the jobs have the same priority, compare them by created timestamp
+	// If the jobs have the same priority, compare them by created timestamp.
 	if a.created != b.created {
 		if a.created < b.created {
 			return -1
@@ -456,7 +475,7 @@ func (j JobPriorityComparer) Compare(a, b *Job) int {
 		}
 	}
 
-	// If the jobs have the same priority and created timestamp, compare them by ID
+	// If the jobs have the same priority and created timestamp, compare them by id.
 	if a.id != b.id {
 		if a.id < b.id {
 			return -1
@@ -465,6 +484,6 @@ func (j JobPriorityComparer) Compare(a, b *Job) int {
 		}
 	}
 
-	// If the jobs have the same ID, return 0
+	// Jobs are equal; return 0.
 	return 0
 }

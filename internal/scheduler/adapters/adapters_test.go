@@ -5,19 +5,19 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 var (
-	priorityByPriorityClassName = map[string]configuration.PriorityClass{
+	priorityByPriorityClassName = map[string]types.PriorityClass{
 		"priority-0": {0, true, nil, nil},
 		"priority-1": {1, true, nil, nil},
 		"priority-2": {2, true, nil, nil},
@@ -61,7 +61,7 @@ func TestPodRequirementsFromPodSpecPriorityByPriorityClassName(t *testing.T) {
 	tests := []struct {
 		name                        string
 		podspec                     v1.PodSpec
-		priorityByPriorityClassName map[string]configuration.PriorityClass
+		priorityByPriorityClassName map[string]types.PriorityClass
 		loggedError                 bool
 		priority                    int32
 	}{
