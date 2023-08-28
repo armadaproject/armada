@@ -166,3 +166,14 @@ func Contains[T comparable](list []T, item T) bool {
 	}
 	return false
 }
+
+// Repeat returns a slice []T of length n*len(vs) consisting of n copies of vs.
+func Repeat[T any](n int, vs ...T) []T {
+	rv := make([]T, n*len(vs))
+	for i := 0; i < n; i++ {
+		for j, v := range vs {
+			rv[i*len(vs)+j] = v
+		}
+	}
+	return rv
+}

@@ -13,9 +13,9 @@ jobs:
       - uses: actions/checkout@v3.3.0
       - uses: ./.github/workflows/go-setup
       - name: Install Protoc
-        uses: arduino/setup-protoc@v1
+        uses: arduino/setup-protoc@v2
         with:
-          version: '3.17.3'
+          version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: ./.github/workflows/python-tests
         with:

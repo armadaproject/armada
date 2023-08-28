@@ -1,14 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/magefile/mage/mg"
+	"github.com/magefile/mage/sh"
 )
 
 var Gotestsum string
@@ -38,6 +41,85 @@ func gotestsum() error {
 
 	}
 	return nil
+}
+
+// Tests is a mage target that runs the tests and generates coverage reports.
+func Tests() error {
+	mg.Deps(gotestsum)
+	var err error
+
+	docker_Net, err := dockerNet()
+	if err != nil {
+		return err
+	}
+
+	err = dockerRun("run", "-d", "--name=redis", docker_Net, "-p=6379:6379", "redis:6.2.6")
+	if err != nil {
+		return err
+	}
+
+	err = dockerRun("run", "-d", "--name=postgres", docker_Net, "-p", "5432:5432", "-e", "POSTGRES_PASSWORD=psw", "postgres:14.2")
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if err := dockerRun("rm", "-f", "redis", "postgres"); err != nil {
+			fmt.Println(err)
+		}
+	}()
+
+	err = sh.Run("sleep", "3")
+	if err != nil {
+		return err
+	}
+	packages, err := sh.Output("go", "list", "./internal/...")
+	if err != nil {
+		return err
+	}
+
+	internalPackages := filterPackages(strings.Fields(packages), "jobservice/repository")
+
+	cmd := []string{
+		"--format", "short-verbose",
+		"--junitfile", "test-reports/unit-tests.xml",
+		"--jsonfile", "test-reports/unit-tests.json",
+		"--no-color=false",
+		"--", "-coverprofile=test-reports/coverage.out",
+		"-covermode=atomic", "./cmd/...",
+		"./pkg/...",
+	}
+	cmd = append(cmd, internalPackages...)
+
+	testCmd := exec.Command(Gotestsum, cmd...)
+
+	// If -verbose was set, we let os.Stdout handles the output.
+	// Otherwise, we need to capture the tests output and print it in the case of failures.
+	var buffer bytes.Buffer
+	if os.Getenv("MAGEFILE_VERBOSE") == "1" {
+		testCmd.Stdout = os.Stdout
+	} else {
+		testCmd.Stdout = &buffer
+	}
+
+	if err := testCmd.Run(); err != nil {
+		if os.Getenv("MAGEFILE_VERBOSE") == "0" {
+			fmt.Println(buffer.String())
+		}
+		return err
+	}
+
+	return err
+}
+
+func filterPackages(packages []string, filter string) []string {
+	var filtered []string
+	for _, pkg := range packages {
+		if !strings.Contains(pkg, filter) {
+			filtered = append(filtered, pkg)
+		}
+	}
+	return filtered
 }
 
 func runTest(name, outputFileName string) error {
