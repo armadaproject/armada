@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/healthmonitor"
 	fakecontext "github.com/armadaproject/armada/internal/executor/context/fake"
-	"github.com/armadaproject/armada/internal/executor/healthmonitor"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/job/mocks"
 	mocks2 "github.com/armadaproject/armada/internal/executor/reporter/mocks"
@@ -58,8 +58,8 @@ func TestAllocateSpareClusterCapacity_OnlySubmitsJobForLeasedRuns(t *testing.T) 
 
 func TestAllocateSpareClusterCapacity_DoesNotSubmitJobs_WhenEtcdIsNotWithinSoftLimit(t *testing.T) {
 	leaseRun := createRun("leased", job.Leased)
-	clusterAllocationService, etcdHealthMonitor, eventReporter, submitter, _ := setupClusterAllocationServiceTest([]*job.RunState{leaseRun})
-	etcdHealthMonitor.IsWithinSoftLimit = false
+	clusterAllocationService, healthMonitor, eventReporter, submitter, _ := setupClusterAllocationServiceTest([]*job.RunState{leaseRun})
+	healthMonitor.SetHealthStatus(false)
 
 	clusterAllocationService.AllocateSpareClusterCapacity()
 
@@ -135,21 +135,31 @@ func TestAllocateSpareClusterCapacity_HandlesFailedPodCreations(t *testing.T) {
 
 func setupClusterAllocationServiceTest(initialJobRuns []*job.RunState) (
 	*ClusterAllocationService,
-	*healthmonitor.FakeEtcdLimitHealthMonitor,
+	*healthmonitor.ManualHealthMonitor,
 	*mocks2.FakeEventReporter,
 	*mocks.FakeSubmitter,
 	*job.JobRunStateStore,
 ) {
+
 	clusterId := fakecontext.NewFakeClusterIdentity("cluster-1", "pool-1")
 	eventReporter := mocks2.NewFakeEventReporter()
 	submitter := &mocks.FakeSubmitter{}
-	etcdHealthChecker := &healthmonitor.FakeEtcdLimitHealthMonitor{IsWithinSoftLimit: true, IsWithinHardLimit: true}
 	jobRunStateManager := job.NewJobRunStateStoreWithInitialState(initialJobRuns)
+	healthMonitor := &healthmonitor.ManualHealthMonitor{}
+	healthMonitor.SetHealthStatus(true)
 
-	clusterAllocationService := NewClusterAllocationService(
-		clusterId, eventReporter, jobRunStateManager, submitter, etcdHealthChecker)
+	return NewClusterAllocationService(
+		clusterId,
+		eventReporter,
+		jobRunStateManager,
+		submitter,
+		healthMonitor,
+	), healthMonitor, eventReporter, submitter, jobRunStateManager
 
-	return clusterAllocationService, etcdHealthChecker, eventReporter, submitter, jobRunStateManager
+	// clusterAllocationService := NewClusterAllocationService(
+	// 	clusterId, eventReporter, jobRunStateManager, submitter, nil)
+
+	// return clusterAllocationService, etcdHealthChecker, eventReporter, submitter, jobRunStateManager
 }
 
 func createRun(runId string, phase job.RunPhase) *job.RunState {

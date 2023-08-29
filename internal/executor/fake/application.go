@@ -8,12 +8,14 @@ import (
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/fake/context"
 	"github.com/armadaproject/armada/internal/executor/metrics"
+	"github.com/sirupsen/logrus"
 )
 
 func StartUp(config configuration.ExecutorConfiguration, nodes []*context.NodeSpec) (func(), *sync.WaitGroup) {
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
 	return executor.StartUpWithContext(
+		logrus.NewEntry(logrus.New()),
 		config,
 		context.NewFakeClusterContext(config.Application, config.Kubernetes.NodeIdLabel, nodes),
 		nil,
