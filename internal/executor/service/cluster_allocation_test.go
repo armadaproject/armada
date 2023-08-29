@@ -155,11 +155,6 @@ func setupClusterAllocationServiceTest(initialJobRuns []*job.RunState) (
 		submitter,
 		healthMonitor,
 	), healthMonitor, eventReporter, submitter, jobRunStateManager
-
-	// clusterAllocationService := NewClusterAllocationService(
-	// 	clusterId, eventReporter, jobRunStateManager, submitter, nil)
-
-	// return clusterAllocationService, etcdHealthChecker, eventReporter, submitter, jobRunStateManager
 }
 
 func createRun(runId string, phase job.RunPhase) *job.RunState {
