@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   validate:
-    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.repository_owner == 'armadaproject'
+    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success'
     name: "Validate revision"
     runs-on: ubuntu-22.04
 
@@ -49,27 +49,29 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Golang with Cache
-        uses: magnetikonline/action-golang-cache@v4
-        with:
-          go-version: "1.20"
-
-      - name: Set up Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v2
-
       - name: "Docker login"
         uses: "docker/login-action@v2"
         with:
           username: "${{ secrets.DOCKERHUB_USER }}"
           password: "${{ secrets.DOCKERHUB_PASS }}"
 
-      - name: "Run GoReleaser"
-        uses: "goreleaser/goreleaser-action@v4"
+      - name: Output full commit sha
+        run: echo "sha_full=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
+      - name: Restore cached Docker image tarballs
+        id: restore
+        uses: actions/cache/restore@v3
         with:
-          distribution: "goreleaser"
-          version: v1.19.2
-          args: "-f ./.goreleaser.yml release --snapshot --skip-sbom --skip-sign --clean"
+          key: docker-images-tarballs-${{ env.sha_full }}
+          path: /tmp/imgs
+
+      - name: Run GoReleaser on cache miss
+        if: steps.restore.outputs.cache-hit != 'true'
+        uses: goreleaser/goreleaser-action@v3
+        with:
+          distribution: goreleaser
+          version: v1.20.0
+          args: release  --snapshot --skip-sbom --skip-sign --clean
         env:
           DOCKER_REPO: "gresearch"
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
@@ -78,4 +80,4 @@ jobs:
           DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
 
       - name: Run Docker push script
-        run: ./scripts/docker-push.sh -t '${{ github.event.workflow_run.head_sha }}'
+        run: ./scripts/docker-push.sh -t '${{ github.event.workflow_run.head_sha }}' -i /tmp/imgs -u "${{ steps.restore.outputs.cache-hit }}"

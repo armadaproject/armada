@@ -30,6 +30,9 @@ jobs:
     uses: ./.github/workflows/lint.yml
   test:
     uses: ./.github/workflows/test.yml
+  prepare:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    uses: ./.github/workflows/prepare-release.yml
   # Virtual job that can be configured as a required check before a PR can be merged.
   all-required-checks-done:
     name: All required checks done

@@ -1,0 +1,51 @@
+name: Prepare Release
+
+on:
+  workflow_call:
+    secrets:
+      GORELEASER_KEY:
+        required: true
+        description: GoReleaser Pro key
+
+jobs:
+  prepare:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Golang with Cache
+        uses: magnetikonline/action-golang-cache@v4
+        with:
+          go-version: "1.20"
+
+      - name: Set up Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+
+      - uses: goreleaser/goreleaser-action@v3
+        with:
+          distribution: goreleaser
+          version: v1.20.0
+          args: release  --snapshot --skip-sbom --skip-sign --clean
+        env:
+          DOCKER_REPO: "gresearch"
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          DOCKER_BUILDX_BUILDER: "${{ steps.buildx.outputs.name }}"
+          DOCKER_BUILDX_CACHE_FROM: "type=gha"
+          DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
+
+      - name: Output full commit sha
+        run: echo "sha_full=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
+      - name: Save Docker image tarballs
+        run: |
+          scripts/docker-save.sh -t ${{ env.sha_full }} -o /tmp/imgs
+
+      - name: Cache Docker image tarballs
+        uses: actions/cache/save@v3
+        with:
+          key: docker-images-tarballs-${{ env.sha_full }}
+          path: |
+            /tmp/imgs
