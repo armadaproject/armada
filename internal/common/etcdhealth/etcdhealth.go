@@ -1,11 +1,7 @@
 package etcdhealth
 
 import (
-	"bufio"
 	"context"
-	"net/http"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +11,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
 	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/metrics"
 )
 
 const (
@@ -29,39 +26,34 @@ const (
 
 // EtcdReplicaHealthMonitor is a health monitor for monitoring the health of an individual etcd replica.
 type EtcdReplicaHealthMonitor struct {
-	// Url on which to scrape metrics.
-	metricsUrl string
-	// The cluster is considered unhealthy when for any replica in the cluster:
-	// etcd_mvcc_db_total_size_in_use_in_bytes / etcd_server_quota_backend_bytes
-	// > FractionOfStorageInUseLimit.
-	fractionOfStorageInUseLimit float64
-	// The cluster is considered unhealthy when for any replica in the cluster:
-	// etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes
-	// > FractionOfStorageLimit.
-	fractionOfStorageLimit float64
-	// A replica is considered unavailable if the executor has failed to collect metrics from it for this amount of time.
-	// The cluster is considered unhealthy if there are less than MinimumReplicasAvailable replicas available.
-	replicaTimeout time.Duration
-	// Interval with which to scrape metrics from the replica.
-	scrapeInterval time.Duration
-
-	// Prometheus metrics are prefixed with this.
+	// Name of the replica being scraped, e.g., its url.
+	// Included in exported Prometheus metrics.
+	name string
+	// Exported Prometheus metrics are prefixed with this.
 	metricsPrefix string
 
-	// HTTP client with which to scrape.
-	client *http.Client
+	// The cluster is considered unhealthy when for any replica in the cluster:
+	// etcd_mvcc_db_total_size_in_use_in_bytes / etcd_server_quota_backend_bytes > FractionOfStorageInUseLimit.
+	fractionOfStorageInUseLimit float64
+	// The cluster is considered unhealthy when for any replica in the cluster:
+	// etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes > FractionOfStorageLimit.
+	fractionOfStorageLimit float64
+	// A replica is considered unavailable if the executor has failed to collect metrics from it for this amount of time.
+	replicaTimeout time.Duration
+	// Interval with which to scrape metrics.
+	scrapeInterval time.Duration
 
 	// Time at which metrics collection was most recently attempted.
 	timeOfMostRecentCollectionAttempt time.Time
 	// Time at which metrics were most recently collected successfully.
 	timeOfMostRecentSuccessfulCollectionAttempt time.Time
+
 	// Relevant metrics scraped from etcd.
 	etcdSizeInUseBytes float64
 	etcdSizeBytes      float64
 	etcdCapacityBytes  float64
-	// Mutex protecting the above fields.
-	mu sync.Mutex
 
+	// Prometheus metrics.
 	healthPrometheusDesc                                      *prometheus.Desc
 	timeOfMostRecentCollectionAttemptPrometheusDesc           *prometheus.Desc
 	timeOfMostRecentSuccessfulCollectionAttemptPrometheusDesc *prometheus.Desc
@@ -72,10 +64,19 @@ type EtcdReplicaHealthMonitor struct {
 	metricsCollectionDelayBucketsFactor float64
 	metricsCollectionDelayBucketsCount  int
 	metricsCollectionDelayHistogram     prometheus.Histogram
+
+	// Providing etcd metrics used for the health check.
+	metricsProvider metrics.MetricsProvider
+
+	// Used to block until the next metrics collection.
+	watchers []chan struct{}
+
+	// Mutex protecting the above fields.
+	mu sync.Mutex
 }
 
 func NewEtcdReplicaHealthMonitor(
-	metricsUrl string,
+	name string,
 	fractionOfStorageInUseLimit float64,
 	fractionOfStorageLimit float64,
 	replicaTimeout time.Duration,
@@ -83,10 +84,10 @@ func NewEtcdReplicaHealthMonitor(
 	metricsCollectionDelayBucketsStart float64,
 	metricsCollectionDelayBucketsFactor float64,
 	metricsCollectionDelayBucketsCount int,
-	client *http.Client,
+	metricsProvider metrics.MetricsProvider,
 ) *EtcdReplicaHealthMonitor {
 	return &EtcdReplicaHealthMonitor{
-		metricsUrl:                          metricsUrl,
+		name:                                name,
 		fractionOfStorageInUseLimit:         fractionOfStorageInUseLimit,
 		fractionOfStorageLimit:              fractionOfStorageLimit,
 		replicaTimeout:                      replicaTimeout,
@@ -94,7 +95,7 @@ func NewEtcdReplicaHealthMonitor(
 		metricsCollectionDelayBucketsStart:  metricsCollectionDelayBucketsStart,
 		metricsCollectionDelayBucketsFactor: metricsCollectionDelayBucketsFactor,
 		metricsCollectionDelayBucketsCount:  metricsCollectionDelayBucketsCount,
-		client:                              client,
+		metricsProvider:                     metricsProvider,
 	}
 }
 
@@ -107,7 +108,7 @@ func (srv *EtcdReplicaHealthMonitor) IsHealthy() (bool, string, error) {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
 	if srv.hasTimedOut() {
-		return false, healthmonitor.TimedOutReason, nil
+		return false, healthmonitor.UnavailableReason, nil
 	}
 	ok, reason := srv.isHealthy()
 	return ok, reason, nil
@@ -141,30 +142,43 @@ func (srv *EtcdReplicaHealthMonitor) Run(ctx context.Context, log *logrus.Entry)
 	log.Info("starting etcd health monitor")
 	defer log.Info("stopping etcd health monitor")
 	ticker := time.NewTicker(srv.scrapeInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
 			t := time.Now()
-			metrics, err := srv.scrape(ctx)
+			metrics, err := srv.metricsProvider.Collect(ctx, log)
 			srv.mu.Lock()
 			srv.timeOfMostRecentCollectionAttempt = time.Now()
 			if err != nil {
-				logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.metricsUrl)
+				logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.name)
 			} else {
+				success := true
 				if err := srv.setSizeInUseBytesFromMetrics(metrics); err != nil {
-					logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.metricsUrl)
+					success = false
+					logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.name)
 				}
 				if err := srv.setSizeBytesFromMetrics(metrics); err != nil {
-					logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.metricsUrl)
+					success = false
+					logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.name)
 				}
 				if err := srv.setCapacityBytesFromMetrics(metrics); err != nil {
-					logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.metricsUrl)
+					success = false
+					logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.name)
 				}
-				srv.timeOfMostRecentSuccessfulCollectionAttempt = srv.timeOfMostRecentCollectionAttempt
-				srv.metricsCollectionDelayHistogram.Observe(floatingPointSecondsFromDuration(time.Since(t)))
+				if success {
+					srv.timeOfMostRecentSuccessfulCollectionAttempt = srv.timeOfMostRecentCollectionAttempt
+					srv.metricsCollectionDelayHistogram.Observe(floatingPointSecondsFromDuration(time.Since(t)))
+				}
 			}
+
+			// Unblock any threads waiting for collection to finish.
+			for _, c := range srv.watchers {
+				close(c)
+			}
+			srv.watchers = nil
 			srv.mu.Unlock()
 		}
 	}
@@ -183,13 +197,13 @@ func (srv *EtcdReplicaHealthMonitor) initialise() {
 	)
 	srv.timeOfMostRecentCollectionAttemptPrometheusDesc = prometheus.NewDesc(
 		srv.metricsPrefix+"etcd_replica_time_of_most_recent_metrics_collection_attempt",
-		"Time of most recent health check.",
+		"Time of most recent metrics collection attempt.",
 		[]string{etcdMemberUrl},
 		nil,
 	)
 	srv.timeOfMostRecentSuccessfulCollectionAttemptPrometheusDesc = prometheus.NewDesc(
 		srv.metricsPrefix+"etcd_replica_time_of_most_recent_successful_metrics_collection",
-		"Time of most recent successful health check.",
+		"Time of most recent successful metrics collection.",
 		[]string{etcdMemberUrl},
 		nil,
 	)
@@ -206,7 +220,7 @@ func (srv *EtcdReplicaHealthMonitor) initialise() {
 		nil,
 	)
 	srv.metricsCollectionDelayHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name: srv.metricsPrefix + "etcd_replica_metrics_collection_delay",
+		Name: srv.metricsPrefix + "etcd_replica_metrics_collection_delay_seconds",
 		Help: "Delay in seconds of collecting metrics from this etcd replica.",
 		Buckets: prometheus.ExponentialBuckets(
 			srv.metricsCollectionDelayBucketsStart,
@@ -214,40 +228,6 @@ func (srv *EtcdReplicaHealthMonitor) initialise() {
 			srv.metricsCollectionDelayBucketsCount,
 		),
 	})
-}
-
-func (srv *EtcdReplicaHealthMonitor) scrape(ctx context.Context) (map[string]float64, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", srv.metricsUrl, nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := srv.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	metrics := make(map[string]float64)
-	scanner := bufio.NewScanner(resp.Body)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if i := strings.Index(line, "#"); i >= 0 && i < len(line) {
-			line = line[:i]
-		}
-		if len(line) == 0 {
-			continue
-		}
-		keyVal := strings.Split(line, " ")
-		if len(keyVal) != 2 {
-			continue
-		}
-		key := keyVal[0]
-		val, err := strconv.ParseFloat(keyVal[1], 64)
-		if err != nil {
-			continue
-		}
-		metrics[key] = val
-	}
-	return metrics, nil
 }
 
 func (srv *EtcdReplicaHealthMonitor) setSizeInUseBytesFromMetrics(metrics map[string]float64) error {
@@ -277,6 +257,21 @@ func (srv *EtcdReplicaHealthMonitor) setCapacityBytesFromMetrics(metrics map[str
 	return nil
 }
 
+// BlockUntilNextMetricsCollection blocks until the next metrics collection has completed,
+// or until ctx is cancelled, whichever occurs first.
+func (srv *EtcdReplicaHealthMonitor) BlockUntilNextMetricsCollection(ctx context.Context) {
+	c := make(chan struct{})
+	srv.mu.Lock()
+	srv.watchers = append(srv.watchers, c)
+	srv.mu.Unlock()
+	select {
+	case <-ctx.Done():
+		return
+	case <-c:
+		return
+	}
+}
+
 func (srv *EtcdReplicaHealthMonitor) Describe(c chan<- *prometheus.Desc) {
 	c <- srv.healthPrometheusDesc
 	c <- srv.timeOfMostRecentCollectionAttemptPrometheusDesc
@@ -302,31 +297,31 @@ func (srv *EtcdReplicaHealthMonitor) Collect(c chan<- prometheus.Metric) {
 		srv.healthPrometheusDesc,
 		prometheus.GaugeValue,
 		resultOfMostRecentHealthCheck,
-		srv.metricsUrl,
+		srv.name,
 	)
 	c <- prometheus.MustNewConstMetric(
 		srv.timeOfMostRecentCollectionAttemptPrometheusDesc,
 		prometheus.CounterValue,
 		float64(timeOfMostRecentCollectionAttempt.Unix()),
-		srv.metricsUrl,
+		srv.name,
 	)
 	c <- prometheus.MustNewConstMetric(
 		srv.timeOfMostRecentSuccessfulCollectionAttemptPrometheusDesc,
 		prometheus.CounterValue,
 		float64(timeOfMostRecentSuccessfulCollectionAttempt.Unix()),
-		srv.metricsUrl,
+		srv.name,
 	)
 	c <- prometheus.MustNewConstMetric(
 		srv.sizeInUseFractionPrometheusDesc,
 		prometheus.GaugeValue,
 		sizeInUseFraction,
-		srv.metricsUrl,
+		srv.name,
 	)
 	c <- prometheus.MustNewConstMetric(
 		srv.sizeFractionPrometheusDesc,
 		prometheus.GaugeValue,
 		sizeFraction,
-		srv.metricsUrl,
+		srv.name,
 	)
 	srv.metricsCollectionDelayHistogram.Collect(c)
 }

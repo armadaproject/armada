@@ -21,6 +21,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/cluster"
 	"github.com/armadaproject/armada/internal/common/etcdhealth"
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
+	common_metrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/task"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -64,9 +65,9 @@ func StartUp(ctx context.Context, log *logrus.Entry, config configuration.Execut
 	etcdClusterHealthMonitoringByName := make(map[string]healthmonitor.HealthMonitor, len(config.Kubernetes.Etcd.EtcdClustersHealthMonitoring))
 	for _, etcdClusterHealthMonitoring := range config.Kubernetes.Etcd.EtcdClustersHealthMonitoring {
 		etcdReplicaHealthMonitorsByUrl := make(map[string]healthmonitor.HealthMonitor, len(etcdClusterHealthMonitoring.MetricUrls))
-		for _, metricUrl := range etcdClusterHealthMonitoring.MetricUrls {
-			etcdReplicaHealthMonitorsByUrl[metricUrl] = etcdhealth.NewEtcdReplicaHealthMonitor(
-				metricUrl,
+		for _, metricsUrl := range etcdClusterHealthMonitoring.MetricUrls {
+			etcdReplicaHealthMonitorsByUrl[metricsUrl] = etcdhealth.NewEtcdReplicaHealthMonitor(
+				metricsUrl,
 				etcdClusterHealthMonitoring.FractionOfStorageInUseLimit,
 				etcdClusterHealthMonitoring.FractionOfStorageLimit,
 				etcdClusterHealthMonitoring.ReplicaTimeout,
@@ -74,7 +75,7 @@ func StartUp(ctx context.Context, log *logrus.Entry, config configuration.Execut
 				etcdClusterHealthMonitoring.ScrapeDelayBucketsStart,
 				etcdClusterHealthMonitoring.ScrapeDelayBucketsFactor,
 				etcdClusterHealthMonitoring.ScrapeDelayBucketsCount,
-				http.DefaultClient,
+				common_metrics.NewHttpMetricsProvider(metricsUrl, http.DefaultClient),
 			)
 		}
 		etcdClusterHealthMonitoringByName[etcdClusterHealthMonitoring.Name] = healthmonitor.NewMultiHealthMonitor(

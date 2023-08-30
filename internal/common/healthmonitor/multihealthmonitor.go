@@ -2,6 +2,7 @@ package healthmonitor
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/pkg/errors"
@@ -67,7 +68,7 @@ func (srv *MultiHealthMonitor) IsHealthy() (ok bool, reason string, err error) {
 		// Cluster is unhealthy if any child is unhealthy for a reason other than timeout
 		// or if too many have timed out.
 		if !ok {
-			if reason != TimedOutReason {
+			if reason != UnavailableReason {
 				return ok, reason, nil
 			}
 		} else {
@@ -88,7 +89,7 @@ func (srv *MultiHealthMonitor) Run(ctx context.Context, log *logrus.Entry) error
 	}
 	srv.healthPrometheusDesc = prometheus.NewDesc(
 		metricsPrefix+"_health",
-		"Shows whether a component reports healthy",
+		fmt.Sprintf("Shows whether %s is healthy.", srv.name),
 		[]string{srv.name},
 		nil,
 	)

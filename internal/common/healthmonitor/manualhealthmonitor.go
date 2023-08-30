@@ -11,7 +11,14 @@ import (
 // ManualHealthMonitor is a manually controlled health monitor.
 type ManualHealthMonitor struct {
 	isHealthy bool
+	reason    string
 	mu        sync.Mutex
+}
+
+func NewManualHealthMonitor() *ManualHealthMonitor {
+	return &ManualHealthMonitor{
+		reason: ManuallyDisabledReason,
+	}
 }
 
 func (srv *ManualHealthMonitor) SetHealthStatus(isHealthy bool) bool {
@@ -22,10 +29,21 @@ func (srv *ManualHealthMonitor) SetHealthStatus(isHealthy bool) bool {
 	return previous
 }
 
+func (srv *ManualHealthMonitor) WithReason(reason string) *ManualHealthMonitor {
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	srv.reason = reason
+	return srv
+}
+
 func (srv *ManualHealthMonitor) IsHealthy() (bool, string, error) {
 	srv.mu.Lock()
 	defer srv.mu.Unlock()
-	return srv.isHealthy, "", nil
+	if srv.isHealthy {
+		return true, "", nil
+	} else {
+		return false, srv.reason, nil
+	}
 }
 
 func (srv *ManualHealthMonitor) Run(ctx context.Context, log *logrus.Entry) error {

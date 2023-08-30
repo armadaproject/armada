@@ -8,10 +8,12 @@ import (
 )
 
 const (
-	// Health check failure reason indicating the monitored component has timed out.
-	TimedOutReason string = "timedOut"
+	// Health check failure reason indicating the monitored component is unavailable (e.g., due to time-out).
+	UnavailableReason string = "unavailable"
 	// Health check failure reason indicating too many replicas have timed out.
 	InsufficientReplicasAvailableReason string = "insufficientReplicasAvailable"
+	// Health check failure reason indicating a component is manually disabled.
+	ManuallyDisabledReason string = "manuallyDisabled"
 )
 
 // HealthMonitor represents a health checker.

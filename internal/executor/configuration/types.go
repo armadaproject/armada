@@ -109,7 +109,7 @@ type EtcdClusterHealthMonitoringConfiguration struct {
 	// The time it takes to scrape metrics is exported as a prometheus histogram with exponential buckets.
 	// These settings control the size and number of such buckets.
 	ScrapeDelayBucketsStart  float64 `validate:"gt=0"`
-	ScrapeDelayBucketsFactor float64 `validate:"gt=0"`
+	ScrapeDelayBucketsFactor float64 `validate:"gt=1"`
 	ScrapeDelayBucketsCount  int     `validate:"gt=0"`
 }
 
