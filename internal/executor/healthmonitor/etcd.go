@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	etcdInUseSizeBytesMetricName string = "etcd_mvcc_db_total_size_in_use_in_bytes"
+	etcdInUseSizeBytesMetricName string = "etcd_db_total_size_in_bytes"
 	etcdTotalSizeBytesMetricName string = "etcd_server_quota_backend_bytes"
 	etcdMemberUrl                string = "url"
 )
