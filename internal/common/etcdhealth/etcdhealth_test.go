@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/healthmonitor"
-	"github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/armadaproject/armada/internal/common/healthmonitor"
+	"github.com/armadaproject/armada/internal/common/metrics"
 )
 
 func TestEtcdReplicaHealthMonitor(t *testing.T) {
