@@ -113,7 +113,6 @@ type EtcdClusterHealthMonitoringConfiguration struct {
 	ScrapeDelayBucketsCount  int     `validate:"gt=0"`
 }
 
-
 type TaskConfiguration struct {
 	UtilisationReportingInterval          time.Duration
 	MissingJobEventReconciliationInterval time.Duration
