@@ -140,7 +140,6 @@ func setupClusterAllocationServiceTest(initialJobRuns []*job.RunState) (
 	*mocks.FakeSubmitter,
 	*job.JobRunStateStore,
 ) {
-
 	clusterId := fakecontext.NewFakeClusterIdentity("cluster-1", "pool-1")
 	eventReporter := mocks2.NewFakeEventReporter()
 	submitter := &mocks.FakeSubmitter{}
