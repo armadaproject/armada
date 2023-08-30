@@ -113,7 +113,6 @@ type EtcdClusterHealthMonitoringConfiguration struct {
 	ScrapeDelayBucketsCount  int     `validate:"gt=0"`
 }
 
-// Start, Factor, Count
 
 type TaskConfiguration struct {
 	UtilisationReportingInterval          time.Duration
