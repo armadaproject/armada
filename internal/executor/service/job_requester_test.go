@@ -24,6 +24,19 @@ import (
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
+func TestRequestJobsRuns_DoesNotLeaseMoreJobs_WhenExecutorHasUnsubmittedJobs(t *testing.T) {
+	runId := uuid.New()
+	leasedRun := createRun(runId.String(), job.Leased)
+	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest([]*job.RunState{leasedRun})
+
+	jobRequester.RequestJobsRuns()
+	assert.Len(t, leaseRequester.ReceivedLeaseRequests, 0)
+	assert.Len(t, eventReporter.ReceivedEvents, 0)
+	allJobRuns := stateStore.GetAll()
+	assert.Len(t, allJobRuns, 1)
+	assert.Equal(t, allJobRuns[0].Job.Meta.RunMeta.RunId, runId.String())
+}
+
 func TestRequestJobsRuns_HandlesLeaseRequestError(t *testing.T) {
 	jobRequester, eventReporter, leaseRequester, stateStore, _ := setupJobRequesterTest([]*job.RunState{})
 	leaseRequester.LeaseJobRunError = fmt.Errorf("lease error")
