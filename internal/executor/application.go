@@ -71,6 +71,9 @@ func StartUp(ctx context.Context, log *logrus.Entry, config configuration.Execut
 				etcdClusterHealthMonitoring.FractionOfStorageLimit,
 				etcdClusterHealthMonitoring.ReplicaTimeout,
 				etcdClusterHealthMonitoring.ScrapeInterval,
+				etcdClusterHealthMonitoring.ScrapeDelayBucketsStart,
+				etcdClusterHealthMonitoring.ScrapeDelayBucketsFactor,
+				etcdClusterHealthMonitoring.ScrapeDelayBucketsCount,
 				http.DefaultClient,
 			)
 		}

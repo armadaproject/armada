@@ -67,6 +67,11 @@ type EtcdReplicaHealthMonitor struct {
 	timeOfMostRecentSuccessfulCollectionAttemptPrometheusDesc *prometheus.Desc
 	sizeInUseFractionPrometheusDesc                           *prometheus.Desc
 	sizeFractionPrometheusDesc                                *prometheus.Desc
+
+	metricsCollectionDelayBucketsStart  float64
+	metricsCollectionDelayBucketsFactor float64
+	metricsCollectionDelayBucketsCount  int
+	metricsCollectionDelayHistogram     prometheus.Histogram
 }
 
 func NewEtcdReplicaHealthMonitor(
@@ -75,15 +80,21 @@ func NewEtcdReplicaHealthMonitor(
 	fractionOfStorageLimit float64,
 	replicaTimeout time.Duration,
 	scrapeInterval time.Duration,
+	metricsCollectionDelayBucketsStart float64,
+	metricsCollectionDelayBucketsFactor float64,
+	metricsCollectionDelayBucketsCount int,
 	client *http.Client,
 ) *EtcdReplicaHealthMonitor {
 	return &EtcdReplicaHealthMonitor{
-		metricsUrl:                  metricsUrl,
-		fractionOfStorageInUseLimit: fractionOfStorageInUseLimit,
-		fractionOfStorageLimit:      fractionOfStorageLimit,
-		replicaTimeout:              replicaTimeout,
-		scrapeInterval:              scrapeInterval,
-		client:                      client,
+		metricsUrl:                          metricsUrl,
+		fractionOfStorageInUseLimit:         fractionOfStorageInUseLimit,
+		fractionOfStorageLimit:              fractionOfStorageLimit,
+		replicaTimeout:                      replicaTimeout,
+		scrapeInterval:                      scrapeInterval,
+		metricsCollectionDelayBucketsStart:  metricsCollectionDelayBucketsStart,
+		metricsCollectionDelayBucketsFactor: metricsCollectionDelayBucketsFactor,
+		metricsCollectionDelayBucketsCount:  metricsCollectionDelayBucketsCount,
+		client:                              client,
 	}
 }
 
@@ -125,6 +136,45 @@ func (srv *EtcdReplicaHealthMonitor) sizeFraction() float64 {
 }
 
 func (srv *EtcdReplicaHealthMonitor) Run(ctx context.Context, log *logrus.Entry) error {
+	srv.initialise()
+	log = log.WithField("service", "EtcdHealthMonitor")
+	log.Info("starting etcd health monitor")
+	defer log.Info("stopping etcd health monitor")
+	ticker := time.NewTicker(srv.scrapeInterval)
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			t := time.Now()
+			metrics, err := srv.scrape(ctx)
+			srv.mu.Lock()
+			srv.timeOfMostRecentCollectionAttempt = time.Now()
+			if err != nil {
+				logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.metricsUrl)
+			} else {
+				if err := srv.setSizeInUseBytesFromMetrics(metrics); err != nil {
+					logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.metricsUrl)
+				}
+				if err := srv.setSizeBytesFromMetrics(metrics); err != nil {
+					logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.metricsUrl)
+				}
+				if err := srv.setCapacityBytesFromMetrics(metrics); err != nil {
+					logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.metricsUrl)
+				}
+				srv.timeOfMostRecentSuccessfulCollectionAttempt = srv.timeOfMostRecentCollectionAttempt
+				srv.metricsCollectionDelayHistogram.Observe(floatingPointSecondsFromDuration(time.Since(t)))
+			}
+			srv.mu.Unlock()
+		}
+	}
+}
+
+func floatingPointSecondsFromDuration(d time.Duration) float64 {
+	return float64(d) / 1e9
+}
+
+func (srv *EtcdReplicaHealthMonitor) initialise() {
 	srv.healthPrometheusDesc = prometheus.NewDesc(
 		srv.metricsPrefix+"etcd_replica_health",
 		"Shows the health of an etcd replica",
@@ -155,36 +205,15 @@ func (srv *EtcdReplicaHealthMonitor) Run(ctx context.Context, log *logrus.Entry)
 		[]string{etcdMemberUrl},
 		nil,
 	)
-
-	log = log.WithField("service", "EtcdHealthMonitor")
-	log.Info("starting etcd health monitor")
-	defer log.Info("stopping etcd health monitor")
-	ticker := time.NewTicker(srv.scrapeInterval)
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			metrics, err := srv.scrape(ctx)
-			srv.mu.Lock()
-			srv.timeOfMostRecentCollectionAttempt = time.Now()
-			if err != nil {
-				logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.metricsUrl)
-			} else {
-				if srv.setSizeInUseBytesFromMetrics(metrics); err != nil {
-					logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.metricsUrl)
-				}
-				if srv.setSizeBytesFromMetrics(metrics); err != nil {
-					logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.metricsUrl)
-				}
-				if srv.setCapacityBytesFromMetrics(metrics); err != nil {
-					logging.WithStacktrace(log, err).Errorf("failed to scrape etcd metrics from %s", srv.metricsUrl)
-				}
-				srv.timeOfMostRecentSuccessfulCollectionAttempt = srv.timeOfMostRecentCollectionAttempt
-			}
-			srv.mu.Unlock()
-		}
-	}
+	srv.metricsCollectionDelayHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name: srv.metricsPrefix + "etcd_replica_metrics_collection_delay",
+		Help: "Delay in seconds of collecting metrics from this etcd replica.",
+		Buckets: prometheus.ExponentialBuckets(
+			srv.metricsCollectionDelayBucketsStart,
+			srv.metricsCollectionDelayBucketsFactor,
+			srv.metricsCollectionDelayBucketsCount,
+		),
+	})
 }
 
 func (srv *EtcdReplicaHealthMonitor) scrape(ctx context.Context) (map[string]float64, error) {
@@ -254,6 +283,7 @@ func (srv *EtcdReplicaHealthMonitor) Describe(c chan<- *prometheus.Desc) {
 	c <- srv.timeOfMostRecentSuccessfulCollectionAttemptPrometheusDesc
 	c <- srv.sizeInUseFractionPrometheusDesc
 	c <- srv.sizeFractionPrometheusDesc
+	srv.metricsCollectionDelayHistogram.Describe(c)
 }
 
 func (srv *EtcdReplicaHealthMonitor) Collect(c chan<- prometheus.Metric) {
@@ -298,4 +328,5 @@ func (srv *EtcdReplicaHealthMonitor) Collect(c chan<- prometheus.Metric) {
 		sizeFraction,
 		srv.metricsUrl,
 	)
+	srv.metricsCollectionDelayHistogram.Collect(c)
 }
