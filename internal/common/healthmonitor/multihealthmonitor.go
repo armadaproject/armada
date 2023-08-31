@@ -62,7 +62,7 @@ func (srv *MultiHealthMonitor) initialiseMetrics() {
 	srv.healthPrometheusDesc = prometheus.NewDesc(
 		metricsPrefix+"_health",
 		fmt.Sprintf("Shows whether %s is healthy.", srv.name),
-		[]string{srv.name},
+		nil,
 		nil,
 	)
 }
@@ -128,7 +128,6 @@ func (srv *MultiHealthMonitor) Collect(c chan<- prometheus.Metric) {
 		srv.healthPrometheusDesc,
 		prometheus.GaugeValue,
 		resultOfMostRecentHealthCheck,
-		srv.name,
 	)
 
 	for _, healthMonitor := range srv.healthMonitorsByName {
