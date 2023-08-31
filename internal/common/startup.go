@@ -143,6 +143,7 @@ func ServeMetricsFor(port uint16, gatherer prometheus.Gatherer) (shutdown func()
 }
 
 // ServeHttp starts an HTTP server listening on the given port.
+// TODO: Make block until a context passed in is cancelled.
 func ServeHttp(port uint16, mux http.Handler) (shutdown func()) {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
