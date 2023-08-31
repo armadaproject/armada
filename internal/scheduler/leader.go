@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	gocontext "context"
 	"github.com/armadaproject/armada/internal/common/context"
 	"sync"
 	"sync/atomic"
@@ -155,7 +156,7 @@ func (lc *KubernetesLeaderController) Run(ctx *context.ArmadaContext) error {
 				RenewDeadline:   lc.config.RenewDeadline,
 				RetryPeriod:     lc.config.RetryPeriod,
 				Callbacks: leaderelection.LeaderCallbacks{
-					OnStartedLeading: func(c *context.ArmadaContext) {
+					OnStartedLeading: func(c gocontext.Context) {
 						log.Infof("I am now leader")
 						lc.token.Store(NewLeaderToken())
 						for _, listener := range lc.listeners {

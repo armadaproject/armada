@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	gocontext "context"
 	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
@@ -37,7 +38,7 @@ func (s *ProxyingSchedulingReportsServer) GetJobReport(ctx *context.ArmadaContex
 
 // We reduce the context deadline here, to prevent our call and the caller who called us from timing out at the same time
 // This should mean our caller gets the real error message rather than a generic timeout error from client side
-func reduceTimeout(ctx *context.ArmadaContext) (*context.ArmadaContext, context.CancelFunc) {
+func reduceTimeout(ctx *context.ArmadaContext) (*context.ArmadaContext, gocontext.CancelFunc) {
 	deadline, ok := ctx.Deadline()
 	if !ok {
 		return context.WithCancel(ctx)

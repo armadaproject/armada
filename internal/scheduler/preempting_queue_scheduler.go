@@ -125,10 +125,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *context.ArmadaContext) (*Sche
 	// Evict preemptible jobs.
 	totalCost := sch.schedulingContext.TotalCost()
 	evictorResult, inMemoryJobRepo, err := sch.evict(
-		ctxlogrus.ToContext(
-			ctx,
-			log.WithField("stage", "evict for resource balancing"),
-		),
+		context.WithLogField(ctx, "stage", "evict for resource balancing"),
 		NewNodeEvictor(
 			sch.jobRepo,
 			sch.schedulingContext.PriorityClasses,
@@ -168,10 +165,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *context.ArmadaContext) (*Sche
 
 	// Re-schedule evicted jobs/schedule new jobs.
 	schedulerResult, err := sch.schedule(
-		ctxlogrus.ToContext(
-			ctx,
-			log.WithField("stage", "re-schedule after balancing eviction"),
-		),
+		context.WithLogField(ctx, "stage", "re-schedule after balancing eviction"),
 		inMemoryJobRepo,
 		sch.jobRepo,
 	)
@@ -189,10 +183,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *context.ArmadaContext) (*Sche
 
 	// Evict jobs on oversubscribed nodes.
 	evictorResult, inMemoryJobRepo, err = sch.evict(
-		ctxlogrus.ToContext(
-			ctx,
-			log.WithField("stage", "evict oversubscribed"),
-		),
+		context.WithLogField(ctx, "stage", "evict oversubscribed"),
 		NewOversubscribedEvictor(
 			sch.jobRepo,
 			sch.schedulingContext.PriorityClasses,
@@ -226,10 +217,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *context.ArmadaContext) (*Sche
 		// Since no new jobs are considered in this round, the scheduling key check brings no benefit.
 		sch.SkipUnsuccessfulSchedulingKeyCheck()
 		schedulerResult, err = sch.schedule(
-			ctxlogrus.ToContext(
-				ctx,
-				log.WithField("stage", "schedule after oversubscribed eviction"),
-			),
+			context.WithLogField(ctx, "stage", "schedule after oversubscribed eviction"),
 			inMemoryJobRepo,
 			// Only evicted jobs should be scheduled in this round,
 			// so we provide an empty repo for queued jobs.

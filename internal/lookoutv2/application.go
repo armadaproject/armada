@@ -3,11 +3,12 @@
 package lookoutv2
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/caarlos0/log"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/sirupsen/logrus"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"

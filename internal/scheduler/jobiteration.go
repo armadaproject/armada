@@ -3,12 +3,10 @@ package scheduler
 import (
 	"github.com/armadaproject/armada/internal/common/context"
 
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
-	"golang.org/x/sync/errgroup"
-
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 )
 
 type JobIterator interface {
@@ -141,7 +139,7 @@ type QueuedJobsIterator struct {
 
 func NewQueuedJobsIterator(ctx *context.ArmadaContext, queue string, repo JobRepository) (*QueuedJobsIterator, error) {
 	batchSize := 16
-	g, ctx := errgroup.WithContext(ctx)
+	g, ctx := context.ErrGroup(ctx)
 	it := &QueuedJobsIterator{
 		ctx: ctx,
 		c:   make(chan interfaces.LegacySchedulerJob, 2*batchSize), // 2x batchSize to load one batch async.

@@ -1,7 +1,7 @@
 package scheduler
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
+	gocontext "context"
 	"math/rand"
 	"time"
 
@@ -15,6 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -145,7 +146,7 @@ func (l *FairSchedulingAlgo) Schedule(
 			minimumJobSize,
 			executorGroup,
 		)
-		if err == context.DeadlineExceeded {
+		if err == gocontext.DeadlineExceeded {
 			// We've reached the scheduling time limit;
 			// add the executorGroupLabel back to l.executorGroupsToSchedule such that we try it again next time,
 			// and exit gracefully.
