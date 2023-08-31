@@ -32,11 +32,26 @@ type MultiHealthMonitor struct {
 }
 
 func NewMultiHealthMonitor(name string, healthMonitorsByName map[string]HealthMonitor) *MultiHealthMonitor {
-	return &MultiHealthMonitor{
+	monitor := &MultiHealthMonitor{
 		name:                     name,
 		minimumReplicasAvailable: len(healthMonitorsByName),
 		healthMonitorsByName:     maps.Clone(healthMonitorsByName),
 	}
+	monitor.initialise()
+	return monitor
+}
+
+func (srv *MultiHealthMonitor) initialise() {
+	metricsPrefix := srv.name
+	if srv.metricsPrefix != "" {
+		metricsPrefix = srv.metricsPrefix + srv.name
+	}
+	srv.healthPrometheusDesc = prometheus.NewDesc(
+		metricsPrefix+"_health",
+		fmt.Sprintf("Shows whether %s is healthy.", srv.name),
+		[]string{srv.name},
+		nil,
+	)
 }
 
 func (srv *MultiHealthMonitor) WithMinimumReplicasAvailable(v int) *MultiHealthMonitor {
@@ -83,17 +98,6 @@ func (srv *MultiHealthMonitor) IsHealthy() (ok bool, reason string, err error) {
 
 // Run initialises prometheus metrics and starts any child health checkers.
 func (srv *MultiHealthMonitor) Run(ctx context.Context, log *logrus.Entry) error {
-	metricsPrefix := srv.name
-	if srv.metricsPrefix != "" {
-		metricsPrefix = srv.metricsPrefix + srv.name
-	}
-	srv.healthPrometheusDesc = prometheus.NewDesc(
-		metricsPrefix+"_health",
-		fmt.Sprintf("Shows whether %s is healthy.", srv.name),
-		[]string{srv.name},
-		nil,
-	)
-
 	g, ctx := errgroup.WithContext(ctx)
 	for _, healthMonitor := range srv.healthMonitorsByName {
 		healthMonitor := healthMonitor

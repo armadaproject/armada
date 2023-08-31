@@ -86,7 +86,7 @@ func NewEtcdReplicaHealthMonitor(
 	metricsCollectionDelayBucketsCount int,
 	metricsProvider metrics.MetricsProvider,
 ) *EtcdReplicaHealthMonitor {
-	return &EtcdReplicaHealthMonitor{
+	monitor := &EtcdReplicaHealthMonitor{
 		name:                                name,
 		fractionOfStorageInUseLimit:         fractionOfStorageInUseLimit,
 		fractionOfStorageLimit:              fractionOfStorageLimit,
@@ -97,6 +97,8 @@ func NewEtcdReplicaHealthMonitor(
 		metricsCollectionDelayBucketsCount:  metricsCollectionDelayBucketsCount,
 		metricsProvider:                     metricsProvider,
 	}
+	monitor.initialise()
+	return monitor
 }
 
 func (srv *EtcdReplicaHealthMonitor) WithMetricsPrefix(v string) *EtcdReplicaHealthMonitor {
@@ -137,7 +139,6 @@ func (srv *EtcdReplicaHealthMonitor) sizeFraction() float64 {
 }
 
 func (srv *EtcdReplicaHealthMonitor) Run(ctx context.Context, log *logrus.Entry) error {
-	srv.initialise()
 	log = log.WithField("service", "EtcdHealthMonitor")
 	log.Info("starting etcd health monitor")
 	defer log.Info("stopping etcd health monitor")
