@@ -62,7 +62,7 @@ func (srv *MultiHealthMonitor) initialiseMetrics() {
 	srv.healthPrometheusDesc = prometheus.NewDesc(
 		metricsPrefix+"_health",
 		fmt.Sprintf("Shows whether %s is healthy.", srv.name),
-		[]string{srv.name},
+		[]string{"name"},
 		nil,
 	)
 }

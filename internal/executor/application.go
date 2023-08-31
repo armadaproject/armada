@@ -91,7 +91,7 @@ func StartUp(ctx context.Context, log *logrus.Entry, config configuration.Execut
 	if len(etcdClusterHealthMonitoringByName) > 0 {
 		log.Info("etcd URLs provided; monitoring etcd health enabled")
 		etcdClustersHealthMonitoring = healthmonitor.NewMultiHealthMonitor(
-			"etcd",
+			"overall_etcd",
 			etcdClusterHealthMonitoringByName,
 		).WithMetricsPrefix(
 			metrics.ArmadaExecutorMetricsPrefix,
