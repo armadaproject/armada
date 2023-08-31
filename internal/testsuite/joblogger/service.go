@@ -1,15 +1,15 @@
 package joblogger
 
 import (
-	"context"
 	"io"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/armadaproject/armada/internal/common/context"
+
 	pkgerrors "github.com/pkg/errors"
-	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -74,7 +74,7 @@ func (srv *JobLogger) validateConfig() error {
 	return nil
 }
 
-func (srv *JobLogger) Run(ctx context.Context) error {
+func (srv *JobLogger) Run(ctx *context.ArmadaContext) error {
 	if len(srv.clusters) == 0 {
 		return pkgerrors.New("no executor clusters configured to scrape for logs")
 	}
@@ -88,7 +88,7 @@ func (srv *JobLogger) Run(ctx context.Context) error {
 		return pkgerrors.WithMessagef(err, "error checking does kubeconfig file exist at %s", kubeconfig)
 	}
 
-	g, ctx := errgroup.WithContext(ctx)
+	g, ctx := context.ErrGroup(ctx)
 
 	for i := range srv.clusters {
 		kubectx := srv.clusters[i]

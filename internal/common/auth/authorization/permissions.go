@@ -1,7 +1,7 @@
 package authorization
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 )
@@ -12,8 +12,8 @@ type Owned interface {
 }
 
 type PermissionChecker interface {
-	UserHasPermission(ctx context.Context, perm permission.Permission) bool
-	UserOwns(ctx context.Context, obj Owned) (owned bool, ownershipGroups []string)
+	UserHasPermission(ctx *context.ArmadaContext, perm permission.Permission) bool
+	UserOwns(ctx *context.ArmadaContext, obj Owned) (owned bool, ownershipGroups []string)
 }
 
 type PrincipalPermissionChecker struct {
@@ -37,7 +37,7 @@ func NewPrincipalPermissionChecker(
 // UserHasPermission returns true if the principal contained in the context has the given permission,
 // which is determined by checking if any of the groups, scopes, or claims associated with the principal
 // has that permission.
-func (checker *PrincipalPermissionChecker) UserHasPermission(ctx context.Context, perm permission.Permission) bool {
+func (checker *PrincipalPermissionChecker) UserHasPermission(ctx *context.ArmadaContext, perm permission.Permission) bool {
 	principal := GetPrincipal(ctx)
 	return hasPermission(perm, checker.permissionScopeMap, principal.HasScope) ||
 		hasPermission(perm, checker.permissionGroupMap, principal.IsInGroup) ||
@@ -51,7 +51,7 @@ func (checker *PrincipalPermissionChecker) UserHasPermission(ctx context.Context
 // If obj is owned by the principal in the context, no groups are returned.
 //
 // TODO Should we always return the groups (even if the principal owns obj directly)?
-func (checker *PrincipalPermissionChecker) UserOwns(ctx context.Context, obj Owned) (owned bool, ownershipGroups []string) {
+func (checker *PrincipalPermissionChecker) UserOwns(ctx *context.ArmadaContext, obj Owned) (owned bool, ownershipGroups []string) {
 	principal := GetPrincipal(ctx)
 	currentUserName := principal.GetName()
 

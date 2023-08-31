@@ -2,7 +2,7 @@ package scheduler
 
 import (
 	"container/heap"
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"reflect"
 	"time"
 
@@ -60,7 +60,7 @@ func (sch *QueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 	sch.gangScheduler.SkipUnsuccessfulSchedulingKeyCheck()
 }
 
-func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, error) {
+func (sch *QueueScheduler) Schedule(ctx *context.ArmadaContext) (*SchedulerResult, error) {
 	nodeIdByJobId := make(map[string]string)
 	scheduledJobs := make([]interfaces.LegacySchedulerJob, 0)
 	for {

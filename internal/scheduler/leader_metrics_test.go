@@ -1,7 +1,7 @@
 package scheduler
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"

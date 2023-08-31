@@ -178,11 +178,11 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			// set up mocks
 			mockStream.EXPECT().Context().Return(ctx).AnyTimes()
 			mockStream.EXPECT().Recv().Return(tc.request, nil).Times(1)
-			mockExecutorRepository.EXPECT().StoreExecutor(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, executor *schedulerobjects.Executor) error {
+			mockExecutorRepository.EXPECT().StoreExecutor(ctx, gomock.Any()).DoAndReturn(func(ctx *context.ArmadaContext, executor *schedulerobjects.Executor) error {
 				assert.Equal(t, tc.expectedExecutor, executor)
 				return nil
 			}).Times(1)
-			mockLegacyExecutorRepository.EXPECT().StoreExecutor(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, executor *schedulerobjects.Executor) error {
+			mockLegacyExecutorRepository.EXPECT().StoreExecutor(ctx, gomock.Any()).DoAndReturn(func(ctx *context.ArmadaContext, executor *schedulerobjects.Executor) error {
 				assert.Equal(t, tc.expectedExecutor, executor)
 				return nil
 			}).Times(1)
@@ -316,7 +316,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 			mockPulsarProducer.
 				EXPECT().
 				SendAsync(gomock.Any(), gomock.Any(), gomock.Any()).
-				DoAndReturn(func(_ context.Context, msg *pulsar.ProducerMessage, callback func(pulsar.MessageID, *pulsar.ProducerMessage, error)) {
+				DoAndReturn(func(_ *context.ArmadaContext, msg *pulsar.ProducerMessage, callback func(pulsar.MessageID, *pulsar.ProducerMessage, error)) {
 					es := &armadaevents.EventSequence{}
 					err := proto.Unmarshal(msg.Payload, es)
 					require.NoError(t, err)

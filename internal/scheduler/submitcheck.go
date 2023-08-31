@@ -1,8 +1,8 @@
 package scheduler
 
 import (
-	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"strings"
 	"sync"
 	"time"
@@ -84,7 +84,7 @@ func NewSubmitChecker(
 	}
 }
 
-func (srv *SubmitChecker) Run(ctx context.Context) error {
+func (srv *SubmitChecker) Run(ctx *context.ArmadaContext) error {
 	srv.updateExecutors(ctx)
 
 	ticker := time.NewTicker(srv.ExecutorUpdateFrequency)
@@ -98,7 +98,7 @@ func (srv *SubmitChecker) Run(ctx context.Context) error {
 	}
 }
 
-func (srv *SubmitChecker) updateExecutors(ctx context.Context) {
+func (srv *SubmitChecker) updateExecutors(ctx *context.ArmadaContext) {
 	executors, err := srv.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		log.WithError(err).Error("Error fetching executors")

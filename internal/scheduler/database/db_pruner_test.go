@@ -1,8 +1,8 @@
 package database
 
 import (
-	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
 
@@ -220,7 +220,7 @@ func TestPruneDb_RemoveMarkers(t *testing.T) {
 
 // Removes the triggers that auto-set serial and last_update_time as
 // we need to manipulate these as part of the test
-func removeTriggers(ctx context.Context, db *pgxpool.Pool) error {
+func removeTriggers(ctx *context.ArmadaContext, db *pgxpool.Pool) error {
 	triggers := map[string]string{
 		"jobs": "next_serial_on_insert_jobs",
 		"runs": "next_serial_on_insert_runs",

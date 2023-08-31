@@ -1,8 +1,8 @@
 package service
 
 import (
-	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -108,7 +108,7 @@ func (m *JobManager) reportTerminated(pods []*v1.Pod) {
 	}
 }
 
-func (m *JobManager) handlePodIssues(ctx context.Context, allRunningJobs []*job.RunningJob) {
+func (m *JobManager) handlePodIssues(ctx *context.ArmadaContext, allRunningJobs []*job.RunningJob) {
 	util.ProcessItemsWithThreadPool(ctx, 20, allRunningJobs, m.handlePodIssue)
 }
 

@@ -1,7 +1,7 @@
 package database
 
 import (
-	ctx "context"
+	ctx "github.com/armadaproject/armada/internal/common/context"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -28,7 +28,7 @@ func PruneDb(ctx ctx.Context, db *pgx.Conn, batchLimit int, keepAfterCompletion 
 	// Insert the ids of all jobs we want to delete into a tmp table
 	_, err = db.Exec(ctx,
 		`CREATE TEMP TABLE rows_to_delete AS (
-             SELECT job_id FROM jobs 
+             SELECT job_id FROM jobs
 			 WHERE last_modified < $1
 			 AND (succeeded = TRUE OR failed = TRUE OR cancelled = TRUE))`, cutOffTime)
 	if err != nil {

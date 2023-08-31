@@ -3,8 +3,8 @@ package simulator
 import (
 	"bytes"
 	"container/heap"
-	"context"
 	fmt "fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -753,7 +753,7 @@ func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRun
 	return true, nil
 }
 
-// func (a *App) TestPattern(ctx context.Context, pattern string) (*TestSuiteReport, error) {
+// func (a *App) TestPattern(ctx *context.ArmadaContext, pattern string) (*TestSuiteReport, error) {
 // 	testSpecs, err := TestSpecsFromPattern(pattern)
 // 	if err != nil {
 // 		return nil, err

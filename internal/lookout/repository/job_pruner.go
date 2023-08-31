@@ -1,10 +1,11 @@
 package repository
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -30,7 +31,7 @@ func DeleteOldJobs(db *sql.DB, batchSizeLimit int, cutoff time.Time) error {
 	queryText := fmt.Sprintf(`
 				CREATE TEMP TABLE rows_to_delete AS (SELECT job_id FROM job WHERE submitted < '%v' OR submitted IS NULL);
 				CREATE TEMP TABLE batch (job_id varchar(32));
-				
+
 				DO
 				$do$
 					DECLARE
@@ -52,7 +53,7 @@ func DeleteOldJobs(db *sql.DB, batchSizeLimit int, cutoff time.Time) error {
 						END LOOP;
 					END;
 				$do$;
-				
+
 				DROP TABLE rows_to_delete;
 				DROP TABLE batch;
 				`, cutoff.Format(postgresFormat), batchSizeLimit)

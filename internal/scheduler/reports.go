@@ -1,8 +1,8 @@
 package scheduler
 
 import (
-	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -271,7 +271,7 @@ func (repo *SchedulingContextRepository) addSchedulingContextForJobs(sctx *sched
 
 // GetSchedulingReport is a gRPC endpoint for querying scheduler reports.
 // TODO: Further separate this from internal contexts.
-func (repo *SchedulingContextRepository) GetSchedulingReport(_ context.Context, request *schedulerobjects.SchedulingReportRequest) (*schedulerobjects.SchedulingReport, error) {
+func (repo *SchedulingContextRepository) GetSchedulingReport(_ *context.ArmadaContext, request *schedulerobjects.SchedulingReportRequest) (*schedulerobjects.SchedulingReport, error) {
 	var report string
 	verbosity := request.GetVerbosity()
 	switch filter := request.GetFilter().(type) {
@@ -430,7 +430,7 @@ func getSchedulingReportForJob(sctx *schedulercontext.SchedulingContext, jobId s
 
 // GetQueueReport is a gRPC endpoint for querying queue reports.
 // TODO: Further separate this from internal contexts.
-func (repo *SchedulingContextRepository) GetQueueReport(_ context.Context, request *schedulerobjects.QueueReportRequest) (*schedulerobjects.QueueReport, error) {
+func (repo *SchedulingContextRepository) GetQueueReport(_ *context.ArmadaContext, request *schedulerobjects.QueueReportRequest) (*schedulerobjects.QueueReport, error) {
 	queueName := strings.TrimSpace(request.GetQueueName())
 	verbosity := request.GetVerbosity()
 	return &schedulerobjects.QueueReport{
@@ -471,7 +471,7 @@ func (repo *SchedulingContextRepository) getQueueReportString(queue string, verb
 
 // GetJobReport is a gRPC endpoint for querying job reports.
 // TODO: Further separate this from internal contexts.
-func (repo *SchedulingContextRepository) GetJobReport(_ context.Context, request *schedulerobjects.JobReportRequest) (*schedulerobjects.JobReport, error) {
+func (repo *SchedulingContextRepository) GetJobReport(_ *context.ArmadaContext, request *schedulerobjects.JobReportRequest) (*schedulerobjects.JobReport, error) {
 	jobId := strings.TrimSpace(request.GetJobId())
 	if _, err := ulid.Parse(jobId); err != nil {
 		return nil, &armadaerrors.ErrInvalidArgument{

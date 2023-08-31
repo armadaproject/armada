@@ -1,7 +1,7 @@
 package scheduler
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -21,7 +21,7 @@ import (
 // PoolAssigner allows jobs to be assigned to a pool
 // Note that this is intended only for use with metrics calculation
 type PoolAssigner interface {
-	Refresh(ctx context.Context) error
+	Refresh(ctx *context.ArmadaContext) error
 	AssignPool(j *jobdb.Job) (string, error)
 }
 
@@ -70,7 +70,7 @@ func NewPoolAssigner(executorTimeout time.Duration,
 }
 
 // Refresh updates executor state
-func (p *DefaultPoolAssigner) Refresh(ctx context.Context) error {
+func (p *DefaultPoolAssigner) Refresh(ctx *context.ArmadaContext) error {
 	executors, err := p.executorRepository.GetExecutors(ctx)
 	executorsByPool := map[string][]*executor{}
 	poolByExecutorId := map[string]string{}

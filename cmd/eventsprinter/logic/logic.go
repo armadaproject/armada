@@ -18,7 +18,7 @@ func PrintEvents(url, topic, subscription string, verbose bool) error {
 	fmt.Println("URL:", url)
 	fmt.Println("Topic:", topic)
 	fmt.Println("Subscription", subscription)
-	return withSetup(url, topic, subscription, func(ctx context.Context, producer pulsar.Producer, consumer pulsar.Consumer) error {
+	return withSetup(url, topic, subscription, func(ctx *context.ArmadaContext, producer pulsar.Producer, consumer pulsar.Consumer) error {
 		// Number of active jobs.
 		numJobs := 0
 
@@ -199,7 +199,7 @@ func stripPodSpec(spec *v1.PodSpec) *v1.PodSpec {
 }
 
 // Run action with an Armada submit client and a Pulsar producer and consumer.
-func withSetup(url, topic, subscription string, action func(ctx context.Context, producer pulsar.Producer, consumer pulsar.Consumer) error) error {
+func withSetup(url, topic, subscription string, action func(ctx *context.ArmadaContext, producer pulsar.Producer, consumer pulsar.Consumer) error) error {
 	pulsarClient, err := pulsar.NewClient(pulsar.ClientOptions{
 		URL: url,
 	})

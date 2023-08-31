@@ -1,9 +1,9 @@
 package authorization
 
 import (
-	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	"github.com/jcmturner/gokrb5/v8/credentials"
@@ -75,10 +75,10 @@ func (authService *KerberosAuthService) Name() string {
 }
 
 type SPNEGOService interface {
-	AcceptSecContext(gssapi.ContextToken) (bool, context.Context, gssapi.Status)
+	AcceptSecContext(gssapi.ContextToken) (bool, *context.ArmadaContext, gssapi.Status)
 }
 
-func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Principal, error) {
+func (authService *KerberosAuthService) Authenticate(ctx *context.ArmadaContext) (Principal, error) {
 	encodedToken, err := grpc_auth.AuthFromMD(ctx, spnego.HTTPHeaderAuthResponseValueKey)
 	if err != nil {
 		// Add WWW-Authenticate header

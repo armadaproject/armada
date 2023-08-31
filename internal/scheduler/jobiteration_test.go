@@ -1,7 +1,7 @@
 package scheduler
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
 
@@ -291,7 +291,7 @@ func (repo *mockJobRepository) Enqueue(job *api.Job) {
 	repo.jobsById[job.Id] = job
 }
 
-func (repo *mockJobRepository) GetJobIterator(ctx context.Context, queue string) (JobIterator, error) {
+func (repo *mockJobRepository) GetJobIterator(ctx *context.ArmadaContext, queue string) (JobIterator, error) {
 	return NewQueuedJobsIterator(ctx, queue, repo)
 }
 

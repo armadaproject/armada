@@ -1,7 +1,7 @@
 package service
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"io"
 
 	grpcretry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
@@ -30,7 +30,7 @@ type LeaseResponse struct {
 }
 
 type LeaseRequester interface {
-	LeaseJobRuns(ctx context.Context, request *LeaseRequest) (*LeaseResponse, error)
+	LeaseJobRuns(ctx *context.ArmadaContext, request *LeaseRequest) (*LeaseResponse, error)
 }
 
 type JobLeaseRequester struct {
@@ -51,7 +51,7 @@ func NewJobLeaseRequester(
 	}
 }
 
-func (requester *JobLeaseRequester) LeaseJobRuns(ctx context.Context, request *LeaseRequest) (*LeaseResponse, error) {
+func (requester *JobLeaseRequester) LeaseJobRuns(ctx *context.ArmadaContext, request *LeaseRequest) (*LeaseResponse, error) {
 	stream, err := requester.executorApiClient.LeaseJobRuns(ctx, grpcretry.Disable(), grpc.UseCompressor(gzip.Name))
 	if err != nil {
 		return nil, err

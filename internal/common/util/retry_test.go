@@ -1,10 +1,11 @@
 package util
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/stretchr/testify/assert"
 )

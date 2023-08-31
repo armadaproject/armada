@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/jackc/pgx/v5"
@@ -14,7 +14,7 @@ import (
 )
 
 type GetJobSpecRepository interface {
-	GetJobSpec(ctx context.Context, jobId string) (*api.Job, error)
+	GetJobSpec(ctx *context.ArmadaContext, jobId string) (*api.Job, error)
 }
 
 type SqlGetJobSpecRepository struct {
@@ -29,7 +29,7 @@ func NewSqlGetJobSpecRepository(db *pgxpool.Pool, decompressor compress.Decompre
 	}
 }
 
-func (r *SqlGetJobSpecRepository) GetJobSpec(ctx context.Context, jobId string) (*api.Job, error) {
+func (r *SqlGetJobSpecRepository) GetJobSpec(ctx *context.ArmadaContext, jobId string) (*api.Job, error) {
 	var rawBytes []byte
 	err := r.db.QueryRow(ctx, "SELECT job_spec FROM job WHERE job_id = $1", jobId).Scan(&rawBytes)
 	if err != nil {

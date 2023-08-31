@@ -1,8 +1,8 @@
 package scheduler
 
 import (
-	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"math"
 	"testing"
 	"time"

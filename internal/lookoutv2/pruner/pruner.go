@@ -1,7 +1,7 @@
 package pruner
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 )
 
-func PruneDb(ctx context.Context, db *pgx.Conn, keepAfterCompletion time.Duration, batchLimit int, clock clock.Clock) error {
+func PruneDb(ctx *context.ArmadaContext, db *pgx.Conn, keepAfterCompletion time.Duration, batchLimit int, clock clock.Clock) error {
 	now := clock.Now()
 	cutOffTime := now.Add(-keepAfterCompletion)
 	totalJobsToDelete, err := createJobIdsToDeleteTempTable(ctx, db, cutOffTime)
@@ -60,10 +60,10 @@ func PruneDb(ctx context.Context, db *pgx.Conn, keepAfterCompletion time.Duratio
 }
 
 // Returns total number of jobs to delete
-func createJobIdsToDeleteTempTable(ctx context.Context, db *pgx.Conn, cutOffTime time.Time) (int, error) {
+func createJobIdsToDeleteTempTable(ctx *context.ArmadaContext, db *pgx.Conn, cutOffTime time.Time) (int, error) {
 	_, err := db.Exec(ctx, `
 		CREATE TEMP TABLE job_ids_to_delete AS (
-			SELECT job_id FROM job 
+			SELECT job_id FROM job
 			WHERE last_transition_time < $1
 		)`, cutOffTime)
 	if err != nil {
@@ -77,7 +77,7 @@ func createJobIdsToDeleteTempTable(ctx context.Context, db *pgx.Conn, cutOffTime
 	return totalJobsToDelete, nil
 }
 
-func deleteBatch(ctx context.Context, tx pgx.Tx, batchLimit int) (int, error) {
+func deleteBatch(ctx *context.ArmadaContext, tx pgx.Tx, batchLimit int) (int, error) {
 	_, err := tx.Exec(ctx, "INSERT INTO batch (job_id) SELECT job_id FROM job_ids_to_delete LIMIT $1;", batchLimit)
 	if err != nil {
 		return -1, err

@@ -1,8 +1,8 @@
 package server
 
 import (
-	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
 
@@ -452,7 +452,7 @@ type fakeEventStore struct {
 	events []*api.EventMessage
 }
 
-func (es *fakeEventStore) ReportEvents(_ context.Context, message []*api.EventMessage) error {
+func (es *fakeEventStore) ReportEvents(_ *context.ArmadaContext, message []*api.EventMessage) error {
 	es.events = append(es.events, message...)
 	return nil
 }
@@ -469,14 +469,14 @@ func (repo *fakeSchedulingInfoRepository) UpdateClusterSchedulingInfo(report *ap
 
 type fakeExecutorRepository struct{}
 
-func (f fakeExecutorRepository) GetExecutors(ctx context.Context) ([]*schedulerobjects.Executor, error) {
+func (f fakeExecutorRepository) GetExecutors(ctx *context.ArmadaContext) ([]*schedulerobjects.Executor, error) {
 	return nil, nil
 }
 
-func (f fakeExecutorRepository) GetLastUpdateTimes(ctx context.Context) (map[string]time.Time, error) {
+func (f fakeExecutorRepository) GetLastUpdateTimes(ctx *context.ArmadaContext) (map[string]time.Time, error) {
 	return nil, nil
 }
 
-func (f fakeExecutorRepository) StoreExecutor(ctx context.Context, executor *schedulerobjects.Executor) error {
+func (f fakeExecutorRepository) StoreExecutor(ctx *context.ArmadaContext, executor *schedulerobjects.Executor) error {
 	return nil
 }

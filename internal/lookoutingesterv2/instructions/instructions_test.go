@@ -1,8 +1,8 @@
 package instructions
 
 import (
-	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"strings"
 	"testing"
 

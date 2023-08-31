@@ -50,25 +50,25 @@ To accomplish this, we will need to define interfaces for the following features
         // DatabaseConn represents a connection handler interface that provides methods for managing the open connection, executing queries, and starting transactions.
         type DatabaseConn interface {
         	// Close closes the database connection. It returns any error encountered during the closing operation.
-        	Close(context.Context) error
+        	Close(*context.ArmadaContext) error
 
         	// Ping pings the database to check the connection. It returns any error encountered during the ping operation.
-        	Ping(context.Context) error
+        	Ping(*context.ArmadaContext) error
 
         	// Exec executes a query that doesn't return rows. It returns any error encountered.
-        	Exec(context.Context, string, ...any) (any, error)
+        	Exec(*context.ArmadaContext, string, ...any) (any, error)
 
         	// Query executes a query that returns multiple rows. It returns a DatabaseRows interface that allows you to iterate over the result set, and any error encountered.
-        	Query(context.Context, string, ...any) (DatabaseRows, error)
+        	Query(*context.ArmadaContext, string, ...any) (DatabaseRows, error)
 
         	// QueryRow executes a query that returns one row. It returns a DatabaseRow interface representing the result row, and any error encountered.
-        	QueryRow(context.Context, string, ...any) DatabaseRow
+        	QueryRow(*context.ArmadaContext, string, ...any) DatabaseRow
 
         	// BeginTx starts a transcation with the given DatabaseTxOptions, or returns an error if any occured.
-        	BeginTx(context.Context, DatabaseTxOptions) (DatabaseTx, error)
+        	BeginTx(*context.ArmadaContext, DatabaseTxOptions) (DatabaseTx, error)
 
         	// BeginTxFunc starts a transaction and executes the given function within the transaction. It the function runs successfuly, BeginTxFunc commits the transaction, otherwise it rolls back and return an errorr.
-        	BeginTxFunc(context.Context, DatabaseTxOptions, func(DatabaseTx) error) error
+        	BeginTxFunc(*context.ArmadaContext, DatabaseTxOptions, func(DatabaseTx) error) error
         }
 
 2.  Connection Pool
@@ -76,25 +76,25 @@ To accomplish this, we will need to define interfaces for the following features
         // DatabasePool represents a database connection pool interface that provides methods for acquiring and managing database connections.
         type DatabasePool interface {
         	// Acquire acquires a database connection from the pool. It takes a context and returns a DatabaseConn representing the acquired connection and any encountered error.
-        	Acquire(context.Context) (DatabaseConn, error)
+        	Acquire(*context.ArmadaContext) (DatabaseConn, error)
 
         	// Ping pings the database to check the connection. It returns any error encountered during the ping operation.
-        	Ping(context.Context) error
+        	Ping(*context.ArmadaContext) error
 
         	// Close closes the database connection. It returns any error encountered during the closing operation.
         	Close()
 
         	// Exec executes a query that doesn't return rows. It returns any error encountered.
-        	Exec(context.Context, string, ...any) (any, error)
+        	Exec(*context.ArmadaContext, string, ...any) (any, error)
 
         	// Query executes a query that returns multiple rows. It returns a DatabaseRows interface that allows you to iterate over the result set, and any error encountered.
-        	Query(context.Context, string, ...any) (DatabaseRows, error)
+        	Query(*context.ArmadaContext, string, ...any) (DatabaseRows, error)
 
         	// BeginTx starts a transcation with the given DatabaseTxOptions, or returns an error if any occured.
-        	BeginTx(context.Context, DatabaseTxOptions) (DatabaseTx, error)
+        	BeginTx(*context.ArmadaContext, DatabaseTxOptions) (DatabaseTx, error)
 
         	// BeginTxFunc starts a transaction and executes the given function within the transaction. It the function runs successfuly, BeginTxFunc commits the transaction, otherwise it rolls back and return an errorr.
-        	BeginTxFunc(context.Context, DatabaseTxOptions, func(DatabaseTx) error) error
+        	BeginTxFunc(*context.ArmadaContext, DatabaseTxOptions, func(DatabaseTx) error) error
         }
 
 3.  Transaction
@@ -102,22 +102,22 @@ To accomplish this, we will need to define interfaces for the following features
         // DatabaseTx represents a database transaction interface that provides methods for executing queries, managing transactions, and performing bulk insertions.
         type DatabaseTx interface {
         	// Exec executes a query that doesn't return rows. It returns any error encountered.
-        	Exec(context.Context, string, ...any) (any, error)
+        	Exec(*context.ArmadaContext, string, ...any) (any, error)
 
         	// Query executes a query that returns multiple rows. It returns a DatabaseRows interface that allows you to iterate over the result set, and any error encountered.
-        	Query(context.Context, string, ...any) (DatabaseRows, error)
+        	Query(*context.ArmadaContext, string, ...any) (DatabaseRows, error)
 
         	// QueryRow executes a query that returns one row. It returns a DatabaseRow interface representing the result row, and any error encountered.
-        	QueryRow(context.Context, string, ...any) DatabaseRow
+        	QueryRow(*context.ArmadaContext, string, ...any) DatabaseRow
 
         	// CopyFrom performs a bulk insertion of data into a specified table. It accepts the table name, column names, and a slice of rows representing the data to be inserted. It returns the number of rows inserted and any error encountered.
-        	CopyFrom(ctx context.Context, tableName string, columnNames []string, rows [][]any) (int64, error)
+        	CopyFrom(ctx *context.ArmadaContext, tableName string, columnNames []string, rows [][]any) (int64, error)
 
         	// Commit commits the transaction. It returns any error encountered during the commit operation.
-        	Commit(context.Context) error
+        	Commit(*context.ArmadaContext) error
 
         	// Rollback rolls back the transaction. It returns any error encountered during the rollback operation.
-        	Rollback(context.Context) error
+        	Rollback(*context.ArmadaContext) error
         }
 
 4.  Result Row
@@ -157,11 +157,11 @@ For example, an adapter can be implemented for `pgxpool.Pool` so that it can be 
     	*pgxpool.Pool
     }
 
-    func (p PostgresPoolAdapter) Exec(ctx context.Context, sql string, args ...any) (any, error) {
+    func (p PostgresPoolAdapter) Exec(ctx *context.ArmadaContext, sql string, args ...any) (any, error) {
     	return p.Pool.Exec(ctx, sql, args)
     }
 
-    func (p PostgresPoolAdapter) BeginTxFunc(ctx context.Context, opts dbtypes.DatabaseTxOptions, action func(dbtypes.DatabaseTx) error) error {
+    func (p PostgresPoolAdapter) BeginTxFunc(ctx *context.ArmadaContext, opts dbtypes.DatabaseTxOptions, action func(dbtypes.DatabaseTx) error) error {
     	tx, err := p.Pool.BeginTx(ctx, pgx.TxOptions{
     		IsoLevel:       pgx.TxIsoLevel(opts.Isolation),
     		DeferrableMode: opts.DeferrableMode,

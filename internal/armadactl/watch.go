@@ -1,11 +1,12 @@
 package armadactl
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"

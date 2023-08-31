@@ -1,8 +1,8 @@
 package scheduler
 
 import (
-	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
 
@@ -222,17 +222,17 @@ func setupLeaderProxyingSchedulerReportsServerTest(t *testing.T) (*LeaderProxyin
 }
 
 type GetSchedulingReportCall struct {
-	Context context.Context
+	Context *context.ArmadaContext
 	Request *schedulerobjects.SchedulingReportRequest
 }
 
 type GetQueueReportCall struct {
-	Context context.Context
+	Context *context.ArmadaContext
 	Request *schedulerobjects.QueueReportRequest
 }
 
 type GetJobReportCall struct {
-	Context context.Context
+	Context *context.ArmadaContext
 	Request *schedulerobjects.JobReportRequest
 }
 
@@ -256,17 +256,17 @@ func NewFakeSchedulerReportingServer() *FakeSchedulerReportingServer {
 	}
 }
 
-func (f *FakeSchedulerReportingServer) GetSchedulingReport(ctx context.Context, request *schedulerobjects.SchedulingReportRequest) (*schedulerobjects.SchedulingReport, error) {
+func (f *FakeSchedulerReportingServer) GetSchedulingReport(ctx *context.ArmadaContext, request *schedulerobjects.SchedulingReportRequest) (*schedulerobjects.SchedulingReport, error) {
 	f.GetSchedulingReportCalls = append(f.GetSchedulingReportCalls, GetSchedulingReportCall{Context: ctx, Request: request})
 	return f.GetSchedulingReportResponse, f.Err
 }
 
-func (f *FakeSchedulerReportingServer) GetQueueReport(ctx context.Context, request *schedulerobjects.QueueReportRequest) (*schedulerobjects.QueueReport, error) {
+func (f *FakeSchedulerReportingServer) GetQueueReport(ctx *context.ArmadaContext, request *schedulerobjects.QueueReportRequest) (*schedulerobjects.QueueReport, error) {
 	f.GetQueueReportCalls = append(f.GetQueueReportCalls, GetQueueReportCall{Context: ctx, Request: request})
 	return f.GetQueueReportResponse, f.Err
 }
 
-func (f *FakeSchedulerReportingServer) GetJobReport(ctx context.Context, request *schedulerobjects.JobReportRequest) (*schedulerobjects.JobReport, error) {
+func (f *FakeSchedulerReportingServer) GetJobReport(ctx *context.ArmadaContext, request *schedulerobjects.JobReportRequest) (*schedulerobjects.JobReport, error) {
 	f.GetJobReportCalls = append(f.GetJobReportCalls, GetJobReportCall{Context: ctx, Request: request})
 	return f.GetJobReportResponse, f.Err
 }
@@ -291,17 +291,17 @@ func NewFakeSchedulerReportingClient() *FakeSchedulerReportingClient {
 	}
 }
 
-func (f *FakeSchedulerReportingClient) GetSchedulingReport(ctx context.Context, request *schedulerobjects.SchedulingReportRequest, opts ...grpc.CallOption) (*schedulerobjects.SchedulingReport, error) {
+func (f *FakeSchedulerReportingClient) GetSchedulingReport(ctx *context.ArmadaContext, request *schedulerobjects.SchedulingReportRequest, opts ...grpc.CallOption) (*schedulerobjects.SchedulingReport, error) {
 	f.GetSchedulingReportCalls = append(f.GetSchedulingReportCalls, GetSchedulingReportCall{Context: ctx, Request: request})
 	return f.GetSchedulingReportResponse, f.Err
 }
 
-func (f *FakeSchedulerReportingClient) GetQueueReport(ctx context.Context, request *schedulerobjects.QueueReportRequest, opts ...grpc.CallOption) (*schedulerobjects.QueueReport, error) {
+func (f *FakeSchedulerReportingClient) GetQueueReport(ctx *context.ArmadaContext, request *schedulerobjects.QueueReportRequest, opts ...grpc.CallOption) (*schedulerobjects.QueueReport, error) {
 	f.GetQueueReportCalls = append(f.GetQueueReportCalls, GetQueueReportCall{Context: ctx, Request: request})
 	return f.GetQueueReportResponse, f.Err
 }
 
-func (f *FakeSchedulerReportingClient) GetJobReport(ctx context.Context, request *schedulerobjects.JobReportRequest, opts ...grpc.CallOption) (*schedulerobjects.JobReport, error) {
+func (f *FakeSchedulerReportingClient) GetJobReport(ctx *context.ArmadaContext, request *schedulerobjects.JobReportRequest, opts ...grpc.CallOption) (*schedulerobjects.JobReport, error) {
 	f.GetJobReportCalls = append(f.GetJobReportCalls, GetJobReportCall{Context: ctx, Request: request})
 	return f.GetJobReportResponse, f.Err
 }

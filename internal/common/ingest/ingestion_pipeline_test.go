@@ -1,7 +1,7 @@
 package ingest
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
 
@@ -130,7 +130,7 @@ func newMockPulsarConsumer(t *testing.T, messages []pulsar.Message, cancelFn fun
 	}
 }
 
-func (p *mockPulsarConsumer) Receive(ctx context.Context) (pulsar.Message, error) {
+func (p *mockPulsarConsumer) Receive(ctx *context.ArmadaContext) (pulsar.Message, error) {
 	if p.messageIdx < len(p.messages) {
 		msg := p.messages[p.messageIdx]
 		p.messageIdx++
@@ -191,7 +191,7 @@ func newSimpleConverter(t *testing.T) InstructionConverter[*simpleMessages] {
 	return &simpleConverter{t}
 }
 
-func (s *simpleConverter) Convert(_ context.Context, msg *EventSequencesWithIds) *simpleMessages {
+func (s *simpleConverter) Convert(_ *context.ArmadaContext, msg *EventSequencesWithIds) *simpleMessages {
 	s.t.Helper()
 	assert.Len(s.t, msg.EventSequences, len(msg.MessageIds))
 	var converted []*simpleMessage
@@ -218,7 +218,7 @@ func newSimpleSink(t *testing.T) *simpleSink {
 	}
 }
 
-func (s *simpleSink) Store(_ context.Context, msg *simpleMessages) error {
+func (s *simpleSink) Store(_ *context.ArmadaContext, msg *simpleMessages) error {
 	for _, simpleMessage := range msg.msgs {
 		s.simpleMessages[simpleMessage.id] = simpleMessage
 	}

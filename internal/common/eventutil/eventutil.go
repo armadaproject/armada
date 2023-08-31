@@ -1,10 +1,11 @@
 package eventutil
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
@@ -25,7 +26,7 @@ import (
 
 // UnmarshalEventSequence returns an EventSequence object contained in a byte buffer
 // after validating that the resulting EventSequence is valid.
-func UnmarshalEventSequence(ctx context.Context, payload []byte) (*armadaevents.EventSequence, error) {
+func UnmarshalEventSequence(ctx *context.ArmadaContext, payload []byte) (*armadaevents.EventSequence, error) {
 	sequence := &armadaevents.EventSequence{}
 	err := proto.Unmarshal(payload, sequence)
 	if err != nil {

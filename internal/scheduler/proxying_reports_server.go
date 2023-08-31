@@ -1,7 +1,7 @@
 package scheduler
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -17,19 +17,19 @@ func NewProxyingSchedulingReportsServer(client schedulerobjects.SchedulerReporti
 	}
 }
 
-func (s *ProxyingSchedulingReportsServer) GetSchedulingReport(ctx context.Context, request *schedulerobjects.SchedulingReportRequest) (*schedulerobjects.SchedulingReport, error) {
+func (s *ProxyingSchedulingReportsServer) GetSchedulingReport(ctx *context.ArmadaContext, request *schedulerobjects.SchedulingReportRequest) (*schedulerobjects.SchedulingReport, error) {
 	ctx, cancel := reduceTimeout(ctx)
 	defer cancel()
 	return s.client.GetSchedulingReport(ctx, request)
 }
 
-func (s *ProxyingSchedulingReportsServer) GetQueueReport(ctx context.Context, request *schedulerobjects.QueueReportRequest) (*schedulerobjects.QueueReport, error) {
+func (s *ProxyingSchedulingReportsServer) GetQueueReport(ctx *context.ArmadaContext, request *schedulerobjects.QueueReportRequest) (*schedulerobjects.QueueReport, error) {
 	ctx, cancel := reduceTimeout(ctx)
 	defer cancel()
 	return s.client.GetQueueReport(ctx, request)
 }
 
-func (s *ProxyingSchedulingReportsServer) GetJobReport(ctx context.Context, request *schedulerobjects.JobReportRequest) (*schedulerobjects.JobReport, error) {
+func (s *ProxyingSchedulingReportsServer) GetJobReport(ctx *context.ArmadaContext, request *schedulerobjects.JobReportRequest) (*schedulerobjects.JobReport, error) {
 	ctx, cancel := reduceTimeout(ctx)
 	defer cancel()
 	return s.client.GetJobReport(ctx, request)
@@ -37,7 +37,7 @@ func (s *ProxyingSchedulingReportsServer) GetJobReport(ctx context.Context, requ
 
 // We reduce the context deadline here, to prevent our call and the caller who called us from timing out at the same time
 // This should mean our caller gets the real error message rather than a generic timeout error from client side
-func reduceTimeout(ctx context.Context) (context.Context, context.CancelFunc) {
+func reduceTimeout(ctx *context.ArmadaContext) (*context.ArmadaContext, context.CancelFunc) {
 	deadline, ok := ctx.Deadline()
 	if !ok {
 		return context.WithCancel(ctx)

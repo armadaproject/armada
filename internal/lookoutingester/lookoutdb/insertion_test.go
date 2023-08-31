@@ -1,8 +1,8 @@
 package lookoutdb
 
 import (
-	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"sort"
 	"testing"
 	"time"

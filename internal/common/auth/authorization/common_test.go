@@ -1,8 +1,8 @@
 package authorization
 
 import (
-	"context"
 	"errors"
+	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,6 +37,6 @@ func (f *fakeAuthService) Name() string {
 	return "Fake"
 }
 
-func (f *fakeAuthService) Authenticate(ctx context.Context) (Principal, error) {
+func (f *fakeAuthService) Authenticate(ctx *context.ArmadaContext) (Principal, error) {
 	return f.principal, f.err
 }

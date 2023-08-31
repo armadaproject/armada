@@ -1,8 +1,8 @@
 package authorization
 
 import (
-	"context"
 	"encoding/json"
+	"github.com/armadaproject/armada/internal/common/context"
 	"strings"
 
 	"github.com/coreos/go-oidc"
@@ -20,7 +20,7 @@ type OpenIdAuthService struct {
 	groupsClaim string
 }
 
-func NewOpenIdAuthServiceForProvider(ctx context.Context, config *configuration.OpenIdAuthenticationConfig) (*OpenIdAuthService, error) {
+func NewOpenIdAuthServiceForProvider(ctx *context.ArmadaContext, config *configuration.OpenIdAuthenticationConfig) (*OpenIdAuthService, error) {
 	provider, err := oidc.NewProvider(ctx, config.ProviderUrl)
 	if err != nil {
 		return nil, err
@@ -41,7 +41,7 @@ func (authService *OpenIdAuthService) Name() string {
 	return "OIDC"
 }
 
-func (authService *OpenIdAuthService) Authenticate(ctx context.Context) (Principal, error) {
+func (authService *OpenIdAuthService) Authenticate(ctx *context.ArmadaContext) (Principal, error) {
 	token, err := grpc_auth.AuthFromMD(ctx, "bearer")
 	if err != nil {
 		return nil, &armadaerrors.ErrMissingCredentials{

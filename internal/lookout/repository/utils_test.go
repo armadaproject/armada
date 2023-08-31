@@ -1,10 +1,11 @@
 package repository
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"

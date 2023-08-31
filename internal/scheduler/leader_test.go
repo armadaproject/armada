@@ -1,7 +1,7 @@
 package scheduler
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"sync"
 	"testing"
 	"time"
@@ -184,7 +184,7 @@ func (t *TestLeaseListener) GetMessages() []LeaderToken {
 	return append([]LeaderToken(nil), t.tokens...)
 }
 
-func (t *TestLeaseListener) onStartedLeading(_ context.Context) {
+func (t *TestLeaseListener) onStartedLeading(_ *context.ArmadaContext) {
 	t.handleNewToken()
 }
 

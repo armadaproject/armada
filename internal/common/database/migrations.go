@@ -2,12 +2,13 @@ package database
 
 import (
 	"bytes"
-	"context"
 	"io/fs"
 	"path"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	stakikfs "github.com/rakyll/statik/fs"
 	log "github.com/sirupsen/logrus"
@@ -28,7 +29,7 @@ func NewMigration(id int, name string, sql string) Migration {
 	}
 }
 
-func UpdateDatabase(ctx context.Context, db Querier, migrations []Migration) error {
+func UpdateDatabase(ctx *context.ArmadaContext, db Querier, migrations []Migration) error {
 	log.Info("Updating postgres...")
 	version, err := readVersion(ctx, db)
 	if err != nil {
@@ -55,7 +56,7 @@ func UpdateDatabase(ctx context.Context, db Querier, migrations []Migration) err
 	return nil
 }
 
-func readVersion(ctx context.Context, db Querier) (int, error) {
+func readVersion(ctx *context.ArmadaContext, db Querier) (int, error) {
 	_, err := db.Exec(ctx,
 		`CREATE SEQUENCE IF NOT EXISTS database_version START WITH 0 MINVALUE 0;`)
 	if err != nil {
@@ -75,7 +76,7 @@ func readVersion(ctx context.Context, db Querier) (int, error) {
 	return version, err
 }
 
-func setVersion(ctx context.Context, db Querier, version int) error {
+func setVersion(ctx *context.ArmadaContext, db Querier, version int) error {
 	_, err := db.Exec(ctx, `SELECT setval('database_version', $1)`, version)
 	return err
 }

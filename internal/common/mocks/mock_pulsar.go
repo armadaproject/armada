@@ -5,7 +5,7 @@
 package mocks
 
 import (
-	context "context"
+	context "github.com/armadaproject/armada/internal/common/context"
 	reflect "reflect"
 	time "time"
 
@@ -216,7 +216,7 @@ func (mr *MockProducerMockRecorder) Name() *gomock.Call {
 }
 
 // Send mocks base method.
-func (m *MockProducer) Send(arg0 context.Context, arg1 *pulsar.ProducerMessage) (pulsar.MessageID, error) {
+func (m *MockProducer) Send(arg0 *context.ArmadaContext, arg1 *pulsar.ProducerMessage) (pulsar.MessageID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Send", arg0, arg1)
 	ret0, _ := ret[0].(pulsar.MessageID)
@@ -231,7 +231,7 @@ func (mr *MockProducerMockRecorder) Send(arg0, arg1 interface{}) *gomock.Call {
 }
 
 // SendAsync mocks base method.
-func (m *MockProducer) SendAsync(arg0 context.Context, arg1 *pulsar.ProducerMessage, arg2 func(pulsar.MessageID, *pulsar.ProducerMessage, error)) {
+func (m *MockProducer) SendAsync(arg0 *context.ArmadaContext, arg1 *pulsar.ProducerMessage, arg2 func(pulsar.MessageID, *pulsar.ProducerMessage, error)) {
 	m.ctrl.T.Helper()
 	m.ctrl.Call(m, "SendAsync", arg0, arg1, arg2)
 }

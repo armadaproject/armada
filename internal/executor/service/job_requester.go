@@ -1,7 +1,7 @@
 package service
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
 	log "github.com/sirupsen/logrus"

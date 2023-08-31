@@ -2,8 +2,8 @@ package testfixtures
 
 // This file contains test fixtures to be used throughout the tests for this package.
 import (
-	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"math"
 	"sync/atomic"
 	"time"
@@ -82,7 +82,7 @@ func Repeat[T any](v T, n int) []T {
 	return rv
 }
 
-func ContextWithDefaultLogger(ctx context.Context) context.Context {
+func ContextWithDefaultLogger(ctx *context.ArmadaContext) *context.ArmadaContext {
 	return ctxlogrus.ToContext(ctx, logrus.NewEntry(logrus.New()))
 }
 

@@ -1,7 +1,7 @@
 package server
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
 
@@ -415,7 +415,7 @@ func withEventServer(t *testing.T, action func(s *EventServer)) {
 
 type eventStreamMock struct {
 	grpc.ServerStream
-	ctx          context.Context
+	ctx          *context.ArmadaContext
 	sendMessages []*api.EventStreamMessage
 }
 
@@ -424,7 +424,7 @@ func (s *eventStreamMock) Send(m *api.EventStreamMessage) error {
 	return nil
 }
 
-func (s *eventStreamMock) Context() context.Context {
+func (s *eventStreamMock) Context() *context.ArmadaContext {
 	if s.ctx == nil {
 		return context.Background()
 	}

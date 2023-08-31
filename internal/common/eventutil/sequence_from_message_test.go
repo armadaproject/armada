@@ -1,7 +1,7 @@
 package eventutil
 
 // import (
-// 	"context"
+// 	"github.com/armadaproject/armada/internal/common/context"
 // 	"testing"
 // 	"time"
 
@@ -52,7 +52,7 @@ package eventutil
 // 	}
 // }
 
-// func generateEvents(ctx context.Context, out chan *EventSequenceWithMessageIds) error {
+// func generateEvents(ctx *context.ArmadaContext, out chan *EventSequenceWithMessageIds) error {
 // 	var i int64
 // 	for {
 // 		sequence := EventSequenceWithMessageIds{

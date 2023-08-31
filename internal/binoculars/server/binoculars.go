@@ -1,7 +1,7 @@
 package server
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"strconv"
 
 	"github.com/gogo/protobuf/types"
@@ -24,7 +24,7 @@ func NewBinocularsServer(logService service.LogService, cordonService service.Co
 	}
 }
 
-func (b *BinocularsServer) Logs(ctx context.Context, request *binoculars.LogRequest) (*binoculars.LogResponse, error) {
+func (b *BinocularsServer) Logs(ctx *context.ArmadaContext, request *binoculars.LogRequest) (*binoculars.LogResponse, error) {
 	principal := authorization.GetPrincipal(ctx)
 
 	logLines, err := b.logService.GetLogs(ctx, &service.LogParams{
@@ -41,7 +41,7 @@ func (b *BinocularsServer) Logs(ctx context.Context, request *binoculars.LogRequ
 	return &binoculars.LogResponse{Log: logLines}, nil
 }
 
-func (b *BinocularsServer) Cordon(ctx context.Context, request *binoculars.CordonRequest) (*types.Empty, error) {
+func (b *BinocularsServer) Cordon(ctx *context.ArmadaContext, request *binoculars.CordonRequest) (*types.Empty, error) {
 	err := b.cordonService.CordonNode(ctx, request)
 	if err != nil {
 		return nil, err

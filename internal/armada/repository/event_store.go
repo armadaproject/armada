@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 
@@ -12,14 +12,14 @@ import (
 )
 
 type EventStore interface {
-	ReportEvents(context.Context, []*api.EventMessage) error
+	ReportEvents(*context.ArmadaContext, []*api.EventMessage) error
 }
 
 type TestEventStore struct {
 	ReceivedEvents []*api.EventMessage
 }
 
-func (es *TestEventStore) ReportEvents(_ context.Context, message []*api.EventMessage) error {
+func (es *TestEventStore) ReportEvents(_ *context.ArmadaContext, message []*api.EventMessage) error {
 	es.ReceivedEvents = append(es.ReceivedEvents, message...)
 	return nil
 }
@@ -35,7 +35,7 @@ func NewEventStore(producer pulsar.Producer, maxAllowedMessageSize uint) *Stream
 	}
 }
 
-func (n *StreamEventStore) ReportEvents(ctx context.Context, apiEvents []*api.EventMessage) error {
+func (n *StreamEventStore) ReportEvents(ctx *context.ArmadaContext, apiEvents []*api.EventMessage) error {
 	if len(apiEvents) == 0 {
 		return nil
 	}

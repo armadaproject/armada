@@ -1,7 +1,7 @@
 package scheduleringester
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -46,7 +46,7 @@ func NewInstructionConverter(
 	}
 }
 
-func (c *InstructionConverter) Convert(_ context.Context, sequencesWithIds *ingest.EventSequencesWithIds) *DbOperationsWithMessageIds {
+func (c *InstructionConverter) Convert(_ *context.ArmadaContext, sequencesWithIds *ingest.EventSequencesWithIds) *DbOperationsWithMessageIds {
 	operations := make([]DbOperation, 0)
 	for _, es := range sequencesWithIds.EventSequences {
 		for _, op := range c.dbOperationsFromEventSequence(es) {

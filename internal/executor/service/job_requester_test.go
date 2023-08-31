@@ -1,8 +1,8 @@
 package service
 
 import (
-	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 
 	"github.com/google/uuid"
@@ -244,7 +244,7 @@ type StubLeaseRequester struct {
 	LeaseJobRunLeaseResponse *LeaseResponse
 }
 
-func (s *StubLeaseRequester) LeaseJobRuns(ctx context.Context, request *LeaseRequest) (*LeaseResponse, error) {
+func (s *StubLeaseRequester) LeaseJobRuns(ctx *context.ArmadaContext, request *LeaseRequest) (*LeaseResponse, error) {
 	s.ReceivedLeaseRequests = append(s.ReceivedLeaseRequests, request)
 	return s.LeaseJobRunLeaseResponse, s.LeaseJobRunError
 }

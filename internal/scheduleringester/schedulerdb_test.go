@@ -1,7 +1,7 @@
 package scheduleringester
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
 
@@ -329,7 +329,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 
 	// Read back the state from the db to compare.
 	queries := schedulerdb.New(schedulerDb.db)
-	selectNewJobs := func(ctx context.Context, serial int64) ([]schedulerdb.Job, error) {
+	selectNewJobs := func(ctx *context.ArmadaContext, serial int64) ([]schedulerdb.Job, error) {
 		return queries.SelectNewJobs(ctx, schedulerdb.SelectNewJobsParams{Serial: serial, Limit: 1000})
 	}
 	switch expected := op.(type) {

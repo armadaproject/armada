@@ -1,7 +1,7 @@
 package pulsarutils
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
 
@@ -51,12 +51,12 @@ func (producer *mockProducer) Name() string {
 	return "name"
 }
 
-func (producer *mockProducer) Send(context.Context, *pulsar.ProducerMessage) (pulsar.MessageID, error) {
+func (producer *mockProducer) Send(*context.ArmadaContext, *pulsar.ProducerMessage) (pulsar.MessageID, error) {
 	time.Sleep(producer.sendDuration)
 	return nil, producer.sendErr
 }
 
-func (producer *mockProducer) SendAsync(_ context.Context, _ *pulsar.ProducerMessage, f func(pulsar.MessageID, *pulsar.ProducerMessage, error)) {
+func (producer *mockProducer) SendAsync(_ *context.ArmadaContext, _ *pulsar.ProducerMessage, f func(pulsar.MessageID, *pulsar.ProducerMessage, error)) {
 	time.Sleep(producer.sendAsyncDuration)
 	go f(nil, nil, producer.sendAsyncErr)
 }

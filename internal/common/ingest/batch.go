@@ -1,7 +1,7 @@
 package ingest
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"sync"
 	"time"
 
@@ -32,7 +32,7 @@ func NewBatcher[T any](input chan T, maxItems int, maxTimeout time.Duration, cal
 	}
 }
 
-func (b *Batcher[T]) Run(ctx context.Context) {
+func (b *Batcher[T]) Run(ctx *context.ArmadaContext) {
 	for {
 		b.buffer = []T{}
 		expire := b.clock.After(b.maxTimeout)

@@ -1,9 +1,9 @@
 package service
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"strings"
 
 	"google.golang.org/grpc/codes"
@@ -23,7 +23,7 @@ import (
 const userTemplate = "<user>"
 
 type CordonService interface {
-	CordonNode(ctx context.Context, request *binoculars.CordonRequest) error
+	CordonNode(ctx *context.ArmadaContext, request *binoculars.CordonRequest) error
 }
 
 type KubernetesCordonService struct {
@@ -44,7 +44,7 @@ func NewKubernetesCordonService(
 	}
 }
 
-func (c *KubernetesCordonService) CordonNode(ctx context.Context, request *binoculars.CordonRequest) error {
+func (c *KubernetesCordonService) CordonNode(ctx *context.ArmadaContext, request *binoculars.CordonRequest) error {
 	err := checkPermission(c.permissionChecker, ctx, permissions.CordonNodes)
 	if err != nil {
 		return status.Errorf(codes.PermissionDenied, err.Error())
@@ -91,7 +91,7 @@ func GetPatchBytes(patchData *nodePatch) ([]byte, error) {
 	return json.Marshal(patchData)
 }
 
-func checkPermission(p authorization.PermissionChecker, ctx context.Context, permission permission.Permission) error {
+func checkPermission(p authorization.PermissionChecker, ctx *context.ArmadaContext, permission permission.Permission) error {
 	if !p.UserHasPermission(ctx, permission) {
 		return fmt.Errorf("user %s does not have permission %s", authorization.GetPrincipal(ctx).GetName(), permission)
 	}

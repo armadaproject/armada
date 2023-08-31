@@ -1,9 +1,9 @@
 package grpc
 
 import (
-	"context"
 	"crypto/tls"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"net"
 	"runtime/debug"
 	"sync"
@@ -130,7 +130,7 @@ func Listen(port uint16, grpcServer *grpc.Server, wg *sync.WaitGroup) {
 
 // CreateShutdownHandler returns a function that shuts down the grpcServer when the context is closed.
 // The server is given gracePeriod to perform a graceful showdown and is then forcably stopped if necessary
-func CreateShutdownHandler(ctx context.Context, gracePeriod time.Duration, grpcServer *grpc.Server) func() error {
+func CreateShutdownHandler(ctx *context.ArmadaContext, gracePeriod time.Duration, grpcServer *grpc.Server) func() error {
 	return func() error {
 		<-ctx.Done()
 		go func() {

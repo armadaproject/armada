@@ -1,12 +1,12 @@
 package eventutil
 
 import (
-	"context"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -31,7 +31,7 @@ func NewSequenceFromMessage(in chan pulsar.Message) *SequenceFromMessage {
 	}
 }
 
-func (srv *SequenceFromMessage) Run(ctx context.Context) error {
+func (srv *SequenceFromMessage) Run(ctx *context.ArmadaContext) error {
 	log := ctxlogrus.Extract(ctx)
 	for {
 		select {
@@ -83,7 +83,7 @@ func NewSequenceCompacter(in chan *EventSequenceWithMessageIds) *SequenceCompact
 	}
 }
 
-func (srv *SequenceCompacter) Run(ctx context.Context) error {
+func (srv *SequenceCompacter) Run(ctx *context.ArmadaContext) error {
 	ticker := time.NewTicker(srv.Interval)
 	for {
 		select {
@@ -110,7 +110,7 @@ func (srv *SequenceCompacter) Run(ctx context.Context) error {
 	}
 }
 
-func (srv *SequenceCompacter) compactAndSend(ctx context.Context) error {
+func (srv *SequenceCompacter) compactAndSend(ctx *context.ArmadaContext) error {
 	if len(srv.buffer) == 0 {
 		return nil
 	}
@@ -167,7 +167,7 @@ func NewEventFilter(in chan *EventSequenceWithMessageIds, filter func(*armadaeve
 	}
 }
 
-func (srv *EventFilter) Run(ctx context.Context) error {
+func (srv *EventFilter) Run(ctx *context.ArmadaContext) error {
 	for {
 		select {
 		case <-ctx.Done():

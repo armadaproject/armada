@@ -1,9 +1,9 @@
 package server
 
 import (
-	"context"
 	"crypto/sha1"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"math/rand"
 	"strings"
 	"time"
@@ -68,7 +68,7 @@ type PulsarSubmitServer struct {
 	IgnoreJobSubmitChecks bool
 }
 
-func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
+func (srv *PulsarSubmitServer) SubmitJobs(ctx *context.ArmadaContext, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 	userId, groups, err := srv.Authorize(ctx, req.Queue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit)
 	if err != nil {
 		return nil, err
@@ -240,7 +240,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	return &api.JobSubmitResponse{JobResponseItems: responses}, nil
 }
 
-func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
+func (srv *PulsarSubmitServer) CancelJobs(ctx *context.ArmadaContext, req *api.JobCancelRequest) (*api.CancellationResult, error) {
 	// separate code path for multiple jobs
 	if len(req.JobIds) > 0 {
 		return srv.cancelJobsByIdsQueueJobset(ctx, req.JobIds, req.Queue, req.JobSetId, req.Reason)
@@ -328,7 +328,7 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 }
 
 // Assumes all Job IDs are in the queue and job set provided
-func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(ctx context.Context, jobIds []string, q, jobSet string, reason string) (*api.CancellationResult, error) {
+func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(ctx *context.ArmadaContext, jobIds []string, q, jobSet string, reason string) (*api.CancellationResult, error) {
 	if q == "" {
 		return nil, &armadaerrors.ErrInvalidArgument{
 			Name:    "Queue",
@@ -390,7 +390,7 @@ func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []
 	return sequence, validIds
 }
 
-func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSetCancelRequest) (*types.Empty, error) {
+func (srv *PulsarSubmitServer) CancelJobSet(ctx *context.ArmadaContext, req *api.JobSetCancelRequest) (*types.Empty, error) {
 	if req.Queue == "" {
 		return nil, &armadaerrors.ErrInvalidArgument{
 			Name:    "Queue",
@@ -492,7 +492,7 @@ func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSet
 	return &types.Empty{}, err
 }
 
-func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
+func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx *context.ArmadaContext, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
 	// If either queue or jobSetId is missing, we get the job set and queue associated
 	// with the first job id in the request.
 	//
@@ -612,7 +612,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 // Checks that the user has either anyPerm (e.g., permissions.SubmitAnyJobs) or perm (e.g., PermissionVerbSubmit) for this queue.
 // Returns the userId and groups extracted from the context.
 func (srv *PulsarSubmitServer) Authorize(
-	ctx context.Context,
+	ctx *context.ArmadaContext,
 	queueName string,
 	anyPerm permission.Permission,
 	perm queue.PermissionVerb,
@@ -665,36 +665,36 @@ func principalHasQueuePermissions(principal authorization.Principal, q queue.Que
 }
 
 // Fallback methods. Calls into an embedded server.SubmitServer.
-func (srv *PulsarSubmitServer) CreateQueue(ctx context.Context, req *api.Queue) (*types.Empty, error) {
+func (srv *PulsarSubmitServer) CreateQueue(ctx *context.ArmadaContext, req *api.Queue) (*types.Empty, error) {
 	return srv.SubmitServer.CreateQueue(ctx, req)
 }
 
-func (srv *PulsarSubmitServer) CreateQueues(ctx context.Context, req *api.QueueList) (*api.BatchQueueCreateResponse, error) {
+func (srv *PulsarSubmitServer) CreateQueues(ctx *context.ArmadaContext, req *api.QueueList) (*api.BatchQueueCreateResponse, error) {
 	return srv.SubmitServer.CreateQueues(ctx, req)
 }
 
-func (srv *PulsarSubmitServer) UpdateQueue(ctx context.Context, req *api.Queue) (*types.Empty, error) {
+func (srv *PulsarSubmitServer) UpdateQueue(ctx *context.ArmadaContext, req *api.Queue) (*types.Empty, error) {
 	return srv.SubmitServer.UpdateQueue(ctx, req)
 }
 
-func (srv *PulsarSubmitServer) UpdateQueues(ctx context.Context, req *api.QueueList) (*api.BatchQueueUpdateResponse, error) {
+func (srv *PulsarSubmitServer) UpdateQueues(ctx *context.ArmadaContext, req *api.QueueList) (*api.BatchQueueUpdateResponse, error) {
 	return srv.SubmitServer.UpdateQueues(ctx, req)
 }
 
-func (srv *PulsarSubmitServer) DeleteQueue(ctx context.Context, req *api.QueueDeleteRequest) (*types.Empty, error) {
+func (srv *PulsarSubmitServer) DeleteQueue(ctx *context.ArmadaContext, req *api.QueueDeleteRequest) (*types.Empty, error) {
 	return srv.SubmitServer.DeleteQueue(ctx, req)
 }
 
-func (srv *PulsarSubmitServer) GetQueue(ctx context.Context, req *api.QueueGetRequest) (*api.Queue, error) {
+func (srv *PulsarSubmitServer) GetQueue(ctx *context.ArmadaContext, req *api.QueueGetRequest) (*api.Queue, error) {
 	return srv.SubmitServer.GetQueue(ctx, req)
 }
 
-func (srv *PulsarSubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
+func (srv *PulsarSubmitServer) GetQueueInfo(ctx *context.ArmadaContext, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
 	return srv.SubmitServer.GetQueueInfo(ctx, req)
 }
 
 // PublishToPulsar sends pulsar messages async
-func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []*armadaevents.EventSequence, scheduler schedulers.Scheduler) error {
+func (srv *PulsarSubmitServer) publishToPulsar(ctx *context.ArmadaContext, sequences []*armadaevents.EventSequence, scheduler schedulers.Scheduler) error {
 	// Reduce the number of sequences to send to the minimum possible,
 	// and then break up any sequences larger than srv.MaxAllowedMessageSize.
 	sequences = eventutil.CompactEventSequences(sequences)
@@ -714,7 +714,7 @@ func jobKey(j *api.Job) string {
 // getOriginalJobIds returns the mapping between jobId and originalJobId.  If the job (or more specifically the clientId
 // on the job) has not been seen before then jobId -> jobId.  If the job has been seen before then jobId -> originalJobId
 // Note that if srv.KVStore is nil then this function simply returns jobId -> jobId
-func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []*api.Job) (map[string]string, error) {
+func (srv *PulsarSubmitServer) getOriginalJobIds(ctx *context.ArmadaContext, apiJobs []*api.Job) (map[string]string, error) {
 	// Default is the current id
 	ret := make(map[string]string, len(apiJobs))
 	for _, apiJob := range apiJobs {
@@ -753,7 +753,7 @@ func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []
 	return ret, nil
 }
 
-func (srv *PulsarSubmitServer) storeOriginalJobIds(ctx context.Context, apiJobs []*api.Job) error {
+func (srv *PulsarSubmitServer) storeOriginalJobIds(ctx *context.ArmadaContext, apiJobs []*api.Job) error {
 	if srv.KVStore == nil {
 		return nil
 	}

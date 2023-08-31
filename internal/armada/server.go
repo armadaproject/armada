@@ -1,7 +1,6 @@
 package armada
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"time"
@@ -24,6 +23,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/server"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
@@ -39,7 +39,7 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
+func Serve(ctx *context.ArmadaContext, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
 	log.Info("Armada server starting")
 	log.Infof("Armada priority classes: %v", config.Scheduling.Preemption.PriorityClasses)
 	log.Infof("Default priority class: %s", config.Scheduling.Preemption.DefaultPriorityClass)
@@ -53,7 +53,7 @@ func Serve(ctx context.Context, config *configuration.ArmadaConfig, healthChecks
 	// Defer cancelling the parent context to ensure the errgroup is cancelled on return.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	g, ctx := errgroup.WithContext(ctx)
+	g, ctx2 := errgroup.WithContext(ctx)
 
 	// List of services to run concurrently.
 	// Because we want to start services only once all input validation has been completed,

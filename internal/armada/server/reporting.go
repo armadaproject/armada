@@ -1,8 +1,8 @@
 package server
 
 import (
-	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
 	log "github.com/sirupsen/logrus"

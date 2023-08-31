@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"context"
+	gocontext "context"
 	"fmt"
 	"math"
 	"time"
@@ -15,6 +15,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/repository/apimessages"
 	"github.com/armadaproject/armada/internal/armada/repository/sequence"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -49,7 +50,7 @@ func NewEventRepository(db redis.UniversalClient) *RedisEventRepository {
 	}
 
 	decompressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
-		func(context.Context) (interface{}, error) {
+		func(ctx gocontext.Context) (interface{}, error) {
 			return compress.NewZlibDecompressor(), nil
 		}), &poolConfig)
 
@@ -131,7 +132,7 @@ func (repo *RedisEventRepository) extractEvents(msg redis.XMessage, queue, jobSe
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	defer func(decompressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+	defer func(decompressorPool *pool.ObjectPool, ctx *context.ArmadaContext, object interface{}) {
 		err := decompressorPool.ReturnObject(ctx, object)
 		if err != nil {
 			log.WithError(err).Errorf("Error returning decompressor to pool")

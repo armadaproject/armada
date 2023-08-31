@@ -1,8 +1,8 @@
 package server
 
 import (
-	"context"
 	"errors"
+	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -29,7 +29,7 @@ type EventsPrinter struct {
 }
 
 // Run the service that reads from Pulsar and updates Armada until the provided context is cancelled.
-func (srv *EventsPrinter) Run(ctx context.Context) error {
+func (srv *EventsPrinter) Run(ctx *context.ArmadaContext) error {
 	// Get the configured logger, or the standard logger if none is provided.
 	var log *logrus.Entry
 	if srv.Logger != nil {

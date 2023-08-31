@@ -1,8 +1,8 @@
 package scheduler
 
 import (
-	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/hashicorp/go-memdb"
 
@@ -39,7 +39,7 @@ func (sch *GangScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 	sch.skipUnsuccessfulSchedulingKeyCheck = true
 }
 
-func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
+func (sch *GangScheduler) Schedule(ctx *context.ArmadaContext, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
 	// Exit immediately if this is a new gang and we've hit any round limits.
 	if !gctx.AllJobsEvicted {
 		if ok, unschedulableReason, err = sch.constraints.CheckRoundConstraints(sch.schedulingContext); err != nil || !ok {
@@ -108,7 +108,7 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 	return sch.trySchedule(ctx, gctx)
 }
 
-func (sch *GangScheduler) trySchedule(ctx context.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
+func (sch *GangScheduler) trySchedule(ctx *context.ArmadaContext, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
 	// If no node uniformity constraint, try scheduling across all nodes.
 	if gctx.NodeUniformityLabel == "" {
 		return sch.tryScheduleGang(ctx, gctx)
@@ -175,7 +175,7 @@ func (sch *GangScheduler) trySchedule(ctx context.Context, gctx *schedulercontex
 	return sch.tryScheduleGang(ctx, gctx)
 }
 
-func (sch *GangScheduler) tryScheduleGang(ctx context.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
+func (sch *GangScheduler) tryScheduleGang(ctx *context.ArmadaContext, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
 	txn := sch.nodeDb.Txn(true)
 	defer txn.Abort()
 	ok, unschedulableReason, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx)
@@ -185,7 +185,7 @@ func (sch *GangScheduler) tryScheduleGang(ctx context.Context, gctx *schedulerco
 	return
 }
 
-func (sch *GangScheduler) tryScheduleGangWithTxn(ctx context.Context, txn *memdb.Txn, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
+func (sch *GangScheduler) tryScheduleGangWithTxn(ctx *context.ArmadaContext, txn *memdb.Txn, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
 	if ok, err = sch.nodeDb.ScheduleManyWithTxn(txn, gctx.JobSchedulingContexts); err != nil {
 		return
 	} else if !ok {

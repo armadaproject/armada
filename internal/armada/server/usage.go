@@ -1,7 +1,7 @@
 package server
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
 	"github.com/gogo/protobuf/types"
@@ -41,7 +41,7 @@ func NewUsageServer(
 	}
 }
 
-func (s *UsageServer) ReportUsage(ctx context.Context, report *api.ClusterUsageReport) (*types.Empty, error) {
+func (s *UsageServer) ReportUsage(ctx *context.ArmadaContext, report *api.ClusterUsageReport) (*types.Empty, error) {
 	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportUsage] error: %s", err)
 	}

@@ -1,8 +1,8 @@
 package instructions
 
 import (
-	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"sort"
 	"strings"
 	"time"
@@ -65,7 +65,7 @@ func (c *InstructionConverter) IsLegacy() bool {
 	return c.useLegacyEventConversion
 }
 
-func (c *InstructionConverter) Convert(ctx context.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
+func (c *InstructionConverter) Convert(ctx *context.ArmadaContext, sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
 	updateInstructions := &model.InstructionSet{
 		MessageIds: sequencesWithIds.MessageIds,
 	}
@@ -77,7 +77,7 @@ func (c *InstructionConverter) Convert(ctx context.Context, sequencesWithIds *in
 }
 
 func (c *InstructionConverter) convertSequence(
-	ctx context.Context,
+	ctx *context.ArmadaContext,
 	sequence *armadaevents.EventSequence,
 	update *model.InstructionSet,
 ) {

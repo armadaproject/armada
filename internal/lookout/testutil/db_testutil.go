@@ -1,9 +1,10 @@
 package testutil
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"

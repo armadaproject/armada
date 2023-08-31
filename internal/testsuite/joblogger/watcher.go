@@ -1,7 +1,6 @@
 package joblogger
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -9,9 +8,11 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+
+	"github.com/armadaproject/armada/internal/common/context"
 )
 
-func (srv *JobLogger) runWatcher(ctx context.Context, kubectx string, clientset *kubernetes.Clientset) error {
+func (srv *JobLogger) runWatcher(ctx *context.ArmadaContext, kubectx string, clientset *kubernetes.Clientset) error {
 	ticker := time.NewTicker(srv.interval)
 	defer ticker.Stop()
 
@@ -32,7 +33,7 @@ func (srv *JobLogger) runWatcher(ctx context.Context, kubectx string, clientset 
 	}
 }
 
-func (srv *JobLogger) listPods(ctx context.Context, clientset *kubernetes.Clientset) ([]*v1.Pod, error) {
+func (srv *JobLogger) listPods(ctx *context.ArmadaContext, clientset *kubernetes.Clientset) ([]*v1.Pod, error) {
 	var labelSelector string
 	if srv.queue != "" {
 		labelSelector = fmt.Sprintf("armada_queue_id=%s", srv.queue)

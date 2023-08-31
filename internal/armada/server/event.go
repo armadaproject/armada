@@ -1,7 +1,7 @@
 package server
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
 	"github.com/gogo/protobuf/types"
@@ -42,7 +42,7 @@ func NewEventServer(
 	}
 }
 
-func (s *EventServer) Report(ctx context.Context, message *api.EventMessage) (*types.Empty, error) {
+func (s *EventServer) Report(ctx *context.ArmadaContext, message *api.EventMessage) (*types.Empty, error) {
 	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[Report] error: %s", err)
 	}
@@ -50,7 +50,7 @@ func (s *EventServer) Report(ctx context.Context, message *api.EventMessage) (*t
 	return &types.Empty{}, s.eventStore.ReportEvents(ctx, []*api.EventMessage{message})
 }
 
-func (s *EventServer) ReportMultiple(ctx context.Context, message *api.EventList) (*types.Empty, error) {
+func (s *EventServer) ReportMultiple(ctx *context.ArmadaContext, message *api.EventList) (*types.Empty, error) {
 	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportMultiple] error: %s", err)
 	}
@@ -142,7 +142,7 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 	return s.serveEventsFromRepository(request, s.eventRepository, stream)
 }
 
-func (s *EventServer) Health(ctx context.Context, cont_ *types.Empty) (*api.HealthCheckResponse, error) {
+func (s *EventServer) Health(ctx *context.ArmadaContext, cont_ *types.Empty) (*api.HealthCheckResponse, error) {
 	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
 }
 
@@ -216,7 +216,7 @@ func (s *EventServer) serveEventsFromRepository(request *api.JobSetRequest, even
 	}
 }
 
-func validateUserHasWatchPermissions(ctx context.Context, permsChecker authorization.PermissionChecker, q queue.Queue, jobSetId string) error {
+func validateUserHasWatchPermissions(ctx *context.ArmadaContext, permsChecker authorization.PermissionChecker, q queue.Queue, jobSetId string) error {
 	err := checkPermission(permsChecker, ctx, permissions.WatchAllEvents)
 	var globalPermErr *ErrUnauthorized
 	if errors.As(err, &globalPermErr) {

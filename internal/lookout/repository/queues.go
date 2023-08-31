@@ -1,10 +1,11 @@
 package repository
 
 import (
-	"context"
 	"database/sql"
 	"sort"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/doug-martin/goqu/v9"
 	"github.com/gogo/protobuf/types"
@@ -25,7 +26,7 @@ type rowsSql struct {
 	LongestRunning string
 }
 
-func (r *SQLJobRepository) GetQueueInfos(ctx context.Context) ([]*lookout.QueueInfo, error) {
+func (r *SQLJobRepository) GetQueueInfos(ctx *context.ArmadaContext) ([]*lookout.QueueInfo, error) {
 	queries, err := r.getQueuesSql()
 	if err != nil {
 		return nil, err

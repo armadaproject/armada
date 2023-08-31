@@ -5,7 +5,7 @@
 package schedulermocks
 
 import (
-	context "context"
+	context "github.com/armadaproject/armada/internal/common/context"
 	reflect "reflect"
 
 	executorapi "github.com/armadaproject/armada/pkg/executorapi"
@@ -37,17 +37,17 @@ func (m *MockExecutorApi_LeaseJobRunsServer) EXPECT() *MockExecutorApi_LeaseJobR
 }
 
 // Context mocks base method.
-func (m *MockExecutorApi_LeaseJobRunsServer) Context() context.Context {
+func (m *MockExecutorApi_LeaseJobRunsServer) Context() *context.ArmadaContext {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Context")
-	ret0, _ := ret[0].(context.Context)
+	ret := m.ctrl.Call(m, "github.com/armadaproject/armada/internal/common/context")
+	ret0, _ := ret[0].(*context.ArmadaContext)
 	return ret0
 }
 
 // Context indicates an expected call of Context.
 func (mr *MockExecutorApi_LeaseJobRunsServerMockRecorder) Context() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsServer)(nil).Context))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "github.com/armadaproject/armada/internal/common/context", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsServer)(nil).Context))
 }
 
 // Recv mocks base method.

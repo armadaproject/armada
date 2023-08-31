@@ -2,16 +2,17 @@ package testsuite
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"time"
 
+	gocontext "context"
+
 	"github.com/jstemmer/go-junit-report/v2/junit"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
-	"golang.org/x/sync/errgroup"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/testsuite/eventbenchmark"
 	"github.com/armadaproject/armada/internal/testsuite/eventlogger"
 	"github.com/armadaproject/armada/internal/testsuite/eventsplitter"
@@ -48,7 +49,7 @@ func (report *TestCaseReport) JunitTestCase() junit.Testcase {
 	}
 }
 
-func (srv *TestRunner) Run(ctx context.Context) (err error) {
+func (srv *TestRunner) Run(ctx *context.ArmadaContext) (err error) {
 	report := &TestCaseReport{
 		Out:      &bytes.Buffer{},
 		Start:    time.Now(),
@@ -69,7 +70,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	}()
 
 	// Optional timeout
-	var cancel context.CancelFunc
+	var cancel gocontext.CancelFunc
 	if srv.testSpec.Timeout != 0 {
 		ctx, cancel = context.WithTimeout(ctx, srv.testSpec.Timeout)
 	} else {
@@ -78,7 +79,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 	defer cancel()
 
 	// Setup an errgroup that cancels on any job failing or there being no active jobs.
-	g, ctx := errgroup.WithContext(ctx)
+	g, ctx := context.ErrGroup(ctx)
 
 	// Submit jobs. All jobs must be submitted before proceeding since we need the job ids.
 	sbmtr := submitter.NewSubmitterFromTestSpec(srv.apiConnectionDetails, srv.testSpec)
@@ -185,7 +186,7 @@ func (srv *TestRunner) Run(ctx context.Context) (err error) {
 }
 
 // tryCancelJobs cancels submitted jobs if cancellation is configured.
-func tryCancelJobs(ctx context.Context, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) error {
+func tryCancelJobs(ctx *context.ArmadaContext, testSpec *api.TestSpec, conn *client.ApiConnectionDetails, jobIds []string) error {
 	req := &api.JobCancelRequest{
 		Queue:    testSpec.GetQueue(),
 		JobSetId: testSpec.GetJobSetId(),

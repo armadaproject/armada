@@ -1,7 +1,7 @@
 package reporter
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"

@@ -1,9 +1,9 @@
 package service
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -143,11 +143,11 @@ type FakePermissionChecker struct {
 	ReturnValue bool
 }
 
-func (c FakePermissionChecker) UserOwns(ctx context.Context, obj authorization.Owned) (owned bool, ownershipGroups []string) {
+func (c FakePermissionChecker) UserOwns(ctx *context.ArmadaContext, obj authorization.Owned) (owned bool, ownershipGroups []string) {
 	return c.ReturnValue, []string{}
 }
 
-func (c FakePermissionChecker) UserHasPermission(ctx context.Context, perm permission.Permission) bool {
+func (c FakePermissionChecker) UserHasPermission(ctx *context.ArmadaContext, perm permission.Permission) bool {
 	return c.ReturnValue
 }
 

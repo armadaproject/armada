@@ -2,13 +2,14 @@ package healthmonitor
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
@@ -120,7 +121,7 @@ func (srv *EtcdHealthMonitor) Collect(metrics chan<- prometheus.Metric) {
 }
 
 // Run the service until ctx is cancelled.
-func (srv *EtcdHealthMonitor) Run(ctx context.Context) {
+func (srv *EtcdHealthMonitor) Run(ctx *context.ArmadaContext) {
 	log.WithField("service", "EtcdHealthMonitor").Info("started ETCD health monitor")
 	defer log.WithField("service", "EtcdHealthMonitor").Info("exited ETCD health monitor")
 
@@ -170,7 +171,7 @@ func (srv *EtcdHealthMonitor) updateInstances(updatedInstances map[string]*etcdI
 }
 
 // ScrapeMetrics collects metrics for all etcd instances.
-func (srv *EtcdHealthMonitor) scrapeMetrics(ctx context.Context) error {
+func (srv *EtcdHealthMonitor) scrapeMetrics(ctx *context.ArmadaContext) error {
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 

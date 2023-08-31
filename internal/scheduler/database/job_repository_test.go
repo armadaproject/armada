@@ -1,8 +1,8 @@
 package database
 
 import (
-	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
 
@@ -553,7 +553,7 @@ func withJobRepository(action func(repository *PostgresJobRepository) error) err
 	})
 }
 
-func insertMarkers(ctx context.Context, markers []Marker, db *pgxpool.Pool) error {
+func insertMarkers(ctx *context.ArmadaContext, markers []Marker, db *pgxpool.Pool) error {
 	for _, marker := range markers {
 		_, err := db.Exec(ctx, "INSERT INTO markers VALUES ($1, $2)", marker.GroupID, marker.PartitionID)
 		if err != nil {

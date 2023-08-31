@@ -1,7 +1,7 @@
 package eventsplitter
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -19,7 +19,7 @@ func New(in chan *api.EventMessage, outs ...chan *api.EventMessage) *EventSplitt
 	}
 }
 
-func (srv *EventSplitter) Run(ctx context.Context) error {
+func (srv *EventSplitter) Run(ctx *context.ArmadaContext) error {
 	for {
 		select {
 		case <-ctx.Done():

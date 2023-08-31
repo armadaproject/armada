@@ -1,7 +1,7 @@
 package scheduler
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"sync"
 	"sync/atomic"
 
@@ -23,7 +23,7 @@ type LeaderController interface {
 	// Returns true if the token is a leader and false otherwise
 	ValidateToken(tok LeaderToken) bool
 	// Run starts the controller.  This is a blocking call which will return when the provided context is cancelled
-	Run(ctx context.Context) error
+	Run(ctx *context.ArmadaContext) error
 	// GetLeaderReport returns a report about the current leader
 	GetLeaderReport() LeaderReport
 }
@@ -85,14 +85,14 @@ func (lc *StandaloneLeaderController) ValidateToken(tok LeaderToken) bool {
 	return false
 }
 
-func (lc *StandaloneLeaderController) Run(ctx context.Context) error {
+func (lc *StandaloneLeaderController) Run(ctx *context.ArmadaContext) error {
 	return nil
 }
 
 // LeaseListener allows clients to listen for lease events.
 type LeaseListener interface {
 	// Called when the client has started leading.
-	onStartedLeading(context.Context)
+	onStartedLeading(*context.ArmadaContext)
 	// Called when the client has stopped leading,
 	onStoppedLeading()
 }
@@ -138,7 +138,7 @@ func (lc *KubernetesLeaderController) ValidateToken(tok LeaderToken) bool {
 
 // Run starts the controller.
 // This is a blocking call that returns when the provided context is cancelled.
-func (lc *KubernetesLeaderController) Run(ctx context.Context) error {
+func (lc *KubernetesLeaderController) Run(ctx *context.ArmadaContext) error {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("service", "KubernetesLeaderController")
 	for {
@@ -155,7 +155,7 @@ func (lc *KubernetesLeaderController) Run(ctx context.Context) error {
 				RenewDeadline:   lc.config.RenewDeadline,
 				RetryPeriod:     lc.config.RetryPeriod,
 				Callbacks: leaderelection.LeaderCallbacks{
-					OnStartedLeading: func(c context.Context) {
+					OnStartedLeading: func(c *context.ArmadaContext) {
 						log.Infof("I am now leader")
 						lc.token.Store(NewLeaderToken())
 						for _, listener := range lc.listeners {

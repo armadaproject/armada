@@ -2,7 +2,7 @@
 package eventwatcher
 
 import (
-	"context"
+	gocontext "context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -15,9 +15,10 @@ import (
 	"github.com/grpc-ecosystem/go-grpc-middleware/util/backoffutils"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
@@ -53,7 +54,7 @@ func New(queue string, jobSetName string, apiConnectionDetails *client.ApiConnec
 }
 
 // Run starts the service.
-func (srv *EventWatcher) Run(ctx context.Context) error {
+func (srv *EventWatcher) Run(ctx *context.ArmadaContext) error {
 	var attempt uint
 	var fromMessageId string
 	var lastErr error
@@ -85,7 +86,7 @@ func (srv *EventWatcher) Run(ctx context.Context) error {
 				}
 			}
 		})
-		if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		if err == nil || errors.Is(err, gocontext.Canceled) || errors.Is(err, gocontext.DeadlineExceeded) {
 			return err
 		}
 		if status.Code(err) == codes.Canceled {
@@ -99,7 +100,7 @@ func (srv *EventWatcher) Run(ctx context.Context) error {
 	return lastErr
 }
 
-func (srv *EventWatcher) waitRetryBackoff(ctx context.Context, attempt uint) error {
+func (srv *EventWatcher) waitRetryBackoff(ctx *context.ArmadaContext, attempt uint) error {
 	var waitTime time.Duration
 	if attempt > 0 {
 		waitTime = srv.BackoffExponential * time.Duration(backoffutils.ExponentBase2(attempt))
@@ -137,7 +138,7 @@ func (err *ErrUnexpectedEvent) Error() string {
 }
 
 // AssertEvents compares the events received for each job with the expected events.
-func AssertEvents(ctx context.Context, c chan *api.EventMessage, jobIds map[string]bool, expected []*api.EventMessage) error {
+func AssertEvents(ctx *context.ArmadaContext, c chan *api.EventMessage, jobIds map[string]bool, expected []*api.EventMessage) error {
 	// terminatedByJobId indicates for which jobs we've received a terminal event.
 	// Initialise it by copying the jobIds map.
 	terminatedByJobId := maps.Clone(jobIds)
@@ -238,7 +239,7 @@ func isTerminalEvent(msg *api.EventMessage) bool {
 }
 
 // ErrorOnNoActiveJobs returns an error if there are no active jobs.
-func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobIds map[string]bool) error {
+func ErrorOnNoActiveJobs(parent *context.ArmadaContext, C chan *api.EventMessage, jobIds map[string]bool) error {
 	numActive := 0
 	numRemaining := len(jobIds)
 	exitedByJobId := make(map[string]bool)
@@ -285,7 +286,7 @@ func ErrorOnNoActiveJobs(parent context.Context, C chan *api.EventMessage, jobId
 }
 
 // ErrorOnFailed returns an error on job failure.
-func ErrorOnFailed(parent context.Context, C chan *api.EventMessage) error {
+func ErrorOnFailed(parent *context.ArmadaContext, C chan *api.EventMessage) error {
 	for {
 		select {
 		case <-parent.Done():
@@ -301,8 +302,8 @@ func ErrorOnFailed(parent context.Context, C chan *api.EventMessage) error {
 
 // GetFromIngresses listens for ingressInfo messages and tries to download from each ingress.
 // Returns false if any download fails.
-func GetFromIngresses(parent context.Context, C chan *api.EventMessage) error {
-	g, ctx := errgroup.WithContext(parent)
+func GetFromIngresses(parent *context.ArmadaContext, C chan *api.EventMessage) error {
+	g, ctx := context.ErrGroup(parent)
 	for {
 		select {
 		case <-parent.Done():
@@ -321,7 +322,7 @@ func GetFromIngresses(parent context.Context, C chan *api.EventMessage) error {
 	}
 }
 
-func getFromIngress(ctx context.Context, host string) error {
+func getFromIngress(ctx *context.ArmadaContext, host string) error {
 	ingressUrl := os.Getenv("ARMADA_EXECUTOR_INGRESS_URL")
 	ingressUseTls := strings.TrimSpace(strings.ToLower(os.Getenv("ARMADA_EXECUTOR_USE_TLS")))
 	if ingressUrl == "" {

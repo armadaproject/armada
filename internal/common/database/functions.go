@@ -1,11 +1,12 @@
 package database
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"

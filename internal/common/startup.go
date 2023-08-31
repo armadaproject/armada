@@ -1,12 +1,13 @@
 package common
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

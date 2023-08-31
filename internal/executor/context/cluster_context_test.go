@@ -1,11 +1,12 @@
 package context
 
 import (
-	ctx "context"
 	"encoding/json"
 	"errors"
 	"testing"
 	"time"
+
+	ctx "github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"

@@ -1,7 +1,7 @@
 package scheduler
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
 
@@ -303,7 +303,7 @@ type MockPoolAssigner struct {
 	poolsById   map[string]string
 }
 
-func (m MockPoolAssigner) Refresh(_ context.Context) error {
+func (m MockPoolAssigner) Refresh(_ *context.ArmadaContext) error {
 	return nil
 }
 

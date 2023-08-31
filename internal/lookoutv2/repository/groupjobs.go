@@ -1,8 +1,8 @@
 package repository
 
 import (
-	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -22,7 +22,7 @@ type GroupByResult struct {
 
 type GroupJobsRepository interface {
 	GroupBy(
-		ctx context.Context,
+		ctx *context.ArmadaContext,
 		filters []*model.Filter,
 		order *model.Order,
 		groupedField string,
@@ -47,7 +47,7 @@ func NewSqlGroupJobsRepository(db *pgxpool.Pool) *SqlGroupJobsRepository {
 }
 
 func (r *SqlGroupJobsRepository) GroupBy(
-	ctx context.Context,
+	ctx *context.ArmadaContext,
 	filters []*model.Filter,
 	activeJobSets bool,
 	order *model.Order,

@@ -1,7 +1,7 @@
 package service
 
 import (
-	"context"
+	gocontext "context
 	"fmt"
 	"io"
 	"strings"
@@ -10,7 +10,6 @@ import (
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding/gzip"
 	v1 "k8s.io/api/core/v1"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/context"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	commonUtil "github.com/armadaproject/armada/internal/common/util"
@@ -112,7 +112,7 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 	// The server sends jobs over this stream.
 	// The executor sends back acks to indicate which jobs were successfully received.
 	ctx := context.Background()
-	var cancel context.CancelFunc
+	var cancel gocontext.CancelFunc
 	if jobLeaseService.jobLeaseRequestTimeout != 0 {
 		ctx, cancel = context.WithTimeout(ctx, jobLeaseService.jobLeaseRequestTimeout)
 		defer cancel()
@@ -137,7 +137,7 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 	var numJobs uint32
 	jobs := make([]*api.Job, 0)
 	ch := make(chan *api.StreamingJobLease, 10)
-	g, ctx := errgroup.WithContext(ctx)
+	g, ctx := context.ErrGroup(ctx)
 	g.Go(func() error {
 		// Close channel to ensure sending goroutine exits.
 		defer close(ch)
@@ -146,7 +146,7 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 		for numServerAcks == 0 || numServerAcks < numJobs {
 			select {
 			case <-ctx.Done():
-				if ctx.Err() == context.DeadlineExceeded {
+				if ctx.Err() == gocontext.DeadlineExceeded {
 					return nil
 				} else {
 					return ctx.Err()
@@ -179,7 +179,7 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 		for {
 			select {
 			case <-ctx.Done():
-				if ctx.Err() == context.DeadlineExceeded {
+				if ctx.Err() == gocontext.DeadlineExceeded {
 					return nil
 				} else {
 					return ctx.Err()

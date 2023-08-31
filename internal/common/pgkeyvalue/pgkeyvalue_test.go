@@ -1,9 +1,10 @@
 package pgkeyvalue
 
 import (
-	"context"
 	"testing"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"

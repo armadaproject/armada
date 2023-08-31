@@ -1,7 +1,7 @@
 package scheduler
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"strings"
 
 	"github.com/apache/pulsar-client-go/pulsar"
@@ -223,13 +223,13 @@ func setPriorityClassName(podSpec *armadaevents.PodSpecWithAvoidList, priorityCl
 }
 
 // ReportEvents publishes all events to Pulsar. The events are compacted for more efficient publishing.
-func (srv *ExecutorApi) ReportEvents(ctx context.Context, list *executorapi.EventList) (*types.Empty, error) {
+func (srv *ExecutorApi) ReportEvents(ctx *context.ArmadaContext, list *executorapi.EventList) (*types.Empty, error) {
 	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxPulsarMessageSizeBytes, schedulers.Pulsar)
 	return &types.Empty{}, err
 }
 
 // executorFromLeaseRequest extracts a schedulerobjects.Executor from the request.
-func (srv *ExecutorApi) executorFromLeaseRequest(ctx context.Context, req *executorapi.LeaseRequest) *schedulerobjects.Executor {
+func (srv *ExecutorApi) executorFromLeaseRequest(ctx *context.ArmadaContext, req *executorapi.LeaseRequest) *schedulerobjects.Executor {
 	log := ctxlogrus.Extract(ctx)
 	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
 	now := srv.clock.Now().UTC()

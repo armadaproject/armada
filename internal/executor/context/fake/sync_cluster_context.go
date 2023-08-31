@@ -1,9 +1,10 @@
 package fake
 
 import (
-	"context"
 	"errors"
 	"fmt"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	v1 "k8s.io/api/core/v1"
 	discovery "k8s.io/api/discovery/v1"
@@ -132,7 +133,7 @@ func (c *SyncFakeClusterContext) GetClusterPool() string {
 	return "pool"
 }
 
-func (c *SyncFakeClusterContext) GetNodeStatsSummary(ctx context.Context, node *v1.Node) (*v1alpha1.Summary, error) {
+func (c *SyncFakeClusterContext) GetNodeStatsSummary(ctx *context.ArmadaContext, node *v1.Node) (*v1alpha1.Summary, error) {
 	return &v1alpha1.Summary{}, nil
 }
 

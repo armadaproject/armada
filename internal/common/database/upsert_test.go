@@ -1,10 +1,11 @@
 package database
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"

@@ -1,7 +1,7 @@
 package scheduler
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -29,7 +29,7 @@ func NewLeaderStatusMetricsCollector(currentInstanceName string) *LeaderStatusMe
 	}
 }
 
-func (l *LeaderStatusMetricsCollector) onStartedLeading(context.Context) {
+func (l *LeaderStatusMetricsCollector) onStartedLeading(*context.ArmadaContext) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 

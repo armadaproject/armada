@@ -5,16 +5,16 @@
 package database
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type DBTX interface {
-	Exec(context.Context, string, ...interface{}) (pgconn.CommandTag, error)
-	Query(context.Context, string, ...interface{}) (pgx.Rows, error)
-	QueryRow(context.Context, string, ...interface{}) pgx.Row
+	Exec(*context.ArmadaContext, string, ...interface{}) (pgconn.CommandTag, error)
+	Query(*context.ArmadaContext, string, ...interface{}) (pgx.Rows, error)
+	QueryRow(*context.ArmadaContext, string, ...interface{}) pgx.Row
 }
 
 func New(db DBTX) *Queries {

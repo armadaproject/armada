@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/pkg/errors"
 

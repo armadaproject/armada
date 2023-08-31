@@ -1,9 +1,9 @@
 package authorization
 
 import (
-	"context"
 	"encoding/base64"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -99,7 +99,7 @@ type MockTokenReviewer struct {
 	Username      string
 }
 
-func (reviewer *MockTokenReviewer) ReviewToken(ctx context.Context, clusterUrl string, token string, ca []byte) (*authv1.TokenReview, error) {
+func (reviewer *MockTokenReviewer) ReviewToken(ctx *context.ArmadaContext, clusterUrl string, token string, ca []byte) (*authv1.TokenReview, error) {
 	return &authv1.TokenReview{
 		Status: authv1.TokenReviewStatus{
 			Authenticated: reviewer.Authenticated,

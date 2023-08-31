@@ -1,7 +1,7 @@
 package pulsarutils
 
 import (
-	ctx "context"
+	ctx "github.com/armadaproject/armada/internal/common/context"
 	"sync"
 	"testing"
 	"time"
@@ -26,7 +26,7 @@ func (c *mockConsumer) AckID(message pulsar.MessageID) error {
 	return nil
 }
 
-func (c *mockConsumer) Receive(ctx context.Context) (pulsar.Message, error) {
+func (c *mockConsumer) Receive(ctx *context.ArmadaContext) (pulsar.Message, error) {
 	if len(c.msgs) == 0 {
 		<-ctx.Done()
 		return nil, context.DeadlineExceeded

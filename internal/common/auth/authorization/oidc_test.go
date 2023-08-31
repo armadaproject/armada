@@ -1,11 +1,11 @@
 package authorization
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
 
@@ -55,6 +55,6 @@ type fakeKeySet struct {
 	err     error
 }
 
-func (k *fakeKeySet) VerifySignature(ctx context.Context, jwt string) (payload []byte, err error) {
+func (k *fakeKeySet) VerifySignature(ctx *context.ArmadaContext, jwt string) (payload []byte, err error) {
 	return k.payload, k.err
 }

@@ -6,7 +6,7 @@
 package database
 
 import (
-	"context"
+	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,7 +16,7 @@ const countGroup = `-- name: CountGroup :one
 SELECT COUNT(*) FROM markers WHERE group_id= $1
 `
 
-func (q *Queries) CountGroup(ctx context.Context, groupID uuid.UUID) (int64, error) {
+func (q *Queries) CountGroup(ctx *context.ArmadaContext, groupID uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, countGroup, groupID)
 	var count int64
 	err := row.Scan(&count)
@@ -27,7 +27,7 @@ const deleteOldMarkers = `-- name: DeleteOldMarkers :exec
 DELETE FROM markers WHERE created < $1::timestamptz
 `
 
-func (q *Queries) DeleteOldMarkers(ctx context.Context, cutoff time.Time) error {
+func (q *Queries) DeleteOldMarkers(ctx *context.ArmadaContext, cutoff time.Time) error {
 	_, err := q.db.Exec(ctx, deleteOldMarkers, cutoff)
 	return err
 }
@@ -37,7 +37,7 @@ SELECT run_id FROM runs WHERE run_id = ANY($1::UUID[])
                          AND (succeeded = false AND failed = false AND cancelled = false)
 `
 
-func (q *Queries) FindActiveRuns(ctx context.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
+func (q *Queries) FindActiveRuns(ctx *context.ArmadaContext, runIds []uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, findActiveRuns, runIds)
 	if err != nil {
 		return nil, err
@@ -67,7 +67,7 @@ type InsertMarkerParams struct {
 	Created     time.Time `db:"created"`
 }
 
-func (q *Queries) InsertMarker(ctx context.Context, arg InsertMarkerParams) error {
+func (q *Queries) InsertMarker(ctx *context.ArmadaContext, arg InsertMarkerParams) error {
 	_, err := q.db.Exec(ctx, insertMarker, arg.GroupID, arg.PartitionID, arg.Created)
 	return err
 }
@@ -76,7 +76,7 @@ const markJobRunsAttemptedById = `-- name: MarkJobRunsAttemptedById :exec
 UPDATE runs SET run_attempted = true WHERE run_id = ANY($1::UUID[])
 `
 
-func (q *Queries) MarkJobRunsAttemptedById(ctx context.Context, runIds []uuid.UUID) error {
+func (q *Queries) MarkJobRunsAttemptedById(ctx *context.ArmadaContext, runIds []uuid.UUID) error {
 	_, err := q.db.Exec(ctx, markJobRunsAttemptedById, runIds)
 	return err
 }
@@ -85,7 +85,7 @@ const markJobRunsFailedById = `-- name: MarkJobRunsFailedById :exec
 UPDATE runs SET failed = true WHERE run_id = ANY($1::UUID[])
 `
 
-func (q *Queries) MarkJobRunsFailedById(ctx context.Context, runIds []uuid.UUID) error {
+func (q *Queries) MarkJobRunsFailedById(ctx *context.ArmadaContext, runIds []uuid.UUID) error {
 	_, err := q.db.Exec(ctx, markJobRunsFailedById, runIds)
 	return err
 }
@@ -94,7 +94,7 @@ const markJobRunsReturnedById = `-- name: MarkJobRunsReturnedById :exec
 UPDATE runs SET returned = true WHERE run_id = ANY($1::UUID[])
 `
 
-func (q *Queries) MarkJobRunsReturnedById(ctx context.Context, runIds []uuid.UUID) error {
+func (q *Queries) MarkJobRunsReturnedById(ctx *context.ArmadaContext, runIds []uuid.UUID) error {
 	_, err := q.db.Exec(ctx, markJobRunsReturnedById, runIds)
 	return err
 }
@@ -103,7 +103,7 @@ const markJobRunsRunningById = `-- name: MarkJobRunsRunningById :exec
 UPDATE runs SET running = true WHERE run_id = ANY($1::UUID[])
 `
 
-func (q *Queries) MarkJobRunsRunningById(ctx context.Context, runIds []uuid.UUID) error {
+func (q *Queries) MarkJobRunsRunningById(ctx *context.ArmadaContext, runIds []uuid.UUID) error {
 	_, err := q.db.Exec(ctx, markJobRunsRunningById, runIds)
 	return err
 }
@@ -112,7 +112,7 @@ const markJobRunsSucceededById = `-- name: MarkJobRunsSucceededById :exec
 UPDATE runs SET succeeded = true WHERE run_id = ANY($1::UUID[])
 `
 
-func (q *Queries) MarkJobRunsSucceededById(ctx context.Context, runIds []uuid.UUID) error {
+func (q *Queries) MarkJobRunsSucceededById(ctx *context.ArmadaContext, runIds []uuid.UUID) error {
 	_, err := q.db.Exec(ctx, markJobRunsSucceededById, runIds)
 	return err
 }
@@ -121,7 +121,7 @@ const markJobsCancelRequestedById = `-- name: MarkJobsCancelRequestedById :exec
 UPDATE jobs SET cancel_requested = true WHERE job_id = ANY($1::text[])
 `
 
-func (q *Queries) MarkJobsCancelRequestedById(ctx context.Context, jobIds []string) error {
+func (q *Queries) MarkJobsCancelRequestedById(ctx *context.ArmadaContext, jobIds []string) error {
 	_, err := q.db.Exec(ctx, markJobsCancelRequestedById, jobIds)
 	return err
 }
@@ -136,7 +136,7 @@ type MarkJobsCancelRequestedBySetAndQueuedStateParams struct {
 	QueuedStates []bool `db:"queued_states"`
 }
 
-func (q *Queries) MarkJobsCancelRequestedBySetAndQueuedState(ctx context.Context, arg MarkJobsCancelRequestedBySetAndQueuedStateParams) error {
+func (q *Queries) MarkJobsCancelRequestedBySetAndQueuedState(ctx *context.ArmadaContext, arg MarkJobsCancelRequestedBySetAndQueuedStateParams) error {
 	_, err := q.db.Exec(ctx, markJobsCancelRequestedBySetAndQueuedState, arg.JobSet, arg.Queue, arg.QueuedStates)
 	return err
 }
@@ -145,7 +145,7 @@ const markJobsCancelledById = `-- name: MarkJobsCancelledById :exec
 UPDATE jobs SET cancelled = true WHERE job_id = ANY($1::text[])
 `
 
-func (q *Queries) MarkJobsCancelledById(ctx context.Context, jobIds []string) error {
+func (q *Queries) MarkJobsCancelledById(ctx *context.ArmadaContext, jobIds []string) error {
 	_, err := q.db.Exec(ctx, markJobsCancelledById, jobIds)
 	return err
 }
@@ -154,7 +154,7 @@ const markJobsFailedById = `-- name: MarkJobsFailedById :exec
 UPDATE jobs SET failed = true WHERE job_id = ANY($1::text[])
 `
 
-func (q *Queries) MarkJobsFailedById(ctx context.Context, jobIds []string) error {
+func (q *Queries) MarkJobsFailedById(ctx *context.ArmadaContext, jobIds []string) error {
 	_, err := q.db.Exec(ctx, markJobsFailedById, jobIds)
 	return err
 }
@@ -163,7 +163,7 @@ const markJobsSucceededById = `-- name: MarkJobsSucceededById :exec
 UPDATE jobs SET succeeded = true WHERE job_id = ANY($1::text[])
 `
 
-func (q *Queries) MarkJobsSucceededById(ctx context.Context, jobIds []string) error {
+func (q *Queries) MarkJobsSucceededById(ctx *context.ArmadaContext, jobIds []string) error {
 	_, err := q.db.Exec(ctx, markJobsSucceededById, jobIds)
 	return err
 }
@@ -172,7 +172,7 @@ const markRunsCancelledByJobId = `-- name: MarkRunsCancelledByJobId :exec
 UPDATE runs SET cancelled = true WHERE job_id = ANY($1::text[])
 `
 
-func (q *Queries) MarkRunsCancelledByJobId(ctx context.Context, jobIds []string) error {
+func (q *Queries) MarkRunsCancelledByJobId(ctx *context.ArmadaContext, jobIds []string) error {
 	_, err := q.db.Exec(ctx, markRunsCancelledByJobId, jobIds)
 	return err
 }
@@ -181,7 +181,7 @@ const selectAllExecutors = `-- name: SelectAllExecutors :many
 SELECT executor_id, last_request, last_updated FROM executors
 `
 
-func (q *Queries) SelectAllExecutors(ctx context.Context) ([]Executor, error) {
+func (q *Queries) SelectAllExecutors(ctx *context.ArmadaContext) ([]Executor, error) {
 	rows, err := q.db.Query(ctx, selectAllExecutors)
 	if err != nil {
 		return nil, err
@@ -205,7 +205,7 @@ const selectAllJobIds = `-- name: SelectAllJobIds :many
 SELECT job_id FROM jobs
 `
 
-func (q *Queries) SelectAllJobIds(ctx context.Context) ([]string, error) {
+func (q *Queries) SelectAllJobIds(ctx *context.ArmadaContext) ([]string, error) {
 	rows, err := q.db.Query(ctx, selectAllJobIds)
 	if err != nil {
 		return nil, err
@@ -229,7 +229,7 @@ const selectAllMarkers = `-- name: SelectAllMarkers :many
 SELECT group_id, partition_id, created FROM markers
 `
 
-func (q *Queries) SelectAllMarkers(ctx context.Context) ([]Marker, error) {
+func (q *Queries) SelectAllMarkers(ctx *context.ArmadaContext) ([]Marker, error) {
 	rows, err := q.db.Query(ctx, selectAllMarkers)
 	if err != nil {
 		return nil, err
@@ -253,7 +253,7 @@ const selectAllRunErrors = `-- name: SelectAllRunErrors :many
 SELECT run_id, job_id, error FROM job_run_errors
 `
 
-func (q *Queries) SelectAllRunErrors(ctx context.Context) ([]JobRunError, error) {
+func (q *Queries) SelectAllRunErrors(ctx *context.ArmadaContext) ([]JobRunError, error) {
 	rows, err := q.db.Query(ctx, selectAllRunErrors)
 	if err != nil {
 		return nil, err
@@ -277,7 +277,7 @@ const selectAllRunIds = `-- name: SelectAllRunIds :many
 SELECT run_id FROM runs
 `
 
-func (q *Queries) SelectAllRunIds(ctx context.Context) ([]uuid.UUID, error) {
+func (q *Queries) SelectAllRunIds(ctx *context.ArmadaContext) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, selectAllRunIds)
 	if err != nil {
 		return nil, err
@@ -306,7 +306,7 @@ type SelectExecutorUpdateTimesRow struct {
 	LastUpdated time.Time `db:"last_updated"`
 }
 
-func (q *Queries) SelectExecutorUpdateTimes(ctx context.Context) ([]SelectExecutorUpdateTimesRow, error) {
+func (q *Queries) SelectExecutorUpdateTimes(ctx *context.ArmadaContext) ([]SelectExecutorUpdateTimesRow, error) {
 	rows, err := q.db.Query(ctx, selectExecutorUpdateTimes)
 	if err != nil {
 		return nil, err
@@ -350,7 +350,7 @@ type SelectJobsForExecutorRow struct {
 	SubmitMessage []byte    `db:"submit_message"`
 }
 
-func (q *Queries) SelectJobsForExecutor(ctx context.Context, arg SelectJobsForExecutorParams) ([]SelectJobsForExecutorRow, error) {
+func (q *Queries) SelectJobsForExecutor(ctx *context.ArmadaContext, arg SelectJobsForExecutorParams) ([]SelectJobsForExecutorRow, error) {
 	rows, err := q.db.Query(ctx, selectJobsForExecutor, arg.Executor, arg.RunIds)
 	if err != nil {
 		return nil, err
@@ -386,7 +386,7 @@ type SelectNewJobsParams struct {
 	Limit  int32 `db:"limit"`
 }
 
-func (q *Queries) SelectNewJobs(ctx context.Context, arg SelectNewJobsParams) ([]Job, error) {
+func (q *Queries) SelectNewJobs(ctx *context.ArmadaContext, arg SelectNewJobsParams) ([]Job, error) {
 	rows, err := q.db.Query(ctx, selectNewJobs, arg.Serial, arg.Limit)
 	if err != nil {
 		return nil, err
@@ -435,7 +435,7 @@ type SelectNewRunsParams struct {
 	Limit  int32 `db:"limit"`
 }
 
-func (q *Queries) SelectNewRuns(ctx context.Context, arg SelectNewRunsParams) ([]Run, error) {
+func (q *Queries) SelectNewRuns(ctx *context.ArmadaContext, arg SelectNewRunsParams) ([]Run, error) {
 	rows, err := q.db.Query(ctx, selectNewRuns, arg.Serial, arg.Limit)
 	if err != nil {
 		return nil, err
@@ -479,7 +479,7 @@ type SelectNewRunsForJobsParams struct {
 	JobIds []string `db:"job_ids"`
 }
 
-func (q *Queries) SelectNewRunsForJobs(ctx context.Context, arg SelectNewRunsForJobsParams) ([]Run, error) {
+func (q *Queries) SelectNewRunsForJobs(ctx *context.ArmadaContext, arg SelectNewRunsForJobsParams) ([]Run, error) {
 	rows, err := q.db.Query(ctx, selectNewRunsForJobs, arg.Serial, arg.JobIds)
 	if err != nil {
 		return nil, err
@@ -519,7 +519,7 @@ SELECT run_id, job_id, error FROM job_run_errors WHERE run_id = ANY($1::UUID[])
 `
 
 // Run errors
-func (q *Queries) SelectRunErrorsById(ctx context.Context, runIds []uuid.UUID) ([]JobRunError, error) {
+func (q *Queries) SelectRunErrorsById(ctx *context.ArmadaContext, runIds []uuid.UUID) ([]JobRunError, error) {
 	rows, err := q.db.Query(ctx, selectRunErrorsById, runIds)
 	if err != nil {
 		return nil, err
@@ -566,7 +566,7 @@ type SelectUpdatedJobsRow struct {
 	Serial                  int64  `db:"serial"`
 }
 
-func (q *Queries) SelectUpdatedJobs(ctx context.Context, arg SelectUpdatedJobsParams) ([]SelectUpdatedJobsRow, error) {
+func (q *Queries) SelectUpdatedJobs(ctx *context.ArmadaContext, arg SelectUpdatedJobsParams) ([]SelectUpdatedJobsRow, error) {
 	rows, err := q.db.Query(ctx, selectUpdatedJobs, arg.Serial, arg.Limit)
 	if err != nil {
 		return nil, err
@@ -611,7 +611,7 @@ type UpdateJobPriorityByIdParams struct {
 	JobID    string `db:"job_id"`
 }
 
-func (q *Queries) UpdateJobPriorityById(ctx context.Context, arg UpdateJobPriorityByIdParams) error {
+func (q *Queries) UpdateJobPriorityById(ctx *context.ArmadaContext, arg UpdateJobPriorityByIdParams) error {
 	_, err := q.db.Exec(ctx, updateJobPriorityById, arg.Priority, arg.JobID)
 	return err
 }
@@ -626,7 +626,7 @@ type UpdateJobPriorityByJobSetParams struct {
 	Queue    string `db:"queue"`
 }
 
-func (q *Queries) UpdateJobPriorityByJobSet(ctx context.Context, arg UpdateJobPriorityByJobSetParams) error {
+func (q *Queries) UpdateJobPriorityByJobSet(ctx *context.ArmadaContext, arg UpdateJobPriorityByJobSetParams) error {
 	_, err := q.db.Exec(ctx, updateJobPriorityByJobSet, arg.Priority, arg.JobSet, arg.Queue)
 	return err
 }
@@ -643,7 +643,7 @@ type UpsertExecutorParams struct {
 	UpdateTime  time.Time `db:"update_time"`
 }
 
-func (q *Queries) UpsertExecutor(ctx context.Context, arg UpsertExecutorParams) error {
+func (q *Queries) UpsertExecutor(ctx *context.ArmadaContext, arg UpsertExecutorParams) error {
 	_, err := q.db.Exec(ctx, upsertExecutor, arg.ExecutorID, arg.LastRequest, arg.UpdateTime)
 	return err
 }

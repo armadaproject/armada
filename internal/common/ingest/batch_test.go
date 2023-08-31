@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/net/context"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
+
+	"github.com/armadaproject/armada/internal/common/context"
 )
 
 const (
@@ -120,7 +120,7 @@ func TestBatch_Time_WithIntialQuiet(t *testing.T) {
 	cancel()
 }
 
-func waitForBufferLength(ctx context.Context, batcher *Batcher[int], numEvents int) error {
+func waitForBufferLength(ctx *context.ArmadaContext, batcher *Batcher[int], numEvents int) error {
 	ticker := time.NewTicker(5 * time.Millisecond)
 	for {
 		select {
@@ -134,7 +134,7 @@ func waitForBufferLength(ctx context.Context, batcher *Batcher[int], numEvents i
 	}
 }
 
-func waitForExpectedEvents(ctx context.Context, rh *resultHolder, numEvents int) {
+func waitForExpectedEvents(ctx *context.ArmadaContext, rh *resultHolder, numEvents int) {
 	done := false
 	ticker := time.NewTicker(5 * time.Millisecond)
 	for !done {

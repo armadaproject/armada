@@ -1,8 +1,8 @@
 package server
 
 import (
-	"context"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"io"
 	"math"
 	"sync/atomic"
@@ -94,7 +94,7 @@ func NewAggregatedQueueServer(
 	}
 
 	decompressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
-		func(context.Context) (interface{}, error) {
+		func(*context.ArmadaContext) (interface{}, error) {
 			return compress.NewZlibDecompressor(), nil
 		}), &poolConfig)
 	return &AggregatedQueueServer{
@@ -253,7 +253,7 @@ func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([
 	return rv, nil
 }
 
-func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
+func (q *AggregatedQueueServer) getJobs(ctx *context.ArmadaContext, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithFields(logrus.Fields{
 		"function": "getJobs",
@@ -866,7 +866,7 @@ func (q *AggregatedQueueServer) decompressOwnershipGroups(compressedOwnershipGro
 		return nil, fmt.Errorf("failed to borrow decompressior because %s", err)
 	}
 
-	defer func(decompressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+	defer func(decompressorPool *pool.ObjectPool, ctx *context.ArmadaContext, object interface{}) {
 		err := decompressorPool.ReturnObject(ctx, object)
 		if err != nil {
 			log.WithError(err).Errorf("Error returning decompressorPool to pool")
@@ -876,7 +876,7 @@ func (q *AggregatedQueueServer) decompressOwnershipGroups(compressedOwnershipGro
 	return compress.DecompressStringArray(compressedOwnershipGroups, decompressor.(compress.Decompressor))
 }
 
-func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
+func (q *AggregatedQueueServer) RenewLease(ctx *context.ArmadaContext, request *api.RenewLeaseRequest) (*api.IdList, error) {
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
@@ -884,7 +884,7 @@ func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.Ren
 	return &api.IdList{Ids: renewed}, e
 }
 
-func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
+func (q *AggregatedQueueServer) ReturnLease(ctx *context.ArmadaContext, request *api.ReturnLeaseRequest) (*types.Empty, error) {
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
@@ -983,7 +983,7 @@ func (q *AggregatedQueueServer) addAvoidNodeAffinity(
 	return res[0].Error
 }
 
-func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdList) (*api.IdList, error) {
+func (q *AggregatedQueueServer) ReportDone(ctx *context.ArmadaContext, idList *api.IdList) (*api.IdList, error) {
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportDone] error: %s", err)
 	}
@@ -1008,7 +1008,7 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 	return &api.IdList{Ids: cleanedIds}, returnedError
 }
 
-func (q *AggregatedQueueServer) reportLeaseReturned(ctx context.Context, leaseReturnRequest *api.ReturnLeaseRequest) error {
+func (q *AggregatedQueueServer) reportLeaseReturned(ctx *context.ArmadaContext, leaseReturnRequest *api.ReturnLeaseRequest) error {
 	job, err := q.getJobById(leaseReturnRequest.JobId)
 	if err != nil {
 		return err

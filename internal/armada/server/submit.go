@@ -1,9 +1,9 @@
 package server
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/context"
 	"math"
 	"strings"
 	"time"
@@ -63,7 +63,7 @@ func NewSubmitServer(
 	}
 
 	compressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
-		func(context.Context) (interface{}, error) {
+		func(*context.ArmadaContext) (interface{}, error) {
 			return compress.NewZlibCompressor(512)
 		}), &poolConfig)
 
@@ -80,12 +80,12 @@ func NewSubmitServer(
 	}
 }
 
-func (server *SubmitServer) Health(ctx context.Context, _ *types.Empty) (*api.HealthCheckResponse, error) {
+func (server *SubmitServer) Health(ctx *context.ArmadaContext, _ *types.Empty) (*api.HealthCheckResponse, error) {
 	// For now, lets make the health check really simple.
 	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
 }
 
-func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
+func (server *SubmitServer) GetQueueInfo(ctx *context.ArmadaContext, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
 	q, err := server.queueRepository.GetQueue(req.Name)
 	var expected *repository.ErrQueueNotFound
 	if errors.Is(err, expected) {
@@ -121,7 +121,7 @@ func (server *SubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfo
 	}, nil
 }
 
-func (server *SubmitServer) GetQueue(ctx context.Context, req *api.QueueGetRequest) (*api.Queue, error) {
+func (server *SubmitServer) GetQueue(ctx *context.ArmadaContext, req *api.QueueGetRequest) (*api.Queue, error) {
 	queue, err := server.queueRepository.GetQueue(req.Name)
 	var e *repository.ErrQueueNotFound
 	if errors.As(err, &e) {
@@ -132,7 +132,7 @@ func (server *SubmitServer) GetQueue(ctx context.Context, req *api.QueueGetReque
 	return queue.ToAPI(), nil
 }
 
-func (server *SubmitServer) CreateQueue(ctx context.Context, request *api.Queue) (*types.Empty, error) {
+func (server *SubmitServer) CreateQueue(ctx *context.ArmadaContext, request *api.Queue) (*types.Empty, error) {
 	err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
 	var ep *ErrUnauthorized
 	if errors.As(err, &ep) {
@@ -162,7 +162,7 @@ func (server *SubmitServer) CreateQueue(ctx context.Context, request *api.Queue)
 	return &types.Empty{}, nil
 }
 
-func (server *SubmitServer) CreateQueues(ctx context.Context, request *api.QueueList) (*api.BatchQueueCreateResponse, error) {
+func (server *SubmitServer) CreateQueues(ctx *context.ArmadaContext, request *api.QueueList) (*api.BatchQueueCreateResponse, error) {
 	var failedQueues []*api.QueueCreateResponse
 
 	// Create a queue for each element of the request body and return the failures.
@@ -181,7 +181,7 @@ func (server *SubmitServer) CreateQueues(ctx context.Context, request *api.Queue
 	}, nil
 }
 
-func (server *SubmitServer) UpdateQueue(ctx context.Context, request *api.Queue) (*types.Empty, error) {
+func (server *SubmitServer) UpdateQueue(ctx *context.ArmadaContext, request *api.Queue) (*types.Empty, error) {
 	err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
 	var ep *ErrUnauthorized
 	if errors.As(err, &ep) {
@@ -206,7 +206,7 @@ func (server *SubmitServer) UpdateQueue(ctx context.Context, request *api.Queue)
 	return &types.Empty{}, nil
 }
 
-func (server *SubmitServer) UpdateQueues(ctx context.Context, request *api.QueueList) (*api.BatchQueueUpdateResponse, error) {
+func (server *SubmitServer) UpdateQueues(ctx *context.ArmadaContext, request *api.QueueList) (*api.BatchQueueUpdateResponse, error) {
 	var failedQueues []*api.QueueUpdateResponse
 
 	// Create a queue for each element of the request body and return the failures.
@@ -225,7 +225,7 @@ func (server *SubmitServer) UpdateQueues(ctx context.Context, request *api.Queue
 	}, nil
 }
 
-func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueDeleteRequest) (*types.Empty, error) {
+func (server *SubmitServer) DeleteQueue(ctx *context.ArmadaContext, request *api.QueueDeleteRequest) (*types.Empty, error) {
 	err := checkPermission(server.permissions, ctx, permissions.DeleteQueue)
 	var ep *ErrUnauthorized
 	if errors.As(err, &ep) {
@@ -250,7 +250,7 @@ func (server *SubmitServer) DeleteQueue(ctx context.Context, request *api.QueueD
 	return &types.Empty{}, nil
 }
 
-func (server *SubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
+func (server *SubmitServer) SubmitJobs(ctx *context.ArmadaContext, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
 	principal := authorization.GetPrincipal(ctx)
 
 	jobs, e := server.createJobs(req, principal.GetName(), principal.GetGroupNames())
@@ -404,7 +404,7 @@ func (server *SubmitServer) countQueuedJobs(q queue.Queue) (int64, error) {
 // CancelJobs cancels jobs identified by the request.
 // If the request contains a job ID, only the job with that ID is cancelled.
 // If the request contains a queue name and a job set ID, all jobs matching those are cancelled.
-func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {
+func (server *SubmitServer) CancelJobs(ctx *context.ArmadaContext, request *api.JobCancelRequest) (*api.CancellationResult, error) {
 	if request.JobId != "" {
 		return server.cancelJobsById(ctx, request.JobId, request.Reason)
 	} else if request.JobSetId != "" && request.Queue != "" {
@@ -413,7 +413,7 @@ func (server *SubmitServer) CancelJobs(ctx context.Context, request *api.JobCanc
 	return nil, status.Errorf(codes.InvalidArgument, "[CancelJobs] specify either job ID or both queue name and job set ID")
 }
 
-func (server *SubmitServer) CancelJobSet(ctx context.Context, request *api.JobSetCancelRequest) (*types.Empty, error) {
+func (server *SubmitServer) CancelJobSet(ctx *context.ArmadaContext, request *api.JobSetCancelRequest) (*types.Empty, error) {
 	err := servervalidation.ValidateJobSetFilter(request.Filter)
 	if err != nil {
 		return nil, err
@@ -444,7 +444,7 @@ func createJobSetFilter(filter *api.JobSetFilter) *repository.JobSetFilter {
 }
 
 // cancels a job with a given ID
-func (server *SubmitServer) cancelJobsById(ctx context.Context, jobId string, reason string) (*api.CancellationResult, error) {
+func (server *SubmitServer) cancelJobsById(ctx *context.ArmadaContext, jobId string, reason string) (*api.CancellationResult, error) {
 	jobs, err := server.jobRepository.GetExistingJobsByIds([]string{jobId})
 	if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "[cancelJobsById] error getting job with ID %s: %s", jobId, err)
@@ -466,7 +466,7 @@ func (server *SubmitServer) cancelJobsById(ctx context.Context, jobId string, re
 
 // cancels all jobs part of a particular job set and queue
 func (server *SubmitServer) cancelJobsByQueueAndSet(
-	ctx context.Context,
+	ctx *context.ArmadaContext,
 	queue string,
 	jobSetId string,
 	filter *repository.JobSetFilter,
@@ -509,7 +509,7 @@ func (server *SubmitServer) cancelJobsByQueueAndSet(
 	return &api.CancellationResult{CancelledIds: cancelledIds}, nil
 }
 
-func (server *SubmitServer) cancelJobs(ctx context.Context, jobs []*api.Job, reason string) (*api.CancellationResult, error) {
+func (server *SubmitServer) cancelJobs(ctx *context.ArmadaContext, jobs []*api.Job, reason string) (*api.CancellationResult, error) {
 	principal := authorization.GetPrincipal(ctx)
 
 	err := server.checkCancelPerms(ctx, jobs)
@@ -551,7 +551,7 @@ func (server *SubmitServer) cancelJobs(ctx context.Context, jobs []*api.Job, rea
 	return &api.CancellationResult{CancelledIds: cancelledIds}, nil
 }
 
-func (server *SubmitServer) checkCancelPerms(ctx context.Context, jobs []*api.Job) error {
+func (server *SubmitServer) checkCancelPerms(ctx *context.ArmadaContext, jobs []*api.Job) error {
 	queueNames := make(map[string]struct{})
 	for _, job := range jobs {
 		queueNames[job.Queue] = struct{}{}
@@ -581,7 +581,7 @@ func (server *SubmitServer) checkCancelPerms(ctx context.Context, jobs []*api.Jo
 
 // ReprioritizeJobs updates the priority of one of more jobs.
 // Returns a map from job ID to any error (or nil if the call succeeded).
-func (server *SubmitServer) ReprioritizeJobs(ctx context.Context, request *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
+func (server *SubmitServer) ReprioritizeJobs(ctx *context.ArmadaContext, request *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
 	var jobs []*api.Job
 	if len(request.JobIds) > 0 {
 		existingJobs, err := server.jobRepository.GetExistingJobsByIds(request.JobIds)
@@ -674,7 +674,7 @@ func (server *SubmitServer) reportReprioritizedJobEvents(reprioritizedJobs []*ap
 	return nil
 }
 
-func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*api.Job) error {
+func (server *SubmitServer) checkReprioritizePerms(ctx *context.ArmadaContext, jobs []*api.Job) error {
 	queueNames := make(map[string]struct{})
 	for _, job := range jobs {
 		queueNames[job.Queue] = struct{}{}
@@ -702,7 +702,7 @@ func (server *SubmitServer) checkReprioritizePerms(ctx context.Context, jobs []*
 	return nil
 }
 
-func (server *SubmitServer) getQueueOrCreate(ctx context.Context, queueName string) (*queue.Queue, error) {
+func (server *SubmitServer) getQueueOrCreate(ctx *context.ArmadaContext, queueName string) (*queue.Queue, error) {
 	q, e := server.queueRepository.GetQueue(queueName)
 	if e == nil {
 		return &q, nil
@@ -757,7 +757,7 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 	if err != nil {
 		return nil, err
 	}
-	defer func(compressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+	defer func(compressorPool *pool.ObjectPool, ctx *context.ArmadaContext, object interface{}) {
 		err := compressorPool.ReturnObject(ctx, object)
 		if err != nil {
 			log.WithError(err).Errorf("Error returning compressor to pool")

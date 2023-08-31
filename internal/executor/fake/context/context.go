@@ -1,7 +1,6 @@
 package context
 
 import (
-	"context"
 	"fmt"
 	"math/rand"
 	"regexp"
@@ -10,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -314,7 +315,7 @@ func (c *FakeClusterContext) GetClusterPool() string {
 	return c.pool
 }
 
-func (c *FakeClusterContext) GetNodeStatsSummary(ctx context.Context, node *v1.Node) (*v1alpha1.Summary, error) {
+func (c *FakeClusterContext) GetNodeStatsSummary(ctx *context.ArmadaContext, node *v1.Node) (*v1alpha1.Summary, error) {
 	return &v1alpha1.Summary{}, nil
 }
 

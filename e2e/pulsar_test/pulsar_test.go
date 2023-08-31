@@ -66,7 +66,7 @@ var expectedTolerations = []v1.Toleration{
 
 // Test publishing and receiving a message to/from Pulsar.
 func TestPublishReceive(t *testing.T) {
-	err := withSetup(func(ctx context.Context, _ api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+	err := withSetup(func(ctx *context.ArmadaContext, _ api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
 		_, err := producer.Send(context.Background(), &pulsar.ProducerMessage{
 			Payload: []byte("hello"),
 		})
@@ -88,7 +88,7 @@ func TestPublishReceive(t *testing.T) {
 
 // Test that submitting many jobs results in the correct sequence of Pulsar message being produced for each job.
 func TestSubmitJobs(t *testing.T) {
-	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+	err := withSetup(func(ctx *context.ArmadaContext, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
 		numJobs := 2
 		req := createJobSubmitRequest(numJobs)
 		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
@@ -137,7 +137,7 @@ func TestSubmitJobs(t *testing.T) {
 
 // TODO: Make testsuite test. Or unit test.
 func TestDedup(t *testing.T) {
-	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+	err := withSetup(func(ctx *context.ArmadaContext, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
 		numJobs := 2
 		clientId := uuid.New().String()
 		originalJobIds := make([]string, numJobs)
@@ -217,7 +217,7 @@ func TestDedup(t *testing.T) {
 
 // Test submitting several jobs, cancelling all of them, and checking that at least 1 is cancelled.
 func TestSubmitCancelJobs(t *testing.T) {
-	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+	err := withSetup(func(ctx *context.ArmadaContext, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
 		// The ingress job runs until canceled.
 		req := createJobSubmitRequestWithIngress()
 		numJobs := len(req.JobRequestItems)
@@ -300,7 +300,7 @@ func TestSubmitCancelJobs(t *testing.T) {
 
 // Test cancelling a job set.
 func TestSubmitCancelJobSet(t *testing.T) {
-	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+	err := withSetup(func(ctx *context.ArmadaContext, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
 		// Submit a few jobs that fail after a few seconds
 		numJobs := 2
 		req := createJobSubmitRequestWithError(numJobs)
@@ -387,7 +387,7 @@ func TestSubmitCancelJobSet(t *testing.T) {
 }
 
 func TestIngress(t *testing.T) {
-	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+	err := withSetup(func(ctx *context.ArmadaContext, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
 		req := createJobSubmitRequestWithIngress()
 		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
 		res, err := client.SubmitJobs(ctxWithTimeout, req)
@@ -487,7 +487,7 @@ func TestIngress(t *testing.T) {
 }
 
 func TestService(t *testing.T) {
-	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+	err := withSetup(func(ctx *context.ArmadaContext, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
 		// Create a job running an nginx server accessible via a headless service.
 		req := createJobSubmitRequestWithService()
 		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
@@ -594,7 +594,7 @@ func TestService(t *testing.T) {
 // Test that submitting many jobs results in the correct sequence of Pulsar message being produced for each job.
 // For jobs that contain multiple PodSpecs, services, and ingresses.
 func TestSubmitJobsWithEverything(t *testing.T) {
-	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+	err := withSetup(func(ctx *context.ArmadaContext, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
 		numJobs := 1
 		req := createJobSubmitRequestWithEverything(numJobs)
 		ctxWithTimeout, _ := context.WithTimeout(context.Background(), time.Second)
@@ -663,7 +663,7 @@ func TestSubmitJobsWithEverything(t *testing.T) {
 }
 
 func TestSubmitJobWithError(t *testing.T) {
-	err := withSetup(func(ctx context.Context, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
+	err := withSetup(func(ctx *context.ArmadaContext, client api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error {
 		// Submit a few jobs that fail after a few seconds
 		numJobs := 1
 		req := createJobSubmitRequestWithError(numJobs)
@@ -864,7 +864,7 @@ func countObjectTypes(objects []*armadaevents.KubernetesObject) map[string]int {
 }
 
 func receiveJobSetSequences(
-	ctx context.Context,
+	ctx *context.ArmadaContext,
 	consumer pulsar.Consumer,
 	queue string,
 	jobSetName string,
@@ -878,7 +878,7 @@ func receiveJobSetSequences(
 // receiveJobSetSequence receives messages from Pulsar, discarding any messages not for queue and jobSetName.
 // The events contained in the remaining messages are collected in a single sequence, which is returned.
 func receiveJobSetSequencesWithEventFilter(
-	ctx context.Context,
+	ctx *context.ArmadaContext,
 	consumer pulsar.Consumer,
 	queue string,
 	jobSetName string,
@@ -1263,7 +1263,7 @@ func createJobSubmitRequestWithError(numJobs int) *api.JobSubmitRequest {
 }
 
 // Run action with an Armada submit client and a Pulsar producer and consumer.
-func withSetup(action func(ctx context.Context, submitClient api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error) error {
+func withSetup(action func(ctx *context.ArmadaContext, submitClient api.SubmitClient, producer pulsar.Producer, consumer pulsar.Consumer) error) error {
 	// Connection to the Armada API. To submit API requests.
 	conn, err := client.CreateApiConnection(&client.ApiConnectionDetails{ArmadaUrl: armadaUrl})
 	if err != nil {

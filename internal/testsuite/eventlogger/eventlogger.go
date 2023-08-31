@@ -1,7 +1,6 @@
 package eventlogger
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -9,6 +8,8 @@ import (
 	"sync"
 	"text/tabwriter"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -45,7 +46,7 @@ func (srv *EventLogger) Log() {
 	}
 }
 
-func (srv *EventLogger) Run(ctx context.Context) error {
+func (srv *EventLogger) Run(ctx *context.ArmadaContext) error {
 	ticker := time.NewTicker(srv.interval)
 	defer ticker.Stop()
 	defer srv.flushAndLog()

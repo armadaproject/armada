@@ -1,10 +1,11 @@
 package database
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -13,7 +14,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func UpsertWithTransaction[T any](ctx context.Context, db *pgxpool.Pool, tableName string, records []T) error {
+func UpsertWithTransaction[T any](ctx *context.ArmadaContext, db *pgxpool.Pool, tableName string, records []T) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -50,7 +51,7 @@ func UpsertWithTransaction[T any](ctx context.Context, db *pgxpool.Pool, tableNa
 //
 // )
 // I.e., it should omit everything before and after the "(" and ")", respectively.
-func Upsert[T any](ctx context.Context, tx pgx.Tx, tableName string, records []T) error {
+func Upsert[T any](ctx *context.ArmadaContext, tx pgx.Tx, tableName string, records []T) error {
 	if len(records) < 1 {
 		return nil
 	}
