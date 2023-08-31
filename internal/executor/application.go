@@ -91,6 +91,7 @@ func StartUp(ctx context.Context, log *logrus.Entry, config configuration.Execut
 			etcdClusterHealthMonitoringByName,
 		)
 		g.Go(func() error { return etcdClustersHealthMonitoring.Run(ctx, log) })
+		prometheus.MustRegister(etcdClustersHealthMonitoring)
 	} else {
 		log.Info("no etcd URLs provided; etcd health isn't monitored")
 	}
@@ -216,6 +217,7 @@ func setupExecutorApiComponents(
 		jobRunState,
 		clusterUtilisationService,
 		config.Kubernetes.PodDefaults,
+		config.Application.MaxLeasedJobs,
 	)
 	clusterAllocationService := service.NewClusterAllocationService(
 		clusterContext,
@@ -241,7 +243,7 @@ func setupExecutorApiComponents(
 	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
 	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, podUtilisationService, nodeInfoService)
 	runStateMetricsCollector := runstate.NewJobRunStateStoreMetricsCollector(jobRunState)
-	prometheus.MustRegister(runStateMetricsCollector, clusterHealthMonitor)
+	prometheus.MustRegister(runStateMetricsCollector)
 
 	if config.Metric.ExposeQueueUsageMetrics && config.Task.UtilisationEventReportingInterval > 0 {
 		podUtilisationReporter := utilisation.NewUtilisationEventReporter(

@@ -222,6 +222,9 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx context.Context, runIds []u
 // FetchJobRunLeases fetches new job runs for a given executor.  A maximum of maxResults rows will be returned, while run
 // in excludedRunIds will be excluded
 func (r *PostgresJobRepository) FetchJobRunLeases(ctx context.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*JobRunLease, error) {
+	if maxResults == 0 {
+		return []*JobRunLease{}, nil
+	}
 	var newRuns []*JobRunLease
 	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
