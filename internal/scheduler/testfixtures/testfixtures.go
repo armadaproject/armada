@@ -2,16 +2,16 @@ package testfixtures
 
 // This file contains test fixtures to be used throughout the tests for this package.
 import (
+	gocontext "context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
+	"github.com/sirupsen/logrus"
 	"math"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/oklog/ulid"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -82,7 +82,7 @@ func Repeat[T any](v T, n int) []T {
 	return rv
 }
 
-func ContextWithDefaultLogger(ctx *context.ArmadaContext) *context.ArmadaContext {
+func ContextWithDefaultLogger(ctx gocontext.Context) gocontext.Context {
 	return ctxlogrus.ToContext(ctx, logrus.NewEntry(logrus.New()))
 }
 

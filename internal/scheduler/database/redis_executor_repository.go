@@ -2,13 +2,13 @@ package database
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )

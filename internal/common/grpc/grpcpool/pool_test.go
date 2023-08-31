@@ -1,11 +1,9 @@
 package grpcpool
 
 import (
-	gocontext "context"
+	"context"
 	"testing"
 	"time"
-
-	"github.com/armadaproject/armada/internal/common/context"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
@@ -167,7 +165,7 @@ func TestContextCancelation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := NewWithContext(ctx, func(ctx *context.ArmadaContext) (*grpc.ClientConn, error) {
+	_, err := NewWithContext(ctx, func(ctx context.Context) (*grpc.ClientConn, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -177,7 +175,7 @@ func TestContextCancelation(t *testing.T) {
 		}
 	}, 1, 1, 0)
 
-	if err != gocontext.Canceled {
+	if err != context.Canceled {
 		t.Errorf("Returned error was not context.Canceled, but the context did cancel before the invocation")
 	}
 }
@@ -186,7 +184,7 @@ func TestContextTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Microsecond)
 	defer cancel()
 
-	_, err := NewWithContext(ctx, func(ctx *context.ArmadaContext) (*grpc.ClientConn, error) {
+	_, err := NewWithContext(ctx, func(ctx context.Context) (*grpc.ClientConn, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -197,13 +195,13 @@ func TestContextTimeout(t *testing.T) {
 		}
 	}, 1, 1, 0)
 
-	if err != gocontext.DeadlineExceeded {
+	if err != context.DeadlineExceeded {
 		t.Errorf("Returned error was not context.DeadlineExceeded, but the context was timed out before the initialization")
 	}
 }
 
 func TestGetContextFactoryTimeout(t *testing.T) {
-	p, err := NewWithContext(context.Background(), func(ctx *context.ArmadaContext) (*grpc.ClientConn, error) {
+	p, err := NewWithContext(context.Background(), func(ctx context.Context) (*grpc.ClientConn, error) {
 		select {
 		case <-ctx.Done():
 			return nil, ctx.Err()
@@ -229,7 +227,7 @@ func TestGetContextFactoryTimeout(t *testing.T) {
 	defer cancel()
 
 	_, err = p.Get(ctx)
-	if err != gocontext.DeadlineExceeded {
+	if err != context.DeadlineExceeded {
 		t.Errorf("Returned error was not context.DeadlineExceeded, but the context was timed out before the Get invocation")
 	}
 }

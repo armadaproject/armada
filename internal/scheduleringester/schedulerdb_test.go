@@ -1,9 +1,10 @@
 package scheduleringester
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"

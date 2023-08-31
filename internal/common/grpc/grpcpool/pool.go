@@ -3,11 +3,10 @@ package grpcpool
 
 import (
 	"container/ring"
+	"context"
 	"errors"
 	"sync"
 	"time"
-
-	"github.com/armadaproject/armada/internal/common/context"
 
 	"google.golang.org/grpc"
 )
@@ -29,7 +28,7 @@ type Factory func() (*grpc.ClientConn, error)
 // FactoryWithContext is a function type creating a grpc client
 // that accepts the context parameter that could be passed from
 // Get or NewWithContext method.
-type FactoryWithContext func(*context.ArmadaContext) (*grpc.ClientConn, error)
+type FactoryWithContext func(context.Context) (*grpc.ClientConn, error)
 
 // Pool is the grpc client pool
 type Pool struct {
@@ -57,7 +56,7 @@ type ClientConn struct {
 func New(factory Factory, init, capacity int, idleTimeout time.Duration,
 	maxLifeDuration ...time.Duration,
 ) (*Pool, error) {
-	return NewWithContext(context.Background(), func(ctx *context.ArmadaContext) (*grpc.ClientConn, error) { return factory() },
+	return NewWithContext(context.Background(), func(ctx context.Context) (*grpc.ClientConn, error) { return factory() },
 		init, capacity, idleTimeout, maxLifeDuration...)
 }
 
@@ -65,7 +64,7 @@ func New(factory Factory, init, capacity int, idleTimeout time.Duration,
 // capacity, and the timeout for the idle clients. The context parameter would
 // be passed to the factory method during initialization. Returns an error if the
 // initial clients could not be created.
-func NewWithContext(ctx *context.ArmadaContext, factory FactoryWithContext, init, capacity int, idleTimeout time.Duration,
+func NewWithContext(ctx context.Context, factory FactoryWithContext, init, capacity int, idleTimeout time.Duration,
 	maxLifeDuration ...time.Duration,
 ) (*Pool, error) {
 	if capacity <= 0 {
@@ -146,7 +145,7 @@ func (p *Pool) IsClosed() bool {
 
 // Get will return the next available client. If capacity
 // has not been reached, it will create a new one using the factory.
-func (p *Pool) Get(ctx *context.ArmadaContext) (*ClientConn, error) {
+func (p *Pool) Get(ctx context.Context) (*ClientConn, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 

@@ -1,18 +1,18 @@
 package scheduler
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
+	gocontext "context"
 	"strings"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/schedulers"
@@ -88,9 +88,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		return errors.WithStack(err)
 	}
 
-	ctx := stream.Context()
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("executor", req.ExecutorId)
+	ctx := context.WithLogField(context.FromGrpcContext(stream.Context()), "executor", req.ExecutorId)
 
 	executor := srv.executorFromLeaseRequest(ctx, req)
 	if err := srv.executorRepository.StoreExecutor(ctx, executor); err != nil {
@@ -112,7 +110,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	if err != nil {
 		return err
 	}
-	log.Infof(
+	ctx.Log.Infof(
 		"executor currently has %d job runs; sending %d cancellations and %d new runs",
 		len(requestRuns), len(runsToCancel), len(newRuns),
 	)
@@ -223,19 +221,19 @@ func setPriorityClassName(podSpec *armadaevents.PodSpecWithAvoidList, priorityCl
 }
 
 // ReportEvents publishes all events to Pulsar. The events are compacted for more efficient publishing.
-func (srv *ExecutorApi) ReportEvents(ctx *context.ArmadaContext, list *executorapi.EventList) (*types.Empty, error) {
+func (srv *ExecutorApi) ReportEvents(grpcContext gocontext.Context, list *executorapi.EventList) (*types.Empty, error) {
+	ctx := context.FromGrpcContext(grpcContext)
 	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxPulsarMessageSizeBytes, schedulers.Pulsar)
 	return &types.Empty{}, err
 }
 
 // executorFromLeaseRequest extracts a schedulerobjects.Executor from the request.
 func (srv *ExecutorApi) executorFromLeaseRequest(ctx *context.ArmadaContext, req *executorapi.LeaseRequest) *schedulerobjects.Executor {
-	log := ctxlogrus.Extract(ctx)
 	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
 	now := srv.clock.Now().UTC()
 	for _, nodeInfo := range req.Nodes {
 		if node, err := api.NewNodeFromNodeInfo(nodeInfo, req.ExecutorId, srv.allowedPriorities, now); err != nil {
-			logging.WithStacktrace(log, err).Warnf(
+			logging.WithStacktrace(ctx.Log, err).Warnf(
 				"skipping node %s from executor %s", nodeInfo.GetName(), req.GetExecutorId(),
 			)
 		} else {

@@ -2,7 +2,6 @@ package database
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/database"
 	commonutil "github.com/armadaproject/armada/internal/common/util"
 )

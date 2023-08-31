@@ -1,8 +1,7 @@
 package scheduler
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
-
+	gocontext "context"
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -25,7 +24,7 @@ func NewLeaderProxyingSchedulingReportsServer(
 	}
 }
 
-func (s *LeaderProxyingSchedulingReportsServer) GetSchedulingReport(ctx *context.ArmadaContext, request *schedulerobjects.SchedulingReportRequest) (*schedulerobjects.SchedulingReport, error) {
+func (s *LeaderProxyingSchedulingReportsServer) GetSchedulingReport(ctx gocontext.Context, request *schedulerobjects.SchedulingReportRequest) (*schedulerobjects.SchedulingReport, error) {
 	isCurrentProcessLeader, leaderConnection, err := s.leaderClientProvider.GetCurrentLeaderClientConnection()
 	if isCurrentProcessLeader {
 		return s.localReportsServer.GetSchedulingReport(ctx, request)
@@ -37,7 +36,7 @@ func (s *LeaderProxyingSchedulingReportsServer) GetSchedulingReport(ctx *context
 	return leaderClient.GetSchedulingReport(ctx, request)
 }
 
-func (s *LeaderProxyingSchedulingReportsServer) GetQueueReport(ctx *context.ArmadaContext, request *schedulerobjects.QueueReportRequest) (*schedulerobjects.QueueReport, error) {
+func (s *LeaderProxyingSchedulingReportsServer) GetQueueReport(ctx gocontext.Context, request *schedulerobjects.QueueReportRequest) (*schedulerobjects.QueueReport, error) {
 	isCurrentProcessLeader, leaderConnection, err := s.leaderClientProvider.GetCurrentLeaderClientConnection()
 	if isCurrentProcessLeader {
 		return s.localReportsServer.GetQueueReport(ctx, request)
@@ -49,7 +48,7 @@ func (s *LeaderProxyingSchedulingReportsServer) GetQueueReport(ctx *context.Arma
 	return leaderClient.GetQueueReport(ctx, request)
 }
 
-func (s *LeaderProxyingSchedulingReportsServer) GetJobReport(ctx *context.ArmadaContext, request *schedulerobjects.JobReportRequest) (*schedulerobjects.JobReport, error) {
+func (s *LeaderProxyingSchedulingReportsServer) GetJobReport(ctx gocontext.Context, request *schedulerobjects.JobReportRequest) (*schedulerobjects.JobReport, error) {
 	isCurrentProcessLeader, leaderConnection, err := s.leaderClientProvider.GetCurrentLeaderClientConnection()
 	if isCurrentProcessLeader {
 		return s.localReportsServer.GetJobReport(ctx, request)

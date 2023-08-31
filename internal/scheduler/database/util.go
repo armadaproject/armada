@@ -3,12 +3,12 @@ package database
 import (
 	"embed"
 	_ "embed"
-	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/database"
 )
 

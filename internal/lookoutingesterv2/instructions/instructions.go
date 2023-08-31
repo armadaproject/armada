@@ -2,7 +2,6 @@ package instructions
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"sort"
 	"strings"
 	"time"
@@ -15,6 +14,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest"

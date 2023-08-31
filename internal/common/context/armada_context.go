@@ -4,65 +4,70 @@ import (
 	"context"
 	"time"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 )
 
 type ArmadaContext struct {
-	ctx context.Context
-	log *logrus.Entry
+	Ctx context.Context
+	Log *logrus.Entry
 }
 
 func (c *ArmadaContext) Deadline() (deadline time.Time, ok bool) {
-	return c.ctx.Deadline()
+	return c.Ctx.Deadline()
 }
 
 func (c *ArmadaContext) Done() <-chan struct{} {
-	return c.ctx.Done()
+	return c.Ctx.Done()
 }
 
 func (c *ArmadaContext) Err() error {
-	return c.ctx.Err()
+	return c.Ctx.Err()
 }
 
 func (c *ArmadaContext) Value(key any) any {
-	return c.ctx.Value(key)
+	return c.Ctx.Value(key)
 }
 
 func Background() *ArmadaContext {
 	return &ArmadaContext{
-		ctx: context.Background(),
-		log: logrus.NewEntry(logrus.New()),
+		Ctx: context.Background(),
+		Log: logrus.NewEntry(logrus.New()),
 	}
 }
 
 func TODO() *ArmadaContext {
 	return &ArmadaContext{
-		ctx: context.TODO(),
-		log: logrus.NewEntry(logrus.New()),
+		Ctx: context.TODO(),
+		Log: logrus.NewEntry(logrus.New()),
 	}
+}
+
+func FromGrpcContext(context context.Context) *ArmadaContext {
+	return New(context, ctxlogrus.Extract(context))
 }
 
 func New(ctx context.Context, log *logrus.Entry) *ArmadaContext {
 	return &ArmadaContext{
-		ctx: ctx,
-		log: log,
+		Ctx: ctx,
+		Log: log,
 	}
 }
 
 func WithCancel(parent *ArmadaContext) (*ArmadaContext, context.CancelFunc) {
-	c, cancel := context.WithCancel(parent.ctx)
+	c, cancel := context.WithCancel(parent.Ctx)
 	return &ArmadaContext{
-		ctx: c,
-		log: parent.log,
+		Ctx: c,
+		Log: parent.Log,
 	}, cancel
 }
 
 func WithDeadline(parent *ArmadaContext, d time.Time) (*ArmadaContext, context.CancelFunc) {
-	c, cancel := context.WithDeadline(parent.ctx, d)
+	c, cancel := context.WithDeadline(parent.Ctx, d)
 	return &ArmadaContext{
-		ctx: c,
-		log: parent.log,
+		Ctx: c,
+		Log: parent.Log,
 	}, cancel
 }
 
@@ -72,22 +77,22 @@ func WithTimeout(parent *ArmadaContext, timeout time.Duration) (*ArmadaContext, 
 
 func WithLogField(parent *ArmadaContext, key string, val interface{}) *ArmadaContext {
 	return &ArmadaContext{
-		ctx: parent,
-		log: parent.log.WithField(key, val),
+		Ctx: parent,
+		Log: parent.Log.WithField(key, val),
 	}
 }
 
 func WithValue(parent *ArmadaContext, key, val any) *ArmadaContext {
 	return &ArmadaContext{
-		ctx: context.WithValue(parent, key, val),
-		log: parent.log,
+		Ctx: context.WithValue(parent, key, val),
+		Log: parent.Log,
 	}
 }
 
 func ErrGroup(parent *ArmadaContext) (*errgroup.Group, *ArmadaContext) {
 	group, goctx := errgroup.WithContext(parent)
 	return group, &ArmadaContext{
-		ctx: goctx,
-		log: parent.log,
+		Ctx: goctx,
+		Log: parent.Log,
 	}
 }

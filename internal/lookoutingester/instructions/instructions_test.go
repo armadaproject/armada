@@ -1,7 +1,6 @@
 package instructions
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
