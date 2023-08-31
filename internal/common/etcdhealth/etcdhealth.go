@@ -101,6 +101,8 @@ func NewEtcdReplicaHealthMonitor(
 	return srv
 }
 
+// WithMetricsPrefix adds a prefix to exported Prometheus metrics.
+// Must be called before Describe or Collect.
 func (srv *EtcdReplicaHealthMonitor) WithMetricsPrefix(v string) *EtcdReplicaHealthMonitor {
 	srv.metricsPrefix = v
 	srv.initialiseMetrics()
