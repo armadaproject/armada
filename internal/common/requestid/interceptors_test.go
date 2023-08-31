@@ -37,7 +37,7 @@ func TestAddGet(t *testing.T) {
 func TestUnaryServerInterceptor(t *testing.T) {
 	ctx := context.Background()
 	ctx = metadata.NewIncomingContext(ctx, metadata.New(map[string]string{}))
-	handler := func(ctx *context.ArmadaContext, req interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		id, ok := FromContext(ctx)
 		if !ok {
 			t.Fatal("error getting id from context")
@@ -69,7 +69,7 @@ func TestUnaryServerInterceptorWithExisting(t *testing.T) {
 		t.Fatal("error adding id to context")
 	}
 
-	handler := func(ctx *context.ArmadaContext, req interface{}) (interface{}, error) {
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		readId, ok := FromContext(ctx)
 		if !ok {
 			t.Fatal("error getting id from context")

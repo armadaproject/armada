@@ -3,13 +3,10 @@ package processors
 import (
 	"time"
 
-	"time"
-
-	"github.com/armadaproject/armada/internal/common/context"
-
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"

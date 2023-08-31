@@ -2,9 +2,10 @@ package scheduler
 
 import (
 	gocontext "context"
-	"github.com/armadaproject/armada/internal/common/context"
 	"sync"
 	"sync/atomic"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"

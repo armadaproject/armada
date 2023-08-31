@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	gocontext "context"
+
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"

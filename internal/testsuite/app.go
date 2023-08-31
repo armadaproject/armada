@@ -2,6 +2,7 @@ package testsuite
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"fmt"
 	"io"
@@ -12,13 +13,12 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/hashicorp/go-multierror"
 	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
+	"golang.org/x/sync/errgroup"
 	apimachineryYaml "k8s.io/apimachinery/pkg/util/yaml"
 	"sigs.k8s.io/yaml"
 
@@ -69,7 +69,7 @@ func (a *App) Version() error {
 	return nil
 }
 
-func (a *App) TestPattern(ctx *context.ArmadaContext, pattern string) (*TestSuiteReport, error) {
+func (a *App) TestPattern(ctx context.Context, pattern string) (*TestSuiteReport, error) {
 	testSpecs, err := TestSpecsFromPattern(pattern)
 	if err != nil {
 		return nil, err
@@ -161,7 +161,7 @@ func (report *TestSuiteReport) NumFailures() int {
 	return rv
 }
 
-func (a *App) RunTests(ctx *context.ArmadaContext, testSpecs []*api.TestSpec) (*TestSuiteReport, error) {
+func (a *App) RunTests(ctx context.Context, testSpecs []*api.TestSpec) (*TestSuiteReport, error) {
 	rv := &TestSuiteReport{
 		Start:           time.Now(),
 		TestCaseReports: make([]*TestCaseReport, len(testSpecs)),
@@ -172,7 +172,7 @@ func (a *App) RunTests(ctx *context.ArmadaContext, testSpecs []*api.TestSpec) (*
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	g, ctx := context.ErrGroup(ctx)
+	g, ctx := errgroup.WithContext(ctx)
 	eventLogger := eventlogger.New(make(chan *api.EventMessage), time.Second)
 	eventLogger.Out = a.Out
 

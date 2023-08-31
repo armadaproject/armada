@@ -2,10 +2,11 @@ package scheduler
 
 import (
 	gocontext "context"
-	"github.com/armadaproject/armada/internal/common/context"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"

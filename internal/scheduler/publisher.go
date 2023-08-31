@@ -2,10 +2,11 @@ package scheduler
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"

@@ -1,9 +1,10 @@
 package service
 
 import (
+	gocontext "context"
 	"encoding/json"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/sirupsen/logrus"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,6 +22,7 @@ import (
 	"github.com/armadaproject/armada/internal/binoculars/configuration"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
 
@@ -78,8 +80,8 @@ func TestCordonNode(t *testing.T) {
 			}
 			cordonService, client := setupTest(t, cordonConfig, FakePermissionChecker{ReturnValue: true})
 
-			ctx := authorization.WithPrincipal(context.Background(), principal)
-			err := cordonService.CordonNode(ctx, &binoculars.CordonRequest{
+			ctx := authorization.WithPrincipal(gocontext.Background(), principal)
+			err := cordonService.CordonNode(context.New(ctx, logrus.NewEntry(logrus.New())), &binoculars.CordonRequest{
 				NodeName: defaultNode.Name,
 			})
 			assert.Nil(t, err)
@@ -143,11 +145,11 @@ type FakePermissionChecker struct {
 	ReturnValue bool
 }
 
-func (c FakePermissionChecker) UserOwns(ctx *context.ArmadaContext, obj authorization.Owned) (owned bool, ownershipGroups []string) {
+func (c FakePermissionChecker) UserOwns(ctx gocontext.Context, obj authorization.Owned) (owned bool, ownershipGroups []string) {
 	return c.ReturnValue, []string{}
 }
 
-func (c FakePermissionChecker) UserHasPermission(ctx *context.ArmadaContext, perm permission.Permission) bool {
+func (c FakePermissionChecker) UserHasPermission(ctx gocontext.Context, perm permission.Permission) bool {
 	return c.ReturnValue
 }
 

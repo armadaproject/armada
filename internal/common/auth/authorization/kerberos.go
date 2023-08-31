@@ -2,7 +2,6 @@ package authorization
 
 import (
 	"context"
-	gocontext "context"
 	"encoding/base64"
 	"fmt"
 
@@ -76,7 +75,7 @@ func (authService *KerberosAuthService) Name() string {
 }
 
 type SPNEGOService interface {
-	AcceptSecContext(gssapi.ContextToken) (bool, gocontext.Context, gssapi.Status)
+	AcceptSecContext(gssapi.ContextToken) (bool, context.Context, gssapi.Status)
 }
 
 func (authService *KerberosAuthService) Authenticate(ctx context.Context) (Principal, error) {

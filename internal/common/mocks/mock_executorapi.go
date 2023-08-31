@@ -5,7 +5,7 @@
 package mocks
 
 import (
-	context "github.com/armadaproject/armada/internal/common/context"
+	context "context"
 	reflect "reflect"
 
 	executorapi "github.com/armadaproject/armada/pkg/executorapi"
@@ -39,7 +39,7 @@ func (m *MockExecutorApiClient) EXPECT() *MockExecutorApiClientMockRecorder {
 }
 
 // LeaseJobRuns mocks base method.
-func (m *MockExecutorApiClient) LeaseJobRuns(arg0 *context.ArmadaContext, arg1 ...grpc.CallOption) (executorapi.ExecutorApi_LeaseJobRunsClient, error) {
+func (m *MockExecutorApiClient) LeaseJobRuns(arg0 context.Context, arg1 ...grpc.CallOption) (executorapi.ExecutorApi_LeaseJobRunsClient, error) {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{arg0}
 	for _, a := range arg1 {
@@ -59,7 +59,7 @@ func (mr *MockExecutorApiClientMockRecorder) LeaseJobRuns(arg0 interface{}, arg1
 }
 
 // ReportEvents mocks base method.
-func (m *MockExecutorApiClient) ReportEvents(arg0 *context.ArmadaContext, arg1 *executorapi.EventList, arg2 ...grpc.CallOption) (*types.Empty, error) {
+func (m *MockExecutorApiClient) ReportEvents(arg0 context.Context, arg1 *executorapi.EventList, arg2 ...grpc.CallOption) (*types.Empty, error) {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{arg0, arg1}
 	for _, a := range arg2 {
@@ -116,17 +116,17 @@ func (mr *MockExecutorApi_LeaseJobRunsClientMockRecorder) CloseSend() *gomock.Ca
 }
 
 // Context mocks base method.
-func (m *MockExecutorApi_LeaseJobRunsClient) Context() *context.ArmadaContext {
+func (m *MockExecutorApi_LeaseJobRunsClient) Context() context.Context {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "github.com/armadaproject/armada/internal/common/context")
-	ret0, _ := ret[0].(*context.ArmadaContext)
+	ret := m.ctrl.Call(m, "Context")
+	ret0, _ := ret[0].(context.Context)
 	return ret0
 }
 
 // Context indicates an expected call of Context.
 func (mr *MockExecutorApi_LeaseJobRunsClientMockRecorder) Context() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "github.com/armadaproject/armada/internal/common/context", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsClient)(nil).Context))
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Context", reflect.TypeOf((*MockExecutorApi_LeaseJobRunsClient)(nil).Context))
 }
 
 // Header mocks base method.

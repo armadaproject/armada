@@ -1,7 +1,7 @@
 package authorization
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"

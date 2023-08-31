@@ -2,19 +2,18 @@ package joblogger
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"sync"
 	"time"
-
-	"github.com/armadaproject/armada/internal/common/context"
 
 	pkgerrors "github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
-func (srv *JobLogger) runScraper(ctx *context.ArmadaContext) error {
+func (srv *JobLogger) runScraper(ctx context.Context) error {
 	ticker := time.NewTicker(srv.interval)
 	defer ticker.Stop()
 
@@ -32,7 +31,7 @@ func (srv *JobLogger) runScraper(ctx *context.ArmadaContext) error {
 	}
 }
 
-func (srv *JobLogger) iterate(ctx *context.ArmadaContext, wg *sync.WaitGroup) func(k, v interface{}) bool {
+func (srv *JobLogger) iterate(ctx context.Context, wg *sync.WaitGroup) func(k, v interface{}) bool {
 	return func(k, v interface{}) bool {
 		wg.Add(1)
 		defer wg.Done()
@@ -55,7 +54,7 @@ func (srv *JobLogger) iterate(ctx *context.ArmadaContext, wg *sync.WaitGroup) fu
 	}
 }
 
-func (srv *JobLogger) scrape(ctx *context.ArmadaContext, wg *sync.WaitGroup, info *podInfo) error {
+func (srv *JobLogger) scrape(ctx context.Context, wg *sync.WaitGroup, info *podInfo) error {
 	wg.Add(1)
 	defer wg.Done()
 
@@ -74,7 +73,7 @@ func (srv *JobLogger) scrape(ctx *context.ArmadaContext, wg *sync.WaitGroup, inf
 	return nil
 }
 
-func (srv *JobLogger) getLogs(ctx *context.ArmadaContext, clientset *kubernetes.Clientset, pod string) (*bytes.Buffer, error) {
+func (srv *JobLogger) getLogs(ctx context.Context, clientset *kubernetes.Clientset, pod string) (*bytes.Buffer, error) {
 	podLogOpts := v1.PodLogOptions{}
 	stream, err := clientset.CoreV1().Pods(srv.namespace).GetLogs(pod, &podLogOpts).Stream(ctx)
 	if err != nil {

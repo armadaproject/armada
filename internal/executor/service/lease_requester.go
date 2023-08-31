@@ -1,7 +1,7 @@
 package service
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
+	gocontext "context"
 	"io"
 
 	grpcretry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
@@ -10,6 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding/gzip"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/pkg/api"
@@ -75,7 +76,7 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *context.ArmadaContext, req
 		shouldEndStreamCall := false
 		select {
 		case <-ctx.Done():
-			if ctx.Err() == context.DeadlineExceeded {
+			if ctx.Err() == gocontext.DeadlineExceeded {
 				shouldEndStreamCall = true
 			} else {
 				return nil, ctx.Err()

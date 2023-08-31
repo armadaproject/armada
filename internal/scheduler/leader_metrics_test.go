@@ -1,9 +1,9 @@
 package scheduler
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 )

@@ -2,9 +2,10 @@ package scheduler
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"math/rand"
 	"testing"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"

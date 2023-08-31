@@ -2,9 +2,10 @@ package scheduler
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"math/rand"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/hashicorp/go-memdb"

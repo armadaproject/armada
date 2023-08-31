@@ -1,12 +1,11 @@
 package eventbenchmark
 
 import (
+	"context"
 	"io"
 	"os"
 	"sync"
 	"time"
-
-	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/armadaproject/armada/pkg/api"
 )
@@ -25,7 +24,7 @@ func New(c chan *api.EventMessage) *EventsBenchmark {
 	}
 }
 
-func (srv *EventsBenchmark) Run(ctx *context.ArmadaContext) error {
+func (srv *EventsBenchmark) Run(ctx context.Context) error {
 	srv.eventDurationsByJobId = make(map[string]*EventDurationsByJobId)
 	for {
 		select {

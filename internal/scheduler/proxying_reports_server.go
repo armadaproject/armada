@@ -2,9 +2,9 @@ package scheduler
 
 import (
 	gocontext "context"
-	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 

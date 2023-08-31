@@ -7,6 +7,8 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
+
+	"github.com/armadaproject/armada/internal/common/context"
 )
 
 func PruneDb(ctx *context.ArmadaContext, db *pgx.Conn, keepAfterCompletion time.Duration, batchLimit int, clock clock.Clock) error {

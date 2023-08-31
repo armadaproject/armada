@@ -1,10 +1,9 @@
 package submitter
 
 import (
+	"context"
 	"sync"
 	"time"
-
-	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/pkg/errors"
 
@@ -81,7 +80,7 @@ func (config *Submitter) Validate() error {
 	return nil
 }
 
-func (srv *Submitter) Run(ctx *context.ArmadaContext) error {
+func (srv *Submitter) Run(ctx context.Context) error {
 	var numBatchesSent uint32
 	req := &api.JobSubmitRequest{
 		Queue:    srv.Queue,

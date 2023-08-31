@@ -2,10 +2,11 @@ package scheduler
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"

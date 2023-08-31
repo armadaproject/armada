@@ -2,10 +2,11 @@ package service
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"io"
 	"testing"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"

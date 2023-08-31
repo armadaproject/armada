@@ -1,11 +1,11 @@
 package scheduler
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/metrics"
 )
 

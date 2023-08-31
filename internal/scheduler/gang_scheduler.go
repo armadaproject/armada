@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+
 	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/hashicorp/go-memdb"

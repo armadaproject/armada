@@ -1,9 +1,9 @@
 package authorization
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/hex"
-	"github.com/armadaproject/armada/internal/common/context"
 	"os"
 	"testing"
 	"time"
@@ -110,15 +110,15 @@ type mockSPNEGOService struct {
 
 	// Values returned by AcceptSecContext
 	authed bool
-	ctx    *context.ArmadaContext
+	ctx    context.Context
 	status gssapi.Status
 }
 
-func (mss *mockSPNEGOService) AcceptSecContext(token gssapi.ContextToken) (bool, *context.ArmadaContext, gssapi.Status) {
+func (mss *mockSPNEGOService) AcceptSecContext(token gssapi.ContextToken) (bool, context.Context, gssapi.Status) {
 	return mss.authed, mss.ctx, mss.status
 }
 
-func getContextWithEncodedKerberosToken(rawToken []byte) *context.ArmadaContext {
+func getContextWithEncodedKerberosToken(rawToken []byte) context.Context {
 	nMD := metautils.NiceMD{}
 	nMD.Set(
 		"authorization",

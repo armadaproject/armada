@@ -2,9 +2,10 @@ package scheduler
 
 import (
 	"container/heap"
-	"github.com/armadaproject/armada/internal/common/context"
 	"reflect"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"

@@ -1,6 +1,7 @@
 package ingest
 
 import (
+	gocontext "context"
 	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
@@ -130,7 +131,7 @@ func newMockPulsarConsumer(t *testing.T, messages []pulsar.Message, cancelFn fun
 	}
 }
 
-func (p *mockPulsarConsumer) Receive(ctx *context.ArmadaContext) (pulsar.Message, error) {
+func (p *mockPulsarConsumer) Receive(ctx gocontext.Context) (pulsar.Message, error) {
 	if p.messageIdx < len(p.messages) {
 		msg := p.messages[p.messageIdx]
 		p.messageIdx++
@@ -139,7 +140,7 @@ func (p *mockPulsarConsumer) Receive(ctx *context.ArmadaContext) (pulsar.Message
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, context.DeadlineExceeded
+			return nil, gocontext.DeadlineExceeded
 		}
 	}
 }
