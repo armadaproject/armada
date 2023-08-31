@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	gocontext "context"
 	"github.com/armadaproject/armada/internal/common/context"
 	"sync"
 	"testing"
@@ -111,7 +112,7 @@ func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			go func() {
 				err := controller.Run(ctx)
-				assert.ErrorIs(t, err, context.Canceled)
+				assert.ErrorIs(t, err, gocontext.Canceled)
 			}()
 
 			// Loop that periodically checks to see if we have all the messages we expect

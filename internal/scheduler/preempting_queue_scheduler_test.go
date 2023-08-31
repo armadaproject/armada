@@ -6,7 +6,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1396,7 +1395,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				if tc.SchedulingConfig.EnableNewPreemptionStrategy {
 					sch.EnableNewPreemptionStrategy()
 				}
-				result, err := sch.Schedule(ctxlogrus.ToContext(context.Background(), log))
+				result, err := sch.Schedule(context.Background())
 				require.NoError(t, err)
 				jobIdsByGangId = sch.jobIdsByGangId
 				gangIdByJobId = sch.gangIdByJobId

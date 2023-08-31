@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	gocontext "context"
 	"testing"
 	"time"
 
@@ -316,7 +317,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 			mockPulsarProducer.
 				EXPECT().
 				SendAsync(gomock.Any(), gomock.Any(), gomock.Any()).
-				DoAndReturn(func(_ *context.ArmadaContext, msg *pulsar.ProducerMessage, callback func(pulsar.MessageID, *pulsar.ProducerMessage, error)) {
+				DoAndReturn(func(_ gocontext.Context, msg *pulsar.ProducerMessage, callback func(pulsar.MessageID, *pulsar.ProducerMessage, error)) {
 					es := &armadaevents.EventSequence{}
 					err := proto.Unmarshal(msg.Payload, es)
 					require.NoError(t, err)

@@ -117,39 +117,36 @@ func NewScheduler(
 
 // Run enters the scheduling loop, which will continue until ctx is cancelled.
 func (s *Scheduler) Run(ctx *context.ArmadaContext) error {
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("service", "scheduler")
-	ctx = ctxlogrus.ToContext(ctx, log)
-	log.Infof("starting scheduler with cycle time %s", s.cyclePeriod)
-	defer log.Info("scheduler stopped")
+	ctx.Log.Infof("starting scheduler with cycle time %s", s.cyclePeriod)
+	defer ctx.Log.Info("scheduler stopped")
 
 	// JobDb initialisation.
 	start := s.clock.Now()
 	if err := s.initialise(ctx); err != nil {
 		return err
 	}
-	log.Infof("JobDb initialised in %s", s.clock.Since(start))
+	ctx.Log.Infof("JobDb initialised in %s", s.clock.Since(start))
 
 	ticker := s.clock.NewTicker(s.cyclePeriod)
 	prevLeaderToken := InvalidLeaderToken()
 	for {
 		select {
 		case <-ctx.Done():
-			log.Infof("context cancelled; returning.")
+			ctx.Log.Infof("context cancelled; returning.")
 			return ctx.Err()
 		case <-ticker.C():
 			start := s.clock.Now()
 			leaderToken := s.leaderController.GetToken()
 			fullUpdate := false
-			log.Infof("received leaderToken; leader status is %t", leaderToken.leader)
+			ctx.Log.Infof("received leaderToken; leader status is %t", leaderToken.leader)
 
 			// If we are becoming leader then we must ensure we have caught up to all Pulsar messages
 			if leaderToken.leader && leaderToken != prevLeaderToken {
-				log.Infof("becoming leader")
+				ctx.Log.Infof("becoming leader")
 				syncContext, cancel := context.WithTimeout(ctx, 5*time.Minute)
 				err := s.ensureDbUpToDate(syncContext, 1*time.Second)
 				if err != nil {
-					log.WithError(err).Error("could not become leader")
+					logging.WithStacktrace(ctx.Log, err).Error("could not become leader")
 					leaderToken = InvalidLeaderToken()
 				} else {
 					fullUpdate = true
@@ -168,7 +165,7 @@ func (s *Scheduler) Run(ctx *context.ArmadaContext) error {
 			shouldSchedule := s.clock.Now().Sub(s.previousSchedulingRoundEnd) > s.schedulePeriod
 
 			if err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule); err != nil {
-				logging.WithStacktrace(log, err).Error("scheduling cycle failure")
+				logging.WithStacktrace(ctx.Log, err).Error("scheduling cycle failure")
 				leaderToken = InvalidLeaderToken()
 			}
 
@@ -177,10 +174,10 @@ func (s *Scheduler) Run(ctx *context.ArmadaContext) error {
 			if shouldSchedule && leaderToken.leader {
 				// Only the leader token does real scheduling rounds.
 				s.metrics.ReportScheduleCycleTime(cycleTime)
-				log.Infof("scheduling cycle completed in %s", cycleTime)
+				ctx.Log.Infof("scheduling cycle completed in %s", cycleTime)
 			} else {
 				s.metrics.ReportReconcileCycleTime(cycleTime)
-				log.Infof("reconciliation cycle completed in %s", cycleTime)
+				ctx.Log.Infof("reconciliation cycle completed in %s", cycleTime)
 			}
 
 			prevLeaderToken = leaderToken
@@ -245,7 +242,7 @@ func (s *Scheduler) cycle(ctx *context.ArmadaContext, updateAll bool, leaderToke
 			s.metrics.ReportSchedulerResult(overallSchedulerResult)
 		}
 
-		resultEvents, err := s.eventsFromSchedulerResult(txn, overallSchedulerResult)
+		resultEvents, err := s.eventsFromSchedulerResult(overallSchedulerResult)
 		if err != nil {
 			return err
 		}
@@ -390,7 +387,7 @@ func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job *jobd
 }
 
 // eventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
-func (s *Scheduler) eventsFromSchedulerResult(txn *jobdb.Txn, result *SchedulerResult) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) eventsFromSchedulerResult(result *SchedulerResult) ([]*armadaevents.EventSequence, error) {
 	return EventsFromSchedulerResult(result, s.clock.Now())
 }
 

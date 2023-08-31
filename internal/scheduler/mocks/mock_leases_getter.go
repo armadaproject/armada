@@ -5,7 +5,7 @@
 package schedulermocks
 
 import (
-	context "github.com/armadaproject/armada/internal/common/context"
+	context "context"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
@@ -78,7 +78,7 @@ func (m *MockLeaseInterface) EXPECT() *MockLeaseInterfaceMockRecorder {
 }
 
 // Apply mocks base method.
-func (m *MockLeaseInterface) Apply(arg0 *context.ArmadaContext, arg1 *v11.LeaseApplyConfiguration, arg2 v10.ApplyOptions) (*v1.Lease, error) {
+func (m *MockLeaseInterface) Apply(arg0 context.Context, arg1 *v11.LeaseApplyConfiguration, arg2 v10.ApplyOptions) (*v1.Lease, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Apply", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*v1.Lease)
@@ -93,7 +93,7 @@ func (mr *MockLeaseInterfaceMockRecorder) Apply(arg0, arg1, arg2 interface{}) *g
 }
 
 // Create mocks base method.
-func (m *MockLeaseInterface) Create(arg0 *context.ArmadaContext, arg1 *v1.Lease, arg2 v10.CreateOptions) (*v1.Lease, error) {
+func (m *MockLeaseInterface) Create(arg0 context.Context, arg1 *v1.Lease, arg2 v10.CreateOptions) (*v1.Lease, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Create", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*v1.Lease)
@@ -108,7 +108,7 @@ func (mr *MockLeaseInterfaceMockRecorder) Create(arg0, arg1, arg2 interface{}) *
 }
 
 // Delete mocks base method.
-func (m *MockLeaseInterface) Delete(arg0 *context.ArmadaContext, arg1 string, arg2 v10.DeleteOptions) error {
+func (m *MockLeaseInterface) Delete(arg0 context.Context, arg1 string, arg2 v10.DeleteOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Delete", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -122,7 +122,7 @@ func (mr *MockLeaseInterfaceMockRecorder) Delete(arg0, arg1, arg2 interface{}) *
 }
 
 // DeleteCollection mocks base method.
-func (m *MockLeaseInterface) DeleteCollection(arg0 *context.ArmadaContext, arg1 v10.DeleteOptions, arg2 v10.ListOptions) error {
+func (m *MockLeaseInterface) DeleteCollection(arg0 context.Context, arg1 v10.DeleteOptions, arg2 v10.ListOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteCollection", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -136,7 +136,7 @@ func (mr *MockLeaseInterfaceMockRecorder) DeleteCollection(arg0, arg1, arg2 inte
 }
 
 // Get mocks base method.
-func (m *MockLeaseInterface) Get(arg0 *context.ArmadaContext, arg1 string, arg2 v10.GetOptions) (*v1.Lease, error) {
+func (m *MockLeaseInterface) Get(arg0 context.Context, arg1 string, arg2 v10.GetOptions) (*v1.Lease, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Get", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*v1.Lease)
@@ -151,7 +151,7 @@ func (mr *MockLeaseInterfaceMockRecorder) Get(arg0, arg1, arg2 interface{}) *gom
 }
 
 // List mocks base method.
-func (m *MockLeaseInterface) List(arg0 *context.ArmadaContext, arg1 v10.ListOptions) (*v1.LeaseList, error) {
+func (m *MockLeaseInterface) List(arg0 context.Context, arg1 v10.ListOptions) (*v1.LeaseList, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "List", arg0, arg1)
 	ret0, _ := ret[0].(*v1.LeaseList)
@@ -166,7 +166,7 @@ func (mr *MockLeaseInterfaceMockRecorder) List(arg0, arg1 interface{}) *gomock.C
 }
 
 // Patch mocks base method.
-func (m *MockLeaseInterface) Patch(arg0 *context.ArmadaContext, arg1 string, arg2 types.PatchType, arg3 []byte, arg4 v10.PatchOptions, arg5 ...string) (*v1.Lease, error) {
+func (m *MockLeaseInterface) Patch(arg0 context.Context, arg1 string, arg2 types.PatchType, arg3 []byte, arg4 v10.PatchOptions, arg5 ...string) (*v1.Lease, error) {
 	m.ctrl.T.Helper()
 	varargs := []interface{}{arg0, arg1, arg2, arg3, arg4}
 	for _, a := range arg5 {
@@ -186,7 +186,7 @@ func (mr *MockLeaseInterfaceMockRecorder) Patch(arg0, arg1, arg2, arg3, arg4 int
 }
 
 // Update mocks base method.
-func (m *MockLeaseInterface) Update(arg0 *context.ArmadaContext, arg1 *v1.Lease, arg2 v10.UpdateOptions) (*v1.Lease, error) {
+func (m *MockLeaseInterface) Update(arg0 context.Context, arg1 *v1.Lease, arg2 v10.UpdateOptions) (*v1.Lease, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Update", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*v1.Lease)
@@ -201,7 +201,7 @@ func (mr *MockLeaseInterfaceMockRecorder) Update(arg0, arg1, arg2 interface{}) *
 }
 
 // Watch mocks base method.
-func (m *MockLeaseInterface) Watch(arg0 *context.ArmadaContext, arg1 v10.ListOptions) (watch.Interface, error) {
+func (m *MockLeaseInterface) Watch(arg0 context.Context, arg1 v10.ListOptions) (watch.Interface, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Watch", arg0, arg1)
 	ret0, _ := ret[0].(watch.Interface)

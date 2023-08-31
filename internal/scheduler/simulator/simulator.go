@@ -11,12 +11,10 @@ import (
 	"time"
 
 	"github.com/caarlos0/log"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/mattn/go-zglob"
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -450,7 +448,7 @@ func (s *Simulator) handleScheduleEvent() error {
 			if s.schedulingConfig.EnableNewPreemptionStrategy {
 				sch.EnableNewPreemptionStrategy()
 			}
-			ctx := ctxlogrus.ToContext(context.Background(), logrus.NewEntry(logrus.New()))
+			ctx := context.Background()
 			result, err := sch.Schedule(ctx)
 			if err != nil {
 				return err

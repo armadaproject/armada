@@ -5,10 +5,10 @@
 package schedulermocks
 
 import (
-	context "github.com/armadaproject/armada/internal/common/context"
 	reflect "reflect"
 	time "time"
 
+	context "github.com/armadaproject/armada/internal/common/context"
 	database "github.com/armadaproject/armada/internal/scheduler/database"
 	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	armadaevents "github.com/armadaproject/armada/pkg/armadaevents"
