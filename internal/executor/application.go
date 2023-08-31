@@ -1,6 +1,7 @@
 package executor
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -8,18 +9,23 @@ import (
 	"sync"
 	"time"
 
+	"github.com/caarlos0/log"
+	"github.com/go-playground/validator/v10"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 
 	"github.com/armadaproject/armada/internal/common/cluster"
+	"github.com/armadaproject/armada/internal/common/etcdhealth"
+	"github.com/armadaproject/armada/internal/common/healthmonitor"
+	common_metrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/task"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	executor_context "github.com/armadaproject/armada/internal/executor/context"
-	"github.com/armadaproject/armada/internal/executor/healthmonitor"
 	"github.com/armadaproject/armada/internal/executor/job"
 	"github.com/armadaproject/armada/internal/executor/job/processors"
 	"github.com/armadaproject/armada/internal/executor/metrics"
@@ -35,7 +41,7 @@ import (
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
-func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
+func StartUp(ctx context.Context, log *logrus.Entry, config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
 	err := validateConfig(config)
 	if err != nil {
 		log.Errorf("Invalid config: %s", err)
@@ -52,14 +58,39 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		os.Exit(-1)
 	}
 
-	var etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor
-	if len(config.Kubernetes.Etcd.MetricUrls) > 0 {
-		log.Info("etcd URLs provided; monitoring etcd health enabled")
+	// Create an errgroup to run services in.
+	g, ctx := errgroup.WithContext(ctx)
 
-		etcdHealthMonitor, err = healthmonitor.NewEtcdHealthMonitor(config.Kubernetes.Etcd, nil)
-		if err != nil {
-			panic(err)
+	// Setup etcd health monitoring.
+	etcdClusterHealthMonitoringByName := make(map[string]healthmonitor.HealthMonitor, len(config.Kubernetes.Etcd.EtcdClustersHealthMonitoring))
+	for _, etcdClusterHealthMonitoring := range config.Kubernetes.Etcd.EtcdClustersHealthMonitoring {
+		etcdReplicaHealthMonitorsByUrl := make(map[string]healthmonitor.HealthMonitor, len(etcdClusterHealthMonitoring.MetricUrls))
+		for _, metricsUrl := range etcdClusterHealthMonitoring.MetricUrls {
+			etcdReplicaHealthMonitorsByUrl[metricsUrl] = etcdhealth.NewEtcdReplicaHealthMonitor(
+				metricsUrl,
+				etcdClusterHealthMonitoring.FractionOfStorageInUseLimit,
+				etcdClusterHealthMonitoring.FractionOfStorageLimit,
+				etcdClusterHealthMonitoring.ReplicaTimeout,
+				etcdClusterHealthMonitoring.ScrapeInterval,
+				etcdClusterHealthMonitoring.ScrapeDelayBucketsStart,
+				etcdClusterHealthMonitoring.ScrapeDelayBucketsFactor,
+				etcdClusterHealthMonitoring.ScrapeDelayBucketsCount,
+				common_metrics.NewHttpMetricsProvider(metricsUrl, http.DefaultClient),
+			)
 		}
+		etcdClusterHealthMonitoringByName[etcdClusterHealthMonitoring.Name] = healthmonitor.NewMultiHealthMonitor(
+			etcdClusterHealthMonitoring.Name,
+			etcdReplicaHealthMonitorsByUrl,
+		).WithMinimumReplicasAvailable(etcdClusterHealthMonitoring.MinimumReplicasAvailable)
+	}
+	var etcdClustersHealthMonitoring healthmonitor.HealthMonitor
+	if len(etcdClusterHealthMonitoringByName) > 0 {
+		log.Info("etcd URLs provided; monitoring etcd health enabled")
+		etcdClustersHealthMonitoring = healthmonitor.NewMultiHealthMonitor(
+			"etcd",
+			etcdClusterHealthMonitoringByName,
+		)
+		g.Go(func() error { return etcdClustersHealthMonitoring.Run(ctx, log) })
 	} else {
 		log.Info("no etcd URLs provided; etcd health isn't monitored")
 	}
@@ -68,7 +99,6 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 		config.Application,
 		2*time.Minute,
 		kubernetesClientProvider,
-		etcdHealthMonitor,
 		config.Kubernetes.PodKillTimeout,
 	)
 
@@ -78,13 +108,14 @@ func StartUp(config configuration.ExecutorConfiguration) (func(), *sync.WaitGrou
 	taskManager := task.NewBackgroundTaskManager(metrics.ArmadaExecutorMetricsPrefix)
 	taskManager.Register(clusterContext.ProcessPodsToDelete, config.Task.PodDeletionInterval, "pod_deletion")
 
-	return StartUpWithContext(config, clusterContext, etcdHealthMonitor, taskManager, wg)
+	return StartUpWithContext(log, config, clusterContext, etcdClustersHealthMonitoring, taskManager, wg)
 }
 
 func StartUpWithContext(
+	log *logrus.Entry,
 	config configuration.ExecutorConfiguration,
 	clusterContext executor_context.ClusterContext,
-	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
+	clusterHealthMonitor healthmonitor.HealthMonitor,
 	taskManager *task.BackgroundTaskManager,
 	wg *sync.WaitGroup,
 ) (func(), *sync.WaitGroup) {
@@ -106,8 +137,8 @@ func StartUpWithContext(
 		os.Exit(-1)
 	}
 
-	stopServerApiComponents := setupServerApiComponents(config, clusterContext, etcdHealthMonitor, taskManager, pendingPodChecker, nodeInfoService, podUtilisationService)
-	stopExecutorApiComponents := setupExecutorApiComponents(config, clusterContext, etcdHealthMonitor, taskManager, pendingPodChecker, nodeInfoService, podUtilisationService)
+	stopServerApiComponents := setupServerApiComponents(config, clusterContext, clusterHealthMonitor, taskManager, pendingPodChecker, nodeInfoService, podUtilisationService)
+	stopExecutorApiComponents := setupExecutorApiComponents(config, clusterContext, clusterHealthMonitor, taskManager, pendingPodChecker, nodeInfoService, podUtilisationService)
 
 	resourceCleanupService := service.NewResourceCleanupService(clusterContext, config.Kubernetes)
 	taskManager.Register(resourceCleanupService.CleanupResources, config.Task.ResourceCleanupInterval, "resource_cleanup")
@@ -131,7 +162,7 @@ func StartUpWithContext(
 func setupExecutorApiComponents(
 	config configuration.ExecutorConfiguration,
 	clusterContext executor_context.ClusterContext,
-	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
+	clusterHealthMonitor healthmonitor.HealthMonitor,
 	taskManager *task.BackgroundTaskManager,
 	pendingPodChecker *podchecks.PodChecks,
 	nodeInfoService node.NodeInfoService,
@@ -184,20 +215,23 @@ func setupExecutorApiComponents(
 		leaseRequester,
 		jobRunState,
 		clusterUtilisationService,
-		config.Kubernetes.PodDefaults)
+		config.Kubernetes.PodDefaults,
+	)
 	clusterAllocationService := service.NewClusterAllocationService(
 		clusterContext,
 		eventReporter,
 		jobRunState,
 		submitter,
-		etcdHealthMonitor)
+		clusterHealthMonitor,
+	)
 	podIssueService := service.NewIssueHandler(
 		jobRunState,
 		clusterContext,
 		eventReporter,
 		config.Kubernetes.StateChecks,
 		pendingPodChecker,
-		config.Kubernetes.StuckTerminatingPodExpiry)
+		config.Kubernetes.StuckTerminatingPodExpiry,
+	)
 
 	taskManager.Register(podIssueService.HandlePodIssues, config.Task.PodIssueHandlingInterval, "pod_issue_handling")
 	taskManager.Register(preemptRunProcessor.Run, config.Task.StateProcessorInterval, "preempt_runs")
@@ -207,7 +241,7 @@ func setupExecutorApiComponents(
 	taskManager.Register(eventReporter.ReportMissingJobEvents, config.Task.MissingJobEventReconciliationInterval, "event_reconciliation")
 	pod_metrics.ExposeClusterContextMetrics(clusterContext, clusterUtilisationService, podUtilisationService, nodeInfoService)
 	runStateMetricsCollector := runstate.NewJobRunStateStoreMetricsCollector(jobRunState)
-	prometheus.MustRegister(runStateMetricsCollector)
+	prometheus.MustRegister(runStateMetricsCollector, clusterHealthMonitor)
 
 	if config.Metric.ExposeQueueUsageMetrics && config.Task.UtilisationEventReportingInterval > 0 {
 		podUtilisationReporter := utilisation.NewUtilisationEventReporter(
@@ -232,7 +266,7 @@ func setupExecutorApiComponents(
 func setupServerApiComponents(
 	config configuration.ExecutorConfiguration,
 	clusterContext executor_context.ClusterContext,
-	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
+	clusterHealthMonitor healthmonitor.HealthMonitor,
 	taskManager *task.BackgroundTaskManager,
 	pendingPodChecker *podchecks.PodChecks,
 	nodeInfoService node.NodeInfoService,
@@ -295,7 +329,7 @@ func setupServerApiComponents(
 		jobLeaseService,
 		clusterUtilisationService,
 		submitter,
-		etcdHealthMonitor,
+		clusterHealthMonitor,
 	)
 
 	jobManager := service.NewJobManager(
@@ -345,6 +379,10 @@ func createConnectionToApi(connectionDetails client.ApiConnectionDetails, maxMes
 }
 
 func validateConfig(config configuration.ExecutorConfiguration) error {
+	validator := validator.New()
+	if err := validator.Struct(config); err != nil {
+		return err
+	}
 	missing := util.SubtractStringList(config.Kubernetes.AvoidNodeLabelsOnRetry, config.Kubernetes.TrackedNodeLabels)
 	if len(missing) > 0 {
 		return fmt.Errorf("These labels were in avoidNodeLabelsOnRetry but not trackedNodeLabels: %s", strings.Join(missing, ", "))
@@ -357,12 +395,6 @@ func validateConfig(config configuration.ExecutorConfiguration) error {
 	}
 	if config.Application.DeleteConcurrencyLimit <= 0 {
 		return fmt.Errorf("DeleteConcurrencyLimit was %d, must be greater or equal to 1", config.Application.DeleteConcurrencyLimit)
-	}
-	if config.Kubernetes.Etcd.FractionOfStorageInUseSoftLimit <= 0 || config.Kubernetes.Etcd.FractionOfStorageInUseSoftLimit > 1 {
-		return fmt.Errorf("EtcdFractionOfStorageInUseSoftLimit must be in (0, 1]")
-	}
-	if config.Kubernetes.Etcd.FractionOfStorageInUseHardLimit <= 0 || config.Kubernetes.Etcd.FractionOfStorageInUseHardLimit > 1 {
-		return fmt.Errorf("EtcdFractionOfStorageInUseHardLimit must be in (0, 1]")
 	}
 	return nil
 }

@@ -36,10 +36,6 @@ kubernetes:
   impersonateUsers: false
   trackedNodeLabels:
     - kubernetes.io/hostname
-  etcd:
-    fractionOfStorageInUseSoftLimit: 0.8
-    fractionOfStorageInUseHardLimit: 0.9
-    minimumAvailable: 2
   QPS: 10000
   Burst: 10000
   nodeIdLabel: kubernetes.io/hostname
