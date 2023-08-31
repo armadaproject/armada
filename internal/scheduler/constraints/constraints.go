@@ -16,9 +16,12 @@ const (
 	UnschedulableReasonMaximumNumberOfJobsScheduled     = "maximum number of jobs scheduled"
 	UnschedulableReasonMaximumNumberOfGangsScheduled    = "maximum number of gangs scheduled"
 	UnschedulableReasonMaximumResourcesPerQueueExceeded = "maximum total resources for this queue exceeded"
+	UnschedulableReasonGlobalRateLimitExceeded          = "global scheduling rate limit exceeded"
+	UnschedulableReasonQueueRateLimitExceeded           = "queue scheduling rate limit exceeded"
 )
 
-// IsTerminalUnschedulableReason returns true if reason indicates it's not possible to schedule any more jobs in this round.
+// IsTerminalUnschedulableReason returns true if reason indicates
+// it's not possible to schedule any more jobs in this round.
 func IsTerminalUnschedulableReason(reason string) bool {
 	if reason == UnschedulableReasonMaximumResourcesScheduled {
 		return true
@@ -29,15 +32,20 @@ func IsTerminalUnschedulableReason(reason string) bool {
 	if reason == UnschedulableReasonMaximumNumberOfGangsScheduled {
 		return true
 	}
+	if reason == UnschedulableReasonGlobalRateLimitExceeded {
+		return true
+	}
 	return false
+}
+
+// IsTerminalQueueUnschedulableReason returns true if reason indicates
+// it's not possible to schedule any more jobs from this queue in this round.
+func IsTerminalQueueUnschedulableReason(reason string) bool {
+	return reason == UnschedulableReasonQueueRateLimitExceeded
 }
 
 // SchedulingConstraints contains scheduling constraints, e.g., per-queue resource limits.
 type SchedulingConstraints struct {
-	// Max number of jobs to scheduler per lease jobs call.
-	MaximumJobsToSchedule uint
-	// Max number of jobs to scheduler per lease jobs call.
-	MaximumGangsToSchedule uint
 	// Max number of jobs to consider for a queue before giving up.
 	MaxQueueLookback uint
 	// Jobs leased to this executor must be at least this large.
@@ -82,8 +90,6 @@ func SchedulingConstraintsFromSchedulingConfig(
 		maximumResourceFractionToSchedule = m
 	}
 	return SchedulingConstraints{
-		MaximumJobsToSchedule:      config.MaximumJobsToSchedule,
-		MaximumGangsToSchedule:     config.MaximumGangsToSchedule,
 		MaxQueueLookback:           config.MaxQueueLookback,
 		MinimumJobSize:             minimumJobSize,
 		MaximumResourcesToSchedule: absoluteFromRelativeLimits(totalResources, maximumResourceFractionToSchedule),
@@ -99,21 +105,22 @@ func absoluteFromRelativeLimits(totalResources schedulerobjects.ResourceList, re
 	return absoluteLimits
 }
 
-func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *schedulercontext.SchedulingContext) (bool, string, error) {
-	// MaximumJobsToSchedule check.
-	if constraints.MaximumJobsToSchedule != 0 && sctx.NumScheduledJobs == int(constraints.MaximumJobsToSchedule) {
-		return false, UnschedulableReasonMaximumNumberOfJobsScheduled, nil
-	}
-
-	// MaximumGangsToSchedule check.
-	if constraints.MaximumGangsToSchedule != 0 && sctx.NumScheduledGangs == int(constraints.MaximumGangsToSchedule) {
-		return false, UnschedulableReasonMaximumNumberOfGangsScheduled, nil
-	}
-
+func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *schedulercontext.SchedulingContext, queue string) (bool, string, error) {
 	// MaximumResourcesToSchedule check.
 	if !sctx.ScheduledResources.IsStrictlyLessOrEqual(constraints.MaximumResourcesToSchedule) {
 		return false, UnschedulableReasonMaximumResourcesScheduled, nil
 	}
+
+	// Global rate limiter check.
+	if sctx.Limiter != nil && sctx.Limiter.Tokens() <= 0 {
+		return false, UnschedulableReasonGlobalRateLimitExceeded, nil
+	}
+
+	// Per-queue rate limiter check.
+	if qctx := sctx.QueueSchedulingContexts[queue]; qctx != nil && qctx.Limiter != nil && qctx.Limiter.Tokens() <= 0 {
+		return false, UnschedulableReasonQueueRateLimitExceeded, nil
+	}
+
 	return true, "", nil
 }
 

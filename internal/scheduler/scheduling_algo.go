@@ -12,6 +12,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -42,6 +43,7 @@ type FairSchedulingAlgo struct {
 	executorRepository          database.ExecutorRepository
 	queueRepository             database.QueueRepository
 	schedulingContextRepository *SchedulingContextRepository
+	limiter                     *rate.Limiter
 	maxSchedulingDuration       time.Duration
 	// Order in which to schedule executor groups.
 	// Executors are grouped by either id (i.e., individually) or by pool.

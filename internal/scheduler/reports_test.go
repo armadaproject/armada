@@ -246,7 +246,7 @@ func withSuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingContext
 	}
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
-		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByTAndResourceType[string])); err != nil {
+		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByTAndResourceType[string]), nil); err != nil {
 			panic(err)
 		}
 		qctx = sctx.QueueSchedulingContexts[queue]
@@ -266,7 +266,7 @@ func withPreemptingJobSchedulingContext(sctx *schedulercontext.SchedulingContext
 	}
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
-		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByTAndResourceType[string])); err != nil {
+		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByTAndResourceType[string]), nil); err != nil {
 			panic(err)
 		}
 		qctx = sctx.QueueSchedulingContexts[queue]
@@ -286,7 +286,7 @@ func withUnsuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingConte
 	}
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
-		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByTAndResourceType[string])); err != nil {
+		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByTAndResourceType[string]), nil); err != nil {
 			panic(err)
 		}
 		qctx = sctx.QueueSchedulingContexts[queue]
@@ -303,6 +303,7 @@ func testSchedulingContext(executorId string) *schedulercontext.SchedulingContex
 		"",
 		nil,
 		"",
+		nil,
 		nil,
 		schedulerobjects.ResourceList{},
 	)

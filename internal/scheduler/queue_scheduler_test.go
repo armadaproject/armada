@@ -473,11 +473,12 @@ func TestQueueScheduler(t *testing.T) {
 				tc.SchedulingConfig.Preemption.PriorityClasses,
 				tc.SchedulingConfig.Preemption.DefaultPriorityClass,
 				fairnessCostProvider,
+				nil,
 				tc.TotalResources,
 			)
 			for queue, priorityFactor := range tc.PriorityFactorByQueue {
 				weight := 1 / priorityFactor
-				err := sctx.AddQueueSchedulingContext(queue, weight, tc.InitialAllocatedByQueueAndPriorityClass[queue])
+				err := sctx.AddQueueSchedulingContext(queue, weight, tc.InitialAllocatedByQueueAndPriorityClass[queue], nil)
 				require.NoError(t, err)
 			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(

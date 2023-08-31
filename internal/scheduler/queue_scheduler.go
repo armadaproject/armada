@@ -254,10 +254,13 @@ func (it *QueuedGangIterator) hitLookbackLimit() bool {
 // Specifically, it yields the next gang in the queue with smallest fraction of its fair share,
 // where the fraction of fair share computation includes the yielded gang.
 type CandidateGangIterator struct {
-	queueProvier         fairness.QueueRepository
+	queueRepository      fairness.QueueRepository
 	fairnessCostProvider fairness.FairnessCostProvider
 	// If true, this iterator only yields gangs where all jobs are evicted.
 	onlyYieldEvicted bool
+	// If, e.g., onlyYieldEvictedByQueue["A"] is true,
+	// this iterator only yields gangs where all jobs are evicted for queue A.
+	onlyYieldEvictedByQueue map[string]bool
 	// Reusable buffer to avoid allocations.
 	buffer schedulerobjects.ResourceList
 	// Priority queue containing per-queue iterators.
@@ -266,15 +269,16 @@ type CandidateGangIterator struct {
 }
 
 func NewCandidateGangIterator(
-	queueProvier fairness.QueueRepository,
+	queueRepository fairness.QueueRepository,
 	fairnessCostProvider fairness.FairnessCostProvider,
 	iteratorsByQueue map[string]*QueuedGangIterator,
 ) (*CandidateGangIterator, error) {
 	it := &CandidateGangIterator{
-		queueProvier:         queueProvier,
-		fairnessCostProvider: fairnessCostProvider,
-		buffer:               schedulerobjects.NewResourceListWithDefaultSize(),
-		pq:                   make(QueueCandidateGangIteratorPQ, 0, len(iteratorsByQueue)),
+		queueRepository:         queueRepository,
+		fairnessCostProvider:    fairnessCostProvider,
+		onlyYieldEvictedByQueue: make(map[string]bool),
+		buffer:                  schedulerobjects.NewResourceListWithDefaultSize(),
+		pq:                      make(QueueCandidateGangIteratorPQ, 0, len(iteratorsByQueue)),
 	}
 	for queue, queueIt := range iteratorsByQueue {
 		if _, err := it.updateAndPushPQItem(it.newPQItem(queue, queueIt)); err != nil {
@@ -286,6 +290,48 @@ func NewCandidateGangIterator(
 
 func (it *CandidateGangIterator) OnlyYieldEvicted() {
 	it.onlyYieldEvicted = true
+}
+
+func (it *CandidateGangIterator) OnlyYieldEvictedForQueue(queue string) {
+	it.onlyYieldEvictedByQueue[queue] = true
+}
+
+// Clear removes the first item in the iterator.
+// If it.onlyYieldEvicted is true, any consecutive non-evicted jobs are also removed.
+func (it *CandidateGangIterator) Clear() error {
+	if len(it.pq) == 0 {
+		return nil
+	}
+	item := heap.Pop(&it.pq).(*QueueCandidateGangIteratorItem)
+	if err := item.it.Clear(); err != nil {
+		return err
+	}
+	if _, err := it.updateAndPushPQItem(item); err != nil {
+		return err
+	}
+
+	// If set to only yield evicted gangs, drop any queues for which the next gang is non-evicted here.
+	// We assume here that all evicted jobs appear before non-evicted jobs in the queue.
+	// Hence, it's safe to drop a queue if the first job is non-evicted.
+	if it.onlyYieldEvicted {
+		for len(it.pq) > 0 && !it.pq[0].gctx.AllJobsEvicted {
+			heap.Pop(&it.pq)
+		}
+	} else {
+		// Same check as above on a per-queue basis.
+		for len(it.pq) > 0 && it.onlyYieldEvictedByQueue[it.pq[0].gctx.Queue] && !it.pq[0].gctx.AllJobsEvicted {
+			heap.Pop(&it.pq)
+		}
+	}
+	return nil
+}
+
+func (it *CandidateGangIterator) Peek() (*schedulercontext.GangSchedulingContext, error) {
+	if len(it.pq) == 0 {
+		// No queued jobs left.
+		return nil, nil
+	}
+	return it.pq[0].gctx, nil
 }
 
 func (it *CandidateGangIterator) newPQItem(queue string, queueIt *QueuedGangIterator) *QueueCandidateGangIteratorItem {
@@ -303,8 +349,9 @@ func (it *CandidateGangIterator) updateAndPushPQItem(item *QueueCandidateGangIte
 		return false, nil
 	}
 	if it.onlyYieldEvicted && !item.gctx.AllJobsEvicted {
-		// We assume here that all evicted jobs appear before non-evicted jobs in the queue.
-		// Hence, it's safe to drop a queue once a non-evicted job has been seen.
+		return false, nil
+	}
+	if it.onlyYieldEvictedByQueue[item.gctx.Queue] && !item.gctx.AllJobsEvicted {
 		return false, nil
 	}
 	heap.Push(&it.pq, item)
@@ -335,7 +382,7 @@ func (it *CandidateGangIterator) updatePQItem(item *QueueCandidateGangIteratorIt
 
 // queueCostWithGctx returns the cost associated with a queue if gctx were to be scheduled.
 func (it *CandidateGangIterator) queueCostWithGctx(gctx *schedulercontext.GangSchedulingContext) (float64, error) {
-	queue, ok := it.queueProvier.GetQueue(gctx.Queue)
+	queue, ok := it.queueRepository.GetQueue(gctx.Queue)
 	if !ok {
 		return 0, errors.Errorf("unknown queue %s", gctx.Queue)
 	}
@@ -343,33 +390,6 @@ func (it *CandidateGangIterator) queueCostWithGctx(gctx *schedulercontext.GangSc
 	it.buffer.Add(queue.GetAllocation())
 	it.buffer.Add(gctx.TotalResourceRequests)
 	return it.fairnessCostProvider.CostFromAllocationAndWeight(it.buffer, queue.GetWeight()), nil
-}
-
-// Clear removes the first item in the iterator.
-// If it.onlyYieldEvicted is true, any consecutive non-evicted jobs are also removed.
-func (it *CandidateGangIterator) Clear() error {
-	if len(it.pq) == 0 {
-		return nil
-	}
-	item := heap.Pop(&it.pq).(*QueueCandidateGangIteratorItem)
-	if err := item.it.Clear(); err != nil {
-		return err
-	}
-	if _, err := it.updateAndPushPQItem(item); err != nil {
-		return err
-	}
-	for len(it.pq) > 0 && it.onlyYieldEvicted && !it.pq[0].gctx.AllJobsEvicted {
-		heap.Pop(&it.pq)
-	}
-	return nil
-}
-
-func (it *CandidateGangIterator) Peek() (*schedulercontext.GangSchedulingContext, error) {
-	if len(it.pq) == 0 {
-		// No queued jobs left.
-		return nil, nil
-	}
-	return it.pq[0].gctx, nil
 }
 
 // Priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.

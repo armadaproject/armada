@@ -415,6 +415,7 @@ func (s *Simulator) handleScheduleEvent() error {
 				s.schedulingConfig.Preemption.PriorityClasses,
 				s.schedulingConfig.Preemption.DefaultPriorityClass,
 				fairnessCostProvider,
+				nil,
 				totalResources,
 			)
 			for _, queue := range s.testCase.Queues {
@@ -422,6 +423,7 @@ func (s *Simulator) handleScheduleEvent() error {
 					queue.Name,
 					queue.Weight,
 					s.allocationByPoolAndQueueAndPriorityClass[pool.Name][queue.Name],
+					nil,
 				)
 				if err != nil {
 					return err

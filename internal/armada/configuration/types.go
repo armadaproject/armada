@@ -124,10 +124,14 @@ type SchedulingConfig struct {
 	MaximumResourceFractionToSchedule map[string]float64
 	// Overrides MaximalClusterFractionToSchedule if set for the current pool.
 	MaximumResourceFractionToScheduleByPool map[string]map[string]float64
-	// Max number of jobs to schedule in each invocation of the scheduler.
-	MaximumJobsToSchedule uint
-	// Max number of gangs to schedule in each invocation of the scheduler.
-	MaximumGangsToSchedule uint
+	// Token bucket global job scheduling rate limiter settings; see
+	// https://pkg.go.dev/golang.org/x/time/rate#Limiter
+	MaximumSchedulingRate  float64 `validate:"gt=0"`
+	MaximumSchedulingBurst int     `validate:"gt=0"`
+	// Token bucket per-queue job scheduling rate limiter settings; see
+	// https://pkg.go.dev/golang.org/x/time/rate#Limiter
+	MaximumPerQueueSchedulingRate  float64 `validate:"gt=0"`
+	MaximumPerQueueSchedulingBurst int     `validate:"gt=0"`
 	// Armada stores contexts associated with recent job scheduling attempts.
 	// This setting limits the number of such contexts to store.
 	// Contexts associated with the most recent scheduling attempt for each queue and cluster are always stored.

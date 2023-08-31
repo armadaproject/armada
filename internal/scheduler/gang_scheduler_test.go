@@ -340,10 +340,11 @@ func TestGangScheduler(t *testing.T) {
 				tc.SchedulingConfig.Preemption.PriorityClasses,
 				tc.SchedulingConfig.Preemption.DefaultPriorityClass,
 				fairnessCostProvider,
+				nil,
 				tc.TotalResources,
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
-				err := sctx.AddQueueSchedulingContext(queue, priorityFactor, nil)
+				err := sctx.AddQueueSchedulingContext(queue, priorityFactor, nil, nil)
 				require.NoError(t, err)
 			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(

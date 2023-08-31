@@ -1367,11 +1367,12 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					tc.SchedulingConfig.Preemption.PriorityClasses,
 					tc.SchedulingConfig.Preemption.DefaultPriorityClass,
 					fairnessCostProvider,
+					nil,
 					tc.TotalResources,
 				)
 				for queue, priorityFactor := range tc.PriorityFactorByQueue {
 					weight := 1 / priorityFactor
-					err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClass[queue])
+					err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClass[queue], nil)
 					require.NoError(t, err)
 				}
 				constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
@@ -1645,11 +1646,12 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				tc.SchedulingConfig.Preemption.PriorityClasses,
 				tc.SchedulingConfig.Preemption.DefaultPriorityClass,
 				fairnessCostProvider,
+				nil,
 				nodeDb.TotalResources(),
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
 				weight := 1 / priorityFactor
-				err := sctx.AddQueueSchedulingContext(queue, weight, make(schedulerobjects.QuantityByTAndResourceType[string]))
+				err := sctx.AddQueueSchedulingContext(queue, weight, make(schedulerobjects.QuantityByTAndResourceType[string]), nil)
 				require.NoError(b, err)
 			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
@@ -1706,11 +1708,12 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					tc.SchedulingConfig.Preemption.PriorityClasses,
 					tc.SchedulingConfig.Preemption.DefaultPriorityClass,
 					fairnessCostProvider,
+					nil,
 					nodeDb.TotalResources(),
 				)
 				for queue, priorityFactor := range priorityFactorByQueue {
 					weight := 1 / priorityFactor
-					err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClass[queue])
+					err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClass[queue], nil)
 					require.NoError(b, err)
 				}
 				sch := NewPreemptingQueueScheduler(
