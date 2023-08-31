@@ -128,7 +128,6 @@ func (srv *MultiHealthMonitor) Collect(c chan<- prometheus.Metric) {
 		srv.healthPrometheusDesc,
 		prometheus.GaugeValue,
 		resultOfMostRecentHealthCheck,
-		srv.name,
 	)
 
 	for _, healthMonitor := range srv.healthMonitorsByName {
