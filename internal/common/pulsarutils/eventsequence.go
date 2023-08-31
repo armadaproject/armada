@@ -1,7 +1,6 @@
 package pulsarutils
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
 	"sync/atomic"
 
 	"github.com/armadaproject/armada/internal/common/schedulers"

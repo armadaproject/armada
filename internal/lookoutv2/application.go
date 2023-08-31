@@ -3,9 +3,11 @@
 package lookoutv2
 
 import (
+	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/caarlos0/log"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
@@ -53,7 +55,7 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 				skip = int(*params.GetJobsRequest.Skip)
 			}
 			result, err := getJobsRepo.GetJobs(
-				params.HTTPRequest.Context(),
+				context.New(params.HTTPRequest.Context(), logrus.NewEntry(logrus.New())),
 				filters,
 				params.GetJobsRequest.ActiveJobSets,
 				order,
@@ -78,7 +80,7 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 				skip = int(*params.GroupJobsRequest.Skip)
 			}
 			result, err := groupJobsRepo.GroupBy(
-				params.HTTPRequest.Context(),
+				context.New(params.HTTPRequest.Context(), logrus.NewEntry(logrus.New())),
 				filters,
 				params.GroupJobsRequest.ActiveJobSets,
 				order,
@@ -98,7 +100,8 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 
 	api.GetJobRunErrorHandler = operations.GetJobRunErrorHandlerFunc(
 		func(params operations.GetJobRunErrorParams) middleware.Responder {
-			result, err := getJobRunErrorRepo.GetJobRunError(params.HTTPRequest.Context(), params.GetJobRunErrorRequest.RunID)
+			ctx := context.New(params.HTTPRequest.Context(), logrus.NewEntry(logrus.New()))
+			result, err := getJobRunErrorRepo.GetJobRunError(ctx, params.GetJobRunErrorRequest.RunID)
 			if err != nil {
 				return operations.NewGetJobRunErrorBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
 			}
@@ -110,7 +113,8 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 
 	api.GetJobSpecHandler = operations.GetJobSpecHandlerFunc(
 		func(params operations.GetJobSpecParams) middleware.Responder {
-			result, err := getJobSpecRepo.GetJobSpec(params.HTTPRequest.Context(), params.GetJobSpecRequest.JobID)
+			ctx := context.New(params.HTTPRequest.Context(), logrus.NewEntry(logrus.New()))
+			result, err := getJobSpecRepo.GetJobSpec(ctx, params.GetJobSpecRequest.JobID)
 			if err != nil {
 				return operations.NewGetJobSpecBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
 			}

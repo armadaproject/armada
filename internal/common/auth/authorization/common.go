@@ -1,8 +1,8 @@
 package authorization
 
 import (
+	"context"
 	"errors"
-	"github.com/armadaproject/armada/internal/common/context"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_ctxtags "github.com/grpc-ecosystem/go-grpc-middleware/tags"
@@ -85,7 +85,7 @@ func (p *StaticPrincipal) GetGroupNames() []string {
 // GetPrincipal returns the principal (e.g., a user) contained in a context.
 // The principal is assumed to be stored as a ctx.Value.
 // If no principal can be found, a principal representing an anonymous (unauthenticated) user is returned.
-func GetPrincipal(ctx *context.ArmadaContext) Principal {
+func GetPrincipal(ctx context.Context) Principal {
 	p, ok := ctx.Value(principalKey).(Principal)
 	if !ok {
 		return anonymousPrincipal
@@ -94,7 +94,7 @@ func GetPrincipal(ctx *context.ArmadaContext) Principal {
 }
 
 // WithPrincipal returns a new context containing a principal that is a child to the given context.
-func WithPrincipal(ctx *context.ArmadaContext, principal Principal) *context.ArmadaContext {
+func WithPrincipal(ctx context.Context, principal Principal) context.Context {
 	return context.WithValue(ctx, principalKey, principal)
 }
 
@@ -102,7 +102,7 @@ func WithPrincipal(ctx *context.ArmadaContext, principal Principal) *context.Arm
 // Each implementation represents a particular method, e.g., username/password or OpenID.
 // The gRPC server may be started with multiple AuthService to give several options for authentication.
 type AuthService interface {
-	Authenticate(ctx *context.ArmadaContext) (Principal, error)
+	Authenticate(ctx context.Context) (Principal, error)
 	Name() string
 }
 
@@ -115,7 +115,7 @@ type AuthService interface {
 // If authentication succeeds, the username returned by the authentication service is added to the
 // request context for logging purposes.
 func CreateMiddlewareAuthFunction(authServices []AuthService) grpc_auth.AuthFunc {
-	return func(ctx *context.ArmadaContext) (*context.ArmadaContext, error) {
+	return func(ctx context.Context) (context.Context, error) {
 		for _, service := range authServices {
 			principal, err := service.Authenticate(ctx)
 

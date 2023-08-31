@@ -1,6 +1,7 @@
 package authorization
 
 import (
+	gocontext "context"
 	"encoding/base64"
 	"fmt"
 	"github.com/armadaproject/armada/internal/common/context"
@@ -75,7 +76,7 @@ func (authService *KerberosAuthService) Name() string {
 }
 
 type SPNEGOService interface {
-	AcceptSecContext(gssapi.ContextToken) (bool, *context.ArmadaContext, gssapi.Status)
+	AcceptSecContext(gssapi.ContextToken) (bool, gocontext.Context, gssapi.Status)
 }
 
 func (authService *KerberosAuthService) Authenticate(ctx *context.ArmadaContext) (Principal, error) {

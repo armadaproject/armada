@@ -2,9 +2,10 @@ package pulsarutils
 
 import (
 	gocontext "context"
-	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
