@@ -48,12 +48,6 @@ func NewJobRequester(
 }
 
 func (r *JobRequester) RequestJobsRuns() {
-	leasedJobs := r.jobRunStateStore.GetAllWithFilter(func(state *job.RunState) bool { return state.Phase == job.Leased })
-	if len(leasedJobs) > 0 {
-		log.Infof("Not requesting new jobs - as there is still %d leased jobs waiting to be submitted", len(leasedJobs))
-		return
-	}
-
 	leaseRequest, err := r.createLeaseRequest()
 	if err != nil {
 		log.Errorf("Failed to create lease request because %s", err)
@@ -90,6 +84,8 @@ func (r *JobRequester) createLeaseRequest() (*LeaseRequest, error) {
 	for i := range capacityReport.Nodes {
 		nodes = append(nodes, &capacityReport.Nodes[i])
 	}
+
+	//leasedJobs := r.jobRunStateStore.GetAllWithFilter(func(state *job.RunState) bool { return state.Phase == job.Leased })
 
 	return &LeaseRequest{
 		AvailableResource:   *capacityReport.AvailableCapacity,

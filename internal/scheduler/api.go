@@ -36,8 +36,6 @@ type ExecutorApi struct {
 	legacyExecutorRepository database.ExecutorRepository
 	// Allowed priority class priorities.
 	allowedPriorities []int32
-	// Max number of job leases sent per call to LeaseJobRuns.
-	maxJobsPerCall uint
 	// Max size of Pulsar messages produced.
 	maxPulsarMessageSizeBytes uint
 	// See scheduling schedulingConfig.
@@ -69,7 +67,6 @@ func NewExecutorApi(producer pulsar.Producer,
 		executorRepository:        executorRepository,
 		legacyExecutorRepository:  legacyExecutorRepository,
 		allowedPriorities:         allowedPriorities,
-		maxJobsPerCall:            maxJobsPerCall,
 		maxPulsarMessageSizeBytes: maxPulsarMessageSizeBytes,
 		nodeIdLabel:               nodeIdLabel,
 		priorityClassNameOverride: priorityClassNameOverride,
@@ -108,7 +105,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	if err != nil {
 		return err
 	}
-	newRuns, err := srv.jobRepository.FetchJobRunLeases(ctx, req.ExecutorId, srv.maxJobsPerCall, requestRuns)
+	newRuns, err := srv.jobRepository.FetchJobRunLeases(ctx, req.ExecutorId, uint(req.MaxJobsToLease), requestRuns)
 	if err != nil {
 		return err
 	}

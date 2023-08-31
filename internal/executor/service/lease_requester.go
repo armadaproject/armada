@@ -21,6 +21,7 @@ type LeaseRequest struct {
 	AvailableResource   armadaresource.ComputeResources
 	Nodes               []*api.NodeInfo
 	UnassignedJobRunIds []armadaevents.Uuid
+	MaxJobsToLease      uint32
 }
 
 type LeaseResponse struct {
@@ -63,6 +64,7 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx context.Context, request *L
 		Resources:           request.AvailableResource,
 		Nodes:               request.Nodes,
 		UnassignedJobRunIds: request.UnassignedJobRunIds,
+		MaxJobsToLease:      request.MaxJobsToLease,
 	}
 	if err := stream.Send(leaseRequest); err != nil {
 		return nil, errors.WithStack(err)
