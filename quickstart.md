@@ -1,6 +1,6 @@
 # Armada Quickstart
 
-The purpose of this guide is to install a minimal local Armada deployment for testing and evaluation purposes.
+The main purpose of this guide is to install a minimal local Armada deployment for testing and evaluation purposes.
 
 ## Pre-requisites
 
@@ -13,25 +13,32 @@ The purpose of this guide is to install a minimal local Armada deployment for te
 ## Installation
 This guide will install Armada on 3 local Kubernetes clusters; one server and two executor clusters.
 
-You should then clone this repository and step into it:
+Clone [this](https://github.com/armadaproject/armada) repository:
 
 ```bash
-git clone https://github.com/G-Research/armada.git
+git clone https://github.com/armadaproject/armada.git
 cd armada
 ```
 
 All commands are intended to be run from the root of the repository.
 
-Armada is a resource intensive application due to the need to run multiple Kubernetes clusters - for a local installation you will need at least 16GB of RAM available.
+Armada is a resource intensive application due to the need to run multiple Kubernetes clusters - for a local installation you will need at least 4 CPU cores and 16GB of RAM available.
 
 ### One-click Setup
 
 To install Armada and all its dependencies you can use this script: 
-https://github.com/G-Research/armada/blob/master/docs/local/setup.sh
 
-Likewise this script will remove the Armada components from your system: 
-https://github.com/G-Research/armada/blob/master/docs/local/destroy.sh
+```
+docs/local/setup.sh
+```
 
+Once completed, wait for all pods to be running via `kubectl get pod`
+
+Likewise you can remove the Armada components from your system: 
+
+```
+docs/local/destroy.sh
+```
 
 ## Usage
 Create queues, submit some jobs and monitor progress:
@@ -117,7 +124,7 @@ curl -X POST -i http://admin:prom-operator@localhost:30001/api/dashboards/import
 
 Grafana:
 
-![Armada Grafana dashboard](./quickstart/grafana-screenshot.png "Armada Grafana dashboard")
+![Armada Grafana dashboard](./img/grafana-screenshot.png "Armada Grafana dashboard")
 
 Note that the jobs in this demo simply run the `sleep` command so do not consume many resources.
 
@@ -130,4 +137,4 @@ kubectl port-forward svc/armada-lookout 8080:8080
 ```
 Then access it by opening [http://localhost:8080](http://localhost:8080) in your browser.
 
-![Lookout UI](./quickstart/lookout.png "Lookout UI")
+![Lookout UI](./img/lookout.png "Lookout UI")
