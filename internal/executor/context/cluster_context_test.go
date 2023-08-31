@@ -26,7 +26,6 @@ import (
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
-	"github.com/armadaproject/armada/internal/executor/healthmonitor"
 	"github.com/armadaproject/armada/internal/executor/util"
 )
 
@@ -41,23 +40,14 @@ func setupTestWithProvider() (*KubernetesClusterContext, *FakeClientProvider) {
 
 func setupTestWithMinRepeatedDeletePeriod(minRepeatedDeletePeriod time.Duration) (*KubernetesClusterContext, *FakeClientProvider) {
 	prometheus.DefaultRegisterer = prometheus.NewRegistry()
-
 	client := fake.NewSimpleClientset()
 	clientProvider := &FakeClientProvider{FakeClient: client}
-
-	fakeEtcdHealthMonitor := &healthmonitor.FakeEtcdLimitHealthMonitor{
-		IsWithinHardLimit: true,
-		IsWithinSoftLimit: true,
-	}
-
 	clusterContext := NewClusterContext(
 		configuration.ApplicationConfiguration{ClusterId: "test-cluster-1", Pool: "pool", DeleteConcurrencyLimit: 1},
 		minRepeatedDeletePeriod,
 		clientProvider,
-		fakeEtcdHealthMonitor,
 		5*time.Minute,
 	)
-
 	return clusterContext, clientProvider
 }
 
@@ -718,26 +708,6 @@ func TestKubernetesClusterContext_GetNodes(t *testing.T) {
 		return len(nodes) > 0 && nodes[0].Name == node.Name
 	})
 	assert.True(t, nodeFound)
-}
-
-func TestKubernetesClusterContext_Submit_BlocksOnEtcdReachingHardLimit(t *testing.T) {
-	clusterContext, _ := setupTestWithProvider()
-	unhealthyEtcdHeathMonitor := &healthmonitor.FakeEtcdLimitHealthMonitor{
-		IsWithinSoftLimit: false,
-		IsWithinHardLimit: false,
-	}
-	clusterContext.etcdHealthMonitor = unhealthyEtcdHeathMonitor
-
-	_, err := clusterContext.SubmitPod(createBatchPod(), "user", []string{})
-	assert.Error(t, err)
-}
-
-func TestKubernetesClusterContext_Submit_HandlesNoEtcdHealthMonitor(t *testing.T) {
-	clusterContext, _ := setupTestWithProvider()
-	clusterContext.etcdHealthMonitor = nil
-
-	_, err := clusterContext.SubmitPod(createBatchPod(), "user", []string{})
-	assert.NoError(t, err)
 }
 
 func TestKubernetesClusterContext_Submit_UseUserSpecificClient(t *testing.T) {
