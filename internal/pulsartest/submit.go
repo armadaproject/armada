@@ -1,6 +1,7 @@
 package pulsartest
 
 import (
+	"context"
 	"os"
 
 	"github.com/apache/pulsar-client-go/pulsar"

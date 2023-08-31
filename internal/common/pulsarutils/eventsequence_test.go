@@ -1,6 +1,7 @@
 package pulsarutils
 
 import (
+	gocontext "context"
 	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
@@ -32,7 +33,7 @@ func TestPublishSequences_RespectTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 	defer cancel()
 	err := PublishSequences(ctx, producer, []*armadaevents.EventSequence{{}}, schedulers.Pulsar)
-	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.ErrorIs(t, err, gocontext.DeadlineExceeded)
 }
 
 type mockProducer struct {
@@ -51,12 +52,12 @@ func (producer *mockProducer) Name() string {
 	return "name"
 }
 
-func (producer *mockProducer) Send(*context.ArmadaContext, *pulsar.ProducerMessage) (pulsar.MessageID, error) {
+func (producer *mockProducer) Send(gocontext.Context, *pulsar.ProducerMessage) (pulsar.MessageID, error) {
 	time.Sleep(producer.sendDuration)
 	return nil, producer.sendErr
 }
 
-func (producer *mockProducer) SendAsync(_ *context.ArmadaContext, _ *pulsar.ProducerMessage, f func(pulsar.MessageID, *pulsar.ProducerMessage, error)) {
+func (producer *mockProducer) SendAsync(_ gocontext.Context, _ *pulsar.ProducerMessage, f func(pulsar.MessageID, *pulsar.ProducerMessage, error)) {
 	time.Sleep(producer.sendAsyncDuration)
 	go f(nil, nil, producer.sendAsyncErr)
 }
