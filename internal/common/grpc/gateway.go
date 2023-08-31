@@ -2,10 +2,11 @@ package grpc
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"net/http"
 	"path"
 	"strings"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"google.golang.org/grpc/credentials/insecure"
 

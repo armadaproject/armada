@@ -1,6 +1,6 @@
 package authorization
 
-import "github.com/armadaproject/armada/internal/common/context"
+import "context"
 
 type AnonymousAuthService struct{}
 
@@ -8,6 +8,6 @@ func (authService *AnonymousAuthService) Name() string {
 	return "Anonymous"
 }
 
-func (AnonymousAuthService) Authenticate(ctx *context.ArmadaContext) (Principal, error) {
+func (AnonymousAuthService) Authenticate(context.Context) (Principal, error) {
 	return anonymousPrincipal, nil
 }

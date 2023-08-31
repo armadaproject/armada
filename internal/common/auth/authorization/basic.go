@@ -1,8 +1,8 @@
 package authorization
 
 import (
+	"context"
 	"encoding/base64"
-	"github.com/armadaproject/armada/internal/common/context"
 	"strings"
 
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
@@ -23,7 +23,7 @@ func (authService *BasicAuthService) Name() string {
 	return "Basic"
 }
 
-func (authService *BasicAuthService) Authenticate(ctx *context.ArmadaContext) (Principal, error) {
+func (authService *BasicAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	basicAuth, err := grpc_auth.AuthFromMD(ctx, "basic")
 	if err == nil {
 		payload, err := base64.StdEncoding.DecodeString(basicAuth)

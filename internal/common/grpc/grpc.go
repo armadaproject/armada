@@ -3,11 +3,12 @@ package grpc
 import (
 	"crypto/tls"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"net"
 	"runtime/debug"
 	"sync"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"

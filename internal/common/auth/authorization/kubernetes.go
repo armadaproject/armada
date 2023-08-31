@@ -1,10 +1,10 @@
 package authorization
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"os"
 	"strings"
 	"time"
@@ -23,12 +23,12 @@ import (
 )
 
 type TokenReviewer interface {
-	ReviewToken(ctx *context.ArmadaContext, clusterUrl string, token string, ca []byte) (*authv1.TokenReview, error)
+	ReviewToken(ctx context.Context, clusterUrl string, token string, ca []byte) (*authv1.TokenReview, error)
 }
 
 type KubernetesTokenReviewer struct{}
 
-func (reviewer *KubernetesTokenReviewer) ReviewToken(ctx *context.ArmadaContext, clusterUrl string, token string, ca []byte) (*authv1.TokenReview, error) {
+func (reviewer *KubernetesTokenReviewer) ReviewToken(ctx context.Context, clusterUrl string, token string, ca []byte) (*authv1.TokenReview, error) {
 	config := &rest.Config{
 		Host:            clusterUrl,
 		BearerToken:     token,
@@ -76,7 +76,7 @@ func (authService *KubernetesNativeAuthService) Name() string {
 	return "KubernetesNative"
 }
 
-func (authService *KubernetesNativeAuthService) Authenticate(ctx *context.ArmadaContext) (Principal, error) {
+func (authService *KubernetesNativeAuthService) Authenticate(ctx context.Context) (Principal, error) {
 	// Retrieve token from context.
 	authHeader := strings.SplitN(metautils.ExtractIncoming(ctx).Get("authorization"), " ", 2)
 
@@ -180,7 +180,7 @@ func (authService *KubernetesNativeAuthService) getClusterURL(token string) (str
 	return string(url), nil
 }
 
-func (authService *KubernetesNativeAuthService) reviewToken(ctx *context.ArmadaContext, clusterUrl string, token string, ca []byte) (string, error) {
+func (authService *KubernetesNativeAuthService) reviewToken(ctx context.Context, clusterUrl string, token string, ca []byte) (string, error) {
 	result, err := authService.TokenReviewer.ReviewToken(ctx, clusterUrl, token, ca)
 	if err != nil {
 		// TODO(clif) Hard to tell if this should be internal auth error

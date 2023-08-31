@@ -1,7 +1,6 @@
 package server
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
 	"strconv"
 
 	"github.com/gogo/protobuf/types"
