@@ -138,7 +138,6 @@ func Run(config schedulerconfig.Configuration) error {
 		executorRepository,
 		legacyExecutorRepository,
 		allowedPcs,
-		config.MaxJobsLeasedPerCall,
 		config.Scheduling.Preemption.NodeIdLabel,
 		config.Scheduling.Preemption.PriorityClassNameOverride,
 		config.Pulsar.MaxAllowedMessageSize,
