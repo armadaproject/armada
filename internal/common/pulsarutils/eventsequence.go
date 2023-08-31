@@ -3,15 +3,15 @@ package pulsarutils
 import (
 	"sync/atomic"
 
-	"github.com/armadaproject/armada/internal/common/schedulers"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/requestid"
+	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
