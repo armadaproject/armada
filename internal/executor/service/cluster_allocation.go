@@ -182,7 +182,7 @@ func (allocationService *LegacyClusterAllocationService) AllocateSpareClusterCap
 		utilisation.GetAllocationByQueue(activePods),
 		utilisation.GetAllocationByQueueAndPriority(activePods),
 	)
-	logAvailableResources(*capacityReport.AvailableCapacity, len(newJobs))
+	log.Infof("Reporting current free resource %s. Received %d new jobs.", formatResources(*capacityReport.AvailableCapacity), len(newJobs))
 	if err != nil {
 		log.Errorf("failed to lease new jobs: %v", err)
 		return
@@ -194,7 +194,7 @@ func (allocationService *LegacyClusterAllocationService) AllocateSpareClusterCap
 	}
 }
 
-func logAvailableResources(availableResource armadaresource.ComputeResources, jobCount int) {
+func formatResources(availableResource armadaresource.ComputeResources) string {
 	cpu := availableResource["cpu"]
 	memory := availableResource["memory"]
 	ephemeralStorage := availableResource["ephemeral-storage"]
@@ -212,8 +212,7 @@ func logAvailableResources(availableResource armadaresource.ComputeResources, jo
 	if amdGpu.Value() > 0 {
 		resources += fmt.Sprintf(", amd.com/gpu: %d", nvidiaGpu.Value())
 	}
-
-	log.Infof("Reporting current free resource %s. Received %d new jobs. ", resources, jobCount)
+	return resources
 }
 
 // Any pod not in a terminal state is considered active for the purposes of cluster allocation

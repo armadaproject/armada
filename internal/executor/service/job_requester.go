@@ -63,7 +63,8 @@ func (r *JobRequester) RequestJobsRuns() {
 		log.Errorf("Failed to request new jobs leases as because %s", err)
 		return
 	}
-	logAvailableResources(leaseRequest.AvailableResource, len(leaseResponse.LeasedRuns))
+	log.Infof("Reporting current free resource %s. Requesting %d new jobs. Received %d new jobs.",
+		formatResources(leaseRequest.AvailableResource), leaseRequest.MaxJobsToLease, len(leaseResponse.LeasedRuns))
 
 	jobs, failedJobCreations := r.createSubmitJobs(leaseResponse.LeasedRuns)
 	r.markJobRunsAsLeased(jobs)
