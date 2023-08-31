@@ -43,8 +43,12 @@ type FairSchedulingAlgo struct {
 	executorRepository          database.ExecutorRepository
 	queueRepository             database.QueueRepository
 	schedulingContextRepository *SchedulingContextRepository
-	limiter                     *rate.Limiter
-	maxSchedulingDuration       time.Duration
+	// Global job scheduling rate-limiter.
+	limiter *rate.Limiter
+	// Per-queue job scheduling rate-limiters.
+	limiterByQueue map[string]*rate.Limiter
+	// Max amount of time each scheduling round is allowed to take.
+	maxSchedulingDuration time.Duration
 	// Order in which to schedule executor groups.
 	// Executors are grouped by either id (i.e., individually) or by pool.
 	executorGroupsToSchedule []string
@@ -70,6 +74,8 @@ func NewFairSchedulingAlgo(
 		executorRepository:          executorRepository,
 		queueRepository:             queueRepository,
 		schedulingContextRepository: schedulingContextRepository,
+		limiter:                     rate.NewLimiter(rate.Limit(config.MaximumSchedulingRate), config.MaximumSchedulingBurst),
+		limiterByQueue:              make(map[string]*rate.Limiter),
 		maxSchedulingDuration:       maxSchedulingDuration,
 		rand:                        util.NewThreadsafeRand(time.Now().UnixNano()),
 		clock:                       clock.RealClock{},
@@ -374,6 +380,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		l.schedulingConfig.Preemption.PriorityClasses,
 		l.schedulingConfig.Preemption.DefaultPriorityClass,
 		fairnessCostProvider,
+		l.limiter,
 		totalResources,
 	)
 	for queue, priorityFactor := range fsctx.priorityFactorByQueue {
@@ -389,7 +396,15 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		if priorityFactor > 0 {
 			weight = 1 / priorityFactor
 		}
-		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByPriorityClass); err != nil {
+		queueLimiter, ok := l.limiterByQueue[queue]
+		if !ok {
+			// Create per-queue limiters lazily.
+			queueLimiter = rate.NewLimiter(
+				rate.Limit(l.schedulingConfig.MaximumPerQueueSchedulingRate),
+				l.schedulingConfig.MaximumPerQueueSchedulingBurst,
+			)
+		}
+		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByPriorityClass, queueLimiter); err != nil {
 			return nil, nil, err
 		}
 	}

@@ -102,6 +102,10 @@ func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, erro
 			// If unschedulableReason indicates no more new jobs can be scheduled,
 			// instruct the underlying iterator to only yield evicted jobs from now on.
 			sch.candidateGangIterator.OnlyYieldEvicted()
+		} else if schedulerconstraints.IsTerminalQueueUnschedulableReason(unschedulableReason) {
+			// If unschedulableReason indicates no more new jobs can be scheduled for this queue,
+			// instruct the underlying iterator to only yield evicted jobs for this queue from now on.
+			sch.candidateGangIterator.OnlyYieldEvictedForQueue(gctx.Queue)
 		}
 		// Clear() to get the next gang in order of smallest fair share.
 		// Calling clear here ensures the gang scheduled in this iteration is accounted for.

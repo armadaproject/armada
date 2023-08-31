@@ -166,16 +166,6 @@ func WithIndexedResourcesConfig(indexResources []configuration.IndexedResource, 
 	return config
 }
 
-func WithMaxJobsToScheduleConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.MaximumJobsToSchedule = n
-	return config
-}
-
-func WithMaxGangsToScheduleConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.MaximumGangsToSchedule = n
-	return config
-}
-
 func WithMaxLookbackPerQueueConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
 	// For legacy reasons, it's called QueueLeaseBatchSize in config.
 	config.MaxQueueLookback = n
