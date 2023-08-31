@@ -48,6 +48,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			},
 		},
 		UnassignedJobRunIds: []armadaevents.Uuid{*armadaevents.ProtoUuidFromUuid(runId3)},
+		MaxJobsToLease:      uint32(maxJobsPerCall),
 	}
 	defaultExpectedExecutor := &schedulerobjects.Executor{
 		Id:   "test-executor",
@@ -202,7 +203,6 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				mockExecutorRepository,
 				mockLegacyExecutorRepository,
 				[]int32{1000, 2000},
-				maxJobsPerCall,
 				"kubernetes.io/hostname",
 				nil,
 				4*1024*1024,
@@ -330,7 +330,6 @@ func TestExecutorApi_Publish(t *testing.T) {
 				mockExecutorRepository,
 				mockLegacyExecutorRepository,
 				[]int32{1000, 2000},
-				100,
 				"kubernetes.io/hostname",
 				nil,
 				4*1024*1024,

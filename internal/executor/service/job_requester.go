@@ -27,6 +27,7 @@ type JobRequester struct {
 	clusterId          executorContext.ClusterIdentity
 	podDefaults        *configuration.PodDefaults
 	jobRunStateStore   job.RunStateStore
+	maxLeasedJobs      int
 }
 
 func NewJobRequester(
@@ -36,6 +37,7 @@ func NewJobRequester(
 	jobRunStateStore job.RunStateStore,
 	utilisationService utilisation.UtilisationService,
 	podDefaults *configuration.PodDefaults,
+	maxLeasedJobs int,
 ) *JobRequester {
 	return &JobRequester{
 		leaseRequester:     leaseRequester,
@@ -44,6 +46,7 @@ func NewJobRequester(
 		jobRunStateStore:   jobRunStateStore,
 		clusterId:          clusterId,
 		podDefaults:        podDefaults,
+		maxLeasedJobs:      maxLeasedJobs,
 	}
 }
 
@@ -60,7 +63,8 @@ func (r *JobRequester) RequestJobsRuns() {
 		log.Errorf("Failed to request new jobs leases as because %s", err)
 		return
 	}
-	logAvailableResources(leaseRequest.AvailableResource, len(leaseResponse.LeasedRuns))
+	log.Infof("Reporting current free resource %s. Requesting %d new jobs. Received %d new jobs.",
+		formatResources(leaseRequest.AvailableResource), leaseRequest.MaxJobsToLease, len(leaseResponse.LeasedRuns))
 
 	jobs, failedJobCreations := r.createSubmitJobs(leaseResponse.LeasedRuns)
 	r.markJobRunsAsLeased(jobs)
@@ -85,10 +89,17 @@ func (r *JobRequester) createLeaseRequest() (*LeaseRequest, error) {
 		nodes = append(nodes, &capacityReport.Nodes[i])
 	}
 
+	leasedJobs := r.jobRunStateStore.GetAllWithFilter(func(state *job.RunState) bool { return state.Phase == job.Leased })
+	maxJobsToLease := r.maxLeasedJobs
+	if len(leasedJobs) > 0 {
+		maxJobsToLease = 0
+	}
+
 	return &LeaseRequest{
 		AvailableResource:   *capacityReport.AvailableCapacity,
 		Nodes:               nodes,
 		UnassignedJobRunIds: unassignedRunIds,
+		MaxJobsToLease:      uint32(maxJobsToLease),
 	}, nil
 }
 

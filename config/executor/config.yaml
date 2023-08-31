@@ -8,6 +8,7 @@ application:
   useExecutorApi: false
   useLegacyApi: true
   jobLeaseRequestTimeout: "30s"
+  maxLeasedJobs: 100
 task:
   utilisationReportingInterval: 1s
   missingJobEventReconciliationInterval: 15s
