@@ -51,8 +51,6 @@ type Configuration struct {
 	DatabaseFetchSize int `validate:"required"`
 	// Timeout to use when sending messages to pulsar
 	PulsarSendTimeout time.Duration `validate:"required"`
-	// Maximum jobs to return from a single lease call
-	MaxJobsLeasedPerCall uint `validate:"required"`
 }
 
 type LeaderConfig struct {
