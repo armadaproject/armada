@@ -55,29 +55,13 @@ jobs:
           username: "${{ secrets.DOCKERHUB_USER }}"
           password: "${{ secrets.DOCKERHUB_PASS }}"
 
-      - name: Output full commit sha
-        run: echo "sha_full=$(git rev-parse HEAD)" >> $GITHUB_ENV
-
-      - name: Restore cached Docker image tarballs
-        id: restore
-        uses: actions/cache/restore@v3
-        with:
-          key: docker-images-tarballs-${{ env.sha_full }}
-          path: /tmp/imgs
-
-      - name: Run GoReleaser on cache miss
-        if: steps.restore.outputs.cache-hit != 'true'
-        uses: goreleaser/goreleaser-action@v3
-        with:
-          distribution: goreleaser
-          version: v1.20.0
-          args: release  --snapshot --skip-sbom --skip-sign --clean
+      - name: Download Docker image tarballs artifact
+        run: |
+          mkdir -p /tmp/imgs
+          cd /tmp/imgs
+          gh run download ${{ github.event.workflow_run.id }} --name armada-image-tarballs
         env:
-          DOCKER_REPO: "gresearch"
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-          DOCKER_BUILDX_BUILDER: "${{ steps.buildx.outputs.name }}"
-          DOCKER_BUILDX_CACHE_FROM: "type=gha"
-          DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
+          GH_TOKEN: ${{ github.token }}
 
       - name: Run Docker push script
-        run: ./scripts/docker-push.sh -t '${{ github.event.workflow_run.head_sha }}' -i /tmp/imgs -u "${{ steps.restore.outputs.cache-hit }}"
+        run: ./scripts/docker-push.sh -t '${{ github.event.workflow_run.head_sha }}' -i /tmp/imgs -u "true"

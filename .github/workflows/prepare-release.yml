@@ -43,9 +43,9 @@ jobs:
         run: |
           scripts/docker-save.sh -t ${{ env.sha_full }} -o /tmp/imgs
 
-      - name: Cache Docker image tarballs
-        uses: actions/cache/save@v3
+      - name: Save Docker image tarballs as artifacts
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v3
         with:
-          key: docker-images-tarballs-${{ env.sha_full }}
-          path: |
-            /tmp/imgs
+          name: armada-image-tarballs
+          path: /tmp/imgs
