@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"

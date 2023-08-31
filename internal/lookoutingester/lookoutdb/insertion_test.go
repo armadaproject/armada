@@ -2,10 +2,11 @@ package lookoutdb
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"sort"
 	"testing"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 

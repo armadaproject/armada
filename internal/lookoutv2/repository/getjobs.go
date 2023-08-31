@@ -3,9 +3,10 @@ package repository
 import (
 	"database/sql"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"sort"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"

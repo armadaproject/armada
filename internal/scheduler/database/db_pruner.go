@@ -1,7 +1,7 @@
 package database
 
 import (
-	ctx "github.com/armadaproject/armada/internal/common/context"
+	ctx "context"
 	"time"
 
 	"github.com/jackc/pgx/v5"

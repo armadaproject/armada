@@ -2,7 +2,6 @@ package repository
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"strings"
 
 	"github.com/jackc/pgx/v5"

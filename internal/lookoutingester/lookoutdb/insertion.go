@@ -2,9 +2,10 @@ package lookoutdb
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"sync"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"

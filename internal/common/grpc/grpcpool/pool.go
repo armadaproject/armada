@@ -4,9 +4,10 @@ package grpcpool
 import (
 	"container/ring"
 	"errors"
-	"github.com/armadaproject/armada/internal/common/context"
 	"sync"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"google.golang.org/grpc"
 )

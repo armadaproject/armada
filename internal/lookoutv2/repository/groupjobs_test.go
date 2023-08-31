@@ -2,9 +2,10 @@ package repository
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"

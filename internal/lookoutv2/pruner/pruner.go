@@ -1,7 +1,6 @@
 package pruner
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
 	"github.com/jackc/pgx/v5"

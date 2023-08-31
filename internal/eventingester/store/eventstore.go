@@ -1,9 +1,10 @@
 package store
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
 	"regexp"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/go-redis/redis"
 	"github.com/hashicorp/go-multierror"

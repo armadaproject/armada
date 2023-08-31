@@ -2,9 +2,10 @@ package grpcpool
 
 import (
 	gocontext "context"
-	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
