@@ -86,7 +86,7 @@ func NewEtcdReplicaHealthMonitor(
 	metricsCollectionDelayBucketsCount int,
 	metricsProvider metrics.MetricsProvider,
 ) *EtcdReplicaHealthMonitor {
-	return &EtcdReplicaHealthMonitor{
+	srv := &EtcdReplicaHealthMonitor{
 		name:                                name,
 		fractionOfStorageInUseLimit:         fractionOfStorageInUseLimit,
 		fractionOfStorageLimit:              fractionOfStorageLimit,
@@ -97,11 +97,56 @@ func NewEtcdReplicaHealthMonitor(
 		metricsCollectionDelayBucketsCount:  metricsCollectionDelayBucketsCount,
 		metricsProvider:                     metricsProvider,
 	}
+	srv.initialiseMetrics()
+	return srv
 }
 
 func (srv *EtcdReplicaHealthMonitor) WithMetricsPrefix(v string) *EtcdReplicaHealthMonitor {
 	srv.metricsPrefix = v
+	srv.initialiseMetrics()
 	return srv
+}
+
+func (srv *EtcdReplicaHealthMonitor) initialiseMetrics() {
+	srv.healthPrometheusDesc = prometheus.NewDesc(
+		srv.metricsPrefix+"etcd_replica_health",
+		"Shows the health of an etcd replica",
+		[]string{etcdMemberUrl},
+		nil,
+	)
+	srv.timeOfMostRecentCollectionAttemptPrometheusDesc = prometheus.NewDesc(
+		srv.metricsPrefix+"etcd_replica_time_of_most_recent_metrics_collection_attempt",
+		"Time of most recent metrics collection attempt.",
+		[]string{etcdMemberUrl},
+		nil,
+	)
+	srv.timeOfMostRecentSuccessfulCollectionAttemptPrometheusDesc = prometheus.NewDesc(
+		srv.metricsPrefix+"etcd_replica_time_of_most_recent_successful_metrics_collection",
+		"Time of most recent successful metrics collection.",
+		[]string{etcdMemberUrl},
+		nil,
+	)
+	srv.sizeInUseFractionPrometheusDesc = prometheus.NewDesc(
+		srv.metricsPrefix+"etcd_replica_size_in_use_fraction",
+		"etcd_mvcc_db_total_size_in_use_in_bytes / etcd_server_quota_backend_bytes.",
+		[]string{etcdMemberUrl},
+		nil,
+	)
+	srv.sizeFractionPrometheusDesc = prometheus.NewDesc(
+		srv.metricsPrefix+"etcd_replica_size_fraction",
+		"etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes.",
+		[]string{etcdMemberUrl},
+		nil,
+	)
+	srv.metricsCollectionDelayHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name: srv.metricsPrefix + "etcd_replica_metrics_collection_delay_seconds",
+		Help: "Delay in seconds of collecting metrics from this etcd replica.",
+		Buckets: prometheus.ExponentialBuckets(
+			srv.metricsCollectionDelayBucketsStart,
+			srv.metricsCollectionDelayBucketsFactor,
+			srv.metricsCollectionDelayBucketsCount,
+		),
+	})
 }
 
 func (srv *EtcdReplicaHealthMonitor) IsHealthy() (bool, string, error) {
@@ -137,7 +182,6 @@ func (srv *EtcdReplicaHealthMonitor) sizeFraction() float64 {
 }
 
 func (srv *EtcdReplicaHealthMonitor) Run(ctx context.Context, log *logrus.Entry) error {
-	srv.initialise()
 	log = log.WithField("service", "EtcdHealthMonitor")
 	log.Info("starting etcd health monitor")
 	defer log.Info("stopping etcd health monitor")
@@ -186,48 +230,6 @@ func (srv *EtcdReplicaHealthMonitor) Run(ctx context.Context, log *logrus.Entry)
 
 func floatingPointSecondsFromDuration(d time.Duration) float64 {
 	return float64(d) / 1e9
-}
-
-func (srv *EtcdReplicaHealthMonitor) initialise() {
-	srv.healthPrometheusDesc = prometheus.NewDesc(
-		srv.metricsPrefix+"etcd_replica_health",
-		"Shows the health of an etcd replica",
-		[]string{etcdMemberUrl},
-		nil,
-	)
-	srv.timeOfMostRecentCollectionAttemptPrometheusDesc = prometheus.NewDesc(
-		srv.metricsPrefix+"etcd_replica_time_of_most_recent_metrics_collection_attempt",
-		"Time of most recent metrics collection attempt.",
-		[]string{etcdMemberUrl},
-		nil,
-	)
-	srv.timeOfMostRecentSuccessfulCollectionAttemptPrometheusDesc = prometheus.NewDesc(
-		srv.metricsPrefix+"etcd_replica_time_of_most_recent_successful_metrics_collection",
-		"Time of most recent successful metrics collection.",
-		[]string{etcdMemberUrl},
-		nil,
-	)
-	srv.sizeInUseFractionPrometheusDesc = prometheus.NewDesc(
-		srv.metricsPrefix+"etcd_replica_size_in_use_fraction",
-		"etcd_mvcc_db_total_size_in_use_in_bytes / etcd_server_quota_backend_bytes.",
-		[]string{etcdMemberUrl},
-		nil,
-	)
-	srv.sizeFractionPrometheusDesc = prometheus.NewDesc(
-		srv.metricsPrefix+"etcd_replica_size_fraction",
-		"etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes.",
-		[]string{etcdMemberUrl},
-		nil,
-	)
-	srv.metricsCollectionDelayHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name: srv.metricsPrefix + "etcd_replica_metrics_collection_delay_seconds",
-		Help: "Delay in seconds of collecting metrics from this etcd replica.",
-		Buckets: prometheus.ExponentialBuckets(
-			srv.metricsCollectionDelayBucketsStart,
-			srv.metricsCollectionDelayBucketsFactor,
-			srv.metricsCollectionDelayBucketsCount,
-		),
-	})
 }
 
 func (srv *EtcdReplicaHealthMonitor) setSizeInUseBytesFromMetrics(metrics map[string]float64) error {
