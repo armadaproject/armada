@@ -453,7 +453,7 @@ func createJobSetFilter(filter *api.JobSetFilter) *repository.JobSetFilter {
 }
 
 // cancels a job with a given ID
-func (server *SubmitServer) cancelJobsById(ctx *armadacontext.ArmadaContext, jobId string, reason string) (*api.CancellationResult, error) {
+func (server *SubmitServer) cancelJobsById(ctx *armadacontext.Context, jobId string, reason string) (*api.CancellationResult, error) {
 	jobs, err := server.jobRepository.GetExistingJobsByIds([]string{jobId})
 	if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "[cancelJobsById] error getting job with ID %s: %s", jobId, err)
@@ -475,7 +475,7 @@ func (server *SubmitServer) cancelJobsById(ctx *armadacontext.ArmadaContext, job
 
 // cancels all jobs part of a particular job set and queue
 func (server *SubmitServer) cancelJobsByQueueAndSet(
-	ctx *armadacontext.ArmadaContext,
+	ctx *armadacontext.Context,
 	queue string,
 	jobSetId string,
 	filter *repository.JobSetFilter,
@@ -518,7 +518,7 @@ func (server *SubmitServer) cancelJobsByQueueAndSet(
 	return &api.CancellationResult{CancelledIds: cancelledIds}, nil
 }
 
-func (server *SubmitServer) cancelJobs(ctx *armadacontext.ArmadaContext, jobs []*api.Job, reason string) (*api.CancellationResult, error) {
+func (server *SubmitServer) cancelJobs(ctx *armadacontext.Context, jobs []*api.Job, reason string) (*api.CancellationResult, error) {
 	principal := authorization.GetPrincipal(ctx)
 
 	err := server.checkCancelPerms(ctx, jobs)
@@ -560,7 +560,7 @@ func (server *SubmitServer) cancelJobs(ctx *armadacontext.ArmadaContext, jobs []
 	return &api.CancellationResult{CancelledIds: cancelledIds}, nil
 }
 
-func (server *SubmitServer) checkCancelPerms(ctx *armadacontext.ArmadaContext, jobs []*api.Job) error {
+func (server *SubmitServer) checkCancelPerms(ctx *armadacontext.Context, jobs []*api.Job) error {
 	queueNames := make(map[string]struct{})
 	for _, job := range jobs {
 		queueNames[job.Queue] = struct{}{}
@@ -684,7 +684,7 @@ func (server *SubmitServer) reportReprioritizedJobEvents(reprioritizedJobs []*ap
 	return nil
 }
 
-func (server *SubmitServer) checkReprioritizePerms(ctx *armadacontext.ArmadaContext, jobs []*api.Job) error {
+func (server *SubmitServer) checkReprioritizePerms(ctx *armadacontext.Context, jobs []*api.Job) error {
 	queueNames := make(map[string]struct{})
 	for _, job := range jobs {
 		queueNames[job.Queue] = struct{}{}
@@ -712,7 +712,7 @@ func (server *SubmitServer) checkReprioritizePerms(ctx *armadacontext.ArmadaCont
 	return nil
 }
 
-func (server *SubmitServer) getQueueOrCreate(ctx *armadacontext.ArmadaContext, queueName string) (*queue.Queue, error) {
+func (server *SubmitServer) getQueueOrCreate(ctx *armadacontext.Context, queueName string) (*queue.Queue, error) {
 	q, e := server.queueRepository.GetQueue(queueName)
 	if e == nil {
 		return &q, nil
@@ -767,7 +767,7 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 	if err != nil {
 		return nil, err
 	}
-	defer func(compressorPool *pool.ObjectPool, ctx *armadacontext.ArmadaContext, object interface{}) {
+	defer func(compressorPool *pool.ObjectPool, ctx *armadacontext.Context, object interface{}) {
 		err := compressorPool.ReturnObject(ctx, object)
 		if err != nil {
 			log.WithError(err).Errorf("Error returning compressor to pool")

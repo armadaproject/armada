@@ -65,7 +65,7 @@ func (c *InstructionConverter) IsLegacy() bool {
 	return c.useLegacyEventConversion
 }
 
-func (c *InstructionConverter) Convert(ctx *armadacontext.ArmadaContext, sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
+func (c *InstructionConverter) Convert(ctx *armadacontext.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
 	updateInstructions := &model.InstructionSet{
 		MessageIds: sequencesWithIds.MessageIds,
 	}
@@ -77,7 +77,7 @@ func (c *InstructionConverter) Convert(ctx *armadacontext.ArmadaContext, sequenc
 }
 
 func (c *InstructionConverter) convertSequence(
-	ctx *armadacontext.ArmadaContext,
+	ctx *armadacontext.Context,
 	sequence *armadaevents.EventSequence,
 	update *model.InstructionSet,
 ) {

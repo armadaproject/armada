@@ -37,7 +37,7 @@ func init() {
 	pflag.Parse()
 }
 
-func makeContext() (*armadacontext.ArmadaContext, func()) {
+func makeContext() (*armadacontext.Context, func()) {
 	ctx := armadacontext.Background()
 	ctx, cancel := armadacontext.WithCancel(ctx)
 
@@ -58,7 +58,7 @@ func makeContext() (*armadacontext.ArmadaContext, func()) {
 	}
 }
 
-func migrate(ctx *armadacontext.ArmadaContext, config configuration.LookoutV2Configuration) {
+func migrate(ctx *armadacontext.Context, config configuration.LookoutV2Configuration) {
 	db, err := database.OpenPgxPool(config.Postgres)
 	if err != nil {
 		panic(err)
@@ -75,7 +75,7 @@ func migrate(ctx *armadacontext.ArmadaContext, config configuration.LookoutV2Con
 	}
 }
 
-func prune(ctx *armadacontext.ArmadaContext, config configuration.LookoutV2Configuration) {
+func prune(ctx *armadacontext.Context, config configuration.LookoutV2Configuration) {
 	db, err := database.OpenPgxConn(config.Postgres)
 	if err != nil {
 		panic(err)

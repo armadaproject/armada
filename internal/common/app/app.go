@@ -9,7 +9,7 @@ import (
 )
 
 // CreateContextWithShutdown returns a context that will report done when a SIGTERM is received
-func CreateContextWithShutdown() *armadacontext.ArmadaContext {
+func CreateContextWithShutdown() *armadacontext.Context {
 	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)

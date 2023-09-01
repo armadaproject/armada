@@ -52,7 +52,7 @@ type ClusterContext interface {
 	GetActiveBatchPods() ([]*v1.Pod, error)
 	GetNodes() ([]*v1.Node, error)
 	GetNode(nodeName string) (*v1.Node, error)
-	GetNodeStatsSummary(*armadacontext.ArmadaContext, *v1.Node) (*v1alpha1.Summary, error)
+	GetNodeStatsSummary(*armadacontext.Context, *v1.Node) (*v1alpha1.Summary, error)
 	GetPodEvents(pod *v1.Pod) ([]*v1.Event, error)
 	GetServices(pod *v1.Pod) ([]*v1.Service, error)
 	GetIngresses(pod *v1.Pod) ([]*networking.Ingress, error)
@@ -229,7 +229,7 @@ func (c *KubernetesClusterContext) GetNode(nodeName string) (*v1.Node, error) {
 	return c.nodeInformer.Lister().Get(nodeName)
 }
 
-func (c *KubernetesClusterContext) GetNodeStatsSummary(ctx *armadacontext.ArmadaContext, node *v1.Node) (*v1alpha1.Summary, error) {
+func (c *KubernetesClusterContext) GetNodeStatsSummary(ctx *armadacontext.Context, node *v1.Node) (*v1alpha1.Summary, error) {
 	request := c.kubernetesClient.
 		CoreV1().
 		RESTClient().

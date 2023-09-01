@@ -314,7 +314,7 @@ func (c *FakeClusterContext) GetClusterPool() string {
 	return c.pool
 }
 
-func (c *FakeClusterContext) GetNodeStatsSummary(ctx *armadacontext.ArmadaContext, node *v1.Node) (*v1alpha1.Summary, error) {
+func (c *FakeClusterContext) GetNodeStatsSummary(ctx *armadacontext.Context, node *v1.Node) (*v1alpha1.Summary, error) {
 	return &v1alpha1.Summary{}, nil
 }
 

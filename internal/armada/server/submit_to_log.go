@@ -620,7 +620,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(grpcContext gocontext.Context, r
 // Checks that the user has either anyPerm (e.g., permissions.SubmitAnyJobs) or perm (e.g., PermissionVerbSubmit) for this queue.
 // Returns the userId and groups extracted from the context.
 func (srv *PulsarSubmitServer) Authorize(
-	ctx *armadacontext.ArmadaContext,
+	ctx *armadacontext.Context,
 	queueName string,
 	anyPerm permission.Permission,
 	perm queue.PermissionVerb,
@@ -702,7 +702,7 @@ func (srv *PulsarSubmitServer) GetQueueInfo(ctx gocontext.Context, req *api.Queu
 }
 
 // PublishToPulsar sends pulsar messages async
-func (srv *PulsarSubmitServer) publishToPulsar(ctx *armadacontext.ArmadaContext, sequences []*armadaevents.EventSequence, scheduler schedulers.Scheduler) error {
+func (srv *PulsarSubmitServer) publishToPulsar(ctx *armadacontext.Context, sequences []*armadaevents.EventSequence, scheduler schedulers.Scheduler) error {
 	// Reduce the number of sequences to send to the minimum possible,
 	// and then break up any sequences larger than srv.MaxAllowedMessageSize.
 	sequences = eventutil.CompactEventSequences(sequences)
@@ -722,7 +722,7 @@ func jobKey(j *api.Job) string {
 // getOriginalJobIds returns the mapping between jobId and originalJobId.  If the job (or more specifically the clientId
 // on the job) has not been seen before then jobId -> jobId.  If the job has been seen before then jobId -> originalJobId
 // Note that if srv.KVStore is nil then this function simply returns jobId -> jobId
-func (srv *PulsarSubmitServer) getOriginalJobIds(ctx *armadacontext.ArmadaContext, apiJobs []*api.Job) (map[string]string, error) {
+func (srv *PulsarSubmitServer) getOriginalJobIds(ctx *armadacontext.Context, apiJobs []*api.Job) (map[string]string, error) {
 	// Default is the current id
 	ret := make(map[string]string, len(apiJobs))
 	for _, apiJob := range apiJobs {
@@ -761,7 +761,7 @@ func (srv *PulsarSubmitServer) getOriginalJobIds(ctx *armadacontext.ArmadaContex
 	return ret, nil
 }
 
-func (srv *PulsarSubmitServer) storeOriginalJobIds(ctx *armadacontext.ArmadaContext, apiJobs []*api.Job) error {
+func (srv *PulsarSubmitServer) storeOriginalJobIds(ctx *armadacontext.Context, apiJobs []*api.Job) error {
 	if srv.KVStore == nil {
 		return nil
 	}

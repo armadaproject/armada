@@ -132,7 +132,7 @@ func (c *SyncFakeClusterContext) GetClusterPool() string {
 	return "pool"
 }
 
-func (c *SyncFakeClusterContext) GetNodeStatsSummary(ctx *armadacontext.ArmadaContext, node *v1.Node) (*v1alpha1.Summary, error) {
+func (c *SyncFakeClusterContext) GetNodeStatsSummary(ctx *armadacontext.Context, node *v1.Node) (*v1alpha1.Summary, error) {
 	return &v1alpha1.Summary{}, nil
 }
 

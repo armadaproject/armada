@@ -292,7 +292,7 @@ func (repo *mockJobRepository) Enqueue(job *api.Job) {
 	repo.jobsById[job.Id] = job
 }
 
-func (repo *mockJobRepository) GetJobIterator(ctx *armadacontext.ArmadaContext, queue string) (JobIterator, error) {
+func (repo *mockJobRepository) GetJobIterator(ctx *armadacontext.Context, queue string) (JobIterator, error) {
 	return NewQueuedJobsIterator(ctx, queue, repo)
 }
 

@@ -4,7 +4,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
-func RetryUntilSuccess(ctx *armadacontext.ArmadaContext, performAction func() error, onError func(error)) {
+func RetryUntilSuccess(ctx *armadacontext.Context, performAction func() error, onError func(error)) {
 	for {
 		select {
 		case <-ctx.Done():

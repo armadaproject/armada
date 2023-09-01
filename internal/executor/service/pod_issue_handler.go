@@ -225,7 +225,7 @@ func (p *IssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 	}
 }
 
-func (p *IssueHandler) handleKnownIssues(ctx *armadacontext.ArmadaContext, allManagedPods []*v1.Pod) {
+func (p *IssueHandler) handleKnownIssues(ctx *armadacontext.Context, allManagedPods []*v1.Pod) {
 	// Make issues from pods + issues
 	issues := createIssues(allManagedPods, p.knownPodIssues)
 	util.ProcessItemsWithThreadPool(ctx, 20, issues, p.handleRunIssue)

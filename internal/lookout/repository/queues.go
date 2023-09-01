@@ -25,7 +25,7 @@ type rowsSql struct {
 	LongestRunning string
 }
 
-func (r *SQLJobRepository) GetQueueInfos(ctx *armadacontext.ArmadaContext) ([]*lookout.QueueInfo, error) {
+func (r *SQLJobRepository) GetQueueInfos(ctx *armadacontext.Context) ([]*lookout.QueueInfo, error) {
 	queries, err := r.getQueuesSql()
 	if err != nil {
 		return nil, err

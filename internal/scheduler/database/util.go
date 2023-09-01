@@ -15,7 +15,7 @@ import (
 //go:embed migrations/*.sql
 var fs embed.FS
 
-func Migrate(ctx *armadacontext.ArmadaContext, db database.Querier) error {
+func Migrate(ctx *armadacontext.Context, db database.Querier) error {
 	start := time.Now()
 	migrations, err := database.ReadMigrations(fs, "migrations")
 	if err != nil {

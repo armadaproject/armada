@@ -11,14 +11,14 @@ import (
 )
 
 type EventStore interface {
-	ReportEvents(*armadacontext.ArmadaContext, []*api.EventMessage) error
+	ReportEvents(*armadacontext.Context, []*api.EventMessage) error
 }
 
 type TestEventStore struct {
 	ReceivedEvents []*api.EventMessage
 }
 
-func (es *TestEventStore) ReportEvents(_ *armadacontext.ArmadaContext, message []*api.EventMessage) error {
+func (es *TestEventStore) ReportEvents(_ *armadacontext.Context, message []*api.EventMessage) error {
 	es.ReceivedEvents = append(es.ReceivedEvents, message...)
 	return nil
 }
@@ -34,7 +34,7 @@ func NewEventStore(producer pulsar.Producer, maxAllowedMessageSize uint) *Stream
 	}
 }
 
-func (n *StreamEventStore) ReportEvents(ctx *armadacontext.ArmadaContext, apiEvents []*api.EventMessage) error {
+func (n *StreamEventStore) ReportEvents(ctx *armadacontext.Context, apiEvents []*api.EventMessage) error {
 	if len(apiEvents) == 0 {
 		return nil
 	}

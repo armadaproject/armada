@@ -33,7 +33,7 @@ func NewBatcher[T any](input chan T, maxItems int, maxTimeout time.Duration, cal
 	}
 }
 
-func (b *Batcher[T]) Run(ctx *armadacontext.ArmadaContext) {
+func (b *Batcher[T]) Run(ctx *armadacontext.Context) {
 	for {
 		b.buffer = []T{}
 		expire := b.clock.After(b.maxTimeout)

@@ -9,96 +9,96 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-type ArmadaContext struct {
+type Context struct {
 	Ctx context.Context
 	Log *logrus.Entry
 }
 
-func (c *ArmadaContext) Deadline() (deadline time.Time, ok bool) {
+func (c *Context) Deadline() (deadline time.Time, ok bool) {
 	return c.Ctx.Deadline()
 }
 
-func (c *ArmadaContext) Done() <-chan struct{} {
+func (c *Context) Done() <-chan struct{} {
 	return c.Ctx.Done()
 }
 
-func (c *ArmadaContext) Err() error {
+func (c *Context) Err() error {
 	return c.Ctx.Err()
 }
 
-func (c *ArmadaContext) Value(key any) any {
+func (c *Context) Value(key any) any {
 	return c.Ctx.Value(key)
 }
 
-func Background() *ArmadaContext {
-	return &ArmadaContext{
+func Background() *Context {
+	return &Context{
 		Ctx: context.Background(),
 		Log: logrus.NewEntry(logrus.New()),
 	}
 }
 
-func TODO() *ArmadaContext {
-	return &ArmadaContext{
+func TODO() *Context {
+	return &Context{
 		Ctx: context.TODO(),
 		Log: logrus.NewEntry(logrus.New()),
 	}
 }
 
-func FromGrpcContext(context context.Context) *ArmadaContext {
+func FromGrpcContext(context context.Context) *Context {
 	return New(context, ctxlogrus.Extract(context))
 }
 
-func New(ctx context.Context, log *logrus.Entry) *ArmadaContext {
-	return &ArmadaContext{
+func New(ctx context.Context, log *logrus.Entry) *Context {
+	return &Context{
 		Ctx: ctx,
 		Log: log,
 	}
 }
 
-func WithCancel(parent *ArmadaContext) (*ArmadaContext, context.CancelFunc) {
+func WithCancel(parent *Context) (*Context, context.CancelFunc) {
 	c, cancel := context.WithCancel(parent.Ctx)
-	return &ArmadaContext{
+	return &Context{
 		Ctx: c,
 		Log: parent.Log,
 	}, cancel
 }
 
-func WithDeadline(parent *ArmadaContext, d time.Time) (*ArmadaContext, context.CancelFunc) {
+func WithDeadline(parent *Context, d time.Time) (*Context, context.CancelFunc) {
 	c, cancel := context.WithDeadline(parent.Ctx, d)
-	return &ArmadaContext{
+	return &Context{
 		Ctx: c,
 		Log: parent.Log,
 	}, cancel
 }
 
-func WithTimeout(parent *ArmadaContext, timeout time.Duration) (*ArmadaContext, context.CancelFunc) {
+func WithTimeout(parent *Context, timeout time.Duration) (*Context, context.CancelFunc) {
 	return WithDeadline(parent, time.Now().Add(timeout))
 }
 
-func WithLogField(parent *ArmadaContext, key string, val interface{}) *ArmadaContext {
-	return &ArmadaContext{
+func WithLogField(parent *Context, key string, val interface{}) *Context {
+	return &Context{
 		Ctx: parent,
 		Log: parent.Log.WithField(key, val),
 	}
 }
 
-func WithLogFields(parent *ArmadaContext, fields map[string]interface{}) *ArmadaContext {
-	return &ArmadaContext{
+func WithLogFields(parent *Context, fields map[string]interface{}) *Context {
+	return &Context{
 		Ctx: parent,
 		Log: parent.Log.WithFields(fields),
 	}
 }
 
-func WithValue(parent *ArmadaContext, key, val any) *ArmadaContext {
-	return &ArmadaContext{
+func WithValue(parent *Context, key, val any) *Context {
+	return &Context{
 		Ctx: context.WithValue(parent, key, val),
 		Log: parent.Log,
 	}
 }
 
-func ErrGroup(parent *ArmadaContext) (*errgroup.Group, *ArmadaContext) {
+func ErrGroup(parent *Context) (*errgroup.Group, *Context) {
 	group, goctx := errgroup.WithContext(parent)
-	return group, &ArmadaContext{
+	return group, &Context{
 		Ctx: goctx,
 		Log: parent.Log,
 	}

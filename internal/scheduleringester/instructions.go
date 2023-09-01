@@ -46,7 +46,7 @@ func NewInstructionConverter(
 	}
 }
 
-func (c *InstructionConverter) Convert(_ *armadacontext.ArmadaContext, sequencesWithIds *ingest.EventSequencesWithIds) *DbOperationsWithMessageIds {
+func (c *InstructionConverter) Convert(_ *armadacontext.Context, sequencesWithIds *ingest.EventSequencesWithIds) *DbOperationsWithMessageIds {
 	operations := make([]DbOperation, 0)
 	for _, es := range sequencesWithIds.EventSequences {
 		for _, op := range c.dbOperationsFromEventSequence(es) {

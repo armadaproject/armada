@@ -21,7 +21,7 @@ import (
 // PoolAssigner allows jobs to be assigned to a pool
 // Note that this is intended only for use with metrics calculation
 type PoolAssigner interface {
-	Refresh(ctx *armadacontext.ArmadaContext) error
+	Refresh(ctx *armadacontext.Context) error
 	AssignPool(j *jobdb.Job) (string, error)
 }
 
@@ -70,7 +70,7 @@ func NewPoolAssigner(executorTimeout time.Duration,
 }
 
 // Refresh updates executor state
-func (p *DefaultPoolAssigner) Refresh(ctx *armadacontext.ArmadaContext) error {
+func (p *DefaultPoolAssigner) Refresh(ctx *armadacontext.Context) error {
 	executors, err := p.executorRepository.GetExecutors(ctx)
 	executorsByPool := map[string][]*executor{}
 	poolByExecutorId := map[string]string{}

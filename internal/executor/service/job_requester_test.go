@@ -244,7 +244,7 @@ type StubLeaseRequester struct {
 	LeaseJobRunLeaseResponse *LeaseResponse
 }
 
-func (s *StubLeaseRequester) LeaseJobRuns(_ *armadacontext.ArmadaContext, request *LeaseRequest) (*LeaseResponse, error) {
+func (s *StubLeaseRequester) LeaseJobRuns(_ *armadacontext.Context, request *LeaseRequest) (*LeaseResponse, error) {
 	s.ReceivedLeaseRequests = append(s.ReceivedLeaseRequests, request)
 	return s.LeaseJobRunLeaseResponse, s.LeaseJobRunError
 }

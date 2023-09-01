@@ -29,7 +29,7 @@ func NewMigration(id int, name string, sql string) Migration {
 	}
 }
 
-func UpdateDatabase(ctx *armadacontext.ArmadaContext, db Querier, migrations []Migration) error {
+func UpdateDatabase(ctx *armadacontext.Context, db Querier, migrations []Migration) error {
 	log.Info("Updating postgres...")
 	version, err := readVersion(ctx, db)
 	if err != nil {
@@ -56,7 +56,7 @@ func UpdateDatabase(ctx *armadacontext.ArmadaContext, db Querier, migrations []M
 	return nil
 }
 
-func readVersion(ctx *armadacontext.ArmadaContext, db Querier) (int, error) {
+func readVersion(ctx *armadacontext.Context, db Querier) (int, error) {
 	_, err := db.Exec(ctx,
 		`CREATE SEQUENCE IF NOT EXISTS database_version START WITH 0 MINVALUE 0;`)
 	if err != nil {
@@ -76,7 +76,7 @@ func readVersion(ctx *armadacontext.ArmadaContext, db Querier) (int, error) {
 	return version, err
 }
 
-func setVersion(ctx *armadacontext.ArmadaContext, db Querier, version int) error {
+func setVersion(ctx *armadacontext.Context, db Querier, version int) error {
 	_, err := db.Exec(ctx, `SELECT setval('database_version', $1)`, version)
 	return err
 }

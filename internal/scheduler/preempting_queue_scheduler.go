@@ -108,7 +108,7 @@ func (sch *PreemptingQueueScheduler) EnableNewPreemptionStrategy() {
 // Schedule
 // - preempts jobs belonging to queues with total allocation above their fair share and
 // - schedules new jobs belonging to queues with total allocation less than their fair share.
-func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.ArmadaContext) (*SchedulerResult, error) {
+func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("service", "PreemptingQueueScheduler")
 	defer func() {
@@ -130,7 +130,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.ArmadaContext) 
 			sch.jobRepo,
 			sch.schedulingContext.PriorityClasses,
 			sch.nodeEvictionProbability,
-			func(ctx *armadacontext.ArmadaContext, job interfaces.LegacySchedulerJob) bool {
+			func(ctx *armadacontext.Context, job interfaces.LegacySchedulerJob) bool {
 				if job.GetAnnotations() == nil {
 					log := ctxlogrus.Extract(ctx)
 					log.Errorf("can't evict job %s: annotations not initialised", job.GetId())
@@ -270,7 +270,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.ArmadaContext) 
 	}, nil
 }
 
-func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.ArmadaContext, evictor *Evictor) (*EvictorResult, *InMemoryJobRepository, error) {
+func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *Evictor) (*EvictorResult, *InMemoryJobRepository, error) {
 	if evictor == nil {
 		return &EvictorResult{}, NewInMemoryJobRepository(sch.schedulingContext.PriorityClasses), nil
 	}
@@ -336,7 +336,7 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.ArmadaContext, evi
 
 // When evicting jobs, gangs may have been partially evicted.
 // Here, we evict all jobs in any gang for which at least one job was already evicted.
-func (sch *PreemptingQueueScheduler) evictGangs(ctx *armadacontext.ArmadaContext, txn *memdb.Txn, previousEvictorResult *EvictorResult) (*EvictorResult, error) {
+func (sch *PreemptingQueueScheduler) evictGangs(ctx *armadacontext.Context, txn *memdb.Txn, previousEvictorResult *EvictorResult) (*EvictorResult, error) {
 	gangJobIds, gangNodeIds, err := sch.collectIdsForGangEviction(previousEvictorResult.EvictedJobsById)
 	if err != nil {
 		return nil, err
@@ -500,7 +500,7 @@ func (q MinimalQueue) GetWeight() float64 {
 
 // addEvictedJobsToNodeDb adds evicted jobs to the NodeDb.
 // Needed to enable the nodeDb accounting for these when preempting.
-func addEvictedJobsToNodeDb(ctx *armadacontext.ArmadaContext, sctx *schedulercontext.SchedulingContext, nodeDb *nodedb.NodeDb, inMemoryJobRepo *InMemoryJobRepository) error {
+func addEvictedJobsToNodeDb(ctx *armadacontext.Context, sctx *schedulercontext.SchedulingContext, nodeDb *nodedb.NodeDb, inMemoryJobRepo *InMemoryJobRepository) error {
 	gangItByQueue := make(map[string]*QueuedGangIterator)
 	for _, qctx := range sctx.QueueSchedulingContexts {
 		jobIt, err := inMemoryJobRepo.GetJobIterator(ctx, qctx.Queue)
@@ -540,7 +540,7 @@ func addEvictedJobsToNodeDb(ctx *armadacontext.ArmadaContext, sctx *schedulercon
 	return nil
 }
 
-func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.ArmadaContext, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository) (*SchedulerResult, error) {
+func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository) (*SchedulerResult, error) {
 	jobIteratorByQueue := make(map[string]JobIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		evictedIt, err := inMemoryJobRepo.GetJobIterator(ctx, qctx.Queue)
@@ -705,9 +705,9 @@ func (sch *PreemptingQueueScheduler) assertions(
 type Evictor struct {
 	jobRepo         JobRepository
 	priorityClasses map[string]types.PriorityClass
-	nodeFilter      func(*armadacontext.ArmadaContext, *nodedb.Node) bool
-	jobFilter       func(*armadacontext.ArmadaContext, interfaces.LegacySchedulerJob) bool
-	postEvictFunc   func(*armadacontext.ArmadaContext, interfaces.LegacySchedulerJob, *nodedb.Node)
+	nodeFilter      func(*armadacontext.Context, *nodedb.Node) bool
+	jobFilter       func(*armadacontext.Context, interfaces.LegacySchedulerJob) bool
+	postEvictFunc   func(*armadacontext.Context, interfaces.LegacySchedulerJob, *nodedb.Node)
 }
 
 type EvictorResult struct {
@@ -723,7 +723,7 @@ func NewNodeEvictor(
 	jobRepo JobRepository,
 	priorityClasses map[string]types.PriorityClass,
 	perNodeEvictionProbability float64,
-	jobFilter func(*armadacontext.ArmadaContext, interfaces.LegacySchedulerJob) bool,
+	jobFilter func(*armadacontext.Context, interfaces.LegacySchedulerJob) bool,
 	random *rand.Rand,
 ) *Evictor {
 	if perNodeEvictionProbability <= 0 {
@@ -735,7 +735,7 @@ func NewNodeEvictor(
 	return &Evictor{
 		jobRepo:         jobRepo,
 		priorityClasses: priorityClasses,
-		nodeFilter: func(_ *armadacontext.ArmadaContext, node *nodedb.Node) bool {
+		nodeFilter: func(_ *armadacontext.Context, node *nodedb.Node) bool {
 			return len(node.AllocatedByJobId) > 0 && random.Float64() < perNodeEvictionProbability
 		},
 		jobFilter:     jobFilter,
@@ -757,11 +757,11 @@ func NewFilteredEvictor(
 	return &Evictor{
 		jobRepo:         jobRepo,
 		priorityClasses: priorityClasses,
-		nodeFilter: func(_ *armadacontext.ArmadaContext, node *nodedb.Node) bool {
+		nodeFilter: func(_ *armadacontext.Context, node *nodedb.Node) bool {
 			shouldEvict := nodeIdsToEvict[node.Id]
 			return shouldEvict
 		},
-		jobFilter: func(_ *armadacontext.ArmadaContext, job interfaces.LegacySchedulerJob) bool {
+		jobFilter: func(_ *armadacontext.Context, job interfaces.LegacySchedulerJob) bool {
 			shouldEvict := jobIdsToEvict[job.GetId()]
 			return shouldEvict
 		},
@@ -792,7 +792,7 @@ func NewOversubscribedEvictor(
 	return &Evictor{
 		jobRepo:         jobRepo,
 		priorityClasses: priorityClasses,
-		nodeFilter: func(_ *armadacontext.ArmadaContext, node *nodedb.Node) bool {
+		nodeFilter: func(_ *armadacontext.Context, node *nodedb.Node) bool {
 			overSubscribedPriorities = make(map[int32]bool)
 			for p, rl := range node.AllocatableByPriority {
 				if p < 0 {
@@ -808,7 +808,7 @@ func NewOversubscribedEvictor(
 			}
 			return len(overSubscribedPriorities) > 0 && random.Float64() < perNodeEvictionProbability
 		},
-		jobFilter: func(ctx *armadacontext.ArmadaContext, job interfaces.LegacySchedulerJob) bool {
+		jobFilter: func(ctx *armadacontext.Context, job interfaces.LegacySchedulerJob) bool {
 			if job.GetAnnotations() == nil {
 				log := ctxlogrus.Extract(ctx)
 				log.Warnf("can't evict job %s: annotations not initialised", job.GetId())
@@ -832,7 +832,7 @@ func NewOversubscribedEvictor(
 // Any node for which nodeFilter returns false is skipped.
 // Any job for which jobFilter returns true is evicted (if the node was not skipped).
 // If a job was evicted from a node, postEvictFunc is called with the corresponding job and node.
-func (evi *Evictor) Evict(ctx *armadacontext.ArmadaContext, it nodedb.NodeIterator) (*EvictorResult, error) {
+func (evi *Evictor) Evict(ctx *armadacontext.Context, it nodedb.NodeIterator) (*EvictorResult, error) {
 	var jobFilter func(job interfaces.LegacySchedulerJob) bool
 	if evi.jobFilter != nil {
 		jobFilter = func(job interfaces.LegacySchedulerJob) bool { return evi.jobFilter(ctx, job) }
@@ -886,7 +886,7 @@ func (evi *Evictor) Evict(ctx *armadacontext.ArmadaContext, it nodedb.NodeIterat
 
 // TODO: This is only necessary for jobs not scheduled in this cycle.
 // Since jobs scheduled in this cycle can be re-scheduled onto another node without triggering a preemption.
-func defaultPostEvictFunc(ctx *armadacontext.ArmadaContext, job interfaces.LegacySchedulerJob, node *nodedb.Node) {
+func defaultPostEvictFunc(ctx *armadacontext.Context, job interfaces.LegacySchedulerJob, node *nodedb.Node) {
 	// Add annotation indicating to the scheduler this this job was evicted.
 	annotations := job.GetAnnotations()
 	if annotations == nil {

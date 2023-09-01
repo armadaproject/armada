@@ -28,12 +28,12 @@ const (
 type Publisher interface {
 	// PublishMessages will publish the supplied messages. A LeaderToken is provided and the
 	// implementor may decide whether to publish based on the status of this token
-	PublishMessages(ctx *armadacontext.ArmadaContext, events []*armadaevents.EventSequence, shouldPublish func() bool) error
+	PublishMessages(ctx *armadacontext.Context, events []*armadaevents.EventSequence, shouldPublish func() bool) error
 
 	// PublishMarkers publishes a single marker message for each Pulsar partition.  Each marker
 	// massage contains the supplied group id, which allows all marker messages for a given call
 	// to be identified.  The uint32 returned is the number of messages published
-	PublishMarkers(ctx *armadacontext.ArmadaContext, groupId uuid.UUID) (uint32, error)
+	PublishMarkers(ctx *armadacontext.Context, groupId uuid.UUID) (uint32, error)
 }
 
 // PulsarPublisher is the default implementation of Publisher
@@ -77,7 +77,7 @@ func NewPulsarPublisher(
 
 // PublishMessages publishes all event sequences to pulsar. Event sequences for a given jobset will be combined into
 // single event sequences up to maxMessageBatchSize.
-func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.ArmadaContext, events []*armadaevents.EventSequence, shouldPublish func() bool) error {
+func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, events []*armadaevents.EventSequence, shouldPublish func() bool) error {
 	sequences := eventutil.CompactEventSequences(events)
 	sequences, err := eventutil.LimitSequencesByteSize(sequences, p.maxMessageBatchSize, true)
 	if err != nil {
@@ -128,7 +128,7 @@ func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.ArmadaContext, even
 
 // PublishMarkers sends one pulsar message (containing an armadaevents.PartitionMarker) to each partition
 // of the producer's Pulsar topic.
-func (p *PulsarPublisher) PublishMarkers(ctx *armadacontext.ArmadaContext, groupId uuid.UUID) (uint32, error) {
+func (p *PulsarPublisher) PublishMarkers(ctx *armadacontext.Context, groupId uuid.UUID) (uint32, error) {
 	for i := 0; i < p.numPartitions; i++ {
 		pm := &armadaevents.PartitionMarker{
 			GroupId:   armadaevents.ProtoUuidFromUuid(groupId),

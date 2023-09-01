@@ -192,7 +192,7 @@ func newSimpleConverter(t *testing.T) InstructionConverter[*simpleMessages] {
 	return &simpleConverter{t}
 }
 
-func (s *simpleConverter) Convert(_ *armadacontext.ArmadaContext, msg *EventSequencesWithIds) *simpleMessages {
+func (s *simpleConverter) Convert(_ *armadacontext.Context, msg *EventSequencesWithIds) *simpleMessages {
 	s.t.Helper()
 	assert.Len(s.t, msg.EventSequences, len(msg.MessageIds))
 	var converted []*simpleMessage
@@ -219,7 +219,7 @@ func newSimpleSink(t *testing.T) *simpleSink {
 	}
 }
 
-func (s *simpleSink) Store(_ *armadacontext.ArmadaContext, msg *simpleMessages) error {
+func (s *simpleSink) Store(_ *armadacontext.Context, msg *simpleMessages) error {
 	for _, simpleMessage := range msg.msgs {
 		s.simpleMessages[simpleMessage.id] = simpleMessage
 	}

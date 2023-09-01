@@ -29,7 +29,7 @@ func NewLeaderStatusMetricsCollector(currentInstanceName string) *LeaderStatusMe
 	}
 }
 
-func (l *LeaderStatusMetricsCollector) onStartedLeading(*armadacontext.ArmadaContext) {
+func (l *LeaderStatusMetricsCollector) onStartedLeading(*armadacontext.Context) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 

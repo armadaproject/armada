@@ -303,7 +303,7 @@ type MockPoolAssigner struct {
 	poolsById   map[string]string
 }
 
-func (m MockPoolAssigner) Refresh(_ *armadacontext.ArmadaContext) error {
+func (m MockPoolAssigner) Refresh(_ *armadacontext.Context) error {
 	return nil
 }
 

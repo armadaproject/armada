@@ -60,7 +60,7 @@ func (sch *QueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 	sch.gangScheduler.SkipUnsuccessfulSchedulingKeyCheck()
 }
 
-func (sch *QueueScheduler) Schedule(ctx *armadacontext.ArmadaContext) (*SchedulerResult, error) {
+func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
 	nodeIdByJobId := make(map[string]string)
 	scheduledJobs := make([]interfaces.LegacySchedulerJob, 0)
 	for {

@@ -38,7 +38,7 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-func Serve(ctx *armadacontext.ArmadaContext, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
+func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
 	log.Info("Armada server starting")
 	log.Infof("Armada priority classes: %v", config.Scheduling.Preemption.PriorityClasses)
 	log.Infof("Default priority class: %s", config.Scheduling.Preemption.DefaultPriorityClass)

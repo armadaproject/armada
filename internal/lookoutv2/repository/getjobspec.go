@@ -13,7 +13,7 @@ import (
 )
 
 type GetJobSpecRepository interface {
-	GetJobSpec(ctx *armadacontext.ArmadaContext, jobId string) (*api.Job, error)
+	GetJobSpec(ctx *armadacontext.Context, jobId string) (*api.Job, error)
 }
 
 type SqlGetJobSpecRepository struct {
@@ -28,7 +28,7 @@ func NewSqlGetJobSpecRepository(db *pgxpool.Pool, decompressor compress.Decompre
 	}
 }
 
-func (r *SqlGetJobSpecRepository) GetJobSpec(ctx *armadacontext.ArmadaContext, jobId string) (*api.Job, error) {
+func (r *SqlGetJobSpecRepository) GetJobSpec(ctx *armadacontext.Context, jobId string) (*api.Job, error) {
 	var rawBytes []byte
 	err := r.db.QueryRow(ctx, "SELECT job_spec FROM job WHERE job_id = $1", jobId).Scan(&rawBytes)
 	if err != nil {

@@ -84,7 +84,7 @@ func NewSubmitChecker(
 	}
 }
 
-func (srv *SubmitChecker) Run(ctx *armadacontext.ArmadaContext) error {
+func (srv *SubmitChecker) Run(ctx *armadacontext.Context) error {
 	srv.updateExecutors(ctx)
 
 	ticker := time.NewTicker(srv.ExecutorUpdateFrequency)
@@ -98,7 +98,7 @@ func (srv *SubmitChecker) Run(ctx *armadacontext.ArmadaContext) error {
 	}
 }
 
-func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.ArmadaContext) {
+func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 	executors, err := srv.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		log.WithError(err).Error("Error fetching executors")

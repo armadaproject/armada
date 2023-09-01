@@ -220,7 +220,7 @@ func (s *EventServer) serveEventsFromRepository(request *api.JobSetRequest, even
 	}
 }
 
-func validateUserHasWatchPermissions(ctx *armadacontext.ArmadaContext, permsChecker authorization.PermissionChecker, q queue.Queue, jobSetId string) error {
+func validateUserHasWatchPermissions(ctx *armadacontext.Context, permsChecker authorization.PermissionChecker, q queue.Queue, jobSetId string) error {
 	err := checkPermission(permsChecker, ctx, permissions.WatchAllEvents)
 	var globalPermErr *ErrUnauthorized
 	if errors.As(err, &globalPermErr) {

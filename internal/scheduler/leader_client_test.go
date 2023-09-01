@@ -91,7 +91,7 @@ func (f *FakeLeaderController) ValidateToken(tok LeaderToken) bool {
 	return f.IsCurrentlyLeader
 }
 
-func (f *FakeLeaderController) Run(_ *armadacontext.ArmadaContext) error {
+func (f *FakeLeaderController) Run(_ *armadacontext.Context) error {
 	return nil
 }
 

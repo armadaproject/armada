@@ -17,7 +17,7 @@ import (
 
 // CompactAndPublishSequences reduces the number of sequences to the smallest possible,
 // while respecting per-job set ordering and max Pulsar message size, and then publishes to Pulsar.
-func CompactAndPublishSequences(ctx *armadacontext.ArmadaContext, sequences []*armadaevents.EventSequence, producer pulsar.Producer, maxMessageSizeInBytes uint, scheduler schedulers.Scheduler) error {
+func CompactAndPublishSequences(ctx *armadacontext.Context, sequences []*armadaevents.EventSequence, producer pulsar.Producer, maxMessageSizeInBytes uint, scheduler schedulers.Scheduler) error {
 	// Reduce the number of sequences to send to the minimum possible,
 	// and then break up any sequences larger than maxMessageSizeInBytes.
 	sequences = eventutil.CompactEventSequences(sequences)
@@ -37,7 +37,7 @@ func CompactAndPublishSequences(ctx *armadacontext.ArmadaContext, sequences []*a
 // and
 // eventutil.LimitSequencesByteSize(sequences, int(srv.MaxAllowedMessageSize))
 // before passing to this function.
-func PublishSequences(ctx *armadacontext.ArmadaContext, producer pulsar.Producer, sequences []*armadaevents.EventSequence, scheduler schedulers.Scheduler) error {
+func PublishSequences(ctx *armadacontext.Context, producer pulsar.Producer, sequences []*armadaevents.EventSequence, scheduler schedulers.Scheduler) error {
 	// Incoming gRPC requests are annotated with a unique id.
 	// Pass this id through the log by adding it to the Pulsar message properties.
 	requestId := requestid.FromContextOrMissing(ctx)

@@ -28,7 +28,7 @@ type HasPulsarMessageIds interface {
 // InstructionConverter should be implemented by structs that can convert a batch of event sequences into an object
 // suitable for passing to the sink
 type InstructionConverter[T HasPulsarMessageIds] interface {
-	Convert(ctx *armadacontext.ArmadaContext, msg *EventSequencesWithIds) T
+	Convert(ctx *armadacontext.Context, msg *EventSequencesWithIds) T
 }
 
 // Sink should be implemented by the struct responsible for putting the data in its final resting place, e.g. a
@@ -36,7 +36,7 @@ type InstructionConverter[T HasPulsarMessageIds] interface {
 type Sink[T HasPulsarMessageIds] interface {
 	// Store should persist the sink.  The store is responsible for retrying failed attempts and should only return an error
 	// When it is satisfied that operation cannot be retries.
-	Store(ctx *armadacontext.ArmadaContext, msg T) error
+	Store(ctx *armadacontext.Context, msg T) error
 }
 
 // EventSequencesWithIds consists of a batch of Event Sequences along with the corresponding Pulsar Message Ids
@@ -123,7 +123,7 @@ func NewFilteredMsgIngestionPipeline[T HasPulsarMessageIds](
 }
 
 // Run will run the ingestion pipeline until the supplied context is shut down
-func (ingester *IngestionPipeline[T]) Run(ctx *armadacontext.ArmadaContext) error {
+func (ingester *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 	shutdownMetricServer := common.ServeMetrics(ingester.metricsConfig.Port)
 	defer shutdownMetricServer()
 

@@ -106,7 +106,7 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 			mockPulsarProducer.
 				EXPECT().
 				SendAsync(gomock.Any(), gomock.Any(), gomock.Any()).
-				DoAndReturn(func(_ *armadacontext.ArmadaContext, msg *pulsar.ProducerMessage, callback func(pulsar.MessageID, *pulsar.ProducerMessage, error)) {
+				DoAndReturn(func(_ *armadacontext.Context, msg *pulsar.ProducerMessage, callback func(pulsar.MessageID, *pulsar.ProducerMessage, error)) {
 					es := &armadaevents.EventSequence{}
 					err := proto.Unmarshal(msg.Payload, es)
 					require.NoError(t, err)
@@ -177,7 +177,7 @@ func TestPulsarPublisher_TestPublishMarkers(t *testing.T) {
 			mockPulsarProducer.
 				EXPECT().
 				Send(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(_ *armadacontext.ArmadaContext, msg *pulsar.ProducerMessage) (pulsar.MessageID, error) {
+				DoAndReturn(func(_ *armadacontext.Context, msg *pulsar.ProducerMessage) (pulsar.MessageID, error) {
 					numPublished++
 					key, ok := msg.Properties[explicitPartitionKey]
 					if ok {

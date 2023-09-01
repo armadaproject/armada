@@ -53,7 +53,7 @@ func (c *CachedCertificateService) updateCertificate(certificate *tls.Certificat
 	c.certificate = certificate
 }
 
-func (c *CachedCertificateService) Run(ctx *armadacontext.ArmadaContext) {
+func (c *CachedCertificateService) Run(ctx *armadacontext.Context) {
 	ticker := time.NewTicker(c.refreshInterval)
 	for {
 		select {

@@ -36,7 +36,7 @@ type ConsumerMessage struct {
 var msgLogger = logrus.NewEntry(logrus.StandardLogger())
 
 func Receive(
-	ctx *armadacontext.ArmadaContext,
+	ctx *armadacontext.Context,
 	consumer pulsar.Consumer,
 	receiveTimeout time.Duration,
 	backoffTime time.Duration,
@@ -109,7 +109,7 @@ func Receive(
 // Ack will ack all pulsar messages coming in on the msgs channel. The incoming messages contain a consumer id which
 // corresponds to the index of the consumer that should be used to perform the ack.  In theory, the acks could be done
 // in parallel, however its unlikely that they will be a performance bottleneck
-func Ack(ctx *armadacontext.ArmadaContext, consumers []pulsar.Consumer, msgs chan []*ConsumerMessageId, backoffTime time.Duration, wg *sync.WaitGroup) {
+func Ack(ctx *armadacontext.Context, consumers []pulsar.Consumer, msgs chan []*ConsumerMessageId, backoffTime time.Duration, wg *sync.WaitGroup) {
 	for msg := range msgs {
 		for _, id := range msg {
 			if id.ConsumerId < 0 || id.ConsumerId >= len(consumers) {

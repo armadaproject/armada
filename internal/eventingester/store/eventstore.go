@@ -39,7 +39,7 @@ func NewRedisEventStore(db redis.UniversalClient, eventRetention configuration.E
 	}
 }
 
-func (repo *RedisEventStore) Store(ctx *armadacontext.ArmadaContext, update *model.BatchUpdate) error {
+func (repo *RedisEventStore) Store(ctx *armadacontext.Context, update *model.BatchUpdate) error {
 	if len(update.Events) == 0 {
 		return nil
 	}

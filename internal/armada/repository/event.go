@@ -132,7 +132,7 @@ func (repo *RedisEventRepository) extractEvents(msg redis.XMessage, queue, jobSe
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	defer func(decompressorPool *pool.ObjectPool, ctx *armadacontext.ArmadaContext, object interface{}) {
+	defer func(decompressorPool *pool.ObjectPool, ctx *armadacontext.Context, object interface{}) {
 		err := decompressorPool.ReturnObject(ctx, object)
 		if err != nil {
 			log.WithError(err).Errorf("Error returning decompressor to pool")

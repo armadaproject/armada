@@ -120,7 +120,7 @@ func (srv *EtcdHealthMonitor) Collect(metrics chan<- prometheus.Metric) {
 }
 
 // Run the service until ctx is cancelled.
-func (srv *EtcdHealthMonitor) Run(ctx *armadacontext.ArmadaContext) {
+func (srv *EtcdHealthMonitor) Run(ctx *armadacontext.Context) {
 	log.WithField("service", "EtcdHealthMonitor").Info("started ETCD health monitor")
 	defer log.WithField("service", "EtcdHealthMonitor").Info("exited ETCD health monitor")
 
@@ -170,7 +170,7 @@ func (srv *EtcdHealthMonitor) updateInstances(updatedInstances map[string]*etcdI
 }
 
 // ScrapeMetrics collects metrics for all etcd instances.
-func (srv *EtcdHealthMonitor) scrapeMetrics(ctx *armadacontext.ArmadaContext) error {
+func (srv *EtcdHealthMonitor) scrapeMetrics(ctx *armadacontext.Context) error {
 	ctx, cancel := armadacontext.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 

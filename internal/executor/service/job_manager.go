@@ -108,7 +108,7 @@ func (m *JobManager) reportTerminated(pods []*v1.Pod) {
 	}
 }
 
-func (m *JobManager) handlePodIssues(ctx *armadacontext.ArmadaContext, allRunningJobs []*job.RunningJob) {
+func (m *JobManager) handlePodIssues(ctx *armadacontext.Context, allRunningJobs []*job.RunningJob) {
 	util.ProcessItemsWithThreadPool(ctx, 20, allRunningJobs, m.handlePodIssue)
 }
 

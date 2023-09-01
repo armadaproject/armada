@@ -120,7 +120,7 @@ func TestBatch_Time_WithIntialQuiet(t *testing.T) {
 	cancel()
 }
 
-func waitForBufferLength(ctx *armadacontext.ArmadaContext, batcher *Batcher[int], numEvents int) error {
+func waitForBufferLength(ctx *armadacontext.Context, batcher *Batcher[int], numEvents int) error {
 	ticker := time.NewTicker(5 * time.Millisecond)
 	for {
 		select {
@@ -134,7 +134,7 @@ func waitForBufferLength(ctx *armadacontext.ArmadaContext, batcher *Batcher[int]
 	}
 }
 
-func waitForExpectedEvents(ctx *armadacontext.ArmadaContext, rh *resultHolder, numEvents int) {
+func waitForExpectedEvents(ctx *armadacontext.Context, rh *resultHolder, numEvents int) {
 	done := false
 	ticker := time.NewTicker(5 * time.Millisecond)
 	for !done {

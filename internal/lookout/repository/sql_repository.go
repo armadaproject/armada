@@ -33,9 +33,9 @@ const (
 )
 
 type JobRepository interface {
-	GetQueueInfos(ctx *armadacontext.ArmadaContext) ([]*lookout.QueueInfo, error)
-	GetJobSetInfos(ctx *armadacontext.ArmadaContext, opts *lookout.GetJobSetsRequest) ([]*lookout.JobSetInfo, error)
-	GetJobs(ctx *armadacontext.ArmadaContext, opts *lookout.GetJobsRequest) ([]*lookout.JobInfo, error)
+	GetQueueInfos(ctx *armadacontext.Context) ([]*lookout.QueueInfo, error)
+	GetJobSetInfos(ctx *armadacontext.Context, opts *lookout.GetJobSetsRequest) ([]*lookout.JobSetInfo, error)
+	GetJobs(ctx *armadacontext.Context, opts *lookout.GetJobsRequest) ([]*lookout.JobInfo, error)
 }
 
 type SQLJobRepository struct {

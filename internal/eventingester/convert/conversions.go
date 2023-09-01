@@ -29,7 +29,7 @@ func NewEventConverter(compressor compress.Compressor, maxMessageBatchSize uint,
 	}
 }
 
-func (ec *EventConverter) Convert(ctx *armadacontext.ArmadaContext, sequencesWithIds *ingest.EventSequencesWithIds) *model.BatchUpdate {
+func (ec *EventConverter) Convert(ctx *armadacontext.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.BatchUpdate {
 	// Remove all groups as they are potentially quite large
 	for _, es := range sequencesWithIds.EventSequences {
 		es.Groups = nil

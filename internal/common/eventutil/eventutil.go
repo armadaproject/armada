@@ -25,7 +25,7 @@ import (
 
 // UnmarshalEventSequence returns an EventSequence object contained in a byte buffer
 // after validating that the resulting EventSequence is valid.
-func UnmarshalEventSequence(ctx *armadacontext.ArmadaContext, payload []byte) (*armadaevents.EventSequence, error) {
+func UnmarshalEventSequence(ctx *armadacontext.Context, payload []byte) (*armadaevents.EventSequence, error) {
 	sequence := &armadaevents.EventSequence{}
 	err := proto.Unmarshal(payload, sequence)
 	if err != nil {

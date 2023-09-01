@@ -13,7 +13,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
-func UpsertWithTransaction[T any](ctx *armadacontext.ArmadaContext, db *pgxpool.Pool, tableName string, records []T) error {
+func UpsertWithTransaction[T any](ctx *armadacontext.Context, db *pgxpool.Pool, tableName string, records []T) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -50,7 +50,7 @@ func UpsertWithTransaction[T any](ctx *armadacontext.ArmadaContext, db *pgxpool.
 //
 // )
 // I.e., it should omit everything before and after the "(" and ")", respectively.
-func Upsert[T any](ctx *armadacontext.ArmadaContext, tx pgx.Tx, tableName string, records []T) error {
+func Upsert[T any](ctx *armadacontext.Context, tx pgx.Tx, tableName string, records []T) error {
 	if len(records) < 1 {
 		return nil
 	}

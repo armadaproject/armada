@@ -40,7 +40,7 @@ func NewInstructionConverter(metrics *metrics.Metrics, userAnnotationPrefix stri
 	}
 }
 
-func (c *InstructionConverter) Convert(ctx *armadacontext.ArmadaContext, sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
+func (c *InstructionConverter) Convert(ctx *armadacontext.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
 	updateInstructions := &model.InstructionSet{
 		MessageIds: sequencesWithIds.MessageIds,
 	}

@@ -553,7 +553,7 @@ func withJobRepository(action func(repository *PostgresJobRepository) error) err
 	})
 }
 
-func insertMarkers(ctx *armadacontext.ArmadaContext, markers []Marker, db *pgxpool.Pool) error {
+func insertMarkers(ctx *armadacontext.Context, markers []Marker, db *pgxpool.Pool) error {
 	for _, marker := range markers {
 		_, err := db.Exec(ctx, "INSERT INTO markers VALUES ($1, $2)", marker.GroupID, marker.PartitionID)
 		if err != nil {

@@ -7,6 +7,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
-func ContextWithDefaultTimeout() (*armadacontext.ArmadaContext, gocontext.CancelFunc) {
+func ContextWithDefaultTimeout() (*armadacontext.Context, gocontext.CancelFunc) {
 	return armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
 }

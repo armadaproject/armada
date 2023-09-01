@@ -22,7 +22,7 @@ type GroupByResult struct {
 
 type GroupJobsRepository interface {
 	GroupBy(
-		ctx *armadacontext.ArmadaContext,
+		ctx *armadacontext.Context,
 		filters []*model.Filter,
 		order *model.Order,
 		groupedField string,
@@ -47,7 +47,7 @@ func NewSqlGroupJobsRepository(db *pgxpool.Pool) *SqlGroupJobsRepository {
 }
 
 func (r *SqlGroupJobsRepository) GroupBy(
-	ctx *armadacontext.ArmadaContext,
+	ctx *armadacontext.Context,
 	filters []*model.Filter,
 	activeJobSets bool,
 	order *model.Order,

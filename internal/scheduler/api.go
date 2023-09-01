@@ -228,7 +228,7 @@ func (srv *ExecutorApi) ReportEvents(grpcContext gocontext.Context, list *execut
 }
 
 // executorFromLeaseRequest extracts a schedulerobjects.Executor from the request.
-func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.ArmadaContext, req *executorapi.LeaseRequest) *schedulerobjects.Executor {
+func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req *executorapi.LeaseRequest) *schedulerobjects.Executor {
 	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
 	now := srv.clock.Now().UTC()
 	for _, nodeInfo := range req.Nodes {

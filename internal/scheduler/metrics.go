@@ -76,7 +76,7 @@ func NewMetricsCollector(
 }
 
 // Run enters s a loop which updates the metrics every refreshPeriod until the supplied context is cancelled
-func (c *MetricsCollector) Run(ctx *armadacontext.ArmadaContext) error {
+func (c *MetricsCollector) Run(ctx *armadacontext.Context) error {
 	ticker := c.clock.NewTicker(c.refreshPeriod)
 	log.Infof("Will update metrics every %s", c.refreshPeriod)
 	for {
@@ -108,7 +108,7 @@ func (c *MetricsCollector) Collect(metrics chan<- prometheus.Metric) {
 	}
 }
 
-func (c *MetricsCollector) refresh(ctx *armadacontext.ArmadaContext) error {
+func (c *MetricsCollector) refresh(ctx *armadacontext.Context) error {
 	log.Debugf("Refreshing prometheus metrics")
 	start := time.Now()
 	queueMetrics, err := c.updateQueueMetrics(ctx)
@@ -125,7 +125,7 @@ func (c *MetricsCollector) refresh(ctx *armadacontext.ArmadaContext) error {
 	return nil
 }
 
-func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.ArmadaContext) ([]prometheus.Metric, error) {
+func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]prometheus.Metric, error) {
 	queues, err := c.queueRepository.GetAllQueues()
 	if err != nil {
 		return nil, err
@@ -212,7 +212,7 @@ type clusterMetricKey struct {
 	nodeType string
 }
 
-func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.ArmadaContext) ([]prometheus.Metric, error) {
+func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]prometheus.Metric, error) {
 	executors, err := c.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		return nil, err

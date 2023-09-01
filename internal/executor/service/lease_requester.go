@@ -31,7 +31,7 @@ type LeaseResponse struct {
 }
 
 type LeaseRequester interface {
-	LeaseJobRuns(ctx *armadacontext.ArmadaContext, request *LeaseRequest) (*LeaseResponse, error)
+	LeaseJobRuns(ctx *armadacontext.Context, request *LeaseRequest) (*LeaseResponse, error)
 }
 
 type JobLeaseRequester struct {
@@ -52,7 +52,7 @@ func NewJobLeaseRequester(
 	}
 }
 
-func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.ArmadaContext, request *LeaseRequest) (*LeaseResponse, error) {
+func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, request *LeaseRequest) (*LeaseResponse, error) {
 	stream, err := requester.executorApiClient.LeaseJobRuns(ctx, grpcretry.Disable(), grpc.UseCompressor(gzip.Name))
 	if err != nil {
 		return nil, err

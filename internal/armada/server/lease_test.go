@@ -452,7 +452,7 @@ type fakeEventStore struct {
 	events []*api.EventMessage
 }
 
-func (es *fakeEventStore) ReportEvents(_ *armadacontext.ArmadaContext, message []*api.EventMessage) error {
+func (es *fakeEventStore) ReportEvents(_ *armadacontext.Context, message []*api.EventMessage) error {
 	es.events = append(es.events, message...)
 	return nil
 }
@@ -469,14 +469,14 @@ func (repo *fakeSchedulingInfoRepository) UpdateClusterSchedulingInfo(report *ap
 
 type fakeExecutorRepository struct{}
 
-func (f fakeExecutorRepository) GetExecutors(ctx *armadacontext.ArmadaContext) ([]*schedulerobjects.Executor, error) {
+func (f fakeExecutorRepository) GetExecutors(ctx *armadacontext.Context) ([]*schedulerobjects.Executor, error) {
 	return nil, nil
 }
 
-func (f fakeExecutorRepository) GetLastUpdateTimes(ctx *armadacontext.ArmadaContext) (map[string]time.Time, error) {
+func (f fakeExecutorRepository) GetLastUpdateTimes(ctx *armadacontext.Context) (map[string]time.Time, error) {
 	return nil, nil
 }
 
-func (f fakeExecutorRepository) StoreExecutor(ctx *armadacontext.ArmadaContext, executor *schedulerobjects.Executor) error {
+func (f fakeExecutorRepository) StoreExecutor(ctx *armadacontext.Context, executor *schedulerobjects.Executor) error {
 	return nil
 }

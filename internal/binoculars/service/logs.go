@@ -16,7 +16,7 @@ import (
 )
 
 type LogService interface {
-	GetLogs(ctx *armadacontext.ArmadaContext, params *LogParams) ([]*binoculars.LogLine, error)
+	GetLogs(ctx *armadacontext.Context, params *LogParams) ([]*binoculars.LogLine, error)
 }
 
 type LogParams struct {
@@ -37,7 +37,7 @@ func NewKubernetesLogService(clientProvider cluster.KubernetesClientProvider) *K
 	return &KubernetesLogService{clientProvider: clientProvider}
 }
 
-func (l *KubernetesLogService) GetLogs(ctx *armadacontext.ArmadaContext, params *LogParams) ([]*binoculars.LogLine, error) {
+func (l *KubernetesLogService) GetLogs(ctx *armadacontext.Context, params *LogParams) ([]*binoculars.LogLine, error) {
 	client, err := l.clientProvider.ClientForUser(params.Principal.GetName(), params.Principal.GetGroupNames())
 	if err != nil {
 		return nil, err

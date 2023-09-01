@@ -252,7 +252,7 @@ func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([
 	return rv, nil
 }
 
-func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.ArmadaContext, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
+func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
 	ctx = armadacontext.
 		WithLogFields(ctx, map[string]interface{}{
 			"cluster": req.ClusterId,
@@ -858,7 +858,7 @@ func (q *AggregatedQueueServer) decompressOwnershipGroups(compressedOwnershipGro
 		return nil, fmt.Errorf("failed to borrow decompressior because %s", err)
 	}
 
-	defer func(decompressorPool *pool.ObjectPool, ctx *armadacontext.ArmadaContext, object interface{}) {
+	defer func(decompressorPool *pool.ObjectPool, ctx *armadacontext.Context, object interface{}) {
 		err := decompressorPool.ReturnObject(ctx, object)
 		if err != nil {
 			log.WithError(err).Errorf("Error returning decompressorPool to pool")
@@ -1003,7 +1003,7 @@ func (q *AggregatedQueueServer) ReportDone(grpcCtx gocontext.Context, idList *ap
 	return &api.IdList{Ids: cleanedIds}, returnedError
 }
 
-func (q *AggregatedQueueServer) reportLeaseReturned(ctx *armadacontext.ArmadaContext, leaseReturnRequest *api.ReturnLeaseRequest) error {
+func (q *AggregatedQueueServer) reportLeaseReturned(ctx *armadacontext.Context, leaseReturnRequest *api.ReturnLeaseRequest) error {
 	job, err := q.getJobById(leaseReturnRequest.JobId)
 	if err != nil {
 		return err

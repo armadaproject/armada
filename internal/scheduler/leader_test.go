@@ -185,7 +185,7 @@ func (t *TestLeaseListener) GetMessages() []LeaderToken {
 	return append([]LeaderToken(nil), t.tokens...)
 }
 
-func (t *TestLeaseListener) onStartedLeading(_ *armadacontext.ArmadaContext) {
+func (t *TestLeaseListener) onStartedLeading(_ *armadacontext.Context) {
 	t.handleNewToken()
 }
 

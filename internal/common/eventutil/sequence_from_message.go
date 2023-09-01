@@ -31,7 +31,7 @@ func NewSequenceFromMessage(in chan pulsar.Message) *SequenceFromMessage {
 	}
 }
 
-func (srv *SequenceFromMessage) Run(ctx *armadacontext.ArmadaContext) error {
+func (srv *SequenceFromMessage) Run(ctx *armadacontext.Context) error {
 	log := ctxlogrus.Extract(ctx)
 	for {
 		select {
@@ -83,7 +83,7 @@ func NewSequenceCompacter(in chan *EventSequenceWithMessageIds) *SequenceCompact
 	}
 }
 
-func (srv *SequenceCompacter) Run(ctx *armadacontext.ArmadaContext) error {
+func (srv *SequenceCompacter) Run(ctx *armadacontext.Context) error {
 	ticker := time.NewTicker(srv.Interval)
 	for {
 		select {
@@ -110,7 +110,7 @@ func (srv *SequenceCompacter) Run(ctx *armadacontext.ArmadaContext) error {
 	}
 }
 
-func (srv *SequenceCompacter) compactAndSend(ctx *armadacontext.ArmadaContext) error {
+func (srv *SequenceCompacter) compactAndSend(ctx *armadacontext.Context) error {
 	if len(srv.buffer) == 0 {
 		return nil
 	}
@@ -167,7 +167,7 @@ func NewEventFilter(in chan *EventSequenceWithMessageIds, filter func(*armadaeve
 	}
 }
 
-func (srv *EventFilter) Run(ctx *armadacontext.ArmadaContext) error {
+func (srv *EventFilter) Run(ctx *armadacontext.Context) error {
 	for {
 		select {
 		case <-ctx.Done():

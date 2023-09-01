@@ -24,7 +24,7 @@ type LeaderController interface {
 	// Returns true if the token is a leader and false otherwise
 	ValidateToken(tok LeaderToken) bool
 	// Run starts the controller.  This is a blocking call which will return when the provided context is cancelled
-	Run(ctx *armadacontext.ArmadaContext) error
+	Run(ctx *armadacontext.Context) error
 	// GetLeaderReport returns a report about the current leader
 	GetLeaderReport() LeaderReport
 }
@@ -86,14 +86,14 @@ func (lc *StandaloneLeaderController) ValidateToken(tok LeaderToken) bool {
 	return false
 }
 
-func (lc *StandaloneLeaderController) Run(ctx *armadacontext.ArmadaContext) error {
+func (lc *StandaloneLeaderController) Run(ctx *armadacontext.Context) error {
 	return nil
 }
 
 // LeaseListener allows clients to listen for lease events.
 type LeaseListener interface {
 	// Called when the client has started leading.
-	onStartedLeading(*armadacontext.ArmadaContext)
+	onStartedLeading(*armadacontext.Context)
 	// Called when the client has stopped leading,
 	onStoppedLeading()
 }
@@ -139,7 +139,7 @@ func (lc *KubernetesLeaderController) ValidateToken(tok LeaderToken) bool {
 
 // Run starts the controller.
 // This is a blocking call that returns when the provided context is cancelled.
-func (lc *KubernetesLeaderController) Run(ctx *armadacontext.ArmadaContext) error {
+func (lc *KubernetesLeaderController) Run(ctx *armadacontext.Context) error {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("service", "KubernetesLeaderController")
 	for {
