@@ -1,7 +1,6 @@
 package logic
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -9,6 +8,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )

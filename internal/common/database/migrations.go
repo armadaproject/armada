@@ -8,9 +8,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/armadaproject/armada/internal/common/context"
 	stakikfs "github.com/rakyll/statik/fs"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/armadaproject/armada/internal/common/context"
 )
 
 // Migration represents a single, versioned database migration script

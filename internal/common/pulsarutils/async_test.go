@@ -2,10 +2,11 @@ package pulsarutils
 
 import (
 	gocontext "context"
-	ctx "github.com/armadaproject/armada/internal/common/context"
 	"sync"
 	"testing"
 	"time"
+
+	ctx "github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/stretchr/testify/assert"
