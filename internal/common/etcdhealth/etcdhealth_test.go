@@ -1,14 +1,15 @@
 package etcdhealth
 
 import (
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/healthmonitor"
-	"github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/healthmonitor"
+	"github.com/armadaproject/armada/internal/common/metrics"
 )
 
 func TestEtcdReplicaHealthMonitor(t *testing.T) {

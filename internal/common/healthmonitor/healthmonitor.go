@@ -25,5 +25,5 @@ type HealthMonitor interface {
 	// Run initialises and starts the health checker.
 	// Run may be blocking and should be run within a separate goroutine.
 	// Must be called before IsHealthy() or any prometheus.Collector interface methods.
-	Run(armadacontext.Context, *logrus.Entry) error
+	Run(*armadacontext.Context, *logrus.Entry) error
 }
