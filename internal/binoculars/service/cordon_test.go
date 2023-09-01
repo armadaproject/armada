@@ -4,9 +4,9 @@ import (
 	gocontext "context"
 	"encoding/json"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"

@@ -12,7 +12,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 
 	"github.com/armadaproject/armada/internal/armada/cache"
@@ -53,7 +52,7 @@ func Serve(ctx *context.ArmadaContext, config *configuration.ArmadaConfig, healt
 	// Defer cancelling the parent context to ensure the errgroup is cancelled on return.
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	g, ctx2 := errgroup.WithContext(ctx)
+	g, ctx := context.ErrGroup(ctx)
 
 	// List of services to run concurrently.
 	// Because we want to start services only once all input validation has been completed,

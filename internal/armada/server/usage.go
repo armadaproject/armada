@@ -1,6 +1,7 @@
 package server
 
 import (
+	gocontext "context"
 	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
@@ -41,7 +42,8 @@ func NewUsageServer(
 	}
 }
 
-func (s *UsageServer) ReportUsage(ctx *context.ArmadaContext, report *api.ClusterUsageReport) (*types.Empty, error) {
+func (s *UsageServer) ReportUsage(grpcCtx gocontext.Context, report *api.ClusterUsageReport) (*types.Empty, error) {
+	ctx := context.FromGrpcContext(grpcCtx)
 	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportUsage] error: %s", err)
 	}

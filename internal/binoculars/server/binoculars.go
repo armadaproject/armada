@@ -2,7 +2,6 @@ package server
 
 import (
 	gocontext "context"
-	"github.com/armadaproject/armada/internal/common/context"
 	"strconv"
 
 	"github.com/gogo/protobuf/types"
@@ -10,6 +9,7 @@ import (
 	"github.com/armadaproject/armada/internal/binoculars/service"
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
 

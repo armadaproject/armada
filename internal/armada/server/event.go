@@ -1,6 +1,7 @@
 package server
 
 import (
+	gocontext "context"
 	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
@@ -42,7 +43,8 @@ func NewEventServer(
 	}
 }
 
-func (s *EventServer) Report(ctx *context.ArmadaContext, message *api.EventMessage) (*types.Empty, error) {
+func (s *EventServer) Report(grpcCtx gocontext.Context, message *api.EventMessage) (*types.Empty, error) {
+	ctx := context.FromGrpcContext(grpcCtx)
 	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[Report] error: %s", err)
 	}
@@ -50,7 +52,8 @@ func (s *EventServer) Report(ctx *context.ArmadaContext, message *api.EventMessa
 	return &types.Empty{}, s.eventStore.ReportEvents(ctx, []*api.EventMessage{message})
 }
 
-func (s *EventServer) ReportMultiple(ctx *context.ArmadaContext, message *api.EventList) (*types.Empty, error) {
+func (s *EventServer) ReportMultiple(grpcCtx gocontext.Context, message *api.EventList) (*types.Empty, error) {
+	ctx := context.FromGrpcContext(grpcCtx)
 	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportMultiple] error: %s", err)
 	}
@@ -116,6 +119,7 @@ func (s *EventServer) enrichPreemptedEvent(event *api.EventMessage_Preempted, jo
 
 // GetJobSetEvents streams back all events associated with a particular job set.
 func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
+	ctx := context.FromGrpcContext(stream.Context())
 	q, err := s.queueRepository.GetQueue(request.Queue)
 	var expected *repository.ErrQueueNotFound
 	if errors.As(err, &expected) {
@@ -124,7 +128,7 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 		return err
 	}
 
-	err = validateUserHasWatchPermissions(stream.Context(), s.permissions, q, request.Id)
+	err = validateUserHasWatchPermissions(ctx, s.permissions, q, request.Id)
 	if err != nil {
 		return status.Errorf(codes.PermissionDenied, "[GetJobSetEvents] %s", err)
 	}
@@ -142,7 +146,7 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 	return s.serveEventsFromRepository(request, s.eventRepository, stream)
 }
 
-func (s *EventServer) Health(ctx *context.ArmadaContext, cont_ *types.Empty) (*api.HealthCheckResponse, error) {
+func (s *EventServer) Health(_ gocontext.Context, _ *types.Empty) (*api.HealthCheckResponse, error) {
 	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
 }
 

@@ -1,12 +1,13 @@
 package ingest
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
 	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
+
+	"github.com/armadaproject/armada/internal/common/context"
 )
 
 // Batcher batches up events from a channel.  Batches are created whenever maxItems have been

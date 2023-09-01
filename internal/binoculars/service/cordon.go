@@ -3,7 +3,6 @@ package service
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"strings"
 
 	"google.golang.org/grpc/codes"
@@ -17,6 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/cluster"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
 

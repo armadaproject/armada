@@ -82,6 +82,13 @@ func WithLogField(parent *ArmadaContext, key string, val interface{}) *ArmadaCon
 	}
 }
 
+func WithLogFields(parent *ArmadaContext, fields map[string]interface{}) *ArmadaContext {
+	return &ArmadaContext{
+		Ctx: parent,
+		Log: parent.Log.WithFields(fields),
+	}
+}
+
 func WithValue(parent *ArmadaContext, key, val any) *ArmadaContext {
 	return &ArmadaContext{
 		Ctx: context.WithValue(parent, key, val),

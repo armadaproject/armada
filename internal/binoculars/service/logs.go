@@ -2,7 +2,6 @@ package service
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"strings"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/cluster"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
 
