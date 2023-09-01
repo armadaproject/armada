@@ -6,14 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/context"
 )
 
 func CreateConnectionString(values map[string]string) string {

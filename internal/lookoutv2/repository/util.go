@@ -5,8 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
@@ -14,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest"

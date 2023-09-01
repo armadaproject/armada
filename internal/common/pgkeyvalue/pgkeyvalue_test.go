@@ -4,14 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/lookout/testutil"
 )
 

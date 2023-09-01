@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/caarlos0/log"
 	"github.com/mattn/go-zglob"
 	"github.com/oklog/ulid"
@@ -24,6 +22,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/context"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
@@ -32,7 +31,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )

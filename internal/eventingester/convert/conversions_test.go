@@ -5,14 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/pkg/armadaevents"

@@ -5,10 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 

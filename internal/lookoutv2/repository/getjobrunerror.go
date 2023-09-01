@@ -1,14 +1,13 @@
 package repository
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/context"
 )
 
 type GetJobRunErrorRepository interface {

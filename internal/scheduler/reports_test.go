@@ -5,12 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"

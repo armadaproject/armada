@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/armadaproject/armada/internal/common/context"
-
 	stakikfs "github.com/rakyll/statik/fs"
 	log "github.com/sirupsen/logrus"
 )

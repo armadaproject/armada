@@ -3,10 +3,9 @@ package scheduler
 import (
 	"fmt"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/hashicorp/go-memdb"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"

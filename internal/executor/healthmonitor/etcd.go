@@ -9,14 +9,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/metrics"

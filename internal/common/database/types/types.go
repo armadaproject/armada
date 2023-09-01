@@ -3,9 +3,8 @@ package types
 import (
 	"database/sql"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/context"
 )
 
 type DatabaseConnection interface {

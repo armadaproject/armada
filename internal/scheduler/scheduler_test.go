@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -16,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/context"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"

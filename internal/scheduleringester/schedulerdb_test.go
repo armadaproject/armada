@@ -4,8 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -15,6 +13,7 @@ import (
 	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/maps"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"

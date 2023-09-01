@@ -5,8 +5,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/hashicorp/go-memdb"
 	"github.com/pkg/errors"
@@ -15,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/context"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"

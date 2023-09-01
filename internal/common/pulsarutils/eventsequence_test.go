@@ -5,12 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )

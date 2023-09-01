@@ -5,13 +5,12 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
-	"github.com/jackc/pgx/v5/pgxpool"
-
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
+
+	"github.com/armadaproject/armada/internal/common/context"
 )
 
 func UpsertWithTransaction[T any](ctx *context.ArmadaContext, db *pgxpool.Pool, tableName string, records []T) error {

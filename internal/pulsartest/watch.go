@@ -5,10 +5,9 @@ import (
 	"log"
 	"os"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/sanity-io/litter"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 )

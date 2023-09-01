@@ -6,17 +6,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
-	"github.com/armadaproject/armada/internal/common/database/lookout"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/lookout/configuration"
 	"github.com/armadaproject/armada/internal/lookout/repository"

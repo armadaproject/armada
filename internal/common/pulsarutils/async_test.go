@@ -2,17 +2,15 @@ package pulsarutils
 
 import (
 	gocontext "context"
+	ctx "github.com/armadaproject/armada/internal/common/context"
 	"sync"
 	"testing"
 	"time"
 
-	ctx "github.com/armadaproject/armada/internal/common/context"
-
-	"github.com/armadaproject/armada/internal/common/ingest/metrics"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/net/context"
+
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 )
 
 var m = metrics.NewMetrics("test_pulsarutils_")
@@ -31,7 +29,7 @@ func (c *mockConsumer) AckID(message pulsar.MessageID) error {
 func (c *mockConsumer) Receive(ctx gocontext.Context) (pulsar.Message, error) {
 	if len(c.msgs) == 0 {
 		<-ctx.Done()
-		return nil, context.DeadlineExceeded
+		return nil, gocontext.DeadlineExceeded
 	}
 	msg, newMsgs := c.msgs[0], c.msgs[1:]
 	c.msgs = newMsgs

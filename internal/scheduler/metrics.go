@@ -5,13 +5,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/scheduler/database"

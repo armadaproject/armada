@@ -1,13 +1,12 @@
 package convert
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"

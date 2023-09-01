@@ -1,13 +1,12 @@
 package reporter
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"

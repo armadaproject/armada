@@ -4,11 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
 	"github.com/armadaproject/armada/internal/eventingester/model"
 )

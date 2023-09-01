@@ -4,15 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"

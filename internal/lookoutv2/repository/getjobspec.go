@@ -1,8 +1,6 @@
 package repository
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -10,6 +8,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/pkg/api"
 )
 

@@ -5,8 +5,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -16,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"

@@ -4,12 +4,11 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/go-redis/redis"
 	"github.com/hashicorp/go-multierror"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
 	"github.com/armadaproject/armada/internal/eventingester/model"

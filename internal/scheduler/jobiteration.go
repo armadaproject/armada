@@ -1,11 +1,10 @@
 package scheduler
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 )

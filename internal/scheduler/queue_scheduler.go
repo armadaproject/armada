@@ -5,11 +5,10 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/logging"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"

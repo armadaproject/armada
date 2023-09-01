@@ -6,14 +6,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/armadaevents"

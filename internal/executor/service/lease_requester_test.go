@@ -6,13 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/golang/mock/gomock"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/mocks"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/executor/context/fake"

@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
@@ -17,6 +15,7 @@ import (
 	"github.com/weaveworks/promrus"
 
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/logging"
 )
 

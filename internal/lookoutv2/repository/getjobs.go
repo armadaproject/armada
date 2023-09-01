@@ -6,13 +6,12 @@ import (
 	"sort"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"

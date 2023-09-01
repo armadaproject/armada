@@ -6,11 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 

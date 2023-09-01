@@ -5,8 +5,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/google/uuid"
 	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,6 +12,7 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 )
 

@@ -8,9 +8,8 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/sirupsen/logrus"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutv2/configuration"

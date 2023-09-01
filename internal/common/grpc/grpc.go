@@ -8,8 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
@@ -27,6 +25,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/certs"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/internal/common/requestid"
 )

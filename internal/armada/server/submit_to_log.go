@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
@@ -25,6 +23,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/pgkeyvalue"
 	"github.com/armadaproject/armada/internal/common/pointer"

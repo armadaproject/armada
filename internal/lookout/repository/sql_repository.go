@@ -3,11 +3,10 @@ package repository
 import (
 	"database/sql"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api/lookout"
 )

@@ -5,12 +5,11 @@ import (
 	"sort"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/doug-martin/goqu/v9"
 	"github.com/gogo/protobuf/types"
 	"github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/pkg/api/lookout"
 )
 

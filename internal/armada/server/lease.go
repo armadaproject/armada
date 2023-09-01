@@ -8,8 +8,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/types"
 	"github.com/hashicorp/go-multierror"
@@ -29,6 +27,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"

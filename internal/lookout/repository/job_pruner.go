@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	log "github.com/sirupsen/logrus"
+
+	"github.com/armadaproject/armada/internal/common/context"
 )
 
 const postgresFormat = "2006-01-02 15:04:05.000000"

@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	log "github.com/sirupsen/logrus"
+
+	"github.com/armadaproject/armada/internal/common/context"
 )
 
 type CachedCertificateService struct {

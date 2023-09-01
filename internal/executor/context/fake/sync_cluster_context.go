@@ -4,14 +4,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	v1 "k8s.io/api/core/v1"
 	discovery "k8s.io/api/discovery/v1"
 	networking "k8s.io/api/networking/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/domain"
 )

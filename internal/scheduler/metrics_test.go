@@ -4,8 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/golang/mock/gomock"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -13,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"

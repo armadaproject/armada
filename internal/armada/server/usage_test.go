@@ -4,8 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/alicebob/miniredis"
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
@@ -13,6 +11,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/common/context"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"

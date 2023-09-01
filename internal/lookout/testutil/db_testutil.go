@@ -4,12 +4,11 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pkg/errors"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookout/repository/schema"
 )

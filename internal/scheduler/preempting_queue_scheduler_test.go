@@ -5,8 +5,6 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/context"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"

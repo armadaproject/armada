@@ -7,14 +7,13 @@ import (
 	"sort"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
-
 	"github.com/doug-martin/goqu/v9"
 	"github.com/doug-martin/goqu/v9/exp"
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/duration"
 
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
