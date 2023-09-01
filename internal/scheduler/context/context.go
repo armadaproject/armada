@@ -40,6 +40,7 @@ type SchedulingContext struct {
 	// Determines how fairness is computed.
 	FairnessCostProvider fairness.FairnessCostProvider
 	// Limits job scheduling rate globally across all queues.
+	// Use the "Started" time to ensure limiter state remains constant within each scheduling round.
 	Limiter *rate.Limiter
 	// Sum of queue weights across all queues.
 	WeightSum float64
@@ -260,10 +261,14 @@ func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContex
 			sctx.ScheduledResourcesByPriorityClass.AddV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 			sctx.NumScheduledJobs++
 
-			// Remove a token from the rate-limiter bucket.
-			// We don't check the return value here as we allow exceeding the rate limit by one gang.
-			// Rather, we check whether the number of tokens is positive before scheduling a new job.
-			sctx.Limiter.AllowN(time.Now(), 1)
+			// // Remove a token from the rate-limiter bucket.
+			// // We don't check the return value here as we allow exceeding the rate limit by one gang.
+			// // Rather, we check whether the number of tokens is positive before scheduling a new job.
+			// if sctx.Limiter != nil {
+			// 	fmt.Println("Tokens before adding job:", sctx.Limiter.TokensAt(sctx.Started))
+			// 	v := sctx.Limiter.AllowN(sctx.Started, 1)
+			// 	fmt.Println("Tokens after adding job:", sctx.Limiter.TokensAt(sctx.Started), "v:", v)
+			// }
 		}
 	}
 	return evictedInThisRound, nil
@@ -351,6 +356,7 @@ type QueueSchedulingContext struct {
 	// Determines the fair share of this queue relative to other queues.
 	Weight float64
 	// Limits job scheduling rate for this queue.
+	// Use the "Started" time to ensure limiter state remains constant within each scheduling round.
 	Limiter *rate.Limiter
 	// Total resources assigned to the queue across all clusters by priority class priority.
 	// Includes jobs scheduled during this invocation of the scheduler.
@@ -499,10 +505,12 @@ func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingC
 			qctx.SuccessfulJobSchedulingContexts[jctx.JobId] = jctx
 			qctx.ScheduledResourcesByPriorityClass.AddV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 
-			// Remove a token from the rate-limiter bucket.
-			// We don't check the return value here as we allow exceeding the rate limit by one gang.
-			// Rather, we check whether the number of tokens is positive before scheduling a new job.
-			qctx.Limiter.AllowN(time.Now(), 1)
+			// // Remove a token from the rate-limiter bucket.
+			// // We don't check the return value here as we allow exceeding the rate limit by one gang.
+			// // Rather, we check whether the number of tokens is positive before scheduling a new job.
+			// if qctx.Limiter != nil {
+			// 	qctx.Limiter.AllowN(qctx.SchedulingContext.Started, 1)
+			// }
 		}
 	} else {
 		qctx.UnsuccessfulJobSchedulingContexts[jctx.JobId] = jctx

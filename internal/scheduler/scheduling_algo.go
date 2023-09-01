@@ -403,6 +403,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 				rate.Limit(l.schedulingConfig.MaximumPerQueueSchedulingRate),
 				l.schedulingConfig.MaximumPerQueueSchedulingBurst,
 			)
+			l.limiterByQueue[queue] = queueLimiter
 		}
 		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByPriorityClass, queueLimiter); err != nil {
 			return nil, nil, err

@@ -519,6 +519,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 				rate.Limit(q.schedulingConfig.MaximumPerQueueSchedulingRate),
 				q.schedulingConfig.MaximumPerQueueSchedulingBurst,
 			)
+			q.limiterByQueue[queue] = queueLimiter
 		}
 		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClassForPool[queue], queueLimiter); err != nil {
 			return nil, err

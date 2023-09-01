@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -87,8 +88,8 @@ func TestQueueScheduler(t *testing.T) {
 			PriorityFactorByQueue:    map[string]float64{"A": 1},
 			ExpectedScheduledIndices: []int{0, 11},
 		},
-		"MaximumJobsToSchedule": {
-			SchedulingConfig: testfixtures.WithMaxJobsToScheduleConfig(2, testfixtures.TestSchedulingConfig()),
+		"MaximumSchedulingBurst": {
+			SchedulingConfig: testfixtures.WithGlobalSchedulingRateLimiterConfig(10, 2, testfixtures.TestSchedulingConfig()),
 			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
@@ -99,32 +100,33 @@ func TestQueueScheduler(t *testing.T) {
 			ExpectedScheduledIndices:      []int{0, 11},
 			ExpectedNeverAttemptedIndices: []int{12, 13},
 		},
-		"MaximumGangsToSchedule": {
-			SchedulingConfig: testfixtures.WithMaxGangsToScheduleConfig(2, testfixtures.TestSchedulingConfig()),
+		"MaximumSchedulingBurst can be exceeded by one gang": {
+			SchedulingConfig: testfixtures.WithGlobalSchedulingRateLimiterConfig(10, 2, testfixtures.TestSchedulingConfig()),
 			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
+				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
 				testfixtures.WithGangAnnotationsJobs(
 					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 2),
 				),
-				testfixtures.WithGangAnnotationsJobs(
-					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 2),
-				),
-				testfixtures.WithGangAnnotationsJobs(
-					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 2),
-				),
-				testfixtures.WithGangAnnotationsJobs(
-					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 2),
-				),
-				testfixtures.WithGangAnnotationsJobs(
-					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 2),
-				),
-				testfixtures.WithGangAnnotationsJobs(
-					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 2),
-				),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 			),
 			PriorityFactorByQueue:         map[string]float64{"A": 1},
-			ExpectedScheduledIndices:      []int{0, 1, 6, 7},
-			ExpectedNeverAttemptedIndices: []int{8, 9, 10, 11},
+			ExpectedScheduledIndices:      []int{0, 2, 3},
+			ExpectedNeverAttemptedIndices: []int{4},
+		},
+		"MaximumPerQueueSchedulingBurst": {
+			SchedulingConfig: testfixtures.WithPerQueueSchedulingLimiterConfig(10, 2, testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs: armadaslices.Concatenate(
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
+				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 10),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 3),
+				testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 1),
+			),
+			PriorityFactorByQueue:         map[string]float64{"A": 1, "B": 1},
+			ExpectedScheduledIndices:      []int{0, 11, 14},
+			ExpectedNeverAttemptedIndices: []int{12, 13},
 		},
 		"MaximumResourceFractionToSchedule": {
 			SchedulingConfig: testfixtures.WithRoundLimitsConfig(
@@ -473,12 +475,22 @@ func TestQueueScheduler(t *testing.T) {
 				tc.SchedulingConfig.Preemption.PriorityClasses,
 				tc.SchedulingConfig.Preemption.DefaultPriorityClass,
 				fairnessCostProvider,
-				nil,
+				rate.NewLimiter(
+					rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
+					tc.SchedulingConfig.MaximumSchedulingBurst,
+				),
 				tc.TotalResources,
 			)
 			for queue, priorityFactor := range tc.PriorityFactorByQueue {
 				weight := 1 / priorityFactor
-				err := sctx.AddQueueSchedulingContext(queue, weight, tc.InitialAllocatedByQueueAndPriorityClass[queue], nil)
+				err := sctx.AddQueueSchedulingContext(
+					queue, weight,
+					tc.InitialAllocatedByQueueAndPriorityClass[queue],
+					rate.NewLimiter(
+						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
+						tc.SchedulingConfig.MaximumPerQueueSchedulingBurst,
+					),
+				)
 				require.NoError(t, err)
 			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(

@@ -1,6 +1,7 @@
 package constraints
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/pkg/errors"
@@ -112,14 +113,18 @@ func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *schedulerc
 	}
 
 	// Global rate limiter check.
-	if sctx.Limiter != nil && sctx.Limiter.Tokens() <= 0 {
+	fmt.Println("Global tokens", sctx.Limiter.TokensAt(sctx.Started))
+	if sctx.Limiter != nil && sctx.Limiter.TokensAt(sctx.Started) <= 0 {
 		return false, UnschedulableReasonGlobalRateLimitExceeded, nil
 	}
+	// fmt.Println("Global tokens again", sctx.Limiter.TokensAt(sctx.Started))
 
 	// Per-queue rate limiter check.
-	if qctx := sctx.QueueSchedulingContexts[queue]; qctx != nil && qctx.Limiter != nil && qctx.Limiter.Tokens() <= 0 {
+	fmt.Println("Per-queue tokens", sctx.QueueSchedulingContexts[queue].Limiter.TokensAt(sctx.Started))
+	if qctx := sctx.QueueSchedulingContexts[queue]; qctx != nil && qctx.Limiter != nil && qctx.Limiter.TokensAt(sctx.Started) <= 0 {
 		return false, UnschedulableReasonQueueRateLimitExceeded, nil
 	}
+	// fmt.Println("Per-queue tokens again", sctx.QueueSchedulingContexts[queue].Limiter.TokensAt(sctx.Started))
 
 	return true, "", nil
 }

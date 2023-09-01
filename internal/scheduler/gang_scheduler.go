@@ -55,6 +55,21 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 		if err != nil {
 			return
 		}
+
+		// Update rate-limiters to account for new successfully scheduled jobs.
+		if ok && !gctx.AllJobsEvicted {
+			fmt.Println("Tokens before adding job:", sch.schedulingContext.Limiter.TokensAt(sch.schedulingContext.Started))
+			sch.schedulingContext.Limiter.ReserveN(sch.schedulingContext.Started, len(gctx.JobSchedulingContexts))
+			fmt.Println("Tokens after adding job:", sch.schedulingContext.Limiter.TokensAt(sch.schedulingContext.Started))
+			qctx := sch.schedulingContext.QueueSchedulingContexts[gctx.Queue]
+			if qctx != nil {
+				fmt.Println("Per-queue tokens before adding job:", qctx.Limiter.TokensAt(sch.schedulingContext.Started))
+				qctx.Limiter.ReserveN(sch.schedulingContext.Started, len(gctx.JobSchedulingContexts))
+				fmt.Println("Per-queue tokens after adding job:", qctx.Limiter.TokensAt(sch.schedulingContext.Started))
+			}
+		}
+
+		// Process unschedulable jobs.
 		if !ok {
 			// Register the job as unschedulable. If the job was added to the context, remove it first.
 			if gangAddedToSchedulingContext {
