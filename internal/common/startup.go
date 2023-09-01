@@ -15,6 +15,7 @@ import (
 	"github.com/weaveworks/promrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	"github.com/armadaproject/armada/internal/common/logging"
 )
 

@@ -3,7 +3,7 @@ package simulator
 import (
 	"bytes"
 	"container/heap"
-	fmt "fmt"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,6 +22,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"

@@ -8,6 +8,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 

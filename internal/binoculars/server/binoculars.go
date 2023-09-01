@@ -9,6 +9,7 @@ import (
 	"github.com/armadaproject/armada/internal/binoculars/service"
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
 
