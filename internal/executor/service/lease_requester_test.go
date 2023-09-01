@@ -102,6 +102,7 @@ func TestLeaseJobRuns_Send(t *testing.T) {
 			},
 		},
 		UnassignedJobRunIds: []armadaevents.Uuid{*id1},
+		MaxJobsToLease:      uint32(5),
 	}
 
 	expectedRequest := &executorapi.LeaseRequest{
@@ -111,6 +112,7 @@ func TestLeaseJobRuns_Send(t *testing.T) {
 		MinimumJobSize:      defaultMinimumJobSize,
 		Nodes:               leaseRequest.Nodes,
 		UnassignedJobRunIds: leaseRequest.UnassignedJobRunIds,
+		MaxJobsToLease:      leaseRequest.MaxJobsToLease,
 	}
 
 	jobRequester, mockExecutorApiClient, mockStream := setup(t)

@@ -1,12 +1,14 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
@@ -47,11 +49,13 @@ func main() {
 	shutdownChannel := make(chan os.Signal, 1)
 	signal.Notify(shutdownChannel, syscall.SIGINT, syscall.SIGTERM)
 
-	shutdownMetricServer := common.ServeMetricsFor(config.Metric.Port,
-		prometheus.Gatherers{metrics.GetMetricsGatherer()})
+	shutdownMetricServer := common.ServeMetricsFor(
+		config.Metric.Port,
+		prometheus.Gatherers{metrics.GetMetricsGatherer()},
+	)
 	defer shutdownMetricServer()
 
-	shutdown, wg := executor.StartUp(config)
+	shutdown, wg := executor.StartUp(context.Background(), logrus.NewEntry(logrus.New()), config)
 	go func() {
 		<-shutdownChannel
 		shutdown()

@@ -197,20 +197,26 @@ func (s *EventServer) serveEventsFromRepository(request *api.JobSetRequest, even
 		default:
 		}
 
-		messages, err := eventRepository.ReadEvents(request.Queue, request.Id, fromId, 500, timeout)
+		messages, lastMessageId, err := eventRepository.ReadEvents(request.Queue, request.Id, fromId, 500, timeout)
 		if err != nil {
 			return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error reading events: %s", err)
 		}
 
 		stop := len(messages) == 0
-		for _, msg := range messages {
-			fromId = msg.Id
-			if fromId == stopAfter {
-				stop = true
+		if len(messages) == 0 {
+			if lastMessageId != nil {
+				fromId = lastMessageId.String()
 			}
-			err = stream.Send(msg)
-			if err != nil {
-				return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error sending event: %s", err)
+		} else {
+			for _, msg := range messages {
+				fromId = msg.Id
+				if fromId == stopAfter {
+					stop = true
+				}
+				err = stream.Send(msg)
+				if err != nil {
+					return status.Errorf(codes.Unavailable, "[GetJobSetEvents] error sending event: %s", err)
+				}
 			}
 		}
 

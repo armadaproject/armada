@@ -1,6 +1,8 @@
 package scheduler
 
 import (
+	"sync"
+
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
@@ -49,6 +51,8 @@ type InMemoryJobRepository struct {
 	// If true, jobs are sorted first by priority class priority.
 	// If false, priority class is ignored when ordering jobs.
 	sortByPriorityClass bool
+	// Protects the above fields.
+	mu sync.Mutex
 }
 
 func NewInMemoryJobRepository(priorityClasses map[string]types.PriorityClass) *InMemoryJobRepository {
@@ -61,6 +65,8 @@ func NewInMemoryJobRepository(priorityClasses map[string]types.PriorityClass) *I
 }
 
 func (repo *InMemoryJobRepository) EnqueueMany(jobs []interfaces.LegacySchedulerJob) {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
 	updatedQueues := make(map[string]bool)
 	for _, job := range jobs {
 		queue := job.GetQueue()
@@ -74,6 +80,8 @@ func (repo *InMemoryJobRepository) EnqueueMany(jobs []interfaces.LegacyScheduler
 }
 
 func (repo *InMemoryJobRepository) Enqueue(job interfaces.LegacySchedulerJob) {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
 	queue := job.GetQueue()
 	repo.jobsByQueue[queue] = append(repo.jobsByQueue[queue], job)
 	repo.jobsById[job.GetId()] = job
@@ -116,6 +124,8 @@ func (repo *InMemoryJobRepository) GetQueueJobIds(queue string) ([]string, error
 }
 
 func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) ([]interfaces.LegacySchedulerJob, error) {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
 	rv := make([]interfaces.LegacySchedulerJob, 0, len(jobIds))
 	for _, jobId := range jobIds {
 		if job, ok := repo.jobsById[jobId]; ok {
@@ -126,6 +136,8 @@ func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) ([]inte
 }
 
 func (repo *InMemoryJobRepository) GetJobIterator(ctx *armadacontext.Context, queue string) (JobIterator, error) {
+	repo.mu.Lock()
+	defer repo.mu.Unlock()
 	return NewInMemoryJobIterator(slices.Clone(repo.jobsByQueue[queue])), nil
 }
 
