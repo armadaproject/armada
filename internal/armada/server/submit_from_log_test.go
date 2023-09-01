@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -41,7 +42,7 @@ func TestUpdateJobStartTimes(t *testing.T) {
 		},
 	}
 
-	ok, err := s.UpdateJobStartTimes(ctx.Background(), events)
+	ok, err := s.UpdateJobStartTimes(context.Background(), events)
 	assert.NoError(t, err)
 	assert.True(t, ok)
 
@@ -58,7 +59,7 @@ func TestUpdateJobStartTimes_NonExistentJob(t *testing.T) {
 			jobRepository: jobRepo,
 		},
 	}
-	ok, err := s.UpdateJobStartTimes(ctx.Background(), events)
+	ok, err := s.UpdateJobStartTimes(context.Background(), events)
 	assert.Nil(t, err)
 	assert.True(t, ok)
 
@@ -74,7 +75,7 @@ func TestUpdateJobStartTimes_RedisError(t *testing.T) {
 			jobRepository: jobRepo,
 		},
 	}
-	ok, err := s.UpdateJobStartTimes(ctx.Background(), events)
+	ok, err := s.UpdateJobStartTimes(context.Background(), events)
 	assert.Error(t, err)
 	assert.False(t, ok)
 
