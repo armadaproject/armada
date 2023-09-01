@@ -76,19 +76,25 @@ func StartUp(ctx context.Context, log *logrus.Entry, config configuration.Execut
 				etcdClusterHealthMonitoring.ScrapeDelayBucketsFactor,
 				etcdClusterHealthMonitoring.ScrapeDelayBucketsCount,
 				common_metrics.NewHttpMetricsProvider(metricsUrl, http.DefaultClient),
-			)
+			).WithMetricsPrefix(metrics.ArmadaExecutorMetricsPrefix)
 		}
 		etcdClusterHealthMonitoringByName[etcdClusterHealthMonitoring.Name] = healthmonitor.NewMultiHealthMonitor(
 			etcdClusterHealthMonitoring.Name,
 			etcdReplicaHealthMonitorsByUrl,
-		).WithMinimumReplicasAvailable(etcdClusterHealthMonitoring.MinimumReplicasAvailable)
+		).WithMinimumReplicasAvailable(
+			etcdClusterHealthMonitoring.MinimumReplicasAvailable,
+		).WithMetricsPrefix(
+			metrics.ArmadaExecutorMetricsPrefix,
+		)
 	}
 	var etcdClustersHealthMonitoring healthmonitor.HealthMonitor
 	if len(etcdClusterHealthMonitoringByName) > 0 {
 		log.Info("etcd URLs provided; monitoring etcd health enabled")
 		etcdClustersHealthMonitoring = healthmonitor.NewMultiHealthMonitor(
-			"etcd",
+			"overall_etcd",
 			etcdClusterHealthMonitoringByName,
+		).WithMetricsPrefix(
+			metrics.ArmadaExecutorMetricsPrefix,
 		)
 		g.Go(func() error { return etcdClustersHealthMonitoring.Run(ctx, log) })
 		prometheus.MustRegister(etcdClustersHealthMonitoring)

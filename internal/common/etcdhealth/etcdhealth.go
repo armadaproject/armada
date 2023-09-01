@@ -141,8 +141,9 @@ func (srv *EtcdReplicaHealthMonitor) initialiseMetrics() {
 		nil,
 	)
 	srv.metricsCollectionDelayHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name: srv.metricsPrefix + "etcd_replica_metrics_collection_delay_seconds",
-		Help: "Delay in seconds of collecting metrics from this etcd replica.",
+		Name:        srv.metricsPrefix + "etcd_replica_metrics_collection_delay_seconds",
+		Help:        "Delay in seconds of collecting metrics from this etcd replica.",
+		ConstLabels: prometheus.Labels{etcdMemberUrl: srv.name},
 		Buckets: prometheus.ExponentialBuckets(
 			srv.metricsCollectionDelayBucketsStart,
 			srv.metricsCollectionDelayBucketsFactor,
