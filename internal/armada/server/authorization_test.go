@@ -2,6 +2,7 @@ package server
 
 import (
 	gocontext "context"
+
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 )

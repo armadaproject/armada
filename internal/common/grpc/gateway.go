@@ -1,12 +1,11 @@
 package grpc
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"path"
 	"strings"
-
-	"github.com/armadaproject/armada/internal/common/context"
 
 	"google.golang.org/grpc/credentials/insecure"
 
@@ -27,7 +26,7 @@ func CreateGatewayHandler(
 	apiBasePath string,
 	corsAllowedOrigins []string,
 	spec string,
-	handlers ...func(ctx *context.ArmadaContext, mux *runtime.ServeMux, conn *grpc.ClientConn) error,
+	handlers ...func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error,
 ) (shutdown func()) {
 	connectionCtx, cancelConnectionCtx := context.WithCancel(context.Background())
 

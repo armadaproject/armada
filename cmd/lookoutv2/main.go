@@ -1,10 +1,11 @@
 package main
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"

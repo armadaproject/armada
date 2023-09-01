@@ -2,7 +2,6 @@ package server
 
 import (
 	gocontext "context"
-	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
 	"github.com/gogo/protobuf/types"

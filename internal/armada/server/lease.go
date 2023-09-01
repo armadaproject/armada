@@ -3,11 +3,12 @@ package server
 import (
 	gocontext "context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"io"
 	"math"
 	"sync/atomic"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/types"

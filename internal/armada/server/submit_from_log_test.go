@@ -2,7 +2,6 @@ package server
 
 import (
 	"fmt"
-	ctx "github.com/armadaproject/armada/internal/common/context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"

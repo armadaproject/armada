@@ -1,9 +1,10 @@
 package server
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
 	"testing"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/alicebob/miniredis"
 	"github.com/go-redis/redis"

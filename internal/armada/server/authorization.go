@@ -2,7 +2,6 @@ package server
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"strings"
 
 	"github.com/armadaproject/armada/internal/common/auth/authorization"

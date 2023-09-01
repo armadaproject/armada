@@ -94,7 +94,7 @@ var loadtestCmd = &cobra.Command{
 	},
 }
 
-func checkLoadTestSuccess(loadTestDeadline *context.ArmadaContext, result domain.LoadTestSummary, loadTestSpec *domain.LoadTestSpecification) {
+func checkLoadTestSuccess(loadTestDeadline context.Context, result domain.LoadTestSummary, loadTestSpec *domain.LoadTestSpecification) {
 	if loadTestDeadline.Err() != nil {
 		log.Error("Fail: Test timed out")
 		os.Exit(1)

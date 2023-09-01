@@ -4,10 +4,11 @@ import (
 	gocontext "context"
 	"crypto/sha1"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"math/rand"
 	"strings"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/context"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/types"
