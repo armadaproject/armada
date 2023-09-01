@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	ctx "github.com/armadaproject/armada/internal/common/context"
+	ctx "github.com/armadaproject/armada/internal/common/armadacontext"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/stretchr/testify/assert"

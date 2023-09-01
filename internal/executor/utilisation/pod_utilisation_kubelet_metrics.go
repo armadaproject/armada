@@ -10,7 +10,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 )
@@ -28,7 +28,7 @@ func (m *podUtilisationKubeletMetrics) fetch(nodes []*v1.Node, podNameToUtilisat
 		wg.Add(1)
 		go func(node *v1.Node) {
 			defer wg.Done()
-			ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*15)
+			ctx, cancelFunc := armadacontext.WithTimeout(armadacontext.Background(), time.Second*15)
 			defer cancelFunc()
 			summary, err := clusterContext.GetNodeStatsSummary(ctx, node)
 			if err != nil {

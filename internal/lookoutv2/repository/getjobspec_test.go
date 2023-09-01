@@ -6,8 +6,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
@@ -42,7 +41,7 @@ func TestGetJobSpec(t *testing.T) {
 			ApiJob()
 
 		repo := NewSqlGetJobSpecRepository(db, &compress.NoOpDecompressor{})
-		result, err := repo.GetJobSpec(context.TODO(), jobId)
+		result, err := repo.GetJobSpec(armadacontext.TODO(), jobId)
 		assert.NoError(t, err)
 		assertApiJobsEquivalent(t, job, result)
 		return nil
@@ -53,7 +52,7 @@ func TestGetJobSpec(t *testing.T) {
 func TestGetJobSpecError(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		repo := NewSqlGetJobSpecRepository(db, &compress.NoOpDecompressor{})
-		_, err := repo.GetJobSpec(context.TODO(), jobId)
+		_, err := repo.GetJobSpec(armadacontext.TODO(), jobId)
 		assert.Error(t, err)
 		return nil
 	})

@@ -22,10 +22,10 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/certs"
-	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/internal/common/requestid"
 )
@@ -91,7 +91,7 @@ func CreateGrpcServer(
 	if tlsConfig.Enabled {
 		cachedCertificateService := certs.NewCachedCertificateService(tlsConfig.CertPath, tlsConfig.KeyPath, time.Minute)
 		go func() {
-			cachedCertificateService.Run(context.Background())
+			cachedCertificateService.Run(armadacontext.Background())
 		}()
 		tlsCreds := credentials.NewTLS(&tls.Config{
 			GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
@@ -130,7 +130,7 @@ func Listen(port uint16, grpcServer *grpc.Server, wg *sync.WaitGroup) {
 
 // CreateShutdownHandler returns a function that shuts down the grpcServer when the context is closed.
 // The server is given gracePeriod to perform a graceful showdown and is then forcably stopped if necessary
-func CreateShutdownHandler(ctx *context.ArmadaContext, gracePeriod time.Duration, grpcServer *grpc.Server) func() error {
+func CreateShutdownHandler(ctx *armadacontext.ArmadaContext, gracePeriod time.Duration, grpcServer *grpc.Server) func() error {
 	return func() error {
 		<-ctx.Done()
 		go func() {

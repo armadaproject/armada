@@ -17,7 +17,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	commonUtil "github.com/armadaproject/armada/internal/common/util"
@@ -111,10 +111,10 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 	// Setup a bidirectional gRPC stream.
 	// The server sends jobs over this stream.
 	// The executor sends back acks to indicate which jobs were successfully received.
-	ctx := context.Background()
+	ctx := armadacontext.Background()
 	var cancel gocontext.CancelFunc
 	if jobLeaseService.jobLeaseRequestTimeout != 0 {
-		ctx, cancel = context.WithTimeout(ctx, jobLeaseService.jobLeaseRequestTimeout)
+		ctx, cancel = armadacontext.WithTimeout(ctx, jobLeaseService.jobLeaseRequestTimeout)
 		defer cancel()
 	}
 	stream, err := jobLeaseService.queueClient.StreamingLeaseJobs(ctx, grpc_retry.Disable(), grpc.UseCompressor(gzip.Name))
@@ -137,7 +137,7 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 	var numJobs uint32
 	jobs := make([]*api.Job, 0)
 	ch := make(chan *api.StreamingJobLease, 10)
-	g, ctx := context.ErrGroup(ctx)
+	g, ctx := armadacontext.ErrGroup(ctx)
 	g.Go(func() error {
 		// Close channel to ensure sending goroutine exits.
 		defer close(ch)

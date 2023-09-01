@@ -16,7 +16,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada"
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	gateway "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/logging"
@@ -66,7 +66,7 @@ func main() {
 	}
 
 	// Run services within an errgroup to propagate errors between services.
-	g, ctx := context.ErrGroup(context.Background())
+	g, ctx := armadacontext.ErrGroup(armadacontext.Background())
 
 	// Cancel the errgroup context on SIGINT and SIGTERM,
 	// which shuts everything down gracefully.

@@ -5,7 +5,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/metrics"
 )
 
@@ -29,7 +29,7 @@ func NewLeaderStatusMetricsCollector(currentInstanceName string) *LeaderStatusMe
 	}
 }
 
-func (l *LeaderStatusMetricsCollector) onStartedLeading(*context.ArmadaContext) {
+func (l *LeaderStatusMetricsCollector) onStartedLeading(*armadacontext.ArmadaContext) {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 

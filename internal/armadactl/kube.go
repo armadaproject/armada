@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -14,7 +14,7 @@ import (
 func (a *App) Kube(jobId string, queueName string, jobSetId string, podNumber int, args []string) error {
 	verb := strings.Join(args, " ")
 	return client.WithEventClient(a.Params.ApiConnectionDetails, func(c api.EventClient) error {
-		state := client.GetJobSetState(c, queueName, jobSetId, context.Background(), true, false, false)
+		state := client.GetJobSetState(c, queueName, jobSetId, armadacontext.Background(), true, false, false)
 		jobInfo := state.GetJobInfo(jobId)
 
 		if jobInfo == nil {

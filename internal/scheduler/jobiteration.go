@@ -4,7 +4,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 )
@@ -125,21 +125,21 @@ func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) ([]inte
 	return rv, nil
 }
 
-func (repo *InMemoryJobRepository) GetJobIterator(ctx *context.ArmadaContext, queue string) (JobIterator, error) {
+func (repo *InMemoryJobRepository) GetJobIterator(ctx *armadacontext.ArmadaContext, queue string) (JobIterator, error) {
 	return NewInMemoryJobIterator(slices.Clone(repo.jobsByQueue[queue])), nil
 }
 
 // QueuedJobsIterator is an iterator over all jobs in a queue.
 // It lazily loads jobs in batches from Redis asynch.
 type QueuedJobsIterator struct {
-	ctx *context.ArmadaContext
+	ctx *armadacontext.ArmadaContext
 	err error
 	c   chan interfaces.LegacySchedulerJob
 }
 
-func NewQueuedJobsIterator(ctx *context.ArmadaContext, queue string, repo JobRepository) (*QueuedJobsIterator, error) {
+func NewQueuedJobsIterator(ctx *armadacontext.ArmadaContext, queue string, repo JobRepository) (*QueuedJobsIterator, error) {
 	batchSize := 16
-	g, ctx := context.ErrGroup(ctx)
+	g, ctx := armadacontext.ErrGroup(ctx)
 	it := &QueuedJobsIterator{
 		ctx: ctx,
 		c:   make(chan interfaces.LegacySchedulerJob, 2*batchSize), // 2x batchSize to load one batch async.
@@ -177,7 +177,7 @@ func (it *QueuedJobsIterator) Next() (interfaces.LegacySchedulerJob, error) {
 
 // queuedJobsIteratorLoader loads jobs from Redis lazily.
 // Used with QueuedJobsIterator.
-func queuedJobsIteratorLoader(ctx *context.ArmadaContext, jobIds []string, ch chan interfaces.LegacySchedulerJob, batchSize int, repo JobRepository) error {
+func queuedJobsIteratorLoader(ctx *armadacontext.ArmadaContext, jobIds []string, ch chan interfaces.LegacySchedulerJob, batchSize int, repo JobRepository) error {
 	defer close(ch)
 	batch := make([]string, batchSize)
 	for i, jobId := range jobIds {

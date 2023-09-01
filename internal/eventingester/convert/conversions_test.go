@@ -10,8 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -55,7 +54,7 @@ var cancelled = &armadaevents.EventSequence_Event{
 func TestSingle(t *testing.T) {
 	msg := NewMsg(jobRunSucceeded)
 	converter := simpleEventConverter()
-	batchUpdate := converter.Convert(context.Background(), msg)
+	batchUpdate := converter.Convert(armadacontext.Background(), msg)
 	expectedSequence := armadaevents.EventSequence{
 		Events: []*armadaevents.EventSequence_Event{jobRunSucceeded},
 	}
@@ -72,7 +71,7 @@ func TestSingle(t *testing.T) {
 func TestMultiple(t *testing.T) {
 	msg := NewMsg(cancelled, jobRunSucceeded)
 	converter := simpleEventConverter()
-	batchUpdate := converter.Convert(context.Background(), msg)
+	batchUpdate := converter.Convert(armadacontext.Background(), msg)
 	expectedSequence := armadaevents.EventSequence{
 		Events: []*armadaevents.EventSequence_Event{cancelled, jobRunSucceeded},
 	}
@@ -113,7 +112,7 @@ func TestCancelled(t *testing.T) {
 		},
 	})
 	converter := simpleEventConverter()
-	batchUpdate := converter.Convert(context.Background(), msg)
+	batchUpdate := converter.Convert(armadacontext.Background(), msg)
 	assert.Equal(t, 1, len(batchUpdate.Events))
 	event := batchUpdate.Events[0]
 	es, err := extractEventSeq(event.Event)

@@ -13,8 +13,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/repository/sequence"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
@@ -44,7 +43,7 @@ func NewEventServer(
 }
 
 func (s *EventServer) Report(grpcCtx gocontext.Context, message *api.EventMessage) (*types.Empty, error) {
-	ctx := context.FromGrpcContext(grpcCtx)
+	ctx := armadacontext.FromGrpcContext(grpcCtx)
 	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[Report] error: %s", err)
 	}
@@ -53,7 +52,7 @@ func (s *EventServer) Report(grpcCtx gocontext.Context, message *api.EventMessag
 }
 
 func (s *EventServer) ReportMultiple(grpcCtx gocontext.Context, message *api.EventList) (*types.Empty, error) {
-	ctx := context.FromGrpcContext(grpcCtx)
+	ctx := armadacontext.FromGrpcContext(grpcCtx)
 	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportMultiple] error: %s", err)
 	}
@@ -119,7 +118,7 @@ func (s *EventServer) enrichPreemptedEvent(event *api.EventMessage_Preempted, jo
 
 // GetJobSetEvents streams back all events associated with a particular job set.
 func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
-	ctx := context.FromGrpcContext(stream.Context())
+	ctx := armadacontext.FromGrpcContext(stream.Context())
 	q, err := s.queueRepository.GetQueue(request.Queue)
 	var expected *repository.ErrQueueNotFound
 	if errors.As(err, &expected) {
@@ -220,7 +219,7 @@ func (s *EventServer) serveEventsFromRepository(request *api.JobSetRequest, even
 	}
 }
 
-func validateUserHasWatchPermissions(ctx *context.ArmadaContext, permsChecker authorization.PermissionChecker, q queue.Queue, jobSetId string) error {
+func validateUserHasWatchPermissions(ctx *armadacontext.ArmadaContext, permsChecker authorization.PermissionChecker, q queue.Queue, jobSetId string) error {
 	err := checkPermission(permsChecker, ctx, permissions.WatchAllEvents)
 	var globalPermErr *ErrUnauthorized
 	if errors.As(err, &globalPermErr) {

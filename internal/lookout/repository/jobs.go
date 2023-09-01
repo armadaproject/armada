@@ -12,15 +12,14 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/duration"
 
-	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/api/lookout"
 )
 
-func (r *SQLJobRepository) GetJobs(ctx *context.ArmadaContext, opts *lookout.GetJobsRequest) ([]*lookout.JobInfo, error) {
+func (r *SQLJobRepository) GetJobs(ctx *armadacontext.ArmadaContext, opts *lookout.GetJobsRequest) ([]*lookout.JobInfo, error) {
 	if valid, jobState := validateJobStates(opts.JobStates); !valid {
 		return nil, fmt.Errorf("unknown job state: %q", jobState)
 	}
@@ -57,7 +56,7 @@ func isJobState(val string) bool {
 	return false
 }
 
-func (r *SQLJobRepository) queryJobs(ctx *context.ArmadaContext, opts *lookout.GetJobsRequest) ([]*JobRow, error) {
+func (r *SQLJobRepository) queryJobs(ctx *armadacontext.ArmadaContext, opts *lookout.GetJobsRequest) ([]*JobRow, error) {
 	ds := r.createJobsDataset(opts)
 
 	jobsInQueueRows := make([]*JobRow, 0)

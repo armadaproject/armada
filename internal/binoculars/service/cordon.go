@@ -13,17 +13,17 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/binoculars/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/cluster"
-	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
 
 const userTemplate = "<user>"
 
 type CordonService interface {
-	CordonNode(ctx *context.ArmadaContext, request *binoculars.CordonRequest) error
+	CordonNode(ctx *armadacontext.ArmadaContext, request *binoculars.CordonRequest) error
 }
 
 type KubernetesCordonService struct {
@@ -44,7 +44,7 @@ func NewKubernetesCordonService(
 	}
 }
 
-func (c *KubernetesCordonService) CordonNode(ctx *context.ArmadaContext, request *binoculars.CordonRequest) error {
+func (c *KubernetesCordonService) CordonNode(ctx *armadacontext.ArmadaContext, request *binoculars.CordonRequest) error {
 	err := checkPermission(c.permissionChecker, ctx, permissions.CordonNodes)
 	if err != nil {
 		return status.Errorf(codes.PermissionDenied, err.Error())
@@ -91,7 +91,7 @@ func GetPatchBytes(patchData *nodePatch) ([]byte, error) {
 	return json.Marshal(patchData)
 }
 
-func checkPermission(p authorization.PermissionChecker, ctx *context.ArmadaContext, permission permission.Permission) error {
+func checkPermission(p authorization.PermissionChecker, ctx *armadacontext.ArmadaContext, permission permission.Permission) error {
 	if !p.UserHasPermission(ctx, permission) {
 		return fmt.Errorf("user %s does not have permission %s", authorization.GetPrincipal(ctx).GetName(), permission)
 	}

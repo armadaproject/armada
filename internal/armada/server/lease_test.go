@@ -9,7 +9,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/armada/repository"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -25,7 +25,7 @@ func TestAggregatedQueueServer_ReturnLeaseCallsRepositoryMethod(t *testing.T) {
 	_, addJobsErr := mockJobRepository.AddJobs([]*api.Job{job})
 	assert.Nil(t, addJobsErr)
 
-	_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
+	_, err := aggregatedQueueClient.ReturnLease(armadacontext.TODO(), &api.ReturnLeaseRequest{
 		ClusterId: clusterId,
 		JobId:     jobId,
 	})
@@ -54,7 +54,7 @@ func TestAggregatedQueueServer_ReturnLeaseCallsSendsJobLeaseReturnedEvent(t *tes
 	_, addJobsErr := mockJobRepository.AddJobs([]*api.Job{job})
 	assert.Nil(t, addJobsErr)
 
-	_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
+	_, err := aggregatedQueueClient.ReturnLease(armadacontext.TODO(), &api.ReturnLeaseRequest{
 		ClusterId:    clusterId,
 		JobId:        jobId,
 		Reason:       reason,
@@ -84,7 +84,7 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesDeletesJob(t *tes
 	assert.Nil(t, addJobsErr)
 
 	for i := 0; i < maxRetries; i++ {
-		_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
+		_, err := aggregatedQueueClient.ReturnLease(armadacontext.TODO(), &api.ReturnLeaseRequest{
 			ClusterId:       clusterId,
 			JobId:           jobId,
 			JobRunAttempted: true,
@@ -96,7 +96,7 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesDeletesJob(t *tes
 		assert.Equal(t, jobId, mockJobRepository.returnLeaseArg2)
 	}
 
-	_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
+	_, err := aggregatedQueueClient.ReturnLease(armadacontext.TODO(), &api.ReturnLeaseRequest{
 		ClusterId: clusterId,
 		JobId:     jobId,
 	})
@@ -125,7 +125,7 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesSendsJobFailedEve
 	assert.Nil(t, addJobsErr)
 
 	for i := 0; i < maxRetries; i++ {
-		_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
+		_, err := aggregatedQueueClient.ReturnLease(armadacontext.TODO(), &api.ReturnLeaseRequest{
 			ClusterId:       clusterId,
 			JobId:           jobId,
 			JobRunAttempted: true,
@@ -136,7 +136,7 @@ func TestAggregatedQueueServer_ReturningLeaseMoreThanMaxRetriesSendsJobFailedEve
 		fakeEventStore.events = []*api.EventMessage{}
 	}
 
-	_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
+	_, err := aggregatedQueueClient.ReturnLease(armadacontext.TODO(), &api.ReturnLeaseRequest{
 		ClusterId: clusterId,
 		JobId:     jobId,
 	})
@@ -169,7 +169,7 @@ func TestAggregatedQueueServer_ReturningLease_IncrementsRetries(t *testing.T) {
 	assert.Nil(t, addJobsErr)
 
 	// Does not count towards retries if JobRunAttempted is false
-	_, err := aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
+	_, err := aggregatedQueueClient.ReturnLease(armadacontext.TODO(), &api.ReturnLeaseRequest{
 		ClusterId:       clusterId,
 		JobId:           jobId,
 		JobRunAttempted: false,
@@ -180,7 +180,7 @@ func TestAggregatedQueueServer_ReturningLease_IncrementsRetries(t *testing.T) {
 	assert.Equal(t, 0, numberOfRetries)
 
 	// Does count towards reties if JobRunAttempted is true
-	_, err = aggregatedQueueClient.ReturnLease(context.TODO(), &api.ReturnLeaseRequest{
+	_, err = aggregatedQueueClient.ReturnLease(armadacontext.TODO(), &api.ReturnLeaseRequest{
 		ClusterId:       clusterId,
 		JobId:           jobId,
 		JobRunAttempted: true,
@@ -452,7 +452,7 @@ type fakeEventStore struct {
 	events []*api.EventMessage
 }
 
-func (es *fakeEventStore) ReportEvents(_ *context.ArmadaContext, message []*api.EventMessage) error {
+func (es *fakeEventStore) ReportEvents(_ *armadacontext.ArmadaContext, message []*api.EventMessage) error {
 	es.events = append(es.events, message...)
 	return nil
 }
@@ -469,14 +469,14 @@ func (repo *fakeSchedulingInfoRepository) UpdateClusterSchedulingInfo(report *ap
 
 type fakeExecutorRepository struct{}
 
-func (f fakeExecutorRepository) GetExecutors(ctx *context.ArmadaContext) ([]*schedulerobjects.Executor, error) {
+func (f fakeExecutorRepository) GetExecutors(ctx *armadacontext.ArmadaContext) ([]*schedulerobjects.Executor, error) {
 	return nil, nil
 }
 
-func (f fakeExecutorRepository) GetLastUpdateTimes(ctx *context.ArmadaContext) (map[string]time.Time, error) {
+func (f fakeExecutorRepository) GetLastUpdateTimes(ctx *armadacontext.ArmadaContext) (map[string]time.Time, error) {
 	return nil, nil
 }
 
-func (f fakeExecutorRepository) StoreExecutor(ctx *context.ArmadaContext, executor *schedulerobjects.Executor) error {
+func (f fakeExecutorRepository) StoreExecutor(ctx *armadacontext.ArmadaContext, executor *schedulerobjects.Executor) error {
 	return nil
 }

@@ -12,8 +12,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/scheduling"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
@@ -43,7 +42,7 @@ func NewUsageServer(
 }
 
 func (s *UsageServer) ReportUsage(grpcCtx gocontext.Context, report *api.ClusterUsageReport) (*types.Empty, error) {
-	ctx := context.FromGrpcContext(grpcCtx)
+	ctx := armadacontext.FromGrpcContext(grpcCtx)
 	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportUsage] error: %s", err)
 	}

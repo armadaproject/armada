@@ -7,7 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	context2 "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
@@ -75,7 +75,7 @@ func (m *JobManager) ManageJobLeases() {
 		}
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Minute*2)
 	defer cancel()
 	m.handlePodIssues(ctx, jobs)
 }
@@ -108,7 +108,7 @@ func (m *JobManager) reportTerminated(pods []*v1.Pod) {
 	}
 }
 
-func (m *JobManager) handlePodIssues(ctx *context.ArmadaContext, allRunningJobs []*job.RunningJob) {
+func (m *JobManager) handlePodIssues(ctx *armadacontext.ArmadaContext, allRunningJobs []*job.RunningJob) {
 	util.ProcessItemsWithThreadPool(ctx, 20, allRunningJobs, m.handlePodIssue)
 }
 

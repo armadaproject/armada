@@ -13,8 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
-	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest"
@@ -560,7 +559,7 @@ func TestConvert(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			converter := NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, tc.useLegacyEventConversion)
-			instructionSet := converter.Convert(context.TODO(), tc.events)
+			instructionSet := converter.Convert(armadacontext.TODO(), tc.events)
 			assert.Equal(t, tc.expected.JobsToCreate, instructionSet.JobsToCreate)
 			assert.Equal(t, tc.expected.JobsToUpdate, instructionSet.JobsToUpdate)
 			assert.Equal(t, tc.expected.JobRunsToCreate, instructionSet.JobRunsToCreate)
@@ -571,7 +570,7 @@ func TestConvert(t *testing.T) {
 
 func TestFailedWithMissingRunId(t *testing.T) {
 	converter := NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-	instructions := converter.Convert(context.Background(), &ingest.EventSequencesWithIds{
+	instructions := converter.Convert(armadacontext.Background(), &ingest.EventSequencesWithIds{
 		EventSequences: []*armadaevents.EventSequence{testfixtures.NewEventSequence(testfixtures.JobLeaseReturned)},
 		MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 	})
@@ -631,7 +630,7 @@ func TestTruncatesStringsThatAreTooLong(t *testing.T) {
 	}
 
 	converter := NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-	actual := converter.Convert(context.TODO(), events)
+	actual := converter.Convert(armadacontext.TODO(), events)
 
 	// String lengths obtained from database schema
 	assert.Len(t, actual.JobsToCreate[0].Queue, 512)

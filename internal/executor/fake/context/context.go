@@ -22,7 +22,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -314,7 +314,7 @@ func (c *FakeClusterContext) GetClusterPool() string {
 	return c.pool
 }
 
-func (c *FakeClusterContext) GetNodeStatsSummary(ctx *context.ArmadaContext, node *v1.Node) (*v1alpha1.Summary, error) {
+func (c *FakeClusterContext) GetNodeStatsSummary(ctx *armadacontext.ArmadaContext, node *v1.Node) (*v1alpha1.Summary, error) {
 	return &v1alpha1.Summary{}, nil
 }
 

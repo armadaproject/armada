@@ -11,8 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/schedulers"
@@ -88,7 +87,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		return errors.WithStack(err)
 	}
 
-	ctx := context.WithLogField(context.FromGrpcContext(stream.Context()), "executor", req.ExecutorId)
+	ctx := armadacontext.WithLogField(armadacontext.FromGrpcContext(stream.Context()), "executor", req.ExecutorId)
 
 	executor := srv.executorFromLeaseRequest(ctx, req)
 	if err := srv.executorRepository.StoreExecutor(ctx, executor); err != nil {
@@ -222,13 +221,13 @@ func setPriorityClassName(podSpec *armadaevents.PodSpecWithAvoidList, priorityCl
 
 // ReportEvents publishes all events to Pulsar. The events are compacted for more efficient publishing.
 func (srv *ExecutorApi) ReportEvents(grpcContext gocontext.Context, list *executorapi.EventList) (*types.Empty, error) {
-	ctx := context.FromGrpcContext(grpcContext)
+	ctx := armadacontext.FromGrpcContext(grpcContext)
 	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxPulsarMessageSizeBytes, schedulers.Pulsar)
 	return &types.Empty{}, err
 }
 
 // executorFromLeaseRequest extracts a schedulerobjects.Executor from the request.
-func (srv *ExecutorApi) executorFromLeaseRequest(ctx *context.ArmadaContext, req *executorapi.LeaseRequest) *schedulerobjects.Executor {
+func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.ArmadaContext, req *executorapi.LeaseRequest) *schedulerobjects.Executor {
 	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
 	now := srv.clock.Now().UTC()
 	for _, nodeInfo := range req.Nodes {

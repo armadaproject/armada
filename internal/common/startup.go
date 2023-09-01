@@ -14,8 +14,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/weaveworks/promrus"
 
-	commonconfig "github.com/armadaproject/armada/internal/common/config"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 )
 
@@ -141,7 +140,7 @@ func ServeHttp(port uint16, mux http.Handler) (shutdown func()) {
 	// TODO There's no need for this function to panic, since the main goroutine will exit.
 	// Instead, just log an error.
 	return func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 		defer cancel()
 		log.Printf("Stopping http server listening on %d", port)
 		e := srv.Shutdown(ctx)

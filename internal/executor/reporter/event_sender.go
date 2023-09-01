@@ -6,7 +6,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -62,7 +62,7 @@ func (eventSender *ExecutorApiEventSender) SendEvents(events []EventMessage) err
 	}
 
 	for _, eventList := range eventLists {
-		_, err = eventSender.eventClient.ReportEvents(context.Background(), eventList)
+		_, err = eventSender.eventClient.ReportEvents(armadacontext.Background(), eventList)
 		if err != nil {
 			return err
 		}

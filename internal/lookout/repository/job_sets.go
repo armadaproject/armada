@@ -8,7 +8,7 @@ import (
 	"github.com/doug-martin/goqu/v9/exp"
 	"github.com/gogo/protobuf/types"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/pkg/api/lookout"
 )
@@ -38,7 +38,7 @@ type jobSetCountsRow struct {
 	QueuedStatsQ3      sql.NullTime `db:"queued_q3"`
 }
 
-func (r *SQLJobRepository) GetJobSetInfos(ctx *context.ArmadaContext, opts *lookout.GetJobSetsRequest) ([]*lookout.JobSetInfo, error) {
+func (r *SQLJobRepository) GetJobSetInfos(ctx *armadacontext.ArmadaContext, opts *lookout.GetJobSetsRequest) ([]*lookout.JobSetInfo, error) {
 	rows, err := r.queryJobSetInfos(ctx, opts)
 	if err != nil {
 		return nil, err
@@ -47,7 +47,7 @@ func (r *SQLJobRepository) GetJobSetInfos(ctx *context.ArmadaContext, opts *look
 	return r.rowsToJobSets(rows, opts.Queue), nil
 }
 
-func (r *SQLJobRepository) queryJobSetInfos(ctx *context.ArmadaContext, opts *lookout.GetJobSetsRequest) ([]*jobSetCountsRow, error) {
+func (r *SQLJobRepository) queryJobSetInfos(ctx *armadacontext.ArmadaContext, opts *lookout.GetJobSetsRequest) ([]*jobSetCountsRow, error) {
 	ds := r.createJobSetsDataset(opts)
 
 	jobsInQueueRows := make([]*jobSetCountsRow, 0)

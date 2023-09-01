@@ -9,20 +9,20 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func TestPublishSequences_SendAsyncErr(t *testing.T) {
 	producer := &mockProducer{}
-	err := PublishSequences(context.Background(), producer, []*armadaevents.EventSequence{{}}, schedulers.Pulsar)
+	err := PublishSequences(armadacontext.Background(), producer, []*armadaevents.EventSequence{{}}, schedulers.Pulsar)
 	assert.NoError(t, err)
 
 	producer = &mockProducer{
 		sendAsyncErr: errors.New("sendAsyncErr"),
 	}
-	err = PublishSequences(context.Background(), producer, []*armadaevents.EventSequence{{}}, schedulers.Pulsar)
+	err = PublishSequences(armadacontext.Background(), producer, []*armadaevents.EventSequence{{}}, schedulers.Pulsar)
 	assert.ErrorIs(t, err, producer.sendAsyncErr)
 }
 
@@ -30,7 +30,7 @@ func TestPublishSequences_RespectTimeout(t *testing.T) {
 	producer := &mockProducer{
 		sendAsyncDuration: 1 * time.Second,
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Millisecond)
 	defer cancel()
 	err := PublishSequences(ctx, producer, []*armadaevents.EventSequence{{}}, schedulers.Pulsar)
 	assert.ErrorIs(t, err, gocontext.DeadlineExceeded)

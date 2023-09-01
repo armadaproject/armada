@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/mocks"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -89,7 +89,7 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 			ctrl := gomock.NewController(t)
 			mockPulsarClient := mocks.NewMockClient(ctrl)
@@ -106,7 +106,7 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 			mockPulsarProducer.
 				EXPECT().
 				SendAsync(gomock.Any(), gomock.Any(), gomock.Any()).
-				DoAndReturn(func(_ *context.ArmadaContext, msg *pulsar.ProducerMessage, callback func(pulsar.MessageID, *pulsar.ProducerMessage, error)) {
+				DoAndReturn(func(_ *armadacontext.ArmadaContext, msg *pulsar.ProducerMessage, callback func(pulsar.MessageID, *pulsar.ProducerMessage, error)) {
 					es := &armadaevents.EventSequence{}
 					err := proto.Unmarshal(msg.Payload, es)
 					require.NoError(t, err)
@@ -177,7 +177,7 @@ func TestPulsarPublisher_TestPublishMarkers(t *testing.T) {
 			mockPulsarProducer.
 				EXPECT().
 				Send(gomock.Any(), gomock.Any()).
-				DoAndReturn(func(_ *context.ArmadaContext, msg *pulsar.ProducerMessage) (pulsar.MessageID, error) {
+				DoAndReturn(func(_ *armadacontext.ArmadaContext, msg *pulsar.ProducerMessage) (pulsar.MessageID, error) {
 					numPublished++
 					key, ok := msg.Properties[explicitPartitionKey]
 					if ok {
@@ -190,7 +190,7 @@ func TestPulsarPublisher_TestPublishMarkers(t *testing.T) {
 				}).AnyTimes()
 
 			options := pulsar.ProducerOptions{Topic: topic}
-			ctx := context.TODO()
+			ctx := armadacontext.TODO()
 			publisher, err := NewPulsarPublisher(mockPulsarClient, options, 5*time.Second)
 			require.NoError(t, err)
 

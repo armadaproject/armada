@@ -10,8 +10,7 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/armadaproject/armada/internal/common/armadaerrors"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
@@ -45,7 +44,7 @@ func NewLookoutDb(
 // * Job Run Updates, New Job Containers
 // In each case we first try to bach insert the rows using the postgres copy protocol.  If this fails then we try a
 // slower, serial insert and discard any rows that cannot be inserted.
-func (l *LookoutDb) Store(ctx *context.ArmadaContext, instructions *model.InstructionSet) error {
+func (l *LookoutDb) Store(ctx *armadacontext.ArmadaContext, instructions *model.InstructionSet) error {
 	jobsToUpdate := instructions.JobsToUpdate
 	jobRunsToUpdate := instructions.JobRunsToUpdate
 
@@ -92,7 +91,7 @@ func (l *LookoutDb) Store(ctx *context.ArmadaContext, instructions *model.Instru
 	return nil
 }
 
-func (l *LookoutDb) CreateJobs(ctx *context.ArmadaContext, instructions []*model.CreateJobInstruction) {
+func (l *LookoutDb) CreateJobs(ctx *armadacontext.ArmadaContext, instructions []*model.CreateJobInstruction) {
 	if len(instructions) == 0 {
 		return
 	}
@@ -109,7 +108,7 @@ func (l *LookoutDb) CreateJobs(ctx *context.ArmadaContext, instructions []*model
 	}
 }
 
-func (l *LookoutDb) UpdateJobs(ctx *context.ArmadaContext, instructions []*model.UpdateJobInstruction) {
+func (l *LookoutDb) UpdateJobs(ctx *armadacontext.ArmadaContext, instructions []*model.UpdateJobInstruction) {
 	if len(instructions) == 0 {
 		return
 	}
@@ -127,7 +126,7 @@ func (l *LookoutDb) UpdateJobs(ctx *context.ArmadaContext, instructions []*model
 	}
 }
 
-func (l *LookoutDb) CreateJobRuns(ctx *context.ArmadaContext, instructions []*model.CreateJobRunInstruction) {
+func (l *LookoutDb) CreateJobRuns(ctx *armadacontext.ArmadaContext, instructions []*model.CreateJobRunInstruction) {
 	if len(instructions) == 0 {
 		return
 	}
@@ -144,7 +143,7 @@ func (l *LookoutDb) CreateJobRuns(ctx *context.ArmadaContext, instructions []*mo
 	}
 }
 
-func (l *LookoutDb) UpdateJobRuns(ctx *context.ArmadaContext, instructions []*model.UpdateJobRunInstruction) {
+func (l *LookoutDb) UpdateJobRuns(ctx *armadacontext.ArmadaContext, instructions []*model.UpdateJobRunInstruction) {
 	if len(instructions) == 0 {
 		return
 	}
@@ -161,7 +160,7 @@ func (l *LookoutDb) UpdateJobRuns(ctx *context.ArmadaContext, instructions []*mo
 	}
 }
 
-func (l *LookoutDb) CreateUserAnnotations(ctx *context.ArmadaContext, instructions []*model.CreateUserAnnotationInstruction) {
+func (l *LookoutDb) CreateUserAnnotations(ctx *armadacontext.ArmadaContext, instructions []*model.CreateUserAnnotationInstruction) {
 	if len(instructions) == 0 {
 		return
 	}
@@ -178,7 +177,7 @@ func (l *LookoutDb) CreateUserAnnotations(ctx *context.ArmadaContext, instructio
 	}
 }
 
-func (l *LookoutDb) CreateJobRunContainers(ctx *context.ArmadaContext, instructions []*model.CreateJobRunContainerInstruction) {
+func (l *LookoutDb) CreateJobRunContainers(ctx *armadacontext.ArmadaContext, instructions []*model.CreateJobRunContainerInstruction) {
 	if len(instructions) == 0 {
 		return
 	}
@@ -195,7 +194,7 @@ func (l *LookoutDb) CreateJobRunContainers(ctx *context.ArmadaContext, instructi
 	}
 }
 
-func (l *LookoutDb) CreateJobsBatch(ctx *context.ArmadaContext, instructions []*model.CreateJobInstruction) error {
+func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.ArmadaContext, instructions []*model.CreateJobInstruction) error {
 	return withDatabaseRetryInsert(func() error {
 		tmpTable := database.UniqueTableName("job")
 
@@ -258,7 +257,7 @@ func (l *LookoutDb) CreateJobsBatch(ctx *context.ArmadaContext, instructions []*
 }
 
 // CreateJobsScalar will insert jobs one by one into the database
-func (l *LookoutDb) CreateJobsScalar(ctx *context.ArmadaContext, instructions []*model.CreateJobInstruction) {
+func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.ArmadaContext, instructions []*model.CreateJobInstruction) {
 	sqlStatement := `INSERT INTO job (job_id, queue, owner, jobset, priority, submitted, orig_job_spec, state, job_updated)
 		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          ON CONFLICT DO NOTHING`
@@ -276,7 +275,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx *context.ArmadaContext, instructions []
 	}
 }
 
-func (l *LookoutDb) UpdateJobsBatch(ctx *context.ArmadaContext, instructions []*model.UpdateJobInstruction) error {
+func (l *LookoutDb) UpdateJobsBatch(ctx *armadacontext.ArmadaContext, instructions []*model.UpdateJobInstruction) error {
 	return withDatabaseRetryInsert(func() error {
 		tmpTable := database.UniqueTableName("job")
 
@@ -337,7 +336,7 @@ func (l *LookoutDb) UpdateJobsBatch(ctx *context.ArmadaContext, instructions []*
 	})
 }
 
-func (l *LookoutDb) UpdateJobsScalar(ctx *context.ArmadaContext, instructions []*model.UpdateJobInstruction) {
+func (l *LookoutDb) UpdateJobsScalar(ctx *armadacontext.ArmadaContext, instructions []*model.UpdateJobInstruction) {
 	sqlStatement := `UPDATE job
 				SET
 				  priority = coalesce($1, priority),
@@ -360,7 +359,7 @@ func (l *LookoutDb) UpdateJobsScalar(ctx *context.ArmadaContext, instructions []
 	}
 }
 
-func (l *LookoutDb) CreateJobRunsBatch(ctx *context.ArmadaContext, instructions []*model.CreateJobRunInstruction) error {
+func (l *LookoutDb) CreateJobRunsBatch(ctx *armadacontext.ArmadaContext, instructions []*model.CreateJobRunInstruction) error {
 	return withDatabaseRetryInsert(func() error {
 		tmpTable := database.UniqueTableName("job_run")
 
@@ -410,7 +409,7 @@ func (l *LookoutDb) CreateJobRunsBatch(ctx *context.ArmadaContext, instructions 
 	})
 }
 
-func (l *LookoutDb) CreateJobRunsScalar(ctx *context.ArmadaContext, instructions []*model.CreateJobRunInstruction) {
+func (l *LookoutDb) CreateJobRunsScalar(ctx *armadacontext.ArmadaContext, instructions []*model.CreateJobRunInstruction) {
 	sqlStatement := `INSERT INTO job_run (run_id, job_id, created, cluster)
 		 VALUES ($1, $2, $3, $4)
          ON CONFLICT DO NOTHING`
@@ -428,7 +427,7 @@ func (l *LookoutDb) CreateJobRunsScalar(ctx *context.ArmadaContext, instructions
 	}
 }
 
-func (l *LookoutDb) UpdateJobRunsBatch(ctx *context.ArmadaContext, instructions []*model.UpdateJobRunInstruction) error {
+func (l *LookoutDb) UpdateJobRunsBatch(ctx *armadacontext.ArmadaContext, instructions []*model.UpdateJobRunInstruction) error {
 	return withDatabaseRetryInsert(func() error {
 		tmpTable := database.UniqueTableName("job_run")
 
@@ -499,7 +498,7 @@ func (l *LookoutDb) UpdateJobRunsBatch(ctx *context.ArmadaContext, instructions 
 	})
 }
 
-func (l *LookoutDb) UpdateJobRunsScalar(ctx *context.ArmadaContext, instructions []*model.UpdateJobRunInstruction) {
+func (l *LookoutDb) UpdateJobRunsScalar(ctx *armadacontext.ArmadaContext, instructions []*model.UpdateJobRunInstruction) {
 	sqlStatement := `UPDATE job_run
 				SET
 				  node = coalesce($1, node),
@@ -525,7 +524,7 @@ func (l *LookoutDb) UpdateJobRunsScalar(ctx *context.ArmadaContext, instructions
 	}
 }
 
-func (l *LookoutDb) CreateUserAnnotationsBatch(ctx *context.ArmadaContext, instructions []*model.CreateUserAnnotationInstruction) error {
+func (l *LookoutDb) CreateUserAnnotationsBatch(ctx *armadacontext.ArmadaContext, instructions []*model.CreateUserAnnotationInstruction) error {
 	return withDatabaseRetryInsert(func() error {
 		tmpTable := database.UniqueTableName("user_annotation_lookup")
 
@@ -573,7 +572,7 @@ func (l *LookoutDb) CreateUserAnnotationsBatch(ctx *context.ArmadaContext, instr
 	})
 }
 
-func (l *LookoutDb) CreateUserAnnotationsScalar(ctx *context.ArmadaContext, instructions []*model.CreateUserAnnotationInstruction) {
+func (l *LookoutDb) CreateUserAnnotationsScalar(ctx *armadacontext.ArmadaContext, instructions []*model.CreateUserAnnotationInstruction) {
 	sqlStatement := `INSERT INTO user_annotation_lookup (job_id, key, value)
 		 VALUES ($1, $2, $3)
          ON CONFLICT DO NOTHING`
@@ -592,7 +591,7 @@ func (l *LookoutDb) CreateUserAnnotationsScalar(ctx *context.ArmadaContext, inst
 	}
 }
 
-func (l *LookoutDb) CreateJobRunContainersBatch(ctx *context.ArmadaContext, instructions []*model.CreateJobRunContainerInstruction) error {
+func (l *LookoutDb) CreateJobRunContainersBatch(ctx *armadacontext.ArmadaContext, instructions []*model.CreateJobRunContainerInstruction) error {
 	return withDatabaseRetryInsert(func() error {
 		tmpTable := database.UniqueTableName("job_run_container")
 		createTmp := func(tx pgx.Tx) error {
@@ -641,7 +640,7 @@ func (l *LookoutDb) CreateJobRunContainersBatch(ctx *context.ArmadaContext, inst
 	})
 }
 
-func (l *LookoutDb) CreateJobRunContainersScalar(ctx *context.ArmadaContext, instructions []*model.CreateJobRunContainerInstruction) {
+func (l *LookoutDb) CreateJobRunContainersScalar(ctx *armadacontext.ArmadaContext, instructions []*model.CreateJobRunContainerInstruction) {
 	sqlStatement := `INSERT INTO job_run_container (run_id, container_name, exit_code)
 		 VALUES ($1, $2, $3)
 	     ON CONFLICT DO NOTHING`
@@ -659,7 +658,7 @@ func (l *LookoutDb) CreateJobRunContainersScalar(ctx *context.ArmadaContext, ins
 	}
 }
 
-func batchInsert(ctx *context.ArmadaContext, db *pgxpool.Pool, createTmp func(pgx.Tx) error,
+func batchInsert(ctx *armadacontext.ArmadaContext, db *pgxpool.Pool, createTmp func(pgx.Tx) error,
 	insertTmp func(pgx.Tx) error, copyToDest func(pgx.Tx) error,
 ) error {
 	return pgx.BeginTxFunc(ctx, db, pgx.TxOptions{
@@ -776,7 +775,7 @@ func conflateJobRunUpdates(updates []*model.UpdateJobRunInstruction) []*model.Up
 // in the terminal state.  If, however, the database returns a non-retryable error it will give up and simply not
 // filter out any events as the job state is undetermined.
 func filterEventsForTerminalJobs(
-	ctx *context.ArmadaContext,
+	ctx *armadacontext.ArmadaContext,
 	db *pgxpool.Pool,
 	instructions []*model.UpdateJobInstruction,
 	m *metrics.Metrics,

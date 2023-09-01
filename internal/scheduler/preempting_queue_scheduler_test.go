@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
@@ -52,7 +52,7 @@ func TestEvictOversubscribed(t *testing.T) {
 		nil,
 	)
 	it := NewInMemoryNodeIterator([]*nodedb.Node{entry})
-	result, err := evictor.Evict(context.Background(), it)
+	result, err := evictor.Evict(armadacontext.Background(), it)
 	require.NoError(t, err)
 
 	prioritiesByName := configuration.PriorityByPriorityClassName(testfixtures.TestPriorityClasses)
@@ -1395,7 +1395,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				if tc.SchedulingConfig.EnableNewPreemptionStrategy {
 					sch.EnableNewPreemptionStrategy()
 				}
-				result, err := sch.Schedule(context.Background())
+				result, err := sch.Schedule(armadacontext.Background())
 				require.NoError(t, err)
 				jobIdsByGangId = sch.jobIdsByGangId
 				gangIdByJobId = sch.gangIdByJobId
@@ -1669,7 +1669,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nil,
 				nil,
 			)
-			result, err := sch.Schedule(context.Background())
+			result, err := sch.Schedule(armadacontext.Background())
 			require.NoError(b, err)
 			require.Equal(b, 0, len(result.PreemptedJobs))
 
@@ -1724,7 +1724,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					nil,
 					nil,
 				)
-				result, err := sch.Schedule(context.Background())
+				result, err := sch.Schedule(armadacontext.Background())
 				require.NoError(b, err)
 
 				// We expect the system to be in steady-state, i.e., no preempted/scheduled jobs.

@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
@@ -45,14 +45,14 @@ func NewSchedulerDb(
 // Store persists all operations in the database.
 // This function retires until it either succeeds or encounters a terminal error.
 // This function locks the postgres table to avoid write conflicts; see acquireLock() for details.
-func (s *SchedulerDb) Store(ctx *context.ArmadaContext, instructions *DbOperationsWithMessageIds) error {
+func (s *SchedulerDb) Store(ctx *armadacontext.ArmadaContext, instructions *DbOperationsWithMessageIds) error {
 	return ingest.WithRetry(func() (bool, error) {
 		err := pgx.BeginTxFunc(ctx, s.db, pgx.TxOptions{
 			IsoLevel:       pgx.ReadCommitted,
 			AccessMode:     pgx.ReadWrite,
 			DeferrableMode: pgx.Deferrable,
 		}, func(tx pgx.Tx) error {
-			lockCtx, cancel := context.WithTimeout(ctx, s.lockTimeout)
+			lockCtx, cancel := armadacontext.WithTimeout(ctx, s.lockTimeout)
 			defer cancel()
 			// The lock is released automatically on transaction rollback/commit.
 			if err := s.acquireLock(lockCtx, tx); err != nil {
@@ -78,7 +78,7 @@ func (s *SchedulerDb) Store(ctx *context.ArmadaContext, instructions *DbOperatio
 // rows with sequence numbers smaller than those already written.
 //
 // The scheduler relies on these sequence numbers to only fetch new or updated rows in each update cycle.
-func (s *SchedulerDb) acquireLock(ctx *context.ArmadaContext, tx pgx.Tx) error {
+func (s *SchedulerDb) acquireLock(ctx *armadacontext.ArmadaContext, tx pgx.Tx) error {
 	const lockId = 8741339439634283896
 	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockId); err != nil {
 		return errors.Wrapf(err, "could not obtain lock")
@@ -86,7 +86,7 @@ func (s *SchedulerDb) acquireLock(ctx *context.ArmadaContext, tx pgx.Tx) error {
 	return nil
 }
 
-func (s *SchedulerDb) WriteDbOp(ctx *context.ArmadaContext, tx pgx.Tx, op DbOperation) error {
+func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.ArmadaContext, tx pgx.Tx, op DbOperation) error {
 	queries := schedulerdb.New(tx)
 	switch o := op.(type) {
 	case InsertJobs:
@@ -274,7 +274,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *context.ArmadaContext, tx pgx.Tx, op DbOper
 	return nil
 }
 
-func execBatch(ctx *context.ArmadaContext, tx pgx.Tx, batch *pgx.Batch) error {
+func execBatch(ctx *armadacontext.ArmadaContext, tx pgx.Tx, batch *pgx.Batch) error {
 	result := tx.SendBatch(ctx, batch)
 	for i := 0; i < batch.Len(); i++ {
 		_, err := result.Exec()

@@ -8,7 +8,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -29,7 +29,7 @@ func NewRedisExecutorRepository(db redis.UniversalClient, schedulerName string) 
 	}
 }
 
-func (r *RedisExecutorRepository) GetExecutors(_ *context.ArmadaContext) ([]*schedulerobjects.Executor, error) {
+func (r *RedisExecutorRepository) GetExecutors(_ *armadacontext.ArmadaContext) ([]*schedulerobjects.Executor, error) {
 	result, err := r.db.HGetAll(r.executorsKey).Result()
 	if err != nil {
 		return nil, errors.Wrap(err, "Error retrieving executors from redis")
@@ -47,12 +47,12 @@ func (r *RedisExecutorRepository) GetExecutors(_ *context.ArmadaContext) ([]*sch
 	return executors, nil
 }
 
-func (r *RedisExecutorRepository) GetLastUpdateTimes(_ *context.ArmadaContext) (map[string]time.Time, error) {
+func (r *RedisExecutorRepository) GetLastUpdateTimes(_ *armadacontext.ArmadaContext) (map[string]time.Time, error) {
 	// We could implement this in a very inefficient way, but I don't believe it's needed so panic for now
 	panic("GetLastUpdateTimes is not implemented")
 }
 
-func (r *RedisExecutorRepository) StoreExecutor(_ *context.ArmadaContext, executor *schedulerobjects.Executor) error {
+func (r *RedisExecutorRepository) StoreExecutor(_ *armadacontext.ArmadaContext, executor *schedulerobjects.Executor) error {
 	data, err := proto.Marshal(executor)
 	if err != nil {
 		return errors.Wrap(err, "Error marshalling executor proto")

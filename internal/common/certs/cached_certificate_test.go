@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 const (
@@ -97,7 +97,7 @@ func TestCachedCertificateService_ReloadsCertPeriodically_WhenUsingRun(t *testin
 	assert.Equal(t, cert, cachedCertService.GetCertificate())
 
 	go func() {
-		cachedCertService.Run(context.Background())
+		cachedCertService.Run(armadacontext.Background())
 	}()
 
 	newCert, certData, keyData := createCerts(t)

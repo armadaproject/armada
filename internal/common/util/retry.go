@@ -1,10 +1,10 @@
 package util
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
-func RetryUntilSuccess(ctx *context.ArmadaContext, performAction func() error, onError func(error)) {
+func RetryUntilSuccess(ctx *armadacontext.ArmadaContext, performAction func() error, onError func(error)) {
 	for {
 		select {
 		case <-ctx.Done():

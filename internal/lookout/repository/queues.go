@@ -9,7 +9,7 @@ import (
 	"github.com/gogo/protobuf/types"
 	"github.com/sirupsen/logrus"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/api/lookout"
 )
 
@@ -25,7 +25,7 @@ type rowsSql struct {
 	LongestRunning string
 }
 
-func (r *SQLJobRepository) GetQueueInfos(ctx *context.ArmadaContext) ([]*lookout.QueueInfo, error) {
+func (r *SQLJobRepository) GetQueueInfos(ctx *armadacontext.ArmadaContext) ([]*lookout.QueueInfo, error) {
 	queries, err := r.getQueuesSql()
 	if err != nil {
 		return nil, err

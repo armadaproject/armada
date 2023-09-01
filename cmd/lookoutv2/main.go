@@ -5,7 +5,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
@@ -37,9 +37,9 @@ func init() {
 	pflag.Parse()
 }
 
-func makeContext() (*context.ArmadaContext, func()) {
-	ctx := context.Background()
-	ctx, cancel := context.WithCancel(ctx)
+func makeContext() (*armadacontext.ArmadaContext, func()) {
+	ctx := armadacontext.Background()
+	ctx, cancel := armadacontext.WithCancel(ctx)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
@@ -58,7 +58,7 @@ func makeContext() (*context.ArmadaContext, func()) {
 	}
 }
 
-func migrate(ctx *context.ArmadaContext, config configuration.LookoutV2Configuration) {
+func migrate(ctx *armadacontext.ArmadaContext, config configuration.LookoutV2Configuration) {
 	db, err := database.OpenPgxPool(config.Postgres)
 	if err != nil {
 		panic(err)
@@ -75,7 +75,7 @@ func migrate(ctx *context.ArmadaContext, config configuration.LookoutV2Configura
 	}
 }
 
-func prune(ctx *context.ArmadaContext, config configuration.LookoutV2Configuration) {
+func prune(ctx *armadacontext.ArmadaContext, config configuration.LookoutV2Configuration) {
 	db, err := database.OpenPgxConn(config.Postgres)
 	if err != nil {
 		panic(err)
@@ -93,7 +93,7 @@ func prune(ctx *context.ArmadaContext, config configuration.LookoutV2Configurati
 	log.Infof("expireAfter: %v, batchSize: %v, timeout: %v",
 		config.PrunerConfig.ExpireAfter, config.PrunerConfig.BatchSize, config.PrunerConfig.Timeout)
 
-	ctxTimeout, cancel := context.WithTimeout(ctx, config.PrunerConfig.Timeout)
+	ctxTimeout, cancel := armadacontext.WithTimeout(ctx, config.PrunerConfig.Timeout)
 	defer cancel()
 	err = pruner.PruneDb(ctxTimeout, db, config.PrunerConfig.ExpireAfter, config.PrunerConfig.BatchSize, clock.RealClock{})
 	if err != nil {

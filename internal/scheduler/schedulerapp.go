@@ -19,8 +19,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
-	"github.com/armadaproject/armada/internal/common/auth"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
@@ -34,7 +33,7 @@ import (
 
 // Run sets up a Scheduler application and runs it until a SIGTERM is received
 func Run(config schedulerconfig.Configuration) error {
-	g, ctx := context.ErrGroup(app.CreateContextWithShutdown())
+	g, ctx := armadacontext.ErrGroup(app.CreateContextWithShutdown())
 
 	//////////////////////////////////////////////////////////////////////////
 	// Health Checks

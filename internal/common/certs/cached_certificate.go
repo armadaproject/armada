@@ -8,7 +8,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 type CachedCertificateService struct {
@@ -53,7 +53,7 @@ func (c *CachedCertificateService) updateCertificate(certificate *tls.Certificat
 	c.certificate = certificate
 }
 
-func (c *CachedCertificateService) Run(ctx *context.ArmadaContext) {
+func (c *CachedCertificateService) Run(ctx *armadacontext.ArmadaContext) {
 	ticker := time.NewTicker(c.refreshInterval)
 	for {
 		select {

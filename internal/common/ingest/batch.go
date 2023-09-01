@@ -7,7 +7,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 // Batcher batches up events from a channel.  Batches are created whenever maxItems have been
@@ -33,7 +33,7 @@ func NewBatcher[T any](input chan T, maxItems int, maxTimeout time.Duration, cal
 	}
 }
 
-func (b *Batcher[T]) Run(ctx *context.ArmadaContext) {
+func (b *Batcher[T]) Run(ctx *armadacontext.ArmadaContext) {
 	for {
 		b.buffer = []T{}
 		expire := b.clock.After(b.maxTimeout)

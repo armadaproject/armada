@@ -11,7 +11,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/armada/repository"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -26,14 +26,14 @@ func TestUsageServer_ReportUsage(t *testing.T) {
 		err := s.queueRepository.CreateQueue(queue.Queue{Name: "q1", PriorityFactor: 1})
 		assert.Nil(t, err)
 
-		_, err = s.ReportUsage(context.Background(), oneQueueReport(now, cpu, memory))
+		_, err = s.ReportUsage(armadacontext.Background(), oneQueueReport(now, cpu, memory))
 		assert.Nil(t, err)
 
 		priority, err := s.usageRepository.GetClusterPriority("clusterA")
 		assert.Nil(t, err)
 		assert.Equal(t, 10.0, priority["q1"], "Priority should be updated for the new cluster.")
 
-		_, err = s.ReportUsage(context.Background(), oneQueueReport(now.Add(time.Minute), cpu, memory))
+		_, err = s.ReportUsage(armadacontext.Background(), oneQueueReport(now.Add(time.Minute), cpu, memory))
 		assert.Nil(t, err)
 
 		priority, err = s.usageRepository.GetClusterPriority("clusterA")
@@ -51,14 +51,14 @@ func TestUsageServer_ReportUsageWithDefinedScarcity(t *testing.T) {
 		err := s.queueRepository.CreateQueue(queue.Queue{Name: "q1", PriorityFactor: 1})
 		assert.Nil(t, err)
 
-		_, err = s.ReportUsage(context.Background(), oneQueueReport(now, cpu, memory))
+		_, err = s.ReportUsage(armadacontext.Background(), oneQueueReport(now, cpu, memory))
 		assert.Nil(t, err)
 
 		priority, err := s.usageRepository.GetClusterPriority("clusterA")
 		assert.Nil(t, err)
 		assert.Equal(t, 5.0, priority["q1"], "Priority should be updated for the new cluster.")
 
-		_, err = s.ReportUsage(context.Background(), oneQueueReport(now.Add(time.Minute), cpu, memory))
+		_, err = s.ReportUsage(armadacontext.Background(), oneQueueReport(now.Add(time.Minute), cpu, memory))
 		assert.Nil(t, err)
 
 		priority, err = s.usageRepository.GetClusterPriority("clusterA")

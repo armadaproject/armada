@@ -5,12 +5,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 // CreateContextWithShutdown returns a context that will report done when a SIGTERM is received
-func CreateContextWithShutdown() *context.ArmadaContext {
-	ctx, cancel := context.WithCancel(context.Background())
+func CreateContextWithShutdown() *armadacontext.ArmadaContext {
+	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
 	go func() {

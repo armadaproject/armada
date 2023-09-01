@@ -14,8 +14,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/armadaproject/armada/internal/common/armadaerrors"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/metrics"
@@ -94,7 +93,7 @@ func NewEtcdHealthMonitor(etcConfiguration configuration.EtcdConfiguration, clie
 			metrics: make(map[string]float64),
 		}
 	}
-	go rv.Run(context.Background())
+	go rv.Run(armadacontext.Background())
 	prometheus.MustRegister(rv)
 	return rv, nil
 }
@@ -120,7 +119,7 @@ func (srv *EtcdHealthMonitor) Collect(metrics chan<- prometheus.Metric) {
 }
 
 // Run the service until ctx is cancelled.
-func (srv *EtcdHealthMonitor) Run(ctx *context.ArmadaContext) {
+func (srv *EtcdHealthMonitor) Run(ctx *armadacontext.ArmadaContext) {
 	log.WithField("service", "EtcdHealthMonitor").Info("started ETCD health monitor")
 	defer log.WithField("service", "EtcdHealthMonitor").Info("exited ETCD health monitor")
 
@@ -170,8 +169,8 @@ func (srv *EtcdHealthMonitor) updateInstances(updatedInstances map[string]*etcdI
 }
 
 // ScrapeMetrics collects metrics for all etcd instances.
-func (srv *EtcdHealthMonitor) scrapeMetrics(ctx *context.ArmadaContext) error {
-	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
+func (srv *EtcdHealthMonitor) scrapeMetrics(ctx *armadacontext.ArmadaContext) error {
+	ctx, cancel := armadacontext.WithTimeout(ctx, time.Second*30)
 	defer cancel()
 
 	wg := sync.WaitGroup{}

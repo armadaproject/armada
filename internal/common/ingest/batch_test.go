@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 const (
@@ -42,7 +42,7 @@ func (r *resultHolder) resultLength() int {
 }
 
 func TestBatch_MaxItems(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 	testClock := clock.NewFakeClock(time.Now())
 	inputChan := make(chan int)
 	result := newResultHolder()
@@ -67,7 +67,7 @@ func TestBatch_MaxItems(t *testing.T) {
 }
 
 func TestBatch_Time(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 	testClock := clock.NewFakeClock(time.Now())
 	inputChan := make(chan int)
 	result := newResultHolder()
@@ -89,7 +89,7 @@ func TestBatch_Time(t *testing.T) {
 }
 
 func TestBatch_Time_WithIntialQuiet(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 	testClock := clock.NewFakeClock(time.Now())
 	inputChan := make(chan int)
 	result := newResultHolder()
@@ -120,7 +120,7 @@ func TestBatch_Time_WithIntialQuiet(t *testing.T) {
 	cancel()
 }
 
-func waitForBufferLength(ctx *context.ArmadaContext, batcher *Batcher[int], numEvents int) error {
+func waitForBufferLength(ctx *armadacontext.ArmadaContext, batcher *Batcher[int], numEvents int) error {
 	ticker := time.NewTicker(5 * time.Millisecond)
 	for {
 		select {
@@ -134,7 +134,7 @@ func waitForBufferLength(ctx *context.ArmadaContext, batcher *Batcher[int], numE
 	}
 }
 
-func waitForExpectedEvents(ctx *context.ArmadaContext, rh *resultHolder, numEvents int) {
+func waitForExpectedEvents(ctx *armadacontext.ArmadaContext, rh *resultHolder, numEvents int) {
 	done := false
 	ticker := time.NewTicker(5 * time.Millisecond)
 	for !done {

@@ -15,7 +15,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -34,7 +34,7 @@ import (
 type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes.
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided.
-	Schedule(ctx *context.ArmadaContext, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error)
+	Schedule(ctx *armadacontext.ArmadaContext, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error)
 }
 
 // FairSchedulingAlgo is a SchedulingAlgo based on PreemptingQueueScheduler.
@@ -81,7 +81,7 @@ func NewFairSchedulingAlgo(
 // It maintains state of which executors it has considered already and may take multiple Schedule() calls to consider all executors if scheduling is slow.
 // Newly leased jobs are updated as such in the jobDb using the transaction provided and are also returned to the caller.
 func (l *FairSchedulingAlgo) Schedule(
-	ctx *context.ArmadaContext,
+	ctx *armadacontext.ArmadaContext,
 	txn *jobdb.Txn,
 	jobDb *jobdb.JobDb,
 ) (*SchedulerResult, error) {
@@ -98,7 +98,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		return overallSchedulerResult, nil
 	}
 
-	ctxWithTimeout, cancel := context.WithTimeout(ctx, l.maxSchedulingDuration)
+	ctxWithTimeout, cancel := armadacontext.WithTimeout(ctx, l.maxSchedulingDuration)
 	defer cancel()
 
 	fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, jobDb)
@@ -232,7 +232,7 @@ type fairSchedulingAlgoContext struct {
 	jobDb                                    *jobdb.JobDb
 }
 
-func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *context.ArmadaContext, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*fairSchedulingAlgoContext, error) {
+func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.ArmadaContext, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*fairSchedulingAlgoContext, error) {
 	executors, err := l.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		return nil, err
@@ -323,7 +323,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *context.ArmadaCon
 
 // scheduleOnExecutors schedules jobs on a specified set of executors.
 func (l *FairSchedulingAlgo) scheduleOnExecutors(
-	ctx *context.ArmadaContext,
+	ctx *armadacontext.ArmadaContext,
 	fsctx *fairSchedulingAlgoContext,
 	pool string,
 	minimumJobSize schedulerobjects.ResourceList,
@@ -539,7 +539,7 @@ func (l *FairSchedulingAlgo) filterStaleExecutors(executors []*schedulerobjects.
 //
 // TODO: Let's also check that jobs are on the right nodes.
 func (l *FairSchedulingAlgo) filterLaggingExecutors(
-	ctx *context.ArmadaContext,
+	ctx *armadacontext.ArmadaContext,
 	executors []*schedulerobjects.Executor,
 	leasedJobsByExecutor map[string][]*jobdb.Job,
 ) []*schedulerobjects.Executor {

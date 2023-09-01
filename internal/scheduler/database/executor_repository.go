@@ -7,19 +7,18 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
-	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // ExecutorRepository is an interface to be implemented by structs which provide executor information
 type ExecutorRepository interface {
 	// GetExecutors returns all known executors, regardless of their last heartbeat time
-	GetExecutors(ctx *context.ArmadaContext) ([]*schedulerobjects.Executor, error)
+	GetExecutors(ctx *armadacontext.ArmadaContext) ([]*schedulerobjects.Executor, error)
 	// GetLastUpdateTimes returns a map of executor name -> last heartbeat time
-	GetLastUpdateTimes(ctx *context.ArmadaContext) (map[string]time.Time, error)
+	GetLastUpdateTimes(ctx *armadacontext.ArmadaContext) (map[string]time.Time, error)
 	// StoreExecutor persists the latest executor state
-	StoreExecutor(ctx *context.ArmadaContext, executor *schedulerobjects.Executor) error
+	StoreExecutor(ctx *armadacontext.ArmadaContext, executor *schedulerobjects.Executor) error
 }
 
 // PostgresExecutorRepository is an implementation of ExecutorRepository that stores its state in postgres
@@ -40,7 +39,7 @@ func NewPostgresExecutorRepository(db *pgxpool.Pool) *PostgresExecutorRepository
 }
 
 // GetExecutors returns all known executors, regardless of their last heartbeat time
-func (r *PostgresExecutorRepository) GetExecutors(ctx *context.ArmadaContext) ([]*schedulerobjects.Executor, error) {
+func (r *PostgresExecutorRepository) GetExecutors(ctx *armadacontext.ArmadaContext) ([]*schedulerobjects.Executor, error) {
 	queries := New(r.db)
 	requests, err := queries.SelectAllExecutors(ctx)
 	if err != nil {
@@ -59,7 +58,7 @@ func (r *PostgresExecutorRepository) GetExecutors(ctx *context.ArmadaContext) ([
 }
 
 // GetLastUpdateTimes returns a map of executor name -> last heartbeat time
-func (r *PostgresExecutorRepository) GetLastUpdateTimes(ctx *context.ArmadaContext) (map[string]time.Time, error) {
+func (r *PostgresExecutorRepository) GetLastUpdateTimes(ctx *armadacontext.ArmadaContext) (map[string]time.Time, error) {
 	queries := New(r.db)
 	rows, err := queries.SelectExecutorUpdateTimes(ctx)
 	if err != nil {
@@ -74,7 +73,7 @@ func (r *PostgresExecutorRepository) GetLastUpdateTimes(ctx *context.ArmadaConte
 }
 
 // StoreExecutor persists the latest executor state
-func (r *PostgresExecutorRepository) StoreExecutor(ctx *context.ArmadaContext, executor *schedulerobjects.Executor) error {
+func (r *PostgresExecutorRepository) StoreExecutor(ctx *armadacontext.ArmadaContext, executor *schedulerobjects.Executor) error {
 	queries := New(r.db)
 	bytes, err := proto.Marshal(executor)
 	if err != nil {

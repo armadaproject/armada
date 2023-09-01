@@ -24,10 +24,10 @@ import (
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/scheduling"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
@@ -92,7 +92,7 @@ func NewAggregatedQueueServer(
 		NumTestsPerEvictionRun:   10,
 	}
 
-	decompressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
+	decompressorPool := pool.NewObjectPool(armadacontext.Background(), pool.NewPooledObjectFactorySimple(
 		func(ctx gocontext.Context) (interface{}, error) {
 			return compress.NewZlibDecompressor(), nil
 		}), &poolConfig)
@@ -118,7 +118,7 @@ func NewAggregatedQueueServer(
 //
 // This function should be used instead of the LeaseJobs function in most cases.
 func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingLeaseJobsServer) error {
-	if err := checkPermission(q.permissions, context.FromGrpcContext(stream.Context()), permissions.ExecuteJobs); err != nil {
+	if err := checkPermission(q.permissions, armadacontext.FromGrpcContext(stream.Context()), permissions.ExecuteJobs); err != nil {
 		return err
 	}
 
@@ -141,7 +141,7 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	}
 
 	// Get jobs to be leased.
-	jobs, err := q.getJobs(context.FromGrpcContext(stream.Context()), req)
+	jobs, err := q.getJobs(armadacontext.FromGrpcContext(stream.Context()), req)
 	if err != nil {
 		return err
 	}
@@ -252,8 +252,8 @@ func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([
 	return rv, nil
 }
 
-func (q *AggregatedQueueServer) getJobs(ctx *context.ArmadaContext, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
-	ctx = context.
+func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.ArmadaContext, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
+	ctx = armadacontext.
 		WithLogFields(ctx, map[string]interface{}{
 			"cluster": req.ClusterId,
 			"pool":    req.Pool,
@@ -462,7 +462,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *context.ArmadaContext, req *api.Str
 	// Give Schedule() a 3 second shorter deadline than ctx to give it a chance to finish up before ctx deadline.
 	if deadline, ok := ctx.Deadline(); ok {
 		var cancel gocontext.CancelFunc
-		ctx, cancel = context.WithDeadline(ctx, deadline.Add(-3*time.Second))
+		ctx, cancel = armadacontext.WithDeadline(ctx, deadline.Add(-3*time.Second))
 		defer cancel()
 	}
 
@@ -853,23 +853,23 @@ func (q *AggregatedQueueServer) decompressJobOwnershipGroups(jobs []*api.Job) er
 }
 
 func (q *AggregatedQueueServer) decompressOwnershipGroups(compressedOwnershipGroups []byte) ([]string, error) {
-	decompressor, err := q.decompressorPool.BorrowObject(context.Background())
+	decompressor, err := q.decompressorPool.BorrowObject(armadacontext.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to borrow decompressior because %s", err)
 	}
 
-	defer func(decompressorPool *pool.ObjectPool, ctx *context.ArmadaContext, object interface{}) {
+	defer func(decompressorPool *pool.ObjectPool, ctx *armadacontext.ArmadaContext, object interface{}) {
 		err := decompressorPool.ReturnObject(ctx, object)
 		if err != nil {
 			log.WithError(err).Errorf("Error returning decompressorPool to pool")
 		}
-	}(q.decompressorPool, context.Background(), decompressor)
+	}(q.decompressorPool, armadacontext.Background(), decompressor)
 
 	return compress.DecompressStringArray(compressedOwnershipGroups, decompressor.(compress.Decompressor))
 }
 
 func (q *AggregatedQueueServer) RenewLease(grpcCtx gocontext.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
-	ctx := context.FromGrpcContext(grpcCtx)
+	ctx := armadacontext.FromGrpcContext(grpcCtx)
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
@@ -878,7 +878,7 @@ func (q *AggregatedQueueServer) RenewLease(grpcCtx gocontext.Context, request *a
 }
 
 func (q *AggregatedQueueServer) ReturnLease(grpcCtx gocontext.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
-	ctx := context.FromGrpcContext(grpcCtx)
+	ctx := armadacontext.FromGrpcContext(grpcCtx)
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
@@ -978,7 +978,7 @@ func (q *AggregatedQueueServer) addAvoidNodeAffinity(
 }
 
 func (q *AggregatedQueueServer) ReportDone(grpcCtx gocontext.Context, idList *api.IdList) (*api.IdList, error) {
-	ctx := context.FromGrpcContext(grpcCtx)
+	ctx := armadacontext.FromGrpcContext(grpcCtx)
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportDone] error: %s", err)
 	}
@@ -1003,7 +1003,7 @@ func (q *AggregatedQueueServer) ReportDone(grpcCtx gocontext.Context, idList *ap
 	return &api.IdList{Ids: cleanedIds}, returnedError
 }
 
-func (q *AggregatedQueueServer) reportLeaseReturned(ctx *context.ArmadaContext, leaseReturnRequest *api.ReturnLeaseRequest) error {
+func (q *AggregatedQueueServer) reportLeaseReturned(ctx *armadacontext.ArmadaContext, leaseReturnRequest *api.ReturnLeaseRequest) error {
 	job, err := q.getJobById(leaseReturnRequest.JobId)
 	if err != nil {
 		return err

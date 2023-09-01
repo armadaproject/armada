@@ -8,7 +8,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	v1 "k8s.io/api/core/v1"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -18,7 +18,7 @@ func PrintEvents(url, topic, subscription string, verbose bool) error {
 	fmt.Println("URL:", url)
 	fmt.Println("Topic:", topic)
 	fmt.Println("Subscription", subscription)
-	return withSetup(url, topic, subscription, func(ctx *context.ArmadaContext, producer pulsar.Producer, consumer pulsar.Consumer) error {
+	return withSetup(url, topic, subscription, func(ctx *armadacontext.ArmadaContext, producer pulsar.Producer, consumer pulsar.Consumer) error {
 		// Number of active jobs.
 		numJobs := 0
 
@@ -199,7 +199,7 @@ func stripPodSpec(spec *v1.PodSpec) *v1.PodSpec {
 }
 
 // Run action with an Armada submit client and a Pulsar producer and consumer.
-func withSetup(url, topic, subscription string, action func(ctx *context.ArmadaContext, producer pulsar.Producer, consumer pulsar.Consumer) error) error {
+func withSetup(url, topic, subscription string, action func(ctx *armadacontext.ArmadaContext, producer pulsar.Producer, consumer pulsar.Consumer) error) error {
 	pulsarClient, err := pulsar.NewClient(pulsar.ClientOptions{
 		URL: url,
 	})
@@ -225,5 +225,5 @@ func withSetup(url, topic, subscription string, action func(ctx *context.ArmadaC
 	}
 	defer consumer.Close()
 
-	return action(context.Background(), producer, consumer)
+	return action(armadacontext.Background(), producer, consumer)
 }

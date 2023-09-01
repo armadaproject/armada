@@ -10,12 +10,12 @@ import (
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/lookout/testutil"
 )
 
 func TestLoadStore(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
 	defer cancel()
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 		kvStore, err := New(ctx, db, "cachetable")
@@ -47,7 +47,7 @@ func TestLoadStore(t *testing.T) {
 }
 
 func TestCleanup(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
 	defer cancel()
 	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
 		baseTime := time.Now()

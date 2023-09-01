@@ -10,7 +10,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/encoding/gzip"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	clusterContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/pkg/api"
@@ -31,7 +31,7 @@ type LeaseResponse struct {
 }
 
 type LeaseRequester interface {
-	LeaseJobRuns(ctx *context.ArmadaContext, request *LeaseRequest) (*LeaseResponse, error)
+	LeaseJobRuns(ctx *armadacontext.ArmadaContext, request *LeaseRequest) (*LeaseResponse, error)
 }
 
 type JobLeaseRequester struct {
@@ -52,7 +52,7 @@ func NewJobLeaseRequester(
 	}
 }
 
-func (requester *JobLeaseRequester) LeaseJobRuns(ctx *context.ArmadaContext, request *LeaseRequest) (*LeaseResponse, error) {
+func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.ArmadaContext, request *LeaseRequest) (*LeaseResponse, error) {
 	stream, err := requester.executorApiClient.LeaseJobRuns(ctx, grpcretry.Disable(), grpc.UseCompressor(gzip.Name))
 	if err != nil {
 		return nil, err

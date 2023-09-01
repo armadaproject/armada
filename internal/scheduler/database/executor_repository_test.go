@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -53,7 +53,7 @@ func TestExecutorRepository_LoadAndSave(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := withExecutorRepository(func(repo *PostgresExecutorRepository) error {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 				defer cancel()
 				for _, executor := range tc.executors {
 					err := repo.StoreExecutor(ctx, executor)
@@ -106,7 +106,7 @@ func TestExecutorRepository_GetLastUpdateTimes(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := withExecutorRepository(func(repo *PostgresExecutorRepository) error {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 				defer cancel()
 				for _, executor := range tc.executors {
 					err := repo.StoreExecutor(ctx, executor)

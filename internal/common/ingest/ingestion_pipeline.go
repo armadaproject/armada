@@ -11,7 +11,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	commonmetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
@@ -28,7 +28,7 @@ type HasPulsarMessageIds interface {
 // InstructionConverter should be implemented by structs that can convert a batch of event sequences into an object
 // suitable for passing to the sink
 type InstructionConverter[T HasPulsarMessageIds] interface {
-	Convert(ctx *context.ArmadaContext, msg *EventSequencesWithIds) T
+	Convert(ctx *armadacontext.ArmadaContext, msg *EventSequencesWithIds) T
 }
 
 // Sink should be implemented by the struct responsible for putting the data in its final resting place, e.g. a
@@ -36,7 +36,7 @@ type InstructionConverter[T HasPulsarMessageIds] interface {
 type Sink[T HasPulsarMessageIds] interface {
 	// Store should persist the sink.  The store is responsible for retrying failed attempts and should only return an error
 	// When it is satisfied that operation cannot be retries.
-	Store(ctx *context.ArmadaContext, msg T) error
+	Store(ctx *armadacontext.ArmadaContext, msg T) error
 }
 
 // EventSequencesWithIds consists of a batch of Event Sequences along with the corresponding Pulsar Message Ids
@@ -123,7 +123,7 @@ func NewFilteredMsgIngestionPipeline[T HasPulsarMessageIds](
 }
 
 // Run will run the ingestion pipeline until the supplied context is shut down
-func (ingester *IngestionPipeline[T]) Run(ctx *context.ArmadaContext) error {
+func (ingester *IngestionPipeline[T]) Run(ctx *armadacontext.ArmadaContext) error {
 	shutdownMetricServer := common.ServeMetrics(ingester.metricsConfig.Port)
 	defer shutdownMetricServer()
 
@@ -148,7 +148,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx *context.ArmadaContext) error {
 
 	// Set up a context that n seconds after ctx
 	// This gives the rest of the pipeline a chance to flush pending messages
-	pipelineShutdownContext, cancel := context.WithCancel(context.Background())
+	pipelineShutdownContext, cancel := armadacontext.WithCancel(armadacontext.Background())
 	go func() {
 		for {
 			select {
@@ -207,7 +207,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx *context.ArmadaContext) error {
 			} else {
 				for _, msgId := range msg.GetMessageIDs() {
 					util.RetryUntilSuccess(
-						context.Background(),
+						armadacontext.Background(),
 						func() error { return ingester.consumer.AckID(msgId) },
 						func(err error) {
 							log.WithError(err).Warnf("Pulsar ack failed; backing off for %s", ingester.pulsarConfig.BackoffTime)
@@ -266,7 +266,7 @@ func unmarshalEventSequences(batch []pulsar.Message, msgFilter func(msg pulsar.M
 		}
 
 		// Try and unmarshall the proto
-		es, err := eventutil.UnmarshalEventSequence(context.Background(), msg.Payload())
+		es, err := eventutil.UnmarshalEventSequence(armadacontext.Background(), msg.Payload())
 		if err != nil {
 			metrics.RecordPulsarMessageError(commonmetrics.PulsarMessageErrorDeserialization)
 			log.WithError(err).Warnf("Could not unmarshal proto for msg %s", msg.ID())

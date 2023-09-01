@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/client/domain"
@@ -16,7 +16,7 @@ import (
 func (a *App) Watch(queue string, jobSetId string, raw bool, exitOnInactive bool, forceNewEvents bool, forceLegacyEvents bool) error {
 	fmt.Fprintf(a.Out, "Watching job set %s\n", jobSetId)
 	return client.WithEventClient(a.Params.ApiConnectionDetails, func(c api.EventClient) error {
-		client.WatchJobSet(c, queue, jobSetId, true, true, forceNewEvents, forceLegacyEvents, context.Background(), func(state *domain.WatchContext, event api.Event) bool {
+		client.WatchJobSet(c, queue, jobSetId, true, true, forceNewEvents, forceLegacyEvents, armadacontext.Background(), func(state *domain.WatchContext, event api.Event) bool {
 			if raw {
 				data, err := json.Marshal(event)
 				if err != nil {

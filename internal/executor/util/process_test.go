@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 func TestProcessItemsWithThreadPool(t *testing.T) {
@@ -15,7 +15,7 @@ func TestProcessItemsWithThreadPool(t *testing.T) {
 	output := []string{}
 	outputMutex := &sync.Mutex{}
 
-	ProcessItemsWithThreadPool(context.Background(), 2, input, func(item string) {
+	ProcessItemsWithThreadPool(armadacontext.Background(), 2, input, func(item string) {
 		outputMutex.Lock()
 		defer outputMutex.Unlock()
 		output = append(output, item)
@@ -29,7 +29,7 @@ func TestProcessItemsWithThreadPool_HandlesContextCancellation(t *testing.T) {
 	output := []string{}
 	outputMutex := &sync.Mutex{}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Millisecond*100)
 	defer cancel()
 
 	ProcessItemsWithThreadPool(ctx, 2, input, func(item string) {

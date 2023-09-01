@@ -9,7 +9,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/sirupsen/logrus"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils/pulsarrequestid"
@@ -30,7 +30,7 @@ type EventsPrinter struct {
 }
 
 // Run the service that reads from Pulsar and updates Armada until the provided context is cancelled.
-func (srv *EventsPrinter) Run(ctx *context.ArmadaContext) error {
+func (srv *EventsPrinter) Run(ctx *armadacontext.ArmadaContext) error {
 	// Get the configured logger, or the standard logger if none is provided.
 	var log *logrus.Entry
 	if srv.Logger != nil {
@@ -75,7 +75,7 @@ func (srv *EventsPrinter) Run(ctx *context.ArmadaContext) error {
 		default:
 
 			// Get a message from Pulsar, which consists of a sequence of events (i.e., state transitions).
-			ctxWithTimeout, cancel := context.WithTimeout(ctx, 10*time.Second)
+			ctxWithTimeout, cancel := armadacontext.WithTimeout(ctx, 10*time.Second)
 			msg, err := consumer.Receive(ctxWithTimeout)
 			cancel()
 			if errors.Is(err, gocontext.DeadlineExceeded) { // expected
@@ -86,7 +86,7 @@ func (srv *EventsPrinter) Run(ctx *context.ArmadaContext) error {
 				break
 			}
 			util.RetryUntilSuccess(
-				context.Background(),
+				armadacontext.Background(),
 				func() error { return consumer.Ack(msg) },
 				func(err error) {
 					logging.WithStacktrace(log, err).Warnf("acking pulsar message failed")

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -159,7 +159,7 @@ func TestAddGetSchedulingContext(t *testing.T) {
 func TestTestAddGetSchedulingContextConcurrency(t *testing.T) {
 	repo, err := NewSchedulingContextRepository(10)
 	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Second)
 	defer cancel()
 	for _, executorId := range []string{"foo", "bar"} {
 		go func(executorId string) {
@@ -202,7 +202,7 @@ func TestReportDoesNotExist(t *testing.T) {
 	require.NoError(t, err)
 	err = repo.AddSchedulingContext(testSchedulingContext("executor-01"))
 	require.NoError(t, err)
-	ctx := context.Background()
+	ctx := armadacontext.Background()
 	queue := "queue-does-not-exist"
 	jobId := util.NewULID()
 

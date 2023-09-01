@@ -6,12 +6,11 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 type GetJobRunErrorRepository interface {
-	GetJobRunError(ctx *context.ArmadaContext, runId string) (string, error)
+	GetJobRunError(ctx *armadacontext.ArmadaContext, runId string) (string, error)
 }
 
 type SqlGetJobRunErrorRepository struct {
@@ -26,7 +25,7 @@ func NewSqlGetJobRunErrorRepository(db *pgxpool.Pool, decompressor compress.Deco
 	}
 }
 
-func (r *SqlGetJobRunErrorRepository) GetJobRunError(ctx *context.ArmadaContext, runId string) (string, error) {
+func (r *SqlGetJobRunErrorRepository) GetJobRunError(ctx *armadacontext.ArmadaContext, runId string) (string, error) {
 	var rawBytes []byte
 	err := r.db.QueryRow(ctx, "SELECT error FROM job_run WHERE run_id = $1 AND error IS NOT NULL", runId).Scan(&rawBytes)
 	if err != nil {

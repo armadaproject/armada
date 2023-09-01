@@ -9,7 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/types"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -21,7 +21,7 @@ import (
 // PoolAssigner allows jobs to be assigned to a pool
 // Note that this is intended only for use with metrics calculation
 type PoolAssigner interface {
-	Refresh(ctx *context.ArmadaContext) error
+	Refresh(ctx *armadacontext.ArmadaContext) error
 	AssignPool(j *jobdb.Job) (string, error)
 }
 
@@ -70,7 +70,7 @@ func NewPoolAssigner(executorTimeout time.Duration,
 }
 
 // Refresh updates executor state
-func (p *DefaultPoolAssigner) Refresh(ctx *context.ArmadaContext) error {
+func (p *DefaultPoolAssigner) Refresh(ctx *armadacontext.ArmadaContext) error {
 	executors, err := p.executorRepository.GetExecutors(ctx)
 	executorsByPool := map[string][]*executor{}
 	poolByExecutorId := map[string]string{}

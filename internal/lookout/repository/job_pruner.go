@@ -7,7 +7,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 const postgresFormat = "2006-01-02 15:04:05.000000"
@@ -23,7 +23,7 @@ const postgresFormat = "2006-01-02 15:04:05.000000"
 // For performance reasons we don't use a transaction here and so an error may indicate that
 // Some jobs were deleted.
 func DeleteOldJobs(db *sql.DB, batchSizeLimit int, cutoff time.Time) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 120*time.Second)
 	defer cancel()
 
 	// This would be much better done as a proper statement with parameters, but postgres doesn't support

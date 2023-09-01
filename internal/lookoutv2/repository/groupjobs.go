@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
@@ -22,7 +22,7 @@ type GroupByResult struct {
 
 type GroupJobsRepository interface {
 	GroupBy(
-		ctx *context.ArmadaContext,
+		ctx *armadacontext.ArmadaContext,
 		filters []*model.Filter,
 		order *model.Order,
 		groupedField string,
@@ -47,7 +47,7 @@ func NewSqlGroupJobsRepository(db *pgxpool.Pool) *SqlGroupJobsRepository {
 }
 
 func (r *SqlGroupJobsRepository) GroupBy(
-	ctx *context.ArmadaContext,
+	ctx *armadacontext.ArmadaContext,
 	filters []*model.Filter,
 	activeJobSets bool,
 	order *model.Order,

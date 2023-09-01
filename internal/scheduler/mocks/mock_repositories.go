@@ -8,7 +8,7 @@ import (
 	reflect "reflect"
 	time "time"
 
-	context "github.com/armadaproject/armada/internal/common/context"
+	context "github.com/armadaproject/armada/internal/common/armadacontext"
 	database "github.com/armadaproject/armada/internal/scheduler/database"
 	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	armadaevents "github.com/armadaproject/armada/pkg/armadaevents"

@@ -20,9 +20,9 @@ import (
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/scheduling"
 	"github.com/armadaproject/armada/internal/armada/server"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
-	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
@@ -38,7 +38,7 @@ import (
 	"github.com/armadaproject/armada/pkg/client"
 )
 
-func Serve(ctx *context.ArmadaContext, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
+func Serve(ctx *armadacontext.ArmadaContext, config *configuration.ArmadaConfig, healthChecks *health.MultiChecker) error {
 	log.Info("Armada server starting")
 	log.Infof("Armada priority classes: %v", config.Scheduling.Preemption.PriorityClasses)
 	log.Infof("Default priority class: %s", config.Scheduling.Preemption.DefaultPriorityClass)
@@ -50,9 +50,9 @@ func Serve(ctx *context.ArmadaContext, config *configuration.ArmadaConfig, healt
 
 	// Run all services within an errgroup to propagate errors between services.
 	// Defer cancelling the parent context to ensure the errgroup is cancelled on return.
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := armadacontext.WithCancel(ctx)
 	defer cancel()
-	g, ctx := context.ErrGroup(ctx)
+	g, ctx := armadacontext.ErrGroup(ctx)
 
 	// List of services to run concurrently.
 	// Because we want to start services only once all input validation has been completed,

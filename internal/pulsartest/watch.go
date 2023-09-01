@@ -7,7 +7,7 @@ import (
 
 	"github.com/sanity-io/litter"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 )
@@ -17,12 +17,12 @@ func (a *App) Watch() error {
 	defer a.Reader.Close()
 
 	for a.Reader.HasNext() {
-		msg, err := a.Reader.Next(context.Background())
+		msg, err := a.Reader.Next(armadacontext.Background())
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		ctx := context.Background()
+		ctx := armadacontext.Background()
 		msgId := pulsarutils.New(msg.ID().LedgerID(), msg.ID().EntryID(),
 			msg.ID().PartitionIdx(), msg.ID().BatchIdx())
 

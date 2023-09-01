@@ -12,8 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
-	"github.com/armadaproject/armada/internal/common/compress"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -84,7 +83,7 @@ func TestFetchJobUpdates(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := withJobRepository(func(repo *PostgresJobRepository) error {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 
 				// Set up db
 				err := database.UpsertWithTransaction(ctx, repo.db, "jobs", tc.dbJobs)
@@ -187,7 +186,7 @@ func TestFetchJobRunErrors(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := withJobRepository(func(repo *PostgresJobRepository) error {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 				// Set up db
 				err := database.UpsertWithTransaction(ctx, repo.db, "job_run_errors", tc.errorsInDb)
 				require.NoError(t, err)
@@ -222,7 +221,7 @@ func TestCountReceivedPartitions(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := withJobRepository(func(repo *PostgresJobRepository) error {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 
 				markers := make([]Marker, tc.numPartitions)
 				groupId := uuid.New()
@@ -357,7 +356,7 @@ func TestFindInactiveRuns(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := withJobRepository(func(repo *PostgresJobRepository) error {
-				ctx, cancel := context.WithTimeout(context.Background(), 500*time.Second)
+				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 500*time.Second)
 
 				// Set up db
 				err := database.UpsertWithTransaction(ctx, repo.db, "runs", tc.dbRuns)
@@ -487,7 +486,7 @@ func TestFetchJobRunLeases(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := withJobRepository(func(repo *PostgresJobRepository) error {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 
 				// Set up db
 				err := database.UpsertWithTransaction(ctx, repo.db, "jobs", tc.dbJobs)
@@ -553,7 +552,7 @@ func withJobRepository(action func(repository *PostgresJobRepository) error) err
 	})
 }
 
-func insertMarkers(ctx *context.ArmadaContext, markers []Marker, db *pgxpool.Pool) error {
+func insertMarkers(ctx *armadacontext.ArmadaContext, markers []Marker, db *pgxpool.Pool) error {
 	for _, marker := range markers {
 		_, err := db.Exec(ctx, "INSERT INTO markers VALUES ($1, $2)", marker.GroupID, marker.PartitionID)
 		if err != nil {

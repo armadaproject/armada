@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -84,7 +84,7 @@ func NewSubmitChecker(
 	}
 }
 
-func (srv *SubmitChecker) Run(ctx *context.ArmadaContext) error {
+func (srv *SubmitChecker) Run(ctx *armadacontext.ArmadaContext) error {
 	srv.updateExecutors(ctx)
 
 	ticker := time.NewTicker(srv.ExecutorUpdateFrequency)
@@ -98,7 +98,7 @@ func (srv *SubmitChecker) Run(ctx *context.ArmadaContext) error {
 	}
 }
 
-func (srv *SubmitChecker) updateExecutors(ctx *context.ArmadaContext) {
+func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.ArmadaContext) {
 	executors, err := srv.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		log.WithError(err).Error("Error fetching executors")

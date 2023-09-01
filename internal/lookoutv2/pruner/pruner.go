@@ -8,10 +8,10 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
-func PruneDb(ctx *context.ArmadaContext, db *pgx.Conn, keepAfterCompletion time.Duration, batchLimit int, clock clock.Clock) error {
+func PruneDb(ctx *armadacontext.ArmadaContext, db *pgx.Conn, keepAfterCompletion time.Duration, batchLimit int, clock clock.Clock) error {
 	now := clock.Now()
 	cutOffTime := now.Add(-keepAfterCompletion)
 	totalJobsToDelete, err := createJobIdsToDeleteTempTable(ctx, db, cutOffTime)
@@ -61,7 +61,7 @@ func PruneDb(ctx *context.ArmadaContext, db *pgx.Conn, keepAfterCompletion time.
 }
 
 // Returns total number of jobs to delete
-func createJobIdsToDeleteTempTable(ctx *context.ArmadaContext, db *pgx.Conn, cutOffTime time.Time) (int, error) {
+func createJobIdsToDeleteTempTable(ctx *armadacontext.ArmadaContext, db *pgx.Conn, cutOffTime time.Time) (int, error) {
 	_, err := db.Exec(ctx, `
 		CREATE TEMP TABLE job_ids_to_delete AS (
 			SELECT job_id FROM job
@@ -78,7 +78,7 @@ func createJobIdsToDeleteTempTable(ctx *context.ArmadaContext, db *pgx.Conn, cut
 	return totalJobsToDelete, nil
 }
 
-func deleteBatch(ctx *context.ArmadaContext, tx pgx.Tx, batchLimit int) (int, error) {
+func deleteBatch(ctx *armadacontext.ArmadaContext, tx pgx.Tx, batchLimit int) (int, error) {
 	_, err := tx.Exec(ctx, "INSERT INTO batch (job_id) SELECT job_id FROM job_ids_to_delete LIMIT $1;", batchLimit)
 	if err != nil {
 		return -1, err

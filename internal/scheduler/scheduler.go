@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -116,7 +116,7 @@ func NewScheduler(
 }
 
 // Run enters the scheduling loop, which will continue until ctx is cancelled.
-func (s *Scheduler) Run(ctx *context.ArmadaContext) error {
+func (s *Scheduler) Run(ctx *armadacontext.ArmadaContext) error {
 	ctx.Log.Infof("starting scheduler with cycle time %s", s.cyclePeriod)
 	defer ctx.Log.Info("scheduler stopped")
 
@@ -143,7 +143,7 @@ func (s *Scheduler) Run(ctx *context.ArmadaContext) error {
 			// If we are becoming leader then we must ensure we have caught up to all Pulsar messages
 			if leaderToken.leader && leaderToken != prevLeaderToken {
 				ctx.Log.Infof("becoming leader")
-				syncContext, cancel := context.WithTimeout(ctx, 5*time.Minute)
+				syncContext, cancel := armadacontext.WithTimeout(ctx, 5*time.Minute)
 				err := s.ensureDbUpToDate(syncContext, 1*time.Second)
 				if err != nil {
 					logging.WithStacktrace(ctx.Log, err).Error("could not become leader")
@@ -191,7 +191,7 @@ func (s *Scheduler) Run(ctx *context.ArmadaContext) error {
 // cycle is a single iteration of the main scheduling loop.
 // If updateAll is true, we generate events from all jobs in the jobDb.
 // Otherwise, we only generate events from jobs updated since the last cycle.
-func (s *Scheduler) cycle(ctx *context.ArmadaContext, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) error {
+func (s *Scheduler) cycle(ctx *armadacontext.ArmadaContext, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) error {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("function", "cycle")
 	// Update job state.
@@ -264,7 +264,7 @@ func (s *Scheduler) cycle(ctx *context.ArmadaContext, updateAll bool, leaderToke
 }
 
 // syncState updates jobs in jobDb to match state in postgres and returns all updated jobs.
-func (s *Scheduler) syncState(ctx *context.ArmadaContext) ([]*jobdb.Job, error) {
+func (s *Scheduler) syncState(ctx *armadacontext.ArmadaContext) ([]*jobdb.Job, error) {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("function", "syncState")
 
@@ -503,7 +503,7 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 
 // generateUpdateMessages generates EventSequences representing the state changes on updated jobs
 // If there are no state changes then an empty slice will be returned
-func (s *Scheduler) generateUpdateMessages(ctx *context.ArmadaContext, updatedJobs []*jobdb.Job, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.ArmadaContext, updatedJobs []*jobdb.Job, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
 	failedRunIds := make([]uuid.UUID, 0, len(updatedJobs))
 	for _, job := range updatedJobs {
 		run := job.LatestRun()
@@ -698,7 +698,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 // expireJobsIfNecessary removes any jobs from the JobDb which are running on stale executors.
 // It also generates an EventSequence for each job, indicating that both the run and the job has failed
 // Note that this is different behaviour from the old scheduler which would allow expired jobs to be rerun
-func (s *Scheduler) expireJobsIfNecessary(ctx *context.ArmadaContext, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.ArmadaContext, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("function", "expireJobsIfNecessary")
 
@@ -798,7 +798,7 @@ func (s *Scheduler) now() *time.Time {
 // initialise builds the initial job db based on the current database state
 // right now this is quite dim and loads the entire database but in the future
 // we should be  able to make it load active jobs/runs only
-func (s *Scheduler) initialise(ctx *context.ArmadaContext) error {
+func (s *Scheduler) initialise(ctx *armadacontext.ArmadaContext) error {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("function", "initialise")
 	for {
@@ -820,7 +820,7 @@ func (s *Scheduler) initialise(ctx *context.ArmadaContext) error {
 // ensureDbUpToDate blocks until that the database state contains all Pulsar messages sent *before* this
 // function was called. This is achieved firstly by publishing messages to Pulsar and then polling the
 // database until all messages have been written.
-func (s *Scheduler) ensureDbUpToDate(ctx *context.ArmadaContext, pollInterval time.Duration) error {
+func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.ArmadaContext, pollInterval time.Duration) error {
 	log := ctxlogrus.Extract(ctx)
 	log = log.WithField("function", "ensureDbUpToDate")
 

@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/tools/cache"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/job"
@@ -159,7 +159,7 @@ func (p *IssueHandler) HandlePodIssues() {
 	})
 	p.detectPodIssues(managedPods)
 	p.detectReconciliationIssues(managedPods)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Minute*2)
 	defer cancel()
 	p.handleKnownIssues(ctx, managedPods)
 }
@@ -225,7 +225,7 @@ func (p *IssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 	}
 }
 
-func (p *IssueHandler) handleKnownIssues(ctx *context.ArmadaContext, allManagedPods []*v1.Pod) {
+func (p *IssueHandler) handleKnownIssues(ctx *armadacontext.ArmadaContext, allManagedPods []*v1.Pod) {
 	// Make issues from pods + issues
 	issues := createIssues(allManagedPods, p.knownPodIssues)
 	util.ProcessItemsWithThreadPool(ctx, 20, issues, p.handleRunIssue)

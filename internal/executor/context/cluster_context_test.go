@@ -22,7 +22,7 @@ import (
 	clientTesting "k8s.io/client-go/testing"
 	"k8s.io/utils/pointer"
 
-	"github.com/armadaproject/armada/internal/common/context"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
@@ -709,7 +709,7 @@ func TestKubernetesClusterContext_GetNodes(t *testing.T) {
 		},
 	}
 
-	_, err := client.CoreV1().Nodes().Create(context.Background(), node, metav1.CreateOptions{})
+	_, err := client.CoreV1().Nodes().Create(armadacontext.Background(), node, metav1.CreateOptions{})
 	assert.Nil(t, err)
 
 	nodeFound := waitForCondition(func() bool {
