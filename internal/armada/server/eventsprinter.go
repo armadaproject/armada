@@ -1,14 +1,15 @@
 package server
 
 import (
+	gocontext "context"
 	"errors"
-	"github.com/armadaproject/armada/internal/common/context"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/proto"
 	"github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils/pulsarrequestid"
@@ -77,7 +78,7 @@ func (srv *EventsPrinter) Run(ctx *context.ArmadaContext) error {
 			ctxWithTimeout, cancel := context.WithTimeout(ctx, 10*time.Second)
 			msg, err := consumer.Receive(ctxWithTimeout)
 			cancel()
-			if errors.Is(err, context.DeadlineExceeded) { // expected
+			if errors.Is(err, gocontext.DeadlineExceeded) { // expected
 				log.Info("no new messages from Pulsar (or another instance holds the subscription)")
 				break
 			} else if err != nil {

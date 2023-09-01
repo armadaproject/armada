@@ -3,9 +3,10 @@ package scheduler
 import (
 	"testing"
 
-	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/armadaproject/armada/internal/common/context"
 )
 
 const testInstanceName = "instance-1"

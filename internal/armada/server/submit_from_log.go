@@ -1,8 +1,8 @@
 package server
 
 import (
+	gocontext "context"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/context"
 	"reflect"
 	"time"
 
@@ -16,10 +16,9 @@ import (
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/common/pulsarutils/pulsarrequestid"
-	"github.com/armadaproject/armada/internal/common/requestid"
 	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
@@ -98,7 +97,7 @@ func (srv *SubmitFromLog) Run(ctx *context.ArmadaContext) error {
 			ctxWithTimeout, cancel := context.WithTimeout(ctx, 10*time.Second)
 			msg, err := srv.Consumer.Receive(ctxWithTimeout)
 			cancel()
-			if errors.Is(err, context.DeadlineExceeded) {
+			if errors.Is(err, gocontext.DeadlineExceeded) {
 				break // expected
 			}
 
@@ -121,29 +120,18 @@ func (srv *SubmitFromLog) Run(ctx *context.ArmadaContext) error {
 			lastPublishTime = msg.PublishTime()
 			numReceived++
 
-			// Incoming gRPC requests are annotated with a unique id,
-			// which is included with the corresponding Pulsar message.
-			requestId := pulsarrequestid.FromMessageOrMissing(msg)
-
-			// Put the requestId into a message-specific context and logger,
-			// which are passed on to sub-functions.
-			messageCtx, ok := requestid.AddToIncomingContext(ctx, requestId)
-			if !ok {
-				messageCtx = ctx
-			}
-			messageLogger := log.WithFields(logrus.Fields{"messageId": msg.ID(), requestid.MetadataKey: requestId})
-			ctxWithLogger := ctxlogrus.ToContext(messageCtx, messageLogger)
+			ctxWithLogger := context.WithLogField(ctx, "messageId", msg.ID())
 
 			// Unmarshal and validate the message.
 			sequence, err := eventutil.UnmarshalEventSequence(ctxWithLogger, msg.Payload())
 			if err != nil {
 				srv.ack(ctx, msg)
-				logging.WithStacktrace(messageLogger, err).Warnf("processing message failed; ignoring")
+				logging.WithStacktrace(ctxWithLogger.Log, err).Warnf("processing message failed; ignoring")
 				numErrored++
 				break
 			}
 
-			messageLogger.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
+			ctxWithLogger.Log.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
 			// TODO: Improve retry logic.
 			srv.ProcessSequence(ctxWithLogger, sequence)
 			srv.ack(ctx, msg)

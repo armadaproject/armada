@@ -1,7 +1,7 @@
 package server
 
 import (
-	"github.com/armadaproject/armada/internal/common/context"
+	gocontext "context"
 	"testing"
 	"time"
 
@@ -21,6 +21,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/compress"
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -415,7 +416,7 @@ func withEventServer(t *testing.T, action func(s *EventServer)) {
 
 type eventStreamMock struct {
 	grpc.ServerStream
-	ctx          *context.ArmadaContext
+	ctx          gocontext.Context
 	sendMessages []*api.EventStreamMessage
 }
 
@@ -424,7 +425,7 @@ func (s *eventStreamMock) Send(m *api.EventStreamMessage) error {
 	return nil
 }
 
-func (s *eventStreamMock) Context() *context.ArmadaContext {
+func (s *eventStreamMock) Context() gocontext.Context {
 	if s.ctx == nil {
 		return context.Background()
 	}

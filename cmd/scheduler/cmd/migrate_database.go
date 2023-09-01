@@ -1,13 +1,13 @@
 package cmd
 
 import (
-	"context"
 	"time"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/common/database"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )

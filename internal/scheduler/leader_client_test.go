@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/context"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/pkg/client"
 )
@@ -90,7 +91,7 @@ func (f *FakeLeaderController) ValidateToken(tok LeaderToken) bool {
 	return f.IsCurrentlyLeader
 }
 
-func (f *FakeLeaderController) Run(ctx *context.ArmadaContext) error {
+func (f *FakeLeaderController) Run(_ *context.ArmadaContext) error {
 	return nil
 }
 
