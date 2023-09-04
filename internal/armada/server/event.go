@@ -44,7 +44,7 @@ func NewEventServer(
 }
 
 func (s *EventServer) Report(grpcCtx context.Context, message *api.EventMessage) (*types.Empty, error) {
-	ctx := armadacontext.FromGrpcContext(grpcCtx)
+	ctx := armadacontext.FromgrpcCtx(grpcCtx)
 	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[Report] error: %s", err)
 	}
@@ -53,7 +53,7 @@ func (s *EventServer) Report(grpcCtx context.Context, message *api.EventMessage)
 }
 
 func (s *EventServer) ReportMultiple(grpcCtx context.Context, message *api.EventList) (*types.Empty, error) {
-	ctx := armadacontext.FromGrpcContext(grpcCtx)
+	ctx := armadacontext.FromgrpcCtx(grpcCtx)
 	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportMultiple] error: %s", err)
 	}
@@ -119,7 +119,7 @@ func (s *EventServer) enrichPreemptedEvent(event *api.EventMessage_Preempted, jo
 
 // GetJobSetEvents streams back all events associated with a particular job set.
 func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Event_GetJobSetEventsServer) error {
-	ctx := armadacontext.FromGrpcContext(stream.Context())
+	ctx := armadacontext.FromgrpcCtx(stream.Context())
 	q, err := s.queueRepository.GetQueue(request.Queue)
 	var expected *repository.ErrQueueNotFound
 	if errors.As(err, &expected) {

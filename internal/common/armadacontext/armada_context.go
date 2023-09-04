@@ -28,7 +28,7 @@ func TODO() *Context {
 	}
 }
 
-func FromGrpcContext(ctx context.Context) *Context {
+func FromgrpcCtx(ctx context.Context) *Context {
 	log := ctxlogrus.Extract(ctx)
 	return New(ctx, log)
 }

@@ -81,7 +81,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		return errors.WithStack(err)
 	}
 
-	ctx := armadacontext.WithLogField(armadacontext.FromGrpcContext(stream.Context()), "executor", req.ExecutorId)
+	ctx := armadacontext.WithLogField(armadacontext.FromgrpcCtx(stream.Context()), "executor", req.ExecutorId)
 
 	executor := srv.executorFromLeaseRequest(ctx, req)
 	if err := srv.executorRepository.StoreExecutor(ctx, executor); err != nil {
@@ -214,8 +214,8 @@ func setPriorityClassName(podSpec *armadaevents.PodSpecWithAvoidList, priorityCl
 }
 
 // ReportEvents publishes all events to Pulsar. The events are compacted for more efficient publishing.
-func (srv *ExecutorApi) ReportEvents(grpcContext context.Context, list *executorapi.EventList) (*types.Empty, error) {
-	ctx := armadacontext.FromGrpcContext(grpcContext)
+func (srv *ExecutorApi) ReportEvents(grpcCtx context.Context, list *executorapi.EventList) (*types.Empty, error) {
+	ctx := armadacontext.FromgrpcCtx(grpcCtx)
 	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxPulsarMessageSizeBytes, schedulers.Pulsar)
 	return &types.Empty{}, err
 }

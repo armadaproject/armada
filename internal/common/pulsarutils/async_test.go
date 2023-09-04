@@ -6,11 +6,10 @@ import (
 	"testing"
 	"time"
 
-	ctx "github.com/armadaproject/armada/internal/common/armadacontext"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 )
 
@@ -47,8 +46,8 @@ func TestReceive(t *testing.T) {
 	consumer := &mockConsumer{
 		msgs: msgs,
 	}
-	context, cancel := ctx.WithCancel(ctx.Background())
-	outputChan := Receive(context, consumer, 10*time.Millisecond, 10*time.Millisecond, m)
+	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
+	outputChan := Receive(ctx, consumer, 10*time.Millisecond, 10*time.Millisecond, m)
 	var receivedMsgs []pulsar.Message
 
 	wg := sync.WaitGroup{}
@@ -72,7 +71,7 @@ func TestAcks(t *testing.T) {
 	consumers := []pulsar.Consumer{&mockConsumer}
 	wg := sync.WaitGroup{}
 	wg.Add(1)
-	go Ack(ctx.Background(), consumers, input, 1*time.Second, &wg)
+	go Ack(armadacontext.Background(), consumers, input, 1*time.Second, &wg)
 	input <- []*ConsumerMessageId{
 		{NewMessageId(1), 0, 0}, {NewMessageId(2), 0, 0},
 	}

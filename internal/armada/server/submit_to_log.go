@@ -69,8 +69,8 @@ type PulsarSubmitServer struct {
 	IgnoreJobSubmitChecks bool
 }
 
-func (srv *PulsarSubmitServer) SubmitJobs(grpcContext context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
-	ctx := armadacontext.FromGrpcContext(grpcContext)
+func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
+	ctx := armadacontext.FromgrpcCtx(grpcCtx)
 	userId, groups, err := srv.Authorize(ctx, req.Queue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit)
 	if err != nil {
 		return nil, err
@@ -242,8 +242,8 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcContext context.Context, req *api.
 	return &api.JobSubmitResponse{JobResponseItems: responses}, nil
 }
 
-func (srv *PulsarSubmitServer) CancelJobs(grpcContext context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
-	ctx := armadacontext.FromGrpcContext(grpcContext)
+func (srv *PulsarSubmitServer) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
+	ctx := armadacontext.FromgrpcCtx(grpcCtx)
 
 	// separate code path for multiple jobs
 	if len(req.JobIds) > 0 {
@@ -332,8 +332,8 @@ func (srv *PulsarSubmitServer) CancelJobs(grpcContext context.Context, req *api.
 }
 
 // Assumes all Job IDs are in the queue and job set provided
-func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(grpcContext context.Context, jobIds []string, q, jobSet string, reason string) (*api.CancellationResult, error) {
-	ctx := armadacontext.FromGrpcContext(grpcContext)
+func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(grpcCtx context.Context, jobIds []string, q, jobSet string, reason string) (*api.CancellationResult, error) {
+	ctx := armadacontext.FromgrpcCtx(grpcCtx)
 	if q == "" {
 		return nil, &armadaerrors.ErrInvalidArgument{
 			Name:    "Queue",
@@ -395,8 +395,8 @@ func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []
 	return sequence, validIds
 }
 
-func (srv *PulsarSubmitServer) CancelJobSet(grpcContext context.Context, req *api.JobSetCancelRequest) (*types.Empty, error) {
-	ctx := armadacontext.FromGrpcContext(grpcContext)
+func (srv *PulsarSubmitServer) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequest) (*types.Empty, error) {
+	ctx := armadacontext.FromgrpcCtx(grpcCtx)
 	if req.Queue == "" {
 		return nil, &armadaerrors.ErrInvalidArgument{
 			Name:    "Queue",
@@ -498,8 +498,8 @@ func (srv *PulsarSubmitServer) CancelJobSet(grpcContext context.Context, req *ap
 	return &types.Empty{}, err
 }
 
-func (srv *PulsarSubmitServer) ReprioritizeJobs(grpcContext context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
-	ctx := armadacontext.FromGrpcContext(grpcContext)
+func (srv *PulsarSubmitServer) ReprioritizeJobs(grpcCtx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
+	ctx := armadacontext.FromgrpcCtx(grpcCtx)
 
 	// If either queue or jobSetId is missing, we get the job set and queue associated
 	// with the first job id in the request.

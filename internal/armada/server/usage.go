@@ -43,7 +43,7 @@ func NewUsageServer(
 }
 
 func (s *UsageServer) ReportUsage(grpcCtx context.Context, report *api.ClusterUsageReport) (*types.Empty, error) {
-	ctx := armadacontext.FromGrpcContext(grpcCtx)
+	ctx := armadacontext.FromgrpcCtx(grpcCtx)
 	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportUsage] error: %s", err)
 	}
