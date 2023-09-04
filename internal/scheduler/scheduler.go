@@ -6,7 +6,6 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
@@ -192,8 +191,6 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 // If updateAll is true, we generate events from all jobs in the jobDb.
 // Otherwise, we only generate events from jobs updated since the last cycle.
 func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) error {
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("function", "cycle")
 	// Update job state.
 	updatedJobs, err := s.syncState(ctx)
 	if err != nil {
@@ -258,22 +255,20 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	if err := s.publisher.PublishMessages(ctx, events, isLeader); err != nil {
 		return err
 	}
-	log.Infof("published %d events to pulsar in %s", len(events), s.clock.Since(start))
+	ctx.Log.Infof("published %d events to pulsar in %s", len(events), s.clock.Since(start))
 	txn.Commit()
 	return nil
 }
 
 // syncState updates jobs in jobDb to match state in postgres and returns all updated jobs.
 func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) {
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("function", "syncState")
 
 	start := s.clock.Now()
 	updatedJobs, updatedRuns, err := s.jobRepository.FetchJobUpdates(ctx, s.jobsSerial, s.runsSerial)
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("received %d updated jobs and %d updated job runs in %s", len(updatedJobs), len(updatedRuns), s.clock.Since(start))
+	ctx.Log.Infof("received %d updated jobs and %d updated job runs in %s", len(updatedJobs), len(updatedRuns), s.clock.Since(start))
 
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
@@ -317,7 +312,7 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 			// If the job is nil or terminal at this point then it cannot be active.
 			// In this case we can ignore the run.
 			if job == nil || job.InTerminalState() {
-				log.Debugf("job %s is not active; ignoring update for run %s", jobId, dbRun.RunID)
+				ctx.Log.Debugf("job %s is not active; ignoring update for run %s", jobId, dbRun.RunID)
 				continue
 			}
 		}
@@ -705,8 +700,6 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 // It also generates an EventSequence for each job, indicating that both the run and the job has failed
 // Note that this is different behaviour from the old scheduler which would allow expired jobs to be rerun
 func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("function", "expireJobsIfNecessary")
 
 	heartbeatTimes, err := s.executorRepository.GetLastUpdateTimes(ctx)
 	if err != nil {
@@ -722,14 +715,14 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 	// has been completely removed
 	for executor, heartbeat := range heartbeatTimes {
 		if heartbeat.Before(cutOff) {
-			log.Warnf("Executor %s has not reported a hearbeart since %v. Will expire all jobs running on this executor", executor, heartbeat)
+			ctx.Log.Warnf("Executor %s has not reported a hearbeart since %v. Will expire all jobs running on this executor", executor, heartbeat)
 			staleExecutors[executor] = true
 		}
 	}
 
 	// All clusters have had a heartbeat recently.  No need to expire any jobs
 	if len(staleExecutors) == 0 {
-		log.Infof("No stale executors found. No jobs need to be expired")
+		ctx.Log.Infof("No stale executors found. No jobs need to be expired")
 		return nil, nil
 	}
 
@@ -746,7 +739,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 
 		run := job.LatestRun()
 		if run != nil && !job.Queued() && staleExecutors[run.Executor()] {
-			log.Warnf("Cancelling job %s as it is running on lost executor %s", job.Id(), run.Executor())
+			ctx.Log.Warnf("Cancelling job %s as it is running on lost executor %s", job.Id(), run.Executor())
 			jobsToUpdate = append(jobsToUpdate, job.WithQueued(false).WithFailed(true).WithUpdatedRun(run.WithFailed(true)))
 
 			jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
@@ -805,15 +798,13 @@ func (s *Scheduler) now() *time.Time {
 // right now this is quite dim and loads the entire database but in the future
 // we should be  able to make it load active jobs/runs only
 func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("function", "initialise")
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		default:
 			if _, err := s.syncState(ctx); err != nil {
-				log.WithError(err).Error("failed to initialise; trying again in 1 second")
+				ctx.Log.WithError(err).Error("failed to initialise; trying again in 1 second")
 				time.Sleep(1 * time.Second)
 			} else {
 				// Initialisation succeeded.
@@ -827,8 +818,6 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 // function was called. This is achieved firstly by publishing messages to Pulsar and then polling the
 // database until all messages have been written.
 func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval time.Duration) error {
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("function", "ensureDbUpToDate")
 
 	groupId := uuid.New()
 	var numSent uint32
@@ -843,7 +832,7 @@ func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval ti
 		default:
 			numSent, err = s.publisher.PublishMarkers(ctx, groupId)
 			if err != nil {
-				log.WithError(err).Error("Error sending marker messages to pulsar")
+				ctx.Log.WithError(err).Error("Error sending marker messages to pulsar")
 				s.clock.Sleep(pollInterval)
 			} else {
 				messagesSent = true
@@ -859,13 +848,13 @@ func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval ti
 		default:
 			numReceived, err := s.jobRepository.CountReceivedPartitions(ctx, groupId)
 			if err != nil {
-				log.WithError(err).Error("Error querying the database or marker messages")
+				ctx.Log.WithError(err).Error("Error querying the database or marker messages")
 			}
 			if numSent == numReceived {
-				log.Infof("Successfully ensured that database state is up to date")
+				ctx.Log.Infof("Successfully ensured that database state is up to date")
 				return nil
 			}
-			log.Infof("Recevied %d partitions, still waiting on  %d", numReceived, numSent-numReceived)
+			ctx.Log.Infof("Recevied %d partitions, still waiting on  %d", numReceived, numSent-numReceived)
 			s.clock.Sleep(pollInterval)
 		}
 	}

@@ -7,7 +7,6 @@ import (
 
 	"github.com/benbjohnson/immutable"
 	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
@@ -85,7 +84,6 @@ func (l *FairSchedulingAlgo) Schedule(
 	txn *jobdb.Txn,
 	jobDb *jobdb.JobDb,
 ) (*SchedulerResult, error) {
-	log := ctxlogrus.Extract(ctx)
 
 	overallSchedulerResult := &SchedulerResult{
 		NodeIdByJobId:      make(map[string]string),
@@ -94,7 +92,7 @@ func (l *FairSchedulingAlgo) Schedule(
 
 	// Exit immediately if scheduling is disabled.
 	if l.schedulingConfig.DisableScheduling {
-		log.Info("skipping scheduling - scheduling disabled")
+		ctx.Log.Info("skipping scheduling - scheduling disabled")
 		return overallSchedulerResult, nil
 	}
 
@@ -116,7 +114,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		select {
 		case <-ctxWithTimeout.Done():
 			// We've reached the scheduling time limit; exit gracefully.
-			log.Info("ending scheduling round early as we have hit the maximum scheduling duration")
+			ctx.Log.Info("ending scheduling round early as we have hit the maximum scheduling duration")
 			return overallSchedulerResult, nil
 		default:
 		}
@@ -135,7 +133,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		// Assume pool and minimumJobSize are consistent within the group.
 		pool := executorGroup[0].Pool
 		minimumJobSize := executorGroup[0].MinimumJobSize
-		log.Infof(
+		ctx.Log.Infof(
 			"scheduling on executor group %s with capacity %s",
 			executorGroupLabel, fsctx.totalCapacityByPool[pool].CompactString(),
 		)
@@ -151,14 +149,14 @@ func (l *FairSchedulingAlgo) Schedule(
 			// add the executorGroupLabel back to l.executorGroupsToSchedule such that we try it again next time,
 			// and exit gracefully.
 			l.executorGroupsToSchedule = append(l.executorGroupsToSchedule, executorGroupLabel)
-			log.Info("stopped scheduling early as we have hit the maximum scheduling duration")
+			ctx.Log.Info("stopped scheduling early as we have hit the maximum scheduling duration")
 			break
 		} else if err != nil {
 			return nil, err
 		}
 		if l.schedulingContextRepository != nil {
 			if err := l.schedulingContextRepository.AddSchedulingContext(sctx); err != nil {
-				logging.WithStacktrace(log, err).Error("failed to add scheduling context")
+				logging.WithStacktrace(ctx.Log, err).Error("failed to add scheduling context")
 			}
 		}
 
@@ -543,13 +541,12 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 	executors []*schedulerobjects.Executor,
 	leasedJobsByExecutor map[string][]*jobdb.Job,
 ) []*schedulerobjects.Executor {
-	log := ctxlogrus.Extract(ctx)
 	activeExecutors := make([]*schedulerobjects.Executor, 0, len(executors))
 	for _, executor := range executors {
 		leasedJobs := leasedJobsByExecutor[executor.Id]
 		executorRuns, err := executor.AllRuns()
 		if err != nil {
-			logging.WithStacktrace(log, err).Errorf("failed to retrieve runs for executor %s; will not be considered for scheduling", executor.Id)
+			logging.WithStacktrace(ctx.Log, err).Errorf("failed to retrieve runs for executor %s; will not be considered for scheduling", executor.Id)
 			continue
 		}
 		executorRunIds := make(map[uuid.UUID]bool, len(executorRuns))
@@ -568,7 +565,7 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 		if numUnacknowledgedJobs <= l.schedulingConfig.MaxUnacknowledgedJobsPerExecutor {
 			activeExecutors = append(activeExecutors, executor)
 		} else {
-			log.Warnf(
+			ctx.Log.Warnf(
 				"%d unacknowledged jobs on executor %s exceeds limit of %d; executor will not be considered for scheduling",
 				numUnacknowledgedJobs, executor.Id, l.schedulingConfig.MaxUnacknowledgedJobsPerExecutor,
 			)

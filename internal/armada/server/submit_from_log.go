@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/hashicorp/go-multierror"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
@@ -144,7 +143,6 @@ func (srv *SubmitFromLog) Run(ctx *armadacontext.Context) error {
 // To maintain ordering, we only do so for subsequences of consecutive events of equal type.
 // The returned bool indicates if the corresponding Pulsar message should be ack'd or not.
 func (srv *SubmitFromLog) ProcessSequence(ctx *armadacontext.Context, sequence *armadaevents.EventSequence) bool {
-	log := ctxlogrus.Extract(ctx)
 
 	// Sub-functions should always increment the events index unless they experience a transient error.
 	// However, if a permanent error is mis-categorised as transient, we may get stuck forever.
@@ -158,11 +156,11 @@ func (srv *SubmitFromLog) ProcessSequence(ctx *armadacontext.Context, sequence *
 	for i < len(sequence.Events) && time.Since(lastProgress) < timeout {
 		j, err := srv.ProcessSubSequence(ctx, i, sequence)
 		if err != nil {
-			logging.WithStacktrace(log, err).WithFields(logrus.Fields{"lowerIndex": i, "upperIndex": j}).Warnf("processing subsequence failed; ignoring")
+			logging.WithStacktrace(ctx.Log, err).WithFields(logrus.Fields{"lowerIndex": i, "upperIndex": j}).Warnf("processing subsequence failed; ignoring")
 		}
 
 		if j == i {
-			log.WithFields(logrus.Fields{"lowerIndex": i, "upperIndex": j}).Info("made no progress")
+			ctx.Log.WithFields(logrus.Fields{"lowerIndex": i, "upperIndex": j}).Info("made no progress")
 
 			// We should only get here if a transient error occurs.
 			// Sleep for a bit before retrying.

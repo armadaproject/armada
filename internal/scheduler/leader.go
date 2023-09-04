@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 
 	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coordinationv1client "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	"k8s.io/client-go/tools/leaderelection"
@@ -140,15 +139,13 @@ func (lc *KubernetesLeaderController) ValidateToken(tok LeaderToken) bool {
 // Run starts the controller.
 // This is a blocking call that returns when the provided context is cancelled.
 func (lc *KubernetesLeaderController) Run(ctx *armadacontext.Context) error {
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("service", "KubernetesLeaderController")
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 			lock := lc.getNewLock()
-			log.Infof("attempting to become leader")
+			ctx.Log.Infof("attempting to become leader")
 			leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
 				Lock:            lock,
 				ReleaseOnCancel: true,
@@ -157,14 +154,14 @@ func (lc *KubernetesLeaderController) Run(ctx *armadacontext.Context) error {
 				RetryPeriod:     lc.config.RetryPeriod,
 				Callbacks: leaderelection.LeaderCallbacks{
 					OnStartedLeading: func(c context.Context) {
-						log.Infof("I am now leader")
+						ctx.Log.Infof("I am now leader")
 						lc.token.Store(NewLeaderToken())
 						for _, listener := range lc.listeners {
 							listener.onStartedLeading(ctx)
 						}
 					},
 					OnStoppedLeading: func() {
-						log.Infof("I am no longer leader")
+						ctx.Log.Infof("I am no longer leader")
 						lc.token.Store(InvalidLeaderToken())
 						for _, listener := range lc.listeners {
 							listener.onStoppedLeading()
@@ -177,7 +174,7 @@ func (lc *KubernetesLeaderController) Run(ctx *armadacontext.Context) error {
 					},
 				},
 			})
-			log.Infof("leader election round finished")
+			ctx.Log.Infof("leader election round finished")
 		}
 	}
 }

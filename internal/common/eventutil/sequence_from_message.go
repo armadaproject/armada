@@ -4,8 +4,6 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
-
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -32,7 +30,6 @@ func NewSequenceFromMessage(in chan pulsar.Message) *SequenceFromMessage {
 }
 
 func (srv *SequenceFromMessage) Run(ctx *armadacontext.Context) error {
-	log := ctxlogrus.Extract(ctx)
 	for {
 		select {
 		case <-ctx.Done():
@@ -43,7 +40,7 @@ func (srv *SequenceFromMessage) Run(ctx *armadacontext.Context) error {
 			}
 			sequence, err := UnmarshalEventSequence(ctx, msg.Payload())
 			if err != nil {
-				logging.WithStacktrace(log, err).WithField("messageid", msg.ID()).Error("failed to unmarshal event sequence")
+				logging.WithStacktrace(ctx.Log, err).WithField("messageid", msg.ID()).Error("failed to unmarshal event sequence")
 				break
 			}
 
