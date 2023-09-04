@@ -123,7 +123,8 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	req := j.PodRequirements()
 	req = p.clearAnnotations(req)
 
-	// Otherwise iterate through each pool and detect the first one the job is potentially schedulable on
+	// Otherwise iterate through each pool and detect the first one the job is potentially schedulable on.
+	// TODO: We should use the real scheduler instead since this check may go out of sync with the scheduler.
 	for pool, executors := range p.executorsByPool {
 		for _, e := range executors {
 			requests := req.GetResourceRequirements().Requests

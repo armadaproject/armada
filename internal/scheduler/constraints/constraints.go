@@ -13,27 +13,33 @@ import (
 )
 
 const (
-	UnschedulableReasonMaximumResourcesScheduled        = "maximum resources scheduled"
-	UnschedulableReasonMaximumNumberOfJobsScheduled     = "maximum number of jobs scheduled"
-	UnschedulableReasonMaximumNumberOfGangsScheduled    = "maximum number of gangs scheduled"
-	UnschedulableReasonMaximumResourcesPerQueueExceeded = "maximum total resources for this queue exceeded"
-	UnschedulableReasonGlobalRateLimitExceeded          = "global scheduling rate limit exceeded"
-	UnschedulableReasonQueueRateLimitExceeded           = "queue scheduling rate limit exceeded"
+	// Indicates that the limit on resources scheduled per round has been exceeded.
+	MaximumResourcesScheduledUnschedulableReason = "maximum resources scheduled"
+
+	// Indicates that the queue has been assigned more than its allowed amount of resources.
+	MaximumResourcesPerQueueExceededUnschedulableReason = "maximum total resources for this queue exceeded"
+
+	// Indicates that the scheduling rate limit has been exceeded.
+	GlobalRateLimitExceededUnschedulableReason = "global scheduling rate limit exceeded"
+	QueueRateLimitExceededUnschedulableReason  = "queue scheduling rate limit exceeded"
+
+	// Indicates that scheduling a gang would exceed the rate limit.
+	GlobalRateLimitExceededByGangUnschedulableReason = "gang would exceed global scheduling rate limit"
+	QueueRateLimitExceededByGangUnschedulableReason  = "gang would exceed queue scheduling rate limit"
+
+	// Indicates that the number of jobs in a gang exceeds the burst size.
+	// This means the gang can not be scheduled without manually increasing the burst size.
+	GangExceedsGlobalBurstSizeUnschedulableReason = "gang cardinality too large: exceeds global max burst size"
+	GangExceedsQueueBurstSizeUnschedulableReason  = "gang cardinality too large: exceeds queue max burst size"
 )
 
 // IsTerminalUnschedulableReason returns true if reason indicates
 // it's not possible to schedule any more jobs in this round.
 func IsTerminalUnschedulableReason(reason string) bool {
-	if reason == UnschedulableReasonMaximumResourcesScheduled {
+	if reason == MaximumResourcesScheduledUnschedulableReason {
 		return true
 	}
-	if reason == UnschedulableReasonMaximumNumberOfJobsScheduled {
-		return true
-	}
-	if reason == UnschedulableReasonMaximumNumberOfGangsScheduled {
-		return true
-	}
-	if reason == UnschedulableReasonGlobalRateLimitExceeded {
+	if reason == GlobalRateLimitExceededUnschedulableReason {
 		return true
 	}
 	return false
@@ -42,7 +48,7 @@ func IsTerminalUnschedulableReason(reason string) bool {
 // IsTerminalQueueUnschedulableReason returns true if reason indicates
 // it's not possible to schedule any more jobs from this queue in this round.
 func IsTerminalQueueUnschedulableReason(reason string) bool {
-	return reason == UnschedulableReasonQueueRateLimitExceeded
+	return reason == QueueRateLimitExceededUnschedulableReason
 }
 
 // SchedulingConstraints contains scheduling constraints, e.g., per-queue resource limits.
@@ -106,52 +112,79 @@ func absoluteFromRelativeLimits(totalResources schedulerobjects.ResourceList, re
 	return absoluteLimits
 }
 
-func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *schedulercontext.SchedulingContext, queue string) (bool, string, error) {
-	// MaximumResourcesToSchedule check.
-	if !sctx.ScheduledResources.IsStrictlyLessOrEqual(constraints.MaximumResourcesToSchedule) {
-		return false, UnschedulableReasonMaximumResourcesScheduled, nil
-	}
-
-	// Global rate limiter check.
-	fmt.Println("Global tokens", sctx.Limiter.TokensAt(sctx.Started))
-	if sctx.Limiter != nil && sctx.Limiter.TokensAt(sctx.Started) <= 0 {
-		return false, UnschedulableReasonGlobalRateLimitExceeded, nil
-	}
-	// fmt.Println("Global tokens again", sctx.Limiter.TokensAt(sctx.Started))
-
-	// Per-queue rate limiter check.
-	fmt.Println("Per-queue tokens", sctx.QueueSchedulingContexts[queue].Limiter.TokensAt(sctx.Started))
-	if qctx := sctx.QueueSchedulingContexts[queue]; qctx != nil && qctx.Limiter != nil && qctx.Limiter.TokensAt(sctx.Started) <= 0 {
-		return false, UnschedulableReasonQueueRateLimitExceeded, nil
-	}
-	// fmt.Println("Per-queue tokens again", sctx.QueueSchedulingContexts[queue].Limiter.TokensAt(sctx.Started))
-
-	return true, "", nil
-}
-
-func (constraints *SchedulingConstraints) CheckPerQueueAndPriorityClassConstraints(
-	sctx *schedulercontext.SchedulingContext,
-	queue string,
-	priorityClassName string,
-) (bool, string, error) {
-	qctx := sctx.QueueSchedulingContexts[queue]
-	if qctx == nil {
-		return false, "", errors.Errorf("no QueueSchedulingContext for queue %s", queue)
-	}
-
-	// PriorityClassSchedulingConstraintsByPriorityClassName check.
-	if priorityClassConstraint, ok := constraints.PriorityClassSchedulingConstraintsByPriorityClassName[priorityClassName]; ok {
-		if !qctx.AllocatedByPriorityClass[priorityClassName].IsStrictlyLessOrEqual(priorityClassConstraint.MaximumResourcesPerQueue) {
-			return false, UnschedulableReasonMaximumResourcesPerQueueExceeded, nil
-		}
-	}
-	return true, "", nil
-}
-
 // ScaleQuantity scales q in-place by a factor f.
 // This functions overflows for quantities the milli value of which can't be expressed as an int64.
 // E.g., 1Pi is ok, but not 10Pi.
 func ScaleQuantity(q resource.Quantity, f float64) resource.Quantity {
 	q.SetMilli(int64(math.Round(float64(q.MilliValue()) * f)))
 	return q
+}
+
+func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *schedulercontext.SchedulingContext, queue string) (bool, string, error) {
+	// MaximumResourcesToSchedule check.
+	if !sctx.ScheduledResources.IsStrictlyLessOrEqual(constraints.MaximumResourcesToSchedule) {
+		return false, MaximumResourcesScheduledUnschedulableReason, nil
+	}
+	return true, "", nil
+}
+
+func (constraints *SchedulingConstraints) CheckConstraints(
+	sctx *schedulercontext.SchedulingContext,
+	gctx *schedulercontext.GangSchedulingContext,
+) (bool, string, error) {
+	qctx := sctx.QueueSchedulingContexts[gctx.Queue]
+	if qctx == nil {
+		return false, "", errors.Errorf("no QueueSchedulingContext for queue %s", gctx.Queue)
+	}
+
+	// Check that the job is large enough for this executor.
+	if ok, unschedulableReason := requestsAreLargeEnough(gctx.TotalResourceRequests, constraints.MinimumJobSize); !ok {
+		return false, unschedulableReason, nil
+	}
+
+	// Global rate limiter check.
+	if sctx.Limiter != nil {
+		tokens := sctx.Limiter.TokensAt(sctx.Started)
+		if tokens <= 0 {
+			return false, GlobalRateLimitExceededUnschedulableReason, nil
+		}
+		if sctx.Limiter.Burst() < len(gctx.JobSchedulingContexts) {
+			return false, GangExceedsGlobalBurstSizeUnschedulableReason, nil
+		}
+		if tokens < float64(len(gctx.JobSchedulingContexts)) {
+			return false, GlobalRateLimitExceededByGangUnschedulableReason, nil
+		}
+	}
+
+	// Per-queue rate limiter check.
+	if qctx.Limiter != nil {
+		tokens := qctx.Limiter.TokensAt(sctx.Started)
+		if tokens <= 0 {
+			return false, QueueRateLimitExceededUnschedulableReason, nil
+		}
+		if qctx.Limiter.Burst() < len(gctx.JobSchedulingContexts) {
+			return false, GangExceedsQueueBurstSizeUnschedulableReason, nil
+		}
+		if tokens < float64(len(gctx.JobSchedulingContexts)) {
+			return false, QueueRateLimitExceededByGangUnschedulableReason, nil
+		}
+	}
+
+	// PriorityClassSchedulingConstraintsByPriorityClassName check.
+	if priorityClassConstraint, ok := constraints.PriorityClassSchedulingConstraintsByPriorityClassName[gctx.PriorityClassName]; ok {
+		if !qctx.AllocatedByPriorityClass[gctx.PriorityClassName].IsStrictlyLessOrEqual(priorityClassConstraint.MaximumResourcesPerQueue) {
+			return false, MaximumResourcesPerQueueExceededUnschedulableReason, nil
+		}
+	}
+	return true, "", nil
+}
+
+func requestsAreLargeEnough(totalResourceRequests, minRequest schedulerobjects.ResourceList) (bool, string) {
+	for t, minQuantity := range minRequest.Resources {
+		q := totalResourceRequests.Get(t)
+		if minQuantity.Cmp(q) == 1 {
+			return false, fmt.Sprintf("job requests %s %s, but the minimum is %s", q.String(), t, minQuantity.String())
+		}
+	}
+	return true, ""
 }

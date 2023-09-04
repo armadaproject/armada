@@ -627,31 +627,67 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"B": 1,
 			},
 		},
-		// "rescheduled jobs don't count towards maxJobsToSchedule": {
-		// 	SchedulingConfig: testfixtures.WithMaxJobsToScheduleConfig(5, testfixtures.TestSchedulingConfig()),
-		// 	Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-		// 	Rounds: []SchedulingRound{
-		// 		{
-		// 			JobsByQueue: map[string][]*jobdb.Job{
-		// 				"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10),
-		// 			},
-		// 			ExpectedScheduledIndices: map[string][]int{
-		// 				"A": testfixtures.IntRange(0, 4),
-		// 			},
-		// 		},
-		// 		{
-		// 			JobsByQueue: map[string][]*jobdb.Job{
-		// 				"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10),
-		// 			},
-		// 			ExpectedScheduledIndices: map[string][]int{
-		// 				"A": testfixtures.IntRange(0, 4),
-		// 			},
-		// 		},
-		// 	},
-		// 	PriorityFactorByQueue: map[string]float64{
-		// 		"A": 1,
-		// 	},
-		// },
+		"rescheduled jobs don't count towards global scheduling rate limit": {
+			SchedulingConfig: testfixtures.WithGlobalSchedulingRateLimiterConfig(2, 5, testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 4),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 1),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+			},
+		},
+		"MaximumSchedulingRate": {
+			SchedulingConfig: testfixtures.WithGlobalSchedulingRateLimiterConfig(2, 4, testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 6)),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 3),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 1),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 1),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{"A": 1},
+		},
 		"rescheduled jobs don't count towards maxQueueLookback": {
 			SchedulingConfig: testfixtures.WithMaxLookbackPerQueueConfig(5, testfixtures.TestSchedulingConfig()),
 			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
@@ -1280,10 +1316,10 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			// balancing three queues
-			// gang_preemption_with_partial_gang
-			fmt.Println("name", name)
-			if name != "gang preemption with partial gang" {
+			// // balancing three queues
+			// // gang_preemption_with_partial_gang
+			// "rescheduled jobs don't count towards global scheduling rate limit"
+			if name != "exceeding rate limiter burst capacity increase recovery time" {
 				return
 			}
 
@@ -1311,6 +1347,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 
 			// Scheduling rate-limiters persist between rounds.
 			// We control the rate at which time passes between scheduling rounds.
+			schedulingStarted := time.Now()
 			schedulingInterval := time.Second
 			limiter := rate.NewLimiter(
 				rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
@@ -1394,7 +1431,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					limiter,
 					tc.TotalResources,
 				)
-				sctx.Started = time.Time{}.Add(time.Duration(i) * schedulingInterval)
+				sctx.Started = schedulingStarted.Add(time.Duration(i) * schedulingInterval)
+
 				for queue, priorityFactor := range tc.PriorityFactorByQueue {
 					weight := 1 / priorityFactor
 					err := sctx.AddQueueSchedulingContext(
@@ -1404,6 +1442,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						limiterByQueue[queue],
 					)
 					require.NoError(t, err)
+
 				}
 				constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 					"pool",

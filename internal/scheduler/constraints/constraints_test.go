@@ -26,7 +26,7 @@ func TestConstraints(t *testing.T) {
 			require.Equal(t, tc.globalUnschedulableReason == "", ok)
 			require.Equal(t, tc.globalUnschedulableReason, unschedulableReason)
 
-			ok, unschedulableReason, err = tc.constraints.CheckPerQueueAndPriorityClassConstraints(tc.sctx, tc.queue, tc.priorityClassName)
+			ok, unschedulableReason, err = tc.constraints.CheckConstraints(tc.sctx, nil)
 			require.NoError(t, err)
 			require.Equal(t, tc.perQueueAndPriorityClassUnschedulableReason == "", ok)
 			require.Equal(t, tc.perQueueAndPriorityClassUnschedulableReason, unschedulableReason)

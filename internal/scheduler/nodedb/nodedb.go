@@ -65,7 +65,6 @@ type Node struct {
 // UnsafeCopy returns a pointer to a new value of type Node; it is unsafe because it only makes
 // shallow copies of fields that are not mutated by methods of NodeDb.
 func (node *Node) UnsafeCopy() *Node {
-	fmt.Println("wtf", node)
 	return &Node{
 		Id:       node.Id,
 		Name:     node.Name,

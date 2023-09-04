@@ -94,26 +94,10 @@ func TestQueueScheduler(t *testing.T) {
 			Jobs: armadaslices.Concatenate(
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 10),
-				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 3),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 4),
 			),
-			PriorityFactorByQueue:         map[string]float64{"A": 1},
-			ExpectedScheduledIndices:      []int{0, 11},
-			ExpectedNeverAttemptedIndices: []int{12, 13},
-		},
-		"MaximumSchedulingBurst can be exceeded by one gang": {
-			SchedulingConfig: testfixtures.WithGlobalSchedulingRateLimiterConfig(10, 2, testfixtures.TestSchedulingConfig()),
-			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Jobs: armadaslices.Concatenate(
-				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
-				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
-				testfixtures.WithGangAnnotationsJobs(
-					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 2),
-				),
-				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
-			),
-			PriorityFactorByQueue:         map[string]float64{"A": 1},
-			ExpectedScheduledIndices:      []int{0, 2, 3},
-			ExpectedNeverAttemptedIndices: []int{4},
+			PriorityFactorByQueue:    map[string]float64{"A": 1},
+			ExpectedScheduledIndices: []int{0, 11},
 		},
 		"MaximumPerQueueSchedulingBurst": {
 			SchedulingConfig: testfixtures.WithPerQueueSchedulingLimiterConfig(10, 2, testfixtures.TestSchedulingConfig()),
@@ -124,9 +108,36 @@ func TestQueueScheduler(t *testing.T) {
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 3),
 				testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 1),
 			),
-			PriorityFactorByQueue:         map[string]float64{"A": 1, "B": 1},
-			ExpectedScheduledIndices:      []int{0, 11, 14},
-			ExpectedNeverAttemptedIndices: []int{12, 13},
+			PriorityFactorByQueue:    map[string]float64{"A": 1, "B": 1},
+			ExpectedScheduledIndices: []int{0, 11, 14},
+		},
+		"MaximumSchedulingBurst is not exceeded by gangs": {
+			SchedulingConfig: testfixtures.WithGlobalSchedulingRateLimiterConfig(10, 2, testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs: armadaslices.Concatenate(
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
+				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
+				testfixtures.WithGangAnnotationsJobs(
+					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 2),
+				),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 2),
+			),
+			PriorityFactorByQueue:    map[string]float64{"A": 1},
+			ExpectedScheduledIndices: []int{0, 4},
+		},
+		"MaximumPerQueueSchedulingBurst is not exceeded by gangs": {
+			SchedulingConfig: testfixtures.WithPerQueueSchedulingLimiterConfig(10, 2, testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs: armadaslices.Concatenate(
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
+				testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
+				testfixtures.WithGangAnnotationsJobs(
+					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 2),
+				),
+				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 2),
+			),
+			PriorityFactorByQueue:    map[string]float64{"A": 1},
+			ExpectedScheduledIndices: []int{0, 4},
 		},
 		"MaximumResourceFractionToSchedule": {
 			SchedulingConfig: testfixtures.WithRoundLimitsConfig(

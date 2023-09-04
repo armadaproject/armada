@@ -40,7 +40,10 @@ func (sch *GangScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 }
 
 func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
-	// Exit immediately if this is a new gang and we've hit any round limits.
+	// Exit immediately if this is a new gang and we've exceeded any round limits.
+	//
+	// Because this check occurs before adding the gctx to the sctx,
+	// the round limits can be exceeded by one gang.
 	if !gctx.AllJobsEvicted {
 		if ok, unschedulableReason, err = sch.constraints.CheckRoundConstraints(sch.schedulingContext, gctx.Queue); err != nil || !ok {
 			return
@@ -58,14 +61,12 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 
 		// Update rate-limiters to account for new successfully scheduled jobs.
 		if ok && !gctx.AllJobsEvicted {
-			fmt.Println("Tokens before adding job:", sch.schedulingContext.Limiter.TokensAt(sch.schedulingContext.Started))
-			sch.schedulingContext.Limiter.ReserveN(sch.schedulingContext.Started, len(gctx.JobSchedulingContexts))
-			fmt.Println("Tokens after adding job:", sch.schedulingContext.Limiter.TokensAt(sch.schedulingContext.Started))
+			if sch.schedulingContext.Limiter != nil {
+				sch.schedulingContext.Limiter.ReserveN(sch.schedulingContext.Started, len(gctx.JobSchedulingContexts))
+			}
 			qctx := sch.schedulingContext.QueueSchedulingContexts[gctx.Queue]
-			if qctx != nil {
-				fmt.Println("Per-queue tokens before adding job:", qctx.Limiter.TokensAt(sch.schedulingContext.Started))
+			if qctx != nil && qctx.Limiter != nil {
 				qctx.Limiter.ReserveN(sch.schedulingContext.Started, len(gctx.JobSchedulingContexts))
-				fmt.Println("Per-queue tokens after adding job:", qctx.Limiter.TokensAt(sch.schedulingContext.Started))
 			}
 		}
 
@@ -99,24 +100,13 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 			}
 		}
 	}()
-
-	// Try scheduling the gang.
 	if _, err = sch.schedulingContext.AddGangSchedulingContext(gctx); err != nil {
 		return
 	}
 	gangAddedToSchedulingContext = true
 	if !gctx.AllJobsEvicted {
-		// Check that the job is large enough for this executor.
-		// This check needs to be here, since it relates to a specific job.
-		// Only perform limit checks for new jobs to avoid preempting jobs if, e.g., MinimumJobSize changes.
-		if ok, unschedulableReason = requestsAreLargeEnough(gctx.TotalResourceRequests, sch.constraints.MinimumJobSize); !ok {
-			return
-		}
-		if ok, unschedulableReason, err = sch.constraints.CheckPerQueueAndPriorityClassConstraints(
-			sch.schedulingContext,
-			gctx.Queue,
-			gctx.PriorityClassName,
-		); err != nil || !ok {
+		// Only perform these checks for new jobs to avoid preempting jobs if, e.g., MinimumJobSize changes.
+		if ok, unschedulableReason, err = sch.constraints.CheckConstraints(sch.schedulingContext, gctx); err != nil || !ok {
 			return
 		}
 	}
@@ -241,9 +231,6 @@ func meanScheduledAtPriorityFromGctx(gctx *schedulercontext.GangSchedulingContex
 }
 
 func requestsAreLargeEnough(totalResourceRequests, minRequest schedulerobjects.ResourceList) (bool, string) {
-	if len(minRequest.Resources) == 0 {
-		return true, ""
-	}
 	for t, minQuantity := range minRequest.Resources {
 		q := totalResourceRequests.Get(t)
 		if minQuantity.Cmp(q) == 1 {
