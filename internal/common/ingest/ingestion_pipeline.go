@@ -1,7 +1,7 @@
 package ingest
 
 import (
-	gocontext "context"
+	"context"
 	"sync"
 	"time"
 
@@ -201,7 +201,7 @@ func (ingester *IngestionPipeline[T]) Run(ctx *armadacontext.Context) error {
 			} else {
 				log.Infof("Inserted %d pulsar messages in %dms", len(msg.GetMessageIDs()), taken.Milliseconds())
 			}
-			if errors.Is(err, gocontext.DeadlineExceeded) {
+			if errors.Is(err, context.DeadlineExceeded) {
 				// This occurs when we're shutting down- it's a signal to stop processing immediately
 				break
 			} else {

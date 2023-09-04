@@ -1,7 +1,7 @@
 package server
 
 import (
-	gocontext "context"
+	"context"
 	"fmt"
 	"io"
 	"math"
@@ -93,7 +93,7 @@ func NewAggregatedQueueServer(
 	}
 
 	decompressorPool := pool.NewObjectPool(armadacontext.Background(), pool.NewPooledObjectFactorySimple(
-		func(ctx gocontext.Context) (interface{}, error) {
+		func(ctx context.Context) (interface{}, error) {
 			return compress.NewZlibDecompressor(), nil
 		}), &poolConfig)
 	return &AggregatedQueueServer{
@@ -461,7 +461,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 
 	// Give Schedule() a 3 second shorter deadline than ctx to give it a chance to finish up before ctx deadline.
 	if deadline, ok := ctx.Deadline(); ok {
-		var cancel gocontext.CancelFunc
+		var cancel context.CancelFunc
 		ctx, cancel = armadacontext.WithDeadline(ctx, deadline.Add(-3*time.Second))
 		defer cancel()
 	}
@@ -868,7 +868,7 @@ func (q *AggregatedQueueServer) decompressOwnershipGroups(compressedOwnershipGro
 	return compress.DecompressStringArray(compressedOwnershipGroups, decompressor.(compress.Decompressor))
 }
 
-func (q *AggregatedQueueServer) RenewLease(grpcCtx gocontext.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
+func (q *AggregatedQueueServer) RenewLease(grpcCtx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
 	ctx := armadacontext.FromGrpcContext(grpcCtx)
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, err.Error())
@@ -877,7 +877,7 @@ func (q *AggregatedQueueServer) RenewLease(grpcCtx gocontext.Context, request *a
 	return &api.IdList{Ids: renewed}, e
 }
 
-func (q *AggregatedQueueServer) ReturnLease(grpcCtx gocontext.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
+func (q *AggregatedQueueServer) ReturnLease(grpcCtx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcContext(grpcCtx)
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, err.Error())
@@ -977,7 +977,7 @@ func (q *AggregatedQueueServer) addAvoidNodeAffinity(
 	return res[0].Error
 }
 
-func (q *AggregatedQueueServer) ReportDone(grpcCtx gocontext.Context, idList *api.IdList) (*api.IdList, error) {
+func (q *AggregatedQueueServer) ReportDone(grpcCtx context.Context, idList *api.IdList) (*api.IdList, error) {
 	ctx := armadacontext.FromGrpcContext(grpcCtx)
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportDone] error: %s", err)

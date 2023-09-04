@@ -1,7 +1,7 @@
 package server
 
 import (
-	gocontext "context"
+	"context"
 	"time"
 
 	"github.com/gogo/protobuf/types"
@@ -43,7 +43,7 @@ func NewEventServer(
 	}
 }
 
-func (s *EventServer) Report(grpcCtx gocontext.Context, message *api.EventMessage) (*types.Empty, error) {
+func (s *EventServer) Report(grpcCtx context.Context, message *api.EventMessage) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcContext(grpcCtx)
 	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[Report] error: %s", err)
@@ -52,7 +52,7 @@ func (s *EventServer) Report(grpcCtx gocontext.Context, message *api.EventMessag
 	return &types.Empty{}, s.eventStore.ReportEvents(ctx, []*api.EventMessage{message})
 }
 
-func (s *EventServer) ReportMultiple(grpcCtx gocontext.Context, message *api.EventList) (*types.Empty, error) {
+func (s *EventServer) ReportMultiple(grpcCtx context.Context, message *api.EventList) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcContext(grpcCtx)
 	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportMultiple] error: %s", err)
@@ -146,7 +146,7 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 	return s.serveEventsFromRepository(request, s.eventRepository, stream)
 }
 
-func (s *EventServer) Health(_ gocontext.Context, _ *types.Empty) (*api.HealthCheckResponse, error) {
+func (s *EventServer) Health(_ context.Context, _ *types.Empty) (*api.HealthCheckResponse, error) {
 	return &api.HealthCheckResponse{Status: api.HealthCheckResponse_SERVING}, nil
 }
 

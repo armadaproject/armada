@@ -1,7 +1,7 @@
 package pulsarutils
 
 import (
-	gocontext "context"
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -78,7 +78,7 @@ func Receive(
 				// Get a message from Pulsar, which consists of a sequence of events (i.e., state transitions).
 				ctxWithTimeout, cancel := armadacontext.WithTimeout(ctx, receiveTimeout)
 				msg, err := consumer.Receive(ctxWithTimeout)
-				if errors.Is(err, gocontext.DeadlineExceeded) {
+				if errors.Is(err, context.DeadlineExceeded) {
 					msgLogger.Debugf("No message received")
 					cancel()
 					break // expected

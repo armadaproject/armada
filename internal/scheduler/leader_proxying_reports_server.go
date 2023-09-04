@@ -1,7 +1,7 @@
 package scheduler
 
 import (
-	gocontext "context"
+	"context"
 
 	"google.golang.org/grpc"
 
@@ -25,7 +25,7 @@ func NewLeaderProxyingSchedulingReportsServer(
 	}
 }
 
-func (s *LeaderProxyingSchedulingReportsServer) GetSchedulingReport(ctx gocontext.Context, request *schedulerobjects.SchedulingReportRequest) (*schedulerobjects.SchedulingReport, error) {
+func (s *LeaderProxyingSchedulingReportsServer) GetSchedulingReport(ctx context.Context, request *schedulerobjects.SchedulingReportRequest) (*schedulerobjects.SchedulingReport, error) {
 	isCurrentProcessLeader, leaderConnection, err := s.leaderClientProvider.GetCurrentLeaderClientConnection()
 	if isCurrentProcessLeader {
 		return s.localReportsServer.GetSchedulingReport(ctx, request)
@@ -37,7 +37,7 @@ func (s *LeaderProxyingSchedulingReportsServer) GetSchedulingReport(ctx gocontex
 	return leaderClient.GetSchedulingReport(ctx, request)
 }
 
-func (s *LeaderProxyingSchedulingReportsServer) GetQueueReport(ctx gocontext.Context, request *schedulerobjects.QueueReportRequest) (*schedulerobjects.QueueReport, error) {
+func (s *LeaderProxyingSchedulingReportsServer) GetQueueReport(ctx context.Context, request *schedulerobjects.QueueReportRequest) (*schedulerobjects.QueueReport, error) {
 	isCurrentProcessLeader, leaderConnection, err := s.leaderClientProvider.GetCurrentLeaderClientConnection()
 	if isCurrentProcessLeader {
 		return s.localReportsServer.GetQueueReport(ctx, request)
@@ -49,7 +49,7 @@ func (s *LeaderProxyingSchedulingReportsServer) GetQueueReport(ctx gocontext.Con
 	return leaderClient.GetQueueReport(ctx, request)
 }
 
-func (s *LeaderProxyingSchedulingReportsServer) GetJobReport(ctx gocontext.Context, request *schedulerobjects.JobReportRequest) (*schedulerobjects.JobReport, error) {
+func (s *LeaderProxyingSchedulingReportsServer) GetJobReport(ctx context.Context, request *schedulerobjects.JobReportRequest) (*schedulerobjects.JobReport, error) {
 	isCurrentProcessLeader, leaderConnection, err := s.leaderClientProvider.GetCurrentLeaderClientConnection()
 	if isCurrentProcessLeader {
 		return s.localReportsServer.GetJobReport(ctx, request)

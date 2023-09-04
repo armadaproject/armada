@@ -1,7 +1,7 @@
 package server
 
 import (
-	gocontext "context"
+	"context"
 	"fmt"
 	"reflect"
 	"time"
@@ -97,7 +97,7 @@ func (srv *SubmitFromLog) Run(ctx *armadacontext.Context) error {
 			ctxWithTimeout, cancel := armadacontext.WithTimeout(ctx, 10*time.Second)
 			msg, err := srv.Consumer.Receive(ctxWithTimeout)
 			cancel()
-			if errors.Is(err, gocontext.DeadlineExceeded) {
+			if errors.Is(err, context.DeadlineExceeded) {
 				break // expected
 			}
 

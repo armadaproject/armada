@@ -1,7 +1,7 @@
 package ingest
 
 import (
-	gocontext "context"
+	"context"
 	"testing"
 	"time"
 
@@ -131,7 +131,7 @@ func newMockPulsarConsumer(t *testing.T, messages []pulsar.Message, cancelFn fun
 	}
 }
 
-func (p *mockPulsarConsumer) Receive(ctx gocontext.Context) (pulsar.Message, error) {
+func (p *mockPulsarConsumer) Receive(ctx context.Context) (pulsar.Message, error) {
 	if p.messageIdx < len(p.messages) {
 		msg := p.messages[p.messageIdx]
 		p.messageIdx++
@@ -140,7 +140,7 @@ func (p *mockPulsarConsumer) Receive(ctx gocontext.Context) (pulsar.Message, err
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, gocontext.DeadlineExceeded
+			return nil, context.DeadlineExceeded
 		}
 	}
 }

@@ -1,7 +1,7 @@
 package scheduler
 
 import (
-	gocontext "context"
+	"context"
 	"testing"
 	"time"
 
@@ -233,12 +233,12 @@ func TestCreateQueuedJobsIterator_RespectsTimeout(t *testing.T) {
 	}
 	job, err := it.Next()
 	assert.Nil(t, job)
-	assert.ErrorIs(t, err, gocontext.DeadlineExceeded)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
 
 	// Calling again should produce the same error.
 	job, err = it.Next()
 	assert.Nil(t, job)
-	assert.ErrorIs(t, err, gocontext.DeadlineExceeded)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
 }
 
 func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {

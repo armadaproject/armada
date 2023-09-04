@@ -1,7 +1,7 @@
 package service
 
 import (
-	gocontext "context"
+	"context"
 	"io"
 
 	grpcretry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
@@ -78,7 +78,7 @@ func (requester *JobLeaseRequester) LeaseJobRuns(ctx *armadacontext.Context, req
 		shouldEndStreamCall := false
 		select {
 		case <-ctx.Done():
-			if ctx.Err() == gocontext.DeadlineExceeded {
+			if ctx.Err() == context.DeadlineExceeded {
 				shouldEndStreamCall = true
 			} else {
 				return nil, ctx.Err()

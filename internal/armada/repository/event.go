@@ -1,7 +1,7 @@
 package repository
 
 import (
-	gocontext "context"
+	"context"
 	"fmt"
 	"math"
 	"time"
@@ -50,7 +50,7 @@ func NewEventRepository(db redis.UniversalClient) *RedisEventRepository {
 	}
 
 	decompressorPool := pool.NewObjectPool(armadacontext.Background(), pool.NewPooledObjectFactorySimple(
-		func(ctx gocontext.Context) (interface{}, error) {
+		func(ctx context.Context) (interface{}, error) {
 			return compress.NewZlibDecompressor(), nil
 		}), &poolConfig)
 

@@ -1,7 +1,7 @@
 package scheduler
 
 import (
-	gocontext "context"
+	"context"
 	"math/rand"
 	"time"
 
@@ -146,7 +146,7 @@ func (l *FairSchedulingAlgo) Schedule(
 			minimumJobSize,
 			executorGroup,
 		)
-		if err == gocontext.DeadlineExceeded {
+		if err == context.DeadlineExceeded {
 			// We've reached the scheduling time limit;
 			// add the executorGroupLabel back to l.executorGroupsToSchedule such that we try it again next time,
 			// and exit gracefully.

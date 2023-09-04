@@ -1,7 +1,7 @@
 package server
 
 import (
-	gocontext "context"
+	"context"
 	"testing"
 	"time"
 
@@ -416,7 +416,7 @@ func withEventServer(t *testing.T, action func(s *EventServer)) {
 
 type eventStreamMock struct {
 	grpc.ServerStream
-	ctx          gocontext.Context
+	ctx          context.Context
 	sendMessages []*api.EventStreamMessage
 }
 
@@ -425,7 +425,7 @@ func (s *eventStreamMock) Send(m *api.EventStreamMessage) error {
 	return nil
 }
 
-func (s *eventStreamMock) Context() gocontext.Context {
+func (s *eventStreamMock) Context() context.Context {
 	if s.ctx == nil {
 		return armadacontext.Background()
 	}

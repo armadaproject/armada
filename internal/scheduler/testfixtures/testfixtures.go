@@ -2,7 +2,7 @@ package testfixtures
 
 // This file contains test fixtures to be used throughout the tests for this package.
 import (
-	gocontext "context"
+	"context"
 	"fmt"
 	"math"
 	"sync/atomic"
@@ -82,7 +82,7 @@ func Repeat[T any](v T, n int) []T {
 	return rv
 }
 
-func ContextWithDefaultLogger(ctx gocontext.Context) gocontext.Context {
+func ContextWithDefaultLogger(ctx context.Context) context.Context {
 	return ctxlogrus.ToContext(ctx, logrus.NewEntry(logrus.New()))
 }
 

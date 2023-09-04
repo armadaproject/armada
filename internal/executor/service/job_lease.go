@@ -1,7 +1,7 @@
 package service
 
 import (
-	gocontext "context"
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -112,7 +112,7 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 	// The server sends jobs over this stream.
 	// The executor sends back acks to indicate which jobs were successfully received.
 	ctx := armadacontext.Background()
-	var cancel gocontext.CancelFunc
+	var cancel context.CancelFunc
 	if jobLeaseService.jobLeaseRequestTimeout != 0 {
 		ctx, cancel = armadacontext.WithTimeout(ctx, jobLeaseService.jobLeaseRequestTimeout)
 		defer cancel()
@@ -146,7 +146,7 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 		for numServerAcks == 0 || numServerAcks < numJobs {
 			select {
 			case <-ctx.Done():
-				if ctx.Err() == gocontext.DeadlineExceeded {
+				if ctx.Err() == context.DeadlineExceeded {
 					return nil
 				} else {
 					return ctx.Err()
@@ -179,7 +179,7 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 		for {
 			select {
 			case <-ctx.Done():
-				if ctx.Err() == gocontext.DeadlineExceeded {
+				if ctx.Err() == context.DeadlineExceeded {
 					return nil
 				} else {
 					return ctx.Err()

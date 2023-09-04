@@ -1,7 +1,7 @@
 package pulsarutils
 
 import (
-	gocontext "context"
+	"context"
 	"sync"
 	"testing"
 	"time"
@@ -27,10 +27,10 @@ func (c *mockConsumer) AckID(message pulsar.MessageID) error {
 	return nil
 }
 
-func (c *mockConsumer) Receive(ctx gocontext.Context) (pulsar.Message, error) {
+func (c *mockConsumer) Receive(ctx context.Context) (pulsar.Message, error) {
 	if len(c.msgs) == 0 {
 		<-ctx.Done()
-		return nil, gocontext.DeadlineExceeded
+		return nil, context.DeadlineExceeded
 	}
 	msg, newMsgs := c.msgs[0], c.msgs[1:]
 	c.msgs = newMsgs

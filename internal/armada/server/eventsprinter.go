@@ -1,7 +1,7 @@
 package server
 
 import (
-	gocontext "context"
+	"context"
 	"errors"
 	"time"
 
@@ -78,7 +78,7 @@ func (srv *EventsPrinter) Run(ctx *armadacontext.Context) error {
 			ctxWithTimeout, cancel := armadacontext.WithTimeout(ctx, 10*time.Second)
 			msg, err := consumer.Receive(ctxWithTimeout)
 			cancel()
-			if errors.Is(err, gocontext.DeadlineExceeded) { // expected
+			if errors.Is(err, context.DeadlineExceeded) { // expected
 				log.Info("no new messages from Pulsar (or another instance holds the subscription)")
 				break
 			} else if err != nil {
