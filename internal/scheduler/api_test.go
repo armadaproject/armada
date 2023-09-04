@@ -180,11 +180,11 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			// set up mocks
 			mockStream.EXPECT().Context().Return(ctx).AnyTimes()
 			mockStream.EXPECT().Recv().Return(tc.request, nil).Times(1)
-			mockExecutorRepository.EXPECT().StoreExecutor(ctx, gomock.Any()).DoAndReturn(func(ctx *armadacontext.Context, executor *schedulerobjects.Executor) error {
+			mockExecutorRepository.EXPECT().StoreExecutor(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx *armadacontext.Context, executor *schedulerobjects.Executor) error {
 				assert.Equal(t, tc.expectedExecutor, executor)
 				return nil
 			}).Times(1)
-			mockLegacyExecutorRepository.EXPECT().StoreExecutor(ctx, gomock.Any()).DoAndReturn(func(ctx *armadacontext.Context, executor *schedulerobjects.Executor) error {
+			mockLegacyExecutorRepository.EXPECT().StoreExecutor(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx *armadacontext.Context, executor *schedulerobjects.Executor) error {
 				assert.Equal(t, tc.expectedExecutor, executor)
 				return nil
 			}).Times(1)
