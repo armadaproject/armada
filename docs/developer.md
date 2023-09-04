@@ -172,7 +172,7 @@ Breakpoint 3 set at 0x1fb3800 for github.com/armadaproject/armada/internal/armad
 > github.com/armadaproject/armada/internal/armada/server.(*SubmitServer).CreateQueue() ./internal/armada/server/submit.go:140 (PC: 0x1fb38a0)
    135: }
    136:
-=> 137: func (server *SubmitServer) CreateQueue(ctx *context.ArmadaContext, request *api.Queue) (*types.Empty, error) {
+=> 137: func (server *SubmitServer) CreateQueue(ctx context.Context, request *api.Queue) (*types.Empty, error) {
    138:         err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
    139:         var ep *ErrUnauthorized
    140:         if errors.As(err, &ep) {
