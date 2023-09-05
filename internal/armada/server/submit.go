@@ -87,7 +87,7 @@ func (server *SubmitServer) Health(ctx context.Context, _ *types.Empty) (*api.He
 }
 
 func (server *SubmitServer) GetQueueInfo(grpcCtx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
-	ctx := armadacontext.FromgrpcCtx(grpcCtx)
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	q, err := server.queueRepository.GetQueue(req.Name)
 	var expected *repository.ErrQueueNotFound
 	if errors.Is(err, expected) {
@@ -135,7 +135,7 @@ func (server *SubmitServer) GetQueue(grpcCtx context.Context, req *api.QueueGetR
 }
 
 func (server *SubmitServer) CreateQueue(grpcCtx context.Context, request *api.Queue) (*types.Empty, error) {
-	ctx := armadacontext.FromgrpcCtx(grpcCtx)
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
 	var ep *ErrUnauthorized
 	if errors.As(err, &ep) {
@@ -166,7 +166,7 @@ func (server *SubmitServer) CreateQueue(grpcCtx context.Context, request *api.Qu
 }
 
 func (server *SubmitServer) CreateQueues(grpcCtx context.Context, request *api.QueueList) (*api.BatchQueueCreateResponse, error) {
-	ctx := armadacontext.FromgrpcCtx(grpcCtx)
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	var failedQueues []*api.QueueCreateResponse
 	// Create a queue for each element of the request body and return the failures.
 	for _, queue := range request.Queues {
@@ -185,7 +185,7 @@ func (server *SubmitServer) CreateQueues(grpcCtx context.Context, request *api.Q
 }
 
 func (server *SubmitServer) UpdateQueue(grpcCtx context.Context, request *api.Queue) (*types.Empty, error) {
-	ctx := armadacontext.FromgrpcCtx(grpcCtx)
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
 	var ep *ErrUnauthorized
 	if errors.As(err, &ep) {
@@ -211,7 +211,7 @@ func (server *SubmitServer) UpdateQueue(grpcCtx context.Context, request *api.Qu
 }
 
 func (server *SubmitServer) UpdateQueues(grpcCtx context.Context, request *api.QueueList) (*api.BatchQueueUpdateResponse, error) {
-	ctx := armadacontext.FromgrpcCtx(grpcCtx)
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	var failedQueues []*api.QueueUpdateResponse
 
 	// Create a queue for each element of the request body and return the failures.
@@ -231,7 +231,7 @@ func (server *SubmitServer) UpdateQueues(grpcCtx context.Context, request *api.Q
 }
 
 func (server *SubmitServer) DeleteQueue(grpcCtx context.Context, request *api.QueueDeleteRequest) (*types.Empty, error) {
-	ctx := armadacontext.FromgrpcCtx(grpcCtx)
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := checkPermission(server.permissions, ctx, permissions.DeleteQueue)
 	var ep *ErrUnauthorized
 	if errors.As(err, &ep) {
@@ -257,7 +257,7 @@ func (server *SubmitServer) DeleteQueue(grpcCtx context.Context, request *api.Qu
 }
 
 func (server *SubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
-	ctx := armadacontext.FromgrpcCtx(grpcCtx)
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	principal := authorization.GetPrincipal(ctx)
 
 	jobs, e := server.createJobs(req, principal.GetName(), principal.GetGroupNames())
@@ -412,7 +412,7 @@ func (server *SubmitServer) countQueuedJobs(q queue.Queue) (int64, error) {
 // If the request contains a job ID, only the job with that ID is cancelled.
 // If the request contains a queue name and a job set ID, all jobs matching those are cancelled.
 func (server *SubmitServer) CancelJobs(grpcCtx context.Context, request *api.JobCancelRequest) (*api.CancellationResult, error) {
-	ctx := armadacontext.FromgrpcCtx(grpcCtx)
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	if request.JobId != "" {
 		return server.cancelJobsById(ctx, request.JobId, request.Reason)
 	} else if request.JobSetId != "" && request.Queue != "" {
@@ -422,7 +422,7 @@ func (server *SubmitServer) CancelJobs(grpcCtx context.Context, request *api.Job
 }
 
 func (server *SubmitServer) CancelJobSet(grpcCtx context.Context, request *api.JobSetCancelRequest) (*types.Empty, error) {
-	ctx := armadacontext.FromgrpcCtx(grpcCtx)
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := servervalidation.ValidateJobSetFilter(request.Filter)
 	if err != nil {
 		return nil, err
@@ -591,7 +591,7 @@ func (server *SubmitServer) checkCancelPerms(ctx *armadacontext.Context, jobs []
 // ReprioritizeJobs updates the priority of one of more jobs.
 // Returns a map from job ID to any error (or nil if the call succeeded).
 func (server *SubmitServer) ReprioritizeJobs(grpcCtx context.Context, request *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
-	ctx := armadacontext.FromgrpcCtx(grpcCtx)
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	var jobs []*api.Job
 	if len(request.JobIds) > 0 {
 		existingJobs, err := server.jobRepository.GetExistingJobsByIds(request.JobIds)

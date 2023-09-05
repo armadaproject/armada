@@ -118,7 +118,7 @@ func NewAggregatedQueueServer(
 //
 // This function should be used instead of the LeaseJobs function in most cases.
 func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingLeaseJobsServer) error {
-	if err := checkPermission(q.permissions, armadacontext.FromgrpcCtx(stream.Context()), permissions.ExecuteJobs); err != nil {
+	if err := checkPermission(q.permissions, armadacontext.FromGrpcCtx(stream.Context()), permissions.ExecuteJobs); err != nil {
 		return err
 	}
 
@@ -141,7 +141,7 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	}
 
 	// Get jobs to be leased.
-	jobs, err := q.getJobs(armadacontext.FromgrpcCtx(stream.Context()), req)
+	jobs, err := q.getJobs(armadacontext.FromGrpcCtx(stream.Context()), req)
 	if err != nil {
 		return err
 	}
@@ -869,7 +869,7 @@ func (q *AggregatedQueueServer) decompressOwnershipGroups(compressedOwnershipGro
 }
 
 func (q *AggregatedQueueServer) RenewLease(grpcCtx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
-	ctx := armadacontext.FromgrpcCtx(grpcCtx)
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
@@ -878,7 +878,7 @@ func (q *AggregatedQueueServer) RenewLease(grpcCtx context.Context, request *api
 }
 
 func (q *AggregatedQueueServer) ReturnLease(grpcCtx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
-	ctx := armadacontext.FromgrpcCtx(grpcCtx)
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
@@ -978,7 +978,7 @@ func (q *AggregatedQueueServer) addAvoidNodeAffinity(
 }
 
 func (q *AggregatedQueueServer) ReportDone(grpcCtx context.Context, idList *api.IdList) (*api.IdList, error) {
-	ctx := armadacontext.FromgrpcCtx(grpcCtx)
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportDone] error: %s", err)
 	}

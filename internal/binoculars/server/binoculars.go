@@ -28,7 +28,7 @@ func NewBinocularsServer(logService service.LogService, cordonService service.Co
 func (b *BinocularsServer) Logs(ctx context.Context, request *binoculars.LogRequest) (*binoculars.LogResponse, error) {
 	principal := authorization.GetPrincipal(ctx)
 
-	logLines, err := b.logService.GetLogs(armadacontext.FromgrpcCtx(ctx), &service.LogParams{
+	logLines, err := b.logService.GetLogs(armadacontext.FromGrpcCtx(ctx), &service.LogParams{
 		Principal:  principal,
 		Namespace:  request.PodNamespace,
 		PodName:    common.PodNamePrefix + request.JobId + "-" + strconv.Itoa(int(request.PodNumber)),
@@ -43,7 +43,7 @@ func (b *BinocularsServer) Logs(ctx context.Context, request *binoculars.LogRequ
 }
 
 func (b *BinocularsServer) Cordon(ctx context.Context, request *binoculars.CordonRequest) (*types.Empty, error) {
-	err := b.cordonService.CordonNode(armadacontext.FromgrpcCtx(ctx), request)
+	err := b.cordonService.CordonNode(armadacontext.FromGrpcCtx(ctx), request)
 	if err != nil {
 		return nil, err
 	}

@@ -9,11 +9,14 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// Context is an extension of Go's context which also includes a logger. This allows us to  pass round a contextual logger
+// while retaining type-safety
 type Context struct {
 	context.Context
 	Log *logrus.Entry
 }
 
+// Background creates an empty context with a default logger.  It is analagous to context.Background()
 func Background() *Context {
 	return &Context{
 		Context: context.Background(),
@@ -21,6 +24,7 @@ func Background() *Context {
 	}
 }
 
+// TODO creates an empty context with a default logger.  It is analagous to context.TODO()
 func TODO() *Context {
 	return &Context{
 		Context: context.TODO(),
@@ -28,11 +32,14 @@ func TODO() *Context {
 	}
 }
 
-func FromgrpcCtx(ctx context.Context) *Context {
+// FromGrpcCtx creates a context where the logger is extracted via ctxlogrus's Extract() method.
+// Note that this will result in a no-op logger if a logger hasn't already been inserted into the context via ctxlogrus
+func FromGrpcCtx(ctx context.Context) *Context {
 	log := ctxlogrus.Extract(ctx)
 	return New(ctx, log)
 }
 
+// New returns an  armada context that encapsulates both a go context and a logger
 func New(ctx context.Context, log *logrus.Entry) *Context {
 	return &Context{
 		Context: ctx,
@@ -40,6 +47,7 @@ func New(ctx context.Context, log *logrus.Entry) *Context {
 	}
 }
 
+// WithCancel returns a copy of parent with a new Done channel. It is analagous to context.WithCancel()
 func WithCancel(parent *Context) (*Context, context.CancelFunc) {
 	c, cancel := context.WithCancel(parent.Context)
 	return &Context{
@@ -48,6 +56,8 @@ func WithCancel(parent *Context) (*Context, context.CancelFunc) {
 	}, cancel
 }
 
+// WithDeadline returns a copy of the parent context with the deadline adjusted to be no later than d.
+// It is analagous to context.WithDeadline()
 func WithDeadline(parent *Context, d time.Time) (*Context, context.CancelFunc) {
 	c, cancel := context.WithDeadline(parent.Context, d)
 	return &Context{
@@ -56,10 +66,12 @@ func WithDeadline(parent *Context, d time.Time) (*Context, context.CancelFunc) {
 	}, cancel
 }
 
+// WithTimeout returns WithDeadline(parent, time.Now().Add(timeout)). It is analagous to context.WithTimeout()
 func WithTimeout(parent *Context, timeout time.Duration) (*Context, context.CancelFunc) {
 	return WithDeadline(parent, time.Now().Add(timeout))
 }
 
+// WithLogField returns a copy of parent with the supplied key-value added to the logger
 func WithLogField(parent *Context, key string, val interface{}) *Context {
 	return &Context{
 		Context: parent,
@@ -67,6 +79,7 @@ func WithLogField(parent *Context, key string, val interface{}) *Context {
 	}
 }
 
+// WithLogFields returns a copy of parent with the supplied key-values added to the logger
 func WithLogFields(parent *Context, fields map[string]interface{}) *Context {
 	return &Context{
 		Context: parent,
@@ -74,6 +87,8 @@ func WithLogFields(parent *Context, fields map[string]interface{}) *Context {
 	}
 }
 
+// WithValue returns a copy of parent in which the value associated with key is
+// val. It is analagous to context.WithValue()
 func WithValue(parent *Context, key, val any) *Context {
 	return &Context{
 		Context: context.WithValue(parent, key, val),
@@ -81,10 +96,12 @@ func WithValue(parent *Context, key, val any) *Context {
 	}
 }
 
-func ErrGroup(parent *Context) (*errgroup.Group, *Context) {
-	group, goctx := errgroup.WithContext(parent)
+// ErrGroup returns a new Error Group and an associated Context derived from ctx.
+// It is analagous to errgroup.WithContext(ctx)
+func ErrGroup(ctx *Context) (*errgroup.Group, *Context) {
+	group, goctx := errgroup.WithContext(ctx)
 	return group, &Context{
 		Context: goctx,
-		Log:     parent.Log,
+		Log:     ctx.Log,
 	}
 }
