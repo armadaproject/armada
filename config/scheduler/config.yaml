@@ -96,11 +96,10 @@ scheduling:
   maximumResourceFractionToSchedule:
     memory: 1.0
     cpu: 1.0
-	maximumSchedulingRate: 100.0
-	maximumSchedulingBurst: 1000
-	maximumPerQueueSchedulingRate: 50.0
-	maximumPerQueueSchedulingBurst: 1000
-  maxJobSchedulingContextsPerExecutor: 10000
+  maximumSchedulingRate: 100.0
+  maximumSchedulingBurst: 1000
+  maximumPerQueueSchedulingRate: 50.0
+  maximumPerQueueSchedulingBurst: 1000
   maxUnacknowledgedJobsPerExecutor: 2500
   maxJobSchedulingContextsPerExecutor: 10000
   defaultJobLimits:
