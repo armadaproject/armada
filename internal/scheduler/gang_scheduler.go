@@ -11,7 +11,6 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // GangScheduler schedules one gang at a time. GangScheduler is not aware of queues.
@@ -228,14 +227,4 @@ func meanScheduledAtPriorityFromGctx(gctx *schedulercontext.GangSchedulingContex
 		sum += jctx.PodSchedulingContext.ScheduledAtPriority
 	}
 	return float64(sum) / float64(len(gctx.JobSchedulingContexts)), true
-}
-
-func requestsAreLargeEnough(totalResourceRequests, minRequest schedulerobjects.ResourceList) (bool, string) {
-	for t, minQuantity := range minRequest.Resources {
-		q := totalResourceRequests.Get(t)
-		if minQuantity.Cmp(q) == 1 {
-			return false, fmt.Sprintf("job requests %s %s, but the minimum is %s", q.String(), t, minQuantity.String())
-		}
-	}
-	return true, ""
 }

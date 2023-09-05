@@ -97,7 +97,6 @@ func NewAggregatedQueueServer(
 		TimeBetweenEvictionRuns:  0,
 		NumTestsPerEvictionRun:   10,
 	}
-
 	decompressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
 		func(context.Context) (interface{}, error) {
 			return compress.NewZlibDecompressor(), nil
@@ -113,6 +112,7 @@ func NewAggregatedQueueServer(
 			rate.Limit(schedulingConfig.MaximumSchedulingRate),
 			schedulingConfig.MaximumSchedulingBurst,
 		),
+		limiterByQueue:           make(map[string]*rate.Limiter),
 		schedulingInfoRepository: schedulingInfoRepository,
 		decompressorPool:         decompressorPool,
 		executorRepository:       executorRepository,

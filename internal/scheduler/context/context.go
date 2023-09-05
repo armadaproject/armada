@@ -260,15 +260,6 @@ func (sctx *SchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContex
 			sctx.ScheduledResources.AddV1ResourceList(jctx.PodRequirements.ResourceRequirements.Requests)
 			sctx.ScheduledResourcesByPriorityClass.AddV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
 			sctx.NumScheduledJobs++
-
-			// // Remove a token from the rate-limiter bucket.
-			// // We don't check the return value here as we allow exceeding the rate limit by one gang.
-			// // Rather, we check whether the number of tokens is positive before scheduling a new job.
-			// if sctx.Limiter != nil {
-			// 	fmt.Println("Tokens before adding job:", sctx.Limiter.TokensAt(sctx.Started))
-			// 	v := sctx.Limiter.AllowN(sctx.Started, 1)
-			// 	fmt.Println("Tokens after adding job:", sctx.Limiter.TokensAt(sctx.Started), "v:", v)
-			// }
 		}
 	}
 	return evictedInThisRound, nil
@@ -504,13 +495,6 @@ func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingC
 		} else {
 			qctx.SuccessfulJobSchedulingContexts[jctx.JobId] = jctx
 			qctx.ScheduledResourcesByPriorityClass.AddV1ResourceList(jctx.Job.GetPriorityClassName(), jctx.PodRequirements.ResourceRequirements.Requests)
-
-			// // Remove a token from the rate-limiter bucket.
-			// // We don't check the return value here as we allow exceeding the rate limit by one gang.
-			// // Rather, we check whether the number of tokens is positive before scheduling a new job.
-			// if qctx.Limiter != nil {
-			// 	qctx.Limiter.AllowN(qctx.SchedulingContext.Started, 1)
-			// }
 		}
 	} else {
 		qctx.UnsuccessfulJobSchedulingContexts[jctx.JobId] = jctx

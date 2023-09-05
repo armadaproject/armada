@@ -126,12 +126,23 @@ type SchedulingConfig struct {
 	MaximumResourceFractionToScheduleByPool map[string]map[string]float64
 	// Token bucket global job scheduling rate limiter settings; see
 	// https://pkg.go.dev/golang.org/x/time/rate#Limiter
-	MaximumSchedulingRate  float64 `validate:"gt=0"`
-	MaximumSchedulingBurst int     `validate:"gt=0"`
-	// Token bucket per-queue job scheduling rate limiter settings; see
-	// https://pkg.go.dev/golang.org/x/time/rate#Limiter
-	MaximumPerQueueSchedulingRate  float64 `validate:"gt=0"`
-	MaximumPerQueueSchedulingBurst int     `validate:"gt=0"`
+	//
+	// Rate-limiting is based on the number of tokens available at the start of each scheduling round,
+	// i.e., tokens accumulated while scheduling are only available at the start of the next scheduling round.
+	//
+	// MaximumSchedulingRate controls the number of jobs scheduled per second in steady-state,
+	// i.e., once the burst capacity has been exhausted.
+	MaximumSchedulingRate float64 `validate:"gt=0"`
+	// MaximumSchedulingBurst controls the burst capacity of the rate-limiter.
+	//
+	// There are two important implications:
+	// - Armada will never schedule more than MaximumSchedulingBurst jobs per scheduling round.
+	// - Gang jobs with cardinality greater than MaximumSchedulingBurst can never be scheduled.
+	MaximumSchedulingBurst int `validate:"gt=0"`
+	// Per-queue version of MaximumSchedulingRate.
+	MaximumPerQueueSchedulingRate float64 `validate:"gt=0"`
+	// Per-queue version of MaximumSchedulingBurst.
+	MaximumPerQueueSchedulingBurst int `validate:"gt=0"`
 	// Armada stores contexts associated with recent job scheduling attempts.
 	// This setting limits the number of such contexts to store.
 	// Contexts associated with the most recent scheduling attempt for each queue and cluster are always stored.

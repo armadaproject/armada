@@ -1316,13 +1316,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			// // balancing three queues
-			// // gang_preemption_with_partial_gang
-			// "rescheduled jobs don't count towards global scheduling rate limit"
-			if name != "exceeding rate limiter burst capacity increase recovery time" {
-				return
-			}
-
 			nodeDb, err := NewNodeDb()
 			require.NoError(t, err)
 			txn := nodeDb.Txn(true)

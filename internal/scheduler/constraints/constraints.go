@@ -16,7 +16,7 @@ const (
 	// Indicates that the limit on resources scheduled per round has been exceeded.
 	MaximumResourcesScheduledUnschedulableReason = "maximum resources scheduled"
 
-	// Indicates that the queue has been assigned more than its allowed amount of resources.
+	// Indicates that a queue has been assigned more than its allowed amount of resources.
 	MaximumResourcesPerQueueExceededUnschedulableReason = "maximum total resources for this queue exceeded"
 
 	// Indicates that the scheduling rate limit has been exceeded.
@@ -28,7 +28,7 @@ const (
 	QueueRateLimitExceededByGangUnschedulableReason  = "gang would exceed queue scheduling rate limit"
 
 	// Indicates that the number of jobs in a gang exceeds the burst size.
-	// This means the gang can not be scheduled without manually increasing the burst size.
+	// This means the gang can not be scheduled without first increasing the burst size.
 	GangExceedsGlobalBurstSizeUnschedulableReason = "gang cardinality too large: exceeds global max burst size"
 	GangExceedsQueueBurstSizeUnschedulableReason  = "gang cardinality too large: exceeds queue max burst size"
 )
@@ -138,7 +138,7 @@ func (constraints *SchedulingConstraints) CheckConstraints(
 	}
 
 	// Check that the job is large enough for this executor.
-	if ok, unschedulableReason := requestsAreLargeEnough(gctx.TotalResourceRequests, constraints.MinimumJobSize); !ok {
+	if ok, unschedulableReason := RequestsAreLargeEnough(gctx.TotalResourceRequests, constraints.MinimumJobSize); !ok {
 		return false, unschedulableReason, nil
 	}
 
@@ -179,7 +179,7 @@ func (constraints *SchedulingConstraints) CheckConstraints(
 	return true, "", nil
 }
 
-func requestsAreLargeEnough(totalResourceRequests, minRequest schedulerobjects.ResourceList) (bool, string) {
+func RequestsAreLargeEnough(totalResourceRequests, minRequest schedulerobjects.ResourceList) (bool, string) {
 	for t, minQuantity := range minRequest.Resources {
 		q := totalResourceRequests.Get(t)
 		if minQuantity.Cmp(q) == 1 {
