@@ -93,7 +93,7 @@ func NewAggregatedQueueServer(
 	}
 
 	decompressorPool := pool.NewObjectPool(armadacontext.Background(), pool.NewPooledObjectFactorySimple(
-		func(ctx context.Context) (interface{}, error) {
+		func(context.Context) (interface{}, error) {
 			return compress.NewZlibDecompressor(), nil
 		}), &poolConfig)
 	return &AggregatedQueueServer{
