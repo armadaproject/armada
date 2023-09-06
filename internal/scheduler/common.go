@@ -18,6 +18,8 @@ import (
 
 // SchedulerResult is returned by Rescheduler.Schedule().
 type SchedulerResult struct {
+	// Whether the scheduler failed to create a result for some reason
+	EmptyResult bool
 	// Running jobs that should be preempted.
 	PreemptedJobs []interfaces.LegacySchedulerJob
 	// Queued jobs that should be scheduled.
