@@ -74,15 +74,15 @@ func WithTimeout(parent *Context, timeout time.Duration) (*Context, context.Canc
 // WithLogField returns a copy of parent with the supplied key-value added to the logger
 func WithLogField(parent *Context, key string, val interface{}) *Context {
 	return &Context{
-		Context: parent,
+		Context: parent.Context,
 		Log:     parent.Log.WithField(key, val),
 	}
 }
 
 // WithLogFields returns a copy of parent with the supplied key-values added to the logger
-func WithLogFields(parent *Context, fields map[string]interface{}) *Context {
+func WithLogFields(parent *Context, fields logrus.Fields) *Context {
 	return &Context{
-		Context: parent,
+		Context: parent.Context,
 		Log:     parent.Log.WithFields(fields),
 	}
 }
