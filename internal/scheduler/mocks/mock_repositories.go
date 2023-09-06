@@ -8,7 +8,7 @@ import (
 	reflect "reflect"
 	time "time"
 
-	context "github.com/armadaproject/armada/internal/common/armadacontext"
+	armadacontext "github.com/armadaproject/armada/internal/common/armadacontext"
 	database "github.com/armadaproject/armada/internal/scheduler/database"
 	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	armadaevents "github.com/armadaproject/armada/pkg/armadaevents"
@@ -40,7 +40,7 @@ func (m *MockExecutorRepository) EXPECT() *MockExecutorRepositoryMockRecorder {
 }
 
 // GetExecutors mocks base method.
-func (m *MockExecutorRepository) GetExecutors(arg0 *context.Context) ([]*schedulerobjects.Executor, error) {
+func (m *MockExecutorRepository) GetExecutors(arg0 *armadacontext.Context) ([]*schedulerobjects.Executor, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetExecutors", arg0)
 	ret0, _ := ret[0].([]*schedulerobjects.Executor)
@@ -55,7 +55,7 @@ func (mr *MockExecutorRepositoryMockRecorder) GetExecutors(arg0 interface{}) *go
 }
 
 // GetLastUpdateTimes mocks base method.
-func (m *MockExecutorRepository) GetLastUpdateTimes(arg0 *context.Context) (map[string]time.Time, error) {
+func (m *MockExecutorRepository) GetLastUpdateTimes(arg0 *armadacontext.Context) (map[string]time.Time, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetLastUpdateTimes", arg0)
 	ret0, _ := ret[0].(map[string]time.Time)
@@ -70,7 +70,7 @@ func (mr *MockExecutorRepositoryMockRecorder) GetLastUpdateTimes(arg0 interface{
 }
 
 // StoreExecutor mocks base method.
-func (m *MockExecutorRepository) StoreExecutor(arg0 *context.Context, arg1 *schedulerobjects.Executor) error {
+func (m *MockExecutorRepository) StoreExecutor(arg0 *armadacontext.Context, arg1 *schedulerobjects.Executor) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "StoreExecutor", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -145,7 +145,7 @@ func (m *MockJobRepository) EXPECT() *MockJobRepositoryMockRecorder {
 }
 
 // CountReceivedPartitions mocks base method.
-func (m *MockJobRepository) CountReceivedPartitions(arg0 *context.Context, arg1 uuid.UUID) (uint32, error) {
+func (m *MockJobRepository) CountReceivedPartitions(arg0 *armadacontext.Context, arg1 uuid.UUID) (uint32, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CountReceivedPartitions", arg0, arg1)
 	ret0, _ := ret[0].(uint32)
@@ -160,7 +160,7 @@ func (mr *MockJobRepositoryMockRecorder) CountReceivedPartitions(arg0, arg1 inte
 }
 
 // FetchJobRunErrors mocks base method.
-func (m *MockJobRepository) FetchJobRunErrors(arg0 *context.Context, arg1 []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error) {
+func (m *MockJobRepository) FetchJobRunErrors(arg0 *armadacontext.Context, arg1 []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchJobRunErrors", arg0, arg1)
 	ret0, _ := ret[0].(map[uuid.UUID]*armadaevents.Error)
@@ -175,7 +175,7 @@ func (mr *MockJobRepositoryMockRecorder) FetchJobRunErrors(arg0, arg1 interface{
 }
 
 // FetchJobRunLeases mocks base method.
-func (m *MockJobRepository) FetchJobRunLeases(arg0 *context.Context, arg1 string, arg2 uint, arg3 []uuid.UUID) ([]*database.JobRunLease, error) {
+func (m *MockJobRepository) FetchJobRunLeases(arg0 *armadacontext.Context, arg1 string, arg2 uint, arg3 []uuid.UUID) ([]*database.JobRunLease, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchJobRunLeases", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([]*database.JobRunLease)
@@ -190,7 +190,7 @@ func (mr *MockJobRepositoryMockRecorder) FetchJobRunLeases(arg0, arg1, arg2, arg
 }
 
 // FetchJobUpdates mocks base method.
-func (m *MockJobRepository) FetchJobUpdates(arg0 *context.Context, arg1, arg2 int64) ([]database.Job, []database.Run, error) {
+func (m *MockJobRepository) FetchJobUpdates(arg0 *armadacontext.Context, arg1, arg2 int64) ([]database.Job, []database.Run, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchJobUpdates", arg0, arg1, arg2)
 	ret0, _ := ret[0].([]database.Job)
@@ -206,7 +206,7 @@ func (mr *MockJobRepositoryMockRecorder) FetchJobUpdates(arg0, arg1, arg2 interf
 }
 
 // FindInactiveRuns mocks base method.
-func (m *MockJobRepository) FindInactiveRuns(arg0 *context.Context, arg1 []uuid.UUID) ([]uuid.UUID, error) {
+func (m *MockJobRepository) FindInactiveRuns(arg0 *armadacontext.Context, arg1 []uuid.UUID) ([]uuid.UUID, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindInactiveRuns", arg0, arg1)
 	ret0, _ := ret[0].([]uuid.UUID)
