@@ -78,6 +78,7 @@ scheduling:
     enabled: true
     nodeEvictionProbability: 1.0
     nodeOversubscriptionEvictionProbability: 1.0
+    protectedFractionOfFairShare: 1.0
     nodeIdLabel: kubernetes.io/hostname
     priorityClasses:
       armada-default:
