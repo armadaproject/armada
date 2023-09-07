@@ -211,7 +211,7 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 			}
 		}
 
-		gangId, gangCardinality, isGangJob, err := GangIdAndCardinalityFromAnnotations(job.GetAnnotations())
+		gangId, gangCardinality, _, isGangJob, err := GangIdAndCardinalityFromAnnotations(job.GetAnnotations())
 		if err != nil {
 			// TODO: Get from context passed in.
 			log := logrus.NewEntry(logrus.New())

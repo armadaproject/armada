@@ -600,7 +600,7 @@ func TestQueueScheduler(t *testing.T) {
 						continue
 					}
 					assert.Equal(t, nodeDb.NumNodes(), pctx.NumNodes)
-					_, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(jctx.Job)
+					_, _, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(jctx.Job)
 					require.NoError(t, err)
 					if !isGangJob {
 						numExcludedNodes := 0
