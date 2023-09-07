@@ -626,7 +626,7 @@ func (sch *PreemptingQueueScheduler) updateGangAccounting(preemptedJobs, schedul
 		}
 	}
 	for _, job := range scheduledJobs {
-		gangId, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(job)
+		gangId, _, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(job)
 		if err != nil {
 			return err
 		}

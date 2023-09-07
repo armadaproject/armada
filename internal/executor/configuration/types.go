@@ -19,6 +19,9 @@ type ApplicationConfiguration struct {
 	UseExecutorApi         bool
 	UseLegacyApi           bool
 	JobLeaseRequestTimeout time.Duration
+	// MaxLeasedJobs is the maximum jobs the executor should have in Leased state ay any one time (i.e jobs not submitted to kubernetes)
+	// It is largely used to calculate how many new jobs to request from the scheduler
+	MaxLeasedJobs int
 }
 
 type PodDefaults struct {
@@ -80,16 +83,37 @@ type KubernetesConfiguration struct {
 }
 
 type EtcdConfiguration struct {
-	// URLs of the etcd instances storing the cluster state.
-	// If provided, Armada monitors the health of etcd and
-	// stops requesting jobs when etcd is EtcdFractionOfStorageInUseSoftLimit percent full and
-	// stops pod creation when etcd is EtcdFractionOfStorageInUseHardLimit or more percent full.
-	MetricUrls                      []string
-	FractionOfStorageInUseSoftLimit float64
-	FractionOfStorageInUseHardLimit float64
-	// This is the number of etcd endpoints that have to be healthy for Armada to perform the health check
-	// If less than MinimumAvailable are healthy, Armada will consider etcd unhealthy and stop submitting pods
-	MinimumAvailable int
+	// Etcd health monitoring configuration.
+	// If provided, the executor monitors etcd health and stops requesting jobs while any etcd cluster is unhealthy.
+	EtcdClustersHealthMonitoring []EtcdClusterHealthMonitoringConfiguration
+}
+
+// EtcdClusterHealthMonitoringConfiguration
+// contains settings associated with monitoring the health of an etcd cluster.
+type EtcdClusterHealthMonitoringConfiguration struct {
+	// Etcd cluster name. Used in metrics exported by Armada.
+	Name string `validate:"gt=0"`
+	// Metric URLs of the etcd replicas making up this cluster.
+	MetricUrls []string `validate:"gt=0"`
+	// The cluster is considered unhealthy when for any replica in the cluster:
+	// etcd_mvcc_db_total_size_in_use_in_bytes / etcd_server_quota_backend_bytes
+	// > FractionOfStorageInUseLimit.
+	FractionOfStorageInUseLimit float64 `validate:"gt=0,lte=1"`
+	// The cluster is considered unhealthy when for any replica in the cluster:
+	// etcd_mvcc_db_total_size_in_bytes / etcd_server_quota_backend_bytes
+	// > FractionOfStorageLimit.
+	FractionOfStorageLimit float64 `validate:"gt=0,lte=1"`
+	// A replica is considered unavailable if the executor has failed to collect metrics from it for this amount of time.
+	// The cluster is considered unhealthy if there are less than MinimumReplicasAvailable replicas available.
+	ReplicaTimeout           time.Duration `validate:"gt=0"`
+	MinimumReplicasAvailable int           `validate:"gt=0"`
+	// Interval with which to scrape metrics from each etcd replica.
+	ScrapeInterval time.Duration `validate:"gt=0"`
+	// The time it takes to scrape metrics is exported as a prometheus histogram with exponential buckets.
+	// These settings control the size and number of such buckets.
+	ScrapeDelayBucketsStart  float64 `validate:"gt=0"`
+	ScrapeDelayBucketsFactor float64 `validate:"gt=1"`
+	ScrapeDelayBucketsCount  int     `validate:"gt=0"`
 }
 
 type TaskConfiguration struct {

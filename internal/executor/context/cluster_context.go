@@ -26,12 +26,10 @@ import (
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 	"k8s.io/utils/pointer"
 
-	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/cluster"
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
-	"github.com/armadaproject/armada/internal/executor/healthmonitor"
 	"github.com/armadaproject/armada/internal/executor/util"
 )
 
@@ -87,10 +85,8 @@ type KubernetesClusterContext struct {
 	kubernetesClient         kubernetes.Interface
 	kubernetesClientProvider cluster.KubernetesClientProvider
 	eventInformer            informer.EventInformer
-	// If provided, stops object creation while EtcdMaxFractionOfStorageInUse or more of etcd storage is full.
-	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor
-	podKillTimeout    time.Duration
-	clock             clock.Clock
+	podKillTimeout           time.Duration
+	clock                    clock.Clock
 }
 
 func (c *KubernetesClusterContext) GetClusterId() string {
@@ -105,7 +101,6 @@ func NewClusterContext(
 	configuration configuration.ApplicationConfiguration,
 	minTimeBetweenRepeatDeletionCalls time.Duration,
 	kubernetesClientProvider cluster.KubernetesClientProvider,
-	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
 	killTimeout time.Duration,
 ) *KubernetesClusterContext {
 	kubernetesClient := kubernetesClientProvider.Client()
@@ -127,7 +122,6 @@ func NewClusterContext(
 		endpointSliceInformer:    factory.Discovery().V1().EndpointSlices(),
 		kubernetesClient:         kubernetesClient,
 		kubernetesClientProvider: kubernetesClientProvider,
-		etcdHealthMonitor:        etcdHealthMonitor,
 		podKillTimeout:           killTimeout,
 		clock:                    clock.RealClock{},
 	}
@@ -253,16 +247,6 @@ func (c *KubernetesClusterContext) GetNodeStatsSummary(ctx context.Context, node
 }
 
 func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error) {
-	// If a health monitor is provided, reject pods when etcd is at its hard limit.
-	if c.etcdHealthMonitor != nil && !c.etcdHealthMonitor.IsWithinHardHealthLimit() {
-		err := errors.WithStack(&armadaerrors.ErrCreateResource{
-			Type:    "pod",
-			Name:    pod.Name,
-			Message: fmt.Sprintf("etcd is at its hard heatlh limit and therefore not healthy to submit to"),
-		})
-		return nil, err
-	}
-
 	c.submittedPods.Add(pod)
 	ownerClient, err := c.kubernetesClientProvider.ClientForUser(owner, ownerGroups)
 	if err != nil {

@@ -18,6 +18,7 @@ nodeSelector: {}
 tolerations: []
 customServiceAccount: null
 serviceAccount: null
+priorityClassName: ""
 
 healthcheck:
   enabled: false
