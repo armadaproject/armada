@@ -380,7 +380,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 		// Group gangs.
 		for _, job := range jobs {
-			gangId, _, isGangJob, err := scheduler.GangIdAndCardinalityFromLegacySchedulerJob(job)
+			gangId, _, _, isGangJob, err := scheduler.GangIdAndCardinalityFromLegacySchedulerJob(job)
 			if err != nil {
 				return nil, err
 			}
