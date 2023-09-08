@@ -9,10 +9,10 @@ requires-python = ">=3.7"
 # extremely difficult.
 dependencies = [
 	"armada-client",
-	"apache-airflow>=2.6.3",
-	"grpcio>=1.46.3",
-	"grpcio-tools>=1.46.3",
-	"types-protobuf>=3.19.22"
+	"apache-airflow==2.7.1",
+	"grpcio==1.58.0",
+	"grpcio-tools==1.58.0",
+	"types-protobuf==4.24.0.1"
 ]
 authors = [{name = "Armada-GROSS", email = "armada@armadaproject.io"}]
 license = { text = "Apache Software License" }
@@ -20,7 +20,7 @@ readme = "README.md"
 
 [project.optional-dependencies]
 format = ["black==23.7.0", "flake8==6.1.0", "pylint==2.17.5"]
-test = ["pytest==7.3.1", "coverage>=6.5.0", "pytest-asyncio==0.21.1"]
+test = ["pytest==7.3.1", "coverage==7.3.1", "pytest-asyncio==0.21.1"]
 # note(JayF): sphinx-jekyll-builder was broken by sphinx-markdown-builder 0.6 -- so pin to 0.5.5
 docs = ["sphinx==7.1.2", "sphinx-jekyll-builder==0.3.0", "sphinx-toolbox==3.2.0b1", "sphinx-markdown-builder==0.5.5"]
 
