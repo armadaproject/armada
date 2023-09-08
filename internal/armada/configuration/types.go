@@ -124,14 +124,19 @@ type SchedulingConfig struct {
 	MaximumResourceFractionToSchedule map[string]float64
 	// Overrides MaximalClusterFractionToSchedule if set for the current pool.
 	MaximumResourceFractionToScheduleByPool map[string]map[string]float64
-	// Token bucket global job scheduling rate limiter settings; see
-	// https://pkg.go.dev/golang.org/x/time/rate#Limiter
+	// The rate at which Armada schedules jobs is rate-limited using a token bucket approach.
+	// Specifically, there is a token bucket that persists between scheduling rounds.
+	// The bucket fills up at a rate of MaximumSchedulingRate tokens per second and has capacity MaximumSchedulingBurst.
+	// A token is removed from the bucket when a scheduling a job and scheduling stops while the bucket is empty.
+	//
+	// Hence, MaximumSchedulingRate controls the maximum number of jobs scheduled per second in steady-state,
+	// i.e., once the burst capacity has been exhausted.
 	//
 	// Rate-limiting is based on the number of tokens available at the start of each scheduling round,
-	// i.e., tokens accumulated while scheduling are only available at the start of the next scheduling round.
+	// i.e., tokens accumulated while scheduling become available at the start of the next scheduling round.
 	//
-	// MaximumSchedulingRate controls the number of jobs scheduled per second in steady-state,
-	// i.e., once the burst capacity has been exhausted.
+	// For more information about the rate-limiter, see:
+	// https://pkg.go.dev/golang.org/x/time/rate#Limiter
 	MaximumSchedulingRate float64 `validate:"gt=0"`
 	// MaximumSchedulingBurst controls the burst capacity of the rate-limiter.
 	//
@@ -139,6 +144,9 @@ type SchedulingConfig struct {
 	// - Armada will never schedule more than MaximumSchedulingBurst jobs per scheduling round.
 	// - Gang jobs with cardinality greater than MaximumSchedulingBurst can never be scheduled.
 	MaximumSchedulingBurst int `validate:"gt=0"`
+	// In addition to the global rate-limiter, there is a separate rate-limiter for each queue.
+	// These work the same as the global rate-limiter, except they apply only to jobs scheduled from a specific queue.
+	//
 	// Per-queue version of MaximumSchedulingRate.
 	MaximumPerQueueSchedulingRate float64 `validate:"gt=0"`
 	// Per-queue version of MaximumSchedulingBurst.
