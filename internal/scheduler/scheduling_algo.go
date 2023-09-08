@@ -291,7 +291,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx context.Context, t
 		}
 		jobsByExecutorId[executorId] = append(jobsByExecutorId[executorId], job)
 		nodeIdByJobId[job.Id()] = nodeId
-		gangId, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(job)
+		gangId, _, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(job)
 		if err != nil {
 			return nil, err
 		}
