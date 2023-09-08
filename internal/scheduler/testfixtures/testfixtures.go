@@ -95,12 +95,16 @@ func TestSchedulingConfig() configuration.SchedulingConfig {
 			NodeEvictionProbability:                 1.0,
 			NodeOversubscriptionEvictionProbability: 1.0,
 		},
-		IndexedResources:  TestResources,
-		IndexedNodeLabels: TestIndexedNodeLabels,
+		MaximumSchedulingRate:                       math.Inf(1),
+		MaximumSchedulingBurst:                      math.MaxInt,
+		MaximumPerQueueSchedulingRate:               math.Inf(1),
+		MaximumPerQueueSchedulingBurst:              math.MaxInt,
+		IndexedResources:                            TestResources,
+		IndexedNodeLabels:                           TestIndexedNodeLabels,
 		DominantResourceFairnessResourcesToConsider: TestResourceNames,
-		ExecutorTimeout:                  15 * time.Minute,
-		MaxUnacknowledgedJobsPerExecutor: math.MaxInt,
-		EnableNewPreemptionStrategy:      true,
+		ExecutorTimeout:                             15 * time.Minute,
+		MaxUnacknowledgedJobsPerExecutor:            math.MaxInt,
+		EnableNewPreemptionStrategy:                 true,
 	}
 }
 
@@ -166,18 +170,19 @@ func WithIndexedResourcesConfig(indexResources []configuration.IndexedResource, 
 	return config
 }
 
-func WithMaxJobsToScheduleConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.MaximumJobsToSchedule = n
+func WithGlobalSchedulingRateLimiterConfig(maximumSchedulingRate float64, maximumSchedulingBurst int, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.MaximumSchedulingRate = maximumSchedulingRate
+	config.MaximumSchedulingBurst = maximumSchedulingBurst
 	return config
 }
 
-func WithMaxGangsToScheduleConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.MaximumGangsToSchedule = n
+func WithPerQueueSchedulingLimiterConfig(maximumPerQueueSchedulingRate float64, maximumPerQueueSchedulingBurst int, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.MaximumPerQueueSchedulingRate = maximumPerQueueSchedulingRate
+	config.MaximumPerQueueSchedulingBurst = maximumPerQueueSchedulingBurst
 	return config
 }
 
 func WithMaxLookbackPerQueueConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	// For legacy reasons, it's called QueueLeaseBatchSize in config.
 	config.MaxQueueLookback = n
 	return config
 }
