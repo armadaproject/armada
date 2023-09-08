@@ -60,9 +60,9 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 
 		// Update rate-limiters to account for new successfully scheduled jobs.
 		if ok && !gctx.AllJobsEvicted {
-			sch.schedulingContext.Limiter.ReserveN(sch.schedulingContext.Started, len(gctx.JobSchedulingContexts))
+			sch.schedulingContext.Limiter.ReserveN(sch.schedulingContext.Started, gctx.Cardinality())
 			if qctx := sch.schedulingContext.QueueSchedulingContexts[gctx.Queue]; qctx != nil {
-				qctx.Limiter.ReserveN(sch.schedulingContext.Started, len(gctx.JobSchedulingContexts))
+				qctx.Limiter.ReserveN(sch.schedulingContext.Started, gctx.Cardinality())
 			}
 		}
 
@@ -86,7 +86,7 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 			//
 			// Only record unfeasible scheduling keys for single-job gangs.
 			// Since a gang may be unschedulable even if all its members are individually schedulable.
-			if !sch.skipUnsuccessfulSchedulingKeyCheck && len(gctx.JobSchedulingContexts) == 1 {
+			if !sch.skipUnsuccessfulSchedulingKeyCheck && gctx.Cardinality() == 1 {
 				jctx := gctx.JobSchedulingContexts[0]
 				schedulingKey := sch.schedulingContext.SchedulingKeyFromLegacySchedulerJob(jctx.Job)
 				if _, ok := sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; !ok {
@@ -196,7 +196,7 @@ func (sch *GangScheduler) tryScheduleGangWithTxn(ctx context.Context, txn *memdb
 				jctx.PodSchedulingContext.NodeId = ""
 			}
 		}
-		if len(gctx.JobSchedulingContexts) > 1 {
+		if gctx.Cardinality() > 1 {
 			unschedulableReason = "at least one job in the gang does not fit on any node"
 		} else {
 			unschedulableReason = "job does not fit on any node"
@@ -223,5 +223,5 @@ func meanScheduledAtPriorityFromGctx(gctx *schedulercontext.GangSchedulingContex
 		}
 		sum += jctx.PodSchedulingContext.ScheduledAtPriority
 	}
-	return float64(sum) / float64(len(gctx.JobSchedulingContexts)), true
+	return float64(sum) / float64(gctx.Cardinality()), true
 }

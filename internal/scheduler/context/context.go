@@ -574,6 +574,11 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 	}
 }
 
+// Cardinality returns the number of jobs in the gang.
+func (gctx *GangSchedulingContext) Cardinality() int {
+	return len(gctx.JobSchedulingContexts)
+}
+
 func isEvictedJob(job interfaces.LegacySchedulerJob) bool {
 	return job.GetAnnotations()[schedulerconfig.IsEvictedAnnotation] == "true"
 }

@@ -74,7 +74,7 @@ func (sch *QueueScheduler) Schedule(ctx context.Context) (*SchedulerResult, erro
 		if gctx == nil {
 			break
 		}
-		if len(gctx.JobSchedulingContexts) == 0 {
+		if gctx.Cardinality() == 0 {
 			if err := sch.candidateGangIterator.Clear(); err != nil {
 				return nil, err
 			}

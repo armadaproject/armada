@@ -147,10 +147,10 @@ func (constraints *SchedulingConstraints) CheckConstraints(
 	if tokens <= 0 {
 		return false, GlobalRateLimitExceededUnschedulableReason, nil
 	}
-	if sctx.Limiter.Burst() < len(gctx.JobSchedulingContexts) {
+	if sctx.Limiter.Burst() < gctx.Cardinality() {
 		return false, GangExceedsGlobalBurstSizeUnschedulableReason, nil
 	}
-	if tokens < float64(len(gctx.JobSchedulingContexts)) {
+	if tokens < float64(gctx.Cardinality()) {
 		return false, GlobalRateLimitExceededByGangUnschedulableReason, nil
 	}
 
@@ -159,10 +159,10 @@ func (constraints *SchedulingConstraints) CheckConstraints(
 	if tokens <= 0 {
 		return false, QueueRateLimitExceededUnschedulableReason, nil
 	}
-	if qctx.Limiter.Burst() < len(gctx.JobSchedulingContexts) {
+	if qctx.Limiter.Burst() < gctx.Cardinality() {
 		return false, GangExceedsQueueBurstSizeUnschedulableReason, nil
 	}
-	if tokens < float64(len(gctx.JobSchedulingContexts)) {
+	if tokens < float64(gctx.Cardinality()) {
 		return false, QueueRateLimitExceededByGangUnschedulableReason, nil
 	}
 
