@@ -281,7 +281,7 @@ Runs the trigger. Meant to be called by an airflow triggerer process.
 
 
 #### serialize()
-Returns the information needed to reconstruct this Trigger.
+Return the information needed to reconstruct this Trigger.
 
 
 * **Returns**
@@ -492,10 +492,8 @@ Get a JobServiceAsyncIOClient that has retry configured
 ## armada.operators.utils module
 
 
-### _class_ armada.operators.utils.JobState(value)
+### _class_ armada.operators.utils.JobState(value, names=None, \*, module=None, qualname=None, type=None, start=1, boundary=None)
 Bases: `Enum`
-
-An enumeration.
 
 
 #### CANCELLED(_ = _ )
