@@ -60,11 +60,8 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 
 		// Update rate-limiters to account for new successfully scheduled jobs.
 		if ok && !gctx.AllJobsEvicted {
-			if sch.schedulingContext.Limiter != nil {
-				sch.schedulingContext.Limiter.ReserveN(sch.schedulingContext.Started, len(gctx.JobSchedulingContexts))
-			}
-			qctx := sch.schedulingContext.QueueSchedulingContexts[gctx.Queue]
-			if qctx != nil && qctx.Limiter != nil {
+			sch.schedulingContext.Limiter.ReserveN(sch.schedulingContext.Started, len(gctx.JobSchedulingContexts))
+			if qctx := sch.schedulingContext.QueueSchedulingContexts[gctx.Queue]; qctx != nil {
 				qctx.Limiter.ReserveN(sch.schedulingContext.Started, len(gctx.JobSchedulingContexts))
 			}
 		}

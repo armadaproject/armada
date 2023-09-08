@@ -143,31 +143,27 @@ func (constraints *SchedulingConstraints) CheckConstraints(
 	}
 
 	// Global rate limiter check.
-	if sctx.Limiter != nil {
-		tokens := sctx.Limiter.TokensAt(sctx.Started)
-		if tokens <= 0 {
-			return false, GlobalRateLimitExceededUnschedulableReason, nil
-		}
-		if sctx.Limiter.Burst() < len(gctx.JobSchedulingContexts) {
-			return false, GangExceedsGlobalBurstSizeUnschedulableReason, nil
-		}
-		if tokens < float64(len(gctx.JobSchedulingContexts)) {
-			return false, GlobalRateLimitExceededByGangUnschedulableReason, nil
-		}
+	tokens := sctx.Limiter.TokensAt(sctx.Started)
+	if tokens <= 0 {
+		return false, GlobalRateLimitExceededUnschedulableReason, nil
+	}
+	if sctx.Limiter.Burst() < len(gctx.JobSchedulingContexts) {
+		return false, GangExceedsGlobalBurstSizeUnschedulableReason, nil
+	}
+	if tokens < float64(len(gctx.JobSchedulingContexts)) {
+		return false, GlobalRateLimitExceededByGangUnschedulableReason, nil
 	}
 
 	// Per-queue rate limiter check.
-	if qctx.Limiter != nil {
-		tokens := qctx.Limiter.TokensAt(sctx.Started)
-		if tokens <= 0 {
-			return false, QueueRateLimitExceededUnschedulableReason, nil
-		}
-		if qctx.Limiter.Burst() < len(gctx.JobSchedulingContexts) {
-			return false, GangExceedsQueueBurstSizeUnschedulableReason, nil
-		}
-		if tokens < float64(len(gctx.JobSchedulingContexts)) {
-			return false, QueueRateLimitExceededByGangUnschedulableReason, nil
-		}
+	tokens = qctx.Limiter.TokensAt(sctx.Started)
+	if tokens <= 0 {
+		return false, QueueRateLimitExceededUnschedulableReason, nil
+	}
+	if qctx.Limiter.Burst() < len(gctx.JobSchedulingContexts) {
+		return false, GangExceedsQueueBurstSizeUnschedulableReason, nil
+	}
+	if tokens < float64(len(gctx.JobSchedulingContexts)) {
+		return false, QueueRateLimitExceededByGangUnschedulableReason, nil
 	}
 
 	// PriorityClassSchedulingConstraintsByPriorityClassName check.
