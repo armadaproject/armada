@@ -83,7 +83,8 @@ If you forgot to do this and have not yet pushed your changes to the remote
 repository, you can amend your commit with the sign-off by running 
 
     git commit --amend -s
-
+    
+This command will modify the latest commit and add the required sign-off.    
 
 For more details checkout [DCO](https://github.com/apps/dco)
 
