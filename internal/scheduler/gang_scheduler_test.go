@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -340,10 +341,22 @@ func TestGangScheduler(t *testing.T) {
 				tc.SchedulingConfig.Preemption.PriorityClasses,
 				tc.SchedulingConfig.Preemption.DefaultPriorityClass,
 				fairnessCostProvider,
+				rate.NewLimiter(
+					rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
+					tc.SchedulingConfig.MaximumSchedulingBurst,
+				),
 				tc.TotalResources,
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
-				err := sctx.AddQueueSchedulingContext(queue, priorityFactor, nil)
+				err := sctx.AddQueueSchedulingContext(
+					queue,
+					priorityFactor,
+					nil,
+					rate.NewLimiter(
+						rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
+						tc.SchedulingConfig.MaximumPerQueueSchedulingBurst,
+					),
+				)
 				require.NoError(t, err)
 			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
