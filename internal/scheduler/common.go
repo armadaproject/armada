@@ -18,6 +18,8 @@ import (
 
 // SchedulerResult is returned by Rescheduler.Schedule().
 type SchedulerResult struct {
+	// Whether the scheduler failed to create a result for some reason
+	EmptyResult bool
 	// Running jobs that should be preempted.
 	PreemptedJobs []interfaces.LegacySchedulerJob
 	// Queued jobs that should be scheduled.
@@ -122,30 +124,43 @@ func targetNodeIdFromNodeSelector(nodeSelector map[string]string) (string, bool)
 	return nodeId, ok
 }
 
-// GangIdAndCardinalityFromLegacySchedulerJob returns a tuple (gangId, gangCardinality, isGangJob, error).
-func GangIdAndCardinalityFromLegacySchedulerJob(job interfaces.LegacySchedulerJob) (string, int, bool, error) {
+// GangIdAndCardinalityFromLegacySchedulerJob returns a tuple (gangId, gangCardinality, gangMinimumCardinality, isGangJob, error).
+func GangIdAndCardinalityFromLegacySchedulerJob(job interfaces.LegacySchedulerJob) (string, int, int, bool, error) {
 	return GangIdAndCardinalityFromAnnotations(job.GetAnnotations())
 }
 
-// GangIdAndCardinalityFromAnnotations returns a tuple (gangId, gangCardinality, isGangJob, error).
-func GangIdAndCardinalityFromAnnotations(annotations map[string]string) (string, int, bool, error) {
+// GangIdAndCardinalityFromAnnotations returns a tuple (gangId, gangCardinality, gangMinimumCardinality, isGangJob, error).
+func GangIdAndCardinalityFromAnnotations(annotations map[string]string) (string, int, int, bool, error) {
 	if annotations == nil {
-		return "", 0, false, nil
+		return "", 0, 0, false, nil
 	}
 	gangId, ok := annotations[configuration.GangIdAnnotation]
 	if !ok {
-		return "", 0, false, nil
+		return "", 0, 0, false, nil
 	}
 	gangCardinalityString, ok := annotations[configuration.GangCardinalityAnnotation]
 	if !ok {
-		return "", 0, false, errors.Errorf("missing annotation %s", configuration.GangCardinalityAnnotation)
+		return "", 0, 0, false, errors.Errorf("missing annotation %s", configuration.GangCardinalityAnnotation)
 	}
 	gangCardinality, err := strconv.Atoi(gangCardinalityString)
 	if err != nil {
-		return "", 0, false, errors.WithStack(err)
+		return "", 0, 0, false, errors.WithStack(err)
 	}
 	if gangCardinality <= 0 {
-		return "", 0, false, errors.Errorf("gang cardinality is non-positive %d", gangCardinality)
+		return "", 0, 0, false, errors.Errorf("gang cardinality is non-positive %d", gangCardinality)
 	}
-	return gangId, gangCardinality, true, nil
+	gangMinimumCardinalityString, ok := annotations[configuration.GangMinimumCardinalityAnnotation]
+	if !ok {
+		// If this is not set, default the minimum gang size to gangCardinality
+		return gangId, gangCardinality, gangCardinality, true, nil
+	} else {
+		gangMinimumCardinality, err := strconv.Atoi(gangMinimumCardinalityString)
+		if err != nil {
+			return "", 0, 0, false, errors.WithStack(err)
+		}
+		if gangMinimumCardinality <= 0 {
+			return "", 0, 0, false, errors.Errorf("gang minimum cardinality is non-positive %d", gangMinimumCardinality)
+		}
+		return gangId, gangCardinality, gangMinimumCardinality, true, nil
+	}
 }

@@ -16,6 +16,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/utils/clock"
@@ -58,6 +59,10 @@ type AggregatedQueueServer struct {
 	schedulingInfoRepository repository.SchedulingInfoRepository
 	decompressorPool         *pool.ObjectPool
 	clock                    clock.Clock
+	// Global job scheduling rate-limiter.
+	limiter *rate.Limiter
+	// Per-queue job scheduling rate-limiters.
+	limiterByQueue map[string]*rate.Limiter
 	// For storing reports of scheduling attempts.
 	SchedulingContextRepository *scheduler.SchedulingContextRepository
 	// Stores the most recent NodeDb for each executor.
@@ -92,17 +97,22 @@ func NewAggregatedQueueServer(
 		NumTestsPerEvictionRun:   10,
 	}
 
-	decompressorPool := pool.NewObjectPool(armadacontext.Background(), pool.NewPooledObjectFactorySimple(
+	decompressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
 		func(context.Context) (interface{}, error) {
 			return compress.NewZlibDecompressor(), nil
 		}), &poolConfig)
 	return &AggregatedQueueServer{
-		permissions:              permissions,
-		schedulingConfig:         schedulingConfig,
-		jobRepository:            jobRepository,
-		queueRepository:          queueRepository,
-		usageRepository:          usageRepository,
-		eventStore:               eventStore,
+		permissions:      permissions,
+		schedulingConfig: schedulingConfig,
+		jobRepository:    jobRepository,
+		queueRepository:  queueRepository,
+		usageRepository:  usageRepository,
+		eventStore:       eventStore,
+		limiter: rate.NewLimiter(
+			rate.Limit(schedulingConfig.MaximumSchedulingRate),
+			schedulingConfig.MaximumSchedulingBurst,
+		),
+		limiterByQueue:           make(map[string]*rate.Limiter),
 		schedulingInfoRepository: schedulingInfoRepository,
 		decompressorPool:         decompressorPool,
 		executorRepository:       executorRepository,
@@ -377,7 +387,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 
 		// Group gangs.
 		for _, job := range jobs {
-			gangId, _, isGangJob, err := scheduler.GangIdAndCardinalityFromLegacySchedulerJob(job)
+			gangId, _, _, isGangJob, err := scheduler.GangIdAndCardinalityFromLegacySchedulerJob(job)
 			if err != nil {
 				return nil, err
 			}
@@ -488,6 +498,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 		q.schedulingConfig.Preemption.PriorityClasses,
 		q.schedulingConfig.Preemption.DefaultPriorityClass,
 		fairnessCostProvider,
+		q.limiter,
 		totalResources,
 	)
 	for queue, priorityFactor := range priorityFactorByQueue {
@@ -499,7 +510,16 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 		if priorityFactor > 0 {
 			weight = 1 / priorityFactor
 		}
-		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClassForPool[queue]); err != nil {
+		queueLimiter, ok := q.limiterByQueue[queue]
+		if !ok {
+			// Create per-queue limiters lazily.
+			queueLimiter = rate.NewLimiter(
+				rate.Limit(q.schedulingConfig.MaximumPerQueueSchedulingRate),
+				q.schedulingConfig.MaximumPerQueueSchedulingBurst,
+			)
+			q.limiterByQueue[queue] = queueLimiter
+		}
+		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClassForPool[queue], queueLimiter); err != nil {
 			return nil, err
 		}
 	}

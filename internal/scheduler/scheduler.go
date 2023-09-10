@@ -163,16 +163,20 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 
 			shouldSchedule := s.clock.Now().Sub(s.previousSchedulingRoundEnd) > s.schedulePeriod
 
-			if err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule); err != nil {
+			result, err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule)
+			if err != nil {
 				logging.WithStacktrace(ctx.Log, err).Error("scheduling cycle failure")
 				leaderToken = InvalidLeaderToken()
 			}
 
 			cycleTime := s.clock.Since(start)
 
+			s.metrics.ResetGaugeMetrics()
+
 			if shouldSchedule && leaderToken.leader {
 				// Only the leader token does real scheduling rounds.
 				s.metrics.ReportScheduleCycleTime(cycleTime)
+				s.metrics.ReportSchedulerResult(result)
 				ctx.Log.Infof("scheduling cycle completed in %s", cycleTime)
 			} else {
 				s.metrics.ReportReconcileCycleTime(cycleTime)
@@ -190,16 +194,19 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 // cycle is a single iteration of the main scheduling loop.
 // If updateAll is true, we generate events from all jobs in the jobDb.
 // Otherwise, we only generate events from jobs updated since the last cycle.
-func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) error {
+func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) (overallSchedulerResult SchedulerResult, err error) {
+
+	overallSchedulerResult = SchedulerResult{EmptyResult: true}
+
 	// Update job state.
 	updatedJobs, err := s.syncState(ctx)
 	if err != nil {
-		return err
+		return
 	}
 
 	// Only the leader may make decisions; exit if not leader.
 	if !s.leaderController.ValidateToken(leaderToken) {
-		return nil
+		return
 	}
 
 	// If we've been asked to generate messages for all jobs, do so.
@@ -213,38 +220,33 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	// Generate any events that came out of synchronising the db state.
 	events, err := s.generateUpdateMessages(ctx, updatedJobs, txn)
 	if err != nil {
-		return err
+		return
 	}
 
 	// Expire any jobs running on clusters that haven't heartbeated within the configured deadline.
 	expirationEvents, err := s.expireJobsIfNecessary(ctx, txn)
 	if err != nil {
-		return err
+		return
 	}
 	events = append(events, expirationEvents...)
 
 	// Schedule jobs.
 	if shouldSchedule {
-		overallSchedulerResult, err := s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
+		var result *SchedulerResult
+		result, err = s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
 		if err != nil {
-			return err
+			return
 		}
 
-		// This check feels redundant. It feels like we shouldn't have got here without
-		// a leader token.
-		if leaderToken.leader {
-			// Report various metrics computed from the scheduling cycle.
-			// TODO: preemptible jobs, possibly other metrics
-			// TODO: Return this information and deal with metrics after the cycle?
-			s.metrics.ReportSchedulerResult(overallSchedulerResult)
-		}
-
-		resultEvents, err := s.eventsFromSchedulerResult(overallSchedulerResult)
+		var resultEvents []*armadaevents.EventSequence
+		resultEvents, err = s.eventsFromSchedulerResult(txn, result)
 		if err != nil {
-			return err
+			return
 		}
 		events = append(events, resultEvents...)
 		s.previousSchedulingRoundEnd = s.clock.Now()
+
+		overallSchedulerResult = *result
 	}
 
 	// Publish to Pulsar.
@@ -252,12 +254,12 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		return s.leaderController.ValidateToken(leaderToken)
 	}
 	start := s.clock.Now()
-	if err := s.publisher.PublishMessages(ctx, events, isLeader); err != nil {
-		return err
+	if err = s.publisher.PublishMessages(ctx, events, isLeader); err != nil {
+		return
 	}
 	ctx.Log.Infof("published %d events to pulsar in %s", len(events), s.clock.Since(start))
 	txn.Commit()
-	return nil
+	return
 }
 
 // syncState updates jobs in jobDb to match state in postgres and returns all updated jobs.
