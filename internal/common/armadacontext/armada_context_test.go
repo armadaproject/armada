@@ -2,9 +2,10 @@ package armadacontext
 
 import (
 	"context"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"testing"
 	"time"
+
+	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"

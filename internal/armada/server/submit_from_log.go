@@ -143,7 +143,6 @@ func (srv *SubmitFromLog) Run(ctx *armadacontext.Context) error {
 // To maintain ordering, we only do so for subsequences of consecutive events of equal type.
 // The returned bool indicates if the corresponding Pulsar message should be ack'd or not.
 func (srv *SubmitFromLog) ProcessSequence(ctx *armadacontext.Context, sequence *armadaevents.EventSequence) bool {
-
 	// Sub-functions should always increment the events index unless they experience a transient error.
 	// However, if a permanent error is mis-categorised as transient, we may get stuck forever.
 	// To avoid that issue, we return immediately if timeout time has passed

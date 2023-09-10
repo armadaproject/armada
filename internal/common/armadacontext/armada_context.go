@@ -16,7 +16,7 @@ type Context struct {
 	Log *logrus.Entry
 }
 
-// Background creates an empty context with a default logger.  It is analagous to context.Background()
+// Background creates an empty context with a default logger.  It is analogous to context.Background()
 func Background() *Context {
 	return &Context{
 		Context: context.Background(),
@@ -24,7 +24,7 @@ func Background() *Context {
 	}
 }
 
-// TODO creates an empty context with a default logger.  It is analagous to context.TODO()
+// TODO creates an empty context with a default logger.  It is analogous to context.TODO()
 func TODO() *Context {
 	return &Context{
 		Context: context.TODO(),
@@ -47,7 +47,7 @@ func New(ctx context.Context, log *logrus.Entry) *Context {
 	}
 }
 
-// WithCancel returns a copy of parent with a new Done channel. It is analagous to context.WithCancel()
+// WithCancel returns a copy of parent with a new Done channel. It is analogous to context.WithCancel()
 func WithCancel(parent *Context) (*Context, context.CancelFunc) {
 	c, cancel := context.WithCancel(parent.Context)
 	return &Context{
@@ -57,7 +57,7 @@ func WithCancel(parent *Context) (*Context, context.CancelFunc) {
 }
 
 // WithDeadline returns a copy of the parent context with the deadline adjusted to be no later than d.
-// It is analagous to context.WithDeadline()
+// It is analogous to context.WithDeadline()
 func WithDeadline(parent *Context, d time.Time) (*Context, context.CancelFunc) {
 	c, cancel := context.WithDeadline(parent.Context, d)
 	return &Context{
@@ -66,7 +66,7 @@ func WithDeadline(parent *Context, d time.Time) (*Context, context.CancelFunc) {
 	}, cancel
 }
 
-// WithTimeout returns WithDeadline(parent, time.Now().Add(timeout)). It is analagous to context.WithTimeout()
+// WithTimeout returns WithDeadline(parent, time.Now().Add(timeout)). It is analogous to context.WithTimeout()
 func WithTimeout(parent *Context, timeout time.Duration) (*Context, context.CancelFunc) {
 	return WithDeadline(parent, time.Now().Add(timeout))
 }
@@ -88,7 +88,7 @@ func WithLogFields(parent *Context, fields logrus.Fields) *Context {
 }
 
 // WithValue returns a copy of parent in which the value associated with key is
-// val. It is analagous to context.WithValue()
+// val. It is analogous to context.WithValue()
 func WithValue(parent *Context, key, val any) *Context {
 	return &Context{
 		Context: context.WithValue(parent, key, val),
@@ -97,7 +97,7 @@ func WithValue(parent *Context, key, val any) *Context {
 }
 
 // ErrGroup returns a new Error Group and an associated Context derived from ctx.
-// It is analagous to errgroup.WithContext(ctx)
+// It is analogous to errgroup.WithContext(ctx)
 func ErrGroup(ctx *Context) (*errgroup.Group, *Context) {
 	group, goctx := errgroup.WithContext(ctx)
 	return group, &Context{

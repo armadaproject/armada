@@ -92,7 +92,6 @@ func (l *FairSchedulingAlgo) Schedule(
 	txn *jobdb.Txn,
 	jobDb *jobdb.JobDb,
 ) (*SchedulerResult, error) {
-
 	overallSchedulerResult := &SchedulerResult{
 		NodeIdByJobId:      make(map[string]string),
 		SchedulingContexts: make([]*schedulercontext.SchedulingContext, 0, 0),

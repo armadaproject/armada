@@ -195,7 +195,6 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 // If updateAll is true, we generate events from all jobs in the jobDb.
 // Otherwise, we only generate events from jobs updated since the last cycle.
 func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) (overallSchedulerResult SchedulerResult, err error) {
-
 	overallSchedulerResult = SchedulerResult{EmptyResult: true}
 
 	// Update job state.
@@ -239,7 +238,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		}
 
 		var resultEvents []*armadaevents.EventSequence
-		resultEvents, err = s.eventsFromSchedulerResult(txn, result)
+		resultEvents, err = s.eventsFromSchedulerResult(result)
 		if err != nil {
 			return
 		}
@@ -264,7 +263,6 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 
 // syncState updates jobs in jobDb to match state in postgres and returns all updated jobs.
 func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) {
-
 	start := s.clock.Now()
 	updatedJobs, updatedRuns, err := s.jobRepository.FetchJobUpdates(ctx, s.jobsSerial, s.runsSerial)
 	if err != nil {
@@ -702,7 +700,6 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 // It also generates an EventSequence for each job, indicating that both the run and the job has failed
 // Note that this is different behaviour from the old scheduler which would allow expired jobs to be rerun
 func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
-
 	heartbeatTimes, err := s.executorRepository.GetLastUpdateTimes(ctx)
 	if err != nil {
 		return nil, err
@@ -820,7 +817,6 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 // function was called. This is achieved firstly by publishing messages to Pulsar and then polling the
 // database until all messages have been written.
 func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval time.Duration) error {
-
 	groupId := uuid.New()
 	var numSent uint32
 	var err error
