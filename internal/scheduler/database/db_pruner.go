@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 )
 
 // PruneDb removes completed jobs (and related runs and errors) from the database if their `lastUpdateTime`
@@ -28,7 +28,7 @@ func PruneDb(ctx ctx.Context, db *pgx.Conn, batchLimit int, keepAfterCompletion 
 	// Insert the ids of all jobs we want to delete into a tmp table
 	_, err = db.Exec(ctx,
 		`CREATE TEMP TABLE rows_to_delete AS (
-             SELECT job_id FROM jobs 
+             SELECT job_id FROM jobs
 			 WHERE last_modified < $1
 			 AND (succeeded = TRUE OR failed = TRUE OR cancelled = TRUE))`, cutOffTime)
 	if err != nil {

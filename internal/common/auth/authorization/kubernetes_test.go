@@ -11,7 +11,7 @@ import (
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
 	authv1 "k8s.io/api/authentication/v1"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"

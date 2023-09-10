@@ -7,7 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
-	"k8s.io/apimachinery/pkg/util/clock"
+	"k8s.io/utils/clock"
 )
 
 func PruneDb(ctx context.Context, db *pgx.Conn, keepAfterCompletion time.Duration, batchLimit int, clock clock.Clock) error {
@@ -63,7 +63,7 @@ func PruneDb(ctx context.Context, db *pgx.Conn, keepAfterCompletion time.Duratio
 func createJobIdsToDeleteTempTable(ctx context.Context, db *pgx.Conn, cutOffTime time.Time) (int, error) {
 	_, err := db.Exec(ctx, `
 		CREATE TEMP TABLE job_ids_to_delete AS (
-			SELECT job_id FROM job 
+			SELECT job_id FROM job
 			WHERE last_transition_time < $1
 		)`, cutOffTime)
 	if err != nil {

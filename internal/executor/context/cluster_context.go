@@ -16,7 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/clock"
 	"k8s.io/client-go/informers"
 	informer "k8s.io/client-go/informers/core/v1"
 	discovery_informer "k8s.io/client-go/informers/discovery/v1"
@@ -24,6 +23,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
+	"k8s.io/utils/clock"
 	"k8s.io/utils/pointer"
 
 	"github.com/armadaproject/armada/internal/common/cluster"
