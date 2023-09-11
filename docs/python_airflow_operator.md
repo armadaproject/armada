@@ -281,7 +281,7 @@ Runs the trigger. Meant to be called by an airflow triggerer process.
 
 
 #### serialize()
-Returns the information needed to reconstruct this Trigger.
+Return the information needed to reconstruct this Trigger.
 
 
 * **Returns**
