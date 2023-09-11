@@ -1,11 +1,11 @@
 package armadactl
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/client/domain"
@@ -17,7 +17,7 @@ func (a *App) Analyze(queue string, jobSetId string) error {
 		events := map[string][]*api.Event{}
 		var jobState *domain.WatchContext
 
-		client.WatchJobSet(ec, queue, jobSetId, false, true, false, false, context.Background(), func(state *domain.WatchContext, e api.Event) bool {
+		client.WatchJobSet(ec, queue, jobSetId, false, true, false, false, armadacontext.Background(), func(state *domain.WatchContext, e api.Event) bool {
 			events[e.GetJobId()] = append(events[e.GetJobId()], &e)
 			jobState = state
 			return false

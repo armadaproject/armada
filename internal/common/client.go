@@ -3,8 +3,10 @@ package common
 import (
 	"context"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
-func ContextWithDefaultTimeout() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), 10*time.Second)
+func ContextWithDefaultTimeout() (*armadacontext.Context, context.CancelFunc) {
+	return armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
 }

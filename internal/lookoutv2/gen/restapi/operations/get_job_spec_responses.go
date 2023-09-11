@@ -16,7 +16,8 @@ import (
 // GetJobSpecOKCode is the HTTP code returned for type GetJobSpecOK
 const GetJobSpecOKCode int = 200
 
-/*GetJobSpecOK Returns raw Job spec
+/*
+GetJobSpecOK Returns raw Job spec
 
 swagger:response getJobSpecOK
 */
@@ -60,7 +61,8 @@ func (o *GetJobSpecOK) WriteResponse(rw http.ResponseWriter, producer runtime.Pr
 // GetJobSpecBadRequestCode is the HTTP code returned for type GetJobSpecBadRequest
 const GetJobSpecBadRequestCode int = 400
 
-/*GetJobSpecBadRequest Error response
+/*
+GetJobSpecBadRequest Error response
 
 swagger:response getJobSpecBadRequest
 */
@@ -101,7 +103,8 @@ func (o *GetJobSpecBadRequest) WriteResponse(rw http.ResponseWriter, producer ru
 	}
 }
 
-/*GetJobSpecDefault Error response
+/*
+GetJobSpecDefault Error response
 
 swagger:response getJobSpecDefault
 */

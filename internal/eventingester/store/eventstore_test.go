@@ -1,13 +1,13 @@
 package store
 
 import (
-	"context"
 	"testing"
 	"time"
 
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
 	"github.com/armadaproject/armada/internal/eventingester/model"
 )
@@ -29,7 +29,7 @@ func TestReportEvents(t *testing.T) {
 			},
 		}
 
-		err := r.Store(context.Background(), update)
+		err := r.Store(armadacontext.Background(), update)
 		assert.NoError(t, err)
 
 		read1, err := ReadEvent(r.db, "testQueue", "testJobset")

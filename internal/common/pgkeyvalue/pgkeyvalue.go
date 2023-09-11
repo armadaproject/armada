@@ -1,7 +1,6 @@
 package pgkeyvalue
 
 import (
-	"context"
 	"fmt"
 	"time"
 
@@ -10,6 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/logging"
@@ -34,7 +34,7 @@ type PGKeyValueStore struct {
 	clock clock.Clock
 }
 
-func New(ctx context.Context, db *pgxpool.Pool, tableName string) (*PGKeyValueStore, error) {
+func New(ctx *armadacontext.Context, db *pgxpool.Pool, tableName string) (*PGKeyValueStore, error) {
 	if db == nil {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "db",
@@ -60,7 +60,7 @@ func New(ctx context.Context, db *pgxpool.Pool, tableName string) (*PGKeyValueSt
 	}, nil
 }
 
-func (c *PGKeyValueStore) Load(ctx context.Context, keys []string) (map[string][]byte, error) {
+func (c *PGKeyValueStore) Load(ctx *armadacontext.Context, keys []string) (map[string][]byte, error) {
 	rows, err := c.db.Query(ctx, fmt.Sprintf("SELECT KEY, VALUE FROM %s WHERE KEY = any($1)", c.tableName), keys)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -78,7 +78,7 @@ func (c *PGKeyValueStore) Load(ctx context.Context, keys []string) (map[string][
 	return kv, nil
 }
 
-func (c *PGKeyValueStore) Store(ctx context.Context, kvs map[string][]byte) error {
+func (c *PGKeyValueStore) Store(ctx *armadacontext.Context, kvs map[string][]byte) error {
 	data := make([]KeyValue, 0, len(kvs))
 	for k, v := range kvs {
 		data = append(data, KeyValue{
@@ -90,7 +90,7 @@ func (c *PGKeyValueStore) Store(ctx context.Context, kvs map[string][]byte) erro
 	return database.UpsertWithTransaction(ctx, c.db, c.tableName, data)
 }
 
-func createTableIfNotExists(ctx context.Context, db *pgxpool.Pool, tableName string) error {
+func createTableIfNotExists(ctx *armadacontext.Context, db *pgxpool.Pool, tableName string) error {
 	_, err := db.Exec(ctx, fmt.Sprintf(`
 		CREATE TABLE IF NOT EXISTS %s (
 		    key TEXT PRIMARY KEY,
@@ -101,7 +101,7 @@ func createTableIfNotExists(ctx context.Context, db *pgxpool.Pool, tableName str
 }
 
 // Cleanup removes all key-value pairs older than lifespan.
-func (c *PGKeyValueStore) cleanup(ctx context.Context, lifespan time.Duration) error {
+func (c *PGKeyValueStore) cleanup(ctx *armadacontext.Context, lifespan time.Duration) error {
 	sql := fmt.Sprintf("DELETE FROM %s WHERE (inserted <= $1);", c.tableName)
 	_, err := c.db.Exec(ctx, sql, c.clock.Now().Add(-lifespan))
 	if err != nil {
@@ -112,7 +112,7 @@ func (c *PGKeyValueStore) cleanup(ctx context.Context, lifespan time.Duration) e
 
 // PeriodicCleanup starts a goroutine that automatically runs the cleanup job
 // every interval until the provided context is cancelled.
-func (c *PGKeyValueStore) PeriodicCleanup(ctx context.Context, interval time.Duration, lifespan time.Duration) error {
+func (c *PGKeyValueStore) PeriodicCleanup(ctx *armadacontext.Context, interval time.Duration, lifespan time.Duration) error {
 	log := logrus.StandardLogger().WithField("service", "PGKeyValueStoreCleanup")
 	log.Info("service started")
 	ticker := c.clock.NewTicker(interval)
