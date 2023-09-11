@@ -1,7 +1,6 @@
 package executor
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -14,10 +13,10 @@ import (
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/cluster"
 	"github.com/armadaproject/armada/internal/common/etcdhealth"
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
@@ -41,7 +40,7 @@ import (
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
-func StartUp(ctx context.Context, log *logrus.Entry, config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
+func StartUp(ctx *armadacontext.Context, log *logrus.Entry, config configuration.ExecutorConfiguration) (func(), *sync.WaitGroup) {
 	err := validateConfig(config)
 	if err != nil {
 		log.Errorf("Invalid config: %s", err)
@@ -59,7 +58,7 @@ func StartUp(ctx context.Context, log *logrus.Entry, config configuration.Execut
 	}
 
 	// Create an errgroup to run services in.
-	g, ctx := errgroup.WithContext(ctx)
+	g, ctx := armadacontext.ErrGroup(ctx)
 
 	// Setup etcd health monitoring.
 	etcdClusterHealthMonitoringByName := make(map[string]healthmonitor.HealthMonitor, len(config.Kubernetes.Etcd.EtcdClustersHealthMonitoring))

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"net/http"
 	"os"
 	"os/signal"
@@ -13,6 +12,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/executor"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -55,7 +55,7 @@ func main() {
 	)
 	defer shutdownMetricServer()
 
-	shutdown, wg := executor.StartUp(context.Background(), logrus.NewEntry(logrus.New()), config)
+	shutdown, wg := executor.StartUp(armadacontext.Background(), logrus.NewEntry(logrus.New()), config)
 	go func() {
 		<-shutdownChannel
 		shutdown()
