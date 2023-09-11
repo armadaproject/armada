@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"sort"
@@ -12,13 +11,14 @@ import (
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/lookoutv2/model"
 )
 
 type GetJobsRepository interface {
-	GetJobs(ctx context.Context, filters []*model.Filter, order *model.Order, skip int, take int) (*GetJobsResult, error)
+	GetJobs(ctx *armadacontext.Context, filters []*model.Filter, order *model.Order, skip int, take int) (*GetJobsResult, error)
 }
 
 type SqlGetJobsRepository struct {
@@ -77,7 +77,7 @@ func NewSqlGetJobsRepository(db *pgxpool.Pool) *SqlGetJobsRepository {
 	}
 }
 
-func (r *SqlGetJobsRepository) GetJobs(ctx context.Context, filters []*model.Filter, activeJobSets bool, order *model.Order, skip int, take int) (*GetJobsResult, error) {
+func (r *SqlGetJobsRepository) GetJobs(ctx *armadacontext.Context, filters []*model.Filter, activeJobSets bool, order *model.Order, skip int, take int) (*GetJobsResult, error) {
 	var jobRows []*jobRow
 	var runRows []*runRow
 	var annotationRows []*annotationRow
@@ -243,7 +243,7 @@ func getJobRunTime(run *model.Run) (time.Time, error) {
 	return time.Time{}, errors.Errorf("error when getting run time for run with id %s", run.RunId)
 }
 
-func makeJobRows(ctx context.Context, tx pgx.Tx, tmpTableName string) ([]*jobRow, error) {
+func makeJobRows(ctx *armadacontext.Context, tx pgx.Tx, tmpTableName string) ([]*jobRow, error) {
 	query := fmt.Sprintf(`
 		SELECT
 			j.job_id,
@@ -302,7 +302,7 @@ func makeJobRows(ctx context.Context, tx pgx.Tx, tmpTableName string) ([]*jobRow
 	return rows, nil
 }
 
-func makeRunRows(ctx context.Context, tx pgx.Tx, tmpTableName string) ([]*runRow, error) {
+func makeRunRows(ctx *armadacontext.Context, tx pgx.Tx, tmpTableName string) ([]*runRow, error) {
 	query := fmt.Sprintf(`
 		SELECT
 		    jr.job_id,
@@ -347,7 +347,7 @@ func makeRunRows(ctx context.Context, tx pgx.Tx, tmpTableName string) ([]*runRow
 	return rows, nil
 }
 
-func makeAnnotationRows(ctx context.Context, tx pgx.Tx, tempTableName string) ([]*annotationRow, error) {
+func makeAnnotationRows(ctx *armadacontext.Context, tx pgx.Tx, tempTableName string) ([]*annotationRow, error) {
 	query := fmt.Sprintf(`
 		SELECT
 			ual.job_id,

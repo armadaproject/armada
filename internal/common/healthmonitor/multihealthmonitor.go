@@ -1,7 +1,6 @@
 package healthmonitor
 
 import (
-	"context"
 	"fmt"
 	"sync"
 
@@ -9,7 +8,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
-	"golang.org/x/sync/errgroup"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 // MultiHealthMonitor wraps multiple HealthMonitors and itself implements the HealthMonitor interface.
@@ -100,8 +100,8 @@ func (srv *MultiHealthMonitor) IsHealthy() (ok bool, reason string, err error) {
 }
 
 // Run initialises prometheus metrics and starts any child health checkers.
-func (srv *MultiHealthMonitor) Run(ctx context.Context, log *logrus.Entry) error {
-	g, ctx := errgroup.WithContext(ctx)
+func (srv *MultiHealthMonitor) Run(ctx *armadacontext.Context, log *logrus.Entry) error {
+	g, ctx := armadacontext.ErrGroup(ctx)
 	for _, healthMonitor := range srv.healthMonitorsByName {
 		healthMonitor := healthMonitor
 		g.Go(func() error { return healthMonitor.Run(ctx, log) })
