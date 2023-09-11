@@ -492,8 +492,10 @@ Get a JobServiceAsyncIOClient that has retry configured
 ## armada.operators.utils module
 
 
-### _class_ armada.operators.utils.JobState(value, names=None, \*, module=None, qualname=None, type=None, start=1, boundary=None)
+### _class_ armada.operators.utils.JobState(value)
 Bases: `Enum`
+
+An enumeration.
 
 
 #### CANCELLED(_ = _ )
