@@ -32,7 +32,7 @@ blog_settings:
 menu_settings:
   menu_items:
     - title: 'Design'
-      url: '/design'    
+      url: '/design/'   
     - title: 'Documentation'
       submenu_items:
       - title: 'Development'
