@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -79,11 +78,11 @@ func NewMetricsCollector(
 // Run enters s a loop which updates the metrics every refreshPeriod until the supplied context is cancelled
 func (c *MetricsCollector) Run(ctx *armadacontext.Context) error {
 	ticker := c.clock.NewTicker(c.refreshPeriod)
-	log.Infof("Will update metrics every %s", c.refreshPeriod)
+	ctx.Log.Infof("Will update metrics every %s", c.refreshPeriod)
 	for {
 		select {
 		case <-ctx.Done():
-			log.Debugf("Context cancelled, returning..")
+			ctx.Log.Debugf("Context cancelled, returning..")
 			return nil
 		case <-ticker.C():
 			err := c.refresh(ctx)
@@ -112,7 +111,7 @@ func (c *MetricsCollector) Collect(metrics chan<- prometheus.Metric) {
 }
 
 func (c *MetricsCollector) refresh(ctx *armadacontext.Context) error {
-	log.Debugf("Refreshing prometheus metrics")
+	ctx.Log.Debugf("Refreshing prometheus metrics")
 	start := time.Now()
 	queueMetrics, err := c.updateQueueMetrics(ctx)
 	if err != nil {
@@ -124,7 +123,7 @@ func (c *MetricsCollector) refresh(ctx *armadacontext.Context) error {
 	}
 	allMetrics := append(queueMetrics, clusterMetrics...)
 	c.state.Store(allMetrics)
-	log.Debugf("Refreshed prometheus metrics in %s", time.Since(start))
+	ctx.Log.Debugf("Refreshed prometheus metrics in %s", time.Since(start))
 	return nil
 }
 
@@ -157,7 +156,8 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 		}
 		qs, ok := provider.queueStates[job.Queue()]
 		if !ok {
-			log.Warnf("job %s is in queue %s, but this queue does not exist; skipping", job.Id(), job.Queue())
+			ctx.Log.
+				Warnf("job %s is in queue %s, but this queue does not exist; skipping", job.Id(), job.Queue())
 			continue
 		}
 
@@ -184,7 +184,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 			timeInState = currentTime.Sub(time.Unix(0, run.Created()))
 			recorder = qs.runningJobRecorder
 		} else {
-			log.Warnf("Job %s is marked as leased but has no runs", job.Id())
+			ctx.Log.Warnf("Job %s is marked as leased but has no runs", job.Id())
 		}
 		recorder.RecordJobRuntime(pool, priorityClass, timeInState)
 		recorder.RecordResources(pool, priorityClass, jobResources)

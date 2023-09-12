@@ -1,14 +1,13 @@
 package scheduler
 
 import (
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"time"
-
-	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -157,14 +156,14 @@ func (metrics *SchedulerMetrics) ReportReconcileCycleTime(cycleTime time.Duratio
 	metrics.reconcileCycleTime.Observe(float64(cycleTime.Milliseconds()))
 }
 
-func (metrics *SchedulerMetrics) ReportSchedulerResult(result SchedulerResult) {
+func (metrics *SchedulerMetrics) ReportSchedulerResult(ctx armadacontext.Context, result SchedulerResult) {
 	if result.EmptyResult {
 		return // TODO: Add logging or maybe place to add failure metric?
 	}
 
 	// Report the total scheduled jobs (possibly we can get these out of contexts?)
-	metrics.reportScheduledJobs(result.ScheduledJobs)
-	metrics.reportPreemptedJobs(result.PreemptedJobs)
+	metrics.reportScheduledJobs(ctx, result.ScheduledJobs)
+	metrics.reportPreemptedJobs(ctx, result.PreemptedJobs)
 
 	// TODO: When more metrics are added, consider consolidating into a single loop over the data.
 	// Report the number of considered jobs.
@@ -172,14 +171,14 @@ func (metrics *SchedulerMetrics) ReportSchedulerResult(result SchedulerResult) {
 	metrics.reportQueueShares(result.SchedulingContexts)
 }
 
-func (metrics *SchedulerMetrics) reportScheduledJobs(scheduledJobs []interfaces.LegacySchedulerJob) {
+func (metrics *SchedulerMetrics) reportScheduledJobs(ctx armadacontext.Context, scheduledJobs []interfaces.LegacySchedulerJob) {
 	jobAggregates := aggregateJobs(scheduledJobs)
-	observeJobAggregates(metrics.scheduledJobsPerQueue, jobAggregates)
+	observeJobAggregates(ctx, metrics.scheduledJobsPerQueue, jobAggregates)
 }
 
-func (metrics *SchedulerMetrics) reportPreemptedJobs(preemptedJobs []interfaces.LegacySchedulerJob) {
+func (metrics *SchedulerMetrics) reportPreemptedJobs(ctx armadacontext.Context, preemptedJobs []interfaces.LegacySchedulerJob) {
 	jobAggregates := aggregateJobs(preemptedJobs)
-	observeJobAggregates(metrics.preemptedJobsPerQueue, jobAggregates)
+	observeJobAggregates(ctx, metrics.preemptedJobsPerQueue, jobAggregates)
 }
 
 type collectionKey struct {
@@ -200,7 +199,7 @@ func aggregateJobs[S ~[]E, E interfaces.LegacySchedulerJob](scheduledJobs S) map
 }
 
 // observeJobAggregates reports a set of job aggregates to a given CounterVec by queue and priorityClass.
-func observeJobAggregates(metric prometheus.CounterVec, jobAggregates map[collectionKey]int) {
+func observeJobAggregates(ctx armadacontext.Context, metric prometheus.CounterVec, jobAggregates map[collectionKey]int) {
 	for key, count := range jobAggregates {
 		queue := key.queue
 		priorityClassName := key.priorityClass
@@ -209,14 +208,14 @@ func observeJobAggregates(metric prometheus.CounterVec, jobAggregates map[collec
 
 		if err != nil {
 			// A metric failure isn't reason to kill the programme.
-			log.Errorf("error reteriving considered jobs observer for queue %s, priorityClass %s", queue, priorityClassName)
+			ctx.Log.Errorf("error reteriving considered jobs observer for queue %s, priorityClass %s", queue, priorityClassName)
 		} else {
 			observer.Add(float64(count))
 		}
 	}
 }
 
-func (metrics *SchedulerMetrics) reportNumberOfJobsConsidered(schedulingContexts []*schedulercontext.SchedulingContext) {
+func (metrics *SchedulerMetrics) reportNumberOfJobsConsidered(ctx *armadacontext.Context, schedulingContexts []*schedulercontext.SchedulingContext) {
 	for _, schedContext := range schedulingContexts {
 		pool := schedContext.Pool
 		for queue, queueContext := range schedContext.QueueSchedulingContexts {
@@ -224,7 +223,7 @@ func (metrics *SchedulerMetrics) reportNumberOfJobsConsidered(schedulingContexts
 
 			observer, err := metrics.consideredJobs.GetMetricWithLabelValues(queue, pool)
 			if err != nil {
-				log.Errorf("error reteriving considered jobs observer for queue %s, pool %s", queue, pool)
+				ctx.Log.Errorf("error reteriving considered jobs observer for queue %s, pool %s", queue, pool)
 			} else {
 				observer.Add(float64(count))
 			}
@@ -232,7 +231,7 @@ func (metrics *SchedulerMetrics) reportNumberOfJobsConsidered(schedulingContexts
 	}
 }
 
-func (metrics *SchedulerMetrics) reportQueueShares(schedulingContexts []*schedulercontext.SchedulingContext) {
+func (metrics *SchedulerMetrics) reportQueueShares(ctx armadacontext.Context, schedulingContexts []*schedulercontext.SchedulingContext) {
 	for _, schedContext := range schedulingContexts {
 		totalCost := schedContext.TotalCost()
 		totalWeight := schedContext.WeightSum
@@ -243,7 +242,7 @@ func (metrics *SchedulerMetrics) reportQueueShares(schedulingContexts []*schedul
 
 			observer, err := metrics.fairSharePerQueue.GetMetricWithLabelValues(queue, pool)
 			if err != nil {
-				log.Errorf("error reteriving considered jobs observer for queue %s, pool %s", queue, pool)
+				ctx.Log.Errorf("error retrieving considered jobs observer for queue %s, pool %s", queue, pool)
 			} else {
 				observer.Set(fairShare)
 			}
@@ -252,7 +251,7 @@ func (metrics *SchedulerMetrics) reportQueueShares(schedulingContexts []*schedul
 
 			observer, err = metrics.actualSharePerQueue.GetMetricWithLabelValues(queue, pool)
 			if err != nil {
-				log.Errorf("error reteriving considered jobs observer for queue %s, pool %s", queue, pool)
+				ctx.Log.Errorf("error reteriving considered jobs observer for queue %s, pool %s", queue, pool)
 			} else {
 				observer.Set(actualShare)
 			}

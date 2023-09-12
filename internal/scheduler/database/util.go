@@ -5,11 +5,9 @@ import (
 	_ "embed"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 //go:embed migrations/*.sql
@@ -25,7 +23,7 @@ func Migrate(ctx *armadacontext.Context, db database.Querier) error {
 	if err != nil {
 		return err
 	}
-	log.Infof("Updated scheduler database in %s", time.Now().Sub(start))
+	ctx.Log.Infof("Updated scheduler database in %s", time.Now().Sub(start))
 	return nil
 }
 

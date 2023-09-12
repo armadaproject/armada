@@ -8,15 +8,13 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/gogo/protobuf/proto"
-	"github.com/google/uuid"
-	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
-
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/uuid"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -104,7 +102,7 @@ func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, events []*
 
 	// Send messages
 	if shouldPublish() {
-		log.Debugf("Am leader so will publish")
+		ctx.Log.Debugf("Am leader so will publish")
 		sendCtx, cancel := armadacontext.WithTimeout(ctx, p.pulsarSendTimeout)
 		errored := false
 		for _, msg := range msgs {
@@ -124,7 +122,7 @@ func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, events []*
 			return errors.New("One or more messages failed to send to Pulsar")
 		}
 	} else {
-		log.Debugf("No longer leader so not publishing")
+		ctx.Log.Debugf("No longer leader so not publishing")
 	}
 	return nil
 }
