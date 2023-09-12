@@ -2,11 +2,12 @@ package scheduler
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/logging"
 	"net"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/logging"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
@@ -99,7 +100,7 @@ func Run(config schedulerconfig.Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	// Leader Election
 	//////////////////////////////////////////////////////////////////////////
-	leaderController, err := createLeaderController(config.Leader)
+	leaderController, err := createLeaderController(ctx, config.Leader)
 	if err != nil {
 		return errors.WithMessage(err, "error creating leader controller")
 	}
@@ -247,7 +248,7 @@ func createLeaderController(ctx *armadacontext.Context, config schedulerconfig.L
 		return NewStandaloneLeaderController(), nil
 	case "kubernetes":
 		ctx.Log.Infof("Scheduler will run kubernetes mode")
-		clusterConfig, err := loadClusterConfig()
+		clusterConfig, err := loadClusterConfig(ctx)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error creating kubernetes client")
 		}

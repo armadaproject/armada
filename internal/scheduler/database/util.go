@@ -5,9 +5,10 @@ import (
 	_ "embed"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 //go:embed migrations/*.sql

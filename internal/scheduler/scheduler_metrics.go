@@ -1,13 +1,14 @@
 package scheduler
 
 import (
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -156,7 +157,7 @@ func (metrics *SchedulerMetrics) ReportReconcileCycleTime(cycleTime time.Duratio
 	metrics.reconcileCycleTime.Observe(float64(cycleTime.Milliseconds()))
 }
 
-func (metrics *SchedulerMetrics) ReportSchedulerResult(ctx armadacontext.Context, result SchedulerResult) {
+func (metrics *SchedulerMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result SchedulerResult) {
 	if result.EmptyResult {
 		return // TODO: Add logging or maybe place to add failure metric?
 	}
@@ -167,16 +168,16 @@ func (metrics *SchedulerMetrics) ReportSchedulerResult(ctx armadacontext.Context
 
 	// TODO: When more metrics are added, consider consolidating into a single loop over the data.
 	// Report the number of considered jobs.
-	metrics.reportNumberOfJobsConsidered(result.SchedulingContexts)
-	metrics.reportQueueShares(result.SchedulingContexts)
+	metrics.reportNumberOfJobsConsidered(ctx, result.SchedulingContexts)
+	metrics.reportQueueShares(ctx, result.SchedulingContexts)
 }
 
-func (metrics *SchedulerMetrics) reportScheduledJobs(ctx armadacontext.Context, scheduledJobs []interfaces.LegacySchedulerJob) {
+func (metrics *SchedulerMetrics) reportScheduledJobs(ctx *armadacontext.Context, scheduledJobs []interfaces.LegacySchedulerJob) {
 	jobAggregates := aggregateJobs(scheduledJobs)
 	observeJobAggregates(ctx, metrics.scheduledJobsPerQueue, jobAggregates)
 }
 
-func (metrics *SchedulerMetrics) reportPreemptedJobs(ctx armadacontext.Context, preemptedJobs []interfaces.LegacySchedulerJob) {
+func (metrics *SchedulerMetrics) reportPreemptedJobs(ctx *armadacontext.Context, preemptedJobs []interfaces.LegacySchedulerJob) {
 	jobAggregates := aggregateJobs(preemptedJobs)
 	observeJobAggregates(ctx, metrics.preemptedJobsPerQueue, jobAggregates)
 }
@@ -199,7 +200,7 @@ func aggregateJobs[S ~[]E, E interfaces.LegacySchedulerJob](scheduledJobs S) map
 }
 
 // observeJobAggregates reports a set of job aggregates to a given CounterVec by queue and priorityClass.
-func observeJobAggregates(ctx armadacontext.Context, metric prometheus.CounterVec, jobAggregates map[collectionKey]int) {
+func observeJobAggregates(ctx *armadacontext.Context, metric prometheus.CounterVec, jobAggregates map[collectionKey]int) {
 	for key, count := range jobAggregates {
 		queue := key.queue
 		priorityClassName := key.priorityClass
@@ -231,7 +232,7 @@ func (metrics *SchedulerMetrics) reportNumberOfJobsConsidered(ctx *armadacontext
 	}
 }
 
-func (metrics *SchedulerMetrics) reportQueueShares(ctx armadacontext.Context, schedulingContexts []*schedulercontext.SchedulingContext) {
+func (metrics *SchedulerMetrics) reportQueueShares(ctx *armadacontext.Context, schedulingContexts []*schedulercontext.SchedulingContext) {
 	for _, schedContext := range schedulingContexts {
 		totalCost := schedContext.TotalCost()
 		totalWeight := schedContext.WeightSum

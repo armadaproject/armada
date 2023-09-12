@@ -1,12 +1,13 @@
 package database
 
 import (
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/util/clock"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 // PruneDb removes completed jobs (and related runs and errors) from the database if their `lastUpdateTime`
