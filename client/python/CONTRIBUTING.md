@@ -26,7 +26,7 @@ workflow for contributing. First time contributors can follow the guide below to
 Unlike most python projects, the Armada python client contains a large quantity of generated code. This code must be
 generated in order to compile and develop against the client.
 
-From the root of the repository, run `make python`. This will generate python code needed to build
+From the root of the repository, run `mage buildPython`. This will generate python code needed to build
 and use the client. This command needs to be re-run anytime an API change is committed (e.g. a change to a `*.proto`
 file).
 
