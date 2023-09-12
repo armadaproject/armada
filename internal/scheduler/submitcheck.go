@@ -6,8 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/logging"
-
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
@@ -15,6 +13,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"

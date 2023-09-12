@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"github.com/renstrom/shortuuid"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -135,6 +136,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 			return ctx.Err()
 		case <-ticker.C():
 			start := s.clock.Now()
+			ctx := armadacontext.WithLogField(ctx, "cycleId", shortuuid.New())
 			leaderToken := s.leaderController.GetToken()
 			fullUpdate := false
 			ctx.Log.Infof("received leaderToken; leader status is %t", leaderToken.leader)

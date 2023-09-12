@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/logging"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
@@ -25,6 +23,7 @@ import (
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
