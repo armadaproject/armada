@@ -2,12 +2,12 @@ package scheduler
 
 import (
 	"fmt"
-	"github.com/renstrom/shortuuid"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"github.com/renstrom/shortuuid"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
