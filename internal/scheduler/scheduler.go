@@ -176,7 +176,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 			s.metrics.ResetGaugeMetrics()
 
 			if shouldSchedule && leaderToken.leader {
-				// Only the leader token does real scheduling rounds.
+				// Only the leader does real scheduling rounds.
 				s.metrics.ReportScheduleCycleTime(cycleTime)
 				s.metrics.ReportSchedulerResult(ctx, result)
 				ctx.Log.Infof("scheduling cycle completed in %s", cycleTime)
