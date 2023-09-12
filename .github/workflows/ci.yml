@@ -30,6 +30,8 @@ jobs:
     uses: ./.github/workflows/lint.yml
   test:
     uses: ./.github/workflows/test.yml
+  prepare:
+    uses: ./.github/workflows/prepare-release.yml
   # Virtual job that can be configured as a required check before a PR can be merged.
   all-required-checks-done:
     name: All required checks done
@@ -37,6 +39,7 @@ jobs:
     needs:
       - lint
       - test
+      - prepare
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/github-script@v6
@@ -48,3 +51,4 @@ jobs:
             } else {
               core.setFailed('Some required checks failed');
             }
+
