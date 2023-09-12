@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"net"
 	"net/http"
 	"strings"
@@ -68,7 +69,9 @@ func Run(config schedulerconfig.Configuration) error {
 	defer func() {
 		err := redisClient.Close()
 		if err != nil {
-			log.WithError(errors.WithStack(err)).Warnf("Redis client didn't close down cleanly")
+			logging.
+				WithStacktrace(ctx.Log, err).
+				Warnf("Redis client didn't close down cleanly")
 		}
 	}()
 	queueRepository := database.NewLegacyQueueRepository(redisClient)

@@ -2,13 +2,13 @@ package scheduler
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"strings"
 	"sync"
 	"time"
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"k8s.io/apimachinery/pkg/util/clock"
 
@@ -101,7 +101,9 @@ func (srv *SubmitChecker) Run(ctx *armadacontext.Context) error {
 func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 	executors, err := srv.executorRepository.GetExecutors(ctx)
 	if err != nil {
-		log.WithError(err).Error("Error fetching executors")
+		logging.
+			WithStacktrace(ctx.Log, err).
+			Error("Error fetching executors")
 		return
 	}
 	for _, executor := range executors {
@@ -114,10 +116,14 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 			}
 			srv.mu.Unlock()
 			if err != nil {
-				log.WithError(err).Errorf("Error constructing node db for executor %s", executor.Id)
+				logging.
+					WithStacktrace(ctx.Log, err).
+					Errorf("Error constructing node db for executor %s", executor.Id)
 			}
 		} else {
-			log.WithError(err).Warnf("Error clearing nodedb for executor %s", executor.Id)
+			logging.
+				WithStacktrace(ctx.Log, err).
+				Warnf("Error clearing nodedb for executor %s", executor.Id)
 		}
 	}
 

@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"github.com/armadaproject/armada/internal/common/logging"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -87,7 +88,9 @@ func (c *MetricsCollector) Run(ctx *armadacontext.Context) error {
 		case <-ticker.C():
 			err := c.refresh(ctx)
 			if err != nil {
-				log.WithError(err).Warnf("error refreshing metrics state")
+				logging.
+					WithStacktrace(ctx.Log, err).
+					Warnf("error refreshing metrics state")
 			}
 		}
 	}

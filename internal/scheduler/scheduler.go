@@ -803,7 +803,7 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 			return nil
 		default:
 			if _, err := s.syncState(ctx); err != nil {
-				ctx.Log.WithError(err).Error("failed to initialise; trying again in 1 second")
+				logging.WithStacktrace(ctx.Log, err).Error("failed to initialise; trying again in 1 second")
 				time.Sleep(1 * time.Second)
 			} else {
 				// Initialisation succeeded.
@@ -830,7 +830,7 @@ func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval ti
 		default:
 			numSent, err = s.publisher.PublishMarkers(ctx, groupId)
 			if err != nil {
-				ctx.Log.WithError(err).Error("Error sending marker messages to pulsar")
+				logging.WithStacktrace(ctx.Log, err).Error("Error sending marker messages to pulsar")
 				s.clock.Sleep(pollInterval)
 			} else {
 				messagesSent = true
@@ -846,7 +846,9 @@ func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval ti
 		default:
 			numReceived, err := s.jobRepository.CountReceivedPartitions(ctx, groupId)
 			if err != nil {
-				ctx.Log.WithError(err).Error("Error querying the database or marker messages")
+				logging.
+					WithStacktrace(ctx.Log, err).
+					Error("Error querying the database or marker messages")
 			}
 			if numSent == numReceived {
 				ctx.Log.Infof("Successfully ensured that database state is up to date")
