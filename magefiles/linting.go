@@ -63,7 +63,7 @@ func LintFix() error {
 }
 
 // Linting Check
-func CheckLint() error {
+func LintCheck() error {
 	mg.Deps(golangciLintCheck)
 	cmd, err := go_TEST_CMD()
 	if err != nil {
