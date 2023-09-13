@@ -102,7 +102,7 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 	executors, err := srv.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		logging.
-			WithStacktrace(ctx.Log, err).
+			WithStacktrace(ctx, err).
 			Error("Error fetching executors")
 		return
 	}
@@ -117,12 +117,12 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 			srv.mu.Unlock()
 			if err != nil {
 				logging.
-					WithStacktrace(ctx.Log, err).
+					WithStacktrace(ctx, err).
 					Errorf("Error constructing node db for executor %s", executor.Id)
 			}
 		} else {
 			logging.
-				WithStacktrace(ctx.Log, err).
+				WithStacktrace(ctx, err).
 				Warnf("Error clearing nodedb for executor %s", executor.Id)
 		}
 	}

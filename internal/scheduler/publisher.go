@@ -103,14 +103,14 @@ func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, events []*
 
 	// Send messages
 	if shouldPublish() {
-		ctx.Log.Debugf("Am leader so will publish")
+		ctx.Debugf("Am leader so will publish")
 		sendCtx, cancel := armadacontext.WithTimeout(ctx, p.pulsarSendTimeout)
 		errored := false
 		for _, msg := range msgs {
 			p.producer.SendAsync(sendCtx, msg, func(_ pulsar.MessageID, _ *pulsar.ProducerMessage, err error) {
 				if err != nil {
 					logging.
-						WithStacktrace(ctx.Log, err).
+						WithStacktrace(ctx, err).
 						Error("error sending message to Pulsar")
 					errored = true
 				}
@@ -123,7 +123,7 @@ func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, events []*
 			return errors.New("One or more messages failed to send to Pulsar")
 		}
 	} else {
-		ctx.Log.Debugf("No longer leader so not publishing")
+		ctx.Debugf("No longer leader so not publishing")
 	}
 	return nil
 }

@@ -103,7 +103,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	if err != nil {
 		return err
 	}
-	ctx.Log.Infof(
+	ctx.Infof(
 		"executor currently has %d job runs; sending %d cancellations and %d new runs",
 		len(requestRuns), len(runsToCancel), len(newRuns),
 	)
@@ -226,7 +226,7 @@ func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req
 	now := srv.clock.Now().UTC()
 	for _, nodeInfo := range req.Nodes {
 		if node, err := api.NewNodeFromNodeInfo(nodeInfo, req.ExecutorId, srv.allowedPriorities, now); err != nil {
-			logging.WithStacktrace(ctx.Log, err).Warnf(
+			logging.WithStacktrace(ctx, err).Warnf(
 				"skipping node %s from executor %s", nodeInfo.GetName(), req.GetExecutorId(),
 			)
 		} else {

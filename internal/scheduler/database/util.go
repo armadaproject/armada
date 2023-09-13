@@ -24,7 +24,7 @@ func Migrate(ctx *armadacontext.Context, db database.Querier) error {
 	if err != nil {
 		return err
 	}
-	ctx.Log.Infof("Updated scheduler database in %s", time.Now().Sub(start))
+	ctx.Infof("Updated scheduler database in %s", time.Now().Sub(start))
 	return nil
 }
 

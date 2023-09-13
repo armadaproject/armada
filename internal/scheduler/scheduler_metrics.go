@@ -209,7 +209,7 @@ func observeJobAggregates(ctx *armadacontext.Context, metric prometheus.CounterV
 
 		if err != nil {
 			// A metric failure isn't reason to kill the programme.
-			ctx.Log.Errorf("error reteriving considered jobs observer for queue %s, priorityClass %s", queue, priorityClassName)
+			ctx.Errorf("error reteriving considered jobs observer for queue %s, priorityClass %s", queue, priorityClassName)
 		} else {
 			observer.Add(float64(count))
 		}
@@ -224,7 +224,7 @@ func (metrics *SchedulerMetrics) reportNumberOfJobsConsidered(ctx *armadacontext
 
 			observer, err := metrics.consideredJobs.GetMetricWithLabelValues(queue, pool)
 			if err != nil {
-				ctx.Log.Errorf("error reteriving considered jobs observer for queue %s, pool %s", queue, pool)
+				ctx.Errorf("error reteriving considered jobs observer for queue %s, pool %s", queue, pool)
 			} else {
 				observer.Add(float64(count))
 			}
@@ -243,7 +243,7 @@ func (metrics *SchedulerMetrics) reportQueueShares(ctx *armadacontext.Context, s
 
 			observer, err := metrics.fairSharePerQueue.GetMetricWithLabelValues(queue, pool)
 			if err != nil {
-				ctx.Log.Errorf("error retrieving considered jobs observer for queue %s, pool %s", queue, pool)
+				ctx.Errorf("error retrieving considered jobs observer for queue %s, pool %s", queue, pool)
 			} else {
 				observer.Set(fairShare)
 			}
@@ -252,7 +252,7 @@ func (metrics *SchedulerMetrics) reportQueueShares(ctx *armadacontext.Context, s
 
 			observer, err = metrics.actualSharePerQueue.GetMetricWithLabelValues(queue, pool)
 			if err != nil {
-				ctx.Log.Errorf("error reteriving considered jobs observer for queue %s, pool %s", queue, pool)
+				ctx.Errorf("error reteriving considered jobs observer for queue %s, pool %s", queue, pool)
 			} else {
 				observer.Set(actualShare)
 			}

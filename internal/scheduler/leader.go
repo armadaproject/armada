@@ -145,7 +145,7 @@ func (lc *KubernetesLeaderController) Run(ctx *armadacontext.Context) error {
 			return ctx.Err()
 		default:
 			lock := lc.getNewLock()
-			ctx.Log.Infof("attempting to become leader")
+			ctx.Infof("attempting to become leader")
 			leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
 				Lock:            lock,
 				ReleaseOnCancel: true,
@@ -154,14 +154,14 @@ func (lc *KubernetesLeaderController) Run(ctx *armadacontext.Context) error {
 				RetryPeriod:     lc.config.RetryPeriod,
 				Callbacks: leaderelection.LeaderCallbacks{
 					OnStartedLeading: func(c context.Context) {
-						ctx.Log.Infof("I am now leader")
+						ctx.Infof("I am now leader")
 						lc.token.Store(NewLeaderToken())
 						for _, listener := range lc.listeners {
 							listener.onStartedLeading(ctx)
 						}
 					},
 					OnStoppedLeading: func() {
-						ctx.Log.Infof("I am no longer leader")
+						ctx.Infof("I am no longer leader")
 						lc.token.Store(InvalidLeaderToken())
 						for _, listener := range lc.listeners {
 							listener.onStoppedLeading()
@@ -174,7 +174,7 @@ func (lc *KubernetesLeaderController) Run(ctx *armadacontext.Context) error {
 					},
 				},
 			})
-			ctx.Log.Infof("leader election round finished")
+			ctx.Infof("leader election round finished")
 		}
 	}
 }

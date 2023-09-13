@@ -40,11 +40,11 @@ func PruneDb(ctx *armadacontext.Context, db *pgx.Conn, batchLimit int, keepAfter
 		return errors.WithStack(err)
 	}
 	if totalJobsToDelete == 0 {
-		ctx.Log.Infof("Found no jobs to be deleted. Exiting")
+		ctx.Infof("Found no jobs to be deleted. Exiting")
 		return nil
 	}
 
-	ctx.Log.Infof("Found %d jobs to be deleted", totalJobsToDelete)
+	ctx.Infof("Found %d jobs to be deleted", totalJobsToDelete)
 
 	//  create temp table to hold a batch of results
 	_, err = db.Exec(ctx, "CREATE TEMP TABLE batch (job_id TEXT);")
@@ -93,10 +93,10 @@ func PruneDb(ctx *armadacontext.Context, db *pgx.Conn, batchLimit int, keepAfter
 
 		taken := time.Now().Sub(batchStart)
 		jobsDeleted += batchSize
-		ctx.Log.
+		ctx.
 			Infof("Deleted %d jobs in %s.  Deleted %d jobs out of %d", batchSize, taken, jobsDeleted, totalJobsToDelete)
 	}
 	taken := time.Now().Sub(start)
-	ctx.Log.Infof("Deleted %d jobs in %s", jobsDeleted, taken)
+	ctx.Infof("Deleted %d jobs in %s", jobsDeleted, taken)
 	return nil
 }

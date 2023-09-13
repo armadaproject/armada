@@ -10,9 +10,9 @@ type stackTracer interface {
 	StackTrace() errors.StackTrace
 }
 
-// WithStacktrace returns a new logrus.Entry obtained by adding error information and, if available, a stack trace
-// as fields to the provided logrus.Entry.
-func WithStacktrace(logger *logrus.Entry, err error) *logrus.Entry {
+// WithStacktrace returns a new logrus.FieldLogger obtained by adding error information and, if available, a stack trace
+// as fields to the provided logrus.FieldLogger.
+func WithStacktrace(logger logrus.FieldLogger, err error) logrus.FieldLogger {
 	logger = logger.WithError(err)
 	if stackErr, ok := err.(stackTracer); ok {
 		return logger.WithField("stacktrace", stackErr.StackTrace())

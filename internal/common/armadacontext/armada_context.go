@@ -13,22 +13,22 @@ import (
 // while retaining type-safety
 type Context struct {
 	context.Context
-	Log *logrus.Entry
+	logrus.FieldLogger
 }
 
 // Background creates an empty context with a default logger.  It is analogous to context.Background()
 func Background() *Context {
 	return &Context{
-		Context: context.Background(),
-		Log:     logrus.NewEntry(logrus.New()),
+		Context:     context.Background(),
+		FieldLogger: logrus.NewEntry(logrus.New()),
 	}
 }
 
 // TODO creates an empty context with a default logger.  It is analogous to context.TODO()
 func TODO() *Context {
 	return &Context{
-		Context: context.TODO(),
-		Log:     logrus.NewEntry(logrus.New()),
+		Context:     context.TODO(),
+		FieldLogger: logrus.NewEntry(logrus.New()),
 	}
 }
 
@@ -42,8 +42,8 @@ func FromGrpcCtx(ctx context.Context) *Context {
 // New returns an  armada context that encapsulates both a go context and a logger
 func New(ctx context.Context, log *logrus.Entry) *Context {
 	return &Context{
-		Context: ctx,
-		Log:     log,
+		Context:     ctx,
+		FieldLogger: log,
 	}
 }
 
@@ -51,8 +51,8 @@ func New(ctx context.Context, log *logrus.Entry) *Context {
 func WithCancel(parent *Context) (*Context, context.CancelFunc) {
 	c, cancel := context.WithCancel(parent.Context)
 	return &Context{
-		Context: c,
-		Log:     parent.Log,
+		Context:     c,
+		FieldLogger: parent.FieldLogger,
 	}, cancel
 }
 
@@ -61,8 +61,8 @@ func WithCancel(parent *Context) (*Context, context.CancelFunc) {
 func WithDeadline(parent *Context, d time.Time) (*Context, context.CancelFunc) {
 	c, cancel := context.WithDeadline(parent.Context, d)
 	return &Context{
-		Context: c,
-		Log:     parent.Log,
+		Context:     c,
+		FieldLogger: parent.FieldLogger,
 	}, cancel
 }
 
@@ -74,16 +74,16 @@ func WithTimeout(parent *Context, timeout time.Duration) (*Context, context.Canc
 // WithLogField returns a copy of parent with the supplied key-value added to the logger
 func WithLogField(parent *Context, key string, val interface{}) *Context {
 	return &Context{
-		Context: parent.Context,
-		Log:     parent.Log.WithField(key, val),
+		Context:     parent.Context,
+		FieldLogger: parent.FieldLogger.WithField(key, val),
 	}
 }
 
 // WithLogFields returns a copy of parent with the supplied key-values added to the logger
 func WithLogFields(parent *Context, fields logrus.Fields) *Context {
 	return &Context{
-		Context: parent.Context,
-		Log:     parent.Log.WithFields(fields),
+		Context:     parent.Context,
+		FieldLogger: parent.FieldLogger.WithFields(fields),
 	}
 }
 
@@ -91,8 +91,8 @@ func WithLogFields(parent *Context, fields logrus.Fields) *Context {
 // val. It is analogous to context.WithValue()
 func WithValue(parent *Context, key, val any) *Context {
 	return &Context{
-		Context: context.WithValue(parent, key, val),
-		Log:     parent.Log,
+		Context:     context.WithValue(parent, key, val),
+		FieldLogger: parent.FieldLogger,
 	}
 }
 
@@ -101,7 +101,7 @@ func WithValue(parent *Context, key, val any) *Context {
 func ErrGroup(ctx *Context) (*errgroup.Group, *Context) {
 	group, goctx := errgroup.WithContext(ctx)
 	return group, &Context{
-		Context: goctx,
-		Log:     ctx.Log,
+		Context:     goctx,
+		FieldLogger: ctx.FieldLogger,
 	}
 }
