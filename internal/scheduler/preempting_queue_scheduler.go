@@ -129,11 +129,11 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 			sch.nodeEvictionProbability,
 			func(ctx *armadacontext.Context, job interfaces.LegacySchedulerJob) bool {
 				if job.GetAnnotations() == nil {
-					ctx.Log.Errorf("can't evict job %s: annotations not initialised", job.GetId())
+					ctx.Errorf("can't evict job %s: annotations not initialised", job.GetId())
 					return false
 				}
 				if job.GetNodeSelector() == nil {
-					ctx.Log.Errorf("can't evict job %s: nodeSelector not initialised", job.GetId())
+					ctx.Errorf("can't evict job %s: nodeSelector not initialised", job.GetId())
 					return false
 				}
 				if qctx, ok := sch.schedulingContext.QueueSchedulingContexts[job.GetQueue()]; ok {
@@ -241,10 +241,10 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		return nil, err
 	}
 	if s := JobsSummary(preemptedJobs); s != "" {
-		ctx.Log.Infof("preempting running jobs; %s", s)
+		ctx.Infof("preempting running jobs; %s", s)
 	}
 	if s := JobsSummary(scheduledJobs); s != "" {
-		ctx.Log.Infof("scheduling new jobs; %s", s)
+		ctx.Infof("scheduling new jobs; %s", s)
 	}
 	if sch.enableAssertions {
 		err := sch.assertions(
@@ -805,7 +805,7 @@ func NewOversubscribedEvictor(
 		},
 		jobFilter: func(ctx *armadacontext.Context, job interfaces.LegacySchedulerJob) bool {
 			if job.GetAnnotations() == nil {
-				ctx.Log.Warnf("can't evict job %s: annotations not initialised", job.GetId())
+				ctx.Warnf("can't evict job %s: annotations not initialised", job.GetId())
 				return false
 			}
 			priorityClassName := job.GetPriorityClassName()
@@ -884,7 +884,7 @@ func defaultPostEvictFunc(ctx *armadacontext.Context, job interfaces.LegacySched
 	// Add annotation indicating to the scheduler this this job was evicted.
 	annotations := job.GetAnnotations()
 	if annotations == nil {
-		ctx.Log.Errorf("error evicting job %s: annotations not initialised", job.GetId())
+		ctx.Errorf("error evicting job %s: annotations not initialised", job.GetId())
 	} else {
 		annotations[schedulerconfig.IsEvictedAnnotation] = "true"
 	}
@@ -892,7 +892,7 @@ func defaultPostEvictFunc(ctx *armadacontext.Context, job interfaces.LegacySched
 	// Add node selector ensuring this job is only re-scheduled onto the node it was evicted from.
 	nodeSelector := job.GetNodeSelector()
 	if nodeSelector == nil {
-		ctx.Log.Errorf("error evicting job %s: nodeSelector not initialised", job.GetId())
+		ctx.Errorf("error evicting job %s: nodeSelector not initialised", job.GetId())
 	} else {
 		nodeSelector[schedulerconfig.NodeIdLabel] = node.Id
 	}

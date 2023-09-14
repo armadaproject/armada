@@ -7,6 +7,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
+	"github.com/renstrom/shortuuid"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
@@ -116,36 +117,37 @@ func NewScheduler(
 
 // Run enters the scheduling loop, which will continue until ctx is cancelled.
 func (s *Scheduler) Run(ctx *armadacontext.Context) error {
-	ctx.Log.Infof("starting scheduler with cycle time %s", s.cyclePeriod)
-	defer ctx.Log.Info("scheduler stopped")
+	ctx.Infof("starting scheduler with cycle time %s", s.cyclePeriod)
+	defer ctx.Info("scheduler stopped")
 
 	// JobDb initialisation.
 	start := s.clock.Now()
 	if err := s.initialise(ctx); err != nil {
 		return err
 	}
-	ctx.Log.Infof("JobDb initialised in %s", s.clock.Since(start))
+	ctx.Infof("JobDb initialised in %s", s.clock.Since(start))
 
 	ticker := s.clock.NewTicker(s.cyclePeriod)
 	prevLeaderToken := InvalidLeaderToken()
 	for {
 		select {
 		case <-ctx.Done():
-			ctx.Log.Infof("context cancelled; returning.")
+			ctx.Infof("context cancelled; returning.")
 			return ctx.Err()
 		case <-ticker.C():
 			start := s.clock.Now()
+			ctx := armadacontext.WithLogField(ctx, "cycleId", shortuuid.New())
 			leaderToken := s.leaderController.GetToken()
 			fullUpdate := false
-			ctx.Log.Infof("received leaderToken; leader status is %t", leaderToken.leader)
+			ctx.Infof("received leaderToken; leader status is %t", leaderToken.leader)
 
 			// If we are becoming leader then we must ensure we have caught up to all Pulsar messages
 			if leaderToken.leader && leaderToken != prevLeaderToken {
-				ctx.Log.Infof("becoming leader")
+				ctx.Infof("becoming leader")
 				syncContext, cancel := armadacontext.WithTimeout(ctx, 5*time.Minute)
 				err := s.ensureDbUpToDate(syncContext, 1*time.Second)
 				if err != nil {
-					logging.WithStacktrace(ctx.Log, err).Error("could not become leader")
+					logging.WithStacktrace(ctx, err).Error("could not become leader")
 					leaderToken = InvalidLeaderToken()
 				} else {
 					fullUpdate = true
@@ -165,7 +167,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 
 			result, err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule)
 			if err != nil {
-				logging.WithStacktrace(ctx.Log, err).Error("scheduling cycle failure")
+				logging.WithStacktrace(ctx, err).Error("scheduling cycle failure")
 				leaderToken = InvalidLeaderToken()
 			}
 
@@ -174,13 +176,13 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 			s.metrics.ResetGaugeMetrics()
 
 			if shouldSchedule && leaderToken.leader {
-				// Only the leader token does real scheduling rounds.
+				// Only the leader does real scheduling rounds.
 				s.metrics.ReportScheduleCycleTime(cycleTime)
-				s.metrics.ReportSchedulerResult(result)
-				ctx.Log.Infof("scheduling cycle completed in %s", cycleTime)
+				s.metrics.ReportSchedulerResult(ctx, result)
+				ctx.Infof("scheduling cycle completed in %s", cycleTime)
 			} else {
 				s.metrics.ReportReconcileCycleTime(cycleTime)
-				ctx.Log.Infof("reconciliation cycle completed in %s", cycleTime)
+				ctx.Infof("reconciliation cycle completed in %s", cycleTime)
 			}
 
 			prevLeaderToken = leaderToken
@@ -256,7 +258,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	if err = s.publisher.PublishMessages(ctx, events, isLeader); err != nil {
 		return
 	}
-	ctx.Log.Infof("published %d events to pulsar in %s", len(events), s.clock.Since(start))
+	ctx.Infof("published %d events to pulsar in %s", len(events), s.clock.Since(start))
 	txn.Commit()
 	return
 }
@@ -268,7 +270,7 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 	if err != nil {
 		return nil, err
 	}
-	ctx.Log.Infof("received %d updated jobs and %d updated job runs in %s", len(updatedJobs), len(updatedRuns), s.clock.Since(start))
+	ctx.Infof("received %d updated jobs and %d updated job runs in %s", len(updatedJobs), len(updatedRuns), s.clock.Since(start))
 
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
@@ -312,7 +314,7 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 			// If the job is nil or terminal at this point then it cannot be active.
 			// In this case we can ignore the run.
 			if job == nil || job.InTerminalState() {
-				ctx.Log.Debugf("job %s is not active; ignoring update for run %s", jobId, dbRun.RunID)
+				ctx.Debugf("job %s is not active; ignoring update for run %s", jobId, dbRun.RunID)
 				continue
 			}
 		}
@@ -714,14 +716,14 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 	// has been completely removed
 	for executor, heartbeat := range heartbeatTimes {
 		if heartbeat.Before(cutOff) {
-			ctx.Log.Warnf("Executor %s has not reported a hearbeart since %v. Will expire all jobs running on this executor", executor, heartbeat)
+			ctx.Warnf("Executor %s has not reported a hearbeart since %v. Will expire all jobs running on this executor", executor, heartbeat)
 			staleExecutors[executor] = true
 		}
 	}
 
 	// All clusters have had a heartbeat recently.  No need to expire any jobs
 	if len(staleExecutors) == 0 {
-		ctx.Log.Infof("No stale executors found. No jobs need to be expired")
+		ctx.Infof("No stale executors found. No jobs need to be expired")
 		return nil, nil
 	}
 
@@ -738,7 +740,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 
 		run := job.LatestRun()
 		if run != nil && !job.Queued() && staleExecutors[run.Executor()] {
-			ctx.Log.Warnf("Cancelling job %s as it is running on lost executor %s", job.Id(), run.Executor())
+			ctx.Warnf("Cancelling job %s as it is running on lost executor %s", job.Id(), run.Executor())
 			jobsToUpdate = append(jobsToUpdate, job.WithQueued(false).WithFailed(true).WithUpdatedRun(run.WithFailed(true)))
 
 			jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
@@ -803,7 +805,7 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 			return nil
 		default:
 			if _, err := s.syncState(ctx); err != nil {
-				ctx.Log.WithError(err).Error("failed to initialise; trying again in 1 second")
+				logging.WithStacktrace(ctx, err).Error("failed to initialise; trying again in 1 second")
 				time.Sleep(1 * time.Second)
 			} else {
 				// Initialisation succeeded.
@@ -830,7 +832,7 @@ func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval ti
 		default:
 			numSent, err = s.publisher.PublishMarkers(ctx, groupId)
 			if err != nil {
-				ctx.Log.WithError(err).Error("Error sending marker messages to pulsar")
+				logging.WithStacktrace(ctx, err).Error("Error sending marker messages to pulsar")
 				s.clock.Sleep(pollInterval)
 			} else {
 				messagesSent = true
@@ -846,13 +848,15 @@ func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval ti
 		default:
 			numReceived, err := s.jobRepository.CountReceivedPartitions(ctx, groupId)
 			if err != nil {
-				ctx.Log.WithError(err).Error("Error querying the database or marker messages")
+				logging.
+					WithStacktrace(ctx, err).
+					Error("Error querying the database or marker messages")
 			}
 			if numSent == numReceived {
-				ctx.Log.Infof("Successfully ensured that database state is up to date")
+				ctx.Infof("Successfully ensured that database state is up to date")
 				return nil
 			}
-			ctx.Log.Infof("Recevied %d partitions, still waiting on  %d", numReceived, numSent-numReceived)
+			ctx.Infof("Recevied %d partitions, still waiting on  %d", numReceived, numSent-numReceived)
 			s.clock.Sleep(pollInterval)
 		}
 	}
