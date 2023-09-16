@@ -7,6 +7,7 @@ from unittest.mock import patch, Mock
 import grpc
 import pytest
 import unittest
+
 from unittest.mock import patch
 
 
@@ -64,7 +65,6 @@ class TestJobService(unittest.TestCase):
         mock_cancel_jobs.assert_called_once_with(
             job_set_id="test_job_set_id", queue="test_queue"
         )
-
 
 if __name__ == "__main__":
     unittest.main()
