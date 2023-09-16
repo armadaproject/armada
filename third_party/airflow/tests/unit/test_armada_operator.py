@@ -52,7 +52,6 @@ def test_get_lookout_url(lookout_url_template, job_id, expected_url):
     assert operator._get_lookout_url(job_id) == expected_url
 
 
-
 class TestJobService(unittest.TestCase):
     @patch.object(JobService, "cancel_jobs")
     def test_on_kill(self, mock_cancel_jobs):
@@ -66,8 +65,10 @@ class TestJobService(unittest.TestCase):
             job_set_id="test_job_set_id", queue="test_queue"
         )
 
+
 if __name__ == "__main__":
     unittest.main()
+
 
 def test_deepcopy_operator():
     armada_channel_args = {"target": "127.0.0.1:50051"}
@@ -219,4 +220,3 @@ def test_armada_operator_execute(
 
     jsclient_mock.health.assert_called()
     aclient_mock.submit_jobs.assert_called()
-
