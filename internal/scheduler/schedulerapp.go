@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -24,6 +23,7 @@ import (
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
@@ -55,7 +55,7 @@ func Run(config schedulerconfig.Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	// Database setup (postgres and redis)
 	//////////////////////////////////////////////////////////////////////////
-	log.Infof("Setting up database connections")
+	ctx.Infof("Setting up database connections")
 	db, err := dbcommon.OpenPgxPool(config.Postgres)
 	if err != nil {
 		return errors.WithMessage(err, "Error opening connection to postgres")
@@ -68,7 +68,9 @@ func Run(config schedulerconfig.Configuration) error {
 	defer func() {
 		err := redisClient.Close()
 		if err != nil {
-			log.WithError(errors.WithStack(err)).Warnf("Redis client didn't close down cleanly")
+			logging.
+				WithStacktrace(ctx, err).
+				Warnf("Redis client didn't close down cleanly")
 		}
 	}()
 	queueRepository := database.NewLegacyQueueRepository(redisClient)
@@ -77,7 +79,7 @@ func Run(config schedulerconfig.Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	// Pulsar
 	//////////////////////////////////////////////////////////////////////////
-	log.Infof("Setting up Pulsar connectivity")
+	ctx.Infof("Setting up Pulsar connectivity")
 	pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
 	if err != nil {
 		return errors.WithMessage(err, "Error creating pulsar client")
@@ -97,7 +99,7 @@ func Run(config schedulerconfig.Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	// Leader Election
 	//////////////////////////////////////////////////////////////////////////
-	leaderController, err := createLeaderController(config.Leader)
+	leaderController, err := createLeaderController(ctx, config.Leader)
 	if err != nil {
 		return errors.WithMessage(err, "error creating leader controller")
 	}
@@ -106,7 +108,7 @@ func Run(config schedulerconfig.Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	// Executor Api
 	//////////////////////////////////////////////////////////////////////////
-	log.Infof("Setting up executor api")
+	ctx.Infof("Setting up executor api")
 	apiProducer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
 		Name:             fmt.Sprintf("armada-executor-api-%s", uuid.NewString()),
 		CompressionType:  config.Pulsar.CompressionType,
@@ -144,7 +146,7 @@ func Run(config schedulerconfig.Configuration) error {
 	}
 	executorapi.RegisterExecutorApiServer(grpcServer, executorServer)
 	services = append(services, func() error {
-		log.Infof("Executor api listening on %s", lis.Addr())
+		ctx.Infof("Executor api listening on %s", lis.Addr())
 		return grpcServer.Serve(lis)
 	})
 	services = append(services, grpcCommon.CreateShutdownHandler(ctx, 5*time.Second, grpcServer))
@@ -152,7 +154,7 @@ func Run(config schedulerconfig.Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	// Scheduling
 	//////////////////////////////////////////////////////////////////////////
-	log.Infof("setting up scheduling loop")
+	ctx.Infof("setting up scheduling loop")
 	stringInterner, err := stringinterner.New(config.InternedStringsCacheSize)
 	if err != nil {
 		return errors.WithMessage(err, "error creating string interner")
@@ -238,14 +240,14 @@ func Run(config schedulerconfig.Configuration) error {
 	return g.Wait()
 }
 
-func createLeaderController(config schedulerconfig.LeaderConfig) (LeaderController, error) {
+func createLeaderController(ctx *armadacontext.Context, config schedulerconfig.LeaderConfig) (LeaderController, error) {
 	switch mode := strings.ToLower(config.Mode); mode {
 	case "standalone":
-		log.Infof("Scheduler will run in standalone mode")
+		ctx.Infof("Scheduler will run in standalone mode")
 		return NewStandaloneLeaderController(), nil
 	case "kubernetes":
-		log.Infof("Scheduler will run kubernetes mode")
-		clusterConfig, err := loadClusterConfig()
+		ctx.Infof("Scheduler will run kubernetes mode")
+		clusterConfig, err := loadClusterConfig(ctx)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error creating kubernetes client")
 		}
@@ -263,14 +265,14 @@ func createLeaderController(config schedulerconfig.LeaderConfig) (LeaderControll
 	}
 }
 
-func loadClusterConfig() (*rest.Config, error) {
+func loadClusterConfig(ctx *armadacontext.Context) (*rest.Config, error) {
 	config, err := rest.InClusterConfig()
 	if err == rest.ErrNotInCluster {
-		log.Info("Running with default client configuration")
+		ctx.Info("Running with default client configuration")
 		rules := clientcmd.NewDefaultClientConfigLoadingRules()
 		overrides := &clientcmd.ConfigOverrides{}
 		return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, overrides).ClientConfig()
 	}
-	log.Info("Running with in cluster client configuration")
+	ctx.Info("Running with in cluster client configuration")
 	return config, err
 }

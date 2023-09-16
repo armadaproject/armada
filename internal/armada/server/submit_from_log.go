@@ -125,12 +125,12 @@ func (srv *SubmitFromLog) Run(ctx *armadacontext.Context) error {
 			sequence, err := eventutil.UnmarshalEventSequence(ctxWithLogger, msg.Payload())
 			if err != nil {
 				srv.ack(ctx, msg)
-				logging.WithStacktrace(ctxWithLogger.Log, err).Warnf("processing message failed; ignoring")
+				logging.WithStacktrace(ctxWithLogger, err).Warnf("processing message failed; ignoring")
 				numErrored++
 				break
 			}
 
-			ctxWithLogger.Log.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
+			ctxWithLogger.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
 			// TODO: Improve retry logic.
 			srv.ProcessSequence(ctxWithLogger, sequence)
 			srv.ack(ctx, msg)
@@ -155,11 +155,11 @@ func (srv *SubmitFromLog) ProcessSequence(ctx *armadacontext.Context, sequence *
 	for i < len(sequence.Events) && time.Since(lastProgress) < timeout {
 		j, err := srv.ProcessSubSequence(ctx, i, sequence)
 		if err != nil {
-			logging.WithStacktrace(ctx.Log, err).WithFields(logrus.Fields{"lowerIndex": i, "upperIndex": j}).Warnf("processing subsequence failed; ignoring")
+			logging.WithStacktrace(ctx, err).WithFields(logrus.Fields{"lowerIndex": i, "upperIndex": j}).Warnf("processing subsequence failed; ignoring")
 		}
 
 		if j == i {
-			ctx.Log.WithFields(logrus.Fields{"lowerIndex": i, "upperIndex": j}).Info("made no progress")
+			ctx.WithFields(logrus.Fields{"lowerIndex": i, "upperIndex": j}).Info("made no progress")
 
 			// We should only get here if a transient error occurs.
 			// Sleep for a bit before retrying.

@@ -344,7 +344,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 			lastSeen,
 		)
 		if err != nil {
-			logging.WithStacktrace(ctx.Log, err).Warnf(
+			logging.WithStacktrace(ctx, err).Warnf(
 				"skipping node %s from executor %s", nodeInfo.GetName(), req.GetClusterId(),
 			)
 			continue
@@ -566,7 +566,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 	if q.SchedulingContextRepository != nil {
 		sctx.ClearJobSpecs()
 		if err := q.SchedulingContextRepository.AddSchedulingContext(sctx); err != nil {
-			logging.WithStacktrace(ctx.Log, err).Error("failed to store scheduling context")
+			logging.WithStacktrace(ctx, err).Error("failed to store scheduling context")
 		}
 	}
 
@@ -641,7 +641,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 		jobIdsToDelete := util.Map(jobsToDelete, func(job *api.Job) string { return job.Id })
 		log.Infof("deleting preempted jobs: %v", jobIdsToDelete)
 		if deletionResult, err := q.jobRepository.DeleteJobs(jobsToDelete); err != nil {
-			logging.WithStacktrace(ctx.Log, err).Error("failed to delete preempted jobs from Redis")
+			logging.WithStacktrace(ctx, err).Error("failed to delete preempted jobs from Redis")
 		} else {
 			deleteErrorByJobId := armadamaps.MapKeys(deletionResult, func(job *api.Job) string { return job.Id })
 			for jobId := range preemptedApiJobsById {
@@ -704,7 +704,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 		}
 	}
 	if err := q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, currentExecutorReport); err != nil {
-		logging.WithStacktrace(ctx.Log, err).Errorf("failed to update cluster usage")
+		logging.WithStacktrace(ctx, err).Errorf("failed to update cluster usage")
 	}
 
 	allocatedByQueueAndPriorityClassForPool = q.aggregateAllocationAcrossExecutor(reportsByExecutor, req.Pool)
@@ -728,7 +728,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 			}
 			node, err := nodeDb.GetNode(nodeId)
 			if err != nil {
-				logging.WithStacktrace(ctx.Log, err).Warnf("failed to set node id selector on job %s: node with id %s not found", apiJob.Id, nodeId)
+				logging.WithStacktrace(ctx, err).Warnf("failed to set node id selector on job %s: node with id %s not found", apiJob.Id, nodeId)
 				continue
 			}
 			v := node.Labels[q.schedulingConfig.Preemption.NodeIdLabel]
@@ -764,7 +764,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 			}
 			node, err := nodeDb.GetNode(nodeId)
 			if err != nil {
-				logging.WithStacktrace(ctx.Log, err).Warnf("failed to set node name on job %s: node with id %s not found", apiJob.Id, nodeId)
+				logging.WithStacktrace(ctx, err).Warnf("failed to set node name on job %s: node with id %s not found", apiJob.Id, nodeId)
 				continue
 			}
 			podSpec.NodeName = node.Name
