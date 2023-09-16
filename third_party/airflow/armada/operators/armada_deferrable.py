@@ -103,6 +103,25 @@ class ArmadaDeferrableOperator(BaseOperator):
         self.lookout_url_template = lookout_url_template
         self.poll_interval = poll_interval
 
+    def serialize(self) -> dict:
+        """
+        Get a serialized version of this object.
+
+        :return: A dict of keyword arguments used when instantiating
+        this object.
+        """
+
+        return {
+            "task_id": self.task_id,
+            "name": self.name,
+            "armada_channel_args": self.armada_channel_args.serialize(),
+            "job_service_channel_args": self.job_service_channel_args.serialize(),
+            "armada_queue": self.armada_queue,
+            "job_request_items": self.job_request_items,
+            "lookout_url_template": self.lookout_url_template,
+            "poll_interval": self.poll_interval,
+        }
+
     def execute(self, context) -> None:
         """
         Executes the Armada Operator. Only meant to be called by airflow.
@@ -249,6 +268,17 @@ class ArmadaJobCompleteTrigger(BaseTrigger):
                 "airflow_task_name": self.airflow_task_name,
                 "poll_interval": self.poll_interval,
             },
+        )
+
+    def __eq__(self, o):
+        return (
+            self.task_id == o.task_id
+            and self.job_id == o.job_id
+            and self.job_service_channel_args == o.job_service_channel_args
+            and self.armada_queue == o.armada_queue
+            and self.job_set_id == o.job_set_id
+            and self.airflow_task_name == o.airflow_task_name
+            and self.poll_interval == o.poll_interval
         )
 
     async def run(self):
