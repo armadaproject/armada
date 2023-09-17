@@ -19,8 +19,8 @@ type Queue interface {
 	GetWeight() float64
 }
 
-// FairnessCostProvider captures algorithms to compute the cost of an allocation.
-type FairnessCostProvider interface {
+// CostProvider captures algorithms to compute the cost of an allocation.
+type CostProvider interface {
 	CostFromQueue(queue Queue) float64
 	CostFromAllocationAndWeight(allocation schedulerobjects.ResourceList, weight float64) float64
 }

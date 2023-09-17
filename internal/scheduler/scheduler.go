@@ -58,7 +58,7 @@ type Scheduler struct {
 	// The label used when setting node anti affinities.
 	nodeIdLabel string
 	// If an executor fails to report in for this amount of time,
-	// all jobs assigne to that executor are cancelled.
+	// all jobs assigned to that executor are cancelled.
 	executorTimeout time.Duration
 	// The time the previous scheduling round ended
 	previousSchedulingRoundEnd time.Time
@@ -856,7 +856,7 @@ func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval ti
 				ctx.Infof("Successfully ensured that database state is up to date")
 				return nil
 			}
-			ctx.Infof("Recevied %d partitions, still waiting on  %d", numReceived, numSent-numReceived)
+			ctx.Infof("Received %d partitions, still waiting on  %d", numReceived, numSent-numReceived)
 			s.clock.Sleep(pollInterval)
 		}
 	}

@@ -2,8 +2,6 @@ package context
 
 import (
 	"fmt"
-	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/openconfig/goyang/pkg/indent"
@@ -17,6 +15,7 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
@@ -38,7 +37,7 @@ type SchedulingContext struct {
 	// Default priority class.
 	DefaultPriorityClass string
 	// Determines how fairness is computed.
-	FairnessCostProvider fairness.FairnessCostProvider
+	FairnessCostProvider fairness.CostProvider
 	// Limits job scheduling rate globally across all queues.
 	// Use the "Started" time to ensure limiter state remains constant within each scheduling round.
 	Limiter *rate.Limiter
@@ -66,7 +65,7 @@ type SchedulingContext struct {
 	// Used to efficiently generate scheduling keys.
 	SchedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
 	// Record of job scheduling requirements known to be unfeasible.
-	// Used to immediately reject new jobs with identical reqirements.
+	// Used to immediately reject new jobs with identical requirements.
 	// Maps to the JobSchedulingContext of a previous job attempted to schedule with the same key.
 	UnfeasibleSchedulingKeys map[schedulerobjects.SchedulingKey]*JobSchedulingContext
 }
@@ -76,7 +75,7 @@ func NewSchedulingContext(
 	pool string,
 	priorityClasses map[string]types.PriorityClass,
 	defaultPriorityClass string,
-	fairnessCostProvider fairness.FairnessCostProvider,
+	fairnessCostProvider fairness.CostProvider,
 	limiter *rate.Limiter,
 	totalResources schedulerobjects.ResourceList,
 ) *SchedulingContext {
@@ -177,18 +176,17 @@ func (sctx *SchedulingContext) TotalCost() float64 {
 }
 
 func (sctx *SchedulingContext) ReportString(verbosity int32) string {
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	fmt.Fprintf(w, "Started:\t%s\n", sctx.Started)
-	fmt.Fprintf(w, "Finished:\t%s\n", sctx.Finished)
-	fmt.Fprintf(w, "Duration:\t%s\n", sctx.Finished.Sub(sctx.Started))
-	fmt.Fprintf(w, "Termination reason:\t%s\n", sctx.TerminationReason)
-	fmt.Fprintf(w, "Total capacity:\t%s\n", sctx.TotalResources.CompactString())
-	fmt.Fprintf(w, "Scheduled resources:\t%s\n", sctx.ScheduledResources.CompactString())
-	fmt.Fprintf(w, "Preempted resources:\t%s\n", sctx.EvictedResources.CompactString())
-	fmt.Fprintf(w, "Number of gangs scheduled:\t%d\n", sctx.NumScheduledGangs)
-	fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", sctx.NumScheduledJobs)
-	fmt.Fprintf(w, "Number of jobs preempted:\t%d\n", sctx.NumEvictedJobs)
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
+	w.Writef("Started:\t%s\n", sctx.Started)
+	w.Writef("Finished:\t%s\n", sctx.Finished)
+	w.Writef("Duration:\t%s\n", sctx.Finished.Sub(sctx.Started))
+	w.Writef("Termination reason:\t%s\n", sctx.TerminationReason)
+	w.Writef("Total capacity:\t%s\n", sctx.TotalResources.CompactString())
+	w.Writef("Scheduled resources:\t%s\n", sctx.ScheduledResources.CompactString())
+	w.Writef("Preempted resources:\t%s\n", sctx.EvictedResources.CompactString())
+	w.Writef("Number of gangs scheduled:\t%d\n", sctx.NumScheduledGangs)
+	w.Writef("Number of jobs scheduled:\t%d\n", sctx.NumScheduledJobs)
+	w.Writef("Number of jobs preempted:\t%d\n", sctx.NumEvictedJobs)
 	scheduled := armadamaps.Filter(
 		sctx.QueueSchedulingContexts,
 		func(_ string, qctx *QueueSchedulingContext) bool {
@@ -196,12 +194,12 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 		},
 	)
 	if verbosity <= 0 {
-		fmt.Fprintf(w, "Scheduled queues:\t%v\n", maps.Keys(scheduled))
+		w.Writef("Scheduled queues:\t%v\n", maps.Keys(scheduled))
 	} else {
-		fmt.Fprint(w, "Scheduled queues:\n")
+		w.Write("Scheduled queues:\n")
 		for queueName, qctx := range scheduled {
-			fmt.Fprintf(w, "\t%s:\n", queueName)
-			fmt.Fprint(w, indent.String("\t\t", qctx.ReportString(verbosity-2)))
+			w.Writef("\t%s:\n", queueName)
+			w.Write(indent.String("\t\t", qctx.ReportString(verbosity-2)))
 		}
 	}
 	preempted := armadamaps.Filter(
@@ -211,16 +209,15 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 		},
 	)
 	if verbosity <= 0 {
-		fmt.Fprintf(w, "Preempted queues:\t%v\n", maps.Keys(preempted))
+		w.Writef("Preempted queues:\t%v\n", maps.Keys(preempted))
 	} else {
-		fmt.Fprint(w, "Preempted queues:\n")
+		w.Write("Preempted queues:\n")
 		for queueName, qctx := range preempted {
-			fmt.Fprintf(w, "\t%s:\n", queueName)
-			fmt.Fprint(w, indent.String("\t\t", qctx.ReportString(verbosity-2)))
+			w.Writef("\t%s:\n", queueName)
+			w.Writef(indent.String("\t\t", qctx.ReportString(verbosity-2)))
 		}
 	}
-	w.Flush()
-	return sb.String()
+	return w.String()
 }
 
 func (sctx *SchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingContext) (bool, error) {
@@ -367,13 +364,6 @@ type QueueSchedulingContext struct {
 	EvictedJobsById map[string]bool
 }
 
-func GetSchedulingContextFromQueueSchedulingContext(qctx *QueueSchedulingContext) *SchedulingContext {
-	if qctx == nil {
-		return nil
-	}
-	return qctx.SchedulingContext
-}
-
 func (qctx *QueueSchedulingContext) String() string {
 	return qctx.ReportString(0)
 }
@@ -391,32 +381,31 @@ func (qctx *QueueSchedulingContext) GetWeight() float64 {
 const maxJobIdsToPrint = 1
 
 func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
 	if verbosity >= 0 {
-		fmt.Fprintf(w, "Time:\t%s\n", qctx.Created)
-		fmt.Fprintf(w, "Queue:\t%s\n", qctx.Queue)
+		w.Writef("Time:\t%s\n", qctx.Created)
+		w.Writef("Queue:\t%s\n", qctx.Queue)
 	}
-	fmt.Fprintf(w, "Scheduled resources:\t%s\n", qctx.ScheduledResourcesByPriorityClass.AggregateByResource().CompactString())
-	fmt.Fprintf(w, "Scheduled resources (by priority):\t%s\n", qctx.ScheduledResourcesByPriorityClass.String())
-	fmt.Fprintf(w, "Preempted resources:\t%s\n", qctx.EvictedResourcesByPriorityClass.AggregateByResource().CompactString())
-	fmt.Fprintf(w, "Preempted resources (by priority):\t%s\n", qctx.EvictedResourcesByPriorityClass.String())
+	w.Writef("Scheduled resources:\t%s\n", qctx.ScheduledResourcesByPriorityClass.AggregateByResource().CompactString())
+	w.Writef("Scheduled resources (by priority):\t%s\n", qctx.ScheduledResourcesByPriorityClass.String())
+	w.Writef("Preempted resources:\t%s\n", qctx.EvictedResourcesByPriorityClass.AggregateByResource().CompactString())
+	w.Writef("Preempted resources (by priority):\t%s\n", qctx.EvictedResourcesByPriorityClass.String())
 	if verbosity >= 0 {
-		fmt.Fprintf(w, "Total allocated resources after scheduling:\t%s\n", qctx.Allocated.CompactString())
-		fmt.Fprintf(w, "Total allocated resources after scheduling by priority class:\t%s\n", qctx.AllocatedByPriorityClass)
-		fmt.Fprintf(w, "Number of jobs scheduled:\t%d\n", len(qctx.SuccessfulJobSchedulingContexts))
-		fmt.Fprintf(w, "Number of jobs preempted:\t%d\n", len(qctx.EvictedJobsById))
-		fmt.Fprintf(w, "Number of jobs that could not be scheduled:\t%d\n", len(qctx.UnsuccessfulJobSchedulingContexts))
+		w.Writef("Total allocated resources after scheduling:\t%s\n", qctx.Allocated.CompactString())
+		w.Writef("Total allocated resources after scheduling by priority class:\t%s\n", qctx.AllocatedByPriorityClass)
+		w.Writef("Number of jobs scheduled:\t%d\n", len(qctx.SuccessfulJobSchedulingContexts))
+		w.Writef("Number of jobs preempted:\t%d\n", len(qctx.EvictedJobsById))
+		w.Writef("Number of jobs that could not be scheduled:\t%d\n", len(qctx.UnsuccessfulJobSchedulingContexts))
 		if len(qctx.SuccessfulJobSchedulingContexts) > 0 {
 			jobIdsToPrint := maps.Keys(qctx.SuccessfulJobSchedulingContexts)
 			if len(jobIdsToPrint) > maxJobIdsToPrint {
 				jobIdsToPrint = jobIdsToPrint[0:maxJobIdsToPrint]
 			}
-			fmt.Fprintf(w, "Scheduled jobs:\t%v", jobIdsToPrint)
+			w.Writef("Scheduled jobs:\t%v", jobIdsToPrint)
 			if len(jobIdsToPrint) != len(qctx.SuccessfulJobSchedulingContexts) {
-				fmt.Fprintf(w, " (and %d others not shown)\n", len(qctx.SuccessfulJobSchedulingContexts)-len(jobIdsToPrint))
+				w.Writef(" (and %d others not shown)\n", len(qctx.SuccessfulJobSchedulingContexts)-len(jobIdsToPrint))
 			} else {
-				fmt.Fprint(w, "\n")
+				w.Write("\n")
 			}
 		}
 		if len(qctx.EvictedJobsById) > 0 {
@@ -424,15 +413,15 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 			if len(jobIdsToPrint) > maxJobIdsToPrint {
 				jobIdsToPrint = jobIdsToPrint[0:maxJobIdsToPrint]
 			}
-			fmt.Fprintf(w, "Preempted jobs:\t%v", jobIdsToPrint)
+			w.Writef("Preempted jobs:\t%v", jobIdsToPrint)
 			if len(jobIdsToPrint) != len(qctx.EvictedJobsById) {
-				fmt.Fprintf(w, " (and %d others not shown)\n", len(qctx.EvictedJobsById)-len(jobIdsToPrint))
+				w.Writef(" (and %d others not shown)\n", len(qctx.EvictedJobsById)-len(jobIdsToPrint))
 			} else {
-				fmt.Fprint(w, "\n")
+				w.Write("\n")
 			}
 		}
 		if len(qctx.UnsuccessfulJobSchedulingContexts) > 0 {
-			fmt.Fprint(w, "Unschedulable jobs:\n")
+			w.Write("Unschedulable jobs:\n")
 			jobIdsByReason := armadaslices.MapAndGroupByFuncs(
 				maps.Values(qctx.UnsuccessfulJobSchedulingContexts),
 				func(jctx *JobSchedulingContext) string {
@@ -450,12 +439,11 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 				if len(jobIds) <= 0 {
 					continue
 				}
-				fmt.Fprintf(w, "\t%d:\t%s (e.g., %s)\n", len(jobIds), reason, jobIds[0])
+				w.Writef("\t%d:\t%s (e.g., %s)\n", len(jobIds), reason, jobIds[0])
 			}
 		}
 	}
-	w.Flush()
-	return sb.String()
+	return w.String()
 }
 
 func (qctx *QueueSchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingContext) error {
@@ -603,20 +591,18 @@ type JobSchedulingContext struct {
 }
 
 func (jctx *JobSchedulingContext) String() string {
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	fmt.Fprintf(w, "Time:\t%s\n", jctx.Created)
-	fmt.Fprintf(w, "Job ID:\t%s\n", jctx.JobId)
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
+	w.Writef("Time:\t%s\n", jctx.Created)
+	w.Writef("Job ID:\t%s\n", jctx.JobId)
 	if jctx.UnschedulableReason != "" {
-		fmt.Fprintf(w, "UnschedulableReason:\t%s\n", jctx.UnschedulableReason)
+		w.Writef("UnschedulableReason:\t%s\n", jctx.UnschedulableReason)
 	} else {
-		fmt.Fprint(w, "UnschedulableReason:\tnone\n")
+		w.Write("UnschedulableReason:\tnone\n")
 	}
 	if jctx.PodSchedulingContext != nil {
-		fmt.Fprint(w, jctx.PodSchedulingContext.String())
+		w.Write(jctx.PodSchedulingContext.String())
 	}
-	w.Flush()
-	return sb.String()
+	return w.String()
 }
 
 func (jctx *JobSchedulingContext) IsSuccessful() bool {
@@ -658,22 +644,20 @@ type PodSchedulingContext struct {
 }
 
 func (pctx *PodSchedulingContext) String() string {
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
 	if pctx.NodeId != "" {
-		fmt.Fprintf(w, "Node:\t%s\n", pctx.NodeId)
+		w.Writef("Node:\t%s\n", pctx.NodeId)
 	} else {
-		fmt.Fprint(w, "Node:\tnone\n")
+		w.Write("Node:\tnone\n")
 	}
-	fmt.Fprintf(w, "Number of nodes in cluster:\t%d\n", pctx.NumNodes)
+	w.Writef("Number of nodes in cluster:\t%d\n", pctx.NumNodes)
 	if len(pctx.NumExcludedNodesByReason) == 0 {
-		fmt.Fprint(w, "Excluded nodes:\tnone\n")
+		w.Write("Excluded nodes:\tnone\n")
 	} else {
-		fmt.Fprint(w, "Excluded nodes:\n")
+		w.Write("Excluded nodes:\n")
 		for reason, count := range pctx.NumExcludedNodesByReason {
-			fmt.Fprintf(w, "\t%d:\t%s\n", count, reason)
+			w.Writef("\t%d:\t%s\n", count, reason)
 		}
 	}
-	w.Flush()
-	return sb.String()
+	return w.String()
 }

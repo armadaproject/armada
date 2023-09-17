@@ -62,10 +62,10 @@ func NewNodeType(taints []v1.Taint, labels map[string]string, indexedTaints map[
 	}
 }
 
-// nodeTypeIdFromTaintsAndLabels generates a id unique for each combination of taints, labels, and unset labels.
+// nodeTypeIdFromTaintsAndLabels generates a unique id for each combination of taints, labels, and unset labels.
 // The id is based on the fnv1a hash. Hash collisions do not affect correctness, only the efficiency of sorting out nodes.
 //
-// We separate taints/labels by $, labels and values by =, and and groups by &,
+// We separate taints/labels by $, labels and values by =,  and groups by &,
 // since these characters are not allowed in taints and labels; see
 // https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
 // https://man.archlinux.org/man/community/kubectl/kubectl-taint.1.en
@@ -107,7 +107,7 @@ func getFilteredTaints(taints []v1.Taint, inclusionFilter taintsFilterFunc) []v1
 	if inclusionFilter == nil {
 		return taints
 	}
-	filteredTaints := []v1.Taint{}
+	var filteredTaints []v1.Taint
 	for _, taint := range taints {
 		if !inclusionFilter(&taint) {
 			continue

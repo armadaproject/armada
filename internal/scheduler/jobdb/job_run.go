@@ -77,7 +77,7 @@ func (run *JobRun) Id() uuid.UUID {
 	return run.id
 }
 
-// Id returns the id of the job this run is associated with.
+// JobId returns the id of the job this run is associated with.
 func (run *JobRun) JobId() string {
 	return run.jobId
 }

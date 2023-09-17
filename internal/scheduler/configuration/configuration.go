@@ -22,7 +22,7 @@ const (
 type Configuration struct {
 	// Database configuration
 	Postgres configuration.PostgresConfig
-	// Redis Comnfig
+	// Redis Config
 	Redis config.RedisConfig
 	// General Pulsar configuration
 	Pulsar configuration.PulsarConfig

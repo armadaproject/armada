@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	// Indicates that the limit on resources scheduled per round has been exceeded.
+	//  Indicates that the limit on resources scheduled per round has been exceeded.
 	MaximumResourcesScheduledUnschedulableReason = "maximum resources scheduled"
 
 	// Indicates that a queue has been assigned more than its allowed amount of resources.
@@ -120,7 +120,7 @@ func ScaleQuantity(q resource.Quantity, f float64) resource.Quantity {
 	return q
 }
 
-func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *schedulercontext.SchedulingContext, queue string) (bool, string, error) {
+func (constraints *SchedulingConstraints) CheckRoundConstraints(sctx *schedulercontext.SchedulingContext) (bool, string, error) {
 	// MaximumResourcesToSchedule check.
 	if !sctx.ScheduledResources.IsStrictlyLessOrEqual(constraints.MaximumResourcesToSchedule) {
 		return false, MaximumResourcesScheduledUnschedulableReason, nil

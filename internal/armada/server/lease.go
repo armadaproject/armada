@@ -476,7 +476,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 		defer cancel()
 	}
 
-	var fairnessCostProvider fairness.FairnessCostProvider
+	var fairnessCostProvider fairness.CostProvider
 	totalResources := schedulerobjects.ResourceList{Resources: totalCapacity}
 	if q.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
 		fairnessCostProvider, err = fairness.NewDominantResourceFairness(

@@ -3,9 +3,7 @@ package nodedb
 import (
 	"fmt"
 	"math"
-	"strings"
 	"sync"
-	"text/tabwriter"
 	"time"
 
 	"github.com/hashicorp/go-memdb"
@@ -34,7 +32,7 @@ const (
 	// This helps avoid scheduling new jobs onto nodes that make it impossible to re-schedule evicted jobs.
 	evictedPriority int32 = -1
 	// MinPriority is the smallest possible priority class priority within the NodeDb.
-	MinPriority int32 = evictedPriority
+	MinPriority = evictedPriority
 )
 
 var empty struct{}
@@ -309,7 +307,7 @@ func NewNodeDb(
 	priorityClassPriorities := maps.Keys(allowedPriorities)
 	slices.Sort(priorityClassPriorities)
 	nodeDbPriorities := armadaslices.Concatenate([]int32{evictedPriority}, priorityClassPriorities)
-	schema, indexNameByPriority := nodeDbSchema(nodeDbPriorities, indexedResourceNames)
+	schema, indexNameByPriority := nodeDbSchema(nodeDbPriorities)
 	db, err := memdb.NewMemDB(schema)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -388,22 +386,20 @@ func (nodeDb *NodeDb) EnableNewPreemptionStrategy() {
 }
 
 func (nodeDb *NodeDb) String() string {
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
-	fmt.Fprintf(w, "Priorities:\t%v\n", configuration.AllowedPriorities(nodeDb.priorityClasses))
-	fmt.Fprintf(w, "Indexed resources:\t%v\n", nodeDb.indexedResources)
-	fmt.Fprintf(w, "Indexed taints:\t%v\n", maps.Keys(nodeDb.indexedTaints))
-	fmt.Fprintf(w, "Indexed node labels:\t%v\n", maps.Keys(nodeDb.indexedNodeLabels))
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
+	w.Writef("Priorities:\t%v\n", configuration.AllowedPriorities(nodeDb.priorityClasses))
+	w.Writef("Indexed resources:\t%v\n", nodeDb.indexedResources)
+	w.Writef("Indexed taints:\t%v\n", maps.Keys(nodeDb.indexedTaints))
+	w.Writef("Indexed node labels:\t%v\n", maps.Keys(nodeDb.indexedNodeLabels))
 	if len(nodeDb.nodeTypes) == 0 {
-		fmt.Fprint(w, "Node types:\tnone\n")
+		w.Write("Node types:\tnone\n")
 	} else {
-		fmt.Fprint(w, "Node types:\n")
+		w.Write("Node types:\n")
 		for _, nodeType := range nodeDb.nodeTypes {
-			fmt.Fprintf(w, "  %d\n", nodeType.Id)
+			w.Writef("  %d\n", nodeType.Id)
 		}
 	}
-	w.Flush()
-	return sb.String()
+	return w.String()
 }
 
 // IndexedNodeLabelValues returns the set of possible values for a given indexed label across all nodes in the NodeDb.
@@ -1116,8 +1112,8 @@ func (nodeDb *NodeDb) AddEvictedJobSchedulingContextWithTxn(txn *memdb.Txn, inde
 	return nil
 }
 
-func nodeDbSchema(priorities []int32, resources []string) (*memdb.DBSchema, map[int32]string) {
-	nodesTable, indexNameByPriority := nodesTableSchema(priorities, resources)
+func nodeDbSchema(priorities []int32) (*memdb.DBSchema, map[int32]string) {
+	nodesTable, indexNameByPriority := nodesTableSchema(priorities)
 	evictionsTable := evictionsTableSchema()
 	return &memdb.DBSchema{
 		Tables: map[string]*memdb.TableSchema{
@@ -1127,7 +1123,7 @@ func nodeDbSchema(priorities []int32, resources []string) (*memdb.DBSchema, map[
 	}, indexNameByPriority
 }
 
-func nodesTableSchema(priorities []int32, resources []string) (*memdb.TableSchema, map[int32]string) {
+func nodesTableSchema(priorities []int32) (*memdb.TableSchema, map[int32]string) {
 	indexes := make(map[string]*memdb.IndexSchema, len(priorities)+1)
 	indexes["id"] = &memdb.IndexSchema{
 		Name:    "id",

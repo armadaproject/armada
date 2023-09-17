@@ -52,7 +52,7 @@ func TestLeaderProxyingSchedulingReportsServer_GetJobReports(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
-			sut, clientProvider, jobReportsServer, jobReportsClient := setupLeaderProxyingSchedulerReportsServerTest(t)
+			sut, clientProvider, jobReportsServer, jobReportsClient := setupLeaderProxyingSchedulerReportsServerTest()
 			clientProvider.IsCurrentProcessLeader = tc.isCurrentProcessLeader
 
 			request := &schedulerobjects.JobReportRequest{JobId: "job-1"}
@@ -117,7 +117,7 @@ func TestLeaderProxyingSchedulingReportsServer_GetSchedulingReport(t *testing.T)
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
-			sut, clientProvider, jobReportsServer, jobReportsClient := setupLeaderProxyingSchedulerReportsServerTest(t)
+			sut, clientProvider, jobReportsServer, jobReportsClient := setupLeaderProxyingSchedulerReportsServerTest()
 			clientProvider.IsCurrentProcessLeader = tc.isCurrentProcessLeader
 
 			request := &schedulerobjects.SchedulingReportRequest{Verbosity: int32(1)}
@@ -182,7 +182,7 @@ func TestLeaderProxyingSchedulingReportsServer_GetQueueReport(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
-			sut, clientProvider, jobReportsServer, jobReportsClient := setupLeaderProxyingSchedulerReportsServerTest(t)
+			sut, clientProvider, jobReportsServer, jobReportsClient := setupLeaderProxyingSchedulerReportsServerTest()
 			clientProvider.IsCurrentProcessLeader = tc.isCurrentProcessLeader
 
 			request := &schedulerobjects.QueueReportRequest{Verbosity: int32(1), QueueName: "queue-1"}
@@ -208,7 +208,7 @@ func TestLeaderProxyingSchedulingReportsServer_GetQueueReport(t *testing.T) {
 	}
 }
 
-func setupLeaderProxyingSchedulerReportsServerTest(t *testing.T) (*LeaderProxyingSchedulingReportsServer, *FakeClientProvider, *FakeSchedulerReportingServer, *FakeSchedulerReportingClient) {
+func setupLeaderProxyingSchedulerReportsServerTest() (*LeaderProxyingSchedulingReportsServer, *FakeClientProvider, *FakeSchedulerReportingServer, *FakeSchedulerReportingClient) {
 	jobReportsServer := NewFakeSchedulerReportingServer()
 	jobReportsClient := NewFakeSchedulerReportingClient()
 	clientProvider := NewFakeClientProvider()
@@ -292,17 +292,17 @@ func NewFakeSchedulerReportingClient() *FakeSchedulerReportingClient {
 	}
 }
 
-func (f *FakeSchedulerReportingClient) GetSchedulingReport(ctx context.Context, request *schedulerobjects.SchedulingReportRequest, opts ...grpc.CallOption) (*schedulerobjects.SchedulingReport, error) {
+func (f *FakeSchedulerReportingClient) GetSchedulingReport(ctx context.Context, request *schedulerobjects.SchedulingReportRequest, _ ...grpc.CallOption) (*schedulerobjects.SchedulingReport, error) {
 	f.GetSchedulingReportCalls = append(f.GetSchedulingReportCalls, GetSchedulingReportCall{Context: ctx, Request: request})
 	return f.GetSchedulingReportResponse, f.Err
 }
 
-func (f *FakeSchedulerReportingClient) GetQueueReport(ctx context.Context, request *schedulerobjects.QueueReportRequest, opts ...grpc.CallOption) (*schedulerobjects.QueueReport, error) {
+func (f *FakeSchedulerReportingClient) GetQueueReport(ctx context.Context, request *schedulerobjects.QueueReportRequest, _ ...grpc.CallOption) (*schedulerobjects.QueueReport, error) {
 	f.GetQueueReportCalls = append(f.GetQueueReportCalls, GetQueueReportCall{Context: ctx, Request: request})
 	return f.GetQueueReportResponse, f.Err
 }
 
-func (f *FakeSchedulerReportingClient) GetJobReport(ctx context.Context, request *schedulerobjects.JobReportRequest, opts ...grpc.CallOption) (*schedulerobjects.JobReport, error) {
+func (f *FakeSchedulerReportingClient) GetJobReport(ctx context.Context, request *schedulerobjects.JobReportRequest, _ ...grpc.CallOption) (*schedulerobjects.JobReport, error) {
 	f.GetJobReportCalls = append(f.GetJobReportCalls, GetJobReportCall{Context: ctx, Request: request})
 	return f.GetJobReportResponse, f.Err
 }
@@ -328,6 +328,6 @@ func NewFakeSchedulerReportingClientProvider() *FakeSchedulerReportingClientProv
 	return &FakeSchedulerReportingClientProvider{}
 }
 
-func (f *FakeSchedulerReportingClientProvider) GetSchedulerReportingClient(conn *grpc.ClientConn) schedulerobjects.SchedulerReportingClient {
+func (f *FakeSchedulerReportingClientProvider) GetSchedulerReportingClient(_ *grpc.ClientConn) schedulerobjects.SchedulerReportingClient {
 	return f.Client
 }

@@ -88,7 +88,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			return nil, err
 		default:
 		}
-		if ok, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx); err != nil {
+		if ok, unschedulableReason, err := sch.gangScheduler.Schedule(gctx); err != nil {
 			return nil, err
 		} else if ok {
 			for _, jctx := range gctx.JobSchedulingContexts {
@@ -260,7 +260,7 @@ func (it *QueuedGangIterator) hitLookbackLimit() bool {
 // where the fraction of fair share computation includes the yielded gang.
 type CandidateGangIterator struct {
 	queueRepository      fairness.QueueRepository
-	fairnessCostProvider fairness.FairnessCostProvider
+	fairnessCostProvider fairness.CostProvider
 	// If true, this iterator only yields gangs where all jobs are evicted.
 	onlyYieldEvicted bool
 	// If, e.g., onlyYieldEvictedByQueue["A"] is true,
@@ -275,7 +275,7 @@ type CandidateGangIterator struct {
 
 func NewCandidateGangIterator(
 	queueRepository fairness.QueueRepository,
-	fairnessCostProvider fairness.FairnessCostProvider,
+	fairnessCostProvider fairness.CostProvider,
 	iteratorsByQueue map[string]*QueuedGangIterator,
 ) (*CandidateGangIterator, error) {
 	it := &CandidateGangIterator{
@@ -397,7 +397,7 @@ func (it *CandidateGangIterator) queueCostWithGctx(gctx *schedulercontext.GangSc
 	return it.fairnessCostProvider.CostFromAllocationAndWeight(it.buffer, queue.GetWeight()), nil
 }
 
-// Priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.
+// QueueCandidateGangIteratorPQ is a Priority queue used by CandidateGangIterator to determine from which queue to schedule the next job.
 type QueueCandidateGangIteratorPQ []*QueueCandidateGangIteratorItem
 
 type QueueCandidateGangIteratorItem struct {

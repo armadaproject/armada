@@ -21,7 +21,7 @@ func TestConstraints(t *testing.T) {
 	}{} // TODO: Add tests.
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ok, unschedulableReason, err := tc.constraints.CheckRoundConstraints(tc.sctx, tc.queue)
+			ok, unschedulableReason, err := tc.constraints.CheckRoundConstraints(tc.sctx)
 			require.NoError(t, err)
 			require.Equal(t, tc.globalUnschedulableReason == "", ok)
 			require.Equal(t, tc.globalUnschedulableReason, unschedulableReason)

@@ -349,7 +349,7 @@ func TestJobSchedulingInfoFieldsInitialised(t *testing.T) {
 	assert.NotNil(t, job.GetNodeSelector())
 	assert.NotNil(t, job.GetAnnotations())
 
-	// Copy again here, as the fields get mutated so we want a clean copy
+	// Copy again here; the fields get mutated and we want a clean copy
 	infoWithNilFieldsCopy2 := proto.Clone(infoWithNilFields).(*schedulerobjects.JobSchedulingInfo)
 	updatedJob := baseJob.WithJobSchedulingInfo(infoWithNilFieldsCopy2)
 	assert.NotNil(t, updatedJob.GetNodeSelector())

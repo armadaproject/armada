@@ -27,7 +27,7 @@ func TestProxyingSchedulingReportsServer_GetJobReports(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
-			sut, jobReportsClient := setupProxyingSchedulerReportsServerTest(t)
+			sut, jobReportsClient := setupProxyingSchedulerReportsServerTest()
 
 			request := &schedulerobjects.JobReportRequest{JobId: "job-1"}
 
@@ -65,7 +65,7 @@ func TestProxyingSchedulingReportsServer_GetSchedulingReport(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
-			sut, jobReportsClient := setupProxyingSchedulerReportsServerTest(t)
+			sut, jobReportsClient := setupProxyingSchedulerReportsServerTest()
 
 			request := &schedulerobjects.SchedulingReportRequest{Verbosity: int32(1)}
 
@@ -103,7 +103,7 @@ func TestProxyingSchedulingReportsServer_GetQueueReport(t *testing.T) {
 			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
-			sut, jobReportsClient := setupProxyingSchedulerReportsServerTest(t)
+			sut, jobReportsClient := setupProxyingSchedulerReportsServerTest()
 
 			request := &schedulerobjects.QueueReportRequest{Verbosity: int32(1), QueueName: "queue-1"}
 
@@ -125,7 +125,7 @@ func TestProxyingSchedulingReportsServer_GetQueueReport(t *testing.T) {
 	}
 }
 
-func setupProxyingSchedulerReportsServerTest(t *testing.T) (*ProxyingSchedulingReportsServer, *FakeSchedulerReportingClient) {
+func setupProxyingSchedulerReportsServerTest() (*ProxyingSchedulingReportsServer, *FakeSchedulerReportingClient) {
 	schedulerReportsClient := NewFakeSchedulerReportingClient()
 	sut := NewProxyingSchedulingReportsServer(schedulerReportsClient)
 	return sut, schedulerReportsClient

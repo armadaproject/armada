@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/go-redis/redis"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -78,9 +80,10 @@ func TestRedisExecutorRepository_LoadAndSave(t *testing.T) {
 func withRedisExecutorRepository(action func(repository *RedisExecutorRepository)) {
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 	defer client.FlushDB()
-	defer client.Close()
-
-	client.FlushDB()
+	defer func() {
+		err := client.Close()
+		log.WithError(err).Warn("Error closing redis client")
+	}()
 	repo := NewRedisExecutorRepository(client, "pulsar")
 	action(repo)
 }

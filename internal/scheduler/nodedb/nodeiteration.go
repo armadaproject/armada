@@ -242,10 +242,10 @@ func (pq *nodeTypesIteratorPQ) Less(i, j int) bool {
 	return pq.less(pq.items[i].node, pq.items[j].node)
 }
 
-func (it *nodeTypesIteratorPQ) less(a, b *Node) bool {
-	allocatableByPriorityA := a.AllocatableByPriority[it.priority]
-	allocatableByPriorityB := b.AllocatableByPriority[it.priority]
-	for _, t := range it.indexedResources {
+func (pq *nodeTypesIteratorPQ) less(a, b *Node) bool {
+	allocatableByPriorityA := a.AllocatableByPriority[pq.priority]
+	allocatableByPriorityB := b.AllocatableByPriority[pq.priority]
+	for _, t := range pq.indexedResources {
 		qa := allocatableByPriorityA.Get(t)
 		qb := allocatableByPriorityB.Get(t)
 		if cmp := qa.Cmp(qb); cmp == -1 {
@@ -304,7 +304,7 @@ type NodeTypeIterator struct {
 	// Updated in-place as the iterator makes progress.
 	lowerBound []resource.Quantity
 	// memdb key computed from nodeTypeId and lowerBound.
-	// Stored here to avoid dynamic allocs.
+	// Stored here to avoid dynamic allocations.
 	key []byte
 	// Current iterator into the underlying memdb.
 	// Updated in-place whenever lowerBound changes.

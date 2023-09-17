@@ -357,7 +357,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		executorId = executors[0].Id
 	}
 	totalResources := fsctx.totalCapacityByPool[pool]
-	var fairnessCostProvider fairness.FairnessCostProvider
+	var fairnessCostProvider fairness.CostProvider
 	if l.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
 		fairnessCostProvider, err = fairness.NewDominantResourceFairness(
 			totalResources,

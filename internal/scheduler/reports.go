@@ -6,7 +6,10 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"text/tabwriter"
+
+	"strings"
+	"sync"
+	"sync/atomic"
 
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/oklog/ulid"
@@ -291,83 +294,77 @@ func (repo *SchedulingContextRepository) getSchedulingReportString(verbosity int
 	mostRecentByExecutor := repo.GetMostRecentSchedulingContextByExecutor()
 	mostRecentSuccessfulByExecutor := repo.GetMostRecentSuccessfulSchedulingContextByExecutor()
 	mostRecentPreemptingByExecutor := repo.GetMostRecentPreemptingSchedulingContextByExecutor()
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
 	for _, executorId := range repo.GetSortedExecutorIds() {
-		fmt.Fprintf(w, "%s:\n", executorId)
+		w.Writef("%s:\n", executorId)
 		if sctx := mostRecentByExecutor[executorId]; sctx != nil {
-			fmt.Fprint(w, indent.String("\t", "Most recent scheduling round:\n"))
-			fmt.Fprint(w, indent.String("\t\t", sctx.ReportString(verbosity)))
+			w.Write(indent.String("\t", "Most recent scheduling round:\n"))
+			w.Write(indent.String("\t\t", sctx.ReportString(verbosity)))
 		} else {
-			fmt.Fprint(w, indent.String("\t", "Most recent scheduling round: none\n"))
+			w.Write(indent.String("\t", "Most recent scheduling round: none\n"))
 		}
 		if sctx := mostRecentSuccessfulByExecutor[executorId]; sctx != nil {
-			fmt.Fprint(w, indent.String("\t", "Most recent scheduling round that scheduled a job:\n"))
-			fmt.Fprint(w, indent.String("\t\t", sctx.ReportString(verbosity)))
+			w.Write(indent.String("\t", "Most recent scheduling round that scheduled a job:\n"))
+			w.Write(indent.String("\t\t", sctx.ReportString(verbosity)))
 		} else {
-			fmt.Fprint(w, indent.String("\t", "Most recent scheduling round that scheduled a job: none\n"))
+			w.Write(indent.String("\t", "Most recent scheduling round that scheduled a job: none\n"))
 		}
 		if sctx := mostRecentPreemptingByExecutor[executorId]; sctx != nil {
-			fmt.Fprint(w, indent.String("\t", "Most recent scheduling round that preempted a job:\n"))
-			fmt.Fprint(w, indent.String("\t\t", sctx.ReportString(verbosity)))
+			w.Write(indent.String("\t", "Most recent scheduling round that preempted a job:\n"))
+			w.Write(indent.String("\t\t", sctx.ReportString(verbosity)))
 		} else {
-			fmt.Fprint(w, indent.String("\t", "Most recent scheduling round that preempted a job: none\n"))
+			w.Write(indent.String("\t", "Most recent scheduling round that preempted a job: none\n"))
 		}
 	}
-	w.Flush()
-	return sb.String()
+	return w.String()
 }
 
 func (repo *SchedulingContextRepository) getSchedulingReportStringForQueue(queue string, verbosity int32) string {
 	mostRecentByExecutor, _ := repo.GetMostRecentSchedulingContextByExecutorForQueue(queue)
 	mostRecentSuccessfulByExecutor, _ := repo.GetMostRecentSuccessfulSchedulingContextByExecutorForQueue(queue)
 	mostRecentPreemptingByExecutor, _ := repo.GetMostRecentPreemptingSchedulingContextByExecutorForQueue(queue)
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
 	for _, executorId := range repo.GetSortedExecutorIds() {
-		fmt.Fprintf(w, "%s:\n", executorId)
+		w.Writef("%s:\n", executorId)
 		if sctx := mostRecentByExecutor[executorId]; sctx != nil {
-			fmt.Fprintf(w, "\tMost recent scheduling round that considered queue %s:\n", queue)
+			w.Writef("\tMost recent scheduling round that considered queue %s:\n", queue)
 			sr := getSchedulingReportForQueue(sctx, queue)
-			fmt.Fprint(w, indent.String("\t\t", sr.ReportString(verbosity)))
+			w.Write(indent.String("\t\t", sr.ReportString(verbosity)))
 		} else {
-			fmt.Fprintf(w, "\tMost recent scheduling round that considered queue %s: none\n", queue)
+			w.Writef("\tMost recent scheduling round that considered queue %s: none\n", queue)
 		}
 		if sctx := mostRecentSuccessfulByExecutor[executorId]; sctx != nil {
-			fmt.Fprintf(w, "\tMost recent scheduling round that scheduled a job from queue %s:\n", queue)
+			w.Writef("\tMost recent scheduling round that scheduled a job from queue %s:\n", queue)
 			sr := getSchedulingReportForQueue(sctx, queue)
-			fmt.Fprint(w, indent.String("\t\t", sr.ReportString(verbosity)))
+			w.Write(indent.String("\t\t", sr.ReportString(verbosity)))
 		} else {
-			fmt.Fprintf(w, "\tMost recent scheduling round that scheduled a job from queue %s: none\n", queue)
+			w.Writef("\tMost recent scheduling round that scheduled a job from queue %s: none\n", queue)
 		}
 		if sctx := mostRecentPreemptingByExecutor[executorId]; sctx != nil {
-			fmt.Fprintf(w, "\tMost recent scheduling round that preempted a job from queue %s:\n", queue)
+			w.Writef("\tMost recent scheduling round that preempted a job from queue %s:\n", queue)
 			sr := getSchedulingReportForQueue(sctx, queue)
-			fmt.Fprint(w, indent.String("\t\t", sr.ReportString(verbosity)))
+			w.Write(indent.String("\t\t", sr.ReportString(verbosity)))
 		} else {
-			fmt.Fprintf(w, "\tMost recent scheduling round that preempted a job from queue %s: none\n", queue)
+			w.Writef("\tMost recent scheduling round that preempted a job from queue %s: none\n", queue)
 		}
 	}
-	w.Flush()
-	return sb.String()
+	return w.String()
 }
 
 func (repo *SchedulingContextRepository) getSchedulingReportStringForJob(jobId string, verbosity int32) string {
 	mostRecentByExecutor, _ := repo.GetMostRecentSchedulingContextByExecutorForJob(jobId)
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
 	for _, executorId := range repo.GetSortedExecutorIds() {
-		fmt.Fprintf(w, "%s:\n", executorId)
+		w.Writef("%s:\n", executorId)
 		if sctx := mostRecentByExecutor[executorId]; sctx != nil {
-			fmt.Fprintf(w, "\tMost recent scheduling round that affected job %s:\n", jobId)
+			w.Writef("\tMost recent scheduling round that affected job %s:\n", jobId)
 			sr := getSchedulingReportForJob(sctx, jobId)
-			fmt.Fprint(w, indent.String("\t\t", sr.ReportString(verbosity)))
+			w.Write(indent.String("\t\t", sr.ReportString(verbosity)))
 		} else {
-			fmt.Fprintf(w, "\tMost recent scheduling round that affected job %s: none\n", jobId)
+			w.Writef("\tMost recent scheduling round that affected job %s: none\n", jobId)
 		}
 	}
-	w.Flush()
-	return sb.String()
+	return w.String()
 }
 
 type schedulingReport struct {
@@ -377,22 +374,20 @@ type schedulingReport struct {
 }
 
 func (sr schedulingReport) ReportString(verbosity int32) string {
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
 	if sctx := sr.schedulingContext; sctx != nil {
-		fmt.Fprint(w, "Overall scheduling report:\n")
-		fmt.Fprint(w, indent.String("\t", sctx.ReportString(verbosity)))
+		w.Write("Overall scheduling report:\n")
+		w.Write(indent.String("\t", sctx.ReportString(verbosity)))
 	}
 	if qctx := sr.queueSchedulingContext; qctx != nil {
-		fmt.Fprintf(w, "Scheduling report for queue %s:\n", qctx.Queue)
-		fmt.Fprint(w, indent.String("\t", qctx.ReportString(verbosity)))
+		w.Writef("Scheduling report for queue %s:\n", qctx.Queue)
+		w.Write(indent.String("\t", qctx.ReportString(verbosity)))
 	}
 	if jctx := sr.jobSchedulingContext; jctx != nil {
-		fmt.Fprintf(w, "Scheduling report for job %s:\n", jctx.JobId)
-		fmt.Fprint(w, indent.String("\t", jctx.String()))
+		w.Writef("Scheduling report for job %s:\n", jctx.JobId)
+		w.Write(indent.String("\t", jctx.String()))
 	}
-	w.Flush()
-	return sb.String()
+	return w.String()
 }
 
 func getSchedulingReportForQueue(sctx *schedulercontext.SchedulingContext, queue string) (sr schedulingReport) {
@@ -442,31 +437,29 @@ func (repo *SchedulingContextRepository) getQueueReportString(queue string, verb
 	mostRecentByExecutor, _ := repo.GetMostRecentSchedulingContextByExecutorForQueue(queue)
 	mostRecentSuccessfulByExecutor, _ := repo.GetMostRecentSuccessfulSchedulingContextByExecutorForQueue(queue)
 	mostRecentPreemptingByExecutor, _ := repo.GetMostRecentPreemptingSchedulingContextByExecutorForQueue(queue)
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
 	for _, executorId := range repo.GetSortedExecutorIds() {
-		fmt.Fprintf(w, "%s:\n", executorId)
+		w.Writef("%s:\n", executorId)
 		if sr := getSchedulingReportForQueue(mostRecentByExecutor[executorId], queue); sr.queueSchedulingContext != nil {
-			fmt.Fprintf(w, "\tMost recent scheduling round that considered queue %s:\n", queue)
-			fmt.Fprint(w, indent.String("\t\t", sr.queueSchedulingContext.ReportString(verbosity)))
+			w.Writef("\tMost recent scheduling round that considered queue %s:\n", queue)
+			w.Write(indent.String("\t\t", sr.queueSchedulingContext.ReportString(verbosity)))
 		} else {
-			fmt.Fprintf(w, "\tMost recent scheduling round that considered queue %s: none\n", queue)
+			w.Writef("\tMost recent scheduling round that considered queue %s: none\n", queue)
 		}
 		if sr := getSchedulingReportForQueue(mostRecentSuccessfulByExecutor[executorId], queue); sr.queueSchedulingContext != nil {
-			fmt.Fprintf(w, "\tMost recent scheduling round that scheduled a job from queue %s:\n", queue)
-			fmt.Fprint(w, indent.String("\t\t", sr.queueSchedulingContext.ReportString(verbosity)))
+			w.Writef("\tMost recent scheduling round that scheduled a job from queue %s:\n", queue)
+			w.Write(indent.String("\t\t", sr.queueSchedulingContext.ReportString(verbosity)))
 		} else {
-			fmt.Fprintf(w, "\tMost recent scheduling round that scheduled a job from queue %s: none\n", queue)
+			w.Writef("\tMost recent scheduling round that scheduled a job from queue %s: none\n", queue)
 		}
 		if sr := getSchedulingReportForQueue(mostRecentPreemptingByExecutor[executorId], queue); sr.queueSchedulingContext != nil {
-			fmt.Fprintf(w, "\tMost recent scheduling round that preempted a job from queue %s:\n", queue)
-			fmt.Fprint(w, indent.String("\t\t", sr.queueSchedulingContext.ReportString(verbosity)))
+			w.Writef("\tMost recent scheduling round that preempted a job from queue %s:\n", queue)
+			w.Write(indent.String("\t\t", sr.queueSchedulingContext.ReportString(verbosity)))
 		} else {
-			fmt.Fprintf(w, "\tMost recent scheduling round that preempted a job from queue %s: none\n", queue)
+			w.Writef("\tMost recent scheduling round that preempted a job from queue %s: none\n", queue)
 		}
 	}
-	w.Flush()
-	return sb.String()
+	return w.String()
 }
 
 // GetJobReport is a gRPC endpoint for querying job reports.
@@ -487,18 +480,16 @@ func (repo *SchedulingContextRepository) GetJobReport(_ context.Context, request
 
 func (repo *SchedulingContextRepository) getJobReportString(jobId string) string {
 	byExecutor, _ := repo.GetMostRecentSchedulingContextByExecutorForJob(jobId)
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
 	for _, executorId := range repo.GetSortedExecutorIds() {
 		if sr := getSchedulingReportForJob(byExecutor[executorId], jobId); sr.jobSchedulingContext != nil {
-			fmt.Fprintf(w, "%s:\n", executorId)
-			fmt.Fprint(w, indent.String("\t", sr.jobSchedulingContext.String()))
+			w.Writef("%s:\n", executorId)
+			w.Write(indent.String("\t", sr.jobSchedulingContext.String()))
 		} else {
-			fmt.Fprintf(w, "%s: no recent scheduling round that affected job %s\n", executorId, jobId)
+			w.Writef("%s: no recent scheduling round that affected job %s\n", executorId, jobId)
 		}
 	}
-	w.Flush()
-	return sb.String()
+	return w.String()
 }
 
 func (repo *SchedulingContextRepository) GetMostRecentSchedulingContextByExecutor() SchedulingContextByExecutor {
@@ -543,15 +534,13 @@ func (repo *SchedulingContextRepository) GetSortedExecutorIds() []string {
 }
 
 func (m SchedulingContextByExecutor) String() string {
-	var sb strings.Builder
-	w := tabwriter.NewWriter(&sb, 1, 1, 1, ' ', 0)
+	w := util.NewTabbedStringBuilder(1, 1, 1, ' ', 0)
 	executorIds := maps.Keys(m)
 	slices.Sort(executorIds)
 	for _, executorId := range executorIds {
 		sctx := m[executorId]
-		fmt.Fprintf(w, "%s:\n", executorId)
-		fmt.Fprint(w, indent.String("\t", sctx.String()))
+		w.Writef("%s:\n", executorId)
+		w.Write(indent.String("\t", sctx.String()))
 	}
-	w.Flush()
-	return sb.String()
+	return w.String()
 }

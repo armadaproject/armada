@@ -52,7 +52,7 @@ func EncodeQuantity(out []byte, val resource.Quantity) []byte {
 	return EncodeInt64(out, val.MilliValue())
 }
 
-// EncodeInt64 returns the canonical byte representation of a int64 used within the nodeDb.
+// EncodeInt64 returns the canonical byte representation of an int64 used within the nodeDb.
 // The resulting []byte is such that for two int64 a and b, a.Cmp(b) = bytes.Compare(enc(a), enc(b)).
 // The byte representation is appended to out, which is returned.
 func EncodeInt64(out []byte, val int64) []byte {
