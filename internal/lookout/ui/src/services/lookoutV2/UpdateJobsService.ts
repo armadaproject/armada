@@ -14,7 +14,7 @@ export type UpdateJobsResponse = {
 export class UpdateJobsService {
   constructor(private submitApi: SubmitApi) {}
 
-  cancelJobs = async (jobs: Job[]): Promise<UpdateJobsResponse> => {
+  cancelJobs = async (jobs: Job[], reason: string): Promise<UpdateJobsResponse> => {
     const response: UpdateJobsResponse = { successfulJobIds: [], failedJobIds: [] }
 
     const maxJobsPerRequest = 10000
@@ -31,6 +31,7 @@ export class UpdateJobsService {
                 jobIds: batch,
                 queue: queue,
                 jobSetId: jobSet,
+                reason: reason,
               },
             }),
             jobIds: batch,

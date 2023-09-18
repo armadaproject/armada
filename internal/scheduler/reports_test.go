@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -10,39 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/util"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
-
-func TestExtractQueueAndJobContexts(t *testing.T) {
-	sctx := withUnsuccessfulJobSchedulingContext(withSuccessfulJobSchedulingContext(testSchedulingContext("executor"), "queue", "success"), "queue", "failure")
-	queueSchedulingContextByQueue, jobSchedulingContextByJobId := extractQueueAndJobContexts(sctx)
-	assert.Equal(
-		t,
-		withUnsuccessfulJobSchedulingContext(withSuccessfulJobSchedulingContext(testSchedulingContext("executor"), "queue", "success"), "queue", "failure"),
-		sctx,
-	)
-	assert.Equal(
-		t,
-		withUnsuccessfulJobSchedulingContext(withSuccessfulJobSchedulingContext(testSchedulingContext("executor"), "queue", "success"), "queue", "failure").QueueSchedulingContexts,
-		queueSchedulingContextByQueue,
-	)
-	assert.Equal(
-		t,
-		map[string]*schedulercontext.JobSchedulingContext{
-			"success": {
-				ExecutorId: "executor",
-				JobId:      "success",
-			},
-			"failure": {
-				ExecutorId:          "executor",
-				JobId:               "failure",
-				UnschedulableReason: "unknown",
-			},
-		},
-		jobSchedulingContextByJobId,
-	)
-}
 
 func TestAddGetSchedulingContext(t *testing.T) {
 	repo, err := NewSchedulingContextRepository(10)
@@ -69,82 +40,97 @@ func TestAddGetSchedulingContext(t *testing.T) {
 	err = repo.AddSchedulingContext(sctx)
 	require.NoError(t, err)
 
-	actualJobSchedulingContextByExecutor, ok := repo.GetMostRecentJobSchedulingContextByExecutor("doesNotExist")
-	require.Nil(t, actualJobSchedulingContextByExecutor)
+	sctx = testSchedulingContext("baz")
+	sctx = withPreemptingJobSchedulingContext(sctx, "C", "preempted")
+	err = repo.AddSchedulingContext(sctx)
+	require.NoError(t, err)
+
+	var actualSchedulingContextByExecutor SchedulingContextByExecutor
+	var ok bool
+
+	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSchedulingContextByExecutorForJob("doesNotExist")
+	require.Nil(t, actualSchedulingContextByExecutor)
 	require.False(t, ok)
 
-	actualJobSchedulingContextByExecutor, ok = repo.GetMostRecentJobSchedulingContextByExecutor("successFooA")
+	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSchedulingContextByExecutorForJob("successFooA")
 	require.True(t, ok)
 	assert.Equal(
 		t,
-		JobSchedulingContextByExecutor{
-			"foo": withSuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "successFooA").QueueSchedulingContexts["A"].SuccessfulJobSchedulingContexts["successFooA"],
+		SchedulingContextByExecutor{
+			"foo": withSuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "successFooA"),
 		},
-		actualJobSchedulingContextByExecutor,
+		actualSchedulingContextByExecutor,
 	)
 
-	actualJobSchedulingContextByExecutor, ok = repo.GetMostRecentJobSchedulingContextByExecutor("failureA")
+	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSchedulingContextByExecutorForJob("failureA")
 	require.True(t, ok)
 	assert.Equal(
 		t,
-		JobSchedulingContextByExecutor{
-			"foo": withUnsuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "failureA").QueueSchedulingContexts["A"].UnsuccessfulJobSchedulingContexts["failureA"],
-			"bar": withUnsuccessfulJobSchedulingContext(testSchedulingContext("bar"), "A", "failureA").QueueSchedulingContexts["A"].UnsuccessfulJobSchedulingContexts["failureA"],
-		},
-		actualJobSchedulingContextByExecutor,
+		withUnsuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "failureA").QueueSchedulingContexts["A"],
+		actualSchedulingContextByExecutor["foo"].QueueSchedulingContexts["A"],
+	)
+	assert.Equal(
+		t,
+		withUnsuccessfulJobSchedulingContext(testSchedulingContext("bar"), "A", "failureA").QueueSchedulingContexts["A"],
+		actualSchedulingContextByExecutor["bar"].QueueSchedulingContexts["A"],
 	)
 
-	actualQueueSchedulingContextByExecutor, ok := repo.GetMostRecentQueueSchedulingContextByExecutor("doesNotExist")
-	require.Nil(t, actualQueueSchedulingContextByExecutor)
+	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSchedulingContextByExecutorForQueue("doesNotExist")
+	require.Nil(t, actualSchedulingContextByExecutor)
 	require.False(t, ok)
 
-	actualQueueSchedulingContextByExecutor, ok = repo.GetMostRecentQueueSchedulingContextByExecutor("A")
+	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSchedulingContextByExecutorForQueue("A")
 	require.True(t, ok)
 	assert.Equal(
 		t,
-		QueueSchedulingContextByExecutor{
-			"foo": withUnsuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "failureA").QueueSchedulingContexts["A"],
-			"bar": withUnsuccessfulJobSchedulingContext(testSchedulingContext("bar"), "A", "failureA").QueueSchedulingContexts["A"],
-		},
-		actualQueueSchedulingContextByExecutor,
+		withUnsuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "failureA").QueueSchedulingContexts["A"],
+		actualSchedulingContextByExecutor["foo"].QueueSchedulingContexts["A"],
+	)
+	assert.Equal(
+		t,
+		withUnsuccessfulJobSchedulingContext(testSchedulingContext("bar"), "A", "failureA").QueueSchedulingContexts["A"],
+		actualSchedulingContextByExecutor["bar"].QueueSchedulingContexts["A"],
 	)
 
-	actualQueueSchedulingContextByExecutor, ok = repo.GetMostRecentSuccessfulQueueSchedulingContextByExecutor("A")
+	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSuccessfulSchedulingContextByExecutorForQueue("A")
 	require.True(t, ok)
 	assert.Equal(
 		t,
-		QueueSchedulingContextByExecutor{
-			"foo": withSuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "successFooA").QueueSchedulingContexts["A"],
-		},
-		actualQueueSchedulingContextByExecutor,
+		withSuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "successFooA").QueueSchedulingContexts["A"],
+		actualSchedulingContextByExecutor["foo"].QueueSchedulingContexts["A"],
 	)
 
-	actualQueueSchedulingContextByExecutor, ok = repo.GetMostRecentQueueSchedulingContextByExecutor("B")
+	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSchedulingContextByExecutorForQueue("B")
 	require.True(t, ok)
 	assert.Equal(
 		t,
-		QueueSchedulingContextByExecutor{
-			"bar": withUnsuccessfulJobSchedulingContext(testSchedulingContext("bar"), "B", "failureB").QueueSchedulingContexts["B"],
-		},
-		actualQueueSchedulingContextByExecutor,
+		withUnsuccessfulJobSchedulingContext(testSchedulingContext("bar"), "B", "failureB").QueueSchedulingContexts["B"],
+		actualSchedulingContextByExecutor["bar"].QueueSchedulingContexts["B"],
 	)
 
-	actualQueueSchedulingContextByExecutor, ok = repo.GetMostRecentSuccessfulQueueSchedulingContextByExecutor("B")
+	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSuccessfulSchedulingContextByExecutorForQueue("B")
 	require.True(t, ok)
 	assert.Equal(
 		t,
-		QueueSchedulingContextByExecutor{
-			"bar": withSuccessfulJobSchedulingContext(testSchedulingContext("bar"), "B", "successBarB").QueueSchedulingContexts["B"],
-		},
-		actualQueueSchedulingContextByExecutor,
+		withSuccessfulJobSchedulingContext(testSchedulingContext("bar"), "B", "successBarB").QueueSchedulingContexts["B"],
+		actualSchedulingContextByExecutor["bar"].QueueSchedulingContexts["B"],
 	)
 
-	actualSchedulingContextByExecutor := repo.GetMostRecentSchedulingContextByExecutor()
+	actualSchedulingContextByExecutor, ok = repo.GetMostRecentSchedulingContextByExecutorForQueue("C")
+	require.True(t, ok)
+	assert.Equal(
+		t,
+		withPreemptingJobSchedulingContext(testSchedulingContext("baz"), "C", "preempted").QueueSchedulingContexts["C"],
+		actualSchedulingContextByExecutor["baz"].QueueSchedulingContexts["C"],
+	)
+
+	actualSchedulingContextByExecutor = repo.GetMostRecentSchedulingContextByExecutor()
 	assert.Equal(
 		t,
 		SchedulingContextByExecutor{
 			"foo": withUnsuccessfulJobSchedulingContext(testSchedulingContext("foo"), "A", "failureA"),
 			"bar": withUnsuccessfulJobSchedulingContext(testSchedulingContext("bar"), "B", "failureB"),
+			"baz": withPreemptingJobSchedulingContext(testSchedulingContext("baz"), "C", "preempted"),
 		},
 		actualSchedulingContextByExecutor,
 	)
@@ -158,13 +144,22 @@ func TestAddGetSchedulingContext(t *testing.T) {
 		},
 		actualSchedulingContextByExecutor,
 	)
+
+	actualSchedulingContextByExecutor = repo.GetMostRecentPreemptingSchedulingContextByExecutor()
+	assert.Equal(
+		t,
+		SchedulingContextByExecutor{
+			"baz": withPreemptingJobSchedulingContext(testSchedulingContext("baz"), "C", "preempted"),
+		},
+		actualSchedulingContextByExecutor,
+	)
 }
 
 // Concurrently write/read to/from the repo to test that there are no panics.
 func TestTestAddGetSchedulingContextConcurrency(t *testing.T) {
 	repo, err := NewSchedulingContextRepository(10)
 	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Second)
 	defer cancel()
 	for _, executorId := range []string{"foo", "bar"} {
 		go func(executorId string) {
@@ -177,7 +172,9 @@ func TestTestAddGetSchedulingContextConcurrency(t *testing.T) {
 				sctx := testSchedulingContext(executorId)
 				sctx = withUnsuccessfulJobSchedulingContext(sctx, "A", "failureA")
 				sctx = withUnsuccessfulJobSchedulingContext(sctx, "B", "failureB")
+				sctx = withUnsuccessfulJobSchedulingContext(sctx, "C", "failureC")
 				sctx = withSuccessfulJobSchedulingContext(sctx, "B", fmt.Sprintf("success%sB", executorId))
+				sctx = withPreemptingJobSchedulingContext(sctx, "C", "preempted")
 				err = repo.AddSchedulingContext(sctx)
 				require.NoError(t, err)
 				err = repo.AddSchedulingContext(sctx)
@@ -193,11 +190,54 @@ func TestTestAddGetSchedulingContextConcurrency(t *testing.T) {
 			default:
 			}
 			repo.getJobReportString(fmt.Sprintf("failure%s", queue))
-			repo.getQueueReportString(queue)
-			repo.getSchedulingReportString()
+			repo.getQueueReportString(queue, 0)
+			repo.getSchedulingReportString(0)
 		}(queue)
 	}
 	<-ctx.Done()
+}
+
+func TestReportDoesNotExist(t *testing.T) {
+	repo, err := NewSchedulingContextRepository(1024)
+	require.NoError(t, err)
+	err = repo.AddSchedulingContext(testSchedulingContext("executor-01"))
+	require.NoError(t, err)
+	ctx := armadacontext.Background()
+	queue := "queue-does-not-exist"
+	jobId := util.NewULID()
+
+	_, err = repo.GetSchedulingReport(ctx, &schedulerobjects.SchedulingReportRequest{})
+	require.NoError(t, err)
+
+	_, err = repo.GetSchedulingReport(
+		ctx,
+		&schedulerobjects.SchedulingReportRequest{
+			Filter: &schedulerobjects.SchedulingReportRequest_MostRecentForQueue{
+				MostRecentForQueue: &schedulerobjects.MostRecentForQueue{
+					QueueName: queue,
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = repo.GetSchedulingReport(
+		ctx,
+		&schedulerobjects.SchedulingReportRequest{
+			Filter: &schedulerobjects.SchedulingReportRequest_MostRecentForJob{
+				MostRecentForJob: &schedulerobjects.MostRecentForJob{
+					JobId: jobId,
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = repo.GetQueueReport(ctx, &schedulerobjects.QueueReportRequest{QueueName: queue})
+	require.NoError(t, err)
+
+	_, err = repo.GetJobReport(ctx, &schedulerobjects.JobReportRequest{JobId: jobId})
+	require.NoError(t, err)
 }
 
 func withSuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingContext, queue, jobId string) *schedulercontext.SchedulingContext {
@@ -206,26 +246,37 @@ func withSuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingContext
 	}
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
-		qctx = schedulercontext.NewQueueSchedulingContext(queue, sctx.ExecutorId, 1.0, nil, make(schedulerobjects.QuantityByPriorityAndResourceType))
+		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByTAndResourceType[string]), nil); err != nil {
+			panic(err)
+		}
+		qctx = sctx.QueueSchedulingContexts[queue]
+		qctx.SchedulingContext = nil
 		qctx.Created = time.Time{}
-		sctx.QueueSchedulingContexts[queue] = qctx
 	}
-	qctx.SuccessfulJobSchedulingContexts[jobId] = &schedulercontext.JobSchedulingContext{
-		ExecutorId: sctx.ExecutorId,
-		JobId:      jobId,
+	qctx.SuccessfulJobSchedulingContexts[jobId] = &schedulercontext.JobSchedulingContext{JobId: jobId}
+	rl := schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}}
+	qctx.ScheduledResourcesByPriorityClass.AddResourceList("foo", rl)
+	sctx.ScheduledResourcesByPriorityClass.AddResourceList("foo", rl)
+	return sctx
+}
+
+func withPreemptingJobSchedulingContext(sctx *schedulercontext.SchedulingContext, queue, jobId string) *schedulercontext.SchedulingContext {
+	if sctx.QueueSchedulingContexts == nil {
+		sctx.QueueSchedulingContexts = make(map[string]*schedulercontext.QueueSchedulingContext)
 	}
-	qctx.ScheduledResourcesByPriority.AddResourceList(
-		0,
-		schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")},
-		},
-	)
-	sctx.ScheduledResourcesByPriority.AddResourceList(
-		0,
-		schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")},
-		},
-	)
+	qctx := sctx.QueueSchedulingContexts[queue]
+	if qctx == nil {
+		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByTAndResourceType[string]), nil); err != nil {
+			panic(err)
+		}
+		qctx = sctx.QueueSchedulingContexts[queue]
+		qctx.SchedulingContext = nil
+		qctx.Created = time.Time{}
+	}
+	qctx.EvictedJobsById[jobId] = true
+	rl := schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}}
+	qctx.EvictedResourcesByPriorityClass.AddResourceList("foo", rl)
+	sctx.EvictedResourcesByPriorityClass.AddResourceList("foo", rl)
 	return sctx
 }
 
@@ -235,15 +286,14 @@ func withUnsuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingConte
 	}
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
-		qctx = schedulercontext.NewQueueSchedulingContext(queue, sctx.ExecutorId, 1.0, nil, make(schedulerobjects.QuantityByPriorityAndResourceType))
+		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByTAndResourceType[string]), nil); err != nil {
+			panic(err)
+		}
+		qctx = sctx.QueueSchedulingContexts[queue]
+		qctx.SchedulingContext = nil
 		qctx.Created = time.Time{}
-		sctx.QueueSchedulingContexts[queue] = qctx
 	}
-	qctx.UnsuccessfulJobSchedulingContexts[jobId] = &schedulercontext.JobSchedulingContext{
-		ExecutorId:          sctx.ExecutorId,
-		JobId:               jobId,
-		UnschedulableReason: "unknown",
-	}
+	qctx.UnsuccessfulJobSchedulingContexts[jobId] = &schedulercontext.JobSchedulingContext{JobId: jobId, UnschedulableReason: "unknown"}
 	return sctx
 }
 
@@ -256,9 +306,9 @@ func testSchedulingContext(executorId string) *schedulercontext.SchedulingContex
 		nil,
 		nil,
 		schedulerobjects.ResourceList{},
-		nil,
 	)
 	sctx.Started = time.Time{}
 	sctx.Finished = time.Time{}
+	sctx.SchedulingKeyGenerator = nil
 	return sctx
 }

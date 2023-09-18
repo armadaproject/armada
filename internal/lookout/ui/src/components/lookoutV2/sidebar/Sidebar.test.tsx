@@ -1,9 +1,10 @@
 import { render, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { Job } from "models/lookoutV2Models"
+import { Job, JobRunState, JobState } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
-import { makeRandomJobs } from "utils/fakeJobsUtils"
+import { makeTestJob } from "utils/fakeJobsUtils"
 
+import { FakeCordonService } from "../../../services/lookoutV2/mocks/FakeCordonService"
 import FakeGetJobSpecService from "../../../services/lookoutV2/mocks/FakeGetJobSpecService"
 import { FakeGetRunErrorService } from "../../../services/lookoutV2/mocks/FakeGetRunErrorService"
 import { FakeLogService } from "../../../services/lookoutV2/mocks/FakeLogService"
@@ -13,7 +14,27 @@ describe("Sidebar", () => {
   let job: Job, onClose: () => undefined
 
   beforeEach(() => {
-    job = makeRandomJobs(1, 1, 1, 1)[0]
+    job = makeTestJob(
+      "test-queue",
+      "test-jobset",
+      "abcde",
+      JobState.Succeeded,
+      {
+        cpu: 3900,
+        memory: 38 * 1024 ** 2,
+        ephemeralStorage: 64 * 1024 ** 3,
+        gpu: 4,
+      },
+      [
+        {
+          jobId: "abcde",
+          runId: "1234-5678",
+          cluster: "demo-a",
+          pending: new Date().toISOString(),
+          jobRunState: JobRunState.RunPending,
+        },
+      ],
+    )
     onClose = jest.fn()
   })
 
@@ -25,6 +46,7 @@ describe("Sidebar", () => {
           runErrorService={new FakeGetRunErrorService()}
           jobSpecService={new FakeGetJobSpecService()}
           logService={new FakeLogService()}
+          cordonService={new FakeCordonService()}
           sidebarWidth={600}
           onClose={onClose}
           onWidthChange={() => undefined}
@@ -38,7 +60,9 @@ describe("Sidebar", () => {
     within(getByRole("row", { name: /Queue/ })).getByText(job.queue)
     within(getByRole("row", { name: /Job Set/ })).getByText(job.jobSet)
     within(getByRole("row", { name: /CPU/ })).getByText("3.9")
-    within(getByRole("row", { name: /Memory/ })).getByText("128 MiB")
+    within(getByRole("row", { name: /Memory/ })).getByText("38Mi")
+    within(getByRole("row", { name: /Ephemeral storage/ })).getByText("64Gi")
+    within(getByRole("row", { name: /GPU/ })).getByText("4")
   })
 
   it("should allow users to view run details", async () => {
@@ -50,19 +74,20 @@ describe("Sidebar", () => {
 
     // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
-    within(getByRole("row", { name: /Exit code/ })).getByText("17")
+    within(getByRole("row", { name: /Cluster/ })).getByText(run.cluster)
   })
 
-  it("should handle runs with no errors", async () => {
+  it("should handle runs with errors", async () => {
     const { getByRole } = renderComponent()
     const run = job.runs[0]
-    run.exitCode = undefined
+    run.exitCode = 137
 
     // Switch to runs tab
     await userEvent.click(getByRole("tab", { name: /Runs/ }))
 
     // First run should already be expanded
     within(getByRole("row", { name: /Run ID/ })).getByText(run.runId)
+    within(getByRole("row", { name: /Exit code/ })).getByText(137)
   })
 
   it("should handle no runs", async () => {

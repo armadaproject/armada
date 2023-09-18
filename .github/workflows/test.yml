@@ -1,0 +1,230 @@
+name: Code Build and Tests
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  ts-unit-tests:
+    name: TypeScript Unit Tests
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.3.0
+
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: 16.14.2
+          cache: yarn
+          cache-dependency-path: ./internal/lookout/ui/yarn.lock
+
+      - name: Run Unit Tests
+        run: |
+          yarn install --frozen-lockfile && yarn run openapi && CI=true yarn run test --reporters=jest-junit
+        working-directory: ./internal/lookout/ui
+
+      - name: Publish JUnit Report
+        uses: mikepenz/action-junit-report@v3
+        if: always()
+        with:
+          report_paths: ./internal/lookout/ui/junit.xml
+          fail_on_failure: true
+          require_tests: true
+          detailed_summary: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Test Reports Artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: ts-unit-test-reports
+          path: ./internal/lookout/ui/junit.xml
+          if-no-files-found: error
+
+  go-unit-tests:
+    name: Golang Unit Tests
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.3.0
+
+      - name: Setup Golang with Cache
+        uses: magnetikonline/action-golang-cache@v4
+        with:
+          go-version: "1.20"
+
+      - name: Setup dependencies
+        shell: bash
+        run: go run github.com/magefile/mage@v1.14.0 -v download
+
+      - name: Unit Tests
+        id: unit_test
+        run: go run github.com/magefile/mage@v1.14.0 -v tests
+
+      - name: Publish JUnit Report
+        uses: mikepenz/action-junit-report@v3
+        if: always()
+        with:
+          report_paths: test-reports/unit-tests.xml
+          fail_on_failure: true
+          require_tests: true
+          detailed_summary: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Test Reports Artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: go-unit-test-reports
+          path: test-reports/
+          if-no-files-found: error
+
+  go-integration-tests:
+    name: Golang Integration Tests
+    runs-on: ubuntu-22.04
+
+    env:
+      ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
+      ARMADA_EXECUTOR_INGRESS_PORT: 5001
+      # Cache Docker layers in the GitHub actions cache.
+      # These variables are picked up by the goreleaser config.
+      DOCKER_BUILDX_CACHE_FROM: "type=gha"
+      DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
+      DOCKER_BUILDX_BUILDER: "builder"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.3.0
+
+      - name: Create Docker Buildx Builder
+        run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
+
+      - name: Install Docker Buildx
+        run: docker buildx install
+
+      - name: Setup Golang with Cache
+        uses: magnetikonline/action-golang-cache@v4
+        with:
+          go-version: "1.20"
+
+      - name: Setup dependencies
+        shell: bash
+        run: go run github.com/magefile/mage@v1.14.0 -v download
+
+      - name: Setup and Run Integration Tests
+        run: |
+          # Manually create folders to ensure perms are correct.
+          mkdir -p .kube/internal
+          mkdir -p .kube/external
+          go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
+
+      - name: Upload JUnit Report Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: go-integration-test-reports
+          path: junit.xml
+          if-no-files-found: error
+
+      - name: Publish JUnit Report
+        uses: mikepenz/action-junit-report@v3
+        if: always()
+        with:
+          report_paths: junit.xml
+          fail_on_failure: true
+          require_tests: true
+          detailed_summary: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  go-mod-up-to-date:
+    name: Golang Mod Up To Date
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3.3.0
+
+      - name: Setup Golang with Cache
+        uses: magnetikonline/action-golang-cache@v4
+        with:
+          go-version: "1.20"
+
+      - name: Download all Go modules
+        run: go mod download
+
+      - name: Check for tidyness of go.mod and go.sum
+        run: |
+          go mod tidy
+
+          changed=$(git status -s -uno | wc -l)
+
+          echo -e "### Git status" >> $GITHUB_STEP_SUMMARY
+          if [[ "$changed" -gt 0 ]]; then
+            echo -e "Go modules are not synchronized. Please run 'go mod tidy' and commit the changes." >> $GITHUB_STEP_SUMMARY
+
+            git status -s -uno >> $GITHUB_STEP_SUMMARY
+
+            echo -e >> $GITHUB_STEP_SUMMARY
+            echo -e "### Git diff" >> $GITHUB_STEP_SUMMARY
+
+            git --no-pager diff >> $GITHUB_STEP_SUMMARY
+          else
+            echo -e "Go modules are synchronized." >> $GITHUB_STEP_SUMMARY
+            echo -e >> $GITHUB_STEP_SUMMARY
+          fi
+
+          exit $changed
+
+  proto-up-to-date:
+    name: Proto Up To Date
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.3.0
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          version: '23.3'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go }}
+
+      - name: Setup dependencies
+        shell: bash
+        run: go run github.com/magefile/mage@v1.14.0 -v download
+
+      # TODO(JayF): Consider moving this into its own job, that runs under a larger set of circumstances
+      #             since it's possible for this to fail without any go changes being made.
+      - name: Validate no changes in generated proto files
+        run: |
+          go run github.com/magefile/mage@v1.14.0 -v proto
+          go run github.com/magefile/mage@v1.14.0 -v dotnet
+
+          changed=$(git status -s -uno | wc -l)
+
+          echo -e "### Git status" >> $GITHUB_STEP_SUMMARY
+          if [[ "$changed" -gt 0 ]]; then
+            echo -e "Generated proto files are out of date. Please run 'mage proto' and commit the changes." >> $GITHUB_STEP_SUMMARY
+
+            git status -s -uno >> $GITHUB_STEP_SUMMARY
+
+            echo -e >> $GITHUB_STEP_SUMMARY
+            echo -e "### Git diff" >> $GITHUB_STEP_SUMMARY
+
+            git --no-pager diff >> $GITHUB_STEP_SUMMARY
+          else
+            echo -e "Generated proto files are up to date." >> $GITHUB_STEP_SUMMARY
+            echo -e >> $GITHUB_STEP_SUMMARY
+          fi
+
+          exit $changed

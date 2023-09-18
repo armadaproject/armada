@@ -1,14 +1,22 @@
 ## Relationships Diagram
 
-![Systems Diagram](./diagrams/relationships/armada_system.png)
+These diagrams show the high-level relationships between components of Armada and third-party softwares.
 
-This diagram shows the high-level relationships between components of Armada and third-party softwares.
+### Armada V1 System
 
-For a more detailed view of Armada, see the [Scheduler Architecture Doc](../architecture.md).
+![Systems Diagram](./diagrams/relationships/armada_v1_system.png)
+
+
+### Armada V2 System
+
+![Systems Diagram](./diagrams/relationships/armada_v2_system.png)
+
+
+For a more detailed view of Armada, see the [Scheduler Architecture Doc](./architecture.md).
 
 ### Armada Client
 
-This is the comonent that is used by users to submit jobs to Armada, using gRPC. Current languages supported are:
+This is the component that is used by users to submit jobs to Armada, using gRPC. Current languages supported are:
 - Go
 - Python
 - C#

@@ -1,0 +1,14 @@
+pull_request_rules:
+  - name: Require approval from Armada maintainers
+    conditions:
+      - "#approved-reviews-by>=1"
+    actions:
+      post_check:
+        success_conditions:
+        - or:
+          - "#approved-reviews-by>=2"
+          - and: 
+            - "#approved-reviews-by>=1"
+            - "author~=^(JamesMurkin|severinson|d80tb7|carlocamurri|dejanzele|Sharpz7|ClifHouck|robertdavidsmith|theAntiYeti|richscott|suprjinx|zuqq|msumner91|mustafai)"
+        title:
+          Two are checks required.

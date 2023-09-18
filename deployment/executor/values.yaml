@@ -14,9 +14,11 @@ additionalVolumeMounts: []
 additionalVolumes: []
 terminationGracePeriodSeconds: 5
 nodeSelector: {}
+# -- Tolerations
 tolerations: []
 customServiceAccount: null
 serviceAccount: null
+priorityClassName: ""
 
 healthcheck:
   enabled: false

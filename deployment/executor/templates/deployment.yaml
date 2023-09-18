@@ -23,6 +23,10 @@ spec:
       securityContext:
         runAsUser: 1000
         runAsGroup: 2000
+      {{- if .Values.tolerations }}
+      tolerations:
+        {{- toYaml .Values.tolerations | nindent 8 }}
+      {{- end }}
       containers:
         - name: executor
           imagePullPolicy: IfNotPresent
@@ -76,6 +80,9 @@ spec:
           {{- end }}
       nodeSelector:
         {{- toYaml .Values.nodeSelector | nindent 8 }}
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{- .Values.priorityClassName }}
+      {{- end }}
       tolerations:
         {{- toYaml .Values.tolerations | nindent 8 }}
       volumes:

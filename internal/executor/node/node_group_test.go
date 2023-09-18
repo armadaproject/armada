@@ -98,7 +98,7 @@ func TestFilterAvailableProcessingNodes(t *testing.T) {
 		},
 	}
 
-	result := nodeInfoService.isAvailableProcessingNode(&node)
+	result := nodeInfoService.IsAvailableProcessingNode(&node)
 	assert.True(t, result, 1)
 }
 
@@ -113,7 +113,7 @@ func TestIsAvailableProcessingNode_IsFalse_UnschedulableNode(t *testing.T) {
 		},
 	}
 
-	result := nodeInfoService.isAvailableProcessingNode(&node)
+	result := nodeInfoService.IsAvailableProcessingNode(&node)
 	assert.False(t, result)
 }
 
@@ -132,7 +132,7 @@ func TestFilterAvailableProcessingNodes_IsFalse_NodeWithNoScheduleTaint(t *testi
 		},
 	}
 
-	result := nodeInfoService.isAvailableProcessingNode(&node)
+	result := nodeInfoService.IsAvailableProcessingNode(&node)
 	assert.False(t, result)
 }
 
@@ -151,7 +151,7 @@ func TestFilterAvailableProcessingNodes_IsTrue_NodeWithToleratedTaint(t *testing
 		},
 	}
 
-	result := nodeInfoService.isAvailableProcessingNode(&node)
+	result := nodeInfoService.IsAvailableProcessingNode(&node)
 	assert.True(t, result)
 }
 

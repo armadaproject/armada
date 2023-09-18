@@ -2,16 +2,24 @@ import { useEffect, useState } from "react"
 
 import { ExpandedStateList, PaginationState, RowSelectionState } from "@tanstack/react-table"
 import { JobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
-import { Job, JobId, JobOrder } from "models/lookoutV2Models"
+import { Job, JobFilter, JobId, JobOrder, Match } from "models/lookoutV2Models"
 import { VariantType } from "notistack"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
-import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { GroupedField, IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { getErrorMessage } from "utils"
-import { ColumnId, JobTableColumn, StandardColumnId } from "utils/jobsTableColumns"
+import {
+  AnnotationColumnId,
+  ColumnId,
+  fromAnnotationColId,
+  isStandardColId,
+  JobTableColumn,
+  StandardColumnId,
+} from "utils/jobsTableColumns"
 import {
   fetchJobGroups,
   fetchJobs,
   FetchRowRequest,
+  getFiltersForGroupedAnnotations,
   getFiltersForRows,
   groupsToRows,
   jobsToRows,
@@ -27,6 +35,8 @@ export interface UseFetchJobsTableDataArgs {
   expandedState: ExpandedStateList
   lookoutOrder: LookoutColumnOrder
   lookoutFilters: LookoutColumnFilter[]
+  activeJobSets: boolean
+  columnMatches: Record<string, Match>
   paginationState: PaginationState
   allColumns: JobTableColumn[]
   selectedRows: RowSelectionState
@@ -50,6 +60,7 @@ const aggregatableFields = new Map<ColumnId, string>([
   [StandardColumnId.TimeSubmittedAgo, "submitted"],
   [StandardColumnId.LastTransitionTimeUtc, "lastTransitionTime"],
   [StandardColumnId.TimeInState, "lastTransitionTime"],
+  [StandardColumnId.State, "state"],
 ])
 
 export function columnIsAggregatable(columnId: ColumnId): boolean {
@@ -110,6 +121,8 @@ export const useFetchJobsTableData = ({
   lookoutOrder,
   paginationState,
   lookoutFilters,
+  activeJobSets,
+  columnMatches,
   allColumns,
   selectedRows,
   updateSelectedRows,
@@ -141,7 +154,8 @@ export const useFetchJobsTableData = ({
 
       const order = getOrder(lookoutOrder, isJobFetch)
       const rowRequest: FetchRowRequest = {
-        filters: getFiltersForRows(lookoutFilters, parentRowInfo?.rowIdPartsPath ?? []),
+        filters: getFiltersForRows(lookoutFilters, columnMatches, parentRowInfo?.rowIdPartsPath ?? []),
+        activeJobSets: activeJobSets,
         skip: nextRequest.skip ?? 0,
         take: nextRequest.take ?? paginationState.pageSize,
         order: order,
@@ -157,19 +171,20 @@ export const useFetchJobsTableData = ({
           setJobInfoMap(new Map([...jobInfoMap.entries(), ...jobs.map((j): [JobId, Job] => [j.jobId, j])]))
         } else {
           const groupedCol = groupedColumns[expandedLevel]
+          const groupedField = columnToGroupedField(groupedCol)
 
-          const colsToAggregate = visibleColumns
-            .filter((col) => aggregatableFields.has(col))
-            .map((col) => aggregatableFields.get(col))
-            .filter((val) => val !== undefined) as string[]
+          // Only relevant if we are grouping by annotations: Filter by all remaining annotations in the group by filter
+          rowRequest.filters.push(...getFiltersForGroupedAnnotations(groupedColumns.slice(expandedLevel + 1)))
+
+          const colsToAggregate = getColsToAggregate(visibleColumns, rowRequest.filters)
           const { groups, count: totalGroups } = await fetchJobGroups(
             rowRequest,
             groupJobsService,
-            groupedCol,
+            groupedField,
             colsToAggregate,
             abortController.signal,
           )
-          newData = groupsToRows(groups, parentRowInfo?.rowId, groupedCol)
+          newData = groupsToRows(groups, parentRowInfo?.rowId, groupedField)
           totalCount = totalGroups
         }
       } catch (err) {
@@ -230,4 +245,37 @@ export const useFetchJobsTableData = ({
     setRowsToFetch: setPendingData,
     totalRowCount,
   }
+}
+
+const columnToGroupedField = (colId: ColumnId): GroupedField => {
+  if (isStandardColId(colId)) {
+    return {
+      field: colId,
+      isAnnotation: false,
+    }
+  }
+  return {
+    field: fromAnnotationColId(colId as AnnotationColumnId),
+    isAnnotation: true,
+  }
+}
+
+const getColsToAggregate = (visibleCols: ColumnId[], filters: JobFilter[]): string[] => {
+  const aggregates = visibleCols
+    .filter((col) => aggregatableFields.has(col))
+    .map((col) => aggregatableFields.get(col))
+    .filter((val) => val !== undefined) as string[]
+
+  const stateIndex = aggregates.indexOf(StandardColumnId.State)
+  if (stateIndex > -1) {
+    const stateFilter = filters.find((f) => f.field === StandardColumnId.State)
+    if (
+      stateFilter &&
+      ((stateFilter.match === Match.AnyOf && (stateFilter.value as string[]).length === 1) ||
+        stateFilter.match === Match.Exact)
+    ) {
+      aggregates.splice(stateIndex, 1)
+    }
+  }
+  return aggregates
 }

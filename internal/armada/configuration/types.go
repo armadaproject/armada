@@ -7,10 +7,13 @@ import (
 	"github.com/go-redis/redis"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/pkg/client"
 )
 
 type ArmadaConfig struct {
@@ -19,10 +22,14 @@ type ArmadaConfig struct {
 	GrpcPort    uint16
 	HttpPort    uint16
 	MetricsPort uint16
+	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
+	PprofPort *uint16
 
 	CorsAllowedOrigins []string
 
 	Grpc grpcconfig.GrpcConfig
+
+	SchedulerApiConnection client.ApiConnectionDetails
 
 	PriorityHalfTime                  time.Duration
 	CancelJobsBatchSize               int
@@ -79,31 +86,71 @@ type PulsarConfig struct {
 	ReceiveTimeout time.Duration
 	// Backoff from polling when Pulsar returns an error
 	BackoffTime time.Duration
+	// Number of pulsar messages that will be queued by the pulsar consumer.
+	ReceiverQueueSize int
+}
+
+// DatabaseConfig represents the configuration of the database connection.
+type DatabaseConfig struct {
+	// MaxOpenConns represents the maximum number of open connections to the database.
+	MaxOpenConns int
+
+	// MaxIdleConns represents the maximum number of connections in the idle connection pool.
+	MaxIdleConns int
+
+	// ConnMaxLifetime represents the maximum amount of time a connection may be reused.
+	ConnMaxLifetime time.Duration
+
+	// Connection represents the database connection details in a key/value pairs format.
+	Connection map[string]string
+
+	// Dialect represents the dialect of the configured database.
+	Dialect string
 }
 
 type SchedulingConfig struct {
+	// Set to true to disable scheduling
+	DisableScheduling bool
 	// Set to true to enable scheduler assertions. This results in some performance loss.
 	EnableAssertions bool
-	Preemption       PreemptionConfig
+	// If true, schedule jobs across all executors in the same pool in a unified manner.
+	// Otherwise, schedule each executor separately.
+	UnifiedSchedulingByPool bool
+	Preemption              PreemptionConfig
 	// Number of jobs to load from the database at a time.
-	QueueLeaseBatchSize uint
-	// Maximum total size in bytes of all jobs returned in a single lease jobs call.
-	// Applies to the old scheduler. But is not necessary since we now stream job leases.
-	MaximumLeasePayloadSizeBytes int
-	// Fraction of total resources across clusters that can be assigned in a single lease jobs call.
-	// Applies to both the old and new scheduler.
-	MaximalClusterFractionToSchedule map[string]float64
-	// Fraction of resources that can be assigned to any single queue,
-	// within a single lease jobs call.
-	// Applies to both the old and new scheduler.
-	MaximalResourceFractionToSchedulePerQueue map[string]float64
-	// Fraction of resources that can be assigned to any single queue.
-	// Applies to both the old and new scheduler.
-	MaximalResourceFractionPerQueue map[string]float64
-	// Max number of jobs to scheduler per lease jobs call.
-	MaximumJobsToSchedule uint
-	// Max number of gangs to scheduler per lease jobs call.
-	MaximumGangsToSchedule uint
+	MaxQueueLookback uint
+	// In each invocation of the scheduler, no more jobs are scheduled once this limit has been exceeded.
+	// Note that the total scheduled resources may be greater than this limit.
+	MaximumResourceFractionToSchedule map[string]float64
+	// Overrides MaximalClusterFractionToSchedule if set for the current pool.
+	MaximumResourceFractionToScheduleByPool map[string]map[string]float64
+	// The rate at which Armada schedules jobs is rate-limited using a token bucket approach.
+	// Specifically, there is a token bucket that persists between scheduling rounds.
+	// The bucket fills up at a rate of MaximumSchedulingRate tokens per second and has capacity MaximumSchedulingBurst.
+	// A token is removed from the bucket when a scheduling a job and scheduling stops while the bucket is empty.
+	//
+	// Hence, MaximumSchedulingRate controls the maximum number of jobs scheduled per second in steady-state,
+	// i.e., once the burst capacity has been exhausted.
+	//
+	// Rate-limiting is based on the number of tokens available at the start of each scheduling round,
+	// i.e., tokens accumulated while scheduling become available at the start of the next scheduling round.
+	//
+	// For more information about the rate-limiter, see:
+	// https://pkg.go.dev/golang.org/x/time/rate#Limiter
+	MaximumSchedulingRate float64 `validate:"gt=0"`
+	// MaximumSchedulingBurst controls the burst capacity of the rate-limiter.
+	//
+	// There are two important implications:
+	// - Armada will never schedule more than MaximumSchedulingBurst jobs per scheduling round.
+	// - Gang jobs with cardinality greater than MaximumSchedulingBurst can never be scheduled.
+	MaximumSchedulingBurst int `validate:"gt=0"`
+	// In addition to the global rate-limiter, there is a separate rate-limiter for each queue.
+	// These work the same as the global rate-limiter, except they apply only to jobs scheduled from a specific queue.
+	//
+	// Per-queue version of MaximumSchedulingRate.
+	MaximumPerQueueSchedulingRate float64 `validate:"gt=0"`
+	// Per-queue version of MaximumSchedulingBurst.
+	MaximumPerQueueSchedulingBurst int `validate:"gt=0"`
 	// Armada stores contexts associated with recent job scheduling attempts.
 	// This setting limits the number of such contexts to store.
 	// Contexts associated with the most recent scheduling attempt for each queue and cluster are always stored.
@@ -118,7 +165,11 @@ type SchedulingConfig struct {
 	DefaultJobTolerationsByResourceRequest map[string][]v1.Toleration
 	// Maximum number of times a job is retried before considered failed.
 	MaxRetries uint
-	// Weights used when computing fair share.
+	// Controls how fairness is calculated. Can be either AssetFairness or DominantResourceFairness.
+	FairnessModel FairnessModel
+	// List of resource names, e.g., []string{"cpu", "memory"}, to consider when computing DominantResourceFairness.
+	DominantResourceFairnessResourcesToConsider []string
+	// Weights used to compute fair share when using AssetFairness.
 	// Overrides dynamic scarcity calculation if provided.
 	// Applies to both the new and old scheduler.
 	ResourceScarcity map[string]float64
@@ -135,7 +186,7 @@ type SchedulingConfig struct {
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
 	// for which the scheduler creates indexes for efficient lookup.
 	// Applies only to the new scheduler.
-	IndexedResources []string
+	IndexedResources []IndexedResource
 	// Node labels that the scheduler creates indexes for efficient lookup of.
 	// Should include node labels frequently used for scheduling.
 	// Since the scheduler can efficiently sort out nodes for which these labels
@@ -154,6 +205,8 @@ type SchedulingConfig struct {
 	//
 	// Applies only to the new scheduler.
 	IndexedTaints []string
+	// Default value of GangNodeUniformityLabelAnnotation if none is provided.
+	DefaultGangNodeUniformityLabel string
 	// Kubernetes pods may specify a termination grace period.
 	// When Pods are cancelled/preempted etc., they are first sent a SIGTERM.
 	// If a pod has not exited within its termination grace period,
@@ -188,6 +241,33 @@ type SchedulingConfig struct {
 	// Maximum number of jobs that can be assigned to a executor but not yet acknowledged, before
 	// the scheduler is excluded from consideration by the scheduler.
 	MaxUnacknowledgedJobsPerExecutor uint
+	// If true, do not during scheduling skip jobs with requirements known to be impossible to meet.
+	AlwaysAttemptScheduling bool
+	// The frequency at which the scheduler updates the cluster state.
+	ExecutorUpdateFrequency time.Duration
+	// Enable new preemption strategy.
+	EnableNewPreemptionStrategy bool
+}
+
+// FairnessModel controls how fairness is computed.
+// More specifically, each queue has a cost associated with it and the next job to schedule
+// is taken from the queue with smallest cost. FairnessModel determines how that cost is computed.
+type FairnessModel string
+
+const (
+	// AssetFairness sets the cost associated with a queue to a linear combination of its total allocation.
+	// E.g., w_CPU * "CPU allocation" + w_memory * "memory allocation".
+	AssetFairness FairnessModel = "AssetFairness"
+	// DominantResourceFairness set the cost associated with a queue to
+	// max("CPU allocation" / "CPU capacity", "memory allocation" / "mamory capacity", ...).
+	DominantResourceFairness FairnessModel = "DominantResourceFairness"
+)
+
+type IndexedResource struct {
+	// Resource name. E.g., "cpu", "memory", or "nvidia.com/gpu".
+	Name string
+	// See NodeDb docs.
+	Resolution resource.Quantity
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.
@@ -205,6 +285,8 @@ type PreemptionConfig struct {
 	// the probability of evicting jobs on oversubscribed nodes, i.e.,
 	// nodes on which the total resource requests are greater than the available resources.
 	NodeOversubscriptionEvictionProbability float64
+	// Only queues allocated more than this fraction of their fair share are considered for preemption.
+	ProtectedFractionOfFairShare float64
 	// If true, the Armada scheduler will add to scheduled pods a node selector
 	// NodeIdLabel: <value of label on node selected by scheduler>.
 	// If true, NodeIdLabel must be non-empty.
@@ -217,7 +299,7 @@ type PreemptionConfig struct {
 	// Map from priority class names to priority classes.
 	// Must be consistent with Kubernetes priority classes.
 	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
-	PriorityClasses map[string]PriorityClass
+	PriorityClasses map[string]types.PriorityClass
 	// Priority class assigned to pods that do not specify one.
 	// Must be an entry in PriorityClasses above.
 	DefaultPriorityClass string
@@ -225,24 +307,11 @@ type PreemptionConfig struct {
 	PriorityClassNameOverride *string
 }
 
-type PriorityClass struct {
-	Priority int32
-	// If true, Armada may preempt jobs of this class to improve fairness.
-	Preemptible bool
-	// Limits resources assigned to jobs of priority equal to or lower than that of this priority class.
-	// Specifically, jobs of this priority class are only scheduled if doing so does not exceed this limit.
-	//
-	// For example, if priority is 10 and MaximalResourceFractionPerQueue is map[string]float64{"cpu": 0.3},
-	// jobs of this priority class are not scheduled if doing so would cause the total resources assigned
-	// to jobs of priority 10 or lower from the same queue to exceed 30% of the total.
-	MaximalResourceFractionPerQueue map[string]float64
-}
-
 func (p PreemptionConfig) PriorityByPriorityClassName() map[string]int32 {
 	return PriorityByPriorityClassName(p.PriorityClasses)
 }
 
-func PriorityByPriorityClassName(priorityClasses map[string]PriorityClass) map[string]int32 {
+func PriorityByPriorityClassName(priorityClasses map[string]types.PriorityClass) map[string]int32 {
 	rv := make(map[string]int32, len(priorityClasses))
 	for name, pc := range priorityClasses {
 		rv[name] = pc.Priority
@@ -254,7 +323,7 @@ func (p PreemptionConfig) AllowedPriorities() []int32 {
 	return AllowedPriorities(p.PriorityClasses)
 }
 
-func AllowedPriorities(priorityClasses map[string]PriorityClass) []int32 {
+func AllowedPriorities(priorityClasses map[string]types.PriorityClass) []int32 {
 	rv := make([]int32, 0, len(priorityClasses))
 	for _, v := range priorityClasses {
 		rv = append(rv, v.Priority)
@@ -282,8 +351,21 @@ type QueueManagementConfig struct {
 }
 
 type MetricsConfig struct {
-	Port            uint16
-	RefreshInterval time.Duration
+	Port                    uint16
+	RefreshInterval         time.Duration
+	ExposeSchedulingMetrics bool
+	Metrics                 SchedulerMetricsConfig
+}
+
+type SchedulerMetricsConfig struct {
+	ScheduleCycleTimeHistogramSettings  HistogramConfig
+	ReconcileCycleTimeHistogramSettings HistogramConfig
+}
+
+type HistogramConfig struct {
+	Start  float64
+	Factor float64
+	Count  int
 }
 
 type EventApiConfig struct {

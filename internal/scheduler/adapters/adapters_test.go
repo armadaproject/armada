@@ -5,24 +5,23 @@ import (
 	"os"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 var (
-	priorityByPriorityClassName = map[string]configuration.PriorityClass{
-		"priority-0": {0, true, nil},
-		"priority-1": {1, true, nil},
-		"priority-2": {2, true, nil},
-		"priority-3": {3, false, nil},
+	priorityByPriorityClassName = map[string]types.PriorityClass{
+		"priority-0": {0, true, nil, nil},
+		"priority-1": {1, true, nil, nil},
+		"priority-2": {2, true, nil, nil},
+		"priority-3": {3, false, nil, nil},
 	}
 
 	priority int32 = 1
@@ -58,73 +57,11 @@ var (
 	}
 )
 
-func TestPriorityFromPodSpec(t *testing.T) {
-	tests := []struct {
-		name                     string
-		podSpec                  *v1.PodSpec
-		expectedPriorityNumber   int32
-		expectedCheckForPriority bool
-	}{
-		{
-			name:                     "Podspec is nil",
-			podSpec:                  nil,
-			expectedPriorityNumber:   0,
-			expectedCheckForPriority: false,
-		},
-		{
-			name: "Podspec has priority field",
-			podSpec: &v1.PodSpec{
-				Priority: &priority,
-			},
-			expectedPriorityNumber:   priority,
-			expectedCheckForPriority: true,
-		},
-		{
-			name: "Podspec has priorityClassName field",
-			podSpec: &v1.PodSpec{
-				PriorityClassName: "priority-3",
-			},
-			expectedPriorityNumber:   3,
-			expectedCheckForPriority: true,
-		},
-		{
-			name: "Podspec has a nil value for the priority field",
-			podSpec: &v1.PodSpec{
-				Priority: nil,
-			},
-			expectedPriorityNumber:   0,
-			expectedCheckForPriority: false,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			wantedPriorityNumber, wantedCheckForPriority := PriorityFromPodSpec(test.podSpec, priorityByPriorityClassName)
-			assert.Equal(t, test.expectedCheckForPriority, wantedCheckForPriority)
-			assert.Equal(t, test.expectedPriorityNumber, wantedPriorityNumber)
-		})
-	}
-}
-
-func TestV1ResourceListFromComputeResources(t *testing.T) {
-	var armandaResources armadaresource.ComputeResources = map[string]resource.Quantity{
-		"cpu":    *resource.NewMilliQuantity(5300, resource.DecimalSI),
-		"memory": *resource.NewQuantity(5*1024*1024*1024, resource.BinarySI),
-	}
-	rv := v1ResourceListFromComputeResources(armandaResources)
-
-	expectedRv := v1.ResourceList{
-		v1.ResourceName("cpu"):    *resource.NewMilliQuantity(5300, resource.DecimalSI),
-		v1.ResourceName("memory"): *resource.NewQuantity(5*1024*1024*1024, resource.BinarySI),
-	}
-	assert.Equal(t, expectedRv, rv)
-}
-
 func TestPodRequirementsFromPodSpecPriorityByPriorityClassName(t *testing.T) {
 	tests := []struct {
 		name                        string
 		podspec                     v1.PodSpec
-		priorityByPriorityClassName map[string]configuration.PriorityClass
+		priorityByPriorityClassName map[string]types.PriorityClass
 		loggedError                 bool
 		priority                    int32
 	}{

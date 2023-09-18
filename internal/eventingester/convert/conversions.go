@@ -1,17 +1,17 @@
 package convert
 
 import (
-	"context"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/eventingester/model"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 // EventConverter converts event sequences into events that we can store in Redis
@@ -29,7 +29,7 @@ func NewEventConverter(compressor compress.Compressor, maxMessageBatchSize uint,
 	}
 }
 
-func (ec *EventConverter) Convert(ctx context.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.BatchUpdate {
+func (ec *EventConverter) Convert(ctx *armadacontext.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.BatchUpdate {
 	// Remove all groups as they are potentially quite large
 	for _, es := range sequencesWithIds.EventSequences {
 		es.Groups = nil
@@ -48,6 +48,9 @@ func (ec *EventConverter) Convert(ctx context.Context, sequencesWithIds *ingest.
 		jobset := es.JobSetName
 		es.JobSetName = ""
 		es.Queue = ""
+
+		// Remove cancellation reason as it's not needed for public event store
+		clearCancellationReason(es)
 
 		bytes, err := proto.Marshal(es)
 		if err != nil {
@@ -72,5 +75,20 @@ func (ec *EventConverter) Convert(ctx context.Context, sequencesWithIds *ingest.
 	return &model.BatchUpdate{
 		MessageIds: sequencesWithIds.MessageIds,
 		Events:     events,
+	}
+}
+
+// For each cancel event, remove the cancellation reason
+func clearCancellationReason(es *armadaevents.EventSequence) {
+	for _, e := range es.Events {
+		switch event := e.GetEvent().(type) {
+		case *armadaevents.EventSequence_Event_CancelJob:
+			event.CancelJob.Reason = ""
+		case *armadaevents.EventSequence_Event_CancelJobSet:
+			event.CancelJobSet.Reason = ""
+		case *armadaevents.EventSequence_Event_CancelledJob:
+			event.CancelledJob.Reason = ""
+		default:
+		}
 	}
 }

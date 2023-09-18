@@ -13,6 +13,7 @@ import { v4 as uuidv4 } from "uuid"
 import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "../../services/lookoutV2/GetRunErrorService"
 import { ILogService } from "../../services/lookoutV2/LogService"
+import { FakeCordonService } from "../../services/lookoutV2/mocks/FakeCordonService"
 import FakeGetJobSpecService from "../../services/lookoutV2/mocks/FakeGetJobSpecService"
 import { FakeGetRunErrorService } from "../../services/lookoutV2/mocks/FakeGetRunErrorService"
 import { FakeLogService } from "../../services/lookoutV2/mocks/FakeLogService"
@@ -41,6 +42,7 @@ function makeTestJobs(
       memory: 8192,
       owner: queue,
       priority: 1000,
+      priorityClass: "armada-preemptible",
       queue: queue,
       runs: [],
       state: state,
@@ -85,6 +87,7 @@ describe("JobsTableContainer", () => {
           runErrorService={runErrorService}
           jobSpecService={jobSpecService}
           logService={logService}
+          cordonService={new FakeCordonService()}
           debug={false}
         />
       </SnackbarProvider>

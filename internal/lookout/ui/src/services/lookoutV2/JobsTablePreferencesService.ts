@@ -1,18 +1,20 @@
-import { ExpandedStateList, VisibilityState } from "@tanstack/react-table"
+import { ColumnFiltersState, ExpandedStateList, VisibilityState } from "@tanstack/react-table"
 import { isValidMatch, JobId, Match } from "models/lookoutV2Models"
 import qs from "qs"
 import { SortDirection } from "react-virtualized"
 
-import { LookoutColumnFilter, LookoutColumnOrder } from "../../containers/lookoutV2/JobsTableContainer"
+import { LookoutColumnOrder } from "../../containers/lookoutV2/JobsTableContainer"
 import { removeUndefined, Router } from "../../utils"
 import {
   AnnotationColumnId,
   ColumnId,
+  DEFAULT_COLUMN_MATCHES,
   DEFAULT_COLUMN_ORDER,
   DEFAULT_COLUMN_VISIBILITY,
   fromAnnotationColId,
   isStandardColId,
 } from "../../utils/jobsTableColumns"
+import { matchForColumn } from "../../utils/jobsTableUtils"
 
 export interface JobsTablePreferences {
   annotationColumnKeys: string[]
@@ -23,7 +25,8 @@ export interface JobsTablePreferences {
   pageSize: number
   order: LookoutColumnOrder
   columnSizing?: Record<string, number>
-  filters: LookoutColumnFilter[]
+  filters: ColumnFiltersState
+  columnMatches: Record<string, Match>
   sidebarJobId: JobId | undefined
   sidebarWidth?: number
 }
@@ -33,6 +36,7 @@ export const DEFAULT_PREFERENCES: JobsTablePreferences = {
   annotationColumnKeys: [],
   visibleColumns: DEFAULT_COLUMN_VISIBILITY,
   filters: [],
+  columnMatches: DEFAULT_COLUMN_MATCHES,
   groupedColumns: [],
   expandedState: {},
   pageIndex: 0,
@@ -43,7 +47,7 @@ export const DEFAULT_PREFERENCES: JobsTablePreferences = {
   columnSizing: {},
 }
 
-const KEY_PREFIX = "lookoutV2"
+export const KEY_PREFIX = "lookoutV2"
 const COLUMN_SIZING_KEY = `${KEY_PREFIX}ColumnSizing`
 const SIDEBAR_WIDTH_KEY = `${KEY_PREFIX}SidebarWidth`
 export const PREFERENCES_KEY = `${KEY_PREFIX}JobTablePreferences`
@@ -81,11 +85,13 @@ const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs => {
   return {
     page: prefs.pageIndex.toString(),
     g: prefs.groupedColumns,
-    f: prefs.filters.map((filter) => ({
-      id: filter.id,
-      value: filter.value as string | string[],
-      match: filter.match,
-    })),
+    f: prefs.filters.map((filter) => {
+      return {
+        id: filter.id,
+        value: filter.value as string | string[],
+        match: matchForColumn(filter.id, prefs.columnMatches),
+      }
+    }),
     sort: {
       id: prefs.order.id,
       desc: String(prefs.order.direction === SortDirection.DESC),
@@ -98,18 +104,27 @@ const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs => {
   }
 }
 
-const lookoutFiltersFromQueryStringFilters = (f: QueryStringJobFilter[]): LookoutColumnFilter[] => {
-  return f
-    .filter((queryFilter) => isValidMatch(queryFilter.match))
-    .map((queryFilter) => ({
-      id: queryFilter.id,
-      value: queryFilter.value,
-      match: queryFilter.match as Match,
-    }))
+const columnFiltersFromQueryStringFilters = (f: QueryStringJobFilter[]): ColumnFiltersState => {
+  return f.map((queryFilter) => ({
+    id: queryFilter.id,
+    value: queryFilter.value,
+  }))
+}
+
+const columnMatchesFromQueryStringFilters = (f: QueryStringJobFilter[]): Record<string, Match> => {
+  const columnMatches: Record<string, Match> = {}
+  f.filter((queryFilter) => isValidMatch(queryFilter.match)).forEach((queryFilter) => {
+    columnMatches[queryFilter.id] = queryFilter.match as Match
+  })
+  return columnMatches
 }
 
 const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partial<JobsTablePreferences> => {
-  const { g, e, page, ps, sort, f, sb } = serializedPrefs
+  const { e, page, ps, sort, f, sb } = serializedPrefs
+  let g = serializedPrefs.g
+  if (!(Array.isArray(g) && g.length > 0 && g.map((elem) => typeof elem === "string").reduce((a, b) => a && b, true))) {
+    g = []
+  }
   return {
     ...(g && { groupedColumns: g as ColumnId[] }),
     ...(e && { expandedState: Object.fromEntries(e.map((rowId) => [rowId, true])) }),
@@ -118,7 +133,8 @@ const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partia
     ...(sort && {
       order: { id: sort.id, direction: sort.desc.toLowerCase() === "true" ? SortDirection.DESC : SortDirection.ASC },
     }),
-    ...(f && { filters: lookoutFiltersFromQueryStringFilters(f) }),
+    ...(f && { filters: columnFiltersFromQueryStringFilters(f) }),
+    ...(f && { columnMatches: columnMatchesFromQueryStringFilters(f) }),
     ...(sb && { sidebarJobId: sb }),
   }
 }
@@ -127,6 +143,21 @@ const ensureVisible = (visibilityState: VisibilityState, columns: string[]) => {
   for (const col of columns) {
     visibilityState[col] = true
   }
+}
+
+// Only field that gets merged from queryParams rather than being completely overridden. This is because we want the
+// columns specified in the query params to use the correct column matches, but we do not wish to override the user
+// specified column matches for other columns not used in the filters
+const mergeColumnMatches = (
+  baseColumnMatches: Record<string, Match>,
+  newColumnMatches: Record<string, Match> | undefined,
+) => {
+  if (newColumnMatches === undefined) {
+    return
+  }
+  Object.entries(newColumnMatches).forEach(([id, match]) => {
+    baseColumnMatches[id] = match
+  })
 }
 
 // Use local storage prefs, but if query prefs are defined update all fields managed by query params with their
@@ -145,20 +176,25 @@ const mergeQueryParamsAndLocalStorage = (
     mergedPrefs.order = queryParamPrefs.order
     mergedPrefs.filters = queryParamPrefs.filters
     mergedPrefs.sidebarJobId = queryParamPrefs.sidebarJobId
+    if (mergedPrefs.columnMatches === undefined) {
+      mergedPrefs.columnMatches = DEFAULT_COLUMN_MATCHES
+    }
+    mergeColumnMatches(mergedPrefs.columnMatches, queryParamPrefs.columnMatches)
   }
   return mergedPrefs
 }
 
 // Make sure annotations referenced in filters exist, make sure columns referenced in objects are visible
-const ensurePreferencesAreConsistent = (preferences: JobsTablePreferences) => {
+export const ensurePreferencesAreConsistent = (preferences: JobsTablePreferences) => {
   // Make sure annotation columns referenced in filters exist
   if (preferences.annotationColumnKeys === undefined) {
     preferences.annotationColumnKeys = []
   }
   const annotationKeysSet = new Set<string>(preferences.annotationColumnKeys)
-  for (const filter of preferences.filters) {
-    if (!isStandardColId(filter.id)) {
-      const annotationKey = fromAnnotationColId(filter.id as AnnotationColumnId)
+  const potentialAnnotations = preferences.filters.map((f) => f.id).concat(preferences.groupedColumns as string[])
+  for (const id of potentialAnnotations) {
+    if (!isStandardColId(id)) {
+      const annotationKey = fromAnnotationColId(id as AnnotationColumnId)
       if (!annotationKeysSet.has(annotationKey)) {
         preferences.annotationColumnKeys.push(annotationKey)
         annotationKeysSet.add(annotationKey)
@@ -293,7 +329,7 @@ export class JobsTablePreferencesService {
   }
 }
 
-function stringIsInvalid(s: string | undefined | null): boolean {
+export function stringIsInvalid(s: string | undefined | null): boolean {
   return s === undefined || s === null || s.length === 0 || s === "undefined"
 }
 

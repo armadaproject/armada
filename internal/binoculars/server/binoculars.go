@@ -4,24 +4,31 @@ import (
 	"context"
 	"strconv"
 
-	"github.com/armadaproject/armada/internal/binoculars/logs"
+	"github.com/gogo/protobuf/types"
+
+	"github.com/armadaproject/armada/internal/binoculars/service"
 	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
 
 type BinocularsServer struct {
-	logService logs.LogService
+	logService    service.LogService
+	cordonService service.CordonService
 }
 
-func NewBinocularsServer(logService logs.LogService) *BinocularsServer {
-	return &BinocularsServer{logService: logService}
+func NewBinocularsServer(logService service.LogService, cordonService service.CordonService) *BinocularsServer {
+	return &BinocularsServer{
+		logService:    logService,
+		cordonService: cordonService,
+	}
 }
 
-func (b BinocularsServer) Logs(ctx context.Context, request *binoculars.LogRequest) (*binoculars.LogResponse, error) {
+func (b *BinocularsServer) Logs(ctx context.Context, request *binoculars.LogRequest) (*binoculars.LogResponse, error) {
 	principal := authorization.GetPrincipal(ctx)
 
-	logLines, err := b.logService.GetLogs(ctx, &logs.LogParams{
+	logLines, err := b.logService.GetLogs(armadacontext.FromGrpcCtx(ctx), &service.LogParams{
 		Principal:  principal,
 		Namespace:  request.PodNamespace,
 		PodName:    common.PodNamePrefix + request.JobId + "-" + strconv.Itoa(int(request.PodNumber)),
@@ -33,4 +40,13 @@ func (b BinocularsServer) Logs(ctx context.Context, request *binoculars.LogReque
 	}
 
 	return &binoculars.LogResponse{Log: logLines}, nil
+}
+
+func (b *BinocularsServer) Cordon(ctx context.Context, request *binoculars.CordonRequest) (*types.Empty, error) {
+	err := b.cordonService.CordonNode(armadacontext.FromGrpcCtx(ctx), request)
+	if err != nil {
+		return nil, err
+	}
+
+	return &types.Empty{}, nil
 }

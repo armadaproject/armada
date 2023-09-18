@@ -1,14 +1,15 @@
 package database
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 // Used for tests.
@@ -30,27 +31,6 @@ const TABLE_NAME = "records"
 
 func (r Record) Schema() string {
 	return SCHEMA
-}
-
-func TestNamesFromRecord(t *testing.T) {
-	r := Record{
-		Id:      uuid.New(),
-		Value:   123,
-		Message: "abcö",
-	}
-	names := NamesFromRecord(r)
-	assert.Equal(t, []string{"id", "value", "message", "serial"}, names)
-}
-
-func TestValuesFromRecord(t *testing.T) {
-	r := Record{
-		Id:      uuid.New(),
-		Value:   123,
-		Message: "abcö",
-		Serial:  0,
-	}
-	values := ValuesFromRecord(r)
-	assert.Equal(t, []interface{}{r.Id, r.Value, r.Message, r.Serial}, values)
 }
 
 func TestNamesValuesFromRecord(t *testing.T) {
@@ -76,7 +56,7 @@ func TestNamesValuesFromRecordPointer(t *testing.T) {
 }
 
 func TestUpsertWithTransaction(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Hour)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Hour)
 	defer cancel()
 	err := withDb(func(db *pgxpool.Pool) error {
 		// Insert rows, read them back, and compare.
@@ -111,7 +91,7 @@ func TestUpsertWithTransaction(t *testing.T) {
 }
 
 func TestConcurrency(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
 	defer cancel()
 	err := withDb(func(db *pgxpool.Pool) error {
 		// Each thread inserts non-overlapping rows, reads them back, and compares.
@@ -146,7 +126,7 @@ func TestConcurrency(t *testing.T) {
 }
 
 func TestAutoIncrement(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
 	defer cancel()
 	err := withDb(func(db *pgxpool.Pool) error {
 		// Insert two rows. These should automatically get auto-incrementing serial numbers.
@@ -228,7 +208,7 @@ func setMessageToExecutor(runs []Record, executor string) {
 }
 
 func selectRecords(db *pgxpool.Pool) ([]Record, error) {
-	rows, err := db.Query(context.Background(), fmt.Sprintf("SELECT id, message, value, serial  FROM %s order by value", TABLE_NAME))
+	rows, err := db.Query(armadacontext.Background(), fmt.Sprintf("SELECT id, message, value, serial  FROM %s order by value", TABLE_NAME))
 	if err != nil {
 		return nil, err
 	}

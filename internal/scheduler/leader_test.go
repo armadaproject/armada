@@ -12,6 +12,7 @@ import (
 	v1 "k8s.io/api/coordination/v1"
 	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 )
@@ -107,8 +108,8 @@ func TestK8sLeaderController_BecomingLeader(t *testing.T) {
 			// Run the test
 			controller := NewKubernetesLeaderController(testLeaderConfig(), client)
 			testListener := NewTestLeaseListener(controller)
-			controller.listener = testListener
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			controller.RegisterListener(testListener)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
 			go func() {
 				err := controller.Run(ctx)
 				assert.ErrorIs(t, err, context.Canceled)
@@ -184,7 +185,7 @@ func (t *TestLeaseListener) GetMessages() []LeaderToken {
 	return append([]LeaderToken(nil), t.tokens...)
 }
 
-func (t *TestLeaseListener) onStartedLeading(_ context.Context) {
+func (t *TestLeaseListener) onStartedLeading(_ *armadacontext.Context) {
 	t.handleNewToken()
 }
 

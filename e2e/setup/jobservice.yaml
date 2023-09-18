@@ -1,4 +1,5 @@
-subscribeJobSetTime: 60
+subscriptionExpirySecs: 60
+subscriberPoolSize: 30
 purgeJobSetTime: 10000
 databaseType: "postgres"
 postgresConfig:
@@ -12,6 +13,9 @@ postgresConfig:
     password: psw
     dbname: postgres
     sslmode: disable
+grpcPool:
+  initialConnections: 5
+  capacity: 5
 apiConnection:
   armadaUrl: "server:50051"
   forceNoTls: true

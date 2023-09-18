@@ -6,6 +6,10 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: {{ required "A value is required for .Values.ingressClass" .Values.ingressClass }}
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    {{- if .Values.applicationConfig.grpc.tls.enabled }}
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    {{- end }}
     certmanager.k8s.io/cluster-issuer: {{ required "A value is required for .Values.clusterIssuer" .Values.clusterIssuer }}
     cert-manager.io/cluster-issuer: {{ required "A value is required for .Values.clusterIssuer" .Values.clusterIssuer }}
     nginx.ingress.kubernetes.io/rewrite-target: /$2

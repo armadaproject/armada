@@ -1,23 +1,23 @@
 package database
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"strings"
 
-	"github.com/jackc/pgx/v4/pgxpool"
-
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
-func UpsertWithTransaction[T any](ctx context.Context, db *pgxpool.Pool, tableName string, records []T) error {
+func UpsertWithTransaction[T any](ctx *armadacontext.Context, db *pgxpool.Pool, tableName string, records []T) error {
 	if len(records) == 0 {
 		return nil
 	}
-	return db.BeginTxFunc(ctx, pgx.TxOptions{
+	return pgx.BeginTxFunc(ctx, db, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
@@ -35,7 +35,7 @@ func UpsertWithTransaction[T any](ctx context.Context, db *pgxpool.Pool, tableNa
 //
 // The COPY protocol can be faster than repeated inserts for as little as 5 rows; see
 // https://www.postgresql.org/docs/current/populate.html
-// https://pkg.go.dev/github.com/jackc/pgx/v4#hdr-Copy_Protocol
+// https://pkg.go.dev/github.com/jackc/pgx/v5#hdr-Copy_Protocol
 //
 // The records to write should be structs with fields marked with "db" tags.
 // Field names and values are extracted using the NamesValuesFromRecord function;
@@ -50,7 +50,7 @@ func UpsertWithTransaction[T any](ctx context.Context, db *pgxpool.Pool, tableNa
 //
 // )
 // I.e., it should omit everything before and after the "(" and ")", respectively.
-func Upsert[T any](ctx context.Context, tx pgx.Tx, tableName string, records []T) error {
+func Upsert[T any](ctx *armadacontext.Context, tx pgx.Tx, tableName string, records []T) error {
 	if len(records) < 1 {
 		return nil
 	}
@@ -67,7 +67,7 @@ func Upsert[T any](ctx context.Context, tx pgx.Tx, tableName string, records []T
 	// Use the postgres-specific COPY wire protocol to load data into the new table in a single operation.
 	// The COPY protocol can be faster than repeated inserts for as little as 5 rows; see
 	// https://www.postgresql.org/docs/current/populate.html
-	// https://pkg.go.dev/github.com/jackc/pgx/v4#hdr-Copy_Protocol
+	// https://pkg.go.dev/github.com/jackc/pgx/v5#hdr-Copy_Protocol
 	//
 	// We're guaranteed there is at least one record.
 	names, _ := NamesValuesFromRecord(records[0])
@@ -107,53 +107,6 @@ func Upsert[T any](ctx context.Context, tx pgx.Tx, tableName string, records []T
 	}
 
 	return nil
-}
-
-// NamesFromRecord returns a slice composed of the field names in a struct marked with "db" tags.
-//
-// For example, if x is an instance of a struct with definition
-//
-//	type Rectangle struct {
-//		Width int  `db:"width"`
-//		Height int `db:"height"`
-//	},
-//
-// it returns ["width", "height"].
-func NamesFromRecord(x interface{}) []string {
-	t := reflect.TypeOf(x)
-	names := make([]string, 0, t.NumField())
-	for i := 0; i < t.NumField(); i++ {
-		name := t.Field(i).Tag.Get("db")
-		if name != "" {
-			names = append(names, name)
-		}
-	}
-	return names
-}
-
-// ValuesFromRecord returns a slice composed of the values of the fields in a struct marked with "db" tags.
-//
-// For example, if x is an instance of a struct with definition
-//
-//	type Rectangle struct {
-//	 Name string,
-//		Width int  `db:"width"`
-//		Height int `db:"height"`
-//	},
-//
-// where Width = 5 and Height = 10, it returns [5, 10].
-func ValuesFromRecord(x interface{}) []interface{} {
-	t := reflect.TypeOf(x)
-	v := reflect.ValueOf(x)
-	values := make([]interface{}, 0, v.NumField())
-	for i := 0; i < t.NumField(); i++ {
-		name := t.Field(i).Tag.Get("db")
-		if name != "" {
-			value := v.Field(i).Interface()
-			values = append(values, value)
-		}
-	}
-	return values
 }
 
 // NamesValuesFromRecord returns a slice composed of the field names

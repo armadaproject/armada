@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -14,14 +13,16 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-func TestSubmitChecker_CheckPodRequirements(t *testing.T) {
+func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 	defaultTimeout := 15 * time.Minute
 	baseTime := time.Now().UTC()
 	expiredTime := baseTime.Add(-defaultTimeout).Add(-1 * time.Second)
@@ -30,48 +31,48 @@ func TestSubmitChecker_CheckPodRequirements(t *testing.T) {
 		executorTimout time.Duration
 		config         configuration.SchedulingConfig
 		executors      []*schedulerobjects.Executor
-		podRequirement *schedulerobjects.PodRequirements
+		job            *jobdb.Job
 		expectPass     bool
 	}{
 		"one job schedules": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
-			podRequirement: testfixtures.TestSmallCpuJob("queue", 1),
+			job:            testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass1),
 			expectPass:     true,
 		},
 		"no jobs schedule due to resources": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
-			podRequirement: testfixtures.TestLargeCpuJob("queue", 1),
+			job:            testfixtures.Test32Cpu256GiJob("queue", testfixtures.PriorityClass1),
 			expectPass:     false,
 		},
 		"no jobs schedule due to selector": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(baseTime)},
-			podRequirement: testfixtures.WithNodeSelectorPodReq(map[string]string{"foo": "bar"}, testfixtures.TestSmallCpuJob("queue", 1)),
+			job:            testfixtures.WithNodeSelectorJob(map[string]string{"foo": "bar"}, testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass1)),
 			expectPass:     false,
 		},
 		"no jobs schedule due to executor timeout": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(expiredTime)},
-			podRequirement: testfixtures.TestSmallCpuJob("queue", 1),
+			job:            testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass1),
 			expectPass:     false,
 		},
 		"multiple executors, 1 expired": {
 			executorTimout: defaultTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
 			executors:      []*schedulerobjects.Executor{testExecutor(expiredTime), testExecutor(baseTime)},
-			podRequirement: testfixtures.TestSmallCpuJob("queue", 1),
+			job:            testfixtures.Test1Cpu4GiJob("queue", testfixtures.PriorityClass1),
 			expectPass:     true,
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
 			ctrl := gomock.NewController(t)
@@ -81,12 +82,12 @@ func TestSubmitChecker_CheckPodRequirements(t *testing.T) {
 			submitCheck := NewSubmitChecker(tc.executorTimout, tc.config, mockExecutorRepo)
 			submitCheck.clock = fakeClock
 			submitCheck.updateExecutors(ctx)
-			result, msg := submitCheck.CheckPodRequirements(tc.podRequirement)
-			assert.Equal(t, tc.expectPass, result)
+			isSchedulable, reason := submitCheck.CheckJobDbJobs([]*jobdb.Job{tc.job})
+			assert.Equal(t, tc.expectPass, isSchedulable)
 			if !tc.expectPass {
-				assert.NotEqual(t, "", msg)
+				assert.NotEqual(t, "", reason)
 			}
-			logrus.Info(msg)
+			logrus.Info(reason)
 		})
 	}
 }
@@ -169,7 +170,7 @@ func TestSubmitChecker_TestCheckApiJobs(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
 			ctrl := gomock.NewController(t)

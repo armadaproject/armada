@@ -1,15 +1,15 @@
 package database
 
 import (
-	"context"
 	"fmt"
 
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
-	_ "github.com/jackc/pgx/v4/stdlib"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 )
 
@@ -17,7 +17,7 @@ import (
 // migrations: perform the list of migrations before entering the action callback
 // action: callback for client code
 func WithTestDb(migrations []Migration, action func(db *pgxpool.Pool) error) error {
-	ctx := context.Background()
+	ctx := armadacontext.Background()
 
 	// Connect and create a dedicated database for the test
 	dbName := "test_" + util.NewULID()
@@ -34,7 +34,7 @@ func WithTestDb(migrations []Migration, action func(db *pgxpool.Pool) error) err
 	}
 
 	// Connect again: this time to the database we just created.  This is the databse we use for tests
-	testDbPool, err := pgxpool.Connect(ctx, connectionString+" dbname="+dbName)
+	testDbPool, err := pgxpool.New(ctx, connectionString+" dbname="+dbName)
 	if err != nil {
 		return errors.WithStack(err)
 	}
@@ -67,7 +67,7 @@ func WithTestDb(migrations []Migration, action func(db *pgxpool.Pool) error) err
 // config: PostgresConfig to specify connection details to database
 // action: callback for client code
 func WithTestDbCustom(migrations []Migration, config configuration.PostgresConfig, action func(db *pgxpool.Pool) error) error {
-	ctx := context.Background()
+	ctx := armadacontext.Background()
 
 	testDbPool, err := OpenPgxPool(config)
 	if err != nil {

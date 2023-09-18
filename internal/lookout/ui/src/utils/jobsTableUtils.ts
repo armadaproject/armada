@@ -3,10 +3,10 @@ import _ from "lodash"
 import { JobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobGroup, JobOrder, Match } from "models/lookoutV2Models"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
-import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { GroupedField, IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 
 import { LookoutColumnFilter } from "../containers/lookoutV2/JobsTableContainer"
-import { AnnotationColumnId, ColumnId, fromAnnotationColId, isStandardColId } from "./jobsTableColumns"
+import { AnnotationColumnId, DEFAULT_COLUMN_MATCHES, fromAnnotationColId, isStandardColId } from "./jobsTableColumns"
 import { findRowInData, RowId, RowIdParts, toRowId } from "./reactTableUtils"
 
 export interface PendingData {
@@ -41,18 +41,32 @@ export const pendingDataForAllVisibleData = (
   return [rootData].concat(expandedGroups)
 }
 
-export function getFiltersForRows(filters: LookoutColumnFilter[], expandedRowIdParts: RowIdParts[]): JobFilter[] {
+export const matchForColumn = (columnId: string, columnMatches: Record<string, Match>) => {
+  let match: Match = Match.StartsWith // base case if undefined (annotations)
+  if (columnId in DEFAULT_COLUMN_MATCHES) {
+    match = DEFAULT_COLUMN_MATCHES[columnId]
+  }
+  if (columnId in columnMatches) {
+    match = columnMatches[columnId]
+  }
+  return match
+}
+
+export function getFiltersForRows(
+  filters: LookoutColumnFilter[],
+  columnMatches: Record<string, Match>,
+  expandedRowIdParts: RowIdParts[],
+): JobFilter[] {
   const filterColumnsIndexes = new Map<string, number>()
-  const jobFilters = filters.map(({ id, value, match }, i) => {
+  const jobFilters = filters.map(({ id, value }, i) => {
     const isArray = _.isArray(value)
     const isAnnotation = !isStandardColId(id)
     let field = id
     if (isAnnotation) {
       field = fromAnnotationColId(id as AnnotationColumnId)
     }
-
     filterColumnsIndexes.set(field, i)
-
+    const match = matchForColumn(id, columnMatches)
     return {
       isAnnotation: isAnnotation,
       field: field,
@@ -69,6 +83,9 @@ export function getFiltersForRows(filters: LookoutColumnFilter[], expandedRowIdP
       match: Match.Exact,
       isAnnotation: false,
     }
+    if (!isStandardColId(rowIdParts.type)) {
+      filter.isAnnotation = true
+    }
     if (filterColumnsIndexes.has(rowIdParts.type)) {
       const i = filterColumnsIndexes.get(rowIdParts.type) as number
       jobFilters[i] = filter
@@ -80,8 +97,22 @@ export function getFiltersForRows(filters: LookoutColumnFilter[], expandedRowIdP
   return jobFilters
 }
 
+export function getFiltersForGroupedAnnotations(remainingGroups: string[]): JobFilter[] {
+  return remainingGroups
+    .filter((group) => !isStandardColId(group))
+    .map((annotationColId) => {
+      return {
+        field: fromAnnotationColId(annotationColId as AnnotationColumnId),
+        value: "",
+        match: Match.Exists,
+        isAnnotation: true,
+      }
+    })
+}
+
 export interface FetchRowRequest {
   filters: JobFilter[]
+  activeJobSets: boolean
   skip: number
   take: number
   order: JobOrder
@@ -91,21 +122,29 @@ export const fetchJobs = async (
   getJobsService: IGetJobsService,
   abortSignal: AbortSignal,
 ) => {
-  const { filters, skip, take, order } = rowRequest
+  const { filters, activeJobSets, skip, take, order } = rowRequest
 
-  return await getJobsService.getJobs(filters, order, skip, take, abortSignal)
+  return await getJobsService.getJobs(filters, activeJobSets, order, skip, take, abortSignal)
 }
 
 export const fetchJobGroups = async (
   rowRequest: FetchRowRequest,
   groupJobsService: IGroupJobsService,
-  groupedColumn: string,
+  groupedColumn: GroupedField,
   columnsToAggregate: string[],
   abortSignal: AbortSignal,
 ) => {
-  const { filters, skip, take, order } = rowRequest
-
-  return await groupJobsService.groupJobs(filters, order, groupedColumn, columnsToAggregate, skip, take, abortSignal)
+  const { filters, activeJobSets, skip, take, order } = rowRequest
+  return await groupJobsService.groupJobs(
+    filters,
+    activeJobSets,
+    order,
+    groupedColumn,
+    columnsToAggregate,
+    skip,
+    take,
+    abortSignal,
+  )
 }
 
 export const jobsToRows = (jobs: Job[]): JobRow[] => {
@@ -120,13 +159,14 @@ export const jobsToRows = (jobs: Job[]): JobRow[] => {
 export const groupsToRows = (
   groups: JobGroup[],
   baseRowId: RowId | undefined,
-  groupingField: ColumnId,
+  groupedField: GroupedField,
 ): JobGroupRow[] => {
   return groups.map((group): JobGroupRow => {
     const row: JobGroupRow = {
-      rowId: toRowId({ type: groupingField, value: group.name, parentRowId: baseRowId }),
-      [groupingField]: group.name,
-      groupedField: groupingField,
+      rowId: toRowId({ type: groupedField.field, value: group.name, parentRowId: baseRowId }),
+      groupedField: groupedField.field,
+      [groupedField.field]: group.name,
+      stateCounts: undefined,
 
       isGroup: true,
       jobCount: group.count,
@@ -135,6 +175,11 @@ export const groupsToRows = (
       subRowCount: undefined,
       subRows: [],
     }
+    if (groupedField.isAnnotation) {
+      row.annotations = {
+        [groupedField.field]: group.name,
+      }
+    }
     for (const [key, val] of Object.entries(group.aggregates)) {
       switch (key) {
         case "submitted":
@@ -142,6 +187,9 @@ export const groupsToRows = (
           break
         case "lastTransitionTime":
           row.lastTransitionTime = val as string
+          break
+        case "state":
+          row.stateCounts = val as Record<string, number>
           break
         default:
           break

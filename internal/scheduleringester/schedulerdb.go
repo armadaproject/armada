@@ -1,15 +1,15 @@
 package scheduleringester
 
 import (
-	"context"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
@@ -42,50 +42,51 @@ func NewSchedulerDb(
 	}
 }
 
-// Store persists all operations in the database.  Note that:
-//   - this function will retry until it either succeeds or a terminal error is encountered
-//   - this function will take out a postgres lock to ensure that other ingesters are not writing to the database
-//     at the same time (for details, see acquireLock())
-func (s *SchedulerDb) Store(ctx context.Context, instructions *DbOperationsWithMessageIds) error {
+// Store persists all operations in the database.
+// This function retires until it either succeeds or encounters a terminal error.
+// This function locks the postgres table to avoid write conflicts; see acquireLock() for details.
+func (s *SchedulerDb) Store(ctx *armadacontext.Context, instructions *DbOperationsWithMessageIds) error {
 	return ingest.WithRetry(func() (bool, error) {
-		err := s.db.BeginTxFunc(ctx, pgx.TxOptions{
+		err := pgx.BeginTxFunc(ctx, s.db, pgx.TxOptions{
 			IsoLevel:       pgx.ReadCommitted,
 			AccessMode:     pgx.ReadWrite,
 			DeferrableMode: pgx.Deferrable,
 		}, func(tx pgx.Tx) error {
-			// First acquire the write lock
-			lockCtx, cancel := context.WithTimeout(ctx, s.lockTimeout)
+			lockCtx, cancel := armadacontext.WithTimeout(ctx, s.lockTimeout)
 			defer cancel()
-			err := s.acquireLock(lockCtx, tx)
-			if err != nil {
+			// The lock is released automatically on transaction rollback/commit.
+			if err := s.acquireLock(lockCtx, tx); err != nil {
 				return err
 			}
-			// Now insert the ops
 			for _, dbOp := range instructions.Ops {
-				err := s.WriteDbOp(ctx, tx, dbOp)
-				if err != nil {
+				if err := s.WriteDbOp(ctx, tx, dbOp); err != nil {
 					return err
 				}
 			}
-			return err
+			return nil
 		})
 		return true, err
 	}, s.initialBackOff, s.maxBackOff)
 }
 
-// acquireLock acquires the armada_scheduleringester_lock, which prevents two ingesters writing to the db at the same
-// time.  This is necessary because:
-// - when rows are inserted into the database they are stamped with a sequence number
-// - the scheduler relies on this sequence number increasing to ensure it has fetched all updated rows
-// - concurrent transactions will result in sequence numbers being interleaved across transactions.
-// - the interleaved sequences may result in the scheduler seeing sequence numbers that do not strictly increase over time.
-func (s *SchedulerDb) acquireLock(ctx context.Context, tx pgx.Tx) error {
+// acquireLock acquires a postgres advisory lock, thus preventing concurrent writes.
+// This is necessary to ensure sequence numbers assigned to each inserted row are monotonically increasing.
+// Such a sequence number is assigned to each inserted row by a postgres function.
+//
+// Hence, if rows are inserted across multiple transactions concurrently,
+// sequence numbers may be interleaved between transactions and the slower transaction may insert
+// rows with sequence numbers smaller than those already written.
+//
+// The scheduler relies on these sequence numbers to only fetch new or updated rows in each update cycle.
+func (s *SchedulerDb) acquireLock(ctx *armadacontext.Context, tx pgx.Tx) error {
 	const lockId = 8741339439634283896
-	_, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockId)
-	return errors.Wrapf(err, "Could not obtain lock")
+	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock($1)", lockId); err != nil {
+		return errors.Wrapf(err, "could not obtain lock")
+	}
+	return nil
 }
 
-func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) error {
+func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOperation) error {
 	queries := schedulerdb.New(tx)
 	switch o := op.(type) {
 	case InsertJobs:
@@ -103,7 +104,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 		records := make([]any, len(o))
 		i := 0
 		for _, v := range o {
-			records[i] = *v
+			records[i] = *v.dbRun
 			i++
 		}
 		err := database.Upsert(ctx, tx, "runs", records)
@@ -111,11 +112,12 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 			return err
 		}
 	case UpdateJobSetPriorities:
-		for jobSet, priority := range o {
+		for jobSetInfo, priority := range o {
 			err := queries.UpdateJobPriorityByJobSet(
 				ctx,
 				schedulerdb.UpdateJobPriorityByJobSetParams{
-					JobSet:   jobSet,
+					JobSet:   jobSetInfo.jobSet,
+					Queue:    jobSetInfo.queue,
 					Priority: priority,
 				},
 			)
@@ -148,10 +150,27 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 			return errors.WithStack(err)
 		}
 	case MarkJobSetsCancelRequested:
-		jobSets := maps.Keys(o)
-		err := queries.MarkJobsCancelRequestedBySets(ctx, jobSets)
-		if err != nil {
-			return errors.WithStack(err)
+		for jobSetInfo, cancelDetails := range o {
+			queuedStatesToCancel := make([]bool, 0, 2)
+			if cancelDetails.cancelQueued {
+				// Cancel all jobs in a queued state
+				queuedStatesToCancel = append(queuedStatesToCancel, true)
+			}
+			if cancelDetails.cancelLeased {
+				// Cancel all jobs in a non-queued state
+				queuedStatesToCancel = append(queuedStatesToCancel, false)
+			}
+			err := queries.MarkJobsCancelRequestedBySetAndQueuedState(
+				ctx,
+				schedulerdb.MarkJobsCancelRequestedBySetAndQueuedStateParams{
+					Queue:        jobSetInfo.queue,
+					JobSet:       jobSetInfo.jobSet,
+					QueuedStates: queuedStatesToCancel,
+				},
+			)
+			if err != nil {
+				return errors.WithStack(err)
+			}
 		}
 	case MarkJobsCancelRequested:
 		jobIds := maps.Keys(o)
@@ -255,7 +274,7 @@ func (s *SchedulerDb) WriteDbOp(ctx context.Context, tx pgx.Tx, op DbOperation) 
 	return nil
 }
 
-func execBatch(ctx context.Context, tx pgx.Tx, batch *pgx.Batch) error {
+func execBatch(ctx *armadacontext.Context, tx pgx.Tx, batch *pgx.Batch) error {
 	result := tx.SendBatch(ctx, batch)
 	for i := 0; i < batch.Len(); i++ {
 		_, err := result.Exec()

@@ -6,7 +6,12 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: {{ required "A value is required for .Values.scheduler.ingressClass" .Values.scheduler.ingressClass }}
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    {{- if .Values.scheduler.applicationConfig.grpc.tls.enabled }}
+    nginx.ingress.kubernetes.io/backend-protocol: "GRPCS"
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    {{- else }}
     nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    {{- end }}
     certmanager.k8s.io/cluster-issuer: {{ required "A value is required for .Values.scheduler.clusterIssuer" .Values.scheduler.clusterIssuer }}
     cert-manager.io/cluster-issuer: {{ required "A value is required for .Values.scheduler.clusterIssuer" .Values.scheduler.clusterIssuer }}
     {{- if .Values.scheduler.ingress.annotations }}
@@ -34,5 +39,10 @@ spec:
   {{ end }}
   tls:
     - hosts:
-      {{- toYaml .Values.scheduler.hostnames  | nindent 8 }}
+      {{- toYaml .Values.scheduler.hostnames  | nindent 6 }}
+      - {{ include "armada-scheduler.name" $root }}.{{ $root.Release.Namespace }}.svc
+      {{- $root := . -}}
+      {{- range $i := until (int .Values.scheduler.replicas) }}
+      - {{ include "armada-scheduler.name" $root }}-{{ $i }}.{{ include "armada-scheduler.name" $root }}.{{ $root.Release.Namespace }}.svc
+      {{- end }}
       secretName: armada-scheduler-service-tls

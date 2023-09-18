@@ -1,3 +1,5 @@
+# -- Tolerations
+tolerations: []
 additionalLabels: {}
 
 scheduler:
@@ -15,10 +17,16 @@ scheduler:
   applicationConfig:
     grpc:
       port: 50051
+      tls:
+        enabled: false
+        certPath: /certs/tls.crt
+        keyPath: /certs/tls.key
     metrics:
       port: 9001
+    http:
+      port: 8080
     pulsar: {}
-  strategy:
+  updateStrategy:
     rollingUpdate:
       maxUnavailable: 1
     type: RollingUpdate

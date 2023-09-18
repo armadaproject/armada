@@ -3,38 +3,49 @@ package scheduler
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"strings"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
 	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
-	log "github.com/sirupsen/logrus"
-	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/app"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth"
 	dbcommon "github.com/armadaproject/armada/internal/common/database"
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
+	"github.com/armadaproject/armada/internal/common/health"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
 
 // Run sets up a Scheduler application and runs it until a SIGTERM is received
 func Run(config schedulerconfig.Configuration) error {
-	g, ctx := errgroup.WithContext(app.CreateContextWithShutdown())
-	logrusLogger := log.NewEntry(log.StandardLogger())
-	ctx = ctxlogrus.ToContext(ctx, logrusLogger)
+	g, ctx := armadacontext.ErrGroup(app.CreateContextWithShutdown())
+
+	//////////////////////////////////////////////////////////////////////////
+	// Health Checks
+	//////////////////////////////////////////////////////////////////////////
+	mux := http.NewServeMux()
+
+	startupCompleteCheck := health.NewStartupCompleteChecker()
+	healthChecks := health.NewMultiChecker(startupCompleteCheck)
+	health.SetupHttpMux(mux, healthChecks)
+	shutdownHttpServer := common.ServeHttp(uint16(config.Http.Port), mux)
+	defer shutdownHttpServer()
 
 	// List of services to run concurrently.
 	// Because we want to start services only once all input validation has been completed,
@@ -44,7 +55,7 @@ func Run(config schedulerconfig.Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	// Database setup (postgres and redis)
 	//////////////////////////////////////////////////////////////////////////
-	log.Infof("Setting up database connections")
+	ctx.Infof("Setting up database connections")
 	db, err := dbcommon.OpenPgxPool(config.Postgres)
 	if err != nil {
 		return errors.WithMessage(err, "Error opening connection to postgres")
@@ -57,7 +68,9 @@ func Run(config schedulerconfig.Configuration) error {
 	defer func() {
 		err := redisClient.Close()
 		if err != nil {
-			log.WithError(errors.WithStack(err)).Warnf("Redis client didn't close down cleanly")
+			logging.
+				WithStacktrace(ctx, err).
+				Warnf("Redis client didn't close down cleanly")
 		}
 	}()
 	queueRepository := database.NewLegacyQueueRepository(redisClient)
@@ -66,7 +79,7 @@ func Run(config schedulerconfig.Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	// Pulsar
 	//////////////////////////////////////////////////////////////////////////
-	log.Infof("Setting up Pulsar connectivity")
+	ctx.Infof("Setting up Pulsar connectivity")
 	pulsarClient, err := pulsarutils.NewPulsarClient(&config.Pulsar)
 	if err != nil {
 		return errors.WithMessage(err, "Error creating pulsar client")
@@ -86,7 +99,7 @@ func Run(config schedulerconfig.Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	// Leader Election
 	//////////////////////////////////////////////////////////////////////////
-	leaderController, err := createLeaderController(config.Leader)
+	leaderController, err := createLeaderController(ctx, config.Leader)
 	if err != nil {
 		return errors.WithMessage(err, "error creating leader controller")
 	}
@@ -95,7 +108,7 @@ func Run(config schedulerconfig.Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	// Executor Api
 	//////////////////////////////////////////////////////////////////////////
-	log.Infof("Setting up executor api")
+	ctx.Infof("Setting up executor api")
 	apiProducer, err := pulsarClient.CreateProducer(pulsar.ProducerOptions{
 		Name:             fmt.Sprintf("armada-executor-api-%s", uuid.NewString()),
 		CompressionType:  config.Pulsar.CompressionType,
@@ -111,11 +124,11 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating auth services")
 	}
-	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices)
+	grpcServer := grpcCommon.CreateGrpcServer(config.Grpc.KeepaliveParams, config.Grpc.KeepaliveEnforcementPolicy, authServices, config.Grpc.Tls)
 	defer grpcServer.GracefulStop()
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", config.Grpc.Port))
 	if err != nil {
-		return errors.WithMessage(err, "error setting up grpc server")
+		return errors.WithMessage(err, "error setting up gRPC server")
 	}
 	allowedPcs := config.Scheduling.Preemption.AllowedPriorities()
 	executorServer, err := NewExecutorApi(
@@ -124,16 +137,16 @@ func Run(config schedulerconfig.Configuration) error {
 		executorRepository,
 		legacyExecutorRepository,
 		allowedPcs,
-		config.Scheduling.MaximumJobsToSchedule,
 		config.Scheduling.Preemption.NodeIdLabel,
 		config.Scheduling.Preemption.PriorityClassNameOverride,
+		config.Pulsar.MaxAllowedMessageSize,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating executorApi")
 	}
 	executorapi.RegisterExecutorApiServer(grpcServer, executorServer)
 	services = append(services, func() error {
-		log.Infof("Executor api listening on %s", lis.Addr())
+		ctx.Infof("Executor api listening on %s", lis.Addr())
 		return grpcServer.Serve(lis)
 	})
 	services = append(services, grpcCommon.CreateShutdownHandler(ctx, 5*time.Second, grpcServer))
@@ -141,7 +154,7 @@ func Run(config schedulerconfig.Configuration) error {
 	//////////////////////////////////////////////////////////////////////////
 	// Scheduling
 	//////////////////////////////////////////////////////////////////////////
-	log.Infof("setting up scheduling loop")
+	ctx.Infof("setting up scheduling loop")
 	stringInterner, err := stringinterner.New(config.InternedStringsCacheSize)
 	if err != nil {
 		return errors.WithMessage(err, "error creating string interner")
@@ -158,7 +171,26 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating submit checker")
 	}
-	schedulingAlgo := NewFairSchedulingAlgo(config.Scheduling, executorRepository, queueRepository)
+
+	schedulingContextRepository, err := NewSchedulingContextRepository(config.Scheduling.MaxJobSchedulingContextsPerExecutor)
+	if err != nil {
+		return errors.WithMessage(err, "error creating scheduling context repository")
+	}
+
+	leaderClientConnectionProvider := NewLeaderConnectionProvider(leaderController, config.Leader)
+	schedulingReportServer := NewLeaderProxyingSchedulingReportsServer(schedulingContextRepository, leaderClientConnectionProvider)
+	schedulerobjects.RegisterSchedulerReportingServer(grpcServer, schedulingReportServer)
+
+	schedulingAlgo, err := NewFairSchedulingAlgo(
+		config.Scheduling,
+		config.MaxSchedulingDuration,
+		executorRepository,
+		queueRepository,
+		schedulingContextRepository,
+	)
+	if err != nil {
+		return errors.WithMessage(err, "error creating scheduling algo")
+	}
 	scheduler, err := NewScheduler(
 		jobRepository,
 		executorRepository,
@@ -168,9 +200,11 @@ func Run(config schedulerconfig.Configuration) error {
 		stringInterner,
 		submitChecker,
 		config.CyclePeriod,
+		config.SchedulePeriod,
 		config.ExecutorTimeout,
 		config.Scheduling.MaxRetries+1,
 		config.Scheduling.Preemption.NodeIdLabel,
+		NewSchedulerMetrics(config.Metrics.Metrics),
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")
@@ -187,6 +221,7 @@ func Run(config schedulerconfig.Configuration) error {
 	metricsCollector := NewMetricsCollector(
 		scheduler.jobDb,
 		queueRepository,
+		executorRepository,
 		poolAssigner,
 		config.Metrics.RefreshInterval)
 	prometheus.MustRegister(metricsCollector)
@@ -199,17 +234,20 @@ func Run(config schedulerconfig.Configuration) error {
 		g.Go(service)
 	}
 
+	// Mark startup as complete, will allow the health check to return healthy
+	startupCompleteCheck.MarkComplete()
+
 	return g.Wait()
 }
 
-func createLeaderController(config schedulerconfig.LeaderConfig) (LeaderController, error) {
+func createLeaderController(ctx *armadacontext.Context, config schedulerconfig.LeaderConfig) (LeaderController, error) {
 	switch mode := strings.ToLower(config.Mode); mode {
 	case "standalone":
-		log.Infof("Scheduler will run in standalone mode")
+		ctx.Infof("Scheduler will run in standalone mode")
 		return NewStandaloneLeaderController(), nil
 	case "kubernetes":
-		log.Infof("Scheduler will run kubernetes mode")
-		clusterConfig, err := loadClusterConfig()
+		ctx.Infof("Scheduler will run kubernetes mode")
+		clusterConfig, err := loadClusterConfig(ctx)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error creating kubernetes client")
 		}
@@ -217,20 +255,24 @@ func createLeaderController(config schedulerconfig.LeaderConfig) (LeaderControll
 		if err != nil {
 			return nil, errors.Wrapf(err, "Error creating kubernetes client")
 		}
-		return NewKubernetesLeaderController(config, clientSet.CoordinationV1()), nil
+		leaderController := NewKubernetesLeaderController(config, clientSet.CoordinationV1())
+		leaderStatusMetrics := NewLeaderStatusMetricsCollector(config.PodName)
+		leaderController.RegisterListener(leaderStatusMetrics)
+		prometheus.MustRegister(leaderStatusMetrics)
+		return leaderController, nil
 	default:
 		return nil, errors.Errorf("%s is not a value leader mode", config.Mode)
 	}
 }
 
-func loadClusterConfig() (*rest.Config, error) {
+func loadClusterConfig(ctx *armadacontext.Context) (*rest.Config, error) {
 	config, err := rest.InClusterConfig()
 	if err == rest.ErrNotInCluster {
-		log.Info("Running with default client configuration")
+		ctx.Info("Running with default client configuration")
 		rules := clientcmd.NewDefaultClientConfigLoadingRules()
 		overrides := &clientcmd.ConfigOverrides{}
 		return clientcmd.NewNonInteractiveDeferredLoadingClientConfig(rules, overrides).ClientConfig()
 	}
-	log.Info("Running with in cluster client configuration")
+	ctx.Info("Running with in cluster client configuration")
 	return config, err
 }

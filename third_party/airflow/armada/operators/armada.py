@@ -17,21 +17,30 @@
 # under the License.
 
 import logging
-from typing import Optional, List
+from typing import Optional, List, Sequence
 
 from airflow.models import BaseOperator
 from airflow.exceptions import AirflowException
+from airflow.utils.context import Context
 
 from armada_client.armada.submit_pb2 import JobSubmitRequestItem
 from armada_client.client import ArmadaClient
 
-from armada.operators.jobservice import JobServiceClient
+from armada.operators.grpc import GrpcChannelArgsDict, GrpcChannelArguments
+from armada.operators.jobservice import (
+    JobServiceClient,
+    default_jobservice_channel_options,
+)
 from armada.operators.utils import (
     airflow_error,
     search_for_job_complete,
     annotate_job_request_items,
 )
 from armada.jobservice import jobservice_pb2
+
+from google.protobuf.json_format import MessageToDict, ParseDict
+
+import jinja2
 
 
 armada_logger = logging.getLogger("airflow.task")
@@ -44,9 +53,10 @@ class ArmadaOperator(BaseOperator):
     Airflow operators inherit from BaseOperator.
 
     :param name: The name of the airflow task
-    :param armada_client: The Armada Python GRPC client
-                        that is used for interacting with Armada
-    :param job_service_client: The JobServiceClient that is used for polling
+    :param armada_channel_args: GRPC channel arguments to be used when creating
+      a grpc channel to connect to the armada server instance.
+    :param job_service_channel_args: GRPC channel arguments to be used when creating
+      a grpc channel to connect to the job service instance.
     :param armada_queue: The queue name for Armada.
     :param job_request_items: A PodSpec that is used by Armada for submitting a job
     :param lookout_url_template: A URL template to be used to provide users
@@ -54,27 +64,35 @@ class ArmadaOperator(BaseOperator):
         The format should be:
         "https://lookout.armada.domain/jobs?job_id=<job_id>" where <job_id> will
         be replaced with the actual job ID.
-
+    :param poll_interval: How often to poll jobservice to get status.
     :return: an armada operator instance
     """
+
+    template_fields: Sequence[str] = ("job_request_items",)
 
     def __init__(
         self,
         name: str,
-        armada_client: ArmadaClient,
-        job_service_client: JobServiceClient,
+        armada_channel_args: GrpcChannelArgsDict,
+        job_service_channel_args: GrpcChannelArgsDict,
         armada_queue: str,
         job_request_items: List[JobSubmitRequestItem],
         lookout_url_template: Optional[str] = None,
+        poll_interval: int = 30,
         **kwargs,
     ) -> None:
         super().__init__(**kwargs)
         self.name = name
-        self.armada_client = armada_client
-        self.job_service = job_service_client
+        self.armada_channel_args = GrpcChannelArguments(**armada_channel_args)
+
+        if "options" not in job_service_channel_args:
+            job_service_channel_args["options"] = default_jobservice_channel_options
+
+        self.job_service_channel_args = GrpcChannelArguments(**job_service_channel_args)
         self.armada_queue = armada_queue
         self.job_request_items = job_request_items
         self.lookout_url_template = lookout_url_template
+        self.poll_interval = poll_interval
 
     def execute(self, context) -> None:
         """
@@ -86,14 +104,17 @@ class ArmadaOperator(BaseOperator):
 
         :return: None
         """
+        job_service_client = JobServiceClient(self.job_service_channel_args.channel())
         # Health Check
-        health = self.job_service.health()
+        health = job_service_client.health()
         if health.status != jobservice_pb2.HealthCheckResponse.SERVING:
             armada_logger.warn("Armada Job Service is not health")
         # This allows us to use a unique id from airflow
         # and have all jobs in a dag correspond to same jobset
         job_set_id = context["run_id"]
-        job = self.armada_client.submit_jobs(
+
+        armada_client = ArmadaClient(channel=self.armada_channel_args.channel())
+        job = armada_client.submit_jobs(
             queue=self.armada_queue,
             job_set_id=job_set_id,
             job_request_items=annotate_job_request_items(
@@ -113,11 +134,12 @@ class ArmadaOperator(BaseOperator):
             armada_logger.info("Lookout URL: %s", lookout_url)
 
         job_state, job_message = search_for_job_complete(
-            job_service_client=self.job_service,
+            job_service_client=job_service_client,
             armada_queue=self.armada_queue,
             job_set_id=job_set_id,
             airflow_task_name=self.name,
             job_id=job_id,
+            poll_interval=self.poll_interval,
         )
         armada_logger.info(
             "Armada Job finished with %s and message: %s", job_state, job_message
@@ -128,3 +150,17 @@ class ArmadaOperator(BaseOperator):
         if self.lookout_url_template is None:
             return ""
         return self.lookout_url_template.replace("<job_id>", job_id)
+
+    def render_template_fields(
+        self,
+        context: Context,
+        jinja_env: Optional[jinja2.Environment] = None,
+    ) -> None:
+        self.job_request_items = [
+            MessageToDict(x, preserving_proto_field_name=True)
+            for x in self.job_request_items
+        ]
+        super().render_template_fields(context, jinja_env)
+        self.job_request_items = [
+            ParseDict(x, JobSubmitRequestItem()) for x in self.job_request_items
+        ]

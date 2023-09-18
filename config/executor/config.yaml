@@ -7,11 +7,13 @@ application:
   deleteConcurrencyLimit: 2
   useExecutorApi: false
   useLegacyApi: true
+  jobLeaseRequestTimeout: "30s"
+  maxLeasedJobs: 100
 task:
   utilisationReportingInterval: 1s
   missingJobEventReconciliationInterval: 15s
   jobLeaseRenewalInterval: 15s
-  podIssueHandlingInterval: 5s
+  podIssueHandlingInterval: 10s
   podDeletionInterval: 5s
   resourceCleanupInterval: 15s
   allocateSpareClusterCapacityInterval: 5s
@@ -22,6 +24,7 @@ task:
 # The executor api section should only be needed until we migrate to it fully - then we go back to just using apiConnection
 executorApiConnection:
   armadaUrl: "server:50052"
+  forceNoTls: false
 apiConnection:
   armadaUrl: "server:50051"
   forceNoTls: false
@@ -34,10 +37,6 @@ kubernetes:
   impersonateUsers: false
   trackedNodeLabels:
     - kubernetes.io/hostname
-  etcd:
-    fractionOfStorageInUseSoftLimit: 0.8
-    fractionOfStorageInUseHardLimit: 0.9
-    minimumAvailable: 2
   QPS: 10000
   Burst: 10000
   nodeIdLabel: kubernetes.io/hostname
@@ -47,8 +46,8 @@ kubernetes:
   stuckTerminatingPodExpiry: 1m
   podKillTimeout: 5m
   minimumResourcesMarkedAllocatedToNonArmadaPodsPerNode:
-    cpu: 100m
-    memory: 50Mi
+    cpu: 1
+    memory: 200Mi
   minimumResourcesMarkedAllocatedToNonArmadaPodsPerNodePriority: 2000001000 # same priority as system-node-critical
   podDefaults:
     ingress:
@@ -58,6 +57,9 @@ kubernetes:
   fatalPodSubmissionErrors:
     - "admission webhook"
     - "namespaces \".*\" not found"
+  stateChecks:
+    deadlineForSubmittedPodConsideredMissing: 15m
+    deadlineForActivePodConsideredMissing: 5m
   pendingPodChecks:
     deadlineForUpdates: 10m
     deadlineForNodeAssignment: 5m

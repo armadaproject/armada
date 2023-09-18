@@ -32,6 +32,8 @@ message LeaseRequest{
   repeated api.NodeInfo nodes = 5;
   // Run Ids of jobs owned by the executor but not currently assigned to a node.
   repeated armadaevents.Uuid unassigned_job_run_ids = 6 [(gogoproto.nullable) = false];
+  // Max number of jobs this request should return
+  uint32 max_jobs_to_lease = 7;
 }
 
 // Indicates that a job run is now leased.
@@ -67,7 +69,7 @@ message LeaseStreamMessage{
 }
 
 service ExecutorApi {
-  // Reports usage information to the scheduler. 
+  // Reports usage information to the scheduler.
   // In return, the scheduler provides:
   // - Slice of job runs that the executor is currently running that should be cancelled.
   // - Slice of job runs that the executor is currently running that should be preempted.

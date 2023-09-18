@@ -52,13 +52,13 @@ func TestConvertSequence(t *testing.T) {
 		"job run leased": {
 			events: []*armadaevents.EventSequence_Event{f.Leased},
 			expected: []DbOperation{
-				InsertRuns{f.RunIdUuid: &schedulerdb.Run{
+				InsertRuns{f.RunIdUuid: &JobRunDetails{queue: f.Queue, dbRun: &schedulerdb.Run{
 					RunID:    f.RunIdUuid,
 					JobID:    f.JobIdString,
 					JobSet:   f.JobSetName,
 					Executor: f.ExecutorId,
 					Node:     f.NodeName,
-				}},
+				}}},
 				UpdateJobQueuedState{f.JobIdString: &JobQueuedStateUpdate{
 					Queued:             false,
 					QueuedStateVersion: 1,
@@ -116,7 +116,7 @@ func TestConvertSequence(t *testing.T) {
 		"reprioritise jobset": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetReprioritiseRequested},
 			expected: []DbOperation{
-				UpdateJobSetPriorities{f.JobSetName: f.NewPriority},
+				UpdateJobSetPriorities{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: f.NewPriority},
 			},
 		},
 		"JobCancelRequested": {
@@ -128,7 +128,25 @@ func TestConvertSequence(t *testing.T) {
 		"JobSetCancelRequested": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{f.JobSetName: true},
+				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}},
+			},
+		},
+		"JobSetCancelRequested - Queued only": {
+			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_QUEUED)},
+			expected: []DbOperation{
+				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: false}},
+			},
+		},
+		"JobSetCancelRequested - Pending only": {
+			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_PENDING)},
+			expected: []DbOperation{
+				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: false, cancelLeased: true}},
+			},
+		},
+		"JobSetCancelRequested - Running only": {
+			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequestedWithStateFilter(armadaevents.JobState_RUNNING)},
+			expected: []DbOperation{
+				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: false, cancelLeased: true}},
 			},
 		},
 		"JobCancelled": {
@@ -165,7 +183,7 @@ func TestConvertSequence(t *testing.T) {
 		"multiple events": {
 			events: []*armadaevents.EventSequence_Event{f.JobSetCancelRequested, f.Running, f.JobSucceeded},
 			expected: []DbOperation{
-				MarkJobSetsCancelRequested{f.JobSetName: true},
+				MarkJobSetsCancelRequested{JobSetKey{queue: f.Queue, jobSet: f.JobSetName}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}},
 				MarkRunsRunning{f.RunIdUuid: true},
 				MarkJobsSucceeded{f.JobIdString: true},
 			},
@@ -183,7 +201,7 @@ func TestConvertSequence(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			converter := InstructionConverter{m, f.PriorityClasses, compressor}
 			es := f.NewEventSequence(tc.events...)
-			results := converter.convertSequence(es)
+			results := converter.dbOperationsFromEventSequence(es)
 			assertOperationsEqual(t, tc.expected, results)
 		})
 	}
@@ -254,11 +272,14 @@ func assertErrorMessagesEqual(t *testing.T, expectedBytes []byte, actualBytes []
 
 func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobSchedulingInfo {
 	expectedSubmitSchedulingInfo := &schedulerobjects.JobSchedulingInfo{
-		Lifetime:        0,
-		AtMostOnce:      true,
-		Preemptible:     true,
-		ConcurrencySafe: true,
-		Version:         0,
+		Lifetime:          0,
+		AtMostOnce:        true,
+		Preemptible:       true,
+		ConcurrencySafe:   true,
+		Version:           0,
+		PriorityClassName: "test-priority",
+		Priority:          3,
+		SubmitTime:        f.BaseTime,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
@@ -282,6 +303,5 @@ func getExpectedSubmitMessageSchedulingInfo(t *testing.T) *schedulerobjects.JobS
 			},
 		},
 	}
-	_, _ = expectedSubmitSchedulingInfo.SchedulingKey()
 	return expectedSubmitSchedulingInfo
 }

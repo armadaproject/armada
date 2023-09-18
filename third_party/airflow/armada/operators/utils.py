@@ -3,7 +3,7 @@ import logging
 import os
 import time
 
-from airflow.exceptions import AirflowFailException
+from airflow.exceptions import AirflowException
 from typing import List, Optional, Tuple
 from enum import Enum
 
@@ -61,7 +61,9 @@ def airflow_error(job_state: JobState, name: str, job_id: str):
         or job_state == JobState.JOB_ID_NOT_FOUND
     ):
         job_message = job_state.name
-        raise AirflowFailException(f"The Armada job {name}:{job_id} {job_message}")
+        # AirflowException allows operator-level retries. AirflowFailException
+        # does *not*.
+        raise AirflowException(f"The Armada job {name}:{job_id} {job_message}")
 
 
 def default_job_status_callable(
@@ -83,6 +85,7 @@ def search_for_job_complete(
     job_set_id: str,
     airflow_task_name: str,
     job_id: str,
+    poll_interval: int = 30,
     job_service_client: Optional[JobServiceClient] = None,
     job_status_callable=default_job_status_callable,
     time_out_for_failure: int = 7200,
@@ -96,6 +99,7 @@ def search_for_job_complete(
     :param armada_queue: The queue for armada
     :param job_set_id: Your job_set_id
     :param airflow_task_name: The name of your armada job
+    :param poll_interval: Polling interval for jobservice to get status.
     :param job_id: The name of the job id that armada assigns to it
     :param job_service_client: A JobServiceClient that is used for polling.
                                 It is optional only for testing
@@ -128,7 +132,7 @@ def search_for_job_complete(
         job_state = job_state_from_pb(job_status_return.state)
         armada_logger.debug(f"Got job state '{job_state.name}' for job {job_id}")
 
-        time.sleep(3)
+        time.sleep(poll_interval)
         if job_state == JobState.SUCCEEDED:
             job_message = f"Armada {airflow_task_name}:{job_id} succeeded"
             break
@@ -213,6 +217,7 @@ async def search_for_job_complete_async(
     job_id: str,
     job_service_client: JobServiceAsyncIOClient,
     log,
+    poll_interval: int,
     time_out_for_failure: int = 7200,
 ) -> Tuple[JobState, str]:
     """
@@ -227,6 +232,7 @@ async def search_for_job_complete_async(
     :param job_id: The name of the job id that armada assigns to it
     :param job_service_client: A JobServiceClient that is used for polling.
                                 It is optional only for testing
+    :param poll_interval: How often to poll jobservice to get status.
     :param time_out_for_failure: The amount of time a job
                                     can be in job_id_not_found
                                     before we decide it was a invalid job
@@ -247,7 +253,7 @@ async def search_for_job_complete_async(
         job_state = job_state_from_pb(job_status_return.state)
         log.debug(f"Got job state '{job_state.name}' for job {job_id}")
 
-        await asyncio.sleep(3)
+        await asyncio.sleep(poll_interval)
 
         if job_state == JobState.SUCCEEDED:
             job_message = f"Armada {airflow_task_name}:{job_id} succeeded"

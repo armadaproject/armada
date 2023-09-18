@@ -1,15 +1,15 @@
 package pruner
 
 import (
-	"context"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -108,10 +108,10 @@ func TestPruneDb(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.testName, func(t *testing.T) {
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
-				converter := instructions.NewInstructionConverter(metrics.Get(), "armadaproject.io/", &compress.NoOpCompressor{})
+				converter := instructions.NewInstructionConverter(metrics.Get(), "armadaproject.io/", &compress.NoOpCompressor{}, true)
 				store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Minute)
 				defer cancel()
 				for _, tj := range tc.jobs {
 					runId := uuid.NewString()
@@ -156,7 +156,7 @@ func TestPruneDb(t *testing.T) {
 
 func selectStringSet(t *testing.T, db *pgxpool.Pool, query string) map[string]bool {
 	t.Helper()
-	rows, err := db.Query(context.TODO(), query)
+	rows, err := db.Query(armadacontext.TODO(), query)
 	assert.NoError(t, err)
 	var ss []string
 	for rows.Next() {

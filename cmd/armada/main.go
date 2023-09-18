@@ -1,9 +1,9 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,11 +12,11 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/armadaproject/armada/internal/armada"
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	gateway "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/logging"
@@ -46,8 +46,27 @@ func main() {
 
 	log.Info("Starting...")
 
+	// Importing net/http/pprof automatically binds profiling endpoints to http.DefaultServeMux.
+	// Here, we create a new DefaultServeMux to ensure profiling is exposed on a separate mux.
+	// The profiling endpoints are only exposed if config.ProfilingPort is not nil.
+	pprofMux := http.DefaultServeMux
+	http.DefaultServeMux = http.NewServeMux()
+	if config.PprofPort != nil {
+		go func() {
+			server := &http.Server{
+				Addr:    fmt.Sprintf("localhost:%d", *config.PprofPort),
+				Handler: pprofMux,
+			}
+			log := log.NewEntry(log.New())
+			log.Infof("profiling endpoints exposed on %s", server.Addr)
+			if err := server.ListenAndServe(); err != nil {
+				logging.WithStacktrace(log, err).Error("profiling server exited")
+			}
+		}()
+	}
+
 	// Run services within an errgroup to propagate errors between services.
-	g, ctx := errgroup.WithContext(context.Background())
+	g, ctx := armadacontext.ErrGroup(armadacontext.Background())
 
 	// Cancel the errgroup context on SIGINT and SIGTERM,
 	// which shuts everything down gracefully.

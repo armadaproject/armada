@@ -1,5 +1,7 @@
 import { Location, NavigateFunction, Params, useLocation, useNavigate, useParams } from "react-router-dom"
 
+import { BinocularsApi, Configuration, ConfigurationParameters } from "./openapi/binoculars"
+
 interface UIConfig {
   armadaApiBaseUrl: string
   userAnnotationPrefix: string
@@ -11,6 +13,7 @@ interface UIConfig {
   debugEnabled: boolean
   fakeDataEnabled: boolean
   lookoutV2ApiBaseUrl: string
+  customTitle: string
 }
 
 export type RequestStatus = "Loading" | "Idle"
@@ -38,6 +41,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     debugEnabled: queryParams.has("debug"),
     fakeDataEnabled: queryParams.has("fakeData"),
     lookoutV2ApiBaseUrl: "",
+    customTitle: "",
   }
 
   try {
@@ -51,6 +55,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     if (json.JobSetsAutoRefreshMs) config.jobSetsAutoRefreshMs = json.JobSetsAutoRefreshMs
     if (json.JobsAutoRefreshMs) config.jobsAutoRefreshMs = json.JobsAutoRefreshMs
     if (json.LookoutV2ApiBaseUrl) config.lookoutV2ApiBaseUrl = json.LookoutV2ApiBaseUrl
+    if (json.CustomTitle) config.customTitle = json.CustomTitle
   } catch (e) {
     console.error(e)
   }
@@ -60,6 +65,12 @@ export async function getUIConfig(): Promise<UIConfig> {
 
 export function inverseMap<K, V>(map: Map<K, V>): Map<V, K> {
   return new Map(Array.from(map.entries()).map(([k, v]) => [v, k]))
+}
+
+export function inverseRecord<K extends string | number | symbol, V extends string | number | symbol>(
+  record: Record<K, V>,
+): Record<V, K> {
+  return Object.fromEntries(Object.entries(record).map(([k, v]) => [v, k]))
 }
 
 export function debounced(fn: (...args: any[]) => Promise<any>, delay: number): (...args: any[]) => Promise<any> {
@@ -153,7 +164,7 @@ export function updateArray<T>(array: T[], newValues: T[], start: number) {
   }
 }
 
-export function tryParseJson(json: string): Record<string, unknown> | undefined {
+export function tryParseJson(json: string): Record<string, unknown> | unknown[] | undefined {
   try {
     return JSON.parse(json) as Record<string, unknown>
   } catch (e: unknown) {
@@ -220,4 +231,15 @@ export function withRouter<T extends PropsWithRouter>(Component: React.FC<T>): R
     return <Component {...props} router={{ location, navigate, params }} />
   }
   return ComponentWithRouterProp as React.FC<Omit<T, "router">>
+}
+
+export const PlatformCancelReason = "Platform error marked by user"
+
+export function getBinocularsApi(clusterId: string, baseUrlPattern: string, config: ConfigurationParameters) {
+  return new BinocularsApi(
+    new Configuration({
+      ...config,
+      basePath: baseUrlPattern.replace("{CLUSTER_ID}", clusterId),
+    }),
+  )
 }

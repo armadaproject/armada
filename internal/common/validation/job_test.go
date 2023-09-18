@@ -107,14 +107,15 @@ func Test_ValidateJobSubmitRequestItem_WithPortRepeatedInSeperateConfig(t *testi
 
 func TestValidateGangs(t *testing.T) {
 	tests := map[string]struct {
-		Jobs          []*api.Job
-		ExpectSuccess bool
+		Jobs                                   []*api.Job
+		ExpectSuccess                          bool
+		ExpectedGangMinimumCardinalityByGangId map[string]int
 	}{
 		"no gang jobs": {
 			Jobs:          []*api.Job{{}, {}},
 			ExpectSuccess: true,
 		},
-		"complete gang job of cardinality 1": {
+		"complete gang job of cardinality 1 with no minimum cardinality provided": {
 			Jobs: []*api.Job{
 				{
 					Annotations: map[string]string{
@@ -123,7 +124,21 @@ func TestValidateGangs(t *testing.T) {
 					},
 				},
 			},
-			ExpectSuccess: true,
+			ExpectSuccess:                          true,
+			ExpectedGangMinimumCardinalityByGangId: map[string]int{"foo": 1},
+		},
+		"complete gang job of cardinality 2 with minimum cardinality of 1": {
+			Jobs: []*api.Job{
+				{
+					Annotations: map[string]string{
+						configuration.GangIdAnnotation:                 "foo",
+						configuration.GangCardinalityAnnotation:        strconv.Itoa(2),
+						configuration.GangMinimumCardinalityAnnotation: strconv.Itoa(1),
+					},
+				},
+			},
+			ExpectSuccess:                          true,
+			ExpectedGangMinimumCardinalityByGangId: map[string]int{"foo": 1},
 		},
 		"empty gangId": {
 			Jobs: []*api.Job{
@@ -134,7 +149,8 @@ func TestValidateGangs(t *testing.T) {
 					},
 				},
 			},
-			ExpectSuccess: false,
+			ExpectSuccess:                          false,
+			ExpectedGangMinimumCardinalityByGangId: nil,
 		},
 		"complete gang job of cardinality 3": {
 			Jobs: []*api.Job{
@@ -157,7 +173,8 @@ func TestValidateGangs(t *testing.T) {
 					},
 				},
 			},
-			ExpectSuccess: true,
+			ExpectSuccess:                          true,
+			ExpectedGangMinimumCardinalityByGangId: map[string]int{"foo": 3},
 		},
 		"two complete gangs": {
 			Jobs: []*api.Job{
@@ -192,9 +209,10 @@ func TestValidateGangs(t *testing.T) {
 					},
 				},
 			},
-			ExpectSuccess: true,
+			ExpectSuccess:                          true,
+			ExpectedGangMinimumCardinalityByGangId: map[string]int{"foo": 3, "bar": 2},
 		},
-		"one complete and one incomplete gang": {
+		"one complete and one incomplete gang are passed through": {
 			Jobs: []*api.Job{
 				{
 					Annotations: map[string]string{
@@ -221,7 +239,8 @@ func TestValidateGangs(t *testing.T) {
 					},
 				},
 			},
-			ExpectSuccess: false,
+			ExpectSuccess:                          true,
+			ExpectedGangMinimumCardinalityByGangId: map[string]int{"foo": 3, "bar": 2},
 		},
 		"missing cardinality": {
 			Jobs: []*api.Job{
@@ -237,7 +256,8 @@ func TestValidateGangs(t *testing.T) {
 					},
 				},
 			},
-			ExpectSuccess: false,
+			ExpectSuccess:                          false,
+			ExpectedGangMinimumCardinalityByGangId: nil,
 		},
 		"invalid cardinality": {
 			Jobs: []*api.Job{
@@ -253,7 +273,8 @@ func TestValidateGangs(t *testing.T) {
 					},
 				},
 			},
-			ExpectSuccess: false,
+			ExpectSuccess:                          false,
+			ExpectedGangMinimumCardinalityByGangId: nil,
 		},
 		"zero cardinality": {
 			Jobs: []*api.Job{
@@ -264,7 +285,8 @@ func TestValidateGangs(t *testing.T) {
 					},
 				},
 			},
-			ExpectSuccess: false,
+			ExpectSuccess:                          false,
+			ExpectedGangMinimumCardinalityByGangId: nil,
 		},
 		"negative cardinality": {
 			Jobs: []*api.Job{
@@ -275,7 +297,8 @@ func TestValidateGangs(t *testing.T) {
 					},
 				},
 			},
-			ExpectSuccess: false,
+			ExpectSuccess:                          false,
+			ExpectedGangMinimumCardinalityByGangId: nil,
 		},
 		"inconsistent cardinality": {
 			Jobs: []*api.Job{
@@ -310,7 +333,8 @@ func TestValidateGangs(t *testing.T) {
 					},
 				},
 			},
-			ExpectSuccess: false,
+			ExpectSuccess:                          false,
+			ExpectedGangMinimumCardinalityByGangId: nil,
 		},
 		"inconsistent PriorityClassName": {
 			Jobs: []*api.Job{
@@ -325,23 +349,51 @@ func TestValidateGangs(t *testing.T) {
 				},
 				{
 					Annotations: map[string]string{
-						configuration.GangIdAnnotation: "bar",
+						configuration.GangIdAnnotation:          "bar",
+						configuration.GangCardinalityAnnotation: strconv.Itoa(2),
 					},
 					PodSpec: &v1.PodSpec{
 						PriorityClassName: "zab",
 					},
 				},
 			},
-			ExpectSuccess: false,
+			ExpectSuccess:                          false,
+			ExpectedGangMinimumCardinalityByGangId: nil,
+		},
+		"inconsistent NodeUniformityLabel": {
+			Jobs: []*api.Job{
+				{
+					Annotations: map[string]string{
+						configuration.GangIdAnnotation:                  "bar",
+						configuration.GangCardinalityAnnotation:         strconv.Itoa(2),
+						configuration.GangNodeUniformityLabelAnnotation: "foo",
+					},
+					PodSpec: &v1.PodSpec{},
+				},
+				{
+					Annotations: map[string]string{
+						configuration.GangIdAnnotation:                  "bar",
+						configuration.GangCardinalityAnnotation:         strconv.Itoa(2),
+						configuration.GangNodeUniformityLabelAnnotation: "bar",
+					},
+					PodSpec: &v1.PodSpec{},
+				},
+			},
+			ExpectSuccess:                          false,
+			ExpectedGangMinimumCardinalityByGangId: nil,
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			err := validateGangs(tc.Jobs)
+			gangDetailsById, err := validateGangs(tc.Jobs)
 			if tc.ExpectSuccess {
 				assert.NoError(t, err)
 			} else {
 				assert.Error(t, err)
+			}
+
+			for id, e := range gangDetailsById {
+				assert.Equal(t, tc.ExpectedGangMinimumCardinalityByGangId[id], e.expectedMinimumCardinality)
 			}
 		})
 	}

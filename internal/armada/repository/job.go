@@ -381,14 +381,13 @@ func (repo *RedisJobRepository) GetJobsByIds(ids []string) ([]*JobResult, error)
 
 		// TODO This shouldn't be here. We write these when creating the job,
 		// and the getter shouldn't mutate the object read from the database.
-		for _, podSpec := range result.Job.GetAllPodSpecs() {
-			// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
-			for k, v := range result.Job.RequiredNodeLabels {
-				if podSpec.NodeSelector == nil {
-					podSpec.NodeSelector = map[string]string{}
-				}
-				podSpec.NodeSelector[k] = v
+		podSpec := result.Job.GetMainPodSpec()
+		// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
+		for k, v := range result.Job.RequiredNodeLabels {
+			if podSpec.NodeSelector == nil {
+				podSpec.NodeSelector = map[string]string{}
 			}
+			podSpec.NodeSelector[k] = v
 		}
 	}
 
@@ -1077,10 +1076,9 @@ func addJob(db redis.Cmdable, job *api.Job, jobData *[]byte) *redis.Cmd {
 			jobObjectPrefix + job.Id,
 			jobSetPrefix + job.JobSetId,
 			jobSetPrefix + job.Queue + keySeparator + job.JobSetId,
-			jobClientIdPrefix + job.Queue + keySeparator + job.ClientId,
 			jobExistsPrefix + job.Id,
 		},
-		job.Id, job.Priority, *jobData, job.ClientId)
+		job.Id, job.Priority, *jobData)
 }
 
 // This script will create the queue if it doesn't already exist.
@@ -1090,26 +1088,15 @@ local queueKey = KEYS[1]
 local jobKey = KEYS[2]
 local jobSetKey = KEYS[3]
 local jobSetQueueKey = KEYS[4]
-local jobClientIdKey = KEYS[5]
-local jobExistsKey = KEYS[6]
+local jobExistsKey = KEYS[5]
 
 local jobId = ARGV[1]
 local jobPriority = ARGV[2]
 local jobData = ARGV[3]
-local clientId = ARGV[4]
-
 
 local jobExists = redis.call('EXISTS', jobExistsKey)
 if jobExists == 1 then
 	return '-1'
-end
-
-if clientId ~= '' then
-	local existingJobId = redis.call('GET', jobClientIdKey)
-	if existingJobId then
-		return existingJobId
-	end
-	redis.call('SET', jobClientIdKey, jobId, 'EX', 14400)
 end
 
 redis.call('SET', jobExistsKey, '1', 'EX', 604800)

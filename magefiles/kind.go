@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	semver "github.com/Masterminds/semver/v3"
@@ -18,13 +19,22 @@ const (
 	KIND_NAME               = "armada-test"
 )
 
-// TODO: find suitable kubectl image for arm64
-var images = []string{
-	"alpine:3.10",
-	"nginx:1.21.6",
-	"registry.k8s.io/ingress-nginx/controller:v1.4.0",
-	"registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343",
-	"bitnami/kubectl:1.24.8",
+func getImages() []string {
+	images := []string{
+		"alpine:3.18.3",
+		"nginx:1.21.6",
+		"registry.k8s.io/ingress-nginx/controller:v1.4.0",
+		"registry.k8s.io/ingress-nginx/kube-webhook-certgen:v20220916-gd32f8c343",
+	}
+	// TODO: find suitable kubectl image for arm64
+	if !isAppleSilicon() {
+		images = append(images, "bitnami/kubectl:1.24.8")
+	}
+	return images
+}
+
+func isAppleSilicon() bool {
+	return runtime.GOOS == "darwin" && runtime.GOARCH == "arm64"
 }
 
 func kindBinary() string {
@@ -60,22 +70,14 @@ func kindCheck() error {
 	if err != nil {
 		return errors.Errorf("error getting version: %v", err)
 	}
-	constraint, err := semver.NewConstraint(KIND_VERSION_CONSTRAINT)
-	if err != nil {
-		return errors.Errorf("error parsing constraint: %v", err)
-	}
-	if !constraint.Check(version) {
-		return errors.Errorf("found version %v but it failed constaint %v", version, constraint)
-	}
-	return nil
+	return constraintCheck(version, KIND_VERSION_CONSTRAINT, "kind")
 }
 
 // Images that need to be available in the Kind cluster,
 // e.g., images required for e2e tests.
 func kindGetImages() error {
-	for _, image := range images {
-		err := dockerRun("pull", image)
-		if err != nil {
+	for _, image := range getImages() {
+		if err := dockerRun("pull", image); err != nil {
 			return err
 		}
 	}
@@ -104,7 +106,7 @@ func kindInitCluster() error {
 func kindSetup() error {
 	mg.Deps(kindInitCluster, kindGetImages)
 
-	for _, image := range images {
+	for _, image := range getImages() {
 		err := kindRun("load", "docker-image", image, "--name", KIND_NAME)
 		if err != nil {
 			return err
@@ -170,6 +172,7 @@ func kindWaitUntilReady() error {
 		"--for=condition=ready", "pod",
 		"--selector=app.kubernetes.io/component=controller",
 		"--timeout=2m",
+		"--context", "kind-armada-test",
 	)
 }
 

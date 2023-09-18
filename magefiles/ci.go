@@ -2,18 +2,17 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
 
 	"github.com/magefile/mage/mg"
+	"github.com/magefile/mage/sh"
 )
 
-// Build images, spin up a test environment, and run the integration tests against it.
-func TestSuite() error {
-	timeTaken := time.Now()
-
-	outbytes, err := exec.Command(goBinary(), "run", "cmd/armadactl/main.go", "create", "queue", "e2e-test-queue").CombinedOutput()
+func createQueue() error {
+	outbytes, err := exec.Command(armadaCtl(), "create", "queue", "e2e-test-queue").CombinedOutput()
 	out := string(outbytes)
 	// check if err text contains "already exists" and ignore if it does
 	if err != nil && !strings.Contains(out, "already exists") {
@@ -21,10 +20,23 @@ func TestSuite() error {
 		return err
 	}
 
-	fmt.Printf("Time to create queue: %s\n\n", time.Since(timeTaken))
+	return nil
+}
 
+// Build images, spin up a test environment, and run the integration tests against it.
+func TestSuite() error {
+	mg.Deps(createQueue)
 	mg.Deps(CheckForArmadaRunning)
 
+	// Only set these if they have not already been set
+	if os.Getenv("ARMADA_EXECUTOR_INGRESS_URL") == "" {
+		os.Setenv("ARMADA_EXECUTOR_INGRESS_URL", "http://localhost")
+	}
+	if os.Getenv("ARMADA_EXECUTOR_INGRESS_PORT") == "" {
+		os.Setenv("ARMADA_EXECUTOR_INGRESS_PORT", "5001")
+	}
+
+	timeTaken := time.Now()
 	out, err2 := goOutput("run", "cmd/testsuite/main.go", "test",
 		"--tests", "testsuite/testcases/basic/*",
 		"--junit", "junit.xml",
@@ -32,14 +44,18 @@ func TestSuite() error {
 	if err2 != nil {
 		return err2
 	}
+	fmt.Printf("(Real) Time to run tests: %s\n\n", time.Since(timeTaken))
 
 	fmt.Println(out)
 	return nil
 }
 
-// NOTE: This command assumes that the queue "e2e-test-queue" already exists
+// Checks if Armada is ready to accept jobs.
 func CheckForArmadaRunning() error {
-	timeout := time.After(1 * time.Minute)
+	mg.Deps(createQueue)
+
+	// Set high to take compile time into account
+	timeout := time.After(10 * time.Minute)
 	tick := time.Tick(1 * time.Second)
 	seconds := 0
 	for {
@@ -47,7 +63,7 @@ func CheckForArmadaRunning() error {
 		case <-timeout:
 			return fmt.Errorf("timed out waiting for Armada to start")
 		case <-tick:
-			outbytes, _ := exec.Command(goBinary(), "run", "cmd/armadactl/main.go", "submit", "./developer/config/job.yaml").CombinedOutput()
+			outbytes, _ := exec.Command(armadaCtl(), "submit", "./developer/config/job.yaml").CombinedOutput()
 			out := string(outbytes)
 			if strings.Contains(out, "Submitted job with id") {
 				// Sleep for 1 second to allow Armada to fully start
@@ -58,4 +74,14 @@ func CheckForArmadaRunning() error {
 			seconds++
 		}
 	}
+}
+
+func armadaCtl() string {
+	if _, err := os.Stat("./armadactl"); os.IsNotExist(err) {
+		err = sh.Run("sh", "./docs/local/armadactl.sh")
+		if err != nil {
+			return ""
+		}
+	}
+	return "./armadactl"
 }

@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -10,10 +11,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/net/context"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/mocks"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
@@ -44,9 +45,11 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 					runId1.String(): api.JobState_RUNNING,
 					runId2.String(): api.JobState_RUNNING,
 				},
+				NodeType: "node-type-1",
 			},
 		},
 		UnassignedJobRunIds: []armadaevents.Uuid{*armadaevents.ProtoUuidFromUuid(runId3)},
+		MaxJobsToLease:      uint32(maxJobsPerCall),
 	}
 	defaultExpectedExecutor := &schedulerobjects.Executor{
 		Id:   "test-executor",
@@ -55,6 +58,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			{
 				Id:                          "test-executor-test-node",
 				Name:                        "test-node",
+				Executor:                    "test-executor",
 				TotalResources:              schedulerobjects.ResourceList{},
 				StateByJobRunId:             map[string]schedulerobjects.JobRunState{runId1.String(): schedulerobjects.JobRunState_RUNNING, runId2.String(): schedulerobjects.JobRunState_RUNNING},
 				NonArmadaAllocatedResources: map[int32]schedulerobjects.ResourceList{},
@@ -66,7 +70,9 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 						Resources: nil,
 					},
 				},
-				LastSeen: testClock.Now().UTC(),
+				LastSeen:             testClock.Now().UTC(),
+				ResourceUsageByQueue: map[string]*schedulerobjects.ResourceList{},
+				ReportingNodeType:    "node-type-1",
 			},
 		},
 		MinimumJobSize:    schedulerobjects.ResourceList{},
@@ -160,7 +166,7 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			ctrl := gomock.NewController(t)
 			mockPulsarProducer := mocks.NewMockProducer(ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
@@ -168,17 +174,17 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 			mockLegacyExecutorRepository := schedulermocks.NewMockExecutorRepository(ctrl)
 			mockStream := schedulermocks.NewMockExecutorApi_LeaseJobRunsServer(ctrl)
 
-			runIds, err := extractRunIds(tc.request)
+			runIds, err := runIdsFromLeaseRequest(tc.request)
 			require.NoError(t, err)
 
 			// set up mocks
 			mockStream.EXPECT().Context().Return(ctx).AnyTimes()
 			mockStream.EXPECT().Recv().Return(tc.request, nil).Times(1)
-			mockExecutorRepository.EXPECT().StoreExecutor(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, executor *schedulerobjects.Executor) error {
+			mockExecutorRepository.EXPECT().StoreExecutor(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx *armadacontext.Context, executor *schedulerobjects.Executor) error {
 				assert.Equal(t, tc.expectedExecutor, executor)
 				return nil
 			}).Times(1)
-			mockLegacyExecutorRepository.EXPECT().StoreExecutor(ctx, gomock.Any()).DoAndReturn(func(ctx context.Context, executor *schedulerobjects.Executor) error {
+			mockLegacyExecutorRepository.EXPECT().StoreExecutor(gomock.Any(), gomock.Any()).DoAndReturn(func(ctx *armadacontext.Context, executor *schedulerobjects.Executor) error {
 				assert.Equal(t, tc.expectedExecutor, executor)
 				return nil
 			}).Times(1)
@@ -198,9 +204,9 @@ func TestExecutorApi_LeaseJobRuns(t *testing.T) {
 				mockExecutorRepository,
 				mockLegacyExecutorRepository,
 				[]int32{1000, 2000},
-				maxJobsPerCall,
 				"kubernetes.io/hostname",
 				nil,
+				4*1024*1024,
 			)
 			require.NoError(t, err)
 			server.clock = testClock
@@ -299,7 +305,7 @@ func TestExecutorApi_Publish(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			ctrl := gomock.NewController(t)
 			mockPulsarProducer := mocks.NewMockProducer(ctrl)
 			mockJobRepository := schedulermocks.NewMockJobRepository(ctrl)
@@ -325,9 +331,9 @@ func TestExecutorApi_Publish(t *testing.T) {
 				mockExecutorRepository,
 				mockLegacyExecutorRepository,
 				[]int32{1000, 2000},
-				100,
 				"kubernetes.io/hostname",
 				nil,
+				4*1024*1024,
 			)
 
 			require.NoError(t, err)

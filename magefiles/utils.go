@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+
+	"github.com/pkg/errors"
 )
 
 func binaryWithExt(name string) string {
@@ -43,5 +45,35 @@ func set[S ~[]E, E comparable](s S) map[E]bool {
 
 // Check if the user is on an arm system
 func onArm() bool {
-	return runtime.GOARCH == "arm"
+	return runtime.GOARCH == "arm64"
+}
+
+// Check if the user is on a windows system
+func onWindows() bool {
+	return runtime.GOOS == "windows"
+}
+
+// Validates that arg is one of validArgs.
+// Returns nil if arg is valid, error otherwise.
+func validateArg(arg string, validArgs []string) error {
+	valid := false
+	for _, validArg := range validArgs {
+		if arg == validArg {
+			valid = true
+			break
+		}
+	}
+
+	if !valid {
+		return errors.Errorf("invalid argument: %s, expected one of: %s", arg, validArgs)
+	}
+	return nil
+}
+
+func getEnvWithDefault(key string, defValue string) string {
+	value, exists := os.LookupEnv(key)
+	if !exists {
+		value = defValue
+	}
+	return value
 }

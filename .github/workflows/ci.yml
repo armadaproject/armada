@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - v*
+  pull_request:
+    branches-ignore:
+      - gh-pages
+  schedule:
+    # Run daily at 01:34, so we get notified if CI is broken before a pull request
+    # is submitted.
+    - cron: "34 1 * * *"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+  checks: write
+  actions: read
+  security-events: write
+
+jobs:
+  lint:
+    uses: ./.github/workflows/lint.yml
+  test:
+    uses: ./.github/workflows/test.yml
+  # Virtual job that can be configured as a required check before a PR can be merged.
+  all-required-checks-done:
+    name: All required checks done
+    if: ${{ always() }}
+    needs:
+      - lint
+      - test
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/github-script@v6
+        with:
+          script: |
+            const results = ${{ toJSON(needs.*.result) }};
+            if (results.every(res => res === 'success')) {
+              core.info('All required checks succeeded');
+            } else {
+              core.setFailed('Some required checks failed');
+            }

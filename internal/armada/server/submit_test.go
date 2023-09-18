@@ -23,6 +23,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
+	schedulertypes "github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -465,38 +466,6 @@ func TestSubmitServer_SubmitJob_ReturnsJobItemsInTheSameOrderTheyWereSubmitted(t
 				assert.Equal(t, requestItem.PodSpecs, createdJob.PodSpecs)
 			}
 		}
-	})
-}
-
-func TestSubmitServer_SubmitJobs_HandlesDoubleSubmit(t *testing.T) {
-	withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-		jobSetId := util.NewULID()
-		jobRequest := createJobRequest(jobSetId, 1)
-
-		result, err := s.SubmitJobs(context.Background(), jobRequest)
-		assert.NoError(t, err)
-
-		result2, err := s.SubmitJobs(context.Background(), jobRequest)
-		assert.NoError(t, err)
-
-		assert.Equal(t, result.JobResponseItems[0].JobId, result2.JobResponseItems[0].JobId)
-
-		messages := events.ReceivedEvents
-		assert.NoError(t, err)
-		assert.Equal(t, len(messages), 4)
-
-		submitted := messages[0].GetSubmitted()
-		queued := messages[1].GetQueued()
-		submitted2 := messages[2].GetSubmitted()
-		duplicateFound := messages[3].GetDuplicateFound()
-
-		assert.NotNil(t, submitted)
-		assert.NotNil(t, queued)
-		assert.NotNil(t, submitted2)
-		assert.NotNil(t, duplicateFound)
-
-		assert.Equal(t, duplicateFound.OriginalJobId, submitted.JobId)
-		assert.Equal(t, duplicateFound.JobId, submitted2.JobId)
 	})
 }
 
@@ -1637,7 +1606,7 @@ func withSubmitServerAndRepos(action func(s *SubmitServer, jobRepo repository.Jo
 		MaxPodSpecSizeBytes: 65535,
 		Preemption: configuration.PreemptionConfig{
 			DefaultPriorityClass: "high",
-			PriorityClasses:      map[string]configuration.PriorityClass{"high": {0, false, nil}},
+			PriorityClasses:      map[string]schedulertypes.PriorityClass{"high": {0, false, nil, nil}},
 		},
 		MinTerminationGracePeriod: time.Duration(30 * time.Second),
 		MaxTerminationGracePeriod: time.Duration(300 * time.Second),

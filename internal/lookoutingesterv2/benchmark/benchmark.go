@@ -1,7 +1,6 @@
 package benchmark
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"math/rand"
@@ -9,9 +8,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/configuration"
@@ -51,7 +51,7 @@ func benchmarkSubmissions1000(b *testing.B, config configuration.LookoutIngester
 	withDbBenchmark(b, config, func(b *testing.B, db *pgxpool.Pool) {
 		ldb := lookoutdb.NewLookoutDb(db, metrics.Get(), 2, 10)
 		b.StartTimer()
-		err := ldb.Store(context.TODO(), instructions)
+		err := ldb.Store(armadacontext.TODO(), instructions)
 		if err != nil {
 			panic(err)
 		}
@@ -69,7 +69,7 @@ func benchmarkSubmissions10000(b *testing.B, config configuration.LookoutIngeste
 	withDbBenchmark(b, config, func(b *testing.B, db *pgxpool.Pool) {
 		ldb := lookoutdb.NewLookoutDb(db, metrics.Get(), 2, 10)
 		b.StartTimer()
-		err := ldb.Store(context.TODO(), instructions)
+		err := ldb.Store(armadacontext.TODO(), instructions)
 		if err != nil {
 			panic(err)
 		}
@@ -99,12 +99,12 @@ func benchmarkUpdates1000(b *testing.B, config configuration.LookoutIngesterV2Co
 
 	withDbBenchmark(b, config, func(b *testing.B, db *pgxpool.Pool) {
 		ldb := lookoutdb.NewLookoutDb(db, metrics.Get(), 2, 10)
-		err := ldb.Store(context.TODO(), initialInstructions)
+		err := ldb.Store(armadacontext.TODO(), initialInstructions)
 		if err != nil {
 			panic(err)
 		}
 		b.StartTimer()
-		err = ldb.Store(context.TODO(), instructions)
+		err = ldb.Store(armadacontext.TODO(), instructions)
 		if err != nil {
 			panic(err)
 		}
@@ -134,12 +134,12 @@ func benchmarkUpdates10000(b *testing.B, config configuration.LookoutIngesterV2C
 
 	withDbBenchmark(b, config, func(b *testing.B, db *pgxpool.Pool) {
 		ldb := lookoutdb.NewLookoutDb(db, metrics.Get(), 2, 10)
-		err := ldb.Store(context.TODO(), initialInstructions)
+		err := ldb.Store(armadacontext.TODO(), initialInstructions)
 		if err != nil {
 			panic(err)
 		}
 		b.StartTimer()
-		err = ldb.Store(context.TODO(), instructions)
+		err = ldb.Store(armadacontext.TODO(), instructions)
 		if err != nil {
 			panic(err)
 		}
@@ -210,7 +210,7 @@ func createJobRunInstructions(n int, runIds []string) []*model.CreateJobRunInstr
 			RunId:       runIds[i%len(runIds)],
 			JobId:       util.NewULID(),
 			Cluster:     uuid.NewString(),
-			Pending:     time.Now(),
+			Pending:     pointerTime(time.Now()),
 			JobRunState: int32(rand.Intn(10)),
 		}
 	}

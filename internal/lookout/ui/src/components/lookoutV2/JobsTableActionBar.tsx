@@ -1,6 +1,6 @@
-import { memo, useCallback, useMemo, useState } from "react"
+import React, { memo, useCallback, useMemo, useState } from "react"
 
-import { Divider, Button } from "@mui/material"
+import { Divider, Button, Checkbox, FormControlLabel, FormGroup } from "@mui/material"
 import RefreshButton from "components/RefreshButton"
 import ColumnSelect from "components/lookoutV2/ColumnSelect"
 import GroupBySelect from "components/lookoutV2/GroupBySelect"
@@ -11,6 +11,7 @@ import { ColumnId, JobTableColumn } from "utils/jobsTableColumns"
 
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { CancelDialog } from "./CancelDialog"
+import { CustomViewPicker } from "./CustomViewPicker"
 import styles from "./JobsTableActionBar.module.css"
 import { ReprioritiseDialog } from "./ReprioritiseDialog"
 
@@ -20,6 +21,9 @@ export interface JobsTableActionBarProps {
   groupedColumns: ColumnId[]
   visibleColumns: ColumnId[]
   selectedItemFilters: JobFilter[][]
+  customViews: string[]
+  activeJobSets: boolean
+  onActiveJobSetsChanged: (newVal: boolean) => void
   onRefresh: () => void
   onAddAnnotationColumn: (annotationKey: string) => void
   onRemoveAnnotationColumn: (colId: ColumnId) => void
@@ -28,6 +32,10 @@ export interface JobsTableActionBarProps {
   onGroupsChanged: (newGroups: ColumnId[]) => void
   getJobsService: IGetJobsService
   updateJobsService: UpdateJobsService
+  onClearFilters: () => void
+  onAddCustomView: (name: string) => void
+  onDeleteCustomView: (name: string) => void
+  onLoadCustomView: (name: string) => void
 }
 
 export const JobsTableActionBar = memo(
@@ -37,6 +45,9 @@ export const JobsTableActionBar = memo(
     groupedColumns,
     visibleColumns,
     selectedItemFilters,
+    customViews,
+    activeJobSets,
+    onActiveJobSetsChanged,
     onRefresh,
     onAddAnnotationColumn,
     onRemoveAnnotationColumn,
@@ -45,6 +56,10 @@ export const JobsTableActionBar = memo(
     onGroupsChanged,
     getJobsService,
     updateJobsService,
+    onClearFilters,
+    onAddCustomView,
+    onDeleteCustomView,
+    onLoadCustomView,
   }: JobsTableActionBarProps) => {
     const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
     const [reprioritiseDialogOpen, setReprioritiseDialogOpen] = useState(false)
@@ -79,7 +94,30 @@ export const JobsTableActionBar = memo(
         </div>
 
         <div className={styles.actionGroup}>
+          <FormGroup>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={activeJobSets}
+                  onChange={(e) => {
+                    onActiveJobSetsChanged(e.target.checked)
+                  }}
+                />
+              }
+              label="Active Job Sets"
+            />
+          </FormGroup>
+          <Divider orientation="vertical" />
+          <Button variant="text" onClick={onClearFilters} color="secondary">
+            Clear Filters
+          </Button>
           <RefreshButton isLoading={isLoading} onClick={onRefresh} />
+          <CustomViewPicker
+            customViews={customViews}
+            onAddCustomView={onAddCustomView}
+            onDeleteCustomView={onDeleteCustomView}
+            onLoadCustomView={onLoadCustomView}
+          />
           <ColumnSelect
             selectableColumns={selectableColumns}
             groupedColumns={groupedColumns}

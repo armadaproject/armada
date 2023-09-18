@@ -7,12 +7,13 @@ import (
 	"sync"
 	"time"
 
-	commonmetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
-
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	commonmetrics "github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/util"
 )
 
 // ConsumerMessageId wraps a pulsar message id  and an identifier for the consumer which originally received the
@@ -35,7 +36,7 @@ type ConsumerMessage struct {
 var msgLogger = logrus.NewEntry(logrus.StandardLogger())
 
 func Receive(
-	ctx context.Context,
+	ctx *armadacontext.Context,
 	consumer pulsar.Consumer,
 	receiveTimeout time.Duration,
 	backoffTime time.Duration,
@@ -75,7 +76,7 @@ func Receive(
 				return
 			default:
 				// Get a message from Pulsar, which consists of a sequence of events (i.e., state transitions).
-				ctxWithTimeout, cancel := context.WithTimeout(ctx, receiveTimeout)
+				ctxWithTimeout, cancel := armadacontext.WithTimeout(ctx, receiveTimeout)
 				msg, err := consumer.Receive(ctxWithTimeout)
 				if errors.Is(err, context.DeadlineExceeded) {
 					msgLogger.Debugf("No message received")
@@ -108,7 +109,7 @@ func Receive(
 // Ack will ack all pulsar messages coming in on the msgs channel. The incoming messages contain a consumer id which
 // corresponds to the index of the consumer that should be used to perform the ack.  In theory, the acks could be done
 // in parallel, however its unlikely that they will be a performance bottleneck
-func Ack(ctx context.Context, consumers []pulsar.Consumer, msgs chan []*ConsumerMessageId, wg *sync.WaitGroup) {
+func Ack(ctx *armadacontext.Context, consumers []pulsar.Consumer, msgs chan []*ConsumerMessageId, backoffTime time.Duration, wg *sync.WaitGroup) {
 	for msg := range msgs {
 		for _, id := range msg {
 			if id.ConsumerId < 0 || id.ConsumerId >= len(consumers) {
@@ -118,7 +119,17 @@ func Ack(ctx context.Context, consumers []pulsar.Consumer, msgs chan []*Consumer
 						"Asked to ack message belonging to consumer %d, however this is outside the bounds of the consumers array which is of length %d",
 						id.ConsumerId, len(consumers)))
 			}
-			consumers[id.ConsumerId].AckID(id.MessageId)
+			util.RetryUntilSuccess(
+				ctx,
+				func() error { return consumers[id.ConsumerId].AckID(id.MessageId) },
+				func(err error) {
+					logging.
+						WithStacktrace(msgLogger, err).
+						WithField("lastMessageId", id.MessageId).
+						Warnf("Pulsar ack failed; backing off for %s", backoffTime)
+					time.Sleep(backoffTime)
+				},
+			)
 		}
 	}
 	msgLogger.Info("Shutting down Ackker")

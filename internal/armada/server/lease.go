@@ -10,14 +10,13 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/types"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/hashicorp/go-multierror"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/utils/clock"
@@ -26,6 +25,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/scheduling"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -40,6 +40,8 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/fairness"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	schedulerinterfaces "github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -57,6 +59,10 @@ type AggregatedQueueServer struct {
 	schedulingInfoRepository repository.SchedulingInfoRepository
 	decompressorPool         *pool.ObjectPool
 	clock                    clock.Clock
+	// Global job scheduling rate-limiter.
+	limiter *rate.Limiter
+	// Per-queue job scheduling rate-limiters.
+	limiterByQueue map[string]*rate.Limiter
 	// For storing reports of scheduling attempts.
 	SchedulingContextRepository *scheduler.SchedulingContextRepository
 	// Stores the most recent NodeDb for each executor.
@@ -96,12 +102,17 @@ func NewAggregatedQueueServer(
 			return compress.NewZlibDecompressor(), nil
 		}), &poolConfig)
 	return &AggregatedQueueServer{
-		permissions:              permissions,
-		schedulingConfig:         schedulingConfig,
-		jobRepository:            jobRepository,
-		queueRepository:          queueRepository,
-		usageRepository:          usageRepository,
-		eventStore:               eventStore,
+		permissions:      permissions,
+		schedulingConfig: schedulingConfig,
+		jobRepository:    jobRepository,
+		queueRepository:  queueRepository,
+		usageRepository:  usageRepository,
+		eventStore:       eventStore,
+		limiter: rate.NewLimiter(
+			rate.Limit(schedulingConfig.MaximumSchedulingRate),
+			schedulingConfig.MaximumSchedulingBurst,
+		),
+		limiterByQueue:           make(map[string]*rate.Limiter),
 		schedulingInfoRepository: schedulingInfoRepository,
 		decompressorPool:         decompressorPool,
 		executorRepository:       executorRepository,
@@ -117,7 +128,7 @@ func NewAggregatedQueueServer(
 //
 // This function should be used instead of the LeaseJobs function in most cases.
 func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingLeaseJobsServer) error {
-	if err := checkPermission(q.permissions, stream.Context(), permissions.ExecuteJobs); err != nil {
+	if err := checkPermission(q.permissions, armadacontext.FromGrpcCtx(stream.Context()), permissions.ExecuteJobs); err != nil {
 		return err
 	}
 
@@ -140,7 +151,7 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	}
 
 	// Get jobs to be leased.
-	jobs, err := q.getJobs(stream.Context(), req)
+	jobs, err := q.getJobs(armadacontext.FromGrpcCtx(stream.Context()), req)
 	if err != nil {
 		return err
 	}
@@ -251,13 +262,12 @@ func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([
 	return rv, nil
 }
 
-func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithFields(logrus.Fields{
-		"function": "getJobs",
-		"cluster":  req.ClusterId,
-	})
-	ctx = ctxlogrus.ToContext(ctx, log)
+func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
+	ctx = armadacontext.
+		WithLogFields(ctx, map[string]interface{}{
+			"cluster": req.ClusterId,
+			"pool":    req.Pool,
+		})
 
 	// Get the total capacity available across all clusters.
 	usageReports, err := q.usageRepository.GetClusterUsageReports()
@@ -267,7 +277,9 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	activeClusterReports := scheduling.FilterActiveClusters(usageReports)
 	totalCapacity := make(armadaresource.ComputeResources)
 	for _, clusterReport := range activeClusterReports {
-		totalCapacity.Add(util.GetClusterAvailableCapacity(clusterReport))
+		if clusterReport.Pool == req.Pool {
+			totalCapacity.Add(util.GetClusterAvailableCapacity(clusterReport))
+		}
 	}
 
 	// Collect all allowed priorities.
@@ -280,14 +292,51 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		})
 	}
 
+	// Map queue names to priority factor for all active queues, i.e.,
+	// all queues for which the jobs queue has not been deleted automatically by Redis.
+	queues, err := q.queueRepository.GetAllQueues()
+	if err != nil {
+		return nil, err
+	}
+	priorityFactorByQueue := make(map[string]float64, len(queues))
+	apiQueues := make([]*api.Queue, len(queues))
+	for i, queue := range queues {
+		priorityFactorByQueue[queue.Name] = float64(queue.PriorityFactor)
+		apiQueues[i] = &api.Queue{Name: queue.Name}
+	}
+
+	// Record which queues are active, i.e., have jobs either queued or running.
+	queuesWithJobsQueued, err := q.jobRepository.FilterActiveQueues(apiQueues)
+	if err != nil {
+		return nil, err
+	}
+	isActiveByQueueName := make(map[string]bool, len(queuesWithJobsQueued))
+	for _, queue := range queuesWithJobsQueued {
+		isActiveByQueueName[queue.Name] = true
+	}
+
 	// Nodes to be considered by the scheduler.
 	lastSeen := q.clock.Now()
-	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
-	allocatedByQueueForCluster := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
+
+	nodeDb, err := nodedb.NewNodeDb(
+		q.schedulingConfig.Preemption.PriorityClasses,
+		q.schedulingConfig.MaxExtraNodesToConsider,
+		q.schedulingConfig.IndexedResources,
+		q.schedulingConfig.IndexedTaints,
+		q.schedulingConfig.IndexedNodeLabels,
+	)
+	if err != nil {
+		return nil, err
+	}
+	txn := nodeDb.Txn(true)
+	defer txn.Abort()
+
+	allocatedByQueueAndPriorityClassForCluster := make(map[string]schedulerobjects.QuantityByTAndResourceType[string], len(queues))
 	jobIdsByGangId := make(map[string]map[string]bool)
 	gangIdByJobId := make(map[string]string)
 	nodeIdByJobId := make(map[string]string)
-	for _, nodeInfo := range req.Nodes {
+	nodes := make([]*schedulerobjects.Node, len(req.Nodes))
+	for i, nodeInfo := range req.Nodes {
 		node, err := api.NewNodeFromNodeInfo(
 			&nodeInfo,
 			req.ClusterId,
@@ -295,11 +344,12 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			lastSeen,
 		)
 		if err != nil {
-			logging.WithStacktrace(log, err).Warnf(
+			logging.WithStacktrace(ctx, err).Warnf(
 				"skipping node %s from executor %s", nodeInfo.GetName(), req.GetClusterId(),
 			)
 			continue
 		}
+		nodes[i] = node
 
 		jobIds := make([]string, 0, len(nodeInfo.RunIdsByState))
 		for jobId, jobState := range nodeInfo.RunIdsByState {
@@ -312,7 +362,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		if err != nil {
 			return nil, err
 		}
-		receivedJobIds := make(map[string]bool)
+		receivedJobIds := make(map[string]bool, len(jobs))
 		for _, job := range jobs {
 			receivedJobIds[job.Id] = true
 		}
@@ -330,16 +380,14 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		}
 
 		// Aggregate total resources allocated by queue for this cluster.
-		allocatedByQueueForCluster = scheduler.UpdateUsage(
-			allocatedByQueueForCluster,
-			jobs,
-			q.schedulingConfig.Preemption.PriorityClasses,
-			scheduler.Add,
+		allocatedByQueueAndPriorityClassForCluster = updateAllocatedByQueueAndPriorityClass(
+			allocatedByQueueAndPriorityClassForCluster,
+			add, jobs,
 		)
 
 		// Group gangs.
 		for _, job := range jobs {
-			gangId, _, isGangJob, err := scheduler.GangIdAndCardinalityFromLegacySchedulerJob(job, q.schedulingConfig.Preemption.PriorityClasses)
+			gangId, _, _, isGangJob, err := scheduler.GangIdAndCardinalityFromLegacySchedulerJob(job)
 			if err != nil {
 				return nil, err
 			}
@@ -354,132 +402,130 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		}
 
 		// Bind pods to nodes, thus ensuring resources are marked as allocated on the node.
-		skipNode := false
-		for _, job := range jobs {
-			node, err = nodedb.BindPodToNode(
-				scheduler.PodRequirementFromLegacySchedulerJob(
-					job,
-					q.schedulingConfig.Preemption.PriorityClasses,
-				),
-				node,
-			)
-			if err != nil {
-				logging.WithStacktrace(log, err).Warnf(
-					"skipping node %s from executor %s: failed to bind job %s to node",
-					nodeInfo.GetName(), req.GetClusterId(), job.Id,
-				)
-				skipNode = true
-				break
-			}
-		}
-		if skipNode {
-			continue
+		if err := nodeDb.CreateAndInsertWithApiJobsWithTxn(txn, jobs, node); err != nil {
+			return nil, err
 		}
 
 		// Record which node each job is scheduled on. Necessary for gang preemption.
 		for _, job := range jobs {
 			nodeIdByJobId[job.Id] = node.Id
 		}
-		nodes = append(nodes, node)
-	}
-	indexedResources := q.schedulingConfig.IndexedResources
-	if len(indexedResources) == 0 {
-		indexedResources = []string{"cpu", "memory"}
-	}
-	nodeDb, err := nodedb.NewNodeDb(
-		q.schedulingConfig.Preemption.PriorityClasses,
-		q.schedulingConfig.MaxExtraNodesToConsider,
-		indexedResources,
-		q.schedulingConfig.IndexedTaints,
-		q.schedulingConfig.IndexedNodeLabels,
-	)
-	if err != nil {
-		return nil, err
-	}
-	if err := nodeDb.UpsertMany(nodes); err != nil {
-		return nil, err
+
+		// Record which queues have jobs running. Necessary to omit inactive queues.
+		for _, job := range jobs {
+			isActiveByQueueName[job.Queue] = true
+		}
 	}
 
-	// Load executor reports for all clusters, and insert an updated report for this cluster.
+	txn.Commit()
+
+	// Load allocation reports for all executors from Redis.
 	reportsByExecutor, err := q.usageRepository.GetClusterQueueResourceUsage()
 	if err != nil {
 		return nil, err
 	}
-	executorReport := &schedulerobjects.ClusterResourceUsageReport{
+
+	// Insert an updated report for the current executor, which includes information received in this lease call.
+	currentExecutorReport := &schedulerobjects.ClusterResourceUsageReport{
 		Pool:             req.Pool,
 		Created:          q.clock.Now(),
-		ResourcesByQueue: make(map[string]*schedulerobjects.QueueClusterResourceUsage),
+		ResourcesByQueue: make(map[string]*schedulerobjects.QueueClusterResourceUsage, len(queues)),
 	}
-	for queue, allocated := range allocatedByQueueForCluster {
-		executorReport.ResourcesByQueue[queue] = &schedulerobjects.QueueClusterResourceUsage{
-			Created:             executorReport.Created,
-			Queue:               queue,
-			ExecutorId:          req.ClusterId,
-			ResourcesByPriority: allocated.DeepCopy(),
+	for queue, allocatedByPriorityClass := range allocatedByQueueAndPriorityClassForCluster {
+		currentExecutorReport.ResourcesByQueue[queue] = &schedulerobjects.QueueClusterResourceUsage{
+			Created:                      currentExecutorReport.Created,
+			Queue:                        queue,
+			ExecutorId:                   req.ClusterId,
+			ResourcesByPriorityClassName: armadamaps.DeepCopy(allocatedByPriorityClass),
 		}
 	}
-	reportsByExecutor[req.ClusterId] = executorReport
-	if err := q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, executorReport); err != nil {
+	reportsByExecutor[req.ClusterId] = currentExecutorReport
+
+	// Write the updated report into Redis to make the information available to other replicas of the server.
+	if err := q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, currentExecutorReport); err != nil {
 		return nil, errors.WithMessagef(err, "failed to update cluster usage for cluster %s", req.ClusterId)
 	}
-	allocatedByQueueForPool := q.aggregateUsage(reportsByExecutor, req.Pool)
-	log.Infof("allocated resources per queue for pool %s before scheduling: %v", req.Pool, allocatedByQueueForPool)
 
-	// Store the executor details in redis so that they can be used by
-	// submit check and the new scheduler.
-	err = q.executorRepository.StoreExecutor(ctx, &schedulerobjects.Executor{
+	// Aggregate allocation across all clusters.
+	allocatedByQueueAndPriorityClassForPool := q.aggregateAllocationAcrossExecutor(reportsByExecutor, req.Pool)
+	log.Infof("allocated resources per queue for pool %s before scheduling: %v", req.Pool, allocatedByQueueAndPriorityClassForPool)
+
+	// Store executor details in Redis so they can be used by submit checks and the new scheduler.
+	if err := q.executorRepository.StoreExecutor(ctx, &schedulerobjects.Executor{
 		Id:             req.ClusterId,
 		Pool:           req.Pool,
 		Nodes:          nodes,
 		MinimumJobSize: schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
-		LastUpdateTime: time.Now(),
-	})
-	if err != nil {
-		// This is not fatal because we can still schedule if it doesn't happen.
+		LastUpdateTime: q.clock.Now(),
+	}); err != nil {
+		// This is not fatal; we can still schedule if it doesn't happen.
 		log.WithError(err).Warnf("could not store executor details for cluster %s", req.ClusterId)
 	}
 
-	// Map queue names to priority factor for all active queues, i.e.,
-	// all queues for which the jobs queue has not been deleted automatically by Redis.
-	queues, err := q.queueRepository.GetAllQueues()
-	if err != nil {
-		return nil, err
-	}
-	priorityFactorByQueue := make(map[string]float64, len(queues))
-	apiQueues := make([]*api.Queue, len(queues))
-	for i, queue := range queues {
-		priorityFactorByQueue[queue.Name] = float64(queue.PriorityFactor)
-		apiQueues[i] = &api.Queue{Name: queue.Name}
-	}
-	activeQueues, err := q.jobRepository.FilterActiveQueues(apiQueues)
-	if err != nil {
-		return nil, err
-	}
-	priorityFactorByActiveQueue := make(map[string]float64, len(activeQueues))
-	for _, queue := range activeQueues {
-		priorityFactorByActiveQueue[queue.Name] = priorityFactorByQueue[queue.Name]
+	// At this point we've written updated usage information to Redis and are ready to start scheduling.
+	// Exit here if scheduling is disabled.
+	if q.schedulingConfig.DisableScheduling {
+		log.Infof("skipping scheduling on %s - scheduling disabled", req.ClusterId)
+		return make([]*api.Job, 0), nil
 	}
 
-	// Give Schedule() a 3 second shorter deadline than ctx,
-	// to give it a chance to finish up before ctx is cancelled.
+	// Give Schedule() a 3 second shorter deadline than ctx to give it a chance to finish up before ctx deadline.
 	if deadline, ok := ctx.Deadline(); ok {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithDeadline(ctx, deadline.Add(-3*time.Second))
+		ctx, cancel = armadacontext.WithDeadline(ctx, deadline.Add(-3*time.Second))
 		defer cancel()
 	}
 
+	var fairnessCostProvider fairness.FairnessCostProvider
+	totalResources := schedulerobjects.ResourceList{Resources: totalCapacity}
+	if q.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
+		fairnessCostProvider, err = fairness.NewDominantResourceFairness(
+			totalResources,
+			q.schedulingConfig.DominantResourceFairnessResourcesToConsider,
+		)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		fairnessCostProvider, err = fairness.NewAssetFairness(q.schedulingConfig.ResourceScarcity)
+		if err != nil {
+			return nil, err
+		}
+	}
 	sctx := schedulercontext.NewSchedulingContext(
 		req.ClusterId,
 		req.Pool,
 		q.schedulingConfig.Preemption.PriorityClasses,
 		q.schedulingConfig.Preemption.DefaultPriorityClass,
-		q.schedulingConfig.ResourceScarcity,
-		// May need priority factors for inactive queues for rescheduling evicted jobs.
-		priorityFactorByQueue,
-		nodeDb.TotalResources(),
-		allocatedByQueueForPool,
+		fairnessCostProvider,
+		q.limiter,
+		totalResources,
 	)
+	for queue, priorityFactor := range priorityFactorByQueue {
+		if !isActiveByQueueName[queue] {
+			// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.
+			continue
+		}
+		var weight float64 = 1
+		if priorityFactor > 0 {
+			weight = 1 / priorityFactor
+		}
+		queueLimiter, ok := q.limiterByQueue[queue]
+		if !ok {
+			// Create per-queue limiters lazily.
+			queueLimiter = rate.NewLimiter(
+				rate.Limit(q.schedulingConfig.MaximumPerQueueSchedulingRate),
+				q.schedulingConfig.MaximumPerQueueSchedulingBurst,
+			)
+			q.limiterByQueue[queue] = queueLimiter
+		}
+		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClassForPool[queue], queueLimiter); err != nil {
+			return nil, err
+		}
+	}
 	constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
+		req.Pool,
+		schedulerobjects.ResourceList{Resources: totalCapacity},
 		schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
 		q.schedulingConfig,
 	)
@@ -488,6 +534,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		constraints,
 		q.schedulingConfig.Preemption.NodeEvictionProbability,
 		q.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
+		q.schedulingConfig.Preemption.ProtectedFractionOfFairShare,
 		&SchedulerJobRepositoryAdapter{
 			r: q.jobRepository,
 		},
@@ -496,12 +543,20 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		jobIdsByGangId,
 		gangIdByJobId,
 	)
-	result, err := sch.Schedule(
-		ctxlogrus.ToContext(
-			ctx,
-			logrus.NewEntry(logrus.New()),
-		),
+	if q.schedulingConfig.AlwaysAttemptScheduling {
+		sch.SkipUnsuccessfulSchedulingKeyCheck()
+	}
+	if q.schedulingConfig.EnableAssertions {
+		sch.EnableAssertions()
+	}
+	if q.schedulingConfig.EnableNewPreemptionStrategy {
+		sch.EnableNewPreemptionStrategy()
+	}
+	log.Infof(
+		"starting scheduling with total resources %s",
+		schedulerobjects.ResourceList{Resources: totalCapacity}.CompactString(),
 	)
+	result, err := sch.Schedule(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -511,7 +566,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if q.SchedulingContextRepository != nil {
 		sctx.ClearJobSpecs()
 		if err := q.SchedulingContextRepository.AddSchedulingContext(sctx); err != nil {
-			logging.WithStacktrace(log, err).Error("failed to store scheduling context")
+			logging.WithStacktrace(ctx, err).Error("failed to store scheduling context")
 		}
 	}
 
@@ -586,7 +641,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		jobIdsToDelete := util.Map(jobsToDelete, func(job *api.Job) string { return job.Id })
 		log.Infof("deleting preempted jobs: %v", jobIdsToDelete)
 		if deletionResult, err := q.jobRepository.DeleteJobs(jobsToDelete); err != nil {
-			logging.WithStacktrace(log, err).Error("failed to delete preempted jobs from Redis")
+			logging.WithStacktrace(ctx, err).Error("failed to delete preempted jobs from Redis")
 		} else {
 			deleteErrorByJobId := armadamaps.MapKeys(deletionResult, func(job *api.Job) string { return job.Id })
 			for jobId := range preemptedApiJobsById {
@@ -623,38 +678,37 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	}
 
 	// Update resource cluster report to account for preempted/leased jobs and write it to Redis.
-	allocatedByQueueForCluster = scheduler.UpdateUsage(
-		allocatedByQueueForCluster,
-		result.PreemptedJobs,
-		q.schedulingConfig.Preemption.PriorityClasses,
-		scheduler.Subtract,
+	allocatedByQueueAndPriorityClassForCluster = updateAllocatedByQueueAndPriorityClass(
+		allocatedByQueueAndPriorityClassForCluster,
+		subtract, result.PreemptedJobs,
 	)
-	for queue, m := range allocatedByQueueForCluster {
+	for queue, m := range allocatedByQueueAndPriorityClassForCluster {
 		// Any quantity in the negative indicates a resource accounting problem.
-		if !m.IsStrictlyNonNegative() {
-			log.Errorf("unexpected negative resource quantity for queue %s: %v", queue, m)
+		for _, rl := range m {
+			if !rl.IsStrictlyNonNegative() {
+				return nil, errors.Errorf("unexpected negative resource quantity for queue %s: %v", queue, m)
+			}
 		}
 	}
-	allocatedByQueueForCluster = scheduler.UpdateUsage(
-		allocatedByQueueForCluster,
-		successfullyLeasedApiJobs,
-		q.schedulingConfig.Preemption.PriorityClasses,
-		scheduler.Add,
+	allocatedByQueueAndPriorityClassForCluster = updateAllocatedByQueueAndPriorityClass(
+		allocatedByQueueAndPriorityClassForCluster,
+		add, successfullyLeasedApiJobs,
 	)
-	executorReport.Created = q.clock.Now()
-	for queue, usage := range allocatedByQueueForCluster {
-		executorReport.ResourcesByQueue[queue] = &schedulerobjects.QueueClusterResourceUsage{
-			Created:             executorReport.Created,
-			Queue:               queue,
-			ExecutorId:          req.ClusterId,
-			ResourcesByPriority: usage.DeepCopy(),
+	currentExecutorReport.Created = q.clock.Now()
+	for queue, usage := range allocatedByQueueAndPriorityClassForCluster {
+		currentExecutorReport.ResourcesByQueue[queue] = &schedulerobjects.QueueClusterResourceUsage{
+			Created:                      currentExecutorReport.Created,
+			Queue:                        queue,
+			ExecutorId:                   req.ClusterId,
+			ResourcesByPriorityClassName: armadamaps.DeepCopy(usage),
 		}
 	}
-	if err := q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, executorReport); err != nil {
-		logging.WithStacktrace(log, err).Errorf("failed to update cluster usage")
+	if err := q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, currentExecutorReport); err != nil {
+		logging.WithStacktrace(ctx, err).Errorf("failed to update cluster usage")
 	}
-	allocatedByQueueForPool = q.aggregateUsage(reportsByExecutor, req.Pool)
-	log.Infof("allocated resources per queue for pool %s after scheduling: %v", req.Pool, allocatedByQueueForPool)
+
+	allocatedByQueueAndPriorityClassForPool = q.aggregateAllocationAcrossExecutor(reportsByExecutor, req.Pool)
+	log.Infof("allocated resources per queue for pool %s after scheduling: %v", req.Pool, allocatedByQueueAndPriorityClassForPool)
 
 	// Optionally set node id selectors on scheduled jobs.
 	if q.schedulingConfig.Preemption.SetNodeIdSelector {
@@ -662,34 +716,33 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			if apiJob == nil {
 				continue
 			}
-			for _, podSpec := range apiJob.GetAllPodSpecs() {
-				if podSpec == nil {
-					log.Warnf("failed to set node id selector on job %s: missing pod spec", apiJob.Id)
-					continue
-				}
-				nodeId := nodeIdByJobId[apiJob.Id]
-				if nodeId == "" {
-					log.Warnf("failed to set node id selector on job %s: no node assigned to job", apiJob.Id)
-					continue
-				}
-				node, err := nodeDb.GetNode(nodeId)
-				if err != nil {
-					logging.WithStacktrace(log, err).Warnf("failed to set node id selector on job %s: node with id %s not found", apiJob.Id, nodeId)
-					continue
-				}
-				v := node.Labels[q.schedulingConfig.Preemption.NodeIdLabel]
-				if v == "" {
-					log.Warnf(
-						"failed to set node id selector on job %s to target node %s: nodeIdLabel missing from %s",
-						apiJob.Id, node.Name, node.Labels,
-					)
-					continue
-				}
-				if podSpec.NodeSelector == nil {
-					podSpec.NodeSelector = make(map[string]string)
-				}
-				podSpec.NodeSelector[q.schedulingConfig.Preemption.NodeIdLabel] = v
+			podSpec := apiJob.GetMainPodSpec()
+			if podSpec == nil {
+				log.Warnf("failed to set node id selector on job %s: missing pod spec", apiJob.Id)
+				continue
 			}
+			nodeId := nodeIdByJobId[apiJob.Id]
+			if nodeId == "" {
+				log.Warnf("failed to set node id selector on job %s: no node assigned to job", apiJob.Id)
+				continue
+			}
+			node, err := nodeDb.GetNode(nodeId)
+			if err != nil {
+				logging.WithStacktrace(ctx, err).Warnf("failed to set node id selector on job %s: node with id %s not found", apiJob.Id, nodeId)
+				continue
+			}
+			v := node.Labels[q.schedulingConfig.Preemption.NodeIdLabel]
+			if v == "" {
+				log.Warnf(
+					"failed to set node id selector on job %s to target node %s (id %s): nodeIdLabel missing from %s",
+					apiJob.Id, node.Name, node.Id, node.Labels,
+				)
+				continue
+			}
+			if podSpec.NodeSelector == nil {
+				podSpec.NodeSelector = make(map[string]string)
+			}
+			podSpec.NodeSelector[q.schedulingConfig.Preemption.NodeIdLabel] = v
 		}
 	}
 
@@ -699,23 +752,22 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			if apiJob == nil {
 				continue
 			}
-			for _, podSpec := range apiJob.GetAllPodSpecs() {
-				if podSpec == nil {
-					log.Warnf("failed to set node name on job %s: missing pod spec", apiJob.Id)
-					continue
-				}
-				nodeId := nodeIdByJobId[apiJob.Id]
-				if nodeId == "" {
-					log.Warnf("failed to set node name on job %s: no node assigned to job", apiJob.Id)
-					continue
-				}
-				node, err := nodeDb.GetNode(nodeId)
-				if err != nil {
-					logging.WithStacktrace(log, err).Warnf("failed to set node name on job %s: node with id %s not found", apiJob.Id, nodeId)
-					continue
-				}
-				podSpec.NodeName = node.Name
+			podSpec := apiJob.GetMainPodSpec()
+			if podSpec == nil {
+				log.Warnf("failed to set node name on job %s: missing pod spec", apiJob.Id)
+				continue
 			}
+			nodeId := nodeIdByJobId[apiJob.Id]
+			if nodeId == "" {
+				log.Warnf("failed to set node name on job %s: no node assigned to job", apiJob.Id)
+				continue
+			}
+			node, err := nodeDb.GetNode(nodeId)
+			if err != nil {
+				logging.WithStacktrace(ctx, err).Warnf("failed to set node name on job %s: node with id %s not found", apiJob.Id, nodeId)
+				continue
+			}
+			podSpec.NodeName = node.Name
 		}
 	}
 
@@ -723,40 +775,84 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if q.schedulingConfig.Preemption.PriorityClassNameOverride != nil {
 		priorityClassName := *q.schedulingConfig.Preemption.PriorityClassNameOverride
 		for _, apiJob := range successfullyLeasedApiJobs {
-			for _, podSpec := range apiJob.GetAllPodSpecs() {
-				podSpec.PriorityClassName = priorityClassName
+			if apiJob == nil {
+				continue
 			}
+			podSpec := apiJob.GetMainPodSpec()
+			if podSpec == nil {
+				log.Warnf("failed to set priorityClassName on job %s: missing pod spec", apiJob.Id)
+				continue
+			}
+			podSpec.PriorityClassName = priorityClassName
 		}
 	}
 
 	return successfullyLeasedApiJobs, nil
 }
 
-// aggregateUsage Creates a map of resource usage first by cluster and then by queue.
-// Clusters in pools other than pool are excluded.
-func (q *AggregatedQueueServer) aggregateUsage(reportsByCluster map[string]*schedulerobjects.ClusterResourceUsageReport, pool string) map[string]schedulerobjects.QuantityByPriorityAndResourceType {
-	const activeClusterExpiry = 10 * time.Minute
+type addOrSubtract int
+
+const (
+	add addOrSubtract = iota
+	subtract
+)
+
+func updateAllocatedByQueueAndPriorityClass[T interfaces.LegacySchedulerJob](
+	allocatedByQueueAndPriorityClass map[string]schedulerobjects.QuantityByTAndResourceType[string],
+	op addOrSubtract,
+	jobs []T,
+) map[string]schedulerobjects.QuantityByTAndResourceType[string] {
+	if allocatedByQueueAndPriorityClass == nil {
+		allocatedByQueueAndPriorityClass = make(map[string]schedulerobjects.QuantityByTAndResourceType[string], 256)
+	}
+	for _, job := range jobs {
+		allocatedByPriorityClassName := allocatedByQueueAndPriorityClass[job.GetQueue()]
+		if allocatedByPriorityClassName == nil {
+			allocatedByPriorityClassName = make(map[string]schedulerobjects.ResourceList)
+			allocatedByQueueAndPriorityClass[job.GetQueue()] = allocatedByPriorityClassName
+		}
+		allocated := allocatedByPriorityClassName[job.GetPriorityClassName()]
+		if op == add {
+			allocated.AddV1ResourceList(job.GetResourceRequirements().Requests)
+		} else if op == subtract {
+			allocated.SubV1ResourceList(job.GetResourceRequirements().Requests)
+		} else {
+			panic(fmt.Sprintf("unknown op %d", op))
+		}
+		allocatedByPriorityClassName[job.GetPriorityClassName()] = allocated
+	}
+	return allocatedByQueueAndPriorityClass
+}
+
+func (q *AggregatedQueueServer) aggregateAllocationAcrossExecutor(reportsByExecutor map[string]*schedulerobjects.ClusterResourceUsageReport, pool string) map[string]schedulerobjects.QuantityByTAndResourceType[string] {
 	now := q.clock.Now()
-	aggregatedUsageByQueue := make(map[string]schedulerobjects.QuantityByPriorityAndResourceType)
-	for _, clusterReport := range reportsByCluster {
-		if clusterReport.Pool != pool {
-			// Separate resource accounting per pool.
+	allocatedByQueueAndPriorityClass := make(map[string]schedulerobjects.QuantityByTAndResourceType[string])
+	for _, executorReport := range reportsByExecutor {
+		if executorReport.Pool != pool {
+			// Only consider executors in the specified pool.
 			continue
 		}
-		if !clusterReport.Created.Add(activeClusterExpiry).After(now) {
-			// Stale report; omit.
-			continue
-		}
-		for queue, report := range clusterReport.ResourcesByQueue {
-			quantityByPriorityAndResourceType, ok := aggregatedUsageByQueue[queue]
-			if !ok {
-				quantityByPriorityAndResourceType = make(schedulerobjects.QuantityByPriorityAndResourceType)
-				aggregatedUsageByQueue[queue] = quantityByPriorityAndResourceType
+		if q.schedulingConfig.ExecutorTimeout != 0 {
+			reportAge := now.Sub(executorReport.Created)
+			if reportAge > q.schedulingConfig.ExecutorTimeout {
+				// Stale report; omit.
+				continue
 			}
-			quantityByPriorityAndResourceType.Add(report.ResourcesByPriority)
+		}
+		for queue, queueReport := range executorReport.ResourcesByQueue {
+			allocatedByPriorityClass := allocatedByQueueAndPriorityClass[queue]
+			if allocatedByPriorityClass == nil {
+				allocatedByPriorityClass = make(map[string]schedulerobjects.ResourceList)
+				allocatedByQueueAndPriorityClass[queue] = allocatedByPriorityClass
+			}
+			for priorityClassName, allocated := range queueReport.ResourcesByPriorityClassName {
+				rl := allocatedByPriorityClass[priorityClassName]
+				rl.Add(allocated)
+				allocatedByPriorityClass[priorityClassName] = rl
+			}
 		}
 	}
-	return aggregatedUsageByQueue
+	return allocatedByQueueAndPriorityClass
 }
 
 func (q *AggregatedQueueServer) decompressJobOwnershipGroups(jobs []*api.Job) error {
@@ -777,22 +873,23 @@ func (q *AggregatedQueueServer) decompressJobOwnershipGroups(jobs []*api.Job) er
 }
 
 func (q *AggregatedQueueServer) decompressOwnershipGroups(compressedOwnershipGroups []byte) ([]string, error) {
-	decompressor, err := q.decompressorPool.BorrowObject(context.Background())
+	decompressor, err := q.decompressorPool.BorrowObject(armadacontext.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to borrow decompressior because %s", err)
 	}
 
-	defer func(decompressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+	defer func(decompressorPool *pool.ObjectPool, ctx *armadacontext.Context, object interface{}) {
 		err := decompressorPool.ReturnObject(ctx, object)
 		if err != nil {
 			log.WithError(err).Errorf("Error returning decompressorPool to pool")
 		}
-	}(q.decompressorPool, context.Background(), decompressor)
+	}(q.decompressorPool, armadacontext.Background(), decompressor)
 
 	return compress.DecompressStringArray(compressedOwnershipGroups, decompressor.(compress.Decompressor))
 }
 
-func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
+func (q *AggregatedQueueServer) RenewLease(grpcCtx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
@@ -800,7 +897,8 @@ func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.Ren
 	return &api.IdList{Ids: renewed}, e
 }
 
-func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
+func (q *AggregatedQueueServer) ReturnLease(grpcCtx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
@@ -899,7 +997,8 @@ func (q *AggregatedQueueServer) addAvoidNodeAffinity(
 	return res[0].Error
 }
 
-func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdList) (*api.IdList, error) {
+func (q *AggregatedQueueServer) ReportDone(grpcCtx context.Context, idList *api.IdList) (*api.IdList, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportDone] error: %s", err)
 	}
@@ -924,7 +1023,7 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 	return &api.IdList{Ids: cleanedIds}, returnedError
 }
 
-func (q *AggregatedQueueServer) reportLeaseReturned(ctx context.Context, leaseReturnRequest *api.ReturnLeaseRequest) error {
+func (q *AggregatedQueueServer) reportLeaseReturned(ctx *armadacontext.Context, leaseReturnRequest *api.ReturnLeaseRequest) error {
 	job, err := q.getJobById(leaseReturnRequest.JobId)
 	if err != nil {
 		return err
