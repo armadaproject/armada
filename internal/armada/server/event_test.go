@@ -18,6 +18,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -30,7 +31,7 @@ func TestEventServer_Health(t *testing.T) {
 	withEventServer(
 		t,
 		func(s *EventServer) {
-			health, err := s.Health(context.Background(), &types.Empty{})
+			health, err := s.Health(armadacontext.Background(), &types.Empty{})
 			assert.Equal(t, health.Status, api.HealthCheckResponse_SERVING)
 			require.NoError(t, err)
 		},
@@ -274,7 +275,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 				assert.NoError(t, err)
 
 				principal := authorization.NewStaticPrincipal("alice", []string{})
-				ctx := authorization.WithPrincipal(context.Background(), principal)
+				ctx := authorization.WithPrincipal(armadacontext.Background(), principal)
 				stream := &eventStreamMock{ctx: ctx}
 
 				err = s.GetJobSetEvents(&api.JobSetRequest{
@@ -298,7 +299,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 				assert.NoError(t, err)
 
 				principal := authorization.NewStaticPrincipal("alice", []string{"watch-all-events-group"})
-				ctx := authorization.WithPrincipal(context.Background(), principal)
+				ctx := authorization.WithPrincipal(armadacontext.Background(), principal)
 				stream := &eventStreamMock{ctx: ctx}
 
 				err = s.GetJobSetEvents(&api.JobSetRequest{
@@ -322,7 +323,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 				assert.NoError(t, err)
 
 				principal := authorization.NewStaticPrincipal("alice", []string{"watch-queue-group"})
-				ctx := authorization.WithPrincipal(context.Background(), principal)
+				ctx := authorization.WithPrincipal(armadacontext.Background(), principal)
 				stream := &eventStreamMock{ctx: ctx}
 
 				err = s.GetJobSetEvents(&api.JobSetRequest{
@@ -344,7 +345,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 			assert.NoError(t, err)
 
 			principal := authorization.NewStaticPrincipal("alice", []string{"watch-events-group", "watch-queue-group"})
-			ctx := authorization.WithPrincipal(context.Background(), principal)
+			ctx := authorization.WithPrincipal(armadacontext.Background(), principal)
 			stream := &eventStreamMock{ctx: ctx}
 
 			err = s.GetJobSetEvents(&api.JobSetRequest{
@@ -426,7 +427,7 @@ func (s *eventStreamMock) Send(m *api.EventStreamMessage) error {
 
 func (s *eventStreamMock) Context() context.Context {
 	if s.ctx == nil {
-		return context.Background()
+		return armadacontext.Background()
 	}
 	return s.ctx
 }

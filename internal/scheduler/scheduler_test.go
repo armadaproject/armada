@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -15,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -527,8 +527,8 @@ func TestScheduler_TestCycle(t *testing.T) {
 			txn.Commit()
 
 			// run a scheduler cycle
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			_, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true)
 			if tc.fetchError || tc.publishError || tc.scheduleError {
 				assert.Error(t, err)
 			} else {
@@ -684,7 +684,7 @@ func TestRun(t *testing.T) {
 
 	sched.clock = testClock
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
 
 	//nolint:errcheck
 	go sched.Run(ctx)
@@ -861,7 +861,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
 			// Test objects
@@ -943,31 +943,31 @@ type testJobRepository struct {
 	numReceivedPartitions uint32
 }
 
-func (t *testJobRepository) FindInactiveRuns(ctx context.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
+func (t *testJobRepository) FindInactiveRuns(ctx *armadacontext.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (t *testJobRepository) FetchJobRunLeases(ctx context.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*database.JobRunLease, error) {
+func (t *testJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*database.JobRunLease, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (t *testJobRepository) FetchJobUpdates(ctx context.Context, jobSerial int64, jobRunSerial int64) ([]database.Job, []database.Run, error) {
+func (t *testJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobSerial int64, jobRunSerial int64) ([]database.Job, []database.Run, error) {
 	if t.shouldError {
 		return nil, nil, errors.New("error fetchiung job updates")
 	}
 	return t.updatedJobs, t.updatedRuns, nil
 }
 
-func (t *testJobRepository) FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error) {
+func (t *testJobRepository) FetchJobRunErrors(ctx *armadacontext.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error) {
 	if t.shouldError {
 		return nil, errors.New("error fetching job run errors")
 	}
 	return t.errors, nil
 }
 
-func (t *testJobRepository) CountReceivedPartitions(ctx context.Context, groupId uuid.UUID) (uint32, error) {
+func (t *testJobRepository) CountReceivedPartitions(ctx *armadacontext.Context, groupId uuid.UUID) (uint32, error) {
 	if t.shouldError {
 		return 0, errors.New("error counting received partitions")
 	}
@@ -979,18 +979,18 @@ type testExecutorRepository struct {
 	shouldError bool
 }
 
-func (t testExecutorRepository) GetExecutors(ctx context.Context) ([]*schedulerobjects.Executor, error) {
+func (t testExecutorRepository) GetExecutors(ctx *armadacontext.Context) ([]*schedulerobjects.Executor, error) {
 	panic("not implemented")
 }
 
-func (t testExecutorRepository) GetLastUpdateTimes(ctx context.Context) (map[string]time.Time, error) {
+func (t testExecutorRepository) GetLastUpdateTimes(ctx *armadacontext.Context) (map[string]time.Time, error) {
 	if t.shouldError {
 		return nil, errors.New("error getting last update time")
 	}
 	return t.updateTimes, nil
 }
 
-func (t testExecutorRepository) StoreExecutor(ctx context.Context, executor *schedulerobjects.Executor) error {
+func (t testExecutorRepository) StoreExecutor(ctx *armadacontext.Context, executor *schedulerobjects.Executor) error {
 	panic("not implemented")
 }
 
@@ -1001,7 +1001,7 @@ type testSchedulingAlgo struct {
 	shouldError           bool
 }
 
-func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error) {
+func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error) {
 	t.numberOfScheduleCalls++
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")
@@ -1049,7 +1049,7 @@ type testPublisher struct {
 	shouldError bool
 }
 
-func (t *testPublisher) PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, _ func() bool) error {
+func (t *testPublisher) PublishMessages(ctx *armadacontext.Context, events []*armadaevents.EventSequence, _ func() bool) error {
 	t.events = events
 	if t.shouldError {
 		return errors.New("Error when publishing")
@@ -1061,7 +1061,7 @@ func (t *testPublisher) Reset() {
 	t.events = nil
 }
 
-func (t *testPublisher) PublishMarkers(ctx context.Context, groupId uuid.UUID) (uint32, error) {
+func (t *testPublisher) PublishMarkers(ctx *armadacontext.Context, groupId uuid.UUID) (uint32, error) {
 	return 100, nil
 }
 

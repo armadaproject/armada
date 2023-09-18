@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"testing"
@@ -14,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -330,9 +330,8 @@ func TestSchedule(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctx := testfixtures.ContextWithDefaultLogger(context.Background())
 			timeout := 5 * time.Second
-			ctx, cancel := context.WithTimeout(ctx, timeout)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), timeout)
 			defer cancel()
 
 			ctrl := gomock.NewController(t)

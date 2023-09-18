@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -191,7 +192,7 @@ func newSimpleConverter(t *testing.T) InstructionConverter[*simpleMessages] {
 	return &simpleConverter{t}
 }
 
-func (s *simpleConverter) Convert(_ context.Context, msg *EventSequencesWithIds) *simpleMessages {
+func (s *simpleConverter) Convert(_ *armadacontext.Context, msg *EventSequencesWithIds) *simpleMessages {
 	s.t.Helper()
 	assert.Len(s.t, msg.EventSequences, len(msg.MessageIds))
 	var converted []*simpleMessage
@@ -218,7 +219,7 @@ func newSimpleSink(t *testing.T) *simpleSink {
 	}
 }
 
-func (s *simpleSink) Store(_ context.Context, msg *simpleMessages) error {
+func (s *simpleSink) Store(_ *armadacontext.Context, msg *simpleMessages) error {
 	for _, simpleMessage := range msg.msgs {
 		s.simpleMessages[simpleMessage.id] = simpleMessage
 	}
@@ -236,7 +237,7 @@ func (s *simpleSink) assertDidProcess(messages []pulsar.Message) {
 }
 
 func TestRun_HappyPath_SingleMessage(t *testing.T) {
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(10*time.Second))
+	ctx, cancel := armadacontext.WithDeadline(armadacontext.Background(), time.Now().Add(10*time.Second))
 	messages := []pulsar.Message{
 		pulsarutils.NewPulsarMessage(1, baseTime, marshal(t, succeeded)),
 	}
@@ -257,7 +258,7 @@ func TestRun_HappyPath_SingleMessage(t *testing.T) {
 }
 
 func TestRun_HappyPath_MultipleMessages(t *testing.T) {
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(10*time.Second))
+	ctx, cancel := armadacontext.WithDeadline(armadacontext.Background(), time.Now().Add(10*time.Second))
 	messages := []pulsar.Message{
 		pulsarutils.NewPulsarMessage(1, baseTime, marshal(t, succeeded)),
 		pulsarutils.NewPulsarMessage(2, baseTime.Add(1*time.Second), marshal(t, pendingAndRunning)),

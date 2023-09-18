@@ -1,13 +1,13 @@
 package cmd
 
 import (
-	"context"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
@@ -57,7 +57,7 @@ func pruneDatabase(cmd *cobra.Command, _ []string) error {
 		return errors.WithMessagef(err, "Failed to connect to database")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), timeout)
 	defer cancel()
 	return schedulerdb.PruneDb(ctx, db, batchSize, expireAfter, clock.RealClock{})
 }
