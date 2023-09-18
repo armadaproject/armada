@@ -239,9 +239,27 @@ Reports the result of the job and returns.
 
 
 
+#### serialize()
+Get a serialized version of this object.
+
+
+* **Returns**
+
+    A dict of keyword arguments used when instantiating
+
+
+
+* **Return type**
+
+    dict
+
+
+this object.
+
+
 #### template_fields(_: Sequence[str_ _ = ('job_request_items',_ )
 
-### _class_ armada.operators.armada_deferrable.ArmadaJobCompleteTrigger(job_id, job_service_channel_args, armada_queue, job_set_id, airflow_task_name)
+### _class_ armada.operators.armada_deferrable.ArmadaJobCompleteTrigger(job_id, job_service_channel_args, armada_queue, job_set_id, airflow_task_name, poll_interval=30)
 Bases: `BaseTrigger`
 
 An airflow trigger that monitors the job state of an armada job.
@@ -267,6 +285,9 @@ Triggers when the job is complete.
 
     * **airflow_task_name** (*str*) – Name of the airflow task to which this trigger
     belongs.
+
+
+    * **poll_interval** (*int*) – How often to poll jobservice to get status.
 
 
 
@@ -664,7 +685,7 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
 
 
 
-### _async_ armada.operators.utils.search_for_job_complete_async(armada_queue, job_set_id, airflow_task_name, job_id, job_service_client, log, time_out_for_failure=7200)
+### _async_ armada.operators.utils.search_for_job_complete_async(armada_queue, job_set_id, airflow_task_name, job_id, job_service_client, log, poll_interval, time_out_for_failure=7200)
 Poll JobService cache asyncronously until you get a terminated event.
 
 A terminated event is SUCCEEDED, FAILED or CANCELLED
@@ -687,6 +708,9 @@ A terminated event is SUCCEEDED, FAILED or CANCELLED
 
     * **job_service_client** (*JobServiceAsyncIOClient*) – A JobServiceClient that is used for polling.
     It is optional only for testing
+
+
+    * **poll_interval** (*int*) – How often to poll jobservice to get status.
 
 
     * **time_out_for_failure** (*int*) – The amount of time a job
