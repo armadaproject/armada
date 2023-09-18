@@ -6,11 +6,11 @@ import (
 	"text/tabwriter"
 )
 
-// TabbedStringBuilder is a wrapper around a *tabwriter.Writer that allows for efficiently building
+// TabbedStringBuilder is a wrapper around a tabwriter.Writer that allows for efficiently building
 // tab-aligned strings.
-// This exists as *tabwriter.Writer exposes a more complicated interface which returns errors to the
+// This exists as tabwriter.Writer exposes a more complicated interface which returns errors to the
 // caller, propagated for the underlying IOWriter.  In this case we ensure that the underlying Writer is
-// a strings.Builder. This never returns errors therefore we can provide a simpler interface where the caller
+// a strings.Builder. This never returns errors, therefore we can provide a simpler interface where the caller
 // doesn't need to consider error handling.
 type TabbedStringBuilder struct {
 	sb     *strings.Builder

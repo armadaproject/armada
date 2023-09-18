@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	//  Indicates that the limit on resources scheduled per round has been exceeded.
+	// Indicates that the limit on resources scheduled per round has been exceeded.
 	MaximumResourcesScheduledUnschedulableReason = "maximum resources scheduled"
 
 	// Indicates that a queue has been assigned more than its allowed amount of resources.

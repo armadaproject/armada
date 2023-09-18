@@ -62,7 +62,7 @@ func vanillaAvoidLabelAffinity(key string, val string) *v1.Affinity {
 }
 
 func vanillaAvoidLabelAffinites(labels []*api.StringKeyValuePair) *v1.Affinity {
-	var mexprs []v1.NodeSelectorRequirement
+	mexprs := []v1.NodeSelectorRequirement{}
 
 	for _, kv := range labels {
 		mexprs = append(mexprs, v1.NodeSelectorRequirement{
