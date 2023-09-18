@@ -1,17 +1,16 @@
 package scheduler
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/hashicorp/go-memdb"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // GangScheduler schedules one gang at a time. GangScheduler is not aware of queues.
@@ -39,10 +38,13 @@ func (sch *GangScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 	sch.skipUnsuccessfulSchedulingKeyCheck = true
 }
 
-func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
-	// Exit immediately if this is a new gang and we've hit any round limits.
+func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
+	// Exit immediately if this is a new gang and we've exceeded any round limits.
+	//
+	// Because this check occurs before adding the gctx to the sctx,
+	// the round limits can be exceeded by one gang.
 	if !gctx.AllJobsEvicted {
-		if ok, unschedulableReason, err = sch.constraints.CheckRoundConstraints(sch.schedulingContext); err != nil || !ok {
+		if ok, unschedulableReason, err = sch.constraints.CheckRoundConstraints(sch.schedulingContext, gctx.Queue); err != nil || !ok {
 			return
 		}
 	}
@@ -55,6 +57,16 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 		if err != nil {
 			return
 		}
+
+		// Update rate-limiters to account for new successfully scheduled jobs.
+		if ok && !gctx.AllJobsEvicted {
+			sch.schedulingContext.Limiter.ReserveN(sch.schedulingContext.Started, gctx.Cardinality())
+			if qctx := sch.schedulingContext.QueueSchedulingContexts[gctx.Queue]; qctx != nil {
+				qctx.Limiter.ReserveN(sch.schedulingContext.Started, gctx.Cardinality())
+			}
+		}
+
+		// Process unschedulable jobs.
 		if !ok {
 			// Register the job as unschedulable. If the job was added to the context, remove it first.
 			if gangAddedToSchedulingContext {
@@ -74,7 +86,7 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 			//
 			// Only record unfeasible scheduling keys for single-job gangs.
 			// Since a gang may be unschedulable even if all its members are individually schedulable.
-			if !sch.skipUnsuccessfulSchedulingKeyCheck && len(gctx.JobSchedulingContexts) == 1 {
+			if !sch.skipUnsuccessfulSchedulingKeyCheck && gctx.Cardinality() == 1 {
 				jctx := gctx.JobSchedulingContexts[0]
 				schedulingKey := sch.schedulingContext.SchedulingKeyFromLegacySchedulerJob(jctx.Job)
 				if _, ok := sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; !ok {
@@ -84,31 +96,20 @@ func (sch *GangScheduler) Schedule(ctx context.Context, gctx *schedulercontext.G
 			}
 		}
 	}()
-
-	// Try scheduling the gang.
 	if _, err = sch.schedulingContext.AddGangSchedulingContext(gctx); err != nil {
 		return
 	}
 	gangAddedToSchedulingContext = true
 	if !gctx.AllJobsEvicted {
-		// Check that the job is large enough for this executor.
-		// This check needs to be here, since it relates to a specific job.
-		// Only perform limit checks for new jobs to avoid preempting jobs if, e.g., MinimumJobSize changes.
-		if ok, unschedulableReason = requestsAreLargeEnough(gctx.TotalResourceRequests, sch.constraints.MinimumJobSize); !ok {
-			return
-		}
-		if ok, unschedulableReason, err = sch.constraints.CheckPerQueueAndPriorityClassConstraints(
-			sch.schedulingContext,
-			gctx.Queue,
-			gctx.PriorityClassName,
-		); err != nil || !ok {
+		// Only perform these checks for new jobs to avoid preempting jobs if, e.g., MinimumJobSize changes.
+		if ok, unschedulableReason, err = sch.constraints.CheckConstraints(sch.schedulingContext, gctx); err != nil || !ok {
 			return
 		}
 	}
 	return sch.trySchedule(ctx, gctx)
 }
 
-func (sch *GangScheduler) trySchedule(ctx context.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
+func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
 	// If no node uniformity constraint, try scheduling across all nodes.
 	if gctx.NodeUniformityLabel == "" {
 		return sch.tryScheduleGang(ctx, gctx)
@@ -175,7 +176,7 @@ func (sch *GangScheduler) trySchedule(ctx context.Context, gctx *schedulercontex
 	return sch.tryScheduleGang(ctx, gctx)
 }
 
-func (sch *GangScheduler) tryScheduleGang(ctx context.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
+func (sch *GangScheduler) tryScheduleGang(ctx *armadacontext.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
 	txn := sch.nodeDb.Txn(true)
 	defer txn.Abort()
 	ok, unschedulableReason, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx)
@@ -185,7 +186,7 @@ func (sch *GangScheduler) tryScheduleGang(ctx context.Context, gctx *schedulerco
 	return
 }
 
-func (sch *GangScheduler) tryScheduleGangWithTxn(ctx context.Context, txn *memdb.Txn, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
+func (sch *GangScheduler) tryScheduleGangWithTxn(ctx *armadacontext.Context, txn *memdb.Txn, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
 	if ok, err = sch.nodeDb.ScheduleManyWithTxn(txn, gctx.JobSchedulingContexts); err != nil {
 		return
 	} else if !ok {
@@ -195,7 +196,7 @@ func (sch *GangScheduler) tryScheduleGangWithTxn(ctx context.Context, txn *memdb
 				jctx.PodSchedulingContext.NodeId = ""
 			}
 		}
-		if len(gctx.JobSchedulingContexts) > 1 {
+		if gctx.Cardinality() > 1 {
 			unschedulableReason = "at least one job in the gang does not fit on any node"
 		} else {
 			unschedulableReason = "job does not fit on any node"
@@ -222,18 +223,5 @@ func meanScheduledAtPriorityFromGctx(gctx *schedulercontext.GangSchedulingContex
 		}
 		sum += jctx.PodSchedulingContext.ScheduledAtPriority
 	}
-	return float64(sum) / float64(len(gctx.JobSchedulingContexts)), true
-}
-
-func requestsAreLargeEnough(totalResourceRequests, minRequest schedulerobjects.ResourceList) (bool, string) {
-	if len(minRequest.Resources) == 0 {
-		return true, ""
-	}
-	for t, minQuantity := range minRequest.Resources {
-		q := totalResourceRequests.Get(t)
-		if minQuantity.Cmp(q) == 1 {
-			return false, fmt.Sprintf("job requests %s %s, but the minimum is %s", q.String(), t, minQuantity.String())
-		}
-	}
-	return true, ""
+	return float64(sum) / float64(gctx.Cardinality()), true
 }

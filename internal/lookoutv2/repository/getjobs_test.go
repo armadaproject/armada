@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -77,7 +77,7 @@ func TestGetJobsSingle(t *testing.T) {
 			Job()
 
 		repo := NewSqlGetJobsRepository(db)
-		result, err := repo.GetJobs(context.TODO(), []*model.Filter{}, false, &model.Order{}, 0, 1)
+		result, err := repo.GetJobs(armadacontext.TODO(), []*model.Filter{}, false, &model.Order{}, 0, 1)
 		assert.NoError(t, err)
 		assert.Len(t, result.Jobs, 1)
 		assert.Equal(t, 1, result.Count)
@@ -105,7 +105,7 @@ func TestGetJobsMultipleRuns(t *testing.T) {
 
 		// Runs should be sorted from oldest -> newest
 		repo := NewSqlGetJobsRepository(db)
-		result, err := repo.GetJobs(context.TODO(), []*model.Filter{}, false, &model.Order{}, 0, 1)
+		result, err := repo.GetJobs(armadacontext.TODO(), []*model.Filter{}, false, &model.Order{}, 0, 1)
 		assert.NoError(t, err)
 		assert.Len(t, result.Jobs, 1)
 		assert.Equal(t, 1, result.Count)
@@ -119,7 +119,7 @@ func TestOrderByUnsupportedField(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		repo := NewSqlGetJobsRepository(db)
 		_, err := repo.GetJobs(
-			context.TODO(),
+			armadacontext.TODO(),
 			[]*model.Filter{},
 			false,
 			&model.Order{
@@ -140,7 +140,7 @@ func TestOrderByUnsupportedDirection(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		repo := NewSqlGetJobsRepository(db)
 		_, err := repo.GetJobs(
-			context.TODO(),
+			armadacontext.TODO(),
 			[]*model.Filter{},
 			false,
 			&model.Order{
@@ -192,7 +192,7 @@ func TestGetJobsOrderByJobId(t *testing.T) {
 
 		t.Run("ascending order", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{},
 				false,
 				&model.Order{
@@ -212,7 +212,7 @@ func TestGetJobsOrderByJobId(t *testing.T) {
 
 		t.Run("descending order", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{},
 				false,
 				&model.Order{
@@ -259,7 +259,7 @@ func TestGetJobsOrderBySubmissionTime(t *testing.T) {
 
 		t.Run("ascending order", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{},
 				false,
 				&model.Order{
@@ -279,7 +279,7 @@ func TestGetJobsOrderBySubmissionTime(t *testing.T) {
 
 		t.Run("descending order", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{},
 				false,
 				&model.Order{
@@ -330,7 +330,7 @@ func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 
 		t.Run("ascending order", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{},
 				false,
 				&model.Order{
@@ -350,7 +350,7 @@ func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 
 		t.Run("descending order", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{},
 				false,
 				&model.Order{
@@ -377,7 +377,7 @@ func TestFilterByUnsupportedField(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		repo := NewSqlGetJobsRepository(db)
 		_, err := repo.GetJobs(
-			context.TODO(),
+			armadacontext.TODO(),
 			[]*model.Filter{{
 				Field: "someField",
 				Match: model.MatchExact,
@@ -400,7 +400,7 @@ func TestFilterByUnsupportedMatch(t *testing.T) {
 		repo := NewSqlGetJobsRepository(db)
 
 		_, err := repo.GetJobs(
-			context.TODO(),
+			armadacontext.TODO(),
 			[]*model.Filter{{
 				Field: "jobId",
 				Match: model.MatchLessThan,
@@ -443,7 +443,7 @@ func TestGetJobsById(t *testing.T) {
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "jobId",
 					Match: model.MatchExact,
@@ -499,7 +499,7 @@ func TestGetJobsByQueue(t *testing.T) {
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "queue",
 					Match: model.MatchExact,
@@ -518,7 +518,7 @@ func TestGetJobsByQueue(t *testing.T) {
 
 		t.Run("startsWith", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "queue",
 					Match: model.MatchStartsWith,
@@ -542,7 +542,7 @@ func TestGetJobsByQueue(t *testing.T) {
 
 		t.Run("contains", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "queue",
 					Match: model.MatchContains,
@@ -604,7 +604,7 @@ func TestGetJobsByJobSet(t *testing.T) {
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "jobSet",
 					Match: model.MatchExact,
@@ -623,7 +623,7 @@ func TestGetJobsByJobSet(t *testing.T) {
 
 		t.Run("startsWith", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "jobSet",
 					Match: model.MatchStartsWith,
@@ -647,7 +647,7 @@ func TestGetJobsByJobSet(t *testing.T) {
 
 		t.Run("contains", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "jobSet",
 					Match: model.MatchContains,
@@ -709,7 +709,7 @@ func TestGetJobsByOwner(t *testing.T) {
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "owner",
 					Match: model.MatchExact,
@@ -728,7 +728,7 @@ func TestGetJobsByOwner(t *testing.T) {
 
 		t.Run("startsWith", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "owner",
 					Match: model.MatchStartsWith,
@@ -752,7 +752,7 @@ func TestGetJobsByOwner(t *testing.T) {
 
 		t.Run("contains", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "owner",
 					Match: model.MatchContains,
@@ -817,7 +817,7 @@ func TestGetJobsByState(t *testing.T) {
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "state",
 					Match: model.MatchExact,
@@ -836,7 +836,7 @@ func TestGetJobsByState(t *testing.T) {
 
 		t.Run("anyOf", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "state",
 					Match: model.MatchAnyOf,
@@ -923,7 +923,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field:        "annotation-key-1",
 					Match:        model.MatchExact,
@@ -943,7 +943,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 
 		t.Run("exact, multiple annotations", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{
 					{
 						Field:        "annotation-key-1",
@@ -971,7 +971,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 
 		t.Run("startsWith, multiple annotations", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{
 					{
 						Field:        "annotation-key-1",
@@ -1000,7 +1000,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 
 		t.Run("contains, multiple annotations", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{
 					{
 						Field:        "annotation-key-1",
@@ -1029,7 +1029,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 
 		t.Run("exists", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{
 					{
 						Field:        "annotation-key-1",
@@ -1093,7 +1093,7 @@ func TestGetJobsByCpu(t *testing.T) {
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "cpu",
 					Match: model.MatchExact,
@@ -1112,7 +1112,7 @@ func TestGetJobsByCpu(t *testing.T) {
 
 		t.Run("greaterThan", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "cpu",
 					Match: model.MatchGreaterThan,
@@ -1135,7 +1135,7 @@ func TestGetJobsByCpu(t *testing.T) {
 
 		t.Run("lessThan", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "cpu",
 					Match: model.MatchLessThan,
@@ -1158,7 +1158,7 @@ func TestGetJobsByCpu(t *testing.T) {
 
 		t.Run("greaterThanOrEqualTo", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "cpu",
 					Match: model.MatchGreaterThanOrEqualTo,
@@ -1182,7 +1182,7 @@ func TestGetJobsByCpu(t *testing.T) {
 
 		t.Run("lessThanOrEqualTo", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "cpu",
 					Match: model.MatchLessThanOrEqualTo,
@@ -1246,7 +1246,7 @@ func TestGetJobsByMemory(t *testing.T) {
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "memory",
 					Match: model.MatchExact,
@@ -1265,7 +1265,7 @@ func TestGetJobsByMemory(t *testing.T) {
 
 		t.Run("greaterThan", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "memory",
 					Match: model.MatchGreaterThan,
@@ -1288,7 +1288,7 @@ func TestGetJobsByMemory(t *testing.T) {
 
 		t.Run("lessThan", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "memory",
 					Match: model.MatchLessThan,
@@ -1311,7 +1311,7 @@ func TestGetJobsByMemory(t *testing.T) {
 
 		t.Run("greaterThanOrEqualTo", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "memory",
 					Match: model.MatchGreaterThanOrEqualTo,
@@ -1335,7 +1335,7 @@ func TestGetJobsByMemory(t *testing.T) {
 
 		t.Run("lessThanOrEqualTo", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "memory",
 					Match: model.MatchLessThanOrEqualTo,
@@ -1399,7 +1399,7 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "ephemeralStorage",
 					Match: model.MatchExact,
@@ -1418,7 +1418,7 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 
 		t.Run("greaterThan", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "ephemeralStorage",
 					Match: model.MatchGreaterThan,
@@ -1441,7 +1441,7 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 
 		t.Run("lessThan", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "ephemeralStorage",
 					Match: model.MatchLessThan,
@@ -1464,7 +1464,7 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 
 		t.Run("greaterThanOrEqualTo", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "ephemeralStorage",
 					Match: model.MatchGreaterThanOrEqualTo,
@@ -1488,7 +1488,7 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 
 		t.Run("lessThanOrEqualTo", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "ephemeralStorage",
 					Match: model.MatchLessThanOrEqualTo,
@@ -1552,7 +1552,7 @@ func TestGetJobsByGpu(t *testing.T) {
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "gpu",
 					Match: model.MatchExact,
@@ -1571,7 +1571,7 @@ func TestGetJobsByGpu(t *testing.T) {
 
 		t.Run("greaterThan", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "gpu",
 					Match: model.MatchGreaterThan,
@@ -1594,7 +1594,7 @@ func TestGetJobsByGpu(t *testing.T) {
 
 		t.Run("lessThan", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "gpu",
 					Match: model.MatchLessThan,
@@ -1617,7 +1617,7 @@ func TestGetJobsByGpu(t *testing.T) {
 
 		t.Run("greaterThanOrEqualTo", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "gpu",
 					Match: model.MatchGreaterThanOrEqualTo,
@@ -1641,7 +1641,7 @@ func TestGetJobsByGpu(t *testing.T) {
 
 		t.Run("lessThanOrEqualTo", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "gpu",
 					Match: model.MatchLessThanOrEqualTo,
@@ -1705,7 +1705,7 @@ func TestGetJobsByPriority(t *testing.T) {
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "priority",
 					Match: model.MatchExact,
@@ -1724,7 +1724,7 @@ func TestGetJobsByPriority(t *testing.T) {
 
 		t.Run("greaterThan", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "priority",
 					Match: model.MatchGreaterThan,
@@ -1747,7 +1747,7 @@ func TestGetJobsByPriority(t *testing.T) {
 
 		t.Run("lessThan", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "priority",
 					Match: model.MatchLessThan,
@@ -1770,7 +1770,7 @@ func TestGetJobsByPriority(t *testing.T) {
 
 		t.Run("greaterThanOrEqualTo", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "priority",
 					Match: model.MatchGreaterThanOrEqualTo,
@@ -1794,7 +1794,7 @@ func TestGetJobsByPriority(t *testing.T) {
 
 		t.Run("lessThanOrEqualTo", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "priority",
 					Match: model.MatchLessThanOrEqualTo,
@@ -1865,7 +1865,7 @@ func TestGetJobsByPriorityClass(t *testing.T) {
 
 		t.Run("exact", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "priorityClass",
 					Match: model.MatchExact,
@@ -1884,7 +1884,7 @@ func TestGetJobsByPriorityClass(t *testing.T) {
 
 		t.Run("startsWith", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "priorityClass",
 					Match: model.MatchStartsWith,
@@ -1908,7 +1908,7 @@ func TestGetJobsByPriorityClass(t *testing.T) {
 
 		t.Run("contains", func(t *testing.T) {
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{{
 					Field: "priorityClass",
 					Match: model.MatchContains,
@@ -1957,7 +1957,7 @@ func TestGetJobsSkip(t *testing.T) {
 			skip := 3
 			take := 5
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{},
 				false,
 				&model.Order{
@@ -1977,7 +1977,7 @@ func TestGetJobsSkip(t *testing.T) {
 			skip := 7
 			take := 5
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{},
 				false,
 				&model.Order{
@@ -1997,7 +1997,7 @@ func TestGetJobsSkip(t *testing.T) {
 			skip := 13
 			take := 5
 			result, err := repo.GetJobs(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{},
 				false,
 				&model.Order{
@@ -2057,7 +2057,7 @@ func TestGetJobsComplex(t *testing.T) {
 		skip := 8
 		take := 5
 		result, err := repo.GetJobs(
-			context.TODO(),
+			armadacontext.TODO(),
 			[]*model.Filter{
 				{
 					Field: "queue",
@@ -2121,7 +2121,7 @@ func TestGetJobsActiveJobSet(t *testing.T) {
 		repo := NewSqlGetJobsRepository(db)
 
 		result, err := repo.GetJobs(
-			context.TODO(),
+			armadacontext.TODO(),
 			[]*model.Filter{},
 			true,
 			&model.Order{

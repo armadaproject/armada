@@ -1,7 +1,6 @@
 package instructions
 
 import (
-	"context"
 	"fmt"
 	"sort"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
@@ -65,7 +65,7 @@ func (c *InstructionConverter) IsLegacy() bool {
 	return c.useLegacyEventConversion
 }
 
-func (c *InstructionConverter) Convert(ctx context.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
+func (c *InstructionConverter) Convert(ctx *armadacontext.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
 	updateInstructions := &model.InstructionSet{
 		MessageIds: sequencesWithIds.MessageIds,
 	}
@@ -77,7 +77,7 @@ func (c *InstructionConverter) Convert(ctx context.Context, sequencesWithIds *in
 }
 
 func (c *InstructionConverter) convertSequence(
-	ctx context.Context,
+	ctx *armadacontext.Context,
 	sequence *armadaevents.EventSequence,
 	update *model.InstructionSet,
 ) {

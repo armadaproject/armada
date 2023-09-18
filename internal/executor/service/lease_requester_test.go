@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"testing"
@@ -12,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/mocks"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/executor/context/fake"
@@ -39,7 +39,7 @@ var (
 )
 
 func TestLeaseJobRuns(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 	defer cancel()
 	tests := map[string]struct {
 		leaseMessages        []*executorapi.JobRunLease
@@ -87,7 +87,7 @@ func TestLeaseJobRuns(t *testing.T) {
 }
 
 func TestLeaseJobRuns_Send(t *testing.T) {
-	shortCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	shortCtx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 	defer cancel()
 
 	leaseRequest := &LeaseRequest{
@@ -102,6 +102,7 @@ func TestLeaseJobRuns_Send(t *testing.T) {
 			},
 		},
 		UnassignedJobRunIds: []armadaevents.Uuid{*id1},
+		MaxJobsToLease:      uint32(5),
 	}
 
 	expectedRequest := &executorapi.LeaseRequest{
@@ -111,6 +112,7 @@ func TestLeaseJobRuns_Send(t *testing.T) {
 		MinimumJobSize:      defaultMinimumJobSize,
 		Nodes:               leaseRequest.Nodes,
 		UnassignedJobRunIds: leaseRequest.UnassignedJobRunIds,
+		MaxJobsToLease:      leaseRequest.MaxJobsToLease,
 	}
 
 	jobRequester, mockExecutorApiClient, mockStream := setup(t)
@@ -124,7 +126,7 @@ func TestLeaseJobRuns_Send(t *testing.T) {
 
 func TestLeaseJobRuns_HandlesNoEndMarkerMessage(t *testing.T) {
 	leaseMessages := []*executorapi.JobRunLease{lease1, lease2}
-	shortCtx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	shortCtx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 200*time.Millisecond)
 	defer cancel()
 
 	jobRequester, mockExecutorApiClient, mockStream := setup(t)
@@ -144,7 +146,7 @@ func TestLeaseJobRuns_HandlesNoEndMarkerMessage(t *testing.T) {
 }
 
 func TestLeaseJobRuns_Error(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 30*time.Second)
 	defer cancel()
 	tests := map[string]struct {
 		streamError        bool
