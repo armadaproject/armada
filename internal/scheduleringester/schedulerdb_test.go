@@ -1,7 +1,6 @@
 package scheduleringester
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -14,6 +13,7 @@ import (
 	"golang.org/x/exp/constraints"
 	"golang.org/x/exp/maps"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
@@ -312,7 +312,7 @@ func addDefaultValues(op DbOperation) DbOperation {
 }
 
 func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]int64, op DbOperation) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
 	defer cancel()
 
 	// Apply the op to the database.
@@ -329,7 +329,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 
 	// Read back the state from the db to compare.
 	queries := schedulerdb.New(schedulerDb.db)
-	selectNewJobs := func(ctx context.Context, serial int64) ([]schedulerdb.Job, error) {
+	selectNewJobs := func(ctx *armadacontext.Context, serial int64) ([]schedulerdb.Job, error) {
 		return queries.SelectNewJobs(ctx, schedulerdb.SelectNewJobsParams{Serial: serial, Limit: 1000})
 	}
 	switch expected := op.(type) {
@@ -645,7 +645,7 @@ func TestStore(t *testing.T) {
 			runId: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobId, RunID: runId}},
 		},
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 	defer cancel()
 	err := schedulerdb.WithTestDb(func(q *schedulerdb.Queries, db *pgxpool.Pool) error {
 		schedulerDb := NewSchedulerDb(db, metrics.NewMetrics("test"), time.Second, time.Second, 10*time.Second)

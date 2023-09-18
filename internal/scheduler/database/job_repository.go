@@ -1,7 +1,6 @@
 package database
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -9,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
@@ -35,24 +35,24 @@ type JobRunLease struct {
 type JobRepository interface {
 	// FetchJobUpdates returns all jobs and job dbRuns that have been updated after jobSerial and jobRunSerial respectively
 	// These updates are guaranteed to be consistent with each other
-	FetchJobUpdates(ctx context.Context, jobSerial int64, jobRunSerial int64) ([]Job, []Run, error)
+	FetchJobUpdates(ctx *armadacontext.Context, jobSerial int64, jobRunSerial int64) ([]Job, []Run, error)
 
 	// FetchJobRunErrors returns all armadaevents.JobRunErrors for the provided job run ids.  The returned map is
 	// keyed by job run id.  Any dbRuns which don't have errors wil be absent from the map.
-	FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error)
+	FetchJobRunErrors(ctx *armadacontext.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error)
 
 	// CountReceivedPartitions returns a count of the number of partition messages present in the database corresponding
 	// to the provided groupId.  This is used by the scheduler to determine if the database represents the state of
 	// pulsar after a given point in time.
-	CountReceivedPartitions(ctx context.Context, groupId uuid.UUID) (uint32, error)
+	CountReceivedPartitions(ctx *armadacontext.Context, groupId uuid.UUID) (uint32, error)
 
 	// FindInactiveRuns returns a slice containing all dbRuns that the scheduler does not currently consider active
 	// Runs are inactive if they don't exist or if they have succeeded, failed or been cancelled
-	FindInactiveRuns(ctx context.Context, runIds []uuid.UUID) ([]uuid.UUID, error)
+	FindInactiveRuns(ctx *armadacontext.Context, runIds []uuid.UUID) ([]uuid.UUID, error)
 
 	// FetchJobRunLeases fetches new job runs for a given executor.  A maximum of maxResults rows will be returned, while run
 	// in excludedRunIds will be excluded
-	FetchJobRunLeases(ctx context.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*JobRunLease, error)
+	FetchJobRunLeases(ctx *armadacontext.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*JobRunLease, error)
 }
 
 // PostgresJobRepository is an implementation of JobRepository that stores its state in postgres
@@ -72,7 +72,7 @@ func NewPostgresJobRepository(db *pgxpool.Pool, batchSize int32) *PostgresJobRep
 
 // FetchJobRunErrors returns all armadaevents.JobRunErrors for the provided job run ids.  The returned map is
 // keyed by job run id.  Any dbRuns which don't have errors wil be absent from the map.
-func (r *PostgresJobRepository) FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error) {
+func (r *PostgresJobRepository) FetchJobRunErrors(ctx *armadacontext.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error) {
 	if len(runIds) == 0 {
 		return map[uuid.UUID]*armadaevents.Error{}, nil
 	}
@@ -125,7 +125,7 @@ func (r *PostgresJobRepository) FetchJobRunErrors(ctx context.Context, runIds []
 
 // FetchJobUpdates returns all jobs and job dbRuns that have been updated after jobSerial and jobRunSerial respectively
 // These updates are guaranteed to be consistent with each other
-func (r *PostgresJobRepository) FetchJobUpdates(ctx context.Context, jobSerial int64, jobRunSerial int64) ([]Job, []Run, error) {
+func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobSerial int64, jobRunSerial int64) ([]Job, []Run, error) {
 	var updatedJobs []Job = nil
 	var updatedRuns []Run = nil
 
@@ -180,7 +180,7 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx context.Context, jobSerial i
 
 // FindInactiveRuns returns a slice containing all dbRuns that the scheduler does not currently consider active
 // Runs are inactive if they don't exist or if they have succeeded, failed or been cancelled
-func (r *PostgresJobRepository) FindInactiveRuns(ctx context.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
+func (r *PostgresJobRepository) FindInactiveRuns(ctx *armadacontext.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
 	var inactiveRuns []uuid.UUID
 	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
@@ -221,7 +221,10 @@ func (r *PostgresJobRepository) FindInactiveRuns(ctx context.Context, runIds []u
 
 // FetchJobRunLeases fetches new job runs for a given executor.  A maximum of maxResults rows will be returned, while run
 // in excludedRunIds will be excluded
-func (r *PostgresJobRepository) FetchJobRunLeases(ctx context.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*JobRunLease, error) {
+func (r *PostgresJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*JobRunLease, error) {
+	if maxResults == 0 {
+		return []*JobRunLease{}, nil
+	}
 	var newRuns []*JobRunLease
 	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
@@ -269,7 +272,7 @@ func (r *PostgresJobRepository) FetchJobRunLeases(ctx context.Context, executor 
 // CountReceivedPartitions returns a count of the number of partition messages present in the database corresponding
 // to the provided groupId.  This is used by the scheduler to determine if the database represents the state of
 // pulsar after a given point in time.
-func (r *PostgresJobRepository) CountReceivedPartitions(ctx context.Context, groupId uuid.UUID) (uint32, error) {
+func (r *PostgresJobRepository) CountReceivedPartitions(ctx *armadacontext.Context, groupId uuid.UUID) (uint32, error) {
 	queries := New(r.db)
 	count, err := queries.CountGroup(ctx, groupId)
 	if err != nil {
@@ -297,7 +300,7 @@ func fetch[T hasSerial](from int64, batchSize int32, fetchBatch func(int64) ([]T
 }
 
 // Insert all run ids into a tmp table.  The name of the table is returned
-func insertRunIdsToTmpTable(ctx context.Context, tx pgx.Tx, runIds []uuid.UUID) (string, error) {
+func insertRunIdsToTmpTable(ctx *armadacontext.Context, tx pgx.Tx, runIds []uuid.UUID) (string, error) {
 	tmpTable := database.UniqueTableName("job_runs")
 
 	_, err := tx.Exec(ctx, fmt.Sprintf("CREATE TEMPORARY TABLE %s (run_id  uuid) ON COMMIT DROP", tmpTable))
