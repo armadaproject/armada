@@ -1,11 +1,12 @@
 package healthmonitor
 
 import (
-	"context"
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 // ManualHealthMonitor is a manually controlled health monitor.
@@ -46,7 +47,7 @@ func (srv *ManualHealthMonitor) IsHealthy() (bool, string, error) {
 	}
 }
 
-func (srv *ManualHealthMonitor) Run(ctx context.Context, log *logrus.Entry) error {
+func (srv *ManualHealthMonitor) Run(_ *armadacontext.Context, _ *logrus.Entry) error {
 	return nil
 }
 

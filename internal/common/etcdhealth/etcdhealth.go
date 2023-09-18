@@ -1,7 +1,6 @@
 package etcdhealth
 
 import (
-	"context"
 	"sync"
 	"time"
 
@@ -9,6 +8,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/metrics"
@@ -184,7 +184,7 @@ func (srv *EtcdReplicaHealthMonitor) sizeFraction() float64 {
 	return srv.etcdSizeBytes / srv.etcdCapacityBytes
 }
 
-func (srv *EtcdReplicaHealthMonitor) Run(ctx context.Context, log *logrus.Entry) error {
+func (srv *EtcdReplicaHealthMonitor) Run(ctx *armadacontext.Context, log *logrus.Entry) error {
 	log = log.WithField("service", "EtcdHealthMonitor")
 	log.Info("starting etcd health monitor")
 	defer log.Info("stopping etcd health monitor")
@@ -264,7 +264,7 @@ func (srv *EtcdReplicaHealthMonitor) setCapacityBytesFromMetrics(metrics map[str
 
 // BlockUntilNextMetricsCollection blocks until the next metrics collection has completed,
 // or until ctx is cancelled, whichever occurs first.
-func (srv *EtcdReplicaHealthMonitor) BlockUntilNextMetricsCollection(ctx context.Context) {
+func (srv *EtcdReplicaHealthMonitor) BlockUntilNextMetricsCollection(ctx *armadacontext.Context) {
 	c := make(chan struct{})
 	srv.mu.Lock()
 	srv.watchers = append(srv.watchers, c)

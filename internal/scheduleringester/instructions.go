@@ -1,7 +1,6 @@
 package scheduleringester
 
 import (
-	"context"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -10,6 +9,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
@@ -46,7 +46,7 @@ func NewInstructionConverter(
 	}
 }
 
-func (c *InstructionConverter) Convert(_ context.Context, sequencesWithIds *ingest.EventSequencesWithIds) *DbOperationsWithMessageIds {
+func (c *InstructionConverter) Convert(_ *armadacontext.Context, sequencesWithIds *ingest.EventSequencesWithIds) *DbOperationsWithMessageIds {
 	operations := make([]DbOperation, 0)
 	for _, es := range sequencesWithIds.EventSequences {
 		for _, op := range c.dbOperationsFromEventSequence(es) {

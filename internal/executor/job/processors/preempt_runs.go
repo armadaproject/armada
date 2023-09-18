@@ -1,13 +1,13 @@
 package processors
 
 import (
-	"context"
 	"fmt"
 	"time"
 
 	log "github.com/sirupsen/logrus"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	executorContext "github.com/armadaproject/armada/internal/executor/context"
 	"github.com/armadaproject/armada/internal/executor/domain"
 	"github.com/armadaproject/armada/internal/executor/job"
@@ -46,7 +46,7 @@ func (j *RunPreemptedProcessor) Run() {
 	})
 	runPodInfos := createRunPodInfos(runsToCancel, managedPods)
 
-	util.ProcessItemsWithThreadPool(context.Background(), 20, runPodInfos,
+	util.ProcessItemsWithThreadPool(armadacontext.Background(), 20, runPodInfos,
 		func(runInfo *runPodInfo) {
 			pod := runInfo.Pod
 			if pod == nil {
