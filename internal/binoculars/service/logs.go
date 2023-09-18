@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -10,13 +9,14 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/cluster"
 	"github.com/armadaproject/armada/pkg/api/binoculars"
 )
 
 type LogService interface {
-	GetLogs(ctx context.Context, params *LogParams) ([]*binoculars.LogLine, error)
+	GetLogs(ctx *armadacontext.Context, params *LogParams) ([]*binoculars.LogLine, error)
 }
 
 type LogParams struct {
@@ -37,7 +37,7 @@ func NewKubernetesLogService(clientProvider cluster.KubernetesClientProvider) *K
 	return &KubernetesLogService{clientProvider: clientProvider}
 }
 
-func (l *KubernetesLogService) GetLogs(ctx context.Context, params *LogParams) ([]*binoculars.LogLine, error) {
+func (l *KubernetesLogService) GetLogs(ctx *armadacontext.Context, params *LogParams) ([]*binoculars.LogLine, error) {
 	client, err := l.clientProvider.ClientForUser(params.Principal.GetName(), params.Principal.GetGroupNames())
 	if err != nil {
 		return nil, err

@@ -1,12 +1,12 @@
 package repository
 
 import (
-	"context"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
@@ -34,7 +34,7 @@ func TestGetJobRunError(t *testing.T) {
 				ApiJob()
 
 			repo := NewSqlGetJobRunErrorRepository(db, &compress.NoOpDecompressor{})
-			result, err := repo.GetJobRunError(context.TODO(), runId)
+			result, err := repo.GetJobRunError(armadacontext.TODO(), runId)
 			assert.NoError(t, err)
 			assert.Equal(t, expected, result)
 		}
@@ -46,7 +46,7 @@ func TestGetJobRunError(t *testing.T) {
 func TestGetJobRunErrorNotFound(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		repo := NewSqlGetJobRunErrorRepository(db, &compress.NoOpDecompressor{})
-		_, err := repo.GetJobRunError(context.TODO(), runId)
+		_, err := repo.GetJobRunError(armadacontext.TODO(), runId)
 		assert.Error(t, err)
 		return nil
 	})

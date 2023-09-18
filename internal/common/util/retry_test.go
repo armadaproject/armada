@@ -1,16 +1,17 @@
 package util
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 func TestRetryDoesntSpin(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 1*time.Second)
 	defer cancel()
 
 	RetryUntilSuccess(
@@ -30,7 +31,7 @@ func TestRetryDoesntSpin(t *testing.T) {
 }
 
 func TestRetryCancel(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 1*time.Second)
 	defer cancel()
 
 	RetryUntilSuccess(
@@ -61,7 +62,7 @@ func TestSucceedsAfterFailures(t *testing.T) {
 
 	errorCount := 0
 
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 1*time.Second)
 	defer cancel()
 
 	RetryUntilSuccess(

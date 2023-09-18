@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonmetrics "github.com/armadaproject/armada/internal/common/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -86,7 +86,7 @@ func TestMetricsCollector_TestCollect_QueueMetrics(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			testClock := clock.NewFakeClock(testfixtures.BaseTime)
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
 			// set up job db with initial jobs
@@ -236,7 +236,7 @@ func TestMetricsCollector_TestCollect_ClusterMetrics(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
 			testClock := clock.NewFakeClock(testfixtures.BaseTime)
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
 			// set up job db with initial jobs
@@ -303,7 +303,7 @@ type MockPoolAssigner struct {
 	poolsById   map[string]string
 }
 
-func (m MockPoolAssigner) Refresh(_ context.Context) error {
+func (m MockPoolAssigner) Refresh(_ *armadacontext.Context) error {
 	return nil
 }
 

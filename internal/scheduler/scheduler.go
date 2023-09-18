@@ -1,19 +1,19 @@
 package scheduler
 
 import (
-	"context"
 	"fmt"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
+	"github.com/renstrom/shortuuid"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -116,40 +116,38 @@ func NewScheduler(
 }
 
 // Run enters the scheduling loop, which will continue until ctx is cancelled.
-func (s *Scheduler) Run(ctx context.Context) error {
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("service", "scheduler")
-	ctx = ctxlogrus.ToContext(ctx, log)
-	log.Infof("starting scheduler with cycle time %s", s.cyclePeriod)
-	defer log.Info("scheduler stopped")
+func (s *Scheduler) Run(ctx *armadacontext.Context) error {
+	ctx.Infof("starting scheduler with cycle time %s", s.cyclePeriod)
+	defer ctx.Info("scheduler stopped")
 
 	// JobDb initialisation.
 	start := s.clock.Now()
 	if err := s.initialise(ctx); err != nil {
 		return err
 	}
-	log.Infof("JobDb initialised in %s", s.clock.Since(start))
+	ctx.Infof("JobDb initialised in %s", s.clock.Since(start))
 
 	ticker := s.clock.NewTicker(s.cyclePeriod)
 	prevLeaderToken := InvalidLeaderToken()
 	for {
 		select {
 		case <-ctx.Done():
-			log.Infof("context cancelled; returning.")
+			ctx.Infof("context cancelled; returning.")
 			return ctx.Err()
 		case <-ticker.C():
 			start := s.clock.Now()
+			ctx := armadacontext.WithLogField(ctx, "cycleId", shortuuid.New())
 			leaderToken := s.leaderController.GetToken()
 			fullUpdate := false
-			log.Infof("received leaderToken; leader status is %t", leaderToken.leader)
+			ctx.Infof("received leaderToken; leader status is %t", leaderToken.leader)
 
 			// If we are becoming leader then we must ensure we have caught up to all Pulsar messages
 			if leaderToken.leader && leaderToken != prevLeaderToken {
-				log.Infof("becoming leader")
-				syncContext, cancel := context.WithTimeout(ctx, 5*time.Minute)
+				ctx.Infof("becoming leader")
+				syncContext, cancel := armadacontext.WithTimeout(ctx, 5*time.Minute)
 				err := s.ensureDbUpToDate(syncContext, 1*time.Second)
 				if err != nil {
-					log.WithError(err).Error("could not become leader")
+					logging.WithStacktrace(ctx, err).Error("could not become leader")
 					leaderToken = InvalidLeaderToken()
 				} else {
 					fullUpdate = true
@@ -169,7 +167,7 @@ func (s *Scheduler) Run(ctx context.Context) error {
 
 			result, err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule)
 			if err != nil {
-				logging.WithStacktrace(log, err).Error("scheduling cycle failure")
+				logging.WithStacktrace(ctx, err).Error("scheduling cycle failure")
 				leaderToken = InvalidLeaderToken()
 			}
 
@@ -178,13 +176,13 @@ func (s *Scheduler) Run(ctx context.Context) error {
 			s.metrics.ResetGaugeMetrics()
 
 			if shouldSchedule && leaderToken.leader {
-				// Only the leader token does real scheduling rounds.
+				// Only the leader does real scheduling rounds.
 				s.metrics.ReportScheduleCycleTime(cycleTime)
-				s.metrics.ReportSchedulerResult(result)
-				log.Infof("scheduling cycle completed in %s", cycleTime)
+				s.metrics.ReportSchedulerResult(ctx, result)
+				ctx.Infof("scheduling cycle completed in %s", cycleTime)
 			} else {
 				s.metrics.ReportReconcileCycleTime(cycleTime)
-				log.Infof("reconciliation cycle completed in %s", cycleTime)
+				ctx.Infof("reconciliation cycle completed in %s", cycleTime)
 			}
 
 			prevLeaderToken = leaderToken
@@ -198,11 +196,9 @@ func (s *Scheduler) Run(ctx context.Context) error {
 // cycle is a single iteration of the main scheduling loop.
 // If updateAll is true, we generate events from all jobs in the jobDb.
 // Otherwise, we only generate events from jobs updated since the last cycle.
-func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) (overallSchedulerResult SchedulerResult, err error) {
+func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) (overallSchedulerResult SchedulerResult, err error) {
 	overallSchedulerResult = SchedulerResult{EmptyResult: true}
 
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("function", "cycle")
 	// Update job state.
 	updatedJobs, err := s.syncState(ctx)
 	if err != nil {
@@ -244,7 +240,7 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 		}
 
 		var resultEvents []*armadaevents.EventSequence
-		resultEvents, err = s.eventsFromSchedulerResult(txn, result)
+		resultEvents, err = s.eventsFromSchedulerResult(result)
 		if err != nil {
 			return
 		}
@@ -262,22 +258,19 @@ func (s *Scheduler) cycle(ctx context.Context, updateAll bool, leaderToken Leade
 	if err = s.publisher.PublishMessages(ctx, events, isLeader); err != nil {
 		return
 	}
-	log.Infof("published %d events to pulsar in %s", len(events), s.clock.Since(start))
+	ctx.Infof("published %d events to pulsar in %s", len(events), s.clock.Since(start))
 	txn.Commit()
 	return
 }
 
 // syncState updates jobs in jobDb to match state in postgres and returns all updated jobs.
-func (s *Scheduler) syncState(ctx context.Context) ([]*jobdb.Job, error) {
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("function", "syncState")
-
+func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) {
 	start := s.clock.Now()
 	updatedJobs, updatedRuns, err := s.jobRepository.FetchJobUpdates(ctx, s.jobsSerial, s.runsSerial)
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("received %d updated jobs and %d updated job runs in %s", len(updatedJobs), len(updatedRuns), s.clock.Since(start))
+	ctx.Infof("received %d updated jobs and %d updated job runs in %s", len(updatedJobs), len(updatedRuns), s.clock.Since(start))
 
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
@@ -321,7 +314,7 @@ func (s *Scheduler) syncState(ctx context.Context) ([]*jobdb.Job, error) {
 			// If the job is nil or terminal at this point then it cannot be active.
 			// In this case we can ignore the run.
 			if job == nil || job.InTerminalState() {
-				log.Debugf("job %s is not active; ignoring update for run %s", jobId, dbRun.RunID)
+				ctx.Debugf("job %s is not active; ignoring update for run %s", jobId, dbRun.RunID)
 				continue
 			}
 		}
@@ -391,7 +384,7 @@ func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job *jobd
 }
 
 // eventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
-func (s *Scheduler) eventsFromSchedulerResult(txn *jobdb.Txn, result *SchedulerResult) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) eventsFromSchedulerResult(result *SchedulerResult) ([]*armadaevents.EventSequence, error) {
 	return EventsFromSchedulerResult(result, s.clock.Now())
 }
 
@@ -507,7 +500,7 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 
 // generateUpdateMessages generates EventSequences representing the state changes on updated jobs
 // If there are no state changes then an empty slice will be returned
-func (s *Scheduler) generateUpdateMessages(ctx context.Context, updatedJobs []*jobdb.Job, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, updatedJobs []*jobdb.Job, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
 	failedRunIds := make([]uuid.UUID, 0, len(updatedJobs))
 	for _, job := range updatedJobs {
 		run := job.LatestRun()
@@ -708,10 +701,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 // expireJobsIfNecessary removes any jobs from the JobDb which are running on stale executors.
 // It also generates an EventSequence for each job, indicating that both the run and the job has failed
 // Note that this is different behaviour from the old scheduler which would allow expired jobs to be rerun
-func (s *Scheduler) expireJobsIfNecessary(ctx context.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("function", "expireJobsIfNecessary")
-
+func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
 	heartbeatTimes, err := s.executorRepository.GetLastUpdateTimes(ctx)
 	if err != nil {
 		return nil, err
@@ -726,14 +716,14 @@ func (s *Scheduler) expireJobsIfNecessary(ctx context.Context, txn *jobdb.Txn) (
 	// has been completely removed
 	for executor, heartbeat := range heartbeatTimes {
 		if heartbeat.Before(cutOff) {
-			log.Warnf("Executor %s has not reported a hearbeart since %v. Will expire all jobs running on this executor", executor, heartbeat)
+			ctx.Warnf("Executor %s has not reported a hearbeart since %v. Will expire all jobs running on this executor", executor, heartbeat)
 			staleExecutors[executor] = true
 		}
 	}
 
 	// All clusters have had a heartbeat recently.  No need to expire any jobs
 	if len(staleExecutors) == 0 {
-		log.Infof("No stale executors found. No jobs need to be expired")
+		ctx.Infof("No stale executors found. No jobs need to be expired")
 		return nil, nil
 	}
 
@@ -750,7 +740,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx context.Context, txn *jobdb.Txn) (
 
 		run := job.LatestRun()
 		if run != nil && !job.Queued() && staleExecutors[run.Executor()] {
-			log.Warnf("Cancelling job %s as it is running on lost executor %s", job.Id(), run.Executor())
+			ctx.Warnf("Cancelling job %s as it is running on lost executor %s", job.Id(), run.Executor())
 			jobsToUpdate = append(jobsToUpdate, job.WithQueued(false).WithFailed(true).WithUpdatedRun(run.WithFailed(true)))
 
 			jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
@@ -808,16 +798,14 @@ func (s *Scheduler) now() *time.Time {
 // initialise builds the initial job db based on the current database state
 // right now this is quite dim and loads the entire database but in the future
 // we should be  able to make it load active jobs/runs only
-func (s *Scheduler) initialise(ctx context.Context) error {
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("function", "initialise")
+func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
 		default:
 			if _, err := s.syncState(ctx); err != nil {
-				log.WithError(err).Error("failed to initialise; trying again in 1 second")
+				logging.WithStacktrace(ctx, err).Error("failed to initialise; trying again in 1 second")
 				time.Sleep(1 * time.Second)
 			} else {
 				// Initialisation succeeded.
@@ -830,10 +818,7 @@ func (s *Scheduler) initialise(ctx context.Context) error {
 // ensureDbUpToDate blocks until that the database state contains all Pulsar messages sent *before* this
 // function was called. This is achieved firstly by publishing messages to Pulsar and then polling the
 // database until all messages have been written.
-func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Duration) error {
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("function", "ensureDbUpToDate")
-
+func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval time.Duration) error {
 	groupId := uuid.New()
 	var numSent uint32
 	var err error
@@ -847,7 +832,7 @@ func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Dura
 		default:
 			numSent, err = s.publisher.PublishMarkers(ctx, groupId)
 			if err != nil {
-				log.WithError(err).Error("Error sending marker messages to pulsar")
+				logging.WithStacktrace(ctx, err).Error("Error sending marker messages to pulsar")
 				s.clock.Sleep(pollInterval)
 			} else {
 				messagesSent = true
@@ -863,13 +848,15 @@ func (s *Scheduler) ensureDbUpToDate(ctx context.Context, pollInterval time.Dura
 		default:
 			numReceived, err := s.jobRepository.CountReceivedPartitions(ctx, groupId)
 			if err != nil {
-				log.WithError(err).Error("Error querying the database or marker messages")
+				logging.
+					WithStacktrace(ctx, err).
+					Error("Error querying the database or marker messages")
 			}
 			if numSent == numReceived {
-				log.Infof("Successfully ensured that database state is up to date")
+				ctx.Infof("Successfully ensured that database state is up to date")
 				return nil
 			}
-			log.Infof("Recevied %d partitions, still waiting on  %d", numReceived, numSent-numReceived)
+			ctx.Infof("Recevied %d partitions, still waiting on  %d", numReceived, numSent-numReceived)
 			s.clock.Sleep(pollInterval)
 		}
 	}

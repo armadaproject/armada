@@ -1,13 +1,13 @@
 package scheduler
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -24,7 +24,7 @@ func TestProxyingSchedulingReportsServer_GetJobReports(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
 			sut, jobReportsClient := setupProxyingSchedulerReportsServerTest(t)
@@ -62,7 +62,7 @@ func TestProxyingSchedulingReportsServer_GetSchedulingReport(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
 			sut, jobReportsClient := setupProxyingSchedulerReportsServerTest(t)
@@ -100,7 +100,7 @@ func TestProxyingSchedulingReportsServer_GetQueueReport(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
 			sut, jobReportsClient := setupProxyingSchedulerReportsServerTest(t)

@@ -3,20 +3,17 @@ package simulator
 import (
 	"bytes"
 	"container/heap"
-	"context"
-	fmt "fmt"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/caarlos0/log"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/mattn/go-zglob"
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
@@ -25,6 +22,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -34,7 +32,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -472,7 +470,7 @@ func (s *Simulator) handleScheduleEvent() error {
 			if s.schedulingConfig.EnableNewPreemptionStrategy {
 				sch.EnableNewPreemptionStrategy()
 			}
-			ctx := ctxlogrus.ToContext(context.Background(), logrus.NewEntry(logrus.New()))
+			ctx := armadacontext.Background()
 			result, err := sch.Schedule(ctx)
 			if err != nil {
 				return err
@@ -775,7 +773,7 @@ func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRun
 	return true, nil
 }
 
-// func (a *App) TestPattern(ctx context.Context, pattern string) (*TestSuiteReport, error) {
+// func (a *App) TestPattern(ctx *context.Context, pattern string) (*TestSuiteReport, error) {
 // 	testSpecs, err := TestSpecsFromPattern(pattern)
 // 	if err != nil {
 // 		return nil, err

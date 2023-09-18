@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -13,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
@@ -512,14 +512,14 @@ func TestQueueScheduler(t *testing.T) {
 			)
 			jobIteratorByQueue := make(map[string]JobIterator)
 			for queue := range tc.PriorityFactorByQueue {
-				it, err := jobRepo.GetJobIterator(context.Background(), queue)
+				it, err := jobRepo.GetJobIterator(armadacontext.Background(), queue)
 				require.NoError(t, err)
 				jobIteratorByQueue[queue] = it
 			}
 			sch, err := NewQueueScheduler(sctx, constraints, nodeDb, jobIteratorByQueue)
 			require.NoError(t, err)
 
-			result, err := sch.Schedule(context.Background())
+			result, err := sch.Schedule(armadacontext.Background())
 			require.NoError(t, err)
 
 			// Check that the right jobs got scheduled.
