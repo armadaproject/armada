@@ -1,12 +1,12 @@
 package repository
 
 import (
-	"context"
 	"database/sql"
 
 	"github.com/doug-martin/goqu/v9"
 	_ "github.com/doug-martin/goqu/v9/dialect/postgres"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api/lookout"
 )
@@ -33,9 +33,9 @@ const (
 )
 
 type JobRepository interface {
-	GetQueueInfos(ctx context.Context) ([]*lookout.QueueInfo, error)
-	GetJobSetInfos(ctx context.Context, opts *lookout.GetJobSetsRequest) ([]*lookout.JobSetInfo, error)
-	GetJobs(ctx context.Context, opts *lookout.GetJobsRequest) ([]*lookout.JobInfo, error)
+	GetQueueInfos(ctx *armadacontext.Context) ([]*lookout.QueueInfo, error)
+	GetJobSetInfos(ctx *armadacontext.Context, opts *lookout.GetJobSetsRequest) ([]*lookout.JobSetInfo, error)
+	GetJobs(ctx *armadacontext.Context, opts *lookout.GetJobsRequest) ([]*lookout.JobInfo, error)
 }
 
 type SQLJobRepository struct {

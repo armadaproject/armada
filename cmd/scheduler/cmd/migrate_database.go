@@ -1,13 +1,13 @@
 package cmd
 
 import (
-	"context"
 	"time"
 
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
@@ -43,7 +43,7 @@ func migrateDatabase(cmd *cobra.Command, _ []string) error {
 		return errors.WithMessagef(err, "Failed to connect to database")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), timeout)
 	defer cancel()
 	return schedulerdb.Migrate(ctx, db)
 }

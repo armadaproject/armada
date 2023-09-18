@@ -1,7 +1,6 @@
 package context
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -26,12 +25,11 @@ import (
 	"k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 	"k8s.io/utils/pointer"
 
-	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/cluster"
 	util2 "github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/domain"
-	"github.com/armadaproject/armada/internal/executor/healthmonitor"
 	"github.com/armadaproject/armada/internal/executor/util"
 )
 
@@ -52,7 +50,7 @@ type ClusterContext interface {
 	GetActiveBatchPods() ([]*v1.Pod, error)
 	GetNodes() ([]*v1.Node, error)
 	GetNode(nodeName string) (*v1.Node, error)
-	GetNodeStatsSummary(context.Context, *v1.Node) (*v1alpha1.Summary, error)
+	GetNodeStatsSummary(*armadacontext.Context, *v1.Node) (*v1alpha1.Summary, error)
 	GetPodEvents(pod *v1.Pod) ([]*v1.Event, error)
 	GetServices(pod *v1.Pod) ([]*v1.Service, error)
 	GetIngresses(pod *v1.Pod) ([]*networking.Ingress, error)
@@ -87,10 +85,8 @@ type KubernetesClusterContext struct {
 	kubernetesClient         kubernetes.Interface
 	kubernetesClientProvider cluster.KubernetesClientProvider
 	eventInformer            informer.EventInformer
-	// If provided, stops object creation while EtcdMaxFractionOfStorageInUse or more of etcd storage is full.
-	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor
-	podKillTimeout    time.Duration
-	clock             clock.Clock
+	podKillTimeout           time.Duration
+	clock                    clock.Clock
 }
 
 func (c *KubernetesClusterContext) GetClusterId() string {
@@ -105,7 +101,6 @@ func NewClusterContext(
 	configuration configuration.ApplicationConfiguration,
 	minTimeBetweenRepeatDeletionCalls time.Duration,
 	kubernetesClientProvider cluster.KubernetesClientProvider,
-	etcdHealthMonitor healthmonitor.EtcdLimitHealthMonitor,
 	killTimeout time.Duration,
 ) *KubernetesClusterContext {
 	kubernetesClient := kubernetesClientProvider.Client()
@@ -127,7 +122,6 @@ func NewClusterContext(
 		endpointSliceInformer:    factory.Discovery().V1().EndpointSlices(),
 		kubernetesClient:         kubernetesClient,
 		kubernetesClientProvider: kubernetesClientProvider,
-		etcdHealthMonitor:        etcdHealthMonitor,
 		podKillTimeout:           killTimeout,
 		clock:                    clock.RealClock{},
 	}
@@ -229,7 +223,7 @@ func (c *KubernetesClusterContext) GetNode(nodeName string) (*v1.Node, error) {
 	return c.nodeInformer.Lister().Get(nodeName)
 }
 
-func (c *KubernetesClusterContext) GetNodeStatsSummary(ctx context.Context, node *v1.Node) (*v1alpha1.Summary, error) {
+func (c *KubernetesClusterContext) GetNodeStatsSummary(ctx *armadacontext.Context, node *v1.Node) (*v1alpha1.Summary, error) {
 	request := c.kubernetesClient.
 		CoreV1().
 		RESTClient().
@@ -253,23 +247,13 @@ func (c *KubernetesClusterContext) GetNodeStatsSummary(ctx context.Context, node
 }
 
 func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGroups []string) (*v1.Pod, error) {
-	// If a health monitor is provided, reject pods when etcd is at its hard limit.
-	if c.etcdHealthMonitor != nil && !c.etcdHealthMonitor.IsWithinHardHealthLimit() {
-		err := errors.WithStack(&armadaerrors.ErrCreateResource{
-			Type:    "pod",
-			Name:    pod.Name,
-			Message: fmt.Sprintf("etcd is at its hard heatlh limit and therefore not healthy to submit to"),
-		})
-		return nil, err
-	}
-
 	c.submittedPods.Add(pod)
 	ownerClient, err := c.kubernetesClientProvider.ClientForUser(owner, ownerGroups)
 	if err != nil {
 		return nil, err
 	}
 
-	returnedPod, err := ownerClient.CoreV1().Pods(pod.Namespace).Create(context.Background(), pod, metav1.CreateOptions{})
+	returnedPod, err := ownerClient.CoreV1().Pods(pod.Namespace).Create(armadacontext.Background(), pod, metav1.CreateOptions{})
 	if err != nil {
 		c.submittedPods.Delete(util.ExtractPodKey(pod))
 	}
@@ -277,11 +261,11 @@ func (c *KubernetesClusterContext) SubmitPod(pod *v1.Pod, owner string, ownerGro
 }
 
 func (c *KubernetesClusterContext) SubmitService(service *v1.Service) (*v1.Service, error) {
-	return c.kubernetesClient.CoreV1().Services(service.Namespace).Create(context.Background(), service, metav1.CreateOptions{})
+	return c.kubernetesClient.CoreV1().Services(service.Namespace).Create(armadacontext.Background(), service, metav1.CreateOptions{})
 }
 
 func (c *KubernetesClusterContext) SubmitIngress(ingress *networking.Ingress) (*networking.Ingress, error) {
-	return c.kubernetesClient.NetworkingV1().Ingresses(ingress.Namespace).Create(context.Background(), ingress, metav1.CreateOptions{})
+	return c.kubernetesClient.NetworkingV1().Ingresses(ingress.Namespace).Create(armadacontext.Background(), ingress, metav1.CreateOptions{})
 }
 
 func (c *KubernetesClusterContext) AddAnnotation(pod *v1.Pod, annotations map[string]string) error {
@@ -296,7 +280,7 @@ func (c *KubernetesClusterContext) AddAnnotation(pod *v1.Pod, annotations map[st
 	}
 	_, err = c.kubernetesClient.CoreV1().
 		Pods(pod.Namespace).
-		Patch(context.Background(), pod.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
+		Patch(armadacontext.Background(), pod.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
 		return err
 	}
@@ -315,7 +299,7 @@ func (c *KubernetesClusterContext) AddClusterEventAnnotation(event *v1.Event, an
 	}
 	_, err = c.kubernetesClient.CoreV1().
 		Events(event.Namespace).
-		Patch(context.Background(), event.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
+		Patch(armadacontext.Background(), event.Name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
 		return err
 	}
@@ -334,7 +318,7 @@ func (c *KubernetesClusterContext) DeletePodWithCondition(pod *v1.Pod, condition
 			return err
 		}
 		// Get latest pod state - bypassing cache
-		timeout, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		timeout, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Second*10)
 		defer cancel()
 		currentPod, err = c.kubernetesClient.CoreV1().Pods(currentPod.Namespace).Get(timeout, currentPod.Name, metav1.GetOptions{})
 		if err != nil {
@@ -384,7 +368,7 @@ func (c *KubernetesClusterContext) DeletePods(pods []*v1.Pod) {
 
 func (c *KubernetesClusterContext) DeleteService(service *v1.Service) error {
 	deleteOptions := createDeleteOptions()
-	err := c.kubernetesClient.CoreV1().Services(service.Namespace).Delete(context.Background(), service.Name, deleteOptions)
+	err := c.kubernetesClient.CoreV1().Services(service.Namespace).Delete(armadacontext.Background(), service.Name, deleteOptions)
 	if err != nil && k8s_errors.IsNotFound(err) {
 		return nil
 	}
@@ -393,7 +377,7 @@ func (c *KubernetesClusterContext) DeleteService(service *v1.Service) error {
 
 func (c *KubernetesClusterContext) DeleteIngress(ingress *networking.Ingress) error {
 	deleteOptions := createDeleteOptions()
-	err := c.kubernetesClient.NetworkingV1().Ingresses(ingress.Namespace).Delete(context.Background(), ingress.Name, deleteOptions)
+	err := c.kubernetesClient.NetworkingV1().Ingresses(ingress.Namespace).Delete(armadacontext.Background(), ingress.Name, deleteOptions)
 	if err != nil && k8s_errors.IsNotFound(err) {
 		return nil
 	}
@@ -402,7 +386,7 @@ func (c *KubernetesClusterContext) DeleteIngress(ingress *networking.Ingress) er
 
 func (c *KubernetesClusterContext) ProcessPodsToDelete() {
 	pods := c.podsToDelete.GetAll()
-	util.ProcessItemsWithThreadPool(context.Background(), c.deleteThreadCount, pods, func(podToDelete *v1.Pod) {
+	util.ProcessItemsWithThreadPool(armadacontext.Background(), c.deleteThreadCount, pods, func(podToDelete *v1.Pod) {
 		if podToDelete == nil {
 			return
 		}
@@ -454,7 +438,7 @@ func (c *KubernetesClusterContext) doDelete(pod *v1.Pod, force bool) {
 }
 
 func (c *KubernetesClusterContext) deletePod(pod *v1.Pod, deleteOptions metav1.DeleteOptions) error {
-	return c.kubernetesClient.CoreV1().Pods(pod.Namespace).Delete(context.Background(), pod.Name, deleteOptions)
+	return c.kubernetesClient.CoreV1().Pods(pod.Namespace).Delete(armadacontext.Background(), pod.Name, deleteOptions)
 }
 
 func (c *KubernetesClusterContext) markForDeletion(pod *v1.Pod) (*v1.Pod, error) {
