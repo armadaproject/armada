@@ -14,6 +14,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/repository/apimessages"
 	"github.com/armadaproject/armada/internal/armada/repository/sequence"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -48,7 +49,7 @@ func NewEventRepository(db redis.UniversalClient) *RedisEventRepository {
 		NumTestsPerEvictionRun:   10,
 	}
 
-	decompressorPool := pool.NewObjectPool(context.Background(), pool.NewPooledObjectFactorySimple(
+	decompressorPool := pool.NewObjectPool(armadacontext.Background(), pool.NewPooledObjectFactorySimple(
 		func(context.Context) (interface{}, error) {
 			return compress.NewZlibDecompressor(), nil
 		}), &poolConfig)
@@ -134,16 +135,16 @@ func (repo *RedisEventRepository) GetLastMessageId(queue, jobSetId string) (stri
 func (repo *RedisEventRepository) extractEvents(msg redis.XMessage, queue, jobSetId string) ([]*api.EventMessage, error) {
 	data := msg.Values[dataKey]
 	bytes := []byte(data.(string))
-	decompressor, err := repo.decompressorPool.BorrowObject(context.Background())
+	decompressor, err := repo.decompressorPool.BorrowObject(armadacontext.Background())
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-	defer func(decompressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+	defer func(decompressorPool *pool.ObjectPool, ctx *armadacontext.Context, object interface{}) {
 		err := decompressorPool.ReturnObject(ctx, object)
 		if err != nil {
 			log.WithError(err).Errorf("Error returning decompressor to pool")
 		}
-	}(repo.decompressorPool, context.Background(), decompressor)
+	}(repo.decompressorPool, armadacontext.Background(), decompressor)
 	decompressedData, err := decompressor.(compress.Decompressor).Decompress(bytes)
 	if err != nil {
 		return nil, errors.WithStack(err)
