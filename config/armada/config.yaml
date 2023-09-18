@@ -9,6 +9,8 @@ cancelJobsBatchSize: 1000
 pulsarSchedulerEnabled: false
 probabilityOfUsingPulsarScheduler: 0
 ignoreJobSubmitChecks: false
+schedulerApiConnection:
+  armadaUrl: "localhost:50052"
 grpc:
   keepaliveParams:
     maxConnectionIdle: 5m
@@ -17,6 +19,8 @@ grpc:
   keepaliveEnforcementPolicy:
     minTime: 10s
     permitWithoutStream: true
+  tls:
+    enabled: false
 redis:
   addrs:
     - redis:6379
@@ -57,11 +61,16 @@ scheduling:
         preemptible: true
     defaultPriorityClass: armada-default
     priorityClassNameOverride: armada-default
+  executorTimeout: 60m
   maxQueueLookback: 1000
   maxExtraNodesToConsider: 1
   maximumResourceFractionToSchedule:
     memory: 1.0
     cpu: 1.0
+  maximumSchedulingRate: 100.0
+  maximumSchedulingBurst: 1000
+  maximumPerQueueSchedulingRate: 50.0
+  maximumPerQueueSchedulingBurst: 1000
   maxJobSchedulingContextsPerExecutor: 10000
   lease:
     expireAfter: 15m
@@ -97,6 +106,7 @@ scheduling:
       resolution: "1Mi"
   minTerminationGracePeriod: 1s
   maxTerminationGracePeriod: 300s
+  executorUpdateFrequency: 1m
 queueManagement:
   defaultPriorityFactor: 1000
   defaultQueuedJobsLimit: 0  # No Limit
@@ -120,6 +130,7 @@ pulsar:
   eventsPrinter: false
   eventsPrinterSubscription: "EventsPrinter"
   maxAllowedMessageSize: 4194304 # 4MB
+  receiverQueueSize: 100
 postgres:
   maxOpenConns: 100
   maxIdleConns: 25

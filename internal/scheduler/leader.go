@@ -2,15 +2,16 @@ package scheduler
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 
 	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	coordinationv1client "k8s.io/client-go/kubernetes/typed/coordination/v1"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 )
 
@@ -22,7 +23,14 @@ type LeaderController interface {
 	// Returns true if the token is a leader and false otherwise
 	ValidateToken(tok LeaderToken) bool
 	// Run starts the controller.  This is a blocking call which will return when the provided context is cancelled
-	Run(ctx context.Context) error
+	Run(ctx *armadacontext.Context) error
+	// GetLeaderReport returns a report about the current leader
+	GetLeaderReport() LeaderReport
+}
+
+type LeaderReport struct {
+	IsCurrentProcessLeader bool
+	LeaderName             string
 }
 
 // LeaderToken is a token handed out to schedulers which they can use to determine if they are leader
@@ -63,6 +71,13 @@ func (lc *StandaloneLeaderController) GetToken() LeaderToken {
 	return lc.token
 }
 
+func (lc *StandaloneLeaderController) GetLeaderReport() LeaderReport {
+	return LeaderReport{
+		LeaderName:             "standalone",
+		IsCurrentProcessLeader: true,
+	}
+}
+
 func (lc *StandaloneLeaderController) ValidateToken(tok LeaderToken) bool {
 	if tok.leader {
 		return lc.token.id == tok.id
@@ -70,14 +85,14 @@ func (lc *StandaloneLeaderController) ValidateToken(tok LeaderToken) bool {
 	return false
 }
 
-func (lc *StandaloneLeaderController) Run(ctx context.Context) error {
+func (lc *StandaloneLeaderController) Run(ctx *armadacontext.Context) error {
 	return nil
 }
 
 // LeaseListener allows clients to listen for lease events.
 type LeaseListener interface {
 	// Called when the client has started leading.
-	onStartedLeading(context.Context)
+	onStartedLeading(*armadacontext.Context)
 	// Called when the client has stopped leading,
 	onStoppedLeading()
 }
@@ -87,20 +102,27 @@ type LeaseListener interface {
 //
 // TODO: Move into package in common.
 type KubernetesLeaderController struct {
-	client   coordinationv1client.LeasesGetter
-	token    atomic.Value
-	config   schedulerconfig.LeaderConfig // TODO: Move necessary config into this struct.
-	listener LeaseListener
+	client            coordinationv1client.LeasesGetter
+	token             atomic.Value
+	config            schedulerconfig.LeaderConfig // TODO: Move necessary config into this struct.
+	currentLeaderLock sync.Mutex
+	currentLeader     string
+	listeners         []LeaseListener
 }
 
 func NewKubernetesLeaderController(config schedulerconfig.LeaderConfig, client coordinationv1client.LeasesGetter) *KubernetesLeaderController {
 	controller := &KubernetesLeaderController{
-		client: client,
-		token:  atomic.Value{},
-		config: config,
+		client:            client,
+		token:             atomic.Value{},
+		currentLeaderLock: sync.Mutex{},
+		config:            config,
 	}
 	controller.token.Store(InvalidLeaderToken())
 	return controller
+}
+
+func (lc *KubernetesLeaderController) RegisterListener(listener LeaseListener) {
+	lc.listeners = append(lc.listeners, listener)
 }
 
 func (lc *KubernetesLeaderController) GetToken() LeaderToken {
@@ -116,16 +138,14 @@ func (lc *KubernetesLeaderController) ValidateToken(tok LeaderToken) bool {
 
 // Run starts the controller.
 // This is a blocking call that returns when the provided context is cancelled.
-func (lc *KubernetesLeaderController) Run(ctx context.Context) error {
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("service", "KubernetesLeaderController")
+func (lc *KubernetesLeaderController) Run(ctx *armadacontext.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 			lock := lc.getNewLock()
-			log.Infof("attempting to become leader")
+			ctx.Infof("attempting to become leader")
 			leaderelection.RunOrDie(ctx, leaderelection.LeaderElectionConfig{
 				Lock:            lock,
 				ReleaseOnCancel: true,
@@ -134,23 +154,37 @@ func (lc *KubernetesLeaderController) Run(ctx context.Context) error {
 				RetryPeriod:     lc.config.RetryPeriod,
 				Callbacks: leaderelection.LeaderCallbacks{
 					OnStartedLeading: func(c context.Context) {
-						log.Infof("I am now leader")
+						ctx.Infof("I am now leader")
 						lc.token.Store(NewLeaderToken())
-						if lc.listener != nil {
-							lc.listener.onStartedLeading(ctx)
+						for _, listener := range lc.listeners {
+							listener.onStartedLeading(ctx)
 						}
 					},
 					OnStoppedLeading: func() {
-						log.Infof("I am no longer leader")
+						ctx.Infof("I am no longer leader")
 						lc.token.Store(InvalidLeaderToken())
-						if lc.listener != nil {
-							lc.listener.onStoppedLeading()
+						for _, listener := range lc.listeners {
+							listener.onStoppedLeading()
 						}
+					},
+					OnNewLeader: func(identity string) {
+						lc.currentLeaderLock.Lock()
+						defer lc.currentLeaderLock.Unlock()
+						lc.currentLeader = identity
 					},
 				},
 			})
-			log.Infof("leader election round finished")
+			ctx.Infof("leader election round finished")
 		}
+	}
+}
+
+func (lc *KubernetesLeaderController) GetLeaderReport() LeaderReport {
+	lc.currentLeaderLock.Lock()
+	defer lc.currentLeaderLock.Unlock()
+	return LeaderReport{
+		LeaderName:             lc.currentLeader,
+		IsCurrentProcessLeader: lc.currentLeader == lc.config.PodName,
 	}
 }
 

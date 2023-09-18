@@ -17,6 +17,7 @@ pulsar:
   jobsetEventsTopic: "events"
   receiveTimeout: 5s
   backoffTime: 1s
+  receiverQueueSize: 100
 paralellism: 1
 subscriptionName: "lookout-ingester"
 batchSize: 10000

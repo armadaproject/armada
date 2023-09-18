@@ -1,0 +1,19 @@
+name: Slack CI Alerts
+
+on:
+  workflow_run:
+    workflows: [CI, Python Airflow Operator, Build Release Images, Release Armada components, Release Armada components - RC]
+    types: [completed]
+
+jobs:
+  on-failure:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'failure' 
+    steps:
+      - uses: actions/checkout@v3.3.0
+      - name: "Send Notification"
+        uses: Mo-Fatah/ci-alerts@v2
+        env: 
+          webhook: ${{ secrets.SLACK_WEBHOOK }}
+          github_context: ${{ toJSON(github) }}
+          users_path: ${{github.workspace}}/.github/gh-to-slackid

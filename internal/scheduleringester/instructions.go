@@ -1,19 +1,20 @@
 package scheduleringester
 
 import (
-	"context"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/ingest"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/adapters"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -29,13 +30,13 @@ type eventSequenceCommon struct {
 
 type InstructionConverter struct {
 	metrics         *metrics.Metrics
-	priorityClasses map[string]configuration.PriorityClass
+	priorityClasses map[string]types.PriorityClass
 	compressor      compress.Compressor
 }
 
 func NewInstructionConverter(
 	metrics *metrics.Metrics,
-	priorityClasses map[string]configuration.PriorityClass,
+	priorityClasses map[string]types.PriorityClass,
 	compressor compress.Compressor,
 ) ingest.InstructionConverter[*DbOperationsWithMessageIds] {
 	return &InstructionConverter{
@@ -45,7 +46,7 @@ func NewInstructionConverter(
 	}
 }
 
-func (c *InstructionConverter) Convert(_ context.Context, sequencesWithIds *ingest.EventSequencesWithIds) *DbOperationsWithMessageIds {
+func (c *InstructionConverter) Convert(_ *armadacontext.Context, sequencesWithIds *ingest.EventSequencesWithIds) *DbOperationsWithMessageIds {
 	operations := make([]DbOperation, 0)
 	for _, es := range sequencesWithIds.EventSequences {
 		for _, op := range c.dbOperationsFromEventSequence(es) {
@@ -354,9 +355,13 @@ func (c *InstructionConverter) handlePartitionMarker(pm *armadaevents.PartitionM
 	}}, nil
 }
 
-// schedulingInfoFromSubmitJob returns a minimal representation of a job
-// containing only the info needed by the scheduler.
+// schedulingInfoFromSubmitJob returns a minimal representation of a job containing only the info needed by the scheduler.
 func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime time.Time) (*schedulerobjects.JobSchedulingInfo, error) {
+	return SchedulingInfoFromSubmitJob(submitJob, submitTime, c.priorityClasses)
+}
+
+// SchedulingInfoFromSubmitJob returns a minimal representation of a job containing only the info needed by the scheduler.
+func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime time.Time, priorityClasses map[string]types.PriorityClass) (*schedulerobjects.JobSchedulingInfo, error) {
 	// Component common to all jobs.
 	schedulingInfo := &schedulerobjects.JobSchedulingInfo{
 		Lifetime:        submitJob.Lifetime,
@@ -373,8 +378,16 @@ func (c *InstructionConverter) schedulingInfoFromSubmitJob(submitJob *armadaeven
 	case *armadaevents.KubernetesMainObject_PodSpec:
 		podSpec := object.PodSpec.PodSpec
 		schedulingInfo.PriorityClassName = podSpec.PriorityClassName
-		podRequirements := adapters.PodRequirementsFromPodSpec(podSpec, c.priorityClasses)
-		podRequirements.Annotations = submitJob.ObjectMeta.Annotations
+		podRequirements := adapters.PodRequirementsFromPodSpec(podSpec, priorityClasses)
+		if submitJob.ObjectMeta != nil {
+			podRequirements.Annotations = maps.Clone(submitJob.ObjectMeta.Annotations)
+		}
+		if submitJob.MainObject.ObjectMeta != nil {
+			if podRequirements.Annotations == nil {
+				podRequirements.Annotations = make(map[string]string, len(submitJob.MainObject.ObjectMeta.Annotations))
+			}
+			maps.Copy(podRequirements.Annotations, submitJob.MainObject.ObjectMeta.Annotations)
+		}
 		schedulingInfo.ObjectRequirements = append(
 			schedulingInfo.ObjectRequirements,
 			&schedulerobjects.ObjectRequirements{

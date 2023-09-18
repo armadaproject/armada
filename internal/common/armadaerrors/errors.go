@@ -16,8 +16,8 @@ import (
 	"syscall"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

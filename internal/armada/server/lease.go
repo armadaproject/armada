@@ -10,14 +10,13 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/types"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/hashicorp/go-multierror"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/time/rate"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/utils/clock"
@@ -26,6 +25,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/scheduling"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/compress"
@@ -40,6 +40,7 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	schedulerinterfaces "github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
@@ -58,6 +59,10 @@ type AggregatedQueueServer struct {
 	schedulingInfoRepository repository.SchedulingInfoRepository
 	decompressorPool         *pool.ObjectPool
 	clock                    clock.Clock
+	// Global job scheduling rate-limiter.
+	limiter *rate.Limiter
+	// Per-queue job scheduling rate-limiters.
+	limiterByQueue map[string]*rate.Limiter
 	// For storing reports of scheduling attempts.
 	SchedulingContextRepository *scheduler.SchedulingContextRepository
 	// Stores the most recent NodeDb for each executor.
@@ -97,12 +102,17 @@ func NewAggregatedQueueServer(
 			return compress.NewZlibDecompressor(), nil
 		}), &poolConfig)
 	return &AggregatedQueueServer{
-		permissions:              permissions,
-		schedulingConfig:         schedulingConfig,
-		jobRepository:            jobRepository,
-		queueRepository:          queueRepository,
-		usageRepository:          usageRepository,
-		eventStore:               eventStore,
+		permissions:      permissions,
+		schedulingConfig: schedulingConfig,
+		jobRepository:    jobRepository,
+		queueRepository:  queueRepository,
+		usageRepository:  usageRepository,
+		eventStore:       eventStore,
+		limiter: rate.NewLimiter(
+			rate.Limit(schedulingConfig.MaximumSchedulingRate),
+			schedulingConfig.MaximumSchedulingBurst,
+		),
+		limiterByQueue:           make(map[string]*rate.Limiter),
 		schedulingInfoRepository: schedulingInfoRepository,
 		decompressorPool:         decompressorPool,
 		executorRepository:       executorRepository,
@@ -118,7 +128,7 @@ func NewAggregatedQueueServer(
 //
 // This function should be used instead of the LeaseJobs function in most cases.
 func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingLeaseJobsServer) error {
-	if err := checkPermission(q.permissions, stream.Context(), permissions.ExecuteJobs); err != nil {
+	if err := checkPermission(q.permissions, armadacontext.FromGrpcCtx(stream.Context()), permissions.ExecuteJobs); err != nil {
 		return err
 	}
 
@@ -141,7 +151,7 @@ func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_St
 	}
 
 	// Get jobs to be leased.
-	jobs, err := q.getJobs(stream.Context(), req)
+	jobs, err := q.getJobs(armadacontext.FromGrpcCtx(stream.Context()), req)
 	if err != nil {
 		return err
 	}
@@ -252,13 +262,12 @@ func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([
 	return rv, nil
 }
 
-func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithFields(logrus.Fields{
-		"function": "getJobs",
-		"cluster":  req.ClusterId,
-	})
-	ctx = ctxlogrus.ToContext(ctx, log)
+func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.StreamingLeaseRequest) ([]*api.Job, error) {
+	ctx = armadacontext.
+		WithLogFields(ctx, map[string]interface{}{
+			"cluster": req.ClusterId,
+			"pool":    req.Pool,
+		})
 
 	// Get the total capacity available across all clusters.
 	usageReports, err := q.usageRepository.GetClusterUsageReports()
@@ -335,7 +344,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			lastSeen,
 		)
 		if err != nil {
-			logging.WithStacktrace(log, err).Warnf(
+			logging.WithStacktrace(ctx, err).Warnf(
 				"skipping node %s from executor %s", nodeInfo.GetName(), req.GetClusterId(),
 			)
 			continue
@@ -378,7 +387,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 
 		// Group gangs.
 		for _, job := range jobs {
-			gangId, _, isGangJob, err := scheduler.GangIdAndCardinalityFromLegacySchedulerJob(job)
+			gangId, _, _, isGangJob, err := scheduler.GangIdAndCardinalityFromLegacySchedulerJob(job)
 			if err != nil {
 				return nil, err
 			}
@@ -453,24 +462,45 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		log.WithError(err).Warnf("could not store executor details for cluster %s", req.ClusterId)
 	}
 
+	// At this point we've written updated usage information to Redis and are ready to start scheduling.
+	// Exit here if scheduling is disabled.
+	if q.schedulingConfig.DisableScheduling {
+		log.Infof("skipping scheduling on %s - scheduling disabled", req.ClusterId)
+		return make([]*api.Job, 0), nil
+	}
+
 	// Give Schedule() a 3 second shorter deadline than ctx to give it a chance to finish up before ctx deadline.
 	if deadline, ok := ctx.Deadline(); ok {
 		var cancel context.CancelFunc
-		ctx, cancel = context.WithDeadline(ctx, deadline.Add(-3*time.Second))
+		ctx, cancel = armadacontext.WithDeadline(ctx, deadline.Add(-3*time.Second))
 		defer cancel()
 	}
 
+	var fairnessCostProvider fairness.FairnessCostProvider
+	totalResources := schedulerobjects.ResourceList{Resources: totalCapacity}
+	if q.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
+		fairnessCostProvider, err = fairness.NewDominantResourceFairness(
+			totalResources,
+			q.schedulingConfig.DominantResourceFairnessResourcesToConsider,
+		)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		fairnessCostProvider, err = fairness.NewAssetFairness(q.schedulingConfig.ResourceScarcity)
+		if err != nil {
+			return nil, err
+		}
+	}
 	sctx := schedulercontext.NewSchedulingContext(
 		req.ClusterId,
 		req.Pool,
 		q.schedulingConfig.Preemption.PriorityClasses,
 		q.schedulingConfig.Preemption.DefaultPriorityClass,
-		q.schedulingConfig.ResourceScarcity,
-		schedulerobjects.ResourceList{Resources: totalCapacity},
+		fairnessCostProvider,
+		q.limiter,
+		totalResources,
 	)
-	if q.schedulingConfig.FairnessModel == configuration.DominantResourceFairness {
-		sctx.EnableDominantResourceFairness(q.schedulingConfig.DominantResourceFairnessResourcesToConsider)
-	}
 	for queue, priorityFactor := range priorityFactorByQueue {
 		if !isActiveByQueueName[queue] {
 			// To ensure fair share is computed only from active queues, i.e., queues with jobs queued or running.
@@ -480,7 +510,16 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		if priorityFactor > 0 {
 			weight = 1 / priorityFactor
 		}
-		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClassForPool[queue]); err != nil {
+		queueLimiter, ok := q.limiterByQueue[queue]
+		if !ok {
+			// Create per-queue limiters lazily.
+			queueLimiter = rate.NewLimiter(
+				rate.Limit(q.schedulingConfig.MaximumPerQueueSchedulingRate),
+				q.schedulingConfig.MaximumPerQueueSchedulingBurst,
+			)
+			q.limiterByQueue[queue] = queueLimiter
+		}
+		if err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClassForPool[queue], queueLimiter); err != nil {
 			return nil, err
 		}
 	}
@@ -510,12 +549,14 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if q.schedulingConfig.EnableAssertions {
 		sch.EnableAssertions()
 	}
-	result, err := sch.Schedule(
-		ctxlogrus.ToContext(
-			ctx,
-			logrus.NewEntry(logrus.New()),
-		),
+	if q.schedulingConfig.EnableNewPreemptionStrategy {
+		sch.EnableNewPreemptionStrategy()
+	}
+	log.Infof(
+		"starting scheduling with total resources %s",
+		schedulerobjects.ResourceList{Resources: totalCapacity}.CompactString(),
 	)
+	result, err := sch.Schedule(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -525,7 +566,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 	if q.SchedulingContextRepository != nil {
 		sctx.ClearJobSpecs()
 		if err := q.SchedulingContextRepository.AddSchedulingContext(sctx); err != nil {
-			logging.WithStacktrace(log, err).Error("failed to store scheduling context")
+			logging.WithStacktrace(ctx, err).Error("failed to store scheduling context")
 		}
 	}
 
@@ -600,7 +641,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		jobIdsToDelete := util.Map(jobsToDelete, func(job *api.Job) string { return job.Id })
 		log.Infof("deleting preempted jobs: %v", jobIdsToDelete)
 		if deletionResult, err := q.jobRepository.DeleteJobs(jobsToDelete); err != nil {
-			logging.WithStacktrace(log, err).Error("failed to delete preempted jobs from Redis")
+			logging.WithStacktrace(ctx, err).Error("failed to delete preempted jobs from Redis")
 		} else {
 			deleteErrorByJobId := armadamaps.MapKeys(deletionResult, func(job *api.Job) string { return job.Id })
 			for jobId := range preemptedApiJobsById {
@@ -663,7 +704,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 		}
 	}
 	if err := q.usageRepository.UpdateClusterQueueResourceUsage(req.ClusterId, currentExecutorReport); err != nil {
-		logging.WithStacktrace(log, err).Errorf("failed to update cluster usage")
+		logging.WithStacktrace(ctx, err).Errorf("failed to update cluster usage")
 	}
 
 	allocatedByQueueAndPriorityClassForPool = q.aggregateAllocationAcrossExecutor(reportsByExecutor, req.Pool)
@@ -687,14 +728,14 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			}
 			node, err := nodeDb.GetNode(nodeId)
 			if err != nil {
-				logging.WithStacktrace(log, err).Warnf("failed to set node id selector on job %s: node with id %s not found", apiJob.Id, nodeId)
+				logging.WithStacktrace(ctx, err).Warnf("failed to set node id selector on job %s: node with id %s not found", apiJob.Id, nodeId)
 				continue
 			}
 			v := node.Labels[q.schedulingConfig.Preemption.NodeIdLabel]
 			if v == "" {
 				log.Warnf(
-					"failed to set node id selector on job %s to target node %s: nodeIdLabel missing from %s",
-					apiJob.Id, node.Name, node.Labels,
+					"failed to set node id selector on job %s to target node %s (id %s): nodeIdLabel missing from %s",
+					apiJob.Id, node.Name, node.Id, node.Labels,
 				)
 				continue
 			}
@@ -723,7 +764,7 @@ func (q *AggregatedQueueServer) getJobs(ctx context.Context, req *api.StreamingL
 			}
 			node, err := nodeDb.GetNode(nodeId)
 			if err != nil {
-				logging.WithStacktrace(log, err).Warnf("failed to set node name on job %s: node with id %s not found", apiJob.Id, nodeId)
+				logging.WithStacktrace(ctx, err).Warnf("failed to set node name on job %s: node with id %s not found", apiJob.Id, nodeId)
 				continue
 			}
 			podSpec.NodeName = node.Name
@@ -832,22 +873,23 @@ func (q *AggregatedQueueServer) decompressJobOwnershipGroups(jobs []*api.Job) er
 }
 
 func (q *AggregatedQueueServer) decompressOwnershipGroups(compressedOwnershipGroups []byte) ([]string, error) {
-	decompressor, err := q.decompressorPool.BorrowObject(context.Background())
+	decompressor, err := q.decompressorPool.BorrowObject(armadacontext.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to borrow decompressior because %s", err)
 	}
 
-	defer func(decompressorPool *pool.ObjectPool, ctx context.Context, object interface{}) {
+	defer func(decompressorPool *pool.ObjectPool, ctx *armadacontext.Context, object interface{}) {
 		err := decompressorPool.ReturnObject(ctx, object)
 		if err != nil {
 			log.WithError(err).Errorf("Error returning decompressorPool to pool")
 		}
-	}(q.decompressorPool, context.Background(), decompressor)
+	}(q.decompressorPool, armadacontext.Background(), decompressor)
 
 	return compress.DecompressStringArray(compressedOwnershipGroups, decompressor.(compress.Decompressor))
 }
 
-func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
+func (q *AggregatedQueueServer) RenewLease(grpcCtx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
@@ -855,7 +897,8 @@ func (q *AggregatedQueueServer) RenewLease(ctx context.Context, request *api.Ren
 	return &api.IdList{Ids: renewed}, e
 }
 
-func (q *AggregatedQueueServer) ReturnLease(ctx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
+func (q *AggregatedQueueServer) ReturnLease(grpcCtx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
@@ -954,7 +997,8 @@ func (q *AggregatedQueueServer) addAvoidNodeAffinity(
 	return res[0].Error
 }
 
-func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdList) (*api.IdList, error) {
+func (q *AggregatedQueueServer) ReportDone(grpcCtx context.Context, idList *api.IdList) (*api.IdList, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportDone] error: %s", err)
 	}
@@ -979,7 +1023,7 @@ func (q *AggregatedQueueServer) ReportDone(ctx context.Context, idList *api.IdLi
 	return &api.IdList{Ids: cleanedIds}, returnedError
 }
 
-func (q *AggregatedQueueServer) reportLeaseReturned(ctx context.Context, leaseReturnRequest *api.ReturnLeaseRequest) error {
+func (q *AggregatedQueueServer) reportLeaseReturned(ctx *armadacontext.Context, leaseReturnRequest *api.ReturnLeaseRequest) error {
 	job, err := q.getJobById(leaseReturnRequest.JobId)
 	if err != nil {
 		return err

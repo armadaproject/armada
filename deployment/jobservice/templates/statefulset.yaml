@@ -49,6 +49,11 @@ spec:
               mountPath: /config/application_config.yaml
               subPath: {{ include "jobservice.config.filename" . }}
               readOnly: true
+            {{- if .Values.applicationConfig.grpc.tls.enabled }}
+            - name: tls-certs
+              mountPath: /certs
+              readOnly: true
+            {{- end }}
             {{- if .Values.additionalVolumeMounts }}
             {{- toYaml .Values.additionalVolumeMounts | nindent 12 -}}
             {{- end }}
@@ -71,6 +76,11 @@ spec:
         - name: user-config
           secret:
             secretName: {{ include "jobservice.config.name" . }}
+        {{- if .Values.applicationConfig.grpc.tls.enabled }}
+        - name: tls-certs
+          secret:
+            secretName: jobservice-service-tls
+        {{- end }}
         {{- if .Values.additionalVolumes }}
         {{- toYaml .Values.additionalVolumes | nindent 8 }}
         {{- end }}

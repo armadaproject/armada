@@ -37,10 +37,10 @@ func NewGetJobs(ctx *middleware.Context, handler GetJobsHandler) *GetJobs {
 	return &GetJobs{Context: ctx, Handler: handler}
 }
 
-/* GetJobs swagger:route POST /api/v1/jobs getJobs
+/*
+	GetJobs swagger:route POST /api/v1/jobs getJobs
 
 GetJobs get jobs API
-
 */
 type GetJobs struct {
 	Context *middleware.Context
@@ -67,6 +67,9 @@ func (o *GetJobs) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 //
 // swagger:model GetJobsBody
 type GetJobsBody struct {
+
+	// Only include jobs in active job sets
+	ActiveJobSets bool `json:"activeJobSets,omitempty"`
 
 	// Filters to apply to jobs.
 	// Required: true

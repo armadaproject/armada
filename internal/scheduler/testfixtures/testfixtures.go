@@ -2,21 +2,19 @@ package testfixtures
 
 // This file contains test fixtures to be used throughout the tests for this package.
 import (
-	"context"
 	"fmt"
 	"math"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/oklog/ulid"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -37,7 +35,7 @@ const (
 
 var (
 	BaseTime, _         = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-	TestPriorityClasses = map[string]configuration.PriorityClass{
+	TestPriorityClasses = map[string]types.PriorityClass{
 		PriorityClass0:               {Priority: 0, Preemptible: true},
 		PriorityClass1:               {Priority: 1, Preemptible: true},
 		PriorityClass2:               {Priority: 2, Preemptible: true},
@@ -81,10 +79,6 @@ func Repeat[T any](v T, n int) []T {
 	return rv
 }
 
-func ContextWithDefaultLogger(ctx context.Context) context.Context {
-	return ctxlogrus.ToContext(ctx, logrus.NewEntry(logrus.New()))
-}
-
 func TestSchedulingConfig() configuration.SchedulingConfig {
 	return configuration.SchedulingConfig{
 		ResourceScarcity: map[string]float64{"cpu": 1},
@@ -94,12 +88,22 @@ func TestSchedulingConfig() configuration.SchedulingConfig {
 			NodeEvictionProbability:                 1.0,
 			NodeOversubscriptionEvictionProbability: 1.0,
 		},
-		IndexedResources:  TestResources,
-		IndexedNodeLabels: TestIndexedNodeLabels,
+		MaximumSchedulingRate:                       math.Inf(1),
+		MaximumSchedulingBurst:                      math.MaxInt,
+		MaximumPerQueueSchedulingRate:               math.Inf(1),
+		MaximumPerQueueSchedulingBurst:              math.MaxInt,
+		IndexedResources:                            TestResources,
+		IndexedNodeLabels:                           TestIndexedNodeLabels,
 		DominantResourceFairnessResourcesToConsider: TestResourceNames,
-		ExecutorTimeout:                  15 * time.Minute,
-		MaxUnacknowledgedJobsPerExecutor: math.MaxInt,
+		ExecutorTimeout:                             15 * time.Minute,
+		MaxUnacknowledgedJobsPerExecutor:            math.MaxInt,
+		EnableNewPreemptionStrategy:                 true,
 	}
+}
+
+func WithUnifiedSchedulingByPoolConfig(config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.UnifiedSchedulingByPool = true
+	return config
 }
 
 func WithMaxUnacknowledgedJobsPerExecutorConfig(v uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
@@ -144,7 +148,7 @@ func WithPerPriorityLimitsConfig(limits map[string]map[string]float64, config co
 			panic(fmt.Sprintf("no priority class with name %s", priorityClassName))
 		}
 		// We need to make a copy to avoid mutating the priorityClasses, which are used by other tests too.
-		config.Preemption.PriorityClasses[priorityClassName] = configuration.PriorityClass{
+		config.Preemption.PriorityClasses[priorityClassName] = types.PriorityClass{
 			Priority:                              priorityClass.Priority,
 			Preemptible:                           priorityClass.Preemptible,
 			MaximumResourceFractionPerQueue:       limit,
@@ -159,18 +163,19 @@ func WithIndexedResourcesConfig(indexResources []configuration.IndexedResource, 
 	return config
 }
 
-func WithMaxJobsToScheduleConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.MaximumJobsToSchedule = n
+func WithGlobalSchedulingRateLimiterConfig(maximumSchedulingRate float64, maximumSchedulingBurst int, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.MaximumSchedulingRate = maximumSchedulingRate
+	config.MaximumSchedulingBurst = maximumSchedulingBurst
 	return config
 }
 
-func WithMaxGangsToScheduleConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	config.MaximumGangsToSchedule = n
+func WithPerQueueSchedulingLimiterConfig(maximumPerQueueSchedulingRate float64, maximumPerQueueSchedulingBurst int, config configuration.SchedulingConfig) configuration.SchedulingConfig {
+	config.MaximumPerQueueSchedulingRate = maximumPerQueueSchedulingRate
+	config.MaximumPerQueueSchedulingBurst = maximumPerQueueSchedulingBurst
 	return config
 }
 
 func WithMaxLookbackPerQueueConfig(n uint, config configuration.SchedulingConfig) configuration.SchedulingConfig {
-	// For legacy reasons, it's called QueueLeaseBatchSize in config.
 	config.MaxQueueLookback = n
 	return config
 }
@@ -225,6 +230,13 @@ func WithNodeSelectorPodReqs(selector map[string]string, reqs []*schedulerobject
 func WithNodeSelectorPodReq(selector map[string]string, req *schedulerobjects.PodRequirements) *schedulerobjects.PodRequirements {
 	req.NodeSelector = maps.Clone(selector)
 	return req
+}
+
+func WithPriorityJobs(priority uint32, jobs []*jobdb.Job) []*jobdb.Job {
+	for i, job := range jobs {
+		jobs[i] = job.WithPriority(priority)
+	}
+	return jobs
 }
 
 func WithNodeUniformityLabelAnnotationJobs(label string, jobs []*jobdb.Job) []*jobdb.Job {
@@ -655,6 +667,7 @@ func TestNode(priorities []int32, resources map[string]resource.Quantity) *sched
 	id := uuid.NewString()
 	return &schedulerobjects.Node{
 		Id:             id,
+		Name:           id,
 		TotalResources: schedulerobjects.ResourceList{Resources: resources},
 		AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
 			priorities,
@@ -708,11 +721,12 @@ func WithLastUpdateTimeExecutor(lastUpdateTime time.Time, executor *schedulerobj
 	return executor
 }
 
-func Test1Node32CoreExecutor(name string) *schedulerobjects.Executor {
+func Test1Node32CoreExecutor(executorId string) *schedulerobjects.Executor {
 	node := Test32CpuNode(TestPriorities)
-	node.Name = fmt.Sprintf("%s-node", name)
+	node.Name = fmt.Sprintf("%s-node", executorId)
+	node.Executor = executorId
 	return &schedulerobjects.Executor{
-		Id:             name,
+		Id:             executorId,
 		Pool:           TestPool,
 		Nodes:          []*schedulerobjects.Node{node},
 		LastUpdateTime: BaseTime,

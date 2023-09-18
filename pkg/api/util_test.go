@@ -7,7 +7,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	resource "k8s.io/apimachinery/pkg/api/resource"
 
-	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -20,7 +20,7 @@ const (
 )
 
 var (
-	TestPriorityClasses = map[string]configuration.PriorityClass{
+	TestPriorityClasses = map[string]types.PriorityClass{
 		PriorityClassEmpty: {Priority: 0, Preemptible: true},
 		PriorityClass0:     {Priority: 0, Preemptible: true},
 		PriorityClass1:     {Priority: 1, Preemptible: true},

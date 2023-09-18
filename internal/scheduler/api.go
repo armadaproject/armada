@@ -8,10 +8,10 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/google/uuid"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
@@ -36,13 +36,11 @@ type ExecutorApi struct {
 	legacyExecutorRepository database.ExecutorRepository
 	// Allowed priority class priorities.
 	allowedPriorities []int32
-	// Max number of job leases sent per call to LeaseJobRuns.
-	maxJobsPerCall uint
 	// Max size of Pulsar messages produced.
 	maxPulsarMessageSizeBytes uint
-	// See scheduling config.
+	// See scheduling schedulingConfig.
 	nodeIdLabel string
-	// See scheduling config.
+	// See scheduling schedulingConfig.
 	priorityClassNameOverride *string
 	clock                     clock.Clock
 }
@@ -52,7 +50,6 @@ func NewExecutorApi(producer pulsar.Producer,
 	executorRepository database.ExecutorRepository,
 	legacyExecutorRepository database.ExecutorRepository,
 	allowedPriorities []int32,
-	maxJobsPerCall uint,
 	nodeIdLabel string,
 	priorityClassNameOverride *string,
 	maxPulsarMessageSizeBytes uint,
@@ -60,16 +57,12 @@ func NewExecutorApi(producer pulsar.Producer,
 	if len(allowedPriorities) == 0 {
 		return nil, errors.New("allowedPriorities cannot be empty")
 	}
-	if maxJobsPerCall == 0 {
-		return nil, errors.New("maxJobsPerCall cannot be 0")
-	}
 	return &ExecutorApi{
 		producer:                  producer,
 		jobRepository:             jobRepository,
 		executorRepository:        executorRepository,
 		legacyExecutorRepository:  legacyExecutorRepository,
 		allowedPriorities:         allowedPriorities,
-		maxJobsPerCall:            maxJobsPerCall,
 		maxPulsarMessageSizeBytes: maxPulsarMessageSizeBytes,
 		nodeIdLabel:               nodeIdLabel,
 		priorityClassNameOverride: priorityClassNameOverride,
@@ -88,9 +81,7 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 		return errors.WithStack(err)
 	}
 
-	ctx := stream.Context()
-	log := ctxlogrus.Extract(ctx)
-	log = log.WithField("executor", req.ExecutorId)
+	ctx := armadacontext.WithLogField(armadacontext.FromGrpcCtx(stream.Context()), "executor", req.ExecutorId)
 
 	executor := srv.executorFromLeaseRequest(ctx, req)
 	if err := srv.executorRepository.StoreExecutor(ctx, executor); err != nil {
@@ -108,11 +99,11 @@ func (srv *ExecutorApi) LeaseJobRuns(stream executorapi.ExecutorApi_LeaseJobRuns
 	if err != nil {
 		return err
 	}
-	newRuns, err := srv.jobRepository.FetchJobRunLeases(ctx, req.ExecutorId, srv.maxJobsPerCall, requestRuns)
+	newRuns, err := srv.jobRepository.FetchJobRunLeases(ctx, req.ExecutorId, uint(req.MaxJobsToLease), requestRuns)
 	if err != nil {
 		return err
 	}
-	log.Infof(
+	ctx.Infof(
 		"executor currently has %d job runs; sending %d cancellations and %d new runs",
 		len(requestRuns), len(runsToCancel), len(newRuns),
 	)
@@ -223,19 +214,19 @@ func setPriorityClassName(podSpec *armadaevents.PodSpecWithAvoidList, priorityCl
 }
 
 // ReportEvents publishes all events to Pulsar. The events are compacted for more efficient publishing.
-func (srv *ExecutorApi) ReportEvents(ctx context.Context, list *executorapi.EventList) (*types.Empty, error) {
+func (srv *ExecutorApi) ReportEvents(grpcCtx context.Context, list *executorapi.EventList) (*types.Empty, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := pulsarutils.CompactAndPublishSequences(ctx, list.Events, srv.producer, srv.maxPulsarMessageSizeBytes, schedulers.Pulsar)
 	return &types.Empty{}, err
 }
 
 // executorFromLeaseRequest extracts a schedulerobjects.Executor from the request.
-func (srv *ExecutorApi) executorFromLeaseRequest(ctx context.Context, req *executorapi.LeaseRequest) *schedulerobjects.Executor {
-	log := ctxlogrus.Extract(ctx)
+func (srv *ExecutorApi) executorFromLeaseRequest(ctx *armadacontext.Context, req *executorapi.LeaseRequest) *schedulerobjects.Executor {
 	nodes := make([]*schedulerobjects.Node, 0, len(req.Nodes))
 	now := srv.clock.Now().UTC()
 	for _, nodeInfo := range req.Nodes {
 		if node, err := api.NewNodeFromNodeInfo(nodeInfo, req.ExecutorId, srv.allowedPriorities, now); err != nil {
-			logging.WithStacktrace(log, err).Warnf(
+			logging.WithStacktrace(ctx, err).Warnf(
 				"skipping node %s from executor %s", nodeInfo.GetName(), req.GetExecutorId(),
 			)
 		} else {

@@ -10,11 +10,10 @@ import (
 	"time"
 
 	"github.com/grpc-ecosystem/go-grpc-middleware/util/metautils"
-	authv1 "k8s.io/api/authentication/v1"
-	"k8s.io/apimachinery/pkg/util/clock"
-
 	"github.com/patrickmn/go-cache"
 	"github.com/stretchr/testify/assert"
+	authv1 "k8s.io/api/authentication/v1"
+	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/auth/configuration"
 )

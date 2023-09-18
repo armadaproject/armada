@@ -10,13 +10,15 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-	"k8s.io/apimachinery/pkg/api/resource"
+	"golang.org/x/time/rate"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/types"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
+	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -32,23 +34,20 @@ type SchedulingContext struct {
 	// Resource pool of this executor.
 	Pool string
 	// Allowed priority classes.
-	PriorityClasses map[string]configuration.PriorityClass
+	PriorityClasses map[string]types.PriorityClass
 	// Default priority class.
 	DefaultPriorityClass string
 	// Determines how fairness is computed.
-	FairnessModel configuration.FairnessModel
-	// Resources considered when computing DominantResourceFairness.
-	DominantResourceFairnessResourcesToConsider []string
-	// Weights used when computing AssetFairness.
-	ResourceScarcity map[string]float64
+	FairnessCostProvider fairness.FairnessCostProvider
+	// Limits job scheduling rate globally across all queues.
+	// Use the "Started" time to ensure limiter state remains constant within each scheduling round.
+	Limiter *rate.Limiter
 	// Sum of queue weights across all queues.
 	WeightSum float64
 	// Per-queue scheduling contexts.
 	QueueSchedulingContexts map[string]*QueueSchedulingContext
 	// Total resources across all clusters available at the start of the scheduling cycle.
 	TotalResources schedulerobjects.ResourceList
-	// = TotalResources.AsWeightedMillis(ResourceScarcity).
-	TotalResourcesAsWeightedMillis int64
 	// Resources assigned across all queues during this scheduling cycle.
 	ScheduledResources                schedulerobjects.ResourceList
 	ScheduledResourcesByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]
@@ -75,9 +74,10 @@ type SchedulingContext struct {
 func NewSchedulingContext(
 	executorId string,
 	pool string,
-	priorityClasses map[string]configuration.PriorityClass,
+	priorityClasses map[string]types.PriorityClass,
 	defaultPriorityClass string,
-	resourceScarcity map[string]float64,
+	fairnessCostProvider fairness.FairnessCostProvider,
+	limiter *rate.Limiter,
 	totalResources schedulerobjects.ResourceList,
 ) *SchedulingContext {
 	return &SchedulingContext{
@@ -86,22 +86,16 @@ func NewSchedulingContext(
 		Pool:                              pool,
 		PriorityClasses:                   priorityClasses,
 		DefaultPriorityClass:              defaultPriorityClass,
-		FairnessModel:                     configuration.AssetFairness,
-		ResourceScarcity:                  resourceScarcity,
+		FairnessCostProvider:              fairnessCostProvider,
+		Limiter:                           limiter,
 		QueueSchedulingContexts:           make(map[string]*QueueSchedulingContext),
 		TotalResources:                    totalResources.DeepCopy(),
-		TotalResourcesAsWeightedMillis:    totalResources.AsWeightedMillis(resourceScarcity),
 		ScheduledResources:                schedulerobjects.NewResourceListWithDefaultSize(),
 		ScheduledResourcesByPriorityClass: make(schedulerobjects.QuantityByTAndResourceType[string]),
 		EvictedResourcesByPriorityClass:   make(schedulerobjects.QuantityByTAndResourceType[string]),
 		SchedulingKeyGenerator:            schedulerobjects.NewSchedulingKeyGenerator(),
 		UnfeasibleSchedulingKeys:          make(map[schedulerobjects.SchedulingKey]*JobSchedulingContext),
 	}
-}
-
-func (sctx *SchedulingContext) EnableDominantResourceFairness(dominantResourceFairnessResourcesToConsider []string) {
-	sctx.FairnessModel = configuration.DominantResourceFairness
-	sctx.DominantResourceFairnessResourcesToConsider = dominantResourceFairnessResourcesToConsider
 }
 
 func (sctx *SchedulingContext) SchedulingKeyFromLegacySchedulerJob(job interfaces.LegacySchedulerJob) schedulerobjects.SchedulingKey {
@@ -122,7 +116,11 @@ func (sctx *SchedulingContext) ClearUnfeasibleSchedulingKeys() {
 	sctx.UnfeasibleSchedulingKeys = make(map[schedulerobjects.SchedulingKey]*JobSchedulingContext)
 }
 
-func (sctx *SchedulingContext) AddQueueSchedulingContext(queue string, weight float64, initialAllocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]) error {
+func (sctx *SchedulingContext) AddQueueSchedulingContext(
+	queue string, weight float64,
+	initialAllocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string],
+	limiter *rate.Limiter,
+) error {
 	if _, ok := sctx.QueueSchedulingContexts[queue]; ok {
 		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "queue",
@@ -146,6 +144,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(queue string, weight fl
 		ExecutorId:                        sctx.ExecutorId,
 		Queue:                             queue,
 		Weight:                            weight,
+		Limiter:                           limiter,
 		Allocated:                         allocated,
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
 		ScheduledResourcesByPriorityClass: make(schedulerobjects.QuantityByTAndResourceType[string]),
@@ -162,11 +161,17 @@ func (sctx *SchedulingContext) String() string {
 	return sctx.ReportString(0)
 }
 
+// GetQueue is necessary to implement the fairness.QueueRepository interface.
+func (sctx *SchedulingContext) GetQueue(queue string) (fairness.Queue, bool) {
+	qctx, ok := sctx.QueueSchedulingContexts[queue]
+	return qctx, ok
+}
+
 // TotalCost returns the sum of the costs across all queues.
 func (sctx *SchedulingContext) TotalCost() float64 {
 	var rv float64
 	for _, qctx := range sctx.QueueSchedulingContexts {
-		rv += qctx.TotalCostForQueue()
+		rv += sctx.FairnessCostProvider.CostFromQueue(qctx)
 	}
 	return rv
 }
@@ -196,7 +201,7 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 		fmt.Fprint(w, "Scheduled queues:\n")
 		for queueName, qctx := range scheduled {
 			fmt.Fprintf(w, "\t%s:\n", queueName)
-			fmt.Fprintf(w, indent.String("\t\t", qctx.ReportString(verbosity-2)))
+			fmt.Fprint(w, indent.String("\t\t", qctx.ReportString(verbosity-2)))
 		}
 	}
 	preempted := armadamaps.Filter(
@@ -211,7 +216,7 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 		fmt.Fprint(w, "Preempted queues:\n")
 		for queueName, qctx := range preempted {
 			fmt.Fprintf(w, "\t%s:\n", queueName)
-			fmt.Fprintf(w, indent.String("\t\t", qctx.ReportString(verbosity-2)))
+			fmt.Fprint(w, indent.String("\t\t", qctx.ReportString(verbosity-2)))
 		}
 	}
 	w.Flush()
@@ -341,6 +346,9 @@ type QueueSchedulingContext struct {
 	Queue string
 	// Determines the fair share of this queue relative to other queues.
 	Weight float64
+	// Limits job scheduling rate for this queue.
+	// Use the "Started" time to ensure limiter state remains constant within each scheduling round.
+	Limiter *rate.Limiter
 	// Total resources assigned to the queue across all clusters by priority class priority.
 	// Includes jobs scheduled during this invocation of the scheduler.
 	Allocated schedulerobjects.ResourceList
@@ -368,6 +376,16 @@ func GetSchedulingContextFromQueueSchedulingContext(qctx *QueueSchedulingContext
 
 func (qctx *QueueSchedulingContext) String() string {
 	return qctx.ReportString(0)
+}
+
+// GetAllocation is necessary to implement the fairness.Queue interface.
+func (qctx *QueueSchedulingContext) GetAllocation() schedulerobjects.ResourceList {
+	return qctx.Allocated
+}
+
+// GetWeight is necessary to implement the fairness.Queue interface.
+func (qctx *QueueSchedulingContext) GetWeight() float64 {
+	return qctx.Weight
 }
 
 const maxJobIdsToPrint = 1
@@ -516,50 +534,6 @@ func (qctx *QueueSchedulingContext) ClearJobSpecs() {
 	}
 }
 
-// TotalCostForQueue returns the total cost of this queue.
-func (qctx *QueueSchedulingContext) TotalCostForQueue() float64 {
-	return qctx.TotalCostForQueueWithAllocation(qctx.Allocated)
-}
-
-// TotalCostForQueueWithAllocation returns the total cost of this queue if its total allocation is given by allocated.
-func (qctx *QueueSchedulingContext) TotalCostForQueueWithAllocation(allocated schedulerobjects.ResourceList) float64 {
-	switch qctx.SchedulingContext.FairnessModel {
-	case configuration.AssetFairness:
-		return qctx.assetFairnessCostWithAllocation(allocated)
-	case configuration.DominantResourceFairness:
-		return qctx.dominantResourceFairnessCostWithAllocation(allocated)
-	default:
-		panic(fmt.Sprintf("unknown fairness type: %s", qctx.SchedulingContext.FairnessModel))
-	}
-}
-
-func (qctx *QueueSchedulingContext) assetFairnessCostWithAllocation(allocated schedulerobjects.ResourceList) float64 {
-	if len(qctx.SchedulingContext.ResourceScarcity) == 0 {
-		panic("ResourceScarcity is not set")
-	}
-	return float64(allocated.AsWeightedMillis(qctx.SchedulingContext.ResourceScarcity)) / qctx.Weight
-}
-
-func (qctx *QueueSchedulingContext) dominantResourceFairnessCostWithAllocation(allocated schedulerobjects.ResourceList) float64 {
-	if len(qctx.SchedulingContext.DominantResourceFairnessResourcesToConsider) == 0 {
-		panic("DominantResourceFairnessResourcesToConsider is not set")
-	}
-	var cost float64
-	for _, t := range qctx.SchedulingContext.DominantResourceFairnessResourcesToConsider {
-		capacity := qctx.SchedulingContext.TotalResources.Get(t)
-		if capacity.Equal(resource.Quantity{}) {
-			// Ignore any resources with zero capacity.
-			continue
-		}
-		q := allocated.Get(t)
-		tcost := float64(q.MilliValue()) / float64(capacity.MilliValue())
-		if tcost > cost {
-			cost = tcost
-		}
-	}
-	return cost / qctx.Weight
-}
-
 type GangSchedulingContext struct {
 	Created               time.Time
 	Queue                 string
@@ -598,6 +572,11 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 		AllJobsEvicted:        allJobsEvicted,
 		NodeUniformityLabel:   nodeUniformityLabel,
 	}
+}
+
+// Cardinality returns the number of jobs in the gang.
+func (gctx *GangSchedulingContext) Cardinality() int {
+	return len(gctx.JobSchedulingContexts)
 }
 
 func isEvictedJob(job interfaces.LegacySchedulerJob) bool {
@@ -644,7 +623,7 @@ func (jctx *JobSchedulingContext) IsSuccessful() bool {
 	return jctx.UnschedulableReason == ""
 }
 
-func JobSchedulingContextsFromJobs[J interfaces.LegacySchedulerJob](priorityClasses map[string]configuration.PriorityClass, jobs []J) []*JobSchedulingContext {
+func JobSchedulingContextsFromJobs[J interfaces.LegacySchedulerJob](priorityClasses map[string]types.PriorityClass, jobs []J) []*JobSchedulingContext {
 	jctxs := make([]*JobSchedulingContext, len(jobs))
 	timestamp := time.Now()
 	for i, job := range jobs {

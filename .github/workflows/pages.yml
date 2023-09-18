@@ -17,12 +17,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout master
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3.3.0
         with:
           path: master
 
       - name: Checkout gh-pages branch
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3.3.0
         with:
           ref: 'gh-pages'
           path: gh-pages
@@ -32,6 +32,7 @@ jobs:
           cp master/docs/*.md gh-pages/
           rm gh-pages/docs-readme.md
           cp -r master/docs/quickstart gh-pages/
+          cp master/docs/quickstart/index.md gh-pages/quickstart.md
           cp -r master/docs/developer gh-pages/
           cp -r master/docs/design gh-pages/
           cp master/CODE_OF_CONDUCT.md master/CONTRIBUTING.md gh-pages/_pages/

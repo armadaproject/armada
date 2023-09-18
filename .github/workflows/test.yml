@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.3.0
 
       - name: Setup Node
         uses: actions/setup-node@v3
@@ -46,22 +46,13 @@ jobs:
           path: ./internal/lookout/ui/junit.xml
           if-no-files-found: error
 
-      - name: Send Coverage Report to Codecov
-        if: always()
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./internal/lookout/ui/coverage/cobertura-coverage.xml
-          flags: unittests
-          name: codecov-armada-ts-unit-tests
-          verbose: true
-
   go-unit-tests:
     name: Golang Unit Tests
     runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.3.0
 
       - name: Setup Golang with Cache
         uses: magnetikonline/action-golang-cache@v4
@@ -70,11 +61,11 @@ jobs:
 
       - name: Setup dependencies
         shell: bash
-        run: make download
+        run: go run github.com/magefile/mage@v1.14.0 -v download
 
       - name: Unit Tests
         id: unit_test
-        run: make tests
+        run: go run github.com/magefile/mage@v1.14.0 -v tests
 
       - name: Publish JUnit Report
         uses: mikepenz/action-junit-report@v3
@@ -94,15 +85,6 @@ jobs:
           path: test-reports/
           if-no-files-found: error
 
-      - name: Send Coverage Report to Codecov
-        if: always()
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./test-reports/coverage.out
-          flags: unittests
-          name: codecov-armada-go-unit-tests
-          verbose: true
-
   go-integration-tests:
     name: Golang Integration Tests
     runs-on: ubuntu-22.04
@@ -118,7 +100,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.3.0
 
       - name: Create Docker Buildx Builder
         run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
@@ -133,7 +115,7 @@ jobs:
 
       - name: Setup dependencies
         shell: bash
-        run: make download
+        run: go run github.com/magefile/mage@v1.14.0 -v download
 
       - name: Setup and Run Integration Tests
         run: |
@@ -165,7 +147,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.3.0
 
       - name: Setup Golang with Cache
         uses: magnetikonline/action-golang-cache@v4
@@ -204,12 +186,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v3.3.0
 
       - name: Install Protoc
-        uses: arduino/setup-protoc@v1
+        uses: arduino/setup-protoc@v2
         with:
-          version: '3.17.3'
+          version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Go
@@ -219,20 +201,20 @@ jobs:
 
       - name: Setup dependencies
         shell: bash
-        run: make download
+        run: go run github.com/magefile/mage@v1.14.0 -v download
 
       # TODO(JayF): Consider moving this into its own job, that runs under a larger set of circumstances
       #             since it's possible for this to fail without any go changes being made.
       - name: Validate no changes in generated proto files
         run: |
-          make proto
-          make dotnet
+          go run github.com/magefile/mage@v1.14.0 -v proto
+          go run github.com/magefile/mage@v1.14.0 -v dotnet
 
           changed=$(git status -s -uno | wc -l)
 
           echo -e "### Git status" >> $GITHUB_STEP_SUMMARY
           if [[ "$changed" -gt 0 ]]; then
-            echo -e "Generated proto files are out of date. Please run 'make proto' and commit the changes." >> $GITHUB_STEP_SUMMARY
+            echo -e "Generated proto files are out of date. Please run 'mage proto' and commit the changes." >> $GITHUB_STEP_SUMMARY
 
             git status -s -uno >> $GITHUB_STEP_SUMMARY
 

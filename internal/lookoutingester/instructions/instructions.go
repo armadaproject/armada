@@ -1,12 +1,9 @@
 package instructions
 
 import (
-	"context"
 	"sort"
 	"strings"
 	"time"
-
-	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
@@ -14,10 +11,11 @@ import (
 	log "github.com/sirupsen/logrus"
 	"k8s.io/utils/pointer"
 
-	"github.com/armadaproject/armada/internal/common/ingest"
-
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookout/repository"
 	"github.com/armadaproject/armada/internal/lookoutingester/model"
@@ -42,7 +40,7 @@ func NewInstructionConverter(metrics *metrics.Metrics, userAnnotationPrefix stri
 	}
 }
 
-func (c *InstructionConverter) Convert(ctx context.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
+func (c *InstructionConverter) Convert(ctx *armadacontext.Context, sequencesWithIds *ingest.EventSequencesWithIds) *model.InstructionSet {
 	updateInstructions := &model.InstructionSet{
 		MessageIds: sequencesWithIds.MessageIds,
 	}
@@ -84,6 +82,7 @@ func (c *InstructionConverter) convertSequence(es *armadaevents.EventSequence, u
 			err = c.handleJobRunPreempted(*event.Created, event.GetJobRunPreempted(), update)
 		case *armadaevents.EventSequence_Event_CancelJob,
 			*armadaevents.EventSequence_Event_JobRunLeased,
+			*armadaevents.EventSequence_Event_JobRequeued,
 			*armadaevents.EventSequence_Event_ReprioritiseJobSet,
 			*armadaevents.EventSequence_Event_CancelJobSet,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,

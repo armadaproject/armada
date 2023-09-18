@@ -54,11 +54,12 @@ func FromEventSequence(es *armadaevents.EventSequence) ([]*api.EventMessage, err
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet,
 			*armadaevents.EventSequence_Event_CancelJobSet,
 			*armadaevents.EventSequence_Event_JobRunSucceeded,
+			*armadaevents.EventSequence_Event_JobRequeued,
 			*armadaevents.EventSequence_Event_PartitionMarker:
 			// These events have no api analog right now, so we ignore
-			log.Debugf("Ignoring event")
+			log.Debugf("ignoring event type %T", esEvent)
 		default:
-			log.Warnf("Unknown event type: %T", esEvent)
+			log.Warnf("unknown event type: %T", esEvent)
 			convertedEvents = nil
 		}
 		if err != nil {

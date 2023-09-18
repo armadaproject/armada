@@ -7,8 +7,6 @@ import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
-// option (gogoproto.stable_marshaler) = true;
-
 // Executor represents an executor running on a worker cluster
 message Executor {
     // Name of the executor.
@@ -31,6 +29,8 @@ message Node {
     string id = 1;
     // Kubernetes node name. Not guaranteed to be unique across clusters.
     string name = 12;
+    // Name of the executor to which this node belongs.
+    string executor = 19;
     // Keys by which nodes are sorted in the nodeDb.
     repeated bytes nodeDbKeys = 18;
     // Time at which this node was last updated.

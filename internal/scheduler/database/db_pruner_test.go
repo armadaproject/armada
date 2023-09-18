@@ -1,17 +1,17 @@
 package database
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/clock"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
 	commonutil "github.com/armadaproject/armada/internal/common/util"
 )
@@ -108,7 +108,7 @@ func TestPruneDb_RemoveJobs(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := WithTestDb(func(_ *Queries, db *pgxpool.Pool) error {
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
 				defer cancel()
 				testClock := clock.NewFakeClock(baseTime)
 
@@ -186,7 +186,7 @@ func TestPruneDb_RemoveMarkers(t *testing.T) {
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			err := WithTestDb(func(_ *Queries, db *pgxpool.Pool) error {
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
 				defer cancel()
 				testClock := clock.NewFakeClock(baseTime)
 
@@ -220,7 +220,7 @@ func TestPruneDb_RemoveMarkers(t *testing.T) {
 
 // Removes the triggers that auto-set serial and last_update_time as
 // we need to manipulate these as part of the test
-func removeTriggers(ctx context.Context, db *pgxpool.Pool) error {
+func removeTriggers(ctx *armadacontext.Context, db *pgxpool.Pool) error {
 	triggers := map[string]string{
 		"jobs": "next_serial_on_insert_jobs",
 		"runs": "next_serial_on_insert_runs",

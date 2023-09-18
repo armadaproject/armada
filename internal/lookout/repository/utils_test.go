@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/api/lookout"
@@ -29,7 +29,7 @@ var (
 	node         = "node"
 	someTimeUnix = int64(1612546858)
 	someTime     = time.Unix(someTimeUnix, 0)
-	ctx          = context.Background()
+	ctx          = armadacontext.Background()
 )
 
 func AssertJobsAreEquivalent(t *testing.T, expected *api.Job, actual *api.Job) {

@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest"
@@ -56,6 +56,7 @@ type runPatch struct {
 	finished    *time.Time
 	jobRunState *string
 	node        *string
+	leased      *time.Time
 	pending     *time.Time
 	started     *time.Time
 }
@@ -185,7 +186,7 @@ func (js *JobSimulator) Lease(runId string, timestamp time.Time) *JobSimulator {
 	updateRun(js.job, &runPatch{
 		runId:       runId,
 		jobRunState: pointer.String(string(lookout.JobRunLeased)),
-		pending:     &ts,
+		leased:      &ts,
 	})
 	return js
 }
@@ -221,12 +222,16 @@ func (js *JobSimulator) Pending(runId string, cluster string, timestamp time.Tim
 	js.job.LastActiveRunId = &runId
 	js.job.LastTransitionTime = ts
 	js.job.State = string(lookout.JobPending)
-	updateRun(js.job, &runPatch{
+	rp := &runPatch{
 		runId:       runId,
 		cluster:     &cluster,
 		jobRunState: pointer.String(string(lookout.JobRunPending)),
 		pending:     &ts,
-	})
+	}
+	if js.converter.IsLegacy() {
+		rp.leased = &ts
+	}
+	updateRun(js.job, rp)
 	return js
 }
 
@@ -348,6 +353,7 @@ func (js *JobSimulator) Cancelled(timestamp time.Time) *JobSimulator {
 	}
 	js.events = append(js.events, cancelled)
 
+	js.job.State = string(lookout.JobCancelled)
 	js.job.Cancelled = &ts
 	js.job.LastTransitionTime = ts
 	return js
@@ -580,8 +586,8 @@ func (js *JobSimulator) Build() *JobSimulator {
 		EventSequences: []*armadaevents.EventSequence{eventSequence},
 		MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 	}
-	instructionSet := js.converter.Convert(context.TODO(), eventSequenceWithIds)
-	err := js.store.Store(context.TODO(), instructionSet)
+	instructionSet := js.converter.Convert(armadacontext.TODO(), eventSequenceWithIds)
+	err := js.store.Store(armadacontext.TODO(), instructionSet)
 	if err != nil {
 		log.WithError(err).Error("Simulator failed to store job in database")
 	}
@@ -618,17 +624,14 @@ func updateRun(job *model.Job, patch *runPatch) {
 	if patch.jobRunState != nil {
 		state = *patch.jobRunState
 	}
-	pending := time.Time{}
-	if patch.pending != nil {
-		pending = *patch.pending
-	}
 	job.Runs = append(job.Runs, &model.Run{
 		Cluster:     cluster,
 		ExitCode:    patch.exitCode,
 		Finished:    patch.finished,
 		JobRunState: state,
 		Node:        patch.node,
-		Pending:     pending,
+		Leased:      patch.leased,
+		Pending:     patch.pending,
 		RunId:       patch.runId,
 		Started:     patch.started,
 	})
@@ -650,8 +653,11 @@ func patchRun(run *model.Run, patch *runPatch) {
 	if patch.node != nil {
 		run.Node = patch.node
 	}
+	if patch.leased != nil {
+		run.Leased = patch.leased
+	}
 	if patch.pending != nil {
-		run.Pending = *patch.pending
+		run.Pending = patch.pending
 	}
 	if patch.started != nil {
 		run.Started = patch.started

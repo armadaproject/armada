@@ -9,6 +9,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
@@ -33,13 +34,17 @@ func TestNewGangSchedulingContext(t *testing.T) {
 }
 
 func TestSchedulingContextAccounting(t *testing.T) {
+	totalResources := schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}}
+	fairnessCostProvider, err := fairness.NewAssetFairness(map[string]float64{"cpu": 1})
+	require.NoError(t, err)
 	sctx := NewSchedulingContext(
 		"executor",
 		"pool",
 		testfixtures.TestPriorityClasses,
 		testfixtures.TestDefaultPriorityClass,
-		map[string]float64{"cpu": 1},
-		schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+		fairnessCostProvider,
+		nil,
+		totalResources,
 	)
 	priorityFactorByQueue := map[string]float64{"A": 1, "B": 1}
 	allocatedByQueueAndPriorityClass := map[string]schedulerobjects.QuantityByTAndResourceType[string]{
@@ -48,14 +53,14 @@ func TestSchedulingContextAccounting(t *testing.T) {
 		},
 	}
 	for _, queue := range []string{"A", "B"} {
-		err := sctx.AddQueueSchedulingContext(queue, priorityFactorByQueue[queue], allocatedByQueueAndPriorityClass[queue])
+		err := sctx.AddQueueSchedulingContext(queue, priorityFactorByQueue[queue], allocatedByQueueAndPriorityClass[queue], nil)
 		require.NoError(t, err)
 	}
 
 	expected := sctx.AllocatedByQueueAndPriority()
 	jctxs := testNSmallCpuJobSchedulingContext("A", testfixtures.TestDefaultPriorityClass, 2)
 	gctx := NewGangSchedulingContext(jctxs)
-	_, err := sctx.AddGangSchedulingContext(gctx)
+	_, err = sctx.AddGangSchedulingContext(gctx)
 	require.NoError(t, err)
 	for _, jctx := range jctxs {
 		_, err := sctx.EvictJob(jctx.Job)

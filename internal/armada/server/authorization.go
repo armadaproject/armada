@@ -1,10 +1,10 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"strings"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -60,7 +60,7 @@ func MergePermissionErrors(errs ...*ErrUnauthorized) *ErrUnauthorized {
 // permissions required to perform some action. The error returned is of type ErrUnauthorized.
 // After recovering the error (using errors.As), the caller can obtain the name of the user and the
 // requested permission programatically via this error type.
-func checkPermission(p authorization.PermissionChecker, ctx context.Context, permission permission.Permission) error {
+func checkPermission(p authorization.PermissionChecker, ctx *armadacontext.Context, permission permission.Permission) error {
 	if !p.UserHasPermission(ctx, permission) {
 		return &ErrUnauthorized{
 			Principal: authorization.GetPrincipal(ctx),
@@ -74,7 +74,7 @@ func checkPermission(p authorization.PermissionChecker, ctx context.Context, per
 
 func checkQueuePermission(
 	p authorization.PermissionChecker,
-	ctx context.Context,
+	ctx *armadacontext.Context,
 	q queue.Queue,
 	globalPermission permission.Permission,
 	verb queue.PermissionVerb,
