@@ -7,10 +7,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"strings"
-	"sync"
-	"sync/atomic"
-
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/oklog/ulid"
 	"github.com/openconfig/goyang/pkg/indent"
@@ -19,6 +15,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
+	"github.com/armadaproject/armada/internal/common/util"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
