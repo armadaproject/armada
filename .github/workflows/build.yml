@@ -1,4 +1,4 @@
-name: Prepare Release
+name: Build
 
 on:
   workflow_call:
