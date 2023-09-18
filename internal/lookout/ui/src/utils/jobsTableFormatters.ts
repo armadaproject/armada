@@ -1,7 +1,7 @@
 import { cyan, green, grey, orange, pink, purple, red, yellow } from "@mui/material/colors"
 import { intervalToDuration } from "date-fns"
-import { formatInTimeZone } from "date-fns-tz"
 import { parseISO } from "date-fns/fp"
+import { formatInTimeZone } from "date-fns-tz"
 import { JobRunState, jobRunStateDisplayInfo, JobState, jobStateDisplayInfo } from "models/lookoutV2Models"
 
 export const formatJobState = (state?: JobState): string =>

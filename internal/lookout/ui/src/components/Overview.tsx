@@ -16,10 +16,10 @@ import {
 import MoreVert from "@material-ui/icons/MoreVert"
 import { AutoSizer } from "react-virtualized"
 
-import { QueueInfo } from "../services/JobService"
-import { RequestStatus } from "../utils"
 import AutoRefreshToggle from "./AutoRefreshToggle"
 import RefreshButton from "./RefreshButton"
+import { QueueInfo } from "../services/JobService"
+import { RequestStatus } from "../utils"
 
 import "./Overview.css"
 

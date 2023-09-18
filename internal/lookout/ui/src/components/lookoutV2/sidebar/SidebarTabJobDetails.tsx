@@ -1,10 +1,10 @@
 import { Typography } from "@mui/material"
 import { Job } from "models/lookoutV2Models"
 
-import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
-import { formatBytes, formatCpu } from "../../../utils/resourceUtils"
 import { ContainerDetails } from "./ContainerDetails"
 import { KeyValuePairTable } from "./KeyValuePairTable"
+import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
+import { formatBytes, formatCpu } from "../../../utils/resourceUtils"
 
 export interface SidebarTabJobDetailsProps {
   job: Job
