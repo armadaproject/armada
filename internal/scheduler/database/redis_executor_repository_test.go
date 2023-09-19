@@ -81,8 +81,11 @@ func withRedisExecutorRepository(action func(repository *RedisExecutorRepository
 	defer client.FlushDB()
 	defer func() {
 		err := client.Close()
-		log.WithError(err).Warn("Error closing redis client")
+		if err != nil {
+			log.WithError(err).Warn("Error closing redis client")
+		}
 	}()
+	client.FlushDB()
 	repo := NewRedisExecutorRepository(client, "pulsar")
 	action(repo)
 }
