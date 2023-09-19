@@ -10,10 +10,10 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/eventutil"
+	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/schedulers"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -103,13 +103,15 @@ func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, events []*
 
 	// Send messages
 	if shouldPublish() {
-		log.Debugf("Am leader so will publish")
+		ctx.Debugf("Am leader so will publish")
 		sendCtx, cancel := armadacontext.WithTimeout(ctx, p.pulsarSendTimeout)
 		errored := false
 		for _, msg := range msgs {
 			p.producer.SendAsync(sendCtx, msg, func(_ pulsar.MessageID, _ *pulsar.ProducerMessage, err error) {
 				if err != nil {
-					log.WithError(err).Error("error sending message to Pulsar")
+					logging.
+						WithStacktrace(ctx, err).
+						Error("error sending message to Pulsar")
 					errored = true
 				}
 				wg.Done()
@@ -121,7 +123,7 @@ func (p *PulsarPublisher) PublishMessages(ctx *armadacontext.Context, events []*
 			return errors.New("One or more messages failed to send to Pulsar")
 		}
 	} else {
-		log.Debugf("No longer leader so not publishing")
+		ctx.Debugf("No longer leader so not publishing")
 	}
 	return nil
 }

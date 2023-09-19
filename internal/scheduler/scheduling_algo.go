@@ -95,11 +95,12 @@ func (l *FairSchedulingAlgo) Schedule(
 	overallSchedulerResult := &SchedulerResult{
 		NodeIdByJobId:      make(map[string]string),
 		SchedulingContexts: make([]*schedulercontext.SchedulingContext, 0, 0),
+		FailedJobs:         make([]interfaces.LegacySchedulerJob, 0),
 	}
 
 	// Exit immediately if scheduling is disabled.
 	if l.schedulingConfig.DisableScheduling {
-		ctx.Log.Info("skipping scheduling - scheduling disabled")
+		ctx.Info("skipping scheduling - scheduling disabled")
 		return overallSchedulerResult, nil
 	}
 
@@ -121,7 +122,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		select {
 		case <-ctxWithTimeout.Done():
 			// We've reached the scheduling time limit; exit gracefully.
-			ctx.Log.Info("ending scheduling round early as we have hit the maximum scheduling duration")
+			ctx.Info("ending scheduling round early as we have hit the maximum scheduling duration")
 			return overallSchedulerResult, nil
 		default:
 		}
@@ -140,7 +141,7 @@ func (l *FairSchedulingAlgo) Schedule(
 		// Assume pool and minimumJobSize are consistent within the group.
 		pool := executorGroup[0].Pool
 		minimumJobSize := executorGroup[0].MinimumJobSize
-		ctx.Log.Infof(
+		ctx.Infof(
 			"scheduling on executor group %s with capacity %s",
 			executorGroupLabel, fsctx.totalCapacityByPool[pool].CompactString(),
 		)
@@ -156,30 +157,34 @@ func (l *FairSchedulingAlgo) Schedule(
 			// add the executorGroupLabel back to l.executorGroupsToSchedule such that we try it again next time,
 			// and exit gracefully.
 			l.executorGroupsToSchedule = append(l.executorGroupsToSchedule, executorGroupLabel)
-			ctx.Log.Info("stopped scheduling early as we have hit the maximum scheduling duration")
+			ctx.Info("stopped scheduling early as we have hit the maximum scheduling duration")
 			break
 		} else if err != nil {
 			return nil, err
 		}
 		if l.schedulingContextRepository != nil {
 			if err := l.schedulingContextRepository.AddSchedulingContext(sctx); err != nil {
-				logging.WithStacktrace(ctx.Log, err).Error("failed to add scheduling context")
+				logging.WithStacktrace(ctx, err).Error("failed to add scheduling context")
 			}
 		}
 
-		// Update jobDb.
 		preemptedJobs := PreemptedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
 		scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
+		failedJobs := FailedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
 		if err := jobDb.Upsert(txn, preemptedJobs); err != nil {
 			return nil, err
 		}
 		if err := jobDb.Upsert(txn, scheduledJobs); err != nil {
 			return nil, err
 		}
+		if err := jobDb.Upsert(txn, failedJobs); err != nil {
+			return nil, err
+		}
 
 		// Aggregate changes across executors.
 		overallSchedulerResult.PreemptedJobs = append(overallSchedulerResult.PreemptedJobs, schedulerResult.PreemptedJobs...)
 		overallSchedulerResult.ScheduledJobs = append(overallSchedulerResult.ScheduledJobs, schedulerResult.ScheduledJobs...)
+		overallSchedulerResult.FailedJobs = append(overallSchedulerResult.FailedJobs, schedulerResult.FailedJobs...)
 		overallSchedulerResult.SchedulingContexts = append(overallSchedulerResult.SchedulingContexts, schedulerResult.SchedulingContexts...)
 		maps.Copy(overallSchedulerResult.NodeIdByJobId, schedulerResult.NodeIdByJobId)
 
@@ -459,6 +464,10 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 			result.ScheduledJobs[i] = jobDbJob.WithQueuedVersion(jobDbJob.QueuedVersion()+1).WithQueued(false).WithNewRun(node.Executor, node.Id, node.Name)
 		}
 	}
+	for i, job := range result.FailedJobs {
+		jobDbJob := job.(*jobdb.Job)
+		result.FailedJobs[i] = jobDbJob.WithQueued(false).WithFailed(true)
+	}
 	return result, sctx, nil
 }
 
@@ -563,7 +572,9 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 		leasedJobs := leasedJobsByExecutor[executor.Id]
 		executorRuns, err := executor.AllRuns()
 		if err != nil {
-			logging.WithStacktrace(ctx.Log, err).Errorf("failed to retrieve runs for executor %s; will not be considered for scheduling", executor.Id)
+			logging.
+				WithStacktrace(ctx, err).
+				Errorf("failed to retrieve runs for executor %s; will not be considered for scheduling", executor.Id)
 			continue
 		}
 		executorRunIds := make(map[uuid.UUID]bool, len(executorRuns))
@@ -582,7 +593,7 @@ func (l *FairSchedulingAlgo) filterLaggingExecutors(
 		if numUnacknowledgedJobs <= l.schedulingConfig.MaxUnacknowledgedJobsPerExecutor {
 			activeExecutors = append(activeExecutors, executor)
 		} else {
-			ctx.Log.Warnf(
+			ctx.Warnf(
 				"%d unacknowledged jobs on executor %s exceeds limit of %d; executor will not be considered for scheduling",
 				numUnacknowledgedJobs, executor.Id, l.schedulingConfig.MaxUnacknowledgedJobsPerExecutor,
 			)

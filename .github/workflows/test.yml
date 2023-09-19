@@ -214,7 +214,7 @@ jobs:
 
           echo -e "### Git status" >> $GITHUB_STEP_SUMMARY
           if [[ "$changed" -gt 0 ]]; then
-            echo -e "Generated proto files are out of date. Please run 'make proto' and commit the changes." >> $GITHUB_STEP_SUMMARY
+            echo -e "Generated proto files are out of date. Please run 'mage proto' and commit the changes." >> $GITHUB_STEP_SUMMARY
 
             git status -s -uno >> $GITHUB_STEP_SUMMARY
 

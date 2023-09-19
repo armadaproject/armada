@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -218,7 +219,10 @@ func testNJobGang(n int) []*api.Job {
 	gang := make([]*api.Job, n)
 	for i := 0; i < n; i++ {
 		job := test1CoreCpuJob()
-		job.Annotations = map[string]string{configuration.GangIdAnnotation: gangId}
+		job.Annotations = map[string]string{
+			configuration.GangIdAnnotation:                 gangId,
+			configuration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n),
+			configuration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n)}
 		gang[i] = job
 	}
 	return gang
