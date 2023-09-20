@@ -3,25 +3,6 @@ name: Python Airflow Operator
 on:
   push:
     branches-ignore:
-      - master
-    paths:
-      - '.github/workflows/airflow-operator.yml'
-      - '.github/workflows/python-client.yml'
-      - '.github/workflows/python-tests/*'
-      - 'build/airflow-operator/**'
-      - 'build/python-client/**'
-      - 'client/python/**'
-      - 'docs/python_airflow_operator.md'
-      - 'docs/python_armada_client.md'
-      - 'internal/jobservice/*'
-      - 'pkg/api/*.proto'
-      - 'pkg/api/jobservice/*.proto'
-      - 'scripts/build-airflow-operator.sh'
-      - 'scripts/build-python-client.sh'
-      - 'third_party/airflow/**'
-
-  pull_request:
-    branches-ignore:
       - gh-pages
     paths:
       - '.github/workflows/airflow-operator.yml'
@@ -38,6 +19,25 @@ on:
       - 'scripts/build-airflow-operator.sh'
       - 'scripts/build-python-client.sh'
       - 'third_party/airflow/**'
+
+  # pull_request:
+  #   branches-ignore:
+  #     - gh-pages
+  #   paths:
+  #     - '.github/workflows/airflow-operator.yml'
+  #     - '.github/workflows/python-client.yml'
+  #     - '.github/workflows/python-tests/*'
+  #     - 'build/airflow-operator/**'
+  #     - 'build/python-client/**'
+  #     - 'client/python/**'
+  #     - 'docs/python_airflow_operator.md'
+  #     - 'docs/python_armada_client.md'
+  #     - 'internal/jobservice/*'
+  #     - 'pkg/api/*.proto'
+  #     - 'pkg/api/jobservice/*.proto'
+  #     - 'scripts/build-airflow-operator.sh'
+  #     - 'scripts/build-python-client.sh'
+  #     - 'third_party/airflow/**'
 
 jobs:
   airflow-tox:

@@ -3,19 +3,6 @@ name: Python Client
 on:
   push:
     branches-ignore:
-      - master
-    paths:
-      - 'client/python/**'
-      - 'build/python-client/**'
-      - 'pkg/api/*.proto'
-      - '.github/workflows/python-client.yml'
-      - 'docs/python_armada_client.md'
-      - 'scripts/build-python-client.sh'
-      - 'makefile'
-      - '.github/workflows/python-tests/*'
-
-  pull_request:
-    branches-ignore:
       - gh-pages
     paths:
       - 'client/python/**'
@@ -26,6 +13,19 @@ on:
       - 'scripts/build-python-client.sh'
       - 'makefile'
       - '.github/workflows/python-tests/*'
+
+  # pull_request:
+  #   branches-ignore:
+  #     - gh-pages
+  #   paths:
+  #     - 'client/python/**'
+  #     - 'build/python-client/**'
+  #     - 'pkg/api/*.proto'
+  #     - '.github/workflows/python-client.yml'
+  #     - 'docs/python_armada_client.md'
+  #     - 'scripts/build-python-client.sh'
+  #     - 'makefile'
+  #     - '.github/workflows/python-tests/*'
 
 jobs:
   python-client-tox:

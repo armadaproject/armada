@@ -2,13 +2,15 @@ name: CI
 
 on:
   push:
-    branches:
-      - master
-    tags:
-      - v*
-  pull_request:
+    # branches:
+    #   - master
     branches-ignore:
       - gh-pages
+    tags:
+      - v*
+  # pull_request:
+  #   branches-ignore:
+  #     - gh-pages
   schedule:
     # Run daily at 01:34, so we get notified if CI is broken before a pull request
     # is submitted.
