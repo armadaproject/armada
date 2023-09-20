@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - v*
+    branches-ignore:
+      - gh-pages
   pull_request:
     branches-ignore:
       - gh-pages
