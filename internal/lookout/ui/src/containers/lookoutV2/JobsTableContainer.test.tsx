@@ -401,7 +401,7 @@ describe("JobsTableContainer", () => {
       await waitFor(() => {
         const rows = getAllByRole("row")
         // Order should be reversed now
-        expect(rows[rows.length - 2]).toHaveTextContent(sorted[0].jobId)
+        expect(rows[rows.length - 1]).toHaveTextContent(sorted[0].jobId)
       })
     })
   })
@@ -561,7 +561,7 @@ describe("JobsTableContainer", () => {
       async () => {
         const table = await screen.findByRole("table", { name: "Jobs table" })
         const rows = await within(table).findAllByRole("row")
-        expect(rows.length).toBe(nDataRows + 2) // One row per data row, plus the header and footer rows
+        expect(rows.length).toBe(nDataRows + 1) // One row per data row, plus the header
       },
       { timeout: 3000 },
     )
