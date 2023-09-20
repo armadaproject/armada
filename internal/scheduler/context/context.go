@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"golang.org/x/time/rate"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
@@ -38,6 +39,9 @@ type SchedulingContext struct {
 	DefaultPriorityClass string
 	// Determines how fairness is computed.
 	FairnessCostProvider fairness.FairnessCostProvider
+	// Limits job scheduling rate globally across all queues.
+	// Use the "Started" time to ensure limiter state remains constant within each scheduling round.
+	Limiter *rate.Limiter
 	// Sum of queue weights across all queues.
 	WeightSum float64
 	// Per-queue scheduling contexts.
@@ -73,6 +77,7 @@ func NewSchedulingContext(
 	priorityClasses map[string]types.PriorityClass,
 	defaultPriorityClass string,
 	fairnessCostProvider fairness.FairnessCostProvider,
+	limiter *rate.Limiter,
 	totalResources schedulerobjects.ResourceList,
 ) *SchedulingContext {
 	return &SchedulingContext{
@@ -82,6 +87,7 @@ func NewSchedulingContext(
 		PriorityClasses:                   priorityClasses,
 		DefaultPriorityClass:              defaultPriorityClass,
 		FairnessCostProvider:              fairnessCostProvider,
+		Limiter:                           limiter,
 		QueueSchedulingContexts:           make(map[string]*QueueSchedulingContext),
 		TotalResources:                    totalResources.DeepCopy(),
 		ScheduledResources:                schedulerobjects.NewResourceListWithDefaultSize(),
@@ -110,7 +116,11 @@ func (sctx *SchedulingContext) ClearUnfeasibleSchedulingKeys() {
 	sctx.UnfeasibleSchedulingKeys = make(map[schedulerobjects.SchedulingKey]*JobSchedulingContext)
 }
 
-func (sctx *SchedulingContext) AddQueueSchedulingContext(queue string, weight float64, initialAllocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]) error {
+func (sctx *SchedulingContext) AddQueueSchedulingContext(
+	queue string, weight float64,
+	initialAllocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string],
+	limiter *rate.Limiter,
+) error {
 	if _, ok := sctx.QueueSchedulingContexts[queue]; ok {
 		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "queue",
@@ -134,6 +144,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(queue string, weight fl
 		ExecutorId:                        sctx.ExecutorId,
 		Queue:                             queue,
 		Weight:                            weight,
+		Limiter:                           limiter,
 		Allocated:                         allocated,
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
 		ScheduledResourcesByPriorityClass: make(schedulerobjects.QuantityByTAndResourceType[string]),
@@ -335,6 +346,9 @@ type QueueSchedulingContext struct {
 	Queue string
 	// Determines the fair share of this queue relative to other queues.
 	Weight float64
+	// Limits job scheduling rate for this queue.
+	// Use the "Started" time to ensure limiter state remains constant within each scheduling round.
+	Limiter *rate.Limiter
 	// Total resources assigned to the queue across all clusters by priority class priority.
 	// Includes jobs scheduled during this invocation of the scheduler.
 	Allocated schedulerobjects.ResourceList
@@ -558,6 +572,11 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 		AllJobsEvicted:        allJobsEvicted,
 		NodeUniformityLabel:   nodeUniformityLabel,
 	}
+}
+
+// Cardinality returns the number of jobs in the gang.
+func (gctx *GangSchedulingContext) Cardinality() int {
+	return len(gctx.JobSchedulingContexts)
 }
 
 func isEvictedJob(job interfaces.LegacySchedulerJob) bool {

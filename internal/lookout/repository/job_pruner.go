@@ -1,12 +1,13 @@
 package repository
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 const postgresFormat = "2006-01-02 15:04:05.000000"
@@ -22,7 +23,7 @@ const postgresFormat = "2006-01-02 15:04:05.000000"
 // For performance reasons we don't use a transaction here and so an error may indicate that
 // Some jobs were deleted.
 func DeleteOldJobs(db *sql.DB, batchSizeLimit int, cutoff time.Time) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 120*time.Second)
 	defer cancel()
 
 	// This would be much better done as a proper statement with parameters, but postgres doesn't support
@@ -30,7 +31,7 @@ func DeleteOldJobs(db *sql.DB, batchSizeLimit int, cutoff time.Time) error {
 	queryText := fmt.Sprintf(`
 				CREATE TEMP TABLE rows_to_delete AS (SELECT job_id FROM job WHERE submitted < '%v' OR submitted IS NULL);
 				CREATE TEMP TABLE batch (job_id varchar(32));
-				
+
 				DO
 				$do$
 					DECLARE
@@ -52,7 +53,7 @@ func DeleteOldJobs(db *sql.DB, batchSizeLimit int, cutoff time.Time) error {
 						END LOOP;
 					END;
 				$do$;
-				
+
 				DROP TABLE rows_to_delete;
 				DROP TABLE batch;
 				`, cutoff.Format(postgresFormat), batchSizeLimit)

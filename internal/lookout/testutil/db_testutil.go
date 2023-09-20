@@ -1,7 +1,6 @@
 package testutil
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 
@@ -9,6 +8,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pkg/errors"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookout/repository/schema"
 )
@@ -61,7 +61,7 @@ func WithDatabase(action func(db *sql.DB) error) error {
 }
 
 func WithDatabasePgx(action func(db *pgxpool.Pool) error) error {
-	ctx := context.Background()
+	ctx := armadacontext.Background()
 
 	// Connect and create a dedicated database for the test
 	// For now use database/sql for this

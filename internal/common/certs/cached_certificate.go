@@ -1,13 +1,14 @@
 package certs
 
 import (
-	"context"
 	"crypto/tls"
 	"os"
 	"sync"
 	"time"
 
 	log "github.com/sirupsen/logrus"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 type CachedCertificateService struct {
@@ -52,7 +53,7 @@ func (c *CachedCertificateService) updateCertificate(certificate *tls.Certificat
 	c.certificate = certificate
 }
 
-func (c *CachedCertificateService) Run(ctx context.Context) {
+func (c *CachedCertificateService) Run(ctx *armadacontext.Context) {
 	ticker := time.NewTicker(c.refreshInterval)
 	for {
 		select {

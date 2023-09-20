@@ -1,7 +1,6 @@
 package database
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 func CreateConnectionString(values map[string]string) string {
@@ -26,20 +26,20 @@ func CreateConnectionString(values map[string]string) string {
 }
 
 func OpenPgxConn(config configuration.PostgresConfig) (*pgx.Conn, error) {
-	db, err := pgx.Connect(context.Background(), CreateConnectionString(config.Connection))
+	db, err := pgx.Connect(armadacontext.Background(), CreateConnectionString(config.Connection))
 	if err != nil {
 		return nil, err
 	}
-	err = db.Ping(context.Background())
+	err = db.Ping(armadacontext.Background())
 	return db, err
 }
 
 func OpenPgxPool(config configuration.PostgresConfig) (*pgxpool.Pool, error) {
-	db, err := pgxpool.New(context.Background(), CreateConnectionString(config.Connection))
+	db, err := pgxpool.New(armadacontext.Background(), CreateConnectionString(config.Connection))
 	if err != nil {
 		return nil, err
 	}
-	err = db.Ping(context.Background())
+	err = db.Ping(armadacontext.Background())
 	return db, err
 }
 

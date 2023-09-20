@@ -28,7 +28,7 @@ mage BootstrapTools
 # Compile .pb.go files from .proto files
 # (only necessary after changing a .proto file).
 mage proto
-make dotnet
+mage dotnet
 
 # Build the Docker images containing all Armada components.
 # Only the main "bundle" is needed for quickly testing Armada.

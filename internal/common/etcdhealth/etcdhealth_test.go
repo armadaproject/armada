@@ -1,14 +1,13 @@
 package etcdhealth
 
 import (
-	"context"
 	"testing"
 	"time"
 
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/sync/errgroup"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/healthmonitor"
 	"github.com/armadaproject/armada/internal/common/metrics"
 )
@@ -24,9 +23,9 @@ func TestEtcdReplicaHealthMonitor(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Start the metrics collection service.
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
 	defer cancel()
-	g, ctx := errgroup.WithContext(ctx)
+	g, ctx := armadacontext.ErrGroup(ctx)
 	g.Go(func() error { return hm.Run(ctx, logrus.NewEntry(logrus.New())) })
 
 	// Should still be unavailable due to missing metrics.

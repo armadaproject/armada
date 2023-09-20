@@ -1,7 +1,6 @@
 package healthmonitor
 
 import (
-	"context"
 	"fmt"
 	"sync"
 
@@ -9,7 +8,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
-	"golang.org/x/sync/errgroup"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 // MultiHealthMonitor wraps multiple HealthMonitors and itself implements the HealthMonitor interface.
@@ -32,11 +32,13 @@ type MultiHealthMonitor struct {
 }
 
 func NewMultiHealthMonitor(name string, healthMonitorsByName map[string]HealthMonitor) *MultiHealthMonitor {
-	return &MultiHealthMonitor{
+	srv := &MultiHealthMonitor{
 		name:                     name,
 		minimumReplicasAvailable: len(healthMonitorsByName),
 		healthMonitorsByName:     maps.Clone(healthMonitorsByName),
 	}
+	srv.initialiseMetrics()
+	return srv
 }
 
 func (srv *MultiHealthMonitor) WithMinimumReplicasAvailable(v int) *MultiHealthMonitor {
@@ -44,9 +46,25 @@ func (srv *MultiHealthMonitor) WithMinimumReplicasAvailable(v int) *MultiHealthM
 	return srv
 }
 
+// WithMetricsPrefix adds a prefix to exported Prometheus metrics.
+// Must be called before Describe or Collect.
 func (srv *MultiHealthMonitor) WithMetricsPrefix(v string) *MultiHealthMonitor {
 	srv.metricsPrefix = v
+	srv.initialiseMetrics()
 	return srv
+}
+
+func (srv *MultiHealthMonitor) initialiseMetrics() {
+	metricsPrefix := srv.name
+	if srv.metricsPrefix != "" {
+		metricsPrefix = srv.metricsPrefix + srv.name
+	}
+	srv.healthPrometheusDesc = prometheus.NewDesc(
+		metricsPrefix+"_health",
+		fmt.Sprintf("Shows whether %s is healthy.", srv.name),
+		nil,
+		nil,
+	)
 }
 
 // IsHealthy returns false if either
@@ -82,19 +100,8 @@ func (srv *MultiHealthMonitor) IsHealthy() (ok bool, reason string, err error) {
 }
 
 // Run initialises prometheus metrics and starts any child health checkers.
-func (srv *MultiHealthMonitor) Run(ctx context.Context, log *logrus.Entry) error {
-	metricsPrefix := srv.name
-	if srv.metricsPrefix != "" {
-		metricsPrefix = srv.metricsPrefix + srv.name
-	}
-	srv.healthPrometheusDesc = prometheus.NewDesc(
-		metricsPrefix+"_health",
-		fmt.Sprintf("Shows whether %s is healthy.", srv.name),
-		[]string{srv.name},
-		nil,
-	)
-
-	g, ctx := errgroup.WithContext(ctx)
+func (srv *MultiHealthMonitor) Run(ctx *armadacontext.Context, log *logrus.Entry) error {
+	g, ctx := armadacontext.ErrGroup(ctx)
 	for _, healthMonitor := range srv.healthMonitorsByName {
 		healthMonitor := healthMonitor
 		g.Go(func() error { return healthMonitor.Run(ctx, log) })
@@ -121,7 +128,6 @@ func (srv *MultiHealthMonitor) Collect(c chan<- prometheus.Metric) {
 		srv.healthPrometheusDesc,
 		prometheus.GaugeValue,
 		resultOfMostRecentHealthCheck,
-		srv.name,
 	)
 
 	for _, healthMonitor := range srv.healthMonitorsByName {
