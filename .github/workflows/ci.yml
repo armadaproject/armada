@@ -2,9 +2,13 @@ name: CI
 
 on:
   push:
+    tags:
+      - v*
     branches-ignore:
       - gh-pages
   pull_request:
+    tags:
+      - v*
     branches-ignore:
       - gh-pages
   schedule:
