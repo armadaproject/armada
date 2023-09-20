@@ -89,8 +89,9 @@ func testNSmallCpuJobSchedulingContext(queue, priorityClassName string, n int) [
 func testSmallCpuJobSchedulingContext(queue, priorityClassName string) *JobSchedulingContext {
 	job := testfixtures.Test1Cpu4GiJob(queue, priorityClassName)
 	return &JobSchedulingContext{
-		JobId:           job.GetId(),
-		Job:             job,
-		PodRequirements: job.GetPodRequirements(testfixtures.TestPriorityClasses),
+		JobId:              job.GetId(),
+		Job:                job,
+		PodRequirements:    job.GetPodRequirements(testfixtures.TestPriorityClasses),
+		GangMinCardinality: 1,
 	}
 }

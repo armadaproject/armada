@@ -46,6 +46,9 @@ func TestSchedule(t *testing.T) {
 
 		// Indices of queued jobs expected to be scheduled.
 		expectedScheduledIndices []int
+
+		// Count of jobs expected to fail
+		expectedFailedJobCount int
 	}{
 		"scheduling": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
@@ -249,12 +252,20 @@ func TestSchedule(t *testing.T) {
 			},
 			expectedScheduledIndices: []int{0},
 		},
-		"gang scheduling": {
+		"gang scheduling successful": {
 			schedulingConfig:         testfixtures.TestSchedulingConfig(),
 			executors:                []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
 			queues:                   []*database.Queue{{Name: "A", Weight: 100}},
 			queuedJobs:               testfixtures.WithGangAnnotationsJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 2)),
 			expectedScheduledIndices: []int{0, 1},
+		},
+		"gang scheduling successful with some jobs failing to schedule above min cardinality": {
+			schedulingConfig:         testfixtures.TestSchedulingConfig(),
+			executors:                []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			queues:                   []*database.Queue{{Name: "A", Weight: 100}},
+			queuedJobs:               testfixtures.WithGangAnnotationsJobsAndMinCardinality(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 10), 2),
+			expectedScheduledIndices: []int{0, 1},
+			expectedFailedJobCount:   8,
 		},
 		"not scheduling a gang that does not fit on any executor": {
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
@@ -433,6 +444,10 @@ func TestSchedule(t *testing.T) {
 				assert.Equal(t, tc.expectedScheduledIndices, actualScheduledIndices)
 			}
 
+			// Check that we failed the correct number of excess jobs when a gang schedules >= minimum cardinality
+			failedJobs := FailedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
+			assert.Equal(t, tc.expectedFailedJobCount, len(failedJobs))
+
 			// Check that preempted jobs are marked as such consistently.
 			for _, job := range preemptedJobs {
 				dbJob := jobDb.GetById(txn, job.Id())
@@ -451,6 +466,13 @@ func TestSchedule(t *testing.T) {
 				assert.NotEmpty(t, dbRun.NodeName())
 			}
 
+			// Check that failed jobs are marked as such consistently.
+			for _, job := range failedJobs {
+				dbJob := jobDb.GetById(txn, job.Id())
+				assert.True(t, dbJob.Failed())
+				assert.False(t, dbJob.Queued())
+			}
+
 			// Check that jobDb was updated correctly.
 			// TODO: Check that there are no unexpected jobs in the jobDb.
 			for _, job := range preemptedJobs {
@@ -458,6 +480,10 @@ func TestSchedule(t *testing.T) {
 				assert.Equal(t, job, dbJob)
 			}
 			for _, job := range scheduledJobs {
+				dbJob := jobDb.GetById(txn, job.Id())
+				assert.Equal(t, job, dbJob)
+			}
+			for _, job := range failedJobs {
 				dbJob := jobDb.GetById(txn, job.Id())
 				assert.Equal(t, job, dbJob)
 			}

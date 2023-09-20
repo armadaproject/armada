@@ -488,13 +488,9 @@ func NodeJobDiff(txnA, txnB *memdb.Txn) (map[string]*Node, map[string]*Node, err
 	return preempted, scheduled, nil
 }
 
-// ScheduleMany assigns a set of jobs to nodes. The assignment is atomic, i.e., either all jobs are
-// successfully assigned to nodes or none are. The returned bool indicates whether assignment
-// succeeded (true) or not (false).
-//
-// This method sets the PodSchedulingContext field on each JobSchedulingContext that it attempts to
-// schedule; if it returns early (e.g., because it finds an unschedulable JobSchedulingContext),
-// then this field will not be set on the remaining items.
+// ScheduleMany assigns a set of jobs to nodes.
+// If N jobs can be scheduled, where N >= `GangMinCardinality`, it will return true, nil and set ShouldFail on any excess jobs.
+// Otherwise, it will return false, nil.
 // TODO: Pass through contexts to support timeouts.
 func (nodeDb *NodeDb) ScheduleMany(jctxs []*schedulercontext.JobSchedulingContext) (bool, error) {
 	txn := nodeDb.db.Txn(true)
@@ -507,25 +503,42 @@ func (nodeDb *NodeDb) ScheduleMany(jctxs []*schedulercontext.JobSchedulingContex
 	return ok, err
 }
 
+// TODO: Remove me once we re-phrase nodedb in terms of gang context (and therefore can just take this value from the gang scheduling context provided)
+func gangMinCardinality(jctxs []*schedulercontext.JobSchedulingContext) int {
+	if len(jctxs) > 0 {
+		return jctxs[0].GangMinCardinality
+	} else {
+		return 1
+	}
+}
+
 func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, jctxs []*schedulercontext.JobSchedulingContext) (bool, error) {
 	// Attempt to schedule pods one by one in a transaction.
+	cumulativeScheduled := 0
+	gangMinCardinality := gangMinCardinality(jctxs)
+
 	for _, jctx := range jctxs {
+		// Defensively reset `ShouldFail` (this should always be false as the state is re-constructed per cycle but just in case)
+		jctx.ShouldFail = false
+
 		node, err := nodeDb.SelectNodeForJobWithTxn(txn, jctx)
 		if err != nil {
 			return false, err
 		}
 
+		if node == nil {
+			// Indicates that when the min cardinality is met, we should fail this job back to the client.
+			jctx.ShouldFail = true
+			continue
+		}
+
 		// If we found a node for this pod, bind it and continue to the next pod.
-		if node != nil {
-			if node, err := bindJobToNode(nodeDb.priorityClasses, jctx.Job, node); err != nil {
-				return false, err
-			} else {
-				if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
-					return false, err
-				}
-			}
+		if node, err := bindJobToNode(nodeDb.priorityClasses, jctx.Job, node); err != nil {
+			return false, err
 		} else {
-			return false, nil
+			if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
+				return false, err
+			}
 		}
 
 		// Once a job is scheduled, it should no longer be considered for preemption.
@@ -534,7 +547,14 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, jctxs []*schedulercont
 				return false, err
 			}
 		}
+
+		cumulativeScheduled++
 	}
+
+	if cumulativeScheduled < gangMinCardinality {
+		return false, nil
+	}
+
 	return true, nil
 }
 

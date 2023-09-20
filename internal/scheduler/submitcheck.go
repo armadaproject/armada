@@ -134,17 +134,21 @@ func (srv *SubmitChecker) updateExecutors(ctx *armadacontext.Context) {
 }
 
 func (srv *SubmitChecker) CheckApiJobs(jobs []*api.Job) (bool, string) {
-	return srv.check(schedulercontext.JobSchedulingContextsFromJobs(srv.priorityClasses, jobs))
+	return srv.check(schedulercontext.JobSchedulingContextsFromJobs(srv.priorityClasses, jobs, GangIdAndCardinalityFromAnnotations))
 }
 
 func (srv *SubmitChecker) CheckJobDbJobs(jobs []*jobdb.Job) (bool, string) {
-	return srv.check(schedulercontext.JobSchedulingContextsFromJobs(srv.priorityClasses, jobs))
+	return srv.check(schedulercontext.JobSchedulingContextsFromJobs(srv.priorityClasses, jobs, GangIdAndCardinalityFromAnnotations))
 }
 
 func (srv *SubmitChecker) check(jctxs []*schedulercontext.JobSchedulingContext) (bool, string) {
 	// First, check if all jobs can be scheduled individually.
 	for i, jctx := range jctxs {
+		// Override min cardinality to enable individual job scheduling checks, but reset after
+		originalGangMinCardinality := jctx.GangMinCardinality
+		jctx.GangMinCardinality = 1
 		schedulingResult := srv.getIndividualSchedulingResult(jctx)
+		jctx.GangMinCardinality = originalGangMinCardinality
 		if !schedulingResult.isSchedulable {
 			return schedulingResult.isSchedulable, fmt.Sprintf("%d-th job unschedulable:\n%s", i, schedulingResult.reason)
 		}
@@ -247,7 +251,7 @@ func (srv *SubmitChecker) getSchedulingResult(jctxs []*schedulercontext.JobSched
 			sb.WriteString("\n")
 		} else {
 			sb.WriteString(":")
-			sb.WriteString(fmt.Sprintf(" %d out of %d pods schedulable\n", numSuccessfullyScheduled, len(jctxs)))
+			sb.WriteString(fmt.Sprintf(" %d out of %d pods schedulable (minCardinality %d)\n", numSuccessfullyScheduled, len(jctxs), jctxs[0].GangMinCardinality))
 		}
 	}
 	return schedulingResult{isSchedulable: isSchedulable, reason: sb.String()}

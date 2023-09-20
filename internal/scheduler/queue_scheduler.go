@@ -63,6 +63,7 @@ func (sch *QueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
 	nodeIdByJobId := make(map[string]string)
 	scheduledJobs := make([]interfaces.LegacySchedulerJob, 0)
+	failedJobs := make([]interfaces.LegacySchedulerJob, 0)
 	for {
 		// Peek() returns the next gang to try to schedule. Call Clear() before calling Peek() again.
 		// Calling Clear() after (failing to) schedule ensures we get the next gang in order of smallest fair share.
@@ -91,11 +92,19 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		if ok, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx); err != nil {
 			return nil, err
 		} else if ok {
+			// We scheduled the minimum number of gang jobs required.
 			for _, jctx := range gctx.JobSchedulingContexts {
-				scheduledJobs = append(scheduledJobs, jctx.Job)
 				pctx := jctx.PodSchedulingContext
 				if pctx != nil && pctx.NodeId != "" {
+					scheduledJobs = append(scheduledJobs, jctx.Job)
 					nodeIdByJobId[jctx.JobId] = pctx.NodeId
+				}
+			}
+
+			// Report any excess gang jobs that failed
+			for _, jctx := range gctx.JobSchedulingContexts {
+				if jctx.ShouldFail {
+					failedJobs = append(failedJobs, jctx.Job)
 				}
 			}
 		} else if schedulerconstraints.IsTerminalUnschedulableReason(unschedulableReason) {
@@ -107,6 +116,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			// instruct the underlying iterator to only yield evicted jobs for this queue from now on.
 			sch.candidateGangIterator.OnlyYieldEvictedForQueue(gctx.Queue)
 		}
+
 		// Clear() to get the next gang in order of smallest fair share.
 		// Calling clear here ensures the gang scheduled in this iteration is accounted for.
 		if err := sch.candidateGangIterator.Clear(); err != nil {
@@ -122,6 +132,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	return &SchedulerResult{
 		PreemptedJobs:      nil,
 		ScheduledJobs:      scheduledJobs,
+		FailedJobs:         failedJobs,
 		NodeIdByJobId:      nodeIdByJobId,
 		SchedulingContexts: []*schedulercontext.SchedulingContext{sch.schedulingContext},
 	}, nil
@@ -208,6 +219,8 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 					Job:                  job,
 					UnschedulableReason:  unsuccessfulJctx.UnschedulableReason,
 					PodSchedulingContext: unsuccessfulJctx.PodSchedulingContext,
+					// TODO: Move this into gang scheduling context
+					GangMinCardinality: 1,
 				}
 				if _, err := it.schedulingContext.AddJobSchedulingContext(jctx); err != nil {
 					return nil, err
@@ -232,6 +245,7 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 					schedulercontext.JobSchedulingContextsFromJobs(
 						it.schedulingContext.PriorityClasses,
 						gang,
+						GangIdAndCardinalityFromAnnotations,
 					),
 				)
 				return it.next, nil
@@ -241,6 +255,7 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 				schedulercontext.JobSchedulingContextsFromJobs(
 					it.schedulingContext.PriorityClasses,
 					[]interfaces.LegacySchedulerJob{job},
+					GangIdAndCardinalityFromAnnotations,
 				),
 			)
 			return it.next, nil

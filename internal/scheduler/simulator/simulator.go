@@ -534,6 +534,10 @@ func (s *Simulator) handleScheduleEvent() error {
 			if err != nil {
 				return err
 			}
+			eventSequences, err = scheduler.AppendEventSequencesFromUnschedulableJobs(eventSequences, result.FailedJobs, s.time)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	txn.Commit()
