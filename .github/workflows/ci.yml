@@ -9,7 +9,7 @@ on:
       - gh-pages
   schedule:
     # Run daily at 01:34, so we get notified if CI is broken before a pull request
-    # is submitted.
+    # is submitted
     - cron: "34 1 * * *"
 
 concurrency:
