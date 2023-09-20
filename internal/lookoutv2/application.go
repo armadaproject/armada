@@ -3,10 +3,12 @@
 package lookoutv2
 
 import (
+	"github.com/caarlos0/log"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -38,6 +40,8 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 	// create new service API
 	api := operations.NewLookoutAPI(swaggerSpec)
 
+	logger := logrus.NewEntry(logrus.New())
+
 	api.GetHealthHandler = operations.GetHealthHandlerFunc(
 		func(params operations.GetHealthParams) middleware.Responder {
 			return operations.NewGetHealthOK().WithPayload("Health check passed")
@@ -53,7 +57,7 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 				skip = int(*params.GetJobsRequest.Skip)
 			}
 			result, err := getJobsRepo.GetJobs(
-				params.HTTPRequest.Context(),
+				armadacontext.New(params.HTTPRequest.Context(), logger),
 				filters,
 				params.GetJobsRequest.ActiveJobSets,
 				order,
@@ -78,7 +82,7 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 				skip = int(*params.GroupJobsRequest.Skip)
 			}
 			result, err := groupJobsRepo.GroupBy(
-				params.HTTPRequest.Context(),
+				armadacontext.New(params.HTTPRequest.Context(), logger),
 				filters,
 				params.GroupJobsRequest.ActiveJobSets,
 				order,
@@ -98,7 +102,8 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 
 	api.GetJobRunErrorHandler = operations.GetJobRunErrorHandlerFunc(
 		func(params operations.GetJobRunErrorParams) middleware.Responder {
-			result, err := getJobRunErrorRepo.GetJobRunError(params.HTTPRequest.Context(), params.GetJobRunErrorRequest.RunID)
+			ctx := armadacontext.New(params.HTTPRequest.Context(), logger)
+			result, err := getJobRunErrorRepo.GetJobRunError(ctx, params.GetJobRunErrorRequest.RunID)
 			if err != nil {
 				return operations.NewGetJobRunErrorBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
 			}
@@ -110,7 +115,8 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 
 	api.GetJobSpecHandler = operations.GetJobSpecHandlerFunc(
 		func(params operations.GetJobSpecParams) middleware.Responder {
-			result, err := getJobSpecRepo.GetJobSpec(params.HTTPRequest.Context(), params.GetJobSpecRequest.JobID)
+			ctx := armadacontext.New(params.HTTPRequest.Context(), logger)
+			result, err := getJobSpecRepo.GetJobSpec(ctx, params.GetJobSpecRequest.JobID)
 			if err != nil {
 				return operations.NewGetJobSpecBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
 			}

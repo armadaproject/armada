@@ -205,13 +205,13 @@ func newFakeExecutorApiClient() *fakeExecutorApiClient {
 	}
 }
 
-func (fakeClient *fakeExecutorApiClient) LeaseJobRuns(ctx context.Context, opts ...grpc.CallOption) (executorapi.ExecutorApi_LeaseJobRunsClient, error) {
+func (fakeClient *fakeExecutorApiClient) LeaseJobRuns(_ context.Context, opts ...grpc.CallOption) (executorapi.ExecutorApi_LeaseJobRunsClient, error) {
 	// Not implemented
 	return nil, nil
 }
 
 // Reports job run events to the scheduler
-func (fakeClient *fakeExecutorApiClient) ReportEvents(ctx context.Context, in *executorapi.EventList, opts ...grpc.CallOption) (*types.Empty, error) {
+func (fakeClient *fakeExecutorApiClient) ReportEvents(_ context.Context, in *executorapi.EventList, opts ...grpc.CallOption) (*types.Empty, error) {
 	fakeClient.reportedEvents = append(fakeClient.reportedEvents, in)
 	return nil, nil
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -87,7 +88,7 @@ func TestMultiJobsIterator_TwoQueues(t *testing.T) {
 		expected = append(expected, job.Id)
 	}
 
-	ctx := context.Background()
+	ctx := armadacontext.Background()
 	its := make([]JobIterator, 3)
 	for i, queue := range []string{"A", "B", "C"} {
 		it, err := NewQueuedJobsIterator(ctx, queue, repo)
@@ -121,7 +122,7 @@ func TestQueuedJobsIterator_OneQueue(t *testing.T) {
 		expected = append(expected, job.Id)
 	}
 
-	ctx := context.Background()
+	ctx := armadacontext.Background()
 	it, err := NewQueuedJobsIterator(ctx, "A", repo)
 	if !assert.NoError(t, err) {
 		return
@@ -146,7 +147,7 @@ func TestQueuedJobsIterator_ExceedsBufferSize(t *testing.T) {
 		expected = append(expected, job.Id)
 	}
 
-	ctx := context.Background()
+	ctx := armadacontext.Background()
 	it, err := NewQueuedJobsIterator(ctx, "A", repo)
 	if !assert.NoError(t, err) {
 		return
@@ -171,7 +172,7 @@ func TestQueuedJobsIterator_ManyJobs(t *testing.T) {
 		expected = append(expected, job.Id)
 	}
 
-	ctx := context.Background()
+	ctx := armadacontext.Background()
 	it, err := NewQueuedJobsIterator(ctx, "A", repo)
 	if !assert.NoError(t, err) {
 		return
@@ -200,7 +201,7 @@ func TestCreateQueuedJobsIterator_TwoQueues(t *testing.T) {
 		repo.Enqueue(job)
 	}
 
-	ctx := context.Background()
+	ctx := armadacontext.Background()
 	it, err := NewQueuedJobsIterator(ctx, "A", repo)
 	if !assert.NoError(t, err) {
 		return
@@ -223,7 +224,7 @@ func TestCreateQueuedJobsIterator_RespectsTimeout(t *testing.T) {
 		repo.Enqueue(job)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Millisecond)
 	time.Sleep(20 * time.Millisecond)
 	defer cancel()
 	it, err := NewQueuedJobsIterator(ctx, "A", repo)
@@ -248,7 +249,7 @@ func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
 		repo.Enqueue(job)
 	}
 
-	ctx := context.Background()
+	ctx := armadacontext.Background()
 	it, err := NewQueuedJobsIterator(ctx, "A", repo)
 	if !assert.NoError(t, err) {
 		return
@@ -291,7 +292,7 @@ func (repo *mockJobRepository) Enqueue(job *api.Job) {
 	repo.jobsById[job.Id] = job
 }
 
-func (repo *mockJobRepository) GetJobIterator(ctx context.Context, queue string) (JobIterator, error) {
+func (repo *mockJobRepository) GetJobIterator(ctx *armadacontext.Context, queue string) (JobIterator, error) {
 	return NewQueuedJobsIterator(ctx, queue, repo)
 }
 
