@@ -1,4 +1,4 @@
-name: Code Build and Tests
+name: Tests
 
 on:
   workflow_call:
