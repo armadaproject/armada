@@ -2,10 +2,10 @@ name: CI
 
 on:
   push:
-    branches:
-      - master
     tags:
       - v*
+    branches-ignore:
+      - gh-pages
   pull_request:
     branches-ignore:
       - gh-pages
