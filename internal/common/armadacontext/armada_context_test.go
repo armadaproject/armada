@@ -15,7 +15,7 @@ var defaultLogger = logrus.WithField("foo", "bar")
 
 func TestNew(t *testing.T) {
 	ctx := New(context.Background(), defaultLogger)
-	require.Equal(t, defaultLogger, ctx.Log)
+	require.Equal(t, defaultLogger, ctx.FieldLogger)
 	require.Equal(t, context.Background(), ctx.Context)
 }
 
@@ -23,7 +23,7 @@ func TestFromGrpcContext(t *testing.T) {
 	grpcCtx := ctxlogrus.ToContext(context.Background(), defaultLogger)
 	ctx := FromGrpcCtx(grpcCtx)
 	require.Equal(t, grpcCtx, ctx.Context)
-	require.Equal(t, defaultLogger, ctx.Log)
+	require.Equal(t, defaultLogger, ctx.FieldLogger)
 }
 
 func TestBackground(t *testing.T) {
@@ -39,13 +39,13 @@ func TestTODO(t *testing.T) {
 func TestWithLogField(t *testing.T) {
 	ctx := WithLogField(Background(), "fish", "chips")
 	require.Equal(t, context.Background(), ctx.Context)
-	require.Equal(t, logrus.Fields{"fish": "chips"}, ctx.Log.Data)
+	require.Equal(t, logrus.Fields{"fish": "chips"}, ctx.FieldLogger.(*logrus.Entry).Data)
 }
 
 func TestWithLogFields(t *testing.T) {
 	ctx := WithLogFields(Background(), logrus.Fields{"fish": "chips", "salt": "pepper"})
 	require.Equal(t, context.Background(), ctx.Context)
-	require.Equal(t, logrus.Fields{"fish": "chips", "salt": "pepper"}, ctx.Log.Data)
+	require.Equal(t, logrus.Fields{"fish": "chips", "salt": "pepper"}, ctx.FieldLogger.(*logrus.Entry).Data)
 }
 
 func TestWithTimeout(t *testing.T) {
