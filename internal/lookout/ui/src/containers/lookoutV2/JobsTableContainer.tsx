@@ -9,7 +9,6 @@ import {
   TableBody,
   TableCell,
   TableContainer,
-  TableFooter,
   TableHead,
   TablePagination,
   TableRow,
@@ -668,95 +667,96 @@ export const JobsTableContainer = ({
     columnsForSelect = columnsForSelect.filter((col) => col.id !== StandardColumnId.Count)
   }
   return (
-    <Box sx={{ display: "flex", width: "100%" }}>
-      <Box sx={{ overflowX: "auto", overflowY: "auto", margin: "0.5em", width: "100%" }}>
-        <JobsTableActionBar
-          isLoading={rowsToFetch.length > 0}
-          allColumns={columnsForSelect}
-          groupedColumns={grouping}
-          visibleColumns={visibleColumnIds}
-          selectedItemFilters={selectedItemsFilters}
-          customViews={customViews}
-          activeJobSets={activeJobSets}
-          onActiveJobSetsChanged={(newVal) => {
-            setActiveJobSets(newVal)
-            onRefresh()
-          }}
-          onRefresh={onRefresh}
-          onAddAnnotationColumn={addAnnotationCol}
-          onRemoveAnnotationColumn={removeAnnotationCol}
-          onEditAnnotationColumn={editAnnotationCol}
-          onGroupsChanged={onGroupingChange}
-          toggleColumnVisibility={onColumnVisibilityChange}
-          getJobsService={getJobsService}
-          updateJobsService={updateJobsService}
-          onClearFilters={clearFilters}
-          onAddCustomView={addCustomView}
-          onDeleteCustomView={deleteCustomView}
-          onLoadCustomView={loadCustomView}
-        />
-        <TableContainer component={Paper}>
-          <Table
-            sx={{ tableLayout: "fixed" }}
-            aria-label="Jobs table"
-            style={{
-              width: table.getCenterTotalSize(),
-              borderLeft: "1px solid #cccccc",
+    <Box sx={{ display: "flex", flexDirection: "row", height: "100%", width: "100%" }}>
+      <Box sx={{ display: "flex", flexDirection: "column", marginX: "0.5em", height: "100%", width: "100%", minWidth: 0, flex: 1 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", marginY: "0.5em", height: "100%", minHeight: 0, width: "100%", flex: 1 }}>
+          <JobsTableActionBar
+            isLoading={rowsToFetch.length > 0}
+            allColumns={columnsForSelect}
+            groupedColumns={grouping}
+            visibleColumns={visibleColumnIds}
+            selectedItemFilters={selectedItemsFilters}
+            customViews={customViews}
+            activeJobSets={activeJobSets}
+            onActiveJobSetsChanged={(newVal) => {
+              setActiveJobSets(newVal)
+              onRefresh()
             }}
-          >
-            <TableHead>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <HeaderCell
-                      header={header}
-                      key={header.id}
-                      parseError={header.id in parseErrors ? parseErrors[header.id] : undefined}
-                      columnResizeMode={columnResizeMode}
-                      deltaOffset={table.getState().columnSizingInfo.deltaOffset ?? 0}
-                      columnMatches={columnMatches}
-                      onColumnMatchChange={onColumnMatchChange}
-                      onSetTextFieldRef={(ref) => {
-                        setTextFieldRef(header.id, ref)
-                      }}
-                    />
-                  ))}
-                </TableRow>
-              ))}
-            </TableHead>
+            onRefresh={onRefresh}
+            onAddAnnotationColumn={addAnnotationCol}
+            onRemoveAnnotationColumn={removeAnnotationCol}
+            onEditAnnotationColumn={editAnnotationCol}
+            onGroupsChanged={onGroupingChange}
+            toggleColumnVisibility={onColumnVisibilityChange}
+            getJobsService={getJobsService}
+            updateJobsService={updateJobsService}
+            onClearFilters={clearFilters}
+            onAddCustomView={addCustomView}
+            onDeleteCustomView={deleteCustomView}
+            onLoadCustomView={loadCustomView}
+          />
+          <TableContainer
+            component={Paper}
+            style={{ height: "100%" }}>
+            <Table stickyHeader
+              sx={{ tableLayout: "fixed" }}
+              aria-label="Jobs table"
+              style={{
+                width: table.getCenterTotalSize(),
+                borderLeft: "1px solid #cccccc",
+                height: "100%",
+              }}
+            >
+              <TableHead>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <HeaderCell
+                        header={header}
+                        key={header.id}
+                        parseError={header.id in parseErrors ? parseErrors[header.id] : undefined}
+                        columnResizeMode={columnResizeMode}
+                        deltaOffset={table.getState().columnSizingInfo.deltaOffset ?? 0}
+                        columnMatches={columnMatches}
+                        onColumnMatchChange={onColumnMatchChange}
+                        onSetTextFieldRef={(ref) => {
+                          setTextFieldRef(header.id, ref)
+                        }}
+                      />
+                    ))}
+                  </TableRow>
+                ))}
+              </TableHead>
 
-            <JobsTableBody
-              dataIsLoading={rowsToFetch.length > 0}
-              columns={table.getVisibleLeafColumns()}
-              topLevelRows={topLevelRows}
-              sidebarJobId={sidebarJobId}
-              onLoadMoreSubRows={onLoadMoreSubRows}
-              onClickRowCheckbox={(row) => selectRow(row, false)}
-              onClickJobRow={toggleSidebarForJobRow}
-              onClickRow={(row) => selectRow(row, true)}
-              onShiftClickRow={shiftSelectRow}
-              onControlClickRow={(row) => selectRow(row, false)}
-            />
+              <JobsTableBody
+                dataIsLoading={rowsToFetch.length > 0}
+                columns={table.getVisibleLeafColumns()}
+                topLevelRows={topLevelRows}
+                sidebarJobId={sidebarJobId}
+                onLoadMoreSubRows={onLoadMoreSubRows}
+                onClickRowCheckbox={(row) => selectRow(row, false)}
+                onClickJobRow={toggleSidebarForJobRow}
+                onClickRow={(row) => selectRow(row, true)}
+                onShiftClickRow={shiftSelectRow}
+                onControlClickRow={(row) => selectRow(row, false)}
+              />
+            </Table>
+          </TableContainer>
+          <TablePagination
+            component="div"
+            rowsPerPageOptions={PAGE_SIZE_OPTIONS}
+            count={totalRowCount}
+            rowsPerPage={pageSize}
+            page={pageIndex}
+            onPageChange={(_, page) => table.setPageIndex(page)}
+            onRowsPerPageChange={(e) => table.setPageSize(Number(e.target.value))}
+            colSpan={table.getVisibleLeafColumns().length}
+            showFirstButton={true}
+            showLastButton={true}
+          />
 
-            <TableFooter>
-              <TableRow>
-                <TablePagination
-                  rowsPerPageOptions={PAGE_SIZE_OPTIONS}
-                  count={totalRowCount}
-                  rowsPerPage={pageSize}
-                  page={pageIndex}
-                  onPageChange={(_, page) => table.setPageIndex(page)}
-                  onRowsPerPageChange={(e) => table.setPageSize(Number(e.target.value))}
-                  colSpan={table.getVisibleLeafColumns().length}
-                  showFirstButton={true}
-                  showLastButton={true}
-                />
-              </TableRow>
-            </TableFooter>
-          </Table>
-        </TableContainer>
-
-        {debug && <pre>{JSON.stringify(table.getState(), null, 2)}</pre>}
+          {debug && <pre>{JSON.stringify(table.getState(), null, 2)}</pre>}
+        </Box>
       </Box>
 
       {sidebarJobDetails !== undefined && (
@@ -804,7 +804,9 @@ const JobsTableBody = ({
 }: JobsTableBodyProps) => {
   const canDisplay = !dataIsLoading && topLevelRows.length > 0
   return (
-    <TableBody>
+    <TableBody
+      style= {{ overflow: "auto", height: "100%" }}
+    >
       {!canDisplay && (
         <TableRow>
           {dataIsLoading && topLevelRows.length === 0 && (
