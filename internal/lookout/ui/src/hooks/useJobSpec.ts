@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react"
 
+import { OpenSnackbarFn } from "./useCustomSnackbar"
 import { Job } from "../models/lookoutV2Models"
 import { IGetJobSpecService } from "../services/lookoutV2/GetJobSpecService"
 import { getErrorMessage, RequestStatus } from "../utils"
-import { OpenSnackbarFn } from "./useCustomSnackbar"
 
 export type JobSpecState = {
   jobSpec?: Record<string, any>

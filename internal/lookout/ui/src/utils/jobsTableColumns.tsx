@@ -6,10 +6,10 @@ import { EnumFilterOption } from "components/lookoutV2/JobsTableFilter"
 import { isJobGroupRow, JobTableRow } from "models/jobsTableModels"
 import { JobState, Match } from "models/lookoutV2Models"
 
-import { JobGroupStateCounts } from "../components/lookoutV2/JobGroupStateCounts"
-import { LookoutColumnOrder } from "../containers/lookoutV2/JobsTableContainer"
 import { formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
 import { formatBytes, formatCpu, parseBytes, parseCpu, parseInteger } from "./resourceUtils"
+import { JobGroupStateCounts } from "../components/lookoutV2/JobGroupStateCounts"
+import { LookoutColumnOrder } from "../containers/lookoutV2/JobsTableContainer"
 
 export type JobTableColumn = ColumnDef<JobTableRow, any>
 

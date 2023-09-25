@@ -1,4 +1,3 @@
-import { tryParseJson } from "../../utils"
 import {
   DEFAULT_PREFERENCES,
   ensurePreferencesAreConsistent,
@@ -6,6 +5,7 @@ import {
   KEY_PREFIX,
   stringIsInvalid,
 } from "./JobsTablePreferencesService"
+import { tryParseJson } from "../../utils"
 
 const CUSTOM_KEY_PREFIX = `${KEY_PREFIX}CustomPrefs_`
 const CUSTOM_VIEWS_LIST_KEY = `${KEY_PREFIX}ListCustomPrefs`

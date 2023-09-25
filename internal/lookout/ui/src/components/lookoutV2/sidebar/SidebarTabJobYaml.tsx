@@ -6,10 +6,10 @@ import { IconButton } from "@mui/material"
 import yaml from "js-yaml"
 import { Job } from "models/lookoutV2Models"
 
+import styles from "./SidebarTabJobYaml.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { useJobSpec } from "../../../hooks/useJobSpec"
 import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
-import styles from "./SidebarTabJobYaml.module.css"
 
 export interface SidebarTabJobYamlProps {
   job: Job
