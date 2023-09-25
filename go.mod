@@ -4,7 +4,7 @@ go 1.20
 
 // athenz@v1.10.5 and onwards bundle encrypted signing keys with the source code.
 // Because corporate proxies may block go get commands that pull in encrypted data,
-// we replace athenz@v1.10.5 or later with athenz@v1.10.4.
+// we replace athenz@v1.10.5 or later with athenz@v1.10.4
 replace github.com/AthenZ/athenz v1.10.39 => github.com/AthenZ/athenz v1.10.4
 
 require (
@@ -53,7 +53,7 @@ require (
 	github.com/spf13/cobra v1.7.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.15.0
-	github.com/stretchr/testify v1.8.3
+	github.com/stretchr/testify v1.8.4
 	github.com/weaveworks/promrus v1.2.0
 	golang.org/x/exp v0.0.0-20221031165847-c99f073a8326
 	golang.org/x/net v0.9.0

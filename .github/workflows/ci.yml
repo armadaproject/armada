@@ -27,16 +27,22 @@ permissions:
 
 jobs:
   lint:
+    if: github.event_name == 'schedule' || github.event_name == 'push' || github.event.pull_request.head.repo.id != github.event.pull_request.base.repo.id
     uses: ./.github/workflows/lint.yml
   test:
+    if: github.event_name == 'schedule' || github.event_name == 'push' || github.event.pull_request.head.repo.id != github.event.pull_request.base.repo.id
     uses: ./.github/workflows/test.yml
+  build:
+    if: github.event_name == 'schedule' || github.event_name == 'push' || github.event.pull_request.head.repo.id != github.event.pull_request.base.repo.id
+    uses: ./.github/workflows/build.yml
   # Virtual job that can be configured as a required check before a PR can be merged.
   all-required-checks-done:
     name: All required checks done
-    if: ${{ always() }}
+    if: github.event_name == 'schedule' || github.event_name == 'push' || github.event.pull_request.head.repo.id != github.event.pull_request.base.repo.id
     needs:
       - lint
       - test
+      - build
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/github-script@v6
@@ -48,3 +54,4 @@ jobs:
             } else {
               core.setFailed('Some required checks failed');
             }
+
