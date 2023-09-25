@@ -1,7 +1,7 @@
 import React from "react"
 
-import { Run } from "../../services/JobService"
 import DetailRow from "./DetailRow"
+import { Run } from "../../services/JobService"
 
 import "./Details.css"
 

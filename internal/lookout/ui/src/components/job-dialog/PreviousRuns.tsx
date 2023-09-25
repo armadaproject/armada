@@ -3,8 +3,8 @@ import React, { Fragment } from "react"
 import { Collapse, List, ListItem, ListItemText, Paper, Table, TableBody, TableContainer } from "@material-ui/core"
 import { ExpandLess, ExpandMore } from "@material-ui/icons"
 
-import { Run } from "../../services/JobService"
 import RunDetailsRows from "./RunDetailsRows"
+import { Run } from "../../services/JobService"
 
 import "./PreviousRuns.css"
 

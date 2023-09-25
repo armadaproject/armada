@@ -19,9 +19,9 @@ import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import { pl, waitMillis } from "utils"
 import { getUniqueJobsMatchingFilters } from "utils/jobsDialogUtils"
 
-import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
+import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 
 interface ReprioritiseDialogProps {
   onClose: () => void

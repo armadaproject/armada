@@ -3,11 +3,11 @@ import React, { useEffect, useState } from "react"
 import { Accordion, AccordionDetails, AccordionSummary, Table, TableBody, TableContainer } from "@material-ui/core"
 import { ExpandMore } from "@material-ui/icons"
 
-import { Job } from "../../services/JobService"
 import ContainerDetails from "./ContainerDetails"
 import DetailRow from "./DetailRow"
 import { PreviousRuns } from "./PreviousRuns"
 import RunDetailsRows from "./RunDetailsRows"
+import { Job } from "../../services/JobService"
 
 import "./Details.css"
 

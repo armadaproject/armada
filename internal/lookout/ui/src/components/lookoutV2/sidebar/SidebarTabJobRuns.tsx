@@ -16,13 +16,13 @@ import { Button, Tooltip } from "@mui/material"
 import { Job, JobRun } from "models/lookoutV2Models"
 import { formatJobRunState, formatUtcDate } from "utils/jobsTableFormatters"
 
+import { CodeBlock } from "./CodeBlock"
+import { KeyValuePairTable } from "./KeyValuePairTable"
+import styles from "./SidebarTabJobRuns.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { ICordonService } from "../../../services/lookoutV2/CordonService"
 import { IGetRunErrorService } from "../../../services/lookoutV2/GetRunErrorService"
 import { getErrorMessage } from "../../../utils"
-import { CodeBlock } from "./CodeBlock"
-import { KeyValuePairTable } from "./KeyValuePairTable"
-import styles from "./SidebarTabJobRuns.module.css"
 
 export interface SidebarTabJobRunsProps {
   job: Job

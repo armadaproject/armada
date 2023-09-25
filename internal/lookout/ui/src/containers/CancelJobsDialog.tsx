@@ -2,11 +2,11 @@ import React, { useState } from "react"
 
 import { Dialog, DialogContent, DialogTitle } from "@material-ui/core"
 
+import { CANCELLABLE_JOB_STATES } from "./JobsContainer"
 import CancelJobs from "../components/jobs/cancel-jobs/CancelJobs"
 import CancelJobsOutcome from "../components/jobs/cancel-jobs/CancelJobsOutcome"
 import { JobService, CancelJobsResponse, Job } from "../services/JobService"
 import { ApiResult, RequestStatus, PlatformCancelReason } from "../utils"
-import { CANCELLABLE_JOB_STATES } from "./JobsContainer"
 
 import "../components/Dialog.css"
 
