@@ -1,6 +1,5 @@
 import { v4 as uuidv4 } from "uuid"
 
-import { ApiJobState } from "../openapi/armada"
 import {
   CancelJobSetsResponse,
   CancelJobsResponse,
@@ -13,6 +12,7 @@ import {
   ReprioritizeJobSetsResponse,
   ReprioritizeJobsResponse,
 } from "./JobService"
+import { ApiJobState } from "../openapi/armada"
 
 type MockJobServiceConfig = {
   getJobs: {

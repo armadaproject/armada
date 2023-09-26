@@ -17,13 +17,13 @@ import CancelIcon from "@material-ui/icons/Cancel"
 import LowPriority from "@material-ui/icons/LowPriority"
 import { AutoSizer } from "react-virtualized"
 
+import DurationPlotsTable from "./DurationPlotsTable"
+import JobSetTable from "./JobSetTable"
 import { JobSetsView, isJobSetsView } from "../../containers/JobSetsContainer"
 import { DurationStats, JobSet } from "../../services/JobService"
 import { RequestStatus } from "../../utils"
 import AutoRefreshToggle from "../AutoRefreshToggle"
 import RefreshButton from "../RefreshButton"
-import DurationPlotsTable from "./DurationPlotsTable"
-import JobSetTable from "./JobSetTable"
 
 import "./JobSets.css"
 

@@ -2,10 +2,10 @@ import React, { useState } from "react"
 
 import { Dialog, Tabs, Tab, DialogContent } from "@material-ui/core"
 
+import JobLogsContainer from "./JobLogsContainer"
 import JobDetails from "../components/job-dialog/JobDetails"
 import { Job } from "../services/JobService"
 import LogService from "../services/LogService"
-import JobLogsContainer from "./JobLogsContainer"
 
 type JobDetailsModalProps = {
   isOpen: boolean
