@@ -3,8 +3,8 @@ import React, { Fragment } from "react"
 import { Table, TableBody, TableContainer, Accordion, AccordionSummary, AccordionDetails } from "@material-ui/core"
 import { ExpandMore } from "@material-ui/icons"
 
-import { getContainerInfoFromYaml } from "../../services/ComputeResourcesService"
 import DetailRow from "./DetailRow"
+import { getContainerInfoFromYaml } from "../../services/ComputeResourcesService"
 
 import "./Details.css"
 

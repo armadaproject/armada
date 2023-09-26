@@ -4,10 +4,10 @@ import { Button } from "@material-ui/core"
 import CancelIcon from "@material-ui/icons/Cancel"
 import LowPriority from "@material-ui/icons/LowPriority"
 
+import ColumnSelect from "./ColumnSelect"
 import { ColumnSpec } from "../../containers/JobsContainer"
 import AutoRefreshToggle from "../AutoRefreshToggle"
 import RefreshButton from "../RefreshButton"
-import ColumnSelect from "./ColumnSelect"
 
 import "./JobTableHeader.css"
 

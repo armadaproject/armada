@@ -1,12 +1,12 @@
 import React from "react"
 
+import JobDialog from "./JobDialog"
 import Overview from "../components/Overview"
 import IntervalService from "../services/IntervalService"
 import { JobService, Job, QueueInfo } from "../services/JobService"
 import LogService from "../services/LogService"
 import OverviewLocalStorageService from "../services/OverviewLocalStorageService"
 import { PropsWithRouter, RequestStatus, setStateAsync, withRouter } from "../utils"
-import JobDialog from "./JobDialog"
 
 interface OverviewContainerProps extends PropsWithRouter {
   jobService: JobService

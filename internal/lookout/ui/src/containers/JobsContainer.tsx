@@ -2,6 +2,9 @@ import React from "react"
 
 import { v4 as uuidv4 } from "uuid"
 
+import CancelJobsDialog from "./CancelJobsDialog"
+import JobDialog from "./JobDialog"
+import ReprioritizeJobsDialog from "./ReprioritizeJobsDialog"
 import Jobs from "../components/jobs/Jobs"
 import IntervalService from "../services/IntervalService"
 import { JobService, GetJobsRequest, Job } from "../services/JobService"
@@ -11,9 +14,6 @@ import JobsQueryParamsService from "../services/JobsQueryParamsService"
 import LogService from "../services/LogService"
 import TimerService from "../services/TimerService"
 import { ApiResult, PropsWithRouter, RequestStatus, selectItem, setStateAsync, withRouter } from "../utils"
-import CancelJobsDialog from "./CancelJobsDialog"
-import JobDialog from "./JobDialog"
-import ReprioritizeJobsDialog from "./ReprioritizeJobsDialog"
 
 interface JobsContainerProps extends PropsWithRouter {
   jobService: JobService

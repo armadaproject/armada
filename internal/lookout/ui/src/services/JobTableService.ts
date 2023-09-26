@@ -1,5 +1,5 @@
-import { updateArray } from "../utils"
 import { GetJobsRequest, Job, JobService } from "./JobService"
+import { updateArray } from "../utils"
 
 type JobLoadState = "Loading" | "Loaded"
 
