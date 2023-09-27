@@ -31,6 +31,14 @@ type SchedulerMetrics struct {
 	fairSharePerQueue prometheus.GaugeVec
 	// Actual share of each queue.
 	actualSharePerQueue prometheus.GaugeVec
+	// Resource waste due to jobs preemption (GPU-seconds)
+	wasteDueToPreemption prometheus.Gauge
+	// Resource waste due to jobs cancellation (GPU-seconds)
+	wasteDueToCancellation prometheus.Gauge
+	// Resource waste due to jobs failure (GPU-seconds)
+	wasteDueToFailure prometheus.Gauge
+	// Resource waste due to any reason (GPU-seconds)
+	wasteTotal prometheus.Gauge
 }
 
 func NewSchedulerMetrics(config configuration.SchedulerMetricsConfig) *SchedulerMetrics {
@@ -125,6 +133,42 @@ func NewSchedulerMetrics(config configuration.SchedulerMetricsConfig) *Scheduler
 		},
 	)
 
+	wasteDueToPreemption := prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: NAMESPACE,
+			Subsystem: SUBSYSTEM,
+			Name:      "waste_due_to_preemption",
+			Help:      "Resource waste due to jobs preemption (GPU-seconds)",
+		},
+	)
+
+	wasteDueToCancellation := prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: NAMESPACE,
+			Subsystem: SUBSYSTEM,
+			Name:      "waste_due_to_cancellation",
+			Help:      "Resource waste due to jobs cancellation (GPU-seconds)",
+		},
+	)
+
+	wasteDueToFailure := prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: NAMESPACE,
+			Subsystem: SUBSYSTEM,
+			Name:      "waste_due_to_failure",
+			Help:      "Resource waste due to jobs failure (GPU-seconds)",
+		},
+	)
+
+	totalWaste := prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: NAMESPACE,
+			Subsystem: SUBSYSTEM,
+			Name:      "waste_total",
+			Help:      "Resource waste due to any reason (GPU-seconds)",
+		},
+	)
+
 	prometheus.MustRegister(scheduleCycleTime)
 	prometheus.MustRegister(reconcileCycleTime)
 	prometheus.MustRegister(scheduledJobs)
@@ -132,15 +176,23 @@ func NewSchedulerMetrics(config configuration.SchedulerMetricsConfig) *Scheduler
 	prometheus.MustRegister(consideredJobs)
 	prometheus.MustRegister(fairSharePerQueue)
 	prometheus.MustRegister(actualSharePerQueue)
+	prometheus.MustRegister(wasteDueToPreemption)
+	prometheus.MustRegister(wasteDueToCancellation)
+	prometheus.MustRegister(wasteDueToFailure)
+	prometheus.MustRegister(totalWaste)
 
 	return &SchedulerMetrics{
-		scheduleCycleTime:     scheduleCycleTime,
-		reconcileCycleTime:    reconcileCycleTime,
-		scheduledJobsPerQueue: *scheduledJobs,
-		preemptedJobsPerQueue: *preemptedJobs,
-		consideredJobs:        *consideredJobs,
-		fairSharePerQueue:     *fairSharePerQueue,
-		actualSharePerQueue:   *actualSharePerQueue,
+		scheduleCycleTime:      scheduleCycleTime,
+		reconcileCycleTime:     reconcileCycleTime,
+		scheduledJobsPerQueue:  *scheduledJobs,
+		preemptedJobsPerQueue:  *preemptedJobs,
+		consideredJobs:         *consideredJobs,
+		fairSharePerQueue:      *fairSharePerQueue,
+		actualSharePerQueue:    *actualSharePerQueue,
+		wasteDueToPreemption:   wasteDueToPreemption,
+		wasteDueToCancellation: wasteDueToCancellation,
+		wasteDueToFailure:      wasteDueToFailure,
+		wasteTotal:             totalWaste,
 	}
 }
 
