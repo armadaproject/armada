@@ -76,7 +76,22 @@ var (
 		Version: 2,
 	}
 	updatedSchedulingInfoBytes = protoutil.MustMarshall(updatedSchedulingInfo)
-	schedulerMetrics           = NewSchedulerMetrics(configuration.SchedulerMetricsConfig{
+	schedulingInfoWithQueueTtl = &schedulerobjects.JobSchedulingInfo{
+		AtMostOnce: true,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						Priority: int32(10),
+					},
+				},
+			},
+		},
+		QueueTtlSeconds: 2,
+		Version:         1,
+	}
+	schedulingInfoWithQueueTtlBytes = protoutil.MustMarshall(schedulingInfoWithQueueTtl)
+	schedulerMetrics                = NewSchedulerMetrics(configuration.SchedulerMetricsConfig{
 		ScheduleCycleTimeHistogramSettings: configuration.HistogramConfig{
 			Start:  1,
 			Factor: 1.1,
@@ -96,6 +111,19 @@ var queuedJob = jobdb.NewJob(
 	"testQueue",
 	uint32(10),
 	schedulingInfo,
+	true,
+	1,
+	false,
+	false,
+	false,
+	1)
+
+var queuedJobWithExpiredTtl = jobdb.NewJob(
+	util.NewULID(),
+	"testJobset",
+	"testQueue",
+	0,
+	schedulingInfoWithQueueTtl,
 	true,
 	1,
 	false,
@@ -186,6 +214,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedJobErrors                []string                          // ids of jobs we expect to have produced jobErrors messages
 		expectedJobRunPreempted          []string                          // ids of jobs we expect to have produced jobRunPreempted messages
 		expectedJobCancelled             []string                          // ids of jobs we expect to have  produced cancelled messages
+		expectedJobRequestCancel         []string                          // ids of jobs we expect to have produced request cancel
 		expectedJobReprioritised         []string                          // ids of jobs we expect to have  produced reprioritised messages
 		expectedQueued                   []string                          // ids of jobs we expect to have  produced requeued messages
 		expectedJobSucceeded             []string                          // ids of jobs we expect to have  produced succeeeded messages
@@ -386,6 +415,82 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedTerminal:      []string{leasedJob.Id()},
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
 		},
+		"New job from postgres with expired queue ttl is cancel requested": {
+			jobUpdates: []database.Job{
+				{
+					JobID:          queuedJobWithExpiredTtl.Id(),
+					JobSet:         queuedJobWithExpiredTtl.Jobset(),
+					Queue:          queuedJobWithExpiredTtl.Queue(),
+					Queued:         queuedJobWithExpiredTtl.Queued(),
+					QueuedVersion:  queuedJobWithExpiredTtl.QueuedVersion(),
+					Serial:         1,
+					Submitted:      queuedJobWithExpiredTtl.Created(),
+					SchedulingInfo: schedulingInfoWithQueueTtlBytes,
+				},
+			},
+
+			// We expect to publish request cancel and cancelled message this cycle.
+			// The job should also be removed from the queue and set to a terminal state.
+			expectedJobRequestCancel: []string{queuedJobWithExpiredTtl.Id()},
+			expectedJobCancelled:     []string{queuedJobWithExpiredTtl.Id()},
+			expectedQueuedVersion:    queuedJobWithExpiredTtl.QueuedVersion(),
+			expectedTerminal:         []string{queuedJobWithExpiredTtl.Id()},
+		},
+		"Existing jobDb job with expired queue ttl is cancel requested": {
+			initialJobs: []*jobdb.Job{queuedJobWithExpiredTtl},
+
+			// We expect to publish request cancel and cancelled message this cycle.
+			// The job should also be removed from the queue and set to a terminal state.
+			expectedJobRequestCancel: []string{queuedJobWithExpiredTtl.Id()},
+			expectedJobCancelled:     []string{queuedJobWithExpiredTtl.Id()},
+			expectedQueuedVersion:    queuedJobWithExpiredTtl.QueuedVersion(),
+			expectedTerminal:         []string{queuedJobWithExpiredTtl.Id()},
+		},
+		"New postgres job with cancel requested results in cancel messages": {
+			jobUpdates: []database.Job{
+				{
+					JobID:           queuedJobWithExpiredTtl.Id(),
+					JobSet:          queuedJobWithExpiredTtl.Jobset(),
+					Queue:           queuedJobWithExpiredTtl.Queue(),
+					Queued:          queuedJobWithExpiredTtl.Queued(),
+					QueuedVersion:   queuedJobWithExpiredTtl.QueuedVersion(),
+					Serial:          1,
+					Submitted:       queuedJobWithExpiredTtl.Created(),
+					CancelRequested: true,
+					Cancelled:       false,
+					SchedulingInfo:  schedulingInfoWithQueueTtlBytes,
+				},
+			},
+
+			// We have already got a request cancel from the DB, so only publish a cancelled message.
+			// The job should also be removed from the queue and set to a terminal state.#
+			expectedJobCancelled:  []string{queuedJobWithExpiredTtl.Id()},
+			expectedQueuedVersion: queuedJobWithExpiredTtl.QueuedVersion(),
+			expectedTerminal:      []string{queuedJobWithExpiredTtl.Id()},
+		},
+		"Postgres job with cancel requested results in cancel messages": {
+			initialJobs: []*jobdb.Job{queuedJobWithExpiredTtl.WithCancelRequested(true)},
+			jobUpdates: []database.Job{
+				{
+					JobID:           queuedJobWithExpiredTtl.Id(),
+					JobSet:          queuedJobWithExpiredTtl.Jobset(),
+					Queue:           queuedJobWithExpiredTtl.Queue(),
+					Queued:          queuedJobWithExpiredTtl.Queued(),
+					QueuedVersion:   queuedJobWithExpiredTtl.QueuedVersion(),
+					Serial:          1,
+					Submitted:       queuedJobWithExpiredTtl.Created(),
+					CancelRequested: true,
+					Cancelled:       false,
+					SchedulingInfo:  schedulingInfoWithQueueTtlBytes,
+				},
+			},
+
+			// We have already got a request cancel from the DB/existing job state, so only publish a cancelled message.
+			// The job should also be removed from the queue and set to a terminal state.
+			expectedJobCancelled:  []string{queuedJobWithExpiredTtl.Id()},
+			expectedQueuedVersion: queuedJobWithExpiredTtl.QueuedVersion(),
+			expectedTerminal:      []string{queuedJobWithExpiredTtl.Id()},
+		},
 		"Job reprioritised": {
 			initialJobs: []*jobdb.Job{queuedJob},
 			jobUpdates: []database.Job{
@@ -545,6 +650,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_ReprioritisedJob{}): stringSet(tc.expectedJobReprioritised),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobSucceeded{}):     stringSet(tc.expectedJobSucceeded),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRequeued{}):      stringSet(tc.expectedRequeued),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_CancelJob{}):        stringSet(tc.expectedJobRequestCancel),
 			}
 			err = subtractEventsFromOutstandingEventsByType(publisher.events, outstandingEventsByType)
 			require.NoError(t, err)

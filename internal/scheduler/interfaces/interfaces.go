@@ -23,4 +23,5 @@ type LegacySchedulerJob interface {
 	GetAffinity() *v1.Affinity
 	GetTolerations() []v1.Toleration
 	GetResourceRequirements() v1.ResourceRequirements
+	GetQueueTtlSeconds() int64
 }

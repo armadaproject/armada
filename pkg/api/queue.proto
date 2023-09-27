@@ -55,6 +55,8 @@ message Job {
     // Indicates which scheduler should manage this job.
     // If empty, the default scheduler is used.
     string scheduler = 20;
+    // Queuing TTL for this job in seconds. If this job queues for more than this duration it will be cancelled. Zero indicates an infinite lifetime.
+    int64 queue_ttl_seconds = 22;
 }
 
 // For the bidirectional streaming job lease request service.
