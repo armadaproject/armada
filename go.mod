@@ -80,7 +80,7 @@ require (
 	github.com/caarlos0/log v0.2.1
 	github.com/go-openapi/errors v0.20.3
 	github.com/go-openapi/strfmt v0.21.7
-	github.com/go-openapi/swag v0.22.3
+	github.com/go-openapi/swag v0.22.4
 	github.com/go-openapi/validate v0.22.1
 	github.com/go-playground/validator/v10 v10.14.1
 	github.com/golang/mock v1.6.0
