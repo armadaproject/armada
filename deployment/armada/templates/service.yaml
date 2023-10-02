@@ -6,11 +6,21 @@ metadata:
   labels:
     {{- include "armada.labels.all" . | nindent 4 }}
 spec:
-  {{- if .Values.nodePort }}
-  type: NodePort
-  {{- end }}
+  type: {{ .Values.serviceType }}
   selector:
     {{- include "armada.labels.identity" . | nindent 4 }}
+  {{- if .Values.externalTrafficPolicy }}
+  externalTrafficPolicy: {{ .Values.externalTrafficPolicy }}
+  {{- end }}
+  {{- if .Values.internalTrafficPolicy }}
+  internalTrafficPolicy: {{ .Values.internalTrafficPolicy }}
+  {{- end }}
+  {{- with .Values.clusterIP }}
+  clusterIP: {{ . | quote }}
+  {{- end } }
+  {{- with .Values.loadBalancerIP }}
+  loadBalancerIP: {{ . | quote }}
+  {{- end }}
   ports:
     - name: grpc
       protocol: TCP
