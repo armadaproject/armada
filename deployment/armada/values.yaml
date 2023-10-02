@@ -70,16 +70,26 @@ prometheus:
 
 podDisruptionBudget: {}
 
-# -- If a port number is specified, the Service will be of type NodePort and the gRPC server will be exposed on that node port
-#nodePort: 8080
-# -- If a port number is specified, REST server will be exposed on that node port
-#httpNodePort: 50051
+# Service type.  May be NodePort, ClusterIp, LoadBalancer
+serviceType: ClusterIP
+
+# -- If Service is of type NodePort this wil lbe the port that the gRPC server will be exposed on
+#nodePort: 50051
+# -- If Service is of type NodePort this wil lbe the port that the rest server will be exposed on
+#httpNodePort: 8080
+
+## Internal and external traffic policy for the armada service
+# externalTrafficPolicy: Local
+# internalTrafficPolicy: Local
 
 # -- If specified, custom ServiceAccount name will be attached to Armada Server Deployment resource and the default ServiceAccount will not be created
 customServiceAccount: ""
 # -- More info here https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
 # -- Additional ServiceAccount properties (e.g. automountServiceAccountToken, imagePullSecrets, etc.)
 serviceAccount: {}
+
+routableService:
+  enabled: false
 
 applicationConfig:
   # -- Armada Server gRPC port
