@@ -106,7 +106,12 @@ func main() {
 
 	// start HTTP server
 	// TODO: Run in errgroup
-	shutdownHttpServer := common.ServeHttp(config.HttpPort, mux)
+	var shutdownHttpServer func() = nil
+	if config.Grpc.Tls.Enabled {
+		shutdownHttpServer = common.ServeHttps(config.HttpPort, mux, config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
+	} else {
+		shutdownHttpServer = common.ServeHttp(config.HttpPort, mux)
+	}
 	defer shutdownHttpServer()
 
 	// Start Armada server

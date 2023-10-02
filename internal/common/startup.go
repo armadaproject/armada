@@ -1,7 +1,9 @@
 package common
 
 import (
+	"crypto/tls"
 	"fmt"
+	"github.com/armadaproject/armada/internal/common/certs"
 	"net/http"
 	"os"
 	"path"
@@ -145,23 +147,52 @@ func ServeMetricsFor(port uint16, gatherer prometheus.Gatherer) (shutdown func()
 // ServeHttp starts an HTTP server listening on the given port.
 // TODO: Make block until a context passed in is cancelled.
 func ServeHttp(port uint16, mux http.Handler) (shutdown func()) {
+	return serveHttp(port, mux, false, "", "")
+}
+
+func ServeHttps(port uint16, mux http.Handler, certFile, keyFile string) (shutdown func()) {
+	return serveHttp(port, mux, true, certFile, keyFile)
+}
+
+func serveHttp(port uint16, mux http.Handler, useTls bool, certFile, keyFile string) (shutdown func()) {
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", port),
 		Handler: mux,
 	}
 
+	scheme := "http"
+	if useTls {
+		scheme = "https"
+	}
+
 	go func() {
-		log.Printf("Starting http server listening on %d", port)
-		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+		log.Printf("Starting %s server listening on %d", scheme, port)
+		var err error = nil
+		if useTls {
+			certWatcher := certs.NewCachedCertificateService(certFile, keyFile, time.Minute)
+			go func() {
+				certWatcher.Run(armadacontext.Background())
+			}()
+			srv.TLSConfig = &tls.Config{
+				GetCertificate: func(info *tls.ClientHelloInfo) (*tls.Certificate, error) {
+					return certWatcher.GetCertificate(), nil
+				},
+			}
+			err = srv.ListenAndServeTLS("", "")
+		} else {
+			err = srv.ListenAndServe()
+		}
+		if err != nil && err != http.ErrServerClosed {
 			panic(err) // TODO Don't panic, return an error
 		}
+
 	}()
 	// TODO There's no need for this function to panic, since the main goroutine will exit.
 	// Instead, just log an error.
 	return func() {
 		ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 		defer cancel()
-		log.Printf("Stopping http server listening on %d", port)
+		log.Printf("Stopping %s server listening on %d", scheme, port)
 		e := srv.Shutdown(ctx)
 		if e != nil {
 			panic(e)
