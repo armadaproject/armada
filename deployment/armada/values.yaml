@@ -74,9 +74,9 @@ podDisruptionBudget: {}
 serviceType: ClusterIP
 
 # -- If Service is of type NodePort this wil lbe the port that the gRPC server will be exposed on
-#nodePort: 8080
+#nodePort: 50051
 # -- If Service is of type NodePort this wil lbe the port that the rest server will be exposed on
-#httpNodePort: 50051
+#httpNodePort: 8080
 
 ## Internal and external traffic policy for the armada service
 # externalTrafficPolicy: Local
