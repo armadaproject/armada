@@ -9,7 +9,7 @@ resources:
     memory: 512Mi
     cpu: 200m
 # -- Tolerations
-tolerations: []    
+tolerations: []
 additionalLabels: {}
 additionalVolumeMounts: []
 additionalVolumes: []
@@ -28,6 +28,9 @@ prometheus:
   scrapeInterval: 10s
 customServiceAccount: null
 serviceAccount: null
+
+routableService:
+  enabled: false
 
 applicationConfig:
   grpcPort: 50051
