@@ -3,7 +3,6 @@ package common
 import (
 	"crypto/tls"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/certs"
 	"net/http"
 	"os"
 	"path"
@@ -11,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/certs"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -167,7 +168,7 @@ func serveHttp(port uint16, mux http.Handler, useTls bool, certFile, keyFile str
 
 	go func() {
 		log.Printf("Starting %s server listening on %d", scheme, port)
-		var err error = nil
+		var err error
 		if useTls {
 			certWatcher := certs.NewCachedCertificateService(certFile, keyFile, time.Minute)
 			go func() {
@@ -185,7 +186,6 @@ func serveHttp(port uint16, mux http.Handler, useTls bool, certFile, keyFile str
 		if err != nil && err != http.ErrServerClosed {
 			panic(err) // TODO Don't panic, return an error
 		}
-
 	}()
 	// TODO There's no need for this function to panic, since the main goroutine will exit.
 	// Instead, just log an error.

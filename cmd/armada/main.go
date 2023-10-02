@@ -106,7 +106,7 @@ func main() {
 
 	// start HTTP server
 	// TODO: Run in errgroup
-	var shutdownHttpServer func() = nil
+	var shutdownHttpServer func()
 	if config.Grpc.Tls.Enabled {
 		shutdownHttpServer = common.ServeHttps(config.HttpPort, mux, config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
 	} else {
