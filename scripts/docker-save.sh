@@ -37,9 +37,10 @@ if [[ ! -d $output_dir ]]; then
     fi
 fi
 
+DOCKER_SAVE="docker save"
 for image_name in "${image_names[@]}"; do
-    output_tarball="$output_dir/$image_name.tar"
-    echo "::group::saving $docker_registry/$image_name:$docker_tag to $output_tarball"
-    docker save -o "$output_tarball" "$docker_registry/$image_name:$docker_tag"
-    echo "::endgroup::"
+    DOCKER_SAVE+=" $docker_registry/$image_name:$docker_tag"
 done
+DOCKER_SAVE+=" | gzip > $output_dir/armada.tar.gz"
+
+$DOCKER_SAVE
