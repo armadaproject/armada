@@ -35,23 +35,17 @@ jobs:
   build:
     if: github.event_name == 'schedule' || github.event_name == 'push' || github.event.pull_request.head.repo.id != github.event.pull_request.base.repo.id
     uses: ./.github/workflows/build.yml
+
+
   # Virtual job that can be configured as a required check before a PR can be merged.
+  # As GitHub considers a check as successful if it is skipped, we need to check its status in
+  # another workflow (check-required.yml) and create a check there.
   all-required-checks-done:
     name: All required checks done
-    if: github.event_name == 'schedule' || github.event_name == 'push' || github.event.pull_request.head.repo.id != github.event.pull_request.base.repo.id
     needs:
       - lint
       - test
       - build
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            const results = ${{ toJSON(needs.*.result) }};
-            if (results.every(res => res === 'success')) {
-              core.info('All required checks succeeded');
-            } else {
-              core.setFailed('Some required checks failed');
-            }
-
+      - run: echo "All required checks done"
