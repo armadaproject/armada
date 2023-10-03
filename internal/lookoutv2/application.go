@@ -6,6 +6,7 @@ import (
 	"github.com/caarlos0/log"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
+	"github.com/jessevdk/go-flags"
 	"github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -134,7 +135,14 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 		}
 	}()
 
-	server.Port = configuration.ApiPort
+	if configuration.Tls.Enabled {
+		server.TLSPort = configuration.ApiPort
+		server.TLSCertificate = flags.Filename(configuration.Tls.CertPath)
+		server.TLSCertificateKey = flags.Filename(configuration.Tls.KeyPath)
+	} else {
+		server.Port = configuration.ApiPort
+	}
+
 	restapi.SetCorsAllowedOrigins(configuration.CorsAllowedOrigins) // This needs to happen before ConfigureAPI
 	server.ConfigureAPI()
 	if err := server.Serve(); err != nil {

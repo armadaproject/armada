@@ -3,6 +3,10 @@ corsAllowedOrigins:
   - "http://localhost:3000"
   - "http://localhost:8089"
   - "http://localhost:10000"
+tls:
+  enabled: false
+  certPath: /certs/tls.crt
+  keyPath: /certs/tls.key
 postgres:
   maxOpenConns: 100
   maxIdleConns: 25
