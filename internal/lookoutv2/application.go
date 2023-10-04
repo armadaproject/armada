@@ -136,6 +136,7 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 	}()
 
 	if configuration.Tls.Enabled {
+		server.EnabledListeners = []string{"https"}
 		server.TLSPort = configuration.ApiPort
 		server.TLSCertificate = flags.Filename(configuration.Tls.CertPath)
 		server.TLSCertificateKey = flags.Filename(configuration.Tls.KeyPath)
