@@ -9,35 +9,14 @@ metadata:
 spec:
   type: LoadBalancer
   allocateLoadBalancerNodePorts: false
-  {{ if .Values.routableService.grpcLoadBalancerIP }}
-  loadBalancerIP: {{.Values.routableService.grpcloadBalancerIP}}
+  {{ if .Values.routableService.loadBalancerIP }}
+  loadBalancerIP: {{.Values.routableService.loadBalancerIP}}
   {{ end }}
   selector:
-    {{- include "armada.labels.identity" . | nindent 4 }}
+    {{- include "lookout.labels.identity" . | nindent 4 }}
   ports:
     - name: grpc
       protocol: TCP
-      port: {{ if .Values.applicationConfig.grpc.Tls.enabled }}443{{ else }}80{{ end }}
-      targetPort: {{ .Values.applicationConfig.grpcPort }}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ include "lookout.name" . }}-rest-routable
-  namespace: {{ .Release.Namespace }}
-  labels:
-    {{- include "lookout.labels.all" . | nindent 4 }}
-spec:
-  type: LoadBalancer
-  allocateLoadBalancerNodePorts: false
-  {{ if .Values.routableService.restLoadBalancerIP }}
-  loadBalancerIP: {{.Values.routableService.restloadBalancerIP}}
-  {{ end }}
-  selector:
-    {{- include "armada.labels.identity" . | nindent 4 }}
-  ports:
-    - name: grpc
-      protocol: TCP
-      port: {{ if .Values.applicationConfig.grpc.Tls.enabled }}443{{ else }}80{{ end }}
+      port: {{ if .Values.applicationConfig.grpc.tls.enabled }}443{{ else }}80{{ end }}
       targetPort: {{ .Values.applicationConfig.httpPort }}
 {{ end }}
