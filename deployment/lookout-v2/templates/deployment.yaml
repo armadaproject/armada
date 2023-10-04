@@ -67,6 +67,7 @@ spec:
             httpGet:
               path: /health
               port: web
+              scheme: {{ if .Values.applicationConfig.tls.enabled }}HTTPS{{ else }}HTTP{{ end }}
             initialDelaySeconds: 5
             timeoutSeconds: 5
             failureThreshold: 2
@@ -74,6 +75,7 @@ spec:
             httpGet:
               path: /health
               port: web
+              scheme: {{ if .Values.applicationConfig.tls.enabled }}HTTPS{{ else }}HTTP{{ end }}
             initialDelaySeconds: 10
             timeoutSeconds: 10
             failureThreshold: 3
