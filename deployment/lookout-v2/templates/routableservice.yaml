@@ -17,6 +17,6 @@ spec:
   ports:
     - name: web
       protocol: TCP
-      port: {{ if .Values.applicationConfig.Tls.enabled }}443{{ else }}80{{ end }}
+      port: {{ if .Values.applicationConfig.tls.enabled }}443{{ else }}80{{ end }}
       targetPort: {{ .Values.applicationConfig.apiPort }}
 {{ end }}
