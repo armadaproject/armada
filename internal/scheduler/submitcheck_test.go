@@ -222,7 +222,8 @@ func testNJobGang(n int) []*api.Job {
 		job.Annotations = map[string]string{
 			configuration.GangIdAnnotation:                 gangId,
 			configuration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n),
-			configuration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n)}
+			configuration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n),
+		}
 		gang[i] = job
 	}
 	return gang
