@@ -410,9 +410,19 @@ func TestQueueScheduler(t *testing.T) {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
-				testfixtures.WithAnnotationsJobs(map[string]string{configuration.GangIdAnnotation: "my-gang", configuration.GangCardinalityAnnotation: "2", configuration.GangMinimumCardinalityAnnotation: "1"}, testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
+				testfixtures.WithAnnotationsJobs(map[string]string{
+					configuration.GangIdAnnotation:                 "my-gang",
+					configuration.GangCardinalityAnnotation:        "2",
+					configuration.GangMinimumCardinalityAnnotation: "1",
+				},
+					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
-				testfixtures.WithAnnotationsJobs(map[string]string{configuration.GangIdAnnotation: "my-gang", configuration.GangCardinalityAnnotation: "2", configuration.GangMinimumCardinalityAnnotation: "1"}, testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
+				testfixtures.WithAnnotationsJobs(map[string]string{
+					configuration.GangIdAnnotation:                 "my-gang",
+					configuration.GangCardinalityAnnotation:        "2",
+					configuration.GangMinimumCardinalityAnnotation: "1",
+				},
+					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
 			),
 			PriorityFactorByQueue:    map[string]float64{"A": 1},
 			ExpectedScheduledIndices: []int{0, 1, 2},
@@ -428,9 +438,19 @@ func TestQueueScheduler(t *testing.T) {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Jobs: armadaslices.Concatenate(
-				testfixtures.WithAnnotationsJobs(map[string]string{configuration.GangIdAnnotation: "my-gang", configuration.GangCardinalityAnnotation: "2", configuration.GangMinimumCardinalityAnnotation: "2"}, testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
+				testfixtures.WithAnnotationsJobs(map[string]string{
+					configuration.GangIdAnnotation:                 "my-gang",
+					configuration.GangCardinalityAnnotation:        "2",
+					configuration.GangMinimumCardinalityAnnotation: "2",
+				},
+					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
-				testfixtures.WithAnnotationsJobs(map[string]string{configuration.GangIdAnnotation: "my-gang", configuration.GangCardinalityAnnotation: "2", configuration.GangMinimumCardinalityAnnotation: "2"}, testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
+				testfixtures.WithAnnotationsJobs(map[string]string{
+					configuration.GangIdAnnotation:                 "my-gang",
+					configuration.GangCardinalityAnnotation:        "2",
+					configuration.GangMinimumCardinalityAnnotation: "2",
+				},
+					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1)),
 			),
 			PriorityFactorByQueue:    map[string]float64{"A": 1},
 			ExpectedScheduledIndices: []int{1},
