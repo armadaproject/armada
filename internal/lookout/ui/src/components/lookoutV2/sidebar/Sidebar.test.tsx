@@ -4,11 +4,11 @@ import { Job, JobRunState, JobState } from "models/lookoutV2Models"
 import { SnackbarProvider } from "notistack"
 import { makeTestJob } from "utils/fakeJobsUtils"
 
+import { Sidebar } from "./Sidebar"
 import { FakeCordonService } from "../../../services/lookoutV2/mocks/FakeCordonService"
 import FakeGetJobSpecService from "../../../services/lookoutV2/mocks/FakeGetJobSpecService"
 import { FakeGetRunErrorService } from "../../../services/lookoutV2/mocks/FakeGetRunErrorService"
 import { FakeLogService } from "../../../services/lookoutV2/mocks/FakeLogService"
-import { Sidebar } from "./Sidebar"
 
 describe("Sidebar", () => {
   let job: Job, onClose: () => undefined

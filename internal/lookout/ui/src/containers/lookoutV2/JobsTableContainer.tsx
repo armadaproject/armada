@@ -67,6 +67,7 @@ import {
 } from "utils/jobsTableUtils"
 import { fromRowId, RowId } from "utils/reactTableUtils"
 
+import styles from "./JobsTableContainer.module.css"
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { ICordonService } from "../../services/lookoutV2/CordonService"
 import { CustomViewsService } from "../../services/lookoutV2/CustomViewsService"
@@ -74,7 +75,6 @@ import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
 import { ILogService } from "../../services/lookoutV2/LogService"
 import { getErrorMessage, waitMillis } from "../../utils"
 import { EmptyInputError, ParseError } from "../../utils/resourceUtils"
-import styles from "./JobsTableContainer.module.css"
 
 const PAGE_SIZE_OPTIONS = [5, 25, 50, 100]
 
