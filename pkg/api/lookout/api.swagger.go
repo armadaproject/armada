@@ -9,7 +9,7 @@ package lookout
 // SwaggerJsonTemplate is a generated function returning the template as a string.
 // That string should be parsed by the functions of the golang's template package.
 func SwaggerJsonTemplate() string {
-	tmpl := "{\n" +
+	var tmpl = "{\n" +
 		"  \"consumes\": [\n" +
 		"    \"application/json\"\n" +
 		"  ],\n" +
