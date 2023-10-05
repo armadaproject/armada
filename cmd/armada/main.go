@@ -96,7 +96,10 @@ func main() {
 	// register gRPC API handlers in mux
 	// TODO: Run in errgroup
 	shutdownGateway := gateway.CreateGatewayHandler(
-		config.GrpcPort, mux, "/",
+		config.GrpcPort,
+		mux,
+		config.GrpcGatewayPath,
+		config.Grpc.Tls.Enabled,
 		config.CorsAllowedOrigins,
 		api.SwaggerJsonTemplate(),
 		api.RegisterSubmitHandler,
