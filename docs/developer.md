@@ -80,6 +80,34 @@ It has the following options to customize further steps:
 
 `mage localdev minimal` is what is used to test the CI pipeline, and is the recommended way to test changes to the core components of Armada.
 
+## Debug error saying that the (port 6443 is already in use) after running mage localdev full
+
+## Identifying the Conflict
+
+Before making any changes, it's essential to identify which port is causing the conflict. Port 6443 is a common source of conflicts. You can check for existing bindings to this port using commands like `netstat` or `lsof`.
+
+1. The `kind.yaml` file is where you define the configuration for your Kind clusters. To resolve port conflicts:
+
+* Open your [kind.yaml](https://github.com/armadaproject/armada/blob/master/e2e/setup/kind.yaml) file.
+
+2. Locate the relevant section where the `hostPort` is set. It may look something like this:
+
+   
+   ```
+   - containerPort: 6443 # control plane
+     hostPort: 6443  # exposes control plane on localhost:6443
+     protocol: TCP
+   ```
+
+   * Modify the hostPort value to a port that is not in use on your system. For example:
+   
+   ```
+   - containerPort: 6443 # control plane
+     hostPort: 6444  # exposes control plane on localhost:6444
+     protocol: TCP
+   ```
+   You are not limited to using port 6444; you can choose any available port that doesn't conflict with other services on your system. Select a port that suits your system configuration.
+
 ### Testing if LocalDev is working
 
 Running `mage testsuite` will run the full test suite against the localdev cluster. This is the recommended way to test changes to the core components of Armada.
