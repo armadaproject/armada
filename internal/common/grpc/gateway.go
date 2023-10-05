@@ -4,17 +4,16 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"google.golang.org/grpc/credentials"
 	"net/http"
 	"path"
 	"strings"
-
-	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
 	"github.com/jcmturner/gokrb5/v8/spnego"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 
 	protoutil "github.com/armadaproject/armada/internal/common/grpc/protoutils"
 	"github.com/armadaproject/armada/internal/common/util"
