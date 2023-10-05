@@ -1,5 +1,8 @@
 from armada.operators.armada import ArmadaOperator
-from armada.job_service import JobService
+
+from armada_client import ArmadaClient
+from armada.operators.armada import ArmadaOperator
+from unittest.mock import patch, Mock
 
 import copy
 from unittest.mock import patch, Mock
@@ -8,7 +11,6 @@ import grpc
 import pytest
 import unittest
 
-from unittest.mock import patch
 
 
 from armada.jobservice import jobservice_pb2
@@ -55,13 +57,28 @@ def test_get_lookout_url(lookout_url_template, job_id, expected_url):
 class TestJobService(unittest.TestCase):
     @patch.object(JobService, "cancel_jobs")
     def test_on_kill(self, mock_cancel_jobs):
-        mock_cancel_jobs.return_value = None
+         # Create an instance of ArmadaOperator
+        operator = ArmadaOperator(
+            name="test_operator",
+            armada_channel_args={},
+            job_service_channel_args={},
+            armada_queue="test_queue",
+            job_request_items=[],
+        )
 
-        job_service = JobService(job_set_id="test_job_set_id", queue="test_queue")
+        # Set the necessary attributes for testing
+        operator.job_set_id = "test_job_set_id"
+        operator.queue = "test_queue"
 
-        job_service.on_kill()
+        # Create a mock ArmadaClient instance
+        armada_client_instance = mock_armada_client.return_value
+        armada_client_instance.cancel_job.return_value = None
 
-        mock_cancel_jobs.assert_called_once_with(
+        # Call the on_kill method
+        operator.on_kill()
+
+        # Assert that the cancel_job method of the Armada client was called with the expected arguments
+        armada_client_instance.cancel_job.assert_called_once_with(
             job_set_id="test_job_set_id", queue="test_queue"
         )
 
