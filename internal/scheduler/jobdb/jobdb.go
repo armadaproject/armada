@@ -9,8 +9,10 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-var emptyList = immutable.NewSortedSet[*Job](JobPriorityComparer{})
-var emptyQueuedJobsByTtl = immutable.NewSortedSet[*Job](JobQueueTtlComparer{})
+var (
+	emptyList            = immutable.NewSortedSet[*Job](JobPriorityComparer{})
+	emptyQueuedJobsByTtl = immutable.NewSortedSet[*Job](JobQueueTtlComparer{})
+)
 
 type JobDb struct {
 	jobsById        *immutable.Map[string, *Job]

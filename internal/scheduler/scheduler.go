@@ -814,21 +814,20 @@ func (s *Scheduler) cancelQueuedJobsIfExpired(txn *jobdb.Txn) ([]*armadaevents.E
 		}
 
 		reason := "Expired queue ttl"
-		cancel :=
-			&armadaevents.EventSequence{
-				Queue:      job.Queue(),
-				JobSetName: job.Jobset(),
-				Events: []*armadaevents.EventSequence_Event{
-					{
-						Created: s.now(),
-						Event:   &armadaevents.EventSequence_Event_CancelJob{CancelJob: &armadaevents.CancelJob{JobId: jobId, Reason: reason}},
-					},
-					{
-						Created: s.now(),
-						Event:   &armadaevents.EventSequence_Event_CancelledJob{CancelledJob: &armadaevents.CancelledJob{JobId: jobId, Reason: reason}},
-					},
+		cancel := &armadaevents.EventSequence{
+			Queue:      job.Queue(),
+			JobSetName: job.Jobset(),
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Created: s.now(),
+					Event:   &armadaevents.EventSequence_Event_CancelJob{CancelJob: &armadaevents.CancelJob{JobId: jobId, Reason: reason}},
 				},
-			}
+				{
+					Created: s.now(),
+					Event:   &armadaevents.EventSequence_Event_CancelledJob{CancelledJob: &armadaevents.CancelledJob{JobId: jobId, Reason: reason}},
+				},
+			},
+		}
 
 		jobsToCancel = append(jobsToCancel, job)
 		events = append(events, cancel)
