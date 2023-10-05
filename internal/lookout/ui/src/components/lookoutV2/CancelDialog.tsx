@@ -12,9 +12,9 @@ import { pl, waitMillis, PlatformCancelReason } from "utils"
 import { getUniqueJobsMatchingFilters } from "utils/jobsDialogUtils"
 import { formatJobState } from "utils/jobsTableFormatters"
 
-import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
+import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 
 interface CancelDialogProps {
   onClose: () => void

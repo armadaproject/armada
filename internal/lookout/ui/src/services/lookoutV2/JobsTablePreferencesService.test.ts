@@ -1,8 +1,6 @@
 import { Location, NavigateFunction, Params } from "react-router-dom"
 import { ColumnId, DEFAULT_COLUMN_ORDER, StandardColumnId } from "utils/jobsTableColumns"
 
-import { Match } from "../../models/lookoutV2Models"
-import { Router } from "../../utils"
 import {
   DEFAULT_PREFERENCES,
   JobsTablePreferences,
@@ -11,6 +9,8 @@ import {
   QueryStringPrefs,
   stringifyQueryParams,
 } from "./JobsTablePreferencesService"
+import { Match } from "../../models/lookoutV2Models"
+import { Router } from "../../utils"
 
 class FakeRouter implements Router {
   location: Location
