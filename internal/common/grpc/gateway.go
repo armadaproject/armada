@@ -2,7 +2,9 @@ package grpc
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"google.golang.org/grpc/credentials"
 	"net/http"
 	"path"
 	"strings"
@@ -24,6 +26,7 @@ func CreateGatewayHandler(
 	grpcPort uint16,
 	mux *http.ServeMux,
 	apiBasePath string,
+	ssl bool,
 	corsAllowedOrigins []string,
 	spec string,
 	handlers ...func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error,
@@ -42,7 +45,12 @@ func CreateGatewayHandler(
 			return fmt.Sprintf("%s%s", runtime.MetadataHeaderPrefix, key), true
 		}))
 
-	conn, err := grpc.DialContext(connectionCtx, grpcAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	transportCreds := insecure.NewCredentials()
+	if ssl {
+		transportCreds = credentials.NewTLS(&tls.Config{InsecureSkipVerify: true})
+	}
+
+	conn, err := grpc.DialContext(connectionCtx, grpcAddress, grpc.WithTransportCredentials(transportCreds))
 	if err != nil {
 		panic(err)
 	}
