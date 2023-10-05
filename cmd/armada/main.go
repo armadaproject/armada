@@ -99,6 +99,7 @@ func main() {
 		config.GrpcPort,
 		mux,
 		config.GrpcGatewayPath,
+		true,
 		config.Grpc.Tls.Enabled,
 		config.CorsAllowedOrigins,
 		api.SwaggerJsonTemplate(),
