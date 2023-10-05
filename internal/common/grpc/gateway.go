@@ -25,6 +25,7 @@ func CreateGatewayHandler(
 	grpcPort uint16,
 	mux *http.ServeMux,
 	apiBasePath string,
+	stripPrefix bool,
 	ssl bool,
 	corsAllowedOrigins []string,
 	spec string,
@@ -62,7 +63,12 @@ func CreateGatewayHandler(
 		}
 	}
 
-	mux.Handle(apiBasePath, allowCORS(gw, corsAllowedOrigins))
+	if stripPrefix {
+		prefixToStrip := strings.TrimSuffix(apiBasePath, "/")
+		mux.Handle(apiBasePath, http.StripPrefix(prefixToStrip, allowCORS(gw, corsAllowedOrigins)))
+	} else {
+		mux.Handle(apiBasePath, allowCORS(gw, corsAllowedOrigins))
+	}
 	mux.Handle(path.Join(apiBasePath, "swagger.json"), middleware.Spec(apiBasePath, []byte(spec), nil))
 
 	return func() {

@@ -80,7 +80,7 @@ func serveHttp(
 	spec string,
 	handlers ...func(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error,
 ) (shutdown func()) {
-	shutdownGateway := gateway.CreateGatewayHandler(grpcPort, mux, "/", false, corsAllowedOrigins, spec, handlers...)
+	shutdownGateway := gateway.CreateGatewayHandler(grpcPort, mux, "/", false, false, corsAllowedOrigins, spec, handlers...)
 	cancel := common.ServeHttp(port, mux)
 
 	return func() {

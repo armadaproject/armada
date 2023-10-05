@@ -98,6 +98,7 @@ func main() {
 		config.GrpcPort,
 		mux,
 		"/api/",
+		false,
 		config.Grpc.Tls.Enabled,
 		[]string{},
 		lookoutApi.SwaggerJsonTemplate(),
