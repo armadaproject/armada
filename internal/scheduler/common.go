@@ -180,6 +180,9 @@ func GangIdAndCardinalityFromAnnotations(annotations map[string]string) (string,
 		if gangMinimumCardinality <= 0 {
 			return "", 1, 1, false, errors.Errorf("gang minimum cardinality is non-positive %d", gangMinimumCardinality)
 		}
+		if gangMinimumCardinality > gangCardinality {
+			return "", 1, 1, false, errors.Errorf("gang minimum cardinality %d cannot be greater than gang cardinality %d", gangMinimumCardinality, gangCardinality)
+		}
 		return gangId, gangCardinality, gangMinimumCardinality, true, nil
 	}
 }
