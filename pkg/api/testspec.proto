@@ -15,43 +15,43 @@ option (gogoproto.stringer_all) = true;
 // Defines a test case for the Armada test suite.
 // Defined as a proto message to enable unmarshalling oneof fields.
 message TestSpec {
-	// Jobs to submit.
-	// The n jobs herein are copied BatchSize times to produce n*BatchSize jobs.
-	// A batch of n*BatchSize such jobs are submitted in each API call.
-	// NumBatches such batches are submitted in total.
+    // Jobs to submit.
+    // The n jobs herein are copied BatchSize times to produce n*BatchSize jobs.
+    // A batch of n*BatchSize such jobs are submitted in each API call.
+    // NumBatches such batches are submitted in total.
     repeated JobSubmitRequestItem jobs = 1;
     // Events expected in response to submitting each job.
     repeated EventMessage expected_events = 2;
     // Queue to submit jobs to.
-	string queue = 3;
+    string queue = 3;
     // Job set to submit jobs to.
-	string job_set_id = 4;
-	// Number of batches of jobs to submit.
-	// If 0, will submit forever.
-	uint32 num_batches = 5;
-	// Number of copies of the provided jobs to submit per batch.
-	uint32 batch_size = 6;
-	// Time between batches.
-	// If 0, jobs are submitted as quickly as possible.
+    string job_set_id = 4;
+    // Number of batches of jobs to submit.
+    // If 0, will submit forever.
+    uint32 num_batches = 5;
+    // Number of copies of the provided jobs to submit per batch.
+    uint32 batch_size = 6;
+    // Time between batches.
+    // If 0, jobs are submitted as quickly as possible.
     google.protobuf.Duration interval = 7 [(gogoproto.stdduration) = true, (gogoproto.nullable) = false];
-	// Number of seconds to wait for jobs to finish.
+    // Number of seconds to wait for jobs to finish.
     google.protobuf.Duration timeout = 8 [(gogoproto.stdduration) = true, (gogoproto.nullable) = false];
-	// If the jobs in this spec. should be cancelled.
-	enum Cancel {
-		NO = 0; // Do not cancel jobs.
-		BY_ID = 1; // Cancel jobs individually.
-		BY_SET = 2; // Cancel all jobs in the job set in bulk.
-		BY_IDS = 3; // Cancel all jobs in the job set by multiple ids
-	}
-	Cancel cancel = 9;
-	// Test name. Defaults to the filename if not provided.
-	string name = 10;
+    // If the jobs in this spec. should be cancelled.
+    enum Cancel {
+        NO = 0; // Do not cancel jobs.
+        BY_ID = 1; // Cancel jobs individually.
+        BY_SET = 2; // Cancel all jobs in the job set in bulk.
+        BY_IDS = 3; // Cancel all jobs in the job set by multiple ids
+    }
+    Cancel cancel = 9;
+    // Test name. Defaults to the filename if not provided.
+    string name = 10;
     // Randomize clientId if not provided
     bool random_client_id = 11;
     // Toggle should testsuite scrape Armada Job (pod) logs
     bool get_logs = 12;
-	// Value of the environment label set on exported Prometheus metrics.
-	string environment = 13;
-	// Value of the target label set on exported Prometheus metrics.
-	string target = 14;
+    // Value of the environment label set on exported Prometheus metrics.
+    string environment = 13;
+    // Value of the target label set on exported Prometheus metrics.
+    string target = 14;
 }
