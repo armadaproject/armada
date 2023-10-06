@@ -50,4 +50,8 @@ message TestSpec {
     bool random_client_id = 11;
     // Toggle should testsuite scrape Armada Job (pod) logs
     bool get_logs = 12;
+	// Value of the environment label set on exported Prometheus metrics.
+	string environment = 13;
+	// Value of the target label set on exported Prometheus metrics.
+	string target = 14;
 }
