@@ -512,7 +512,7 @@ func TestQueueScheduler(t *testing.T) {
 			)
 			jobIteratorByQueue := make(map[string]JobIterator)
 			for queue := range tc.PriorityFactorByQueue {
-				it, err := jobRepo.GetJobIterator(armadacontext.Background(), queue)
+				it, err := jobRepo.GetJobIterator(queue)
 				require.NoError(t, err)
 				jobIteratorByQueue[queue] = it
 			}

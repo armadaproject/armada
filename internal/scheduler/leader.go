@@ -85,7 +85,7 @@ func (lc *StandaloneLeaderController) ValidateToken(tok LeaderToken) bool {
 	return false
 }
 
-func (lc *StandaloneLeaderController) Run(ctx *armadacontext.Context) error {
+func (lc *StandaloneLeaderController) Run(_ *armadacontext.Context) error {
 	return nil
 }
 

@@ -62,7 +62,7 @@ func PreemptedJobsFromSchedulerResult[T interfaces.LegacySchedulerJob](sr *Sched
 	return rv
 }
 
-// ScheduledJobsFromScheduleResult returns the slice of scheduled jobs in the result,
+// ScheduledJobsFromSchedulerResult returns the slice of scheduled jobs in the result,
 // cast to type T.
 func ScheduledJobsFromSchedulerResult[T interfaces.LegacySchedulerJob](sr *SchedulerResult) []T {
 	rv := make([]T, len(sr.ScheduledJobs))

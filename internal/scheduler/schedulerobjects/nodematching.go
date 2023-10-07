@@ -22,7 +22,7 @@ const (
 
 type PodRequirementsNotMetReason interface {
 	fmt.Stringer
-	// Returns a 64-bit hash of this reason.
+	// Sum64 returns a 64-bit hash of this reason.
 	Sum64() uint64
 }
 
@@ -84,7 +84,7 @@ func (r *UnmatchedNodeSelector) Sum64() uint64 {
 	return h
 }
 
-func (err *UnmatchedNodeSelector) String() string {
+func (r *UnmatchedNodeSelector) String() string {
 	return PodRequirementsNotMetReasonUnmatchedNodeSelector
 }
 
@@ -102,9 +102,9 @@ func (r *InsufficientResources) Sum64() uint64 {
 	return h
 }
 
-func (err *InsufficientResources) String() string {
-	return "pod requires " + err.Required.String() + " " + err.Resource + ", but only " +
-		err.Available.String() + " is available"
+func (r *InsufficientResources) String() string {
+	return "pod requires " + r.Required.String() + " " + r.Resource + ", but only " +
+		r.Available.String() + " is available"
 }
 
 // PodRequirementsMet determines whether a pod can be scheduled on nodes of this NodeType.
@@ -150,11 +150,11 @@ func StaticPodRequirementsMet(taints []v1.Taint, labels map[string]string, total
 		return matches, reason, err
 	}
 
-	for resource, required := range req.ResourceRequirements.Requests {
-		available := totalResources.Get(string(resource))
+	for resourceType, required := range req.ResourceRequirements.Requests {
+		available := totalResources.Get(string(resourceType))
 		if required.Cmp(available) == 1 {
 			return false, &InsufficientResources{
-				Resource:  string(resource),
+				Resource:  string(resourceType),
 				Required:  required,
 				Available: available,
 			}, nil
@@ -236,11 +236,11 @@ func podNodeAffinityRequirementsMet(nodeLabels map[string]string, req *PodRequir
 }
 
 func podResourceRequirementsMet(allocatableResources ResourceList, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
-	for resource, required := range req.ResourceRequirements.Requests {
-		available := allocatableResources.Get(string(resource))
+	for resourceType, required := range req.ResourceRequirements.Requests {
+		available := allocatableResources.Get(string(resourceType))
 		if required.Cmp(available) == 1 {
 			return false, &InsufficientResources{
-				Resource:  string(resource),
+				Resource:  string(resourceType),
 				Required:  required,
 				Available: available,
 			}, nil

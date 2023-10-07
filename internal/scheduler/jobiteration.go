@@ -135,14 +135,14 @@ func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) ([]inte
 	return rv, nil
 }
 
-func (repo *InMemoryJobRepository) GetJobIterator(ctx *armadacontext.Context, queue string) (JobIterator, error) {
+func (repo *InMemoryJobRepository) GetJobIterator(queue string) (JobIterator, error) {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 	return NewInMemoryJobIterator(slices.Clone(repo.jobsByQueue[queue])), nil
 }
 
 // QueuedJobsIterator is an iterator over all jobs in a queue.
-// It lazily loads jobs in batches from Redis asynch.
+// It lazily loads jobs in batches from Redis async.
 type QueuedJobsIterator struct {
 	ctx *armadacontext.Context
 	err error
@@ -174,7 +174,7 @@ func (it *QueuedJobsIterator) Next() (interfaces.LegacySchedulerJob, error) {
 		return nil, it.err
 	}
 
-	// Get one job that was loaded asynchrounsly.
+	// Get one job that was loaded asynchronously.
 	select {
 	case <-it.ctx.Done():
 		it.err = it.ctx.Err() // Return an error if called again.

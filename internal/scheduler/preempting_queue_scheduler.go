@@ -322,7 +322,7 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 		if err := sch.nodeDb.Reset(); err != nil {
 			return nil, nil, err
 		}
-		if err := addEvictedJobsToNodeDb(ctx, sch.schedulingContext, sch.nodeDb, inMemoryJobRepo); err != nil {
+		if err := addEvictedJobsToNodeDb(sch.schedulingContext, sch.nodeDb, inMemoryJobRepo); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -495,10 +495,10 @@ func (q MinimalQueue) GetWeight() float64 {
 
 // addEvictedJobsToNodeDb adds evicted jobs to the NodeDb.
 // Needed to enable the nodeDb accounting for these when preempting.
-func addEvictedJobsToNodeDb(ctx *armadacontext.Context, sctx *schedulercontext.SchedulingContext, nodeDb *nodedb.NodeDb, inMemoryJobRepo *InMemoryJobRepository) error {
+func addEvictedJobsToNodeDb(sctx *schedulercontext.SchedulingContext, nodeDb *nodedb.NodeDb, inMemoryJobRepo *InMemoryJobRepository) error {
 	gangItByQueue := make(map[string]*QueuedGangIterator)
 	for _, qctx := range sctx.QueueSchedulingContexts {
-		jobIt, err := inMemoryJobRepo.GetJobIterator(ctx, qctx.Queue)
+		jobIt, err := inMemoryJobRepo.GetJobIterator(qctx.Queue)
 		if err != nil {
 			return err
 		}
@@ -538,7 +538,7 @@ func addEvictedJobsToNodeDb(ctx *armadacontext.Context, sctx *schedulercontext.S
 func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository) (*SchedulerResult, error) {
 	jobIteratorByQueue := make(map[string]JobIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
-		evictedIt, err := inMemoryJobRepo.GetJobIterator(ctx, qctx.Queue)
+		evictedIt, err := inMemoryJobRepo.GetJobIterator(qctx.Queue)
 		if err != nil {
 			return nil, err
 		}
@@ -881,7 +881,7 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, it nodedb.NodeIterator) (*
 // TODO: This is only necessary for jobs not scheduled in this cycle.
 // Since jobs scheduled in this cycle can be re-scheduled onto another node without triggering a preemption.
 func defaultPostEvictFunc(ctx *armadacontext.Context, job interfaces.LegacySchedulerJob, node *nodedb.Node) {
-	// Add annotation indicating to the scheduler this this job was evicted.
+	// Add annotation indicating to the scheduler this job was evicted.
 	annotations := job.GetAnnotations()
 	if annotations == nil {
 		ctx.Errorf("error evicting job %s: annotations not initialised", job.GetId())

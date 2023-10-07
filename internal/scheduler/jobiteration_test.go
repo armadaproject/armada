@@ -321,7 +321,7 @@ func (repo *mockJobRepository) GetExistingJobsByIds(jobIds []string) ([]interfac
 	return rv, nil
 }
 
-func (repo *mockJobRepository) TryLeaseJobs(clusterId string, queue string, jobs []*api.Job) ([]*api.Job, error) {
+func (repo *mockJobRepository) TryLeaseJobs(_ string, _ string, jobs []*api.Job) ([]*api.Job, error) {
 	successfullyLeasedJobs := make([]*api.Job, 0, len(jobs))
 	for _, job := range jobs {
 		if !repo.leasedJobs[job.Id] {

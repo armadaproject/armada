@@ -82,39 +82,47 @@ func (r *PostgresJobRepository) FetchJobRunErrors(ctx *armadacontext.Context, ru
 	errorsByRunId := make(map[uuid.UUID]*armadaevents.Error, len(runIds))
 	decompressor := compress.NewZlibDecompressor()
 
+	processChunk := func(tx pgx.Tx, chunk []uuid.UUID) error {
+		tmpTable, err := insertRunIdsToTmpTable(ctx, tx, chunk)
+		if err != nil {
+			return err
+		}
+
+		query := `
+		SELECT  job_run_errors.run_id, job_run_errors.error
+		FROM %s as tmp
+		JOIN job_run_errors ON job_run_errors.run_id = tmp.run_id`
+
+		rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable))
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var runId uuid.UUID
+			var errorBytes []byte
+			err := rows.Scan(&runId, &errorBytes)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			jobError, err := protoutil.DecompressAndUnmarshall(errorBytes, &armadaevents.Error{}, decompressor)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+			errorsByRunId[runId] = jobError
+		}
+		return nil
+	}
+
 	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.ReadCommitted,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
 		for _, chunk := range chunks {
-			tmpTable, err := insertRunIdsToTmpTable(ctx, tx, chunk)
+			err := processChunk(tx, chunk)
 			if err != nil {
-				return err
-			}
-
-			query := `
-		SELECT  job_run_errors.run_id, job_run_errors.error
-		FROM %s as tmp
-		JOIN job_run_errors ON job_run_errors.run_id = tmp.run_id`
-
-			rows, err := tx.Query(ctx, fmt.Sprintf(query, tmpTable))
-			if err != nil {
-				return err
-			}
-			defer rows.Close()
-			for rows.Next() {
-				var runId uuid.UUID
-				var errorBytes []byte
-				err := rows.Scan(&runId, &errorBytes)
-				if err != nil {
-					return errors.WithStack(err)
-				}
-				jobError, err := protoutil.DecompressAndUnmarshall(errorBytes, &armadaevents.Error{}, decompressor)
-				if err != nil {
-					return errors.WithStack(err)
-				}
-				errorsByRunId[runId] = jobError
+				return nil
 			}
 		}
 		return nil

@@ -2,7 +2,7 @@ package schedulerobjects
 
 import (
 	"fmt"
-	math "math"
+	"math"
 	"strings"
 
 	v1 "k8s.io/api/core/v1"
@@ -174,30 +174,30 @@ func (rl *ResourceList) Set(t string, q resource.Quantity) {
 	rl.Resources[t] = q
 }
 
-func (a *ResourceList) Add(b ResourceList) {
-	a.initialise()
-	for t, qb := range b.Resources {
-		qa := a.Resources[t]
+func (rl *ResourceList) Add(other ResourceList) {
+	rl.initialise()
+	for t, qb := range other.Resources {
+		qa := rl.Resources[t]
 		qa.Add(qb)
-		a.Resources[t] = qa
+		rl.Resources[t] = qa
 	}
 }
 
-func (a *ResourceList) AddV1ResourceList(b v1.ResourceList) {
-	a.initialise()
-	for t, qb := range b {
-		qa := a.Resources[string(t)]
+func (rl *ResourceList) AddV1ResourceList(other v1.ResourceList) {
+	rl.initialise()
+	for t, qb := range other {
+		qa := rl.Resources[string(t)]
 		qa.Add(qb)
-		a.Resources[string(t)] = qa
+		rl.Resources[string(t)] = qa
 	}
 }
 
-func (a *ResourceList) SubV1ResourceList(b v1.ResourceList) {
-	a.initialise()
-	for t, qb := range b {
-		qa := a.Resources[string(t)]
+func (rl *ResourceList) SubV1ResourceList(other v1.ResourceList) {
+	rl.initialise()
+	for t, qb := range other {
+		qa := rl.Resources[string(t)]
 		qa.Sub(qb)
-		a.Resources[string(t)] = qa
+		rl.Resources[string(t)] = qa
 	}
 }
 
@@ -208,12 +208,12 @@ func (rl *ResourceList) AddQuantity(resourceType string, quantity resource.Quant
 	rl.Resources[resourceType] = q
 }
 
-func (a *ResourceList) Sub(b ResourceList) {
-	a.initialise()
-	for t, qb := range b.Resources {
-		qa := a.Resources[t]
+func (rl *ResourceList) Sub(other ResourceList) {
+	rl.initialise()
+	for t, qb := range other.Resources {
+		qa := rl.Resources[t]
 		qa.Sub(qb)
-		a.Resources[t] = qa
+		rl.Resources[t] = qa
 	}
 }
 
@@ -245,8 +245,8 @@ func (rl ResourceList) Zero() {
 	}
 }
 
-func (a ResourceList) IsZero() bool {
-	for _, q := range a.Resources {
+func (rl ResourceList) IsZero() bool {
+	for _, q := range rl.Resources {
 		if !q.IsZero() {
 			return false
 		}
@@ -254,14 +254,14 @@ func (a ResourceList) IsZero() bool {
 	return true
 }
 
-func (a ResourceList) Equal(b ResourceList) bool {
-	for t, qa := range a.Resources {
-		if qa.Cmp(b.Get(t)) != 0 {
+func (rl ResourceList) Equal(other ResourceList) bool {
+	for t, qa := range rl.Resources {
+		if qa.Cmp(other.Get(t)) != 0 {
 			return false
 		}
 	}
-	for t, qb := range b.Resources {
-		if qb.Cmp(a.Get(t)) != 0 {
+	for t, qb := range other.Resources {
+		if qb.Cmp(rl.Get(t)) != 0 {
 			return false
 		}
 	}
@@ -269,8 +269,8 @@ func (a ResourceList) Equal(b ResourceList) bool {
 }
 
 // IsStrictlyNonNegative returns true if there is no quantity less than zero.
-func (a ResourceList) IsStrictlyNonNegative() bool {
-	for _, q := range a.Resources {
+func (rl ResourceList) IsStrictlyNonNegative() bool {
+	for _, q := range rl.Resources {
 		if q.Cmp(resource.Quantity{}) == -1 {
 			return false
 		}
@@ -279,9 +279,9 @@ func (a ResourceList) IsStrictlyNonNegative() bool {
 }
 
 // IsStrictlyLessOrEqual returns false if there is a quantity in b greater than that in a and true otherwise.
-func (a ResourceList) IsStrictlyLessOrEqual(b ResourceList) bool {
-	for t, q := range b.Resources {
-		if q.Cmp(a.Get(t)) == -1 {
+func (rl ResourceList) IsStrictlyLessOrEqual(other ResourceList) bool {
+	for t, q := range other.Resources {
+		if q.Cmp(rl.Get(t)) == -1 {
 			return false
 		}
 	}
@@ -408,18 +408,18 @@ func (m AllocatedByPriorityAndResourceType) MarkAllocatable(p int32, rs Resource
 	}
 }
 
-func (allocatableByPriorityAndResourceType AllocatableByPriorityAndResourceType) Get(priority int32, resourceType string) resource.Quantity {
-	if allocatableByPriorityAndResourceType == nil {
+func (m AllocatableByPriorityAndResourceType) Get(priority int32, resourceType string) resource.Quantity {
+	if m == nil {
 		return resource.Quantity{}
 	}
-	quantityByResourceType := allocatableByPriorityAndResourceType[priority]
+	quantityByResourceType := m[priority]
 	return quantityByResourceType.Get(resourceType)
 }
 
-func (assignedByPriorityAndResourceType AllocatedByPriorityAndResourceType) Get(priority int32, resourceType string) resource.Quantity {
-	if assignedByPriorityAndResourceType == nil {
+func (m AllocatedByPriorityAndResourceType) Get(priority int32, resourceType string) resource.Quantity {
+	if m == nil {
 		return resource.Quantity{}
 	}
-	quantityByResourceType := assignedByPriorityAndResourceType[priority]
+	quantityByResourceType := m[priority]
 	return quantityByResourceType.Get(resourceType)
 }

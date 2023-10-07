@@ -9,7 +9,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
@@ -372,7 +371,7 @@ func TestGangScheduler(t *testing.T) {
 			for i, gang := range tc.Gangs {
 				jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, gang)
 				gctx := schedulercontext.NewGangSchedulingContext(jctxs)
-				ok, reason, err := sch.Schedule(armadacontext.Background(), gctx)
+				ok, reason, err := sch.Schedule(gctx)
 				require.NoError(t, err)
 				if ok {
 					require.Empty(t, reason)

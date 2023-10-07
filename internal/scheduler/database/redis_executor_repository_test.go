@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
@@ -78,8 +79,12 @@ func TestRedisExecutorRepository_LoadAndSave(t *testing.T) {
 func withRedisExecutorRepository(action func(repository *RedisExecutorRepository)) {
 	client := redis.NewClient(&redis.Options{Addr: "localhost:6379", DB: 10})
 	defer client.FlushDB()
-	defer client.Close()
-
+	defer func() {
+		err := client.Close()
+		if err != nil {
+			log.WithError(err).Warn("Error closing redis client")
+		}
+	}()
 	client.FlushDB()
 	repo := NewRedisExecutorRepository(client, "pulsar")
 	action(repo)

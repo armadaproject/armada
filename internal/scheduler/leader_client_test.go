@@ -87,7 +87,7 @@ func (f *FakeLeaderController) GetToken() LeaderToken {
 	return NewLeaderToken()
 }
 
-func (f *FakeLeaderController) ValidateToken(tok LeaderToken) bool {
+func (f *FakeLeaderController) ValidateToken(_ LeaderToken) bool {
 	return f.IsCurrentlyLeader
 }
 
