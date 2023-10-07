@@ -699,6 +699,11 @@
             "type": "string"
           }
         },
+        "queueTtlSeconds": {
+          "description": "Queuing TTL for this job in seconds. If this job queues for more than this duration it will be cancelled. Zero indicates an infinite lifetime.",
+          "type": "string",
+          "format": "int64"
+        },
         "requiredNodeLabels": {
           "type": "object",
           "additionalProperties": {
@@ -1343,6 +1348,11 @@
         "priority": {
           "type": "number",
           "format": "double"
+        },
+        "queueTtlSeconds": {
+          "description": "Queuing TTL for this job in seconds. If this job queues for more than this duration it will be cancelled. Zero indicates an infinite lifetime.",
+          "type": "string",
+          "format": "int64"
         },
         "requiredNodeLabels": {
           "type": "object",
