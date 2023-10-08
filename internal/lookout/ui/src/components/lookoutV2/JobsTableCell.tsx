@@ -11,7 +11,6 @@ import styles from "./JobsTableCell.module.css"
 import { JobsTableFilter } from "./JobsTableFilter"
 import { matchForColumn } from "../../utils/jobsTableUtils"
 
-
 const sharedCellStyle = {
   padding: 0,
   overflowWrap: "normal",

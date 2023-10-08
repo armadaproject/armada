@@ -666,10 +666,18 @@ export const JobsTableContainer = ({
   if (grouping.length === 0) {
     columnsForSelect = columnsForSelect.filter((col) => col.id !== StandardColumnId.Count)
   }
+  const columnStyle = {
+    display: "flex",
+    flexDirection: "column",
+    height: "100%",
+    width: "100%",
+    flex: 1,
+  }
+
   return (
     <Box sx={{ display: "flex", flexDirection: "row", height: "100%", width: "100%" }}>
-      <Box sx={{ display: "flex", flexDirection: "column", marginX: "0.5em", height: "100%", width: "100%", minWidth: 0, flex: 1 }}>
-        <Box sx={{ display: "flex", flexDirection: "column", marginY: "0.5em", height: "100%", minHeight: 0, width: "100%", flex: 1 }}>
+      <Box sx={{ ...columnStyle, marginX: "0.5em", minWidth: 0 }}>
+        <Box sx={{ ...columnStyle, marginY: "0.5em", minHeight: 0 }}>
           <JobsTableActionBar
             isLoading={rowsToFetch.length > 0}
             allColumns={columnsForSelect}
@@ -695,10 +703,9 @@ export const JobsTableContainer = ({
             onDeleteCustomView={deleteCustomView}
             onLoadCustomView={loadCustomView}
           />
-          <TableContainer
-            component={Paper}
-            style={{ height: "100%" }}>
-            <Table stickyHeader
+          <TableContainer component={Paper} style={{ height: "100%" }}>
+            <Table
+              stickyHeader
               sx={{ tableLayout: "fixed" }}
               aria-label="Jobs table"
               style={{
@@ -804,9 +811,7 @@ const JobsTableBody = ({
 }: JobsTableBodyProps) => {
   const canDisplay = !dataIsLoading && topLevelRows.length > 0
   return (
-    <TableBody
-      style= {{ overflow: "auto", height: "100%" }}
-    >
+    <TableBody style={{ overflow: "auto", height: "100%" }}>
       {!canDisplay && (
         <TableRow>
           {dataIsLoading && topLevelRows.length === 0 && (
