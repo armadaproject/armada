@@ -231,6 +231,13 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 	events = append(events, expirationEvents...)
 
+	// Request cancel for any jobs that exceed queueTtl
+	queueTtlCancelEvents, err := s.cancelQueuedJobsIfExpired(txn)
+	if err != nil {
+		return
+	}
+	events = append(events, queueTtlCancelEvents...)
+
 	// Schedule jobs.
 	if shouldSchedule {
 		var result *SchedulerResult
@@ -785,6 +792,51 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 	if err := s.jobDb.Upsert(txn, jobsToUpdate); err != nil {
 		return nil, err
 	}
+	return events, nil
+}
+
+// cancelQueuedJobsIfExpired generates cancel request messages for any queued jobs that exceed their queueTtl.
+func (s *Scheduler) cancelQueuedJobsIfExpired(txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
+	jobsToCancel := make([]*jobdb.Job, 0)
+	events := make([]*armadaevents.EventSequence, 0)
+	it := s.jobDb.QueuedJobsByTtl(txn)
+
+	// `it` is ordered such that the jobs with the least ttl remaining come first, hence we exit early if we find a job that is not expired.
+	for job, _ := it.Next(); job != nil && job.HasQueueTtlExpired(); job, _ = it.Next() {
+		if job.InTerminalState() {
+			continue
+		}
+
+		job = job.WithCancelRequested(true).WithQueued(false).WithCancelled(true)
+		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
+		if err != nil {
+			return nil, err
+		}
+
+		reason := "Expired queue ttl"
+		cancel := &armadaevents.EventSequence{
+			Queue:      job.Queue(),
+			JobSetName: job.Jobset(),
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Created: s.now(),
+					Event:   &armadaevents.EventSequence_Event_CancelJob{CancelJob: &armadaevents.CancelJob{JobId: jobId, Reason: reason}},
+				},
+				{
+					Created: s.now(),
+					Event:   &armadaevents.EventSequence_Event_CancelledJob{CancelledJob: &armadaevents.CancelledJob{JobId: jobId, Reason: reason}},
+				},
+			},
+		}
+
+		jobsToCancel = append(jobsToCancel, job)
+		events = append(events, cancel)
+	}
+
+	if err := s.jobDb.Upsert(txn, jobsToCancel); err != nil {
+		return nil, err
+	}
+
 	return events, nil
 }
 
