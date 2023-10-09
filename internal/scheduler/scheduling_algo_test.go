@@ -263,7 +263,7 @@ func TestSchedule(t *testing.T) {
 			schedulingConfig:         testfixtures.TestSchedulingConfig(),
 			executors:                []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
 			queues:                   []*database.Queue{{Name: "A", Weight: 100}},
-			queuedJobs:               testfixtures.WithGangAnnotationsJobsAndMinCardinality(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 10), 2),
+			queuedJobs:               testfixtures.WithGangAnnotationsAndMinCardinalityJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 10), 2),
 			expectedScheduledIndices: []int{0, 1},
 			expectedFailedJobCount:   8,
 		},

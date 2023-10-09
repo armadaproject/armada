@@ -326,7 +326,7 @@ func WithGangAnnotationsJobs(jobs []*jobdb.Job) []*jobdb.Job {
 	)
 }
 
-func WithGangAnnotationsJobsAndMinCardinality(jobs []*jobdb.Job, minimumCardinality int) []*jobdb.Job {
+func WithGangAnnotationsAndMinCardinalityJobs(jobs []*jobdb.Job, minimumCardinality int) []*jobdb.Job {
 	gangId := uuid.NewString()
 	gangCardinality := fmt.Sprintf("%d", len(jobs))
 	gangMinCardinality := fmt.Sprintf("%d", minimumCardinality)

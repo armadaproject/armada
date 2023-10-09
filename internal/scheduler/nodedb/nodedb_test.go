@@ -498,7 +498,7 @@ func TestScheduleMany(t *testing.T) {
 		// Attempts to schedule 33 jobs with a minimum gang cardinality of 32 jobs. One fails, but the overall result is a success.
 		"simple success with min cardinality": {
 			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Jobs:          [][]*jobdb.Job{testfixtures.WithGangAnnotationsJobsAndMinCardinality(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33), 32)},
+			Jobs:          [][]*jobdb.Job{testfixtures.WithGangAnnotationsAndMinCardinalityJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33), 32)},
 			ExpectSuccess: []bool{true},
 		},
 		// Attempts to schedule 33 jobs with a minimum gang cardinality of 33. The overall result fails.
