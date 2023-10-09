@@ -200,11 +200,12 @@ func TestJobDb_TestBatchDelete(t *testing.T) {
 
 func newJob() *Job {
 	return &Job{
-		id:       util.NewULID(),
-		queue:    "test-queue",
-		priority: 0,
-		created:  0,
-		queued:   false,
-		runsById: map[uuid.UUID]*JobRun{},
+		id:                util.NewULID(),
+		queue:             "test-queue",
+		priority:          0,
+		created:           0,
+		queued:            false,
+		runsById:          map[uuid.UUID]*JobRun{},
+		jobSchedulingInfo: schedulingInfo,
 	}
 }

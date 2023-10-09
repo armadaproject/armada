@@ -229,6 +229,11 @@ func (job *Job) GetResourceRequirements() v1.ResourceRequirements {
 	return v1.ResourceRequirements{}
 }
 
+// Needed for compatibility with interfaces.LegacySchedulerJob
+func (job *Job) GetQueueTtlSeconds() int64 {
+	return job.jobSchedulingInfo.QueueTtlSeconds
+}
+
 func (job *Job) PodRequirements() *schedulerobjects.PodRequirements {
 	return job.jobSchedulingInfo.GetPodRequirements()
 }
@@ -403,6 +408,28 @@ func (job *Job) RunById(id uuid.UUID) *JobRun {
 	return job.runsById[id]
 }
 
+// HasQueueTtlExpired returns true if the given job has reached its queueTtl expiry.
+// Invariants:
+//   - job.created < `t`
+func (job *Job) HasQueueTtlExpired() bool {
+	ttlSeconds := job.GetQueueTtlSeconds()
+	if ttlSeconds > 0 {
+		timeSeconds := time.Now().UTC().Unix()
+
+		// job.Created is populated from the `Submitted` field in postgres, which is a UnixNano time hence the conversion.
+		createdSeconds := job.created / 1_000_000_000
+		duration := timeSeconds - createdSeconds
+		return duration > ttlSeconds
+	} else {
+		return false
+	}
+}
+
+// HasQueueTtlSet returns true if the given job has a queueTtl set.
+func (job *Job) HasQueueTtlSet() bool {
+	return job.GetQueueTtlSeconds() > 0
+}
+
 // WithJobset returns a copy of the job with the jobset updated.
 func (job *Job) WithJobset(jobset string) *Job {
 	j := copyJob(*job)
@@ -485,5 +512,48 @@ func (j JobPriorityComparer) Compare(a, b *Job) int {
 	}
 
 	// Jobs are equal; return 0.
+	return 0
+}
+
+type JobQueueTtlComparer struct{}
+
+func max(x, y int64) int64 {
+	if x < y {
+		return y
+	}
+	return x
+}
+
+// Compare jobs by their remaining queue time before expiry
+// Invariants:
+//   - Job.queueTtl must be > 0
+//   - Job.created must be < `t`
+func (j JobQueueTtlComparer) Compare(a, b *Job) int {
+	timeSeconds := time.Now().UTC().Unix()
+	aDuration := timeSeconds - (a.created / 1_000_000_000)
+	bDuration := timeSeconds - (b.created / 1_000_000_000)
+
+	aRemaining := max(0, a.GetQueueTtlSeconds()-aDuration)
+	bRemaining := max(0, b.GetQueueTtlSeconds()-bDuration)
+
+	// If jobs have different ttl remaining, they are ordered by remaining queue ttl - the smallest ttl first
+	if aRemaining != bRemaining {
+		if aRemaining < bRemaining {
+			return -1
+		} else {
+			return 1
+		}
+	}
+
+	// If the jobs have the same remaining time, order based on id.
+	if a.id != b.id {
+		if a.id < b.id {
+			return -1
+		} else {
+			return 1
+		}
+	}
+
+	// Jobs are equal if they have the same remaining ttl and id
 	return 0
 }
