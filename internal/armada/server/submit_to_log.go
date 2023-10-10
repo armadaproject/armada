@@ -112,6 +112,8 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 		if err != nil {
 			return nil, err
 		}
+	} else {
+		log.Info("no KVStore provided; job deduplication is disabled")
 	}
 	newApiJobs := armadaslices.Filter(
 		apiJobs,
