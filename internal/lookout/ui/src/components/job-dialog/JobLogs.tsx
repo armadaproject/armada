@@ -17,6 +17,7 @@ type JobLogsProps = {
   container: string
   log: LogLine[]
   error: string | undefined
+  runError: string | undefined
   onLoadFromStartChange: (loadFromStart: boolean) => void
   onRunIndexChange: (runIndex: number) => void
   onContainerChange: (container: string) => void
@@ -104,6 +105,13 @@ export default function JobLogs(props: JobLogsProps) {
           {props.error}
         </Alert>
       )}
+      <p>
+      {props.runError && (
+      <Alert className="lookout-dialog-centered lookout-dialog-fixed" severity="warning">
+          {props.runError}
+      </Alert>
+      )}
+      </p>
     </div>
   )
 }
