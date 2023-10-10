@@ -29,6 +29,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/pointer"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/schedulers"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	commonvalidation "github.com/armadaproject/armada/internal/common/validation"
 	"github.com/armadaproject/armada/internal/executor/configuration"
@@ -76,7 +77,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 		return nil, err
 	}
 
-	// Prepare an event sequence to be submitted to the log
+	// Prepare an event sequence to be submitted to the log.
 	pulsarSchedulerEvents := &armadaevents.EventSequence{
 		Queue:      req.Queue,
 		JobSetName: req.JobSetId,
@@ -84,7 +85,6 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 		Groups:     groups,
 		Events:     make([]*armadaevents.EventSequence_Event, 0, len(req.JobRequestItems)),
 	}
-
 	legacySchedulerEvents := &armadaevents.EventSequence{
 		Queue:      req.Queue,
 		JobSetName: req.JobSetId,
@@ -103,30 +103,73 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 		return nil, err
 	}
 
-	schedulersByJobId, err := srv.assignScheduler(apiJobs)
+	// Split the slice of apiJobs into new jobs and duplicate jobs,
+	// where a job is considered to be a duplicate if another job with the same clientId has been submitted previously.
+	// Jobs with an empty clientId are always treated as new jobs.
+	var originalJobIdByJobId map[string]string
+	if srv.KVStore != nil {
+		originalJobIdByJobId, err = srv.getOriginalJobIdsByJobId(ctx, apiJobs)
+		if err != nil {
+			return nil, err
+		}
+	}
+	newApiJobs := armadaslices.Filter(
+		apiJobs,
+		func(apiJob *api.Job) bool { _, ok := originalJobIdByJobId[apiJob.Id]; return !ok },
+	)
+
+	// There may be several scheduler available at any one time.
+	// Here, we pick a scheduler for each job.
+	schedulerByJobId, err := srv.assignScheduler(newApiJobs)
 	if err != nil {
 		return nil, err
 	}
 
-	jobsSubmitted := make([]*api.Job, 0, len(req.JobRequestItems))
-	responses := make([]*api.JobSubmitResponseItem, len(req.JobRequestItems))
-
-	originalIds, err := srv.getOriginalJobIds(ctx, apiJobs)
-	if err != nil {
-		// Deduplication is best-effort, therefore this is not fatal
-		log.WithError(err).Warn("Error fetching original job ids, deduplication will not occur.")
-	}
-
+	jobSubmitResponses := make([]*api.JobSubmitResponseItem, len(req.JobRequestItems))
 	pulsarJobDetails := make([]*schedulerobjects.PulsarSchedulerJobDetails, 0)
-
+	eventTime := time.Now()
 	for i, apiJob := range apiJobs {
-		eventTime := time.Now()
-		assignedScheduler, ok := schedulersByJobId[apiJob.Id]
-		if !ok {
-			// This should never happen as if we can't find a scheduler we would have errored earlier
-			return nil, errors.Errorf("Didn't allocate a scheduler for job %s", apiJob.Id)
+
+		// For duplicate jobs, publish a JobDuplicateDetected event.
+		// The jobId of the response is set to the jobId of the original job.
+		if originalJobId := originalJobIdByJobId[apiJob.Id]; originalJobId != "" {
+			originalJobIdProto, err := armadaevents.ProtoUuidFromUlidString(originalJobId)
+			if err != nil {
+				return nil, err
+			}
+			newJobIdProto, err := armadaevents.ProtoUuidFromUlidString(apiJob.Id)
+			if err != nil {
+				return nil, err
+			}
+			// It doesn't matter to which scheduler this is published;
+			// neither scheduler cares about this event anyway.
+			legacySchedulerEvents.Events = append(legacySchedulerEvents.Events, &armadaevents.EventSequence_Event{
+				Created: &eventTime,
+				Event: &armadaevents.EventSequence_Event_JobDuplicateDetected{
+					JobDuplicateDetected: &armadaevents.JobDuplicateDetected{
+						NewJobId: newJobIdProto,
+						OldJobId: originalJobIdProto,
+					},
+				},
+			})
+			jobSubmitResponses[i] = &api.JobSubmitResponseItem{
+				JobId: originalJobId,
+			}
+			continue
 		}
 
+		// For new jobs, publish a submitJob message to Pulsar.
+		// The jobId of the response is that of the new job.
+		jobSubmitResponses[i] = &api.JobSubmitResponseItem{
+			JobId: apiJob.GetId(),
+		}
+
+		// Determine to which schedule the submitJob event should be published.
+		assignedScheduler, ok := schedulerByJobId[apiJob.Id]
+		if !ok {
+			// This should never happen as if we can't find a scheduler we would have errored earlier.
+			return nil, errors.Errorf("no scheduler allocated for job %s", apiJob.Id)
+		}
 		es := legacySchedulerEvents
 		if assignedScheduler == schedulers.Pulsar {
 			pulsarJobDetails = append(pulsarJobDetails, &schedulerobjects.PulsarSchedulerJobDetails{
@@ -144,16 +187,11 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 		// We use an empty ingress config here.
 		// The executor applies executor-specific information later.
 		// We only need this here because we're re-using code that was previously called by the executor.
-		err = eventutil.PopulateK8sServicesIngresses(apiJob, &configuration.IngressConfiguration{})
-		if err != nil {
+		if err := eventutil.PopulateK8sServicesIngresses(apiJob, &configuration.IngressConfiguration{}); err != nil {
 			return nil, err
 		}
 
-		responses[i] = &api.JobSubmitResponseItem{
-			JobId: apiJob.GetId(),
-		}
-
-		// The log accept a different type of job.
+		// The log accepts a different type of job.
 		logJob, err := eventutil.LogSubmitJobFromApiJob(apiJob)
 		if err != nil {
 			return nil, err
@@ -172,41 +210,9 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 			},
 		})
 
-		// If a ClientId (i.e., a deduplication id) is provided,
-		// check for previous job submissions with the ClientId for this queue.
-		// If we find a duplicate, insert the previous jobId in the corresponding response
-		// and generate a job duplicate found event.
-		originalId, found := originalIds[apiJob.GetId()]
-		if apiJob.ClientId != "" && originalId != apiJob.GetId() {
-			if found && originalId != "" {
-				logJob.IsDuplicate = true
-				oldJobId, err := armadaevents.ProtoUuidFromUlidString(originalIds[apiJob.GetId()])
-				if err != nil {
-					return nil, status.Error(codes.Internal, "error marshalling oldJobId")
-				}
-				es.Events = append(es.Events, &armadaevents.EventSequence_Event{
-					Created: &eventTime,
-					Event: &armadaevents.EventSequence_Event_JobDuplicateDetected{
-						JobDuplicateDetected: &armadaevents.JobDuplicateDetected{
-							NewJobId: logJob.JobId,
-							OldJobId: oldJobId,
-						},
-					},
-				})
-				responses[i].JobId = originalIds[apiJob.GetId()]
-				// The job shouldn't be submitted twice. Move on to the next job.
-				continue
-			} else {
-				log.Warnf(
-					"ClientId %s was supplied for job %s but no original jobId could be found.  Deduplication will not be applied",
-					apiJob.ClientId,
-					apiJob.GetId())
-			}
-		} else {
-			jobsSubmitted = append(jobsSubmitted, apiJob)
-		}
 	}
 
+	// Update Redis with Pulsar jobs.
 	if len(pulsarJobDetails) > 0 {
 		err = srv.SubmitServer.jobRepository.StorePulsarSchedulerJobDetails(pulsarJobDetails)
 		if err != nil {
@@ -215,6 +221,7 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 		}
 	}
 
+	// Publish to Pulsar.
 	if len(pulsarSchedulerEvents.Events) > 0 {
 		err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{pulsarSchedulerEvents}, schedulers.Pulsar)
 		if err != nil {
@@ -222,7 +229,6 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 			return nil, status.Error(codes.Internal, "Failed to send message")
 		}
 	}
-
 	if len(legacySchedulerEvents.Events) > 0 {
 		err = srv.publishToPulsar(ctx, []*armadaevents.EventSequence{legacySchedulerEvents}, schedulers.Legacy)
 		if err != nil {
@@ -231,15 +237,13 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 		}
 	}
 
-	// Store the deduplication ids. note that this will not be called if pulsar submission has failed, which means that
-	// a partial pulsar submission will not cause deduplication ids to be updated and thus we may get duplicate jobs
-	// if the user then resubmits.  Likewise, if there is a failure in persisting the ids, we treat this as non-fatal so
-	// we could get duplicate events.
-	err = srv.storeOriginalJobIds(ctx, jobsSubmitted)
-	if err != nil {
-		log.WithError(err).Warn("failed to satore deduplicattion ids")
+	// Update the stored map from client ids to job ids for any new jobs.
+	// This is is called after publishing to Pulsar to ensure jobIds never published are not stored.
+	// Failure to store the ids is treated as warning. This because once jobs are published there is no going back.
+	if err := srv.storeOriginalJobIds(ctx, newApiJobs); err != nil {
+		log.WithError(err).Warn("failed to store deduplication ids")
 	}
-	return &api.JobSubmitResponse{JobResponseItems: responses}, nil
+	return &api.JobSubmitResponse{JobResponseItems: jobSubmitResponses}, nil
 }
 
 func (srv *PulsarSubmitServer) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
@@ -565,7 +569,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(grpcCtx context.Context, req *ap
 		JobSetName: req.JobSetId, // TODO: this is incorrect- the jobs may be for different jobsets
 		UserId:     userId,
 		Groups:     groups,
-		Events:     make([]*armadaevents.EventSequence_Event, len(req.JobIds), len(req.JobIds)),
+		Events:     make([]*armadaevents.EventSequence_Event, len(req.JobIds)),
 	}
 
 	// No job ids implicitly indicates that all jobs in the job set should be re-prioritised.
@@ -713,52 +717,41 @@ func (srv *PulsarSubmitServer) publishToPulsar(ctx *armadacontext.Context, seque
 	return pulsarutils.PublishSequences(ctx, srv.Producer, sequences, scheduler)
 }
 
-func jobKey(j *api.Job) string {
+// dedupKeyFromApiJob returns the dedup key for a job.
+// Deduplication is based on storing a hash of the concatenation of queue and clientId.
+// We store hashes instead of user-provided strings for efficiency.
+func dedupKeyFromApiJob(j *api.Job) string {
 	combined := fmt.Sprintf("%s:%s", j.Queue, j.ClientId)
 	h := sha1.Sum([]byte(combined))
 	return fmt.Sprintf("%x", h)
 }
 
-// getOriginalJobIds returns the mapping between jobId and originalJobId.  If the job (or more specifically the clientId
-// on the job) has not been seen before then jobId -> jobId.  If the job has been seen before then jobId -> originalJobId
-// Note that if srv.KVStore is nil then this function simply returns jobId -> jobId
-func (srv *PulsarSubmitServer) getOriginalJobIds(ctx *armadacontext.Context, apiJobs []*api.Job) (map[string]string, error) {
-	// Default is the current id
-	ret := make(map[string]string, len(apiJobs))
-	for _, apiJob := range apiJobs {
-		ret[apiJob.GetId()] = apiJob.GetId()
+// getOriginalJobIdsByJobId returns a map from job id to the original id of the job for each job.
+// Jobs with an empty clientId or for which there is no known pre-existing original id are omitted from the returned map.
+func (srv *PulsarSubmitServer) getOriginalJobIdsByJobId(ctx *armadacontext.Context, apiJobs []*api.Job) (map[string]string, error) {
+	apiJobByDedupKey := armadaslices.GroupByFuncUnique(apiJobs, func(apiJob *api.Job) string { return dedupKeyFromApiJob(apiJob) })
+	delete(apiJobByDedupKey, "")
+	dedupKeys := maps.Keys(apiJobByDedupKey)
+
+	// Query any existing dedup ids.
+	originalJobIdBytesByDedupKey, err := srv.KVStore.Load(ctx, dedupKeys)
+	if err != nil {
+		return nil, err
 	}
 
-	// If we don't have a KV store, then just return original mappings
-	if srv.KVStore == nil {
-		return ret, nil
-	}
-
-	// Armada checks for duplicate job submissions if a ClientId (i.e., a deduplication id) is provided.
-	// Deduplication is based on storing the combined hash of the ClientId and queue.
-	// For storage efficiency, we store hashes instead of user-provided strings.
-	kvs := make(map[string][]byte, len(apiJobs))
-	for _, apiJob := range apiJobs {
-		if apiJob.ClientId != "" {
-			kvs[jobKey(apiJob)] = []byte(apiJob.GetId())
+	originalJobIdByJobId := make(map[string]string, len(originalJobIdBytesByDedupKey))
+	for dedupKey, originalJobIdBytes := range originalJobIdBytesByDedupKey {
+		apiJob := apiJobByDedupKey[dedupKey]
+		if apiJob == nil {
+			return nil, errors.Errorf("unexpected dedup key %s: dedup key does not map to any known job", dedupKey)
 		}
-	}
-
-	// If we have any client Ids, retrieve their job ids
-	if len(kvs) > 0 {
-		keys := maps.Keys(kvs)
-		existingKvs, err := srv.KVStore.Load(ctx, keys)
-		if err != nil {
-			return ret, err
+		originalJobId := string(originalJobIdBytes)
+		if len(originalJobId) == 0 {
+			return nil, errors.Errorf("dedup key %s maps to en empty job id", dedupKey)
 		}
-		for _, apiJob := range apiJobs {
-			originalJobId, ok := existingKvs[jobKey(apiJob)]
-			if apiJob.ClientId != "" && ok {
-				ret[apiJob.GetId()] = string(originalJobId)
-			}
-		}
+		originalJobIdByJobId[apiJob.Id] = originalJobId
 	}
-	return ret, nil
+	return originalJobIdByJobId, nil
 }
 
 func (srv *PulsarSubmitServer) storeOriginalJobIds(ctx *armadacontext.Context, apiJobs []*api.Job) error {
@@ -768,7 +761,7 @@ func (srv *PulsarSubmitServer) storeOriginalJobIds(ctx *armadacontext.Context, a
 	kvs := make(map[string][]byte, 0)
 	for _, apiJob := range apiJobs {
 		if apiJob.ClientId != "" {
-			kvs[jobKey(apiJob)] = []byte(apiJob.GetId())
+			kvs[dedupKeyFromApiJob(apiJob)] = []byte(apiJob.GetId())
 		}
 	}
 	if len(kvs) == 0 {

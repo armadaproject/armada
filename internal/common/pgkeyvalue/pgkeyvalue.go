@@ -61,6 +61,9 @@ func New(ctx *armadacontext.Context, db *pgxpool.Pool, tableName string) (*PGKey
 }
 
 func (c *PGKeyValueStore) Load(ctx *armadacontext.Context, keys []string) (map[string][]byte, error) {
+	if len(keys) == 0 {
+		return make(map[string][]byte), nil
+	}
 	rows, err := c.db.Query(ctx, fmt.Sprintf("SELECT KEY, VALUE FROM %s WHERE KEY = any($1)", c.tableName), keys)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -79,6 +82,9 @@ func (c *PGKeyValueStore) Load(ctx *armadacontext.Context, keys []string) (map[s
 }
 
 func (c *PGKeyValueStore) Store(ctx *armadacontext.Context, kvs map[string][]byte) error {
+	if len(kvs) == 0 {
+		return nil
+	}
 	data := make([]KeyValue, 0, len(kvs))
 	for k, v := range kvs {
 		data = append(data, KeyValue{
