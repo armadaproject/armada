@@ -136,6 +136,8 @@ message JobSchedulingInfo {
     // Kubernetes objects that make up this job and their respective scheduling requirements.
     repeated ObjectRequirements object_requirements = 5;
     uint32 version = 9;
+    // Queuing TTL for this job in seconds. If this job queues for more than this duration it will be cancelled. Zero indicates an infinite lifetime.
+    int64 queue_ttl_seconds = 10;
 }
 
 // Message capturing the scheduling requirements of a particular Kubernetes object.

@@ -9,22 +9,27 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-var emptyList = immutable.NewSortedSet[*Job](JobPriorityComparer{})
+var (
+	emptyList            = immutable.NewSortedSet[*Job](JobPriorityComparer{})
+	emptyQueuedJobsByTtl = immutable.NewSortedSet[*Job](JobQueueTtlComparer{})
+)
 
 type JobDb struct {
-	jobsById    *immutable.Map[string, *Job]
-	jobsByRunId *immutable.Map[uuid.UUID, string]
-	jobsByQueue map[string]immutable.SortedSet[*Job]
-	copyMutex   sync.Mutex
-	writerMutex sync.Mutex
+	jobsById        *immutable.Map[string, *Job]
+	jobsByRunId     *immutable.Map[uuid.UUID, string]
+	jobsByQueue     map[string]immutable.SortedSet[*Job]
+	queuedJobsByTtl *immutable.SortedSet[*Job]
+	copyMutex       sync.Mutex
+	writerMutex     sync.Mutex
 }
 
 func NewJobDb() *JobDb {
 	return &JobDb{
-		jobsById:    immutable.NewMap[string, *Job](nil),
-		jobsByRunId: immutable.NewMap[uuid.UUID, string](&UUIDHasher{}),
-		jobsByQueue: map[string]immutable.SortedSet[*Job]{},
-		copyMutex:   sync.Mutex{},
+		jobsById:        immutable.NewMap[string, *Job](nil),
+		jobsByRunId:     immutable.NewMap[uuid.UUID, string](&UUIDHasher{}),
+		jobsByQueue:     map[string]immutable.SortedSet[*Job]{},
+		queuedJobsByTtl: &emptyQueuedJobsByTtl,
+		copyMutex:       sync.Mutex{},
 	}
 }
 
@@ -45,6 +50,9 @@ func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 				if ok {
 					txn.jobsByQueue[existingJob.queue] = existingQueue.Delete(existingJob)
 				}
+
+				newQueuedJobsByTtl := txn.queuedJobsByTtl.Delete(existingJob)
+				txn.queuedJobsByTtl = &newQueuedJobsByTtl
 			}
 		}
 	}
@@ -101,6 +109,11 @@ func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 				}
 				newQueue = newQueue.Add(job)
 				txn.jobsByQueue[job.queue] = newQueue
+
+				if job.HasQueueTtlSet() {
+					queuedJobsByTtl := txn.queuedJobsByTtl.Add(job)
+					txn.queuedJobsByTtl = &queuedJobsByTtl
+				}
 			}
 		}
 	}()
@@ -141,6 +154,11 @@ func (jobDb *JobDb) QueuedJobs(txn *Txn, queue string) *immutable.SortedSetItera
 	}
 }
 
+// QueuedJobsByTtl returns an iterator for jobs ordered by queue ttl time - the closest to expiry first
+func (jobDb *JobDb) QueuedJobsByTtl(txn *Txn) *immutable.SortedSetIterator[*Job] {
+	return txn.queuedJobsByTtl.Iterator()
+}
+
 // GetAll returns all jobs in the database.
 // The Jobs returned by this function *must not* be subsequently modified
 func (jobDb *JobDb) GetAll(txn *Txn) []*Job {
@@ -171,6 +189,12 @@ func (jobDb *JobDb) BatchDelete(txn *Txn, ids []string) error {
 				newQueue := queue.Delete(job)
 				txn.jobsByQueue[job.queue] = newQueue
 			}
+
+			// We only add these jobs into the collection if it has a queueTtl set, hence only remove if this is set.
+			if job.HasQueueTtlSet() {
+				newQueuedJobsByExpiry := txn.queuedJobsByTtl.Delete(job)
+				txn.queuedJobsByTtl = &newQueuedJobsByExpiry
+			}
 		}
 	}
 	return nil
@@ -192,12 +216,13 @@ func (jobDb *JobDb) ReadTxn() *Txn {
 	jobDb.copyMutex.Lock()
 	defer jobDb.copyMutex.Unlock()
 	return &Txn{
-		readOnly:    true,
-		jobsById:    jobDb.jobsById,
-		jobsByRunId: jobDb.jobsByRunId,
-		jobsByQueue: jobDb.jobsByQueue,
-		active:      true,
-		jobDb:       jobDb,
+		readOnly:        true,
+		jobsById:        jobDb.jobsById,
+		jobsByRunId:     jobDb.jobsByRunId,
+		jobsByQueue:     jobDb.jobsByQueue,
+		queuedJobsByTtl: jobDb.queuedJobsByTtl,
+		active:          true,
+		jobDb:           jobDb,
 	}
 }
 
@@ -209,12 +234,13 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 	jobDb.copyMutex.Lock()
 	defer jobDb.copyMutex.Unlock()
 	return &Txn{
-		readOnly:    false,
-		jobsById:    jobDb.jobsById,
-		jobsByRunId: jobDb.jobsByRunId,
-		jobsByQueue: maps.Clone(jobDb.jobsByQueue),
-		active:      true,
-		jobDb:       jobDb,
+		readOnly:        false,
+		jobsById:        jobDb.jobsById,
+		jobsByRunId:     jobDb.jobsByRunId,
+		jobsByQueue:     maps.Clone(jobDb.jobsByQueue),
+		queuedJobsByTtl: jobDb.queuedJobsByTtl,
+		active:          true,
+		jobDb:           jobDb,
 	}
 }
 
@@ -223,12 +249,13 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 // Write transactions also allow callers to perform write operations that will not be visible to other users
 // until the transaction is committed.
 type Txn struct {
-	readOnly    bool
-	jobsById    *immutable.Map[string, *Job]
-	jobsByRunId *immutable.Map[uuid.UUID, string]
-	jobsByQueue map[string]immutable.SortedSet[*Job]
-	jobDb       *JobDb
-	active      bool
+	readOnly        bool
+	jobsById        *immutable.Map[string, *Job]
+	jobsByRunId     *immutable.Map[uuid.UUID, string]
+	jobsByQueue     map[string]immutable.SortedSet[*Job]
+	queuedJobsByTtl *immutable.SortedSet[*Job]
+	jobDb           *JobDb
+	active          bool
 }
 
 func (txn *Txn) Commit() {
@@ -241,6 +268,7 @@ func (txn *Txn) Commit() {
 	txn.jobDb.jobsById = txn.jobsById
 	txn.jobDb.jobsByRunId = txn.jobsByRunId
 	txn.jobDb.jobsByQueue = txn.jobsByQueue
+	txn.jobDb.queuedJobsByTtl = txn.queuedJobsByTtl
 	txn.active = false
 }
 

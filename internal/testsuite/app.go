@@ -180,25 +180,25 @@ func (r *TestCaseReport) initialiseMetrics() {
 	r.startTimePrometheusDesc = prometheus.NewDesc(
 		metricsPrefix+"test_start_time",
 		"The time at which a test started.",
-		[]string{"testcase"},
+		[]string{"testcase", "environment", "target"},
 		nil,
 	)
 	r.finishTimePrometheusDesc = prometheus.NewDesc(
 		metricsPrefix+"test_finish_time",
 		"The time at which a test finished.",
-		[]string{"testcase"},
+		[]string{"testcase", "environment", "target"},
 		nil,
 	)
 	r.testTimeoutPrometheusDesc = prometheus.NewDesc(
 		metricsPrefix+"test_timeout",
 		"Outputs 1 on test timeout and 0 otherwise.",
-		[]string{"testcase"},
+		[]string{"testcase", "environment", "target"},
 		nil,
 	)
 	r.testFailurePrometheusDesc = prometheus.NewDesc(
 		metricsPrefix+"test_failure",
 		"Outputs 1 on test failure, not including timeout, and 0 otherwise.",
-		[]string{"testcase"},
+		[]string{"testcase", "environment", "target"},
 		nil,
 	)
 }
@@ -216,12 +216,16 @@ func (r *TestCaseReport) Collect(c chan<- prometheus.Metric) {
 		prometheus.CounterValue,
 		float64(r.Start.Unix()),
 		r.TestSpec.Name,
+		r.TestSpec.Environment,
+		r.TestSpec.Target,
 	)
 	c <- prometheus.MustNewConstMetric(
 		r.finishTimePrometheusDesc,
 		prometheus.CounterValue,
 		float64(r.Finish.Unix()),
 		r.TestSpec.Name,
+		r.TestSpec.Environment,
+		r.TestSpec.Target,
 	)
 
 	// Test failures always contain either "unexpected event for job" or "error asserting failure reason".
@@ -235,6 +239,8 @@ func (r *TestCaseReport) Collect(c chan<- prometheus.Metric) {
 		prometheus.GaugeValue,
 		testFailure,
 		r.TestSpec.Name,
+		r.TestSpec.Environment,
+		r.TestSpec.Target,
 	)
 
 	// We assume that any other failures are due to timeout.
@@ -248,6 +254,8 @@ func (r *TestCaseReport) Collect(c chan<- prometheus.Metric) {
 		prometheus.GaugeValue,
 		testTimeout,
 		r.TestSpec.Name,
+		r.TestSpec.Environment,
+		r.TestSpec.Target,
 	)
 }
 

@@ -190,6 +190,7 @@ func ApiJobFromLogSubmitJob(ownerId string, groups []string, queueName string, j
 		Created:                  time,
 		Owner:                    ownerId,
 		QueueOwnershipUserGroups: groups,
+		QueueTtlSeconds:          e.QueueTtlSeconds,
 	}, nil
 }
 
@@ -224,9 +225,10 @@ func LogSubmitJobFromApiJob(job *api.Job) (*armadaevents.SubmitJob, error) {
 			Annotations: job.GetAnnotations(),
 			Labels:      job.GetLabels(),
 		},
-		MainObject: mainObject,
-		Objects:    objects,
-		Scheduler:  job.Scheduler,
+		MainObject:      mainObject,
+		Objects:         objects,
+		Scheduler:       job.Scheduler,
+		QueueTtlSeconds: job.QueueTtlSeconds,
 	}, nil
 }
 

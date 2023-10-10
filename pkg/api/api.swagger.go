@@ -710,6 +710,11 @@ func SwaggerJsonTemplate() string {
 		"            \"type\": \"string\"\n" +
 		"          }\n" +
 		"        },\n" +
+		"        \"queueTtlSeconds\": {\n" +
+		"          \"description\": \"Queuing TTL for this job in seconds. If this job queues for more than this duration it will be cancelled. Zero indicates an infinite lifetime.\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"int64\"\n" +
+		"        },\n" +
 		"        \"requiredNodeLabels\": {\n" +
 		"          \"type\": \"object\",\n" +
 		"          \"additionalProperties\": {\n" +
@@ -1354,6 +1359,11 @@ func SwaggerJsonTemplate() string {
 		"        \"priority\": {\n" +
 		"          \"type\": \"number\",\n" +
 		"          \"format\": \"double\"\n" +
+		"        },\n" +
+		"        \"queueTtlSeconds\": {\n" +
+		"          \"description\": \"Queuing TTL for this job in seconds. If this job queues for more than this duration it will be cancelled. Zero indicates an infinite lifetime.\",\n" +
+		"          \"type\": \"string\",\n" +
+		"          \"format\": \"int64\"\n" +
 		"        },\n" +
 		"        \"requiredNodeLabels\": {\n" +
 		"          \"type\": \"object\",\n" +
