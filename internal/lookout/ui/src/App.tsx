@@ -5,10 +5,11 @@ import { createGenerateClassName } from "@material-ui/core/styles"
 import { ThemeProvider as ThemeProviderV5, createTheme as createThemeV5 } from "@mui/material/styles"
 import { JobsTableContainer } from "containers/lookoutV2/JobsTableContainer"
 import { SnackbarProvider } from "notistack"
-import { Route, BrowserRouter, Routes } from "react-router-dom"
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
+import { withRouter } from "utils"
 
 import NavBar from "./components/NavBar"
 import { JobService } from "./services/JobService"
@@ -75,6 +76,10 @@ type AppProps = {
   debugEnabled: boolean
 }
 
+// Version 2 of the Lookout UI used to be hosted under /v2, so we try our best
+// to redirect users to the new location while preserving the rest of the URL.
+const V2Redirect = withRouter(({ router }) => <Navigate to={{ ...router.location, pathname: "/" }} />)
+
 export function App(props: AppProps) {
   useEffect(() => {
     if (props.customTitle) {
@@ -110,6 +115,7 @@ export function App(props: AppProps) {
                         />
                       }
                     />
+                    <Route path="/v2" element={<V2Redirect />} />
                   </Routes>
                 </div>
               </div>
