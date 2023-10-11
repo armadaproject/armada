@@ -11,9 +11,6 @@ import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 
 import NavBar from "./components/NavBar"
-import JobSetsContainer from "./containers/JobSetsContainer"
-import JobsContainer from "./containers/JobsContainer"
-import OverviewContainer from "./containers/OverviewContainer"
 import { JobService } from "./services/JobService"
 import LogService from "./services/LogService"
 import { ICordonService } from "./services/lookoutV2/CordonService"
@@ -98,11 +95,8 @@ export function App(props: AppProps) {
                 <NavBar customTitle={props.customTitle} />
                 <div className="app-content">
                   <Routes>
-                    <Route path="/" element={<OverviewContainer {...props} />} />
-                    <Route path="/job-sets" element={<JobSetsContainer {...props} />} />
-                    <Route path="/jobs" element={<JobsContainer {...props} />} />
                     <Route
-                      path="/v2"
+                      path="/"
                       element={
                         <JobsTableContainer
                           getJobsService={props.v2GetJobsService}
