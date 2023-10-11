@@ -2,16 +2,13 @@ import React from "react"
 
 import { AppBar, Toolbar, Typography } from "@material-ui/core"
 
-import { Router, withRouter } from "../utils"
-
 import "./NavBar.css"
 
 interface NavBarProps {
   customTitle: string
-  router: Router
 }
 
-function NavBar({ customTitle }: NavBarProps) {
+export default function NavBar({ customTitle }: NavBarProps) {
   return (
     <AppBar position="static">
       <Toolbar className="toolbar">
@@ -30,5 +27,3 @@ function NavBar({ customTitle }: NavBarProps) {
     </AppBar>
   )
 }
-
-export default withRouter(NavBar)
