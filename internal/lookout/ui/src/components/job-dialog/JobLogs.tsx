@@ -107,9 +107,9 @@ export default function JobLogs(props: JobLogsProps) {
       )}
       {props.runError && (
         <p>
-        <Alert className="lookout-dialog-centered lookout-dialog-fixed" severity="warning">
-          {props.runError}
-        </Alert>
+          <Alert className="lookout-dialog-centered lookout-dialog-fixed" severity="warning">
+            {props.runError}
+          </Alert>
         </p>
       )}
     </div>
