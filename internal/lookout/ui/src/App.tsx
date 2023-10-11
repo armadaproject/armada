@@ -116,6 +116,15 @@ export function App(props: AppProps) {
                       }
                     />
                     <Route path="/v2" element={<V2Redirect />} />
+                    <Route
+                      path="*"
+                      element={
+                        // This wildcard route ensures that users who follow old
+                        // links to /job-sets or /jobs see something other than
+                        // a blank page.
+                        <Navigate to="/" />
+                      }
+                    />
                   </Routes>
                 </div>
               </div>
