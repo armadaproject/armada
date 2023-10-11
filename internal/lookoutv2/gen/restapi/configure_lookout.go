@@ -12,7 +12,6 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 
-	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutv2/configuration"
@@ -86,8 +85,6 @@ func setupMiddlewares(handler http.Handler) http.Handler {
 }
 
 var UIConfig configuration.UIConfig
-
-var HealthChecker = health.NewMultiChecker()
 
 // The middleware configuration happens before anything, this middleware also applies to serving the swagger.json document.
 // So this is a good place to plug in a panic handling middleware, logging and metrics.
