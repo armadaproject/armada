@@ -11,7 +11,7 @@ interface NavBarProps {
   router: Router
 }
 
-function NavBar({ customTitle, router }: NavBarProps) {
+function NavBar({ customTitle }: NavBarProps) {
   return (
     <AppBar position="static">
       <Toolbar className="toolbar">
