@@ -13,15 +13,6 @@ grpc:
   keepaliveEnforcementPolicy:
     minTime: 5m
     permitWithoutStream: false
-uiConfig:
-  armadaApiBaseUrl: "http://armada-server:8080"
-  userAnnotationPrefix: "armadaproject.io/"
-  binocularsEnabled: true
-  binocularsBaseUrlPattern: "http://armada-binoculars:8080"
-  overviewAutoRefreshMs: 15000
-  jobSetsAutoRefreshMs: 15000
-  jobsAutoRefreshMs: 30000
-  lookoutV2ApiBaseUrl: "http://armada-lookout-v2:10000"
 postgres:
   maxOpenConns: 100
   maxIdleConns: 25
@@ -33,7 +24,6 @@ postgres:
     password: psw
     dbname: postgres
     sslmode: disable
-
 prunerConfig:
   daysToKeep: 42
   batchSize: 1000

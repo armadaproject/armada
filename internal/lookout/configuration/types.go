@@ -7,21 +7,6 @@ import (
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 )
 
-type LookoutUIConfig struct {
-	CustomTitle string
-
-	ArmadaApiBaseUrl         string
-	UserAnnotationPrefix     string
-	BinocularsEnabled        bool
-	BinocularsBaseUrlPattern string
-
-	OverviewAutoRefreshMs int
-	JobSetsAutoRefreshMs  int
-	JobsAutoRefreshMs     int
-
-	LookoutV2ApiBaseUrl string
-}
-
 type PrunerConfig struct {
 	DaysToKeep int
 	BatchSize  int
@@ -33,8 +18,6 @@ type LookoutConfiguration struct {
 	MetricsPort uint16
 
 	Grpc grpcconfig.GrpcConfig
-
-	UIConfig LookoutUIConfig
 
 	Postgres     configuration.PostgresConfig
 	PrunerConfig PrunerConfig

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -15,7 +14,6 @@ import (
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
-	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/lookout"
 	"github.com/armadaproject/armada/internal/lookout/configuration"
 	"github.com/armadaproject/armada/internal/lookout/postgres"
@@ -102,15 +100,8 @@ func main() {
 		config.Grpc.Tls.Enabled,
 		[]string{},
 		lookoutApi.SwaggerJsonTemplate(),
-		lookoutApi.RegisterLookoutHandler)
-
-	// UI config
-	mux.HandleFunc("/config", func(w http.ResponseWriter, r *http.Request) {
-		configHandler(config.UIConfig, w)
-	})
-
-	// server static UI files
-	mux.Handle("/", http.FileServer(serve.CreateDirWithIndexFallback("./internal/lookout/ui/build")))
+		lookoutApi.RegisterLookoutHandler,
+	)
 
 	var shutdownServer func() = nil
 	if config.Grpc.Tls.Enabled {
@@ -130,13 +121,4 @@ func main() {
 	startupCompleteCheck.MarkComplete()
 
 	wg.Wait()
-}
-
-func configHandler(config configuration.LookoutUIConfig, w http.ResponseWriter) {
-	w.Header().Set("Content-Type", "application/json")
-
-	err := json.NewEncoder(w).Encode(config)
-	if err != nil {
-		w.WriteHeader(500)
-	}
 }

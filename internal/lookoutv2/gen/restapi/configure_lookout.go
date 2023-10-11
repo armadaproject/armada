@@ -4,6 +4,8 @@ package restapi
 
 import (
 	"crypto/tls"
+	"encoding/json"
+	"github.com/armadaproject/armada/internal/common/health"
 	"net/http"
 	"strings"
 
@@ -11,7 +13,9 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 
+	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/lookoutv2/configuration"
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi/operations"
 )
 
@@ -81,13 +85,35 @@ func setupMiddlewares(handler http.Handler) http.Handler {
 	return handler
 }
 
+var UIConfig configuration.UIConfig
+
+var HealthChecker = health.NewMultiChecker()
+
 // The middleware configuration happens before anything, this middleware also applies to serving the swagger.json document.
 // So this is a good place to plug in a panic handling middleware, logging and metrics.
-func setupGlobalMiddleware(handler http.Handler) http.Handler {
-	return allowCORS(handler, corsAllowedOrigins)
+func setupGlobalMiddleware(apiHandler http.Handler) http.Handler {
+	return allowCORS(uiHandler(apiHandler), corsAllowedOrigins)
 }
 
-func allowCORS(h http.Handler, corsAllowedOrigins []string) http.Handler {
+func uiHandler(apiHandler http.Handler) http.Handler {
+	mux := http.NewServeMux()
+
+	mux.Handle("/", http.FileServer(serve.CreateDirWithIndexFallback("./internal/lookout/ui/build")))
+
+	mux.HandleFunc("/config", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(UIConfig); err != nil {
+			w.WriteHeader(500)
+		}
+	})
+
+	mux.Handle("/api/", apiHandler)
+	mux.Handle("/health", apiHandler)
+
+	return mux
+}
+
+func allowCORS(handler http.Handler, corsAllowedOrigins []string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if origin := r.Header.Get("Origin"); origin != "" && util.ContainsString(corsAllowedOrigins, origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
@@ -97,7 +123,7 @@ func allowCORS(h http.Handler, corsAllowedOrigins []string) http.Handler {
 				return
 			}
 		}
-		h.ServeHTTP(w, r)
+		handler.ServeHTTP(w, r)
 	})
 }
 

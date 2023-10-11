@@ -20,7 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/lookoutv2/repository"
 )
 
-func Serve(configuration configuration.LookoutV2Configuration) error {
+func Serve(configuration configuration.LookoutV2Config) error {
 	// load embedded swagger file
 	swaggerSpec, err := loads.Analyzed(restapi.SwaggerJSON, "")
 	if err != nil {
