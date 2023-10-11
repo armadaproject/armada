@@ -5,7 +5,6 @@ package restapi
 import (
 	"crypto/tls"
 	"encoding/json"
-	"github.com/armadaproject/armada/internal/common/health"
 	"net/http"
 	"strings"
 
@@ -13,6 +12,7 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 
+	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutv2/configuration"
