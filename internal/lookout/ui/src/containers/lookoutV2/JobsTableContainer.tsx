@@ -704,7 +704,7 @@ export const JobsTableContainer = ({
               style={{
                 width: table.getCenterTotalSize(),
                 borderLeft: "1px solid #cccccc",
-                height: "100%",
+                maxHeight: "100%",
               }}
             >
               <TableHead>
