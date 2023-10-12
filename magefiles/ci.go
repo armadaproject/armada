@@ -42,6 +42,7 @@ func TestSuite() error {
 		"--junit", "junit.xml",
 	)
 	if err2 != nil {
+		fmt.Println(out)
 		return err2
 	}
 	fmt.Printf("(Real) Time to run tests: %s\n\n", time.Since(timeTaken))
