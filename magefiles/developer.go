@@ -94,7 +94,7 @@ func StopComponents() error {
 
 // Repeatedly check logs until Pulsar is ready.
 func CheckForPulsarRunning() error {
-	timeout := time.After(1 * time.Minute)
+	timeout := time.After(10 * time.Minute)
 	tick := time.Tick(1 * time.Second)
 	seconds := 0
 	for {
@@ -106,6 +106,8 @@ func CheckForPulsarRunning() error {
 			if err != nil {
 				return err
 			}
+			// Verify this is happening locally with
+			// docker-compose logs pulsar | grep alive
 			if strings.Contains(out, "alive") {
 				// if seconds is less than 1, it means that pulsar had already started
 				if seconds < 1 {
