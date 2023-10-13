@@ -7,7 +7,7 @@ tools:
 - github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway@v1.16.0
 - github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger@v1.16.0
 - github.com/jstemmer/go-junit-report@v1.0.0
-- github.com/kyleconroy/sqlc/cmd/sqlc@v1.16.0
+- github.com/sqlc-dev/sqlc/cmd/sqlc@v1.22.0
 - github.com/matryer/moq@v0.3.0
 - github.com/mitchellh/gox@v1.0.1
 - github.com/wlbr/templify@v0.0.0-20210816202250-7b8044ca19e9
