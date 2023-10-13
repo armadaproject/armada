@@ -102,6 +102,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3.3.0
 
+      - name: Setup upterm session
+        uses: lhotari/action-upterm@v1
+
       - name: Create Docker Buildx Builder
         run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
 
