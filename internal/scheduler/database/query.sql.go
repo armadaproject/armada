@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countGroup = `-- name: CountGroup :one
@@ -645,8 +644,8 @@ UPDATE runs SET leased_timestamp = $1 WHERE run_id = ANY($2::UUID[])
 `
 
 type UpdateLeasedTimeParams struct {
-	LeasedTimestamp pgtype.Timestamptz `db:"leased_timestamp"`
-	RunIds          []uuid.UUID        `db:"run_ids"`
+	LeasedTimestamp time.Time   `db:"leased_timestamp"`
+	RunIds          []uuid.UUID `db:"run_ids"`
 }
 
 func (q *Queries) UpdateLeasedTime(ctx context.Context, arg UpdateLeasedTimeParams) error {
@@ -659,8 +658,8 @@ UPDATE runs SET pending_timestamp = $1 WHERE run_id = ANY($2::UUID[])
 `
 
 type UpdatePendingTimeParams struct {
-	PendingTimestamp pgtype.Timestamptz `db:"pending_timestamp"`
-	RunIds           []uuid.UUID        `db:"run_ids"`
+	PendingTimestamp time.Time   `db:"pending_timestamp"`
+	RunIds           []uuid.UUID `db:"run_ids"`
 }
 
 func (q *Queries) UpdatePendingTime(ctx context.Context, arg UpdatePendingTimeParams) error {
@@ -673,8 +672,8 @@ UPDATE runs SET running_timestamp = $1 WHERE run_id = ANY($2::UUID[])
 `
 
 type UpdateRunningTimeParams struct {
-	RunningTimestamp pgtype.Timestamptz `db:"running_timestamp"`
-	RunIds           []uuid.UUID        `db:"run_ids"`
+	RunningTimestamp time.Time   `db:"running_timestamp"`
+	RunIds           []uuid.UUID `db:"run_ids"`
 }
 
 func (q *Queries) UpdateRunningTime(ctx context.Context, arg UpdateRunningTimeParams) error {
@@ -687,8 +686,8 @@ UPDATE runs SET terminated_timestamp = $1 WHERE run_id = ANY($2::UUID[])
 `
 
 type UpdateTerminatedTimeParams struct {
-	TerminatedTimestamp pgtype.Timestamptz `db:"terminated_timestamp"`
-	RunIds              []uuid.UUID        `db:"run_ids"`
+	TerminatedTimestamp time.Time   `db:"terminated_timestamp"`
+	RunIds              []uuid.UUID `db:"run_ids"`
 }
 
 func (q *Queries) UpdateTerminatedTime(ctx context.Context, arg UpdateTerminatedTimeParams) error {

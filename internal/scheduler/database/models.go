@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Executor struct {
@@ -57,22 +56,22 @@ type Queue struct {
 }
 
 type Run struct {
-	RunID               uuid.UUID          `db:"run_id"`
-	JobID               string             `db:"job_id"`
-	Created             int64              `db:"created"`
-	JobSet              string             `db:"job_set"`
-	Executor            string             `db:"executor"`
-	Node                string             `db:"node"`
-	Cancelled           bool               `db:"cancelled"`
-	Running             bool               `db:"running"`
-	Succeeded           bool               `db:"succeeded"`
-	Failed              bool               `db:"failed"`
-	Returned            bool               `db:"returned"`
-	RunAttempted        bool               `db:"run_attempted"`
-	Serial              int64              `db:"serial"`
-	LastModified        time.Time          `db:"last_modified"`
-	LeasedTimestamp     pgtype.Timestamptz `db:"leased_timestamp"`
-	PendingTimestamp    pgtype.Timestamptz `db:"pending_timestamp"`
-	RunningTimestamp    pgtype.Timestamptz `db:"running_timestamp"`
-	TerminatedTimestamp pgtype.Timestamptz `db:"terminated_timestamp"`
+	RunID               uuid.UUID `db:"run_id"`
+	JobID               string    `db:"job_id"`
+	Created             int64     `db:"created"`
+	JobSet              string    `db:"job_set"`
+	Executor            string    `db:"executor"`
+	Node                string    `db:"node"`
+	Cancelled           bool      `db:"cancelled"`
+	Running             bool      `db:"running"`
+	Succeeded           bool      `db:"succeeded"`
+	Failed              bool      `db:"failed"`
+	Returned            bool      `db:"returned"`
+	RunAttempted        bool      `db:"run_attempted"`
+	Serial              int64     `db:"serial"`
+	LastModified        time.Time `db:"last_modified"`
+	LeasedTimestamp     time.Time `db:"leased_timestamp"`
+	PendingTimestamp    time.Time `db:"pending_timestamp"`
+	RunningTimestamp    time.Time `db:"running_timestamp"`
+	TerminatedTimestamp time.Time `db:"terminated_timestamp"`
 }
