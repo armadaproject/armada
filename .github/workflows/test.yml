@@ -134,6 +134,7 @@ jobs:
           if-no-files-found: error
 
       - name: Store Docker Compose Logs
+        if: always()
         run: |
           mkdir -p ./logs
           docker compose logs --no-color > ./logs/docker-compose.log
