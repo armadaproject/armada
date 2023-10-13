@@ -2,6 +2,10 @@ grpcPort: 50059
 httpPort: 8080
 metricsPort: 9000
 grpc:
+  tls:
+    enabled: false
+    certPath: /certs/tls.crt
+    keyPath: /certs/tls.key
   keepaliveParams:
     maxConnectionIdle: 5m
     time: 2h

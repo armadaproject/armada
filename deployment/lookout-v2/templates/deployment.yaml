@@ -53,6 +53,11 @@ spec:
               mountPath: /config/application_config.yaml
               subPath: {{ include "lookout_v2.config.filename" . }}
               readOnly: true
+            {{- if .Values.applicationConfig.tls.enabled }}
+            - name: tls-certs
+              mountPath: /certs
+              readOnly: true
+            {{- end }}
             {{- if .Values.additionalVolumeMounts }}
             {{- toYaml .Values.additionalVolumeMounts | nindent 12 -}}
             {{- end }}
@@ -62,6 +67,7 @@ spec:
             httpGet:
               path: /health
               port: web
+              scheme: {{ if .Values.applicationConfig.tls.enabled }}HTTPS{{ else }}HTTP{{ end }}
             initialDelaySeconds: 5
             timeoutSeconds: 5
             failureThreshold: 2
@@ -69,6 +75,7 @@ spec:
             httpGet:
               path: /health
               port: web
+              scheme: {{ if .Values.applicationConfig.tls.enabled }}HTTPS{{ else }}HTTP{{ end }}
             initialDelaySeconds: 10
             timeoutSeconds: 10
             failureThreshold: 3
@@ -88,6 +95,11 @@ spec:
         - name: user-config
           secret:
             secretName: {{ include "lookout_v2.config.name" . }}
+        {{- if .Values.applicationConfig.tls.enabled }}
+        - name: tls-certs
+          secret:
+            secretName: lookout-service-tls-v2
+        {{- end }}
         {{- if .Values.additionalVolumes }}
         {{- toYaml .Values.additionalVolumes | nindent 8 }}
         {{- end }}

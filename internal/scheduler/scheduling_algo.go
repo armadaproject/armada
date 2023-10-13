@@ -95,6 +95,7 @@ func (l *FairSchedulingAlgo) Schedule(
 	overallSchedulerResult := &SchedulerResult{
 		NodeIdByJobId:      make(map[string]string),
 		SchedulingContexts: make([]*schedulercontext.SchedulingContext, 0, 0),
+		FailedJobs:         make([]interfaces.LegacySchedulerJob, 0),
 	}
 
 	// Exit immediately if scheduling is disabled.
@@ -167,19 +168,23 @@ func (l *FairSchedulingAlgo) Schedule(
 			}
 		}
 
-		// Update jobDb.
 		preemptedJobs := PreemptedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
 		scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
+		failedJobs := FailedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
 		if err := jobDb.Upsert(txn, preemptedJobs); err != nil {
 			return nil, err
 		}
 		if err := jobDb.Upsert(txn, scheduledJobs); err != nil {
 			return nil, err
 		}
+		if err := jobDb.Upsert(txn, failedJobs); err != nil {
+			return nil, err
+		}
 
 		// Aggregate changes across executors.
 		overallSchedulerResult.PreemptedJobs = append(overallSchedulerResult.PreemptedJobs, schedulerResult.PreemptedJobs...)
 		overallSchedulerResult.ScheduledJobs = append(overallSchedulerResult.ScheduledJobs, schedulerResult.ScheduledJobs...)
+		overallSchedulerResult.FailedJobs = append(overallSchedulerResult.FailedJobs, schedulerResult.FailedJobs...)
 		overallSchedulerResult.SchedulingContexts = append(overallSchedulerResult.SchedulingContexts, schedulerResult.SchedulingContexts...)
 		maps.Copy(overallSchedulerResult.NodeIdByJobId, schedulerResult.NodeIdByJobId)
 
@@ -458,6 +463,10 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		} else {
 			result.ScheduledJobs[i] = jobDbJob.WithQueuedVersion(jobDbJob.QueuedVersion()+1).WithQueued(false).WithNewRun(node.Executor, node.Id, node.Name)
 		}
+	}
+	for i, job := range result.FailedJobs {
+		jobDbJob := job.(*jobdb.Job)
+		result.FailedJobs[i] = jobDbJob.WithQueued(false).WithFailed(true)
 	}
 	return result, sctx, nil
 }

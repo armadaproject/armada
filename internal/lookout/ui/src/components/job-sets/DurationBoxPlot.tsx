@@ -8,9 +8,9 @@ import { TooltipWithBounds, withTooltip } from "@visx/tooltip"
 import { WithTooltipProvidedProps } from "@visx/tooltip/lib/enhancers/withTooltip"
 import { defaultStyles as defaultTooltipStyles } from "@visx/tooltip/lib/tooltips/Tooltip"
 
+import DurationTooltip, { DurationTooltipProps } from "./DurationTooltip"
 import { DurationStats } from "../../services/JobService"
 import { Padding } from "../../utils"
-import DurationTooltip, { DurationTooltipProps } from "./DurationTooltip"
 
 type DurationBoxPlotData = {
   width: number

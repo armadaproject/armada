@@ -2,15 +2,15 @@ import React from "react"
 
 import { Column } from "react-virtualized"
 
+import JobStateCell from "./JobStateCell"
+import JobStatesHeaderCell from "./JobStatesHeaderCell"
+import SearchHeaderCell from "./SearchHeaderCell"
 import { ColumnSpec } from "../../containers/JobsContainer"
 import { Job } from "../../services/JobService"
 import { CHECKBOX_WIDTH } from "../CheckboxRow"
 import DefaultHeaderCell from "../DefaultHeaderCell"
 import LinkCell from "../LinkCell"
 import SortableHeaderCell from "../SortableHeaderCell"
-import JobStateCell from "./JobStateCell"
-import JobStatesHeaderCell from "./JobStatesHeaderCell"
-import SearchHeaderCell from "./SearchHeaderCell"
 
 import "./JobTableColumns.css"
 

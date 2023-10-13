@@ -1222,6 +1222,10 @@ namespace GResearch.Armada.Client
         [Newtonsoft.Json.JsonProperty("queueOwnershipUserGroups", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.ICollection<string> QueueOwnershipUserGroups { get; set; }
     
+        /// <summary>Queuing TTL for this job in seconds. If this job queues for more than this duration it will be cancelled. Zero indicates an infinite lifetime.</summary>
+        [Newtonsoft.Json.JsonProperty("queueTtlSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string QueueTtlSeconds { get; set; }
+    
         [Newtonsoft.Json.JsonProperty("requiredNodeLabels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.IDictionary<string, string> RequiredNodeLabels { get; set; }
     
@@ -1833,6 +1837,10 @@ namespace GResearch.Armada.Client
     
         [Newtonsoft.Json.JsonProperty("priority", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public double? Priority { get; set; }
+    
+        /// <summary>Queuing TTL for this job in seconds. If this job queues for more than this duration it will be cancelled. Zero indicates an infinite lifetime.</summary>
+        [Newtonsoft.Json.JsonProperty("queueTtlSeconds", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
+        public string QueueTtlSeconds { get; set; }
     
         [Newtonsoft.Json.JsonProperty("requiredNodeLabels", Required = Newtonsoft.Json.Required.Default, NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore)]
         public System.Collections.Generic.IDictionary<string, string> RequiredNodeLabels { get; set; }

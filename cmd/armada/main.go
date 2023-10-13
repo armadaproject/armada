@@ -96,7 +96,11 @@ func main() {
 	// register gRPC API handlers in mux
 	// TODO: Run in errgroup
 	shutdownGateway := gateway.CreateGatewayHandler(
-		config.GrpcPort, mux, "/",
+		config.GrpcPort,
+		mux,
+		config.GrpcGatewayPath,
+		true,
+		config.Grpc.Tls.Enabled,
 		config.CorsAllowedOrigins,
 		api.SwaggerJsonTemplate(),
 		api.RegisterSubmitHandler,
@@ -106,7 +110,12 @@ func main() {
 
 	// start HTTP server
 	// TODO: Run in errgroup
-	shutdownHttpServer := common.ServeHttp(config.HttpPort, mux)
+	var shutdownHttpServer func()
+	if config.Grpc.Tls.Enabled {
+		shutdownHttpServer = common.ServeHttps(config.HttpPort, mux, config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
+	} else {
+		shutdownHttpServer = common.ServeHttp(config.HttpPort, mux)
+	}
 	defer shutdownHttpServer()
 
 	// Start Armada server
