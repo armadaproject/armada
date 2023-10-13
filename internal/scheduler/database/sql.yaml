@@ -12,3 +12,8 @@ sql:
         emit_prepared_queries: true
         emit_db_tags: true
         emit_interface: false
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "timestamptz"
+            go_type: "time.Time"

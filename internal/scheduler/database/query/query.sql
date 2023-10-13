@@ -97,3 +97,16 @@ SELECT executor_id, last_updated FROM executors;
 INSERT INTO executors (executor_id, last_request, last_updated)
 VALUES(sqlc.arg(executor_id)::text, sqlc.arg(last_request)::bytea, sqlc.arg(update_time)::timestamptz)
 ON CONFLICT (executor_id) DO UPDATE SET (last_request, last_updated) = (excluded.last_request,excluded.last_updated);
+
+-- name: UpdateLeasedTime :exec
+UPDATE runs SET leased_timestamp = $1 WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
+
+-- name: UpdatePendingTime :exec
+UPDATE runs SET pending_timestamp = $1 WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
+
+-- name: UpdateRunningTime :exec
+UPDATE runs SET running_timestamp = $1 WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
+
+-- name: UpdateTerminatedTime :exec
+UPDATE runs SET terminated_timestamp = $1 WHERE run_id = ANY(sqlc.arg(run_ids)::UUID[]);
+
