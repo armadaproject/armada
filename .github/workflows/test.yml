@@ -131,6 +131,22 @@ jobs:
           path: junit.xml
           if-no-files-found: error
 
+      - name: Store Docker Logs
+        if: always()
+        run: |
+          mkdir -p ./logs
+          docker compose logs --no-color > ./logs/docker-compose.log
+          docker logs pulsar > ./logs/pulsar.log 2>&1
+
+      - name: Upload Docker Compose Logs
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: docker-compose-logs
+          path: |
+            ./logs/
+          if-no-files-found: error
+
       - name: Publish JUnit Report
         uses: mikepenz/action-junit-report@v3
         if: always()
