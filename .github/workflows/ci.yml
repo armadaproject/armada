@@ -46,6 +46,6 @@ jobs:
       - lint
       - test
       - build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - run: echo "All required checks done"
