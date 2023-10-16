@@ -186,6 +186,25 @@ func LocalDev(arg string) error {
 		return fmt.Errorf("invalid argument: %s Please enter one the following argument: minimal, minimal-pulsar, full, no-build, debug ", arg)
 	}
 
+	// print the docker images
+	fmt.Println("Docker images:")
+	// Get output of docker images list
+	output, err := sh.Output("docker", "image", "list")
+	if err != nil {
+		return err
+	}
+	fmt.Println(output)
+
+	// Purge the go cache
+	if err := sh.Run("go", "clean", "-cache"); err != nil {
+		return err
+	}
+
+	// Check the storage on the host
+	if err := sh.Run("df", "-h"); err != nil {
+		return err
+	}
+
 	mg.Deps(StartDependencies)
 	fmt.Println("Waiting for dependencies to start...")
 	mg.Deps(CheckForPulsarRunning)
