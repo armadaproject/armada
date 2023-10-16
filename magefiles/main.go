@@ -201,9 +201,11 @@ func LocalDev(arg string) error {
 	}
 
 	// Check the storage on the host
-	if err := sh.Run("df", "-h"); err != nil {
+	output, err = sh.Output("df", "-h")
+	if err != nil {
 		return err
 	}
+	fmt.Println(output)
 
 	mg.Deps(StartDependencies)
 	fmt.Println("Waiting for dependencies to start...")
