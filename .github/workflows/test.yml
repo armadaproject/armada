@@ -10,7 +10,7 @@ permissions:
 jobs:
   ts-unit-tests:
     name: TypeScript Unit Tests
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
@@ -48,7 +48,7 @@ jobs:
 
   go-unit-tests:
     name: Golang Unit Tests
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
@@ -87,7 +87,7 @@ jobs:
 
   go-integration-tests:
     name: Golang Integration Tests
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-22.04
 
     env:
       ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
@@ -159,7 +159,7 @@ jobs:
 
   go-mod-up-to-date:
     name: Golang Mod Up To Date
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout code
@@ -198,7 +198,7 @@ jobs:
 
   proto-up-to-date:
     name: Proto Up To Date
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
