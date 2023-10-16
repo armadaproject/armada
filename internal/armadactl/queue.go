@@ -1,6 +1,7 @@
 package armadactl
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 
@@ -75,6 +76,20 @@ func (a *App) DescribeQueue(name string) error {
 		}
 	}
 
+	return nil
+}
+
+// GetQueue calls app.QueueAPI.Get with the provided parameters.
+func (a *App) GetQueue(name string) error {
+	queue, err := a.Params.QueueAPI.Get(name)
+	if err != nil {
+		return errors.Errorf("[armadactl.GetQueue] error getting queue %s: %s", name, err)
+	}
+	b, err := json.Marshal(queue)
+	if err != nil {
+		return errors.Errorf("[armadactl.GetQueue] error unmarshalling queue %s: %s", name, err)
+	}
+	fmt.Fprintf(a.Out, string(b))
 	return nil
 }
 
