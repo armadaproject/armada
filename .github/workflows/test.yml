@@ -10,7 +10,7 @@ permissions:
 jobs:
   ts-unit-tests:
     name: TypeScript Unit Tests
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -48,7 +48,7 @@ jobs:
 
   go-unit-tests:
     name: Golang Unit Tests
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -97,7 +97,6 @@ jobs:
       DOCKER_BUILDX_CACHE_FROM: "type=gha"
       DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
       DOCKER_BUILDX_BUILDER: "builder"
-      ARMADA_SCHEDULING_EXECUTORUPDATEFREQUENCY: "1s"
 
     steps:
       - name: Checkout
@@ -156,7 +155,7 @@ jobs:
 
   go-mod-up-to-date:
     name: Golang Mod Up To Date
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -195,7 +194,7 @@ jobs:
 
   proto-up-to-date:
     name: Proto Up To Date
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
