@@ -38,7 +38,7 @@ func TestSuite() error {
 	timeTaken := time.Now()
 	out, err2 := goOutput("run", "cmd/testsuite/main.go", "test",
 		"--tests", "testsuite/testcases/basic/*",
-		"--junit", "junit.xml", "--armadaUrl",
+		"--junit", "junit.xml",
 	)
 	if err2 != nil {
 		return err2
