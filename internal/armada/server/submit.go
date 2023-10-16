@@ -147,16 +147,22 @@ func (server *SubmitServer) GetQueues(req *api.StreamingQueueGetRequest, stream 
 	}
 	for i, queue := range queues {
 		if uint32(i) < numToReturn {
-			stream.Send(&api.StreamingQueueMessage{
+			err := stream.Send(&api.StreamingQueueMessage{
 				Event: &api.StreamingQueueMessage_Queue{Queue: queue.ToAPI()},
 			})
+			if err != nil {
+				return err
+			}
 		}
 	}
-	stream.Send(&api.StreamingQueueMessage{
+	err = stream.Send(&api.StreamingQueueMessage{
 		Event: &api.StreamingQueueMessage_End{
 			End: &api.EndMarker{},
 		},
 	})
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

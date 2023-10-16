@@ -120,7 +120,7 @@ func queueDescribeCmdWithApp(a *armadactl.App) *cobra.Command {
 }
 
 func queueGetCmd() *cobra.Command {
-	return queueDescribeCmdWithApp(armadactl.New())
+	return queueGetCmdWithApp(armadactl.New())
 }
 
 // Takes a caller-supplied app struct; useful for testing.

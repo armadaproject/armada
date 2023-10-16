@@ -1,11 +1,11 @@
 package armadactl
 
 import (
-	"encoding/json"
 	"fmt"
 	"sort"
 
 	"github.com/pkg/errors"
+	"gopkg.in/yaml.v3"
 
 	"github.com/armadaproject/armada/pkg/client"
 	"github.com/armadaproject/armada/pkg/client/queue"
@@ -85,7 +85,7 @@ func (a *App) GetQueue(name string) error {
 	if err != nil {
 		return errors.Errorf("[armadactl.GetQueue] error getting queue %s: %s", name, err)
 	}
-	b, err := json.Marshal(queue)
+	b, err := yaml.Marshal(queue)
 	if err != nil {
 		return errors.Errorf("[armadactl.GetQueue] error unmarshalling queue %s: %s", name, err)
 	}
