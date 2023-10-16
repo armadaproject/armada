@@ -52,10 +52,8 @@ func TestSuite() error {
 
 // Checks if Armada is ready to accept jobs.
 func CheckForArmadaRunning() error {
-	queueErr := createQueue()
-	if queueErr != nil {
-		return queueErr
-	}
+	time.Sleep(30 * time.Second)
+	mg.Deps(createQueue)
 
 	// Set high to take compile time into account
 	timeout := time.After(2 * time.Minute)
