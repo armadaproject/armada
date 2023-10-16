@@ -97,6 +97,7 @@ jobs:
       DOCKER_BUILDX_CACHE_FROM: "type=gha"
       DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
       DOCKER_BUILDX_BUILDER: "builder"
+      ARMADA_SCHEDULING_EXECUTORUPDATEFREQUENCY: "1s"
 
     steps:
       - name: Checkout
