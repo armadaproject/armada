@@ -108,6 +108,9 @@ jobs:
       - name: Install Docker Buildx
         run: docker buildx install
 
+      - name: Free some disk space
+        run: docker image prune -af
+
       - name: Setup Golang with Cache
         uses: magnetikonline/action-golang-cache@v4
         with:
