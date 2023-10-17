@@ -96,7 +96,7 @@ func StopComponents() error {
 
 // Repeatedly check logs until Pulsar is ready.
 func CheckForPulsarRunning() error {
-	timeout := time.After(2 * time.Minute)
+	timeout := time.After(1 * time.Minute)
 	tick := time.Tick(1 * time.Second)
 	seconds := 0
 	for {
@@ -130,7 +130,7 @@ func CheckForArmadaRunning() error {
 	mg.Deps(createQueue)
 
 	// Set high to take compile time into account
-	timeout := time.After(10 * time.Minute)
+	timeout := time.After(1 * time.Minute)
 	tick := time.Tick(1 * time.Second)
 	seconds := 0
 	for {
