@@ -644,7 +644,7 @@ UPDATE runs SET leased_timestamp = $1 WHERE run_id = ANY($2::UUID[])
 `
 
 type UpdateLeasedTimeParams struct {
-	LeasedTimestamp time.Time   `db:"leased_timestamp"`
+	LeasedTimestamp *time.Time  `db:"leased_timestamp"`
 	RunIds          []uuid.UUID `db:"run_ids"`
 }
 
@@ -658,7 +658,7 @@ UPDATE runs SET pending_timestamp = $1 WHERE run_id = ANY($2::UUID[])
 `
 
 type UpdatePendingTimeParams struct {
-	PendingTimestamp time.Time   `db:"pending_timestamp"`
+	PendingTimestamp *time.Time  `db:"pending_timestamp"`
 	RunIds           []uuid.UUID `db:"run_ids"`
 }
 
@@ -672,7 +672,7 @@ UPDATE runs SET running_timestamp = $1 WHERE run_id = ANY($2::UUID[])
 `
 
 type UpdateRunningTimeParams struct {
-	RunningTimestamp time.Time   `db:"running_timestamp"`
+	RunningTimestamp *time.Time  `db:"running_timestamp"`
 	RunIds           []uuid.UUID `db:"run_ids"`
 }
 
@@ -686,7 +686,7 @@ UPDATE runs SET terminated_timestamp = $1 WHERE run_id = ANY($2::UUID[])
 `
 
 type UpdateTerminatedTimeParams struct {
-	TerminatedTimestamp time.Time   `db:"terminated_timestamp"`
+	TerminatedTimestamp *time.Time  `db:"terminated_timestamp"`
 	RunIds              []uuid.UUID `db:"run_ids"`
 }
 
