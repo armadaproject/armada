@@ -66,10 +66,11 @@ jobs:
         with:
           path: |
             /home/runner/.cache/go-build
-            /home/runner/go
-          key: ${{ runner.os }}gocache${{ hashFiles('**/go.sum') }}
+            /home/runner/go/pkg/mod
+            /home/runner/go/bin
+          key: ${{ runner.os }}-gocache-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}gocache
+            ${{ runner.os }}-gocache-
 
       - name: Setup dependencies
         shell: bash
@@ -137,9 +138,9 @@ jobs:
             /home/runner/.cache/go-build
             /home/runner/go/pkg/mod
             /home/runner/go/bin
-          key: ${{ runner.os }}gocache${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-gocache-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}gocache
+            ${{ runner.os }}-gocache-
 
       - name: Setup and Run Integration Tests
         run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
@@ -179,13 +180,13 @@ jobs:
 
       # Only save on master branch
       - uses: actions/cache/save@v3
-        # if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/master'
         with:
           path: |
             /home/runner/.cache/go-build
             /home/runner/go/pkg/mod
             /home/runner/go/bin
-          key: ${{ runner.os }}gocache${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-gocache-${{ hashFiles('**/go.sum') }}
 
   go-mod-up-to-date:
     name: Golang Mod Up To Date
@@ -207,10 +208,11 @@ jobs:
         with:
           path: |
             /home/runner/.cache/go-build
-            /home/runner/go
-          key: ${{ runner.os }}gocache${{ hashFiles('**/go.sum') }}
+            /home/runner/go/pkg/mod
+            /home/runner/go/bin
+          key: ${{ runner.os }}-gocache-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}gocache
+            ${{ runner.os }}-gocache-
 
       - name: Check for tidyness of go.mod and go.sum
         run: |

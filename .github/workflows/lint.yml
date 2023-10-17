@@ -65,10 +65,11 @@ jobs:
         with:
           path: |
             /home/runner/.cache/go-build
-            /home/runner/go
-          key: ${{ runner.os }}gocache${{ hashFiles('**/go.sum') }}
+            /home/runner/go/pkg/mod
+            /home/runner/go/bin
+          key: ${{ runner.os }}-gocache-${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}gocache
+            ${{ runner.os }}-gocache-
 
       - name: Lint using golangci-lint
         uses: golangci/golangci-lint-action@v3
