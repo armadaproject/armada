@@ -25,9 +25,9 @@ jobs:
           path: |
             /home/runner/.cache/go-build
             /home/runner/go
-          key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}gocache${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-golang-
+            ${{ runner.os }}gocache
 
       - name: Set up Docker Buildx
         id: buildx

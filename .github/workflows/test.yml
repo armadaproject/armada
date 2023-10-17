@@ -67,9 +67,9 @@ jobs:
           path: |
             /home/runner/.cache/go-build
             /home/runner/go
-          key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}gocache${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-golang-
+            ${{ runner.os }}gocache
 
       - name: Setup dependencies
         shell: bash
@@ -137,9 +137,9 @@ jobs:
             /home/runner/.cache/go-build
             /home/runner/go/pkg/mod
             /home/runner/go/bin
-          key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}gocache${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-golang-
+            ${{ runner.os }}gocache
 
       - name: Setup and Run Integration Tests
         run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
@@ -185,7 +185,7 @@ jobs:
             /home/runner/.cache/go-build
             /home/runner/go/pkg/mod
             /home/runner/go/bin
-          key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}gocache${{ hashFiles('**/go.sum') }}
 
   go-mod-up-to-date:
     name: Golang Mod Up To Date
@@ -208,9 +208,9 @@ jobs:
           path: |
             /home/runner/.cache/go-build
             /home/runner/go
-          key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}gocache${{ hashFiles('**/go.sum') }}
           restore-keys: |
-            ${{ runner.os }}-golang-
+            ${{ runner.os }}gocache
 
       - name: Check for tidyness of go.mod and go.sum
         run: |
