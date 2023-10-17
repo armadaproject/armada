@@ -67,7 +67,6 @@ jobs:
           path: |
             /home/runner/.cache/go-build
             /home/runner/go
-            /home/runner/go/bin
           key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-golang-
@@ -137,7 +136,6 @@ jobs:
           path: |
             /home/runner/.cache/go-build
             /home/runner/go
-            /home/runner/go/bin
           key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-golang-
@@ -185,7 +183,6 @@ jobs:
           path: |
             /home/runner/.cache/go-build
             /home/runner/go
-            /home/runner/go/bin
           key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
 
   go-mod-up-to-date:
@@ -209,7 +206,6 @@ jobs:
           path: |
             /home/runner/.cache/go-build
             /home/runner/go
-            /home/runner/go/bin
           key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-golang-
