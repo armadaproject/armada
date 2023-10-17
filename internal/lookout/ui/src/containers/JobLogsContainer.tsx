@@ -33,6 +33,7 @@ export default function JobLogsContainer(props: JobLogsContainerProps) {
   const [container, setContainer] = useState<string>(defaultContainer)
   const [log, updateLog] = useState<LogLine[]>(loadingLog)
   const [error, setError] = useState<string | undefined>()
+  const runError = props.job.runs[defaultRunIndex].error || undefined
 
   async function loadLogs(sinceTime: string, tailLines: number | undefined): Promise<LogLine[]> {
     setError(undefined)
@@ -99,6 +100,7 @@ export default function JobLogsContainer(props: JobLogsContainerProps) {
       container={container}
       log={log}
       error={error}
+      runError={runError}
       onLoadFromStartChange={setLoadFromStart}
       onRunIndexChange={setRunIndex}
       onContainerChange={setContainer}
