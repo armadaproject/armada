@@ -54,10 +54,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3.3.0
 
-      - name: Setup Golang with Cache
-        uses: magnetikonline/action-golang-cache@v4
+      # Check for cache
+      - name: Cache Go modules
+        uses: actions/cache/restore@v3
         with:
-          go-version: "1.20"
+          path: |
+            /home/runner/.cache/go-build
+            /home/runner/go
+            /home/runner/go/bin
+          key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-golang-
 
       - name: Setup dependencies
         shell: bash
@@ -111,10 +118,17 @@ jobs:
       - name: Free some disk space
         run: docker image prune -af
 
-      - name: Setup Golang with Cache
-        uses: magnetikonline/action-golang-cache@v4
+      # Check for cache
+      - name: Cache Go modules
+        uses: actions/cache/restore@v3
         with:
-          go-version: "1.20"
+          path: |
+            /home/runner/.cache/go-build
+            /home/runner/go
+            /home/runner/go/bin
+          key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-golang-
 
       - name: Setup and Run Integration Tests
         run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
@@ -152,6 +166,16 @@ jobs:
           detailed_summary: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      # Only save on master branch
+      - uses: actions/cache/save@v3
+        if: github.ref == 'refs/heads/master'
+        with:
+          path: |
+            /home/runner/.cache/go-build
+            /home/runner/go
+            /home/runner/go/bin
+          key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
+
   go-mod-up-to-date:
     name: Golang Mod Up To Date
     runs-on: ubuntu-22.04
@@ -160,13 +184,17 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3.3.0
 
-      - name: Setup Golang with Cache
-        uses: magnetikonline/action-golang-cache@v4
+      # Check for cache
+      - name: Cache Go modules
+        uses: actions/cache/restore@v3
         with:
-          go-version: "1.20"
-
-      - name: Download all Go modules
-        run: go mod download
+          path: |
+            /home/runner/.cache/go-build
+            /home/runner/go
+            /home/runner/go/bin
+          key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-golang-
 
       - name: Check for tidyness of go.mod and go.sum
         run: |
@@ -191,6 +219,7 @@ jobs:
 
           exit $changed
 
+
   proto-up-to-date:
     name: Proto Up To Date
     runs-on: ubuntu-22.04
@@ -205,10 +234,17 @@ jobs:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
+      # Check for cache
+      - name: Cache Go modules
+        uses: actions/cache/restore@v3
         with:
-          go-version: ${{ matrix.go }}
+          path: |
+            /home/runner/.cache/go-build
+            /home/runner/go
+            /home/runner/go/bin
+          key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-golang-
 
       - name: Setup dependencies
         shell: bash
