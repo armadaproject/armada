@@ -131,7 +131,7 @@ jobs:
             ${{ runner.os }}-golang-
 
       - name: Setup and Run Integration Tests
-        run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
+        run: go run github.com/magefile/mage@v1.14.0 -v download localdev minimal testsuite
 
       - name: Upload JUnit Report Artifact
         uses: actions/upload-artifact@v3
