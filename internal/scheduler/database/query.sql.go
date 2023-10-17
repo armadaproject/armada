@@ -610,6 +610,62 @@ func (q *Queries) SelectUpdatedJobs(ctx context.Context, arg SelectUpdatedJobsPa
 	return items, nil
 }
 
+const setLeasedTime = `-- name: SetLeasedTime :exec
+UPDATE runs SET leased_timestamp = $1 WHERE run_id = $2
+`
+
+type SetLeasedTimeParams struct {
+	LeasedTimestamp *time.Time `db:"leased_timestamp"`
+	RunID           uuid.UUID  `db:"run_id"`
+}
+
+func (q *Queries) SetLeasedTime(ctx context.Context, arg SetLeasedTimeParams) error {
+	_, err := q.db.Exec(ctx, setLeasedTime, arg.LeasedTimestamp, arg.RunID)
+	return err
+}
+
+const setPendingTime = `-- name: SetPendingTime :exec
+UPDATE runs SET pending_timestamp = $1 WHERE run_id = $2
+`
+
+type SetPendingTimeParams struct {
+	PendingTimestamp *time.Time `db:"pending_timestamp"`
+	RunID            uuid.UUID  `db:"run_id"`
+}
+
+func (q *Queries) SetPendingTime(ctx context.Context, arg SetPendingTimeParams) error {
+	_, err := q.db.Exec(ctx, setPendingTime, arg.PendingTimestamp, arg.RunID)
+	return err
+}
+
+const setRunningTime = `-- name: SetRunningTime :exec
+UPDATE runs SET running_timestamp = $1 WHERE run_id = $2
+`
+
+type SetRunningTimeParams struct {
+	RunningTimestamp *time.Time `db:"running_timestamp"`
+	RunID            uuid.UUID  `db:"run_id"`
+}
+
+func (q *Queries) SetRunningTime(ctx context.Context, arg SetRunningTimeParams) error {
+	_, err := q.db.Exec(ctx, setRunningTime, arg.RunningTimestamp, arg.RunID)
+	return err
+}
+
+const setTerminatedTime = `-- name: SetTerminatedTime :exec
+UPDATE runs SET terminated_timestamp = $1 WHERE run_id = $2
+`
+
+type SetTerminatedTimeParams struct {
+	TerminatedTimestamp *time.Time `db:"terminated_timestamp"`
+	RunID               uuid.UUID  `db:"run_id"`
+}
+
+func (q *Queries) SetTerminatedTime(ctx context.Context, arg SetTerminatedTimeParams) error {
+	_, err := q.db.Exec(ctx, setTerminatedTime, arg.TerminatedTimestamp, arg.RunID)
+	return err
+}
+
 const updateJobPriorityById = `-- name: UpdateJobPriorityById :exec
 UPDATE jobs SET priority = $1 WHERE job_id = $2
 `
@@ -636,62 +692,6 @@ type UpdateJobPriorityByJobSetParams struct {
 
 func (q *Queries) UpdateJobPriorityByJobSet(ctx context.Context, arg UpdateJobPriorityByJobSetParams) error {
 	_, err := q.db.Exec(ctx, updateJobPriorityByJobSet, arg.Priority, arg.JobSet, arg.Queue)
-	return err
-}
-
-const updateLeasedTime = `-- name: UpdateLeasedTime :exec
-UPDATE runs SET leased_timestamp = $1 WHERE run_id = ANY($2::UUID[])
-`
-
-type UpdateLeasedTimeParams struct {
-	LeasedTimestamp *time.Time  `db:"leased_timestamp"`
-	RunIds          []uuid.UUID `db:"run_ids"`
-}
-
-func (q *Queries) UpdateLeasedTime(ctx context.Context, arg UpdateLeasedTimeParams) error {
-	_, err := q.db.Exec(ctx, updateLeasedTime, arg.LeasedTimestamp, arg.RunIds)
-	return err
-}
-
-const updatePendingTime = `-- name: UpdatePendingTime :exec
-UPDATE runs SET pending_timestamp = $1 WHERE run_id = ANY($2::UUID[])
-`
-
-type UpdatePendingTimeParams struct {
-	PendingTimestamp *time.Time  `db:"pending_timestamp"`
-	RunIds           []uuid.UUID `db:"run_ids"`
-}
-
-func (q *Queries) UpdatePendingTime(ctx context.Context, arg UpdatePendingTimeParams) error {
-	_, err := q.db.Exec(ctx, updatePendingTime, arg.PendingTimestamp, arg.RunIds)
-	return err
-}
-
-const updateRunningTime = `-- name: UpdateRunningTime :exec
-UPDATE runs SET running_timestamp = $1 WHERE run_id = ANY($2::UUID[])
-`
-
-type UpdateRunningTimeParams struct {
-	RunningTimestamp *time.Time  `db:"running_timestamp"`
-	RunIds           []uuid.UUID `db:"run_ids"`
-}
-
-func (q *Queries) UpdateRunningTime(ctx context.Context, arg UpdateRunningTimeParams) error {
-	_, err := q.db.Exec(ctx, updateRunningTime, arg.RunningTimestamp, arg.RunIds)
-	return err
-}
-
-const updateTerminatedTime = `-- name: UpdateTerminatedTime :exec
-UPDATE runs SET terminated_timestamp = $1 WHERE run_id = ANY($2::UUID[])
-`
-
-type UpdateTerminatedTimeParams struct {
-	TerminatedTimestamp *time.Time  `db:"terminated_timestamp"`
-	RunIds              []uuid.UUID `db:"run_ids"`
-}
-
-func (q *Queries) UpdateTerminatedTime(ctx context.Context, arg UpdateTerminatedTimeParams) error {
-	_, err := q.db.Exec(ctx, updateTerminatedTime, arg.TerminatedTimestamp, arg.RunIds)
 	return err
 }
 
