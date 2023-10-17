@@ -54,6 +54,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3.3.0
 
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go }}
+          cache: false
+
       # Check for cache
       - name: Cache Go modules
         uses: actions/cache/restore@v3
@@ -118,6 +124,12 @@ jobs:
       - name: Free some disk space
         run: docker image prune -af
 
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go }}
+          cache: false
+
       # Check for cache
       - name: Cache Go modules
         uses: actions/cache/restore@v3
@@ -131,7 +143,7 @@ jobs:
             ${{ runner.os }}-golang-
 
       - name: Setup and Run Integration Tests
-        run: go run github.com/magefile/mage@v1.14.0 -v download localdev minimal testsuite
+        run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
 
       - name: Upload JUnit Report Artifact
         uses: actions/upload-artifact@v3
@@ -183,6 +195,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3.3.0
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go }}
+          cache: false
 
       # Check for cache
       - name: Cache Go modules
@@ -238,6 +256,7 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go }}
+          cache: false
 
       - name: Setup dependencies
         shell: bash
