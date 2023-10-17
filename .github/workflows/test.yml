@@ -180,7 +180,7 @@ jobs:
 
       # Only save on master branch
       - uses: actions/cache/save@v3
-        # if: github.ref == 'refs/heads/master'
+        if: github.ref == 'refs/heads/master'
         with:
           path: |
             /home/runner/.cache/go-build
