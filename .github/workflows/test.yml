@@ -234,17 +234,10 @@ jobs:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Check for cache
-      - name: Cache Go modules
-        uses: actions/cache/restore@v3
+      - name: Set up Go
+        uses: actions/setup-go@v4
         with:
-          path: |
-            /home/runner/.cache/go-build
-            /home/runner/go
-            /home/runner/go/bin
-          key: ${{ runner.os }}-golang-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-golang-
+          go-version: ${{ matrix.go }}
 
       - name: Setup dependencies
         shell: bash
