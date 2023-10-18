@@ -12,6 +12,7 @@ import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import { withRouter } from "utils"
 
 import NavBar from "./components/NavBar"
+import JobSetsContainer from "./containers/JobSetsContainer"
 import { JobService } from "./services/JobService"
 import LogService from "./services/LogService"
 import { ICordonService } from "./services/lookoutV2/CordonService"
@@ -115,6 +116,7 @@ export function App(props: AppProps) {
                         />
                       }
                     />
+                    <Route path="/job-sets" element={<JobSetsContainer {...props} />} />
                     <Route path="/v2" element={<V2Redirect />} />
                     <Route
                       path="*"
