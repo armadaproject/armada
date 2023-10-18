@@ -108,6 +108,9 @@ jobs:
       - name: Install Docker Buildx
         run: docker buildx install
 
+      - name: Free some disk space
+        run: docker image prune -af
+
       - name: Setup Golang with Cache
         uses: magnetikonline/action-golang-cache@v4
         with:
@@ -118,17 +121,29 @@ jobs:
         run: go run github.com/magefile/mage@v1.14.0 -v download
 
       - name: Setup and Run Integration Tests
-        run: |
-          # Manually create folders to ensure perms are correct.
-          mkdir -p .kube/internal
-          mkdir -p .kube/external
-          go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
+        run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
 
       - name: Upload JUnit Report Artifact
         uses: actions/upload-artifact@v3
         with:
           name: go-integration-test-reports
           path: junit.xml
+          if-no-files-found: error
+
+      - name: Store Docker Logs
+        if: always()
+        run: |
+          mkdir -p ./logs
+          docker compose logs --no-color > ./logs/docker-compose.log
+          docker logs pulsar > ./logs/pulsar.log 2>&1
+
+      - name: Upload Docker Compose Logs
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: docker-compose-logs
+          path: |
+            ./logs/
           if-no-files-found: error
 
       - name: Publish JUnit Report

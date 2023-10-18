@@ -212,6 +212,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedJobRunLeased             []string                          // ids of jobs we expect to have produced leased messages
 		expectedJobRunErrors             []string                          // ids of jobs we expect to have produced jobRunErrors messages
 		expectedJobErrors                []string                          // ids of jobs we expect to have produced jobErrors messages
+		expectedJobsToFail               []string                          // ids of jobs we expect to fail without having failed the overall scheduling cycle
 		expectedJobRunPreempted          []string                          // ids of jobs we expect to have produced jobRunPreempted messages
 		expectedJobCancelled             []string                          // ids of jobs we expect to have  produced cancelled messages
 		expectedJobRequestCancel         []string                          // ids of jobs we expect to have produced request cancel
@@ -253,6 +254,12 @@ func TestScheduler_TestCycle(t *testing.T) {
 			initialJobs:           []*jobdb.Job{queuedJob},
 			expectedQueued:        []string{queuedJob.Id()},
 			expectedQueuedVersion: queuedJob.QueuedVersion(),
+		},
+		"FailedJobs in scheduler result will publish appropriate messages": {
+			initialJobs:        []*jobdb.Job{queuedJob},
+			expectedJobErrors:  []string{queuedJob.Id()},
+			expectedJobsToFail: []string{queuedJob.Id()},
+			expectedTerminal:   []string{queuedJob.Id()},
 		},
 		"No updates to an already leased job": {
 			initialJobs:           []*jobdb.Job{leasedJob},
@@ -592,6 +599,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			schedulingAlgo := &testSchedulingAlgo{
 				jobsToSchedule: tc.expectedJobRunLeased,
 				jobsToPreempt:  tc.expectedJobRunPreempted,
+				jobsToFail:     tc.expectedJobsToFail,
 				shouldError:    tc.scheduleError,
 			}
 			publisher := &testPublisher{shouldError: tc.publishError}
@@ -1104,6 +1112,7 @@ type testSchedulingAlgo struct {
 	numberOfScheduleCalls int
 	jobsToPreempt         []string
 	jobsToSchedule        []string
+	jobsToFail            []string
 	shouldError           bool
 }
 
@@ -1114,6 +1123,7 @@ func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn
 	}
 	preemptedJobs := make([]*jobdb.Job, 0, len(t.jobsToPreempt))
 	scheduledJobs := make([]*jobdb.Job, 0, len(t.jobsToSchedule))
+	failedJobs := make([]*jobdb.Job, 0, len(t.jobsToFail))
 	for _, id := range t.jobsToPreempt {
 		job := jobDb.GetById(txn, id)
 		if job == nil {
@@ -1141,13 +1151,27 @@ func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn
 		job = job.WithQueuedVersion(job.QueuedVersion()+1).WithQueued(false).WithNewRun("test-executor", "test-node", "node")
 		scheduledJobs = append(scheduledJobs, job)
 	}
+	for _, id := range t.jobsToFail {
+		job := jobDb.GetById(txn, id)
+		if job == nil {
+			return nil, errors.Errorf("was asked to lease %s but job does not exist", id)
+		}
+		if !job.Queued() {
+			return nil, errors.Errorf("was asked to lease %s but job was already leased", job.Id())
+		}
+		job = job.WithQueued(false).WithFailed(true)
+		failedJobs = append(failedJobs, job)
+	}
 	if err := jobDb.Upsert(txn, preemptedJobs); err != nil {
 		return nil, err
 	}
 	if err := jobDb.Upsert(txn, scheduledJobs); err != nil {
 		return nil, err
 	}
-	return NewSchedulerResult(preemptedJobs, scheduledJobs, nil), nil
+	if err := jobDb.Upsert(txn, failedJobs); err != nil {
+		return nil, err
+	}
+	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs, failedJobs, nil), nil
 }
 
 type testPublisher struct {
