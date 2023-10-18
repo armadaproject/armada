@@ -7,7 +7,6 @@ import { Column, defaultTableCellRenderer } from "react-virtualized"
 import { JobSet } from "../../services/JobService"
 import CheckboxHeaderRow from "../CheckboxHeaderRow"
 import CheckboxRow from "../CheckboxRow"
-import LinkCell from "../LinkCell"
 import SortableHeaderCell from "../SortableHeaderCell"
 
 import "./JobSetTable.css"
@@ -18,7 +17,6 @@ interface JobSetTableProps {
   jobSets: JobSet[]
   selectedJobSets: Map<string, JobSet>
   newestFirst: boolean
-  onJobSetClick: (jobSet: string, state: string) => void
   onSelectJobSet: (index: number, selected: boolean) => void
   onShiftSelectJobSet: (index: number, selected: boolean) => void
   onDeselectAllClick: () => void
@@ -26,13 +24,9 @@ interface JobSetTableProps {
   onOrderChange: (newestFirst: boolean) => void
 }
 
-function cellRendererForState(
-  cellProps: TableCellProps,
-  onJobSetClick: (jobSet: string, state: string) => void,
-  state: string,
-) {
+function cellRendererForState(cellProps: TableCellProps) {
   if (cellProps.cellData) {
-    return <LinkCell onClick={() => onJobSetClick((cellProps.rowData as JobSet).jobSetId, state)} {...cellProps} />
+    return cellProps.cellData
   }
   return defaultTableCellRenderer(cellProps)
 }
@@ -111,42 +105,42 @@ export default function JobSetTable(props: JobSetTableProps) {
           width={0.06 * props.width}
           label="Queued"
           className="job-set-table-number-cell"
-          cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Queued")}
+          cellRenderer={(cellProps) => cellRendererForState(cellProps)}
         />
         <Column
           dataKey="jobsPending"
           width={0.06 * props.width}
           label="Pending"
           className="job-set-table-number-cell"
-          cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Pending")}
+          cellRenderer={(cellProps) => cellRendererForState(cellProps)}
         />
         <Column
           dataKey="jobsRunning"
           width={0.06 * props.width}
           label="Running"
           className="job-set-table-number-cell"
-          cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Running")}
+          cellRenderer={(cellProps) => cellRendererForState(cellProps)}
         />
         <Column
           dataKey="jobsSucceeded"
           width={0.06 * props.width}
           label="Succeeded"
           className="job-set-table-number-cell"
-          cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Succeeded")}
+          cellRenderer={(cellProps) => cellRendererForState(cellProps)}
         />
         <Column
           dataKey="jobsFailed"
           width={0.06 * props.width}
           label="Failed"
           className="job-set-table-number-cell"
-          cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Failed")}
+          cellRenderer={(cellProps) => cellRendererForState(cellProps)}
         />
         <Column
           dataKey="jobsCancelled"
           width={0.06 * props.width}
           label="Cancelled"
           className="job-set-table-number-cell"
-          cellRenderer={(cellProps) => cellRendererForState(cellProps, props.onJobSetClick, "Cancelled")}
+          cellRenderer={(cellProps) => cellRendererForState(cellProps)}
         />
       </VirtualizedTable>
     </div>

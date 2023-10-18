@@ -14,7 +14,7 @@ import {
   TableRow,
 } from "@material-ui/core"
 
-import { CancelJobSetsResponse } from "../../../services/JobService"
+import { CancelJobSetsResponse } from "../../../services/lookoutV2/UpdateJobSetsService"
 import LoadingButton from "../../jobs/LoadingButton"
 
 import "./CancelJobSets.css"

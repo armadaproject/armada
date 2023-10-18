@@ -8,6 +8,7 @@ import { SnackbarProvider } from "notistack"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { UpdateJobSetsService } from "services/lookoutV2/UpdateJobSetsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import { withRouter } from "utils"
 
@@ -69,6 +70,7 @@ type AppProps = {
   v2JobSpecService: IGetJobSpecService
   v2LogService: ILogService
   v2UpdateJobsService: UpdateJobsService
+  v2UpdateJobSetsService: UpdateJobSetsService
   v2CordonService: ICordonService
   logService: LogService
   overviewAutoRefreshMs: number

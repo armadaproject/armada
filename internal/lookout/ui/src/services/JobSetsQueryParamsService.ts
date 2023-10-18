@@ -1,6 +1,6 @@
 import queryString, { ParseOptions, StringifyOptions } from "query-string"
 
-import { isJobSetsView, JobSetsContainerState } from "../containers/JobSetsContainer"
+import { JobSetsContainerState } from "../containers/JobSetsContainer"
 import { Router } from "../utils"
 
 const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
@@ -21,7 +21,6 @@ function makeQueryString(state: JobSetsContainerState): string {
   if (state.queue) {
     queryObject.queue = state.queue
   }
-  queryObject.view = state.currentView
   queryObject.newest_first = state.newestFirst
   queryObject.active_only = state.activeOnly
 
@@ -42,7 +41,6 @@ export default class JobSetsQueryParamsService {
     const params = queryString.parse(this.router.location.search, QUERY_STRING_OPTIONS) as JobSetsQueryParams
 
     if (params.queue) state.queue = params.queue
-    if (params.view && isJobSetsView(params.view)) state.currentView = params.view
     if (params.newest_first != undefined) state.newestFirst = params.newest_first
     if (params.active_only != undefined) state.activeOnly = params.active_only
   }

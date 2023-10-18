@@ -9,7 +9,7 @@ export interface IGroupJobsService {
     aggregates: string[],
     skip: number,
     take: number,
-    abortSignal: AbortSignal | undefined,
+    abortSignal?: AbortSignal,
   ): Promise<GroupJobsResponse>
 }
 
@@ -34,7 +34,7 @@ export class GroupJobsService implements IGroupJobsService {
     aggregates: string[],
     skip: number,
     take: number,
-    abortSignal: AbortSignal | undefined,
+    abortSignal?: AbortSignal,
   ): Promise<GroupJobsResponse> {
     const response = await fetch(this.apiBase + "/api/v1/jobGroups", {
       method: "POST",

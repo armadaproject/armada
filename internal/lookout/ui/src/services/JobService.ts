@@ -1,6 +1,6 @@
 import yaml from "js-yaml"
 
-import { ApiJobState, SubmitApi } from "../openapi/armada"
+import { SubmitApi } from "../openapi/armada"
 import {
   LookoutApi,
   LookoutDurationStats,
@@ -110,26 +110,10 @@ export type CancelJobsResponse = {
   }[]
 }
 
-export type CancelJobSetsResponse = {
-  cancelledJobSets: JobSet[]
-  failedJobSetCancellations: {
-    jobSet: JobSet
-    error: string
-  }[]
-}
-
 export type ReprioritizeJobsResponse = {
   reprioritizedJobs: Job[]
   failedJobReprioritizations: {
     job: Job
-    error: string
-  }[]
-}
-
-export type ReprioritizeJobSetsResponse = {
-  reprioritizedJobSets: JobSet[]
-  failedJobSetReprioritizations: {
-    jobSet: JobSet
     error: string
   }[]
 }
@@ -157,11 +141,7 @@ export interface JobService {
 
   cancelJobs(jobs: Job[], reason: string): Promise<CancelJobsResponse>
 
-  cancelJobSets(queue: string, jobSets: JobSet[], states: ApiJobState[], reason: string): Promise<CancelJobSetsResponse>
-
   reprioritizeJobs(jobs: Job[], newPriority: number): Promise<ReprioritizeJobsResponse>
-
-  reprioritizeJobSets(queue: string, jobSets: JobSet[], newPriority: number): Promise<ReprioritizeJobSetsResponse>
 }
 
 export class LookoutJobService implements JobService {
@@ -253,35 +233,6 @@ export class LookoutJobService implements JobService {
     return response
   }
 
-  async cancelJobSets(
-    queue: string,
-    jobSets: JobSet[],
-    states: ApiJobState[],
-    reason: string,
-  ): Promise<CancelJobSetsResponse> {
-    const response: CancelJobSetsResponse = { cancelledJobSets: [], failedJobSetCancellations: [] }
-    for (const jobSet of jobSets) {
-      try {
-        await this.submitApi.cancelJobSet({
-          body: {
-            queue: queue,
-            jobSetId: jobSet.jobSetId,
-            filter: {
-              states: states,
-            },
-            reason: reason,
-          },
-        })
-        response.cancelledJobSets.push(jobSet)
-      } catch (e) {
-        console.error(e)
-        const text = await getErrorMessage(e)
-        response.failedJobSetCancellations.push({ jobSet: jobSet, error: text })
-      }
-    }
-    return response
-  }
-
   async reprioritizeJobs(jobs: Job[], newPriority: number): Promise<ReprioritizeJobsResponse> {
     const response: ReprioritizeJobsResponse = { reprioritizedJobs: [], failedJobReprioritizations: [] }
     const jobIds: string[] = []
@@ -322,58 +273,6 @@ export class LookoutJobService implements JobService {
       const errorMessage = await getErrorMessage(e)
       for (const job of jobs) {
         response.failedJobReprioritizations.push({ job: job, error: errorMessage })
-      }
-    }
-    return response
-  }
-
-  async reprioritizeJobSets(
-    queue: string,
-    jobSets: JobSet[],
-    newPriority: number,
-  ): Promise<ReprioritizeJobSetsResponse> {
-    const response: ReprioritizeJobSetsResponse = { reprioritizedJobSets: [], failedJobSetReprioritizations: [] }
-
-    for (const jobSet of jobSets) {
-      try {
-        const apiResponse = await this.submitApi.reprioritizeJobs({
-          body: {
-            queue: queue,
-            jobSetId: jobSet.jobSetId,
-            newPriority: newPriority,
-          },
-        })
-        if (apiResponse == null || apiResponse.reprioritizationResults == null) {
-          const errorMessage = "No reprioritizationResults found in response body"
-          console.error(errorMessage)
-          response.failedJobSetReprioritizations.push({
-            jobSet: jobSet,
-            error: "No reprioritizationResults found in response body",
-          })
-          continue
-        }
-
-        let errorCount = 0
-        let successCount = 0
-        let error = ""
-        for (const e of Object.values(apiResponse.reprioritizationResults)) {
-          if (e !== "") {
-            errorCount++
-            error = e
-          } else {
-            successCount++
-          }
-        }
-        if (errorCount === 0) {
-          response.reprioritizedJobSets.push(jobSet)
-        } else {
-          const message = `Reprioritized: ${successCount}  Failed: ${errorCount}  Reason: ${error}`
-          response.failedJobSetReprioritizations.push({ jobSet: jobSet, error: message })
-        }
-      } catch (e) {
-        console.error(e)
-        const text = await getErrorMessage(e)
-        response.failedJobSetReprioritizations.push({ jobSet: jobSet, error: text })
       }
     }
     return response
