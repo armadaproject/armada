@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   validate:
-    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.repository_owner == 'armadaproject'
+    if: github.event.workflow_run.event == 'push' && github.event.workflow_run.conclusion == 'success' && github.repository_owner == 'Sharpz7'
     name: "Validate revision"
     runs-on: ubuntu-22.04
 
@@ -52,10 +52,23 @@ jobs:
       - name: Fetch Git tags
         run: git fetch --force --tags
 
-      - name: Setup Golang with Cache
-        uses: magnetikonline/action-golang-cache@v4
+      - name: Set up Go with Cache
+        uses: actions/setup-go@v4
         with:
-          go-version: "1.20"
+         go-version: '1.20'
+         cache: false
+
+      # Check for cache
+      - name: Cache Go modules
+        uses: actions/cache/restore@v3
+        with:
+          path: |
+            /home/runner/.cache/go-build
+            /home/runner/go/pkg/mod
+            /home/runner/go/bin
+          key: ${{ runner.os }}-gocache-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-gocache-
 
       - name: Set up Docker Buildx
         id: buildx
