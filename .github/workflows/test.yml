@@ -258,6 +258,18 @@ jobs:
           go-version: "1.20"
           cache: false
 
+      # Check for cache
+      - name: Cache Go modules
+        uses: actions/cache/restore@v3
+        with:
+          path: |
+            /home/runner/.cache/go-build
+            /home/runner/go/pkg/mod
+            /home/runner/go/bin
+          key: ${{ runner.os }}-gocache-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-gocache-
+
       - name: Setup dependencies
         shell: bash
         run: go run github.com/magefile/mage@v1.14.0 -v download
