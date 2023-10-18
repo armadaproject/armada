@@ -12,6 +12,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -1311,6 +1312,50 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"A": 1,
 				"B": 1,
 			},
+		},
+		"nodeAffinity node notIn": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes: armadaslices.Concatenate(
+				testfixtures.WithLabelsNodes(
+					map[string]string{"key": "val1"},
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+				),
+				testfixtures.WithLabelsNodes(
+					map[string]string{"key": "val2"},
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+				),
+				testfixtures.WithLabelsNodes(
+					map[string]string{"key": "val3"},
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+				),
+				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": armadaslices.Concatenate(
+							testfixtures.WithNodeAffinityJobs(
+								[]v1.NodeSelectorTerm{
+									{
+										MatchExpressions: []v1.NodeSelectorRequirement{
+											{
+												Key:      "key",
+												Operator: v1.NodeSelectorOpNotIn,
+												Values:   []string{"val1", "val2"},
+											},
+										},
+									},
+								},
+								testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 3),
+							),
+						),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": []int{0, 1},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{"A": 1},
 		},
 	}
 	for name, tc := range tests {
