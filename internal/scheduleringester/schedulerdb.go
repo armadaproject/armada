@@ -247,7 +247,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		err := queries.MarkJobRunsRunningById(ctx, runIds)
 		if err != nil {
 			return errors.WithStack(err)
-		}
+		
 	case InsertJobRunErrors:
 		records := make([]any, len(o))
 		i := 0
