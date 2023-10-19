@@ -21,6 +21,7 @@ import { getUniqueJobsMatchingFilters } from "utils/jobsDialogUtils"
 
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
+import { getAccessToken, useUserManager } from "../../auth"
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 
 interface ReprioritiseDialogProps {
@@ -50,6 +51,8 @@ export const ReprioritiseDialog = ({
   const [hasAttemptedReprioritise, setHasAttemptedReprioritise] = useState(false)
   const openSnackbar = useCustomSnackbar()
 
+  const userManager = useUserManager()
+
   // Actions
   const fetchSelectedJobs = useCallback(async () => {
     if (!mounted.current) {
@@ -76,7 +79,8 @@ export const ReprioritiseDialog = ({
 
     setIsReprioritising(true)
 
-    const response = await updateJobsService.reprioritiseJobs(reprioritisableJobs, newPriority)
+    const accessToken = userManager && (await getAccessToken(userManager))
+    const response = await updateJobsService.reprioritiseJobs(reprioritisableJobs, newPriority, accessToken)
 
     if (response.failedJobIds.length === 0) {
       openSnackbar(

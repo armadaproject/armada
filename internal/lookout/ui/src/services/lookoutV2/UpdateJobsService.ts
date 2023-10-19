@@ -3,6 +3,8 @@ import { Job, JobId } from "models/lookoutV2Models"
 import { SubmitApi } from "openapi/armada"
 import { getErrorMessage } from "utils"
 
+import { getAuthorizationHeaders } from "../../auth"
+
 export type UpdateJobsResponse = {
   successfulJobIds: JobId[]
   failedJobIds: {
@@ -14,7 +16,7 @@ export type UpdateJobsResponse = {
 export class UpdateJobsService {
   constructor(private submitApi: SubmitApi) {}
 
-  cancelJobs = async (jobs: Job[], reason: string): Promise<UpdateJobsResponse> => {
+  cancelJobs = async (jobs: Job[], reason: string, accessToken?: string): Promise<UpdateJobsResponse> => {
     const response: UpdateJobsResponse = { successfulJobIds: [], failedJobIds: [] }
 
     const maxJobsPerRequest = 10000
@@ -26,14 +28,17 @@ export class UpdateJobsService {
       for (const [jobSet, batches] of jobSetMap) {
         for (const batch of batches) {
           apiResponsePromises.push({
-            promise: this.submitApi.cancelJobs({
-              body: {
-                jobIds: batch,
-                queue: queue,
-                jobSetId: jobSet,
-                reason: reason,
+            promise: this.submitApi.cancelJobs(
+              {
+                body: {
+                  jobIds: batch,
+                  queue: queue,
+                  jobSetId: jobSet,
+                  reason: reason,
+                },
               },
-            }),
+              accessToken === undefined ? undefined : { headers: getAuthorizationHeaders(accessToken) },
+            ),
             jobIds: batch,
           })
         }
@@ -67,7 +72,7 @@ export class UpdateJobsService {
     return response
   }
 
-  reprioritiseJobs = async (jobs: Job[], newPriority: number): Promise<UpdateJobsResponse> => {
+  reprioritiseJobs = async (jobs: Job[], newPriority: number, accessToken?: string): Promise<UpdateJobsResponse> => {
     const response: UpdateJobsResponse = { successfulJobIds: [], failedJobIds: [] }
 
     const maxJobsPerRequest = 10000
@@ -79,14 +84,17 @@ export class UpdateJobsService {
       for (const [jobSet, batches] of jobSetMap) {
         for (const batch of batches) {
           apiResponsePromises.push({
-            promise: this.submitApi.reprioritizeJobs({
-              body: {
-                jobIds: batch,
-                queue: queue,
-                jobSetId: jobSet,
-                newPriority: newPriority,
+            promise: this.submitApi.reprioritizeJobs(
+              {
+                body: {
+                  jobIds: batch,
+                  queue: queue,
+                  jobSetId: jobSet,
+                  newPriority: newPriority,
+                },
               },
-            }),
+              accessToken === undefined ? undefined : { headers: getAuthorizationHeaders(accessToken) },
+            ),
             jobIds: batch,
           })
         }

@@ -10,6 +10,16 @@ import (
 type LookoutUIConfig struct {
 	CustomTitle string
 
+	// We have a separate flag here (instead of making the Oidc field optional)
+	// so that clients can override the server's preference.
+	OidcEnabled bool
+	Oidc        struct {
+		Authority   string
+		ClientId    string
+		RedirectUrl string
+		Scope       string
+	}
+
 	ArmadaApiBaseUrl         string
 	UserAnnotationPrefix     string
 	BinocularsEnabled        bool

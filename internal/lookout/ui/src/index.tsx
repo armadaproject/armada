@@ -67,6 +67,7 @@ import "./index.css"
   ReactDOM.render(
     <App
       customTitle={uiConfig.customTitle}
+      oidcConfig={uiConfig.oidcEnabled ? uiConfig.oidc : undefined}
       jobService={jobService}
       v2GetJobsService={v2GetJobsService}
       v2GroupJobsService={v2GroupJobsService}
