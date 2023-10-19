@@ -15,6 +15,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
@@ -140,8 +141,8 @@ func TestWriteOps(t *testing.T) {
 				runIds[3]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]}},
 			},
 			MarkJobsCancelled{
-				jobIds[0]: true,
-				jobIds[1]: true,
+				jobIds[0]: testfixtures.BaseTime,
+				jobIds[1]: testfixtures.BaseTime.Add(time.Hour),
 			},
 		}},
 		"MarkJobsSucceeded": {Ops: []DbOperation{
@@ -182,8 +183,8 @@ func TestWriteOps(t *testing.T) {
 				runIds[3]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]}},
 			},
 			MarkRunsSucceeded{
-				runIds[0]: true,
-				runIds[1]: true,
+				runIds[0]: testfixtures.BaseTime,
+				runIds[1]: testfixtures.BaseTime.Add(time.Hour),
 			},
 		}},
 		"UpdateJobSchedulingInfo": {Ops: []DbOperation{
@@ -230,9 +231,9 @@ func TestWriteOps(t *testing.T) {
 				runIds[3]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]}},
 			},
 			MarkRunsFailed{
-				runIds[0]: &JobRunFailed{LeaseReturned: true},
-				runIds[1]: &JobRunFailed{LeaseReturned: true, RunAttempted: true},
-				runIds[2]: &JobRunFailed{LeaseReturned: false},
+				runIds[0]: &JobRunFailed{LeaseReturned: true, FailureTime: testfixtures.BaseTime},
+				runIds[1]: &JobRunFailed{LeaseReturned: true, RunAttempted: true, FailureTime: testfixtures.BaseTime.Add(time.Hour)},
+				runIds[2]: &JobRunFailed{LeaseReturned: false, FailureTime: testfixtures.BaseTime},
 			},
 		}},
 		"MarkRunsRunning": {Ops: []DbOperation{
@@ -249,8 +250,8 @@ func TestWriteOps(t *testing.T) {
 				runIds[3]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]}},
 			},
 			MarkRunsRunning{
-				runIds[0]: true,
-				runIds[1]: true,
+				runIds[0]: testfixtures.BaseTime,
+				runIds[1]: testfixtures.BaseTime.Add(time.Hour),
 			},
 		}},
 		"Insert PositionMarkers": {Ops: []DbOperation{
@@ -478,6 +479,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		for _, run := range runs {
 			if _, ok := expected[run.JobID]; ok {
 				assert.True(t, run.Cancelled)
+				assert.Equal(t, expected[run.JobID], run.TerminatedTimestamp.UTC())
 				runsChanged++
 			}
 		}
@@ -542,6 +544,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		for _, run := range runs {
 			if _, ok := expected[run.RunID]; ok {
 				assert.True(t, run.Succeeded)
+				assert.Equal(t, expected[run.RunID], run.TerminatedTimestamp.UTC())
 				numChanged++
 			}
 		}
@@ -569,6 +572,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 				assert.True(t, run.Failed)
 				assert.Equal(t, expectedRun.LeaseReturned, run.Returned)
 				assert.Equal(t, expectedRun.RunAttempted, run.RunAttempted)
+				assert.Equal(t, expectedRun.FailureTime, run.TerminatedTimestamp.UTC())
 				numChanged++
 			}
 		}
@@ -594,6 +598,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		for _, run := range runs {
 			if _, ok := expected[run.RunID]; ok {
 				assert.True(t, run.Running)
+				assert.Equal(t, expected[run.RunID], run.RunningTimestamp.UTC())
 				numChanged++
 			}
 		}

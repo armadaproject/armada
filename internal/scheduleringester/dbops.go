@@ -1,6 +1,8 @@
 package scheduleringester
 
 import (
+	"time"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
@@ -22,6 +24,7 @@ func (d *DbOperationsWithMessageIds) GetMessageIDs() []pulsar.MessageID {
 type JobRunFailed struct {
 	LeaseReturned bool
 	RunAttempted  bool
+	FailureTime   time.Time
 }
 
 type JobSchedulingInfoUpdate struct {
@@ -119,15 +122,15 @@ type (
 	UpdateJobSetPriorities     map[JobSetKey]int64
 	MarkJobSetsCancelRequested map[JobSetKey]*JobSetCancelAction
 	MarkJobsCancelRequested    map[string]bool
-	MarkJobsCancelled          map[string]bool
+	MarkJobsCancelled          map[string]time.Time
 	MarkJobsSucceeded          map[string]bool
 	MarkJobsFailed             map[string]bool
 	UpdateJobPriorities        map[string]int64
 	UpdateJobSchedulingInfo    map[string]*JobSchedulingInfoUpdate
 	UpdateJobQueuedState       map[string]*JobQueuedStateUpdate
-	MarkRunsSucceeded          map[uuid.UUID]bool
+	MarkRunsSucceeded          map[uuid.UUID]time.Time
 	MarkRunsFailed             map[uuid.UUID]*JobRunFailed
-	MarkRunsRunning            map[uuid.UUID]bool
+	MarkRunsRunning            map[uuid.UUID]time.Time
 	InsertJobRunErrors         map[uuid.UUID]*schedulerdb.JobRunError
 	InsertPartitionMarker      struct {
 		markers []*schedulerdb.Marker
