@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogTitle } from "@material-ui/core"
 
 import CancelJobSets from "../components/job-sets/cancel-job-sets/CancelJobSets"
 import CancelJobSetsOutcome from "../components/job-sets/cancel-job-sets/CancelJobSetsOutcome"
+import { getAccessToken, useUserManager } from "../oidc"
 import { ApiJobState } from "../openapi/armada"
 import { JobSet } from "../services/JobService"
 import { CancelJobSetsResponse, UpdateJobSetsService } from "../services/lookoutV2/UpdateJobSetsService"
@@ -51,6 +52,8 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
 
   const statesToCancel = getStatesToCancel(includeQueued, includeRunning)
 
+  const userManager = useUserManager()
+
   async function cancelJobSets() {
     if (requestStatus === "Loading") {
       return
@@ -58,11 +61,13 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
 
     setRequestStatus("Loading")
     const reason = isPlatformCancel ? PlatformCancelReason : ""
+    const accessToken = userManager && (await getAccessToken(userManager))
     const cancelJobSetsResponse = await props.updateJobSetsService.cancelJobSets(
       props.queue,
       jobSetsToCancel,
       statesToCancel,
       reason,
+      accessToken,
     )
     setRequestStatus("Idle")
 

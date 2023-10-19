@@ -13,7 +13,7 @@ export default class FakeGroupJobsService implements IGroupJobsService {
     aggregates: string[],
     skip: number,
     take: number,
-    signal: AbortSignal | undefined,
+    signal?: AbortSignal,
   ): Promise<GroupJobsResponse> {
     if (this.simulateApiWait) {
       await simulateApiWait(signal)

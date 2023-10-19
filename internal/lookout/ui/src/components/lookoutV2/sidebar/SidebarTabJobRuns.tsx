@@ -20,6 +20,7 @@ import { CodeBlock } from "./CodeBlock"
 import { KeyValuePairTable } from "./KeyValuePairTable"
 import styles from "./SidebarTabJobRuns.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
+import { getAccessToken, useUserManager } from "../../../oidc"
 import { ICordonService } from "../../../services/lookoutV2/CordonService"
 import { IGetRunErrorService } from "../../../services/lookoutV2/GetRunErrorService"
 import { getErrorMessage } from "../../../utils"
@@ -51,7 +52,7 @@ export const SidebarTabJobRuns = ({ job, runErrorService, cordonService }: Sideb
     for (const run of job.runs) {
       results.push({
         runId: run.runId,
-        promise: runErrorService.getRunError(run.runId, undefined),
+        promise: runErrorService.getRunError(run.runId),
       })
     }
 
@@ -99,9 +100,12 @@ export const SidebarTabJobRuns = ({ job, runErrorService, cordonService }: Sideb
     setOpen(false)
   }
 
+  const userManager = useUserManager()
+
   const cordon = async (cluster: string, node: string) => {
     try {
-      await cordonService.cordonNode(cluster, node, undefined)
+      const accessToken = userManager && (await getAccessToken(userManager))
+      await cordonService.cordonNode(cluster, node, accessToken)
       openSnackbar("Successfully cordoned node " + node, "success")
     } catch (e) {
       const errMsg = await getErrorMessage(e)

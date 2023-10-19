@@ -1,8 +1,9 @@
+import { getAuthorizationHeaders } from "../../oidc"
 import { ConfigurationParameters } from "../../openapi/binoculars"
 import { getBinocularsApi } from "../../utils"
 
 export interface ICordonService {
-  cordonNode(cluster: string, node: string, signal: AbortSignal | undefined): Promise<void>
+  cordonNode(cluster: string, node: string, accessToken?: string, signal?: AbortSignal): Promise<void>
 }
 
 export class CordonService implements ICordonService {
@@ -14,12 +15,15 @@ export class CordonService implements ICordonService {
     this.baseUrlPattern = baseUrlPattern
   }
 
-  async cordonNode(cluster: string, node: string): Promise<void> {
+  async cordonNode(cluster: string, node: string, accessToken?: string): Promise<void> {
     const api = getBinocularsApi(cluster, this.baseUrlPattern, this.config)
-    await api.cordon({
-      body: {
-        nodeName: node,
+    await api.cordon(
+      {
+        body: {
+          nodeName: node,
+        },
       },
-    })
+      accessToken === undefined ? undefined : { headers: getAuthorizationHeaders(accessToken) },
+    )
   }
 }
