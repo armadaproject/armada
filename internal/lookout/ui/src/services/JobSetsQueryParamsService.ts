@@ -1,6 +1,6 @@
 import queryString, { ParseOptions, StringifyOptions } from "query-string"
 
-import { isJobSetsView, JobSetsContainerState } from "../containers/JobSetsContainer"
+import { JobSetsContainerState } from "../containers/JobSetsContainer"
 import { Router } from "../utils"
 
 const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
@@ -15,26 +15,21 @@ type JobSetsQueryParams = {
   active_only?: boolean
 }
 
-function makeQueryString(state: JobSetsContainerState): string {
-  const queryObject: JobSetsQueryParams = {}
-
-  if (state.queue) {
-    queryObject.queue = state.queue
-  }
-  queryObject.view = state.currentView
-  queryObject.newest_first = state.newestFirst
-  queryObject.active_only = state.activeOnly
-
-  return queryString.stringify(queryObject)
-}
-
 export default class JobSetsQueryParamsService {
   constructor(private router: Router) {}
 
   saveState(state: JobSetsContainerState) {
+    const params = queryString.parse(this.router.location.search, QUERY_STRING_OPTIONS) as Record<any, any>
+
+    if (state.queue) {
+      params.queue = state.queue
+    }
+    params.newest_first = state.newestFirst
+    params.active_only = state.activeOnly
+
     this.router.navigate({
       ...this.router.location,
-      search: makeQueryString(state),
+      search: queryString.stringify(params, QUERY_STRING_OPTIONS),
     })
   }
 
@@ -42,7 +37,6 @@ export default class JobSetsQueryParamsService {
     const params = queryString.parse(this.router.location.search, QUERY_STRING_OPTIONS) as JobSetsQueryParams
 
     if (params.queue) state.queue = params.queue
-    if (params.view && isJobSetsView(params.view)) state.currentView = params.view
     if (params.newest_first != undefined) state.newestFirst = params.newest_first
     if (params.active_only != undefined) state.activeOnly = params.active_only
   }
