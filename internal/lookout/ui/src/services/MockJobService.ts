@@ -1,7 +1,6 @@
 import { v4 as uuidv4 } from "uuid"
 
 import {
-  CancelJobSetsResponse,
   CancelJobsResponse,
   GetJobSetsRequest,
   GetJobsRequest,
@@ -9,10 +8,8 @@ import {
   JobService,
   JobSet,
   QueueInfo,
-  ReprioritizeJobSetsResponse,
   ReprioritizeJobsResponse,
 } from "./JobService"
-import { ApiJobState } from "../openapi/armada"
 
 type MockJobServiceConfig = {
   getJobs: {
@@ -64,26 +61,10 @@ export class MockJobService implements JobService {
   }
 
   // eslint-disable-next-line
-  cancelJobSets(queue: string, jobSets: JobSet[], states: ApiJobState[]): Promise<CancelJobSetsResponse> {
-    return Promise.resolve({
-      cancelledJobSets: [],
-      failedJobSetCancellations: [],
-    })
-  }
-
-  // eslint-disable-next-line
   reprioritizeJobs(jobs: Job[], newPriority: number): Promise<ReprioritizeJobsResponse> {
     return Promise.resolve({
       reprioritizedJobs: [],
       failedJobReprioritizations: [],
-    })
-  }
-
-  // eslint-disable-next-line
-  reprioritizeJobSets(queue: string, jobSets: JobSet[], newPriority: number): Promise<ReprioritizeJobSetsResponse> {
-    return Promise.resolve({
-      reprioritizedJobSets: [],
-      failedJobSetReprioritizations: [],
     })
   }
 }
