@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/magefile/mage/mg"
 )
 
 var services = []string{"pulsar", "redis", "postgres"}
@@ -106,6 +108,8 @@ func CheckForPulsarRunning() error {
 			if err != nil {
 				return err
 			}
+			// Verify this is happening locally with
+			// docker-compose logs pulsar | grep alive
 			if strings.Contains(out, "alive") {
 				// if seconds is less than 1, it means that pulsar had already started
 				if seconds < 1 {
@@ -114,6 +118,32 @@ func CheckForPulsarRunning() error {
 				}
 
 				fmt.Printf("\nPulsar took %d seconds to start!\n\n", seconds)
+				return nil
+			}
+			seconds++
+		}
+	}
+}
+
+// Checks if Armada is ready to accept jobs.
+func CheckForArmadaRunning() error {
+	mg.Deps(createQueue)
+
+	// Set high to take compile time into account
+	timeout := time.After(1 * time.Minute)
+	tick := time.Tick(1 * time.Second)
+	seconds := 0
+	for {
+		select {
+		case <-timeout:
+			return fmt.Errorf("timed out waiting for Armada to start")
+		case <-tick:
+			outbytes, _ := exec.Command(armadaCtl(), "submit", "./developer/config/job.yaml").CombinedOutput()
+			out := string(outbytes)
+			if strings.Contains(out, "Submitted job with id") {
+				// Sleep for 1 second to allow Armada to fully start
+				time.Sleep(1 * time.Second)
+				fmt.Printf("\nArmada took %d seconds to start!\n\n", seconds)
 				return nil
 			}
 			seconds++

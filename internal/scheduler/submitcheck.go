@@ -88,6 +88,7 @@ func (srv *SubmitChecker) Run(ctx *armadacontext.Context) error {
 	srv.updateExecutors(ctx)
 
 	ticker := time.NewTicker(srv.ExecutorUpdateFrequency)
+	fmt.Printf("Executor update frequency: %s\n", srv.ExecutorUpdateFrequency)
 	for {
 		select {
 		case <-ctx.Done():

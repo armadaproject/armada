@@ -18,6 +18,54 @@ var Gotestsum string
 
 var LocalBin = filepath.Join(os.Getenv("PWD"), "/bin")
 
+func createQueue() error {
+	outbytes, err := exec.Command(armadaCtl(), "create", "queue", "e2e-test-queue").CombinedOutput()
+	out := string(outbytes)
+	// check if err text contains "already exists" and ignore if it does
+	if err != nil && !strings.Contains(out, "already exists") {
+		fmt.Println(out)
+		return err
+	}
+
+	return nil
+}
+
+func armadaCtl() string {
+	if _, err := os.Stat("./armadactl"); os.IsNotExist(err) {
+		err = sh.Run("sh", "./docs/local/armadactl.sh")
+		if err != nil {
+			return ""
+		}
+	}
+	return "./armadactl"
+}
+
+// Build images, spin up a test environment, and run the integration tests against it.
+func TestSuite() error {
+	mg.Deps(CheckForArmadaRunning)
+
+	// Only set these if they have not already been set
+	if os.Getenv("ARMADA_EXECUTOR_INGRESS_URL") == "" {
+		os.Setenv("ARMADA_EXECUTOR_INGRESS_URL", "http://localhost")
+	}
+	if os.Getenv("ARMADA_EXECUTOR_INGRESS_PORT") == "" {
+		os.Setenv("ARMADA_EXECUTOR_INGRESS_PORT", "5001")
+	}
+
+	timeTaken := time.Now()
+	out, err2 := goOutput("run", "cmd/testsuite/main.go", "test",
+		"--tests", "testsuite/testcases/basic/*",
+		"--junit", "junit.xml",
+	)
+	if err2 != nil {
+		return err2
+	}
+	fmt.Printf("(Real) Time to run tests: %s\n\n", time.Since(timeTaken))
+
+	fmt.Println(out)
+	return nil
+}
+
 func makeLocalBin() error {
 	if _, err := os.Stat(LocalBin); os.IsNotExist(err) {
 		err = os.MkdirAll(LocalBin, os.ModePerm)
