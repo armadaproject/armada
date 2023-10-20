@@ -14,10 +14,9 @@ type LookoutUIConfig struct {
 	// so that clients can override the server's preference.
 	OidcEnabled bool
 	Oidc        struct {
-		Authority   string
-		ClientId    string
-		RedirectUrl string
-		Scope       string
+		Authority string
+		ClientId  string
+		Scope     string
 	}
 
 	ArmadaApiBaseUrl         string

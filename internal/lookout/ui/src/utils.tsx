@@ -5,7 +5,6 @@ import { BinocularsApi, Configuration, ConfigurationParameters } from "./openapi
 export interface OidcConfig {
   authority: string
   clientId: string
-  redirectUrl: string
   scope: string
 }
 

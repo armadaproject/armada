@@ -167,7 +167,7 @@ export function App(props: AppProps): JSX.Element {
         new UserManager({
           authority: props.oidcConfig.authority,
           client_id: props.oidcConfig.clientId,
-          redirect_uri: props.oidcConfig.redirectUrl,
+          redirect_uri: `${window.location.origin}/oidc`,
           scope: props.oidcConfig.scope,
           userStore: new WebStorageStateStore({ store: window.localStorage }),
         })
