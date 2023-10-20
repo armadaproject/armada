@@ -38,7 +38,7 @@ export interface Padding {
 export async function getUIConfig(): Promise<UIConfig> {
   const searchParams = new URLSearchParams(window.location.search)
 
-  const config = {
+  const config: UIConfig = {
     armadaApiBaseUrl: "",
     userAnnotationPrefix: "",
     binocularsEnabled: true,
@@ -67,7 +67,13 @@ export async function getUIConfig(): Promise<UIConfig> {
     if (json.LookoutV2ApiBaseUrl) config.lookoutV2ApiBaseUrl = json.LookoutV2ApiBaseUrl
     if (json.CustomTitle) config.customTitle = json.CustomTitle
     if (json.OidcEnabled) config.oidcEnabled = json.OidcEnabled
-    if (json.Oidc) config.oidc = json.Oidc
+    if (json.Oidc) {
+      config.oidc = {
+        authority: json.Oidc.Authority,
+        clientId: json.Oidc.ClientId,
+        scope: json.Oidc.Scope,
+      }
+    }
   } catch (e) {
     console.error(e)
   }
