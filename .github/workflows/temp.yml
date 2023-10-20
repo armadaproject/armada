@@ -1,0 +1,64 @@
+name: Tests
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  go-integration-tests:
+    name: Golang Integration Tests
+    runs-on: ubuntu-22.04
+
+    env:
+      ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
+      ARMADA_EXECUTOR_INGRESS_PORT: 5001
+      # Cache Docker layers in the GitHub actions cache.
+      # These variables are picked up by the goreleaser config.
+      DOCKER_BUILDX_CACHE_FROM: "type=gha"
+      DOCKER_BUILDX_CACHE_TO: "type=gha,mode=max"
+      DOCKER_BUILDX_BUILDER: "builder"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3.3.0
+
+      - name: Create Docker Buildx Builder
+        run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
+
+      - name: Install Docker Buildx
+        run: docker buildx install
+
+      - name: Free some disk space
+        run: docker image prune -af
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.20"
+          cache: false
+
+      # Check for cache
+      - name: Cache Go modules
+        uses: actions/cache/restore@v3
+        with:
+          path: |
+            /home/runner/.cache/go-build
+            /home/runner/go/pkg/mod
+          key: ${{ runner.os }}-temp-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-temp-
+
+      - name: Setup and Run Integration Tests
+        run: go run github.com/magefile/mage@v1.14.0 -v bootstraptools
+
+      # Only save on master branch
+      - uses: actions/cache/save@v3
+        if: github.ref == 'refs/heads/master'
+        with:
+          path: |
+            /home/runner/.cache/go-build
+            /home/runner/go/pkg/mod
+          key: ${{ runner.os }}-temp-${{ hashFiles('**/go.sum') }}
