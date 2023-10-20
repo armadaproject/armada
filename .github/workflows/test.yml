@@ -132,6 +132,7 @@ jobs:
       # Check for cache
       - name: Cache Go modules
         uses: actions/cache/restore@v3
+        id: cache-restore
         with:
           path: |
             /home/runner/.cache/go-build
@@ -177,7 +178,14 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       # Only save on the intergration tests, as it is the most "complete" cache
+      # We want to save if the primary key and the matched key are different, or
+      # if the cache was not hit. The step we care about is steps.cache-restore.outputs
+      # Outputs
+      # cache-hit - A boolean value to indicate an exact match was found for the key.
+      # cache-primary-key - Cache primary key passed in the input to use in subsequent steps of the workflow.
+      # cache-matched-key - Key of the cache that was restored, it could either be the primary key on cache-hit or a partial/complete match of one of the restore keys.
       - uses: actions/cache/save@v3
+        if: steps.cache-restore.outputs.cache-hit == 'false' || steps.cache-restore.outputs.cache-primary-key != steps.cache-restore.outputs.cache-matched-key
         with:
           path: |
             /home/runner/.cache/go-build
