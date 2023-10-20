@@ -65,8 +65,8 @@ jobs:
           path: |
             /home/runner/.cache/go-build
             /home/runner/go/pkg/mod
-            /home/runner/go/bin
-          key: ${{ runner.os }}-gocache-${{ hashFiles('**/go.sum') }}
+
+          key: ${{ runner.os }}-gocache-${{ hashFiles('**/go.sum','**/tools.yaml') }}
           restore-keys: |
             ${{ runner.os }}-gocache-
 
