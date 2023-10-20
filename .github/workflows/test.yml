@@ -67,10 +67,9 @@ jobs:
           path: |
             /home/runner/.cache/go-build
             /home/runner/go/pkg/mod
-            /home/runner/go/bin
-          key: ${{ runner.os }}-gocache-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-cache-go-${{ hashFiles('**/go.sum','**/tools.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-gocache-
+            ${{ runner.os }}-cache-go-
 
       - name: Setup dependencies
         shell: bash
@@ -137,10 +136,9 @@ jobs:
           path: |
             /home/runner/.cache/go-build
             /home/runner/go/pkg/mod
-            /home/runner/go/bin
-          key: ${{ runner.os }}-gocache-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-cache-go-${{ hashFiles('**/go.sum','**/tools.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-gocache-
+            ${{ runner.os }}-cache-go-
 
       - name: Setup and Run Integration Tests
         run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
@@ -178,15 +176,14 @@ jobs:
           detailed_summary: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # Only save on master branch
+      # Only save on the intergration tests, as it is the most "complete" cache
       - uses: actions/cache/save@v3
-        if: github.ref == 'refs/heads/master'
         with:
           path: |
             /home/runner/.cache/go-build
             /home/runner/go/pkg/mod
             /home/runner/go/bin
-          key: ${{ runner.os }}-gocache-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-cache-go-${{ hashFiles('**/go.sum','**/tools.yaml') }}
 
   go-mod-up-to-date:
     name: Golang Mod Up To Date
@@ -209,10 +206,9 @@ jobs:
           path: |
             /home/runner/.cache/go-build
             /home/runner/go/pkg/mod
-            /home/runner/go/bin
-          key: ${{ runner.os }}-gocache-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-cache-go-${{ hashFiles('**/go.sum','**/tools.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-gocache-
+            ${{ runner.os }}-cache-go-
 
       - name: Check for tidyness of go.mod and go.sum
         run: |
@@ -265,10 +261,9 @@ jobs:
           path: |
             /home/runner/.cache/go-build
             /home/runner/go/pkg/mod
-            /home/runner/go/bin
-          key: ${{ runner.os }}-gocache-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-cache-go-${{ hashFiles('**/go.sum','**/tools.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-gocache-
+            ${{ runner.os }}-cache-go-
 
       - name: Setup dependencies
         shell: bash
