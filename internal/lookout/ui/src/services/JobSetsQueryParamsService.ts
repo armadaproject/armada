@@ -15,25 +15,21 @@ type JobSetsQueryParams = {
   active_only?: boolean
 }
 
-function makeQueryString(state: JobSetsContainerState): string {
-  const queryObject: JobSetsQueryParams = {}
-
-  if (state.queue) {
-    queryObject.queue = state.queue
-  }
-  queryObject.newest_first = state.newestFirst
-  queryObject.active_only = state.activeOnly
-
-  return queryString.stringify(queryObject)
-}
-
 export default class JobSetsQueryParamsService {
   constructor(private router: Router) {}
 
   saveState(state: JobSetsContainerState) {
+    const params = queryString.parse(this.router.location.search, QUERY_STRING_OPTIONS) as Record<any, any>
+
+    if (state.queue) {
+      params.queue = state.queue
+    }
+    params.newest_first = state.newestFirst
+    params.active_only = state.activeOnly
+
     this.router.navigate({
       ...this.router.location,
-      search: makeQueryString(state),
+      search: queryString.stringify(params, QUERY_STRING_OPTIONS),
     })
   }
 
