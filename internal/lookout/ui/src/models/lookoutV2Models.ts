@@ -139,3 +139,8 @@ export type JobOrder = {
   field: string
   direction: SortDirection
 }
+
+export interface JobSet {
+  queue: string
+  jobSetId: string
+}
