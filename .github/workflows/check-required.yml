@@ -21,7 +21,7 @@ permissions:
 jobs:
   required-jobs:
     name: Check required jobs
-    if: ${{ !github.event.repository.fork }}
+    # if: ${{ !github.event.repository.fork }}
     environment: create-check
     runs-on: ubuntu-latest
     steps:
