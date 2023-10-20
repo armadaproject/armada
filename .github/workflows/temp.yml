@@ -8,8 +8,8 @@ permissions:
   checks: write
 
 jobs:
-  go-integration-tests:
-    name: Golang Integration Tests
+  go-temp:
+    name: Golang Bootstrap Test
     runs-on: ubuntu-22.04
 
     env:
