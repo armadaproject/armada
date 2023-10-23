@@ -1351,7 +1351,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": []int{0, 1},
+						"A": {0, 1},
 					},
 				},
 			},
