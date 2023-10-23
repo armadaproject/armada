@@ -3,9 +3,10 @@ package serve
 import (
 	"net/http"
 
+	"github.com/pkg/errors"
+
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/pkg/errors"
 )
 
 type dirWithIndexFallback struct {
