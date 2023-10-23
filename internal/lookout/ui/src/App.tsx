@@ -5,15 +5,15 @@ import { createGenerateClassName } from "@material-ui/core/styles"
 import { ThemeProvider as ThemeProviderV5, createTheme as createThemeV5 } from "@mui/material/styles"
 import { JobsTableContainer } from "containers/lookoutV2/JobsTableContainer"
 import { SnackbarProvider } from "notistack"
-import { Route, BrowserRouter, Routes } from "react-router-dom"
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { UpdateJobSetsService } from "services/lookoutV2/UpdateJobSetsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
+import { withRouter } from "utils"
 
 import NavBar from "./components/NavBar"
 import JobSetsContainer from "./containers/JobSetsContainer"
-import JobsContainer from "./containers/JobsContainer"
-import OverviewContainer from "./containers/OverviewContainer"
 import { JobService } from "./services/JobService"
 import LogService from "./services/LogService"
 import { ICordonService } from "./services/lookoutV2/CordonService"
@@ -70,6 +70,7 @@ type AppProps = {
   v2JobSpecService: IGetJobSpecService
   v2LogService: ILogService
   v2UpdateJobsService: UpdateJobsService
+  v2UpdateJobSetsService: UpdateJobSetsService
   v2CordonService: ICordonService
   logService: LogService
   overviewAutoRefreshMs: number
@@ -77,6 +78,10 @@ type AppProps = {
   jobsAutoRefreshMs: number
   debugEnabled: boolean
 }
+
+// Version 2 of the Lookout UI used to be hosted under /v2, so we try our best
+// to redirect users to the new location while preserving the rest of the URL.
+const V2Redirect = withRouter(({ router }) => <Navigate to={{ ...router.location, pathname: "/" }} />)
 
 export function App(props: AppProps) {
   useEffect(() => {
@@ -98,11 +103,8 @@ export function App(props: AppProps) {
                 <NavBar customTitle={props.customTitle} />
                 <div className="app-content">
                   <Routes>
-                    <Route path="/" element={<OverviewContainer {...props} />} />
-                    <Route path="/job-sets" element={<JobSetsContainer {...props} />} />
-                    <Route path="/jobs" element={<JobsContainer {...props} />} />
                     <Route
-                      path="/v2"
+                      path="/"
                       element={
                         <JobsTableContainer
                           getJobsService={props.v2GetJobsService}
@@ -114,6 +116,17 @@ export function App(props: AppProps) {
                           cordonService={props.v2CordonService}
                           debug={props.debugEnabled}
                         />
+                      }
+                    />
+                    <Route path="/job-sets" element={<JobSetsContainer {...props} />} />
+                    <Route path="/v2" element={<V2Redirect />} />
+                    <Route
+                      path="*"
+                      element={
+                        // This wildcard route ensures that users who follow old
+                        // links to /job-sets or /jobs see something other than
+                        // a blank page.
+                        <Navigate to="/" />
                       }
                     />
                   </Routes>
