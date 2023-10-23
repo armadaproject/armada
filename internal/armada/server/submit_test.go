@@ -75,24 +75,15 @@ func TestSubmitServer_CreateQueue_WithDefaultSettings_CanBeReadBack(t *testing.T
 func TestSubmitServer_getQueues(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
 
-		queue1 := &api.Queue{Name: "queueA", PriorityFactor: 100}
-		queue2 := &api.Queue{Name: "queueB", PriorityFactor: 50}
-
-		_, err := s.CreateQueue(context.Background(), queue1)
-		require.NoError(t, err)
-
-		_, err = s.CreateQueue(context.Background(), queue2)
-		require.NoError(t, err)
-
 		mockStream := &queuesStreamMock{}
 
-		err = s.GetQueues(&api.StreamingQueueGetRequest{}, mockStream)
+		err := s.GetQueues(&api.StreamingQueueGetRequest{}, mockStream)
 		require.NoError(t, err)
+		expectedQueue := &api.Queue{Name: "test", PriorityFactor: 1.0, ResourceLimits: map[string]float64{}}
 
 		assert.Equal(t, mockStream.msgs, []*api.StreamingQueueMessage{
-			{Event: &api.StreamingQueueMessage_Queue{Queue: queue1}},
-			{Event: &api.StreamingQueueMessage_Queue{Queue: queue2}},
-			{Event: &api.StreamingQueueMessage_End{}},
+			{Event: &api.StreamingQueueMessage_Queue{Queue: expectedQueue}},
+			{Event: &api.StreamingQueueMessage_End{End: &api.EndMarker{}}},
 		})
 	})
 }
