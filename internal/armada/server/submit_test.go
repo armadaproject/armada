@@ -3,8 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc"
 	"reflect"
 	"testing"
 	"testing/quick"
@@ -13,6 +11,8 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
@@ -74,7 +74,6 @@ func TestSubmitServer_CreateQueue_WithDefaultSettings_CanBeReadBack(t *testing.T
 
 func TestSubmitServer_getQueues(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
-
 		mockStream := &queuesStreamMock{}
 
 		err := s.GetQueues(&api.StreamingQueueGetRequest{}, mockStream)
