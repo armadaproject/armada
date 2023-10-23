@@ -7,7 +7,10 @@ import (
 )
 
 type LookoutV2Configuration struct {
-	ApiPort            int
+	ApiPort int
+	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
+	PprofPort *uint16
+
 	CorsAllowedOrigins []string
 	Tls                TlsConfig
 
