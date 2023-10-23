@@ -25,7 +25,11 @@ export default class FakeGroupJobsService implements IGroupJobsService {
       filtered = filtered.filter((job) => job.queue in active && active[job.queue].includes(job.jobSet))
     }
     const groups = groupBy(filtered, groupedField, aggregates)
-    const sliced = groups.sort(comparator(order)).slice(skip, skip + take)
+    const sorted = groups.sort(comparator(order))
+    // This matches the behavior of version 2 of the Lookout API, which
+    // understands zero to mean "no pagination" (in order to support queries
+    // without pagination, such as those used by `/job-sets`).
+    const sliced = take == 0 ? sorted.slice(skip) : sorted.slice(skip, skip + take)
     return {
       groups: sliced,
       count: groups.length,
