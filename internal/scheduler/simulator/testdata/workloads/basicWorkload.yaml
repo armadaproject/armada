@@ -1,0 +1,15 @@
+name: "Basic Workload"
+queues:
+  - name: "A"
+    weight: 1 # = 1 / priorityFactor
+    jobTemplates:
+      - number: 10
+        id: "myFirstJobTemplate"
+        priorityClassName: "armada-default"
+        requirements:
+          resourceRequirements:
+            requests:
+              cpu: 1
+              memory: 10Gi
+        runtimeMin: 600e9
+        runtimeVariance: 60e9
