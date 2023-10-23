@@ -1,6 +1,7 @@
 package main
 
 import (
+	_ "net/http/pprof"
 	"os"
 
 	"github.com/armadaproject/armada/cmd/scheduler/cmd"
