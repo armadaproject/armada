@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"reflect"
 	"testing"
 	"testing/quick"
@@ -28,6 +30,16 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
+
+type queuesStreamMock struct {
+	grpc.ServerStream
+	msgs []*api.StreamingQueueMessage
+}
+
+func (s *queuesStreamMock) Send(m *api.StreamingQueueMessage) error {
+	s.msgs = append(s.msgs, m)
+	return nil
+}
 
 func TestSubmitServer_HealthCheck(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
@@ -57,6 +69,31 @@ func TestSubmitServer_CreateQueue_WithDefaultSettings_CanBeReadBack(t *testing.T
 		assert.NoError(t, err)
 
 		assert.Equal(t, q1, q2)
+	})
+}
+
+func TestSubmitServer_getQueues(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
+
+		queue1 := &api.Queue{Name: "queueA", PriorityFactor: 100}
+		queue2 := &api.Queue{Name: "queueB", PriorityFactor: 50}
+
+		_, err := s.CreateQueue(context.Background(), queue1)
+		require.NoError(t, err)
+
+		_, err = s.CreateQueue(context.Background(), queue2)
+		require.NoError(t, err)
+
+		mockStream := &queuesStreamMock{}
+
+		err = s.GetQueues(&api.StreamingQueueGetRequest{}, mockStream)
+		require.NoError(t, err)
+
+		assert.Equal(t, mockStream.msgs, []*api.StreamingQueueMessage{
+			{Event: &api.StreamingQueueMessage_Queue{Queue: queue1}},
+			{Event: &api.StreamingQueueMessage_Queue{Queue: queue2}},
+			{Event: &api.StreamingQueueMessage_End{}},
+		})
 	})
 }
 
