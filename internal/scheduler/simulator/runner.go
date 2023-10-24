@@ -7,10 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-
 	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
@@ -18,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 )
 
