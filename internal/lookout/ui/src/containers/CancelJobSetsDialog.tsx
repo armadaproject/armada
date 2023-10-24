@@ -5,7 +5,8 @@ import { Dialog, DialogContent, DialogTitle } from "@material-ui/core"
 import CancelJobSets from "../components/job-sets/cancel-job-sets/CancelJobSets"
 import CancelJobSetsOutcome from "../components/job-sets/cancel-job-sets/CancelJobSetsOutcome"
 import { ApiJobState } from "../openapi/armada"
-import { JobService, CancelJobSetsResponse, JobSet } from "../services/JobService"
+import { JobSet } from "../services/JobService"
+import { CancelJobSetsResponse, UpdateJobSetsService } from "../services/lookoutV2/UpdateJobSetsService"
 import { ApiResult, PlatformCancelReason, RequestStatus } from "../utils"
 
 export type CancelJobSetsDialogState = "CancelJobSets" | "CancelJobSetsResult"
@@ -14,7 +15,7 @@ type CancelJobSetsDialogProps = {
   isOpen: boolean
   queue: string
   selectedJobSets: JobSet[]
-  jobService: JobService
+  updateJobSetsService: UpdateJobSetsService
   onResult: (result: ApiResult) => void
   onClose: () => void
 }
@@ -57,7 +58,7 @@ export default function CancelJobSetsDialog(props: CancelJobSetsDialogProps) {
 
     setRequestStatus("Loading")
     const reason = isPlatformCancel ? PlatformCancelReason : ""
-    const cancelJobSetsResponse = await props.jobService.cancelJobSets(
+    const cancelJobSetsResponse = await props.updateJobSetsService.cancelJobSets(
       props.queue,
       jobSetsToCancel,
       statesToCancel,

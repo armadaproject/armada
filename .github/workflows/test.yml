@@ -10,7 +10,7 @@ permissions:
 jobs:
   ts-unit-tests:
     name: TypeScript Unit Tests
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
@@ -48,7 +48,7 @@ jobs:
 
   go-unit-tests:
     name: Golang Unit Tests
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
@@ -87,7 +87,7 @@ jobs:
 
   go-integration-tests:
     name: Golang Integration Tests
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-22.04
 
     env:
       ARMADA_EXECUTOR_INGRESS_URL: "http://localhost"
@@ -108,6 +108,9 @@ jobs:
       - name: Install Docker Buildx
         run: docker buildx install
 
+      - name: Free some disk space
+        run: docker image prune -af
+
       - name: Setup Golang with Cache
         uses: magnetikonline/action-golang-cache@v4
         with:
@@ -118,11 +121,7 @@ jobs:
         run: go run github.com/magefile/mage@v1.14.0 -v download
 
       - name: Setup and Run Integration Tests
-        run: |
-          # Manually create folders to ensure perms are correct.
-          mkdir -p .kube/internal
-          mkdir -p .kube/external
-          go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
+        run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
 
       - name: Upload JUnit Report Artifact
         uses: actions/upload-artifact@v3
@@ -159,7 +158,7 @@ jobs:
 
   go-mod-up-to-date:
     name: Golang Mod Up To Date
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout code
@@ -198,7 +197,7 @@ jobs:
 
   proto-up-to-date:
     name: Proto Up To Date
-    runs-on: ubuntu-latest-4-cores
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout

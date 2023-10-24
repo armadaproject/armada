@@ -35,6 +35,8 @@ type Configuration struct {
 	Auth       authconfig.AuthConfig
 	Grpc       grpcconfig.GrpcConfig
 	Http       HttpConfig
+	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
+	PprofPort *uint16
 	// Maximum number of strings that should be cached at any one time
 	InternedStringsCacheSize uint32 `validate:"required"`
 	// How often the scheduling cycle should run

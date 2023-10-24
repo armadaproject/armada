@@ -14,20 +14,12 @@ interface Page {
 
 const PAGES: Page[] = [
   {
-    title: "Overview",
+    title: "Jobs",
     location: "/",
   },
   {
     title: "Job Sets",
     location: "/job-sets",
-  },
-  {
-    title: "Jobs",
-    location: "/jobs",
-  },
-  {
-    title: "V2",
-    location: "/v2",
   },
 ]
 
