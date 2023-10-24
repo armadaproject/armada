@@ -23,7 +23,7 @@ func validateJobsCanBeScheduled(
 			if err != nil {
 				response := &api.JobSubmitResponseItem{
 					JobId: job.Id,
-					Error: errors.WithMessagef(err, "%d-th job can't be scheduled", i).Error(),
+					Error: fmt.Sprintf("%d-th job can't be scheduled: %v", i, err),
 				}
 				responseItems = append(responseItems, response)
 			} else {
