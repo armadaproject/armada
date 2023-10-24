@@ -67,7 +67,9 @@ func (mc *MetricsCollector) Run(ctx context.Context) error {
 				return nil
 			}
 			mc.addEventSequence(eventSequence)
-			mc.logLiveMetrics()
+			if mc.Total.NumEventsInTotal%500 == 0 {
+				fmt.Println(mc.String())
+			}
 		}
 	}
 }
@@ -96,10 +98,4 @@ func (mc *MetricsCollector) addEventSequence(eventSequence *armadaevents.EventSe
 		}
 	}
 	mc.MetricsByQueue[queue] = entry
-}
-
-func (mc *MetricsCollector) logLiveMetrics() {
-	if mc.Total.NumEventsInTotal%500 == 0 {
-		fmt.Printf("Total Events: %d, Total Successes: %d, Total Preemptions: %d, Total Submissions: %d, Total Queued: %d, Time Simulated %s, Last Seen Event %s\n", mc.Total.NumEventsInTotal, mc.Total.NumSuccesses, mc.Total.NumPreemptionEvents, mc.Total.NumJobsSubmitted, mc.Total.NumJobsSubmitted-mc.Total.NumSuccesses, mc.Total.LastJobSuccess, EventSummary(mc.LastSeenEvent))
-	}
 }

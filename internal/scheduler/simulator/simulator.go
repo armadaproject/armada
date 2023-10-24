@@ -68,9 +68,6 @@ type Simulator struct {
 	// Simulated events are emitted on these output channels.
 	// Create a channel by calling s.Output() before running the simulator.
 	outputs []chan *armadaevents.EventSequence
-	// Simulated events are emitted on this channel in order.
-	c chan *armadaevents.EventSequence
-
 	// Global job scheduling rate-limiter.
 	limiter *rate.Limiter
 	// Per-queue job scheduling rate-limiters.
