@@ -25,7 +25,6 @@ func createQueue() error {
 
 // Build images, spin up a test environment, and run the integration tests against it.
 func TestSuite() error {
-	mg.Deps(createQueue)
 	mg.Deps(CheckForArmadaRunning)
 
 	// Only set these if they have not already been set
@@ -52,6 +51,7 @@ func TestSuite() error {
 
 // Checks if Armada is ready to accept jobs.
 func CheckForArmadaRunning() error {
+	time.Sleep(30 * time.Second)
 	mg.Deps(createQueue)
 
 	// Set high to take compile time into account

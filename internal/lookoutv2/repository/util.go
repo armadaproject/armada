@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/ingest"
@@ -586,8 +586,8 @@ func (js *JobSimulator) Build() *JobSimulator {
 		EventSequences: []*armadaevents.EventSequence{eventSequence},
 		MessageIds:     []pulsar.MessageID{pulsarutils.NewMessageId(1)},
 	}
-	instructionSet := js.converter.Convert(context.TODO(), eventSequenceWithIds)
-	err := js.store.Store(context.TODO(), instructionSet)
+	instructionSet := js.converter.Convert(armadacontext.TODO(), eventSequenceWithIds)
+	err := js.store.Store(armadacontext.TODO(), instructionSet)
 	if err != nil {
 		log.WithError(err).Error("Simulator failed to store job in database")
 	}

@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/api/resource"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -159,7 +159,7 @@ func TestAddGetSchedulingContext(t *testing.T) {
 func TestTestAddGetSchedulingContextConcurrency(t *testing.T) {
 	repo, err := NewSchedulingContextRepository(10)
 	require.NoError(t, err)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Second)
 	defer cancel()
 	for _, executorId := range []string{"foo", "bar"} {
 		go func(executorId string) {
@@ -202,7 +202,7 @@ func TestReportDoesNotExist(t *testing.T) {
 	require.NoError(t, err)
 	err = repo.AddSchedulingContext(testSchedulingContext("executor-01"))
 	require.NoError(t, err)
-	ctx := context.Background()
+	ctx := armadacontext.Background()
 	queue := "queue-does-not-exist"
 	jobId := util.NewULID()
 
@@ -246,14 +246,14 @@ func withSuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingContext
 	}
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
-		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByTAndResourceType[string])); err != nil {
+		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByTAndResourceType[string]), nil); err != nil {
 			panic(err)
 		}
 		qctx = sctx.QueueSchedulingContexts[queue]
 		qctx.SchedulingContext = nil
 		qctx.Created = time.Time{}
 	}
-	qctx.SuccessfulJobSchedulingContexts[jobId] = &schedulercontext.JobSchedulingContext{JobId: jobId}
+	qctx.SuccessfulJobSchedulingContexts[jobId] = &schedulercontext.JobSchedulingContext{JobId: jobId, GangMinCardinality: 1}
 	rl := schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}}
 	qctx.ScheduledResourcesByPriorityClass.AddResourceList("foo", rl)
 	sctx.ScheduledResourcesByPriorityClass.AddResourceList("foo", rl)
@@ -266,7 +266,7 @@ func withPreemptingJobSchedulingContext(sctx *schedulercontext.SchedulingContext
 	}
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
-		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByTAndResourceType[string])); err != nil {
+		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByTAndResourceType[string]), nil); err != nil {
 			panic(err)
 		}
 		qctx = sctx.QueueSchedulingContexts[queue]
@@ -286,14 +286,14 @@ func withUnsuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingConte
 	}
 	qctx := sctx.QueueSchedulingContexts[queue]
 	if qctx == nil {
-		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByTAndResourceType[string])); err != nil {
+		if err := sctx.AddQueueSchedulingContext(queue, 1.0, make(schedulerobjects.QuantityByTAndResourceType[string]), nil); err != nil {
 			panic(err)
 		}
 		qctx = sctx.QueueSchedulingContexts[queue]
 		qctx.SchedulingContext = nil
 		qctx.Created = time.Time{}
 	}
-	qctx.UnsuccessfulJobSchedulingContexts[jobId] = &schedulercontext.JobSchedulingContext{JobId: jobId, UnschedulableReason: "unknown"}
+	qctx.UnsuccessfulJobSchedulingContexts[jobId] = &schedulercontext.JobSchedulingContext{JobId: jobId, UnschedulableReason: "unknown", GangMinCardinality: 1}
 	return sctx
 }
 
@@ -303,6 +303,7 @@ func testSchedulingContext(executorId string) *schedulercontext.SchedulingContex
 		"",
 		nil,
 		"",
+		nil,
 		nil,
 		schedulerobjects.ResourceList{},
 	)

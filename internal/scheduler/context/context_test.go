@@ -43,6 +43,7 @@ func TestSchedulingContextAccounting(t *testing.T) {
 		testfixtures.TestPriorityClasses,
 		testfixtures.TestDefaultPriorityClass,
 		fairnessCostProvider,
+		nil,
 		totalResources,
 	)
 	priorityFactorByQueue := map[string]float64{"A": 1, "B": 1}
@@ -52,7 +53,7 @@ func TestSchedulingContextAccounting(t *testing.T) {
 		},
 	}
 	for _, queue := range []string{"A", "B"} {
-		err := sctx.AddQueueSchedulingContext(queue, priorityFactorByQueue[queue], allocatedByQueueAndPriorityClass[queue])
+		err := sctx.AddQueueSchedulingContext(queue, priorityFactorByQueue[queue], allocatedByQueueAndPriorityClass[queue], nil)
 		require.NoError(t, err)
 	}
 
@@ -88,8 +89,9 @@ func testNSmallCpuJobSchedulingContext(queue, priorityClassName string, n int) [
 func testSmallCpuJobSchedulingContext(queue, priorityClassName string) *JobSchedulingContext {
 	job := testfixtures.Test1Cpu4GiJob(queue, priorityClassName)
 	return &JobSchedulingContext{
-		JobId:           job.GetId(),
-		Job:             job,
-		PodRequirements: job.GetPodRequirements(testfixtures.TestPriorityClasses),
+		JobId:              job.GetId(),
+		Job:                job,
+		PodRequirements:    job.GetPodRequirements(testfixtures.TestPriorityClasses),
+		GangMinCardinality: 1,
 	}
 }

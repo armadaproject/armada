@@ -1,11 +1,12 @@
 package scheduler
 
 import (
-	"context"
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
 
 const testInstanceName = "instance-1"
@@ -31,7 +32,7 @@ func TestLeaderStatusMetrics_HandlesLeaderChanges(t *testing.T) {
 	assert.Equal(t, actual[0], isNotLeaderMetric)
 
 	// start leading
-	collector.onStartedLeading(context.Background())
+	collector.onStartedLeading(armadacontext.Background())
 	actual = getCurrentMetrics(collector)
 	assert.Len(t, actual, 1)
 	assert.Equal(t, actual[0], isLeaderMetric)

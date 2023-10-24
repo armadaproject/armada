@@ -20,6 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/validation"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
@@ -68,7 +69,8 @@ type PulsarSubmitServer struct {
 	IgnoreJobSubmitChecks bool
 }
 
-func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
+func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	userId, groups, err := srv.Authorize(ctx, req.Queue, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit)
 	if err != nil {
 		return nil, err
@@ -257,7 +259,9 @@ func (srv *PulsarSubmitServer) SubmitJobs(ctx context.Context, req *api.JobSubmi
 	return &api.JobSubmitResponse{JobResponseItems: responses}, nil
 }
 
-func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
+func (srv *PulsarSubmitServer) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+
 	// separate code path for multiple jobs
 	if len(req.JobIds) > 0 {
 		return srv.cancelJobsByIdsQueueJobset(ctx, req.JobIds, req.Queue, req.JobSetId, req.Reason)
@@ -345,7 +349,8 @@ func (srv *PulsarSubmitServer) CancelJobs(ctx context.Context, req *api.JobCance
 }
 
 // Assumes all Job IDs are in the queue and job set provided
-func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(ctx context.Context, jobIds []string, q, jobSet string, reason string) (*api.CancellationResult, error) {
+func (srv *PulsarSubmitServer) cancelJobsByIdsQueueJobset(grpcCtx context.Context, jobIds []string, q, jobSet string, reason string) (*api.CancellationResult, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	if q == "" {
 		return nil, &armadaerrors.ErrInvalidArgument{
 			Name:    "Queue",
@@ -407,7 +412,8 @@ func eventSequenceForJobIds(jobIds []string, q, jobSet, userId string, groups []
 	return sequence, validIds
 }
 
-func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSetCancelRequest) (*types.Empty, error) {
+func (srv *PulsarSubmitServer) CancelJobSet(grpcCtx context.Context, req *api.JobSetCancelRequest) (*types.Empty, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	if req.Queue == "" {
 		return nil, &armadaerrors.ErrInvalidArgument{
 			Name:    "Queue",
@@ -509,7 +515,9 @@ func (srv *PulsarSubmitServer) CancelJobSet(ctx context.Context, req *api.JobSet
 	return &types.Empty{}, err
 }
 
-func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
+func (srv *PulsarSubmitServer) ReprioritizeJobs(grpcCtx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
+	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+
 	// If either queue or jobSetId is missing, we get the job set and queue associated
 	// with the first job id in the request.
 	//
@@ -629,7 +637,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(ctx context.Context, req *api.Jo
 // Checks that the user has either anyPerm (e.g., permissions.SubmitAnyJobs) or perm (e.g., PermissionVerbSubmit) for this queue.
 // Returns the userId and groups extracted from the context.
 func (srv *PulsarSubmitServer) Authorize(
-	ctx context.Context,
+	ctx *armadacontext.Context,
 	queueName string,
 	anyPerm permission.Permission,
 	perm queue.PermissionVerb,
@@ -711,7 +719,7 @@ func (srv *PulsarSubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueI
 }
 
 // PublishToPulsar sends pulsar messages async
-func (srv *PulsarSubmitServer) publishToPulsar(ctx context.Context, sequences []*armadaevents.EventSequence, scheduler schedulers.Scheduler) error {
+func (srv *PulsarSubmitServer) publishToPulsar(ctx *armadacontext.Context, sequences []*armadaevents.EventSequence, scheduler schedulers.Scheduler) error {
 	// Reduce the number of sequences to send to the minimum possible,
 	// and then break up any sequences larger than srv.MaxAllowedMessageSize.
 	sequences = eventutil.CompactEventSequences(sequences)
@@ -731,7 +739,7 @@ func jobKey(j *api.Job) string {
 // getOriginalJobIds returns the mapping between jobId and originalJobId.  If the job (or more specifically the clientId
 // on the job) has not been seen before then jobId -> jobId.  If the job has been seen before then jobId -> originalJobId
 // Note that if srv.KVStore is nil then this function simply returns jobId -> jobId
-func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []*api.Job) (map[string]string, error) {
+func (srv *PulsarSubmitServer) getOriginalJobIds(ctx *armadacontext.Context, apiJobs []*api.Job) (map[string]string, error) {
 	// Default is the current id
 	ret := make(map[string]string, len(apiJobs))
 	for _, apiJob := range apiJobs {
@@ -770,7 +778,7 @@ func (srv *PulsarSubmitServer) getOriginalJobIds(ctx context.Context, apiJobs []
 	return ret, nil
 }
 
-func (srv *PulsarSubmitServer) storeOriginalJobIds(ctx context.Context, apiJobs []*api.Job) error {
+func (srv *PulsarSubmitServer) storeOriginalJobIds(ctx *armadacontext.Context, apiJobs []*api.Job) error {
 	if srv.KVStore == nil {
 		return nil
 	}

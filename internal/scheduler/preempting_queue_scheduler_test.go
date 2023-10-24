@@ -1,20 +1,21 @@
 package scheduler
 
 import (
-	"context"
 	"fmt"
 	"math/rand"
 	"testing"
+	"time"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
@@ -53,7 +54,7 @@ func TestEvictOversubscribed(t *testing.T) {
 		nil,
 	)
 	it := NewInMemoryNodeIterator([]*nodedb.Node{entry})
-	result, err := evictor.Evict(context.Background(), it)
+	result, err := evictor.Evict(armadacontext.Background(), it)
 	require.NoError(t, err)
 
 	prioritiesByName := configuration.PriorityByPriorityClassName(testfixtures.TestPriorityClasses)
@@ -515,7 +516,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// Schedule a gang across two nodes.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.WithGangAnnotationsJobs(testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 2)),
+						"A": testfixtures.WithGangAnnotationsAndMinCardinalityJobs(testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 2), 1),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 1),
@@ -625,8 +626,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"B": 1,
 			},
 		},
-		"rescheduled jobs don't count towards maxJobsToSchedule": {
-			SchedulingConfig: testfixtures.WithMaxJobsToScheduleConfig(5, testfixtures.TestSchedulingConfig()),
+		"rescheduled jobs don't count towards global scheduling rate limit": {
+			SchedulingConfig: testfixtures.WithGlobalSchedulingRateLimiterConfig(2, 5, testfixtures.TestSchedulingConfig()),
 			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
 				{
@@ -642,13 +643,49 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10),
 					},
 					ExpectedScheduledIndices: map[string][]int{
-						"A": testfixtures.IntRange(0, 4),
+						"A": testfixtures.IntRange(0, 1),
 					},
 				},
 			},
 			PriorityFactorByQueue: map[string]float64{
 				"A": 1,
 			},
+		},
+		"MaximumSchedulingRate": {
+			SchedulingConfig: testfixtures.WithGlobalSchedulingRateLimiterConfig(2, 4, testfixtures.TestSchedulingConfig()),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 6)),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 3),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 1),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 10),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 1),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{"A": 1},
 		},
 		"rescheduled jobs don't count towards maxQueueLookback": {
 			SchedulingConfig: testfixtures.WithMaxLookbackPerQueueConfig(5, testfixtures.TestSchedulingConfig()),
@@ -1300,6 +1337,22 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			var jobIdsByGangId map[string]map[string]bool
 			var gangIdByJobId map[string]string
 
+			// Scheduling rate-limiters persist between rounds.
+			// We control the rate at which time passes between scheduling rounds.
+			schedulingStarted := time.Now()
+			schedulingInterval := time.Second
+			limiter := rate.NewLimiter(
+				rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
+				tc.SchedulingConfig.MaximumSchedulingBurst,
+			)
+			limiterByQueue := make(map[string]*rate.Limiter)
+			for queue := range tc.PriorityFactorByQueue {
+				limiterByQueue[queue] = rate.NewLimiter(
+					rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
+					tc.SchedulingConfig.MaximumPerQueueSchedulingBurst,
+				)
+			}
+
 			// Run the scheduler.
 			log := logrus.NewEntry(logrus.New())
 			for i, round := range tc.Rounds {
@@ -1367,12 +1420,21 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					tc.SchedulingConfig.Preemption.PriorityClasses,
 					tc.SchedulingConfig.Preemption.DefaultPriorityClass,
 					fairnessCostProvider,
+					limiter,
 					tc.TotalResources,
 				)
+				sctx.Started = schedulingStarted.Add(time.Duration(i) * schedulingInterval)
+
 				for queue, priorityFactor := range tc.PriorityFactorByQueue {
 					weight := 1 / priorityFactor
-					err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClass[queue])
+					err := sctx.AddQueueSchedulingContext(
+						queue,
+						weight,
+						allocatedByQueueAndPriorityClass[queue],
+						limiterByQueue[queue],
+					)
 					require.NoError(t, err)
+
 				}
 				constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
 					"pool",
@@ -1396,7 +1458,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				if tc.SchedulingConfig.EnableNewPreemptionStrategy {
 					sch.EnableNewPreemptionStrategy()
 				}
-				result, err := sch.Schedule(ctxlogrus.ToContext(context.Background(), log))
+				result, err := sch.Schedule(armadacontext.Background())
 				require.NoError(t, err)
 				jobIdsByGangId = sch.jobIdsByGangId
 				gangIdByJobId = sch.gangIdByJobId
@@ -1645,11 +1707,12 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				tc.SchedulingConfig.Preemption.PriorityClasses,
 				tc.SchedulingConfig.Preemption.DefaultPriorityClass,
 				fairnessCostProvider,
+				nil,
 				nodeDb.TotalResources(),
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
 				weight := 1 / priorityFactor
-				err := sctx.AddQueueSchedulingContext(queue, weight, make(schedulerobjects.QuantityByTAndResourceType[string]))
+				err := sctx.AddQueueSchedulingContext(queue, weight, make(schedulerobjects.QuantityByTAndResourceType[string]), nil)
 				require.NoError(b, err)
 			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
@@ -1670,7 +1733,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nil,
 				nil,
 			)
-			result, err := sch.Schedule(context.Background())
+			result, err := sch.Schedule(armadacontext.Background())
 			require.NoError(b, err)
 			require.Equal(b, 0, len(result.PreemptedJobs))
 
@@ -1706,11 +1769,12 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					tc.SchedulingConfig.Preemption.PriorityClasses,
 					tc.SchedulingConfig.Preemption.DefaultPriorityClass,
 					fairnessCostProvider,
+					nil,
 					nodeDb.TotalResources(),
 				)
 				for queue, priorityFactor := range priorityFactorByQueue {
 					weight := 1 / priorityFactor
-					err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClass[queue])
+					err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClass[queue], nil)
 					require.NoError(b, err)
 				}
 				sch := NewPreemptingQueueScheduler(
@@ -1725,7 +1789,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					nil,
 					nil,
 				)
-				result, err := sch.Schedule(context.Background())
+				result, err := sch.Schedule(armadacontext.Background())
 				require.NoError(b, err)
 
 				// We expect the system to be in steady-state, i.e., no preempted/scheduled jobs.

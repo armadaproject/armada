@@ -3,27 +3,26 @@ package simulator
 import (
 	"bytes"
 	"container/heap"
-	"context"
-	fmt "fmt"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/caarlos0/log"
-	"github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus/ctxlogrus"
 	"github.com/mattn/go-zglob"
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"golang.org/x/time/rate"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -33,7 +32,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
-	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -69,6 +68,11 @@ type Simulator struct {
 	eventLog EventLog
 	// Simulated events are emitted on this channel in order.
 	c chan *armadaevents.EventSequence
+
+	// Global job scheduling rate-limiter.
+	limiter *rate.Limiter
+	// Per-queue job scheduling rate-limiters.
+	limiterByQueue map[string]*rate.Limiter
 }
 
 func NewSimulator(testCase *TestCase, schedulingConfig configuration.SchedulingConfig) (*Simulator, error) {
@@ -143,6 +147,11 @@ func NewSimulator(testCase *TestCase, schedulingConfig configuration.SchedulingC
 		allocationByPoolAndQueueAndPriorityClass: make(map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]),
 		totalResourcesByPool:                     totalResourcesByPool,
 		c:                                        make(chan *armadaevents.EventSequence),
+		limiter: rate.NewLimiter(
+			rate.Limit(schedulingConfig.MaximumSchedulingRate),
+			schedulingConfig.MaximumSchedulingBurst,
+		),
+		limiterByQueue: make(map[string]*rate.Limiter),
 	}
 
 	// Mark all jobTemplates as active.
@@ -415,13 +424,24 @@ func (s *Simulator) handleScheduleEvent() error {
 				s.schedulingConfig.Preemption.PriorityClasses,
 				s.schedulingConfig.Preemption.DefaultPriorityClass,
 				fairnessCostProvider,
+				s.limiter,
 				totalResources,
 			)
+			sctx.Started = s.time
 			for _, queue := range s.testCase.Queues {
+				limiter, ok := s.limiterByQueue[queue.Name]
+				if !ok {
+					limiter = rate.NewLimiter(
+						rate.Limit(s.schedulingConfig.MaximumPerQueueSchedulingRate),
+						s.schedulingConfig.MaximumPerQueueSchedulingBurst,
+					)
+					s.limiterByQueue[queue.Name] = limiter
+				}
 				err := sctx.AddQueueSchedulingContext(
 					queue.Name,
 					queue.Weight,
 					s.allocationByPoolAndQueueAndPriorityClass[pool.Name][queue.Name],
+					limiter,
 				)
 				if err != nil {
 					return err
@@ -450,7 +470,7 @@ func (s *Simulator) handleScheduleEvent() error {
 			if s.schedulingConfig.EnableNewPreemptionStrategy {
 				sch.EnableNewPreemptionStrategy()
 			}
-			ctx := ctxlogrus.ToContext(context.Background(), logrus.NewEntry(logrus.New()))
+			ctx := armadacontext.Background()
 			result, err := sch.Schedule(ctx)
 			if err != nil {
 				return err
@@ -511,6 +531,10 @@ func (s *Simulator) handleScheduleEvent() error {
 				return err
 			}
 			eventSequences, err = scheduler.AppendEventSequencesFromScheduledJobs(eventSequences, scheduledJobs, s.time)
+			if err != nil {
+				return err
+			}
+			eventSequences, err = scheduler.AppendEventSequencesFromUnschedulableJobs(eventSequences, result.FailedJobs, s.time)
 			if err != nil {
 				return err
 			}
@@ -753,7 +777,7 @@ func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRun
 	return true, nil
 }
 
-// func (a *App) TestPattern(ctx context.Context, pattern string) (*TestSuiteReport, error) {
+// func (a *App) TestPattern(ctx *context.Context, pattern string) (*TestSuiteReport, error) {
 // 	testSpecs, err := TestSpecsFromPattern(pattern)
 // 	if err != nil {
 // 		return nil, err

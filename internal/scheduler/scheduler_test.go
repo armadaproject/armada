@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -15,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
@@ -76,7 +76,22 @@ var (
 		Version: 2,
 	}
 	updatedSchedulingInfoBytes = protoutil.MustMarshall(updatedSchedulingInfo)
-	schedulerMetrics           = NewSchedulerMetrics(configuration.SchedulerMetricsConfig{
+	schedulingInfoWithQueueTtl = &schedulerobjects.JobSchedulingInfo{
+		AtMostOnce: true,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						Priority: int32(10),
+					},
+				},
+			},
+		},
+		QueueTtlSeconds: 2,
+		Version:         1,
+	}
+	schedulingInfoWithQueueTtlBytes = protoutil.MustMarshall(schedulingInfoWithQueueTtl)
+	schedulerMetrics                = NewSchedulerMetrics(configuration.SchedulerMetricsConfig{
 		ScheduleCycleTimeHistogramSettings: configuration.HistogramConfig{
 			Start:  1,
 			Factor: 1.1,
@@ -96,6 +111,19 @@ var queuedJob = jobdb.NewJob(
 	"testQueue",
 	uint32(10),
 	schedulingInfo,
+	true,
+	1,
+	false,
+	false,
+	false,
+	1)
+
+var queuedJobWithExpiredTtl = jobdb.NewJob(
+	util.NewULID(),
+	"testJobset",
+	"testQueue",
+	0,
+	schedulingInfoWithQueueTtl,
 	true,
 	1,
 	false,
@@ -184,8 +212,10 @@ func TestScheduler_TestCycle(t *testing.T) {
 		expectedJobRunLeased             []string                          // ids of jobs we expect to have produced leased messages
 		expectedJobRunErrors             []string                          // ids of jobs we expect to have produced jobRunErrors messages
 		expectedJobErrors                []string                          // ids of jobs we expect to have produced jobErrors messages
+		expectedJobsToFail               []string                          // ids of jobs we expect to fail without having failed the overall scheduling cycle
 		expectedJobRunPreempted          []string                          // ids of jobs we expect to have produced jobRunPreempted messages
 		expectedJobCancelled             []string                          // ids of jobs we expect to have  produced cancelled messages
+		expectedJobRequestCancel         []string                          // ids of jobs we expect to have produced request cancel
 		expectedJobReprioritised         []string                          // ids of jobs we expect to have  produced reprioritised messages
 		expectedQueued                   []string                          // ids of jobs we expect to have  produced requeued messages
 		expectedJobSucceeded             []string                          // ids of jobs we expect to have  produced succeeeded messages
@@ -224,6 +254,12 @@ func TestScheduler_TestCycle(t *testing.T) {
 			initialJobs:           []*jobdb.Job{queuedJob},
 			expectedQueued:        []string{queuedJob.Id()},
 			expectedQueuedVersion: queuedJob.QueuedVersion(),
+		},
+		"FailedJobs in scheduler result will publish appropriate messages": {
+			initialJobs:        []*jobdb.Job{queuedJob},
+			expectedJobErrors:  []string{queuedJob.Id()},
+			expectedJobsToFail: []string{queuedJob.Id()},
+			expectedTerminal:   []string{queuedJob.Id()},
 		},
 		"No updates to an already leased job": {
 			initialJobs:           []*jobdb.Job{leasedJob},
@@ -386,6 +422,82 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedTerminal:      []string{leasedJob.Id()},
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
 		},
+		"New job from postgres with expired queue ttl is cancel requested": {
+			jobUpdates: []database.Job{
+				{
+					JobID:          queuedJobWithExpiredTtl.Id(),
+					JobSet:         queuedJobWithExpiredTtl.Jobset(),
+					Queue:          queuedJobWithExpiredTtl.Queue(),
+					Queued:         queuedJobWithExpiredTtl.Queued(),
+					QueuedVersion:  queuedJobWithExpiredTtl.QueuedVersion(),
+					Serial:         1,
+					Submitted:      queuedJobWithExpiredTtl.Created(),
+					SchedulingInfo: schedulingInfoWithQueueTtlBytes,
+				},
+			},
+
+			// We expect to publish request cancel and cancelled message this cycle.
+			// The job should also be removed from the queue and set to a terminal state.
+			expectedJobRequestCancel: []string{queuedJobWithExpiredTtl.Id()},
+			expectedJobCancelled:     []string{queuedJobWithExpiredTtl.Id()},
+			expectedQueuedVersion:    queuedJobWithExpiredTtl.QueuedVersion(),
+			expectedTerminal:         []string{queuedJobWithExpiredTtl.Id()},
+		},
+		"Existing jobDb job with expired queue ttl is cancel requested": {
+			initialJobs: []*jobdb.Job{queuedJobWithExpiredTtl},
+
+			// We expect to publish request cancel and cancelled message this cycle.
+			// The job should also be removed from the queue and set to a terminal state.
+			expectedJobRequestCancel: []string{queuedJobWithExpiredTtl.Id()},
+			expectedJobCancelled:     []string{queuedJobWithExpiredTtl.Id()},
+			expectedQueuedVersion:    queuedJobWithExpiredTtl.QueuedVersion(),
+			expectedTerminal:         []string{queuedJobWithExpiredTtl.Id()},
+		},
+		"New postgres job with cancel requested results in cancel messages": {
+			jobUpdates: []database.Job{
+				{
+					JobID:           queuedJobWithExpiredTtl.Id(),
+					JobSet:          queuedJobWithExpiredTtl.Jobset(),
+					Queue:           queuedJobWithExpiredTtl.Queue(),
+					Queued:          queuedJobWithExpiredTtl.Queued(),
+					QueuedVersion:   queuedJobWithExpiredTtl.QueuedVersion(),
+					Serial:          1,
+					Submitted:       queuedJobWithExpiredTtl.Created(),
+					CancelRequested: true,
+					Cancelled:       false,
+					SchedulingInfo:  schedulingInfoWithQueueTtlBytes,
+				},
+			},
+
+			// We have already got a request cancel from the DB, so only publish a cancelled message.
+			// The job should also be removed from the queue and set to a terminal state.#
+			expectedJobCancelled:  []string{queuedJobWithExpiredTtl.Id()},
+			expectedQueuedVersion: queuedJobWithExpiredTtl.QueuedVersion(),
+			expectedTerminal:      []string{queuedJobWithExpiredTtl.Id()},
+		},
+		"Postgres job with cancel requested results in cancel messages": {
+			initialJobs: []*jobdb.Job{queuedJobWithExpiredTtl.WithCancelRequested(true)},
+			jobUpdates: []database.Job{
+				{
+					JobID:           queuedJobWithExpiredTtl.Id(),
+					JobSet:          queuedJobWithExpiredTtl.Jobset(),
+					Queue:           queuedJobWithExpiredTtl.Queue(),
+					Queued:          queuedJobWithExpiredTtl.Queued(),
+					QueuedVersion:   queuedJobWithExpiredTtl.QueuedVersion(),
+					Serial:          1,
+					Submitted:       queuedJobWithExpiredTtl.Created(),
+					CancelRequested: true,
+					Cancelled:       false,
+					SchedulingInfo:  schedulingInfoWithQueueTtlBytes,
+				},
+			},
+
+			// We have already got a request cancel from the DB/existing job state, so only publish a cancelled message.
+			// The job should also be removed from the queue and set to a terminal state.
+			expectedJobCancelled:  []string{queuedJobWithExpiredTtl.Id()},
+			expectedQueuedVersion: queuedJobWithExpiredTtl.QueuedVersion(),
+			expectedTerminal:      []string{queuedJobWithExpiredTtl.Id()},
+		},
 		"Job reprioritised": {
 			initialJobs: []*jobdb.Job{queuedJob},
 			jobUpdates: []database.Job{
@@ -487,6 +599,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			schedulingAlgo := &testSchedulingAlgo{
 				jobsToSchedule: tc.expectedJobRunLeased,
 				jobsToPreempt:  tc.expectedJobRunPreempted,
+				jobsToFail:     tc.expectedJobsToFail,
 				shouldError:    tc.scheduleError,
 			}
 			publisher := &testPublisher{shouldError: tc.publishError}
@@ -527,8 +640,8 @@ func TestScheduler_TestCycle(t *testing.T) {
 			txn.Commit()
 
 			// run a scheduler cycle
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
+			_, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true)
 			if tc.fetchError || tc.publishError || tc.scheduleError {
 				assert.Error(t, err)
 			} else {
@@ -545,6 +658,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_ReprioritisedJob{}): stringSet(tc.expectedJobReprioritised),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobSucceeded{}):     stringSet(tc.expectedJobSucceeded),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRequeued{}):      stringSet(tc.expectedRequeued),
+				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_CancelJob{}):        stringSet(tc.expectedJobRequestCancel),
 			}
 			err = subtractEventsFromOutstandingEventsByType(publisher.events, outstandingEventsByType)
 			require.NoError(t, err)
@@ -684,7 +798,7 @@ func TestRun(t *testing.T) {
 
 	sched.clock = testClock
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := armadacontext.WithCancel(armadacontext.Background())
 
 	//nolint:errcheck
 	go sched.Run(ctx)
@@ -861,7 +975,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
 			// Test objects
@@ -943,31 +1057,31 @@ type testJobRepository struct {
 	numReceivedPartitions uint32
 }
 
-func (t *testJobRepository) FindInactiveRuns(ctx context.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
+func (t *testJobRepository) FindInactiveRuns(ctx *armadacontext.Context, runIds []uuid.UUID) ([]uuid.UUID, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (t *testJobRepository) FetchJobRunLeases(ctx context.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*database.JobRunLease, error) {
+func (t *testJobRepository) FetchJobRunLeases(ctx *armadacontext.Context, executor string, maxResults uint, excludedRunIds []uuid.UUID) ([]*database.JobRunLease, error) {
 	// TODO implement me
 	panic("implement me")
 }
 
-func (t *testJobRepository) FetchJobUpdates(ctx context.Context, jobSerial int64, jobRunSerial int64) ([]database.Job, []database.Run, error) {
+func (t *testJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobSerial int64, jobRunSerial int64) ([]database.Job, []database.Run, error) {
 	if t.shouldError {
 		return nil, nil, errors.New("error fetchiung job updates")
 	}
 	return t.updatedJobs, t.updatedRuns, nil
 }
 
-func (t *testJobRepository) FetchJobRunErrors(ctx context.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error) {
+func (t *testJobRepository) FetchJobRunErrors(ctx *armadacontext.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error) {
 	if t.shouldError {
 		return nil, errors.New("error fetching job run errors")
 	}
 	return t.errors, nil
 }
 
-func (t *testJobRepository) CountReceivedPartitions(ctx context.Context, groupId uuid.UUID) (uint32, error) {
+func (t *testJobRepository) CountReceivedPartitions(ctx *armadacontext.Context, groupId uuid.UUID) (uint32, error) {
 	if t.shouldError {
 		return 0, errors.New("error counting received partitions")
 	}
@@ -979,18 +1093,18 @@ type testExecutorRepository struct {
 	shouldError bool
 }
 
-func (t testExecutorRepository) GetExecutors(ctx context.Context) ([]*schedulerobjects.Executor, error) {
+func (t testExecutorRepository) GetExecutors(ctx *armadacontext.Context) ([]*schedulerobjects.Executor, error) {
 	panic("not implemented")
 }
 
-func (t testExecutorRepository) GetLastUpdateTimes(ctx context.Context) (map[string]time.Time, error) {
+func (t testExecutorRepository) GetLastUpdateTimes(ctx *armadacontext.Context) (map[string]time.Time, error) {
 	if t.shouldError {
 		return nil, errors.New("error getting last update time")
 	}
 	return t.updateTimes, nil
 }
 
-func (t testExecutorRepository) StoreExecutor(ctx context.Context, executor *schedulerobjects.Executor) error {
+func (t testExecutorRepository) StoreExecutor(ctx *armadacontext.Context, executor *schedulerobjects.Executor) error {
 	panic("not implemented")
 }
 
@@ -998,16 +1112,18 @@ type testSchedulingAlgo struct {
 	numberOfScheduleCalls int
 	jobsToPreempt         []string
 	jobsToSchedule        []string
+	jobsToFail            []string
 	shouldError           bool
 }
 
-func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error) {
+func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error) {
 	t.numberOfScheduleCalls++
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")
 	}
 	preemptedJobs := make([]*jobdb.Job, 0, len(t.jobsToPreempt))
 	scheduledJobs := make([]*jobdb.Job, 0, len(t.jobsToSchedule))
+	failedJobs := make([]*jobdb.Job, 0, len(t.jobsToFail))
 	for _, id := range t.jobsToPreempt {
 		job := jobDb.GetById(txn, id)
 		if job == nil {
@@ -1035,13 +1151,27 @@ func (t *testSchedulingAlgo) Schedule(ctx context.Context, txn *jobdb.Txn, jobDb
 		job = job.WithQueuedVersion(job.QueuedVersion()+1).WithQueued(false).WithNewRun("test-executor", "test-node", "node")
 		scheduledJobs = append(scheduledJobs, job)
 	}
+	for _, id := range t.jobsToFail {
+		job := jobDb.GetById(txn, id)
+		if job == nil {
+			return nil, errors.Errorf("was asked to lease %s but job does not exist", id)
+		}
+		if !job.Queued() {
+			return nil, errors.Errorf("was asked to lease %s but job was already leased", job.Id())
+		}
+		job = job.WithQueued(false).WithFailed(true)
+		failedJobs = append(failedJobs, job)
+	}
 	if err := jobDb.Upsert(txn, preemptedJobs); err != nil {
 		return nil, err
 	}
 	if err := jobDb.Upsert(txn, scheduledJobs); err != nil {
 		return nil, err
 	}
-	return NewSchedulerResult(preemptedJobs, scheduledJobs, nil), nil
+	if err := jobDb.Upsert(txn, failedJobs); err != nil {
+		return nil, err
+	}
+	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs, failedJobs, nil), nil
 }
 
 type testPublisher struct {
@@ -1049,7 +1179,7 @@ type testPublisher struct {
 	shouldError bool
 }
 
-func (t *testPublisher) PublishMessages(ctx context.Context, events []*armadaevents.EventSequence, _ func() bool) error {
+func (t *testPublisher) PublishMessages(ctx *armadacontext.Context, events []*armadaevents.EventSequence, _ func() bool) error {
 	t.events = events
 	if t.shouldError {
 		return errors.New("Error when publishing")
@@ -1061,7 +1191,7 @@ func (t *testPublisher) Reset() {
 	t.events = nil
 }
 
-func (t *testPublisher) PublishMarkers(ctx context.Context, groupId uuid.UUID) (uint32, error) {
+func (t *testPublisher) PublishMarkers(ctx *armadacontext.Context, groupId uuid.UUID) (uint32, error) {
 	return 100, nil
 }
 

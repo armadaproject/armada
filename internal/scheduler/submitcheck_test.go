@@ -1,7 +1,7 @@
 package scheduler
 
 import (
-	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	schedulermocks "github.com/armadaproject/armada/internal/scheduler/mocks"
@@ -72,7 +73,7 @@ func TestSubmitChecker_CheckJobDbJobs(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
 			ctrl := gomock.NewController(t)
@@ -170,7 +171,7 @@ func TestSubmitChecker_TestCheckApiJobs(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)
 			defer cancel()
 
 			ctrl := gomock.NewController(t)
@@ -218,7 +219,11 @@ func testNJobGang(n int) []*api.Job {
 	gang := make([]*api.Job, n)
 	for i := 0; i < n; i++ {
 		job := test1CoreCpuJob()
-		job.Annotations = map[string]string{configuration.GangIdAnnotation: gangId}
+		job.Annotations = map[string]string{
+			configuration.GangIdAnnotation:                 gangId,
+			configuration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n),
+			configuration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n),
+		}
 		gang[i] = job
 	}
 	return gang

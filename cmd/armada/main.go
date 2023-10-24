@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
@@ -13,11 +12,11 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/armadaproject/armada/internal/armada"
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	gateway "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/logging"
@@ -67,7 +66,7 @@ func main() {
 	}
 
 	// Run services within an errgroup to propagate errors between services.
-	g, ctx := errgroup.WithContext(context.Background())
+	g, ctx := armadacontext.ErrGroup(armadacontext.Background())
 
 	// Cancel the errgroup context on SIGINT and SIGTERM,
 	// which shuts everything down gracefully.
@@ -97,7 +96,11 @@ func main() {
 	// register gRPC API handlers in mux
 	// TODO: Run in errgroup
 	shutdownGateway := gateway.CreateGatewayHandler(
-		config.GrpcPort, mux, "/",
+		config.GrpcPort,
+		mux,
+		config.GrpcGatewayPath,
+		true,
+		config.Grpc.Tls.Enabled,
 		config.CorsAllowedOrigins,
 		api.SwaggerJsonTemplate(),
 		api.RegisterSubmitHandler,
@@ -107,7 +110,12 @@ func main() {
 
 	// start HTTP server
 	// TODO: Run in errgroup
-	shutdownHttpServer := common.ServeHttp(config.HttpPort, mux)
+	var shutdownHttpServer func()
+	if config.Grpc.Tls.Enabled {
+		shutdownHttpServer = common.ServeHttps(config.HttpPort, mux, config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
+	} else {
+		shutdownHttpServer = common.ServeHttp(config.HttpPort, mux)
+	}
 	defer shutdownHttpServer()
 
 	// Start Armada server

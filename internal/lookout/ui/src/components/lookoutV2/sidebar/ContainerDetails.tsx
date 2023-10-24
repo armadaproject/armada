@@ -2,12 +2,12 @@ import { useMemo, useState } from "react"
 
 import { CircularProgress, Collapse, ListItemButton, Typography } from "@mui/material"
 
+import styles from "./ContainerDetails.module.css"
+import { KeyValuePairTable } from "./KeyValuePairTable"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { useJobSpec } from "../../../hooks/useJobSpec"
 import { Job } from "../../../models/lookoutV2Models"
 import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
-import styles from "./ContainerDetails.module.css"
-import { KeyValuePairTable } from "./KeyValuePairTable"
 
 export interface ContainerData {
   name: string

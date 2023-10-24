@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+	"golang.org/x/time/rate"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
@@ -38,6 +39,9 @@ type SchedulingContext struct {
 	DefaultPriorityClass string
 	// Determines how fairness is computed.
 	FairnessCostProvider fairness.FairnessCostProvider
+	// Limits job scheduling rate globally across all queues.
+	// Use the "Started" time to ensure limiter state remains constant within each scheduling round.
+	Limiter *rate.Limiter
 	// Sum of queue weights across all queues.
 	WeightSum float64
 	// Per-queue scheduling contexts.
@@ -73,6 +77,7 @@ func NewSchedulingContext(
 	priorityClasses map[string]types.PriorityClass,
 	defaultPriorityClass string,
 	fairnessCostProvider fairness.FairnessCostProvider,
+	limiter *rate.Limiter,
 	totalResources schedulerobjects.ResourceList,
 ) *SchedulingContext {
 	return &SchedulingContext{
@@ -82,6 +87,7 @@ func NewSchedulingContext(
 		PriorityClasses:                   priorityClasses,
 		DefaultPriorityClass:              defaultPriorityClass,
 		FairnessCostProvider:              fairnessCostProvider,
+		Limiter:                           limiter,
 		QueueSchedulingContexts:           make(map[string]*QueueSchedulingContext),
 		TotalResources:                    totalResources.DeepCopy(),
 		ScheduledResources:                schedulerobjects.NewResourceListWithDefaultSize(),
@@ -110,7 +116,11 @@ func (sctx *SchedulingContext) ClearUnfeasibleSchedulingKeys() {
 	sctx.UnfeasibleSchedulingKeys = make(map[schedulerobjects.SchedulingKey]*JobSchedulingContext)
 }
 
-func (sctx *SchedulingContext) AddQueueSchedulingContext(queue string, weight float64, initialAllocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string]) error {
+func (sctx *SchedulingContext) AddQueueSchedulingContext(
+	queue string, weight float64,
+	initialAllocatedByPriorityClass schedulerobjects.QuantityByTAndResourceType[string],
+	limiter *rate.Limiter,
+) error {
 	if _, ok := sctx.QueueSchedulingContexts[queue]; ok {
 		return errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "queue",
@@ -134,6 +144,7 @@ func (sctx *SchedulingContext) AddQueueSchedulingContext(queue string, weight fl
 		ExecutorId:                        sctx.ExecutorId,
 		Queue:                             queue,
 		Weight:                            weight,
+		Limiter:                           limiter,
 		Allocated:                         allocated,
 		AllocatedByPriorityClass:          initialAllocatedByPriorityClass,
 		ScheduledResourcesByPriorityClass: make(schedulerobjects.QuantityByTAndResourceType[string]),
@@ -215,15 +226,20 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 func (sctx *SchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingContext) (bool, error) {
 	allJobsEvictedInThisRound := true
 	allJobsSuccessful := true
+	numberOfSuccessfulJobs := 0
 	for _, jctx := range gctx.JobSchedulingContexts {
 		evictedInThisRound, err := sctx.AddJobSchedulingContext(jctx)
 		if err != nil {
 			return false, err
 		}
 		allJobsEvictedInThisRound = allJobsEvictedInThisRound && evictedInThisRound
-		allJobsSuccessful = allJobsSuccessful && jctx.IsSuccessful()
+		isSuccess := jctx.IsSuccessful()
+		allJobsSuccessful = allJobsSuccessful && isSuccess
+		if isSuccess {
+			numberOfSuccessfulJobs++
+		}
 	}
-	if allJobsSuccessful && !allJobsEvictedInThisRound {
+	if numberOfSuccessfulJobs >= gctx.GangMinCardinality && !allJobsEvictedInThisRound {
 		sctx.NumScheduledGangs++
 	}
 	return allJobsEvictedInThisRound, nil
@@ -335,6 +351,9 @@ type QueueSchedulingContext struct {
 	Queue string
 	// Determines the fair share of this queue relative to other queues.
 	Weight float64
+	// Limits job scheduling rate for this queue.
+	// Use the "Started" time to ensure limiter state remains constant within each scheduling round.
+	Limiter *rate.Limiter
 	// Total resources assigned to the queue across all clusters by priority class priority.
 	// Includes jobs scheduled during this invocation of the scheduler.
 	Allocated schedulerobjects.ResourceList
@@ -444,15 +463,6 @@ func (qctx *QueueSchedulingContext) ReportString(verbosity int32) string {
 	return sb.String()
 }
 
-func (qctx *QueueSchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingContext) error {
-	for _, jctx := range gctx.JobSchedulingContexts {
-		if _, err := qctx.AddJobSchedulingContext(jctx); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // AddJobSchedulingContext adds a job scheduling context.
 // Automatically updates scheduled resources.
 func (qctx *QueueSchedulingContext) AddJobSchedulingContext(jctx *JobSchedulingContext) (bool, error) {
@@ -528,6 +538,7 @@ type GangSchedulingContext struct {
 	TotalResourceRequests schedulerobjects.ResourceList
 	AllJobsEvicted        bool
 	NodeUniformityLabel   string
+	GangMinCardinality    int
 }
 
 func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingContext {
@@ -536,12 +547,14 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 	queue := ""
 	priorityClassName := ""
 	nodeUniformityLabel := ""
+	gangMinCardinality := 1
 	if len(jctxs) > 0 {
 		queue = jctxs[0].Job.GetQueue()
 		priorityClassName = jctxs[0].Job.GetPriorityClassName()
 		if jctxs[0].PodRequirements != nil {
 			nodeUniformityLabel = jctxs[0].PodRequirements.Annotations[configuration.GangNodeUniformityLabelAnnotation]
 		}
+		gangMinCardinality = jctxs[0].GangMinCardinality
 	}
 	allJobsEvicted := true
 	totalResourceRequests := schedulerobjects.NewResourceList(4)
@@ -557,7 +570,13 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 		TotalResourceRequests: totalResourceRequests,
 		AllJobsEvicted:        allJobsEvicted,
 		NodeUniformityLabel:   nodeUniformityLabel,
+		GangMinCardinality:    gangMinCardinality,
 	}
+}
+
+// Cardinality returns the number of jobs in the gang.
+func (gctx *GangSchedulingContext) Cardinality() int {
+	return len(gctx.JobSchedulingContexts)
 }
 
 func isEvictedJob(job interfaces.LegacySchedulerJob) bool {
@@ -581,6 +600,10 @@ type JobSchedulingContext struct {
 	UnschedulableReason string
 	// Pod scheduling contexts for the individual pods that make up the job.
 	PodSchedulingContext *PodSchedulingContext
+	// The minimum size of the gang associated with this job.
+	GangMinCardinality int
+	// If set, indicates this job should be failed back to the client when the gang is scheduled.
+	ShouldFail bool
 }
 
 func (jctx *JobSchedulingContext) String() string {
@@ -596,6 +619,7 @@ func (jctx *JobSchedulingContext) String() string {
 	if jctx.PodSchedulingContext != nil {
 		fmt.Fprint(w, jctx.PodSchedulingContext.String())
 	}
+	fmt.Fprintf(w, "GangMinCardinality:\t%d\n", jctx.GangMinCardinality)
 	w.Flush()
 	return sb.String()
 }
@@ -604,15 +628,25 @@ func (jctx *JobSchedulingContext) IsSuccessful() bool {
 	return jctx.UnschedulableReason == ""
 }
 
-func JobSchedulingContextsFromJobs[J interfaces.LegacySchedulerJob](priorityClasses map[string]types.PriorityClass, jobs []J) []*JobSchedulingContext {
+func JobSchedulingContextsFromJobs[J interfaces.LegacySchedulerJob](priorityClasses map[string]types.PriorityClass, jobs []J, extractGangInfo func(map[string]string) (string, int, int, bool, error)) []*JobSchedulingContext {
 	jctxs := make([]*JobSchedulingContext, len(jobs))
 	timestamp := time.Now()
+
 	for i, job := range jobs {
+		// TODO: Move min cardinality to gang context only and remove from here.
+		// Requires re-phrasing nodedb in terms of gang context, as well as feeding the value extracted from the annotations downstream.
+		_, _, gangMinCardinality, _, err := extractGangInfo(job.GetAnnotations())
+		if err != nil {
+			gangMinCardinality = 1
+		}
+
 		jctxs[i] = &JobSchedulingContext{
-			Created:         timestamp,
-			JobId:           job.GetId(),
-			Job:             job,
-			PodRequirements: job.GetPodRequirements(priorityClasses),
+			Created:            timestamp,
+			JobId:              job.GetId(),
+			Job:                job,
+			PodRequirements:    job.GetPodRequirements(priorityClasses),
+			GangMinCardinality: gangMinCardinality,
+			ShouldFail:         false,
 		}
 	}
 	return jctxs

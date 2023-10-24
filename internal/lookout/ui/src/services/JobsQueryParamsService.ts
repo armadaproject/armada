@@ -1,8 +1,8 @@
 import queryString, { ParseOptions, StringifiableRecord, StringifyOptions } from "query-string"
 
+import { JOB_STATES_FOR_DISPLAY } from "./JobService"
 import { ColumnSpec, JobsContainerState } from "../containers/JobsContainer"
 import { PropsWithRouter, Router } from "../utils"
-import { JOB_STATES_FOR_DISPLAY } from "./JobService"
 
 const QUERY_STRING_OPTIONS: ParseOptions | StringifyOptions = {
   arrayFormat: "comma",

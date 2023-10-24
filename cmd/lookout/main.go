@@ -98,6 +98,8 @@ func main() {
 		config.GrpcPort,
 		mux,
 		"/api/",
+		false,
+		config.Grpc.Tls.Enabled,
 		[]string{},
 		lookoutApi.SwaggerJsonTemplate(),
 		lookoutApi.RegisterLookoutHandler)
@@ -110,7 +112,12 @@ func main() {
 	// server static UI files
 	mux.Handle("/", http.FileServer(serve.CreateDirWithIndexFallback("./internal/lookout/ui/build")))
 
-	shutdownServer := common.ServeHttp(config.HttpPort, mux)
+	var shutdownServer func() = nil
+	if config.Grpc.Tls.Enabled {
+		shutdownServer = common.ServeHttps(config.HttpPort, mux, config.Grpc.Tls.CertPath, config.Grpc.Tls.KeyPath)
+	} else {
+		shutdownServer = common.ServeHttp(config.HttpPort, mux)
+	}
 
 	shutdown, wg := lookout.StartUp(config, healthChecks)
 	go func() {

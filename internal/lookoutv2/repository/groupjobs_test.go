@@ -1,7 +1,6 @@
 package repository
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -10,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database/lookout"
 	"github.com/armadaproject/armada/internal/common/pointer"
@@ -39,7 +39,7 @@ func TestGroupByQueue(t *testing.T) {
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
-			context.TODO(),
+			armadacontext.TODO(),
 			[]*model.Filter{},
 			false,
 			&model.Order{
@@ -98,7 +98,7 @@ func TestGroupByJobSet(t *testing.T) {
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
-			context.TODO(),
+			armadacontext.TODO(),
 			[]*model.Filter{},
 			false,
 			&model.Order{
@@ -165,7 +165,7 @@ func TestGroupByState(t *testing.T) {
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
-			context.TODO(),
+			armadacontext.TODO(),
 			[]*model.Filter{},
 			false,
 			&model.Order{
@@ -330,7 +330,7 @@ func TestGroupByWithFilters(t *testing.T) {
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
-			context.TODO(),
+			armadacontext.TODO(),
 			[]*model.Filter{
 				{
 					Field: "queue",
@@ -452,7 +452,7 @@ func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
-			context.TODO(),
+			armadacontext.TODO(),
 			[]*model.Filter{},
 			false,
 			&model.Order{
@@ -552,7 +552,7 @@ func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
-			context.TODO(),
+			armadacontext.TODO(),
 			[]*model.Filter{},
 			false,
 			&model.Order{
@@ -652,7 +652,7 @@ func TestGroupJobsWithAllStateCounts(t *testing.T) {
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
-			context.TODO(),
+			armadacontext.TODO(),
 			[]*model.Filter{},
 			false,
 			&model.Order{
@@ -774,7 +774,7 @@ func TestGroupJobsWithFilteredStateCounts(t *testing.T) {
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
-			context.TODO(),
+			armadacontext.TODO(),
 			[]*model.Filter{
 				{
 					Field: stateField,
@@ -898,7 +898,7 @@ func TestGroupJobsComplex(t *testing.T) {
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
-			context.TODO(),
+			armadacontext.TODO(),
 			[]*model.Filter{
 				{
 					Field: "queue",
@@ -997,7 +997,7 @@ func TestGroupByAnnotation(t *testing.T) {
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
-			context.TODO(),
+			armadacontext.TODO(),
 			[]*model.Filter{},
 			false,
 			&model.Order{
@@ -1112,7 +1112,7 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
-			context.TODO(),
+			armadacontext.TODO(),
 			[]*model.Filter{
 				{
 					Field: "queue",
@@ -1212,7 +1212,7 @@ func TestGroupJobsSkip(t *testing.T) {
 			skip := 3
 			take := 5
 			result, err := repo.GroupBy(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{},
 				false,
 				&model.Order{
@@ -1242,7 +1242,7 @@ func TestGroupJobsSkip(t *testing.T) {
 			skip := 7
 			take := 5
 			result, err := repo.GroupBy(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{},
 				false,
 				&model.Order{
@@ -1272,7 +1272,7 @@ func TestGroupJobsSkip(t *testing.T) {
 			skip := 13
 			take := 5
 			result, err := repo.GroupBy(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{},
 				false,
 				&model.Order{
@@ -1306,7 +1306,7 @@ func TestGroupJobsValidation(t *testing.T) {
 
 		t.Run("valid field", func(t *testing.T) {
 			_, err := repo.GroupBy(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{},
 				false,
 				&model.Order{
@@ -1325,7 +1325,7 @@ func TestGroupJobsValidation(t *testing.T) {
 
 		t.Run("invalid field", func(t *testing.T) {
 			_, err := repo.GroupBy(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{},
 				false,
 				&model.Order{
@@ -1344,7 +1344,7 @@ func TestGroupJobsValidation(t *testing.T) {
 
 		t.Run("valid annotation", func(t *testing.T) {
 			_, err := repo.GroupBy(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{},
 				false,
 				&model.Order{
@@ -1364,7 +1364,7 @@ func TestGroupJobsValidation(t *testing.T) {
 
 		t.Run("valid annotation with same name as column", func(t *testing.T) {
 			_, err := repo.GroupBy(
-				context.TODO(),
+				armadacontext.TODO(),
 				[]*model.Filter{},
 				false,
 				&model.Order{
@@ -1427,7 +1427,7 @@ func TestGroupByActiveJobSets(t *testing.T) {
 
 		repo := NewSqlGroupJobsRepository(db)
 		result, err := repo.GroupBy(
-			context.TODO(),
+			armadacontext.TODO(),
 			[]*model.Filter{},
 			true,
 			&model.Order{

@@ -7,20 +7,25 @@ import { JobRow, JobTableRow } from "models/jobsTableModels"
 import { Match } from "models/lookoutV2Models"
 import { getColumnMetadata, toColId } from "utils/jobsTableColumns"
 
-import { matchForColumn } from "../../utils/jobsTableUtils"
 import styles from "./JobsTableCell.module.css"
 import { JobsTableFilter } from "./JobsTableFilter"
+import { matchForColumn } from "../../utils/jobsTableUtils"
+
 
 const sharedCellStyle = {
   padding: 0,
-  "&:hover": {
-    opacity: 0.85,
-  },
   overflowWrap: "normal",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
   overflow: "hidden",
   borderRight: "1px solid #cccccc",
+}
+
+const sharedCellStyleWithOpacity = {
+  ...sharedCellStyle,
+  "&:hover": {
+    opacity: 0.85,
+  },
 }
 
 export interface HeaderCellProps {
@@ -70,6 +75,7 @@ export function HeaderCell({
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
           overflow: "hidden",
+          backgroundColor: "#f2f2f2",
         }}
         className={styles.headerCell}
       />
@@ -100,6 +106,7 @@ export function HeaderCell({
           justifyContent: "space-between",
           alignItems: "center",
           margin: 0,
+          backgroundColor: "#f2f2f2",
         }}
       >
         <div
@@ -203,7 +210,7 @@ export const BodyCell = ({ cell, rowIsGroup, rowIsExpanded, onExpandedChange, on
       key={cell.id}
       align={isRightAligned ? "right" : "left"}
       sx={{
-        ...sharedCellStyle,
+        ...sharedCellStyleWithOpacity,
         padding: "2px 8px 2px 8px",
       }}
     >
