@@ -48,6 +48,8 @@ jobs:
         uses: actions/checkout@v3.3.0
         with:
           fetch-depth: 0
+          # Checkout the tag that triggered the workflow.
+          ref: ${{ github.event.workflow_run.head_branch }}
 
       - name: Fetch Git tags
         run: git fetch --force --tags

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	_ "net/http/pprof"
 	"strings"
 	"time"
 
@@ -24,7 +25,9 @@ import (
 	grpcCommon "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
+	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
@@ -35,6 +38,14 @@ import (
 // Run sets up a Scheduler application and runs it until a SIGTERM is received
 func Run(config schedulerconfig.Configuration) error {
 	g, ctx := armadacontext.ErrGroup(app.CreateContextWithShutdown())
+
+	//////////////////////////////////////////////////////////////////////////
+	// Profiling
+	//////////////////////////////////////////////////////////////////////////
+	pprofServer := profiling.SetupPprofHttpServer(config.PprofPort)
+	g.Go(func() error {
+		return serve.ListenAndServe(ctx, pprofServer)
+	})
 
 	//////////////////////////////////////////////////////////////////////////
 	// Health Checks

@@ -29,6 +29,8 @@ type EventIngesterConfiguration struct {
 	EventRetentionPolicy EventRetentionPolicy
 	// List of Regexes which will identify fatal errors when inserting into redis
 	FatalInsertionErrors []string
+	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
+	PprofPort *uint16
 }
 
 type EventRetentionPolicy struct {
