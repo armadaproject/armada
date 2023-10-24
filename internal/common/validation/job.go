@@ -94,6 +94,7 @@ func validateGangs(jobs []*api.Job) (map[string]gangDetails, error) {
 	}
 	return gangDetailsByGangId, nil
 }
+
 func ValidateApiJob(job *api.Job, config configuration.SchedulingConfig) error {
 	if err := ValidateApiJobPodSpecs(job); err != nil {
 		return err
