@@ -31,6 +31,8 @@ type LookoutConfiguration struct {
 	HttpPort    uint16
 	GrpcPort    uint16
 	MetricsPort uint16
+	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
+	PprofPort *uint16
 
 	Grpc grpcconfig.GrpcConfig
 
@@ -68,4 +70,6 @@ type LookoutIngesterConfiguration struct {
 	// User annotations have a common prefix to avoid clashes with other annotations.  This prefix will be stripped from
 	// The annotation before storing in the db
 	UserAnnotationPrefix string
+	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
+	PprofPort *uint16
 }
