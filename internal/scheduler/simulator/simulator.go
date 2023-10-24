@@ -3,12 +3,13 @@ package simulator
 import (
 	"container/heap"
 	fmt "fmt"
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/golang/protobuf/proto"
-	log "github.com/sirupsen/logrus"
 	"math"
 	"math/rand"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/golang/protobuf/proto"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
@@ -528,7 +529,8 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			}
 			eventSequences, err = scheduler.AppendEventSequencesFromUnschedulableJobs(eventSequences, result.FailedJobs, s.time)
 			if err != nil {
-				return err      
+				return err
+			}
 
 			// If nothing changed, we're in steady state and can safely skip scheduling until something external has changed.
 			if len(result.ScheduledJobs) == 0 && len(result.PreemptedJobs) == 0 && len(result.FailedJobs) == 0 {
