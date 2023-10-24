@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/armadaproject/armada/cmd/simulator/cmd"
 )
 
 func main() {

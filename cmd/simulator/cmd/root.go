@@ -6,6 +6,12 @@ import (
 	"os"
 	"strings"
 
+	"github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/scheduler/simulator"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func RootCmd() *cobra.Command {
