@@ -1,18 +1,22 @@
 package simulator
 
 import (
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"reflect"
 	"testing"
 	"time"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/armadaevents"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestSimulator(t *testing.T) {

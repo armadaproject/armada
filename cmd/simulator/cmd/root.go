@@ -2,14 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/scheduler/simulator"
-	"github.com/armadaproject/armada/pkg/armadaevents"
-	"github.com/sirupsen/logrus"
-	"github.com/spf13/cobra"
 	log2 "log"
 	"os"
 	"strings"
+
 )
 
 func RootCmd() *cobra.Command {

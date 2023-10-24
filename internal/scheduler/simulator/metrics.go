@@ -3,9 +3,10 @@ package simulator
 import (
 	"context"
 	"fmt"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"strings"
 	"time"
+
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type MetricsCollector struct {

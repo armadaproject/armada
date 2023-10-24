@@ -7,9 +7,10 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/golang/protobuf/proto"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"

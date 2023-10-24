@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"github.com/armadaproject/armada/cmd/simulator/cmd"
 	"os"
+
 )
 
 func main() {

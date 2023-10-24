@@ -3,10 +3,13 @@ package simulator
 import (
 	"bytes"
 	"fmt"
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 
 	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
