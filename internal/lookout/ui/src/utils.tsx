@@ -80,10 +80,6 @@ export async function getUIConfig(): Promise<UIConfig> {
   return config
 }
 
-export function inverseMap<K, V>(map: Map<K, V>): Map<V, K> {
-  return new Map(Array.from(map.entries()).map(([k, v]) => [v, k]))
-}
-
 export function inverseRecord<K extends string | number | symbol, V extends string | number | symbol>(
   record: Record<K, V>,
 ): Record<V, K> {
@@ -103,34 +99,6 @@ export function debounced(fn: (...args: any[]) => Promise<any>, delay: number): 
       }, delay)
     })
   }
-}
-
-export function secondsToDurationString(totalSeconds: number): string {
-  totalSeconds = Math.round(totalSeconds)
-  const days = Math.floor(totalSeconds / (24 * 3600))
-  const hours = Math.floor(totalSeconds / 3600) % 24
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-
-  const segments: string[] = []
-
-  if (days > 0) {
-    segments.push(`${days}d`)
-  }
-  if (hours > 0) {
-    segments.push(`${hours}h`)
-  }
-  if (minutes > 0) {
-    segments.push(`${minutes}m`)
-  }
-  if (seconds > 0) {
-    segments.push(`${seconds}s`)
-  }
-  if (segments.length === 0) {
-    return "0s"
-  }
-
-  return segments.join(" ")
 }
 
 export function setStateAsync<T>(component: React.Component<any, T>, state: T): Promise<void> {
@@ -165,19 +133,6 @@ export async function getErrorMessage(error: any): Promise<string> {
     return errorMessage ?? basicMessage
   } catch {
     return basicMessage
-  }
-}
-
-export function updateArray<T>(array: T[], newValues: T[], start: number) {
-  for (let i = 0; i < newValues.length; i++) {
-    const arrayIndex = start + i
-    if (arrayIndex < array.length) {
-      array[arrayIndex] = newValues[i]
-    } else if (arrayIndex >= array.length) {
-      array.push(newValues[i])
-    } else {
-      throw new Error("Index is bad!")
-    }
   }
 }
 
