@@ -276,10 +276,7 @@ func JunitReport() error {
 }
 
 func Generate() error {
-	if err := goRun("generate", "./..."); err != nil {
-		return err
-	}
-	return nil
+	return goRun("generate", "./...")
 }
 
 // CI Image to build
