@@ -275,48 +275,8 @@ func JunitReport() error {
 	return nil
 }
 
-// Code generation tasks: statik, goimports, go generate.
 func Generate() error {
-	go_cmd, err := go_CMD()
-	if err != nil {
-		return err
-	}
-
-	// Commands to be run
-	cmd1 := []string{
-		"go", "run", "github.com/rakyll/statik",
-		"-dest=internal/lookout/repository/schema/",
-		"-src=internal/lookout/repository/schema/",
-		"-include=\\*.sql",
-		"-ns=lookout/sql",
-		"-Z",
-		"-f",
-		"-m",
-	}
-	cmd2 := []string{
-		"go", "run", "golang.org/x/tools/cmd/goimports",
-		"-w",
-		"-local", "github.com/armadaproject/armada",
-		"internal/lookout/repository/schema/statik",
-	}
-
-	if len(go_cmd) == 0 {
-		if err = goRun(cmd1[1:]...); err != nil {
-			return err
-		}
-		if err = goRun(cmd2[2:]...); err != nil {
-			return err
-		}
-	} else {
-		dockercmd := append(go_cmd, cmd1...)
-		dockercmd = append(dockercmd, "&&")
-		dockercmd = append(dockercmd, cmd2...)
-		fmt.Println(dockercmd)
-		if err := dockerRun(go_cmd...); err != nil {
-			return err
-		}
-	}
-	if err = goRun("generate", "./..."); err != nil {
+	if err := goRun("generate", "./..."); err != nil {
 		return err
 	}
 	return nil
