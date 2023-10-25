@@ -11,11 +11,8 @@ export interface OidcConfig {
 interface UIConfig {
   armadaApiBaseUrl: string
   userAnnotationPrefix: string
-  binocularsEnabled: boolean
   binocularsBaseUrlPattern: string
-  overviewAutoRefreshMs: number
   jobSetsAutoRefreshMs: number
-  jobsAutoRefreshMs: number
   debugEnabled: boolean
   fakeDataEnabled: boolean
   customTitle: string
@@ -40,11 +37,8 @@ export async function getUIConfig(): Promise<UIConfig> {
   const config: UIConfig = {
     armadaApiBaseUrl: "",
     userAnnotationPrefix: "",
-    binocularsEnabled: true,
     binocularsBaseUrlPattern: "",
-    overviewAutoRefreshMs: 15000,
     jobSetsAutoRefreshMs: 15000,
-    jobsAutoRefreshMs: 30000,
     debugEnabled: searchParams.has("debug"),
     fakeDataEnabled: searchParams.has("fakeData"),
     customTitle: "",
@@ -57,11 +51,8 @@ export async function getUIConfig(): Promise<UIConfig> {
     const json = await response.json()
     if (json.ArmadaApiBaseUrl) config.armadaApiBaseUrl = json.ArmadaApiBaseUrl
     if (json.UserAnnotationPrefix) config.userAnnotationPrefix = json.UserAnnotationPrefix
-    if (json.BinocularsEnabled != null) config.binocularsEnabled = json.BinocularsEnabled
     if (json.BinocularsBaseUrlPattern) config.binocularsBaseUrlPattern = json.BinocularsBaseUrlPattern
-    if (json.OverviewAutoRefreshMs) config.overviewAutoRefreshMs = json.OverviewAutoRefreshMs
     if (json.JobSetsAutoRefreshMs) config.jobSetsAutoRefreshMs = json.JobSetsAutoRefreshMs
-    if (json.JobsAutoRefreshMs) config.jobsAutoRefreshMs = json.JobsAutoRefreshMs
     if (json.CustomTitle) config.customTitle = json.CustomTitle
     if (json.OidcEnabled) config.oidcEnabled = json.OidcEnabled
     if (json.Oidc) {

@@ -9,10 +9,7 @@ import { makeRandomJobs } from "utils/fakeJobsUtils"
 
 import { App } from "./App"
 import { SubmitApi, Configuration as SubmitConfiguration } from "./openapi/armada"
-import { LookoutApi, Configuration as LookoutConfiguration } from "./openapi/lookout"
 import reportWebVitals from "./reportWebVitals"
-import { LookoutJobService } from "./services/JobService"
-import LogService from "./services/LogService"
 import { CordonService } from "./services/lookoutV2/CordonService"
 import { GetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 import { GetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
@@ -35,18 +32,6 @@ import "./index.css"
     }),
   )
 
-  const jobService = new LookoutJobService(
-    new LookoutApi(new LookoutConfiguration({ basePath: "" })),
-    submitApi,
-    uiConfig.userAnnotationPrefix,
-  )
-
-  const logService = new LogService(
-    { credentials: "include" },
-    uiConfig.binocularsBaseUrlPattern,
-    uiConfig.binocularsEnabled,
-  )
-
   const fakeDataEnabled = uiConfig.fakeDataEnabled
 
   const v2TestJobs = fakeDataEnabled ? makeRandomJobs(10000, 42) : []
@@ -67,7 +52,6 @@ import "./index.css"
     <App
       customTitle={uiConfig.customTitle}
       oidcConfig={uiConfig.oidcEnabled ? uiConfig.oidc : undefined}
-      jobService={jobService}
       v2GetJobsService={v2GetJobsService}
       v2GroupJobsService={v2GroupJobsService}
       v2UpdateJobsService={v2UpdateJobsService}
@@ -76,10 +60,7 @@ import "./index.css"
       v2JobSpecService={v2JobSpecService}
       v2LogService={v2LogService}
       v2CordonService={v2CordonService}
-      logService={logService}
-      overviewAutoRefreshMs={uiConfig.overviewAutoRefreshMs}
       jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}
-      jobsAutoRefreshMs={uiConfig.jobsAutoRefreshMs}
       debugEnabled={uiConfig.debugEnabled}
     />,
     document.getElementById("root"),

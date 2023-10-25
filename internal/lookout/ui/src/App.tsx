@@ -16,8 +16,6 @@ import { withRouter } from "utils"
 import NavBar from "./components/NavBar"
 import JobSetsContainer from "./containers/JobSetsContainer"
 import { UserManagerContext, useUserManager } from "./oidc"
-import { JobService } from "./services/JobService"
-import LogService from "./services/LogService"
 import { ICordonService } from "./services/lookoutV2/CordonService"
 import { IGetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
@@ -67,7 +65,6 @@ const themeV5 = createThemeV5(theme)
 type AppProps = {
   customTitle: string
   oidcConfig?: OidcConfig
-  jobService: JobService
   v2GetJobsService: IGetJobsService
   v2GroupJobsService: IGroupJobsService
   v2RunErrorService: IGetRunErrorService
@@ -76,10 +73,7 @@ type AppProps = {
   v2UpdateJobsService: UpdateJobsService
   v2UpdateJobSetsService: UpdateJobSetsService
   v2CordonService: ICordonService
-  logService: LogService
-  overviewAutoRefreshMs: number
   jobSetsAutoRefreshMs: number
-  jobsAutoRefreshMs: number
   debugEnabled: boolean
 }
 
