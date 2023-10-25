@@ -48,18 +48,15 @@ import "./index.css"
   )
 
   const fakeDataEnabled = uiConfig.fakeDataEnabled
-  const lookoutV2BaseUrl = uiConfig.lookoutV2ApiBaseUrl
 
   const v2TestJobs = fakeDataEnabled ? makeRandomJobs(10000, 42) : []
-  const v2GetJobsService = fakeDataEnabled ? new FakeGetJobsService(v2TestJobs) : new GetJobsService(lookoutV2BaseUrl)
-  const v2GroupJobsService = fakeDataEnabled
-    ? new FakeGroupJobsService(v2TestJobs)
-    : new GroupJobsService(lookoutV2BaseUrl)
-  const v2RunErrorService = fakeDataEnabled ? new FakeGetRunErrorService() : new GetRunErrorService(lookoutV2BaseUrl)
+  const v2GetJobsService = fakeDataEnabled ? new FakeGetJobsService(v2TestJobs) : new GetJobsService()
+  const v2GroupJobsService = fakeDataEnabled ? new FakeGroupJobsService(v2TestJobs) : new GroupJobsService()
+  const v2RunErrorService = fakeDataEnabled ? new FakeGetRunErrorService() : new GetRunErrorService()
   const v2LogService = fakeDataEnabled
     ? new FakeLogService()
     : new V2LogService({ credentials: "include" }, uiConfig.binocularsBaseUrlPattern)
-  const v2JobSpecService = fakeDataEnabled ? new FakeGetJobSpecService() : new GetJobSpecService(lookoutV2BaseUrl)
+  const v2JobSpecService = fakeDataEnabled ? new FakeGetJobSpecService() : new GetJobSpecService()
   const v2UpdateJobsService = new UpdateJobsService(submitApi)
   const v2UpdateJobSetsService = new UpdateJobSetsService(submitApi)
   const v2CordonService = fakeDataEnabled

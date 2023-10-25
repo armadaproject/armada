@@ -22,3 +22,11 @@ prunerConfig:
   expireAfter: 1008h  # 42 days, 6 weeks
   timeout: 1h
   batchSize: 1000
+uiConfig:
+  armadaApiBaseUrl: "http://armada-server:8080"
+  userAnnotationPrefix: "armadaproject.io/"
+  binocularsEnabled: true
+  binocularsBaseUrlPattern: "http://armada-binoculars:8080"
+  overviewAutoRefreshMs: 15000
+  jobSetsAutoRefreshMs: 15000
+  jobsAutoRefreshMs: 30000

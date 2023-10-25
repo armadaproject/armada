@@ -7,30 +7,6 @@ import (
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 )
 
-type LookoutUIConfig struct {
-	CustomTitle string
-
-	// We have a separate flag here (instead of making the Oidc field optional)
-	// so that clients can override the server's preference.
-	OidcEnabled bool
-	Oidc        struct {
-		Authority string
-		ClientId  string
-		Scope     string
-	}
-
-	ArmadaApiBaseUrl         string
-	UserAnnotationPrefix     string
-	BinocularsEnabled        bool
-	BinocularsBaseUrlPattern string
-
-	OverviewAutoRefreshMs int
-	JobSetsAutoRefreshMs  int
-	JobsAutoRefreshMs     int
-
-	LookoutV2ApiBaseUrl string
-}
-
 type PrunerConfig struct {
 	DaysToKeep int
 	BatchSize  int
@@ -44,8 +20,6 @@ type LookoutConfiguration struct {
 	PprofPort *uint16
 
 	Grpc grpcconfig.GrpcConfig
-
-	UIConfig LookoutUIConfig
 
 	Postgres     configuration.PostgresConfig
 	PrunerConfig PrunerConfig

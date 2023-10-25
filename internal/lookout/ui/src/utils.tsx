@@ -18,7 +18,6 @@ interface UIConfig {
   jobsAutoRefreshMs: number
   debugEnabled: boolean
   fakeDataEnabled: boolean
-  lookoutV2ApiBaseUrl: string
   customTitle: string
   oidcEnabled: boolean
   oidc?: OidcConfig
@@ -48,7 +47,6 @@ export async function getUIConfig(): Promise<UIConfig> {
     jobsAutoRefreshMs: 30000,
     debugEnabled: searchParams.has("debug"),
     fakeDataEnabled: searchParams.has("fakeData"),
-    lookoutV2ApiBaseUrl: "",
     customTitle: "",
     oidcEnabled: false,
     oidc: undefined,
@@ -64,7 +62,6 @@ export async function getUIConfig(): Promise<UIConfig> {
     if (json.OverviewAutoRefreshMs) config.overviewAutoRefreshMs = json.OverviewAutoRefreshMs
     if (json.JobSetsAutoRefreshMs) config.jobSetsAutoRefreshMs = json.JobSetsAutoRefreshMs
     if (json.JobsAutoRefreshMs) config.jobsAutoRefreshMs = json.JobsAutoRefreshMs
-    if (json.LookoutV2ApiBaseUrl) config.lookoutV2ApiBaseUrl = json.LookoutV2ApiBaseUrl
     if (json.CustomTitle) config.customTitle = json.CustomTitle
     if (json.OidcEnabled) config.oidcEnabled = json.OidcEnabled
     if (json.Oidc) {

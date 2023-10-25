@@ -239,6 +239,7 @@ services:
       - server
       - lookoutingesterv2
     volumes:
+      - ./internal/lookout/ui/build:/app/internal/lookout/ui/build
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
     env_file:
