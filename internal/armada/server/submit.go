@@ -275,28 +275,49 @@ func (server *SubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobSubm
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	principal := authorization.GetPrincipal(ctx)
 
+	const maxResponseItems = 5
+	var lastIdx int
+
 	jobs, responseItems, e := server.createJobs(req, principal.GetName(), principal.GetGroupNames())
 	if e != nil {
-		details := &api.JobSubmitResponse{
-			JobResponseItems: responseItems,
+		if len(responseItems) > maxResponseItems {
+			lastIdx = maxResponseItems
+		} else {
+			lastIdx = len(responseItems)
 		}
 
 		reqJson, _ := json.Marshal(req)
-		st, err := status.Newf(codes.InvalidArgument, "[SubmitJobs] Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e).WithDetails(details)
+		createJobsErrFmt := "[SubmitJobs] error creating %d of %d job(s) submitted; %s for user %s; first %d errors:%v"
+		numFails := len(responseItems)
+		numSubmitted := numFails + len(jobs)
+		details := &api.JobSubmitResponse{JobResponseItems: responseItems[:lastIdx]}
+
+		st, err := status.Newf(codes.InvalidArgument, createJobsErrFmt, numFails, numSubmitted, reqJson,
+			principal.GetName(), maxResponseItems, e).WithDetails(details)
 		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e)
+			subJobUserFmt := "[SubmitJobs] error submitting job %s for user %s; : %v"
+			return nil, status.Errorf(codes.InvalidArgument, subJobUserFmt, reqJson, principal.GetName(), e)
 		}
 		return nil, st.Err()
 	}
+
 	if responseItems, err := validation.ValidateApiJobs(jobs, *server.schedulingConfig); err != nil {
-		details := &api.JobSubmitResponse{
-			JobResponseItems: responseItems,
+		reqJson, _ := json.Marshal(req)
+		numFails := len(responseItems)
+		numSubmitted := len(jobs)
+		if len(responseItems) > maxResponseItems {
+			lastIdx = maxResponseItems
+		} else {
+			lastIdx = len(responseItems)
 		}
 
-		reqJson, _ := json.Marshal(req)
-		st, err := status.Newf(codes.InvalidArgument, "[SubmitJobs] Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e).WithDetails(details)
+		details := &api.JobSubmitResponse{JobResponseItems: responseItems[:lastIdx]}
+		validJobsErrFmt := "[SubmitJobs] error validating %d of %d job(s) submitted; %s for user %s; first %d errors:%v"
+		st, err := status.Newf(codes.InvalidArgument, validJobsErrFmt, numFails, numSubmitted, reqJson,
+			principal.GetName(), e).WithDetails(details)
 		if err != nil {
-			return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e)
+			return nil, status.Errorf(codes.InvalidArgument, validJobsErrFmt, numFails, numSubmitted, reqJson,
+				principal.GetName(), e)
 		}
 		return nil, st.Err()
 	}
@@ -308,9 +329,7 @@ func (server *SubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobSubm
 
 	err = server.submittingJobsWouldSurpassLimit(*q, req)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.InvalidArgument,
-			"[SubmitJobs] error checking queue limit: %s", err)
+		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error checking queue limit: %s", err)
 	}
 
 	err = checkPermission(server.permissions, ctx, permissions.SubmitAnyJobs)
@@ -336,11 +355,19 @@ func (server *SubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobSubm
 	}
 
 	if ok, responseItems, err := validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo); !ok {
-		details := &api.JobSubmitResponse{
-			JobResponseItems: responseItems,
-		}
 		if err != nil {
-			st, e := status.Newf(codes.InvalidArgument, "[SubmitJobs] error validating jobs: %s", err).WithDetails(details)
+			numFails := len(responseItems)
+			numSubmitted := len(jobs)
+			if len(responseItems) > maxResponseItems {
+				lastIdx = maxResponseItems
+			} else {
+				lastIdx = len(responseItems)
+			}
+			details := &api.JobSubmitResponse{JobResponseItems: responseItems[:lastIdx]}
+			validJobsErrFmt := "[SubmitJobs] error validating %d of %d job(s) submitted for user %s; first %d errors:%v"
+
+			st, e := status.Newf(codes.InvalidArgument, validJobsErrFmt, numFails, numSubmitted,
+				principal.GetName(), maxResponseItems, err).WithDetails(details)
 			if e != nil {
 				return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error validating jobs: %s", err)
 			}
