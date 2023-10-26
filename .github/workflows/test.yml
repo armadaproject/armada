@@ -193,6 +193,15 @@ jobs:
 
           key: ${{ runner.os }}-gocache-${{ hashFiles('**/go.sum','**/tools.yaml') }}
 
+      # Write a debug step to print the cache hit status and primary/matched keys
+      - name: Debug Cache Save Status
+        if: always()
+        run: |
+          echo "Cache hit: ${{ steps.cache-restore.outputs.cache-hit }}"
+          echo "Cache primary key: ${{ steps.cache-restore.outputs.cache-primary-key }}"
+          echo "Cache matched key: ${{ steps.cache-restore.outputs.cache-matched-key }}"
+
+
   go-mod-up-to-date:
     name: Golang Mod Up To Date
     runs-on: ubuntu-22.04
