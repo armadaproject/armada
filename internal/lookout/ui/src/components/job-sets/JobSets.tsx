@@ -41,6 +41,7 @@ export default function JobSets(props: JobSetsProps) {
     <JobSetTable
       height={height}
       width={width}
+      queue={props.queue}
       jobSets={props.jobSets}
       selectedJobSets={props.selectedJobSets}
       newestFirst={props.newestFirst}
