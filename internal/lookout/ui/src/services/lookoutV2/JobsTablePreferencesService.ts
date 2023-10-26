@@ -62,7 +62,7 @@ type QueryStringJobFilter = {
 // Keys are shortened to keep URL size lower
 export interface QueryStringPrefs {
   // Grouped columns
-  g: string[] | [null]
+  g: string[]
   // Expanded rows
   e: string[]
   // Current page number
@@ -120,13 +120,9 @@ const columnMatchesFromQueryStringFilters = (f: QueryStringJobFilter[]): Record<
 }
 
 const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partial<JobsTablePreferences> => {
-  const { e, page, ps, sort, f, sb } = serializedPrefs
-  let g = serializedPrefs.g
-  if (!(Array.isArray(g) && g.length > 0 && g.map((elem) => typeof elem === "string").reduce((a, b) => a && b, true))) {
-    g = []
-  }
+  const { g, e, page, ps, sort, f, sb } = serializedPrefs
   return {
-    ...(g && { groupedColumns: g as ColumnId[] }),
+    ...(g && Array.isArray(g) && g.every((a) => typeof a === "string") && { groupedColumns: g as ColumnId[] }),
     ...(e && { expandedState: Object.fromEntries(e.map((rowId) => [rowId, true])) }),
     ...(page !== undefined && { pageIndex: Number(page) }),
     ...(ps !== undefined && { pageSize: Number(ps) }),
