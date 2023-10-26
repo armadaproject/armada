@@ -229,6 +229,9 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
   }
 
   private async loadJobSets() {
+    if (this.state.queue === "") {
+      return
+    }
     await setStateAsync(this, {
       ...this.state,
       getJobSetsRequestStatus: "Loading",
