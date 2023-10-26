@@ -3,22 +3,16 @@ package simulator;
 option go_package = "github.com/armadaproject/armada/internal/scheduler/simulator";
 
 import "google/protobuf/duration.proto";
-import "google/protobuf/timestamp.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "internal/scheduler/schedulerobjects/schedulerobjects.proto";
 import "pkg/armadaevents/events.proto";
 
-message SimulationResult {
-  repeated armadaevents.EventSequence events = 1;
-  ClusterSpec clusterSpec = 2;
-  WorkloadSpec workloadSpec = 3;
-  string schedulingConfig = 4;
-}
-
 message ClusterSpec {
     string name = 1;
     repeated Pool pools = 2;
+    ShiftedExponential workflow_manager_delay_distribution = 3 [(gogoproto.nullable) = false];
+    ShiftedExponential pending_delay_distribution = 4 [(gogoproto.nullable) = false];
 }
 
 message WorkloadSpec {
@@ -26,11 +20,6 @@ message WorkloadSpec {
     int64 random_seed = 2;
     repeated Queue queues = 3;
 }
-
-// TODO:
-// Runtime family.
-// Workflow manager delay.
-// Job pending delay.
 
 message Pool {
     string name = 1;
@@ -79,10 +68,21 @@ message JobTemplate {
     // Earliest time at which jobs from this template are submitted.
     // Measured from the start of the simulation.
     google.protobuf.Duration earliest_submit_time = 10 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
-    // Minimum job runtime when sampling from shifted exponential distribution.
-    google.protobuf.Duration runtime_min = 11 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
-    // Job runtime variance. If zero, runtime is deterministic.
-    google.protobuf.Duration runtime_variance = 12 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
-    // Earliest time job can be submitted from when all dependencies have completed
-    google.protobuf.Duration earliest_submit_time_from_dependency_completion = 13 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
+    // Earliest time job can be submitted from when all its dependencies have completed.
+    // This option is meant to model thinking or processing time, where some fixed amount of time
+    // needs to be spent between dependencies completing and the next batch of jobs being ready to submit.
+    google.protobuf.Duration earliest_submit_time_from_dependency_completion = 11 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];    
+    // Job runtimes are assumed to follow a shifted exponential distribution
+    // i.e., to be a fixed constant (runtime_minimum) plus a random amount of time
+    // drawn from an exponential distribution with known mean (runtime_tail_mean).
+    //
+    // The shifted-exponential distribution strikes a good balance between simplicity and accuracy;
+    // see https://bora.uib.no/bora-xmlui/bitstream/handle/11250/3014726/drthesis_2022_severinson.pdf?sequence=2
+    // for a discussion on the topic.
+    ShiftedExponential runtime_distribution = 12 [(gogoproto.nullable) = false];
+}
+
+message ShiftedExponential {
+    google.protobuf.Duration minimum = 1 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
+    google.protobuf.Duration tail_mean = 2 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
 }

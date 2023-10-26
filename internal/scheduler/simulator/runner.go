@@ -1,9 +1,7 @@
 package simulator
 
 import (
-	"bytes"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -11,7 +9,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
 	"github.com/spf13/viper"
-	"k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -23,7 +20,7 @@ func Simulate(ctx *armadacontext.Context, clusterSpecsPattern, workloadSpecsPatt
 	if err != nil {
 		return err
 	}
-	workloadSpecs, err := WorkloadFromPattern(workloadSpecsPattern)
+	workloadSpecs, err := WorkloadsFromPattern(workloadSpecsPattern)
 	if err != nil {
 		return err
 	}
@@ -53,7 +50,6 @@ func SchedulingConfigsByFilePathFromPattern(pattern string) (map[string]configur
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
-
 	filePathConfigMap := make(map[string]configuration.SchedulingConfig)
 	for _, path := range filePaths {
 		config, err := SchedulingConfigsFromFilePaths(filePaths)
@@ -90,9 +86,11 @@ func SchedulingConfigFromFilePath(filePath string) (configuration.SchedulingConf
 	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
 	v.SetConfigFile(filePath)
 	if err := v.ReadInConfig(); err != nil {
+		err = errors.WithMessagef(err, "failed to read in SchedulingConfig %s", filePath)
 		return config, errors.WithStack(err)
 	}
 	if err := v.Unmarshal(&config, commonconfig.CustomHooks...); err != nil {
+		err = errors.WithMessagef(err, "failed to unmarshal SchedulingConfig %s", filePath)
 		return config, errors.WithStack(err)
 	}
 	return config, nil
@@ -106,7 +104,7 @@ func ClusterSpecsFromPattern(pattern string) ([]*ClusterSpec, error) {
 	return ClusterSpecsFromFilePaths(filePaths)
 }
 
-func WorkloadFromPattern(pattern string) ([]*WorkloadSpec, error) {
+func WorkloadsFromPattern(pattern string) ([]*WorkloadSpec, error) {
 	filePaths, err := zglob.Glob(pattern)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -139,51 +137,51 @@ func WorkloadSpecsFromFilePaths(filePaths []string) ([]*WorkloadSpec, error) {
 }
 
 func ClusterSpecFromFilePath(filePath string) (*ClusterSpec, error) {
-	yamlBytes, err := os.ReadFile(filePath)
-	if err != nil {
+	rv := &ClusterSpec{}
+	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
+	v.SetConfigFile(filePath)
+	if err := v.ReadInConfig(); err != nil {
+		err = errors.WithMessagef(err, "failed to read in ClusterSpec %s", filePath)
 		return nil, errors.WithStack(err)
 	}
-	if len(yamlBytes) == 0 {
-		return nil, errors.Errorf("%s does not exist or is empty", filePath)
-	}
-	var clusterSpec ClusterSpec
-	if err := unmarshalYamlBytes(yamlBytes, &clusterSpec); err != nil {
-		return nil, err
+	if err := v.Unmarshal(rv, commonconfig.CustomHooks...); err != nil {
+		err = errors.WithMessagef(err, "failed to unmarshal ClusterSpec %s", filePath)
+		return nil, errors.WithStack(err)
 	}
 
 	// If no test name is provided, set it to be the filename.
-	if clusterSpec.Name == "" {
+	if rv.Name == "" {
 		fileName := filepath.Base(filePath)
 		fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName))
-		clusterSpec.Name = fileName
+		rv.Name = fileName
 	}
-	initialiseClusterSpec(&clusterSpec)
+	initialiseClusterSpec(rv)
 
-	return &clusterSpec, nil
+	return rv, nil
 }
 
 func WorkloadSpecFromFilePath(filePath string) (*WorkloadSpec, error) {
-	yamlBytes, err := os.ReadFile(filePath)
-	if err != nil {
+	rv := &WorkloadSpec{}
+	v := viper.NewWithOptions(viper.KeyDelimiter("::"))
+	v.SetConfigFile(filePath)
+	if err := v.ReadInConfig(); err != nil {
+		err = errors.WithMessagef(err, "failed to read in WorkloadSpec %s", filePath)
 		return nil, errors.WithStack(err)
 	}
-	if len(yamlBytes) == 0 {
-		return nil, errors.Errorf("%s does not exist or is empty", filePath)
-	}
-	var workloadSpec WorkloadSpec
-	if err := unmarshalYamlBytes(yamlBytes, &workloadSpec); err != nil {
-		return nil, err
+	if err := v.Unmarshal(rv, commonconfig.CustomHooks...); err != nil {
+		err = errors.WithMessagef(err, "failed to unmarshal WorkloadSpec %s", filePath)
+		return nil, errors.WithStack(err)
 	}
 
 	// If no test name is provided, set it to be the filename.
-	if workloadSpec.Name == "" {
+	if rv.Name == "" {
 		fileName := filepath.Base(filePath)
 		fileName = strings.TrimSuffix(fileName, filepath.Ext(fileName))
-		workloadSpec.Name = fileName
+		rv.Name = fileName
 	}
 
 	// Generate random ids for any job templates without an explicitly set id.
-	for _, queue := range workloadSpec.Queues {
+	for _, queue := range rv.Queues {
 		for j, jobTemplate := range queue.JobTemplates {
 			if jobTemplate.Id == "" {
 				jobTemplate.Id = shortuuid.New()
@@ -191,9 +189,9 @@ func WorkloadSpecFromFilePath(filePath string) (*WorkloadSpec, error) {
 			queue.JobTemplates[j] = jobTemplate
 		}
 	}
-	initialiseWorkloadSpec(&workloadSpec)
+	initialiseWorkloadSpec(rv)
 
-	return &workloadSpec, nil
+	return rv, nil
 }
 
 func initialiseClusterSpec(clusterSpec *ClusterSpec) {
@@ -219,11 +217,4 @@ func initialiseWorkloadSpec(workloadSpec *WorkloadSpec) {
 			jobTemplate.Queue = queue.Name
 		}
 	}
-}
-
-func unmarshalYamlBytes(yamlBytes []byte, dst any) error {
-	if err := yaml.NewYAMLOrJSONDecoder(bytes.NewReader(yamlBytes), 128).Decode(dst); err != nil {
-		return errors.WithStack(err)
-	}
-	return nil
 }

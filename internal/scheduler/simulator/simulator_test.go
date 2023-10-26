@@ -1,17 +1,19 @@
 package simulator
 
 import (
-	"reflect"
+	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
+	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -269,21 +271,49 @@ func TestSimulator(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			simResult, metricsCollector, err := SimulationRun(armadacontext.Background(), tc.clusterSpec, tc.workloadSpec, tc.schedulingConfig)
+			s, err := NewSimulator(tc.clusterSpec, tc.workloadSpec, tc.schedulingConfig)
+			require.NoError(t, err)
+			mc := NewMetricsCollector(s.Output())
+			actualEventSequences := make([]*armadaevents.EventSequence, 0, 128)
+			c := s.Output()
+
+			ctx := armadacontext.Background()
+			g, ctx := armadacontext.ErrGroup(ctx)
+			g.Go(func() error {
+				return mc.Run(ctx)
+			})
+			g.Go(func() error {
+				for {
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case eventSequence, ok := <-c:
+						if !ok {
+							return nil
+						}
+						t.Log(*eventSequence.Events[0].Created, EventSequenceSummary(eventSequence))
+						actualEventSequences = append(actualEventSequences, eventSequence)
+					}
+				}
+			})
+			g.Go(func() error {
+				return s.Run(ctx)
+			})
+			err = g.Wait()
 			require.NoError(t, err)
 
-			t.Logf("Simulation Results: %s", metricsCollector.String())
+			t.Logf("Simulation Results: %s", mc.String())
 			if tc.expectedEventSequences != nil {
 				require.Equal(
 					t,
 					util.Map(tc.expectedEventSequences, func(eventSequence *armadaevents.EventSequence) string { return EventSequenceSummary(eventSequence) }),
-					util.Map(simResult.Events, func(eventSequence *armadaevents.EventSequence) string { return EventSequenceSummary(eventSequence) }),
+					util.Map(actualEventSequences, func(eventSequence *armadaevents.EventSequence) string { return EventSequenceSummary(eventSequence) }),
 					"Expected:\n%s\nReceived:\n%s",
 					EventSequencesSummary(tc.expectedEventSequences),
-					EventSequencesSummary(simResult.Events),
+					EventSequencesSummary(actualEventSequences),
 				)
 			}
-			require.LessOrEqual(t, metricsCollector.Total.LastJobSuccess, tc.simulatedTimeLimit)
+			require.LessOrEqual(t, mc.OverallMetrics.TimeOfMostRecentJobSucceededEvent, tc.simulatedTimeLimit)
 		})
 	}
 }
@@ -291,31 +321,56 @@ func TestSimulator(t *testing.T) {
 func TestSchedulingConfigsFromPattern(t *testing.T) {
 	actual, err := SchedulingConfigsFromPattern("./testdata/schedulingConfigs/basicSchedulingConfig.yaml")
 	require.NoError(t, err)
-	expected := GetBasicSchedulingConfig()
-	assert.Equal(t, expected, actual[0])
+	expected := []configuration.SchedulingConfig{GetBasicSchedulingConfig()}
+	assert.Equal(t, expected, actual)
 }
 
 func TestClusterSpecsFromPattern(t *testing.T) {
 	clusterSpecs, err := ClusterSpecsFromPattern("./testdata/clusters/tinyCluster.yaml")
-	assert.Equal(t, clusterSpecs[0], GetTwoPoolTwoNodeCluster())
+	require.NoError(t, err)
+	assert.Equal(t, []*ClusterSpec{GetTwoPoolTwoNodeCluster()}, clusterSpecs)
 	require.NoError(t, err)
 }
 
-func TestWorkloadFromPattern(t *testing.T) {
-	workloadSpecs, err := WorkloadFromPattern("./testdata/workloads/basicWorkload.yaml")
-	assert.Equal(t, workloadSpecs[0], GetOneQueue10JobWorkload())
+func TestWorkloadsFromPattern(t *testing.T) {
+	workloadSpecs, err := WorkloadsFromPattern("./testdata/workloads/basicWorkload.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, []*WorkloadSpec{GetOneQueue10JobWorkload()}, workloadSpecs)
 	require.NoError(t, err)
 }
 
-func TestAggregateClusterResourcesEquivalent(t *testing.T) {
-	clusterSpecsSegregated, err := ClusterSpecsFromPattern("./testdata/clusters/tinyCluster.yaml")
-	require.NoError(t, err)
-	clusterSpecsUnified, err := ClusterSpecsFromPattern("./testdata/clusters/tinyClusterAlt.yaml")
-	require.NoError(t, err)
+func TestClusterSpecTotalResources(t *testing.T) {
+	actual := GetTwoPoolTwoNodeCluster().TotalResources()
+	expected := schedulerobjects.ResourceList{
+		Resources: map[string]resource.Quantity{
+			"cpu":            resource.MustParse("160"),
+			"memory":         resource.MustParse("4352Gi"),
+			"nvidia.com/gpu": resource.MustParse("8"),
+		},
+	}
+	assert.True(t, expected.Equal(actual), "expected %s, but got %s", expected.CompactString(), actual.CompactString())
+}
 
-	srm := CalculateClusterAggregateResources(clusterSpecsSegregated[0])
-	urm := CalculateClusterAggregateResources(clusterSpecsUnified[0])
-
-	require.True(t, reflect.DeepEqual(srm, urm))
-	t.Logf("seg, unified | cpu %d %d, gpu %d %d, mem %d %d", srm["cpu"], urm["cpu"], srm["gpu"], urm["gpu"], srm["memory"], urm["memory"])
+func TestGenerateRandomShiftedExponentialDuration(t *testing.T) {
+	assert.Equal(
+		t,
+		time.Hour,
+		generateRandomShiftedExponentialDuration(
+			rand.New(rand.NewSource(0)),
+			ShiftedExponential{
+				Minimum: time.Hour,
+			},
+		),
+	)
+	assert.Less(
+		t,
+		time.Hour,
+		generateRandomShiftedExponentialDuration(
+			rand.New(rand.NewSource(0)),
+			ShiftedExponential{
+				Minimum:  time.Hour,
+				TailMean: time.Second,
+			},
+		),
+	)
 }

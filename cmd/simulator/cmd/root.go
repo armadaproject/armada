@@ -1,15 +1,11 @@
 package cmd
 
 import (
-	"fmt"
-	log2 "log"
-	"os"
-	"strings"
-
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/maps"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/simulator"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -17,19 +13,20 @@ import (
 func RootCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "Simulate",
-		Short: "Simulate the scheduling of jobs on Armada",
+		Short: "Simulate running jobs on Armada.",
 		RunE:  runSimulations,
 	}
-
-	cmd.Flags().BoolP("verbose", "v", false, "Logs detailed output to console when specified")
-	cmd.Flags().String("clusters", "", "Pattern specifying cluster configurations to simulate on")
-	cmd.Flags().String("workloads", "", "Pattern specifying workloads to simulate")
-	cmd.Flags().String("configs", "", "Pattern specifying scheduler configurations to use for simulation")
-
+	// cmd.Flags().BoolP("verbose", "v", false, "Log detailed output to console.")
+	cmd.Flags().String("clusters", "", "Glob pattern specifying cluster configurations to simulate.")
+	cmd.Flags().String("workloads", "", "Glob pattern specifying workloads to simulate.")
+	cmd.Flags().String("configs", "", "Glob pattern specifying scheduler configurations to simulate.")
+	cmd.Flags().Bool("showSchedulerLogs", false, "Show scheduler logs.")
+	cmd.Flags().Int("logInterval", 0, "Log summary statistics every this many events. Disabled if 0.")
 	return cmd
 }
 
 func runSimulations(cmd *cobra.Command, args []string) error {
+	// Get command-line arguments.
 	clusterPattern, err := cmd.Flags().GetString("clusters")
 	if err != nil {
 		return err
@@ -42,23 +39,21 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	verbose, err := cmd.Flags().GetBool("verbose")
+	showSchedulerLogs, err := cmd.Flags().GetBool("showSchedulerLogs")
+	if err != nil {
+		return err
+	}
+	logInterval, err := cmd.Flags().GetInt("logInterval")
 	if err != nil {
 		return err
 	}
 
-	ctx := armadacontext.Background()
-	if !verbose {
-		logger := logrus.New()
-		logger.SetLevel(logrus.ErrorLevel)
-		ctx = armadacontext.New(ctx, logrus.NewEntry(logger))
-	}
-
+	// Load test specs. and config.
 	clusterSpecs, err := simulator.ClusterSpecsFromPattern(clusterPattern)
 	if err != nil {
 		return err
 	}
-	workloadSpecs, err := simulator.WorkloadFromPattern(workloadPattern)
+	workloadSpecs, err := simulator.WorkloadsFromPattern(workloadPattern)
 	if err != nil {
 		return err
 	}
@@ -67,27 +62,40 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	ctx := armadacontext.Background()
+	ctx.Info("Armada simulator")
+	ctx.Infof("ClusterSpecs: %v", util.Map(clusterSpecs, func(clusperSpec *simulator.ClusterSpec) string { return clusperSpec.Name }))
+	ctx.Infof("WorkloadSpecs: %v", util.Map(workloadSpecs, func(workloadSpec *simulator.WorkloadSpec) string { return workloadSpec.Name }))
+	ctx.Infof("SchedulingConfigs: %v", maps.Keys(schedulingConfigsByFilePath))
+
+	// Setup a simulator for each combination of (clusterSpec, workloadSpec, schedulingConfig).
 	simulators := make([]*simulator.Simulator, 0)
 	metricsCollectors := make([]*simulator.MetricsCollector, 0)
 	eventSequenceChannels := make([]<-chan *armadaevents.EventSequence, 0)
-	filePaths := make([]string, 0)
-
+	schedulingConfigPaths := make([]string, 0)
 	for _, clusterSpec := range clusterSpecs {
 		for _, workloadSpec := range workloadSpecs {
-			for filePath, schedulingConfig := range schedulingConfigsByFilePath {
+			for schedulingConfigPath, schedulingConfig := range schedulingConfigsByFilePath {
 				if s, err := simulator.NewSimulator(clusterSpec, workloadSpec, schedulingConfig); err != nil {
 					return err
 				} else {
+					if !showSchedulerLogs {
+						s.SuppressSchedulerLogs = true
+					} else {
+						ctx.Info("Showing scheduler logs")
+					}
 					simulators = append(simulators, s)
-					metricsCollectors = append(metricsCollectors, simulator.NewMetricsCollector(s.Output()))
-					filePaths = append(filePaths, filePath)
+					mc := simulator.NewMetricsCollector(s.Output())
+					mc.LogSummaryInterval = logInterval
+					metricsCollectors = append(metricsCollectors, mc)
 					eventSequenceChannels = append(eventSequenceChannels, s.Output())
+					schedulingConfigPaths = append(schedulingConfigPaths, schedulingConfigPath)
 				}
 			}
 		}
 	}
 
-	threadSafeLogger := log2.New(os.Stdout, "", 0)
+	// Run simulators.
 	g, ctx := armadacontext.ErrGroup(ctx)
 	for _, s := range simulators {
 		s := s
@@ -95,6 +103,8 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 			return s.Run(ctx)
 		})
 	}
+
+	// Log events to stdout.
 	for _, c := range eventSequenceChannels {
 		c := c
 		g.Go(func() error {
@@ -106,30 +116,34 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 					if !ok {
 						return nil
 					}
-					ctx.Info(*eventSequence.Events[0].Created, simulator.EventSequenceSummary(eventSequence))
+					ctx.Debug(*eventSequence.Events[0].Created, simulator.EventSequenceSummary(eventSequence))
 				}
 			}
 		})
 	}
-	for i, mc := range metricsCollectors {
-		mc := mc
-		s := simulators[i]
-		fp := filePaths[i]
-		g.Go(func() error {
-			if err := mc.Run(ctx); err != nil {
-				return err
-			}
 
-			var sb strings.Builder
-			sb.WriteString(fmt.Sprintf("\nRunning Simulation of workload %s on cluster %s with configuration %s\n", s.WorkloadSpec.Name, s.ClusterSpec.Name, fp))
-			sb.WriteString(fmt.Sprint("Simulation Result: ", mc.String(), "\n"))
-			threadSafeLogger.Print(sb.String())
-			return nil
+	// Run metric collectors.
+	for _, mc := range metricsCollectors {
+		mc := mc
+		g.Go(func() error {
+			return mc.Run(ctx)
 		})
 	}
 
+	// Wait for simulations to complete.
 	if err := g.Wait(); err != nil {
 		return err
+	}
+
+	// Log overall statistics.
+	for i, mc := range metricsCollectors {
+		s := simulators[i]
+		schedulingConfigPath := schedulingConfigPaths[i]
+		ctx.Infof("Simulation result")
+		ctx.Infof("ClusterSpec: %s", s.ClusterSpec.Name)
+		ctx.Infof("WorkloadSpec: %s", s.WorkloadSpec.Name)
+		ctx.Infof("SchedulingConfig: %s", schedulingConfigPath)
+		ctx.Info(mc.String())
 	}
 
 	return nil

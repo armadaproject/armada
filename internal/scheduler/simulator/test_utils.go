@@ -10,55 +10,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/constraints"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
-
-func SimulationRun(ctx *armadacontext.Context, clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, schedulingConfig configuration.SchedulingConfig) (*SimulationResult, *MetricsCollector, error) {
-	s, err := NewSimulator(clusterSpec, workloadSpec, schedulingConfig)
-	if err != nil {
-		return &SimulationResult{}, &MetricsCollector{}, err
-	}
-
-	metricsCollector := NewMetricsCollector(s.Output())
-	actualEventSequences := make([]*armadaevents.EventSequence, 0, 128)
-	c := s.Output()
-
-	g, threadCtx := armadacontext.ErrGroup(ctx)
-	g.Go(func() error {
-		return metricsCollector.Run(threadCtx)
-	})
-	g.Go(func() error {
-		for {
-			select {
-			case <-threadCtx.Done():
-				return threadCtx.Err()
-			case eventSequence, ok := <-c:
-				if !ok {
-					return nil
-				}
-				ctx.Info(*eventSequence.Events[0].Created, EventSequenceSummary(eventSequence))
-				actualEventSequences = append(actualEventSequences, eventSequence)
-			}
-		}
-	})
-	g.Go(func() error {
-		return s.Run(threadCtx)
-	})
-	if err := g.Wait(); err != nil {
-		return &SimulationResult{}, metricsCollector, err
-	}
-
-	simResult := &SimulationResult{
-		Events:       actualEventSequences,
-		ClusterSpec:  clusterSpec,
-		WorkloadSpec: workloadSpec,
-	}
-
-	return simResult, metricsCollector, nil
-}
 
 func GetTwoPoolTwoNodeCluster() *ClusterSpec {
 	cs := &ClusterSpec{
@@ -128,31 +84,21 @@ func GetBasicSchedulingConfig() configuration.SchedulingConfig {
 	}
 }
 
-// Calculates the aggregate number/amount of CPU cores, GPUs and Memory (GB) within a cluster.
-func CalculateClusterAggregateResources(clusterSpec *ClusterSpec) map[string]int64 {
-	resourceMapping := map[string]int64{
-		"cpus":   0,
-		"gpus":   0,
-		"memory": 0,
-	}
-
-	for _, pool := range clusterSpec.Pools {
+// TotalResources returns the total resources available across all nodes in the ClusterSpec.
+func (cs *ClusterSpec) TotalResources() schedulerobjects.ResourceList {
+	total := schedulerobjects.NewResourceListWithDefaultSize()
+	for _, pool := range cs.Pools {
 		for _, clusterGroup := range pool.ClusterGroups {
 			for _, cluster := range clusterGroup.Clusters {
 				for _, nt := range cluster.NodeTemplates {
-					count := nt.Number
-					thisNodeCores := nt.TotalResources.Resources["cpu"]
-					resourceMapping["cpus"] += thisNodeCores.Value() * count
-					thisNodeGPUs := nt.TotalResources.Resources["nvidia.com/gpu"]
-					resourceMapping["gpus"] += thisNodeGPUs.Value() * count
-					thisNodeMemory := nt.TotalResources.Resources["memory"]
-					resourceMapping["memory"] += thisNodeMemory.Value() * count
+					for t, q := range nt.TotalResources.Resources {
+						total.AddQuantity(t, constraints.ScaleQuantity(q, float64(nt.Number)))
+					}
 				}
 			}
 		}
 	}
-
-	return resourceMapping
+	return total
 }
 
 func WithExecutorGroupsPool(pool *Pool, executorGroups ...*ClusterGroup) *Pool {
@@ -286,7 +232,7 @@ func JobTemplate32Cpu(n int64, jobSet, priorityClassName string) *JobTemplate {
 				},
 			},
 		},
-		RuntimeMin: 60 * time.Second,
+		RuntimeDistribution: ShiftedExponential{Minimum: time.Minute},
 	}
 }
 
@@ -304,9 +250,7 @@ func JobTemplate1Cpu(n int64, jobSet, priorityClassName string, id string) *JobT
 				},
 			},
 		},
-
-		RuntimeMin:      10 * time.Minute,
-		RuntimeVariance: 1 * time.Minute,
+		RuntimeDistribution: ShiftedExponential{Minimum: time.Minute},
 	}
 }
 

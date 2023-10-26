@@ -9,7 +9,7 @@ type Event struct {
 	// Each event is assigned a sequence number.
 	// Events with equal time are ordered by their sequence number.
 	sequenceNumber int
-	// One of armadaevents.EventSequence or scheduleEvent..
+	// Either armadaevents.EventSequence or scheduleEvent.
 	eventSequenceOrScheduleEvent any
 	// Maintained by the heap.Interface methods.
 	index int

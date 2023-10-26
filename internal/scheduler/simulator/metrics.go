@@ -1,35 +1,49 @@
 package simulator
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/pkg/armadaevents"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 )
 
 type MetricsCollector struct {
 	c              <-chan *armadaevents.EventSequence
-	Total          Metrics
-	MetricsByQueue map[string]Metrics
-	LastSeenEvent  *armadaevents.EventSequence_Event
+	OverallMetrics MetricsVector
+	MetricsByQueue map[string]MetricsVector
+	// If non-zero, log a summary every this many events.
+	LogSummaryInterval int
+}
+
+type MetricsVector struct {
+	TimeOfMostRecentJobSucceededEvent time.Duration
+	NumEvents                         int
+	NumSubmitEvents                   int
+	NumLeasedEvents                   int
+	NumPreemptedEvents                int
+	NumJobSucceededEvents             int
 }
 
 func NewMetricsCollector(c <-chan *armadaevents.EventSequence) *MetricsCollector {
 	return &MetricsCollector{
 		c:              c,
-		MetricsByQueue: make(map[string]Metrics),
+		MetricsByQueue: make(map[string]MetricsVector),
 	}
 }
 
 func (mc *MetricsCollector) String() string {
 	var sb strings.Builder
 	sb.WriteString("{")
-	sb.WriteString(fmt.Sprintf("Total: %s, Queues: {", mc.Total))
-
+	sb.WriteString(fmt.Sprintf("Overall metrics: %s, Per-queue metrics: {", mc.OverallMetrics))
 	i := 0
-	for queue, metrics := range mc.MetricsByQueue {
+	queues := maps.Keys(mc.MetricsByQueue)
+	slices.Sort(queues)
+	for _, queue := range queues {
+		metrics := mc.MetricsByQueue[queue]
 		sb.WriteString(fmt.Sprintf("%s: %s", queue, metrics))
 		i++
 		if i != len(mc.MetricsByQueue) {
@@ -40,24 +54,14 @@ func (mc *MetricsCollector) String() string {
 	return sb.String()
 }
 
-type Metrics struct {
-	LastJobSuccess      time.Duration
-	NumEventsInTotal    int
-	NumPreemptionEvents int
-	NumSchedulingEvents int
-	NumJobsSubmitted    int
-	NumSchedules        int
-	NumSuccesses        int
-}
-
-func (m Metrics) String() string {
+func (m MetricsVector) String() string {
 	return fmt.Sprintf(
-		"{LastJobSuccess: %s, NumEventsInTotal: %d, NumPreemptionEvents: %d, NumSchedulingEvents: %d}",
-		m.LastJobSuccess, m.NumEventsInTotal, m.NumPreemptionEvents, m.NumSchedulingEvents,
+		"{FractionLeasedSucceeded: %f, TimeOfMostRecentJobSucceededEvent: %s, NumEvents: %d, NumPreemptedEvents: %d, NumLeasedEvents: %d, NumJobSucceededEvents: %d}",
+		float64(m.NumJobSucceededEvents)/float64(m.NumLeasedEvents), m.TimeOfMostRecentJobSucceededEvent, m.NumEvents, m.NumPreemptedEvents, m.NumLeasedEvents, m.NumJobSucceededEvents,
 	)
 }
 
-func (mc *MetricsCollector) Run(ctx context.Context) error {
+func (mc *MetricsCollector) Run(ctx *armadacontext.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -67,8 +71,8 @@ func (mc *MetricsCollector) Run(ctx context.Context) error {
 				return nil
 			}
 			mc.addEventSequence(eventSequence)
-			if mc.Total.NumEventsInTotal%500 == 0 {
-				fmt.Println(mc.String())
+			if mc.LogSummaryInterval != 0 && mc.OverallMetrics.NumEvents%mc.LogSummaryInterval == 0 {
+				ctx.Info(mc.String())
 			}
 		}
 	}
@@ -76,26 +80,26 @@ func (mc *MetricsCollector) Run(ctx context.Context) error {
 
 func (mc *MetricsCollector) addEventSequence(eventSequence *armadaevents.EventSequence) {
 	queue := eventSequence.Queue
-	mc.Total.NumEventsInTotal += 1
-	entry := mc.MetricsByQueue[queue]
-	entry.NumEventsInTotal += 1
+	mc.OverallMetrics.NumEvents += 1
+	perQueueMetrics := mc.MetricsByQueue[queue]
+	perQueueMetrics.NumEvents += 1
 	for _, event := range eventSequence.Events {
-		mc.LastSeenEvent = event
 		switch event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
-			mc.Total.NumJobsSubmitted += 1
-			entry.NumJobsSubmitted += 1
+			mc.OverallMetrics.NumSubmitEvents += 1
+			perQueueMetrics.NumSubmitEvents += 1
 		case *armadaevents.EventSequence_Event_JobRunLeased:
-			mc.Total.NumSchedulingEvents += 1
-			entry.NumSchedulingEvents += 1
+			mc.OverallMetrics.NumLeasedEvents += 1
+			perQueueMetrics.NumLeasedEvents += 1
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
-			mc.Total.NumPreemptionEvents += 1
-			entry.NumPreemptionEvents += 1
+			mc.OverallMetrics.NumPreemptedEvents += 1
+			perQueueMetrics.NumPreemptedEvents += 1
 		case *armadaevents.EventSequence_Event_JobSucceeded:
-			mc.Total.LastJobSuccess = event.Created.Sub(time.Time{})
-			entry.LastJobSuccess = event.Created.Sub(time.Time{})
-			mc.Total.NumSuccesses += 1
+			mc.OverallMetrics.TimeOfMostRecentJobSucceededEvent = event.Created.Sub(time.Time{})
+			perQueueMetrics.TimeOfMostRecentJobSucceededEvent = event.Created.Sub(time.Time{})
+			mc.OverallMetrics.NumJobSucceededEvents += 1
+			perQueueMetrics.NumJobSucceededEvents += 1
 		}
 	}
-	mc.MetricsByQueue[queue] = entry
+	mc.MetricsByQueue[queue] = perQueueMetrics
 }

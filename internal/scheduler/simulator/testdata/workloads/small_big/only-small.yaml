@@ -1,15 +1,16 @@
-name: "Basic Workload"
+name: "Only small"
+randomSeed: 12345
 queues:
-  - name: "A"
-    weight: 1 # = 1 / priorityFactor
+  - name: "small"
+    weight: 1.0
     jobTemplates:
-      - number: 10
-        id: "myFirstJobTemplate"
+      - number: 38400
         priorityClassName: "armada-default"
         requirements:
           resourceRequirements:
             requests:
               cpu: 1
-              memory: 10Gi
+              memory: "32Gi"
         runtimeDistribution:
-          minimum: "1m"
+          minimum: "10m"
+          tailMean: "1m"
