@@ -1,4 +1,5 @@
 import { JobSet } from "models/lookoutV2Models"
+import { getAuthorizationHeaders } from "oidc"
 import { ApiJobState, SubmitApi } from "openapi/armada"
 import { getErrorMessage } from "utils"
 
@@ -26,20 +27,24 @@ export class UpdateJobSetsService {
     jobSets: JobSet[],
     states: ApiJobState[],
     reason: string,
+    accessToken?: string,
   ): Promise<CancelJobSetsResponse> {
     const response: CancelJobSetsResponse = { cancelledJobSets: [], failedJobSetCancellations: [] }
     for (const jobSet of jobSets) {
       try {
-        await this.submitApi.cancelJobSet({
-          body: {
-            queue: queue,
-            jobSetId: jobSet.jobSetId,
-            filter: {
-              states: states,
+        await this.submitApi.cancelJobSet(
+          {
+            body: {
+              queue: queue,
+              jobSetId: jobSet.jobSetId,
+              filter: {
+                states: states,
+              },
+              reason: reason,
             },
-            reason: reason,
           },
-        })
+          accessToken === undefined ? undefined : { headers: getAuthorizationHeaders(accessToken) },
+        )
         response.cancelledJobSets.push(jobSet)
       } catch (e) {
         console.error(e)
@@ -54,18 +59,22 @@ export class UpdateJobSetsService {
     queue: string,
     jobSets: JobSet[],
     newPriority: number,
+    accessToken?: string,
   ): Promise<ReprioritizeJobSetsResponse> {
     const response: ReprioritizeJobSetsResponse = { reprioritizedJobSets: [], failedJobSetReprioritizations: [] }
 
     for (const jobSet of jobSets) {
       try {
-        const apiResponse = await this.submitApi.reprioritizeJobs({
-          body: {
-            queue: queue,
-            jobSetId: jobSet.jobSetId,
-            newPriority: newPriority,
+        const apiResponse = await this.submitApi.reprioritizeJobs(
+          {
+            body: {
+              queue: queue,
+              jobSetId: jobSet.jobSetId,
+              newPriority: newPriority,
+            },
           },
-        })
+          accessToken === undefined ? undefined : { headers: getAuthorizationHeaders(accessToken) },
+        )
         if (apiResponse == null || apiResponse.reprioritizationResults == null) {
           const errorMessage = "No reprioritizationResults found in response body"
           console.error(errorMessage)
