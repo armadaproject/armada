@@ -5,10 +5,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 type MetricsCollector struct {

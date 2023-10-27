@@ -2,7 +2,7 @@ package simulator
 
 import (
 	"container/heap"
-	fmt "fmt"
+	"fmt"
 	"io"
 	"math/rand"
 	"time"
@@ -31,14 +31,12 @@ import (
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
-var (
-	nullLogger = &logrus.Logger{
-		Out:       io.Discard,
-		Formatter: new(logrus.TextFormatter),
-		Hooks:     make(logrus.LevelHooks),
-		Level:     logrus.PanicLevel,
-	}
-)
+var nullLogger = &logrus.Logger{
+	Out:       io.Discard,
+	Formatter: new(logrus.TextFormatter),
+	Hooks:     make(logrus.LevelHooks),
+	Level:     logrus.PanicLevel,
+}
 
 // Simulator captures the parameters and state of the Armada simulator.
 type Simulator struct {
