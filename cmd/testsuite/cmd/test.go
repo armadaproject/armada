@@ -79,7 +79,7 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 		app.Params.PrometheusPushGatewayJobName = prometheusPushgatewayJobName
 
 		// Create a context that is cancelled on SIGINT/SIGTERM.
-		// Ensures test jobs are cancelled on ctrl-C.
+		// Ensures test jobs are cancelled on ctrl-c.
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		stopSignal := make(chan os.Signal, 1)
