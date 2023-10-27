@@ -210,7 +210,10 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 
 		// Skip this job if it's known to be unschedulable.
 		if len(it.schedulingContext.UnfeasibleSchedulingKeys) > 0 {
-			schedulingKey := it.schedulingContext.SchedulingKeyFromLegacySchedulerJob(job)
+			schedulingKey, ok := job.GetSchedulingKey()
+			if !ok {
+				schedulingKey = it.schedulingContext.SchedulingKeyFromLegacySchedulerJob(job)
+			}
 			if unsuccessfulJctx, ok := it.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; ok {
 				// TODO: For performance, we should avoid creating new objects and instead reference the existing one.
 				jctx := &schedulercontext.JobSchedulingContext{

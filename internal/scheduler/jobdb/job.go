@@ -60,40 +60,6 @@ func EmptyJob(id string) *Job {
 	return &Job{id: id, runsById: map[uuid.UUID]*JobRun{}}
 }
 
-// NewJob creates a new scheduler job
-// TODO: Remove.
-func NewJobOld(
-	jobId string,
-	jobset string,
-	queue string,
-	priority uint32,
-	schedulingInfo *schedulerobjects.JobSchedulingInfo,
-	queued bool,
-	queuedVersion int32,
-	cancelRequested bool,
-	cancelByJobsetRequested bool,
-	cancelled bool,
-	created int64,
-) *Job {
-	job := &Job{
-		id:                      jobId,
-		jobset:                  jobset,
-		queue:                   queue,
-		queued:                  queued,
-		queuedVersion:           queuedVersion,
-		priority:                priority,
-		requestedPriority:       priority,
-		jobSchedulingInfo:       schedulingInfo,
-		cancelRequested:         cancelRequested,
-		cancelByJobsetRequested: cancelByJobsetRequested,
-		cancelled:               cancelled,
-		created:                 created,
-		runsById:                map[uuid.UUID]*JobRun{},
-	}
-	job.ensureJobSchedulingInfoFieldsInitialised()
-	return job
-}
-
 func (job *Job) ensureJobSchedulingInfoFieldsInitialised() {
 	// Initialise the annotation and nodeSelector maps if nil.
 	// Since those need to be mutated in-place.
@@ -147,6 +113,13 @@ func (job *Job) GetQueue() string {
 // Priority returns the priority of the job.
 func (job *Job) Priority() uint32 {
 	return job.priority
+}
+
+// GetSchedulingKey returns the scheduling key associated with a job.
+// The second return value is always true since scheduling keys are computed at job creation time.
+// This is needed for compatibility with interfaces.LegacySchedulerJob.
+func (job *Job) GetSchedulingKey() (schedulerobjects.SchedulingKey, bool) {
+	return job.schedulingKey, true
 }
 
 // GetPerQueuePriority exists for compatibility with the LegacyJob interface.

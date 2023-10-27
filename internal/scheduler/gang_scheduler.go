@@ -60,7 +60,10 @@ func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *schedulerco
 	// Since a gang may be unschedulable even if all its members are individually schedulable.
 	if !sch.skipUnsuccessfulSchedulingKeyCheck && gctx.Cardinality() == 1 {
 		jctx := gctx.JobSchedulingContexts[0]
-		schedulingKey := sch.schedulingContext.SchedulingKeyFromLegacySchedulerJob(jctx.Job)
+		schedulingKey, ok := jctx.Job.GetSchedulingKey()
+		if !ok {
+			schedulingKey = sch.schedulingContext.SchedulingKeyFromLegacySchedulerJob(jctx.Job)
+		}
 		if _, ok := sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; !ok {
 			// Keep the first jctx for each unfeasible schedulingKey.
 			sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey] = jctx
