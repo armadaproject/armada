@@ -3,11 +3,12 @@ package jobdb
 import (
 	"sync"
 
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/benbjohnson/immutable"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
+
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 var (
@@ -84,12 +85,6 @@ func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 	}
 
 	hasJobs := txn.jobsById.Len() > 0
-
-	// Compute the scheduling key for each job on every upsert.
-	// This guarantees the scheduling key is up-to-date.
-	for _, job := range jobs {
-		job.schedulingKey = jobDb.SchedulingKeyFromJob(job)
-	}
 
 	// First we need to delete the state of any queued jobs
 	if hasJobs {
@@ -169,73 +164,6 @@ func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 	}()
 	wg.Wait()
 	return nil
-}
-
-func upsertJobsById(txn *Txn, hasJobs bool, jobs []*Job) {
-	if hasJobs {
-		for _, job := range jobs {
-			txn.jobsById = txn.jobsById.Set(job.id, job)
-		}
-	} else {
-		jobsById := immutable.NewMapBuilder[string, *Job](nil)
-		for _, job := range jobs {
-			jobsById.Set(job.id, job)
-		}
-		txn.jobsById = jobsById.Map()
-	}
-}
-
-func upsertJobsByRunId(txn *Txn, hasJobs bool, jobs []*Job) {
-	if hasJobs {
-		for _, job := range jobs {
-			for _, run := range job.runsById {
-				txn.jobsByRunId = txn.jobsByRunId.Set(run.id, job.id)
-			}
-		}
-	} else {
-		jobsByRunId := immutable.NewMapBuilder[uuid.UUID, string](&UUIDHasher{})
-		for _, job := range jobs {
-			for _, run := range job.runsById {
-				jobsByRunId.Set(run.id, job.id)
-			}
-		}
-		txn.jobsByRunId = jobsByRunId.Map()
-	}
-}
-
-func upsertJobsByQueue(txn *Txn, hasJobs bool, jobs []*Job) {
-	for _, job := range jobs {
-		if job.Queued() {
-			newQueue, ok := txn.jobsByQueue[job.queue]
-			if !ok {
-				q := emptyList
-				newQueue = q
-			}
-			newQueue = newQueue.Add(job)
-			txn.jobsByQueue[job.queue] = newQueue
-
-			if job.HasQueueTtlSet() {
-				queuedJobsByTtl := txn.queuedJobsByTtl.Add(job)
-				txn.queuedJobsByTtl = &queuedJobsByTtl
-			}
-		}
-	}
-}
-
-// SchedulingKeyFromJob computes the scheduling key for a job.
-// Uses the schedulingKeyGenerator embedded in the jobDb.
-func (jobDb *JobDb) SchedulingKeyFromJob(job *Job) schedulerobjects.SchedulingKey {
-	var priorityClassPriority int32
-	if preq := job.PodRequirements(); preq != nil {
-		priorityClassPriority = preq.GetPriority()
-	}
-	return jobDb.schedulingKeyGenerator.Key(
-		job.GetNodeSelector(),
-		job.GetAffinity(),
-		job.GetTolerations(),
-		job.GetResourceRequirements().Requests,
-		priorityClassPriority,
-	)
 }
 
 // GetById returns the job with the given Id or nil if no such job exists
