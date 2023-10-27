@@ -126,6 +126,7 @@ func (c *InstructionConverter) convertSequence(
 				err = c.handleJobRunLeased(ts, event.GetJobRunLeased(), update)
 			}
 		case *armadaevents.EventSequence_Event_ReprioritiseJobSet:
+		case *armadaevents.EventSequence_Event_CancelJob:
 		case *armadaevents.EventSequence_Event_CancelJobSet:
 		case *armadaevents.EventSequence_Event_ResourceUtilisation:
 		case *armadaevents.EventSequence_Event_StandaloneIngressInfo:

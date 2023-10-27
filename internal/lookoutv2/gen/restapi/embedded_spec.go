@@ -99,8 +99,7 @@ func init() {
                 },
                 "take": {
                   "description": "Number of job groups to fetch.",
-                  "type": "integer",
-                  "x-nullable": false
+                  "type": "integer"
                 }
               }
             }
@@ -303,8 +302,7 @@ func init() {
                 },
                 "take": {
                   "description": "Number of jobs to fetch.",
-                  "type": "integer",
-                  "x-nullable": false
+                  "type": "integer"
                 }
               }
             }
@@ -747,8 +745,7 @@ func init() {
                 },
                 "take": {
                   "description": "Number of job groups to fetch.",
-                  "type": "integer",
-                  "x-nullable": false
+                  "type": "integer"
                 }
               }
             }
@@ -951,8 +948,7 @@ func init() {
                 },
                 "take": {
                   "description": "Number of jobs to fetch.",
-                  "type": "integer",
-                  "x-nullable": false
+                  "type": "integer"
                 }
               }
             }
