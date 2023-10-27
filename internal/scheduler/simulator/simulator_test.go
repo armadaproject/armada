@@ -319,7 +319,7 @@ func TestSimulator(t *testing.T) {
 }
 
 func TestSchedulingConfigsFromPattern(t *testing.T) {
-	actual, err := SchedulingConfigsFromPattern("./testdata/schedulingConfigs/basicSchedulingConfig.yaml")
+	actual, err := SchedulingConfigsFromPattern("./testdata/configs/basicSchedulingConfig.yaml")
 	require.NoError(t, err)
 	expected := []configuration.SchedulingConfig{GetBasicSchedulingConfig()}
 	assert.Equal(t, expected, actual)
