@@ -4,7 +4,9 @@ import { Dialog, DialogContent, DialogTitle } from "@material-ui/core"
 
 import ReprioritizeJobSets from "../components/job-sets/reprioritize-job-sets/ReprioritizeJobSets"
 import ReprioritizeJobSetsOutcome from "../components/job-sets/reprioritize-job-sets/ReprioritizeJobSetsOutcome"
-import { JobService, JobSet, ReprioritizeJobSetsResponse } from "../services/JobService"
+import { getAccessToken, useUserManager } from "../oidc"
+import { JobSet } from "../services/JobService"
+import { ReprioritizeJobSetsResponse, UpdateJobSetsService } from "../services/lookoutV2/UpdateJobSetsService"
 import { ApiResult, priorityIsValid, RequestStatus } from "../utils"
 
 import "../components/Dialog.css"
@@ -15,7 +17,7 @@ type ReprioritizeJobSetsDialogProps = {
   isOpen: boolean
   queue: string
   selectedJobSets: JobSet[]
-  jobService: JobService
+  updateJobSetsService: UpdateJobSetsService
   onResult: (result: ApiResult) => void
   onClose: () => void
 }
@@ -35,16 +37,20 @@ export default function ReprioritizeJobSetsDialog(props: ReprioritizeJobSetsDial
 
   const jobSetsToReprioritize = getReprioritizeableJobSets(props.selectedJobSets)
 
+  const userManager = useUserManager()
+
   async function reprioritizeJobSets() {
     if (requestStatus == "Loading" || !priorityIsValid(priority)) {
       return
     }
 
     setRequestStatus("Loading")
-    const reprioritizeJobSetsResponse = await props.jobService.reprioritizeJobSets(
+    const accessToken = userManager && (await getAccessToken(userManager))
+    const reprioritizeJobSetsResponse = await props.updateJobSetsService.reprioritizeJobSets(
       props.queue,
       jobSetsToReprioritize,
       Number(priority),
+      accessToken,
     )
     setRequestStatus("Idle")
 

@@ -268,8 +268,6 @@ paths:
             required:
               - filters
               - order
-              - skip
-              - take
             properties:
               filters:
                 type: array
@@ -290,7 +288,6 @@ paths:
               take:
                 type: integer
                 description: "Number of jobs to fetch."
-                x-nullable: false
 
       produces:
         - application/json
@@ -410,8 +407,6 @@ paths:
               - order
               - groupedField
               - aggregates
-              - skip
-              - take
             properties:
               filters:
                 type: array
@@ -451,7 +446,6 @@ paths:
               take:
                 type: integer
                 description: "Number of job groups to fetch."
-                x-nullable: false
 
       produces:
         - application/json

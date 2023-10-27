@@ -26,4 +26,6 @@ type Configuration struct {
 	PulsarReceiveTimeout time.Duration
 	// Time for which the pulsar consumer will back off after receiving an error on trying to receive a message
 	PulsarBackoffTime time.Duration
+	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
+	PprofPort *uint16
 }
