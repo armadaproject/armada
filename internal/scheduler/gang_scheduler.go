@@ -38,20 +38,22 @@ func (sch *GangScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 	sch.skipUnsuccessfulSchedulingKeyCheck = true
 }
 
-func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *schedulercontext.GangSchedulingContext, gangAddedToSchedulingContext bool, unschedulableReason string) (err error) {
+func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *schedulercontext.GangSchedulingContext, gangAddedToSchedulingContext bool, unschedulableReason string) error {
+	// If the job was added to the context, remove it first.
 	if gangAddedToSchedulingContext {
 		failedJobs := util.Map(gctx.JobSchedulingContexts, func(jctx *schedulercontext.JobSchedulingContext) interfaces.LegacySchedulerJob { return jctx.Job })
-		if _, err = sch.schedulingContext.EvictGang(failedJobs); err != nil {
-			return
+		if _, err := sch.schedulingContext.EvictGang(failedJobs); err != nil {
+			return err
 		}
 	}
 
+	// Ensure all jobs have an unschedulableReason.
+	// Adding jobs with an unschedulableReason to the context ensures they're correctly accounted for as failed.
 	for _, jctx := range gctx.JobSchedulingContexts {
 		jctx.UnschedulableReason = unschedulableReason
 	}
-
-	if _, err = sch.schedulingContext.AddGangSchedulingContext(gctx); err != nil {
-		return
+	if _, err := sch.schedulingContext.AddGangSchedulingContext(gctx); err != nil {
+		return err
 	}
 
 	// Register unfeasible scheduling keys.
@@ -70,22 +72,7 @@ func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *schedulerco
 		}
 	}
 
-	return
-}
-
-func (sch *GangScheduler) updateGangSchedulingContextOnSuccess(gctx *schedulercontext.GangSchedulingContext, gangAddedToSchedulingContext bool) (err error) {
-	if gangAddedToSchedulingContext {
-		jobs := util.Map(gctx.JobSchedulingContexts, func(jctx *schedulercontext.JobSchedulingContext) interfaces.LegacySchedulerJob { return jctx.Job })
-		if _, err = sch.schedulingContext.EvictGang(jobs); err != nil {
-			return
-		}
-	}
-
-	if _, err = sch.schedulingContext.AddGangSchedulingContext(gctx); err != nil {
-		return
-	}
-
-	return
+	return nil
 }
 
 func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
@@ -96,8 +83,7 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *schedulerco
 		}
 	}
 
-	// This deferred function ensures unschedulable jobs are registered as such
-	// and sets sch.queueScheduledInPreviousCall.
+	// This deferred function ensures unschedulable jobs are registered as such.
 	gangAddedToSchedulingContext := false
 	defer func() {
 		// Do nothing if an error occurred.
@@ -113,13 +99,9 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *schedulerco
 			}
 		}
 
-		if ok {
-			err = sch.updateGangSchedulingContextOnSuccess(gctx, gangAddedToSchedulingContext)
-		} else {
+		if !ok {
 			err = sch.updateGangSchedulingContextOnFailure(gctx, gangAddedToSchedulingContext, unschedulableReason)
 		}
-
-		return
 	}()
 
 	if _, err = sch.schedulingContext.AddGangSchedulingContext(gctx); err != nil {

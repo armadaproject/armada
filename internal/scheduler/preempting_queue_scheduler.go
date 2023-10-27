@@ -503,7 +503,7 @@ func addEvictedJobsToNodeDb(ctx *armadacontext.Context, sctx *schedulercontext.S
 		if err != nil {
 			return err
 		}
-		gangItByQueue[qctx.Queue] = NewQueuedGangIterator(sctx, jobIt, 0)
+		gangItByQueue[qctx.Queue] = NewQueuedGangIterator(sctx, jobIt, 0, false)
 	}
 	qr := NewMinimalQueueRepositoryFromSchedulingContext(sctx)
 	candidateGangIterator, err := NewCandidateGangIterator(qr, sctx.FairnessCostProvider, gangItByQueue)

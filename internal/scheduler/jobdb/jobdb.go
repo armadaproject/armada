@@ -35,7 +35,6 @@ func NewJobDb() *JobDb {
 		jobsByQueue:            map[string]immutable.SortedSet[*Job]{},
 		queuedJobsByTtl:        &emptyQueuedJobsByTtl,
 		schedulingKeyGenerator: schedulerobjects.NewSchedulingKeyGenerator(),
-		copyMutex:              sync.Mutex{},
 	}
 }
 
@@ -56,7 +55,7 @@ func (jobDb *JobDb) NewJob(
 ) *Job {
 	jobDb.newJobMutex.Lock()
 	defer jobDb.newJobMutex.Unlock()
-	job := &Job{
+	return &Job{
 		id:                jobId,
 		queue:             queue,
 		jobset:            jobset,
@@ -75,7 +74,6 @@ func (jobDb *JobDb) NewJob(
 		cancelled:               cancelled,
 		runsById:                map[uuid.UUID]*JobRun{},
 	}
-	return job
 }
 
 // Upsert will insert the given jobs if they don't already exist or update them if they do.

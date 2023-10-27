@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -1399,10 +1398,10 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			}
 
 			// Run the scheduler.
-			log := logrus.NewEntry(logrus.New())
+			ctx := armadacontext.Background()
 			for i, round := range tc.Rounds {
-				log = log.WithField("round", i)
-				log.Infof("starting scheduling round %d", i)
+				ctx.FieldLogger = ctx.WithField("round", i)
+				ctx.Infof("starting scheduling round %d", i)
 
 				// Reset the queues between rounds.
 				repo.jobsByQueue = make(map[string][]interfaces.LegacySchedulerJob)
@@ -1503,7 +1502,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				if tc.SchedulingConfig.EnableNewPreemptionStrategy {
 					sch.EnableNewPreemptionStrategy()
 				}
-				result, err := sch.Schedule(armadacontext.Background())
+				result, err := sch.Schedule(ctx)
 				require.NoError(t, err)
 				jobIdsByGangId = sch.jobIdsByGangId
 				gangIdByJobId = sch.gangIdByJobId
