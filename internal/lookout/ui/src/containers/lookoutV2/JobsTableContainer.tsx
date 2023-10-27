@@ -41,6 +41,7 @@ import _ from "lodash"
 import { isJobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobId, Match, SortDirection } from "models/lookoutV2Models"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
+import IntervalService from "services/IntervalService"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGetRunErrorService } from "services/lookoutV2/GetRunErrorService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
@@ -87,6 +88,7 @@ interface JobsTableContainerProps {
   logService: ILogService
   cordonService: ICordonService
   debug: boolean
+  autoRefreshMs: number
 }
 
 export type LookoutColumnFilter = {
@@ -130,6 +132,7 @@ export const JobsTableContainer = ({
   logService,
   cordonService,
   debug,
+  autoRefreshMs,
 }: JobsTableContainerProps) => {
   const openSnackbar = useCustomSnackbar()
 
@@ -175,6 +178,21 @@ export const JobsTableContainer = ({
     pageSize: initialPrefs.pageSize,
   })
   const { pageIndex, pageSize } = useMemo(() => pagination, [pagination])
+
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(
+    initialPrefs.autoRefresh === undefined ? true : initialPrefs.autoRefresh,
+  )
+
+  const autoRefreshService = useMemo(() => new IntervalService(autoRefreshMs), [autoRefreshMs])
+
+  const onAutoRefreshChange = (autoRefresh: boolean) => {
+    setAutoRefresh(autoRefresh)
+    if (autoRefresh) {
+      autoRefreshService.start()
+    } else {
+      autoRefreshService.stop()
+    }
+  }
 
   // Filtering
   const [columnFilterState, setColumnFilterState] = useState<ColumnFiltersState>(initialPrefs.filters)
@@ -251,6 +269,7 @@ export const JobsTableContainer = ({
       sidebarJobId: sidebarJobId,
       sidebarWidth: sidebarWidth,
       activeJobSets: activeJobSets,
+      autoRefresh: autoRefresh,
     }
   }
 
@@ -290,6 +309,9 @@ export const JobsTableContainer = ({
     if (prefs.activeJobSets !== undefined) {
       setActiveJobSets(prefs.activeJobSets)
     }
+    if (prefs.autoRefresh !== undefined) {
+      onAutoRefreshChange(prefs.autoRefresh)
+    }
 
     // Have to manually set text fields to the filter values since they are uncontrolled
     setTextFields(prefs.filters)
@@ -318,6 +340,7 @@ export const JobsTableContainer = ({
     sidebarJobId,
     sidebarWidth,
     activeJobSets,
+    autoRefresh,
   ])
 
   const addCustomView = (name: string) => {
@@ -345,6 +368,14 @@ export const JobsTableContainer = ({
     setSelectedRows({})
     setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
   }
+
+  useEffect(() => {
+    autoRefreshService.registerCallback(onRefresh)
+    if (autoRefresh) {
+      autoRefreshService.start()
+    }
+    return () => autoRefreshService.stop()
+  }, [])
 
   const onColumnVisibilityChange = (colIdToToggle: ColumnId) => {
     // Refresh if we make a new aggregate column visible
@@ -710,6 +741,8 @@ export const JobsTableContainer = ({
               onRefresh()
             }}
             onRefresh={onRefresh}
+            autoRefresh={autoRefresh}
+            onAutoRefreshChange={onAutoRefreshChange}
             onAddAnnotationColumn={addAnnotationCol}
             onRemoveAnnotationColumn={removeAnnotationCol}
             onEditAnnotationColumn={editAnnotationCol}

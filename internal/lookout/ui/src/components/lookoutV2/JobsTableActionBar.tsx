@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useMemo, useState } from "react"
 
 import { Divider, Button, Checkbox, FormControlLabel, FormGroup, Tooltip } from "@mui/material"
+import AutoRefreshToggle from "components/AutoRefreshToggle"
 import RefreshButton from "components/RefreshButton"
 import ColumnSelect from "components/lookoutV2/ColumnSelect"
 import GroupBySelect from "components/lookoutV2/GroupBySelect"
@@ -25,6 +26,8 @@ export interface JobsTableActionBarProps {
   activeJobSets: boolean
   onActiveJobSetsChanged: (newVal: boolean) => void
   onRefresh: () => void
+  autoRefresh: boolean
+  onAutoRefreshChange: (autoRefresh: boolean) => void
   onAddAnnotationColumn: (annotationKey: string) => void
   onRemoveAnnotationColumn: (colId: ColumnId) => void
   onEditAnnotationColumn: (colId: ColumnId, annotationKey: string) => void
@@ -49,6 +52,8 @@ export const JobsTableActionBar = memo(
     activeJobSets,
     onActiveJobSetsChanged,
     onRefresh,
+    autoRefresh,
+    onAutoRefreshChange,
     onAddAnnotationColumn,
     onRemoveAnnotationColumn,
     onEditAnnotationColumn,
@@ -110,10 +115,12 @@ export const JobsTableActionBar = memo(
             </Tooltip>
           </FormGroup>
           <Divider orientation="vertical" />
+          <AutoRefreshToggle autoRefresh={autoRefresh} onAutoRefreshChange={onAutoRefreshChange} />
+          <RefreshButton isLoading={isLoading} onClick={onRefresh} />
+          <Divider orientation="vertical" />
           <Button variant="text" onClick={onClearFilters} color="secondary">
             Clear Filters
           </Button>
-          <RefreshButton isLoading={isLoading} onClick={onRefresh} />
           <CustomViewPicker
             customViews={customViews}
             onAddCustomView={onAddCustomView}
