@@ -6,7 +6,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-const SQLC_VERSION_CONSTRAINT = ">= 1.16.0"
+const SQLC_VERSION_CONSTRAINT = ">= v1.22.0"
 
 func sqlcBinary() string {
 	return binaryWithExt("sqlc")

@@ -17,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -231,6 +232,13 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 	events = append(events, expirationEvents...)
 
+	// Request cancel for any jobs that exceed queueTtl
+	queueTtlCancelEvents, err := s.cancelQueuedJobsIfExpired(txn)
+	if err != nil {
+		return
+	}
+	events = append(events, queueTtlCancelEvents...)
+
 	// Schedule jobs.
 	if shouldSchedule {
 		var result *SchedulerResult
@@ -390,12 +398,16 @@ func (s *Scheduler) eventsFromSchedulerResult(result *SchedulerResult) ([]*armad
 
 // EventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
 func EventsFromSchedulerResult(result *SchedulerResult, time time.Time) ([]*armadaevents.EventSequence, error) {
-	eventSequences := make([]*armadaevents.EventSequence, 0, len(result.PreemptedJobs)+len(result.ScheduledJobs))
+	eventSequences := make([]*armadaevents.EventSequence, 0, len(result.PreemptedJobs)+len(result.ScheduledJobs)+len(result.FailedJobs))
 	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, PreemptedJobsFromSchedulerResult[*jobdb.Job](result), time)
 	if err != nil {
 		return nil, err
 	}
 	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, ScheduledJobsFromSchedulerResult[*jobdb.Job](result), time)
+	if err != nil {
+		return nil, err
+	}
+	eventSequences, err = AppendEventSequencesFromUnschedulableJobs(eventSequences, result.FailedJobs, time)
 	if err != nil {
 		return nil, err
 	}
@@ -490,6 +502,32 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 							NodeId:               run.NodeName(),
 							UpdateSequenceNumber: job.QueuedVersion(),
 						},
+					},
+				},
+			},
+		})
+	}
+	return eventSequences, nil
+}
+
+func AppendEventSequencesFromUnschedulableJobs(eventSequences []*armadaevents.EventSequence, jobs []interfaces.LegacySchedulerJob, time time.Time) ([]*armadaevents.EventSequence, error) {
+	for _, job := range jobs {
+		jobId, err := armadaevents.ProtoUuidFromUlidString(job.GetId())
+		if err != nil {
+			return nil, err
+		}
+		gangJobUnschedulableError := &armadaevents.Error{
+			Terminal: true,
+			Reason:   &armadaevents.Error_GangJobUnschedulable{GangJobUnschedulable: &armadaevents.GangJobUnschedulable{Message: "Job did not meet the minimum gang cardinality"}},
+		}
+		eventSequences = append(eventSequences, &armadaevents.EventSequence{
+			Queue:      job.GetQueue(),
+			JobSetName: job.GetJobSet(),
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Created: &time,
+					Event: &armadaevents.EventSequence_Event_JobErrors{
+						JobErrors: &armadaevents.JobErrors{JobId: jobId, Errors: []*armadaevents.Error{gangJobUnschedulableError}},
 					},
 				},
 			},
@@ -785,6 +823,51 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 	if err := s.jobDb.Upsert(txn, jobsToUpdate); err != nil {
 		return nil, err
 	}
+	return events, nil
+}
+
+// cancelQueuedJobsIfExpired generates cancel request messages for any queued jobs that exceed their queueTtl.
+func (s *Scheduler) cancelQueuedJobsIfExpired(txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
+	jobsToCancel := make([]*jobdb.Job, 0)
+	events := make([]*armadaevents.EventSequence, 0)
+	it := s.jobDb.QueuedJobsByTtl(txn)
+
+	// `it` is ordered such that the jobs with the least ttl remaining come first, hence we exit early if we find a job that is not expired.
+	for job, _ := it.Next(); job != nil && job.HasQueueTtlExpired(); job, _ = it.Next() {
+		if job.InTerminalState() {
+			continue
+		}
+
+		job = job.WithCancelRequested(true).WithQueued(false).WithCancelled(true)
+		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
+		if err != nil {
+			return nil, err
+		}
+
+		reason := "Expired queue ttl"
+		cancel := &armadaevents.EventSequence{
+			Queue:      job.Queue(),
+			JobSetName: job.Jobset(),
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Created: s.now(),
+					Event:   &armadaevents.EventSequence_Event_CancelJob{CancelJob: &armadaevents.CancelJob{JobId: jobId, Reason: reason}},
+				},
+				{
+					Created: s.now(),
+					Event:   &armadaevents.EventSequence_Event_CancelledJob{CancelledJob: &armadaevents.CancelledJob{JobId: jobId, Reason: reason}},
+				},
+			},
+		}
+
+		jobsToCancel = append(jobsToCancel, job)
+		events = append(events, cancel)
+	}
+
+	if err := s.jobDb.Upsert(txn, jobsToCancel); err != nil {
+		return nil, err
+	}
+
 	return events, nil
 }
 

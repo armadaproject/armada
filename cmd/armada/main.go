@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -20,6 +19,8 @@ import (
 	gateway "github.com/armadaproject/armada/internal/common/grpc"
 	"github.com/armadaproject/armada/internal/common/health"
 	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/profiling"
+	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/pkg/api"
 )
 
@@ -46,25 +47,6 @@ func main() {
 
 	log.Info("Starting...")
 
-	// Importing net/http/pprof automatically binds profiling endpoints to http.DefaultServeMux.
-	// Here, we create a new DefaultServeMux to ensure profiling is exposed on a separate mux.
-	// The profiling endpoints are only exposed if config.ProfilingPort is not nil.
-	pprofMux := http.DefaultServeMux
-	http.DefaultServeMux = http.NewServeMux()
-	if config.PprofPort != nil {
-		go func() {
-			server := &http.Server{
-				Addr:    fmt.Sprintf("localhost:%d", *config.PprofPort),
-				Handler: pprofMux,
-			}
-			log := log.NewEntry(log.New())
-			log.Infof("profiling endpoints exposed on %s", server.Addr)
-			if err := server.ListenAndServe(); err != nil {
-				logging.WithStacktrace(log, err).Error("profiling server exited")
-			}
-		}()
-	}
-
 	// Run services within an errgroup to propagate errors between services.
 	g, ctx := armadacontext.ErrGroup(armadacontext.Background())
 
@@ -82,6 +64,12 @@ func main() {
 		}
 	})
 
+	// Expose profiling endpoints if enabled.
+	pprofServer := profiling.SetupPprofHttpServer(config.PprofPort)
+	g.Go(func() error {
+		return serve.ListenAndServe(ctx, pprofServer)
+	})
+
 	// TODO This starts a separate HTTP server. Is that intended? Should we have a single mux for everything?
 	// TODO: Run in errgroup
 	shutdownMetricServer := common.ServeMetrics(config.MetricsPort)
@@ -96,7 +84,11 @@ func main() {
 	// register gRPC API handlers in mux
 	// TODO: Run in errgroup
 	shutdownGateway := gateway.CreateGatewayHandler(
-		config.GrpcPort, mux, "/",
+		config.GrpcPort,
+		mux,
+		config.GrpcGatewayPath,
+		true,
+		config.Grpc.Tls.Enabled,
 		config.CorsAllowedOrigins,
 		api.SwaggerJsonTemplate(),
 		api.RegisterSubmitHandler,

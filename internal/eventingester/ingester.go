@@ -10,8 +10,12 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/app"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/profiling"
+	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/eventingester/configuration"
 	"github.com/armadaproject/armada/internal/eventingester/convert"
 	"github.com/armadaproject/armada/internal/eventingester/metrics"
@@ -22,6 +26,15 @@ import (
 // Events database accordingly.  This pipeline will run until a SIGTERM is received
 func Run(config *configuration.EventIngesterConfiguration) {
 	log.Info("Event Ingester Starting")
+
+	// Expose profiling endpoints if enabled.
+	pprofServer := profiling.SetupPprofHttpServer(config.PprofPort)
+	go func() {
+		ctx := armadacontext.Background()
+		if err := serve.ListenAndServe(ctx, pprofServer); err != nil {
+			logging.WithStacktrace(ctx, err).Error("pprof server failure")
+		}
+	}()
 
 	metrics := metrics.Get()
 
@@ -51,20 +64,18 @@ func Run(config *configuration.EventIngesterConfiguration) {
 	}
 	converter := convert.NewEventConverter(compressor, uint(config.BatchSize), metrics)
 
-	ingester := ingest.
-		NewIngestionPipeline(
-			config.Pulsar,
-			config.SubscriptionName,
-			config.BatchSize,
-			config.BatchDuration,
-			pulsar.KeyShared,
-			converter,
-			eventDb,
-			config.Metrics,
-			metrics)
-	err = ingester.Run(app.CreateContextWithShutdown())
-
-	if err != nil {
+	ingester := ingest.NewIngestionPipeline(
+		config.Pulsar,
+		config.SubscriptionName,
+		config.BatchSize,
+		config.BatchDuration,
+		pulsar.KeyShared,
+		converter,
+		eventDb,
+		config.Metrics,
+		metrics,
+	)
+	if err := ingester.Run(app.CreateContextWithShutdown()); err != nil {
 		panic(errors.WithMessage(err, "Error running ingestion pipeline"))
 	}
 }
