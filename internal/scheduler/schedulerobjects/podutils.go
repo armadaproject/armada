@@ -9,6 +9,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
+// SchedulingKey is a hash of the scheduling requirements of a job.
+// This key is used to efficiently mark jobs as unschedulable.
 type SchedulingKey [highwayhash.Size]byte
 
 func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
@@ -43,6 +45,16 @@ func NewSchedulingKeyGenerator() *SchedulingKeyGenerator {
 		key:    key,
 		buffer: make([]byte, 2048),
 	}
+}
+
+func (skg *SchedulingKeyGenerator) KeyFromPodRequirements(preq *PodRequirements) SchedulingKey {
+	return skg.Key(
+		preq.NodeSelector,
+		preq.Affinity,
+		preq.Tolerations,
+		preq.ResourceRequirements.Requests,
+		preq.Priority,
+	)
 }
 
 func (skg *SchedulingKeyGenerator) Key(

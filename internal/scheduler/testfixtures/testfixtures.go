@@ -34,6 +34,8 @@ const (
 )
 
 var (
+	// Used for job creation.
+	JobDb               = jobdb.NewJobDb()
 	BaseTime, _         = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
 	TestPriorityClasses = map[string]types.PriorityClass{
 		PriorityClass0:               {Priority: 0, Preemptible: true},
@@ -399,7 +401,7 @@ func extractPriority(priorityClassName string) int32 {
 func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *schedulerobjects.PodRequirements) *jobdb.Job {
 	created := jobTimestamp.Add(1)
 	submitTime := time.Time{}.Add(time.Millisecond * time.Duration(created))
-	return jobdb.NewJob(
+	return JobDb.NewJob(
 		jobId.String(),
 		TestJobset,
 		queue,

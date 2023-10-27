@@ -565,7 +565,7 @@ func (s *Simulator) handleEventSequence(es *armadaevents.EventSequence) error {
 		var err error = nil
 		switch eventType := event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
-			ok, err = s.handleSubmitJob(txn, event.GetSubmitJob(), *event.Created, es)
+			ok, err = s.handleSubmitJob(s.jobDb, txn, event.GetSubmitJob(), *event.Created, es)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 			ok, err = s.handleJobRunLeased(txn, event.GetJobRunLeased())
 		case *armadaevents.EventSequence_Event_JobSucceeded:
@@ -609,12 +609,12 @@ func (s *Simulator) handleEventSequence(es *armadaevents.EventSequence) error {
 	return nil
 }
 
-func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, time time.Time, eventSequence *armadaevents.EventSequence) (bool, error) {
+func (s *Simulator) handleSubmitJob(jobDb *jobdb.JobDb, txn *jobdb.Txn, e *armadaevents.SubmitJob, time time.Time, eventSequence *armadaevents.EventSequence) (bool, error) {
 	schedulingInfo, err := scheduleringester.SchedulingInfoFromSubmitJob(e, time, s.schedulingConfig.Preemption.PriorityClasses)
 	if err != nil {
 		return false, err
 	}
-	job := jobdb.NewJob(
+	job := jobDb.NewJob(
 		armadaevents.UlidFromProtoUuid(e.JobId).String(),
 		eventSequence.JobSetName,
 		eventSequence.Queue,

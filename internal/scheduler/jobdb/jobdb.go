@@ -3,6 +3,7 @@ package jobdb
 import (
 	"sync"
 
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/benbjohnson/immutable"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -15,31 +16,80 @@ var (
 )
 
 type JobDb struct {
-	jobsById        *immutable.Map[string, *Job]
-	jobsByRunId     *immutable.Map[uuid.UUID, string]
-	jobsByQueue     map[string]immutable.SortedSet[*Job]
-	queuedJobsByTtl *immutable.SortedSet[*Job]
-	copyMutex       sync.Mutex
-	writerMutex     sync.Mutex
+	jobsById               *immutable.Map[string, *Job]
+	jobsByRunId            *immutable.Map[uuid.UUID, string]
+	jobsByQueue            map[string]immutable.SortedSet[*Job]
+	queuedJobsByTtl        *immutable.SortedSet[*Job]
+	schedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
+	copyMutex              sync.Mutex
+	writerMutex            sync.Mutex
+	// Necessary since generating scheduling keys is not thread-safe.
+	newJobMutex sync.Mutex
 }
 
 func NewJobDb() *JobDb {
 	return &JobDb{
-		jobsById:        immutable.NewMap[string, *Job](nil),
-		jobsByRunId:     immutable.NewMap[uuid.UUID, string](&UUIDHasher{}),
-		jobsByQueue:     map[string]immutable.SortedSet[*Job]{},
-		queuedJobsByTtl: &emptyQueuedJobsByTtl,
-		copyMutex:       sync.Mutex{},
+		jobsById:               immutable.NewMap[string, *Job](nil),
+		jobsByRunId:            immutable.NewMap[uuid.UUID, string](&UUIDHasher{}),
+		jobsByQueue:            map[string]immutable.SortedSet[*Job]{},
+		queuedJobsByTtl:        &emptyQueuedJobsByTtl,
+		schedulingKeyGenerator: schedulerobjects.NewSchedulingKeyGenerator(),
+		copyMutex:              sync.Mutex{},
 	}
 }
 
-// Upsert will insert the given jobs if they don't already exist or update the if they do
+// NewJob creates a new scheduler job.
+// The new job is not automatically inserted into the jobDb; call jobDb.Upsert to upsert it.
+func (jobDb *JobDb) NewJob(
+	jobId string,
+	jobset string,
+	queue string,
+	priority uint32,
+	schedulingInfo *schedulerobjects.JobSchedulingInfo,
+	queued bool,
+	queuedVersion int32,
+	cancelRequested bool,
+	cancelByJobsetRequested bool,
+	cancelled bool,
+	created int64,
+) *Job {
+	jobDb.newJobMutex.Lock()
+	defer jobDb.newJobMutex.Unlock()
+	job := &Job{
+		id:                jobId,
+		queue:             queue,
+		jobset:            jobset,
+		priority:          priority,
+		queued:            queued,
+		queuedVersion:     queuedVersion,
+		requestedPriority: priority,
+		created:           created,
+		// This will cause a panic if schedulingInfo is nil.
+		schedulingKey: jobDb.schedulingKeyGenerator.KeyFromPodRequirements(
+			schedulingInfo.GetPodRequirements(),
+		),
+		jobSchedulingInfo:       schedulingInfo,
+		cancelRequested:         cancelRequested,
+		cancelByJobsetRequested: cancelByJobsetRequested,
+		cancelled:               cancelled,
+		runsById:                map[uuid.UUID]*JobRun{},
+	}
+	return job
+}
+
+// Upsert will insert the given jobs if they don't already exist or update them if they do.
 func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 	if err := jobDb.checkWritableTransaction(txn); err != nil {
 		return err
 	}
 
 	hasJobs := txn.jobsById.Len() > 0
+
+	// Compute the scheduling key for each job on every upsert.
+	// This guarantees the scheduling key is up-to-date.
+	for _, job := range jobs {
+		job.schedulingKey = jobDb.SchedulingKeyFromJob(job)
+	}
 
 	// First we need to delete the state of any queued jobs
 	if hasJobs {
@@ -57,7 +107,7 @@ func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 		}
 	}
 
-	// Now need to insert jobs, runs and queuedJobs.  This can be done in parallel
+	// Now need to insert jobs, runs and queuedJobs. This can be done in parallel.
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 
@@ -119,6 +169,73 @@ func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 	}()
 	wg.Wait()
 	return nil
+}
+
+func upsertJobsById(txn *Txn, hasJobs bool, jobs []*Job) {
+	if hasJobs {
+		for _, job := range jobs {
+			txn.jobsById = txn.jobsById.Set(job.id, job)
+		}
+	} else {
+		jobsById := immutable.NewMapBuilder[string, *Job](nil)
+		for _, job := range jobs {
+			jobsById.Set(job.id, job)
+		}
+		txn.jobsById = jobsById.Map()
+	}
+}
+
+func upsertJobsByRunId(txn *Txn, hasJobs bool, jobs []*Job) {
+	if hasJobs {
+		for _, job := range jobs {
+			for _, run := range job.runsById {
+				txn.jobsByRunId = txn.jobsByRunId.Set(run.id, job.id)
+			}
+		}
+	} else {
+		jobsByRunId := immutable.NewMapBuilder[uuid.UUID, string](&UUIDHasher{})
+		for _, job := range jobs {
+			for _, run := range job.runsById {
+				jobsByRunId.Set(run.id, job.id)
+			}
+		}
+		txn.jobsByRunId = jobsByRunId.Map()
+	}
+}
+
+func upsertJobsByQueue(txn *Txn, hasJobs bool, jobs []*Job) {
+	for _, job := range jobs {
+		if job.Queued() {
+			newQueue, ok := txn.jobsByQueue[job.queue]
+			if !ok {
+				q := emptyList
+				newQueue = q
+			}
+			newQueue = newQueue.Add(job)
+			txn.jobsByQueue[job.queue] = newQueue
+
+			if job.HasQueueTtlSet() {
+				queuedJobsByTtl := txn.queuedJobsByTtl.Add(job)
+				txn.queuedJobsByTtl = &queuedJobsByTtl
+			}
+		}
+	}
+}
+
+// SchedulingKeyFromJob computes the scheduling key for a job.
+// Uses the schedulingKeyGenerator embedded in the jobDb.
+func (jobDb *JobDb) SchedulingKeyFromJob(job *Job) schedulerobjects.SchedulingKey {
+	var priorityClassPriority int32
+	if preq := job.PodRequirements(); preq != nil {
+		priorityClassPriority = preq.GetPriority()
+	}
+	return jobDb.schedulingKeyGenerator.Key(
+		job.GetNodeSelector(),
+		job.GetAffinity(),
+		job.GetTolerations(),
+		job.GetResourceRequirements().Requests,
+		priorityClassPriority,
+	)
 }
 
 // GetById returns the job with the given Id or nil if no such job exists

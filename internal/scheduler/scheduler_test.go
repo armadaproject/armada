@@ -33,6 +33,8 @@ const (
 )
 
 var (
+	// Used for job creation.
+	jobDb                  = jobdb.NewJobDb()
 	failFastSchedulingInfo = &schedulerobjects.JobSchedulingInfo{
 		AtMostOnce: true,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
@@ -105,7 +107,7 @@ var (
 	})
 )
 
-var queuedJob = jobdb.NewJob(
+var queuedJob = jobDb.NewJob(
 	util.NewULID(),
 	"testJobset",
 	"testQueue",
@@ -118,7 +120,7 @@ var queuedJob = jobdb.NewJob(
 	false,
 	1)
 
-var queuedJobWithExpiredTtl = jobdb.NewJob(
+var queuedJobWithExpiredTtl = jobDb.NewJob(
 	util.NewULID(),
 	"testJobset",
 	"testQueue",
@@ -131,7 +133,7 @@ var queuedJobWithExpiredTtl = jobdb.NewJob(
 	false,
 	1)
 
-var leasedJob = jobdb.NewJob(
+var leasedJob = jobDb.NewJob(
 	util.NewULID(),
 	"testJobset",
 	"testQueue",
@@ -153,7 +155,7 @@ var defaultJobRunError = &armadaevents.Error{
 	},
 }
 
-var leasedFailFastJob = jobdb.NewJob(
+var leasedFailFastJob = jobDb.NewJob(
 	util.NewULID(),
 	"testJobset",
 	"testQueue",
@@ -168,7 +170,7 @@ var leasedFailFastJob = jobdb.NewJob(
 
 var (
 	requeuedJobId = util.NewULID()
-	requeuedJob   = jobdb.NewJob(
+	requeuedJob   = jobDb.NewJob(
 		requeuedJobId,
 		"testJobset",
 		"testQueue",

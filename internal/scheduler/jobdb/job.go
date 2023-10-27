@@ -29,6 +29,8 @@ type Job struct {
 	// Logical timestamp indicating the order in which jobs are submitted.
 	// Jobs with identical Queue and Priority are sorted by this.
 	created int64
+	// Hash of the scheduling requirements of the job.
+	schedulingKey schedulerobjects.SchedulingKey
 	// True if the job is currently queued.
 	// If this is set then the job will not be considered for scheduling.
 	queued bool
@@ -59,7 +61,8 @@ func EmptyJob(id string) *Job {
 }
 
 // NewJob creates a new scheduler job
-func NewJob(
+// TODO: Remove.
+func NewJobOld(
 	jobId string,
 	jobset string,
 	queue string,
