@@ -37,4 +37,6 @@ type LookoutIngesterV2Configuration struct {
 	// If the ingester should process events using the legacy event conversion logic
 	// The two schedulers produce slightly different events - so need to be processed differently
 	UseLegacyEventConversion bool
+	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
+	PprofPort *uint16
 }
