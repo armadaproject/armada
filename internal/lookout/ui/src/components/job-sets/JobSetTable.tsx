@@ -14,6 +14,7 @@ import "./JobSetTable.css"
 interface JobSetTableProps {
   height: number
   width: number
+  queue: string
   jobSets: JobSet[]
   selectedJobSets: Map<string, JobSet>
   newestFirst: boolean
@@ -40,6 +41,21 @@ function cellRendererForJobSet(cellProps: TableCellProps, width: number) {
 }
 
 export default function JobSetTable(props: JobSetTableProps) {
+  if (props.queue === "") {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: props.height,
+          width: props.width,
+        }}
+      >
+        Enter a queue name into the "Queue" field to view job sets.
+      </div>
+    )
+  }
   return (
     <div
       style={{

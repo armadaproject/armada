@@ -91,6 +91,7 @@ func protoGenerate() error {
 		"pkg/api/*.proto",
 		"pkg/armadaevents/*.proto",
 		"internal/scheduler/schedulerobjects/*.proto",
+		"internal/scheduler/simulator/*.proto",
 		"pkg/api/binoculars/*.proto",
 		"pkg/api/jobservice/*.proto",
 		"pkg/executorapi/*.proto",
