@@ -61,6 +61,7 @@ import "./index.css"
       v2LogService={v2LogService}
       v2CordonService={v2CordonService}
       jobSetsAutoRefreshMs={uiConfig.jobSetsAutoRefreshMs}
+      jobsAutoRefreshMs={uiConfig.jobsAutoRefreshMs}
       debugEnabled={uiConfig.debugEnabled}
     />,
     document.getElementById("root"),

@@ -13,6 +13,7 @@ interface UIConfig {
   userAnnotationPrefix: string
   binocularsBaseUrlPattern: string
   jobSetsAutoRefreshMs: number
+  jobsAutoRefreshMs: number
   debugEnabled: boolean
   fakeDataEnabled: boolean
   customTitle: string
@@ -39,6 +40,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     userAnnotationPrefix: "",
     binocularsBaseUrlPattern: "",
     jobSetsAutoRefreshMs: 15000,
+    jobsAutoRefreshMs: 30000,
     debugEnabled: searchParams.has("debug"),
     fakeDataEnabled: searchParams.has("fakeData"),
     customTitle: "",
@@ -53,6 +55,7 @@ export async function getUIConfig(): Promise<UIConfig> {
     if (json.UserAnnotationPrefix) config.userAnnotationPrefix = json.UserAnnotationPrefix
     if (json.BinocularsBaseUrlPattern) config.binocularsBaseUrlPattern = json.BinocularsBaseUrlPattern
     if (json.JobSetsAutoRefreshMs) config.jobSetsAutoRefreshMs = json.JobSetsAutoRefreshMs
+    if (json.JobsAutoRefreshMs) config.jobsAutoRefreshMs = json.JobsAutoRefreshMs
     if (json.CustomTitle) config.customTitle = json.CustomTitle
     if (json.OidcEnabled) config.oidcEnabled = json.OidcEnabled
     if (json.Oidc) {

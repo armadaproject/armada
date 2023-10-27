@@ -50,4 +50,5 @@ type UIConfig struct {
 	BinocularsBaseUrlPattern string
 
 	JobSetsAutoRefreshMs int
+	JobsAutoRefreshMs    int
 }
