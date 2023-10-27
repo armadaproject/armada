@@ -30,6 +30,7 @@ export interface JobsTablePreferences {
   sidebarJobId: JobId | undefined
   sidebarWidth?: number
   activeJobSets?: boolean
+  autoRefresh?: boolean
 }
 
 // Need two 'defaults'
@@ -81,6 +82,8 @@ export interface QueryStringPrefs {
   sb: string | undefined
   // This is a boolean field, but the qs library turns it into a string.
   active: string | undefined
+  // This is a boolean field, but the qs library turns it into a string.
+  refresh: string | undefined
 }
 
 const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs => {
@@ -105,6 +108,7 @@ const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs => {
     ps: prefs.pageSize.toString(),
     sb: prefs.sidebarJobId,
     active: prefs.activeJobSets === undefined ? undefined : `${prefs.activeJobSets}`,
+    refresh: prefs.autoRefresh === undefined ? undefined : `${prefs.autoRefresh}`,
   }
 }
 
@@ -124,7 +128,7 @@ const columnMatchesFromQueryStringFilters = (f: QueryStringJobFilter[]): Record<
 }
 
 const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partial<JobsTablePreferences> => {
-  const { g, e, page, ps, sort, f, sb, active } = serializedPrefs
+  const { g, e, page, ps, sort, f, sb, active, refresh } = serializedPrefs
   return {
     ...(g && Array.isArray(g) && g.every((a) => typeof a === "string") && { groupedColumns: g as ColumnId[] }),
     ...(e && { expandedState: Object.fromEntries(e.map((rowId) => [rowId, true])) }),
@@ -137,6 +141,7 @@ const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partia
     ...(f && { columnMatches: columnMatchesFromQueryStringFilters(f) }),
     ...(sb && { sidebarJobId: sb }),
     ...(active && { activeJobSets: active.toLowerCase() === "true" }),
+    ...(refresh && { autoRefresh: refresh.toLowerCase() === "true" }),
   }
 }
 
@@ -182,6 +187,7 @@ const mergeQueryParamsAndLocalStorage = (
     }
     mergeColumnMatches(mergedPrefs.columnMatches, queryParamPrefs.columnMatches)
     mergedPrefs.activeJobSets = queryParamPrefs.activeJobSets
+    mergedPrefs.autoRefresh = queryParamPrefs.autoRefresh
   }
   return mergedPrefs
 }
