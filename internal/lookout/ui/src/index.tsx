@@ -1,6 +1,7 @@
 import ReactDOM from "react-dom"
 import { GetJobsService } from "services/lookoutV2/GetJobsService"
 import { GroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { UpdateJobSetsService } from "services/lookoutV2/UpdateJobSetsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import FakeGetJobsService from "services/lookoutV2/mocks/FakeGetJobsService"
 import FakeGroupJobsService from "services/lookoutV2/mocks/FakeGroupJobsService"
@@ -60,6 +61,7 @@ import "./index.css"
     : new V2LogService({ credentials: "include" }, uiConfig.binocularsBaseUrlPattern)
   const v2JobSpecService = fakeDataEnabled ? new FakeGetJobSpecService() : new GetJobSpecService(lookoutV2BaseUrl)
   const v2UpdateJobsService = new UpdateJobsService(submitApi)
+  const v2UpdateJobSetsService = new UpdateJobSetsService(submitApi)
   const v2CordonService = fakeDataEnabled
     ? new FakeCordonService()
     : new CordonService({ credentials: "include" }, uiConfig.binocularsBaseUrlPattern)
@@ -67,10 +69,12 @@ import "./index.css"
   ReactDOM.render(
     <App
       customTitle={uiConfig.customTitle}
+      oidcConfig={uiConfig.oidcEnabled ? uiConfig.oidc : undefined}
       jobService={jobService}
       v2GetJobsService={v2GetJobsService}
       v2GroupJobsService={v2GroupJobsService}
       v2UpdateJobsService={v2UpdateJobsService}
+      v2UpdateJobSetsService={v2UpdateJobSetsService}
       v2RunErrorService={v2RunErrorService}
       v2JobSpecService={v2JobSpecService}
       v2LogService={v2LogService}

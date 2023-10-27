@@ -47,9 +47,7 @@ func init() {
                 "filters",
                 "order",
                 "groupedField",
-                "aggregates",
-                "skip",
-                "take"
+                "aggregates"
               ],
               "properties": {
                 "activeJobSets": {
@@ -101,8 +99,7 @@ func init() {
                 },
                 "take": {
                   "description": "Number of job groups to fetch.",
-                  "type": "integer",
-                  "x-nullable": false
+                  "type": "integer"
                 }
               }
             }
@@ -279,9 +276,7 @@ func init() {
               "type": "object",
               "required": [
                 "filters",
-                "order",
-                "skip",
-                "take"
+                "order"
               ],
               "properties": {
                 "activeJobSets": {
@@ -307,8 +302,7 @@ func init() {
                 },
                 "take": {
                   "description": "Number of jobs to fetch.",
-                  "type": "integer",
-                  "x-nullable": false
+                  "type": "integer"
                 }
               }
             }
@@ -699,9 +693,7 @@ func init() {
                 "filters",
                 "order",
                 "groupedField",
-                "aggregates",
-                "skip",
-                "take"
+                "aggregates"
               ],
               "properties": {
                 "activeJobSets": {
@@ -753,8 +745,7 @@ func init() {
                 },
                 "take": {
                   "description": "Number of job groups to fetch.",
-                  "type": "integer",
-                  "x-nullable": false
+                  "type": "integer"
                 }
               }
             }
@@ -931,9 +922,7 @@ func init() {
               "type": "object",
               "required": [
                 "filters",
-                "order",
-                "skip",
-                "take"
+                "order"
               ],
               "properties": {
                 "activeJobSets": {
@@ -959,8 +948,7 @@ func init() {
                 },
                 "take": {
                   "description": "Number of jobs to fetch.",
-                  "type": "integer",
-                  "x-nullable": false
+                  "type": "integer"
                 }
               }
             }

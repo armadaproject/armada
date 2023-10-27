@@ -159,7 +159,9 @@ const (
 )
 
 type ExecutorConfiguration struct {
-	HttpPort              uint16
+	HttpPort uint16
+	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
+	PprofPort             *uint16
 	Metric                MetricConfiguration
 	Application           ApplicationConfiguration
 	ApiConnection         client.ApiConnectionDetails

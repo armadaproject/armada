@@ -844,6 +844,7 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 			Owner:                              owner,
 			QueueOwnershipUserGroups:           nil,
 			CompressedQueueOwnershipUserGroups: compressedOwnershipGroups,
+			QueueTtlSeconds:                    item.QueueTtlSeconds,
 		}
 		jobs = append(jobs, j)
 	}

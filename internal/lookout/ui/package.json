@@ -52,6 +52,7 @@
     "jest-junit": "^16.0.0",
     "js-yaml": "^4.0.0",
     "notistack": "^2.0.8",
+    "oidc-client-ts": "^2.3.0",
     "prettier": "^2.8.8",
     "qs": "^6.11.0",
     "query-string": "^6.13.7",

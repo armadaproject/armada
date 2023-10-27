@@ -11,7 +11,8 @@ export class FakeLogService implements ILogService {
     container: string,
     sinceTime: string,
     tailLines: number | undefined,
-    signal: AbortSignal | undefined,
+    accessToken?: string,
+    signal?: AbortSignal,
   ): Promise<LogLine[]> {
     if (this.simulateApiWait) {
       await simulateApiWait(signal)
