@@ -29,6 +29,7 @@ export interface JobsTablePreferences {
   columnMatches: Record<string, Match>
   sidebarJobId: JobId | undefined
   sidebarWidth?: number
+  activeJobSets?: boolean
 }
 
 // Need two 'defaults'
@@ -78,6 +79,8 @@ export interface QueryStringPrefs {
   f: QueryStringJobFilter[]
   // Sidebar job ID
   sb: string | undefined
+  // This is a boolean field, but the qs library turns it into a string.
+  active: string | undefined
 }
 
 const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs => {
@@ -101,6 +104,7 @@ const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs => {
       .map(([rowId, _]) => rowId),
     ps: prefs.pageSize.toString(),
     sb: prefs.sidebarJobId,
+    active: `${prefs.activeJobSets}`,
   }
 }
 
@@ -120,7 +124,7 @@ const columnMatchesFromQueryStringFilters = (f: QueryStringJobFilter[]): Record<
 }
 
 const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partial<JobsTablePreferences> => {
-  const { g, e, page, ps, sort, f, sb } = serializedPrefs
+  const { g, e, page, ps, sort, f, sb, active } = serializedPrefs
   return {
     ...(g && Array.isArray(g) && g.every((a) => typeof a === "string") && { groupedColumns: g as ColumnId[] }),
     ...(e && { expandedState: Object.fromEntries(e.map((rowId) => [rowId, true])) }),
@@ -132,6 +136,7 @@ const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partia
     ...(f && { filters: columnFiltersFromQueryStringFilters(f) }),
     ...(f && { columnMatches: columnMatchesFromQueryStringFilters(f) }),
     ...(sb && { sidebarJobId: sb }),
+    ...(active && { activeJobSets: active.toLowerCase() === "true" }),
   }
 }
 
@@ -176,6 +181,7 @@ const mergeQueryParamsAndLocalStorage = (
       mergedPrefs.columnMatches = DEFAULT_COLUMN_MATCHES
     }
     mergeColumnMatches(mergedPrefs.columnMatches, queryParamPrefs.columnMatches)
+    mergedPrefs.activeJobSets = queryParamPrefs.activeJobSets
   }
   return mergedPrefs
 }
