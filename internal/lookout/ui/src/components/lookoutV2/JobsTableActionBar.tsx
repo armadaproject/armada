@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useMemo, useState } from "react"
 
-import { Divider, Button, Checkbox, FormControlLabel, FormGroup } from "@mui/material"
+import { Divider, Button, Checkbox, FormControlLabel, FormGroup, Tooltip } from "@mui/material"
 import RefreshButton from "components/RefreshButton"
 import ColumnSelect from "components/lookoutV2/ColumnSelect"
 import GroupBySelect from "components/lookoutV2/GroupBySelect"
@@ -95,17 +95,19 @@ export const JobsTableActionBar = memo(
 
         <div className={styles.actionGroup}>
           <FormGroup>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={activeJobSets}
-                  onChange={(e) => {
-                    onActiveJobSetsChanged(e.target.checked)
-                  }}
-                />
-              }
-              label="Active Job Sets"
-            />
+            <Tooltip title="Only display job sets with at least one active job.">
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={activeJobSets}
+                    onChange={(e) => {
+                      onActiveJobSetsChanged(e.target.checked)
+                    }}
+                  />
+                }
+                label="Active job sets only"
+              />
+            </Tooltip>
           </FormGroup>
           <Divider orientation="vertical" />
           <Button variant="text" onClick={onClearFilters} color="secondary">

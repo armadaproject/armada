@@ -182,7 +182,9 @@ export const JobsTableContainer = ({
   const [columnMatches, setColumnMatches] = useState<Record<string, Match>>(initialPrefs.columnMatches)
   const [parseErrors, setParseErrors] = useState<Record<string, string | undefined>>({})
   const [textFieldRefs, setTextFieldRefs] = useState<Record<string, RefObject<HTMLInputElement>>>({})
-  const [activeJobSets, setActiveJobSets] = useState<boolean>(false)
+  const [activeJobSets, setActiveJobSets] = useState<boolean>(
+    initialPrefs.activeJobSets === undefined ? false : initialPrefs.activeJobSets,
+  )
 
   // Sorting
   const [lookoutOrder, setLookoutOrder] = useState<LookoutColumnOrder>(initialPrefs.order)
@@ -248,6 +250,7 @@ export const JobsTableContainer = ({
       visibleColumns: columnVisibility,
       sidebarJobId: sidebarJobId,
       sidebarWidth: sidebarWidth,
+      activeJobSets: activeJobSets,
     }
   }
 
@@ -284,6 +287,9 @@ export const JobsTableContainer = ({
     setSidebarJobId(prefs.sidebarJobId)
     setSidebarWidth(prefs.sidebarWidth ?? 600)
     setSelectedRows({})
+    if (prefs.activeJobSets !== undefined) {
+      setActiveJobSets(prefs.activeJobSets)
+    }
 
     // Have to manually set text fields to the filter values since they are uncontrolled
     setTextFields(prefs.filters)
@@ -311,6 +317,7 @@ export const JobsTableContainer = ({
     selectedRows,
     sidebarJobId,
     sidebarWidth,
+    activeJobSets,
   ])
 
   const addCustomView = (name: string) => {
