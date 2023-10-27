@@ -104,7 +104,7 @@ const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs => {
       .map(([rowId, _]) => rowId),
     ps: prefs.pageSize.toString(),
     sb: prefs.sidebarJobId,
-    active: `${prefs.activeJobSets}`,
+    active: prefs.activeJobSets === undefined ? undefined : `${prefs.activeJobSets}`,
   }
 }
 
