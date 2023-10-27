@@ -706,6 +706,7 @@ func NewNodeDb() (*nodedb.NodeDb, error) {
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
+		testfixtures.TestWellKnownNodeTypes,
 	)
 	if err != nil {
 		return nil, err

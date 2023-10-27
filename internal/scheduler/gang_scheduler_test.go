@@ -354,11 +354,12 @@ func TestGangScheduler(t *testing.T) {
 				nodesById[node.Id] = node
 			}
 			nodeDb, err := nodedb.NewNodeDb(
-				testfixtures.TestPriorityClasses,
-				testfixtures.TestMaxExtraNodesToConsider,
+				tc.SchedulingConfig.Preemption.PriorityClasses,
+				tc.SchedulingConfig.MaxExtraNodesToConsider,
 				tc.SchedulingConfig.IndexedResources,
-				testfixtures.TestIndexedTaints,
+				tc.SchedulingConfig.IndexedTaints,
 				tc.SchedulingConfig.IndexedNodeLabels,
+				tc.SchedulingConfig.WellKnownNodeTypes,
 			)
 			require.NoError(t, err)
 			txn := nodeDb.Txn(true)

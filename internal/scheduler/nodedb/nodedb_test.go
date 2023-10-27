@@ -569,6 +569,7 @@ func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
+		testfixtures.TestWellKnownNodeTypes,
 	)
 	require.NoError(b, err)
 	txn := nodeDb.Txn(true)
@@ -607,6 +608,7 @@ func benchmarkScheduleMany(b *testing.B, nodes []*schedulerobjects.Node, jobs []
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
+		testfixtures.TestWellKnownNodeTypes,
 	)
 	require.NoError(b, err)
 	txn := nodeDb.Txn(true)
@@ -730,6 +732,7 @@ func newNodeDbWithNodes(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
+		testfixtures.TestWellKnownNodeTypes,
 	)
 	if err != nil {
 		return nil, err

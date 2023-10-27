@@ -345,6 +345,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		l.schedulingConfig.IndexedResources,
 		l.schedulingConfig.IndexedTaints,
 		l.schedulingConfig.IndexedNodeLabels,
+		l.schedulingConfig.WellKnownNodeTypes,
 	)
 	if err != nil {
 		return nil, nil, err

@@ -50,6 +50,7 @@ type SubmitChecker struct {
 	indexedResources          []configuration.IndexedResource
 	indexedTaints             []string
 	indexedNodeLabels         []string
+	wellKnownNodeTypes        []configuration.WellKnownNodeType
 	executorRepository        database.ExecutorRepository
 	clock                     clock.Clock
 	mu                        sync.Mutex
@@ -76,6 +77,7 @@ func NewSubmitChecker(
 		indexedResources:          schedulingConfig.IndexedResources,
 		indexedTaints:             schedulingConfig.IndexedTaints,
 		indexedNodeLabels:         schedulingConfig.IndexedNodeLabels,
+		wellKnownNodeTypes:        schedulingConfig.WellKnownNodeTypes,
 		executorRepository:        executorRepository,
 		clock:                     clock.RealClock{},
 		schedulingKeyGenerator:    schedulerobjects.NewSchedulingKeyGenerator(),
@@ -268,16 +270,13 @@ func (srv *SubmitChecker) filterStaleExecutors(executorsById map[string]minimalE
 }
 
 func (srv *SubmitChecker) constructNodeDb(nodes []*schedulerobjects.Node) (*nodedb.NodeDb, error) {
-	// Nodes to be considered by the scheduler.
-	// We just need to know if scheduling is possible;
-	// no need to try to find a good fit.
-	var maxExtraNodesToConsider uint = 0
 	nodeDb, err := nodedb.NewNodeDb(
 		srv.priorityClasses,
-		maxExtraNodesToConsider,
+		0,
 		srv.indexedResources,
 		srv.indexedTaints,
 		srv.indexedNodeLabels,
+		srv.wellKnownNodeTypes,
 	)
 	if err != nil {
 		return nil, err

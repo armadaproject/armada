@@ -105,6 +105,17 @@ scheduling:
       resolution: "100m"
     - name: "memory"
       resolution: "1Mi"
+  wellKnownNodeTypes:
+    - name: "gpu"
+      labels:
+        gpu: "true"
+    - name: "gpu-whale"
+      labels:
+        gpu: "true"
+      taints:
+        - key: "armadaproject.io/node-type"
+          value: "whale"
+          effect: "NoSchedule"
   minTerminationGracePeriod: 1s
   maxTerminationGracePeriod: 300s
   executorUpdateFrequency: 1m

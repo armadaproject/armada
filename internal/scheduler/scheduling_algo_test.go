@@ -540,6 +540,7 @@ func BenchmarkNodeDbConstruction(b *testing.B) {
 					schedulingConfig.IndexedResources,
 					schedulingConfig.IndexedTaints,
 					schedulingConfig.IndexedNodeLabels,
+					schedulingConfig.WellKnownNodeTypes,
 				)
 				require.NoError(b, err)
 				err = algo.addExecutorToNodeDb(nodeDb, jobs, nodes)

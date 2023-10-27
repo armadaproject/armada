@@ -279,6 +279,9 @@ type NodeDb struct {
 	// Set of node types. Populated automatically as nodes are inserted.
 	// Node types are not cleaned up if all nodes of that type are removed from the NodeDb.
 	nodeTypes map[uint64]*schedulerobjects.NodeType
+
+	wellKnownNodeTypes map[string]*configuration.WellKnownNodeType
+
 	// Map from podRequirementsNotMetReason Sum64() to the string representation of that reason.
 	// Used to avoid allocs.
 	podRequirementsNotMetReasonStringCache map[uint64]string
@@ -291,8 +294,9 @@ func NewNodeDb(
 	priorityClasses map[string]types.PriorityClass,
 	maxExtraNodesToConsider uint,
 	indexedResources []configuration.IndexedResource,
-	indexedTaints,
+	indexedTaints []string,
 	indexedNodeLabels []string,
+	wellKnownNodeTypes []configuration.WellKnownNodeType,
 ) (*NodeDb, error) {
 	if len(indexedResources) == 0 {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
@@ -340,8 +344,7 @@ func NewNodeDb(
 		}
 		return rv
 	}
-
-	return &NodeDb{
+	nodeDb := NodeDb{
 		priorityClasses:         priorityClasses,
 		priorityClassPriorities: priorityClassPriorities,
 		nodeDbPriorities:        nodeDbPriorities,
@@ -357,12 +360,19 @@ func NewNodeDb(
 		indexedNodeLabels:      mapFromSlice(indexedNodeLabels),
 		indexedNodeLabelValues: indexedNodeLabelValues,
 		nodeTypes:              make(map[uint64]*schedulerobjects.NodeType),
+		wellKnownNodeTypes:     make(map[string]*configuration.WellKnownNodeType),
 		numNodesByNodeType:     make(map[uint64]int),
 		totalResources:         schedulerobjects.ResourceList{Resources: make(map[string]resource.Quantity)},
 		db:                     db,
 		// Set the initial capacity (somewhat arbitrarily) to 128 reasons.
 		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
-	}, nil
+	}
+
+	for _, wellKnownNodeType := range wellKnownNodeTypes {
+		nodeDb.wellKnownNodeTypes[wellKnownNodeType.Name] = &wellKnownNodeType
+	}
+
+	return &nodeDb, nil
 }
 
 // Reset clears out data specific to one scheduling round to prepare for a new scheduling round.

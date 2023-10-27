@@ -208,6 +208,7 @@ func (s *Simulator) setupClusters() error {
 				s.schedulingConfig.IndexedResources,
 				s.schedulingConfig.IndexedTaints,
 				s.schedulingConfig.IndexedNodeLabels,
+				s.schedulingConfig.WellKnownNodeTypes,
 			)
 			if err != nil {
 				return err
