@@ -140,7 +140,6 @@ func TestJobDb_TestQueuedJobs(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []*Job{}, collect())
 }
-
 func TestJobDb_TestGetAll(t *testing.T) {
 	jobDb := NewJobDb()
 	job1 := newJob().WithNewRun("executor", "nodeId", "nodeName")

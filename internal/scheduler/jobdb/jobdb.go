@@ -55,7 +55,7 @@ func (jobDb *JobDb) NewJob(
 ) *Job {
 	jobDb.newJobMutex.Lock()
 	defer jobDb.newJobMutex.Unlock()
-	return &Job{
+	job := &Job{
 		id:                jobId,
 		queue:             queue,
 		jobset:            jobset,
@@ -74,6 +74,8 @@ func (jobDb *JobDb) NewJob(
 		cancelled:               cancelled,
 		runsById:                map[uuid.UUID]*JobRun{},
 	}
+	job.ensureJobSchedulingInfoFieldsInitialised()
+	return job
 }
 
 // Upsert will insert the given jobs if they don't already exist or update them if they do.
