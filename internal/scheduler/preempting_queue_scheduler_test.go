@@ -516,7 +516,10 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// Schedule a gang across two nodes.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.WithGangAnnotationsAndMinCardinalityJobs(testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 2), 1),
+						"A": testfixtures.WithGangAnnotationsAndMinCardinalityJobs(
+							1,
+							testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 2),
+						),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 1),

@@ -3,6 +3,7 @@ package schedulerobjects
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"sync"
 
 	"github.com/minio/highwayhash"
 	"golang.org/x/exp/slices"
@@ -12,6 +13,8 @@ import (
 // SchedulingKey is a hash of the scheduling requirements of a job.
 // This key is used to efficiently mark jobs as unschedulable.
 type SchedulingKey [highwayhash.Size]byte
+
+var EmptySchedulingKey SchedulingKey
 
 func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
 	affinity := req.Affinity
@@ -27,11 +30,12 @@ func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
 
 // SchedulingKeyGenerator is used to generate scheduling keys efficiently.
 // A scheduling key is the canonical hash of the scheduling requirements of a job.
-// All memory is allocated up-front and re-used. Not thread-safe.
+// All memory is allocated up-front and re-used. Thread-safe.
 type SchedulingKeyGenerator struct {
 	s      PodRequirementsSerialiser
 	key    []byte
 	buffer []byte
+	sync.Mutex
 }
 
 func NewSchedulingKeyGenerator() *SchedulingKeyGenerator {
@@ -64,6 +68,8 @@ func (skg *SchedulingKeyGenerator) Key(
 	requests v1.ResourceList,
 	priority int32,
 ) SchedulingKey {
+	skg.Mutex.Lock()
+	defer skg.Mutex.Unlock()
 	skg.buffer = skg.buffer[0:0]
 	skg.buffer = skg.s.AppendRequirements(
 		skg.buffer,

@@ -217,21 +217,23 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 			if !ok {
 				schedulingKey = it.schedulingContext.SchedulingKeyFromLegacySchedulerJob(job)
 			}
-			if unsuccessfulJctx, ok := it.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; ok {
-				// TODO: For performance, we should avoid creating new objects and instead reference the existing one.
-				jctx := &schedulercontext.JobSchedulingContext{
-					Created:              time.Now(),
-					JobId:                job.GetId(),
-					Job:                  job,
-					UnschedulableReason:  unsuccessfulJctx.UnschedulableReason,
-					PodSchedulingContext: unsuccessfulJctx.PodSchedulingContext,
-					// TODO: Move this into gang scheduling context
-					GangMinCardinality: 1,
+			if schedulingKey != schedulerobjects.EmptySchedulingKey {
+				if unsuccessfulJctx, ok := it.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; ok {
+					// TODO: For performance, we should avoid creating new objects and instead reference the existing one.
+					jctx := &schedulercontext.JobSchedulingContext{
+						Created:              time.Now(),
+						JobId:                job.GetId(),
+						Job:                  job,
+						UnschedulableReason:  unsuccessfulJctx.UnschedulableReason,
+						PodSchedulingContext: unsuccessfulJctx.PodSchedulingContext,
+						// TODO: Move this into gang scheduling context
+						GangMinCardinality: 1,
+					}
+					if _, err := it.schedulingContext.AddJobSchedulingContext(jctx); err != nil {
+						return nil, err
+					}
+					continue
 				}
-				if _, err := it.schedulingContext.AddJobSchedulingContext(jctx); err != nil {
-					return nil, err
-				}
-				continue
 			}
 		}
 

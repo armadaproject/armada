@@ -24,17 +24,19 @@ type JobDb struct {
 	schedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
 	copyMutex              sync.Mutex
 	writerMutex            sync.Mutex
-	// Necessary since generating scheduling keys is not thread-safe.
-	newJobMutex sync.Mutex
 }
 
 func NewJobDb() *JobDb {
+	return NewJobDbWithSchedulingKeyGenerator(schedulerobjects.NewSchedulingKeyGenerator())
+}
+
+func NewJobDbWithSchedulingKeyGenerator(skg *schedulerobjects.SchedulingKeyGenerator) *JobDb {
 	return &JobDb{
 		jobsById:               immutable.NewMap[string, *Job](nil),
 		jobsByRunId:            immutable.NewMap[uuid.UUID, string](&UUIDHasher{}),
 		jobsByQueue:            map[string]immutable.SortedSet[*Job]{},
 		queuedJobsByTtl:        &emptyQueuedJobsByTtl,
-		schedulingKeyGenerator: schedulerobjects.NewSchedulingKeyGenerator(),
+		schedulingKeyGenerator: skg,
 	}
 }
 
@@ -53,21 +55,20 @@ func (jobDb *JobDb) NewJob(
 	cancelled bool,
 	created int64,
 ) *Job {
-	jobDb.newJobMutex.Lock()
-	defer jobDb.newJobMutex.Unlock()
+	var schedulingKey schedulerobjects.SchedulingKey
+	if preq := schedulingInfo.GetPodRequirements(); preq != nil {
+		schedulingKey = jobDb.schedulingKeyGenerator.KeyFromPodRequirements(preq)
+	}
 	job := &Job{
-		id:                jobId,
-		queue:             queue,
-		jobset:            jobset,
-		priority:          priority,
-		queued:            queued,
-		queuedVersion:     queuedVersion,
-		requestedPriority: priority,
-		created:           created,
-		// This will cause a panic if schedulingInfo is nil.
-		schedulingKey: jobDb.schedulingKeyGenerator.KeyFromPodRequirements(
-			schedulingInfo.GetPodRequirements(),
-		),
+		id:                      jobId,
+		queue:                   queue,
+		jobset:                  jobset,
+		priority:                priority,
+		queued:                  queued,
+		queuedVersion:           queuedVersion,
+		requestedPriority:       priority,
+		created:                 created,
+		schedulingKey:           schedulingKey,
 		jobSchedulingInfo:       schedulingInfo,
 		cancelRequested:         cancelRequested,
 		cancelByJobsetRequested: cancelByJobsetRequested,

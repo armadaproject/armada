@@ -11,6 +11,7 @@ import (
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // GangScheduler schedules one gang at a time. GangScheduler is not aware of queues.
@@ -36,6 +37,26 @@ func NewGangScheduler(
 
 func (sch *GangScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 	sch.skipUnsuccessfulSchedulingKeyCheck = true
+}
+
+func (sch *GangScheduler) updateGangSchedulingContextOnSuccess(gctx *schedulercontext.GangSchedulingContext, gangAddedToSchedulingContext bool) error {
+	if !gangAddedToSchedulingContext {
+		// Nothing to do.
+		return nil
+	}
+
+	// Evict any jobs added to the context marked as unsuccessful.
+	// This is necessary to support min-max gang-scheduling,
+	// where the gang is scheduled successfully if at least min of its members scheduled successfully.
+	// Here, we evict the memebers of the gang that were not scheduled successfully.
+	for _, jctx := range gctx.JobSchedulingContexts {
+		if !jctx.IsSuccessful() {
+			if _, err := sch.schedulingContext.EvictJob(jctx.Job); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *schedulercontext.GangSchedulingContext, gangAddedToSchedulingContext bool, unschedulableReason string) error {
@@ -66,9 +87,11 @@ func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *schedulerco
 		if !ok {
 			schedulingKey = sch.schedulingContext.SchedulingKeyFromLegacySchedulerJob(jctx.Job)
 		}
-		if _, ok := sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; !ok {
-			// Keep the first jctx for each unfeasible schedulingKey.
-			sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey] = jctx
+		if schedulingKey != schedulerobjects.EmptySchedulingKey {
+			if _, ok := sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; !ok {
+				// Keep the first jctx for each unfeasible schedulingKey.
+				sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey] = jctx
+			}
 		}
 	}
 
@@ -99,7 +122,9 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *schedulerco
 			}
 		}
 
-		if !ok {
+		if ok {
+			err = sch.updateGangSchedulingContextOnSuccess(gctx, gangAddedToSchedulingContext)
+		} else {
 			err = sch.updateGangSchedulingContextOnFailure(gctx, gangAddedToSchedulingContext, unschedulableReason)
 		}
 	}()
