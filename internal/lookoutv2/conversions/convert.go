@@ -76,6 +76,9 @@ func FromSwaggerFilter(filter *models.Filter) *model.Filter {
 }
 
 func FromSwaggerOrder(order *models.Order) *model.Order {
+	if order == nil {
+		return nil
+	}
 	return &model.Order{
 		Direction: order.Direction,
 		Field:     order.Field,

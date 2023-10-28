@@ -267,7 +267,6 @@ paths:
             type: object
             required:
               - filters
-              - order
             properties:
               filters:
                 type: array
@@ -404,7 +403,6 @@ paths:
             type: object
             required:
               - filters
-              - order
               - groupedField
               - aggregates
             properties:

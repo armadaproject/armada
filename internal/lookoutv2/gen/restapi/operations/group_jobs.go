@@ -84,8 +84,7 @@ type GroupJobsBody struct {
 	GroupedField *GroupJobsParamsBodyGroupedField `json:"groupedField"`
 
 	// Ordering to apply to job groups.
-	// Required: true
-	Order *models.Order `json:"order"`
+	Order *models.Order `json:"order,omitempty"`
 
 	// First elements to ignore from the full set of results. Used for pagination.
 	Skip int64 `json:"skip,omitempty"`
@@ -177,9 +176,8 @@ func (o *GroupJobsBody) validateGroupedField(formats strfmt.Registry) error {
 }
 
 func (o *GroupJobsBody) validateOrder(formats strfmt.Registry) error {
-
-	if err := validate.Required("groupJobsRequest"+"."+"order", "body", o.Order); err != nil {
-		return err
+	if swag.IsZero(o.Order) { // not required
+		return nil
 	}
 
 	if o.Order != nil {

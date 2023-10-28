@@ -76,8 +76,7 @@ type GetJobsBody struct {
 	Filters []*models.Filter `json:"filters"`
 
 	// Ordering to apply to jobs.
-	// Required: true
-	Order *models.Order `json:"order"`
+	Order *models.Order `json:"order,omitempty"`
 
 	// First elements to ignore from the full set of results. Used for pagination.
 	Skip int64 `json:"skip,omitempty"`
@@ -132,9 +131,8 @@ func (o *GetJobsBody) validateFilters(formats strfmt.Registry) error {
 }
 
 func (o *GetJobsBody) validateOrder(formats strfmt.Registry) error {
-
-	if err := validate.Required("getJobsRequest"+"."+"order", "body", o.Order); err != nil {
-		return err
+	if swag.IsZero(o.Order) { // not required
+		return nil
 	}
 
 	if o.Order != nil {

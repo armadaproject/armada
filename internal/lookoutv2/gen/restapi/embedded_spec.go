@@ -45,7 +45,6 @@ func init() {
               "type": "object",
               "required": [
                 "filters",
-                "order",
                 "groupedField",
                 "aggregates"
               ],
@@ -275,8 +274,7 @@ func init() {
             "schema": {
               "type": "object",
               "required": [
-                "filters",
-                "order"
+                "filters"
               ],
               "properties": {
                 "activeJobSets": {
@@ -691,7 +689,6 @@ func init() {
               "type": "object",
               "required": [
                 "filters",
-                "order",
                 "groupedField",
                 "aggregates"
               ],
@@ -921,8 +918,7 @@ func init() {
             "schema": {
               "type": "object",
               "required": [
-                "filters",
-                "order"
+                "filters"
               ],
               "properties": {
                 "activeJobSets": {
