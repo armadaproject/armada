@@ -134,6 +134,7 @@ export function App(props: AppProps): JSX.Element {
                           logService={props.v2LogService}
                           cordonService={props.v2CordonService}
                           debug={props.debugEnabled}
+                          autoRefreshMs={props.jobsAutoRefreshMs}
                         />
                       }
                     />

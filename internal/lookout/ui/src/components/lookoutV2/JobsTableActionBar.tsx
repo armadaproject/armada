@@ -1,6 +1,7 @@
 import React, { memo, useCallback, useMemo, useState } from "react"
 
-import { Divider, Button, Checkbox, FormControlLabel, FormGroup } from "@mui/material"
+import { Divider, Button, Checkbox, FormControlLabel, FormGroup, Tooltip } from "@mui/material"
+import AutoRefreshToggle from "components/AutoRefreshToggle"
 import RefreshButton from "components/RefreshButton"
 import ColumnSelect from "components/lookoutV2/ColumnSelect"
 import GroupBySelect from "components/lookoutV2/GroupBySelect"
@@ -25,6 +26,8 @@ export interface JobsTableActionBarProps {
   activeJobSets: boolean
   onActiveJobSetsChanged: (newVal: boolean) => void
   onRefresh: () => void
+  autoRefresh: boolean
+  onAutoRefreshChange: (autoRefresh: boolean) => void
   onAddAnnotationColumn: (annotationKey: string) => void
   onRemoveAnnotationColumn: (colId: ColumnId) => void
   onEditAnnotationColumn: (colId: ColumnId, annotationKey: string) => void
@@ -49,6 +52,8 @@ export const JobsTableActionBar = memo(
     activeJobSets,
     onActiveJobSetsChanged,
     onRefresh,
+    autoRefresh,
+    onAutoRefreshChange,
     onAddAnnotationColumn,
     onRemoveAnnotationColumn,
     onEditAnnotationColumn,
@@ -95,23 +100,27 @@ export const JobsTableActionBar = memo(
 
         <div className={styles.actionGroup}>
           <FormGroup>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={activeJobSets}
-                  onChange={(e) => {
-                    onActiveJobSetsChanged(e.target.checked)
-                  }}
-                />
-              }
-              label="Active Job Sets"
-            />
+            <Tooltip title="Only display job sets with at least one active job.">
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={activeJobSets}
+                    onChange={(e) => {
+                      onActiveJobSetsChanged(e.target.checked)
+                    }}
+                  />
+                }
+                label="Active job sets only"
+              />
+            </Tooltip>
           </FormGroup>
+          <Divider orientation="vertical" />
+          <AutoRefreshToggle autoRefresh={autoRefresh} onAutoRefreshChange={onAutoRefreshChange} />
+          <RefreshButton isLoading={isLoading} onClick={onRefresh} />
           <Divider orientation="vertical" />
           <Button variant="text" onClick={onClearFilters} color="secondary">
             Clear Filters
           </Button>
-          <RefreshButton isLoading={isLoading} onClick={onRefresh} />
           <CustomViewPicker
             customViews={customViews}
             onAddCustomView={onAddCustomView}
