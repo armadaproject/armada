@@ -60,7 +60,10 @@ func TestGangScheduler(t *testing.T) {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
-				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 40), 32),
+				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(
+					32,
+					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 40),
+				),
 			},
 			ExpectedScheduledIndices: testfixtures.IntRange(0, 0),
 			ExpectedScheduledJobs:    []int{32},
@@ -69,7 +72,10 @@ func TestGangScheduler(t *testing.T) {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
-				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 40), 33),
+				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(
+					33,
+					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 40),
+				),
 			},
 			ExpectedScheduledIndices: nil,
 			ExpectedScheduledJobs:    []int{0},
@@ -88,7 +94,10 @@ func TestGangScheduler(t *testing.T) {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
-				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33), 32),
+				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(
+					32,
+					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33),
+				),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
 			},
 			ExpectedScheduledIndices: testfixtures.IntRange(0, 0),

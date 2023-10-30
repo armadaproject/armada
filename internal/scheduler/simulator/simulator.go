@@ -3,14 +3,12 @@ package simulator
 import (
 	"container/heap"
 	"fmt"
-	"io"
 	"math/rand"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
@@ -18,6 +16,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
@@ -30,13 +29,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
-
-var nullLogger = &logrus.Logger{
-	Out:       io.Discard,
-	Formatter: new(logrus.TextFormatter),
-	Hooks:     make(logrus.LevelHooks),
-	Level:     logrus.PanicLevel,
-}
 
 // Simulator captures the parameters and state of the Armada simulator.
 type Simulator struct {
@@ -467,7 +459,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			if s.SuppressSchedulerLogs {
 				schedulerCtx = &armadacontext.Context{
 					Context:     ctx.Context,
-					FieldLogger: nullLogger,
+					FieldLogger: logging.NullLogger,
 				}
 			}
 			result, err := sch.Schedule(schedulerCtx)
@@ -576,7 +568,7 @@ func (s *Simulator) handleEventSequence(ctx *armadacontext.Context, es *armadaev
 		switch eventType := event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
 			s.shouldSchedule = true
-			ok, err = s.handleSubmitJob(txn, event.GetSubmitJob(), *event.Created, es)
+			ok, err = s.handleSubmitJob(s.jobDb, txn, event.GetSubmitJob(), *event.Created, es)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 			ok, err = s.handleJobRunLeased(txn, event.GetJobRunLeased())
 		case *armadaevents.EventSequence_Event_JobSucceeded:
@@ -624,12 +616,12 @@ func (s *Simulator) handleEventSequence(ctx *armadacontext.Context, es *armadaev
 	return nil
 }
 
-func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, time time.Time, eventSequence *armadaevents.EventSequence) (bool, error) {
+func (s *Simulator) handleSubmitJob(jobDb *jobdb.JobDb, txn *jobdb.Txn, e *armadaevents.SubmitJob, time time.Time, eventSequence *armadaevents.EventSequence) (bool, error) {
 	schedulingInfo, err := scheduleringester.SchedulingInfoFromSubmitJob(e, time, s.schedulingConfig.Preemption.PriorityClasses)
 	if err != nil {
 		return false, err
 	}
-	job := jobdb.NewJob(
+	job := jobDb.NewJob(
 		armadaevents.UlidFromProtoUuid(e.JobId).String(),
 		eventSequence.JobSetName,
 		eventSequence.Queue,
