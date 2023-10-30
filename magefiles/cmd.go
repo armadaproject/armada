@@ -136,12 +136,14 @@ func go_TEST_CMD() ([]string, error) {
 }
 
 func dotnetCmd() []string {
+	wd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
 	dotnetcmd := []string{
 		"run",
-		"-v",
-		"${PWD}:/go/src/armada",
-		"-w",
-		"/go/src/armada",
+		"-v", fmt.Sprintf("%s:/go/src/armada", wd),
+		"-w", "/go/src/armada",
 	}
 
 	if useSystemCerts {

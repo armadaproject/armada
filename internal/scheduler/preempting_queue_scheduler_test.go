@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
@@ -517,7 +517,10 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				{
 					// Schedule a gang across two nodes.
 					JobsByQueue: map[string][]*jobdb.Job{
-						"A": testfixtures.WithGangAnnotationsAndMinCardinalityJobs(testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 2), 1),
+						"A": testfixtures.WithGangAnnotationsAndMinCardinalityJobs(
+							1,
+							testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 2),
+						),
 					},
 					ExpectedScheduledIndices: map[string][]int{
 						"A": testfixtures.IntRange(0, 1),
@@ -1399,10 +1402,10 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			}
 
 			// Run the scheduler.
-			log := logrus.NewEntry(logrus.New())
+			ctx := armadacontext.Background()
 			for i, round := range tc.Rounds {
-				log = log.WithField("round", i)
-				log.Infof("starting scheduling round %d", i)
+				ctx.FieldLogger = ctx.WithField("round", i)
+				ctx.Infof("starting scheduling round %d", i)
 
 				// Reset the queues between rounds.
 				repo.jobsByQueue = make(map[string][]interfaces.LegacySchedulerJob)
@@ -1503,7 +1506,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				if tc.SchedulingConfig.EnableNewPreemptionStrategy {
 					sch.EnableNewPreemptionStrategy()
 				}
-				result, err := sch.Schedule(armadacontext.Background())
+				result, err := sch.Schedule(ctx)
 				require.NoError(t, err)
 				jobIdsByGangId = sch.jobIdsByGangId
 				gangIdByJobId = sch.gangIdByJobId
@@ -1714,6 +1717,9 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 	}
 	for name, tc := range tests {
 		b.Run(name, func(b *testing.B) {
+			ctx := armadacontext.Background()
+			ctx.FieldLogger = logging.NullLogger
+
 			jobsByQueue := make(map[string][]*jobdb.Job)
 			priorityFactorByQueue := make(map[string]float64)
 			for i := 0; i < tc.NumQueues; i++ {
@@ -1741,6 +1747,18 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			}
 			jobRepo.EnqueueMany(jobs)
 
+			limiter := rate.NewLimiter(
+				rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
+				tc.SchedulingConfig.MaximumSchedulingBurst,
+			)
+			limiterByQueue := make(map[string]*rate.Limiter)
+			for queue := range priorityFactorByQueue {
+				limiterByQueue[queue] = rate.NewLimiter(
+					rate.Limit(tc.SchedulingConfig.MaximumPerQueueSchedulingRate),
+					tc.SchedulingConfig.MaximumPerQueueSchedulingBurst,
+				)
+			}
+
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				nodeDb.TotalResources(),
 				tc.SchedulingConfig.DominantResourceFairnessResourcesToConsider,
@@ -1752,12 +1770,12 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				tc.SchedulingConfig.Preemption.PriorityClasses,
 				tc.SchedulingConfig.Preemption.DefaultPriorityClass,
 				fairnessCostProvider,
-				nil,
+				limiter,
 				nodeDb.TotalResources(),
 			)
 			for queue, priorityFactor := range priorityFactorByQueue {
 				weight := 1 / priorityFactor
-				err := sctx.AddQueueSchedulingContext(queue, weight, make(schedulerobjects.QuantityByTAndResourceType[string]), nil)
+				err := sctx.AddQueueSchedulingContext(queue, weight, make(schedulerobjects.QuantityByTAndResourceType[string]), limiterByQueue[queue])
 				require.NoError(b, err)
 			}
 			constraints := schedulerconstraints.SchedulingConstraintsFromSchedulingConfig(
@@ -1778,7 +1796,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nil,
 				nil,
 			)
-			result, err := sch.Schedule(armadacontext.Background())
+			result, err := sch.Schedule(ctx)
 			require.NoError(b, err)
 			require.Equal(b, 0, len(result.PreemptedJobs))
 
@@ -1814,12 +1832,12 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					tc.SchedulingConfig.Preemption.PriorityClasses,
 					tc.SchedulingConfig.Preemption.DefaultPriorityClass,
 					fairnessCostProvider,
-					nil,
+					limiter,
 					nodeDb.TotalResources(),
 				)
 				for queue, priorityFactor := range priorityFactorByQueue {
 					weight := 1 / priorityFactor
-					err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClass[queue], nil)
+					err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClass[queue], limiterByQueue[queue])
 					require.NoError(b, err)
 				}
 				sch := NewPreemptingQueueScheduler(
@@ -1834,7 +1852,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					nil,
 					nil,
 				)
-				result, err := sch.Schedule(armadacontext.Background())
+				result, err := sch.Schedule(ctx)
 				require.NoError(b, err)
 
 				// We expect the system to be in steady-state, i.e., no preempted/scheduled jobs.

@@ -14,7 +14,6 @@ require (
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
-	github.com/doug-martin/goqu/v9 v9.18.0
 	github.com/go-ldap/ldap/v3 v3.4.4
 	github.com/go-openapi/analysis v0.21.4
 	github.com/go-openapi/jsonreference v0.20.2
@@ -39,7 +38,7 @@ require (
 	github.com/jcmturner/gokrb5/v8 v8.4.2-0.20201112171129-78f56934d598
 	github.com/jolestar/go-commons-pool v2.0.0+incompatible
 	github.com/jstemmer/go-junit-report/v2 v2.0.0
-	github.com/lib/pq v1.10.7
+	github.com/lib/pq v1.10.7 // indirect
 	github.com/mattn/go-zglob v0.0.4
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.5.0
@@ -96,6 +95,7 @@ require (
 	github.com/segmentio/fasthash v1.0.3
 	golang.org/x/time v0.3.0
 	google.golang.org/genproto/googleapis/api v0.0.0-20230525234035-dd9d682886f9
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -206,7 +206,6 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/square/go-jose.v2 v2.6.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/klog/v2 v2.100.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20211109043538-20434351676c // indirect
 	lukechampine.com/uint128 v1.2.0 // indirect

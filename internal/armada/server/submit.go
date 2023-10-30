@@ -149,6 +149,38 @@ func (server *SubmitServer) GetQueue(grpcCtx context.Context, req *api.QueueGetR
 	return queue.ToAPI(), nil
 }
 
+func (server *SubmitServer) GetQueues(req *api.StreamingQueueGetRequest, stream api.Submit_GetQueuesServer) error {
+	// Receive once to get information about the number of queues to return
+	numToReturn := req.GetNum()
+	if numToReturn < 1 {
+		numToReturn = math.MaxUint32
+	}
+
+	queues, err := server.queueRepository.GetAllQueues()
+	if err != nil {
+		return err
+	}
+	for i, queue := range queues {
+		if uint32(i) < numToReturn {
+			err := stream.Send(&api.StreamingQueueMessage{
+				Event: &api.StreamingQueueMessage_Queue{Queue: queue.ToAPI()},
+			})
+			if err != nil {
+				return err
+			}
+		}
+	}
+	err = stream.Send(&api.StreamingQueueMessage{
+		Event: &api.StreamingQueueMessage_End{
+			End: &api.EndMarker{},
+		},
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (server *SubmitServer) CreateQueue(grpcCtx context.Context, request *api.Queue) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	err := checkPermission(server.permissions, ctx, permissions.CreateQueue)

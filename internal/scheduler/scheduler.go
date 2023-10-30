@@ -338,12 +338,10 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 	}
 
 	jobsToUpdate := maps.Values(jobsToUpdateById)
-	err = s.jobDb.Upsert(txn, jobsToUpdate)
-	if err != nil {
+	if err := s.jobDb.Upsert(txn, jobsToUpdate); err != nil {
 		return nil, err
 	}
-	err = s.jobDb.BatchDelete(txn, jobsToDelete)
-	if err != nil {
+	if err := s.jobDb.BatchDelete(txn, jobsToDelete); err != nil {
 		return nil, err
 	}
 	txn.Commit()
@@ -952,7 +950,7 @@ func (s *Scheduler) schedulerJobFromDatabaseJob(dbJob *database.Job) (*jobdb.Job
 		return nil, errors.Wrapf(err, "error unmarshalling scheduling info for job %s", dbJob.JobID)
 	}
 	s.internJobSchedulingInfoStrings(schedulingInfo)
-	return jobdb.NewJob(
+	return s.jobDb.NewJob(
 		dbJob.JobID,
 		s.stringInterner.Intern(dbJob.JobSet),
 		s.stringInterner.Intern(dbJob.Queue),

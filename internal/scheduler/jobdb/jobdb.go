@@ -7,6 +7,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
+
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 var (
@@ -15,25 +17,69 @@ var (
 )
 
 type JobDb struct {
-	jobsById        *immutable.Map[string, *Job]
-	jobsByRunId     *immutable.Map[uuid.UUID, string]
-	jobsByQueue     map[string]immutable.SortedSet[*Job]
-	queuedJobsByTtl *immutable.SortedSet[*Job]
-	copyMutex       sync.Mutex
-	writerMutex     sync.Mutex
+	jobsById               *immutable.Map[string, *Job]
+	jobsByRunId            *immutable.Map[uuid.UUID, string]
+	jobsByQueue            map[string]immutable.SortedSet[*Job]
+	queuedJobsByTtl        *immutable.SortedSet[*Job]
+	schedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
+	copyMutex              sync.Mutex
+	writerMutex            sync.Mutex
 }
 
 func NewJobDb() *JobDb {
+	return NewJobDbWithSchedulingKeyGenerator(schedulerobjects.NewSchedulingKeyGenerator())
+}
+
+func NewJobDbWithSchedulingKeyGenerator(skg *schedulerobjects.SchedulingKeyGenerator) *JobDb {
 	return &JobDb{
-		jobsById:        immutable.NewMap[string, *Job](nil),
-		jobsByRunId:     immutable.NewMap[uuid.UUID, string](&UUIDHasher{}),
-		jobsByQueue:     map[string]immutable.SortedSet[*Job]{},
-		queuedJobsByTtl: &emptyQueuedJobsByTtl,
-		copyMutex:       sync.Mutex{},
+		jobsById:               immutable.NewMap[string, *Job](nil),
+		jobsByRunId:            immutable.NewMap[uuid.UUID, string](&UUIDHasher{}),
+		jobsByQueue:            map[string]immutable.SortedSet[*Job]{},
+		queuedJobsByTtl:        &emptyQueuedJobsByTtl,
+		schedulingKeyGenerator: skg,
 	}
 }
 
-// Upsert will insert the given jobs if they don't already exist or update the if they do
+// NewJob creates a new scheduler job.
+// The new job is not automatically inserted into the jobDb; call jobDb.Upsert to upsert it.
+func (jobDb *JobDb) NewJob(
+	jobId string,
+	jobset string,
+	queue string,
+	priority uint32,
+	schedulingInfo *schedulerobjects.JobSchedulingInfo,
+	queued bool,
+	queuedVersion int32,
+	cancelRequested bool,
+	cancelByJobsetRequested bool,
+	cancelled bool,
+	created int64,
+) *Job {
+	var schedulingKey schedulerobjects.SchedulingKey
+	if preq := schedulingInfo.GetPodRequirements(); preq != nil {
+		schedulingKey = jobDb.schedulingKeyGenerator.KeyFromPodRequirements(preq)
+	}
+	job := &Job{
+		id:                      jobId,
+		queue:                   queue,
+		jobset:                  jobset,
+		priority:                priority,
+		queued:                  queued,
+		queuedVersion:           queuedVersion,
+		requestedPriority:       priority,
+		created:                 created,
+		schedulingKey:           schedulingKey,
+		jobSchedulingInfo:       schedulingInfo,
+		cancelRequested:         cancelRequested,
+		cancelByJobsetRequested: cancelByJobsetRequested,
+		cancelled:               cancelled,
+		runsById:                map[uuid.UUID]*JobRun{},
+	}
+	job.ensureJobSchedulingInfoFieldsInitialised()
+	return job
+}
+
+// Upsert will insert the given jobs if they don't already exist or update them if they do.
 func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 	if err := jobDb.checkWritableTransaction(txn); err != nil {
 		return err
@@ -57,7 +103,7 @@ func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 		}
 	}
 
-	// Now need to insert jobs, runs and queuedJobs.  This can be done in parallel
+	// Now need to insert jobs, runs and queuedJobs. This can be done in parallel.
 	wg := sync.WaitGroup{}
 	wg.Add(3)
 

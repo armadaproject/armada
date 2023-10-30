@@ -11,6 +11,8 @@ import (
 	"github.com/go-redis/redis"
 	"github.com/gogo/protobuf/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
@@ -28,6 +30,16 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
+
+type queuesStreamMock struct {
+	grpc.ServerStream
+	msgs []*api.StreamingQueueMessage
+}
+
+func (s *queuesStreamMock) Send(m *api.StreamingQueueMessage) error {
+	s.msgs = append(s.msgs, m)
+	return nil
+}
 
 func TestSubmitServer_HealthCheck(t *testing.T) {
 	withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
@@ -57,6 +69,21 @@ func TestSubmitServer_CreateQueue_WithDefaultSettings_CanBeReadBack(t *testing.T
 		assert.NoError(t, err)
 
 		assert.Equal(t, q1, q2)
+	})
+}
+
+func TestSubmitServer_getQueues(t *testing.T) {
+	withSubmitServer(func(s *SubmitServer, events *repository.TestEventStore) {
+		mockStream := &queuesStreamMock{}
+
+		err := s.GetQueues(&api.StreamingQueueGetRequest{}, mockStream)
+		require.NoError(t, err)
+		expectedQueue := &api.Queue{Name: "test", PriorityFactor: 1.0, ResourceLimits: map[string]float64{}}
+
+		assert.Equal(t, mockStream.msgs, []*api.StreamingQueueMessage{
+			{Event: &api.StreamingQueueMessage_Queue{Queue: expectedQueue}},
+			{Event: &api.StreamingQueueMessage_End{End: &api.EndMarker{}}},
+		})
 	})
 }
 

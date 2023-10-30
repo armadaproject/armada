@@ -43,7 +43,7 @@ func NewQueueScheduler(
 	}
 	gangIteratorsByQueue := make(map[string]*QueuedGangIterator)
 	for queue, it := range jobIteratorByQueue {
-		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, constraints.MaxQueueLookback)
+		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, constraints.MaxQueueLookback, true)
 	}
 	candidateGangIterator, err := NewCandidateGangIterator(sctx, sctx.FairnessCostProvider, gangIteratorsByQueue)
 	if err != nil {
@@ -148,17 +148,20 @@ type QueuedGangIterator struct {
 	jobsByGangId map[string][]interfaces.LegacySchedulerJob
 	// Maximum number of jobs to look at before giving up.
 	maxLookback uint
+	// If true, do not yield jobs known to be unschedulable.
+	skipKnownUnschedulableJobs bool
 	// Number of jobs we have seen so far.
 	jobsSeen uint
 	next     *schedulercontext.GangSchedulingContext
 }
 
-func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobIterator, maxLookback uint) *QueuedGangIterator {
+func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobIterator, maxLookback uint, skipKnownUnschedulableJobs bool) *QueuedGangIterator {
 	return &QueuedGangIterator{
-		schedulingContext:  sctx,
-		queuedJobsIterator: it,
-		maxLookback:        maxLookback,
-		jobsByGangId:       make(map[string][]interfaces.LegacySchedulerJob),
+		schedulingContext:          sctx,
+		queuedJobsIterator:         it,
+		maxLookback:                maxLookback,
+		skipKnownUnschedulableJobs: skipKnownUnschedulableJobs,
+		jobsByGangId:               make(map[string][]interfaces.LegacySchedulerJob),
 	}
 }
 
@@ -209,23 +212,28 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 		}
 
 		// Skip this job if it's known to be unschedulable.
-		if len(it.schedulingContext.UnfeasibleSchedulingKeys) > 0 {
-			schedulingKey := it.schedulingContext.SchedulingKeyFromLegacySchedulerJob(job)
-			if unsuccessfulJctx, ok := it.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; ok {
-				// TODO: For performance, we should avoid creating new objects and instead reference the existing one.
-				jctx := &schedulercontext.JobSchedulingContext{
-					Created:              time.Now(),
-					JobId:                job.GetId(),
-					Job:                  job,
-					UnschedulableReason:  unsuccessfulJctx.UnschedulableReason,
-					PodSchedulingContext: unsuccessfulJctx.PodSchedulingContext,
-					// TODO: Move this into gang scheduling context
-					GangMinCardinality: 1,
+		if it.skipKnownUnschedulableJobs && len(it.schedulingContext.UnfeasibleSchedulingKeys) > 0 {
+			schedulingKey, ok := job.GetSchedulingKey()
+			if !ok {
+				schedulingKey = it.schedulingContext.SchedulingKeyFromLegacySchedulerJob(job)
+			}
+			if schedulingKey != schedulerobjects.EmptySchedulingKey {
+				if unsuccessfulJctx, ok := it.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; ok {
+					// TODO: For performance, we should avoid creating new objects and instead reference the existing one.
+					jctx := &schedulercontext.JobSchedulingContext{
+						Created:              time.Now(),
+						JobId:                job.GetId(),
+						Job:                  job,
+						UnschedulableReason:  unsuccessfulJctx.UnschedulableReason,
+						PodSchedulingContext: unsuccessfulJctx.PodSchedulingContext,
+						// TODO: Move this into gang scheduling context
+						GangMinCardinality: 1,
+					}
+					if _, err := it.schedulingContext.AddJobSchedulingContext(jctx); err != nil {
+						return nil, err
+					}
+					continue
 				}
-				if _, err := it.schedulingContext.AddJobSchedulingContext(jctx); err != nil {
-					return nil, err
-				}
-				continue
 			}
 		}
 
