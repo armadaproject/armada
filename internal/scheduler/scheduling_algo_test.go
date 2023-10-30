@@ -277,10 +277,13 @@ func TestSchedule(t *testing.T) {
 			expectedScheduledIndices: []int{0, 1},
 		},
 		"gang scheduling successful with some jobs failing to schedule above min cardinality": {
-			schedulingConfig:         testfixtures.TestSchedulingConfig(),
-			executors:                []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
-			queues:                   []*database.Queue{{Name: "A", Weight: 100}},
-			queuedJobs:               testfixtures.WithGangAnnotationsAndMinCardinalityJobs(testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 10), 2),
+			schedulingConfig: testfixtures.TestSchedulingConfig(),
+			executors:        []*schedulerobjects.Executor{testfixtures.Test1Node32CoreExecutor("executor1")},
+			queues:           []*database.Queue{{Name: "A", Weight: 100}},
+			queuedJobs: testfixtures.WithGangAnnotationsAndMinCardinalityJobs(
+				2,
+				testfixtures.N16Cpu128GiJobs("A", testfixtures.PriorityClass0, 10),
+			),
 			expectedScheduledIndices: []int{0, 1},
 			expectedFailedJobCount:   8,
 		},

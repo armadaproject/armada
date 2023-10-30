@@ -250,6 +250,12 @@ func (job *Job) GetResourceRequirements() v1.ResourceRequirements {
 	}
 }
 
+// GetSchedulingKey returns the scheduling key associated with a job.
+// The second return value is always false since scheduling keys are not pre-computed for these jobs.
+func (job *Job) GetSchedulingKey() (schedulerobjects.SchedulingKey, bool) {
+	return schedulerobjects.SchedulingKey{}, false
+}
+
 func (job *Job) GetJobSet() string {
 	return job.JobSetId
 }
