@@ -3,14 +3,12 @@ package simulator
 import (
 	"container/heap"
 	"fmt"
-	"io"
 	"math/rand"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
@@ -18,6 +16,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
@@ -30,13 +29,6 @@ import (
 	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
-
-var nullLogger = &logrus.Logger{
-	Out:       io.Discard,
-	Formatter: new(logrus.TextFormatter),
-	Hooks:     make(logrus.LevelHooks),
-	Level:     logrus.PanicLevel,
-}
 
 // Simulator captures the parameters and state of the Armada simulator.
 type Simulator struct {
@@ -467,7 +459,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			if s.SuppressSchedulerLogs {
 				schedulerCtx = &armadacontext.Context{
 					Context:     ctx.Context,
-					FieldLogger: nullLogger,
+					FieldLogger: logging.NullLogger,
 				}
 			}
 			result, err := sch.Schedule(schedulerCtx)
