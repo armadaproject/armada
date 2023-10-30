@@ -207,26 +207,6 @@ services:
     working_dir: /app
     command: ./eventingester
 
-  lookout:
-    container_name: lookout
-    image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
-    networks:
-      - kind
-    ports:
-      - "8089:8080"
-      - "4004:4000"
-    depends_on:
-      - server
-      - lookoutingester
-    volumes:
-      - ./internal/lookout/ui/build:/app/internal/lookout/ui/build
-      - "go-cache:/root/.cache/go-build:rw"
-      - "gomod-cache:/go/pkg/mod:rw"
-    env_file:
-      - ./developer/env/lookout.env
-    working_dir: /app
-    entrypoint: sh -c "./lookout --migrateDatabase && ./lookout"
-
   lookoutv2:
     container_name: lookoutv2
     image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
@@ -239,24 +219,13 @@ services:
       - server
       - lookoutingesterv2
     volumes:
+      - ./internal/lookout/ui/build:/app/internal/lookout/ui/build
       - "go-cache:/root/.cache/go-build:rw"
       - "gomod-cache:/go/pkg/mod:rw"
     env_file:
       - ./developer/env/lookoutv2.env
     working_dir: "/app"
     entrypoint: sh -c "./lookoutv2 --migrateDatabase && ./lookoutv2"
-
-  lookoutingester:
-    container_name: lookoutingester
-    image: ${ARMADA_IMAGE:-gresearch/armada-lookout-bundle}:${ARMADA_IMAGE_TAG:-latest}
-    ports:
-      - 4006:4000
-    volumes:
-      - "go-cache:/root/.cache/go-build:rw"
-      - "gomod-cache:/go/pkg/mod:rw"
-    networks:
-      - kind
-    command: ./lookoutingester
 
   lookoutingesterv2:
     container_name: lookoutingesterv2

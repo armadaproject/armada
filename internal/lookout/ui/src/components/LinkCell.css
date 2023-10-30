@@ -1,9 +1,0 @@
-.link {
-    width: 100%;
-    color: blue;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    text-decoration: underline;
-    cursor: pointer;
-}

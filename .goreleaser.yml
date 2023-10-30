@@ -84,27 +84,9 @@ builds:
     goarch:
       - amd64
   - env: [CGO_ENABLED=0]
-    id: lookout
-    binary: lookout
-    main: ./cmd/lookout/main.go
-    mod_timestamp: '{{ .CommitTimestamp }}'
-    goos:
-      - linux
-    goarch:
-      - amd64
-  - env: [CGO_ENABLED=0]
     id: lookoutv2
     binary: lookoutv2
     main: ./cmd/lookoutv2/main.go
-    mod_timestamp: '{{ .CommitTimestamp }}'
-    goos:
-      - linux
-    goarch:
-      - amd64
-  - env: [CGO_ENABLED=0]
-    id: lookoutingester
-    binary: lookoutingester
-    main: ./cmd/lookoutingester/main.go
     mod_timestamp: '{{ .CommitTimestamp }}'
     goos:
       - linux
@@ -260,21 +242,14 @@ dockers:
       - "{{ .Env.DOCKER_REPO }}armada-lookout-bundle:{{ .Version }}"
     build_flag_templates: *BUILD_FLAG_TEMPLATES
     ids:
-      - lookout
       - lookoutv2
-      - lookoutingester
       - lookoutingesterv2
     extra_files:
-      - config/lookout/config.yaml
-      - config/lookoutingester/config.yaml
       - config/lookoutv2/config.yaml
       - config/lookoutingesterv2/config.yaml
       - internal/lookout/ui
       - pkg/api/api.swagger.json
-      - pkg/api/lookout/api.swagger.json
       - pkg/api/binoculars/api.swagger.json
-      - config/lookout/config.yaml
-      - config/lookoutingester/config.yaml
     dockerfile: ./build_goreleaser/bundles/lookout/Dockerfile
 
   - id: full-bundle
@@ -294,9 +269,7 @@ dockers:
       - armadactl
       - scheduler
       - scheduleringester
-      - lookout
       - lookoutv2
-      - lookoutingester
       - lookoutingesterv2
       - fakeexecutor
     extra_files:
@@ -306,17 +279,12 @@ dockers:
       - config/eventingester/config.yaml
       - config/scheduler/config.yaml
       - config/scheduleringester/config.yaml
-      - config/lookout/config.yaml
-      - config/lookoutingester/config.yaml
       - config/lookoutv2/config.yaml
       - config/lookoutingesterv2/config.yaml
       - config/jobservice/config.yaml
       - internal/lookout/ui
       - pkg/api/api.swagger.json
-      - pkg/api/lookout/api.swagger.json
       - pkg/api/binoculars/api.swagger.json
-      - config/lookout/config.yaml
-      - config/lookoutingester/config.yaml
     dockerfile: ./build_goreleaser/bundles/full/Dockerfile
 
   - id: server
@@ -385,20 +353,6 @@ dockers:
       - testsuite
     dockerfile: ./build_goreleaser/testsuite/Dockerfile
 
-  - id: lookoutingester
-    use: buildx
-    goos: linux
-    goarch: amd64
-    image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-lookout-ingester:latest"
-      - "{{ .Env.DOCKER_REPO }}armada-lookout-ingester:{{ .Version }}"
-    build_flag_templates: *BUILD_FLAG_TEMPLATES
-    ids:
-      - lookoutingester
-    extra_files:
-      - config/lookoutingester/config.yaml
-    dockerfile: ./build_goreleaser/lookoutingester/Dockerfile
-
   - id: lookoutingesterv2
     use: buildx
     goos: linux
@@ -412,26 +366,6 @@ dockers:
     extra_files:
       - config/lookoutingesterv2/config.yaml
     dockerfile: ./build_goreleaser/lookoutingesterv2/Dockerfile
-
-  - id: lookout
-    use: buildx
-    goos: linux
-    goarch: amd64
-    image_templates:
-      - "{{ .Env.DOCKER_REPO }}armada-lookout:latest"
-      - "{{ .Env.DOCKER_REPO }}armada-lookout:{{ .Version }}"
-    build_flag_templates: *BUILD_FLAG_TEMPLATES
-    ids:
-      - lookout
-      - lookoutingester
-    extra_files:
-      - internal/lookout/ui
-      - pkg/api/api.swagger.json
-      - pkg/api/lookout/api.swagger.json
-      - pkg/api/binoculars/api.swagger.json
-      - config/lookout/config.yaml
-      - config/lookoutingester/config.yaml
-    dockerfile: ./build_goreleaser/lookout/Dockerfile
 
   - id: lookoutv2
     use: buildx
@@ -592,15 +526,9 @@ release:
     #### Armada Executor
     - `docker pull {{ .Env.DOCKER_REPO }}armada-executor:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-executor:latest`
-    #### Armada Lookout
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout:{{ .Version }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout:latest`
     #### Armada Lookout V2
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-v2:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-v2:latest`
-    #### Armada Lookout Ingester
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-ingester:{{ .Version }}`
-    - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-ingester:latest`
     #### Armada Lookout Ingester V2
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-ingester-v2:{{ .Version }}`
     - `docker pull {{ .Env.DOCKER_REPO }}armada-lookout-ingester-v2:latest`

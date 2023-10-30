@@ -14,7 +14,6 @@ require (
 	github.com/avast/retry-go v3.0.0+incompatible
 	github.com/coreos/go-oidc v2.2.1+incompatible
 	github.com/coreos/pkg v0.0.0-20180928190104-399ea9e2e55f
-	github.com/doug-martin/goqu/v9 v9.18.0
 	github.com/go-ldap/ldap/v3 v3.4.4
 	github.com/go-openapi/analysis v0.21.4
 	github.com/go-openapi/jsonreference v0.20.2
@@ -39,7 +38,7 @@ require (
 	github.com/jcmturner/gokrb5/v8 v8.4.2-0.20201112171129-78f56934d598
 	github.com/jolestar/go-commons-pool v2.0.0+incompatible
 	github.com/jstemmer/go-junit-report/v2 v2.0.0
-	github.com/lib/pq v1.10.7
+	github.com/lib/pq v1.10.7 // indirect
 	github.com/mattn/go-zglob v0.0.4
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.5.0

@@ -64,5 +64,3 @@ For more information about contributing to Armada see [CONTRIBUTING.md](https://
 ## Discussion
 
 If you are interested in discussing Armada you can find us on  [![slack](https://img.shields.io/badge/slack-armada-brightgreen.svg?logo=slack)](https://cloud-native.slack.com/?redir=%2Farchives%2FC03T9CBCEMC)
-
-
