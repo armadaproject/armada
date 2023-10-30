@@ -168,6 +168,13 @@ func TestSubmitChecker_TestCheckApiJobs(t *testing.T) {
 			jobs:           testNJobGang(100),
 			expectPass:     false,
 		},
+		"Less than min cardinality gang jobs in a batch skips submit check": {
+			executorTimout: defaultTimeout,
+			config:         testfixtures.TestSchedulingConfig(),
+			executors:      []*schedulerobjects.Executor{testExecutor(testfixtures.BaseTime)},
+			jobs:           testNJobGangLessThanMinCardinality(5),
+			expectPass:     true,
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -223,6 +230,22 @@ func testNJobGang(n int) []*api.Job {
 			configuration.GangIdAnnotation:                 gangId,
 			configuration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n),
 			configuration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n),
+		}
+		gang[i] = job
+	}
+	return gang
+}
+
+// TODO: Move to testfixtures_test.go.
+func testNJobGangLessThanMinCardinality(n int) []*api.Job {
+	gangId := uuid.NewString()
+	gang := make([]*api.Job, n)
+	for i := 0; i < n; i++ {
+		job := test1CoreCpuJob()
+		job.Annotations = map[string]string{
+			configuration.GangIdAnnotation:                 gangId,
+			configuration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n+2),
+			configuration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n+1),
 		}
 		gang[i] = job
 	}
