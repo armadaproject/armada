@@ -92,7 +92,6 @@ func protoGenerate() error {
 		"pkg/armadaevents/*.proto",
 		"internal/scheduler/schedulerobjects/*.proto",
 		"internal/scheduler/simulator/*.proto",
-		"pkg/api/lookout/*.proto",
 		"pkg/api/binoculars/*.proto",
 		"pkg/api/jobservice/*.proto",
 		"pkg/executorapi/*.proto",
@@ -109,10 +108,6 @@ func protoGenerate() error {
 	}
 
 	err := protoProtocRun(false, true, "./pkg/api/api", "pkg/api/event.proto", "pkg/api/submit.proto")
-	if err != nil {
-		return err
-	}
-	err = protoProtocRun(false, true, "./pkg/api/lookout/api", "pkg/api/lookout/lookout.proto")
 	if err != nil {
 		return err
 	}
@@ -137,13 +132,6 @@ func protoGenerate() error {
 			return err
 		}
 	}
-	if s, err := goOutput("run", "./scripts/merge_swagger/merge_swagger.go", "lookout/api.swagger.json"); err != nil {
-		return err
-	} else {
-		if err := os.WriteFile("pkg/api/lookout/api.swagger.json", []byte(s), 0o755); err != nil {
-			return err
-		}
-	}
 	if s, err := goOutput("run", "./scripts/merge_swagger/merge_swagger.go", "binoculars/api.swagger.json"); err != nil {
 		return err
 	} else {
@@ -156,10 +144,6 @@ func protoGenerate() error {
 	}
 
 	err = sh.Run("templify", "-e", "-p=api", "-f=SwaggerJson", "pkg/api/api.swagger.json")
-	if err != nil {
-		return err
-	}
-	err = sh.Run("templify", "-e", "-p=lookout", "-f=SwaggerJson", "pkg/api/lookout/api.swagger.json")
 	if err != nil {
 		return err
 	}
