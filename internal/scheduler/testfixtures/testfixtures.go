@@ -3,10 +3,11 @@ package testfixtures
 // This file contains test fixtures to be used throughout the tests for this package.
 import (
 	"fmt"
-	"github.com/armadaproject/armada/pkg/api"
 	"math"
 	"sync/atomic"
 	"time"
+
+	"github.com/armadaproject/armada/pkg/api"
 
 	"github.com/google/uuid"
 	"github.com/oklog/ulid"
