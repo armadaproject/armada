@@ -3,6 +3,7 @@ package testfixtures
 // This file contains test fixtures to be used throughout the tests for this package.
 import (
 	"fmt"
+	"github.com/armadaproject/armada/pkg/api"
 	"math"
 	"sync/atomic"
 	"time"
@@ -795,4 +796,80 @@ func TestRunningJobDbJob(startTime int64) *jobdb.Job {
 	return TestQueuedJobDbJob().
 		WithQueued(false).
 		WithUpdatedRun(jobdb.MinimalRun(uuid.New(), startTime))
+}
+
+func Test1CoreCpuApiJob() *api.Job {
+	return &api.Job{
+		Id:    util.NewULID(),
+		Queue: uuid.NewString(),
+		PodSpec: &v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Limits: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("1"),
+						},
+						Requests: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("1"),
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestNApiJobGang(n int) []*api.Job {
+	gangId := uuid.NewString()
+	gang := make([]*api.Job, n)
+	for i := 0; i < n; i++ {
+		job := Test1CoreCpuApiJob()
+		job.Annotations = map[string]string{
+			configuration.GangIdAnnotation:                 gangId,
+			configuration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n),
+			configuration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n),
+		}
+		gang[i] = job
+	}
+	return gang
+}
+
+func TestNApiJobGangLessThanMinCardinality(n int) []*api.Job {
+	gangId := uuid.NewString()
+	gang := make([]*api.Job, n)
+	for i := 0; i < n; i++ {
+		job := Test1CoreCpuApiJob()
+		job.Annotations = map[string]string{
+			configuration.GangIdAnnotation:                 gangId,
+			configuration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n+2),
+			configuration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n+1),
+		}
+		gang[i] = job
+	}
+	return gang
+}
+
+func Test100CoreCpuApiJob() *api.Job {
+	job := Test1CoreCpuApiJob()
+	hundredCores := map[v1.ResourceName]resource.Quantity{
+		"cpu": resource.MustParse("100"),
+	}
+	job.PodSpec.Containers[0].Resources.Limits = hundredCores
+	job.PodSpec.Containers[0].Resources.Requests = hundredCores
+	return job
+}
+
+func Test1CoreCpuApiJobWithNodeSelector(selector map[string]string) *api.Job {
+	job := Test1CoreCpuApiJob()
+	job.PodSpec.NodeSelector = selector
+	return job
+}
+
+func TestExecutor(lastUpdateTime time.Time) *schedulerobjects.Executor {
+	return &schedulerobjects.Executor{
+		Id:             uuid.NewString(),
+		Pool:           "cpu",
+		LastUpdateTime: lastUpdateTime,
+		Nodes:          TestCluster(),
+	}
 }
