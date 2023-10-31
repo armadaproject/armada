@@ -379,6 +379,9 @@ dockers:
       - lookoutv2
       - lookoutingesterv2
     extra_files:
+      - internal/lookout/ui
+      - pkg/api/api.swagger.json
+      - pkg/api/binoculars/api.swagger.json
       - config/lookoutv2/config.yaml
       - config/lookoutingesterv2/config.yaml
     dockerfile: ./build_goreleaser/lookoutv2/Dockerfile
