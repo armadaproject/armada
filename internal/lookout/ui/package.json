@@ -81,7 +81,7 @@
       "last 1 safari version"
     ]
   },
-  "proxy": "http://localhost:8089",
+  "proxy": "http://localhost:10000",
   "devDependencies": {
     "@types/react-truncate": "^2.3.4",
     "@types/validator": "^13.7.3"
