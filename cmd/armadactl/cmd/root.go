@@ -14,7 +14,7 @@ func RootCmd() *cobra.Command {
 		Use:   "armadactl",
 		Short: "armadactl controls the Armada batch job queueing system.",
 		Long: `armadactl controls the Armada batch job queueing system.
-	
+
 Persistent config can be saved in a config file so it doesn't have to be specified every command.
 
 Example structure:
@@ -35,6 +35,7 @@ The location of this file can be passed in using --config argument or picked fro
 		deleteCmd(),
 		updateCmd(),
 		describeCmd(),
+		getCmd(),
 		kubeCmd(),
 		reprioritizeCmd(),
 		resourcesCmd(),

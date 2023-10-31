@@ -35,8 +35,11 @@ const (
 )
 
 var (
-	BaseTime, _         = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-	TestPriorityClasses = map[string]types.PriorityClass{
+	// Used for job creation.
+	SchedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGenerator()
+	JobDb                  = jobdb.NewJobDbWithSchedulingKeyGenerator(SchedulingKeyGenerator)
+	BaseTime, _            = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	TestPriorityClasses    = map[string]types.PriorityClass{
 		PriorityClass0:               {Priority: 0, Preemptible: true},
 		PriorityClass1:               {Priority: 1, Preemptible: true},
 		PriorityClass2:               {Priority: 2, Preemptible: true},
@@ -327,12 +330,16 @@ func WithGangAnnotationsJobs(jobs []*jobdb.Job) []*jobdb.Job {
 	)
 }
 
-func WithGangAnnotationsAndMinCardinalityJobs(jobs []*jobdb.Job, minimumCardinality int) []*jobdb.Job {
+func WithGangAnnotationsAndMinCardinalityJobs(minimumCardinality int, jobs []*jobdb.Job) []*jobdb.Job {
 	gangId := uuid.NewString()
 	gangCardinality := fmt.Sprintf("%d", len(jobs))
 	gangMinCardinality := fmt.Sprintf("%d", minimumCardinality)
 	return WithAnnotationsJobs(
-		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinality, configuration.GangMinimumCardinalityAnnotation: gangMinCardinality},
+		map[string]string{
+			configuration.GangIdAnnotation:                 gangId,
+			configuration.GangCardinalityAnnotation:        gangCardinality,
+			configuration.GangMinimumCardinalityAnnotation: gangMinCardinality,
+		},
 		jobs,
 	)
 }
@@ -400,7 +407,7 @@ func extractPriority(priorityClassName string) int32 {
 func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *schedulerobjects.PodRequirements) *jobdb.Job {
 	created := jobTimestamp.Add(1)
 	submitTime := time.Time{}.Add(time.Millisecond * time.Duration(created))
-	return jobdb.NewJob(
+	return JobDb.NewJob(
 		jobId.String(),
 		TestJobset,
 		queue,

@@ -225,7 +225,6 @@ func (sctx *SchedulingContext) ReportString(verbosity int32) string {
 
 func (sctx *SchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingContext) (bool, error) {
 	allJobsEvictedInThisRound := true
-	allJobsSuccessful := true
 	numberOfSuccessfulJobs := 0
 	for _, jctx := range gctx.JobSchedulingContexts {
 		evictedInThisRound, err := sctx.AddJobSchedulingContext(jctx)
@@ -234,7 +233,6 @@ func (sctx *SchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingCont
 		}
 		allJobsEvictedInThisRound = allJobsEvictedInThisRound && evictedInThisRound
 		isSuccess := jctx.IsSuccessful()
-		allJobsSuccessful = allJobsSuccessful && isSuccess
 		if isSuccess {
 			numberOfSuccessfulJobs++
 		}

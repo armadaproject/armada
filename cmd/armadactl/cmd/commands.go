@@ -55,3 +55,12 @@ func describeCmd() *cobra.Command {
 	cmd.AddCommand(queueDescribeCmd())
 	return cmd
 }
+
+func getCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "get",
+		Short: "Retrieve information about armada resource. Supported: queue",
+	}
+	cmd.AddCommand(queueGetCmd())
+	return cmd
+}

@@ -10,6 +10,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 func TestJobDb_TestUpsert(t *testing.T) {
@@ -196,6 +197,34 @@ func TestJobDb_TestBatchDelete(t *testing.T) {
 	// Can't delete with read only transaction
 	err = jobDb.BatchDelete(jobDb.ReadTxn(), []string{job1.Id()})
 	require.Error(t, err)
+}
+
+func TestJobDb_SchedulingKey(t *testing.T) {
+	podRequirements := &schedulerobjects.PodRequirements{
+		NodeSelector: map[string]string{"foo": "bar"},
+		Priority:     2,
+	}
+	jobSchedulingInfo := &schedulerobjects.JobSchedulingInfo{
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: podRequirements,
+				},
+			},
+		},
+	}
+	jobDb := NewJobDb()
+	job := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2)
+	assert.Equal(t,
+		jobDb.schedulingKeyGenerator.Key(
+			podRequirements.NodeSelector,
+			podRequirements.Affinity,
+			podRequirements.Tolerations,
+			podRequirements.ResourceRequirements.Requests,
+			podRequirements.Priority,
+		),
+		job.schedulingKey,
+	)
 }
 
 func newJob() *Job {
