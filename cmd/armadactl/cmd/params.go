@@ -21,6 +21,7 @@ func initParams(cmd *cobra.Command, params *armadactl.Params) error {
 	params.QueueAPI.Create = cq.Create(client.ExtractCommandlineArmadaApiConnectionDetails)
 	params.QueueAPI.Delete = cq.Delete(client.ExtractCommandlineArmadaApiConnectionDetails)
 	params.QueueAPI.GetInfo = cq.GetInfo(client.ExtractCommandlineArmadaApiConnectionDetails)
+	params.QueueAPI.Get = cq.Get(client.ExtractCommandlineArmadaApiConnectionDetails)
 	params.QueueAPI.Update = cq.Update(client.ExtractCommandlineArmadaApiConnectionDetails)
 
 	return nil
