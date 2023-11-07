@@ -4,7 +4,7 @@ import { IGetRunErrorService } from "../GetRunErrorService"
 export class FakeGetRunErrorService implements IGetRunErrorService {
   constructor(private simulateApiWait = true) {}
 
-  async getRunError(runId: string, signal: AbortSignal | undefined): Promise<string> {
+  async getRunError(runId: string, signal?: AbortSignal): Promise<string> {
     if (this.simulateApiWait) {
       await simulateApiWait(signal)
     }

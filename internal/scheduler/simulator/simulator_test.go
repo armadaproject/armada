@@ -1,36 +1,40 @@
 package simulator
 
 import (
-	fmt "fmt"
-	"strings"
+	"math/rand"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 func TestSimulator(t *testing.T) {
 	tests := map[string]struct {
-		testCase               *TestCase
+		clusterSpec            *ClusterSpec
+		workloadSpec           *WorkloadSpec
 		schedulingConfig       configuration.SchedulingConfig
 		expectedEventSequences []*armadaevents.EventSequence
+		simulatedTimeLimit     time.Duration
 	}{
 		"Two jobs in parallel": {
-			testCase: &TestCase{
+			clusterSpec: &ClusterSpec{
 				Name:  "basic",
 				Pools: []*Pool{Pool32Cpu("Pool", 1, 1, 2)},
-				Queues: []Queue{
+			},
+			workloadSpec: &WorkloadSpec{
+				Queues: []*Queue{
 					WithJobTemplatesQueue(
-						Queue{Name: "A", Weight: 1},
+						&Queue{Name: "A", Weight: 1},
 						JobTemplate32Cpu(2, "foo", testfixtures.TestDefaultPriorityClass),
 					),
 				},
@@ -43,14 +47,17 @@ func TestSimulator(t *testing.T) {
 				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
 				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
 			},
+			simulatedTimeLimit: 5 * time.Minute,
 		},
 		"Two jobs in sequence": {
-			testCase: &TestCase{
+			clusterSpec: &ClusterSpec{
 				Name:  "basic",
 				Pools: []*Pool{Pool32Cpu("Pool", 1, 1, 1)},
-				Queues: []Queue{
+			},
+			workloadSpec: &WorkloadSpec{
+				Queues: []*Queue{
 					WithJobTemplatesQueue(
-						Queue{Name: "A", Weight: 1},
+						&Queue{Name: "A", Weight: 1},
 						JobTemplate32Cpu(2, "foo", testfixtures.TestDefaultPriorityClass),
 					),
 				},
@@ -63,14 +70,17 @@ func TestSimulator(t *testing.T) {
 				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
 				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
 			},
+			simulatedTimeLimit: 5 * time.Minute,
 		},
 		"10 jobs in sequence": {
-			testCase: &TestCase{
+			clusterSpec: &ClusterSpec{
 				Name:  "basic",
 				Pools: []*Pool{Pool32Cpu("Pool", 1, 1, 1)},
-				Queues: []Queue{
+			},
+			workloadSpec: &WorkloadSpec{
+				Queues: []*Queue{
 					WithJobTemplatesQueue(
-						Queue{Name: "A", Weight: 1},
+						&Queue{Name: "A", Weight: 1},
 						JobTemplate32Cpu(10, "foo", testfixtures.TestDefaultPriorityClass),
 					),
 				},
@@ -86,14 +96,17 @@ func TestSimulator(t *testing.T) {
 					&armadaevents.EventSequence{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
 				)...,
 			),
+			simulatedTimeLimit: 20 * time.Minute,
 		},
 		"JobTemplate dependencies": {
-			testCase: &TestCase{
+			clusterSpec: &ClusterSpec{
 				Name:  "basic",
 				Pools: []*Pool{Pool32Cpu("Pool", 1, 1, 3)},
-				Queues: []Queue{
+			},
+			workloadSpec: &WorkloadSpec{
+				Queues: []*Queue{
 					WithJobTemplatesQueue(
-						Queue{Name: "A", Weight: 1},
+						&Queue{Name: "A", Weight: 1},
 						WithIdJobTemplate(
 							JobTemplate32Cpu(2, "foo", testfixtures.TestDefaultPriorityClass),
 							"jobTemplate",
@@ -116,21 +129,24 @@ func TestSimulator(t *testing.T) {
 				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
 				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
 			},
+			simulatedTimeLimit: 5 * time.Minute,
 		},
 		"Preemption": {
-			testCase: &TestCase{
+			clusterSpec: &ClusterSpec{
 				Name:  "basic",
 				Pools: []*Pool{Pool32Cpu("Pool", 1, 1, 2)},
-				Queues: []Queue{
+			},
+			workloadSpec: &WorkloadSpec{
+				Queues: []*Queue{
 					WithJobTemplatesQueue(
-						Queue{Name: "A", Weight: 1},
+						&Queue{Name: "A", Weight: 1},
 						JobTemplate32Cpu(2, "foo", testfixtures.PriorityClass0),
 					),
 					WithJobTemplatesQueue(
-						Queue{Name: "B", Weight: 1},
+						&Queue{Name: "B", Weight: 1},
 						WithMinSubmitTimeJobTemplate(
 							JobTemplate32Cpu(1, "bar", testfixtures.PriorityClass0),
-							time.Time{}.Add(30*time.Second),
+							30*time.Second,
 						),
 					),
 				},
@@ -149,9 +165,10 @@ func TestSimulator(t *testing.T) {
 				{Queue: "B", JobSetName: "bar", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
 				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
 			},
+			simulatedTimeLimit: 5 * time.Minute,
 		},
 		"Preemption cascade": {
-			testCase: &TestCase{
+			clusterSpec: &ClusterSpec{
 				Name: "test",
 				Pools: []*Pool{
 					WithExecutorGroupsPool(
@@ -161,20 +178,22 @@ func TestSimulator(t *testing.T) {
 						ExecutorGroup32Cpu(1, 1),
 					),
 				},
-				Queues: []Queue{
+			},
+			workloadSpec: &WorkloadSpec{
+				Queues: []*Queue{
 					WithJobTemplatesQueue(
-						Queue{Name: "B", Weight: 1},
+						&Queue{Name: "B", Weight: 1},
 						JobTemplate32Cpu(1, "foo", testfixtures.PriorityClass0),
 					),
 					WithJobTemplatesQueue(
-						Queue{Name: "C", Weight: 1},
+						&Queue{Name: "C", Weight: 1},
 						JobTemplate32Cpu(2, "foo", testfixtures.PriorityClass0),
 					),
 					WithJobTemplatesQueue(
-						Queue{Name: "A", Weight: 1},
+						&Queue{Name: "A", Weight: 1},
 						WithMinSubmitTimeJobTemplate(
 							JobTemplate32Cpu(1, "foo", testfixtures.PriorityClass0),
-							time.Time{}.Add(30*time.Second),
+							30*time.Second,
 						),
 					),
 				},
@@ -199,9 +218,10 @@ func TestSimulator(t *testing.T) {
 				{Queue: "B", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
 				{Queue: "C", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
 			},
+			simulatedTimeLimit: 5 * time.Minute,
 		},
 		"No preemption cascade with unified scheduling": {
-			testCase: &TestCase{
+			clusterSpec: &ClusterSpec{
 				Name: "test",
 				Pools: []*Pool{
 					WithExecutorGroupsPool(
@@ -209,20 +229,22 @@ func TestSimulator(t *testing.T) {
 						ExecutorGroup32Cpu(3, 1),
 					),
 				},
-				Queues: []Queue{
+			},
+			workloadSpec: &WorkloadSpec{
+				Queues: []*Queue{
 					WithJobTemplatesQueue(
-						Queue{Name: "B", Weight: 1},
+						&Queue{Name: "B", Weight: 1},
 						JobTemplate32Cpu(1, "foo", testfixtures.PriorityClass0),
 					),
 					WithJobTemplatesQueue(
-						Queue{Name: "C", Weight: 1},
+						&Queue{Name: "C", Weight: 1},
 						JobTemplate32Cpu(2, "foo", testfixtures.PriorityClass0),
 					),
 					WithJobTemplatesQueue(
-						Queue{Name: "A", Weight: 1},
+						&Queue{Name: "A", Weight: 1},
 						WithMinSubmitTimeJobTemplate(
 							JobTemplate32Cpu(1, "foo", testfixtures.PriorityClass0),
-							time.Time{}.Add(30*time.Second),
+							30*time.Second,
 						),
 					),
 				},
@@ -244,200 +266,111 @@ func TestSimulator(t *testing.T) {
 				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
 				{Queue: "C", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
 			},
+			simulatedTimeLimit: 5 * time.Minute,
 		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			s, err := NewSimulator(tc.testCase, tc.schedulingConfig)
+			s, err := NewSimulator(tc.clusterSpec, tc.workloadSpec, tc.schedulingConfig)
 			require.NoError(t, err)
-			go func() { err = s.Run() }()
-			actualEventSequences := make([]*armadaevents.EventSequence, 0, len(tc.expectedEventSequences))
-			for eventSequence := range s.C() {
-				t.Log(*eventSequence.Events[0].Created, eventSequenceSummary(eventSequence))
-				actualEventSequences = append(actualEventSequences, eventSequence)
-			}
+			mc := NewMetricsCollector(s.Output())
+			actualEventSequences := make([]*armadaevents.EventSequence, 0, 128)
+			c := s.Output()
+
+			ctx := armadacontext.Background()
+			g, ctx := armadacontext.ErrGroup(ctx)
+			g.Go(func() error {
+				return mc.Run(ctx)
+			})
+			g.Go(func() error {
+				for {
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case eventSequence, ok := <-c:
+						if !ok {
+							return nil
+						}
+						t.Log(*eventSequence.Events[0].Created, EventSequenceSummary(eventSequence))
+						actualEventSequences = append(actualEventSequences, eventSequence)
+					}
+				}
+			})
+			g.Go(func() error {
+				return s.Run(ctx)
+			})
+			err = g.Wait()
 			require.NoError(t, err)
-			t.Logf("Simulated time: %s", s.time.Sub(time.Time{}))
+
+			t.Logf("Simulation Results: %s", mc.String())
 			if tc.expectedEventSequences != nil {
 				require.Equal(
 					t,
-					util.Map(tc.expectedEventSequences, func(eventSequence *armadaevents.EventSequence) string { return eventSequenceSummary(eventSequence) }),
-					util.Map(actualEventSequences, func(eventSequence *armadaevents.EventSequence) string { return eventSequenceSummary(eventSequence) }),
+					util.Map(tc.expectedEventSequences, func(eventSequence *armadaevents.EventSequence) string { return EventSequenceSummary(eventSequence) }),
+					util.Map(actualEventSequences, func(eventSequence *armadaevents.EventSequence) string { return EventSequenceSummary(eventSequence) }),
 					"Expected:\n%s\nReceived:\n%s",
-					eventSequencesSummary(tc.expectedEventSequences),
-					eventSequencesSummary(actualEventSequences),
+					EventSequencesSummary(tc.expectedEventSequences),
+					EventSequencesSummary(actualEventSequences),
 				)
 			}
+			require.LessOrEqual(t, mc.OverallMetrics.TimeOfMostRecentJobSucceededEvent, tc.simulatedTimeLimit)
 		})
 	}
 }
 
-func WithExecutorGroupsPool(pool *Pool, executorGroups ...*ExecutorGroup) *Pool {
-	pool.ExecutorGroups = append(pool.ExecutorGroups, executorGroups...)
-	return pool
+func TestSchedulingConfigsFromPattern(t *testing.T) {
+	actual, err := SchedulingConfigsFromPattern("./testdata/configs/basicSchedulingConfig.yaml")
+	require.NoError(t, err)
+	expected := []configuration.SchedulingConfig{GetBasicSchedulingConfig()}
+	assert.Equal(t, expected, actual)
 }
 
-func WithExecutorsExecutorGroup(executorGroup *ExecutorGroup, executors ...*Executor) *ExecutorGroup {
-	executorGroup.Executors = append(executorGroup.Executors, executors...)
-	return executorGroup
+func TestClusterSpecsFromPattern(t *testing.T) {
+	clusterSpecs, err := ClusterSpecsFromPattern("./testdata/clusters/tinyCluster.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, []*ClusterSpec{GetTwoPoolTwoNodeCluster()}, clusterSpecs)
+	require.NoError(t, err)
 }
 
-func WithNodeTemplatesExecutor(executor *Executor, nodeTemplates ...*NodeTemplate) *Executor {
-	executor.NodeTemplates = append(executor.NodeTemplates, nodeTemplates...)
-	return executor
+func TestWorkloadsFromPattern(t *testing.T) {
+	workloadSpecs, err := WorkloadsFromPattern("./testdata/workloads/basicWorkload.yaml")
+	require.NoError(t, err)
+	assert.Equal(t, []*WorkloadSpec{GetOneQueue10JobWorkload()}, workloadSpecs)
+	require.NoError(t, err)
 }
 
-func Pool32Cpu(name string, numExecutorGroups, numExecutorsPerGroup, numNodesPerExecutor int64) *Pool {
-	executorGroups := make([]*ExecutorGroup, numExecutorGroups)
-	for i := 0; i < int(numExecutorGroups); i++ {
-		executorGroups[i] = ExecutorGroup32Cpu(numExecutorsPerGroup, numNodesPerExecutor)
-	}
-	return &Pool{
-		Name:           name,
-		ExecutorGroups: executorGroups,
-	}
-}
-
-func ExecutorGroup32Cpu(numExecutors, numNodesPerExecutor int64) *ExecutorGroup {
-	executors := make([]*Executor, numExecutors)
-	for i := 0; i < int(numExecutors); i++ {
-		executors[i] = Executor32Cpu(numNodesPerExecutor)
-	}
-	return &ExecutorGroup{
-		Executors: executors,
-	}
-}
-
-func Executor32Cpu(numNodes int64) *Executor {
-	return &Executor{
-		NodeTemplates: []*NodeTemplate{
-			NodeTemplate32Cpu(numNodes),
+func TestClusterSpecTotalResources(t *testing.T) {
+	actual := GetTwoPoolTwoNodeCluster().TotalResources()
+	expected := schedulerobjects.ResourceList{
+		Resources: map[string]resource.Quantity{
+			"cpu":            resource.MustParse("160"),
+			"memory":         resource.MustParse("4352Gi"),
+			"nvidia.com/gpu": resource.MustParse("8"),
 		},
 	}
+	assert.True(t, expected.Equal(actual), "expected %s, but got %s", expected.CompactString(), actual.CompactString())
 }
 
-func NodeTemplate32Cpu(n int64) *NodeTemplate {
-	return &NodeTemplate{
-		Number: n,
-		TotalResources: schedulerobjects.ResourceList{
-			Resources: map[string]resource.Quantity{
-				"cpu":    resource.MustParse("32"),
-				"memory": resource.MustParse("256Gi"),
+func TestGenerateRandomShiftedExponentialDuration(t *testing.T) {
+	assert.Equal(
+		t,
+		time.Hour,
+		generateRandomShiftedExponentialDuration(
+			rand.New(rand.NewSource(0)),
+			ShiftedExponential{
+				Minimum: time.Hour,
 			},
-		},
-	}
-}
-
-func WithJobTemplatesQueue(queue Queue, jobTemplate ...*JobTemplate) Queue {
-	queue.JobTemplates = append(queue.JobTemplates, jobTemplate...)
-	return queue
-}
-
-func WithIdJobTemplate(jobTemplate *JobTemplate, id string) *JobTemplate {
-	jobTemplate.Id = id
-	return jobTemplate
-}
-
-func WithDependenciesJobTemplate(jobTemplate *JobTemplate, dependencyIds ...string) *JobTemplate {
-	jobTemplate.Dependencies = append(jobTemplate.Dependencies, dependencyIds...)
-	return jobTemplate
-}
-
-func WithMinSubmitTimeJobTemplate(jobTemplate *JobTemplate, minSubmitTime time.Time) *JobTemplate {
-	jobTemplate.MinSubmitTime = minSubmitTime
-	return jobTemplate
-}
-
-func JobTemplate32Cpu(n int64, jobSet, priorityClassName string) *JobTemplate {
-	return &JobTemplate{
-		Number:            n,
-		JobSet:            jobSet,
-		PriorityClassName: priorityClassName,
-		Requirements: schedulerobjects.PodRequirements{
-			ResourceRequirements: v1.ResourceRequirements{
-				Requests: v1.ResourceList{
-					"cpu":    resource.MustParse("32"),
-					"memory": resource.MustParse("256Gi"),
-				},
+		),
+	)
+	assert.Less(
+		t,
+		time.Hour,
+		generateRandomShiftedExponentialDuration(
+			rand.New(rand.NewSource(0)),
+			ShiftedExponential{
+				Minimum:  time.Hour,
+				TailMean: time.Second,
 			},
-		},
-		RuntimeMean: 60,
-	}
-}
-
-func JobTemplate1Cpu(n int64, jobSet, priorityClassName string) *JobTemplate {
-	return &JobTemplate{
-		Number:            n,
-		JobSet:            jobSet,
-		PriorityClassName: priorityClassName,
-		Requirements: schedulerobjects.PodRequirements{
-			ResourceRequirements: v1.ResourceRequirements{
-				Requests: v1.ResourceList{
-					"cpu":    resource.MustParse("1"),
-					"memory": resource.MustParse("8Gi"),
-				},
-			},
-		},
-		RuntimeMean: 60,
-	}
-}
-
-func SubmitJob() *armadaevents.EventSequence_Event {
-	return &armadaevents.EventSequence_Event{
-		Event: &armadaevents.EventSequence_Event_SubmitJob{
-			SubmitJob: &armadaevents.SubmitJob{},
-		},
-	}
-}
-
-func JobRunLeased() *armadaevents.EventSequence_Event {
-	return &armadaevents.EventSequence_Event{
-		Event: &armadaevents.EventSequence_Event_JobRunLeased{
-			JobRunLeased: &armadaevents.JobRunLeased{},
-		},
-	}
-}
-
-func JobRunPreempted() *armadaevents.EventSequence_Event {
-	return &armadaevents.EventSequence_Event{
-		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
-			JobRunPreempted: &armadaevents.JobRunPreempted{},
-		},
-	}
-}
-
-func JobSucceeded() *armadaevents.EventSequence_Event {
-	return &armadaevents.EventSequence_Event{
-		Event: &armadaevents.EventSequence_Event_JobSucceeded{
-			JobSucceeded: &armadaevents.JobSucceeded{},
-		},
-	}
-}
-
-func eventSequencesSummary(eventSequences []*armadaevents.EventSequence) string {
-	var sb strings.Builder
-	for i, eventSequence := range eventSequences {
-		sb.WriteString(eventSequenceSummary(eventSequence))
-		if i != len(eventSequences)-1 {
-			sb.WriteString("\n")
-		}
-	}
-	return sb.String()
-}
-
-func eventSequenceSummary(eventSequence *armadaevents.EventSequence) string {
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("EventSequence{Queue: %s, JobSetName: %s, Events: [", eventSequence.Queue, eventSequence.JobSetName))
-	for i, event := range eventSequence.Events {
-		sb.WriteString(eventSummary(event))
-		if i != len(eventSequence.Events)-1 {
-			sb.WriteString(", ")
-		}
-	}
-	sb.WriteString("]}")
-	return sb.String()
-}
-
-func eventSummary(event *armadaevents.EventSequence_Event) string {
-	return strings.ReplaceAll(fmt.Sprintf("%T", event.Event), "*armadaevents.EventSequence_Event_", "")
+		),
+	)
 }

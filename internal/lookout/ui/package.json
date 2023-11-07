@@ -52,6 +52,7 @@
     "jest-junit": "^16.0.0",
     "js-yaml": "^4.0.0",
     "notistack": "^2.0.8",
+    "oidc-client-ts": "^2.3.0",
     "prettier": "^2.8.8",
     "qs": "^6.11.0",
     "query-string": "^6.13.7",
@@ -80,7 +81,7 @@
       "last 1 safari version"
     ]
   },
-  "proxy": "http://localhost:8089",
+  "proxy": "http://localhost:10000",
   "devDependencies": {
     "@types/react-truncate": "^2.3.4",
     "@types/validator": "^13.7.3"

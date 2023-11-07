@@ -22,6 +22,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -105,7 +106,7 @@ var (
 	})
 )
 
-var queuedJob = jobdb.NewJob(
+var queuedJob = testfixtures.JobDb.NewJob(
 	util.NewULID(),
 	"testJobset",
 	"testQueue",
@@ -118,7 +119,7 @@ var queuedJob = jobdb.NewJob(
 	false,
 	1)
 
-var queuedJobWithExpiredTtl = jobdb.NewJob(
+var queuedJobWithExpiredTtl = testfixtures.JobDb.NewJob(
 	util.NewULID(),
 	"testJobset",
 	"testQueue",
@@ -131,7 +132,7 @@ var queuedJobWithExpiredTtl = jobdb.NewJob(
 	false,
 	1)
 
-var leasedJob = jobdb.NewJob(
+var leasedJob = testfixtures.JobDb.NewJob(
 	util.NewULID(),
 	"testJobset",
 	"testQueue",
@@ -153,7 +154,7 @@ var defaultJobRunError = &armadaevents.Error{
 	},
 }
 
-var leasedFailFastJob = jobdb.NewJob(
+var leasedFailFastJob = testfixtures.JobDb.NewJob(
 	util.NewULID(),
 	"testJobset",
 	"testQueue",
@@ -168,7 +169,7 @@ var leasedFailFastJob = jobdb.NewJob(
 
 var (
 	requeuedJobId = util.NewULID()
-	requeuedJob   = jobdb.NewJob(
+	requeuedJob   = testfixtures.JobDb.NewJob(
 		requeuedJobId,
 		"testJobset",
 		"testQueue",
@@ -1003,8 +1004,13 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				1*time.Hour,
 				maxNumberOfAttempts,
 				nodeIdLabel,
-				schedulerMetrics)
+				schedulerMetrics,
+			)
 			require.NoError(t, err)
+
+			// The SchedulingKeyGenerator embedded in the jobDb has some randomness,
+			// which must be consistent within tests.
+			sched.jobDb = jobdb.NewJobDbWithSchedulingKeyGenerator(testfixtures.SchedulingKeyGenerator)
 
 			// insert initial jobs
 			txn := sched.jobDb.WriteTxn()

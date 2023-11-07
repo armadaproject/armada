@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/armadaproject/armada/pkg/api"
+
 	"github.com/google/uuid"
 	"github.com/oklog/ulid"
 	"golang.org/x/exp/maps"
@@ -34,8 +36,11 @@ const (
 )
 
 var (
-	BaseTime, _         = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-	TestPriorityClasses = map[string]types.PriorityClass{
+	// Used for job creation.
+	SchedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGenerator()
+	JobDb                  = jobdb.NewJobDbWithSchedulingKeyGenerator(SchedulingKeyGenerator)
+	BaseTime, _            = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	TestPriorityClasses    = map[string]types.PriorityClass{
 		PriorityClass0:               {Priority: 0, Preemptible: true},
 		PriorityClass1:               {Priority: 1, Preemptible: true},
 		PriorityClass2:               {Priority: 2, Preemptible: true},
@@ -326,12 +331,16 @@ func WithGangAnnotationsJobs(jobs []*jobdb.Job) []*jobdb.Job {
 	)
 }
 
-func WithGangAnnotationsAndMinCardinalityJobs(jobs []*jobdb.Job, minimumCardinality int) []*jobdb.Job {
+func WithGangAnnotationsAndMinCardinalityJobs(minimumCardinality int, jobs []*jobdb.Job) []*jobdb.Job {
 	gangId := uuid.NewString()
 	gangCardinality := fmt.Sprintf("%d", len(jobs))
 	gangMinCardinality := fmt.Sprintf("%d", minimumCardinality)
 	return WithAnnotationsJobs(
-		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinality, configuration.GangMinimumCardinalityAnnotation: gangMinCardinality},
+		map[string]string{
+			configuration.GangIdAnnotation:                 gangId,
+			configuration.GangCardinalityAnnotation:        gangCardinality,
+			configuration.GangMinimumCardinalityAnnotation: gangMinCardinality,
+		},
 		jobs,
 	)
 }
@@ -399,7 +408,7 @@ func extractPriority(priorityClassName string) int32 {
 func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *schedulerobjects.PodRequirements) *jobdb.Job {
 	created := jobTimestamp.Add(1)
 	submitTime := time.Time{}.Add(time.Millisecond * time.Duration(created))
-	return jobdb.NewJob(
+	return JobDb.NewJob(
 		jobId.String(),
 		TestJobset,
 		queue,
@@ -788,4 +797,80 @@ func TestRunningJobDbJob(startTime int64) *jobdb.Job {
 	return TestQueuedJobDbJob().
 		WithQueued(false).
 		WithUpdatedRun(jobdb.MinimalRun(uuid.New(), startTime))
+}
+
+func Test1CoreCpuApiJob() *api.Job {
+	return &api.Job{
+		Id:    util.NewULID(),
+		Queue: uuid.NewString(),
+		PodSpec: &v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Limits: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("1"),
+						},
+						Requests: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("1"),
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestNApiJobGang(n int) []*api.Job {
+	gangId := uuid.NewString()
+	gang := make([]*api.Job, n)
+	for i := 0; i < n; i++ {
+		job := Test1CoreCpuApiJob()
+		job.Annotations = map[string]string{
+			configuration.GangIdAnnotation:                 gangId,
+			configuration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n),
+			configuration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n),
+		}
+		gang[i] = job
+	}
+	return gang
+}
+
+func TestNApiJobGangLessThanMinCardinality(n int) []*api.Job {
+	gangId := uuid.NewString()
+	gang := make([]*api.Job, n)
+	for i := 0; i < n; i++ {
+		job := Test1CoreCpuApiJob()
+		job.Annotations = map[string]string{
+			configuration.GangIdAnnotation:                 gangId,
+			configuration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n+2),
+			configuration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n+1),
+		}
+		gang[i] = job
+	}
+	return gang
+}
+
+func Test100CoreCpuApiJob() *api.Job {
+	job := Test1CoreCpuApiJob()
+	hundredCores := map[v1.ResourceName]resource.Quantity{
+		"cpu": resource.MustParse("100"),
+	}
+	job.PodSpec.Containers[0].Resources.Limits = hundredCores
+	job.PodSpec.Containers[0].Resources.Requests = hundredCores
+	return job
+}
+
+func Test1CoreCpuApiJobWithNodeSelector(selector map[string]string) *api.Job {
+	job := Test1CoreCpuApiJob()
+	job.PodSpec.NodeSelector = selector
+	return job
+}
+
+func TestExecutor(lastUpdateTime time.Time) *schedulerobjects.Executor {
+	return &schedulerobjects.Executor{
+		Id:             uuid.NewString(),
+		Pool:           "cpu",
+		LastUpdateTime: lastUpdateTime,
+		Nodes:          TestCluster(),
+	}
 }

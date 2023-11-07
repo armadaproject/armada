@@ -15,6 +15,7 @@ import { formatJobState } from "utils/jobsTableFormatters"
 import dialogStyles from "./DialogStyles.module.css"
 import { JobStatusTable } from "./JobStatusTable"
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
+import { getAccessToken, useUserManager } from "../../oidc"
 
 interface CancelDialogProps {
   onClose: () => void
@@ -40,6 +41,8 @@ export const CancelDialog = ({
   const [isPlatformCancel, setIsPlatformCancel] = useState(false)
   const openSnackbar = useCustomSnackbar()
 
+  const userManager = useUserManager()
+
   // Actions
   const fetchSelectedJobs = useCallback(async () => {
     if (!mounted.current) {
@@ -64,7 +67,8 @@ export const CancelDialog = ({
     setIsCancelling(true)
 
     const reason = isPlatformCancel ? PlatformCancelReason : ""
-    const response = await updateJobsService.cancelJobs(cancellableJobs, reason)
+    const accessToken = userManager && (await getAccessToken(userManager))
+    const response = await updateJobsService.cancelJobs(cancellableJobs, reason, accessToken)
 
     if (response.failedJobIds.length === 0) {
       openSnackbar(

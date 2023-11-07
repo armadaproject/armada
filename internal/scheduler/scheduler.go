@@ -17,7 +17,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/database"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -339,12 +338,10 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 	}
 
 	jobsToUpdate := maps.Values(jobsToUpdateById)
-	err = s.jobDb.Upsert(txn, jobsToUpdate)
-	if err != nil {
+	if err := s.jobDb.Upsert(txn, jobsToUpdate); err != nil {
 		return nil, err
 	}
-	err = s.jobDb.BatchDelete(txn, jobsToDelete)
-	if err != nil {
+	if err := s.jobDb.BatchDelete(txn, jobsToDelete); err != nil {
 		return nil, err
 	}
 	txn.Commit()
@@ -407,7 +404,7 @@ func EventsFromSchedulerResult(result *SchedulerResult, time time.Time) ([]*arma
 	if err != nil {
 		return nil, err
 	}
-	eventSequences, err = AppendEventSequencesFromUnschedulableJobs(eventSequences, result.FailedJobs, time)
+	eventSequences, err = AppendEventSequencesFromUnschedulableJobs(eventSequences, FailedJobsFromSchedulerResult[*jobdb.Job](result), time)
 	if err != nil {
 		return nil, err
 	}
@@ -510,7 +507,7 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 	return eventSequences, nil
 }
 
-func AppendEventSequencesFromUnschedulableJobs(eventSequences []*armadaevents.EventSequence, jobs []interfaces.LegacySchedulerJob, time time.Time) ([]*armadaevents.EventSequence, error) {
+func AppendEventSequencesFromUnschedulableJobs(eventSequences []*armadaevents.EventSequence, jobs []*jobdb.Job, time time.Time) ([]*armadaevents.EventSequence, error) {
 	for _, job := range jobs {
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.GetId())
 		if err != nil {
@@ -953,7 +950,7 @@ func (s *Scheduler) schedulerJobFromDatabaseJob(dbJob *database.Job) (*jobdb.Job
 		return nil, errors.Wrapf(err, "error unmarshalling scheduling info for job %s", dbJob.JobID)
 	}
 	s.internJobSchedulingInfoStrings(schedulingInfo)
-	return jobdb.NewJob(
+	return s.jobDb.NewJob(
 		dbJob.JobID,
 		s.stringInterner.Intern(dbJob.JobSet),
 		s.stringInterner.Intern(dbJob.Queue),

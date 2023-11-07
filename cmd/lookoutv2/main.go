@@ -13,8 +13,12 @@ import (
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/database"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/profiling"
+	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/lookoutv2"
 	"github.com/armadaproject/armada/internal/lookoutv2/configuration"
+	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi"
 	"github.com/armadaproject/armada/internal/lookoutv2/pruner"
 	"github.com/armadaproject/armada/internal/lookoutv2/schema"
 )
@@ -57,7 +61,7 @@ func makeContext() (*armadacontext.Context, func()) {
 	}
 }
 
-func migrate(ctx *armadacontext.Context, config configuration.LookoutV2Configuration) {
+func migrate(ctx *armadacontext.Context, config configuration.LookoutV2Config) {
 	db, err := database.OpenPgxPool(config.Postgres)
 	if err != nil {
 		panic(err)
@@ -74,7 +78,7 @@ func migrate(ctx *armadacontext.Context, config configuration.LookoutV2Configura
 	}
 }
 
-func prune(ctx *armadacontext.Context, config configuration.LookoutV2Configuration) {
+func prune(ctx *armadacontext.Context, config configuration.LookoutV2Config) {
 	db, err := database.OpenPgxConn(config.Postgres)
 	if err != nil {
 		panic(err)
@@ -104,9 +108,18 @@ func main() {
 	common.ConfigureLogging()
 	common.BindCommandlineArguments()
 
-	var config configuration.LookoutV2Configuration
+	var config configuration.LookoutV2Config
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 	common.LoadConfig(&config, "./config/lookoutv2", userSpecifiedConfigs)
+
+	// Expose profiling endpoints if enabled.
+	pprofServer := profiling.SetupPprofHttpServer(config.PprofPort)
+	go func() {
+		ctx := armadacontext.Background()
+		if err := serve.ListenAndServe(ctx, pprofServer); err != nil {
+			logging.WithStacktrace(ctx, err).Error("pprof server failure")
+		}
+	}()
 
 	log.SetLevel(log.DebugLevel)
 
@@ -125,8 +138,9 @@ func main() {
 		return
 	}
 
-	err := lookoutv2.Serve(config)
-	if err != nil {
+	restapi.UIConfig = config.UIConfig
+
+	if err := lookoutv2.Serve(config); err != nil {
 		log.Error(err)
 		os.Exit(1)
 	}

@@ -4,7 +4,7 @@ import { IGetJobSpecService } from "../GetJobSpecService"
 export default class FakeGetJobSpecService implements IGetJobSpecService {
   constructor(private simulateApiWait = true) {}
 
-  async getJobSpec(jobId: string, signal: AbortSignal | undefined): Promise<Record<string, any>> {
+  async getJobSpec(jobId: string, signal?: AbortSignal): Promise<Record<string, any>> {
     if (this.simulateApiWait) {
       await simulateApiWait(signal)
     }

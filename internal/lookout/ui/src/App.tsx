@@ -5,19 +5,22 @@ import { createGenerateClassName } from "@material-ui/core/styles"
 import { ThemeProvider as ThemeProviderV5, createTheme as createThemeV5 } from "@mui/material/styles"
 import { JobsTableContainer } from "containers/lookoutV2/JobsTableContainer"
 import { SnackbarProvider } from "notistack"
+import { UserManager, WebStorageStateStore } from "oidc-client-ts"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
+import { UpdateJobSetsService } from "services/lookoutV2/UpdateJobSetsService"
 import { UpdateJobsService } from "services/lookoutV2/UpdateJobsService"
 import { withRouter } from "utils"
 
 import NavBar from "./components/NavBar"
-import { JobService } from "./services/JobService"
-import LogService from "./services/LogService"
+import JobSetsContainer from "./containers/JobSetsContainer"
+import { UserManagerContext, useUserManager } from "./oidc"
 import { ICordonService } from "./services/lookoutV2/CordonService"
 import { IGetJobSpecService } from "./services/lookoutV2/GetJobSpecService"
 import { IGetRunErrorService } from "./services/lookoutV2/GetRunErrorService"
 import { ILogService } from "./services/lookoutV2/LogService"
+import { OidcConfig } from "./utils"
 
 import "./App.css"
 
@@ -61,32 +64,46 @@ const themeV5 = createThemeV5(theme)
 
 type AppProps = {
   customTitle: string
-  jobService: JobService
+  oidcConfig?: OidcConfig
   v2GetJobsService: IGetJobsService
   v2GroupJobsService: IGroupJobsService
   v2RunErrorService: IGetRunErrorService
   v2JobSpecService: IGetJobSpecService
   v2LogService: ILogService
   v2UpdateJobsService: UpdateJobsService
+  v2UpdateJobSetsService: UpdateJobSetsService
   v2CordonService: ICordonService
-  logService: LogService
-  overviewAutoRefreshMs: number
   jobSetsAutoRefreshMs: number
   jobsAutoRefreshMs: number
   debugEnabled: boolean
+}
+
+function OidcCallback(): JSX.Element {
+  const userManager = useUserManager()
+  const [error, setError] = React.useState<string | undefined>()
+  React.useEffect(() => {
+    userManager &&
+      userManager.signinPopupCallback().catch((e) => {
+        setError(`${e}`)
+        console.error(e)
+      })
+  }, [])
+  if (error !== undefined) return <p>Something went wrong; more details are available in the console.</p>
+  return <p>Authenticating...</p>
 }
 
 // Version 2 of the Lookout UI used to be hosted under /v2, so we try our best
 // to redirect users to the new location while preserving the rest of the URL.
 const V2Redirect = withRouter(({ router }) => <Navigate to={{ ...router.location, pathname: "/" }} />)
 
-export function App(props: AppProps) {
+export function App(props: AppProps): JSX.Element {
   useEffect(() => {
     if (props.customTitle) {
       document.title = `${props.customTitle} - Armada Lookout`
     }
   }, [props.customTitle])
-  return (
+
+  const result = (
     <StylesProvider generateClassName={generateClassName}>
       <ThemeProviderV4 theme={themeV4}>
         <ThemeProviderV5 theme={themeV5}>
@@ -112,9 +129,12 @@ export function App(props: AppProps) {
                           logService={props.v2LogService}
                           cordonService={props.v2CordonService}
                           debug={props.debugEnabled}
+                          autoRefreshMs={props.jobsAutoRefreshMs}
                         />
                       }
                     />
+                    <Route path="/job-sets" element={<JobSetsContainer {...props} />} />
+                    <Route path="/oidc" element={<OidcCallback />} />
                     <Route path="/v2" element={<V2Redirect />} />
                     <Route
                       path="*"
@@ -133,5 +153,23 @@ export function App(props: AppProps) {
         </ThemeProviderV5>
       </ThemeProviderV4>
     </StylesProvider>
+  )
+
+  if (props.oidcConfig === undefined) return result
+
+  return (
+    <UserManagerContext.Provider
+      value={
+        new UserManager({
+          authority: props.oidcConfig.authority,
+          client_id: props.oidcConfig.clientId,
+          redirect_uri: `${window.location.origin}/oidc`,
+          scope: props.oidcConfig.scope,
+          userStore: new WebStorageStateStore({ store: window.localStorage }),
+        })
+      }
+    >
+      {result}
+    </UserManagerContext.Provider>
   )
 }
