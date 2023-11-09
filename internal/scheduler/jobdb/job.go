@@ -8,6 +8,7 @@ import (
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
+	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -26,9 +27,9 @@ type Job struct {
 	// Requested per queue priority of this job.
 	// This is used when syncing the postgres database with the scheduler-internal database.
 	requestedPriority uint32
-	// Logical timestamp indicating the order in which jobs are submitted.
-	// Jobs with identical Queue and Priority are sorted by this.
-	created int64
+	// Job submission time in nanoseconds since the epoch.
+	// I.e., the value returned by time.UnixNano().
+	submittedTime int64
 	// Hash of the scheduling requirements of the job.
 	schedulingKey schedulerobjects.SchedulingKey
 	// True if the job is currently queued.
@@ -38,6 +39,8 @@ type Job struct {
 	queuedVersion int32
 	// Scheduling requirements of this job.
 	jobSchedulingInfo *schedulerobjects.JobSchedulingInfo
+	// Priority class of this job. Populated automatically on job creation.
+	priorityClass types.PriorityClass
 	// True if the user has requested this job be cancelled
 	cancelRequested bool
 	// True if the user has requested this job's jobset be cancelled
@@ -50,7 +53,7 @@ type Job struct {
 	succeeded bool
 	// Job Runs by run id
 	runsById map[uuid.UUID]*JobRun
-	// The currently active run.  The run with the latest timestamp is the active run
+	// The currently active run. The run with the latest timestamp is the active run.
 	activeRun *JobRun
 	// The timestamp of the currently active run.
 	activeRunTimestamp int64
@@ -75,6 +78,82 @@ func (job *Job) ensureJobSchedulingInfoFieldsInitialised() {
 			}
 		}
 	}
+}
+
+// Equal returns true if job is equal to other and false otherwise.
+// Scheduling requirements are assumed to be equal if both jobs have equal schedulingKey.
+func (job *Job) Equal(other *Job) bool {
+	if job == other {
+		return true
+	}
+	if job == nil && other != nil {
+		return false
+	}
+	if job != nil && other == nil {
+		return false
+	}
+	if job.id != other.id {
+		return false
+	}
+	if job.queue != other.queue {
+		return false
+	}
+	if job.jobset != other.jobset {
+		return false
+	}
+	if job.priority != other.priority {
+		return false
+	}
+	if job.requestedPriority != other.requestedPriority {
+		return false
+	}
+	if job.submittedTime != other.submittedTime {
+		return false
+	}
+	if job.schedulingKey != other.schedulingKey {
+		// We assume jobSchedulingInfo is equal if schedulingKey is equal.
+		return false
+	}
+	if job.queued != other.queued {
+		return false
+	}
+	if job.queuedVersion != other.queuedVersion {
+		return false
+	}
+	if job.priorityClass.Equal(other.priorityClass) {
+		return false
+	}
+	if job.queued != other.queued {
+		return false
+	}
+	if job.queuedVersion != other.queuedVersion {
+		return false
+	}
+	if job.cancelRequested != other.cancelRequested {
+		return false
+	}
+	if job.cancelByJobsetRequested != other.cancelByJobsetRequested {
+		return false
+	}
+	if job.cancelled != other.cancelled {
+		return false
+	}
+	if job.failed != other.failed {
+		return false
+	}
+	if job.succeeded != other.succeeded {
+		return false
+	}
+	if !armadamaps.DeepEqual(job.runsById, other.runsById) {
+		return false
+	}
+	if !job.activeRun.Equal(other.activeRun) {
+		return false
+	}
+	if job.activeRunTimestamp != other.activeRunTimestamp {
+		return false
+	}
+	return true
 }
 
 // Id returns the id of the Job.
@@ -305,7 +384,7 @@ func (job *Job) WithFailed(failed bool) *Job {
 
 // Created Returns the creation time of the job
 func (job *Job) Created() int64 {
-	return job.created
+	return job.submittedTime
 }
 
 // InTerminalState returns true if the job  is in a terminal state
@@ -393,7 +472,7 @@ func (job *Job) HasQueueTtlExpired() bool {
 		timeSeconds := time.Now().UTC().Unix()
 
 		// job.Created is populated from the `Submitted` field in postgres, which is a UnixNano time hence the conversion.
-		createdSeconds := job.created / 1_000_000_000
+		createdSeconds := job.submittedTime / 1_000_000_000
 		duration := timeSeconds - createdSeconds
 		return duration > ttlSeconds
 	} else {
@@ -423,7 +502,7 @@ func (job *Job) WithQueue(queue string) *Job {
 // WithCreated returns a copy of the job with the creation time updated.
 func (job *Job) WithCreated(created int64) *Job {
 	j := copyJob(*job)
-	j.created = created
+	j.submittedTime = created
 	return j
 }
 
@@ -453,83 +532,4 @@ func (job *Job) DeepCopy() *Job {
 // copyJob makes a copy of the job
 func copyJob(j Job) *Job {
 	return &j
-}
-
-type JobPriorityComparer struct{}
-
-// Compare jobs first by priority then by created and finally by id.
-// returns -1 if a should come before b, 1 if a should come after b and 0 if the two jobs are equal
-func (j JobPriorityComparer) Compare(a, b *Job) int {
-	// Compare the jobs by priority.
-	if a.priority != b.priority {
-		if a.priority < b.priority {
-			return -1
-		} else {
-			return 1
-		}
-	}
-
-	// If the jobs have the same priority, compare them by created timestamp.
-	if a.created != b.created {
-		if a.created < b.created {
-			return -1
-		} else {
-			return 1
-		}
-	}
-
-	// If the jobs have the same priority and created timestamp, compare them by id.
-	if a.id != b.id {
-		if a.id < b.id {
-			return -1
-		} else {
-			return 1
-		}
-	}
-
-	// Jobs are equal; return 0.
-	return 0
-}
-
-type JobQueueTtlComparer struct{}
-
-func max(x, y int64) int64 {
-	if x < y {
-		return y
-	}
-	return x
-}
-
-// Compare jobs by their remaining queue time before expiry
-// Invariants:
-//   - Job.queueTtl must be > 0
-//   - Job.created must be < `t`
-func (j JobQueueTtlComparer) Compare(a, b *Job) int {
-	timeSeconds := time.Now().UTC().Unix()
-	aDuration := timeSeconds - (a.created / 1_000_000_000)
-	bDuration := timeSeconds - (b.created / 1_000_000_000)
-
-	aRemaining := max(0, a.GetQueueTtlSeconds()-aDuration)
-	bRemaining := max(0, b.GetQueueTtlSeconds()-bDuration)
-
-	// If jobs have different ttl remaining, they are ordered by remaining queue ttl - the smallest ttl first
-	if aRemaining != bRemaining {
-		if aRemaining < bRemaining {
-			return -1
-		} else {
-			return 1
-		}
-	}
-
-	// If the jobs have the same remaining time, order based on id.
-	if a.id != b.id {
-		if a.id < b.id {
-			return -1
-		} else {
-			return 1
-		}
-	}
-
-	// Jobs are equal if they have the same remaining ttl and id
-	return 0
 }

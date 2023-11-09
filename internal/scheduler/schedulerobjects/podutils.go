@@ -44,6 +44,13 @@ func NewSchedulingKeyGenerator() *SchedulingKeyGenerator {
 		// This should never happen.
 		panic(err)
 	}
+	return NewSchedulingKeyGeneratorWithKey(key)
+}
+
+// NewSchedulingKeyGeneratorWithKey returns a new SchedulingKeyGenerator using the provided key.
+// The key should be considered secret since scheduling key collisions can be found if it's known.
+// Key has to be of length 32.
+func NewSchedulingKeyGeneratorWithKey(key []byte) *SchedulingKeyGenerator {
 	return &SchedulingKeyGenerator{
 		s:      *NewPodRequirementsSerialiser(),
 		key:    key,

@@ -616,6 +616,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				updateTimes: map[string]time.Time{"testExecutor": heartbeatTime},
 			}
 			sched, err := NewScheduler(
+				testfixtures.NewJobDb(),
 				jobRepo,
 				clusterRepo,
 				schedulingAlgo,
@@ -782,6 +783,7 @@ func TestRun(t *testing.T) {
 	require.NoError(t, err)
 
 	sched, err := NewScheduler(
+		testfixtures.NewJobDb(),
 		&jobRepo,
 		clusterRepo,
 		schedulingAlgo,
@@ -992,6 +994,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			require.NoError(t, err)
 
 			sched, err := NewScheduler(
+				testfixtures.NewJobDb(),
 				jobRepo,
 				clusterRepo,
 				schedulingAlgo,
@@ -1010,7 +1013,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 
 			// The SchedulingKeyGenerator embedded in the jobDb has some randomness,
 			// which must be consistent within tests.
-			sched.jobDb = jobdb.NewJobDbWithSchedulingKeyGenerator(testfixtures.SchedulingKeyGenerator)
+			sched.jobDb = testfixtures.NewJobDb()
 
 			// insert initial jobs
 			txn := sched.jobDb.WriteTxn()

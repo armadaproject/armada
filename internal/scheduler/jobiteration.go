@@ -3,11 +3,9 @@ package scheduler
 import (
 	"sync"
 
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 )
 
@@ -45,22 +43,16 @@ func (it *InMemoryJobIterator) Next() (interfaces.LegacySchedulerJob, error) {
 }
 
 type InMemoryJobRepository struct {
-	jobsByQueue     map[string][]interfaces.LegacySchedulerJob
-	jobsById        map[string]interfaces.LegacySchedulerJob
-	priorityClasses map[string]types.PriorityClass
-	// If true, jobs are sorted first by priority class priority.
-	// If false, priority class is ignored when ordering jobs.
-	sortByPriorityClass bool
+	jobsByQueue map[string][]interfaces.LegacySchedulerJob
+	jobsById    map[string]interfaces.LegacySchedulerJob
 	// Protects the above fields.
 	mu sync.Mutex
 }
 
-func NewInMemoryJobRepository(priorityClasses map[string]types.PriorityClass) *InMemoryJobRepository {
+func NewInMemoryJobRepository() *InMemoryJobRepository {
 	return &InMemoryJobRepository{
-		jobsByQueue:         make(map[string][]interfaces.LegacySchedulerJob),
-		jobsById:            make(map[string]interfaces.LegacySchedulerJob),
-		priorityClasses:     maps.Clone(priorityClasses),
-		sortByPriorityClass: true,
+		jobsByQueue: make(map[string][]interfaces.LegacySchedulerJob),
+		jobsById:    make(map[string]interfaces.LegacySchedulerJob),
 	}
 }
 
@@ -94,23 +86,7 @@ func (repo *InMemoryJobRepository) Enqueue(job interfaces.LegacySchedulerJob) {
 // finally by submit time, with earlier submit times first.
 func (repo *InMemoryJobRepository) sortQueue(queue string) {
 	slices.SortFunc(repo.jobsByQueue[queue], func(a, b interfaces.LegacySchedulerJob) bool {
-		if repo.sortByPriorityClass {
-			pca := repo.priorityClasses[a.GetPriorityClassName()]
-			pcb := repo.priorityClasses[b.GetPriorityClassName()]
-			if pca.Priority > pcb.Priority {
-				return true
-			} else if pca.Priority < pcb.Priority {
-				return false
-			}
-		}
-		pa := a.GetPerQueuePriority()
-		pb := b.GetPerQueuePriority()
-		if pa < pb {
-			return true
-		} else if pa > pb {
-			return false
-		}
-		return a.GetSubmitTime().Before(b.GetSubmitTime())
+		return a.Compare(b) == -1
 	})
 }
 

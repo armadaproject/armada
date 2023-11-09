@@ -78,6 +78,7 @@ type Scheduler struct {
 }
 
 func NewScheduler(
+	jobDb *jobdb.JobDb,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
 	schedulingAlgo SchedulingAlgo,
@@ -92,7 +93,6 @@ func NewScheduler(
 	nodeIdLabel string,
 	schedulerMetrics *SchedulerMetrics,
 ) (*Scheduler, error) {
-	jobDb := jobdb.NewJobDb()
 	return &Scheduler{
 		jobRepository:              jobRepository,
 		executorRepository:         executorRepository,

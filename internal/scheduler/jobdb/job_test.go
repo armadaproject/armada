@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -25,7 +26,13 @@ var schedulingInfo = &schedulerobjects.JobSchedulingInfo{
 }
 
 // Used for creating jobs.
-var jobDb = NewJobDb()
+var jobDb = NewJobDb(
+	map[string]types.PriorityClass{
+		"foo": types.PriorityClass{},
+		"bar": types.PriorityClass{},
+	},
+	"foo",
+)
 
 var baseJob = jobDb.NewJob(
 	"test-job",
@@ -58,7 +65,7 @@ func TestJob_TestGetter(t *testing.T) {
 	assert.Equal(t, baseJob.id, baseJob.GetId())
 	assert.Equal(t, baseJob.queue, baseJob.Queue())
 	assert.Equal(t, baseJob.queue, baseJob.GetQueue())
-	assert.Equal(t, baseJob.created, baseJob.Created())
+	assert.Equal(t, baseJob.submittedTime, baseJob.Created())
 	assert.Equal(t, schedulingInfo, baseJob.JobSchedulingInfo())
 	assert.Equal(t, baseJob.GetAnnotations(), map[string]string{
 		"foo": "bar",
@@ -362,9 +369,9 @@ func TestJobSchedulingInfoFieldsInitialised(t *testing.T) {
 
 func TestJobPriorityComparer(t *testing.T) {
 	job1 := &Job{
-		id:       "a",
-		priority: 10,
-		created:  5,
+		id:            "a",
+		priority:      10,
+		submittedTime: 5,
 	}
 
 	comparer := JobPriorityComparer{}

@@ -162,13 +162,14 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, subm
 	}
 
 	return []DbOperation{InsertJobs{jobId: &schedulerdb.Job{
-		JobID:                 jobId,
-		JobSet:                meta.jobset,
-		UserID:                meta.user,
-		Groups:                compressedGroups,
-		Queue:                 meta.queue,
-		Queued:                true,
-		QueuedVersion:         0,
+		JobID:         jobId,
+		JobSet:        meta.jobset,
+		UserID:        meta.user,
+		Groups:        compressedGroups,
+		Queue:         meta.queue,
+		Queued:        true,
+		QueuedVersion: 0,
+		// TODO: Repeated jobs with the same timestamp can cause issues with preemption due to non-deterministic ordering.
 		Submitted:             submitTime.UnixNano(),
 		Priority:              int64(job.Priority),
 		SubmitMessage:         compressedSubmitJobBytes,

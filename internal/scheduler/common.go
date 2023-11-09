@@ -111,18 +111,8 @@ func JobsSummary(jobs []interfaces.LegacySchedulerJob) string {
 			return rv
 		},
 	)
-	jobIdsByQueue := armadamaps.MapValues(
-		jobsByQueue,
-		func(jobs []interfaces.LegacySchedulerJob) []string {
-			rv := make([]string, len(jobs))
-			for i, job := range jobs {
-				rv[i] = job.GetId()
-			}
-			return rv
-		},
-	)
 	return fmt.Sprintf(
-		"affected queues %v; resources %v; jobs %v",
+		"affected queues %v; resources %v",
 		maps.Keys(jobsByQueue),
 		armadamaps.MapValues(
 			resourcesByQueue,
@@ -130,8 +120,28 @@ func JobsSummary(jobs []interfaces.LegacySchedulerJob) string {
 				return rl.CompactString()
 			},
 		),
-		jobIdsByQueue,
 	)
+	// jobIdsByQueue := armadamaps.MapValues(
+	// 	jobsByQueue,
+	// 	func(jobs []interfaces.LegacySchedulerJob) []string {
+	// 		rv := make([]string, len(jobs))
+	// 		for i, job := range jobs {
+	// 			rv[i] = job.GetId()
+	// 		}
+	// 		return rv
+	// 	},
+	// )
+	// return fmt.Sprintf(
+	// 	"affected queues %v; resources %v; jobs %v",
+	// 	maps.Keys(jobsByQueue),
+	// 	armadamaps.MapValues(
+	// 		resourcesByQueue,
+	// 		func(rl schedulerobjects.ResourceList) string {
+	// 			return rl.CompactString()
+	// 		},
+	// 	),
+	// 	jobIdsByQueue,
+	// )
 }
 
 func isEvictedJob(job interfaces.LegacySchedulerJob) bool {

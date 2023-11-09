@@ -21,12 +21,16 @@ type MetricsCollector struct {
 }
 
 type MetricsVector struct {
-	TimeOfMostRecentJobSucceededEvent time.Duration
 	NumEvents                         int
 	NumSubmitEvents                   int
 	NumLeasedEvents                   int
 	NumPreemptedEvents                int
 	NumJobSucceededEvents             int
+	TimeOfMostRecentEvent             time.Duration
+	TimeOfMostRecentJobSubmittedEvent time.Duration
+	TimeOfMostRecentJobLeasedEvent    time.Duration
+	TimeOfMostRecentJobPreemptedEvent time.Duration
+	TimeOfMostRecentJobSucceededEvent time.Duration
 }
 
 func NewMetricsCollector(c <-chan *armadaevents.EventSequence) *MetricsCollector {
@@ -57,8 +61,12 @@ func (mc *MetricsCollector) String() string {
 
 func (m MetricsVector) String() string {
 	return fmt.Sprintf(
-		"{FractionLeasedSucceeded: %f, TimeOfMostRecentJobSucceededEvent: %s, NumEvents: %d, NumPreemptedEvents: %d, NumLeasedEvents: %d, NumJobSucceededEvents: %d}",
-		float64(m.NumJobSucceededEvents)/float64(m.NumLeasedEvents), m.TimeOfMostRecentJobSucceededEvent, m.NumEvents, m.NumPreemptedEvents, m.NumLeasedEvents, m.NumJobSucceededEvents,
+		"{Run: %d, Subm: %d (%s), Pree: %d (%s), Succ: %d (%s), Tot: %d (%s)",
+		m.NumSubmitEvents-(m.NumPreemptedEvents+m.NumJobSucceededEvents),
+		m.NumSubmitEvents, m.TimeOfMostRecentJobSubmittedEvent,
+		m.NumPreemptedEvents, m.TimeOfMostRecentJobPreemptedEvent,
+		m.NumJobSucceededEvents, m.TimeOfMostRecentJobSucceededEvent,
+		m.NumEvents, m.TimeOfMostRecentEvent,
 	)
 }
 
@@ -85,21 +93,30 @@ func (mc *MetricsCollector) addEventSequence(eventSequence *armadaevents.EventSe
 	perQueueMetrics := mc.MetricsByQueue[queue]
 	perQueueMetrics.NumEvents += 1
 	for _, event := range eventSequence.Events {
+		d := event.Created.Sub(time.Time{})
+		mc.OverallMetrics.TimeOfMostRecentEvent = d
+		perQueueMetrics.TimeOfMostRecentEvent = d
 		switch event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
 			mc.OverallMetrics.NumSubmitEvents += 1
 			perQueueMetrics.NumSubmitEvents += 1
+			mc.OverallMetrics.TimeOfMostRecentJobSubmittedEvent = d
+			perQueueMetrics.TimeOfMostRecentJobSubmittedEvent = d
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 			mc.OverallMetrics.NumLeasedEvents += 1
 			perQueueMetrics.NumLeasedEvents += 1
+			mc.OverallMetrics.TimeOfMostRecentJobLeasedEvent = d
+			perQueueMetrics.TimeOfMostRecentJobLeasedEvent = d
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
 			mc.OverallMetrics.NumPreemptedEvents += 1
 			perQueueMetrics.NumPreemptedEvents += 1
+			mc.OverallMetrics.TimeOfMostRecentJobPreemptedEvent = d
+			perQueueMetrics.TimeOfMostRecentJobPreemptedEvent = d
 		case *armadaevents.EventSequence_Event_JobSucceeded:
-			mc.OverallMetrics.TimeOfMostRecentJobSucceededEvent = event.Created.Sub(time.Time{})
-			perQueueMetrics.TimeOfMostRecentJobSucceededEvent = event.Created.Sub(time.Time{})
 			mc.OverallMetrics.NumJobSucceededEvents += 1
 			perQueueMetrics.NumJobSucceededEvents += 1
+			mc.OverallMetrics.TimeOfMostRecentJobSucceededEvent = d
+			perQueueMetrics.TimeOfMostRecentJobSucceededEvent = d
 		}
 	}
 	mc.MetricsByQueue[queue] = perQueueMetrics

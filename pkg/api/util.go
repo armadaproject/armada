@@ -15,6 +15,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -254,6 +255,38 @@ func (job *Job) GetResourceRequirements() v1.ResourceRequirements {
 // The second return value is always false since scheduling keys are not pre-computed for these jobs.
 func (job *Job) GetSchedulingKey() (schedulerobjects.SchedulingKey, bool) {
 	return schedulerobjects.SchedulingKey{}, false
+}
+
+// Compare defines the order in which jobs in a particular queue should be scheduled,
+func (job *Job) Compare(other interfaces.LegacySchedulerJob) int {
+	// We need this cast for now to expose this method via an interface.
+	// This is safe since we only ever compare jobs of the same type.
+	return Compare(job, other.(*Job))
+}
+
+// Compare defines the order in which jobs in a particular queue should be scheduled,
+// both when scheduling new jobs and when re-scheduling evicted jobs.
+// Specifically, compare returns -1 if job should be scheduled before other and 1 otherwise.
+func Compare(job, other *Job) int {
+	// Jobs higher in queue-priority come first.
+	if job.Priority < other.Priority {
+		return -1
+	} else if job.Priority > other.Priority {
+		return 1
+	}
+
+	// Jobs that have been queuing for longer are scheduled first.
+	if cmp := job.Created.Compare(other.Created); cmp != 0 {
+		return cmp
+	}
+
+	// Tie-break by jobId, which must be unique.
+	// This ensure there is a total order between jobs, i.e., no jobs are equal from an ordering point of view.
+	if job.Id < other.Id {
+		return -1
+	} else {
+		return 1
+	}
 }
 
 func (job *Job) GetJobSet() string {
