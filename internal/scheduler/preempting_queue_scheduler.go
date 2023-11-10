@@ -533,7 +533,6 @@ func addEvictedJobsToNodeDb(ctx *armadacontext.Context, sctx *schedulercontext.S
 			return err
 		}
 	}
-	// fmt.Println("=== addEvictedJobsToNodeDb i:", i)
 	txn.Commit()
 	return nil
 }

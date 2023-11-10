@@ -7,37 +7,6 @@ import (
 )
 
 type JobPriorityComparer struct{}
-
-// // Compare jobs first by priority, then by submittedTime, and finally by jobDbCreatedIndex.
-// // Returns -1 if a comes before b and 1 otherwise. Jobs are guaranteed to be totally ordered.
-// func (j JobPriorityComparer) Compare(a, b *Job) int {
-// 	// Compare the jobs by priority.
-// 	// TODO: We should compare first by priorityClassPriority.
-// 	if a.priority != b.priority {
-// 		if a.priority < b.priority {
-// 			return -1
-// 		} else {
-// 			return 1
-// 		}
-// 	}
-
-// 	// If the jobs have the same priority, compare them by submittedTime time.
-// 	if a.submittedTime != b.submittedTime {
-// 		if a.submittedTime < b.submittedTime {
-// 			return -1
-// 		} else {
-// 			return 1
-// 		}
-// 	}
-
-// 	// Tie-break by logical creation timestamp.
-// 	if a.id < b.id {
-// 		return -1
-// 	} else {
-// 		return 1
-// 	}
-// }
-
 type JobQueueTtlComparer struct{}
 
 // Compare jobs by their remaining queue time before expiry
@@ -83,28 +52,6 @@ func max(x, y int64) int64 {
 	}
 	return x
 }
-
-// type ShouldBeScheduledBeforeComparer struct{}
-
-// // Compare returns -1 if a should be scheduled before b and 1 otherwise.
-// func (ShouldBeScheduledBeforeComparer) Compare(a, b *Job) int {
-// 	if ShouldBeScheduledBefore(a, b) {
-// 		return -1
-// 	} else {
-// 		return 1
-// 	}
-// }
-
-// type ShouldBePreemptedBeforeComparer struct{}
-
-// // Compare returns -1 if a should be preempted before b and 1 otherwise.
-// func (ShouldBePreemptedBeforeComparer) Compare(a, b *Job) int {
-// 	if ShouldBePreemptedBefore(a, b) {
-// 		return -1
-// 	} else {
-// 		return 1
-// 	}
-// }
 
 func (JobPriorityComparer) Compare(job, other *Job) int {
 	return Compare(job, other)
@@ -182,70 +129,3 @@ func Compare(job, other *Job) int {
 	}
 	panic("We should never get here. Since we check for job id equality at the top of this function.")
 }
-
-// // ShouldBeScheduledBefore returns true if job should be scheduled before other.
-// func (job *Job) ShouldBeScheduledBefore(other interfaces.LegacySchedulerJob) bool {
-// 	// We need this cast for now to expose this method via an interface.
-// 	// This is safe since we only ever compare jobs of the same type.
-// 	return ShouldBeScheduledBefore(job, other.(*Job))
-// }
-
-// // ShouldBePreemptedBefore returns true if job should be preempted before other.
-// func (job *Job) ShouldBePreemptedBefore(other interfaces.LegacySchedulerJob) bool {
-// 	// We need this cast for now to expose this method via an interface.
-// 	// This is safe since we only ever compare jobs of the same type.
-// 	return ShouldBePreemptedBefore(job, other.(*Job))
-// }
-
-// // ShouldBeScheduledBefore returns true if job should be scheduled before other.
-// func ShouldBeScheduledBefore(job, other *Job) bool {
-// 	if job.priorityClass.Priority > other.priorityClass.Priority {
-// 		return true
-// 	} else if job.priorityClass.Priority < other.priorityClass.Priority {
-// 		return false
-// 	}
-// 	if job.priority < other.priority {
-// 		return true
-// 	} else if job.priority > other.priority {
-// 		return false
-// 	}
-// 	if job.submittedTime < other.submittedTime {
-// 		return true
-// 	} else if job.submittedTime > other.submittedTime {
-// 		return false
-// 	}
-// 	if job.id < other.id {
-// 		return true
-// 	} else {
-// 		return false
-// 	}
-// }
-
-// // ShouldBePreemptedBefore returns true if job should be preempted before other.
-// func ShouldBePreemptedBefore(job, other *Job) bool {
-// 	if job.priorityClass.Priority > other.priorityClass.Priority {
-// 		return false
-// 	} else if job.priorityClass.Priority < other.priorityClass.Priority {
-// 		return true
-// 	}
-// 	if job.priority < other.priority {
-// 		return false
-// 	} else if job.priority > other.priority {
-// 		return true
-// 	}
-// 	if job.activeRunTimestamp < other.activeRunTimestamp {
-// 		return false
-// 	} else if job.activeRunTimestamp > other.activeRunTimestamp {
-// 		return true
-// 	}
-// 	if job.submittedTime < other.submittedTime {
-// 		return false
-// 	} else if job.submittedTime > other.submittedTime {
-// 		return true
-// 	}
-// 	if job.id < other.id {
-// 		return false
-// 	} else {
-// 		return true
-// 	}
-// }

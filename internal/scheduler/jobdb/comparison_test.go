@@ -3,8 +3,9 @@ package jobdb
 import (
 	"testing"
 
-	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/armadaproject/armada/internal/common/types"
 )
 
 func TestJobPriorityComparer(t *testing.T) {

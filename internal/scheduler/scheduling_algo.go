@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
 	"math/rand"
 	"time"
 
@@ -183,13 +182,6 @@ func (l *FairSchedulingAlgo) Schedule(
 		if err := jobDb.Upsert(txn, failedJobs); err != nil {
 			return nil, err
 		}
-
-		foo := NewSchedulerJobRepositoryAdapter(fsctx.jobDb, fsctx.txn)
-		ids, err := foo.GetQueueJobIds("testQueue")
-		if err != nil {
-			return nil, err
-		}
-		fmt.Println("queued ids", ids)
 
 		// Aggregate changes across executors.
 		overallSchedulerResult.PreemptedJobs = append(overallSchedulerResult.PreemptedJobs, schedulerResult.PreemptedJobs...)
