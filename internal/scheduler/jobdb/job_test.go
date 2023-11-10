@@ -28,8 +28,8 @@ var schedulingInfo = &schedulerobjects.JobSchedulingInfo{
 // Used for creating jobs.
 var jobDb = NewJobDb(
 	map[string]types.PriorityClass{
-		"foo": types.PriorityClass{},
-		"bar": types.PriorityClass{},
+		"foo": {},
+		"bar": {},
 	},
 	"foo",
 )

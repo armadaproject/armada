@@ -17,8 +17,8 @@ import (
 func NewTestJobDb() *JobDb {
 	return NewJobDb(
 		map[string]types.PriorityClass{
-			"foo": types.PriorityClass{},
-			"bar": types.PriorityClass{},
+			"foo": {},
+			"bar": {},
 		},
 		"foo",
 	)
