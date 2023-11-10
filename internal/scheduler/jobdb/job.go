@@ -419,6 +419,9 @@ func (job *Job) WithUpdatedRun(run *JobRun) *Job {
 		j.activeRunTimestamp = run.created
 		j.activeRun = run
 	}
+	if j.runsById == nil {
+		j.runsById = make(map[uuid.UUID]*JobRun)
+	}
 	j.runsById[run.id] = run
 	return j
 }
