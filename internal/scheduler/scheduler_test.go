@@ -637,7 +637,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 
 			// insert initial jobs
 			txn := sched.jobDb.WriteTxn()
-			err = sched.jobDb.Upsert(txn, tc.initialJobs)
+			err = txn.Upsert(tc.initialJobs)
 			require.NoError(t, err)
 			txn.Commit()
 
@@ -681,7 +681,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			}
 
 			// assert that the job db is in the state we expect
-			jobs := sched.jobDb.GetAll(sched.jobDb.ReadTxn())
+			jobs := sched.jobDb.ReadTxn().GetAll()
 			remainingLeased := stringSet(tc.expectedLeased)
 			remainingQueued := stringSet(tc.expectedQueued)
 			remainingTerminal := stringSet(tc.expectedTerminal)
@@ -1017,7 +1017,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 
 			// insert initial jobs
 			txn := sched.jobDb.WriteTxn()
-			err = sched.jobDb.Upsert(txn, tc.initialJobs)
+			err = txn.Upsert(tc.initialJobs)
 			require.NoError(t, err)
 			txn.Commit()
 
@@ -1025,7 +1025,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedUpdatedJobs, updatedJobs)
-			allDbJobs := sched.jobDb.GetAll(sched.jobDb.ReadTxn())
+			allDbJobs := sched.jobDb.ReadTxn().GetAll()
 
 			expectedIds := stringSet(tc.expectedJobDbIds)
 			require.Equal(t, len(tc.expectedJobDbIds), len(allDbJobs))
@@ -1134,7 +1134,7 @@ func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn
 	scheduledJobs := make([]*jobdb.Job, 0, len(t.jobsToSchedule))
 	failedJobs := make([]*jobdb.Job, 0, len(t.jobsToFail))
 	for _, id := range t.jobsToPreempt {
-		job := jobDb.GetById(txn, id)
+		job := txn.GetById(id)
 		if job == nil {
 			return nil, errors.Errorf("was asked to preempt job %s but job does not exist", id)
 		}
@@ -1150,7 +1150,7 @@ func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn
 		preemptedJobs = append(preemptedJobs, job)
 	}
 	for _, id := range t.jobsToSchedule {
-		job := jobDb.GetById(txn, id)
+		job := txn.GetById(id)
 		if job == nil {
 			return nil, errors.Errorf("was asked to lease %s but job does not exist", id)
 		}
@@ -1161,7 +1161,7 @@ func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn
 		scheduledJobs = append(scheduledJobs, job)
 	}
 	for _, id := range t.jobsToFail {
-		job := jobDb.GetById(txn, id)
+		job := txn.GetById(id)
 		if job == nil {
 			return nil, errors.Errorf("was asked to lease %s but job does not exist", id)
 		}
@@ -1171,13 +1171,13 @@ func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn
 		job = job.WithQueued(false).WithFailed(true)
 		failedJobs = append(failedJobs, job)
 	}
-	if err := jobDb.Upsert(txn, preemptedJobs); err != nil {
+	if err := txn.Upsert(preemptedJobs); err != nil {
 		return nil, err
 	}
-	if err := jobDb.Upsert(txn, scheduledJobs); err != nil {
+	if err := txn.Upsert(scheduledJobs); err != nil {
 		return nil, err
 	}
-	if err := jobDb.Upsert(txn, failedJobs); err != nil {
+	if err := txn.Upsert(failedJobs); err != nil {
 		return nil, err
 	}
 	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs, failedJobs, nil), nil

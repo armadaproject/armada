@@ -417,11 +417,11 @@ func TestSchedule(t *testing.T) {
 			// Setup jobDb.
 			jobDb := testfixtures.NewJobDb()
 			txn := jobDb.WriteTxn()
-			err = jobDb.Upsert(txn, jobsToUpsert)
+			err = txn.Upsert(jobsToUpsert)
 			require.NoError(t, err)
 
 			// Run a scheduling round.
-			schedulerResult, err := sch.Schedule(ctx, txn, jobDb)
+			schedulerResult, err := sch.Schedule(ctx, txn)
 			require.NoError(t, err)
 
 			// Check that the expected preemptions took place.
