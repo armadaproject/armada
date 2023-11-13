@@ -34,7 +34,7 @@ import (
 type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes.
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided.
-	Schedule(ctx *armadacontext.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error)
+	Schedule(ctx *armadacontext.Context, txn *jobdb.Txn) (*SchedulerResult, error)
 }
 
 // FairSchedulingAlgo is a SchedulingAlgo based on PreemptingQueueScheduler.
