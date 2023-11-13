@@ -257,18 +257,25 @@ func (job *Job) GetSchedulingKey() (schedulerobjects.SchedulingKey, bool) {
 	return schedulerobjects.SchedulingKey{}, false
 }
 
-// Compare defines the order in which jobs in a particular queue should be scheduled,
-func (job *Job) Compare(other interfaces.LegacySchedulerJob) int {
+// SchedulingOrderCompare defines the order in which jobs in a particular queue should be scheduled,
+func (job *Job) SchedulingOrderCompare(other interfaces.LegacySchedulerJob) int {
 	// We need this cast for now to expose this method via an interface.
 	// This is safe since we only ever compare jobs of the same type.
-	return Compare(job, other.(*Job))
+	return SchedulingOrderCompare(job, other.(*Job))
 }
 
-// Compare defines the order in which jobs in a particular queue should be scheduled,
-// both when scheduling new jobs and when re-scheduling evicted jobs.
-// Specifically, compare returns -1 if job should be scheduled before other and 1 otherwise.
-func Compare(job, other *Job) int {
-	// Jobs higher in queue-priority come first.
+// SchedulingOrderCompare defines the order in which jobs in a queue should be scheduled
+// (both when scheduling new jobs and when re-scheduling evicted jobs).
+// Specifically, compare returns
+//   - 0 if the jobs have equal job id,
+//   - -1 if job should be scheduled before other,
+//   - +1 if other should be scheduled before other.
+func SchedulingOrderCompare(job, other *Job) int {
+	if job.Id == other.Id {
+		return 0
+	}
+
+	// Jobs with higher in queue-priority come first.
 	if job.Priority < other.Priority {
 		return -1
 	} else if job.Priority > other.Priority {
@@ -284,9 +291,10 @@ func Compare(job, other *Job) int {
 	// This ensure there is a total order between jobs, i.e., no jobs are equal from an ordering point of view.
 	if job.Id < other.Id {
 		return -1
-	} else {
+	} else if job.Id > other.Id {
 		return 1
 	}
+	panic("We should never get here. Since we check for job id equality at the top of this function.")
 }
 
 func (job *Job) GetJobSet() string {
