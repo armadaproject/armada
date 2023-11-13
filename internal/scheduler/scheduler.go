@@ -211,7 +211,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 
 	// If we've been asked to generate messages for all jobs, do so.
-	// Otherwise generate messages only for jobs updated this cycle.
+	// Otherwise, generate messages only for jobs updated this cycle.
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 	if updateAll {
@@ -241,7 +241,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	// Schedule jobs.
 	if shouldSchedule {
 		var result *SchedulerResult
-		result, err = s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
+		result, err = s.schedulingAlgo.Schedule(ctx, txn)
 		if err != nil {
 			return
 		}
