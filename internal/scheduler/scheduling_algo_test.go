@@ -468,14 +468,14 @@ func TestSchedule(t *testing.T) {
 
 			// Check that preempted jobs are marked as such consistently.
 			for _, job := range preemptedJobs {
-				dbJob := jobDb.GetById(txn, job.Id())
+				dbJob := txn.GetById(job.Id())
 				assert.True(t, dbJob.Failed())
 				assert.False(t, dbJob.Queued())
 			}
 
 			// Check that scheduled jobs are marked as such consistently.
 			for _, job := range scheduledJobs {
-				dbJob := jobDb.GetById(txn, job.Id())
+				dbJob := txn.GetById(job.Id())
 				assert.False(t, dbJob.Failed())
 				assert.False(t, dbJob.Queued())
 				dbRun := dbJob.LatestRun()
@@ -486,7 +486,7 @@ func TestSchedule(t *testing.T) {
 
 			// Check that failed jobs are marked as such consistently.
 			for _, job := range failedJobs {
-				dbJob := jobDb.GetById(txn, job.Id())
+				dbJob := txn.GetById(job.Id())
 				assert.True(t, dbJob.Failed())
 				assert.False(t, dbJob.Queued())
 			}
@@ -494,15 +494,15 @@ func TestSchedule(t *testing.T) {
 			// Check that jobDb was updated correctly.
 			// TODO: Check that there are no unexpected jobs in the jobDb.
 			for _, job := range preemptedJobs {
-				dbJob := jobDb.GetById(txn, job.Id())
+				dbJob := txn.GetById(job.Id())
 				assert.True(t, job.Equal(dbJob), "expected %v but got %v", job, dbJob)
 			}
 			for _, job := range scheduledJobs {
-				dbJob := jobDb.GetById(txn, job.Id())
+				dbJob := txn.GetById(job.Id())
 				assert.True(t, job.Equal(dbJob), "expected %v but got %v", job, dbJob)
 			}
 			for _, job := range failedJobs {
-				dbJob := jobDb.GetById(txn, job.Id())
+				dbJob := txn.GetById(job.Id())
 				assert.True(t, job.Equal(dbJob), "expected %v but got %v", job, dbJob)
 			}
 		})
