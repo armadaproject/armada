@@ -54,23 +54,23 @@ func max(x, y int64) int64 {
 }
 
 func (JobPriorityComparer) Compare(job, other *Job) int {
-	return Compare(job, other)
+	return SchedulingOrderCompare(job, other)
 }
 
-// Compare defines the order in which jobs in a particular queue should be scheduled,
-func (job *Job) Compare(other interfaces.LegacySchedulerJob) int {
+// SchedulingOrderCompare defines the order in which jobs in a particular queue should be scheduled,
+func (job *Job) SchedulingOrderCompare(other interfaces.LegacySchedulerJob) int {
 	// We need this cast for now to expose this method via an interface.
 	// This is safe since we only ever compare jobs of the same type.
-	return Compare(job, other.(*Job))
+	return SchedulingOrderCompare(job, other.(*Job))
 }
 
-// Compare defines the order in which jobs in a particular queue should be scheduled,
-// both when scheduling new jobs and when re-scheduling evicted jobs.
+// SchedulingOrderCompare defines the order in which jobs in a queue should be scheduled
+// (both when scheduling new jobs and when re-scheduling evicted jobs).
 // Specifically, compare returns
 //   - 0 if the jobs have equal job id,
 //   - -1 if job should be scheduled before other,
 //   - +1 if other should be scheduled before other.
-func Compare(job, other *Job) int {
+func SchedulingOrderCompare(job, other *Job) int {
 	// Jobs with equal id are always considered equal.
 	// This ensures at most one job with a particular id can exist in the jobDb.
 	if job.id == other.id {

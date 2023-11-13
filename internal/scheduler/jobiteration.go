@@ -86,7 +86,7 @@ func (repo *InMemoryJobRepository) Enqueue(job interfaces.LegacySchedulerJob) {
 // finally by submit time, with earlier submit times first.
 func (repo *InMemoryJobRepository) sortQueue(queue string) {
 	slices.SortFunc(repo.jobsByQueue[queue], func(a, b interfaces.LegacySchedulerJob) bool {
-		return a.Compare(b) == -1
+		return a.SchedulingOrderCompare(b) == -1
 	})
 }
 
