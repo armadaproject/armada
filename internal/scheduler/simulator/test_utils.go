@@ -34,7 +34,7 @@ func GetOneQueue10JobWorkload() *WorkloadSpec {
 		Queues: []*Queue{
 			WithJobTemplatesQueue(
 				&Queue{Name: "A", Weight: 1},
-				JobTemplate1Cpu(10, "", "armada-default", "myFirstJobTemplate"),
+				JobTemplate1Cpu(10, "job-set", "armada-default"),
 			),
 		},
 	}
@@ -236,11 +236,10 @@ func JobTemplate32Cpu(n int64, jobSet, priorityClassName string) *JobTemplate {
 	}
 }
 
-func JobTemplate1Cpu(n int64, jobSet, priorityClassName string, id string) *JobTemplate {
+func JobTemplate1Cpu(n int64, jobSet, priorityClassName string) *JobTemplate {
 	return &JobTemplate{
 		Number:            n,
 		JobSet:            jobSet,
-		Id:                id,
 		PriorityClassName: priorityClassName,
 		Requirements: schedulerobjects.PodRequirements{
 			ResourceRequirements: v1.ResourceRequirements{

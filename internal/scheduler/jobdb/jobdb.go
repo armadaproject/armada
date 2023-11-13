@@ -1,6 +1,7 @@
 package jobdb
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/benbjohnson/immutable"
@@ -8,6 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -17,25 +19,44 @@ var (
 )
 
 type JobDb struct {
-	jobsById               *immutable.Map[string, *Job]
-	jobsByRunId            *immutable.Map[uuid.UUID, string]
-	jobsByQueue            map[string]immutable.SortedSet[*Job]
-	queuedJobsByTtl        *immutable.SortedSet[*Job]
+	jobsById        *immutable.Map[string, *Job]
+	jobsByRunId     *immutable.Map[uuid.UUID, string]
+	jobsByQueue     map[string]immutable.SortedSet[*Job]
+	queuedJobsByTtl *immutable.SortedSet[*Job]
+	// Configured priority classes.
+	priorityClasses map[string]types.PriorityClass
+	// Priority class assigned to jobs with a priorityClassName not in jobDb.priorityClasses.
+	defaultPriorityClass   types.PriorityClass
 	schedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
 	copyMutex              sync.Mutex
 	writerMutex            sync.Mutex
 }
 
-func NewJobDb() *JobDb {
-	return NewJobDbWithSchedulingKeyGenerator(schedulerobjects.NewSchedulingKeyGenerator())
+func NewJobDb(priorityClasses map[string]types.PriorityClass, defaultPriorityClassName string) *JobDb {
+	return NewJobDbWithSchedulingKeyGenerator(
+		priorityClasses,
+		defaultPriorityClassName,
+		schedulerobjects.NewSchedulingKeyGenerator(),
+	)
 }
 
-func NewJobDbWithSchedulingKeyGenerator(skg *schedulerobjects.SchedulingKeyGenerator) *JobDb {
+func NewJobDbWithSchedulingKeyGenerator(
+	priorityClasses map[string]types.PriorityClass,
+	defaultPriorityClassName string,
+	skg *schedulerobjects.SchedulingKeyGenerator,
+) *JobDb {
+	defaultPriorityClass, ok := priorityClasses[defaultPriorityClassName]
+	if !ok {
+		// TODO: Return an error instead.
+		panic(fmt.Sprintf("unknown default priority class %s", defaultPriorityClassName))
+	}
 	return &JobDb{
 		jobsById:               immutable.NewMap[string, *Job](nil),
 		jobsByRunId:            immutable.NewMap[uuid.UUID, string](&UUIDHasher{}),
 		jobsByQueue:            map[string]immutable.SortedSet[*Job]{},
 		queuedJobsByTtl:        &emptyQueuedJobsByTtl,
+		priorityClasses:        priorityClasses,
+		defaultPriorityClass:   defaultPriorityClass,
 		schedulingKeyGenerator: skg,
 	}
 }
@@ -56,6 +77,10 @@ func (jobDb *JobDb) NewJob(
 	created int64,
 ) *Job {
 	var schedulingKey schedulerobjects.SchedulingKey
+	priorityClass := jobDb.defaultPriorityClass
+	if pc, ok := jobDb.priorityClasses[schedulingInfo.PriorityClassName]; ok {
+		priorityClass = pc
+	}
 	if preq := schedulingInfo.GetPodRequirements(); preq != nil {
 		schedulingKey = jobDb.schedulingKeyGenerator.KeyFromPodRequirements(preq)
 	}
@@ -67,9 +92,10 @@ func (jobDb *JobDb) NewJob(
 		queued:                  queued,
 		queuedVersion:           queuedVersion,
 		requestedPriority:       priority,
-		created:                 created,
+		submittedTime:           created,
 		schedulingKey:           schedulingKey,
 		jobSchedulingInfo:       schedulingInfo,
+		priorityClass:           priorityClass,
 		cancelRequested:         cancelRequested,
 		cancelByJobsetRequested: cancelByJobsetRequested,
 		cancelled:               cancelled,
@@ -80,6 +106,7 @@ func (jobDb *JobDb) NewJob(
 }
 
 // Upsert will insert the given jobs if they don't already exist or update them if they do.
+// TODO: This doesn't need to be a function on jobDb. Only need txn.
 func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 	if err := jobDb.checkWritableTransaction(txn); err != nil {
 		return err
@@ -87,7 +114,9 @@ func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 
 	hasJobs := txn.jobsById.Len() > 0
 
-	// First we need to delete the state of any queued jobs
+	// First, delete any jobs to be upserted from the set of queued jobs.
+	// This to ensure jobs that are no longer queued do not appear in this set.
+	// Jobs that are still queued will be re-inserted later.
 	if hasJobs {
 		for _, job := range jobs {
 			existingJob, ok := txn.jobsById.Get(job.id)
@@ -143,7 +172,8 @@ func (jobDb *JobDb) Upsert(txn *Txn, jobs []*Job) error {
 		}
 	}()
 
-	// queued Jobs
+	// Queued jobs are additionally stored in an ordered set.
+	// To enable iterating over them in the order they should be scheduled.
 	go func() {
 		defer wg.Done()
 		for _, job := range jobs {
@@ -295,10 +325,16 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 // Write transactions also allow callers to perform write operations that will not be visible to other users
 // until the transaction is committed.
 type Txn struct {
-	readOnly        bool
-	jobsById        *immutable.Map[string, *Job]
-	jobsByRunId     *immutable.Map[uuid.UUID, string]
-	jobsByQueue     map[string]immutable.SortedSet[*Job]
+	readOnly bool
+	// Map from job ids to jobs.
+	jobsById *immutable.Map[string, *Job]
+	// Map from run ids to jobs.
+	// Note that a job may have multiple runs, i.e., the mapping is many-to-one.
+	jobsByRunId *immutable.Map[uuid.UUID, string]
+	// Queued jobs for each queue. Stored in the order in which they should be scheduled.
+	jobsByQueue map[string]immutable.SortedSet[*Job]
+	// Queued jobs for each queue ordered by remaining time-to-live.
+	// TODO: The ordering is wrong. Since we call time.Now() in the compare function.
 	queuedJobsByTtl *immutable.SortedSet[*Job]
 	jobDb           *JobDb
 	active          bool
