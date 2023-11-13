@@ -1125,7 +1125,7 @@ type testSchedulingAlgo struct {
 	shouldError           bool
 }
 
-func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error) {
+func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn) (*SchedulerResult, error) {
 	t.numberOfScheduleCalls++
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")
