@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"fmt"
 	"math/rand"
+	"sync/atomic"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -71,6 +72,8 @@ type Simulator struct {
 	limiterByQueue map[string]*rate.Limiter
 	// Used to generate random numbers from a chosen seed.
 	rand *rand.Rand
+	// Used to ensure each job is given a unique time stamp.
+	logicalJobCreatedTimestamp atomic.Int64
 	// If true, scheduler logs are omitted.
 	// This since the logs are very verbose when scheduling large numbers of jobs.
 	SuppressSchedulerLogs bool
@@ -89,6 +92,10 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 	if err := validateWorkloadSpec(workloadSpec); err != nil {
 		return nil, err
 	}
+	jobDb := jobdb.NewJobDb(
+		schedulingConfig.Preemption.PriorityClasses,
+		schedulingConfig.Preemption.DefaultPriorityClass,
+	)
 	s := &Simulator{
 		ClusterSpec:                              clusterSpec,
 		WorkloadSpec:                             workloadSpec,
@@ -96,7 +103,7 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 		jobTemplateByJobId:                       make(map[string]*JobTemplate),
 		jobTemplatesByDependencyIds:              make(map[string]map[string]*JobTemplate),
 		activeJobTemplatesById:                   make(map[string]*JobTemplate),
-		jobDb:                                    jobdb.NewJobDb(),
+		jobDb:                                    jobDb,
 		nodeDbByPoolAndExecutorGroup:             make(map[string][]*nodedb.NodeDb),
 		poolByNodeId:                             make(map[string]string),
 		nodeDbByExecutorName:                     make(map[string]*nodedb.NodeDb),
@@ -361,6 +368,7 @@ func (s *Simulator) pushScheduleEvent(time time.Time) {
 
 func (s *Simulator) handleSimulatorEvent(ctx *armadacontext.Context, event Event) error {
 	s.time = event.time
+	ctx = armadacontext.New(ctx.Context, ctx.FieldLogger.WithField("simulated time", event.time))
 	switch e := event.eventSequenceOrScheduleEvent.(type) {
 	case *armadaevents.EventSequence:
 		if err := s.handleEventSequence(ctx, e); err != nil {
@@ -568,7 +576,7 @@ func (s *Simulator) handleEventSequence(ctx *armadacontext.Context, es *armadaev
 		switch eventType := event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
 			s.shouldSchedule = true
-			ok, err = s.handleSubmitJob(s.jobDb, txn, event.GetSubmitJob(), *event.Created, es)
+			ok, err = s.handleSubmitJob(txn, event.GetSubmitJob(), *event.Created, es)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
 			ok, err = s.handleJobRunLeased(txn, event.GetJobRunLeased())
 		case *armadaevents.EventSequence_Event_JobSucceeded:
@@ -577,24 +585,18 @@ func (s *Simulator) handleEventSequence(ctx *armadacontext.Context, es *armadaev
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
 			s.shouldSchedule = true
 			ok, err = s.handleJobRunPreempted(txn, event.GetJobRunPreempted())
-		case *armadaevents.EventSequence_Event_ReprioritisedJob,
-			*armadaevents.EventSequence_Event_JobDuplicateDetected,
-			*armadaevents.EventSequence_Event_ResourceUtilisation,
-			*armadaevents.EventSequence_Event_StandaloneIngressInfo,
-			*armadaevents.EventSequence_Event_JobRunAssigned,
-			*armadaevents.EventSequence_Event_JobRunRunning,
-			*armadaevents.EventSequence_Event_JobRunSucceeded,
-			*armadaevents.EventSequence_Event_JobRunErrors,
-			*armadaevents.EventSequence_Event_ReprioritiseJob,
-			*armadaevents.EventSequence_Event_ReprioritiseJobSet,
-			*armadaevents.EventSequence_Event_CancelledJob,
-			*armadaevents.EventSequence_Event_JobRequeued,
-			*armadaevents.EventSequence_Event_PartitionMarker,
-			*armadaevents.EventSequence_Event_JobErrors,
-			*armadaevents.EventSequence_Event_CancelJob,
-			*armadaevents.EventSequence_Event_CancelJobSet:
-			// These events can be safely ignored.
-			ctx.Debugf("Ignoring event type %T", event)
+		case *armadaevents.EventSequence_Event_JobRunErrors:
+			for _, e := range event.GetJobRunErrors().Errors {
+				if e.GetJobRunPreemptedError() == nil {
+					return errors.Errorf("received unexpected JobRunErrors reason: %T", e.Reason)
+				}
+			}
+		case *armadaevents.EventSequence_Event_JobErrors:
+			for _, e := range event.GetJobErrors().Errors {
+				if e.GetJobRunPreemptedError() == nil {
+					return errors.Errorf("received unexpected JobErrors reason: %T", e.Reason)
+				}
+			}
 		default:
 			// This is an event type we haven't consider; log a warning.
 			return errors.Errorf("received unknown event type %T", eventType)
@@ -616,12 +618,12 @@ func (s *Simulator) handleEventSequence(ctx *armadacontext.Context, es *armadaev
 	return nil
 }
 
-func (s *Simulator) handleSubmitJob(jobDb *jobdb.JobDb, txn *jobdb.Txn, e *armadaevents.SubmitJob, time time.Time, eventSequence *armadaevents.EventSequence) (bool, error) {
+func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, time time.Time, eventSequence *armadaevents.EventSequence) (bool, error) {
 	schedulingInfo, err := scheduleringester.SchedulingInfoFromSubmitJob(e, time, s.schedulingConfig.Preemption.PriorityClasses)
 	if err != nil {
 		return false, err
 	}
-	job := jobDb.NewJob(
+	job := s.jobDb.NewJob(
 		armadaevents.UlidFromProtoUuid(e.JobId).String(),
 		eventSequence.JobSetName,
 		eventSequence.Queue,
@@ -632,7 +634,7 @@ func (s *Simulator) handleSubmitJob(jobDb *jobdb.JobDb, txn *jobdb.Txn, e *armad
 		false,
 		false,
 		false,
-		time.UnixNano(),
+		s.logicalJobCreatedTimestamp.Add(1),
 	)
 	if err := s.jobDb.Upsert(txn, []*jobdb.Job{job}); err != nil {
 		return false, err

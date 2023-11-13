@@ -4,7 +4,7 @@ queues:
   - name: "small"
     weight: 1.0
     jobTemplates:
-      - number: 38400
+      - number: 3200
         priorityClassName: "armada-default"
         requirements:
           resourceRequirements:
@@ -12,12 +12,12 @@ queues:
               cpu: 1
               memory: "32Gi"
         runtimeDistribution:
-          minimum: "10m"
-          tailMean: "1m"
+          minimum: "60m"
+          tailMean: "6m"
   - name: "big"
     weight: 1.0
     jobTemplates:
-      - number: 10
+      - number: 100
         priorityClassName: "armada-default"
         requirements:
           resourceRequirements:

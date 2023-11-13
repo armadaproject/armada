@@ -4,9 +4,11 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/simulator"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -19,7 +21,7 @@ func RootCmd() *cobra.Command {
 	// cmd.Flags().BoolP("verbose", "v", false, "Log detailed output to console.")
 	cmd.Flags().String("clusters", "", "Glob pattern specifying cluster configurations to simulate.")
 	cmd.Flags().String("workloads", "", "Glob pattern specifying workloads to simulate.")
-	cmd.Flags().String("configs", "", "Glob pattern specifying scheduler configurations to simulate.")
+	cmd.Flags().String("configs", "", "Glob pattern specifying scheduler configurations to simulate. Uses a default config if not provided.")
 	cmd.Flags().Bool("showSchedulerLogs", false, "Show scheduler logs.")
 	cmd.Flags().Int("logInterval", 0, "Log summary statistics every this many events. Disabled if 0.")
 	return cmd
@@ -57,9 +59,17 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	schedulingConfigsByFilePath, err := simulator.SchedulingConfigsByFilePathFromPattern(configPattern)
-	if err != nil {
-		return err
+	var schedulingConfigsByFilePath map[string]configuration.SchedulingConfig
+	if configPattern == "" {
+		// Use default test config if no pattern is provided.
+		schedulingConfigsByFilePath = map[string]configuration.SchedulingConfig{
+			"default": testfixtures.TestSchedulingConfig(),
+		}
+	} else {
+		schedulingConfigsByFilePath, err = simulator.SchedulingConfigsByFilePathFromPattern(configPattern)
+		if err != nil {
+			return err
+		}
 	}
 
 	ctx := armadacontext.Background()

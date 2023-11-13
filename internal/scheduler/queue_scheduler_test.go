@@ -529,7 +529,7 @@ func TestQueueScheduler(t *testing.T) {
 			for i, job := range tc.Jobs {
 				legacySchedulerJobs[i] = job
 			}
-			jobRepo := NewInMemoryJobRepository(tc.SchedulingConfig.Preemption.PriorityClasses)
+			jobRepo := NewInMemoryJobRepository()
 			jobRepo.EnqueueMany(legacySchedulerJobs)
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
