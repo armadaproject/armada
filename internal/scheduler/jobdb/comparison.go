@@ -6,8 +6,10 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 )
 
-type JobPriorityComparer struct{}
-type JobQueueTtlComparer struct{}
+type (
+	JobPriorityComparer struct{}
+	JobQueueTtlComparer struct{}
+)
 
 // Compare jobs by their remaining queue time before expiry
 // Invariants:
