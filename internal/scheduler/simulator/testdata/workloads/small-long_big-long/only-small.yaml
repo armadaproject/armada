@@ -1,17 +1,16 @@
-name: "Only big"
-randomSeed: 12345
-queues:  
-  - name: "big"
+name: "Only small"
+randomSeed: 123
+queues:
+  - name: "A"
     weight: 1.0
     jobTemplates:
-      - number: 100
+      - number: 64
         priorityClassName: "armada-default"
         requirements:
           resourceRequirements:
             requests:
-              cpu: 32
-              memory: "1024Gi"
-        earliestSubmitTime: "30m"
+              cpu: 1
+              memory: "32Gi"
         runtimeDistribution:
           minimum: "60m"
           tailMean: "6m"

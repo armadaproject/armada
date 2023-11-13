@@ -96,6 +96,11 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 		schedulingConfig.Preemption.PriorityClasses,
 		schedulingConfig.Preemption.DefaultPriorityClass,
 	)
+	randomSeed := workloadSpec.RandomSeed
+	if randomSeed == 0 {
+		// Seed the RNG using the local time if no explic random seed is provided.
+		randomSeed = time.Now().Unix()
+	}
 	s := &Simulator{
 		ClusterSpec:                              clusterSpec,
 		WorkloadSpec:                             workloadSpec,
@@ -114,7 +119,7 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 			schedulingConfig.MaximumSchedulingBurst,
 		),
 		limiterByQueue: make(map[string]*rate.Limiter),
-		rand:           rand.New(rand.NewSource(workloadSpec.RandomSeed)),
+		rand:           rand.New(rand.NewSource(randomSeed)),
 	}
 	s.limiter.SetBurstAt(s.time, schedulingConfig.MaximumSchedulingBurst)
 	if err := s.setupClusters(); err != nil {
