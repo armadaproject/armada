@@ -31,6 +31,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/pkg/executorapi"
 )
@@ -202,7 +203,12 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduling algo")
 	}
+	jobDb := jobdb.NewJobDb(
+		config.Scheduling.Preemption.PriorityClasses,
+		config.Scheduling.Preemption.DefaultPriorityClass,
+	)
 	scheduler, err := NewScheduler(
+		jobDb,
 		jobRepository,
 		executorRepository,
 		schedulingAlgo,

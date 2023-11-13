@@ -216,7 +216,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 			inMemoryJobRepo,
 			// Only evicted jobs should be scheduled in this round,
 			// so we provide an empty repo for queued jobs.
-			NewInMemoryJobRepository(sch.schedulingContext.PriorityClasses),
+			NewInMemoryJobRepository(),
 		)
 		if err != nil {
 			return nil, err
@@ -246,6 +246,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	if s := JobsSummary(scheduledJobs); s != "" {
 		ctx.Infof("scheduling new jobs; %s", s)
 	}
+	// TODO: Show failed jobs.
 	if sch.enableAssertions {
 		err := sch.assertions(
 			snapshot,
@@ -268,7 +269,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 
 func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *Evictor) (*EvictorResult, *InMemoryJobRepository, error) {
 	if evictor == nil {
-		return &EvictorResult{}, NewInMemoryJobRepository(sch.schedulingContext.PriorityClasses), nil
+		return &EvictorResult{}, NewInMemoryJobRepository(), nil
 	}
 	txn := sch.nodeDb.Txn(true)
 	defer txn.Abort()
@@ -315,7 +316,7 @@ func (sch *PreemptingQueueScheduler) evict(ctx *armadacontext.Context, evictor *
 	if err := sch.evictionAssertions(result.EvictedJobsById, result.AffectedNodesById); err != nil {
 		return nil, nil, err
 	}
-	inMemoryJobRepo := NewInMemoryJobRepository(sch.schedulingContext.PriorityClasses)
+	inMemoryJobRepo := NewInMemoryJobRepository()
 	inMemoryJobRepo.EnqueueMany(evictedJobs)
 	txn.Commit()
 

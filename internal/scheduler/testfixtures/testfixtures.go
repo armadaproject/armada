@@ -36,11 +36,8 @@ const (
 )
 
 var (
-	// Used for job creation.
-	SchedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGenerator()
-	JobDb                  = jobdb.NewJobDbWithSchedulingKeyGenerator(SchedulingKeyGenerator)
-	BaseTime, _            = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
-	TestPriorityClasses    = map[string]types.PriorityClass{
+	BaseTime, _         = time.Parse("2006-01-02T15:04:05.000Z", "2022-03-01T15:04:05.000Z")
+	TestPriorityClasses = map[string]types.PriorityClass{
 		PriorityClass0:               {Priority: 0, Preemptible: true},
 		PriorityClass1:               {Priority: 1, Preemptible: true},
 		PriorityClass2:               {Priority: 2, Preemptible: true},
@@ -66,7 +63,23 @@ var (
 	TestIndexedTaints     = []string{"largeJobsOnly", "gpu"}
 	TestIndexedNodeLabels = []string{"largeJobsOnly", "gpu"}
 	jobTimestamp          atomic.Int64
+	// SchedulingKeyGenerator to use in testing.
+	// Has to be consistent since creating one involves generating a random key.
+	// If this key isn't consistent, scheduling keys generated are not either.
+	// We use the all-zeros key here to ensure scheduling keys are cosnsitent between tests.
+	SchedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
+	// Used for job creation.
+	JobDb = NewJobDb()
 )
+
+// NewJobDb returns a new default jobDb with defaults to use in tests.
+func NewJobDb() *jobdb.JobDb {
+	return jobdb.NewJobDbWithSchedulingKeyGenerator(
+		TestPriorityClasses,
+		TestDefaultPriorityClass,
+		SchedulingKeyGenerator,
+	)
+}
 
 func IntRange(a, b int) []int {
 	rv := make([]int, b-a+1)

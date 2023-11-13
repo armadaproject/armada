@@ -98,7 +98,7 @@ func CreateIngress(
 		tlsHosts = append(tlsHosts, host)
 
 		// Workaround to get constant's address
-		pathType := networking.PathTypeImplementationSpecific
+		pathType := networking.PathTypePrefix
 		path := networking.IngressRule{
 			Host: host,
 			IngressRuleValue: networking.IngressRuleValue{

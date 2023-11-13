@@ -92,6 +92,11 @@ func (l *FairSchedulingAlgo) Schedule(
 	txn *jobdb.Txn,
 	jobDb *jobdb.JobDb,
 ) (*SchedulerResult, error) {
+	var cancel context.CancelFunc
+	if l.maxSchedulingDuration != 0 {
+		ctx, cancel = armadacontext.WithTimeout(ctx, l.maxSchedulingDuration)
+		defer cancel()
+	}
 	overallSchedulerResult := &SchedulerResult{
 		NodeIdByJobId:      make(map[string]string),
 		SchedulingContexts: make([]*schedulercontext.SchedulingContext, 0, 0),
@@ -100,12 +105,9 @@ func (l *FairSchedulingAlgo) Schedule(
 
 	// Exit immediately if scheduling is disabled.
 	if l.schedulingConfig.DisableScheduling {
-		ctx.Info("skipping scheduling - scheduling disabled")
+		ctx.Info("scheduling disabled; exiting")
 		return overallSchedulerResult, nil
 	}
-
-	ctxWithTimeout, cancel := armadacontext.WithTimeout(ctx, l.maxSchedulingDuration)
-	defer cancel()
 
 	fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, jobDb)
 	if err != nil {
@@ -120,7 +122,7 @@ func (l *FairSchedulingAlgo) Schedule(
 	}
 	for len(l.executorGroupsToSchedule) > 0 {
 		select {
-		case <-ctxWithTimeout.Done():
+		case <-ctx.Done():
 			// We've reached the scheduling time limit; exit gracefully.
 			ctx.Info("ending scheduling round early as we have hit the maximum scheduling duration")
 			return overallSchedulerResult, nil
@@ -146,7 +148,7 @@ func (l *FairSchedulingAlgo) Schedule(
 			executorGroupLabel, fsctx.totalCapacityByPool[pool].CompactString(),
 		)
 		schedulerResult, sctx, err := l.scheduleOnExecutors(
-			ctxWithTimeout,
+			ctx,
 			fsctx,
 			pool,
 			minimumJobSize,

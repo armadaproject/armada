@@ -43,7 +43,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	entry, err := nodeDb.GetNode(node.Id)
 	require.NoError(t, err)
 
-	jobRepo := NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
+	jobRepo := NewInMemoryJobRepository()
 	for _, job := range jobs {
 		jobRepo.Enqueue(job)
 	}
@@ -254,6 +254,83 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"B": 1,
 				"C": 1,
 				"D": 100,
+			},
+		},
+		"avoid preemption when not improving fairness": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 31),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass0, 1),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+		},
+		"avoid preemption when not improving fairness reverse queue naming": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": testfixtures.IntRange(0, 31),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 1),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
+			},
+		},
+		"preemption when improving fairness": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 64),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 63),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.N32Cpu256GiJobs("B", testfixtures.PriorityClass0, 1),
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: testfixtures.IntRange(32, 63),
+						},
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"B": testfixtures.IntRange(0, 0),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{
+				"A": 1,
+				"B": 1,
 			},
 		},
 		"reschedule onto same node": {
@@ -1373,9 +1450,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			txn.Commit()
 
 			// Repo. for storing jobs to be queued.
-			// The Redis job repo. doesn't order by pc, so we disable pc ordering here too.
-			repo := NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
-			repo.sortByPriorityClass = false
+			// TODO: Use jobDb instead.
+			repo := NewInMemoryJobRepository()
 
 			// Accounting across scheduling rounds.
 			roundByJobId := make(map[string]int)
@@ -1737,7 +1813,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			}
 			txn.Commit()
 
-			jobRepo := NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
+			jobRepo := NewInMemoryJobRepository()
 
 			jobs := make([]interfaces.LegacySchedulerJob, 0)
 			for _, queueJobs := range jobsByQueue {

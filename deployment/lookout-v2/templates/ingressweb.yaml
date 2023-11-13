@@ -24,7 +24,7 @@ spec:
     http:
       paths:
         - path: /
-          pathType: ImplementationSpecific
+          pathType: Prefix
           backend:
             service:
               name: {{ include "lookout_v2.name" $root }}

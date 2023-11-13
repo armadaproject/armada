@@ -30,7 +30,7 @@ spec:
     http:
       paths:
         - path: /
-          pathType: ImplementationSpecific
+          pathType: Prefix
           backend:
             service:
               name: {{ include "armada-scheduler.name" $root }}
