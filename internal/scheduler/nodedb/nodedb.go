@@ -34,7 +34,7 @@ const (
 	// This helps avoid scheduling new jobs onto nodes that make it impossible to re-schedule evicted jobs.
 	evictedPriority int32 = -1
 	// MinPriority is the smallest possible priority class priority within the NodeDb.
-	MinPriority int32 = evictedPriority
+	MinPriority = evictedPriority
 )
 
 var empty struct{}

@@ -1,6 +1,6 @@
 name: "Only big"
 randomSeed: 12345
-queues:  
+queues:
   - name: "big"
     weight: 1.0
     jobTemplates:

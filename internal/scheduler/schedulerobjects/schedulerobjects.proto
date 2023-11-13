@@ -9,171 +9,171 @@ import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 
 // Executor represents an executor running on a worker cluster
 message Executor {
-    // Name of the executor.
-    string id = 1;
-    // Pool that the executor belongs to.
-    string pool = 2;
-    // The nodes available for scheduling via this executor.
-    repeated Node nodes = 3;
-    // Minimum resources which a job must request in order to be considered for scheduling on this executor.
-    ResourceList minimumJobSize = 4  [(gogoproto.nullable) = false];
-    // Last time the executor provided a heartbeat to say it was still accepting job.
-    google.protobuf.Timestamp lastUpdateTime = 5 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    // Jobs that are owned by the cluster but are not assigned to any node.
-    repeated string unassigned_job_runs = 9;
+  // Name of the executor.
+  string id = 1;
+  // Pool that the executor belongs to.
+  string pool = 2;
+  // The nodes available for scheduling via this executor.
+  repeated Node nodes = 3;
+  // Minimum resources which a job must request in order to be considered for scheduling on this executor.
+  ResourceList minimumJobSize = 4  [(gogoproto.nullable) = false];
+  // Last time the executor provided a heartbeat to say it was still accepting job.
+  google.protobuf.Timestamp lastUpdateTime = 5 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+  // Jobs that are owned by the cluster but are not assigned to any node.
+  repeated string unassigned_job_runs = 9;
 }
 
 // Node represents a node in a worker cluster.
 message Node {
-    // Id associated with the node. Must be unique across all clusters.
-    string id = 1;
-    // Kubernetes node name. Not guaranteed to be unique across clusters.
-    string name = 12;
-    // Name of the executor to which this node belongs.
-    string executor = 19;
-    // Keys by which nodes are sorted in the nodeDb.
-    repeated bytes nodeDbKeys = 18;
-    // Time at which this node was last updated.
-    // Used to garbage collect nodes that have been removed.
-    google.protobuf.Timestamp last_seen = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
-    // The node type captures scheduling requirements of the node;
-    // it's computed from the taints and labels associated with the node.
-    // This field is set automatically by the NodeDb on inserting the node.
-    NodeType node_type = 3;
-    // We store NodeType.id here to simplify indexing.
-    // This field is set automatically by the NodeDb on inserting the node.
-    uint64 node_type_id = 4;
-    // Kubernetes taints.
-    repeated k8s.io.api.core.v1.Taint taints = 5 [(gogoproto.nullable) = false];
-    // Kubernetes labels.
-    map<string, string> labels = 6;
-    // Total resources on this node.
-    ResourceList total_resources = 7 [(gogoproto.nullable) = false];
-    // Resources available for jobs of a given priority.
-    // E.g., AvailableResources[5]["cpu"] is the amount of CPU available to jobs with priority 5,
-    // where available resources = unused resources + resources assigned to lower-priority jobs.
-    map<int32, ResourceList> allocatable_by_priority_and_resource = 8 [(gogoproto.nullable) = false];
-    // Ids of the job runs currently assigned to this node and their current state.
-    map<string, JobRunState> state_by_job_run_id = 9 [(gogoproto.nullable) = false];
-    // Resource allocated to jobs on this node.
-    map<string, ResourceList> allocated_by_job_id = 10 [(gogoproto.nullable) = false];
-    // Resource allocated to queues on this node.
-    map<string, ResourceList> allocated_by_queue = 11 [(gogoproto.nullable) = false];
-    // Ids of all runs evicted on this node.
-    map<string, bool> evicted_job_run_ids = 14 [(gogoproto.nullable) = false];
-    // Resource allocated to non-Armada pods on this node.
-    map<int32, ResourceList> non_armada_allocated_resources = 13 [(gogoproto.nullable) = false];
-    // If true, no new jobs should be scheduled onto this node, e.g., because the node has been cordoned.
-    bool unschedulable = 15;
-    // This should only be used for metrics
-    // An aggregated real usage of jobs by queue
-    map<string, ResourceList> resource_usage_by_queue = 16;
-    // This should only be used for metrics
-    // This is the type the node should be reported as. It is simple a label to categorise the group the node belongs to
-    string reporting_node_type = 17;
+  // Id associated with the node. Must be unique across all clusters.
+  string id = 1;
+  // Kubernetes node name. Not guaranteed to be unique across clusters.
+  string name = 12;
+  // Name of the executor to which this node belongs.
+  string executor = 19;
+  // Keys by which nodes are sorted in the nodeDb.
+  repeated bytes nodeDbKeys = 18;
+  // Time at which this node was last updated.
+  // Used to garbage collect nodes that have been removed.
+  google.protobuf.Timestamp last_seen = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
+  // The node type captures scheduling requirements of the node;
+  // it's computed from the taints and labels associated with the node.
+  // This field is set automatically by the NodeDb on inserting the node.
+  NodeType node_type = 3;
+  // We store NodeType.id here to simplify indexing.
+  // This field is set automatically by the NodeDb on inserting the node.
+  uint64 node_type_id = 4;
+  // Kubernetes taints.
+  repeated k8s.io.api.core.v1.Taint taints = 5 [(gogoproto.nullable) = false];
+  // Kubernetes labels.
+  map<string, string> labels = 6;
+  // Total resources on this node.
+  ResourceList total_resources = 7 [(gogoproto.nullable) = false];
+  // Resources available for jobs of a given priority.
+  // E.g., AvailableResources[5]["cpu"] is the amount of CPU available to jobs with priority 5,
+  // where available resources = unused resources + resources assigned to lower-priority jobs.
+  map<int32, ResourceList> allocatable_by_priority_and_resource = 8 [(gogoproto.nullable) = false];
+  // Ids of the job runs currently assigned to this node and their current state.
+  map<string, JobRunState> state_by_job_run_id = 9 [(gogoproto.nullable) = false];
+  // Resource allocated to jobs on this node.
+  map<string, ResourceList> allocated_by_job_id = 10 [(gogoproto.nullable) = false];
+  // Resource allocated to queues on this node.
+  map<string, ResourceList> allocated_by_queue = 11 [(gogoproto.nullable) = false];
+  // Ids of all runs evicted on this node.
+  map<string, bool> evicted_job_run_ids = 14 [(gogoproto.nullable) = false];
+  // Resource allocated to non-Armada pods on this node.
+  map<int32, ResourceList> non_armada_allocated_resources = 13 [(gogoproto.nullable) = false];
+  // If true, no new jobs should be scheduled onto this node, e.g., because the node has been cordoned.
+  bool unschedulable = 15;
+  // This should only be used for metrics
+  // An aggregated real usage of jobs by queue
+  map<string, ResourceList> resource_usage_by_queue = 16;
+  // This should only be used for metrics
+  // This is the type the node should be reported as. It is simple a label to categorise the group the node belongs to
+  string reporting_node_type = 17;
 }
 
 enum JobRunState {
-    UNKNOWN = 0;
-    PENDING = 1;
-    RUNNING= 2;
-    SUCCEEDED = 3;
-    FAILED = 4;
+  UNKNOWN = 0;
+  PENDING = 1;
+  RUNNING = 2;
+  SUCCEEDED = 3;
+  FAILED = 4;
 }
 
 // NodeType represents a particular combination of taints and labels.
 // The scheduler groups nodes by node type. When assigning pods to nodes,
 // the scheduler only considers nodes with a NodeType for which the taints and labels match.
 message NodeType {
-    // Unique identifier. Used for map lookup.
-    uint64 Id = 1;
-    // Kubernetes taints.
-    // To reduce the number of distinct node types,
-    // may contain only a subset of the taints of the node the node type is created from.
-    repeated k8s.io.api.core.v1.Taint taints = 2 [(gogoproto.nullable) = false];
-    // Kubernetes labels.
-    // To reduce the number of distinct node types,
-    // may contain only a subset of the labels of the node the node type is created from.
-    map<string, string> labels = 3;
-    // Well-known labels not set by this node type.
-    // Used to filter out nodes when looking for nodes for a pod
-    // that requires at least one well-known label to be set.
-    map<string, string> unsetIndexedLabels = 4;
+  // Unique identifier. Used for map lookup.
+  uint64 Id = 1;
+  // Kubernetes taints.
+  // To reduce the number of distinct node types,
+  // may contain only a subset of the taints of the node the node type is created from.
+  repeated k8s.io.api.core.v1.Taint taints = 2 [(gogoproto.nullable) = false];
+  // Kubernetes labels.
+  // To reduce the number of distinct node types,
+  // may contain only a subset of the labels of the node the node type is created from.
+  map<string, string> labels = 3;
+  // Well-known labels not set by this node type.
+  // Used to filter out nodes when looking for nodes for a pod
+  // that requires at least one well-known label to be set.
+  map<string, string> unsetIndexedLabels = 4;
 }
 
 // Captures the resource usage of a particular queue in a given cluster.
 message QueueClusterResourceUsage {
-    google.protobuf.Timestamp created = 1 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
-    string queue = 2;
-    string executorId = 3;
-    map<int32, ResourceList> resourcesByPriority = 4 [(gogoproto.nullable) = false, deprecated = true];
-    map<string, ResourceList> resourcesByPriorityClassName = 5 [(gogoproto.nullable) = false];
+  google.protobuf.Timestamp created = 1 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
+  string queue = 2;
+  string executorId = 3;
+  map<int32, ResourceList> resourcesByPriority = 4 [(gogoproto.nullable) = false, deprecated = true];
+  map<string, ResourceList> resourcesByPriorityClassName = 5 [(gogoproto.nullable) = false];
 }
 
 // A collection of QueueClusterResourceUsage
 // This is only needed to brige the gap between the redis based scheduler and the new scheduler.
 message ClusterResourceUsageReport {
-    string pool = 1;
-    google.protobuf.Timestamp created = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
-    map<string, QueueClusterResourceUsage> resourcesByQueue = 3;
+  string pool = 1;
+  google.protobuf.Timestamp created = 2 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
+  map<string, QueueClusterResourceUsage> resourcesByQueue = 3;
 }
 
 message ResourceList {
-    map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 1 [(gogoproto.nullable) = false];
+  map<string, k8s.io.apimachinery.pkg.api.resource.Quantity> resources = 1 [(gogoproto.nullable) = false];
 }
 
 // Minimal job representation used by the scheduler.
 message JobSchedulingInfo {
-    option (gogoproto.stable_marshaler) = true;
-    uint32 lifetime = 1;
-    bool at_most_once = 2;
-    bool preemptible = 3;
-    bool concurrency_safe = 4;
-    string priority_class_name = 6;
-    google.protobuf.Timestamp submit_time = 7 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
-    // In-queue priority. I.e., not the priority class priority.
-    uint32 priority = 8;
-    // Kubernetes objects that make up this job and their respective scheduling requirements.
-    repeated ObjectRequirements object_requirements = 5;
-    uint32 version = 9;
-    // Queuing TTL for this job in seconds. If this job queues for more than this duration it will be cancelled. Zero indicates an infinite lifetime.
-    int64 queue_ttl_seconds = 10;
+  option (gogoproto.stable_marshaler) = true;
+  uint32 lifetime = 1;
+  bool at_most_once = 2;
+  bool preemptible = 3;
+  bool concurrency_safe = 4;
+  string priority_class_name = 6;
+  google.protobuf.Timestamp submit_time = 7 [(gogoproto.stdtime) = true, (gogoproto.nullable) = false];
+  // In-queue priority. I.e., not the priority class priority.
+  uint32 priority = 8;
+  // Kubernetes objects that make up this job and their respective scheduling requirements.
+  repeated ObjectRequirements object_requirements = 5;
+  uint32 version = 9;
+  // Queuing TTL for this job in seconds. If this job queues for more than this duration it will be cancelled. Zero indicates an infinite lifetime.
+  int64 queue_ttl_seconds = 10;
 }
 
 // Message capturing the scheduling requirements of a particular Kubernetes object.
 message ObjectRequirements {
-    oneof requirements {
-        PodRequirements podRequirements = 1;
-    }
+  oneof requirements {
+    PodRequirements podRequirements = 1;
+  }
 }
 
 // Captures the scheduling requirements of a pod.
 message PodRequirements {
-    // Kubernetes node selector.
-    map<string, string> nodeSelector = 1;
-    // Kubernetes scheduling requirements.
-    k8s.io.api.core.v1.Affinity affinity = 2;
-    // Kubernetes tolerations.
-    repeated k8s.io.api.core.v1.Toleration tolerations = 3 [(gogoproto.nullable) = false];
-    // Kubernetes annotations. Included here since we use annotations with special meaning.
-    map<string, string> annotations = 7;
-    // Pod priority. Should be mapped from the priority class name of the submitted pod.
-    int32 priority = 4;
-    // One of Never, PreemptLowerPriority.
-    // Defaults to PreemptLowerPriority if unset.
-    string preemptionPolicy = 5;
-    // Sum of the resource requirements for all containers that make up this pod.
-    k8s.io.api.core.v1.ResourceRequirements resourceRequirements = 6 [(gogoproto.nullable) = false];
-    // This key is a hash of the scheduling requirements.
-    // The hash is 20 bytes in size and is guaranteed to be the same for equivalent PodRequirements,
-    // unless Affinity is used, in which case they may differ as a result of unordered map keys.
-    bytes cachedSchedulingKey = 8;
+  // Kubernetes node selector.
+  map<string, string> nodeSelector = 1;
+  // Kubernetes scheduling requirements.
+  k8s.io.api.core.v1.Affinity affinity = 2;
+  // Kubernetes tolerations.
+  repeated k8s.io.api.core.v1.Toleration tolerations = 3 [(gogoproto.nullable) = false];
+  // Kubernetes annotations. Included here since we use annotations with special meaning.
+  map<string, string> annotations = 7;
+  // Pod priority. Should be mapped from the priority class name of the submitted pod.
+  int32 priority = 4;
+  // One of Never, PreemptLowerPriority.
+  // Defaults to PreemptLowerPriority if unset.
+  string preemptionPolicy = 5;
+  // Sum of the resource requirements for all containers that make up this pod.
+  k8s.io.api.core.v1.ResourceRequirements resourceRequirements = 6 [(gogoproto.nullable) = false];
+  // This key is a hash of the scheduling requirements.
+  // The hash is 20 bytes in size and is guaranteed to be the same for equivalent PodRequirements,
+  // unless Affinity is used, in which case they may differ as a result of unordered map keys.
+  bytes cachedSchedulingKey = 8;
 }
 
 // Used to store details about pulsar scheduler jobs in Redis
 // Can be removed once we deprecate the legacy scheduler
 message PulsarSchedulerJobDetails  {
-    string JobId = 1;
-    string Queue = 2;
-    string JobSet = 3;
+  string JobId = 1;
+  string Queue = 2;
+  string JobSet = 3;
 }

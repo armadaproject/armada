@@ -3,49 +3,49 @@ package schedulerobjects;
 option go_package = "github.com/armadaproject/armada/internal/scheduler/schedulerobjects";
 
 message MostRecentForQueue {
-    string queue_name = 1;
+  string queue_name = 1;
 }
 
 message MostRecentForJob {
-    string job_id = 1;
+  string job_id = 1;
 }
 
 message SchedulingReportRequest {
-    oneof filter {
-        MostRecentForQueue most_recent_for_queue = 1;
-        MostRecentForJob most_recent_for_job = 2;
-    }
+  oneof filter {
+    MostRecentForQueue most_recent_for_queue = 1;
+    MostRecentForJob most_recent_for_job = 2;
+  }
 
-    int32 verbosity = 3;
+  int32 verbosity = 3;
 }
 
 message SchedulingReport {
-    string report = 1;
+  string report = 1;
 }
 
 message QueueReportRequest {
-    string queue_name = 1;
+  string queue_name = 1;
 
-    int32 verbosity = 2;
+  int32 verbosity = 2;
 }
 
 message QueueReport {
-    string report = 1;
+  string report = 1;
 }
 
 message JobReportRequest {
-    string job_id = 1;
+  string job_id = 1;
 }
 
 message JobReport {
-    string report = 1;
+  string report = 1;
 }
 
 service SchedulerReporting {
-    // Return the most recent scheduling report for each executor.
-    rpc GetSchedulingReport (SchedulingReportRequest) returns (SchedulingReport);
-    // Return the most recent report scheduling for each executor for the given queue.
-    rpc GetQueueReport (QueueReportRequest) returns (QueueReport);
-    // Return the most recent scheduling report for each executor for the given job.
-    rpc GetJobReport (JobReportRequest) returns (JobReport);
+  // Return the most recent scheduling report for each executor.
+  rpc GetSchedulingReport (SchedulingReportRequest) returns (SchedulingReport);
+  // Return the most recent report scheduling for each executor for the given queue.
+  rpc GetQueueReport (QueueReportRequest) returns (QueueReport);
+  // Return the most recent scheduling report for each executor for the given job.
+  rpc GetJobReport (JobReportRequest) returns (JobReport);
 }
