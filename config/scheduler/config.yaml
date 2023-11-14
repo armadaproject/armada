@@ -10,6 +10,7 @@ metrics:
   port: 9000
   refreshInterval: 30s
   metrics:
+    enablePerQueueNodeMetrics: false
     scheduleCycleTimeHistogramSettings:
       start: 1.0
       factor: 1.1

@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
+
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -283,12 +286,13 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 	defer txn.Abort()
 
 	// Process jobs.
-	jobsToDelete := make([]string, 0, len(updatedJobs))
+	jobIdsToDelete := make([]string, 0, len(updatedJobs))
+	jobsToDelete := util.Map[string, *jobdb.Job](jobIdsToDelete, func(x string) *jobdb.Job { return s.jobDb.GetById(txn, x) })
 	jobsToUpdateById := make(map[string]*jobdb.Job, len(updatedJobs))
 	for _, dbJob := range updatedJobs {
 		if dbJob.InTerminalState() {
 			// Scheduler has sent a terminal message; we can safely remove the job.
-			jobsToDelete = append(jobsToDelete, dbJob.JobID)
+			jobIdsToDelete = append(jobIdsToDelete, dbJob.JobID)
 			continue
 		}
 
@@ -341,7 +345,8 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 	if err := s.jobDb.Upsert(txn, jobsToUpdate); err != nil {
 		return nil, err
 	}
-	if err := s.jobDb.BatchDelete(txn, jobsToDelete); err != nil {
+	err = s.jobDb.BatchDelete(txn, jobIdsToDelete)
+	if err != nil {
 		return nil, err
 	}
 	txn.Commit()
@@ -351,6 +356,30 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 	if len(updatedRuns) > 0 {
 		s.runsSerial = updatedRuns[len(updatedRuns)-1].Serial
 	}
+
+	// Instance not required to be leader to submit metrics
+	nodeFromJob := func(j *jobdb.Job) string {
+		if j.HasRuns() {
+			return j.LatestRun().NodeName()
+		} else {
+			return "node_unknown"
+		}
+	}
+	toLegacySchedulerJob := func(j *jobdb.Job) interfaces.LegacySchedulerJob { return j }
+	succeededJobs := util.Filter(jobsToDelete, func(j *jobdb.Job) bool {
+		return j.Succeeded()
+	})
+	succeededJobsNodes := util.Map(succeededJobs, nodeFromJob)
+	failedJobs := util.Filter(jobsToDelete, func(j *jobdb.Job) bool {
+		return j.Failed()
+	})
+	failedJobsNodes := util.Map(failedJobs, nodeFromJob)
+
+	s.metrics.ReportPerNodeAggregate(ctx, util.Map(succeededJobs, toLegacySchedulerJob), succeededJobsNodes, s.metrics.succeededJobsPerNode)
+	s.metrics.ReportPerNodeAggregate(ctx, util.Map(failedJobs, toLegacySchedulerJob), failedJobsNodes, s.metrics.failedJobsPerNode)
+	s.metrics.ReportPerQueueAggregate(ctx, util.Map(succeededJobs, toLegacySchedulerJob), s.metrics.succeededJobsPerQueue)
+	s.metrics.ReportPerQueueAggregate(ctx, util.Map(failedJobs, toLegacySchedulerJob), s.metrics.failedJobsPerQueue)
+
 	return jobsToUpdate, nil
 }
 
