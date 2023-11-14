@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"time"
 
 	"github.com/armadaproject/armada/internal/common/util"
@@ -310,7 +311,7 @@ func (metrics *SchedulerMetrics) ReportReconcileCycleTime(cycleTime time.Duratio
 	metrics.reconcileCycleTime.Observe(float64(cycleTime.Milliseconds()))
 }
 
-func (metrics *SchedulerMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result SchedulerResult) {
+func (metrics *SchedulerMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result schedulerobjects.SchedulerResult) {
 	if len(result.ScheduledJobs) == 0 && len(result.PreemptedJobs) == 0 && len(result.FailedJobs) == 0 {
 		return
 	}

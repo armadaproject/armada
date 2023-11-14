@@ -1126,7 +1126,7 @@ type testSchedulingAlgo struct {
 	shouldError           bool
 }
 
-func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn) (*SchedulerResult, error) {
+func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn) (*schedulerobjects.SchedulerResult, error) {
 	t.numberOfScheduleCalls++
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")
@@ -1189,7 +1189,7 @@ func NewSchedulerResultForTest[S ~[]T, T interfaces.LegacySchedulerJob](
 	scheduledJobs S,
 	failedJobs S,
 	nodeIdByJobId map[string]string,
-) *SchedulerResult {
+) *schedulerobjects.SchedulerResult {
 	castPreemptedJobs := make([]interfaces.LegacySchedulerJob, len(preemptedJobs))
 	for i, job := range preemptedJobs {
 		castPreemptedJobs[i] = job
@@ -1202,7 +1202,7 @@ func NewSchedulerResultForTest[S ~[]T, T interfaces.LegacySchedulerJob](
 	for i, job := range failedJobs {
 		castFailedJobs[i] = job
 	}
-	return &SchedulerResult{
+	return &schedulerobjects.SchedulerResult{
 		PreemptedJobs: castPreemptedJobs,
 		ScheduledJobs: castScheduledJobs,
 		NodeIdByJobId: nodeIdByJobId,

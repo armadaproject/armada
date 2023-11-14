@@ -196,9 +196,9 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 // cycle is a single iteration of the main scheduling loop.
 // If updateAll is true, we generate events from all jobs in the jobDb.
 // Otherwise, we only generate events from jobs updated since the last cycle.
-func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) (overallSchedulerResult SchedulerResult, err error) {
+func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) (overallSchedulerResult schedulerobjects.SchedulerResult, err error) {
 	// TODO: Consider returning a slice of these instead.
-	overallSchedulerResult = SchedulerResult{}
+	overallSchedulerResult = schedulerobjects.SchedulerResult{}
 
 	// Update job state.
 	updatedJobs, err := s.syncState(ctx)
@@ -241,7 +241,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 
 	// Schedule jobs.
 	if shouldSchedule {
-		var result *SchedulerResult
+		var result *schedulerobjects.SchedulerResult
 		result, err = s.schedulingAlgo.Schedule(ctx, txn)
 		if err != nil {
 			return
@@ -390,22 +390,22 @@ func (s *Scheduler) addNodeAntiAffinitiesForAttemptedRunsIfSchedulable(job *jobd
 }
 
 // eventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
-func (s *Scheduler) eventsFromSchedulerResult(result *SchedulerResult) ([]*armadaevents.EventSequence, error) {
+func (s *Scheduler) eventsFromSchedulerResult(result *schedulerobjects.SchedulerResult) ([]*armadaevents.EventSequence, error) {
 	return EventsFromSchedulerResult(result, s.clock.Now())
 }
 
 // EventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
-func EventsFromSchedulerResult(result *SchedulerResult, time time.Time) ([]*armadaevents.EventSequence, error) {
+func EventsFromSchedulerResult(result *schedulerobjects.SchedulerResult, time time.Time) ([]*armadaevents.EventSequence, error) {
 	eventSequences := make([]*armadaevents.EventSequence, 0, len(result.PreemptedJobs)+len(result.ScheduledJobs)+len(result.FailedJobs))
-	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, PreemptedJobsFromSchedulerResult[*jobdb.Job](result), time)
+	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, schedulerobjects.PreemptedJobsFromSchedulerResult[*jobdb.Job](result), time)
 	if err != nil {
 		return nil, err
 	}
-	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, ScheduledJobsFromSchedulerResult[*jobdb.Job](result), time)
+	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, schedulerobjects.ScheduledJobsFromSchedulerResult[*jobdb.Job](result), time)
 	if err != nil {
 		return nil, err
 	}
-	eventSequences, err = AppendEventSequencesFromUnschedulableJobs(eventSequences, FailedJobsFromSchedulerResult[*jobdb.Job](result), time)
+	eventSequences, err = AppendEventSequencesFromUnschedulableJobs(eventSequences, schedulerobjects.FailedJobsFromSchedulerResult[*jobdb.Job](result), time)
 	if err != nil {
 		return nil, err
 	}
