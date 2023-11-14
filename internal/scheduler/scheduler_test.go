@@ -19,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -1181,6 +1182,32 @@ func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn
 		return nil, err
 	}
 	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs, failedJobs, nil), nil
+}
+
+func NewSchedulerResultForTest[S ~[]T, T interfaces.LegacySchedulerJob](
+	preemptedJobs S,
+	scheduledJobs S,
+	failedJobs S,
+	nodeIdByJobId map[string]string,
+) *SchedulerResult {
+	castPreemptedJobs := make([]interfaces.LegacySchedulerJob, len(preemptedJobs))
+	for i, job := range preemptedJobs {
+		castPreemptedJobs[i] = job
+	}
+	castScheduledJobs := make([]interfaces.LegacySchedulerJob, len(scheduledJobs))
+	for i, job := range scheduledJobs {
+		castScheduledJobs[i] = job
+	}
+	castFailedJobs := make([]interfaces.LegacySchedulerJob, len(failedJobs))
+	for i, job := range failedJobs {
+		castFailedJobs[i] = job
+	}
+	return &SchedulerResult{
+		PreemptedJobs: castPreemptedJobs,
+		ScheduledJobs: castScheduledJobs,
+		NodeIdByJobId: nodeIdByJobId,
+		FailedJobs:    castFailedJobs,
+	}
 }
 
 type testPublisher struct {

@@ -311,8 +311,8 @@ func (metrics *SchedulerMetrics) ReportReconcileCycleTime(cycleTime time.Duratio
 }
 
 func (metrics *SchedulerMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result SchedulerResult) {
-	if result.EmptyResult {
-		return // TODO: Add logging or maybe place to add failure metric?
+	if len(result.ScheduledJobs) == 0 && len(result.PreemptedJobs) == 0 && len(result.FailedJobs) == 0 {
+		return
 	}
 	nodeFromJob := func(j *jobdb.Job) string {
 		if j.HasRuns() {

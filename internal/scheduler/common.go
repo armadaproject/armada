@@ -11,85 +11,9 @@ import (
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
-
-// SchedulerResult is returned by Rescheduler.Schedule().
-type SchedulerResult struct {
-	// Whether the scheduler failed to create a result for some reason
-	EmptyResult bool
-	// Running jobs that should be preempted.
-	PreemptedJobs []interfaces.LegacySchedulerJob
-	// Queued jobs that should be scheduled.
-	ScheduledJobs []interfaces.LegacySchedulerJob
-	// Queued jobs that could not be scheduled.
-	// This is used to fail jobs that could not schedule above `minimumGangCardinality`.
-	FailedJobs []interfaces.LegacySchedulerJob
-	// For each preempted job, maps the job id to the id of the node on which the job was running.
-	// For each scheduled job, maps the job id to the id of the node on which the job should be scheduled.
-	NodeIdByJobId map[string]string
-	// The Scheduling Context. Being passed up for metrics decisions made in scheduler.go and scheduler_metrics.go.
-	// Passing a pointer as the structure is enormous
-	SchedulingContexts []*schedulercontext.SchedulingContext
-}
-
-func NewSchedulerResultForTest[S ~[]T, T interfaces.LegacySchedulerJob](
-	preemptedJobs S,
-	scheduledJobs S,
-	failedJobs S,
-	nodeIdByJobId map[string]string,
-) *SchedulerResult {
-	castPreemptedJobs := make([]interfaces.LegacySchedulerJob, len(preemptedJobs))
-	for i, job := range preemptedJobs {
-		castPreemptedJobs[i] = job
-	}
-	castScheduledJobs := make([]interfaces.LegacySchedulerJob, len(scheduledJobs))
-	for i, job := range scheduledJobs {
-		castScheduledJobs[i] = job
-	}
-	castFailedJobs := make([]interfaces.LegacySchedulerJob, len(failedJobs))
-	for i, job := range failedJobs {
-		castFailedJobs[i] = job
-	}
-	return &SchedulerResult{
-		PreemptedJobs: castPreemptedJobs,
-		ScheduledJobs: castScheduledJobs,
-		NodeIdByJobId: nodeIdByJobId,
-		FailedJobs:    castFailedJobs,
-	}
-}
-
-// PreemptedJobsFromSchedulerResult returns the slice of preempted jobs in the result,
-// cast to type T.
-func PreemptedJobsFromSchedulerResult[T interfaces.LegacySchedulerJob](sr *SchedulerResult) []T {
-	rv := make([]T, len(sr.PreemptedJobs))
-	for i, job := range sr.PreemptedJobs {
-		rv[i] = job.(T)
-	}
-	return rv
-}
-
-// ScheduledJobsFromScheduleResult returns the slice of scheduled jobs in the result,
-// cast to type T.
-func ScheduledJobsFromSchedulerResult[T interfaces.LegacySchedulerJob](sr *SchedulerResult) []T {
-	rv := make([]T, len(sr.ScheduledJobs))
-	for i, job := range sr.ScheduledJobs {
-		rv[i] = job.(T)
-	}
-	return rv
-}
-
-// FailedJobsFromScheduleResult returns the slice of scheduled jobs in the result,
-// cast to type T.
-func FailedJobsFromSchedulerResult[T interfaces.LegacySchedulerJob](sr *SchedulerResult) []T {
-	rv := make([]T, len(sr.FailedJobs))
-	for i, job := range sr.FailedJobs {
-		rv[i] = job.(T)
-	}
-	return rv
-}
 
 // JobsSummary returns a string giving an overview of the provided jobs meant for logging.
 // For example: "affected queues [A, B]; resources {A: {cpu: 1}, B: {cpu: 2}}; jobs [jobAId, jobBId]".
