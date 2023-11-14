@@ -453,7 +453,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				s.schedulingConfig.Preemption.NodeEvictionProbability,
 				s.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
 				s.schedulingConfig.Preemption.ProtectedFractionOfFairShare,
-				scheduler.NewSchedulerJobRepositoryAdapter(s.jobDb, txn),
+				scheduler.NewSchedulerJobRepositoryAdapter(txn),
 				nodeDb,
 				// TODO: Necessary to support partial eviction.
 				nil,
@@ -521,13 +521,13 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				}
 				failedJobs[i] = job.WithQueued(false).WithFailed(true)
 			}
-			if err := s.jobDb.Upsert(txn, preemptedJobs); err != nil {
+			if err := txn.Upsert(preemptedJobs); err != nil {
 				return err
 			}
-			if err := s.jobDb.Upsert(txn, scheduledJobs); err != nil {
+			if err := txn.Upsert(scheduledJobs); err != nil {
 				return err
 			}
-			if err := s.jobDb.Upsert(txn, failedJobs); err != nil {
+			if err := txn.Upsert(failedJobs); err != nil {
 				return err
 			}
 
@@ -636,7 +636,7 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 		false,
 		s.logicalJobCreatedTimestamp.Add(1),
 	)
-	if err := s.jobDb.Upsert(txn, []*jobdb.Job{job}); err != nil {
+	if err := txn.Upsert([]*jobdb.Job{job}); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -644,7 +644,7 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 
 func (s *Simulator) handleJobRunLeased(txn *jobdb.Txn, e *armadaevents.JobRunLeased) (bool, error) {
 	jobId := armadaevents.UlidFromProtoUuid(e.JobId).String()
-	job := s.jobDb.GetById(txn, jobId)
+	job := txn.GetById(jobId)
 	jobTemplate := s.jobTemplateByJobId[jobId]
 	if jobTemplate == nil {
 		return false, errors.Errorf("no jobTemplate associated with job %s", jobId)
@@ -685,12 +685,12 @@ func generateRandomShiftedExponentialDuration(r *rand.Rand, rv ShiftedExponentia
 
 func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSucceeded) (bool, error) {
 	jobId := armadaevents.UlidFromProtoUuid(e.JobId).String()
-	job := s.jobDb.GetById(txn, jobId)
+	job := txn.GetById(jobId)
 	if job == nil || job.InTerminalState() {
 		// Job already terminated; nothing more to do.
 		return false, nil
 	}
-	if err := s.jobDb.BatchDelete(txn, []string{jobId}); err != nil {
+	if err := txn.BatchDelete([]string{jobId}); err != nil {
 		return false, err
 	}
 
@@ -780,7 +780,7 @@ func (s *Simulator) unbindRunningJob(job *jobdb.Job) error {
 
 func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRunPreempted) (bool, error) {
 	jobId := armadaevents.UlidFromProtoUuid(e.PreemptedJobId).String()
-	job := s.jobDb.GetById(txn, jobId)
+	job := txn.GetById(jobId)
 
 	// Submit a retry for this job.
 	jobTemplate := s.jobTemplateByJobId[job.GetId()]

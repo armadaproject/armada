@@ -149,7 +149,7 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 	}
 
 	currentTime := c.clock.Now()
-	for _, job := range c.jobDb.GetAll(c.jobDb.ReadTxn()) {
+	for _, job := range c.jobDb.ReadTxn().GetAll() {
 		// Don't calculate metrics for dead jobs
 		if job.InTerminalState() {
 			continue
@@ -254,7 +254,7 @@ func (c *MetricsCollector) updateClusterMetrics(ctx *armadacontext.Context) ([]p
 			}
 
 			for runId, jobRunState := range node.StateByJobRunId {
-				job := c.jobDb.GetByRunId(txn, uuid.MustParse(runId))
+				job := txn.GetByRunId(uuid.MustParse(runId))
 				if job != nil {
 					phase := schedulerobjects.JobRunState_name[int32(jobRunState)]
 					key := queuePhaseMetricKey{
