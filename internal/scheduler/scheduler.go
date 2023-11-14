@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/util"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
-
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -214,11 +211,11 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 
 	// If we've been asked to generate messages for all jobs, do so.
-	// Otherwise generate messages only for jobs updated this cycle.
+	// Otherwise, generate messages only for jobs updated this cycle.
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 	if updateAll {
-		updatedJobs = s.jobDb.GetAll(txn)
+		updatedJobs = txn.GetAll()
 	}
 
 	// Generate any events that came out of synchronising the db state.
@@ -244,7 +241,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	// Schedule jobs.
 	if shouldSchedule {
 		var result *SchedulerResult
-		result, err = s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
+		result, err = s.schedulingAlgo.Schedule(ctx, txn)
 		if err != nil {
 			return
 		}
@@ -286,18 +283,17 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 	defer txn.Abort()
 
 	// Process jobs.
-	jobIdsToDelete := make([]string, 0, len(updatedJobs))
-	jobsToDelete := util.Map[string, *jobdb.Job](jobIdsToDelete, func(x string) *jobdb.Job { return s.jobDb.GetById(txn, x) })
+	jobsToDelete := make([]string, 0, len(updatedJobs))
 	jobsToUpdateById := make(map[string]*jobdb.Job, len(updatedJobs))
 	for _, dbJob := range updatedJobs {
 		if dbJob.InTerminalState() {
 			// Scheduler has sent a terminal message; we can safely remove the job.
-			jobIdsToDelete = append(jobIdsToDelete, dbJob.JobID)
+			jobsToDelete = append(jobsToDelete, dbJob.JobID)
 			continue
 		}
 
 		// Try and retrieve the job from the jobDb. If it doesn't exist then create it.
-		job := s.jobDb.GetById(txn, dbJob.JobID)
+		job := txn.GetById(dbJob.JobID)
 		if job == nil {
 			job, err = s.schedulerJobFromDatabaseJob(&dbJob)
 			if err != nil {
@@ -320,7 +316,7 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 		// Retrieve the job, look first in the list of updates, then in the jobDb.
 		job, present := jobsToUpdateById[jobId]
 		if !present {
-			job = s.jobDb.GetById(txn, jobId)
+			job = txn.GetById(jobId)
 
 			// If the job is nil or terminal at this point then it cannot be active.
 			// In this case we can ignore the run.
@@ -342,11 +338,10 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 	}
 
 	jobsToUpdate := maps.Values(jobsToUpdateById)
-	if err := s.jobDb.Upsert(txn, jobsToUpdate); err != nil {
+	if err := txn.Upsert(jobsToUpdate); err != nil {
 		return nil, err
 	}
-	err = s.jobDb.BatchDelete(txn, jobIdsToDelete)
-	if err != nil {
+	if err := txn.BatchDelete(jobsToDelete); err != nil {
 		return nil, err
 	}
 	txn.Commit()
@@ -356,30 +351,6 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 	if len(updatedRuns) > 0 {
 		s.runsSerial = updatedRuns[len(updatedRuns)-1].Serial
 	}
-
-	// Instance not required to be leader to submit metrics
-	nodeFromJob := func(j *jobdb.Job) string {
-		if j.HasRuns() {
-			return j.LatestRun().NodeName()
-		} else {
-			return "node_unknown"
-		}
-	}
-	toLegacySchedulerJob := func(j *jobdb.Job) interfaces.LegacySchedulerJob { return j }
-	succeededJobs := util.Filter(jobsToDelete, func(j *jobdb.Job) bool {
-		return j.Succeeded()
-	})
-	succeededJobsNodes := util.Map(succeededJobs, nodeFromJob)
-	failedJobs := util.Filter(jobsToDelete, func(j *jobdb.Job) bool {
-		return j.Failed()
-	})
-	failedJobsNodes := util.Map(failedJobs, nodeFromJob)
-
-	s.metrics.ReportPerNodeAggregate(ctx, util.Map(succeededJobs, toLegacySchedulerJob), succeededJobsNodes, s.metrics.succeededJobsPerNode)
-	s.metrics.ReportPerNodeAggregate(ctx, util.Map(failedJobs, toLegacySchedulerJob), failedJobsNodes, s.metrics.failedJobsPerNode)
-	s.metrics.ReportPerQueueAggregate(ctx, util.Map(succeededJobs, toLegacySchedulerJob), s.metrics.succeededJobsPerQueue)
-	s.metrics.ReportPerQueueAggregate(ctx, util.Map(failedJobs, toLegacySchedulerJob), s.metrics.failedJobsPerQueue)
-
 	return jobsToUpdate, nil
 }
 
@@ -745,7 +716,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 	}
 
 	if origJob != job {
-		err := s.jobDb.Upsert(txn, []*jobdb.Job{job})
+		err := txn.Upsert([]*jobdb.Job{job})
 		if err != nil {
 			return nil, err
 		}
@@ -794,7 +765,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 	events := make([]*armadaevents.EventSequence, 0)
 
 	// TODO: this is inefficient.  We should create a iterator of the jobs running on the affected executors
-	jobs := s.jobDb.GetAll(txn)
+	jobs := txn.GetAll()
 
 	for _, job := range jobs {
 
@@ -846,7 +817,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 			events = append(events, es)
 		}
 	}
-	if err := s.jobDb.Upsert(txn, jobsToUpdate); err != nil {
+	if err := txn.Upsert(jobsToUpdate); err != nil {
 		return nil, err
 	}
 	return events, nil
@@ -856,7 +827,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 func (s *Scheduler) cancelQueuedJobsIfExpired(txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
 	jobsToCancel := make([]*jobdb.Job, 0)
 	events := make([]*armadaevents.EventSequence, 0)
-	it := s.jobDb.QueuedJobsByTtl(txn)
+	it := txn.QueuedJobsByTtl()
 
 	// `it` is ordered such that the jobs with the least ttl remaining come first, hence we exit early if we find a job that is not expired.
 	for job, _ := it.Next(); job != nil && job.HasQueueTtlExpired(); job, _ = it.Next() {
@@ -890,7 +861,7 @@ func (s *Scheduler) cancelQueuedJobsIfExpired(txn *jobdb.Txn) ([]*armadaevents.E
 		events = append(events, cancel)
 	}
 
-	if err := s.jobDb.Upsert(txn, jobsToCancel); err != nil {
+	if err := txn.Upsert(jobsToCancel); err != nil {
 		return nil, err
 	}
 
