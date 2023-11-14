@@ -197,7 +197,8 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 // If updateAll is true, we generate events from all jobs in the jobDb.
 // Otherwise, we only generate events from jobs updated since the last cycle.
 func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) (overallSchedulerResult SchedulerResult, err error) {
-	overallSchedulerResult = SchedulerResult{EmptyResult: true}
+	// TODO: Consider returning a slice of these instead.
+	overallSchedulerResult = SchedulerResult{}
 
 	// Update job state.
 	updatedJobs, err := s.syncState(ctx)
