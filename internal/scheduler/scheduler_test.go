@@ -631,6 +631,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
+				nil,
 			)
 			require.NoError(t, err)
 
@@ -797,7 +798,9 @@ func TestRun(t *testing.T) {
 		1*time.Hour,
 		maxNumberOfAttempts,
 		nodeIdLabel,
-		schedulerMetrics)
+		schedulerMetrics,
+		nil,
+	)
 	require.NoError(t, err)
 
 	sched.clock = testClock
@@ -1009,6 +1012,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
+				nil,
 			)
 			require.NoError(t, err)
 

@@ -90,7 +90,7 @@ func (run *JobRun) Id() uuid.UUID {
 	return run.id
 }
 
-// Id returns the id of the job this run is associated with.
+// JobId returns the id of the job this run is associated with.
 func (run *JobRun) JobId() string {
 	return run.jobId
 }
@@ -105,7 +105,7 @@ func (run *JobRun) NodeId() string {
 	return run.nodeId
 }
 
-// NodeId returns the name of the node to which the JobRun is assigned.
+// NodeName returns the name of the node to which the JobRun is assigned.
 func (run *JobRun) NodeName() string {
 	return run.nodeName
 }

@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -207,6 +208,13 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.Preemption.PriorityClasses,
 		config.Scheduling.Preemption.DefaultPriorityClass,
 	)
+	schedulerMetrics, err := metrics.New(config.SchedulerMetrics)
+	if err != nil {
+		return err
+	}
+	if err := prometheus.Register(schedulerMetrics); err != nil {
+		return errors.WithStack(err)
+	}
 	scheduler, err := NewScheduler(
 		jobDb,
 		jobRepository,
@@ -222,6 +230,7 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.MaxRetries+1,
 		config.Scheduling.Preemption.NodeIdLabel,
 		NewSchedulerMetrics(config.Metrics.Metrics),
+		schedulerMetrics,
 	)
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")
@@ -240,8 +249,11 @@ func Run(config schedulerconfig.Configuration) error {
 		queueRepository,
 		executorRepository,
 		poolAssigner,
-		config.Metrics.RefreshInterval)
-	prometheus.MustRegister(metricsCollector)
+		config.Metrics.RefreshInterval,
+	)
+	if err := prometheus.Register(metricsCollector); err != nil {
+		return errors.WithStack(err)
+	}
 	services = append(services, func() error { return metricsCollector.Run(ctx) })
 	shutdownMetricServer := common.ServeMetrics(config.Metrics.Port)
 	defer shutdownMetricServer()

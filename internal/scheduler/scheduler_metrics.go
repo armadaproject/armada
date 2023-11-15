@@ -273,7 +273,7 @@ func NewSchedulerMetrics(config configuration.SchedulerMetricsConfig) *Scheduler
 	metricsToExpose := make(map[prometheus.Collector]bool, len(metricsGatingMap))
 
 	for metric, gate := range metricsGatingMap {
-		if metricsToExpose[metric] = !gate || config.EnablePerQueueNodeMetrics; metricsToExpose[metric] {
+		if metricsToExpose[metric] = !gate; metricsToExpose[metric] {
 			prometheus.MustRegister(metric)
 		}
 	}

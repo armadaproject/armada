@@ -8,6 +8,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/config"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/pkg/client"
+	v1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -30,6 +31,9 @@ type Configuration struct {
 	Leader LeaderConfig
 	// Configuration controlling metrics
 	Metrics configuration.MetricsConfig
+	// Configuration for new scheduler metrics.
+	// Due to replace metrics configured via the above entry.
+	SchedulerMetrics MetricsConfig
 	// Scheduler configuration (this is shared with the old scheduler)
 	Scheduling configuration.SchedulingConfig
 	Auth       authconfig.AuthConfig
@@ -53,6 +57,37 @@ type Configuration struct {
 	DatabaseFetchSize int `validate:"required"`
 	// Timeout to use when sending messages to pulsar
 	PulsarSendTimeout time.Duration `validate:"required"`
+}
+
+type MetricsConfig struct {
+	// If true, disable metric collection and publishing.
+	Disabled bool
+	// The scheduler exports metrics tracking job failures.
+	// These metrics may be annotated by flags indicating the type of error.
+	// For example, if TrackedErrorRegexes contains the following entry,
+	// "isCudaError": "/CUDA/"
+	// then job failure metrics will have a label with value
+	TrackedErrorRegexByLabel map[string]string
+	// Metrics are exported for these resources.
+	TrackedResourceNames []v1.ResourceName
+	// Controls the cycle time metrics.
+	CycleTimeConfig PrometheusSummaryConfig
+}
+
+// PrometheusSummaryConfig contains the relevant config for a prometheus.Summary.
+type PrometheusSummaryConfig struct {
+	// Objectives defines the quantile rank estimates with their respective
+	// absolute error. If Objectives[q] = e, then the value reported for q
+	// will be the φ-quantile value for some φ between q-e and q+e.  The
+	// default value is an empty map, resulting in a summary without
+	// quantiles.
+	Objectives map[float64]float64
+
+	// MaxAge defines the duration for which an observation stays relevant
+	// for the summary. Only applies to pre-calculated quantiles, does not
+	// apply to _sum and _count. Must be positive. The default value is
+	// DefMaxAge.
+	MaxAge time.Duration
 }
 
 type LeaderConfig struct {

@@ -359,7 +359,6 @@ type MetricsConfig struct {
 }
 
 type SchedulerMetricsConfig struct {
-	EnablePerQueueNodeMetrics           bool
 	ScheduleCycleTimeHistogramSettings  HistogramConfig
 	ReconcileCycleTimeHistogramSettings HistogramConfig
 }

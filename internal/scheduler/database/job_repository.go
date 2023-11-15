@@ -37,8 +37,8 @@ type JobRepository interface {
 	// These updates are guaranteed to be consistent with each other
 	FetchJobUpdates(ctx *armadacontext.Context, jobSerial int64, jobRunSerial int64) ([]Job, []Run, error)
 
-	// FetchJobRunErrors returns all armadaevents.JobRunErrors for the provided job run ids.  The returned map is
-	// keyed by job run id.  Any dbRuns which don't have errors wil be absent from the map.
+	// FetchJobRunErrors returns all armadaevents.JobRunErrors for the provided job run ids. The returned map is
+	// keyed by job run id. Any dbRuns which don't have errors wil be absent from the map.
 	FetchJobRunErrors(ctx *armadacontext.Context, runIds []uuid.UUID) (map[uuid.UUID]*armadaevents.Error, error)
 
 	// CountReceivedPartitions returns a count of the number of partition messages present in the database corresponding

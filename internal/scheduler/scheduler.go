@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"fmt"
+	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -75,6 +76,8 @@ type Scheduler struct {
 	onCycleCompleted func()
 	// metrics set for the scheduler.
 	metrics *SchedulerMetrics
+	// New scheduler metrics due to replace the above.
+	schedulerMetrics *metrics.Metrics
 }
 
 func NewScheduler(
@@ -91,7 +94,8 @@ func NewScheduler(
 	executorTimeout time.Duration,
 	maxAttemptedRuns uint,
 	nodeIdLabel string,
-	schedulerMetrics *SchedulerMetrics,
+	metrics *SchedulerMetrics,
+	schedulerMetrics *metrics.Metrics,
 ) (*Scheduler, error) {
 	return &Scheduler{
 		jobRepository:              jobRepository,
@@ -111,7 +115,8 @@ func NewScheduler(
 		nodeIdLabel:                nodeIdLabel,
 		jobsSerial:                 -1,
 		runsSerial:                 -1,
-		metrics:                    schedulerMetrics,
+		metrics:                    metrics,
+		schedulerMetrics:           schedulerMetrics,
 	}, nil
 }
 
@@ -301,7 +306,8 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 				return nil, err
 			}
 		} else {
-			// make the scheduler job look like the db job.
+			// Reconcile any differences between the existing and new job.
+			// TODO: Why not just upsert the new job?
 			job, err = updateSchedulerJob(job, &dbJob)
 			if err != nil {
 				return nil, err
@@ -331,7 +337,8 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 		if run == nil {
 			run = s.createSchedulerRun(&dbRun)
 		} else {
-			// make the scheduler job look like the db job
+			// Reconcile any differences between the existing and new run.
+			// TODO: Why not just upsert the new run?
 			run = updateSchedulerRun(run, &dbRun)
 		}
 		job = job.WithUpdatedRun(run)
@@ -544,6 +551,8 @@ func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, updatedJo
 			failedRunIds = append(failedRunIds, run.Id())
 		}
 	}
+
+	// TODO: This should be in syncState instead.
 	jobRunErrors, err := s.jobRepository.FetchJobRunErrors(ctx, failedRunIds)
 	if err != nil {
 		return nil, err
@@ -1020,7 +1029,8 @@ func updateSchedulerRun(run *jobdb.JobRun, dbRun *database.Run) *jobdb.JobRun {
 	return run
 }
 
-// updateSchedulerJob updates the scheduler job in-place to match the database job.
+// updateSchedulerJob returns a new job produced by applying updates to job such that it matches dbJob.
+// The original job is not mutated.
 func updateSchedulerJob(job *jobdb.Job, dbJob *database.Job) (*jobdb.Job, error) {
 	if dbJob.CancelRequested && !job.CancelRequested() {
 		job = job.WithCancelRequested(true)
