@@ -607,7 +607,6 @@ func EventSequenceFromApiEvent(msg *api.EventMessage) (sequence *armadaevents.Ev
 								},
 							},
 						},
-					},
 				},
 			},
 		})
