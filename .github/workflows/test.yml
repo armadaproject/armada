@@ -23,7 +23,7 @@ jobs:
           cache: yarn
           cache-dependency-path: ./internal/lookout/ui/yarn.lock
 
-      - name: Run Unit Tests
+      - name: Install Dependencies And Run Unit Tests
         run: |
           yarn install --frozen-lockfile && yarn run openapi && CI=true yarn run test --reporters=jest-junit
         working-directory: ./internal/lookout/ui
