@@ -128,15 +128,12 @@ jobs:
           go-version: '1.20'
           cache: false
 
-      - name: Setup dependencies
-        shell: bash
-        run: go run github.com/magefile/mage@v1.14.0 -v download
-
-      # - name: Setup and Run Integration Tests
-      #   run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
+      # - name: Setup dependencies
+      #   shell: bash
+      #   run: go run github.com/magefile/mage@v1.14.0 -v download
 
       - name: Setup and Run Integration Tests
-        run: go run github.com/magefile/mage@v1.14.0 -v testsuite    
+        run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
 
       - name: Upload JUnit Report Artifact
         uses: actions/upload-artifact@v3
