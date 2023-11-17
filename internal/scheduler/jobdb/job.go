@@ -233,22 +233,6 @@ func (job *Job) WithRequestedPriority(priority uint32) *Job {
 	return j
 }
 
-// WithNodeSelectorTerm returns a copy of the job with a node selector term added to it.
-func (job *Job) WithNodeSelectorTerm(key, value string) *Job {
-	copiedSchedulingInfo := proto.Clone(job.JobSchedulingInfo()).(*schedulerobjects.JobSchedulingInfo)
-	j := job.WithJobSchedulingInfo(copiedSchedulingInfo)
-	for _, oreq := range j.jobSchedulingInfo.ObjectRequirements {
-		if preq := oreq.GetPodRequirements(); preq != nil {
-			if preq.NodeSelector == nil {
-				preq.NodeSelector = map[string]string{key: value}
-			} else {
-				preq.NodeSelector[key] = value
-			}
-		}
-	}
-	return j
-}
-
 // JobSchedulingInfo returns the scheduling requirements associated with the job
 func (job *Job) JobSchedulingInfo() *schedulerobjects.JobSchedulingInfo {
 	return job.jobSchedulingInfo

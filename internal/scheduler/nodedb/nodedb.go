@@ -1042,7 +1042,7 @@ func (nodeDb *NodeDb) NodeTypesMatchingPod(req *schedulerobjects.PodRequirements
 	selectedNodeTypes := make([]*schedulerobjects.NodeType, 0)
 	numExcludedNodesByReason := make(map[string]int)
 	for _, nodeType := range nodeDb.nodeTypes {
-		matches, reason, err := nodeType.PodRequirementsMet(req)
+		matches, reason, err := schedulerobjects.NodeTypePodRequirementsMet(nodeType, req)
 		if err != nil {
 			return nil, nil, err
 		}

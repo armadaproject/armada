@@ -109,10 +109,10 @@ func (err *InsufficientResources) String() string {
 		err.Available.String() + " is available"
 }
 
-// PodRequirementsMet determines whether a pod can be scheduled on nodes of this NodeType.
+// NodeTypePodRequirementsMet determines whether a pod can be scheduled on nodes of this NodeType.
 // If the requirements are not met, it returns the reason for why.
 // If the requirements can't be parsed, an error is returned.
-func (nodeType *NodeType) PodRequirementsMet(req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
+func NodeTypePodRequirementsMet(nodeType *NodeType, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
 	matches, reason, err := podTolerationRequirementsMet(nodeType.GetTaints(), req)
 	if !matches || err != nil {
 		return matches, reason, err
@@ -132,12 +132,6 @@ func PodRequirementsMet(taints []v1.Taint, labels map[string]string, totalResour
 		return matches, 0, reason, err
 	}
 	return DynamicPodRequirementsMet(allocatableResources, req)
-}
-
-// StaticJobRequirementsMet checks if a pod can be scheduled onto this node,
-// accounting for taints, node selectors, node affinity, and total resources available on the node.
-func StaticJobRequirementsMet(taints []v1.Taint, labels map[string]string, totalResources ResourceList, jctx *schedulercontext.JobSchedulingContext) (bool, PodRequirementsNotMetReason, error) {
-
 }
 
 // StaticPodRequirementsMet checks if a pod can be scheduled onto this node,

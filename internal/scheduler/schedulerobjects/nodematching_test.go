@@ -520,7 +520,7 @@ func TestNodeTypeSchedulingRequirementsMet(t *testing.T) {
 				tc.IndexedTaints,
 				tc.IndexedLabels,
 			)
-			matches, reason, err := nodeType.PodRequirementsMet(tc.Req)
+			matches, reason, err := NodeTypePodRequirementsMet(nodeType, tc.Req)
 			assert.NoError(t, err)
 			if tc.ExpectSuccess {
 				assert.True(t, matches)
