@@ -6,11 +6,14 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/common/util"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 )
 
 type JobIterator interface {
-	Next() (interfaces.LegacySchedulerJob, error)
+	Next() (*schedulercontext.JobSchedulingContext, error)
 }
 
 type JobRepository interface {
@@ -19,51 +22,47 @@ type JobRepository interface {
 }
 
 type InMemoryJobIterator struct {
-	i    int
-	jobs []interfaces.LegacySchedulerJob
+	i     int
+	jctxs []*schedulercontext.JobSchedulingContext
 }
 
-func NewInMemoryJobIterator[S ~[]E, E interfaces.LegacySchedulerJob](jobs S) *InMemoryJobIterator {
-	vs := make([]interfaces.LegacySchedulerJob, len(jobs))
-	for i, job := range jobs {
-		vs[i] = job
-	}
+func NewInMemoryJobIterator(jctxs []*schedulercontext.JobSchedulingContext) *InMemoryJobIterator {
 	return &InMemoryJobIterator{
-		jobs: vs,
+		jctxs: jctxs,
 	}
 }
 
-func (it *InMemoryJobIterator) Next() (interfaces.LegacySchedulerJob, error) {
-	if it.i >= len(it.jobs) {
+func (it *InMemoryJobIterator) Next() (*schedulercontext.JobSchedulingContext, error) {
+	if it.i >= len(it.jctxs) {
 		return nil, nil
 	}
-	v := it.jobs[it.i]
+	v := it.jctxs[it.i]
 	it.i++
 	return v, nil
 }
 
 type InMemoryJobRepository struct {
-	jobsByQueue map[string][]interfaces.LegacySchedulerJob
-	jobsById    map[string]interfaces.LegacySchedulerJob
+	jctxsByQueue map[string][]*schedulercontext.JobSchedulingContext
+	jctxsById    map[string]*schedulercontext.JobSchedulingContext
 	// Protects the above fields.
 	mu sync.Mutex
 }
 
 func NewInMemoryJobRepository() *InMemoryJobRepository {
 	return &InMemoryJobRepository{
-		jobsByQueue: make(map[string][]interfaces.LegacySchedulerJob),
-		jobsById:    make(map[string]interfaces.LegacySchedulerJob),
+		jctxsByQueue: make(map[string][]*schedulercontext.JobSchedulingContext),
+		jctxsById:    make(map[string]*schedulercontext.JobSchedulingContext),
 	}
 }
 
-func (repo *InMemoryJobRepository) EnqueueMany(jobs []interfaces.LegacySchedulerJob) {
+func (repo *InMemoryJobRepository) EnqueueMany(jctxs []*schedulercontext.JobSchedulingContext) {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 	updatedQueues := make(map[string]bool)
-	for _, job := range jobs {
-		queue := job.GetQueue()
-		repo.jobsByQueue[queue] = append(repo.jobsByQueue[queue], job)
-		repo.jobsById[job.GetId()] = job
+	for _, jctx := range jctxs {
+		queue := jctx.Job.GetQueue()
+		repo.jctxsByQueue[queue] = append(repo.jctxsByQueue[queue], jctx)
+		repo.jctxsById[jctx.Job.GetId()] = jctx
 		updatedQueues[queue] = true
 	}
 	for queue := range updatedQueues {
@@ -71,58 +70,60 @@ func (repo *InMemoryJobRepository) EnqueueMany(jobs []interfaces.LegacyScheduler
 	}
 }
 
-func (repo *InMemoryJobRepository) Enqueue(job interfaces.LegacySchedulerJob) {
+func (repo *InMemoryJobRepository) Enqueue(jctx *schedulercontext.JobSchedulingContext) {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
-	queue := job.GetQueue()
-	repo.jobsByQueue[queue] = append(repo.jobsByQueue[queue], job)
-	repo.jobsById[job.GetId()] = job
+	queue := jctx.Job.GetQueue()
+	repo.jctxsByQueue[queue] = append(repo.jctxsByQueue[queue], jctx)
+	repo.jctxsById[jctx.Job.GetId()] = jctx
 	repo.sortQueue(queue)
 }
 
-// Sort jobs queued jobs
-// first by priority class priority, with higher values first,
-// second by in-queue priority, with smaller values first, and
-// finally by submit time, with earlier submit times first.
+// sortQueue sorts jobs in a specified queue by the order in which they should be scheduled.
 func (repo *InMemoryJobRepository) sortQueue(queue string) {
-	slices.SortFunc(repo.jobsByQueue[queue], func(a, b interfaces.LegacySchedulerJob) bool {
-		return a.SchedulingOrderCompare(b) == -1
+	slices.SortFunc(repo.jctxsByQueue[queue], func(a, b *schedulercontext.JobSchedulingContext) bool {
+		return a.Job.SchedulingOrderCompare(b.Job) == -1
 	})
 }
 
+// Should only be used in testing.
 func (repo *InMemoryJobRepository) GetQueueJobIds(queue string) ([]string, error) {
-	jobs := repo.jobsByQueue[queue]
-	rv := make([]string, len(jobs))
-	for i, job := range jobs {
-		rv[i] = job.GetId()
-	}
-	return rv, nil
+	return util.Map(
+		repo.jctxsByQueue[queue],
+		func(jctx *schedulercontext.JobSchedulingContext) string {
+			return jctx.Job.GetId()
+		},
+	), nil
 }
 
+// Should only be used in testing.
 func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) ([]interfaces.LegacySchedulerJob, error) {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 	rv := make([]interfaces.LegacySchedulerJob, 0, len(jobIds))
 	for _, jobId := range jobIds {
-		if job, ok := repo.jobsById[jobId]; ok {
-			rv = append(rv, job)
+		if jctx, ok := repo.jctxsById[jobId]; ok {
+			rv = append(rv, jctx.Job)
 		}
 	}
 	return rv, nil
 }
 
-func (repo *InMemoryJobRepository) GetJobIterator(ctx *armadacontext.Context, queue string) (JobIterator, error) {
+func (repo *InMemoryJobRepository) GetJobIterator(queue string) JobIterator {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
-	return NewInMemoryJobIterator(slices.Clone(repo.jobsByQueue[queue])), nil
+	return NewInMemoryJobIterator(slices.Clone(repo.jctxsByQueue[queue]))
 }
 
 // QueuedJobsIterator is an iterator over all jobs in a queue.
-// It lazily loads jobs in batches from Redis asynch.
+// It loads jobs asynchronously in batches from the underlying database.
+// This is necessary for good performance when jobs are stored in Redis.
 type QueuedJobsIterator struct {
 	ctx *armadacontext.Context
 	err error
 	c   chan interfaces.LegacySchedulerJob
+	// TODO: Populate.
+	priorityClasses map[string]types.PriorityClass
 }
 
 func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, repo JobRepository) (*QueuedJobsIterator, error) {
@@ -143,14 +144,14 @@ func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, repo JobRep
 	return it, nil
 }
 
-func (it *QueuedJobsIterator) Next() (interfaces.LegacySchedulerJob, error) {
+func (it *QueuedJobsIterator) Next() (*schedulercontext.JobSchedulingContext, error) {
 	// Once this function has returned error,
 	// it will return this error on every invocation.
 	if it.err != nil {
 		return nil, it.err
 	}
 
-	// Get one job that was loaded asynchrounsly.
+	// Get one job that was loaded asynchronously.
 	select {
 	case <-it.ctx.Done():
 		it.err = it.ctx.Err() // Return an error if called again.
@@ -159,13 +160,23 @@ func (it *QueuedJobsIterator) Next() (interfaces.LegacySchedulerJob, error) {
 		if !ok {
 			return nil, nil
 		}
-		return job, nil
+		return schedulercontext.JobSchedulingContextFromJob(
+			it.priorityClasses,
+			job,
+			GangIdAndCardinalityFromAnnotations,
+		), nil
 	}
 }
 
 // queuedJobsIteratorLoader loads jobs from Redis lazily.
 // Used with QueuedJobsIterator.
-func queuedJobsIteratorLoader(ctx *armadacontext.Context, jobIds []string, ch chan interfaces.LegacySchedulerJob, batchSize int, repo JobRepository) error {
+func queuedJobsIteratorLoader(
+	ctx *armadacontext.Context,
+	jobIds []string,
+	ch chan interfaces.LegacySchedulerJob,
+	batchSize int,
+	repo JobRepository,
+) error {
 	defer close(ch)
 	batch := make([]string, batchSize)
 	for i, jobId := range jobIds {
@@ -190,8 +201,7 @@ func queuedJobsIteratorLoader(ctx *armadacontext.Context, jobIds []string, ch ch
 	return nil
 }
 
-// MultiJobsIterator chains several JobIterators together,
-// emptying them in the order provided.
+// MultiJobsIterator chains several JobIterators together in the order provided.
 type MultiJobsIterator struct {
 	i   int
 	its []JobIterator
@@ -203,7 +213,7 @@ func NewMultiJobsIterator(its ...JobIterator) *MultiJobsIterator {
 	}
 }
 
-func (it *MultiJobsIterator) Next() (interfaces.LegacySchedulerJob, error) {
+func (it *MultiJobsIterator) Next() (*schedulercontext.JobSchedulingContext, error) {
 	if it.i >= len(it.its) {
 		return nil, nil
 	}

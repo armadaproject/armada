@@ -8,6 +8,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/component-helpers/scheduling/corev1"
+
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 )
 
 const (
@@ -132,6 +134,12 @@ func PodRequirementsMet(taints []v1.Taint, labels map[string]string, totalResour
 	return DynamicPodRequirementsMet(allocatableResources, req)
 }
 
+// StaticJobRequirementsMet checks if a pod can be scheduled onto this node,
+// accounting for taints, node selectors, node affinity, and total resources available on the node.
+func StaticJobRequirementsMet(taints []v1.Taint, labels map[string]string, totalResources ResourceList, jctx *schedulercontext.JobSchedulingContext) (bool, PodRequirementsNotMetReason, error) {
+
+}
+
 // StaticPodRequirementsMet checks if a pod can be scheduled onto this node,
 // accounting for taints, node selectors, node affinity, and total resources available on the node.
 func StaticPodRequirementsMet(taints []v1.Taint, labels map[string]string, totalResources ResourceList, req *PodRequirements) (bool, PodRequirementsNotMetReason, error) {
@@ -162,6 +170,13 @@ func StaticPodRequirementsMet(taints []v1.Taint, labels map[string]string, total
 	}
 
 	return true, nil, nil
+}
+
+// DynamicJobRequirementsMet checks if a pod can be scheduled onto this node,
+// accounting for resources allocated to pods already assigned to this node.
+func DynamicJobRequirementsMet(allocatableResources ResourceList, jctx *schedulercontext.JobSchedulingContext) (bool, int, PodRequirementsNotMetReason, error) {
+	matches, reason, err := podResourceRequirementsMet(allocatableResources, jctx.PodRequirements)
+	return matches, SchedulableScore, reason, err
 }
 
 // DynamicPodRequirementsMet checks if a pod can be scheduled onto this node,

@@ -134,10 +134,6 @@ func JobsSummary(jobs []interfaces.LegacySchedulerJob) string {
 	)
 }
 
-func isEvictedJob(job interfaces.LegacySchedulerJob) bool {
-	return job.GetAnnotations()[schedulerconfig.IsEvictedAnnotation] == "true"
-}
-
 func targetNodeIdFromNodeSelector(nodeSelector map[string]string) (string, bool) {
 	nodeId, ok := nodeSelector[schedulerconfig.NodeIdLabel]
 	return nodeId, ok

@@ -11,17 +11,24 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
-	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
+
+// defaultSchedulingKeyGenerator is used for computing scheduling keys for legacy api.Job where one is not pre-computed.
+var defaultSchedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
+
+func init() {
+	defaultSchedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGenerator()
+}
 
 // SchedulingContext contains information necessary for scheduling and records what happened in a scheduling round.
 type SchedulingContext struct {
@@ -557,7 +564,7 @@ func NewGangSchedulingContext(jctxs []*JobSchedulingContext) *GangSchedulingCont
 	allJobsEvicted := true
 	totalResourceRequests := schedulerobjects.NewResourceList(4)
 	for _, jctx := range jctxs {
-		allJobsEvicted = allJobsEvicted && isEvictedJob(jctx.Job)
+		allJobsEvicted = allJobsEvicted && jctx.IsEvicted
 		totalResourceRequests.AddV1ResourceList(jctx.PodRequirements.ResourceRequirements.Requests)
 	}
 	return &GangSchedulingContext{
@@ -577,10 +584,6 @@ func (gctx *GangSchedulingContext) Cardinality() int {
 	return len(gctx.JobSchedulingContexts)
 }
 
-func isEvictedJob(job interfaces.LegacySchedulerJob) bool {
-	return job.GetAnnotations()[schedulerconfig.IsEvictedAnnotation] == "true"
-}
-
 // JobSchedulingContext is created by the scheduler and contains information
 // about the decision made by the scheduler for a particular job.
 type JobSchedulingContext struct {
@@ -588,11 +591,21 @@ type JobSchedulingContext struct {
 	Created time.Time
 	// Id of the job this pod corresponds to.
 	JobId string
+	// Indicates whether this context is for re-scheduling an evicted job.
+	IsEvicted bool
 	// Job spec.
 	Job interfaces.LegacySchedulerJob
 	// Scheduling requirements of this job.
 	// We currently require that each job contains exactly one pod spec.
 	PodRequirements *schedulerobjects.PodRequirements
+	// Node selectors to consider in addition to those included with the PodRequirements.
+	// These are added as part of scheduling to further constrain where nodes are scheduled,
+	// e.g., to ensure evicted jobs are re-scheduled onto the same node.
+	AdditionalNodeSelectors map[string]string
+	// Tolerations to consider in addition to those included with the PodRequirements.
+	// These are added as part of scheduling to expand the set of nodes a job can be scheduled on,
+	// e.g., to allow a CPU job to be scheduled onto a GPU node at a lower priority.
+	AdditionalTolerations []v1.Toleration
 	// Reason for why the job could not be scheduled.
 	// Empty if the job was scheduled successfully.
 	UnschedulableReason string
@@ -622,32 +635,55 @@ func (jctx *JobSchedulingContext) String() string {
 	return sb.String()
 }
 
+// SchedulingKey returns the scheduling key for the embedded job.
+// If the jctx contains additional scheduling requirements, the second argument is false.
+func (jctx *JobSchedulingContext) SchedulingKey() (schedulerobjects.SchedulingKey, bool) {
+	if len(jctx.AdditionalNodeSelectors) != 0 || len(jctx.AdditionalTolerations) != 0 {
+		return schedulerobjects.EmptySchedulingKey, false
+	}
+	schedulingKey, ok := jctx.Job.GetSchedulingKey()
+	if !ok {
+		schedulingKey = defaultSchedulingKeyGenerator.KeyFromPodRequirements(jctx.PodRequirements)
+	}
+	return schedulingKey, true
+}
+
 func (jctx *JobSchedulingContext) IsSuccessful() bool {
 	return jctx.UnschedulableReason == ""
 }
 
+func (jctx *JobSchedulingContext) AddNodeSelector(key, value string) {
+	if jctx.AdditionalNodeSelectors == nil {
+		jctx.AdditionalNodeSelectors = map[string]string{key: value}
+	} else {
+		jctx.AdditionalNodeSelectors[key] = value
+	}
+}
+
 func JobSchedulingContextsFromJobs[J interfaces.LegacySchedulerJob](priorityClasses map[string]types.PriorityClass, jobs []J, extractGangInfo func(map[string]string) (string, int, int, bool, error)) []*JobSchedulingContext {
 	jctxs := make([]*JobSchedulingContext, len(jobs))
-	timestamp := time.Now()
-
 	for i, job := range jobs {
-		// TODO: Move min cardinality to gang context only and remove from here.
-		// Requires re-phrasing nodedb in terms of gang context, as well as feeding the value extracted from the annotations downstream.
-		_, _, gangMinCardinality, _, err := extractGangInfo(job.GetAnnotations())
-		if err != nil {
-			gangMinCardinality = 1
-		}
-
-		jctxs[i] = &JobSchedulingContext{
-			Created:            timestamp,
-			JobId:              job.GetId(),
-			Job:                job,
-			PodRequirements:    job.GetPodRequirements(priorityClasses),
-			GangMinCardinality: gangMinCardinality,
-			ShouldFail:         false,
-		}
+		jctxs[i] = JobSchedulingContextFromJob(priorityClasses, job, extractGangInfo)
 	}
 	return jctxs
+}
+
+func JobSchedulingContextFromJob(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, extractGangInfo func(map[string]string) (string, int, int, bool, error)) *JobSchedulingContext {
+	// TODO: Move min cardinality to gang context only and remove from here.
+	// Requires re-phrasing nodedb in terms of gang context, as well as feeding the value extracted from the annotations downstream.
+	_, _, gangMinCardinality, _, err := extractGangInfo(job.GetAnnotations())
+	if err != nil {
+		gangMinCardinality = 1
+	}
+
+	return &JobSchedulingContext{
+		Created:            time.Now(),
+		JobId:              job.GetId(),
+		Job:                job,
+		PodRequirements:    job.GetPodRequirements(priorityClasses),
+		GangMinCardinality: gangMinCardinality,
+		ShouldFail:         false,
+	}
 }
 
 // PodSchedulingContext is returned by SelectAndBindNodeToPod and
