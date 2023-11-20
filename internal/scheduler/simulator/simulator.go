@@ -682,7 +682,9 @@ func (s *Simulator) handleJobRunLeased(txn *jobdb.Txn, e *armadaevents.JobRunLea
 	)
 
 	updatedJob := job.WithUpdatedRun(job.LatestRun().WithRunning(true))
-	txn.Upsert([]*jobdb.Job{updatedJob})
+	if err := txn.Upsert([]*jobdb.Job{updatedJob}); err != nil {
+		return nil, false, err
+	}
 	return updatedJob, true, nil
 }
 
@@ -817,7 +819,9 @@ func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRun
 	)
 	s.jobTemplateByJobId[retryJobId.String()] = jobTemplate
 	updatedJob := job.WithUpdatedRun(job.LatestRun().WithReturned(true))
-	txn.Upsert([]*jobdb.Job{updatedJob})
+	if err := txn.Upsert([]*jobdb.Job{updatedJob}); err != nil {
+		return nil, false, err
+	}
 	return updatedJob, true, nil
 }
 
