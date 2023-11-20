@@ -10,7 +10,6 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
-	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -132,11 +131,6 @@ func JobsSummary(jobs []interfaces.LegacySchedulerJob) string {
 		),
 		jobIdsByQueue,
 	)
-}
-
-func targetNodeIdFromNodeSelector(nodeSelector map[string]string) (string, bool) {
-	nodeId, ok := nodeSelector[schedulerconfig.NodeIdLabel]
-	return nodeId, ok
 }
 
 // GangIdAndCardinalityFromLegacySchedulerJob returns a tuple (gangId, gangCardinality, gangMinimumCardinality, isGangJob, error).

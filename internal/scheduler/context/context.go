@@ -8,6 +8,7 @@ import (
 
 	"github.com/openconfig/goyang/pkg/indent"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
@@ -601,6 +602,9 @@ type JobSchedulingContext struct {
 	// Node selectors to consider in addition to those included with the PodRequirements.
 	// These are added as part of scheduling to further constrain where nodes are scheduled,
 	// e.g., to ensure evicted jobs are re-scheduled onto the same node.
+	//
+	// If some key appears in both PodRequirements.NodeSelector and AdditionalNodeSelectors,
+	// the value in AdditionalNodeSelectors trumps that of PodRequirements.NodeSelector.
 	AdditionalNodeSelectors map[string]string
 	// Tolerations to consider in addition to those included with the PodRequirements.
 	// These are added as part of scheduling to expand the set of nodes a job can be scheduled on,
@@ -611,6 +615,10 @@ type JobSchedulingContext struct {
 	UnschedulableReason string
 	// Pod scheduling contexts for the individual pods that make up the job.
 	PodSchedulingContext *PodSchedulingContext
+	// Id of the gang to which this job belongs.
+	GangId string
+	// The size of the gang associated with this job.
+	GangCardinality int
 	// The minimum size of the gang associated with this job.
 	GangMinCardinality int
 	// If set, indicates this job should be failed back to the client when the gang is scheduled.
@@ -660,6 +668,15 @@ func (jctx *JobSchedulingContext) AddNodeSelector(key, value string) {
 	}
 }
 
+func (jctx *JobSchedulingContext) GetNodeSelector(key string) (string, bool) {
+	if value, ok := jctx.AdditionalNodeSelectors[key]; ok {
+		return value, true
+	} else if value, ok := jctx.PodRequirements.NodeSelector[key]; ok {
+		return value, true
+	}
+	return "", false
+}
+
 func JobSchedulingContextsFromJobs[J interfaces.LegacySchedulerJob](priorityClasses map[string]types.PriorityClass, jobs []J, extractGangInfo func(map[string]string) (string, int, int, bool, error)) []*JobSchedulingContext {
 	jctxs := make([]*JobSchedulingContext, len(jobs))
 	for i, job := range jobs {
@@ -669,10 +686,11 @@ func JobSchedulingContextsFromJobs[J interfaces.LegacySchedulerJob](priorityClas
 }
 
 func JobSchedulingContextFromJob(priorityClasses map[string]types.PriorityClass, job interfaces.LegacySchedulerJob, extractGangInfo func(map[string]string) (string, int, int, bool, error)) *JobSchedulingContext {
-	// TODO: Move min cardinality to gang context only and remove from here.
+	// TODO: Move cardinality to gang context only and remove from here.
 	// Requires re-phrasing nodedb in terms of gang context, as well as feeding the value extracted from the annotations downstream.
-	_, _, gangMinCardinality, _, err := extractGangInfo(job.GetAnnotations())
+	gangId, gangCardinality, gangMinCardinality, _, err := extractGangInfo(job.GetAnnotations())
 	if err != nil {
+		logrus.Errorf("failed to get cardinality from job %s: %s", job.GetId(), err)
 		gangMinCardinality = 1
 	}
 
@@ -681,6 +699,8 @@ func JobSchedulingContextFromJob(priorityClasses map[string]types.PriorityClass,
 		JobId:              job.GetId(),
 		Job:                job,
 		PodRequirements:    job.GetPodRequirements(priorityClasses),
+		GangId:             gangId,
+		GangCardinality:    gangCardinality,
 		GangMinCardinality: gangMinCardinality,
 		ShouldFail:         false,
 	}

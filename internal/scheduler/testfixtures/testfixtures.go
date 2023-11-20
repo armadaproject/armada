@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
+	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -709,6 +710,8 @@ func TestNode(priorities []int32, resources map[string]resource.Quantity) *sched
 		StateByJobRunId: make(map[string]schedulerobjects.JobRunState),
 		Labels: map[string]string{
 			TestHostnameLabel: id,
+			// TODO(albin): Nodes should be created from the NodeDb to ensure this label is set automatically.
+			schedulerconfiguration.NodeIdLabel: id,
 		},
 	}
 }

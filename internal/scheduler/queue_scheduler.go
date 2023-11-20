@@ -3,11 +3,9 @@ package scheduler
 import (
 	"container/heap"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"reflect"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/logging"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
@@ -222,20 +220,12 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 				}
 			}
 		}
-
-		gangId, gangCardinality, _, isGangJob, err := GangIdAndCardinalityFromAnnotations(jctx.Job.GetAnnotations())
-		if err != nil {
-			// TODO: Get from context passed in.
-			log := logrus.NewEntry(logrus.New())
-			logging.WithStacktrace(log, err).Errorf("failed to get gang cardinality for job %s", jctx.Job.GetId())
-			gangCardinality = 1 // Schedule jobs with invalid gang cardinality one by one.
-		}
-		if isGangJob {
-			gang := it.jctxsByGangId[gangId]
+		if jctx.GangCardinality > 1 {
+			gang := it.jctxsByGangId[jctx.GangId]
 			gang = append(gang, jctx)
-			it.jctxsByGangId[gangId] = gang
-			if len(gang) == gangCardinality {
-				delete(it.jctxsByGangId, gangId)
+			it.jctxsByGangId[jctx.GangId] = gang
+			if len(gang) == jctx.GangCardinality {
+				delete(it.jctxsByGangId, jctx.GangId)
 				it.next = schedulercontext.NewGangSchedulingContext(gang)
 				return it.next, nil
 			}

@@ -385,10 +385,14 @@ func (sch *PreemptingQueueScheduler) collectIdsForGangEviction(evictorResult *Ev
 			// Gang already processed.
 			continue
 		}
+
+		// Look up the gang this job is part of.
 		gangJobIds := sch.jobIdsByGangId[gangId]
 		if len(gangJobIds) == 0 {
 			return nil, nil, errors.Errorf("no jobs found for gang %s", gangId)
 		}
+
+		// Collect all job ids part of that gang.
 		for gangJobId := range gangJobIds {
 			allGangJobIds[gangJobId] = true
 			if nodeId, ok := sch.nodeIdByJobId[gangJobId]; !ok {
@@ -414,9 +418,10 @@ func (sch *PreemptingQueueScheduler) setEvictedGangCardinality(evictorResult *Ev
 			// Not a gang job.
 			continue
 		}
-		gangCardinality := len(sch.jobIdsByGangId[gangId])
-		// TODO: Verify that this is sufficient.
-		jctx.GangMinCardinality = gangCardinality
+
+		// Override cardinality and min cardinality with the number of evicted jobs in this gang.
+		jctx.GangCardinality = len(sch.jobIdsByGangId[gangId])
+		jctx.GangMinCardinality = jctx.GangCardinality
 	}
 	return
 }
@@ -439,7 +444,7 @@ func (sch *PreemptingQueueScheduler) evictionAssertions(evictorResult *EvictorRe
 		if !jctx.IsEvicted {
 			return errors.New("evicted job %s is not marked as such")
 		}
-		if nodeId, ok := targetNodeIdFromNodeSelector(jctx.AdditionalNodeSelectors); ok {
+		if nodeId, ok := jctx.GetNodeSelector(schedulerconfig.NodeIdLabel); ok {
 			if _, ok := evictorResult.AffectedNodesById[nodeId]; !ok {
 				return errors.Errorf("node id %s targeted by job %s is not marked as affected", nodeId, jobId)
 			}
