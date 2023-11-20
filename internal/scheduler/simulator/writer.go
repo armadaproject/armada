@@ -4,11 +4,12 @@ import (
 	io "io"
 	"time"
 
-	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/pkg/armadaevents"
 	"github.com/pkg/errors"
 	parquetWriter "github.com/xitongsys/parquet-go/writer"
 	v1 "k8s.io/api/core/v1"
+
+	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
 const (
