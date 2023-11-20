@@ -637,5 +637,4 @@ func BenchmarkInsufficientResourcesSum64(b *testing.B) {
 }
 
 func TestResourceRequirementsMet(t *testing.T) {
-
 }

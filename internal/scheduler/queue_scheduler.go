@@ -2,8 +2,10 @@ package scheduler
 
 import (
 	"container/heap"
-	"github.com/pkg/errors"
 	"reflect"
+
+
+	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
