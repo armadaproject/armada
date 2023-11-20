@@ -54,11 +54,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3.3.0
 
-      # - name: Setup Golang with Cache
-      #   uses: magnetikonline/action-golang-cache@v4
-      #   with:
-      #     go-version: "1.20"
-
       - name: Set up Go (no caching)
         uses: actions/setup-go@v4
         with:
@@ -117,20 +112,11 @@ jobs:
       - name: Free some disk space
         run: docker image prune -af
 
-      # - name: Setup Golang with Cache
-      #   uses: magnetikonline/action-golang-cache@v4
-      #   with:
-      #     go-version: "1.20"
-
       - name: Set up Go (no caching)
         uses: actions/setup-go@v4
         with:
           go-version: '1.20'
           cache: false
-
-      # - name: Setup dependencies
-      #   shell: bash
-      #   run: go run github.com/magefile/mage@v1.14.0 -v download
 
       - name: Setup and Run Integration Tests
         run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
