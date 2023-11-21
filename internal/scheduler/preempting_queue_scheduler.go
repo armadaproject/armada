@@ -862,8 +862,6 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, it nodedb.NodeIterator) (*
 			// Create a scheduling context for when re-scheduling this job.
 			// Mark as evicted and add a node selector to ensure the job is re-scheduled onto the node it was evicted from.
 			jctx := schedulercontext.JobSchedulingContextFromJob(evi.priorityClasses, job, GangIdAndCardinalityFromAnnotations)
-
-			// TODO: This is only necessary for jobs not scheduled in this cycle.
 			jctx.IsEvicted = true
 			jctx.AddNodeSelector(schedulerconfig.NodeIdLabel, node.Id)
 			evictedJctxsByJobId[job.GetId()] = jctx
