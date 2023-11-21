@@ -302,9 +302,9 @@ func TestSimulator(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			s, err := NewSimulator(tc.clusterSpec, tc.workloadSpec, tc.schedulingConfig)
 			require.NoError(t, err)
-			mc := NewMetricsCollector(s.Output())
+			mc := NewMetricsCollector(s.StateTransitions())
 			actualEventSequences := make([]*armadaevents.EventSequence, 0, 128)
-			c := s.Output()
+			c := s.StateTransitions()
 
 			ctx := armadacontext.Background()
 			g, ctx := armadacontext.ErrGroup(ctx)
@@ -316,12 +316,12 @@ func TestSimulator(t *testing.T) {
 					select {
 					case <-ctx.Done():
 						return ctx.Err()
-					case eventSequence, ok := <-c:
+					case stateTransition, ok := <-c:
 						if !ok {
 							return nil
 						}
-						t.Log(*eventSequence.Events[0].Created, EventSequenceSummary(eventSequence))
-						actualEventSequences = append(actualEventSequences, eventSequence)
+						t.Log(*stateTransition.EventSequence.Events[0].Created, EventSequenceSummary(stateTransition.EventSequence))
+						actualEventSequences = append(actualEventSequences, stateTransition.EventSequence)
 					}
 				}
 			})

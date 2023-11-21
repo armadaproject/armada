@@ -506,7 +506,7 @@ func TestQueueScheduler(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := NewNodeDb()
+			nodeDb, err := NewNodeDb(tc.SchedulingConfig)
 			require.NoError(t, err)
 			txn := nodeDb.Txn(true)
 			for _, node := range tc.Nodes {
@@ -530,7 +530,11 @@ func TestQueueScheduler(t *testing.T) {
 				legacySchedulerJobs[i] = job
 			}
 			jobRepo := NewInMemoryJobRepository()
-			jobRepo.EnqueueMany(legacySchedulerJobs)
+			jobRepo.EnqueueMany(schedulercontext.JobSchedulingContextsFromJobs(
+				testfixtures.TestPriorityClasses,
+				legacySchedulerJobs,
+				GangIdAndCardinalityFromAnnotations,
+			))
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				tc.TotalResources,
@@ -569,8 +573,7 @@ func TestQueueScheduler(t *testing.T) {
 			)
 			jobIteratorByQueue := make(map[string]JobIterator)
 			for queue := range tc.PriorityFactorByQueue {
-				it, err := jobRepo.GetJobIterator(armadacontext.Background(), queue)
-				require.NoError(t, err)
+				it := jobRepo.GetJobIterator(queue)
 				jobIteratorByQueue[queue] = it
 			}
 			sch, err := NewQueueScheduler(sctx, constraints, nodeDb, jobIteratorByQueue)
@@ -699,13 +702,13 @@ func TestQueueScheduler(t *testing.T) {
 	}
 }
 
-func NewNodeDb() (*nodedb.NodeDb, error) {
+func NewNodeDb(config configuration.SchedulingConfig) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
-		testfixtures.TestPriorityClasses,
-		testfixtures.TestMaxExtraNodesToConsider,
-		testfixtures.TestResources,
-		testfixtures.TestIndexedTaints,
-		testfixtures.TestIndexedNodeLabels,
+		config.Preemption.PriorityClasses,
+		config.MaxExtraNodesToConsider,
+		config.IndexedResources,
+		config.IndexedTaints,
+		config.IndexedNodeLabels,
 	)
 	if err != nil {
 		return nil, err

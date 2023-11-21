@@ -12,9 +12,6 @@ import (
 )
 
 const (
-	// IsEvictedAnnotation is set on evicted jobs; the scheduler uses it to differentiate between
-	// already-running and queued jobs.
-	IsEvictedAnnotation = "armadaproject.io/isEvicted"
 	// NodeIdLabel maps to a unique id associated with each node.
 	// This label is automatically added to nodes within the NodeDb.
 	NodeIdLabel = "armadaproject.io/nodeId"
