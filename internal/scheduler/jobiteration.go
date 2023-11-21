@@ -70,15 +70,6 @@ func (repo *InMemoryJobRepository) EnqueueMany(jctxs []*schedulercontext.JobSche
 	}
 }
 
-func (repo *InMemoryJobRepository) Enqueue(jctx *schedulercontext.JobSchedulingContext) {
-	repo.mu.Lock()
-	defer repo.mu.Unlock()
-	queue := jctx.Job.GetQueue()
-	repo.jctxsByQueue[queue] = append(repo.jctxsByQueue[queue], jctx)
-	repo.jctxsById[jctx.Job.GetId()] = jctx
-	repo.sortQueue(queue)
-}
-
 // sortQueue sorts jobs in a specified queue by the order in which they should be scheduled.
 func (repo *InMemoryJobRepository) sortQueue(queue string) {
 	slices.SortFunc(repo.jctxsByQueue[queue], func(a, b *schedulercontext.JobSchedulingContext) bool {
@@ -96,7 +87,6 @@ func (repo *InMemoryJobRepository) GetQueueJobIds(queue string) ([]string, error
 	), nil
 }
 
-// Should only be used in testing.
 func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) ([]interfaces.LegacySchedulerJob, error) {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
