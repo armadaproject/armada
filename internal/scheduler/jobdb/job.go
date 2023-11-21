@@ -19,9 +19,9 @@ type Job struct {
 	id string
 	// Name of the queue this job belongs to.
 	queue string
-	// Jobset the job belongs to.
+	// JobSet that the job belongs to.
 	// We store this as it's needed for sending job event messages.
-	jobset string
+	jobSet string
 	// Per-queue priority of this job.
 	priority uint32
 	// Requested per queue priority of this job.
@@ -43,8 +43,8 @@ type Job struct {
 	priorityClass types.PriorityClass
 	// True if the user has requested this job be cancelled
 	cancelRequested bool
-	// True if the user has requested this job's jobset be cancelled
-	cancelByJobsetRequested bool
+	// True if the user has requested this job's jobSet be cancelled
+	cancelByJobSetRequested bool
 	// True if the scheduler has cancelled the job
 	cancelled bool
 	// True if the scheduler has failed the job
@@ -98,7 +98,7 @@ func (job *Job) Equal(other *Job) bool {
 	if job.queue != other.queue {
 		return false
 	}
-	if job.jobset != other.jobset {
+	if job.jobSet != other.jobSet {
 		return false
 	}
 	if job.priority != other.priority {
@@ -132,7 +132,7 @@ func (job *Job) Equal(other *Job) bool {
 	if job.cancelRequested != other.cancelRequested {
 		return false
 	}
-	if job.cancelByJobsetRequested != other.cancelByJobsetRequested {
+	if job.cancelByJobSetRequested != other.cancelByJobSetRequested {
 		return false
 	}
 	if job.cancelled != other.cancelled {
@@ -167,15 +167,15 @@ func (job *Job) GetId() string {
 	return job.id
 }
 
-// Jobset returns the jobset the job belongs to.
+// Jobset returns the jobSet the job belongs to.
 func (job *Job) Jobset() string {
-	return job.jobset
+	return job.jobSet
 }
 
-// GetJobSet returns the jobset the job belongs to.
+// GetJobSet returns the jobSet the job belongs to.
 // This is needed for compatibility with legacyJob
 func (job *Job) GetJobSet() string {
-	return job.jobset
+	return job.jobSet
 }
 
 // Queue returns the queue this job belongs to.
@@ -327,9 +327,9 @@ func (job *Job) CancelRequested() bool {
 	return job.cancelRequested
 }
 
-// CancelByJobsetRequested returns true if the user has requested this job's jobset be cancelled.
+// CancelByJobsetRequested returns true if the user has requested this job's jobSet be cancelled.
 func (job *Job) CancelByJobsetRequested() bool {
-	return job.cancelByJobsetRequested
+	return job.cancelByJobSetRequested
 }
 
 // WithCancelRequested returns a copy of the job with the cancelRequested status updated.
@@ -339,10 +339,10 @@ func (job *Job) WithCancelRequested(cancelRequested bool) *Job {
 	return j
 }
 
-// WithCancelByJobsetRequested returns a copy of the job with the cancelByJobsetRequested status updated.
+// WithCancelByJobsetRequested returns a copy of the job with the cancelByJobSetRequested status updated.
 func (job *Job) WithCancelByJobsetRequested(cancelByJobsetRequested bool) *Job {
 	j := copyJob(*job)
-	j.cancelByJobsetRequested = cancelByJobsetRequested
+	j.cancelByJobSetRequested = cancelByJobsetRequested
 	return j
 }
 
@@ -488,10 +488,10 @@ func (job *Job) HasQueueTtlSet() bool {
 	return job.GetQueueTtlSeconds() > 0
 }
 
-// WithJobset returns a copy of the job with the jobset updated.
+// WithJobset returns a copy of the job with the jobSet updated.
 func (job *Job) WithJobset(jobset string) *Job {
 	j := copyJob(*job)
-	j.jobset = jobset
+	j.jobSet = jobset
 	return j
 }
 

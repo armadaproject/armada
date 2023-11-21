@@ -13,13 +13,11 @@ import (
 var (
 	defaultDotnetDockerImg = "mcr.microsoft.com/dotnet/sdk:3.1.417-buster"
 	releaseTag             string
-	nugetApiKey            string
 	useSystemCerts         bool
 )
 
 func initializeDotnetRequirements() {
 	releaseTag = getEnvWithDefault("RELEASE_TAG", "UNKNOWN_TAG")
-	nugetApiKey = getEnvWithDefault("NUGET_API_KEY", "UNKNOWN_NUGET_API_KEY")
 }
 
 func sslCerts() error {
@@ -96,35 +94,21 @@ func Dotnet() error {
 	return nil
 }
 
-// Pack and push dotnet clients to nuget. Requires RELEASE_TAG and NUGET_API_KEY env vars to be set
-func PushNuget() error {
+// Pack dotnet clients nuget. Requires RELEASE_TAG env var to be set
+func PackNuget() error {
 	mg.Deps(initializeDotnetRequirements, dotnetSetup, Proto)
-	fmt.Println("Pushing to Nuget...")
+	fmt.Println("Pack Nuget...")
 
 	dotnetCmd := dotnetCmd()
-	push := append(dotnetCmd, "dotnet", "pack", "client/DotNet/Armada.Client/Armada.Client.csproj", "-c", "Release", "-p:PackageVersion="+releaseTag, "-o", "./bin/client/DotNet")
-	output, err := dockerOutput(push...)
+	build := append(dotnetCmd, "dotnet", "pack", "client/DotNet/Armada.Client/Armada.Client.csproj", "-c", "Release", "-p:PackageVersion="+releaseTag, "-o", "./bin/client/DotNet")
+	output, err := dockerOutput(build...)
 	fmt.Println(output)
 	if err != nil {
 		return err
 	}
 
-	push = append(dotnetCmd, "dotnet", "nuget", "push", "./bin/client/DotNet/G-Research.Armada.Client."+releaseTag+".nupkg", "-k", nugetApiKey, "-s", "https://api.nuget.org/v3/index.json")
-	output, err = dockerOutput(push...)
-	fmt.Println(output)
-	if err != nil {
-		return err
-	}
-
-	push = append(dotnetCmd, "dotnet", "pack", "client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj", "-c", "Release", "-p:PackageVersion="+releaseTag, "-o", "./bin/client/DotNet")
-	output, err = dockerOutput(push...)
-	fmt.Println(output)
-	if err != nil {
-		return err
-	}
-
-	push = append(dotnetCmd, "dotnet", "nuget", "push", "./bin/client/DotNet/ArmadaProject.Io.Client."+releaseTag+".nupkg", "-k", nugetApiKey, "-s", "https://api.nuget.org/v3/index.json")
-	output, err = dockerOutput(push...)
+	build = append(dotnetCmd, "dotnet", "pack", "client/DotNet/ArmadaProject.Io.Client/ArmadaProject.Io.Client.csproj", "-c", "Release", "-p:PackageVersion="+releaseTag, "-o", "./bin/client/DotNet")
+	output, err = dockerOutput(build...)
 	fmt.Println(output)
 	if err != nil {
 		return err

@@ -44,9 +44,11 @@ func TestEvictOversubscribed(t *testing.T) {
 	require.NoError(t, err)
 
 	jobRepo := NewInMemoryJobRepository()
-	for _, job := range jobs {
-		jobRepo.Enqueue(job)
-	}
+	jobRepo.EnqueueMany(schedulercontext.JobSchedulingContextsFromJobs(
+		testfixtures.TestPriorityClasses,
+		jobs,
+		GangIdAndCardinalityFromAnnotations,
+	))
 	evictor := NewOversubscribedEvictor(
 		jobRepo,
 		testfixtures.TestPriorityClasses,
@@ -424,7 +426,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"B": 1,
 			},
 		},
-		"avoid urgency-based preemptions when possible": {
+		"avoid urgency-based preemption when possible": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
@@ -489,7 +491,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"A": 1,
 			},
 		},
-		"avoid urgency-based preemptions when possible cross-queue": {
+		"avoid urgency-based preemption when possible cross-queue": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
@@ -658,7 +660,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"B": 1,
 			},
 		},
-		"gang preemption avoid cascading preemptions": {
+		"gang preemption avoid cascading preemption": {
 			SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
 				0.0, // To test the gang evictor, we need to disable stochastic eviction.
 				testfixtures.TestSchedulingConfig(),
@@ -1437,6 +1439,67 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			},
 			PriorityFactorByQueue: map[string]float64{"A": 1},
 		},
+		"SchedulingKey incorrect re-use": {
+			// Two nodes. Fill both up each with half A and half B.
+			// Schedule job from queue C.
+			// This does not prevent re-scheduling.
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
+						"B": testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 31),
+						"B": testfixtures.IntRange(0, 31),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"C": testfixtures.N1Cpu4GiJobs("C", testfixtures.PriorityClass0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"C": testfixtures.IntRange(0, 20), // 21 jobs
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: testfixtures.IntRange(22, 31), // 10 jobs
+						},
+						"B": {
+							0: testfixtures.IntRange(21, 31), // 11 jobs
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1, "C": 1},
+		},
+		"SchedulingKey incorrect re-use with cordoning": {
+			// Fill a node with jobs from queue A.
+			// Cordon the node.
+			// Try to schedule a job from queue B. This fails as the node is cordoned.
+			// This should not prevent re-scheduling jobs in queue A.
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 31),
+					},
+				},
+				{
+					NodeIndicesToCordon: []int{0},
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 1),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -1484,9 +1547,10 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				ctx.Infof("starting scheduling round %d", i)
 
 				// Reset the queues between rounds.
-				repo.jobsByQueue = make(map[string][]interfaces.LegacySchedulerJob)
+				// TODO: We should use the jobDb instead.
+				repo.jctxsByQueue = make(map[string][]*schedulercontext.JobSchedulingContext)
 
-				// Add jobs that should be queued in this round.
+				// Enqueue jobs that should be considered in this round.
 				legacySchedulerJobs := make([]interfaces.LegacySchedulerJob, 0)
 				for queue, jobs := range round.JobsByQueue {
 					for j, job := range jobs {
@@ -1496,7 +1560,11 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						indexByJobId[job.GetId()] = j
 					}
 				}
-				repo.EnqueueMany(legacySchedulerJobs)
+				repo.EnqueueMany(schedulercontext.JobSchedulingContextsFromJobs(
+					tc.SchedulingConfig.Preemption.PriorityClasses,
+					legacySchedulerJobs,
+					GangIdAndCardinalityFromAnnotations,
+				))
 
 				// Unbind jobs from nodes, to simulate those jobs terminating between rounds.
 				for queue, reqIndicesByRoundIndex := range round.IndicesToUnbind {
@@ -1821,7 +1889,11 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					jobs = append(jobs, job)
 				}
 			}
-			jobRepo.EnqueueMany(jobs)
+			jobRepo.EnqueueMany(schedulercontext.JobSchedulingContextsFromJobs(
+				tc.SchedulingConfig.Preemption.PriorityClasses,
+				jobs,
+				GangIdAndCardinalityFromAnnotations,
+			))
 
 			limiter := rate.NewLimiter(
 				rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
@@ -1880,8 +1952,11 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			for _, job := range result.ScheduledJobs {
 				scheduledJobs[job.GetId()] = true
 			}
-			for queue, jobs := range jobRepo.jobsByQueue {
-				jobRepo.jobsByQueue[queue] = armadaslices.Filter(jobs, func(job interfaces.LegacySchedulerJob) bool { return scheduledJobs[job.GetId()] })
+			for queue, jctxs := range jobRepo.jctxsByQueue {
+				jobRepo.jctxsByQueue[queue] = armadaslices.Filter(
+					jctxs,
+					func(jctx *schedulercontext.JobSchedulingContext) bool { return scheduledJobs[jctx.Job.GetId()] },
+				)
 			}
 
 			jobsByNodeId := make(map[string][]*jobdb.Job)
