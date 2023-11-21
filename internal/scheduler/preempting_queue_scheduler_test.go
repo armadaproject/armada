@@ -52,7 +52,8 @@ func TestEvictOversubscribed(t *testing.T) {
 
 	jobDb := jobdb.NewJobDb(config.Preemption.PriorityClasses, config.Preemption.DefaultPriorityClass)
 	jobDbTxn := jobDb.WriteTxn()
-	jobDbTxn.Upsert(jobs)
+	err = jobDbTxn.Upsert(jobs)
+	require.NoError(t, err)
 
 	evictor := NewOversubscribedEvictor(
 		NewSchedulerJobRepositoryAdapter(jobDbTxn),
@@ -1543,7 +1544,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						indexByJobId[job.GetId()] = j
 					}
 				}
-				jobDbTxn.Upsert(queuedJobs)
+				err = jobDbTxn.Upsert(queuedJobs)
+				require.NoError(t, err)
 
 				// Unbind jobs from nodes, to simulate those jobs terminating between rounds.
 				for queue, reqIndicesByRoundIndex := range round.IndicesToUnbind {
@@ -1739,7 +1741,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					}
 				}
 
-				jobDbTxn.BatchDelete(util.Map(queuedJobs, func(job *jobdb.Job) string { return job.GetId() }))
+				err = jobDbTxn.BatchDelete(util.Map(queuedJobs, func(job *jobdb.Job) string { return job.GetId() }))
+				require.NoError(t, err)
 
 				var preemptedJobs []*jobdb.Job
 				for _, job := range result.PreemptedJobs {
@@ -1752,7 +1755,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							WithFailed(true),
 					)
 				}
-				jobDbTxn.Upsert(preemptedJobs)
+				err = jobDbTxn.Upsert(preemptedJobs)
+				require.NoError(t, err)
 
 				// Jobs may arrive out of order here; sort them, so that runs
 				// are created in the right order (this influences the order in
@@ -1772,7 +1776,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 							WithNewRun(node.Executor, node.Id, node.Name),
 					)
 				}
-				jobDbTxn.Upsert(scheduledJobs)
+				err = jobDbTxn.Upsert(scheduledJobs)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1900,7 +1905,8 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					queuedJobs = append(queuedJobs, job.WithQueued(true))
 				}
 			}
-			jobDbTxn.Upsert(queuedJobs)
+			err = jobDbTxn.Upsert(queuedJobs)
+			require.NoError(b, err)
 
 			limiter := rate.NewLimiter(
 				rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
@@ -1959,7 +1965,8 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			for _, job := range result.ScheduledJobs {
 				scheduledJobs[job.GetId()] = true
 			}
-			jobDbTxn.BatchDelete(util.Map(result.ScheduledJobs, func(job interfaces.LegacySchedulerJob) string { return job.GetId() }))
+			err = jobDbTxn.BatchDelete(util.Map(result.ScheduledJobs, func(job interfaces.LegacySchedulerJob) string { return job.GetId() }))
+			require.NoError(b, err)
 
 			jobsByNodeId := make(map[string][]*jobdb.Job)
 			for _, job := range ScheduledJobsFromSchedulerResult[*jobdb.Job](result) {
