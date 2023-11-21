@@ -253,10 +253,7 @@ func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *
 
 func addNodeSelectorToGctx(gctx *schedulercontext.GangSchedulingContext, nodeSelectorKey, nodeSelectorValue string) {
 	for _, jctx := range gctx.JobSchedulingContexts {
-		if jctx.PodRequirements.NodeSelector == nil {
-			jctx.PodRequirements.NodeSelector = make(map[string]string)
-		}
-		jctx.PodRequirements.NodeSelector[nodeSelectorKey] = nodeSelectorValue
+		jctx.AddNodeSelector(nodeSelectorKey, nodeSelectorValue)
 	}
 }
 
