@@ -117,7 +117,6 @@ func TestSchedulingConfig() configuration.SchedulingConfig {
 		ExecutorTimeout:                             15 * time.Minute,
 		MaxUnacknowledgedJobsPerExecutor:            math.MaxInt,
 		EnableNewPreemptionStrategy:                 true,
-		// AlwaysAttemptScheduling:                     true,
 	}
 }
 
