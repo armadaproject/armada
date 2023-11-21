@@ -607,8 +607,9 @@ type JobSchedulingContext struct {
 	// the value in AdditionalNodeSelectors trumps that of PodRequirements.NodeSelector.
 	AdditionalNodeSelectors map[string]string
 	// Tolerations to consider in addition to those included with the PodRequirements.
-	// These are added as part of scheduling to expand the set of nodes a job can be scheduled on,
-	// e.g., to allow a CPU job to be scheduled onto a GPU node at a lower priority.
+	// These are added as part of scheduling to expand the set of nodes a job can be scheduled on.
+	//
+	// These are currently unused.
 	AdditionalTolerations []v1.Toleration
 	// Reason for why the job could not be scheduled.
 	// Empty if the job was scheduled successfully.
@@ -643,8 +644,9 @@ func (jctx *JobSchedulingContext) String() string {
 	return sb.String()
 }
 
-// SchedulingKey returns the scheduling key for the embedded job.
-// If the jctx contains additional scheduling requirements, the second argument is false.
+// SchedulingKey returns the scheduling key of the embedded job.
+// If the jctx contains additional node selectors or tolerations,
+// the key is invalid and the second return value is false.
 func (jctx *JobSchedulingContext) SchedulingKey() (schedulerobjects.SchedulingKey, bool) {
 	if len(jctx.AdditionalNodeSelectors) != 0 || len(jctx.AdditionalTolerations) != 0 {
 		return schedulerobjects.EmptySchedulingKey, false
@@ -691,9 +693,10 @@ func JobSchedulingContextFromJob(priorityClasses map[string]types.PriorityClass,
 	gangId, gangCardinality, gangMinCardinality, _, err := extractGangInfo(job.GetAnnotations())
 	if err != nil {
 		logrus.Errorf("failed to get cardinality from job %s: %s", job.GetId(), err)
+		gangId = job.GetId()
+		gangCardinality = 1
 		gangMinCardinality = 1
 	}
-
 	return &JobSchedulingContext{
 		Created:            time.Now(),
 		JobId:              job.GetId(),

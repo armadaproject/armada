@@ -119,19 +119,19 @@ func (repo *InMemoryJobRepository) GetJobIterator(queue string) JobIterator {
 // It loads jobs asynchronously in batches from the underlying database.
 // This is necessary for good performance when jobs are stored in Redis.
 type QueuedJobsIterator struct {
-	ctx *armadacontext.Context
-	err error
-	c   chan interfaces.LegacySchedulerJob
-	// TODO: Populate.
+	ctx             *armadacontext.Context
+	err             error
+	c               chan interfaces.LegacySchedulerJob
 	priorityClasses map[string]types.PriorityClass
 }
 
-func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, repo JobRepository) (*QueuedJobsIterator, error) {
+func NewQueuedJobsIterator(ctx *armadacontext.Context, queue string, repo JobRepository, priorityClasses map[string]types.PriorityClass) (*QueuedJobsIterator, error) {
 	batchSize := 16
 	g, ctx := armadacontext.ErrGroup(ctx)
 	it := &QueuedJobsIterator{
-		ctx: ctx,
-		c:   make(chan interfaces.LegacySchedulerJob, 2*batchSize), // 2x batchSize to load one batch async.
+		ctx:             ctx,
+		c:               make(chan interfaces.LegacySchedulerJob, 2*batchSize), // 2x batchSize to load one batch async.
+		priorityClasses: priorityClasses,
 	}
 
 	jobIds, err := repo.GetQueueJobIds(queue)

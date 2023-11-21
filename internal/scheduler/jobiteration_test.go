@@ -100,7 +100,7 @@ func TestMultiJobsIterator_TwoQueues(t *testing.T) {
 	ctx := armadacontext.Background()
 	its := make([]JobIterator, 3)
 	for i, queue := range []string{"A", "B", "C"} {
-		it, err := NewQueuedJobsIterator(ctx, queue, repo)
+		it, err := NewQueuedJobsIterator(ctx, queue, repo, nil)
 		if !assert.NoError(t, err) {
 			return
 		}
@@ -134,7 +134,7 @@ func TestQueuedJobsIterator_OneQueue(t *testing.T) {
 	}
 
 	ctx := armadacontext.Background()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo)
+	it, err := NewQueuedJobsIterator(ctx, "A", repo, nil)
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -161,7 +161,7 @@ func TestQueuedJobsIterator_ExceedsBufferSize(t *testing.T) {
 	}
 
 	ctx := armadacontext.Background()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo)
+	it, err := NewQueuedJobsIterator(ctx, "A", repo, nil)
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -188,7 +188,7 @@ func TestQueuedJobsIterator_ManyJobs(t *testing.T) {
 	}
 
 	ctx := armadacontext.Background()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo)
+	it, err := NewQueuedJobsIterator(ctx, "A", repo, nil)
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -219,7 +219,7 @@ func TestCreateQueuedJobsIterator_TwoQueues(t *testing.T) {
 	}
 
 	ctx := armadacontext.Background()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo)
+	it, err := NewQueuedJobsIterator(ctx, "A", repo, nil)
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -246,7 +246,7 @@ func TestCreateQueuedJobsIterator_RespectsTimeout(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), time.Millisecond)
 	time.Sleep(20 * time.Millisecond)
 	defer cancel()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo)
+	it, err := NewQueuedJobsIterator(ctx, "A", repo, nil)
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -269,7 +269,7 @@ func TestCreateQueuedJobsIterator_NilOnEmpty(t *testing.T) {
 	}
 
 	ctx := armadacontext.Background()
-	it, err := NewQueuedJobsIterator(ctx, "A", repo)
+	it, err := NewQueuedJobsIterator(ctx, "A", repo, nil)
 	if !assert.NoError(t, err) {
 		return
 	}
@@ -312,7 +312,7 @@ func (repo *mockJobRepository) Enqueue(job *api.Job) {
 }
 
 func (repo *mockJobRepository) GetJobIterator(ctx *armadacontext.Context, queue string) (JobIterator, error) {
-	return NewQueuedJobsIterator(ctx, queue, repo)
+	return NewQueuedJobsIterator(ctx, queue, repo, nil)
 }
 
 func (repo *mockJobRepository) GetQueueJobIds(queue string) ([]string, error) {

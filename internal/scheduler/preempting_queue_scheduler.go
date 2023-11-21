@@ -543,7 +543,7 @@ func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemo
 		if jobRepo == nil || reflect.ValueOf(jobRepo).IsNil() {
 			jobIteratorByQueue[qctx.Queue] = evictedIt
 		} else {
-			queueIt, err := NewQueuedJobsIterator(ctx, qctx.Queue, jobRepo)
+			queueIt, err := NewQueuedJobsIterator(ctx, qctx.Queue, jobRepo, sch.schedulingContext.PriorityClasses)
 			if err != nil {
 				return nil, err
 			}
