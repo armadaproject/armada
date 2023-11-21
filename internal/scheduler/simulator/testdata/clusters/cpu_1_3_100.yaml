@@ -1,4 +1,4 @@
-name: "3 CPU clusters with 100 nodes each in a single group"
+name: "3 cluster with 100 32-core nodes"
 pools:
   - name: "CPU"
     clusterGroups:

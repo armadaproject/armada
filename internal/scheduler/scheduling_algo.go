@@ -34,7 +34,7 @@ import (
 type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes.
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided.
-	Schedule(ctx *armadacontext.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error)
+	Schedule(ctx *armadacontext.Context, txn *jobdb.Txn) (*SchedulerResult, error)
 }
 
 // FairSchedulingAlgo is a SchedulingAlgo based on PreemptingQueueScheduler.
@@ -90,8 +90,12 @@ func NewFairSchedulingAlgo(
 func (l *FairSchedulingAlgo) Schedule(
 	ctx *armadacontext.Context,
 	txn *jobdb.Txn,
-	jobDb *jobdb.JobDb,
 ) (*SchedulerResult, error) {
+	var cancel context.CancelFunc
+	if l.maxSchedulingDuration != 0 {
+		ctx, cancel = armadacontext.WithTimeout(ctx, l.maxSchedulingDuration)
+		defer cancel()
+	}
 	overallSchedulerResult := &SchedulerResult{
 		NodeIdByJobId:      make(map[string]string),
 		SchedulingContexts: make([]*schedulercontext.SchedulingContext, 0, 0),
@@ -100,14 +104,11 @@ func (l *FairSchedulingAlgo) Schedule(
 
 	// Exit immediately if scheduling is disabled.
 	if l.schedulingConfig.DisableScheduling {
-		ctx.Info("skipping scheduling - scheduling disabled")
+		ctx.Info("scheduling disabled; exiting")
 		return overallSchedulerResult, nil
 	}
 
-	ctxWithTimeout, cancel := armadacontext.WithTimeout(ctx, l.maxSchedulingDuration)
-	defer cancel()
-
-	fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn, jobDb)
+	fsctx, err := l.newFairSchedulingAlgoContext(ctx, txn)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +121,7 @@ func (l *FairSchedulingAlgo) Schedule(
 	}
 	for len(l.executorGroupsToSchedule) > 0 {
 		select {
-		case <-ctxWithTimeout.Done():
+		case <-ctx.Done():
 			// We've reached the scheduling time limit; exit gracefully.
 			ctx.Info("ending scheduling round early as we have hit the maximum scheduling duration")
 			return overallSchedulerResult, nil
@@ -146,7 +147,7 @@ func (l *FairSchedulingAlgo) Schedule(
 			executorGroupLabel, fsctx.totalCapacityByPool[pool].CompactString(),
 		)
 		schedulerResult, sctx, err := l.scheduleOnExecutors(
-			ctxWithTimeout,
+			ctx,
 			fsctx,
 			pool,
 			minimumJobSize,
@@ -171,13 +172,13 @@ func (l *FairSchedulingAlgo) Schedule(
 		preemptedJobs := PreemptedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
 		scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
 		failedJobs := FailedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
-		if err := jobDb.Upsert(txn, preemptedJobs); err != nil {
+		if err := txn.Upsert(preemptedJobs); err != nil {
 			return nil, err
 		}
-		if err := jobDb.Upsert(txn, scheduledJobs); err != nil {
+		if err := txn.Upsert(scheduledJobs); err != nil {
 			return nil, err
 		}
-		if err := jobDb.Upsert(txn, failedJobs); err != nil {
+		if err := txn.Upsert(failedJobs); err != nil {
 			return nil, err
 		}
 
@@ -239,10 +240,9 @@ type fairSchedulingAlgoContext struct {
 	allocationByPoolAndQueueAndPriorityClass map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]
 	executors                                []*schedulerobjects.Executor
 	txn                                      *jobdb.Txn
-	jobDb                                    *jobdb.JobDb
 }
 
-func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*fairSchedulingAlgoContext, error) {
+func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Context, txn *jobdb.Txn) (*fairSchedulingAlgoContext, error) {
 	executors, err := l.executorRepository.GetExecutors(ctx)
 	if err != nil {
 		return nil, err
@@ -272,7 +272,7 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 	nodeIdByJobId := make(map[string]string)
 	jobIdsByGangId := make(map[string]map[string]bool)
 	gangIdByJobId := make(map[string]string)
-	for _, job := range jobDb.GetAll(txn) {
+	for _, job := range txn.GetAll() {
 		isActiveByQueueName[job.Queue()] = true
 		if job.Queued() {
 			continue
@@ -326,7 +326,6 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		gangIdByJobId:                            gangIdByJobId,
 		allocationByPoolAndQueueAndPriorityClass: totalAllocationByPoolAndQueue,
 		executors:                                executors,
-		jobDb:                                    jobDb,
 		txn:                                      txn,
 	}, nil
 }
@@ -424,7 +423,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		l.schedulingConfig.Preemption.NodeEvictionProbability,
 		l.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
 		l.schedulingConfig.Preemption.ProtectedFractionOfFairShare,
-		NewSchedulerJobRepositoryAdapter(fsctx.jobDb, fsctx.txn),
+		NewSchedulerJobRepositoryAdapter(fsctx.txn),
 		nodeDb,
 		fsctx.nodeIdByJobId,
 		fsctx.jobIdsByGangId,
@@ -475,13 +474,11 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 //
 // TODO: Pass JobDb into the scheduler instead of using this shim to convert to a JobRepo.
 type SchedulerJobRepositoryAdapter struct {
-	db  *jobdb.JobDb
 	txn *jobdb.Txn
 }
 
-func NewSchedulerJobRepositoryAdapter(db *jobdb.JobDb, txn *jobdb.Txn) *SchedulerJobRepositoryAdapter {
+func NewSchedulerJobRepositoryAdapter(txn *jobdb.Txn) *SchedulerJobRepositoryAdapter {
 	return &SchedulerJobRepositoryAdapter{
-		db:  db,
 		txn: txn,
 	}
 }
@@ -490,7 +487,7 @@ func NewSchedulerJobRepositoryAdapter(db *jobdb.JobDb, txn *jobdb.Txn) *Schedule
 // to new scheduler.
 func (repo *SchedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]string, error) {
 	rv := make([]string, 0)
-	it := repo.db.QueuedJobs(repo.txn, queue)
+	it := repo.txn.QueuedJobs(queue)
 	for v, _ := it.Next(); v != nil; v, _ = it.Next() {
 		rv = append(rv, v.Id())
 	}
@@ -502,7 +499,7 @@ func (repo *SchedulerJobRepositoryAdapter) GetQueueJobIds(queue string) ([]strin
 func (repo *SchedulerJobRepositoryAdapter) GetExistingJobsByIds(ids []string) ([]interfaces.LegacySchedulerJob, error) {
 	rv := make([]interfaces.LegacySchedulerJob, 0, len(ids))
 	for _, id := range ids {
-		if job := repo.db.GetById(repo.txn, id); job != nil {
+		if job := repo.txn.GetById(id); job != nil {
 			rv = append(rv, job)
 		}
 	}

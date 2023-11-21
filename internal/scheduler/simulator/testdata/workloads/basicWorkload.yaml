@@ -3,8 +3,9 @@ queues:
   - name: "A"
     weight: 1 # = 1 / priorityFactor
     jobTemplates:
-      - number: 10
-        id: "myFirstJobTemplate"
+      - id: ""
+        number: 10
+        jobSet: "job-set"
         priorityClassName: "armada-default"
         requirements:
           resourceRequirements:

@@ -64,7 +64,7 @@ func TestInMemoryJobRepository(t *testing.T) {
 	for i, job := range jobs {
 		legacySchedulerjobs[i] = job
 	}
-	repo := NewInMemoryJobRepository(testfixtures.TestPriorityClasses)
+	repo := NewInMemoryJobRepository()
 	repo.EnqueueMany(legacySchedulerjobs)
 	expected := []string{"0", "1", "2", "3", "4", "5"}
 	actual, err := repo.GetQueueJobIds("A")

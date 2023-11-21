@@ -78,6 +78,7 @@ type Scheduler struct {
 }
 
 func NewScheduler(
+	jobDb *jobdb.JobDb,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
 	schedulingAlgo SchedulingAlgo,
@@ -92,7 +93,6 @@ func NewScheduler(
 	nodeIdLabel string,
 	schedulerMetrics *SchedulerMetrics,
 ) (*Scheduler, error) {
-	jobDb := jobdb.NewJobDb()
 	return &Scheduler{
 		jobRepository:              jobRepository,
 		executorRepository:         executorRepository,
@@ -211,11 +211,11 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 
 	// If we've been asked to generate messages for all jobs, do so.
-	// Otherwise generate messages only for jobs updated this cycle.
+	// Otherwise, generate messages only for jobs updated this cycle.
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 	if updateAll {
-		updatedJobs = s.jobDb.GetAll(txn)
+		updatedJobs = txn.GetAll()
 	}
 
 	// Generate any events that came out of synchronising the db state.
@@ -241,7 +241,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	// Schedule jobs.
 	if shouldSchedule {
 		var result *SchedulerResult
-		result, err = s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
+		result, err = s.schedulingAlgo.Schedule(ctx, txn)
 		if err != nil {
 			return
 		}
@@ -293,7 +293,7 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 		}
 
 		// Try and retrieve the job from the jobDb. If it doesn't exist then create it.
-		job := s.jobDb.GetById(txn, dbJob.JobID)
+		job := txn.GetById(dbJob.JobID)
 		if job == nil {
 			job, err = s.schedulerJobFromDatabaseJob(&dbJob)
 			if err != nil {
@@ -316,7 +316,7 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 		// Retrieve the job, look first in the list of updates, then in the jobDb.
 		job, present := jobsToUpdateById[jobId]
 		if !present {
-			job = s.jobDb.GetById(txn, jobId)
+			job = txn.GetById(jobId)
 
 			// If the job is nil or terminal at this point then it cannot be active.
 			// In this case we can ignore the run.
@@ -338,10 +338,10 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 	}
 
 	jobsToUpdate := maps.Values(jobsToUpdateById)
-	if err := s.jobDb.Upsert(txn, jobsToUpdate); err != nil {
+	if err := txn.Upsert(jobsToUpdate); err != nil {
 		return nil, err
 	}
-	if err := s.jobDb.BatchDelete(txn, jobsToDelete); err != nil {
+	if err := txn.BatchDelete(jobsToDelete); err != nil {
 		return nil, err
 	}
 	txn.Commit()
@@ -716,7 +716,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 	}
 
 	if origJob != job {
-		err := s.jobDb.Upsert(txn, []*jobdb.Job{job})
+		err := txn.Upsert([]*jobdb.Job{job})
 		if err != nil {
 			return nil, err
 		}
@@ -765,7 +765,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 	events := make([]*armadaevents.EventSequence, 0)
 
 	// TODO: this is inefficient.  We should create a iterator of the jobs running on the affected executors
-	jobs := s.jobDb.GetAll(txn)
+	jobs := txn.GetAll()
 
 	for _, job := range jobs {
 
@@ -817,7 +817,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 			events = append(events, es)
 		}
 	}
-	if err := s.jobDb.Upsert(txn, jobsToUpdate); err != nil {
+	if err := txn.Upsert(jobsToUpdate); err != nil {
 		return nil, err
 	}
 	return events, nil
@@ -827,7 +827,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 func (s *Scheduler) cancelQueuedJobsIfExpired(txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
 	jobsToCancel := make([]*jobdb.Job, 0)
 	events := make([]*armadaevents.EventSequence, 0)
-	it := s.jobDb.QueuedJobsByTtl(txn)
+	it := txn.QueuedJobsByTtl()
 
 	// `it` is ordered such that the jobs with the least ttl remaining come first, hence we exit early if we find a job that is not expired.
 	for job, _ := it.Next(); job != nil && job.HasQueueTtlExpired(); job, _ = it.Next() {
@@ -861,7 +861,7 @@ func (s *Scheduler) cancelQueuedJobsIfExpired(txn *jobdb.Txn) ([]*armadaevents.E
 		events = append(events, cancel)
 	}
 
-	if err := s.jobDb.Upsert(txn, jobsToCancel); err != nil {
+	if err := txn.Upsert(jobsToCancel); err != nil {
 		return nil, err
 	}
 

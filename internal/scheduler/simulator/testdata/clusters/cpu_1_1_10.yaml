@@ -1,11 +1,11 @@
-name: "1 cluster with 100 32-core nodes"
+name: "1 cluster with 10 32-core nodes"
 pools:
   - name: "CPU"
     clusterGroups:
       - clusters:
           - name: "cpu-01"
             nodeTemplates:
-              - number: 100
+              - number: 10
                 totalResources:
                   resources:
                     cpu: "32"
