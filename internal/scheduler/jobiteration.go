@@ -87,6 +87,7 @@ func (repo *InMemoryJobRepository) GetQueueJobIds(queue string) ([]string, error
 	), nil
 }
 
+// Should only be used in testing.
 func (repo *InMemoryJobRepository) GetExistingJobsByIds(jobIds []string) ([]interfaces.LegacySchedulerJob, error) {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
