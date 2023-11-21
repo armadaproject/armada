@@ -530,7 +530,11 @@ func TestQueueScheduler(t *testing.T) {
 				legacySchedulerJobs[i] = job
 			}
 			jobRepo := NewInMemoryJobRepository()
-			jobRepo.EnqueueMany(legacySchedulerJobs)
+			jobRepo.EnqueueMany(schedulercontext.JobSchedulingContextsFromJobs(
+				testfixtures.TestPriorityClasses,
+				legacySchedulerJobs,
+				GangIdAndCardinalityFromAnnotations,
+			))
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				tc.TotalResources,
@@ -569,8 +573,7 @@ func TestQueueScheduler(t *testing.T) {
 			)
 			jobIteratorByQueue := make(map[string]JobIterator)
 			for queue := range tc.PriorityFactorByQueue {
-				it, err := jobRepo.GetJobIterator(armadacontext.Background(), queue)
-				require.NoError(t, err)
+				it := jobRepo.GetJobIterator(queue)
 				jobIteratorByQueue[queue] = it
 			}
 			sch, err := NewQueueScheduler(sctx, constraints, nodeDb, jobIteratorByQueue)
