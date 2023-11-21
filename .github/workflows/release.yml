@@ -53,7 +53,7 @@ jobs:
 
       - name: Fetch Git tags
         run: git fetch --force --tags
-          
+
       - name: Set up Go (no caching)
         uses: actions/setup-go@v4
         with:
