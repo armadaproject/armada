@@ -4,7 +4,6 @@ import (
 	"container/heap"
 	"reflect"
 
-
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
