@@ -70,7 +70,7 @@ jobs:
         with:
           dotnet-version: 7.0.x
 
-      - name: Set up Go
+      - name: Set up Go (no caching)
         uses: actions/setup-go@v4
         with:
           go-version: '1.20'

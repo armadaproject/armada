@@ -23,7 +23,7 @@ jobs:
           cache: yarn
           cache-dependency-path: ./internal/lookout/ui/yarn.lock
 
-      - name: Run Unit Tests
+      - name: Install Dependencies And Run Unit Tests
         run: |
           yarn install --frozen-lockfile && yarn run openapi && CI=true yarn run test --reporters=jest-junit
         working-directory: ./internal/lookout/ui
@@ -54,10 +54,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3.3.0
 
-      - name: Setup Golang with Cache
-        uses: magnetikonline/action-golang-cache@v4
+      - name: Set up Go (no caching)
+        uses: actions/setup-go@v4
         with:
-          go-version: "1.20"
+          go-version: '1.20'
+          cache: false
 
       - name: Setup dependencies
         shell: bash
@@ -111,10 +112,11 @@ jobs:
       - name: Free some disk space
         run: docker image prune -af
 
-      - name: Setup Golang with Cache
-        uses: magnetikonline/action-golang-cache@v4
+      - name: Set up Go (no caching)
+        uses: actions/setup-go@v4
         with:
-          go-version: "1.20"
+          go-version: '1.20'
+          cache: false
 
       - name: Setup dependencies
         shell: bash
