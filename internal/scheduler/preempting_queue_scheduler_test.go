@@ -19,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
@@ -30,37 +31,42 @@ import (
 )
 
 func TestEvictOversubscribed(t *testing.T) {
+	config := testfixtures.TestSchedulingConfig()
+
+	var priorities []int32
+	for _, pc := range config.Preemption.PriorityClasses {
+		priorities = append(priorities, pc.Priority)
+	}
+
 	jobs := append(
-		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 20),
-		testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass1, 20)...,
+		testfixtures.N1Cpu4GiJobs("A", config.Preemption.DefaultPriorityClass, 20),
+		testfixtures.N1Cpu4GiJobs("A", config.Preemption.DefaultPriorityClass, 20)...,
 	)
-	node := testfixtures.Test32CpuNode(testfixtures.TestPriorities)
-	nodeDb, err := NewNodeDb()
+
+	node := testfixtures.Test32CpuNode(priorities)
+	nodeDb, err := NewNodeDb(config)
 	require.NoError(t, err)
-	txn := nodeDb.Txn(true)
-	err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, jobs, node)
-	require.NoError(t, err)
-	entry, err := nodeDb.GetNode(node.Id)
+	nodeDbTxn := nodeDb.Txn(true)
+	err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, jobs, node)
 	require.NoError(t, err)
 
-	jobRepo := NewInMemoryJobRepository()
-	for _, job := range jobs {
-		jobRepo.Enqueue(job)
-	}
+	jobDb := jobdb.NewJobDb(config.Preemption.PriorityClasses, config.Preemption.DefaultPriorityClass)
+	jobDbTxn := jobDb.WriteTxn()
+	err = jobDbTxn.Upsert(jobs)
+	require.NoError(t, err)
+
 	evictor := NewOversubscribedEvictor(
-		jobRepo,
-		testfixtures.TestPriorityClasses,
-		testfixtures.TestDefaultPriorityClass,
+		NewSchedulerJobRepositoryAdapter(jobDbTxn),
+		config.Preemption.PriorityClasses,
+		config.Preemption.DefaultPriorityClass,
 		1,
 		nil,
 	)
-	it := NewInMemoryNodeIterator([]*nodedb.Node{entry})
+	it, err := nodedb.NewNodesIterator(nodeDbTxn)
+	require.NoError(t, err)
 	result, err := evictor.Evict(armadacontext.Background(), it)
 	require.NoError(t, err)
 
-	prioritiesByName := configuration.PriorityByPriorityClassName(testfixtures.TestPriorityClasses)
-	priorities := maps.Values(prioritiesByName)
-	slices.Sort(priorities)
 	for nodeId, node := range result.AffectedNodesById {
 		for _, p := range priorities {
 			for resourceType, q := range node.AllocatableByPriority[p].Resources {
@@ -68,26 +74,6 @@ func TestEvictOversubscribed(t *testing.T) {
 			}
 		}
 	}
-}
-
-type InMemoryNodeIterator struct {
-	i     int
-	nodes []*nodedb.Node
-}
-
-func NewInMemoryNodeIterator(nodes []*nodedb.Node) *InMemoryNodeIterator {
-	return &InMemoryNodeIterator{
-		nodes: slices.Clone(nodes),
-	}
-}
-
-func (it *InMemoryNodeIterator) NextNode() *nodedb.Node {
-	if it.i >= len(it.nodes) {
-		return nil
-	}
-	v := it.nodes[it.i]
-	it.i++
-	return v
 }
 
 func TestPreemptingQueueScheduler(t *testing.T) {
@@ -424,7 +410,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"B": 1,
 			},
 		},
-		"avoid urgency-based preemptions when possible": {
+		"avoid urgency-based preemption when possible": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
@@ -489,7 +475,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"A": 1,
 			},
 		},
-		"avoid urgency-based preemptions when possible cross-queue": {
+		"avoid urgency-based preemption when possible cross-queue": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
 			Rounds: []SchedulingRound{
@@ -658,7 +644,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				"B": 1,
 			},
 		},
-		"gang preemption avoid cascading preemptions": {
+		"gang preemption avoid cascading preemption": {
 			SchedulingConfig: testfixtures.WithNodeEvictionProbabilityConfig(
 				0.0, // To test the gang evictor, we need to disable stochastic eviction.
 				testfixtures.TestSchedulingConfig(),
@@ -1437,21 +1423,86 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			},
 			PriorityFactorByQueue: map[string]float64{"A": 1},
 		},
+		"SchedulingKey incorrect re-use": {
+			// Two nodes. Fill both up each with half A and half B.
+			// Schedule job from queue C.
+			// This does not prevent re-scheduling.
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
+						"B": testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 31),
+						"B": testfixtures.IntRange(0, 31),
+					},
+				},
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"C": testfixtures.N1Cpu4GiJobs("C", testfixtures.PriorityClass0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"C": testfixtures.IntRange(0, 20), // 21 jobs
+					},
+					ExpectedPreemptedIndices: map[string]map[int][]int{
+						"A": {
+							0: testfixtures.IntRange(22, 31), // 10 jobs
+						},
+						"B": {
+							0: testfixtures.IntRange(21, 31), // 11 jobs
+						},
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1, "C": 1},
+		},
+		"SchedulingKey incorrect re-use with cordoning": {
+			// Fill a node with jobs from queue A.
+			// Cordon the node.
+			// Try to schedule a job from queue B. This fails as the node is cordoned.
+			// This should not prevent re-scheduling jobs in queue A.
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Rounds: []SchedulingRound{
+				{
+					JobsByQueue: map[string][]*jobdb.Job{
+						"A": testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 32),
+					},
+					ExpectedScheduledIndices: map[string][]int{
+						"A": testfixtures.IntRange(0, 31),
+					},
+				},
+				{
+					NodeIndicesToCordon: []int{0},
+					JobsByQueue: map[string][]*jobdb.Job{
+						"B": testfixtures.N1Cpu4GiJobs("B", testfixtures.PriorityClass0, 1),
+					},
+				},
+			},
+			PriorityFactorByQueue: map[string]float64{"A": 1, "B": 1},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := NewNodeDb()
+			nodeDb, err := NewNodeDb(tc.SchedulingConfig)
 			require.NoError(t, err)
-			txn := nodeDb.Txn(true)
+			nodeDbTxn := nodeDb.Txn(true)
 			for _, node := range tc.Nodes {
-				err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(txn, nil, node)
+				err := nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, nil, node)
 				require.NoError(t, err)
 			}
-			txn.Commit()
+			nodeDbTxn.Commit()
 
-			// Repo. for storing jobs to be queued.
-			// TODO: Use jobDb instead.
-			repo := NewInMemoryJobRepository()
+			var priorities []int32
+			for _, pc := range tc.SchedulingConfig.Preemption.PriorityClasses {
+				priorities = append(priorities, pc.Priority)
+			}
+
+			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.Preemption.PriorityClasses, tc.SchedulingConfig.Preemption.DefaultPriorityClass)
+			jobDbTxn := jobDb.WriteTxn()
 
 			// Accounting across scheduling rounds.
 			roundByJobId := make(map[string]int)
@@ -1483,20 +1534,18 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				ctx.FieldLogger = ctx.WithField("round", i)
 				ctx.Infof("starting scheduling round %d", i)
 
-				// Reset the queues between rounds.
-				repo.jobsByQueue = make(map[string][]interfaces.LegacySchedulerJob)
-
-				// Add jobs that should be queued in this round.
-				legacySchedulerJobs := make([]interfaces.LegacySchedulerJob, 0)
+				// Enqueue jobs that should be considered in this round.
+				var queuedJobs []*jobdb.Job
 				for queue, jobs := range round.JobsByQueue {
 					for j, job := range jobs {
 						require.Equal(t, queue, job.GetQueue())
-						legacySchedulerJobs = append(legacySchedulerJobs, job)
+						queuedJobs = append(queuedJobs, job.WithQueued(true))
 						roundByJobId[job.GetId()] = i
 						indexByJobId[job.GetId()] = j
 					}
 				}
-				repo.EnqueueMany(legacySchedulerJobs)
+				err = jobDbTxn.Upsert(queuedJobs)
+				require.NoError(t, err)
 
 				// Unbind jobs from nodes, to simulate those jobs terminating between rounds.
 				for queue, reqIndicesByRoundIndex := range round.IndicesToUnbind {
@@ -1572,7 +1621,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					tc.SchedulingConfig.Preemption.NodeEvictionProbability,
 					tc.SchedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
 					tc.SchedulingConfig.Preemption.ProtectedFractionOfFairShare,
-					repo,
+					NewSchedulerJobRepositoryAdapter(jobDbTxn),
 					nodeDb,
 					nodeIdByJobId,
 					jobIdsByGangId,
@@ -1682,9 +1731,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				}
 
 				// We expect there to be no oversubscribed nodes.
-				prioritiesByName := configuration.PriorityByPriorityClassName(testfixtures.TestPriorityClasses)
-				priorities := maps.Values(prioritiesByName)
-				slices.Sort(priorities)
 				it, err := nodedb.NewNodesIterator(nodeDb.Txn(false))
 				require.NoError(t, err)
 				for node := it.NextNode(); node != nil; node = it.NextNode() {
@@ -1694,6 +1740,44 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						}
 					}
 				}
+
+				err = jobDbTxn.BatchDelete(util.Map(queuedJobs, func(job *jobdb.Job) string { return job.GetId() }))
+				require.NoError(t, err)
+
+				var preemptedJobs []*jobdb.Job
+				for _, job := range result.PreemptedJobs {
+					job := job.(*jobdb.Job)
+					preemptedJobs = append(
+						preemptedJobs,
+						job.
+							WithUpdatedRun(job.LatestRun().WithFailed(true)).
+							WithQueued(false).
+							WithFailed(true),
+					)
+				}
+				err = jobDbTxn.Upsert(preemptedJobs)
+				require.NoError(t, err)
+
+				// Jobs may arrive out of order here; sort them, so that runs
+				// are created in the right order (this influences the order in
+				// which jobs are preempted).
+				slices.SortFunc(result.ScheduledJobs, func(a, b interfaces.LegacySchedulerJob) bool { return a.GetSubmitTime().Before(b.GetSubmitTime()) })
+				var scheduledJobs []*jobdb.Job
+				for _, job := range result.ScheduledJobs {
+					job := job.(*jobdb.Job)
+					node, err := nodeDb.GetNode(result.NodeIdByJobId[job.GetId()])
+					require.NotNil(t, node)
+					require.NoError(t, err)
+					scheduledJobs = append(
+						scheduledJobs,
+						job.
+							WithQueuedVersion(job.QueuedVersion()+1).
+							WithQueued(false).
+							WithNewRun(node.Executor, node.Id, node.Name),
+					)
+				}
+				err = jobDbTxn.Upsert(scheduledJobs)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1804,7 +1888,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				priorityFactorByQueue[queue] = float64(rand.Intn(tc.MaxPriorityFactor-tc.MinPriorityFactor+1) + tc.MinPriorityFactor)
 			}
 
-			nodeDb, err := NewNodeDb()
+			nodeDb, err := NewNodeDb(tc.SchedulingConfig)
 			require.NoError(b, err)
 			txn := nodeDb.Txn(true)
 			for _, node := range tc.Nodes {
@@ -1813,15 +1897,16 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			}
 			txn.Commit()
 
-			jobRepo := NewInMemoryJobRepository()
-
-			jobs := make([]interfaces.LegacySchedulerJob, 0)
-			for _, queueJobs := range jobsByQueue {
-				for _, job := range queueJobs {
-					jobs = append(jobs, job)
+			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.Preemption.PriorityClasses, tc.SchedulingConfig.Preemption.DefaultPriorityClass)
+			jobDbTxn := jobDb.WriteTxn()
+			var queuedJobs []*jobdb.Job
+			for _, jobs := range jobsByQueue {
+				for _, job := range jobs {
+					queuedJobs = append(queuedJobs, job.WithQueued(true))
 				}
 			}
-			jobRepo.EnqueueMany(jobs)
+			err = jobDbTxn.Upsert(queuedJobs)
+			require.NoError(b, err)
 
 			limiter := rate.NewLimiter(
 				rate.Limit(tc.SchedulingConfig.MaximumSchedulingRate),
@@ -1866,7 +1951,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				tc.SchedulingConfig.Preemption.NodeEvictionProbability,
 				tc.SchedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
 				tc.SchedulingConfig.Preemption.ProtectedFractionOfFairShare,
-				jobRepo,
+				NewSchedulerJobRepositoryAdapter(jobDbTxn),
 				nodeDb,
 				nil,
 				nil,
@@ -1880,16 +1965,15 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			for _, job := range result.ScheduledJobs {
 				scheduledJobs[job.GetId()] = true
 			}
-			for queue, jobs := range jobRepo.jobsByQueue {
-				jobRepo.jobsByQueue[queue] = armadaslices.Filter(jobs, func(job interfaces.LegacySchedulerJob) bool { return scheduledJobs[job.GetId()] })
-			}
+			err = jobDbTxn.BatchDelete(util.Map(result.ScheduledJobs, func(job interfaces.LegacySchedulerJob) string { return job.GetId() }))
+			require.NoError(b, err)
 
 			jobsByNodeId := make(map[string][]*jobdb.Job)
 			for _, job := range ScheduledJobsFromSchedulerResult[*jobdb.Job](result) {
 				nodeId := result.NodeIdByJobId[job.GetId()]
 				jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
 			}
-			nodeDb, err = NewNodeDb()
+			nodeDb, err = NewNodeDb(tc.SchedulingConfig)
 			require.NoError(b, err)
 			txn = nodeDb.Txn(true)
 			for _, node := range tc.Nodes {
@@ -1922,7 +2006,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					tc.SchedulingConfig.Preemption.NodeEvictionProbability,
 					tc.SchedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
 					tc.SchedulingConfig.Preemption.ProtectedFractionOfFairShare,
-					jobRepo,
+					NewSchedulerJobRepositoryAdapter(jobDbTxn),
 					nodeDb,
 					nil,
 					nil,
