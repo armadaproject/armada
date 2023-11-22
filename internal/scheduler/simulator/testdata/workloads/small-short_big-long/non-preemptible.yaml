@@ -1,10 +1,10 @@
 name: "Non-preemptible"
-randomSeed: 12345
+randomSeed: 123
 queues:
-  - name: "small"
+  - name: "A"
     weight: 1.0
     jobTemplates:
-      - number: 3200
+      - number: 640
         priorityClassName: "armada-default"
         requirements:
           resourceRequirements:
@@ -12,12 +12,12 @@ queues:
               cpu: 1
               memory: "32Gi"
         runtimeDistribution:
-          minimum: "60m"
-          tailMean: "6m"
-  - name: "big"
+          minimum: "6m"
+          tailMean: "36s"
+  - name: "B"
     weight: 1.0
     jobTemplates:
-      - number: 100
+      - number: 2
         priorityClassName: "armada-default"
         requirements:
           resourceRequirements:
