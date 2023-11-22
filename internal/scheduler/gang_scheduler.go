@@ -83,11 +83,8 @@ func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *schedulerco
 	// Since a gang may be unschedulable even if all its members are individually schedulable.
 	if !sch.skipUnsuccessfulSchedulingKeyCheck && gctx.Cardinality() == 1 {
 		jctx := gctx.JobSchedulingContexts[0]
-		schedulingKey, ok := jctx.Job.GetSchedulingKey()
-		if !ok {
-			schedulingKey = sch.schedulingContext.SchedulingKeyFromLegacySchedulerJob(jctx.Job)
-		}
-		if schedulingKey != schedulerobjects.EmptySchedulingKey {
+		schedulingKey, ok := jctx.SchedulingKey()
+		if ok && schedulingKey != schedulerobjects.EmptySchedulingKey {
 			if _, ok := sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; !ok {
 				// Keep the first jctx for each unfeasible schedulingKey.
 				sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey] = jctx
@@ -256,10 +253,7 @@ func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *
 
 func addNodeSelectorToGctx(gctx *schedulercontext.GangSchedulingContext, nodeSelectorKey, nodeSelectorValue string) {
 	for _, jctx := range gctx.JobSchedulingContexts {
-		if jctx.PodRequirements.NodeSelector == nil {
-			jctx.PodRequirements.NodeSelector = make(map[string]string)
-		}
-		jctx.PodRequirements.NodeSelector[nodeSelectorKey] = nodeSelectorValue
+		jctx.AddNodeSelector(nodeSelectorKey, nodeSelectorValue)
 	}
 }
 
