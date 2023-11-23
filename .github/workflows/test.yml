@@ -56,9 +56,19 @@ jobs:
 
       - name: Set up Go (no caching)
         uses: actions/setup-go@v4
+        id: setup-go
         with:
           go-version: '1.20'
           cache: false
+
+      - id: cache-info
+        run: echo path=$(go env GOCACHE) >> $GITHUB_OUTPUT
+
+      - name: Setup Cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.cache-info.outputs.path }}
+          key: go-unit-tests-go-${{ steps.setup-go.outputs.go-version }}-mod-${{ hashFiles('go.sum') }}
 
       - name: Setup dependencies
         shell: bash
@@ -113,17 +123,26 @@ jobs:
         run: docker image prune -af
 
       - name: Set up Go (no caching)
+        id: setup-go
         uses: actions/setup-go@v4
         with:
           go-version: '1.20'
           cache: false
 
-      - name: Setup dependencies
-        shell: bash
-        run: go run github.com/magefile/mage@v1.14.0 -v download
+      - id: cache-info
+        run: echo path=$(go env GOCACHE) >> $GITHUB_OUTPUT
 
-      - name: Setup and Run Integration Tests
-        run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
+      - name: Setup Cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.cache-info.outputs.path }}
+          key: go-integration-tests-go-${{ steps.setup-go.outputs.go-version }}-mod-${{ hashFiles('go.sum') }}
+
+      - name: Setup Integration Tests
+        run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal
+
+      - name: Run Integration Tests
+        run: go run github.com/magefile/mage@v1.14.0 -v testsuite
 
       - name: Upload JUnit Report Artifact
         uses: actions/upload-artifact@v3
