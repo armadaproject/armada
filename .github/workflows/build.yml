@@ -12,16 +12,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Go with Cache
+      - name: Set up Go (no caching)
         uses: actions/setup-go@v4
         with:
-         go-version: '1.20'
-
-      - name: Cache GOBIN
-        uses: actions/cache@v3
-        with:
-          path: /home/runner/go/bin
-          key: ${{ runner.os }}-gobin-${{ hashFiles('**/tools.yaml') }}
+          go-version: '1.20'
+          cache: false
 
       - name: Set up Docker Buildx
         id: buildx
