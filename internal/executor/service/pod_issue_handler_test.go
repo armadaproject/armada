@@ -72,6 +72,48 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfStuckTerminating(t *testin
 	assert.Contains(t, failedEvent.Reason, "terminating")
 }
 
+func TestPodIssueService_DeletesPodAndReportsFailed_IfExceedsActiveDeadline(t *testing.T) {
+	startTime := time.Now().Add(-time.Minute * 10)
+
+	tests := map[string]struct {
+		expectIssueDetected bool
+		pod                 *v1.Pod
+	}{
+		"PodPastDeadline": {
+			expectIssueDetected: true,
+			// Created 10 mins ago, 5 min deadline
+			pod: makePodWithDeadline(false, startTime, 300, 0),
+		},
+		"PodPastDeadlineWithinTerminationGracePeriod": {
+			expectIssueDetected: false,
+			// Created 10 mins ago, 5 min deadline, 10 minute grace period
+			pod: makePodWithDeadline(false, startTime, 300, 600),
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
+			addPod(t, fakeClusterContext, tc.pod)
+
+			podIssueService.HandlePodIssues()
+
+			remainingActivePods := getActivePods(t, fakeClusterContext)
+
+			if tc.expectIssueDetected {
+				assert.Equal(t, []*v1.Pod{}, remainingActivePods)
+				assert.Len(t, eventsReporter.ReceivedEvents, 1)
+				failedEvent, ok := eventsReporter.ReceivedEvents[0].Event.(*api.JobFailedEvent)
+				assert.True(t, ok)
+				assert.Contains(t, failedEvent.Reason, "exceeded active deadline")
+			} else {
+				assert.Equal(t, []*v1.Pod{tc.pod}, remainingActivePods)
+				assert.Len(t, eventsReporter.ReceivedEvents, 0)
+			}
+		})
+	}
+}
+
 func TestPodIssueService_DeletesPodAndReportsLeaseReturned_IfRetryableStuckPod(t *testing.T) {
 	podIssueService, _, fakeClusterContext, eventsReporter := setupTestComponents([]*job.RunState{})
 	retryableStuckPod := makeRetryableStuckPod(false)

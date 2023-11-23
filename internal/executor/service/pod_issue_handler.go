@@ -26,6 +26,7 @@ const (
 	UnableToSchedule podIssueType = iota
 	StuckStartingUp
 	StuckTerminating
+	ActiveDeadlineExceeded
 	ExternallyDeleted
 	ErrorDuringIssueHandling
 )
@@ -184,6 +185,22 @@ func (p *IssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 				RunId:    util.ExtractJobRunId(pod),
 				PodIssue: issue,
 			})
+		} else if p.hasExceededActiveDeadline(pod) {
+			// Pod has past its active deadline seconds + some buffer.
+			// As the pod is still here it means the kubelet is unable to kill it for some reason.
+			// Start cleaning it up - which will eventually be force killed
+			issue := &podIssue{
+				OriginalPodState: pod.DeepCopy(),
+				Message:          "pod has exceeded active deadline seconds",
+				Retryable:        false,
+				Type:             ActiveDeadlineExceeded,
+			}
+
+			p.registerIssue(&runIssue{
+				JobId:    util.ExtractJobId(pod),
+				RunId:    util.ExtractJobRunId(pod),
+				PodIssue: issue,
+			})
 		} else if pod.Status.Phase == v1.PodUnknown || pod.Status.Phase == v1.PodPending {
 
 			podEvents, err := p.clusterContext.GetPodEvents(pod)
@@ -223,6 +240,20 @@ func (p *IssueHandler) detectPodIssues(allManagedPods []*v1.Pod) {
 			}
 		}
 	}
+}
+
+// Returns true if the pod has been running longer than its activeDeadlineSeconds + grace period
+func (p *IssueHandler) hasExceededActiveDeadline(pod *v1.Pod) bool {
+	if pod.Spec.ActiveDeadlineSeconds == nil {
+		return false
+	}
+	currentRunTimeSeconds := time.Now().Sub(pod.CreationTimestamp.Time).Seconds()
+	podTerminationGracePeriodSeconds := float64(0)
+	if pod.Spec.TerminationGracePeriodSeconds != nil {
+		podTerminationGracePeriodSeconds = float64(*pod.Spec.TerminationGracePeriodSeconds)
+	}
+	deadline := float64(*pod.Spec.ActiveDeadlineSeconds) + podTerminationGracePeriodSeconds + p.stuckTerminatingPodExpiry.Seconds()
+	return currentRunTimeSeconds > deadline
 }
 
 func (p *IssueHandler) handleKnownIssues(ctx *armadacontext.Context, allManagedPods []*v1.Pod) {
