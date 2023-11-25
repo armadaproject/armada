@@ -34,7 +34,7 @@ import (
 type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes.
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided.
-	Schedule(ctx *armadacontext.Context, txn *jobdb.Txn) (*schedulerobjects.SchedulerResult, error)
+	Schedule(ctx *armadacontext.Context, txn *jobdb.Txn) (*SchedulerResult, error)
 }
 
 // FairSchedulingAlgo is a SchedulingAlgo based on PreemptingQueueScheduler.
@@ -90,13 +90,13 @@ func NewFairSchedulingAlgo(
 func (l *FairSchedulingAlgo) Schedule(
 	ctx *armadacontext.Context,
 	txn *jobdb.Txn,
-) (*schedulerobjects.SchedulerResult, error) {
+) (*SchedulerResult, error) {
 	var cancel context.CancelFunc
 	if l.maxSchedulingDuration != 0 {
 		ctx, cancel = armadacontext.WithTimeout(ctx, l.maxSchedulingDuration)
 		defer cancel()
 	}
-	overallSchedulerResult := &schedulerobjects.SchedulerResult{
+	overallSchedulerResult := &SchedulerResult{
 		NodeIdByJobId:      make(map[string]string),
 		SchedulingContexts: make([]*schedulercontext.SchedulingContext, 0, 0),
 		FailedJobs:         make([]interfaces.LegacySchedulerJob, 0),
@@ -169,9 +169,9 @@ func (l *FairSchedulingAlgo) Schedule(
 			}
 		}
 
-		preemptedJobs := schedulerobjects.PreemptedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
-		scheduledJobs := schedulerobjects.ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
-		failedJobs := schedulerobjects.FailedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
+		preemptedJobs := PreemptedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
+		scheduledJobs := ScheduledJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
+		failedJobs := FailedJobsFromSchedulerResult[*jobdb.Job](schedulerResult)
 		if err := txn.Upsert(preemptedJobs); err != nil {
 			return nil, err
 		}
@@ -337,7 +337,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	pool string,
 	minimumJobSize schedulerobjects.ResourceList,
 	executors []*schedulerobjects.Executor,
-) (*schedulerobjects.SchedulerResult, *schedulercontext.SchedulingContext, error) {
+) (*SchedulerResult, *schedulercontext.SchedulingContext, error) {
 	nodeDb, err := nodedb.NewNodeDb(
 		l.schedulingConfig.Preemption.PriorityClasses,
 		l.schedulingConfig.MaxExtraNodesToConsider,

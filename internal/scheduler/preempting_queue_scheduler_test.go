@@ -1969,7 +1969,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			require.NoError(b, err)
 
 			jobsByNodeId := make(map[string][]*jobdb.Job)
-			for _, job := range schedulerobjects.ScheduledJobsFromSchedulerResult[*jobdb.Job](result) {
+			for _, job := range ScheduledJobsFromSchedulerResult[*jobdb.Job](result) {
 				nodeId := result.NodeIdByJobId[job.GetId()]
 				jobsByNodeId[nodeId] = append(jobsByNodeId[nodeId], job)
 			}

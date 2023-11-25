@@ -36,19 +36,6 @@ func DeepCopyListUint32(list []uint32) []uint32 {
 	return result
 }
 
-func Filter[S ~[]E, E any](s S, predicate func(e E) bool) S {
-	if s == nil {
-		return nil
-	}
-	out := make(S, 0, len(s))
-	for _, e := range s {
-		if predicate(e) {
-			out = append(out, e)
-		}
-	}
-	return out
-}
-
 func Concat[T any](slices ...[]T) []T {
 	total := 0
 	for _, s := range slices {

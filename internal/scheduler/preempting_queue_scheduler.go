@@ -106,7 +106,7 @@ func (sch *PreemptingQueueScheduler) EnableNewPreemptionStrategy() {
 // Schedule
 // - preempts jobs belonging to queues with total allocation above their fair share and
 // - schedules new jobs belonging to queues with total allocation less than their fair share.
-func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*schedulerobjects.SchedulerResult, error) {
+func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
 	defer func() {
 		sch.schedulingContext.Finished = time.Now()
 	}()
@@ -258,7 +258,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*sche
 			return nil, err
 		}
 	}
-	return &schedulerobjects.SchedulerResult{
+	return &SchedulerResult{
 		PreemptedJobs:      preemptedJobs,
 		ScheduledJobs:      scheduledJobs,
 		FailedJobs:         schedulerResult.FailedJobs,
@@ -536,7 +536,7 @@ func addEvictedJobsToNodeDb(ctx *armadacontext.Context, sctx *schedulercontext.S
 	return nil
 }
 
-func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository) (*schedulerobjects.SchedulerResult, error) {
+func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemoryJobRepo *InMemoryJobRepository, jobRepo JobRepository) (*SchedulerResult, error) {
 	jobIteratorByQueue := make(map[string]JobIterator)
 	for _, qctx := range sch.schedulingContext.QueueSchedulingContexts {
 		evictedIt := inMemoryJobRepo.GetJobIterator(qctx.Queue)
