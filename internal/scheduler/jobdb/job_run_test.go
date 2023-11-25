@@ -5,9 +5,11 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
-var baseJobRun = CreateRun(
+var baseJobRun = testfixtures.JobDb.CreateRun(
 	uuid.New(),
 	uuid.NewString(),
 	5,
@@ -67,7 +69,7 @@ func TestJobRun_TestRunAttempted(t *testing.T) {
 }
 
 func TestDeepCopy(t *testing.T) {
-	run := CreateRun(
+	run := testfixtures.JobDb.CreateRun(
 		uuid.New(),
 		"job id",
 		1,
@@ -81,7 +83,7 @@ func TestDeepCopy(t *testing.T) {
 		true,
 		true,
 	)
-	expected := CreateRun(
+	expected := testfixtures.JobDb.CreateRun(
 		run.id,
 		"job id",
 		1,

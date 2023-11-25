@@ -182,7 +182,7 @@ var (
 		false,
 		false,
 		1).WithUpdatedRun(
-		jobdb.CreateRun(
+		testfixtures.JobDb.CreateRun(
 			uuid.New(),
 			requeuedJobId,
 			time.Now().Unix(),
@@ -912,7 +912,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			},
 			expectedUpdatedJobs: []*jobdb.Job{
 				queuedJob.WithUpdatedRun(
-					jobdb.CreateRun(
+					testfixtures.JobDb.CreateRun(
 						uuid.UUID{},
 						queuedJob.Id(),
 						123,
@@ -1026,7 +1026,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			require.NoError(t, err)
 			txn.Commit()
 
-			updatedJobs, err := sched.syncState(ctx)
+			updatedJobs, _, _, err := sched.syncState(ctx)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedUpdatedJobs, updatedJobs)

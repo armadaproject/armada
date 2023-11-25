@@ -158,10 +158,6 @@ func (metrics *SchedulerMetrics) ReportReconcileCycleTime(cycleTime time.Duratio
 }
 
 func (metrics *SchedulerMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result SchedulerResult) {
-	if result.EmptyResult {
-		return // TODO: Add logging or maybe place to add failure metric?
-	}
-
 	// Report the total scheduled jobs (possibly we can get these out of contexts?)
 	metrics.reportScheduledJobs(ctx, result.ScheduledJobs)
 	metrics.reportPreemptedJobs(ctx, result.PreemptedJobs)
