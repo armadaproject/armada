@@ -14,7 +14,6 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -42,8 +41,6 @@ type Scheduler struct {
 	schedulingAlgo SchedulingAlgo
 	// Tells us if we are leader. Only the leader may schedule jobs.
 	leaderController LeaderController
-	// We intern strings to save memory.
-	stringInterner *stringinterner.StringInterner
 	// This is used to check if jobs are still schedulable.
 	// Useful when we are adding node anti-affinities.
 	submitChecker SubmitScheduleChecker
@@ -86,7 +83,6 @@ func NewScheduler(
 	schedulingAlgo SchedulingAlgo,
 	leaderController LeaderController,
 	publisher Publisher,
-	stringInterner *stringinterner.StringInterner,
 	submitChecker SubmitScheduleChecker,
 	cyclePeriod time.Duration,
 	schedulePeriod time.Duration,
@@ -102,7 +98,6 @@ func NewScheduler(
 		schedulingAlgo:             schedulingAlgo,
 		leaderController:           leaderController,
 		publisher:                  publisher,
-		stringInterner:             stringInterner,
 		submitChecker:              submitChecker,
 		jobDb:                      jobDb,
 		clock:                      clock.RealClock{},

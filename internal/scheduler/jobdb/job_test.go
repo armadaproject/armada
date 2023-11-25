@@ -32,6 +32,7 @@ var jobDb = NewJobDb(
 		"bar": {},
 	},
 	"foo",
+	1024,
 )
 
 var baseJob = jobDb.NewJob(

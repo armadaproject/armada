@@ -35,11 +35,12 @@ type JobDb struct {
 	writerMutex    sync.Mutex
 }
 
-func NewJobDb(priorityClasses map[string]types.PriorityClass, defaultPriorityClassName string) *JobDb {
+func NewJobDb(priorityClasses map[string]types.PriorityClass, defaultPriorityClassName string, stringInternerCacheSize uint32) *JobDb {
 	return NewJobDbWithSchedulingKeyGenerator(
 		priorityClasses,
 		defaultPriorityClassName,
 		schedulerobjects.NewSchedulingKeyGenerator(),
+		stringInternerCacheSize,
 	)
 }
 
@@ -47,6 +48,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 	priorityClasses map[string]types.PriorityClass,
 	defaultPriorityClassName string,
 	skg *schedulerobjects.SchedulingKeyGenerator,
+	stringInternerCacheSize uint32,
 ) *JobDb {
 	defaultPriorityClass, ok := priorityClasses[defaultPriorityClassName]
 	if !ok {
@@ -61,6 +63,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 		priorityClasses:        priorityClasses,
 		defaultPriorityClass:   defaultPriorityClass,
 		schedulingKeyGenerator: skg,
+		stringInterner:         stringinterner.New(stringInternerCacheSize),
 	}
 }
 

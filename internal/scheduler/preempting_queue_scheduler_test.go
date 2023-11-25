@@ -50,7 +50,7 @@ func TestEvictOversubscribed(t *testing.T) {
 	err = nodeDb.CreateAndInsertWithJobDbJobsWithTxn(nodeDbTxn, jobs, node)
 	require.NoError(t, err)
 
-	jobDb := jobdb.NewJobDb(config.Preemption.PriorityClasses, config.Preemption.DefaultPriorityClass)
+	jobDb := jobdb.NewJobDb(config.Preemption.PriorityClasses, config.Preemption.DefaultPriorityClass, 1024)
 	jobDbTxn := jobDb.WriteTxn()
 	err = jobDbTxn.Upsert(jobs)
 	require.NoError(t, err)
@@ -1501,7 +1501,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				priorities = append(priorities, pc.Priority)
 			}
 
-			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.Preemption.PriorityClasses, tc.SchedulingConfig.Preemption.DefaultPriorityClass)
+			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.Preemption.PriorityClasses, tc.SchedulingConfig.Preemption.DefaultPriorityClass, 1024)
 			jobDbTxn := jobDb.WriteTxn()
 
 			// Accounting across scheduling rounds.
@@ -1897,7 +1897,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			}
 			txn.Commit()
 
-			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.Preemption.PriorityClasses, tc.SchedulingConfig.Preemption.DefaultPriorityClass)
+			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.Preemption.PriorityClasses, tc.SchedulingConfig.Preemption.DefaultPriorityClass, 1024)
 			jobDbTxn := jobDb.WriteTxn()
 			var queuedJobs []*jobdb.Job
 			for _, jobs := range jobsByQueue {

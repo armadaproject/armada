@@ -207,6 +207,7 @@ func Run(config schedulerconfig.Configuration) error {
 	jobDb := jobdb.NewJobDb(
 		config.Scheduling.Preemption.PriorityClasses,
 		config.Scheduling.Preemption.DefaultPriorityClass,
+		config.InternedStringsCacheSize,
 	)
 	schedulerMetrics, err := metrics.New(config.SchedulerMetrics)
 	if err != nil {
@@ -222,7 +223,6 @@ func Run(config schedulerconfig.Configuration) error {
 		schedulingAlgo,
 		leaderController,
 		pulsarPublisher,
-		stringInterner,
 		submitChecker,
 		config.CyclePeriod,
 		config.SchedulePeriod,

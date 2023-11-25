@@ -14,12 +14,12 @@ type StringInterner struct {
 }
 
 // New return a new *StringInterner backed by a LRU of the given size.
-func New(cacheSize uint32) (*StringInterner, error) {
+func New(cacheSize uint32) *StringInterner {
 	lru, err := lru.New(int(cacheSize))
 	if err != nil {
-		return nil, errors.WithStack(err)
+		panic(errors.WithStack(err).Error())
 	}
-	return &StringInterner{lru: lru}, nil
+	return &StringInterner{lru: lru}
 }
 
 // Intern ensures the string is cached and returns the cached string

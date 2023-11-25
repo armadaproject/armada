@@ -16,7 +16,6 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
@@ -605,8 +604,6 @@ func TestScheduler_TestCycle(t *testing.T) {
 				shouldError:    tc.scheduleError,
 			}
 			publisher := &testPublisher{shouldError: tc.publishError}
-			stringInterner, err := stringinterner.New(100)
-			require.NoError(t, err)
 			submitChecker := &testSubmitChecker{checkSuccess: !tc.submitCheckerFailure}
 
 			heartbeatTime := testClock.Now()
@@ -623,7 +620,6 @@ func TestScheduler_TestCycle(t *testing.T) {
 				schedulingAlgo,
 				NewStandaloneLeaderController(),
 				publisher,
-				stringInterner,
 				submitChecker,
 				1*time.Second,
 				5*time.Second,
@@ -781,9 +777,6 @@ func TestRun(t *testing.T) {
 	clusterRepo := &testExecutorRepository{}
 	leaderController := NewStandaloneLeaderController()
 	submitChecker := &testSubmitChecker{checkSuccess: true}
-	stringInterner, err := stringinterner.New(100)
-	require.NoError(t, err)
-
 	sched, err := NewScheduler(
 		testfixtures.NewJobDb(),
 		&jobRepo,
@@ -791,7 +784,6 @@ func TestRun(t *testing.T) {
 		schedulingAlgo,
 		leaderController,
 		publisher,
-		stringInterner,
 		submitChecker,
 		1*time.Second,
 		15*time.Second,
@@ -994,9 +986,6 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			publisher := &testPublisher{}
 			clusterRepo := &testExecutorRepository{}
 			leaderController := NewStandaloneLeaderController()
-			stringInterner, err := stringinterner.New(100)
-			require.NoError(t, err)
-
 			sched, err := NewScheduler(
 				testfixtures.NewJobDb(),
 				jobRepo,
@@ -1004,7 +993,6 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				schedulingAlgo,
 				leaderController,
 				publisher,
-				stringInterner,
 				nil,
 				1*time.Second,
 				5*time.Second,
