@@ -1,0 +1,38 @@
+enableNewPreemptionStrategy: true
+fairnessModel: "DominantResourceFairness"
+dominantResourceFairnessResourcesToConsider:
+  - "cpu"
+  - "memory"
+  - "nvidia.com/gpu"
+  - "ephemeral-storage"
+maxQueueLookback: 50000
+maximumResourceFractionToSchedule:
+  cpu: 1.0
+maximumSchedulingRate: 9223372036854775807
+maximumSchedulingBurst: 9223372036854775807
+maximumPerQueueSchedulingRate: 9223372036854775807
+maximumPerQueueSchedulingBurst: 9223372036854775807
+indexedResources:
+  - name: "cpu"
+    resolution: "1"
+  - name: "memory"
+    resolution: "1Mi"
+  - name: "nvidia.com/gpu"
+    resolution: "1"
+preemption:
+  nodeEvictionProbability: 1.0
+  nodeOversubscriptionEvictionProbability: 1.0
+  protectedFractionOfFairShare: 1.0
+  nodeIdLabel: kubernetes.io/hostname
+  priorityClasses:
+    armada-default:
+      priority: 1000
+      preemptible: false
+      maximumResourceFractionPerQueue:
+        memory: 1.0
+        cpu: 1.0
+    armada-preemptible:
+      priority: 1000
+      preemptible: true
+  defaultPriorityClass: armada-default
+  priorityClassNameOverride: armada-default

@@ -23,7 +23,7 @@ jobs:
           cache: yarn
           cache-dependency-path: ./internal/lookout/ui/yarn.lock
 
-      - name: Run Unit Tests
+      - name: Install Dependencies And Run Unit Tests
         run: |
           yarn install --frozen-lockfile && yarn run openapi && CI=true yarn run test --reporters=jest-junit
         working-directory: ./internal/lookout/ui
@@ -54,10 +54,21 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3.3.0
 
-      - name: Setup Golang with Cache
-        uses: magnetikonline/action-golang-cache@v4
+      - name: Set up Go (no caching)
+        uses: actions/setup-go@v4
+        id: setup-go
         with:
-          go-version: "1.20"
+          go-version: '1.20'
+          cache: false
+
+      - id: cache-info
+        run: echo path=$(go env GOCACHE) >> $GITHUB_OUTPUT
+
+      - name: Setup Cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.cache-info.outputs.path }}
+          key: go-unit-tests-go-${{ steps.setup-go.outputs.go-version }}-mod-${{ hashFiles('go.sum') }}
 
       - name: Setup dependencies
         shell: bash
@@ -111,17 +122,27 @@ jobs:
       - name: Free some disk space
         run: docker image prune -af
 
-      - name: Setup Golang with Cache
-        uses: magnetikonline/action-golang-cache@v4
+      - name: Set up Go (no caching)
+        id: setup-go
+        uses: actions/setup-go@v4
         with:
-          go-version: "1.20"
+          go-version: '1.20'
+          cache: false
 
-      - name: Setup dependencies
-        shell: bash
-        run: go run github.com/magefile/mage@v1.14.0 -v download
+      - id: cache-info
+        run: echo path=$(go env GOCACHE) >> $GITHUB_OUTPUT
 
-      - name: Setup and Run Integration Tests
-        run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal testsuite
+      - name: Setup Cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.cache-info.outputs.path }}
+          key: go-integration-tests-go-${{ steps.setup-go.outputs.go-version }}-mod-${{ hashFiles('go.sum') }}
+
+      - name: Setup Integration Tests
+        run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal
+
+      - name: Run Integration Tests
+        run: go run github.com/magefile/mage@v1.14.0 -v testsuite
 
       - name: Upload JUnit Report Artifact
         uses: actions/upload-artifact@v3
@@ -164,10 +185,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3.3.0
 
-      - name: Setup Golang with Cache
-        uses: magnetikonline/action-golang-cache@v4
+      - name: Set up Go (no caching)
+        uses: actions/setup-go@v4
         with:
-          go-version: "1.20"
+          go-version: '1.20'
+          cache: false
 
       - name: Download all Go modules
         run: go mod download
@@ -209,10 +231,11 @@ jobs:
           version: '23.3'
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Go
+      - name: Set up Go (no caching)
         uses: actions/setup-go@v4
         with:
           go-version: ${{ matrix.go }}
+          cache: false
 
       - name: Setup dependencies
         shell: bash

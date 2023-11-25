@@ -2,32 +2,36 @@ syntax = 'proto3';
 package simulator;
 option go_package = "github.com/armadaproject/armada/internal/scheduler/simulator";
 
-import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
 import "k8s.io/api/core/v1/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "internal/scheduler/schedulerobjects/schedulerobjects.proto";
 
-// TODO:
-// Runtime family.
-// Workflow manager delay.
-// Job pending delay.
-message TestCase {
+message ClusterSpec {
     string name = 1;
+    repeated Pool pools = 2;
+    ShiftedExponential workflow_manager_delay_distribution = 3 [(gogoproto.nullable) = false];
+    ShiftedExponential pending_delay_distribution = 4 [(gogoproto.nullable) = false];
+}
+
+message WorkloadSpec {
+    string name = 1;
+    // Random seed used in simulations; use to ensure simulations are reproducible.
+    // If not provided, or explicitly set to 0, the current time is used.
     int64 random_seed = 2;
-    repeated Pool pools = 3;
-    repeated Queue queues = 4 [(gogoproto.nullable) = false];
+    repeated Queue queues = 3;
 }
 
 message Pool {
     string name = 1;
-    repeated ExecutorGroup executor_groups = 2;
+    repeated ClusterGroup cluster_groups = 2;
 }
 
-message ExecutorGroup {
-    repeated Executor executors = 1;
+message ClusterGroup {
+    repeated Cluster clusters = 1;
 }
 
-message Executor {
+message Cluster {
     string name = 1;
     repeated NodeTemplate node_templates = 2;
 }
@@ -58,14 +62,28 @@ message JobTemplate {
     string job_set = 5;
     uint32 queue_priority = 6;
     string priority_class_name = 7;
+    // Scheduling requirements for the pod embedded in the job.
     schedulerobjects.PodRequirements requirements = 8 [(gogoproto.nullable) = false];
     // List of template ids that must be completed before this template is submitted.
     repeated string dependencies = 9;
-    // Minimum time from which jobs are created from this template.
-    google.protobuf.Timestamp min_submit_time = 10 [(gogoproto.nullable) = false, (gogoproto.stdtime) = true];
-    // Job runtime mean in seconds.
-    int64 runtime_mean = 11;
-    // Job runtime variance in seconds squared.
-    // If zero, runtime is deterministic.
-    int64 runtime_variance = 12;
+    // Earliest time at which jobs from this template are submitted.
+    // Measured from the start of the simulation.
+    google.protobuf.Duration earliest_submit_time = 10 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
+    // Earliest time job can be submitted from when all its dependencies have completed.
+    // This option is meant to model thinking or processing time, where some fixed amount of time
+    // needs to be spent between dependencies completing and the next batch of jobs being ready to submit.
+    google.protobuf.Duration earliest_submit_time_from_dependency_completion = 11 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];    
+    // Job runtimes are assumed to follow a shifted exponential distribution
+    // i.e., to be a fixed constant (runtime_minimum) plus a random amount of time
+    // drawn from an exponential distribution with known mean (runtime_tail_mean).
+    //
+    // The shifted-exponential distribution strikes a good balance between simplicity and accuracy;
+    // see https://bora.uib.no/bora-xmlui/bitstream/handle/11250/3014726/drthesis_2022_severinson.pdf?sequence=2
+    // for a discussion on the topic.
+    ShiftedExponential runtime_distribution = 12 [(gogoproto.nullable) = false];
+}
+
+message ShiftedExponential {
+    google.protobuf.Duration minimum = 1 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
+    google.protobuf.Duration tail_mean = 2 [(gogoproto.nullable) = false, (gogoproto.stdduration) = true];
 }

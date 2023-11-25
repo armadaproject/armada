@@ -24,4 +24,14 @@ type LegacySchedulerJob interface {
 	GetTolerations() []v1.Toleration
 	GetResourceRequirements() v1.ResourceRequirements
 	GetQueueTtlSeconds() int64
+	// GetSchedulingKey returns (schedulingKey, true) if the job has a scheduling key associated with it and
+	// (emptySchedulingKey, false) otherwise, where emptySchedulingKey is the zero value of the SchedulingKey type.
+	GetSchedulingKey() (schedulerobjects.SchedulingKey, bool)
+	// SchedulingOrderCompare defines the order in which jobs in a queue should be scheduled
+	// (both when scheduling new jobs and when re-scheduling evicted jobs).
+	// Specifically, compare returns
+	//   - 0 if the jobs have equal job id,
+	//   - -1 if job should be scheduled before other,
+	//   - +1 if other should be scheduled before other.
+	SchedulingOrderCompare(other LegacySchedulerJob) int
 }

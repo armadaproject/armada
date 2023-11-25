@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
@@ -207,37 +206,6 @@ func TestsNoSetup() error {
 		return err
 	}
 	if err := runTest("./cmd...", "cmd.txt"); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// PopulateLookoutTest populates the lookout test
-func PopulateLookoutTest() error {
-	dockerNet, err := dockerNet()
-	if err != nil {
-		return err
-	}
-	if err = dockerRun("ps", "-q", "-f", "name=postgres"); err == nil {
-
-		if err := dockerRun("stop", "postgres"); err != nil {
-			return err
-		}
-		if err := dockerRun("rm", "postgres"); err != nil {
-			return err
-		}
-	}
-
-	err = dockerRun("run", "-d", "--name=postgres", dockerNet, "-p", "5432:5432", "-e", "POSTGRES_PASSWORD=psw", "postgres:14.2")
-	if err != nil {
-		return err
-	}
-
-	time.Sleep(5 * time.Second)
-
-	err = goRun("test", "-v", "${PWD}/internal/lookout/db-gen/")
-	if err != nil {
 		return err
 	}
 

@@ -400,6 +400,19 @@ func FromInternalJobErrors(queueName string, jobSetName string, time time.Time, 
 				},
 			}
 			events = append(events, event)
+		case *armadaevents.Error_GangJobUnschedulable:
+			event := &api.EventMessage{
+				Events: &api.EventMessage_Failed{
+					Failed: &api.JobFailedEvent{
+						JobId:    jobId,
+						JobSetId: jobSetName,
+						Queue:    queueName,
+						Created:  time,
+						Reason:   reason.GangJobUnschedulable.Message,
+					},
+				},
+			}
+			events = append(events, event)
 		default:
 			log.Warnf("unknown error %T for job %s", reason, jobId)
 			event := &api.EventMessage{

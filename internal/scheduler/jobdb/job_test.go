@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -24,9 +25,18 @@ var schedulingInfo = &schedulerobjects.JobSchedulingInfo{
 	},
 }
 
-var baseJob = NewJob(
+// Used for creating jobs.
+var jobDb = NewJobDb(
+	map[string]types.PriorityClass{
+		"foo": {},
+		"bar": {},
+	},
+	"foo",
+)
+
+var baseJob = jobDb.NewJob(
 	"test-job",
-	"test-jobset",
+	"test-jobSet",
 	"test-queue",
 	2,
 	schedulingInfo,
@@ -35,7 +45,8 @@ var baseJob = NewJob(
 	false,
 	false,
 	false,
-	3)
+	3,
+)
 
 var baseRun = &JobRun{
 	id:        uuid.New(),
@@ -54,7 +65,7 @@ func TestJob_TestGetter(t *testing.T) {
 	assert.Equal(t, baseJob.id, baseJob.GetId())
 	assert.Equal(t, baseJob.queue, baseJob.Queue())
 	assert.Equal(t, baseJob.queue, baseJob.GetQueue())
-	assert.Equal(t, baseJob.created, baseJob.Created())
+	assert.Equal(t, baseJob.submittedTime, baseJob.Created())
 	assert.Equal(t, schedulingInfo, baseJob.JobSchedulingInfo())
 	assert.Equal(t, baseJob.GetAnnotations(), map[string]string{
 		"foo": "bar",
@@ -274,7 +285,7 @@ func TestJob_TestRunsById(t *testing.T) {
 
 func TestJob_TestWithJobset(t *testing.T) {
 	newJob := baseJob.WithJobset("fish")
-	assert.Equal(t, "test-jobset", baseJob.Jobset())
+	assert.Equal(t, "test-jobSet", baseJob.Jobset())
 	assert.Equal(t, "fish", newJob.Jobset())
 }
 
@@ -291,9 +302,9 @@ func TestJob_TestWithCreated(t *testing.T) {
 }
 
 func TestJob_DeepCopy(t *testing.T) {
-	original := NewJob("test-job", "test-jobset", "test-queue", 2, schedulingInfo, true, 0, false, false, false, 3)
+	original := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, schedulingInfo, true, 0, false, false, false, 3)
 	original = original.WithUpdatedRun(baseJobRun.DeepCopy())
-	expected := NewJob("test-job", "test-jobset", "test-queue", 2, schedulingInfo, true, 0, false, false, false, 3)
+	expected := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, schedulingInfo, true, 0, false, false, false, 3)
 	expected = expected.WithUpdatedRun(baseJobRun.DeepCopy())
 
 	result := original.DeepCopy()
@@ -345,7 +356,7 @@ func TestJobSchedulingInfoFieldsInitialised(t *testing.T) {
 	assert.Nil(t, infoWithNilFields.GetPodRequirements().NodeSelector)
 	assert.Nil(t, infoWithNilFields.GetPodRequirements().Annotations)
 
-	job := NewJob("test-job", "test-jobset", "test-queue", 2, infoWithNilFieldsCopy, true, 0, false, false, false, 3)
+	job := jobDb.NewJob("test-job", "test-jobSet", "test-queue", 2, infoWithNilFieldsCopy, true, 0, false, false, false, 3)
 	assert.NotNil(t, job.GetNodeSelector())
 	assert.NotNil(t, job.GetAnnotations())
 
@@ -354,20 +365,4 @@ func TestJobSchedulingInfoFieldsInitialised(t *testing.T) {
 	updatedJob := baseJob.WithJobSchedulingInfo(infoWithNilFieldsCopy2)
 	assert.NotNil(t, updatedJob.GetNodeSelector())
 	assert.NotNil(t, updatedJob.GetAnnotations())
-}
-
-func TestJobPriorityComparer(t *testing.T) {
-	job1 := &Job{
-		id:       "a",
-		priority: 10,
-		created:  5,
-	}
-
-	comparer := JobPriorityComparer{}
-
-	assert.Equal(t, 0, comparer.Compare(job1, job1))
-	assert.Equal(t, 1, comparer.Compare(job1, job1.WithPriority(9)))
-	assert.Equal(t, -1, comparer.Compare(job1, job1.WithCreated(6)))
-	assert.Equal(t, -1, comparer.Compare(job1, job1.WithPriority(11)))
-	assert.Equal(t, 1, comparer.Compare(job1, job1.WithCreated(4)))
 }

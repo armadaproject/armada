@@ -79,17 +79,15 @@ func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {
 		txn := db.Txn(false)
 		node, err := db.SelectNodeForJobWithTxn(txn, jctx)
 		txn.Abort()
-		if !assert.NoError(t, err) {
-			continue
-		}
+		require.NoError(t, err)
 		pctx := jctx.PodSchedulingContext
-		require.NotNil(t, node)
-		assert.Equal(t, nodeId, node.Id)
-
-		require.NotNil(t, pctx)
-		assert.Equal(t, nodeId, pctx.NodeId)
-		assert.Equal(t, 0, len(pctx.NumExcludedNodesByReason))
-		assert.Empty(t, pctx.NumExcludedNodesByReason)
+		if assert.NotNil(t, node) {
+			assert.Equal(t, nodeId, node.Id)
+		}
+		if assert.NotNil(t, pctx) {
+			assert.Equal(t, nodeId, pctx.NodeId)
+			assert.Empty(t, pctx.NumExcludedNodesByReason, "got %v", pctx.NumExcludedNodesByReason)
+		}
 	}
 }
 
@@ -498,7 +496,7 @@ func TestScheduleMany(t *testing.T) {
 		// Attempts to schedule 33 jobs with a minimum gang cardinality of 32 jobs. One fails, but the overall result is a success.
 		"simple success with min cardinality": {
 			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Jobs:          [][]*jobdb.Job{testfixtures.WithGangAnnotationsAndMinCardinalityJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33), 32)},
+			Jobs:          [][]*jobdb.Job{testfixtures.WithGangAnnotationsAndMinCardinalityJobs(32, testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33))},
 			ExpectSuccess: []bool{true},
 		},
 		// Attempts to schedule 33 jobs with a minimum gang cardinality of 33. The overall result fails.
@@ -748,7 +746,7 @@ func BenchmarkNodeDbStringFromPodRequirementsNotMetReason(b *testing.B) {
 	nodeDb := &NodeDb{
 		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
 	}
-	reason := &schedulerobjects.UntoleratedTaint{
+	reason := &UntoleratedTaint{
 		Taint: v1.Taint{Key: randomString(100), Value: randomString(100), Effect: v1.TaintEffectNoSchedule},
 	}
 	nodeDb.stringFromPodRequirementsNotMetReason(reason)

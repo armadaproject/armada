@@ -200,6 +200,15 @@ func (srv *SubmitChecker) getSchedulingResult(jctxs []*schedulercontext.JobSched
 		return schedulingResult{isSchedulable: true, reason: ""}
 	}
 
+	// Skip submit checks if this batch contains less than the min cardinality jobs.
+	// Reason:
+	//  - We need to support submitting gang jobs across batches and allow for gang jobs to queue until min cardinality is satisfied.
+	//  - We cannot verify if min cardinality jobs are schedulable unless we are given at least that many in a single batch.
+	//  - A side effect of this is that users can submit jobs in gangs that skip this check and are never schedulable, which will be handled via queue-ttl.
+	if len(jctxs) < jctxs[0].GangMinCardinality {
+		return schedulingResult{isSchedulable: true, reason: ""}
+	}
+
 	// Make a shallow copy to avoid holding the lock and
 	// preventing updating NodeDbs while checking if jobs can be scheduled
 	srv.mu.Lock()
@@ -231,8 +240,7 @@ func (srv *SubmitChecker) getSchedulingResult(jctxs []*schedulercontext.JobSched
 
 		numSuccessfullyScheduled := 0
 		for _, jctx := range jctxs {
-			pctx := jctx.PodSchedulingContext
-			if pctx != nil && pctx.NodeId != "" {
+			if jctx.PodSchedulingContext.IsSuccessful() {
 				numSuccessfullyScheduled++
 			}
 		}

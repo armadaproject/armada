@@ -136,7 +136,7 @@ func TestK8sServicesIngressesFromApiJob(t *testing.T) {
 	)
 
 	expectedIngressRules := make([]networking.IngressRule, 2)
-	pathType := networking.PathTypeImplementationSpecific
+	pathType := networking.PathTypePrefix
 	for i, container := range apiJob.PodSpec.Containers {
 		expectedIngressRules[i] = networking.IngressRule{
 			Host: fmt.Sprintf("%s-%d-armada-%s-0.%s.%s",

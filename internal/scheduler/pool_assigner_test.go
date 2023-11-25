@@ -33,14 +33,14 @@ func TestPoolAssigner_AssignPool(t *testing.T) {
 		"matches pool": {
 			executorTimout: executorTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
-			executors:      []*schedulerobjects.Executor{testExecutor(testfixtures.BaseTime)},
+			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(testfixtures.BaseTime)},
 			job:            cpuJob,
 			expectedPool:   "cpu",
 		},
 		"doesn't match pool": {
 			executorTimout: executorTimeout,
 			config:         testfixtures.TestSchedulingConfig(),
-			executors:      []*schedulerobjects.Executor{testExecutor(testfixtures.BaseTime)},
+			executors:      []*schedulerobjects.Executor{testfixtures.TestExecutor(testfixtures.BaseTime)},
 			job:            gpuJob,
 			expectedPool:   "",
 		},
