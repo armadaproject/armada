@@ -71,7 +71,7 @@ func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *schedulerco
 	// Ensure all jobs have an unschedulableReason.
 	// Adding jobs with an unschedulableReason to the context ensures they're correctly accounted for as failed.
 	for _, jctx := range gctx.JobSchedulingContexts {
-		jctx.UnschedulableReason = unschedulableReason
+		jctx.Fail(unschedulableReason)
 	}
 	if _, err := sch.schedulingContext.AddGangSchedulingContext(gctx); err != nil {
 		return err
@@ -83,11 +83,8 @@ func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *schedulerco
 	// Since a gang may be unschedulable even if all its members are individually schedulable.
 	if !sch.skipUnsuccessfulSchedulingKeyCheck && gctx.Cardinality() == 1 {
 		jctx := gctx.JobSchedulingContexts[0]
-		schedulingKey, ok := jctx.Job.GetSchedulingKey()
-		if !ok {
-			schedulingKey = sch.schedulingContext.SchedulingKeyFromLegacySchedulerJob(jctx.Job)
-		}
-		if schedulingKey != schedulerobjects.EmptySchedulingKey {
+		schedulingKey, ok := jctx.SchedulingKey()
+		if ok && schedulingKey != schedulerobjects.EmptySchedulingKey {
 			if _, ok := sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; !ok {
 				// Keep the first jctx for each unfeasible schedulingKey.
 				sch.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey] = jctx
@@ -164,8 +161,8 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *schedule
 
 	// Try all possible values of nodeUniformityLabel one at a time to find the best fit.
 	bestValue := ""
-	var minMeanScheduledAtPriority float64
-	var i int
+	bestFit := schedulercontext.GangSchedulingFit{}
+	i := 0
 	for value := range nodeUniformityLabelValues {
 		i++
 		if value == "" {
@@ -173,21 +170,19 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *schedule
 		}
 		addNodeSelectorToGctx(gctx, gctx.NodeUniformityLabel, value)
 		txn := sch.nodeDb.Txn(true)
-		if ok, unschedulableReason, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx); err != nil {
+		ok, unschedulableReason, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx)
+		if err != nil {
 			txn.Abort()
 			return
-		} else if ok {
-			meanScheduledAtPriority, ok := meanScheduledAtPriorityFromGctx(gctx)
-			if !ok {
-				txn.Abort()
-				continue
-			}
-			if meanScheduledAtPriority == float64(nodedb.MinPriority) {
+		}
+		if ok {
+			currentFit := gctx.Fit()
+			if currentFit.NumScheduled == gctx.Cardinality() && currentFit.MeanPreemptedAtPriority == float64(nodedb.MinPriority) {
 				// Best possible; no need to keep looking.
 				txn.Commit()
 				return true, "", nil
 			}
-			if bestValue == "" || meanScheduledAtPriority <= minMeanScheduledAtPriority {
+			if bestValue == "" || bestFit.Less(currentFit) {
 				if i == len(nodeUniformityLabelValues) {
 					// Minimal meanScheduledAtPriority and no more options; commit and return.
 					txn.Commit()
@@ -195,7 +190,7 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *schedule
 				}
 				// Record the best value seen so far.
 				bestValue = value
-				minMeanScheduledAtPriority = meanScheduledAtPriority
+				bestFit = currentFit
 			}
 		}
 		txn.Abort()
@@ -219,20 +214,9 @@ func (sch *GangScheduler) tryScheduleGang(ctx *armadacontext.Context, gctx *sche
 	return
 }
 
-func clearNodeBindings(jctx *schedulercontext.JobSchedulingContext) {
-	if jctx.PodSchedulingContext != nil {
-		// Clear any node bindings on failure to schedule.
-		jctx.PodSchedulingContext.NodeId = ""
-	}
-}
-
 func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *memdb.Txn, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
 	if ok, err = sch.nodeDb.ScheduleManyWithTxn(txn, gctx.JobSchedulingContexts); err == nil {
 		if !ok {
-			for _, jctx := range gctx.JobSchedulingContexts {
-				clearNodeBindings(jctx)
-			}
-
 			if gctx.Cardinality() > 1 {
 				unschedulableReason = "unable to schedule gang since minimum cardinality not met"
 			} else {
@@ -242,8 +226,7 @@ func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *
 			// When a gang schedules successfully, update state for failed jobs if they exist.
 			for _, jctx := range gctx.JobSchedulingContexts {
 				if jctx.ShouldFail {
-					clearNodeBindings(jctx)
-					jctx.UnschedulableReason = "job does not fit on any node"
+					jctx.Fail("job does not fit on any node")
 				}
 			}
 		}
@@ -256,20 +239,6 @@ func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *
 
 func addNodeSelectorToGctx(gctx *schedulercontext.GangSchedulingContext, nodeSelectorKey, nodeSelectorValue string) {
 	for _, jctx := range gctx.JobSchedulingContexts {
-		if jctx.PodRequirements.NodeSelector == nil {
-			jctx.PodRequirements.NodeSelector = make(map[string]string)
-		}
-		jctx.PodRequirements.NodeSelector[nodeSelectorKey] = nodeSelectorValue
+		jctx.AddNodeSelector(nodeSelectorKey, nodeSelectorValue)
 	}
-}
-
-func meanScheduledAtPriorityFromGctx(gctx *schedulercontext.GangSchedulingContext) (float64, bool) {
-	var sum int32
-	for _, jctx := range gctx.JobSchedulingContexts {
-		if jctx.PodSchedulingContext == nil {
-			return 0, false
-		}
-		sum += jctx.PodSchedulingContext.ScheduledAtPriority
-	}
-	return float64(sum) / float64(gctx.Cardinality()), true
 }
