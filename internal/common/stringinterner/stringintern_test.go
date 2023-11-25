@@ -40,7 +40,7 @@ func TestStringInterner_TestIntern(t *testing.T) {
 // Test that we don't store more strings than capacity
 func TestStringInterner_TestCapacity(t *testing.T) {
 	interner := New(defaultCapacity)
-	
+
 	// intern a string and assert we return the same string
 	retrieved1 := interner.Intern(cloned1[0])
 	retrievedPtr := addr(retrieved1)
