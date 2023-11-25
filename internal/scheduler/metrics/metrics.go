@@ -11,7 +11,6 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
-	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -34,47 +33,20 @@ const (
 )
 
 type Metrics struct {
-	config configuration.MetricsConfig
+	config   configuration.MetricsConfig
+	disabled bool
 
 	// Labels of tracked errors. Used to ensure consistent ordering.
 	trackedErrorLabels  []string
 	trackedErrorRegexes []*regexp.Regexp
 
-	// Indicates whether this instance is the leader.
-	isLeader prometheus.Gauge
-
-	// Scheduling cycle time broken up into the operations that make up the overall cycle.
-	cycleTime *prometheus.SummaryVec
-
 	// Job metrics.
 	queued    *prometheus.CounterVec
-	scheduled *prometheus.CounterVec
+	leased    *prometheus.CounterVec
 	preempted *prometheus.CounterVec
 	failed    *prometheus.CounterVec
+	cancelled *prometheus.CounterVec
 	succeeded *prometheus.CounterVec
-
-	// Fair and actual share for each queue.
-	// As measured by the cost of each queue divided by the total cost across all queues.
-	fairness *prometheus.GaugeVec
-}
-
-// UpdatedJobs maps events to jobs.
-type UpdatedJobs struct {
-	Queued    []*jobdb.Job
-	Leased    []*jobdb.Job
-	Pending   []*jobdb.Job
-	Running   []*jobdb.Job
-	Preempted []*jobdb.Job
-	Failed    []*jobdb.Job
-	Succeeded []*jobdb.Job
-
-	// Map from job run id to error for that run.
-	// Used to enrich failure metrics if provided.
-	JobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error
-
-	// Applies to preempted, scheduled, and jobs failed by the scheduler.
-	// TODO: For now we pretend there's always exactly one sctx.
-	SchedulingContext schedulercontext.SchedulingContext
 }
 
 func New(config configuration.MetricsConfig) (*Metrics, error) {
@@ -102,25 +74,25 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 		trackedErrorLabels:  trackedErrorLabels,
 		trackedErrorRegexes: trackedErrorRegexes,
 
-		isLeader: prometheus.NewGauge(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "is_leader",
-				Help:      "Indicates whether this instance of the scheduler is the leader.",
-			},
-		),
-		cycleTime: prometheus.NewSummaryVec(
-			prometheus.SummaryOpts{
-				Namespace:  namespace,
-				Subsystem:  subsystem,
-				Name:       "cycle_time",
-				Help:       "Scheduler cycle time broken up by operation.",
-				Objectives: config.CycleTimeConfig.Objectives,
-				MaxAge:     config.CycleTimeConfig.MaxAge,
-			},
-			[]string{"operation"},
-		),
+		//isLeader: prometheus.NewGauge(
+		//	prometheus.GaugeOpts{
+		//		Namespace: namespace,
+		//		Subsystem: subsystem,
+		//		Name:      "is_leader",
+		//		Help:      "Indicates whether this instance of the scheduler is the leader.",
+		//	},
+		//),
+		//cycleTime: prometheus.NewSummaryVec(
+		//	prometheus.SummaryOpts{
+		//		Namespace:  namespace,
+		//		Subsystem:  subsystem,
+		//		Name:       "cycle_time",
+		//		Help:       "Scheduler cycle time broken up by operation.",
+		//		Objectives: config.CycleTimeConfig.Objectives,
+		//		MaxAge:     config.CycleTimeConfig.MaxAge,
+		//	},
+		//	[]string{"operation"},
+		//),
 		queued: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
@@ -130,7 +102,7 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 			},
 			inactiveJobLabels,
 		),
-		scheduled: prometheus.NewCounterVec(
+		leased: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Subsystem: subsystem,
@@ -145,6 +117,15 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 				Subsystem: subsystem,
 				Name:      "preempted",
 				Help:      "Preempted jobs.",
+			},
+			activeJobLabels,
+		),
+		cancelled: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      "cancelled",
+				Help:      "Cancelled jobs.",
 			},
 			activeJobLabels,
 		),
@@ -166,153 +147,184 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 			},
 			activeJobLabels,
 		),
-		fairness: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Subsystem: subsystem,
-				Name:      "fairness",
-				Help:      "Fairness metrics.",
-			},
-			[]string{"queue", "pool", "measure"},
-		),
+		//fairness: prometheus.NewGaugeVec(
+		//	prometheus.GaugeOpts{
+		//		Namespace: namespace,
+		//		Subsystem: subsystem,
+		//		Name:      "fairness",
+		//		Help:      "Fairness metrics.",
+		//	},
+		//	[]string{"queue", "pool", "measure"},
+		//),
 	}, nil
 }
 
+func (m *Metrics) Disable() {
+	m.disabled = true
+}
+
+func (m *Metrics) Enable() {
+	m.disabled = false
+}
+
 func (m *Metrics) Describe(ch chan<- *prometheus.Desc) {
-	if m == nil || m.config.Disabled {
+	if m == nil || m.config.Disabled || m.disabled {
 		return
 	}
 	m.queued.Describe(ch)
-	m.scheduled.Describe(ch)
+	m.leased.Describe(ch)
 	m.preempted.Describe(ch)
 	m.failed.Describe(ch)
 	m.succeeded.Describe(ch)
 }
 
 func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
-	if m == nil || m.config.Disabled {
+	if m == nil || m.config.Disabled || m.disabled {
 		return
 	}
 	m.queued.Collect(ch)
-	m.scheduled.Collect(ch)
+	m.leased.Collect(ch)
 	m.preempted.Collect(ch)
 	m.failed.Collect(ch)
 	m.succeeded.Collect(ch)
 }
 
-func (m *Metrics) Update(ctx *armadacontext.Context, update UpdatedJobs) error {
-	if m == nil || m.config.Disabled {
+func (m *Metrics) UpdateMany(ctx *armadacontext.Context, jsts []jobdb.JobStateTransitions, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) error {
+	if m == nil || m.config.Disabled || m.disabled {
 		return nil
 	}
-	if err := m.updateQueued(update.Queued); err != nil {
-		return err
-	}
-	if err := m.updateScheduled(update.Leased); err != nil {
-		return err
-	}
-	if err := m.updatePreempted(update.Preempted); err != nil {
-		return err
-	}
-	if err := m.updateFailed(ctx, update.Failed, update.JobRunErrorsByRunId); err != nil {
-		return err
-	}
-	if err := m.updateSucceeded(update.Succeeded); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (m *Metrics) updateQueued(jobs []*jobdb.Job) error {
-	labels := make([]string, 2)
-	for _, job := range jobs {
-		labels[0] = job.GetQueue()
-		if err := m.updateCounterVecFromJob(m.queued, labels, 1, job); err != nil {
+	for _, jst := range jsts {
+		if err := m.Update(ctx, jst, jobRunErrorsByRunId); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *Metrics) updateScheduled(jobs []*jobdb.Job) error {
-	labels := make([]string, 4)
-	for _, job := range jobs {
-		run := job.LatestRun()
-		if run == nil {
-			continue
+// TODO(albin): Pending and running metrics are not supported.
+func (m *Metrics) Update(ctx *armadacontext.Context, jst jobdb.JobStateTransitions, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) error {
+	if m == nil || m.config.Disabled || m.disabled {
+		return nil
+	}
+	labels := make([]string, 0, 5+len(m.trackedErrorLabels))
+	if jst.Queued {
+		if err := m.updateQueued(labels[0:0], jst.Job); err != nil {
+			return err
 		}
-		labels[0] = job.GetQueue()
-		labels[1] = run.Executor()
-		labels[2] = run.NodeName()
-		if err := m.updateCounterVecFromJob(m.scheduled, labels, 3, job); err != nil {
+	}
+	if jst.Leased {
+		if err := m.updateLeased(labels[0:0], jst.Job); err != nil {
+			return err
+		}
+	}
+	if jst.Preempted {
+		if err := m.updatePreempted(labels[0:0], jst.Job); err != nil {
+			return err
+		}
+	}
+	if jst.Cancelled {
+		if err := m.updateCancelled(labels[0:0], jst.Job); err != nil {
+			return err
+		}
+	}
+	if jst.Failed {
+		if err := m.updateFailed(ctx, labels[0:0], jst.Job, jobRunErrorsByRunId); err != nil {
+			return err
+		}
+	}
+	if jst.Succeeded {
+		if err := m.updateSucceeded(labels[0:0], jst.Job); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (m *Metrics) updatePreempted(jobs []*jobdb.Job) error {
-	labels := make([]string, 4)
-	for _, job := range jobs {
-		run := job.LatestRun()
-		if run == nil {
-			continue
-		}
-		labels[0] = job.GetQueue()
-		labels[1] = run.Executor()
-		labels[2] = run.NodeName()
-		if err := m.updateCounterVecFromJob(m.preempted, labels, 3, job); err != nil {
-			return err
-		}
+func (m *Metrics) updateQueued(labels []string, job *jobdb.Job) error {
+	labels = append(labels, job.GetQueue())
+	if err := m.updateCounterVecFromJob(m.queued, labels, job); err != nil {
+		return err
 	}
 	return nil
 }
 
-func (m *Metrics) updateFailed(ctx *armadacontext.Context, jobs []*jobdb.Job, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) error {
-	labels := make([]string, 5+len(m.trackedErrorLabels))
-	for _, job := range jobs {
-		run := job.LatestRun()
-		if run == nil {
-			continue
-		}
-		name, message := nameAndMessageFromError(ctx, jobRunErrorsByRunId[run.Id()])
-
-		labels[0] = job.GetQueue()
-		labels[1] = run.Executor()
-		labels[2] = run.NodeName()
-		labels[3] = name
-		for i, r := range m.trackedErrorRegexes {
-			if r.MatchString(message) {
-				labels[5+i] = trackedErrorRegexMatches
-			} else {
-				labels[5+i] = trackedErrorRegexDoesNotMatch
-			}
-		}
-
-		if err := m.updateCounterVecFromJob(m.failed, labels, 4, job); err != nil {
-			return err
-		}
+func (m *Metrics) updateLeased(labels []string, job *jobdb.Job) error {
+	executor, nodeName := executorAndNodeNameFromRun(job.LatestRun())
+	labels = append(labels, job.GetQueue())
+	labels = append(labels, executor)
+	labels = append(labels, nodeName)
+	if err := m.updateCounterVecFromJob(m.leased, labels, job); err != nil {
+		return err
 	}
 	return nil
 }
 
-func (m *Metrics) updateSucceeded(jobs []*jobdb.Job) error {
-	labels := make([]string, 4)
-	for _, job := range jobs {
-		run := job.LatestRun()
-		if run == nil {
-			continue
-		}
-		labels[0] = job.GetQueue()
-		labels[1] = run.Executor()
-		labels[2] = run.NodeName()
-		if err := m.updateCounterVecFromJob(m.succeeded, labels, 3, job); err != nil {
-			return err
-		}
+func (m *Metrics) updatePreempted(labels []string, job *jobdb.Job) error {
+	executor, nodeName := executorAndNodeNameFromRun(job.LatestRun())
+	labels = append(labels, job.GetQueue())
+	labels = append(labels, executor)
+	labels = append(labels, nodeName)
+	if err := m.updateCounterVecFromJob(m.preempted, labels, job); err != nil {
+		return err
 	}
 	return nil
 }
 
-func nameAndMessageFromError(ctx *armadacontext.Context, err *armadaevents.Error) (string, string) {
+func (m *Metrics) updateCancelled(labels []string, job *jobdb.Job) error {
+	executor, nodeName := executorAndNodeNameFromRun(job.LatestRun())
+	labels = append(labels, job.GetQueue())
+	labels = append(labels, executor)
+	labels = append(labels, nodeName)
+	if err := m.updateCounterVecFromJob(m.cancelled, labels, job); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *Metrics) updateFailed(ctx *armadacontext.Context, labels []string, job *jobdb.Job, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) error {
+	run := job.LatestRun()
+	executor, nodeName := executorAndNodeNameFromRun(run)
+	name, message := errorTypeAndMessageFromError(ctx, jobRunErrorsByRunId[run.Id()])
+
+	labels = append(labels, job.GetQueue())
+	labels = append(labels, executor)
+	labels = append(labels, nodeName)
+	labels = append(labels, name)
+
+	for _, r := range m.trackedErrorRegexes {
+		if r.MatchString(message) {
+			labels = append(labels, trackedErrorRegexMatches)
+		} else {
+			labels = append(labels, trackedErrorRegexDoesNotMatch)
+		}
+	}
+
+	if err := m.updateCounterVecFromJob(m.failed, labels, job); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *Metrics) updateSucceeded(labels []string, job *jobdb.Job) error {
+	executor, nodeName := executorAndNodeNameFromRun(job.LatestRun())
+	labels = append(labels, job.GetQueue())
+	labels = append(labels, executor)
+	labels = append(labels, nodeName)
+	if err := m.updateCounterVecFromJob(m.succeeded, labels, job); err != nil {
+		return err
+	}
+	return nil
+}
+
+func executorAndNodeNameFromRun(run *jobdb.JobRun) (string, string) {
+	if run == nil {
+		// This case covers, e.g., jobs failing that have never been leased.
+		return "", ""
+	}
+	return run.Executor(), run.NodeName()
+}
+
+func errorTypeAndMessageFromError(ctx *armadacontext.Context, err *armadaevents.Error) (string, string) {
 	if err == nil {
 		return unknown, ""
 	}
@@ -335,9 +347,10 @@ func nameAndMessageFromError(ctx *armadacontext.Context, err *armadaevents.Error
 	}
 }
 
-func (m *Metrics) updateCounterVecFromJob(vec *prometheus.CounterVec, labels []string, resourceLabelIndex int, job *jobdb.Job) error {
+func (m *Metrics) updateCounterVecFromJob(vec *prometheus.CounterVec, labels []string, job *jobdb.Job) error {
 	// Number of jobs.
-	labels[resourceLabelIndex] = jobsResourceLabel
+	i := len(labels)
+	labels = append(labels, jobsResourceLabel)
 	if c, err := vec.GetMetricWithLabelValues(labels...); err != nil {
 		return err
 	} else {
@@ -347,7 +360,7 @@ func (m *Metrics) updateCounterVecFromJob(vec *prometheus.CounterVec, labels []s
 	// Total resource requests of jobs.
 	requests := job.GetResourceRequirements().Requests
 	for _, resourceName := range m.config.TrackedResourceNames {
-		labels[resourceLabelIndex] = string(resourceName)
+		labels[i] = string(resourceName)
 		q := requests[resourceName]
 		v := float64(q.MilliValue()) / 1000
 		if c, err := vec.GetMetricWithLabelValues(labels...); err != nil {

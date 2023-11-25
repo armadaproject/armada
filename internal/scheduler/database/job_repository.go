@@ -2,6 +2,7 @@ package database
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -128,6 +129,9 @@ func (r *PostgresJobRepository) FetchJobRunErrors(ctx *armadacontext.Context, ru
 func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobSerial int64, jobRunSerial int64) ([]Job, []Run, error) {
 	var updatedJobs []Job = nil
 	var updatedRuns []Run = nil
+
+	start := time.Now()
+	defer ctx.Infof("received %d updated jobs and %d updated job runs from postgres in %s", len(updatedJobs), len(updatedRuns), time.Since(start))
 
 	// Use a RepeatableRead transaction here so that we get consistency between jobs and dbRuns
 	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
