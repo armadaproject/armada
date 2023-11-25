@@ -11,13 +11,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/lookout/testutil"
 )
 
 func TestLoadStore(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
 	defer cancel()
-	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
+	err := withDatabasePgx(func(db *pgxpool.Pool) error {
 		kvStore, err := New(ctx, db, "cachetable")
 		require.NoError(t, err)
 
@@ -49,7 +48,7 @@ func TestLoadStore(t *testing.T) {
 func TestCleanup(t *testing.T) {
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 10*time.Second)
 	defer cancel()
-	err := testutil.WithDatabasePgx(func(db *pgxpool.Pool) error {
+	err := withDatabasePgx(func(db *pgxpool.Pool) error {
 		baseTime := time.Now()
 		testClock := clock.NewFakeClock(baseTime)
 		kvStore, err := New(ctx, db, "cachetable")

@@ -11,9 +11,6 @@ import (
 )
 
 const (
-	// IsEvictedAnnotation is set on evicted jobs; the scheduler uses it to differentiate between
-	// already-running and queued jobs.
-	IsEvictedAnnotation = "armadaproject.io/isEvicted"
 	// NodeIdLabel maps to a unique id associated with each node.
 	// This label is automatically added to nodes within the NodeDb.
 	NodeIdLabel = "armadaproject.io/nodeId"
@@ -35,6 +32,8 @@ type Configuration struct {
 	Auth       authconfig.AuthConfig
 	Grpc       grpcconfig.GrpcConfig
 	Http       HttpConfig
+	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
+	PprofPort *uint16
 	// Maximum number of strings that should be cached at any one time
 	InternedStringsCacheSize uint32 `validate:"required"`
 	// How often the scheduling cycle should run

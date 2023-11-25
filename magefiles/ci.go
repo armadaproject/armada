@@ -41,6 +41,7 @@ func TestSuite() error {
 		"--junit", "junit.xml",
 	)
 	if err2 != nil {
+		fmt.Println(out)
 		return err2
 	}
 	fmt.Printf("(Real) Time to run tests: %s\n\n", time.Since(timeTaken))
@@ -55,7 +56,7 @@ func CheckForArmadaRunning() error {
 	mg.Deps(createQueue)
 
 	// Set high to take compile time into account
-	timeout := time.After(10 * time.Minute)
+	timeout := time.After(2 * time.Minute)
 	tick := time.Tick(1 * time.Second)
 	seconds := 0
 	for {

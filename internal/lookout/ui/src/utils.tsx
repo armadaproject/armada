@@ -2,18 +2,23 @@ import { Location, NavigateFunction, Params, useLocation, useNavigate, useParams
 
 import { BinocularsApi, Configuration, ConfigurationParameters } from "./openapi/binoculars"
 
+export interface OidcConfig {
+  authority: string
+  clientId: string
+  scope: string
+}
+
 interface UIConfig {
   armadaApiBaseUrl: string
   userAnnotationPrefix: string
-  binocularsEnabled: boolean
   binocularsBaseUrlPattern: string
-  overviewAutoRefreshMs: number
   jobSetsAutoRefreshMs: number
   jobsAutoRefreshMs: number
   debugEnabled: boolean
   fakeDataEnabled: boolean
-  lookoutV2ApiBaseUrl: string
   customTitle: string
+  oidcEnabled: boolean
+  oidc?: OidcConfig
 }
 
 export type RequestStatus = "Loading" | "Idle"
@@ -28,20 +33,19 @@ export interface Padding {
 }
 
 export async function getUIConfig(): Promise<UIConfig> {
-  const queryParams = new URLSearchParams(window.location.search)
+  const searchParams = new URLSearchParams(window.location.search)
 
-  const config = {
+  const config: UIConfig = {
     armadaApiBaseUrl: "",
     userAnnotationPrefix: "",
-    binocularsEnabled: true,
     binocularsBaseUrlPattern: "",
-    overviewAutoRefreshMs: 15000,
     jobSetsAutoRefreshMs: 15000,
     jobsAutoRefreshMs: 30000,
-    debugEnabled: queryParams.has("debug"),
-    fakeDataEnabled: queryParams.has("fakeData"),
-    lookoutV2ApiBaseUrl: "",
+    debugEnabled: searchParams.has("debug"),
+    fakeDataEnabled: searchParams.has("fakeData"),
     customTitle: "",
+    oidcEnabled: false,
+    oidc: undefined,
   }
 
   try {
@@ -49,22 +53,34 @@ export async function getUIConfig(): Promise<UIConfig> {
     const json = await response.json()
     if (json.ArmadaApiBaseUrl) config.armadaApiBaseUrl = json.ArmadaApiBaseUrl
     if (json.UserAnnotationPrefix) config.userAnnotationPrefix = json.UserAnnotationPrefix
-    if (json.BinocularsEnabled != null) config.binocularsEnabled = json.BinocularsEnabled
     if (json.BinocularsBaseUrlPattern) config.binocularsBaseUrlPattern = json.BinocularsBaseUrlPattern
-    if (json.OverviewAutoRefreshMs) config.overviewAutoRefreshMs = json.OverviewAutoRefreshMs
     if (json.JobSetsAutoRefreshMs) config.jobSetsAutoRefreshMs = json.JobSetsAutoRefreshMs
     if (json.JobsAutoRefreshMs) config.jobsAutoRefreshMs = json.JobsAutoRefreshMs
-    if (json.LookoutV2ApiBaseUrl) config.lookoutV2ApiBaseUrl = json.LookoutV2ApiBaseUrl
     if (json.CustomTitle) config.customTitle = json.CustomTitle
+    if (json.OidcEnabled) config.oidcEnabled = json.OidcEnabled
+    if (json.Oidc) {
+      config.oidc = {
+        authority: json.Oidc.Authority,
+        clientId: json.Oidc.ClientId,
+        scope: json.Oidc.Scope,
+      }
+    }
   } catch (e) {
     console.error(e)
   }
 
-  return config
-}
+  switch (searchParams.get("oidcEnabled")) {
+    case "false":
+      config.oidcEnabled = false
+      break
+    case "true":
+      config.oidcEnabled = true
+      break
+  }
 
-export function inverseMap<K, V>(map: Map<K, V>): Map<V, K> {
-  return new Map(Array.from(map.entries()).map(([k, v]) => [v, k]))
+  if (window.location.pathname === "/oidc") config.oidcEnabled = true
+
+  return config
 }
 
 export function inverseRecord<K extends string | number | symbol, V extends string | number | symbol>(
@@ -86,34 +102,6 @@ export function debounced(fn: (...args: any[]) => Promise<any>, delay: number): 
       }, delay)
     })
   }
-}
-
-export function secondsToDurationString(totalSeconds: number): string {
-  totalSeconds = Math.round(totalSeconds)
-  const days = Math.floor(totalSeconds / (24 * 3600))
-  const hours = Math.floor(totalSeconds / 3600) % 24
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
-
-  const segments: string[] = []
-
-  if (days > 0) {
-    segments.push(`${days}d`)
-  }
-  if (hours > 0) {
-    segments.push(`${hours}h`)
-  }
-  if (minutes > 0) {
-    segments.push(`${minutes}m`)
-  }
-  if (seconds > 0) {
-    segments.push(`${seconds}s`)
-  }
-  if (segments.length === 0) {
-    return "0s"
-  }
-
-  return segments.join(" ")
 }
 
 export function setStateAsync<T>(component: React.Component<any, T>, state: T): Promise<void> {
@@ -148,19 +136,6 @@ export async function getErrorMessage(error: any): Promise<string> {
     return errorMessage ?? basicMessage
   } catch {
     return basicMessage
-  }
-}
-
-export function updateArray<T>(array: T[], newValues: T[], start: number) {
-  for (let i = 0; i < newValues.length; i++) {
-    const arrayIndex = start + i
-    if (arrayIndex < array.length) {
-      array[arrayIndex] = newValues[i]
-    } else if (arrayIndex >= array.length) {
-      array.push(newValues[i])
-    } else {
-      throw new Error("Index is bad!")
-    }
   }
 }
 

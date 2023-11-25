@@ -7,7 +7,6 @@ LABEL org.opencontainers.image.title=armada-full-bundle
 LABEL org.opencontainers.image.description="Armada Full Bundle"
 LABEL org.opencontainers.image.url=https://hub.docker.com/r/gresearchdev/armada-full-bundle
 COPY internal/lookout/ui /project/internal/lookout/ui
-COPY pkg/api/lookout/*.swagger.json /project/pkg/api/lookout/
 COPY pkg/api/*.swagger.json /project/pkg/api/
 COPY pkg/api/binoculars/*.swagger.json /project/pkg/api/binoculars/
 RUN ./project/internal/lookout/ui/openapi.sh
@@ -23,7 +22,7 @@ RUN addgroup -S -g 2000 armada && adduser -S -u 1000 armada -G armada
 USER armada
 COPY --from=NODE /ui/build/ /app/internal/lookout/ui/build
 
-COPY server executor binoculars lookout lookoutingester eventingester lookoutingesterv2 lookoutv2 jobservice scheduler scheduleringester armadactl /app/
+COPY server executor binoculars eventingester lookoutingesterv2 lookoutv2 jobservice scheduler scheduleringester armadactl /app/
 COPY config/ /app/config/
 
 WORKDIR /app

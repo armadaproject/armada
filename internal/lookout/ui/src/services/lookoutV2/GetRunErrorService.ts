@@ -1,12 +1,10 @@
 export interface IGetRunErrorService {
-  getRunError(runId: string, abortSignal: AbortSignal | undefined): Promise<string>
+  getRunError(runId: string, abortSignal?: AbortSignal): Promise<string>
 }
 
 export class GetRunErrorService implements IGetRunErrorService {
-  constructor(private apiBase: string) {}
-
-  async getRunError(runId: string, abortSignal: AbortSignal | undefined): Promise<string> {
-    const response = await fetch(this.apiBase + "/api/v1/jobRunError", {
+  async getRunError(runId: string, abortSignal?: AbortSignal): Promise<string> {
+    const response = await fetch("/api/v1/jobRunError", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

@@ -9,7 +9,7 @@ export interface IGroupJobsService {
     aggregates: string[],
     skip: number,
     take: number,
-    abortSignal: AbortSignal | undefined,
+    abortSignal?: AbortSignal,
   ): Promise<GroupJobsResponse>
 }
 
@@ -24,8 +24,6 @@ export type GroupJobsResponse = {
 }
 
 export class GroupJobsService implements IGroupJobsService {
-  constructor(private apiBase: string) {}
-
   async groupJobs(
     filters: JobFilter[],
     activeJobSets: boolean,
@@ -34,9 +32,9 @@ export class GroupJobsService implements IGroupJobsService {
     aggregates: string[],
     skip: number,
     take: number,
-    abortSignal: AbortSignal | undefined,
+    abortSignal?: AbortSignal,
   ): Promise<GroupJobsResponse> {
-    const response = await fetch(this.apiBase + "/api/v1/jobGroups", {
+    const response = await fetch("/api/v1/jobGroups", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

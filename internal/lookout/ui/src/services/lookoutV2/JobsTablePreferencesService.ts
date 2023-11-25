@@ -29,6 +29,8 @@ export interface JobsTablePreferences {
   columnMatches: Record<string, Match>
   sidebarJobId: JobId | undefined
   sidebarWidth?: number
+  activeJobSets?: boolean
+  autoRefresh?: boolean
 }
 
 // Need two 'defaults'
@@ -62,7 +64,7 @@ type QueryStringJobFilter = {
 // Keys are shortened to keep URL size lower
 export interface QueryStringPrefs {
   // Grouped columns
-  g: string[] | [null]
+  g: string[]
   // Expanded rows
   e: string[]
   // Current page number
@@ -78,6 +80,10 @@ export interface QueryStringPrefs {
   f: QueryStringJobFilter[]
   // Sidebar job ID
   sb: string | undefined
+  // This is a boolean field, but the qs library turns it into a string.
+  active: string | undefined
+  // This is a boolean field, but the qs library turns it into a string.
+  refresh: string | undefined
 }
 
 const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs => {
@@ -101,6 +107,8 @@ const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs => {
       .map(([rowId, _]) => rowId),
     ps: prefs.pageSize.toString(),
     sb: prefs.sidebarJobId,
+    active: prefs.activeJobSets === undefined ? undefined : `${prefs.activeJobSets}`,
+    refresh: prefs.autoRefresh === undefined ? undefined : `${prefs.autoRefresh}`,
   }
 }
 
@@ -120,13 +128,9 @@ const columnMatchesFromQueryStringFilters = (f: QueryStringJobFilter[]): Record<
 }
 
 const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partial<JobsTablePreferences> => {
-  const { e, page, ps, sort, f, sb } = serializedPrefs
-  let g = serializedPrefs.g
-  if (!(Array.isArray(g) && g.length > 0 && g.map((elem) => typeof elem === "string").reduce((a, b) => a && b, true))) {
-    g = []
-  }
+  const { g, e, page, ps, sort, f, sb, active, refresh } = serializedPrefs
   return {
-    ...(g && { groupedColumns: g as ColumnId[] }),
+    ...(g && Array.isArray(g) && g.every((a) => typeof a === "string") && { groupedColumns: g as ColumnId[] }),
     ...(e && { expandedState: Object.fromEntries(e.map((rowId) => [rowId, true])) }),
     ...(page !== undefined && { pageIndex: Number(page) }),
     ...(ps !== undefined && { pageSize: Number(ps) }),
@@ -136,6 +140,8 @@ const fromQueryStringSafe = (serializedPrefs: Partial<QueryStringPrefs>): Partia
     ...(f && { filters: columnFiltersFromQueryStringFilters(f) }),
     ...(f && { columnMatches: columnMatchesFromQueryStringFilters(f) }),
     ...(sb && { sidebarJobId: sb }),
+    ...(active && { activeJobSets: active.toLowerCase() === "true" }),
+    ...(refresh && { autoRefresh: refresh.toLowerCase() === "true" }),
   }
 }
 
@@ -180,6 +186,8 @@ const mergeQueryParamsAndLocalStorage = (
       mergedPrefs.columnMatches = DEFAULT_COLUMN_MATCHES
     }
     mergeColumnMatches(mergedPrefs.columnMatches, queryParamPrefs.columnMatches)
+    mergedPrefs.activeJobSets = queryParamPrefs.activeJobSets
+    mergedPrefs.autoRefresh = queryParamPrefs.autoRefresh
   }
   return mergedPrefs
 }

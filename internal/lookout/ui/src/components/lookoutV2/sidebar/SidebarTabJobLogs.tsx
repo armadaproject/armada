@@ -17,6 +17,7 @@ import { Job, JobRun } from "models/lookoutV2Models"
 import styles from "./SidebarTabJobLogs.module.css"
 import { useCustomSnackbar } from "../../../hooks/useCustomSnackbar"
 import { useJobSpec } from "../../../hooks/useJobSpec"
+import { getAccessToken, useUserManager } from "../../../oidc"
 import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
 import { ILogService, LogLine } from "../../../services/lookoutV2/LogService"
 import { getErrorMessage, RequestStatus } from "../../../utils"
@@ -107,9 +108,12 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
     }
   }, [containers])
 
+  const userManager = useUserManager()
+
   const loadLogs = async (sinceTime: string, tailLines: number | undefined): Promise<LogLine[]> => {
     setLogsRequestStatus("Loading")
     try {
+      const accessToken = userManager && (await getAccessToken(userManager))
       const logLines = await logService.getLogs(
         cluster,
         namespace,
@@ -117,7 +121,7 @@ export const SidebarTabJobLogs = ({ job, jobSpecService, logService }: SidebarTa
         selectedContainer,
         sinceTime,
         tailLines,
-        undefined,
+        accessToken,
       )
       setLogsRequestErrorFull(undefined)
       return logLines

@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@material-ui/core"
 
-import { ReprioritizeJobSetsResponse } from "../../../services/JobService"
+import { ReprioritizeJobSetsResponse } from "../../../services/lookoutV2/UpdateJobSetsService"
 import LoadingButton from "../../jobs/LoadingButton"
 
 import "./ReprioritizeJobSets.css"

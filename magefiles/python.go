@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/magefile/mage/mg"
 )
 
@@ -13,5 +16,18 @@ func BuildPython() error {
 		return err
 	}
 
-	return dockerRun("run", "--rm", "-v", "${PWD}/proto:/proto", "-v", "${PWD}:/go/src/armada", "-w", "/go/src/armada", "armada-python-client-builder", "./scripts/build-python-client.sh")
+	wd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+
+	return dockerRun(
+		"run",
+		"--rm",
+		"-v", fmt.Sprintf("%s/proto:/proto", wd),
+		"-v", fmt.Sprintf("%s:/go/src/armada", wd),
+		"-w", "/go/src/armada",
+		"armada-python-client-builder",
+		"./scripts/build-python-client.sh",
+	)
 }

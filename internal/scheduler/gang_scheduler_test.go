@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/maps"
 	"golang.org/x/time/rate"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -37,6 +38,9 @@ func TestGangScheduler(t *testing.T) {
 		// Cumulative number of jobs we expect to schedule successfully.
 		// Each index `i` is the expected value when processing gang `i`.
 		ExpectedScheduledJobs []int
+		// If present, assert that gang `i` is scheduled on nodes with node
+		// uniformity label `ExpectedNodeUniformity[i]`.
+		ExpectedNodeUniformity map[int]string
 	}{
 		"simple success": {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
@@ -60,7 +64,10 @@ func TestGangScheduler(t *testing.T) {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
-				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 40), 32),
+				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(
+					32,
+					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 40),
+				),
 			},
 			ExpectedScheduledIndices: testfixtures.IntRange(0, 0),
 			ExpectedScheduledJobs:    []int{32},
@@ -69,7 +76,10 @@ func TestGangScheduler(t *testing.T) {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
-				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 40), 33),
+				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(
+					33,
+					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 40),
+				),
 			},
 			ExpectedScheduledIndices: nil,
 			ExpectedScheduledJobs:    []int{0},
@@ -88,7 +98,10 @@ func TestGangScheduler(t *testing.T) {
 			SchedulingConfig: testfixtures.TestSchedulingConfig(),
 			Nodes:            testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
 			Gangs: [][]*jobdb.Job{
-				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33), 32),
+				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(
+					32,
+					testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33),
+				),
 				testfixtures.WithGangAnnotationsJobs(testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1)),
 			},
 			ExpectedScheduledIndices: testfixtures.IntRange(0, 0),
@@ -346,6 +359,70 @@ func TestGangScheduler(t *testing.T) {
 			ExpectedScheduledIndices: []int{0},
 			ExpectedScheduledJobs:    []int{4},
 		},
+		"NodeUniformityLabel NumScheduled tiebreak": {
+			SchedulingConfig: testfixtures.WithIndexedNodeLabelsConfig(
+				[]string{"my-cool-node-uniformity"},
+				testfixtures.TestSchedulingConfig(),
+			),
+			Nodes: append(
+				testfixtures.WithLabelsNodes(
+					map[string]string{"my-cool-node-uniformity": "a"},
+					testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+				),
+				testfixtures.WithLabelsNodes(
+					map[string]string{"my-cool-node-uniformity": "b"},
+					testfixtures.N32CpuNodes(3, testfixtures.TestPriorities),
+				)...,
+			),
+			Gangs: [][]*jobdb.Job{
+				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(
+					2,
+					testfixtures.WithNodeUniformityLabelAnnotationJobs(
+						"my-cool-node-uniformity",
+						testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 4),
+					),
+				),
+			},
+			ExpectedScheduledIndices: []int{0},
+			ExpectedScheduledJobs:    []int{3},
+			ExpectedNodeUniformity:   map[int]string{0: "b"},
+		},
+		"NodeUniformityLabel PreemptedAtPriority tiebreak": {
+			SchedulingConfig: testfixtures.WithIndexedNodeLabelsConfig(
+				[]string{"my-cool-node-uniformity"},
+				testfixtures.TestSchedulingConfig(),
+			),
+			Nodes: append(
+				testfixtures.WithUsedResourcesNodes(
+					1,
+					schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+					testfixtures.WithLabelsNodes(
+						map[string]string{"my-cool-node-uniformity": "a"},
+						testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+					),
+				),
+				testfixtures.WithUsedResourcesNodes(
+					0,
+					schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}},
+					testfixtures.WithLabelsNodes(
+						map[string]string{"my-cool-node-uniformity": "b"},
+						testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
+					),
+				)...,
+			),
+			Gangs: [][]*jobdb.Job{
+				testfixtures.WithGangAnnotationsAndMinCardinalityJobs(
+					2,
+					testfixtures.WithNodeUniformityLabelAnnotationJobs(
+						"my-cool-node-uniformity",
+						testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass2, 4),
+					),
+				),
+			},
+			ExpectedScheduledIndices: []int{0},
+			ExpectedScheduledJobs:    []int{2},
+			ExpectedNodeUniformity:   map[int]string{0: "b"},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -431,8 +508,11 @@ func TestGangScheduler(t *testing.T) {
 					if gctx.NodeUniformityLabel != "" {
 						nodeUniformityLabelValues := make(map[string]bool)
 						for _, jctx := range jctxs {
-							require.NotNil(t, jctx.PodSchedulingContext)
-							node := nodesById[jctx.PodSchedulingContext.NodeId]
+							pctx := jctx.PodSchedulingContext
+							if !pctx.IsSuccessful() {
+								continue
+							}
+							node := nodesById[pctx.NodeId]
 							require.NotNil(t, node)
 							value, ok := node.Labels[gctx.NodeUniformityLabel]
 							require.True(t, ok, "gang job scheduled onto node with missing nodeUniformityLabel")
@@ -442,6 +522,10 @@ func TestGangScheduler(t *testing.T) {
 							t, 1, len(nodeUniformityLabelValues),
 							"node uniformity constraint not met: %s", nodeUniformityLabelValues,
 						)
+						if expectedValue, ok := tc.ExpectedNodeUniformity[i]; ok {
+							actualValue := maps.Keys(nodeUniformityLabelValues)[0]
+							require.Equal(t, expectedValue, actualValue)
+						}
 					}
 
 					// Verify any excess jobs that failed have the correct state set

@@ -88,12 +88,10 @@ type GroupJobsBody struct {
 	Order *models.Order `json:"order"`
 
 	// First elements to ignore from the full set of results. Used for pagination.
-	// Required: true
-	Skip *int64 `json:"skip"`
+	Skip int64 `json:"skip,omitempty"`
 
 	// Number of job groups to fetch.
-	// Required: true
-	Take int64 `json:"take"`
+	Take int64 `json:"take,omitempty"`
 }
 
 // Validate validates this group jobs body
@@ -113,14 +111,6 @@ func (o *GroupJobsBody) Validate(formats strfmt.Registry) error {
 	}
 
 	if err := o.validateOrder(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := o.validateSkip(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := o.validateTake(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -201,24 +191,6 @@ func (o *GroupJobsBody) validateOrder(formats strfmt.Registry) error {
 			}
 			return err
 		}
-	}
-
-	return nil
-}
-
-func (o *GroupJobsBody) validateSkip(formats strfmt.Registry) error {
-
-	if err := validate.Required("groupJobsRequest"+"."+"skip", "body", o.Skip); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (o *GroupJobsBody) validateTake(formats strfmt.Registry) error {
-
-	if err := validate.Required("groupJobsRequest"+"."+"take", "body", int64(o.Take)); err != nil {
-		return err
 	}
 
 	return nil

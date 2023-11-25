@@ -9,6 +9,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/time/rate"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -466,10 +467,46 @@ func TestQueueScheduler(t *testing.T) {
 			PriorityFactorByQueue:    map[string]float64{"A": 1},
 			ExpectedScheduledIndices: []int{1},
 		},
+		"nodeAffinity node notIn": {
+			SchedulingConfig: testfixtures.TestSchedulingConfig(),
+			Nodes: armadaslices.Concatenate(
+				testfixtures.WithLabelsNodes(
+					map[string]string{"key": "val1"},
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+				),
+				testfixtures.WithLabelsNodes(
+					map[string]string{"key": "val2"},
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+				),
+				testfixtures.WithLabelsNodes(
+					map[string]string{"key": "val3"},
+					testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+				),
+				testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			),
+			Jobs: armadaslices.Concatenate(
+				testfixtures.WithNodeAffinityJobs(
+					[]v1.NodeSelectorTerm{
+						{
+							MatchExpressions: []v1.NodeSelectorRequirement{
+								{
+									Key:      "key",
+									Operator: v1.NodeSelectorOpNotIn,
+									Values:   []string{"val1", "val2"},
+								},
+							},
+						},
+					},
+					testfixtures.N32Cpu256GiJobs("A", testfixtures.PriorityClass0, 3),
+				),
+			),
+			PriorityFactorByQueue:    map[string]float64{"A": 1},
+			ExpectedScheduledIndices: []int{0, 1},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-			nodeDb, err := NewNodeDb()
+			nodeDb, err := NewNodeDb(tc.SchedulingConfig)
 			require.NoError(t, err)
 			txn := nodeDb.Txn(true)
 			for _, node := range tc.Nodes {
@@ -492,8 +529,12 @@ func TestQueueScheduler(t *testing.T) {
 			for i, job := range tc.Jobs {
 				legacySchedulerJobs[i] = job
 			}
-			jobRepo := NewInMemoryJobRepository(tc.SchedulingConfig.Preemption.PriorityClasses)
-			jobRepo.EnqueueMany(legacySchedulerJobs)
+			jobRepo := NewInMemoryJobRepository()
+			jobRepo.EnqueueMany(schedulercontext.JobSchedulingContextsFromJobs(
+				testfixtures.TestPriorityClasses,
+				legacySchedulerJobs,
+				GangIdAndCardinalityFromAnnotations,
+			))
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				tc.TotalResources,
@@ -532,8 +573,7 @@ func TestQueueScheduler(t *testing.T) {
 			)
 			jobIteratorByQueue := make(map[string]JobIterator)
 			for queue := range tc.PriorityFactorByQueue {
-				it, err := jobRepo.GetJobIterator(armadacontext.Background(), queue)
-				require.NoError(t, err)
+				it := jobRepo.GetJobIterator(queue)
 				jobIteratorByQueue[queue] = it
 			}
 			sch, err := NewQueueScheduler(sctx, constraints, nodeDb, jobIteratorByQueue)
@@ -662,13 +702,13 @@ func TestQueueScheduler(t *testing.T) {
 	}
 }
 
-func NewNodeDb() (*nodedb.NodeDb, error) {
+func NewNodeDb(config configuration.SchedulingConfig) (*nodedb.NodeDb, error) {
 	nodeDb, err := nodedb.NewNodeDb(
-		testfixtures.TestPriorityClasses,
-		testfixtures.TestMaxExtraNodesToConsider,
-		testfixtures.TestResources,
-		testfixtures.TestIndexedTaints,
-		testfixtures.TestIndexedNodeLabels,
+		config.Preemption.PriorityClasses,
+		config.MaxExtraNodesToConsider,
+		config.IndexedResources,
+		config.IndexedTaints,
+		config.IndexedNodeLabels,
 	)
 	if err != nil {
 		return nil, err

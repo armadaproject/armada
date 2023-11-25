@@ -43,6 +43,45 @@
         }
       }
     },
+    "/v1/batched/queues": {
+      "get": {
+        "tags": [
+          "Submit"
+        ],
+        "operationId": "GetQueues",
+        "parameters": [
+          {
+            "type": "integer",
+            "format": "int64",
+            "name": "num",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A successful response.(streaming responses)",
+            "schema": {
+              "type": "object",
+              "title": "Stream result of apiStreamingQueueMessage",
+              "properties": {
+                "error": {
+                  "$ref": "#/definitions/runtimeStreamError"
+                },
+                "result": {
+                  "$ref": "#/definitions/apiStreamingQueueMessage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "schema": {
+              "$ref": "#/definitions/runtimeError"
+            }
+          }
+        }
+      }
+    },
     "/v1/batched/update_queues": {
       "put": {
         "tags": [
@@ -501,6 +540,10 @@
           "type": "string"
         }
       }
+    },
+    "apiEndMarker": {
+      "type": "object",
+      "title": "Indicates the end of streams"
     },
     "apiEventMessage": {
       "type": "object",
@@ -1712,6 +1755,17 @@
         "NodePort",
         "Headless"
       ]
+    },
+    "apiStreamingQueueMessage": {
+      "type": "object",
+      "properties": {
+        "end": {
+          "$ref": "#/definitions/apiEndMarker"
+        },
+        "queue": {
+          "$ref": "#/definitions/apiQueue"
+        }
+      }
     },
     "intstrIntOrString": {
       "description": "+protobuf=true\n+protobuf.options.(gogoproto.goproto_stringer)=false\n+k8s:openapi-gen=true",
