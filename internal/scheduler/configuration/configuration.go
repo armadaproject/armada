@@ -3,12 +3,13 @@ package configuration
 import (
 	"time"
 
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	"github.com/armadaproject/armada/internal/common/config"
 	grpcconfig "github.com/armadaproject/armada/internal/common/grpc/configuration"
 	"github.com/armadaproject/armada/pkg/client"
-	v1 "k8s.io/api/core/v1"
 )
 
 const (
