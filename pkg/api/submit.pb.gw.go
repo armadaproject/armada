@@ -449,6 +449,34 @@ func local_request_Submit_GetQueue_0(ctx context.Context, marshaler runtime.Mars
 
 }
 
+var (
+	filter_Submit_GetQueues_0 = &utilities.DoubleArray{Encoding: map[string]int{}, Base: []int(nil), Check: []int(nil)}
+)
+
+func request_Submit_GetQueues_0(ctx context.Context, marshaler runtime.Marshaler, client SubmitClient, req *http.Request, pathParams map[string]string) (Submit_GetQueuesClient, runtime.ServerMetadata, error) {
+	var protoReq StreamingQueueGetRequest
+	var metadata runtime.ServerMetadata
+
+	if err := req.ParseForm(); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+	if err := runtime.PopulateQueryParameters(&protoReq, req.Form, filter_Submit_GetQueues_0); err != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+	}
+
+	stream, err := client.GetQueues(ctx, &protoReq)
+	if err != nil {
+		return nil, metadata, err
+	}
+	header, err := stream.Header()
+	if err != nil {
+		return nil, metadata, err
+	}
+	metadata.HeaderMD = header
+	return stream, metadata, nil
+
+}
+
 func request_Submit_GetQueueInfo_0(ctx context.Context, marshaler runtime.Marshaler, client SubmitClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
 	var protoReq QueueInfoRequest
 	var metadata runtime.ServerMetadata
@@ -739,6 +767,13 @@ func RegisterSubmitHandlerServer(ctx context.Context, mux *runtime.ServeMux, ser
 
 	})
 
+	mux.Handle("GET", pattern_Submit_GetQueues_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		err := status.Error(codes.Unimplemented, "streaming calls are not yet supported in the in-process transport")
+		_, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+		return
+	})
+
 	mux.Handle("GET", pattern_Submit_GetQueueInfo_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -1003,6 +1038,26 @@ func RegisterSubmitHandlerClient(ctx context.Context, mux *runtime.ServeMux, cli
 
 	})
 
+	mux.Handle("GET", pattern_Submit_GetQueues_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_Submit_GetQueues_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_Submit_GetQueues_0(ctx, mux, outboundMarshaler, w, req, func() (proto.Message, error) { return resp.Recv() }, mux.GetForwardResponseOptions()...)
+
+	})
+
 	mux.Handle("GET", pattern_Submit_GetQueueInfo_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
@@ -1047,6 +1102,8 @@ var (
 
 	pattern_Submit_GetQueue_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2}, []string{"v1", "queue", "name"}, "", runtime.AssumeColonVerbOpt(true)))
 
+	pattern_Submit_GetQueues_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"v1", "batched", "queues"}, "", runtime.AssumeColonVerbOpt(true)))
+
 	pattern_Submit_GetQueueInfo_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 1, 0, 4, 1, 5, 2, 2, 3}, []string{"v1", "queue", "name", "info"}, "", runtime.AssumeColonVerbOpt(true)))
 )
 
@@ -1070,6 +1127,8 @@ var (
 	forward_Submit_DeleteQueue_0 = runtime.ForwardResponseMessage
 
 	forward_Submit_GetQueue_0 = runtime.ForwardResponseMessage
+
+	forward_Submit_GetQueues_0 = runtime.ForwardResponseStream
 
 	forward_Submit_GetQueueInfo_0 = runtime.ForwardResponseMessage
 )

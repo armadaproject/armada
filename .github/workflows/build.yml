@@ -12,16 +12,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Go with Cache
+      - name: Set up Go (no caching)
         uses: actions/setup-go@v4
         with:
-         go-version: '1.20'
-
-      - name: Cache GOBIN
-        uses: actions/cache@v3
-        with:
-          path: /home/runner/go/bin
-          key: ${{ runner.os }}-gobin-${{ hashFiles('**/tools.yaml') }}
+          go-version: '1.20'
+          cache: false
 
       - name: Set up Docker Buildx
         id: buildx
@@ -54,3 +49,47 @@ jobs:
         with:
           name: armada-image-tarballs
           path: /tmp/imgs
+
+  pack-nuget:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup the latest .NET 7 SDK
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 7.0.x
+
+      - name: Set up Go (no caching)
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+          cache: false
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          version: '23.3'
+
+      - name: Create release tag
+        id: create-release-tag
+        run: echo "release_tag=$(git describe --tags --always --dirty --match='v*' 2> /dev/null | sed 's/^v//')" >> $GITHUB_OUTPUT
+
+      - name: Pack dotnet clients
+        env:
+          RELEASE_TAG: ${{ steps.create-release-tag.outputs.release_tag }}
+        run: go run github.com/magefile/mage@v1.14.0 -v download packNuget
+
+      - name: Save nupkg artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: nupkg-artifacts
+          path: |
+            ./bin/client/DotNet/G-Research.Armada.Client.${{ steps.create-release-tag.outputs.release_tag }}.nupkg
+            ./bin/client/DotNet/ArmadaProject.Io.Client.${{ steps.create-release-tag.outputs.release_tag }}.nupkg

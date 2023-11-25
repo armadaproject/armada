@@ -41,6 +41,7 @@ import _ from "lodash"
 import { isJobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobId, Match, SortDirection } from "models/lookoutV2Models"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
+import IntervalService from "services/IntervalService"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGetRunErrorService } from "services/lookoutV2/GetRunErrorService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
@@ -87,6 +88,7 @@ interface JobsTableContainerProps {
   logService: ILogService
   cordonService: ICordonService
   debug: boolean
+  autoRefreshMs: number
 }
 
 export type LookoutColumnFilter = {
@@ -130,6 +132,7 @@ export const JobsTableContainer = ({
   logService,
   cordonService,
   debug,
+  autoRefreshMs,
 }: JobsTableContainerProps) => {
   const openSnackbar = useCustomSnackbar()
 
@@ -176,13 +179,30 @@ export const JobsTableContainer = ({
   })
   const { pageIndex, pageSize } = useMemo(() => pagination, [pagination])
 
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(
+    initialPrefs.autoRefresh === undefined ? true : initialPrefs.autoRefresh,
+  )
+
+  const autoRefreshService = useMemo(() => new IntervalService(autoRefreshMs), [autoRefreshMs])
+
+  const onAutoRefreshChange = (autoRefresh: boolean) => {
+    setAutoRefresh(autoRefresh)
+    if (autoRefresh) {
+      autoRefreshService.start()
+    } else {
+      autoRefreshService.stop()
+    }
+  }
+
   // Filtering
   const [columnFilterState, setColumnFilterState] = useState<ColumnFiltersState>(initialPrefs.filters)
   const [lookoutFilters, setLookoutFilters] = useState<LookoutColumnFilter[]>([]) // Parsed later
   const [columnMatches, setColumnMatches] = useState<Record<string, Match>>(initialPrefs.columnMatches)
   const [parseErrors, setParseErrors] = useState<Record<string, string | undefined>>({})
   const [textFieldRefs, setTextFieldRefs] = useState<Record<string, RefObject<HTMLInputElement>>>({})
-  const [activeJobSets, setActiveJobSets] = useState<boolean>(false)
+  const [activeJobSets, setActiveJobSets] = useState<boolean>(
+    initialPrefs.activeJobSets === undefined ? false : initialPrefs.activeJobSets,
+  )
 
   // Sorting
   const [lookoutOrder, setLookoutOrder] = useState<LookoutColumnOrder>(initialPrefs.order)
@@ -248,6 +268,8 @@ export const JobsTableContainer = ({
       visibleColumns: columnVisibility,
       sidebarJobId: sidebarJobId,
       sidebarWidth: sidebarWidth,
+      activeJobSets: activeJobSets,
+      autoRefresh: autoRefresh,
     }
   }
 
@@ -284,6 +306,12 @@ export const JobsTableContainer = ({
     setSidebarJobId(prefs.sidebarJobId)
     setSidebarWidth(prefs.sidebarWidth ?? 600)
     setSelectedRows({})
+    if (prefs.activeJobSets !== undefined) {
+      setActiveJobSets(prefs.activeJobSets)
+    }
+    if (prefs.autoRefresh !== undefined) {
+      onAutoRefreshChange(prefs.autoRefresh)
+    }
 
     // Have to manually set text fields to the filter values since they are uncontrolled
     setTextFields(prefs.filters)
@@ -311,6 +339,8 @@ export const JobsTableContainer = ({
     selectedRows,
     sidebarJobId,
     sidebarWidth,
+    activeJobSets,
+    autoRefresh,
   ])
 
   const addCustomView = (name: string) => {
@@ -338,6 +368,14 @@ export const JobsTableContainer = ({
     setSelectedRows({})
     setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
   }
+
+  useEffect(() => {
+    autoRefreshService.registerCallback(onRefresh)
+    if (autoRefresh) {
+      autoRefreshService.start()
+    }
+    return () => autoRefreshService.stop()
+  }, [])
 
   const onColumnVisibilityChange = (colIdToToggle: ColumnId) => {
     // Refresh if we make a new aggregate column visible
@@ -666,30 +704,18 @@ export const JobsTableContainer = ({
   if (grouping.length === 0) {
     columnsForSelect = columnsForSelect.filter((col) => col.id !== StandardColumnId.Count)
   }
+  const columnStyle = {
+    display: "flex",
+    flexDirection: "column",
+    height: "100%",
+    width: "100%",
+    flex: 1,
+  }
+
   return (
     <Box sx={{ display: "flex", flexDirection: "row", height: "100%", width: "100%" }}>
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          marginX: "0.5em",
-          height: "100%",
-          width: "100%",
-          minWidth: 0,
-          flex: 1,
-        }}
-      >
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            marginY: "0.5em",
-            height: "100%",
-            minHeight: 0,
-            width: "100%",
-            flex: 1,
-          }}
-        >
+      <Box sx={{ ...columnStyle, marginX: "0.5em", minWidth: 0 }}>
+        <Box sx={{ ...columnStyle, marginY: "0.5em", minHeight: 0 }}>
           <JobsTableActionBar
             isLoading={rowsToFetch.length > 0}
             allColumns={columnsForSelect}
@@ -703,6 +729,8 @@ export const JobsTableContainer = ({
               onRefresh()
             }}
             onRefresh={onRefresh}
+            autoRefresh={autoRefresh}
+            onAutoRefreshChange={onAutoRefreshChange}
             onAddAnnotationColumn={addAnnotationCol}
             onRemoveAnnotationColumn={removeAnnotationCol}
             onEditAnnotationColumn={editAnnotationCol}

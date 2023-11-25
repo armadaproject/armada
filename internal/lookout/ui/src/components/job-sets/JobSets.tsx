@@ -70,7 +70,7 @@ export default function JobSets(props: JobSetsProps) {
             />
           </div>
           <div className="job-sets-field">
-            <Tooltip title="Only display Queued, Pending or Running">
+            <Tooltip title="Only display job sets with at least one active job.">
               <FormControlLabel
                 control={
                   <Checkbox
