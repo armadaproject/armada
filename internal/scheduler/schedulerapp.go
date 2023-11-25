@@ -28,7 +28,6 @@ import (
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/serve"
-	"github.com/armadaproject/armada/internal/common/stringinterner"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -168,10 +167,6 @@ func Run(config schedulerconfig.Configuration) error {
 	// Scheduling
 	// ////////////////////////////////////////////////////////////////////////
 	ctx.Infof("setting up scheduling loop")
-	stringInterner, err := stringinterner.New(config.InternedStringsCacheSize)
-	if err != nil {
-		return errors.WithMessage(err, "error creating string interner")
-	}
 
 	submitChecker := NewSubmitChecker(
 		30*time.Minute,
