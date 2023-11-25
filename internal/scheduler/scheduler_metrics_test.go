@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"github.com/armadaproject/armada/internal/common/util"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,13 +20,13 @@ func TestAggregateJobs(t *testing.T) {
 		testfixtures.Test1Cpu4GiJob("queue_a", testfixtures.PriorityClass0),
 	}
 
-	actual := aggregateJobsByAggregator(testJobs, util.Map(testJobs, func(j *jobdb.Job) string { return j.GetQueue() }))
+	actual := aggregateJobs(testJobs)
 
-	expected := map[aggregatorCollectionKey]int{
-		{aggregator: "queue_a", priorityClass: testfixtures.PriorityClass0}: 4,
-		{aggregator: "queue_a", priorityClass: testfixtures.PriorityClass1}: 1,
-		{aggregator: "queue_b", priorityClass: testfixtures.PriorityClass0}: 1,
-		{aggregator: "queue_b", priorityClass: testfixtures.PriorityClass1}: 1,
+	expected := map[collectionKey]int{
+		{queue: "queue_a", priorityClass: testfixtures.PriorityClass0}: 4,
+		{queue: "queue_a", priorityClass: testfixtures.PriorityClass1}: 1,
+		{queue: "queue_b", priorityClass: testfixtures.PriorityClass0}: 1,
+		{queue: "queue_b", priorityClass: testfixtures.PriorityClass1}: 1,
 	}
 
 	assert.Equal(t, expected, actual)
