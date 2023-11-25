@@ -74,25 +74,6 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 		trackedErrorLabels:  trackedErrorLabels,
 		trackedErrorRegexes: trackedErrorRegexes,
 
-		//isLeader: prometheus.NewGauge(
-		//	prometheus.GaugeOpts{
-		//		Namespace: namespace,
-		//		Subsystem: subsystem,
-		//		Name:      "is_leader",
-		//		Help:      "Indicates whether this instance of the scheduler is the leader.",
-		//	},
-		//),
-		//cycleTime: prometheus.NewSummaryVec(
-		//	prometheus.SummaryOpts{
-		//		Namespace:  namespace,
-		//		Subsystem:  subsystem,
-		//		Name:       "cycle_time",
-		//		Help:       "Scheduler cycle time broken up by operation.",
-		//		Objectives: config.CycleTimeConfig.Objectives,
-		//		MaxAge:     config.CycleTimeConfig.MaxAge,
-		//	},
-		//	[]string{"operation"},
-		//),
 		queued: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
@@ -147,15 +128,6 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 			},
 			activeJobLabels,
 		),
-		//fairness: prometheus.NewGaugeVec(
-		//	prometheus.GaugeOpts{
-		//		Namespace: namespace,
-		//		Subsystem: subsystem,
-		//		Name:      "fairness",
-		//		Help:      "Fairness metrics.",
-		//	},
-		//	[]string{"queue", "pool", "measure"},
-		//),
 	}, nil
 }
 
@@ -171,22 +143,22 @@ func (m *Metrics) Describe(ch chan<- *prometheus.Desc) {
 	if m == nil || m.config.Disabled || m.disabled {
 		return
 	}
+	// TODO(albin): Only these metrics are expected to work for now.
 	m.queued.Describe(ch)
 	m.leased.Describe(ch)
 	m.preempted.Describe(ch)
 	m.failed.Describe(ch)
-	m.succeeded.Describe(ch)
 }
 
 func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
 	if m == nil || m.config.Disabled || m.disabled {
 		return
 	}
+	// TODO(albin): Only these metrics are expected to work for now.
 	m.queued.Collect(ch)
 	m.leased.Collect(ch)
 	m.preempted.Collect(ch)
 	m.failed.Collect(ch)
-	m.succeeded.Collect(ch)
 }
 
 func (m *Metrics) UpdateMany(ctx *armadacontext.Context, jsts []jobdb.JobStateTransitions, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) error {
@@ -201,7 +173,6 @@ func (m *Metrics) UpdateMany(ctx *armadacontext.Context, jsts []jobdb.JobStateTr
 	return nil
 }
 
-// TODO(albin): Pending and running metrics are not supported.
 func (m *Metrics) Update(ctx *armadacontext.Context, jst jobdb.JobStateTransitions, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) error {
 	if m == nil || m.config.Disabled || m.disabled {
 		return nil
