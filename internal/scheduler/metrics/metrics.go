@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"regexp"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -25,24 +26,31 @@ const (
 	trackedErrorRegexDoesNotMatch = "0"
 
 	unknown          = "unknown"
-	podUnschedulable = "PodUnschedulable"
-	leaseExpired     = "LeaseExpired"
-	podError         = "PodError"
-	podLeaseReturned = "PodLeaseReturned"
-	podTerminated    = "PodTerminated"
+	podUnschedulable = "podUnschedulable"
+	leaseExpired     = "leaseExpired"
+	podError         = "podError"
+	podLeaseReturned = "podLeaseReturned"
+	podTerminated    = "podTerminated"
 )
 
 type Metrics struct {
-	config   configuration.MetricsConfig
+	config configuration.MetricsConfig
+
+	// Buffer used to avoid allocations when updating metrics.
+	// Protected by a mutex.
+	buffer []string
+	mu     sync.Mutex
+
+	// For disabling metrics at runtime, e.g., if not leader.
 	disabled bool
 
-	// Labels of tracked errors. Used to ensure consistent ordering.
+	// Labels of tracked errors. Stored here to ensure consistent ordering.
 	trackedErrorLabels  []string
 	trackedErrorRegexes []*regexp.Regexp
 
 	// Job metrics.
 	queued    *prometheus.CounterVec
-	leased    *prometheus.CounterVec
+	scheduled *prometheus.CounterVec
 	preempted *prometheus.CounterVec
 	failed    *prometheus.CounterVec
 	cancelled *prometheus.CounterVec
@@ -74,6 +82,8 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 		trackedErrorLabels:  trackedErrorLabels,
 		trackedErrorRegexes: trackedErrorRegexes,
 
+		buffer: make([]string, 0, len(failedJobLabels)),
+
 		queued: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
@@ -83,7 +93,7 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 			},
 			inactiveJobLabels,
 		),
-		leased: prometheus.NewCounterVec(
+		scheduled: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Subsystem: subsystem,
@@ -149,7 +159,7 @@ func (m *Metrics) Describe(ch chan<- *prometheus.Desc) {
 	}
 	// TODO(albin): Only these metrics are expected to work for now.
 	m.queued.Describe(ch)
-	m.leased.Describe(ch)
+	m.scheduled.Describe(ch)
 	m.preempted.Describe(ch)
 	m.failed.Describe(ch)
 }
@@ -160,12 +170,16 @@ func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
 	}
 	// TODO(albin): Only these metrics are expected to work for now.
 	m.queued.Collect(ch)
-	m.leased.Collect(ch)
+	m.scheduled.Collect(ch)
 	m.preempted.Collect(ch)
 	m.failed.Collect(ch)
 }
 
-func (m *Metrics) UpdateMany(ctx *armadacontext.Context, jsts []jobdb.JobStateTransitions, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) error {
+func (m *Metrics) UpdateMany(
+	ctx *armadacontext.Context,
+	jsts []jobdb.JobStateTransitions,
+	jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error,
+) error {
 	if m == nil || m.config.Disabled || m.disabled {
 		return nil
 	}
@@ -177,38 +191,43 @@ func (m *Metrics) UpdateMany(ctx *armadacontext.Context, jsts []jobdb.JobStateTr
 	return nil
 }
 
-func (m *Metrics) Update(ctx *armadacontext.Context, jst jobdb.JobStateTransitions, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) error {
+func (m *Metrics) Update(
+	ctx *armadacontext.Context,
+	jst jobdb.JobStateTransitions,
+	jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error,
+) error {
 	if m == nil || m.config.Disabled || m.disabled {
 		return nil
 	}
-	labels := make([]string, 0, 5+len(m.trackedErrorLabels))
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if jst.Queued {
-		if err := m.updateQueued(labels[0:0], jst.Job); err != nil {
+		if err := m.updateQueued(m.buffer[0:0], jst.Job); err != nil {
 			return err
 		}
 	}
-	if jst.Leased {
-		if err := m.updateLeased(labels[0:0], jst.Job); err != nil {
+	if jst.Scheduled {
+		if err := m.updateLeased(m.buffer[0:0], jst.Job); err != nil {
 			return err
 		}
 	}
 	if jst.Preempted {
-		if err := m.updatePreempted(labels[0:0], jst.Job); err != nil {
+		if err := m.updatePreempted(m.buffer[0:0], jst.Job); err != nil {
 			return err
 		}
 	}
 	if jst.Cancelled {
-		if err := m.updateCancelled(labels[0:0], jst.Job); err != nil {
+		if err := m.updateCancelled(m.buffer[0:0], jst.Job); err != nil {
 			return err
 		}
 	}
 	if jst.Failed {
-		if err := m.updateFailed(ctx, labels[0:0], jst.Job, jobRunErrorsByRunId); err != nil {
+		if err := m.updateFailed(ctx, m.buffer[0:0], jst.Job, jobRunErrorsByRunId); err != nil {
 			return err
 		}
 	}
 	if jst.Succeeded {
-		if err := m.updateSucceeded(labels[0:0], jst.Job); err != nil {
+		if err := m.updateSucceeded(m.buffer[0:0], jst.Job); err != nil {
 			return err
 		}
 	}
@@ -228,7 +247,7 @@ func (m *Metrics) updateLeased(labels []string, job *jobdb.Job) error {
 	labels = append(labels, job.GetQueue())
 	labels = append(labels, executor)
 	labels = append(labels, nodeName)
-	if err := m.updateCounterVecFromJob(m.leased, labels, job); err != nil {
+	if err := m.updateCounterVecFromJob(m.scheduled, labels, job); err != nil {
 		return err
 	}
 	return nil
@@ -293,7 +312,7 @@ func (m *Metrics) updateSucceeded(labels []string, job *jobdb.Job) error {
 
 func executorAndNodeNameFromRun(run *jobdb.JobRun) (string, string) {
 	if run == nil {
-		// This case covers, e.g., jobs failing that have never been leased.
+		// This case covers, e.g., jobs failing that have never been scheduled.
 		return "", ""
 	}
 	return run.Executor(), run.NodeName()
@@ -322,6 +341,7 @@ func errorTypeAndMessageFromError(ctx *armadacontext.Context, err *armadaevents.
 	}
 }
 
+// updateCounterVecFromJob is a helper method to increment vector counters.
 func (m *Metrics) updateCounterVecFromJob(vec *prometheus.CounterVec, labels []string, job *jobdb.Job) error {
 	// Number of jobs.
 	i := len(labels)
@@ -336,11 +356,11 @@ func (m *Metrics) updateCounterVecFromJob(vec *prometheus.CounterVec, labels []s
 	requests := job.GetResourceRequirements().Requests
 	for _, resourceName := range m.config.TrackedResourceNames {
 		labels[i] = string(resourceName)
-		q := requests[resourceName]
-		v := float64(q.MilliValue()) / 1000
 		if c, err := vec.GetMetricWithLabelValues(labels...); err != nil {
 			return err
 		} else {
+			q := requests[resourceName]
+			v := float64(q.MilliValue()) / 1000
 			c.Add(v)
 		}
 	}

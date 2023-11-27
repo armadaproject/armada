@@ -278,16 +278,24 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	txn.Commit()
 
 	// Update metrics based on overallSchedulerResult.
+	if err := s.updateMetricsFromSchedulerResult(ctx, overallSchedulerResult); err != nil {
+		return overallSchedulerResult, err
+	}
+
+	return overallSchedulerResult, nil
+}
+
+func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context, overallSchedulerResult SchedulerResult) error {
 	for _, job := range overallSchedulerResult.ScheduledJobs {
 		if err := s.schedulerMetrics.Update(
 			ctx,
 			jobdb.JobStateTransitions{
-				Job:    job.(*jobdb.Job),
-				Leased: true,
+				Job:       job.(*jobdb.Job),
+				Scheduled: true,
 			},
 			nil,
 		); err != nil {
-			return overallSchedulerResult, nil
+			return err
 		}
 	}
 	for _, job := range overallSchedulerResult.PreemptedJobs {
@@ -299,7 +307,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 			},
 			nil,
 		); err != nil {
-			return overallSchedulerResult, nil
+			return err
 		}
 	}
 	for _, job := range overallSchedulerResult.FailedJobs {
@@ -311,11 +319,10 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 			},
 			nil,
 		); err != nil {
-			return overallSchedulerResult, nil
+			return err
 		}
 	}
-
-	return overallSchedulerResult, nil
+	return nil
 }
 
 // syncState updates jobs in jobDb to match state in postgres and returns all updated jobs.
@@ -361,7 +368,7 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, []jobdb
 
 	txn.Commit()
 
-	// Update metrics.
+	// Update serial to include these updates.
 	if len(updatedJobs) > 0 {
 		s.jobsSerial = updatedJobs[len(updatedJobs)-1].Serial
 	}

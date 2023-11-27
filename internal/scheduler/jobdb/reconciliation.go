@@ -10,11 +10,15 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
+// JobStateTransitions captures the process of updating a job.
+// It bundles the updated job with booleans indicating which state transitions were applied to produce it.
+// These are cumulative in the sense that a job with transitions queued -> scheduled -> queued -> running -> failed
+// will have the fields queued, scheduled, running, and failed set to true.
 type JobStateTransitions struct {
 	Job *Job
 
 	Queued    bool
-	Leased    bool
+	Scheduled bool
 	Pending   bool
 	Running   bool
 	Cancelled bool
@@ -24,9 +28,10 @@ type JobStateTransitions struct {
 	Deleted   bool
 }
 
+// applyRunStateTransitions applies the state transitions of a run to that of the associated job.
 func (jst JobStateTransitions) applyRunStateTransitions(rst RunStateTransitions) JobStateTransitions {
 	jst.Queued = jst.Queued || rst.Returned
-	jst.Leased = jst.Leased || rst.Leased
+	jst.Scheduled = jst.Scheduled || rst.Scheduled
 	jst.Pending = jst.Pending || rst.Pending
 	jst.Running = jst.Running || rst.Running
 	jst.Cancelled = jst.Cancelled || rst.Cancelled
@@ -36,10 +41,12 @@ func (jst JobStateTransitions) applyRunStateTransitions(rst RunStateTransitions)
 	return jst
 }
 
+// RunStateTransitions captures the process of updating a run.
+// It works in the same way as JobStateTransitions does for jobs.
 type RunStateTransitions struct {
 	JobRun *JobRun
 
-	Leased    bool
+	Scheduled bool
 	Returned  bool
 	Pending   bool
 	Running   bool
@@ -50,6 +57,8 @@ type RunStateTransitions struct {
 	Deleted   bool
 }
 
+// ReconcileDifferences reconciles any differences between jobs stored in the jobDb with those provided to this function
+// and returns the updated jobs together with a summary of the state transitions applied to those jobs.
 func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, jobRepoRuns []database.Run) ([]JobStateTransitions, error) {
 	jobRepoRunsById := armadaslices.MapAndGroupByFuncs(
 		jobRepoRuns,
@@ -70,13 +79,12 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 	return jsts, nil
 }
 
-// reconcileJobDifferences takes as its inputs for some job id
+// reconcileJobDifferences takes as its arguments for some job id
 // - the job currently stored in the jobDb, or nil, if there is no such job,
 // - the job stored in the job repository, or nil if there is no such job,
 // - a slice composed of the runs associated with the job stored in the job repository,
-// and returns a new jobdb.Job produced by reconciling any differences between the input jobs.
-// It also returns a JobStateTransitions struct indicating which state transitions were applied.
-// Multiple entries of JobStateTransitions may be true, e.g., if a job started running and failed since the last update.
+// and returns a new jobdb.Job produced by reconciling any differences between the input jobs
+// along with a summary of the state transitions applied to the job.
 //
 // TODO(albin): Pending, running, and preempted are not supported yet.
 func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, jobRepoRuns []*database.Run) (jst JobStateTransitions, err error) {
@@ -88,8 +96,8 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 			return
 		}
 		jst.Queued = true
-		jst.Cancelled = jobRepoJob.Cancelled
 		jst.Failed = jobRepoJob.Failed
+		jst.Cancelled = jobRepoJob.Cancelled
 		jst.Succeeded = jobRepoJob.Succeeded
 	} else if job != nil && jobRepoJob == nil {
 		job = nil
@@ -149,17 +157,20 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 		return
 	} else if jobRun == nil && jobRepoRun != nil {
 		jobRun = jobDb.schedulerRunFromDatabaseRun(jobRepoRun)
-		rst.Leased = true
+		rst.Scheduled = true
+		rst.Returned = jobRepoRun.Returned
 		rst.Pending = jobRepoRun.PendingTimestamp != nil
 		rst.Running = jobRepoRun.Running
 		rst.Cancelled = jobRepoRun.Cancelled
 		rst.Failed = jobRepoRun.Failed
 		rst.Succeeded = jobRepoRun.Succeeded
-		return
 	} else if jobRun != nil && jobRepoRun == nil {
 		rst.Deleted = true
-		return
 	} else if jobRun != nil && jobRepoRun != nil {
+		if jobRepoRun.Running && !jobRun.Running() {
+			jobRun = jobRun.WithRunning(true)
+			rst.Running = true
+		}
 		if jobRepoRun.Succeeded && !jobRun.Succeeded() {
 			jobRun = jobRun.WithSucceeded(true)
 			rst.Succeeded = true
@@ -179,7 +190,6 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 		if jobRepoRun.RunAttempted && !jobRun.RunAttempted() {
 			jobRun = jobRun.WithAttempted(true)
 		}
-		return
 	}
 	return
 }
@@ -190,11 +200,10 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 	if err := proto.Unmarshal(dbJob.SchedulingInfo, schedulingInfo); err != nil {
 		return nil, errors.Wrapf(err, "error unmarshalling scheduling info for job %s", dbJob.JobID)
 	}
-	jobDb.internJobSchedulingInfoStrings(schedulingInfo)
 	return jobDb.NewJob(
 		dbJob.JobID,
-		jobDb.stringInterner.Intern(dbJob.JobSet),
-		jobDb.stringInterner.Intern(dbJob.Queue),
+		dbJob.JobSet,
+		dbJob.Queue,
 		uint32(dbJob.Priority),
 		schedulingInfo,
 		dbJob.Queued,
