@@ -106,20 +106,6 @@ func NewSchedulingContext(
 	}
 }
 
-func (sctx *SchedulingContext) SchedulingKeyFromLegacySchedulerJob(job interfaces.LegacySchedulerJob) schedulerobjects.SchedulingKey {
-	var priority int32
-	if priorityClass, ok := sctx.PriorityClasses[job.GetPriorityClassName()]; ok {
-		priority = priorityClass.Priority
-	}
-	return sctx.SchedulingKeyGenerator.Key(
-		job.GetNodeSelector(),
-		job.GetAffinity(),
-		job.GetTolerations(),
-		job.GetResourceRequirements().Requests,
-		priority,
-	)
-}
-
 func (sctx *SchedulingContext) ClearUnfeasibleSchedulingKeys() {
 	sctx.UnfeasibleSchedulingKeys = make(map[schedulerobjects.SchedulingKey]*JobSchedulingContext)
 }
@@ -682,7 +668,7 @@ func (jctx *JobSchedulingContext) SchedulingKey() (schedulerobjects.SchedulingKe
 	}
 	schedulingKey, ok := jctx.Job.GetSchedulingKey()
 	if !ok {
-		schedulingKey = defaultSchedulingKeyGenerator.KeyFromPodRequirements(jctx.PodRequirements)
+		schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(defaultSchedulingKeyGenerator, jctx.Job)
 	}
 	return schedulingKey, true
 }
