@@ -19,7 +19,7 @@ type Job struct {
 	id string
 	// Name of the queue this job belongs to.
 	queue string
-	// Jobset the job belongs to.
+	// JobSet that the job belongs to.
 	// We store this as it's needed for sending job event messages.
 	jobSet string
 	// Per-queue priority of this job.

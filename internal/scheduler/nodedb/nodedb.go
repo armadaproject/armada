@@ -514,11 +514,12 @@ func gangMinCardinality(jctxs []*schedulercontext.JobSchedulingContext) int {
 
 func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, jctxs []*schedulercontext.JobSchedulingContext) (bool, error) {
 	// Attempt to schedule pods one by one in a transaction.
-	cumulativeScheduled := 0
-	gangMinCardinality := gangMinCardinality(jctxs)
-
+	numScheduled := 0
 	for _, jctx := range jctxs {
-		// Defensively reset `ShouldFail` (this should always be false as the state is re-constructed per cycle but just in case)
+		// In general, we may attempt to schedule a gang multiple times (in
+		// order to find the best fit for this gang); clear out any remnants of
+		// previous attempts.
+		jctx.UnschedulableReason = ""
 		jctx.ShouldFail = false
 
 		node, err := nodeDb.SelectNodeForJobWithTxn(txn, jctx)
@@ -548,13 +549,11 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, jctxs []*schedulercont
 			}
 		}
 
-		cumulativeScheduled++
+		numScheduled++
 	}
-
-	if cumulativeScheduled < gangMinCardinality {
+	if numScheduled < gangMinCardinality(jctxs) {
 		return false, nil
 	}
-
 	return true, nil
 }
 
@@ -573,16 +572,16 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 	req := jctx.PodRequirements
 
 	// Collect all node types that could potentially schedule the pod.
-	matchingNodeTypes, numExcludedNodesByReason, err := nodeDb.NodeTypesMatchingPod(req)
+	matchingNodeTypes, numExcludedNodesByReason, err := nodeDb.NodeTypesMatchingJob(jctx)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create a pctx to be returned to the caller.
 	pctx := &schedulercontext.PodSchedulingContext{
-		Created:           time.Now(),
-		MatchingNodeTypes: matchingNodeTypes,
-		NumNodes:          nodeDb.numNodes,
+		Created:             time.Now(),
+		PreemptedAtPriority: MinPriority,
+		MatchingNodeTypes:   matchingNodeTypes,
+		NumNodes:            nodeDb.numNodes,
 		// TODO: This clone looks unnecessary.
 		NumExcludedNodesByReason: maps.Clone(numExcludedNodesByReason),
 	}
@@ -599,16 +598,16 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 		}
 		numImplicitlyExcludedNodes := pctx.NumNodes - numExplicitlyExcludedNodes
 		if numImplicitlyExcludedNodes > 0 {
-			pctx.NumExcludedNodesByReason[schedulerobjects.PodRequirementsNotMetReasonInsufficientResources] += numImplicitlyExcludedNodes
+			pctx.NumExcludedNodesByReason[PodRequirementsNotMetReasonInsufficientResources] += numImplicitlyExcludedNodes
 		}
 	}()
 
-	// If the targetNodeIdAnnocation is set, consider only that node.
-	if nodeId, ok := req.NodeSelector[schedulerconfig.NodeIdLabel]; ok {
+	// If the nodeIdLabel selector is set, consider only that node.
+	if nodeId, ok := jctx.GetNodeSelector(schedulerconfig.NodeIdLabel); ok {
 		if it, err := txn.Get("nodes", "id", nodeId); err != nil {
 			return nil, errors.WithStack(err)
 		} else {
-			if node, err := nodeDb.selectNodeForPodWithIt(pctx, it, req.Priority, req, true); err != nil {
+			if node, err := nodeDb.selectNodeForPodWithIt(it, jctx, req.Priority, true); err != nil {
 				return nil, err
 			} else {
 				return node, nil
@@ -618,7 +617,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 
 	// Try scheduling at evictedPriority. If this succeeds, no preemption is necessary.
 	pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
-	if node, err := nodeDb.selectNodeForPodAtPriority(txn, pctx, evictedPriority, jctx.PodRequirements); err != nil {
+	if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, evictedPriority, jctx.PodRequirements); err != nil {
 		return nil, err
 	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 		return nil, err
@@ -629,7 +628,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 	// Try scheduling at the job priority. If this fails, scheduling is impossible and we return.
 	// This is an optimisation to avoid looking for preemption targets for unschedulable jobs.
 	pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
-	if node, err := nodeDb.selectNodeForPodAtPriority(txn, pctx, jctx.PodRequirements.Priority, jctx.PodRequirements); err != nil {
+	if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, jctx.PodRequirements.Priority, jctx.PodRequirements); err != nil {
 		return nil, err
 	} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 		return nil, err
@@ -638,7 +637,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 	}
 	pctx.NodeId = ""
 	pctx.Score = 0
-	pctx.ScheduledAtPriority = 0
+	pctx.PreemptedAtPriority = MinPriority
 
 	// Schedule by preventing evicted jobs from being re-scheduled.
 	// This method respect fairness by preventing from re-scheduling jobs that appear as far back in the total order as possible.
@@ -653,7 +652,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 	}
 	pctx.NodeId = ""
 	pctx.Score = 0
-	pctx.ScheduledAtPriority = 0
+	pctx.PreemptedAtPriority = MinPriority
 
 	// Schedule by kicking off jobs currently bound to a node.
 	// This method does not respect fairness when choosing on which node to schedule the job.
@@ -700,7 +699,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithUrgencyPreemption(
 		pctx.NumExcludedNodesByReason = maps.Clone(numExcludedNodesByReason)
 
 		// Try to find a node at this priority.
-		if node, err := nodeDb.selectNodeForPodAtPriority(txn, pctx, priority, req); err != nil {
+		if node, err := nodeDb.selectNodeForPodAtPriority(txn, jctx, priority, req); err != nil {
 			return nil, err
 		} else if err := assertPodSchedulingContextNode(pctx, node); err != nil {
 			return nil, err
@@ -713,12 +712,12 @@ func (nodeDb *NodeDb) selectNodeForJobWithUrgencyPreemption(
 
 func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 	txn *memdb.Txn,
-	pctx *schedulercontext.PodSchedulingContext,
+	jctx *schedulercontext.JobSchedulingContext,
 	priority int32,
 	req *schedulerobjects.PodRequirements,
 ) (*Node, error) {
-	nodeTypeIds := make([]uint64, len(pctx.MatchingNodeTypes))
-	for i, nodeType := range pctx.MatchingNodeTypes {
+	nodeTypeIds := make([]uint64, len(jctx.PodSchedulingContext.MatchingNodeTypes))
+	for i, nodeType := range jctx.PodSchedulingContext.MatchingNodeTypes {
 		nodeTypeIds[i] = nodeType.Id
 	}
 
@@ -743,7 +742,7 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 		return nil, err
 	}
 
-	if node, err := nodeDb.selectNodeForPodWithIt(pctx, it, priority, req, false); err != nil {
+	if node, err := nodeDb.selectNodeForPodWithIt(it, jctx, priority, false); err != nil {
 		return nil, err
 	} else if node != nil {
 		return node, nil
@@ -753,10 +752,9 @@ func (nodeDb *NodeDb) selectNodeForPodAtPriority(
 }
 
 func (nodeDb *NodeDb) selectNodeForPodWithIt(
-	pctx *schedulercontext.PodSchedulingContext,
 	it memdb.ResultIterator,
+	jctx *schedulercontext.JobSchedulingContext,
 	priority int32,
-	req *schedulerobjects.PodRequirements,
 	onlyCheckDynamicRequirements bool,
 ) (*Node, error) {
 	var selectedNode *Node
@@ -777,12 +775,12 @@ func (nodeDb *NodeDb) selectNodeForPodWithIt(
 
 		var matches bool
 		var score int
-		var reason schedulerobjects.PodRequirementsNotMetReason
+		var reason PodRequirementsNotMetReason
 		var err error
 		if onlyCheckDynamicRequirements {
-			matches, score, reason, err = schedulerobjects.DynamicPodRequirementsMet(node.AllocatableByPriority[priority], req)
+			matches, score, reason = DynamicJobRequirementsMet(node.AllocatableByPriority[priority], jctx)
 		} else {
-			matches, score, reason, err = schedulerobjects.PodRequirementsMet(node.Taints, node.Labels, node.TotalResources, node.AllocatableByPriority[priority], req)
+			matches, score, reason, err = JobRequirementsMet(node.Taints, node.Labels, node.TotalResources, node.AllocatableByPriority[priority], jctx)
 		}
 		if err != nil {
 			return nil, err
@@ -792,20 +790,20 @@ func (nodeDb *NodeDb) selectNodeForPodWithIt(
 			if selectedNode == nil || score > selectedNodeScore {
 				selectedNode = node
 				selectedNodeScore = score
-				if selectedNodeScore == schedulerobjects.SchedulableBestScore {
+				if selectedNodeScore == SchedulableBestScore {
 					break
 				}
 			}
 		} else {
 			s := nodeDb.stringFromPodRequirementsNotMetReason(reason)
-			pctx.NumExcludedNodesByReason[s] += 1
+			jctx.PodSchedulingContext.NumExcludedNodesByReason[s] += 1
 		}
 	}
 
 	if selectedNode != nil {
-		pctx.NodeId = selectedNode.Id
-		pctx.Score = selectedNodeScore
-		pctx.ScheduledAtPriority = priority
+		jctx.PodSchedulingContext.NodeId = selectedNode.Id
+		jctx.PodSchedulingContext.Score = selectedNodeScore
+		jctx.PodSchedulingContext.PreemptedAtPriority = priority
 	}
 	return selectedNode, nil
 }
@@ -824,12 +822,11 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	maxPriority := MinPriority
 	for obj := it.Next(); obj != nil && selectedNode == nil; obj = it.Next() {
 		evictedJobSchedulingContext := obj.(*EvictedJobSchedulingContext)
 		evictedJctx := evictedJobSchedulingContext.JobSchedulingContext
-		evictedReq := evictedJctx.PodRequirements
-
-		nodeId, ok := evictedReq.NodeSelector[schedulerconfig.NodeIdLabel]
+		nodeId, ok := evictedJctx.GetNodeSelector(schedulerconfig.NodeIdLabel)
 		if !ok {
 			return nil, errors.Errorf("evicted job %s does not have a nodeIdLabel", evictedJctx.JobId)
 		}
@@ -846,13 +843,15 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 		}
 		nodesById[nodeId] = node
 		evictedJobSchedulingContextsByNodeId[nodeId] = append(evictedJobSchedulingContextsByNodeId[nodeId], evictedJobSchedulingContext)
-
-		matches, _, reason, err := schedulerobjects.PodRequirementsMet(
+		if priority := evictedJctx.PodRequirements.Priority; priority > maxPriority {
+			maxPriority = priority
+		}
+		matches, _, reason, err := JobRequirementsMet(
 			node.Taints,
 			node.Labels,
 			node.TotalResources,
 			node.AllocatableByPriority[evictedPriority],
-			jctx.PodRequirements,
+			jctx,
 		)
 		if err != nil {
 			return nil, err
@@ -866,7 +865,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 	}
 	if selectedNode != nil {
 		pctx.NodeId = selectedNode.Id
-		pctx.ScheduledAtPriority = jctx.PodRequirements.Priority
+		pctx.PreemptedAtPriority = maxPriority
 		for _, evictedJobSchedulingContext := range evictedJobSchedulingContextsByNodeId[selectedNode.Id] {
 			if err := txn.Delete("evictedJobs", evictedJobSchedulingContext); err != nil {
 				return nil, errors.WithStack(err)
@@ -1036,23 +1035,20 @@ func unbindJobFromNodeInPlace(priorityClasses map[string]types.PriorityClass, jo
 	return nil
 }
 
-// NodeTypesMatchingPod returns a slice with all node types a pod could be scheduled on.
+// NodeTypesMatchingJob returns a slice with all node types a pod could be scheduled on.
 // It also returns the number of nodes excluded by reason for exclusion.
-func (nodeDb *NodeDb) NodeTypesMatchingPod(req *schedulerobjects.PodRequirements) ([]*schedulerobjects.NodeType, map[string]int, error) {
+func (nodeDb *NodeDb) NodeTypesMatchingJob(jctx *schedulercontext.JobSchedulingContext) ([]*schedulerobjects.NodeType, map[string]int, error) {
 	selectedNodeTypes := make([]*schedulerobjects.NodeType, 0)
 	numExcludedNodesByReason := make(map[string]int)
 	for _, nodeType := range nodeDb.nodeTypes {
-		matches, reason, err := nodeType.PodRequirementsMet(req)
-		if err != nil {
-			return nil, nil, err
-		}
+		matches, reason := NodeTypeJobRequirementsMet(nodeType, jctx)
 		if matches {
 			selectedNodeTypes = append(selectedNodeTypes, nodeType)
 		} else if reason != nil {
 			s := nodeDb.stringFromPodRequirementsNotMetReason(reason)
 			numExcludedNodesByReason[s] += nodeDb.numNodesByNodeType[nodeType.Id]
 		} else {
-			numExcludedNodesByReason[schedulerobjects.PodRequirementsNotMetReasonUnknown] += nodeDb.numNodesByNodeType[nodeType.Id]
+			numExcludedNodesByReason[PodRequirementsNotMetReasonUnknown] += nodeDb.numNodesByNodeType[nodeType.Id]
 		}
 	}
 	return selectedNodeTypes, numExcludedNodesByReason, nil
@@ -1194,7 +1190,7 @@ func nodeIndexName(keyIndex int) string {
 
 // stringFromPodRequirementsNotMetReason returns the string representation of reason,
 // using a cache to avoid allocating new strings when possible.
-func (nodeDb *NodeDb) stringFromPodRequirementsNotMetReason(reason schedulerobjects.PodRequirementsNotMetReason) string {
+func (nodeDb *NodeDb) stringFromPodRequirementsNotMetReason(reason PodRequirementsNotMetReason) string {
 	h := reason.Sum64()
 	nodeDb.mu.Lock()
 	defer nodeDb.mu.Unlock()
