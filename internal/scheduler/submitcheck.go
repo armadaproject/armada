@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -171,16 +172,12 @@ func (srv *SubmitChecker) check(jctxs []*schedulercontext.JobSchedulingContext) 
 }
 
 func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.JobSchedulingContext) schedulingResult {
-	req := jctx.PodRequirements
-	srv.mu.Lock()
-	schedulingKey := srv.schedulingKeyGenerator.Key(
-		req.NodeSelector,
-		req.Affinity,
-		req.Tolerations,
-		req.ResourceRequirements.Requests,
-		req.Priority,
-	)
-	srv.mu.Unlock()
+	schedulingKey, ok := jctx.Job.GetSchedulingKey()
+	if !ok {
+		srv.mu.Lock()
+		schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(srv.schedulingKeyGenerator, jctx.Job)
+		srv.mu.Unlock()
+	}
 	var result schedulingResult
 	if obj, ok := srv.jobSchedulingResultsCache.Get(schedulingKey); ok {
 		result = obj.(schedulingResult)
@@ -240,8 +237,7 @@ func (srv *SubmitChecker) getSchedulingResult(jctxs []*schedulercontext.JobSched
 
 		numSuccessfullyScheduled := 0
 		for _, jctx := range jctxs {
-			pctx := jctx.PodSchedulingContext
-			if pctx != nil && pctx.NodeId != "" {
+			if jctx.PodSchedulingContext.IsSuccessful() {
 				numSuccessfullyScheduled++
 			}
 		}

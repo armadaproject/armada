@@ -91,8 +91,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		} else if ok {
 			// We scheduled the minimum number of gang jobs required.
 			for _, jctx := range gctx.JobSchedulingContexts {
-				pctx := jctx.PodSchedulingContext
-				if pctx != nil && pctx.NodeId != "" {
+				if pctx := jctx.PodSchedulingContext; pctx.IsSuccessful() {
 					scheduledJobs = append(scheduledJobs, jctx.Job)
 					nodeIdByJobId[jctx.JobId] = pctx.NodeId
 				}

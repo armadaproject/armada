@@ -106,20 +106,6 @@ func NewSchedulingContext(
 	}
 }
 
-func (sctx *SchedulingContext) SchedulingKeyFromLegacySchedulerJob(job interfaces.LegacySchedulerJob) schedulerobjects.SchedulingKey {
-	var priority int32
-	if priorityClass, ok := sctx.PriorityClasses[job.GetPriorityClassName()]; ok {
-		priority = priorityClass.Priority
-	}
-	return sctx.SchedulingKeyGenerator.Key(
-		job.GetNodeSelector(),
-		job.GetAffinity(),
-		job.GetTolerations(),
-		job.GetResourceRequirements().Requests,
-		priority,
-	)
-}
-
 func (sctx *SchedulingContext) ClearUnfeasibleSchedulingKeys() {
 	sctx.UnfeasibleSchedulingKeys = make(map[schedulerobjects.SchedulingKey]*JobSchedulingContext)
 }
@@ -240,8 +226,7 @@ func (sctx *SchedulingContext) AddGangSchedulingContext(gctx *GangSchedulingCont
 			return false, err
 		}
 		allJobsEvictedInThisRound = allJobsEvictedInThisRound && evictedInThisRound
-		isSuccess := jctx.IsSuccessful()
-		if isSuccess {
+		if jctx.IsSuccessful() {
 			numberOfSuccessfulJobs++
 		}
 	}
@@ -585,6 +570,36 @@ func (gctx *GangSchedulingContext) Cardinality() int {
 	return len(gctx.JobSchedulingContexts)
 }
 
+type GangSchedulingFit struct {
+	// The number of jobs in the gang that were successfully scheduled.
+	NumScheduled int
+	// The mean PreemptedAtPriority among successfully scheduled pods in the gang.
+	MeanPreemptedAtPriority float64
+}
+
+func (f GangSchedulingFit) Less(other GangSchedulingFit) bool {
+	return f.NumScheduled < other.NumScheduled || f.NumScheduled == other.NumScheduled && f.MeanPreemptedAtPriority > other.MeanPreemptedAtPriority
+}
+
+func (gctx *GangSchedulingContext) Fit() GangSchedulingFit {
+	f := GangSchedulingFit{}
+	totalPreemptedAtPriority := int32(0)
+	for _, jctx := range gctx.JobSchedulingContexts {
+		pctx := jctx.PodSchedulingContext
+		if !pctx.IsSuccessful() {
+			continue
+		}
+		f.NumScheduled++
+		totalPreemptedAtPriority += pctx.PreemptedAtPriority
+	}
+	if f.NumScheduled == 0 {
+		f.MeanPreemptedAtPriority = float64(totalPreemptedAtPriority)
+	} else {
+		f.MeanPreemptedAtPriority = float64(totalPreemptedAtPriority) / float64(f.NumScheduled)
+	}
+	return f
+}
+
 // JobSchedulingContext is created by the scheduler and contains information
 // about the decision made by the scheduler for a particular job.
 type JobSchedulingContext struct {
@@ -653,13 +668,20 @@ func (jctx *JobSchedulingContext) SchedulingKey() (schedulerobjects.SchedulingKe
 	}
 	schedulingKey, ok := jctx.Job.GetSchedulingKey()
 	if !ok {
-		schedulingKey = defaultSchedulingKeyGenerator.KeyFromPodRequirements(jctx.PodRequirements)
+		schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(defaultSchedulingKeyGenerator, jctx.Job)
 	}
 	return schedulingKey, true
 }
 
 func (jctx *JobSchedulingContext) IsSuccessful() bool {
 	return jctx.UnschedulableReason == ""
+}
+
+func (jctx *JobSchedulingContext) Fail(unschedulableReason string) {
+	jctx.UnschedulableReason = unschedulableReason
+	if pctx := jctx.PodSchedulingContext; pctx != nil {
+		pctx.NodeId = ""
+	}
 }
 
 func (jctx *JobSchedulingContext) AddNodeSelector(key, value string) {
@@ -718,15 +740,18 @@ type PodSchedulingContext struct {
 	NodeId string
 	// Score indicates how well the pod fits on the selected node.
 	Score int
-	// Priority class priority at which this pod was scheduled.
-	// Only set if NodeId is.
-	ScheduledAtPriority int32
+	// Maximum priority that this pod preempted other pods at.
+	PreemptedAtPriority int32
 	// Node types on which this pod could be scheduled.
 	MatchingNodeTypes []*schedulerobjects.NodeType
 	// Total number of nodes in the cluster when trying to schedule.
 	NumNodes int
 	// Number of nodes excluded by reason.
 	NumExcludedNodesByReason map[string]int
+}
+
+func (pctx *PodSchedulingContext) IsSuccessful() bool {
+	return pctx != nil && pctx.NodeId != ""
 }
 
 func (pctx *PodSchedulingContext) String() string {
