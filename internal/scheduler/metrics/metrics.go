@@ -132,11 +132,15 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 }
 
 func (m *Metrics) Disable() {
-	m.disabled = true
+	if m != nil {
+		m.disabled = true
+	}
 }
 
 func (m *Metrics) Enable() {
-	m.disabled = false
+	if m != nil {
+		m.disabled = false
+	}
 }
 
 func (m *Metrics) Describe(ch chan<- *prometheus.Desc) {

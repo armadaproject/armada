@@ -11,6 +11,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -82,13 +83,9 @@ func (jobDb *JobDb) NewJob(
 	cancelled bool,
 	created int64,
 ) *Job {
-	var schedulingKey schedulerobjects.SchedulingKey
-	priorityClass := jobDb.defaultPriorityClass
-	if pc, ok := jobDb.priorityClasses[schedulingInfo.PriorityClassName]; ok {
-		priorityClass = pc
-	}
-	if preq := schedulingInfo.GetPodRequirements(); preq != nil {
-		schedulingKey = jobDb.schedulingKeyGenerator.KeyFromPodRequirements(preq)
+	priorityClass, ok := jobDb.priorityClasses[schedulingInfo.PriorityClassName]
+	if !ok {
+		priorityClass = jobDb.defaultPriorityClass
 	}
 	job := &Job{
 		id:                      jobId,
@@ -99,7 +96,6 @@ func (jobDb *JobDb) NewJob(
 		queuedVersion:           queuedVersion,
 		requestedPriority:       priority,
 		submittedTime:           created,
-		schedulingKey:           schedulingKey,
 		jobSchedulingInfo:       jobDb.internJobSchedulingInfoStrings(schedulingInfo),
 		priorityClass:           priorityClass,
 		cancelRequested:         cancelRequested,
@@ -108,6 +104,7 @@ func (jobDb *JobDb) NewJob(
 		runsById:                map[uuid.UUID]*JobRun{},
 	}
 	job.ensureJobSchedulingInfoFieldsInitialised()
+	job.schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(jobDb.schedulingKeyGenerator, job)
 	return job
 }
 
