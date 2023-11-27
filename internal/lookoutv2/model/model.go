@@ -32,6 +32,7 @@ type Job struct {
 	LastTransitionTime time.Time
 	Memory             int64
 	Owner              string
+	Namespace          string
 	Priority           int64
 	PriorityClass      *string
 	Queue              string

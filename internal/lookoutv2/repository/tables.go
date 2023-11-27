@@ -22,6 +22,7 @@ const (
 
 	jobIdCol              = "job_id"
 	queueCol              = "queue"
+	namespaceCol          = "namespace"
 	jobSetCol             = "jobset"
 	stateCol              = "state"
 	ownerCol              = "owner"
@@ -74,6 +75,7 @@ func NewTables() *LookoutTables {
 			"queue":              queueCol,
 			"jobSet":             jobSetCol,
 			"owner":              ownerCol,
+			"namespace":          namespaceCol,
 			"state":              stateCol,
 			"cpu":                cpuCol,
 			"memory":             memoryCol,
@@ -89,6 +91,7 @@ func NewTables() *LookoutTables {
 			queueCol:              util.StringListToSet([]string{jobTable, userAnnotationLookupTable}),
 			jobSetCol:             util.StringListToSet([]string{jobTable, userAnnotationLookupTable}),
 			ownerCol:              util.StringListToSet([]string{jobTable}),
+			namespaceCol:          util.StringListToSet([]string{jobTable}),
 			stateCol:              util.StringListToSet([]string{jobTable}),
 			cpuCol:                util.StringListToSet([]string{jobTable}),
 			memoryCol:             util.StringListToSet([]string{jobTable}),
@@ -109,6 +112,7 @@ func NewTables() *LookoutTables {
 			queueCol:            util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains}),
 			jobSetCol:           util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains}),
 			ownerCol:            util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains}),
+			namespaceCol:        util.StringListToSet([]string{model.MatchExact, model.MatchStartsWith, model.MatchContains}),
 			stateCol:            util.StringListToSet([]string{model.MatchExact, model.MatchAnyOf}),
 			cpuCol:              util.StringListToSet([]string{model.MatchExact, model.MatchGreaterThan, model.MatchLessThan, model.MatchGreaterThanOrEqualTo, model.MatchLessThanOrEqualTo}),
 			memoryCol:           util.StringListToSet([]string{model.MatchExact, model.MatchGreaterThan, model.MatchLessThan, model.MatchGreaterThanOrEqualTo, model.MatchLessThanOrEqualTo}),
@@ -129,6 +133,7 @@ func NewTables() *LookoutTables {
 		},
 		groupableColumns: util.StringListToSet([]string{
 			queueCol,
+			namespaceCol,
 			jobSetCol,
 			stateCol,
 		}),

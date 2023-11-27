@@ -94,6 +94,7 @@ function createManyJobs(queue: string, jobSet: string, n: number): Job[] {
       lastTransitionTime: "",
       memory: 0,
       owner: "",
+      namespace: "",
       priority: 0,
       runs: [],
       state: JobState.Running,

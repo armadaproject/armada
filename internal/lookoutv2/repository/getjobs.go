@@ -35,6 +35,7 @@ type jobRow struct {
 	jobId              string
 	queue              string
 	owner              string
+	namespace          string
 	jobSet             string
 	cpu                int64
 	memory             int64
@@ -168,6 +169,7 @@ func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotati
 			LastTransitionTime: row.lastTransitionTime,
 			Memory:             row.memory,
 			Owner:              row.owner,
+			Namespace:          row.namespace,
 			Priority:           row.priority,
 			PriorityClass:      database.ParseNullString(row.priorityClass),
 			Queue:              row.queue,
@@ -249,6 +251,7 @@ func makeJobRows(ctx *armadacontext.Context, tx pgx.Tx, tmpTableName string) ([]
 			j.job_id,
 			j.queue,
 			j.owner,
+			j.namespace,
 			j.jobset,
 			j.cpu,
 			j.memory,
@@ -279,6 +282,7 @@ func makeJobRows(ctx *armadacontext.Context, tx pgx.Tx, tmpTableName string) ([]
 			&row.jobId,
 			&row.queue,
 			&row.owner,
+			&row.namespace,
 			&row.jobSet,
 			&row.cpu,
 			&row.memory,

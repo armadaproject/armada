@@ -29,6 +29,7 @@ type JobSimulator struct {
 	queue            string
 	jobSet           string
 	owner            string
+	namespace        string
 	annotationPrefix string
 	jobId            *armadaevents.Uuid
 	apiJob           *api.Job
@@ -68,10 +69,11 @@ func NewJobSimulator(converter *instructions.InstructionConverter, store *lookou
 	}
 }
 
-func (js *JobSimulator) Submit(queue, jobSet, owner string, timestamp time.Time, opts *JobOptions) *JobSimulator {
+func (js *JobSimulator) Submit(queue, jobSet, owner, namespace string, timestamp time.Time, opts *JobOptions) *JobSimulator {
 	js.queue = queue
 	js.jobSet = jobSet
 	js.owner = owner
+	js.namespace = namespace
 	jobId := opts.JobId
 	if jobId == "" {
 		jobId = util.NewULID()
@@ -157,6 +159,7 @@ func (js *JobSimulator) Submit(queue, jobSet, owner string, timestamp time.Time,
 		LastTransitionTime: ts,
 		Memory:             opts.Memory.Value(),
 		Owner:              owner,
+		Namespace:          apiJob.Namespace,
 		Priority:           int64(opts.Priority),
 		PriorityClass:      &priorityClass,
 		Queue:              queue,

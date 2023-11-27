@@ -1511,7 +1511,7 @@ func makeQueued(opts *createJobsOpts, converter *instructions.InstructionConvert
 		tSubmit = *opts.lastTransitionTime
 	}
 	NewJobSimulator(converter, store).
-		Submit(opts.queue, opts.jobSet, owner, tSubmit, &JobOptions{
+		Submit(opts.queue, opts.jobSet, owner, namespace, tSubmit, &JobOptions{
 			Annotations: opts.annotations,
 		}).
 		Build()
@@ -1527,7 +1527,7 @@ func makeLeased(opts *createJobsOpts, converter *instructions.InstructionConvert
 		lastTransitionTime = *opts.lastTransitionTime
 	}
 	NewJobSimulator(converter, store).
-		Submit(opts.queue, opts.jobSet, owner, tSubmit, &JobOptions{
+		Submit(opts.queue, opts.jobSet, owner, namespace, tSubmit, &JobOptions{
 			Annotations: opts.annotations,
 		}).
 		Lease(uuid.NewString(), lastTransitionTime).
@@ -1544,7 +1544,7 @@ func makePending(opts *createJobsOpts, converter *instructions.InstructionConver
 		lastTransitionTime = *opts.lastTransitionTime
 	}
 	NewJobSimulator(converter, store).
-		Submit(opts.queue, opts.jobSet, owner, tSubmit, &JobOptions{
+		Submit(opts.queue, opts.jobSet, owner, namespace, tSubmit, &JobOptions{
 			Annotations: opts.annotations,
 		}).
 		Pending(uuid.NewString(), cluster, lastTransitionTime).
@@ -1562,7 +1562,7 @@ func makeRunning(opts *createJobsOpts, converter *instructions.InstructionConver
 	}
 	runId := uuid.NewString()
 	NewJobSimulator(converter, store).
-		Submit(opts.queue, opts.jobSet, owner, tSubmit, &JobOptions{
+		Submit(opts.queue, opts.jobSet, owner, namespace, tSubmit, &JobOptions{
 			Annotations: opts.annotations,
 		}).
 		Pending(runId, cluster, lastTransitionTime.Add(-1*time.Minute)).
@@ -1581,7 +1581,7 @@ func makeSucceeded(opts *createJobsOpts, converter *instructions.InstructionConv
 	}
 	runId := uuid.NewString()
 	NewJobSimulator(converter, store).
-		Submit(opts.queue, opts.jobSet, owner, tSubmit, &JobOptions{
+		Submit(opts.queue, opts.jobSet, owner, namespace, tSubmit, &JobOptions{
 			Annotations: opts.annotations,
 		}).
 		Pending(runId, cluster, lastTransitionTime.Add(-2*time.Minute)).
@@ -1602,7 +1602,7 @@ func makeFailed(opts *createJobsOpts, converter *instructions.InstructionConvert
 	}
 	runId := uuid.NewString()
 	NewJobSimulator(converter, store).
-		Submit(opts.queue, opts.jobSet, owner, tSubmit, &JobOptions{
+		Submit(opts.queue, opts.jobSet, owner, namespace, tSubmit, &JobOptions{
 			Annotations: opts.annotations,
 		}).
 		Pending(runId, cluster, lastTransitionTime.Add(-2*time.Minute)).
@@ -1622,7 +1622,7 @@ func makeCancelled(opts *createJobsOpts, converter *instructions.InstructionConv
 		lastTransitionTime = *opts.lastTransitionTime
 	}
 	NewJobSimulator(converter, store).
-		Submit(opts.queue, opts.jobSet, owner, tSubmit, &JobOptions{
+		Submit(opts.queue, opts.jobSet, owner, namespace, tSubmit, &JobOptions{
 			Annotations: opts.annotations,
 		}).
 		Cancelled(lastTransitionTime).
@@ -1640,7 +1640,7 @@ func makePreempted(opts *createJobsOpts, converter *instructions.InstructionConv
 	}
 	runId := uuid.NewString()
 	NewJobSimulator(converter, store).
-		Submit(opts.queue, opts.jobSet, owner, tSubmit, &JobOptions{
+		Submit(opts.queue, opts.jobSet, owner, namespace, tSubmit, &JobOptions{
 			Annotations: opts.annotations,
 		}).
 		Pending(runId, cluster, lastTransitionTime.Add(-2*time.Minute)).

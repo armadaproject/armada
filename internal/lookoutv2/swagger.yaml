@@ -38,6 +38,8 @@ definitions:
         type: string
         minLength: 1
         x-nullable: false
+      namespace:
+        type: string
       jobSet:
         type: string
         minLength: 1
