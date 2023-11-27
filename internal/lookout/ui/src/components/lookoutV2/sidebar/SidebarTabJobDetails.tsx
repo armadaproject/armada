@@ -16,10 +16,10 @@ export const SidebarTabJobDetails = ({ job, jobSpecService }: SidebarTabJobDetai
     { key: "Queue", value: job.queue },
     { key: "Job Set", value: job.jobSet },
     { key: "Owner", value: job.owner },
-    ...(job.namespace && job.namespace !== "" ? [{ key: "Namespace", value: job.namespace }] : []),
+    ...(job.namespace ? [{ key: "Namespace", value: job.namespace }] : []),
     { key: "Priority", value: job.priority.toString() },
     { key: "Run Count", value: job.runs.length.toString() },
-    ...(job.cancelReason && job.cancelReason !== "" ? [{ key: "Cancel Reason", value: job.cancelReason }] : []),
+    ...(job.cancelReason ? [{ key: "Cancel Reason", value: job.cancelReason }] : []),
   ]
   return (
     <>
