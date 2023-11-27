@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"fmt"
 	"math/rand"
+	"sync/atomic"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -62,18 +63,25 @@ type Simulator struct {
 	sequenceNumber int
 	// Events stored in a priority queue ordered first by timestamp and second by sequence number.
 	eventLog EventLog
-	// Simulated events are emitted on these output channels.
-	// Create a channel by calling s.Output() before running the simulator.
-	outputs []chan *armadaevents.EventSequence
+	// Simulated events are emitted on these event channels.
+	// Create a channel by calling s.StateTransitions() before running the simulator.
+	stateTransitionChannels []chan StateTransition
 	// Global job scheduling rate-limiter.
 	limiter *rate.Limiter
 	// Per-queue job scheduling rate-limiters.
 	limiterByQueue map[string]*rate.Limiter
 	// Used to generate random numbers from a chosen seed.
 	rand *rand.Rand
+	// Used to ensure each job is given a unique time stamp.
+	logicalJobCreatedTimestamp atomic.Int64
 	// If true, scheduler logs are omitted.
 	// This since the logs are very verbose when scheduling large numbers of jobs.
 	SuppressSchedulerLogs bool
+}
+
+type StateTransition struct {
+	Jobs          []*jobdb.Job
+	EventSequence *armadaevents.EventSequence
 }
 
 func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, schedulingConfig configuration.SchedulingConfig) (*Simulator, error) {
@@ -89,6 +97,15 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 	if err := validateWorkloadSpec(workloadSpec); err != nil {
 		return nil, err
 	}
+	jobDb := jobdb.NewJobDb(
+		schedulingConfig.Preemption.PriorityClasses,
+		schedulingConfig.Preemption.DefaultPriorityClass,
+	)
+	randomSeed := workloadSpec.RandomSeed
+	if randomSeed == 0 {
+		// Seed the RNG using the local time if no explic random seed is provided.
+		randomSeed = time.Now().Unix()
+	}
 	s := &Simulator{
 		ClusterSpec:                              clusterSpec,
 		WorkloadSpec:                             workloadSpec,
@@ -96,7 +113,7 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 		jobTemplateByJobId:                       make(map[string]*JobTemplate),
 		jobTemplatesByDependencyIds:              make(map[string]map[string]*JobTemplate),
 		activeJobTemplatesById:                   make(map[string]*JobTemplate),
-		jobDb:                                    jobdb.NewJobDb(),
+		jobDb:                                    jobDb,
 		nodeDbByPoolAndExecutorGroup:             make(map[string][]*nodedb.NodeDb),
 		poolByNodeId:                             make(map[string]string),
 		nodeDbByExecutorName:                     make(map[string]*nodedb.NodeDb),
@@ -107,7 +124,7 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 			schedulingConfig.MaximumSchedulingBurst,
 		),
 		limiterByQueue: make(map[string]*rate.Limiter),
-		rand:           rand.New(rand.NewSource(workloadSpec.RandomSeed)),
+		rand:           rand.New(rand.NewSource(randomSeed)),
 	}
 	s.limiter.SetBurstAt(s.time, schedulingConfig.MaximumSchedulingBurst)
 	if err := s.setupClusters(); err != nil {
@@ -122,7 +139,7 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 // Run runs the scheduler until all jobs have finished successfully.
 func (s *Simulator) Run(ctx *armadacontext.Context) error {
 	defer func() {
-		for _, c := range s.outputs {
+		for _, c := range s.stateTransitionChannels {
 			close(c)
 		}
 	}()
@@ -143,11 +160,11 @@ func (s *Simulator) Run(ctx *armadacontext.Context) error {
 	return nil
 }
 
-// Output returns a channel on which all simulated events are sent.
+// StateTransitions returns a channel on which all simulated events are sent.
 // This function must be called before *Simulator.Run.
-func (s *Simulator) Output() <-chan *armadaevents.EventSequence {
-	c := make(chan *armadaevents.EventSequence, 128)
-	s.outputs = append(s.outputs, c)
+func (s *Simulator) StateTransitions() <-chan StateTransition {
+	c := make(chan StateTransition, 128)
+	s.stateTransitionChannels = append(s.stateTransitionChannels, c)
 	return c
 }
 
@@ -361,6 +378,7 @@ func (s *Simulator) pushScheduleEvent(time time.Time) {
 
 func (s *Simulator) handleSimulatorEvent(ctx *armadacontext.Context, event Event) error {
 	s.time = event.time
+	ctx = armadacontext.New(ctx.Context, ctx.FieldLogger.WithField("simulated time", event.time))
 	switch e := event.eventSequenceOrScheduleEvent.(type) {
 	case *armadaevents.EventSequence:
 		if err := s.handleEventSequence(ctx, e); err != nil {
@@ -445,7 +463,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				s.schedulingConfig.Preemption.NodeEvictionProbability,
 				s.schedulingConfig.Preemption.NodeOversubscriptionEvictionProbability,
 				s.schedulingConfig.Preemption.ProtectedFractionOfFairShare,
-				scheduler.NewSchedulerJobRepositoryAdapter(s.jobDb, txn),
+				scheduler.NewSchedulerJobRepositoryAdapter(txn),
 				nodeDb,
 				// TODO: Necessary to support partial eviction.
 				nil,
@@ -513,13 +531,13 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				}
 				failedJobs[i] = job.WithQueued(false).WithFailed(true)
 			}
-			if err := s.jobDb.Upsert(txn, preemptedJobs); err != nil {
+			if err := txn.Upsert(preemptedJobs); err != nil {
 				return err
 			}
-			if err := s.jobDb.Upsert(txn, scheduledJobs); err != nil {
+			if err := txn.Upsert(scheduledJobs); err != nil {
 				return err
 			}
-			if err := s.jobDb.Upsert(txn, failedJobs); err != nil {
+			if err := txn.Upsert(failedJobs); err != nil {
 				return err
 			}
 
@@ -562,66 +580,67 @@ func (s *Simulator) handleEventSequence(ctx *armadacontext.Context, es *armadaev
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 	eventsToPublish := make([]*armadaevents.EventSequence_Event, 0, len(es.Events))
-	for _, event := range es.Events {
-		var ok bool
-		var err error = nil
+	jobs := make([]*jobdb.Job, len(es.Events))
+	for i, event := range es.Events {
+		var err error
+		var shouldPublish bool
 		switch eventType := event.GetEvent().(type) {
 		case *armadaevents.EventSequence_Event_SubmitJob:
 			s.shouldSchedule = true
-			ok, err = s.handleSubmitJob(s.jobDb, txn, event.GetSubmitJob(), *event.Created, es)
+			jobs[i], shouldPublish, err = s.handleSubmitJob(txn, event.GetSubmitJob(), *event.Created, es)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
-			ok, err = s.handleJobRunLeased(txn, event.GetJobRunLeased())
+			jobs[i], shouldPublish, err = s.handleJobRunLeased(txn, event.GetJobRunLeased())
 		case *armadaevents.EventSequence_Event_JobSucceeded:
 			s.shouldSchedule = true
-			ok, err = s.handleJobSucceeded(txn, event.GetJobSucceeded())
+			jobs[i], shouldPublish, err = s.handleJobSucceeded(txn, event.GetJobSucceeded())
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
 			s.shouldSchedule = true
-			ok, err = s.handleJobRunPreempted(txn, event.GetJobRunPreempted())
-		case *armadaevents.EventSequence_Event_ReprioritisedJob,
-			*armadaevents.EventSequence_Event_JobDuplicateDetected,
-			*armadaevents.EventSequence_Event_ResourceUtilisation,
-			*armadaevents.EventSequence_Event_StandaloneIngressInfo,
-			*armadaevents.EventSequence_Event_JobRunAssigned,
-			*armadaevents.EventSequence_Event_JobRunRunning,
-			*armadaevents.EventSequence_Event_JobRunSucceeded,
-			*armadaevents.EventSequence_Event_JobRunErrors,
-			*armadaevents.EventSequence_Event_ReprioritiseJob,
-			*armadaevents.EventSequence_Event_ReprioritiseJobSet,
-			*armadaevents.EventSequence_Event_CancelledJob,
-			*armadaevents.EventSequence_Event_JobRequeued,
-			*armadaevents.EventSequence_Event_PartitionMarker,
-			*armadaevents.EventSequence_Event_JobErrors,
-			*armadaevents.EventSequence_Event_CancelJob,
-			*armadaevents.EventSequence_Event_CancelJobSet:
-			// These events can be safely ignored.
-			ctx.Debugf("Ignoring event type %T", event)
+			jobs[i], shouldPublish, err = s.handleJobRunPreempted(txn, event.GetJobRunPreempted())
+		case *armadaevents.EventSequence_Event_JobRunErrors:
+			for _, e := range event.GetJobRunErrors().Errors {
+				if e.GetJobRunPreemptedError() == nil {
+					return errors.Errorf("received unexpected JobRunErrors reason: %T", e.Reason)
+				}
+			}
+		case *armadaevents.EventSequence_Event_JobErrors:
+			for _, e := range event.GetJobErrors().Errors {
+				if e.GetJobRunPreemptedError() == nil {
+					return errors.Errorf("received unexpected JobErrors reason: %T", e.Reason)
+				}
+			}
 		default:
-			// This is an event type we haven't consider; log a warning.
+			// This is an event type we haven't considered
 			return errors.Errorf("received unknown event type %T", eventType)
 		}
 		if err != nil {
 			return err
 		}
-		if ok {
+
+		if shouldPublish {
 			eventsToPublish = append(eventsToPublish, event)
 		}
 	}
 	txn.Commit()
 	es.Events = eventsToPublish
 	if len(es.Events) > 0 {
-		for _, c := range s.outputs {
-			c <- es
+		stateTransition := StateTransition{
+			Jobs:          jobs,
+			EventSequence: es,
+		}
+
+		for _, c := range s.stateTransitionChannels {
+			c <- stateTransition
 		}
 	}
 	return nil
 }
 
-func (s *Simulator) handleSubmitJob(jobDb *jobdb.JobDb, txn *jobdb.Txn, e *armadaevents.SubmitJob, time time.Time, eventSequence *armadaevents.EventSequence) (bool, error) {
+func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, time time.Time, eventSequence *armadaevents.EventSequence) (*jobdb.Job, bool, error) {
 	schedulingInfo, err := scheduleringester.SchedulingInfoFromSubmitJob(e, time, s.schedulingConfig.Preemption.PriorityClasses)
 	if err != nil {
-		return false, err
+		return nil, false, err
 	}
-	job := jobDb.NewJob(
+	job := s.jobDb.NewJob(
 		armadaevents.UlidFromProtoUuid(e.JobId).String(),
 		eventSequence.JobSetName,
 		eventSequence.Queue,
@@ -632,20 +651,20 @@ func (s *Simulator) handleSubmitJob(jobDb *jobdb.JobDb, txn *jobdb.Txn, e *armad
 		false,
 		false,
 		false,
-		time.UnixNano(),
+		s.logicalJobCreatedTimestamp.Add(1),
 	)
-	if err := s.jobDb.Upsert(txn, []*jobdb.Job{job}); err != nil {
-		return false, err
+	if err := txn.Upsert([]*jobdb.Job{job}); err != nil {
+		return nil, false, err
 	}
-	return true, nil
+	return job, true, nil
 }
 
-func (s *Simulator) handleJobRunLeased(txn *jobdb.Txn, e *armadaevents.JobRunLeased) (bool, error) {
+func (s *Simulator) handleJobRunLeased(txn *jobdb.Txn, e *armadaevents.JobRunLeased) (*jobdb.Job, bool, error) {
 	jobId := armadaevents.UlidFromProtoUuid(e.JobId).String()
-	job := s.jobDb.GetById(txn, jobId)
+	job := txn.GetById(jobId)
 	jobTemplate := s.jobTemplateByJobId[jobId]
 	if jobTemplate == nil {
-		return false, errors.Errorf("no jobTemplate associated with job %s", jobId)
+		return nil, false, errors.Errorf("no jobTemplate associated with job %s", jobId)
 	}
 	jobSuccessTime := s.time
 	jobSuccessTime = jobSuccessTime.Add(s.generateRandomShiftedExponentialDuration(s.ClusterSpec.PendingDelayDistribution))
@@ -666,7 +685,12 @@ func (s *Simulator) handleJobRunLeased(txn *jobdb.Txn, e *armadaevents.JobRunLea
 			},
 		},
 	)
-	return true, nil
+
+	updatedJob := job.WithUpdatedRun(job.LatestRun().WithRunning(true))
+	if err := txn.Upsert([]*jobdb.Job{updatedJob}); err != nil {
+		return nil, false, err
+	}
+	return updatedJob, true, nil
 }
 
 func (s *Simulator) generateRandomShiftedExponentialDuration(rv ShiftedExponential) time.Duration {
@@ -681,15 +705,15 @@ func generateRandomShiftedExponentialDuration(r *rand.Rand, rv ShiftedExponentia
 	}
 }
 
-func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSucceeded) (bool, error) {
+func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSucceeded) (*jobdb.Job, bool, error) {
 	jobId := armadaevents.UlidFromProtoUuid(e.JobId).String()
-	job := s.jobDb.GetById(txn, jobId)
+	job := txn.GetById(jobId)
 	if job == nil || job.InTerminalState() {
 		// Job already terminated; nothing more to do.
-		return false, nil
+		return nil, false, nil
 	}
-	if err := s.jobDb.BatchDelete(txn, []string{jobId}); err != nil {
-		return false, err
+	if err := txn.BatchDelete([]string{jobId}); err != nil {
+		return nil, false, err
 	}
 
 	// Subtract the allocation of this job from the queue allocation.
@@ -702,7 +726,7 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 
 	// Unbind the job from the node on which it was scheduled.
 	if err := s.unbindRunningJob(job); err != nil {
-		return false, errors.WithMessagef(err, "failed to unbind job %s", job.Id())
+		return nil, false, errors.WithMessagef(err, "failed to unbind job %s", job.Id())
 	}
 
 	// Increase the successful job count for this jobTemplate.
@@ -742,7 +766,7 @@ func (s *Simulator) handleJobSucceeded(txn *jobdb.Txn, e *armadaevents.JobSuccee
 		}
 		delete(s.jobTemplatesByDependencyIds, jobTemplate.Id)
 	}
-	return true, nil
+	return job.WithSucceeded(true).WithUpdatedRun(run.WithRunning(false).WithSucceeded(true)), true, nil
 }
 
 func (s *Simulator) unbindRunningJob(job *jobdb.Job) error {
@@ -776,9 +800,9 @@ func (s *Simulator) unbindRunningJob(job *jobdb.Job) error {
 	return nil
 }
 
-func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRunPreempted) (bool, error) {
+func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRunPreempted) (*jobdb.Job, bool, error) {
 	jobId := armadaevents.UlidFromProtoUuid(e.PreemptedJobId).String()
-	job := s.jobDb.GetById(txn, jobId)
+	job := txn.GetById(jobId)
 
 	// Submit a retry for this job.
 	jobTemplate := s.jobTemplateByJobId[job.GetId()]
@@ -799,7 +823,11 @@ func (s *Simulator) handleJobRunPreempted(txn *jobdb.Txn, e *armadaevents.JobRun
 		},
 	)
 	s.jobTemplateByJobId[retryJobId.String()] = jobTemplate
-	return true, nil
+	updatedJob := job.WithUpdatedRun(job.LatestRun().WithReturned(true))
+	if err := txn.Upsert([]*jobdb.Job{updatedJob}); err != nil {
+		return nil, false, err
+	}
+	return updatedJob, true, nil
 }
 
 func maxTime(a, b time.Time) time.Time {

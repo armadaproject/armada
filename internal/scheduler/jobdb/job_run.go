@@ -34,6 +34,19 @@ type JobRun struct {
 	runAttempted bool
 }
 
+func (run *JobRun) Equal(other *JobRun) bool {
+	if run == other {
+		return true
+	}
+	if run == nil && other != nil {
+		return false
+	}
+	if run != nil && other == nil {
+		return false
+	}
+	return *run == *other
+}
+
 func MinimalRun(id uuid.UUID, creationTime int64) *JobRun {
 	return &JobRun{
 		id:      id,

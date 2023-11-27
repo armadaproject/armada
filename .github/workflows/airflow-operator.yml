@@ -19,6 +19,8 @@ on:
       - 'scripts/build-airflow-operator.sh'
       - 'scripts/build-python-client.sh'
       - 'third_party/airflow/**'
+      - './magefiles/tests.go'
+      - './magefiles/python.go'
 
   pull_request:
     branches-ignore:

@@ -278,7 +278,10 @@ func (a ResourceList) IsStrictlyNonNegative() bool {
 	return true
 }
 
-// IsStrictlyLessOrEqual returns false if there is a quantity in b greater than that in a and true otherwise.
+// IsStrictlyLessOrEqual returns false if
+// - there is a quantity in b greater than that in a or
+// - there is a non-zero quantity in b not in a
+// and true otherwise.
 func (a ResourceList) IsStrictlyLessOrEqual(b ResourceList) bool {
 	for t, q := range b.Resources {
 		if q.Cmp(a.Get(t)) == -1 {

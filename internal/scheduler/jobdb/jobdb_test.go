@@ -4,106 +4,123 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
+func NewTestJobDb() *JobDb {
+	return NewJobDb(
+		map[string]types.PriorityClass{
+			"foo": {},
+			"bar": {},
+		},
+		"foo",
+	)
+}
+
 func TestJobDb_TestUpsert(t *testing.T) {
-	jobDb := NewJobDb()
+	jobDb := NewTestJobDb()
 
 	job1 := newJob()
 	job2 := newJob()
 	txn := jobDb.WriteTxn()
 
 	// Insert Job
-	err := jobDb.Upsert(txn, []*Job{job1, job2})
+	err := txn.Upsert([]*Job{job1, job2})
 	require.NoError(t, err)
-	retrieved := jobDb.GetById(txn, job1.Id())
+	retrieved := txn.GetById(job1.Id())
 	assert.Equal(t, job1, retrieved)
-	retrieved = jobDb.GetById(txn, job2.Id())
+	retrieved = txn.GetById(job2.Id())
 	assert.Equal(t, job2, retrieved)
 
 	// Updated Job
 	job1Updated := job1.WithQueued(true)
-	err = jobDb.Upsert(txn, []*Job{job1Updated})
+	err = txn.Upsert([]*Job{job1Updated})
 	require.NoError(t, err)
-	retrieved = jobDb.GetById(txn, job1.Id())
+	retrieved = txn.GetById(job1.Id())
 	assert.Equal(t, job1Updated, retrieved)
 
 	// Can't insert with read only transaction
-	err = jobDb.Upsert(jobDb.ReadTxn(), []*Job{job1})
+	err = (jobDb.ReadTxn()).Upsert([]*Job{job1})
 	require.Error(t, err)
 }
 
 func TestJobDb_TestGetById(t *testing.T) {
-	jobDb := NewJobDb()
+	jobDb := NewTestJobDb()
 	job1 := newJob()
 	job2 := newJob()
 	txn := jobDb.WriteTxn()
 
-	err := jobDb.Upsert(txn, []*Job{job1, job2})
+	err := txn.Upsert([]*Job{job1, job2})
 	require.NoError(t, err)
-	assert.Equal(t, job1, jobDb.GetById(txn, job1.Id()))
-	assert.Equal(t, job2, jobDb.GetById(txn, job2.Id()))
-	assert.Nil(t, jobDb.GetById(txn, util.NewULID()))
+	assert.Equal(t, job1, txn.GetById(job1.Id()))
+	assert.Equal(t, job2, txn.GetById(job2.Id()))
+	assert.Nil(t, txn.GetById(util.NewULID()))
 }
 
 func TestJobDb_TestGetByRunId(t *testing.T) {
-	jobDb := NewJobDb()
+	jobDb := NewTestJobDb()
 	job1 := newJob().WithNewRun("executor", "nodeId", "nodeName")
 	job2 := newJob().WithNewRun("executor", "nodeId", "nodeName")
 	txn := jobDb.WriteTxn()
 
-	err := jobDb.Upsert(txn, []*Job{job1, job2})
+	err := txn.Upsert([]*Job{job1, job2})
 	require.NoError(t, err)
-	assert.Equal(t, job1, jobDb.GetByRunId(txn, job1.LatestRun().id))
-	assert.Equal(t, job2, jobDb.GetByRunId(txn, job2.LatestRun().id))
-	assert.Nil(t, jobDb.GetByRunId(txn, uuid.New()))
+	assert.Equal(t, job1, txn.GetByRunId(job1.LatestRun().id))
+	assert.Equal(t, job2, txn.GetByRunId(job2.LatestRun().id))
+	assert.Nil(t, txn.GetByRunId(uuid.New()))
 
-	err = jobDb.BatchDelete(txn, []string{job1.Id()})
+	err = txn.BatchDelete([]string{job1.Id()})
 	require.NoError(t, err)
-	assert.Nil(t, jobDb.GetByRunId(txn, job1.LatestRun().id))
+	assert.Nil(t, txn.GetByRunId(job1.LatestRun().id))
 }
 
 func TestJobDb_TestHasQueuedJobs(t *testing.T) {
-	jobDb := NewJobDb()
+	jobDb := NewTestJobDb()
 	job1 := newJob().WithNewRun("executor", "nodeId", "nodeName")
 	job2 := newJob().WithNewRun("executor", "nodeId", "nodeName")
 	txn := jobDb.WriteTxn()
 
-	err := jobDb.Upsert(txn, []*Job{job1, job2})
+	err := txn.Upsert([]*Job{job1, job2})
 	require.NoError(t, err)
-	assert.False(t, jobDb.HasQueuedJobs(txn, job1.queue))
-	assert.False(t, jobDb.HasQueuedJobs(txn, "non-existent-queue"))
+	assert.False(t, txn.HasQueuedJobs(job1.queue))
+	assert.False(t, txn.HasQueuedJobs("non-existent-queue"))
 
-	err = jobDb.Upsert(txn, []*Job{job1.WithQueued(true)})
+	err = txn.Upsert([]*Job{job1.WithQueued(true)})
 	require.NoError(t, err)
-	assert.True(t, jobDb.HasQueuedJobs(txn, job1.queue))
-	assert.False(t, jobDb.HasQueuedJobs(txn, "non-existent-queue"))
+	assert.True(t, txn.HasQueuedJobs(job1.queue))
+	assert.False(t, txn.HasQueuedJobs("non-existent-queue"))
 }
 
 func TestJobDb_TestQueuedJobs(t *testing.T) {
-	jobDb := NewJobDb()
+	jobDb := NewTestJobDb()
 	jobs := make([]*Job, 10)
 	for i := 0; i < len(jobs); i++ {
 		jobs[i] = newJob().WithQueued(true)
 		jobs[i].priority = 1000
-		jobs[i].created = int64(i) // Ensures jobs are ordered.
+		jobs[i].submittedTime = int64(i) // Ensures jobs are ordered.
 	}
 	shuffledJobs := slices.Clone(jobs)
 	rand.Shuffle(len(shuffledJobs), func(i, j int) { shuffledJobs[i], shuffledJobs[j] = shuffledJobs[j], jobs[i] })
 	txn := jobDb.WriteTxn()
 
-	err := jobDb.Upsert(txn, jobs)
+	err := txn.Upsert(jobs)
 	require.NoError(t, err)
 	collect := func() []*Job {
 		retrieved := make([]*Job, 0)
-		iter := jobDb.QueuedJobs(txn, jobs[0].GetQueue())
+		iter := txn.QueuedJobs(jobs[0].GetQueue())
 		for !iter.Done() {
 			j, _ := iter.Next()
 			retrieved = append(retrieved, j)
@@ -114,43 +131,43 @@ func TestJobDb_TestQueuedJobs(t *testing.T) {
 	assert.Equal(t, jobs, collect())
 
 	// remove some jobs
-	err = jobDb.BatchDelete(txn, []string{jobs[1].id, jobs[3].id, jobs[5].id})
+	err = txn.BatchDelete([]string{jobs[1].id, jobs[3].id, jobs[5].id})
 	require.NoError(t, err)
 	assert.Equal(t, []*Job{jobs[0], jobs[2], jobs[4], jobs[6], jobs[7], jobs[8], jobs[9]}, collect())
 
 	// dequeue some jobs
-	err = jobDb.Upsert(txn, []*Job{jobs[7].WithQueued(false), jobs[4].WithQueued(false)})
+	err = txn.Upsert([]*Job{jobs[7].WithQueued(false), jobs[4].WithQueued(false)})
 	require.NoError(t, err)
 	assert.Equal(t, []*Job{jobs[0], jobs[2], jobs[6], jobs[8], jobs[9]}, collect())
 
 	// change the priority of a job to put it to the front of the queue
 	updatedJob := jobs[8].WithPriority(0)
-	err = jobDb.Upsert(txn, []*Job{updatedJob})
+	err = txn.Upsert([]*Job{updatedJob})
 	require.NoError(t, err)
 	assert.Equal(t, []*Job{updatedJob, jobs[0], jobs[2], jobs[6], jobs[9]}, collect())
 
 	// new job
 	job10 := newJob().WithPriority(90).WithQueued(true)
-	err = jobDb.Upsert(txn, []*Job{job10})
+	err = txn.Upsert([]*Job{job10})
 	require.NoError(t, err)
 	assert.Equal(t, []*Job{updatedJob, job10, jobs[0], jobs[2], jobs[6], jobs[9]}, collect())
 
 	// clear all jobs
-	err = jobDb.BatchDelete(txn, []string{updatedJob.id, job10.id, jobs[0].id, jobs[2].id, jobs[6].id, jobs[9].id})
+	err = txn.BatchDelete([]string{updatedJob.id, job10.id, jobs[0].id, jobs[2].id, jobs[6].id, jobs[9].id})
 	require.NoError(t, err)
 	assert.Equal(t, []*Job{}, collect())
 }
 
 func TestJobDb_TestGetAll(t *testing.T) {
-	jobDb := NewJobDb()
+	jobDb := NewTestJobDb()
 	job1 := newJob().WithNewRun("executor", "nodeId", "nodeName")
 	job2 := newJob().WithNewRun("executor", "nodeId", "nodeName")
 	txn := jobDb.WriteTxn()
-	assert.Equal(t, []*Job{}, jobDb.GetAll(txn))
+	assert.Equal(t, []*Job{}, txn.GetAll())
 
-	err := jobDb.Upsert(txn, []*Job{job1, job2})
+	err := txn.Upsert([]*Job{job1, job2})
 	require.NoError(t, err)
-	actual := jobDb.GetAll(txn)
+	actual := txn.GetAll()
 	expected := []*Job{job1, job2}
 	slices.SortFunc(expected, func(a, b *Job) bool {
 		return a.id > b.id
@@ -162,49 +179,50 @@ func TestJobDb_TestGetAll(t *testing.T) {
 }
 
 func TestJobDb_TestTransactions(t *testing.T) {
-	jobDb := NewJobDb()
+	jobDb := NewTestJobDb()
 	job := newJob()
 
 	txn1 := jobDb.WriteTxn()
 	txn2 := jobDb.ReadTxn()
-	err := jobDb.Upsert(txn1, []*Job{job})
+	err := txn1.Upsert([]*Job{job})
 	require.NoError(t, err)
 
-	assert.NotNil(t, jobDb.GetById(txn1, job.id))
-	assert.Nil(t, jobDb.GetById(txn2, job.id))
+	assert.NotNil(t, txn1.GetById(job.id))
+	assert.Nil(t, txn2.GetById(job.id))
 	txn1.Commit()
 
 	txn3 := jobDb.ReadTxn()
-	assert.NotNil(t, jobDb.GetById(txn3, job.id))
+	assert.NotNil(t, txn3.GetById(job.id))
 
-	assert.Error(t, jobDb.Upsert(txn1, []*Job{job})) // should be error as you can't insert after committing
+	assert.Error(t, txn1.Upsert([]*Job{job})) // should be error as you can't insert after committing
 }
 
 func TestJobDb_TestBatchDelete(t *testing.T) {
-	jobDb := NewJobDb()
+	jobDb := NewTestJobDb()
 	job1 := newJob().WithQueued(true).WithNewRun("executor", "nodeId", "nodeName")
 	job2 := newJob().WithQueued(true).WithNewRun("executor", "nodeId", "nodeName")
 	txn := jobDb.WriteTxn()
 
 	// Insert Job
-	err := jobDb.Upsert(txn, []*Job{job1, job2})
+	err := txn.Upsert([]*Job{job1, job2})
 	require.NoError(t, err)
-	err = jobDb.BatchDelete(txn, []string{job2.Id()})
+	err = txn.BatchDelete([]string{job2.Id()})
 	require.NoError(t, err)
-	assert.NotNil(t, jobDb.GetById(txn, job1.Id()))
-	assert.Nil(t, jobDb.GetById(txn, job2.Id()))
+	assert.NotNil(t, txn.GetById(job1.Id()))
+	assert.Nil(t, txn.GetById(job2.Id()))
 
 	// Can't delete with read only transaction
-	err = jobDb.BatchDelete(jobDb.ReadTxn(), []string{job1.Id()})
+	err = (jobDb.ReadTxn()).BatchDelete([]string{job1.Id()})
 	require.Error(t, err)
 }
 
-func TestJobDb_SchedulingKey(t *testing.T) {
+func TestJobDb_SchedulingKeyIsPopulated(t *testing.T) {
 	podRequirements := &schedulerobjects.PodRequirements{
 		NodeSelector: map[string]string{"foo": "bar"},
 		Priority:     2,
 	}
 	jobSchedulingInfo := &schedulerobjects.JobSchedulingInfo{
+		PriorityClassName: "foo",
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
 				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
@@ -213,18 +231,1021 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 			},
 		},
 	}
-	jobDb := NewJobDb()
+	jobDb := NewTestJobDb()
 	job := jobDb.NewJob("jobId", "jobSet", "queue", 1, jobSchedulingInfo, false, 0, false, false, false, 2)
-	assert.Equal(t,
-		jobDb.schedulingKeyGenerator.Key(
-			podRequirements.NodeSelector,
-			podRequirements.Affinity,
-			podRequirements.Tolerations,
-			podRequirements.ResourceRequirements.Requests,
-			podRequirements.Priority,
-		),
-		job.schedulingKey,
-	)
+
+	actualSchedulingKey, ok := job.GetSchedulingKey()
+	require.True(t, ok)
+	assert.Equal(t, interfaces.SchedulingKeyFromLegacySchedulerJob(jobDb.schedulingKeyGenerator, job), actualSchedulingKey)
+}
+
+func TestJobDb_SchedulingKey(t *testing.T) {
+	tests := map[string]struct {
+		podRequirementsA   *schedulerobjects.PodRequirements
+		priorityClassNameA string
+		podRequirementsB   *schedulerobjects.PodRequirements
+		priorityClassNameB string
+		equal              bool
+	}{
+		"annotations does not affect key": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property1": "value1",
+					"property3": "value3",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Annotations: map[string]string{
+					"foo":  "bar",
+					"fish": "chips",
+					"salt": "pepper",
+				},
+				Priority:         1,
+				PreemptionPolicy: "abc",
+				ResourceRequirements: v1.ResourceRequirements{
+					Limits: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("1"),
+						"memory": resource.MustParse("2"),
+						"gpu":    resource.MustParse("3"),
+					},
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("2"),
+						"memory": resource.MustParse("2"),
+						"gpu":    resource.MustParse("2"),
+					},
+				},
+			},
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property1": "value1",
+					"property3": "value3",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Annotations: map[string]string{
+					"foo":  "bar",
+					"fish": "chips",
+				},
+				Priority:         1,
+				PreemptionPolicy: "abc",
+				ResourceRequirements: v1.ResourceRequirements{
+					Limits: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("1"),
+						"memory": resource.MustParse("2"),
+						"gpu":    resource.MustParse("3"),
+					},
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("2"),
+						"memory": resource.MustParse("2"),
+						"gpu":    resource.MustParse("2"),
+					},
+				},
+			},
+			equal: true,
+		},
+		"preemptionPolicy does not affect key": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property1": "value1",
+					"property3": "value3",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority:         1,
+				PreemptionPolicy: "abc",
+				ResourceRequirements: v1.ResourceRequirements{
+					Limits: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("1"),
+						"memory": resource.MustParse("2"),
+						"gpu":    resource.MustParse("3"),
+					},
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("2"),
+						"memory": resource.MustParse("2"),
+						"gpu":    resource.MustParse("2"),
+					},
+				},
+			},
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property1": "value1",
+					"property3": "value3",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority:         1,
+				PreemptionPolicy: "abcdef",
+				ResourceRequirements: v1.ResourceRequirements{
+					Limits: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("1"),
+						"memory": resource.MustParse("2"),
+						"gpu":    resource.MustParse("3"),
+					},
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("2"),
+						"memory": resource.MustParse("2"),
+						"gpu":    resource.MustParse("2"),
+					},
+				},
+			},
+			equal: true,
+		},
+		"limits does not affect key": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property1": "value1",
+					"property3": "value3",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority:         1,
+				PreemptionPolicy: "abc",
+				ResourceRequirements: v1.ResourceRequirements{
+					Limits: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("1"),
+						"memory": resource.MustParse("2"),
+						"gpu":    resource.MustParse("3"),
+					},
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property1": "value1",
+					"property3": "value3",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority:         1,
+				PreemptionPolicy: "abcdef",
+				ResourceRequirements: v1.ResourceRequirements{
+					Limits: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("1"),
+						"memory": resource.MustParse("2"),
+						"gpu":    resource.MustParse("4"),
+					},
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+			equal: true,
+		},
+		"priority": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property1": "value1",
+					"property3": "value3",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property1": "value1",
+					"property3": "value3",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 2,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+			equal: true,
+		},
+		"zero request does not affect key": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property1": "value1",
+					"property3": "value3",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property3": "value3",
+					"property1": "value1",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+						"foo":    resource.MustParse("0"),
+					},
+				},
+			},
+			equal: true,
+		},
+		"nodeSelector key": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property1": "value1",
+					"property3": "value3",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property3": "value3",
+					"property1": "value1",
+					"property2": "value2",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+		},
+		"nodeSelector value": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property1": "value1",
+					"property3": "value3",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property3": "value3",
+					"property1": "value1-2",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+		},
+		"nodeSelector different keys, same values": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"my-cool-label": "value",
+				},
+			},
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"my-other-cool-label": "value",
+				},
+			},
+			equal: false,
+		},
+		"toleration key": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property1": "value1",
+					"property3": "value3",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property3": "value3",
+					"property1": "value1",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a-2",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+		},
+		"toleration operator": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property1": "value1",
+					"property3": "value3",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property3": "value3",
+					"property1": "value1",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b-2",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+		},
+		"toleration value": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property1": "value1",
+					"property3": "value3",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property3": "value3",
+					"property1": "value1",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b-2",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+		},
+		"toleration effect": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property1": "value1",
+					"property3": "value3",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property3": "value3",
+					"property1": "value1",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d-2",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+		},
+		"toleration tolerationSeconds": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property1": "value1",
+					"property3": "value3",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property3": "value3",
+					"property1": "value1",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(2),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+			equal: true,
+		},
+		"key ordering": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property1": "value1",
+					"property3": "value3",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"cpu":    resource.MustParse("4"),
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+					},
+				},
+			},
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				NodeSelector: map[string]string{
+					"property3": "value3",
+					"property1": "value1",
+				},
+				Tolerations: []v1.Toleration{{
+					Key:               "a",
+					Operator:          "b",
+					Value:             "b",
+					Effect:            "d",
+					TolerationSeconds: pointer.Int64(1),
+				}},
+				Priority: 1,
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{
+						"memory": resource.MustParse("5"),
+						"gpu":    resource.MustParse("6"),
+						"cpu":    resource.MustParse("4"),
+					},
+				},
+			},
+			equal: true,
+		},
+		"affinity PodAffinity ignored": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k1",
+											Operator: "o1",
+											Values:   []string{"v1", "v2"},
+										},
+									},
+									MatchFields: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k2",
+											Operator: "o2",
+											Values:   []string{"v10", "v20"},
+										},
+									},
+								},
+							},
+						},
+					},
+					PodAffinity: &v1.PodAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
+							{
+								LabelSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{
+										"label1": "labelval1",
+										"label2": "labelval2",
+										"label3": "labelval3",
+									},
+									MatchExpressions: []metav1.LabelSelectorRequirement{
+										{
+											Key:      "k1",
+											Operator: "o1",
+											Values:   []string{"v1", "v2", "v3"},
+										},
+									},
+								},
+								Namespaces:  []string{"n1, n2, n3"},
+								TopologyKey: "topkey1",
+								NamespaceSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{
+										"label10": "labelval1",
+										"label20": "labelval2",
+										"label30": "labelval3",
+									},
+									MatchExpressions: []metav1.LabelSelectorRequirement{
+										{
+											Key:      "k10",
+											Operator: "o10",
+											Values:   []string{"v10", "v20", "v30"},
+										},
+									},
+								},
+							},
+						},
+					},
+					PodAntiAffinity: nil,
+				},
+			},
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k1",
+											Operator: "o1",
+											Values:   []string{"v1", "v2"},
+										},
+									},
+									MatchFields: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k2",
+											Operator: "o2",
+											Values:   []string{"v10", "v20"},
+										},
+									},
+								},
+							},
+						},
+					},
+					PodAffinity: &v1.PodAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []v1.PodAffinityTerm{
+							{
+								LabelSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{
+										"label1": "labelval1-2",
+										"label2": "labelval2",
+										"label3": "labelval3",
+									},
+									MatchExpressions: []metav1.LabelSelectorRequirement{
+										{
+											Key:      "k1",
+											Operator: "o1",
+											Values:   []string{"v1", "v2", "v3"},
+										},
+									},
+								},
+								Namespaces:  []string{"n1, n2, n3"},
+								TopologyKey: "topkey1",
+								NamespaceSelector: &metav1.LabelSelector{
+									MatchLabels: map[string]string{
+										"label10": "labelval1",
+										"label20": "labelval2",
+										"label30": "labelval3",
+									},
+									MatchExpressions: []metav1.LabelSelectorRequirement{
+										{
+											Key:      "k10",
+											Operator: "o10",
+											Values:   []string{"v10", "v20", "v30"},
+										},
+									},
+								},
+							},
+						},
+					},
+					PodAntiAffinity: nil,
+				},
+			},
+			equal: true,
+		},
+		"affinity NodeAffinity MatchExpressions": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k1",
+											Operator: "o1",
+											Values:   []string{"v1", "v2"},
+										},
+									},
+									MatchFields: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k2",
+											Operator: "o2",
+											Values:   []string{"v10", "v20"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k1",
+											Operator: "o1",
+											Values:   []string{"v1", "v3"},
+										},
+									},
+									MatchFields: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k2",
+											Operator: "o2",
+											Values:   []string{"v10", "v20"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			equal: false,
+		},
+		"affinity NodeAffinity MatchFields": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k1",
+											Operator: "o1",
+											Values:   []string{"v1", "v2"},
+										},
+									},
+									MatchFields: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k2",
+											Operator: "o2",
+											Values:   []string{"v10", "v20"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k1",
+											Operator: "o1",
+											Values:   []string{"v1", "v2"},
+										},
+									},
+									MatchFields: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k2",
+											Operator: "o2",
+											Values:   []string{"v10", "v21"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			equal: false,
+		},
+		"affinity NodeAffinity multiple MatchFields": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k1",
+											Operator: "o1",
+											Values:   []string{"v1", "v2"},
+										},
+									},
+									MatchFields: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k2",
+											Operator: "o2",
+											Values:   []string{"v10", "v20"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				Affinity: &v1.Affinity{
+					NodeAffinity: &v1.NodeAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: &v1.NodeSelector{
+							NodeSelectorTerms: []v1.NodeSelectorTerm{
+								{
+									MatchExpressions: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k1",
+											Operator: "o1",
+											Values:   []string{"v1", "v2"},
+										},
+									},
+									MatchFields: []v1.NodeSelectorRequirement{
+										{
+											Key:      "k2",
+											Operator: "o2",
+											Values:   []string{"v10", "v20"},
+										},
+										{
+											Key:      "k3",
+											Operator: "o2",
+											Values:   []string{"v10", "v20"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			equal: false,
+		},
+		"priority class names equal": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{"cpu": resource.MustParse("2")},
+				},
+			},
+			priorityClassNameA: "my-cool-priority-class",
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{"cpu": resource.MustParse("2")},
+				},
+			},
+			priorityClassNameB: "my-cool-priority-class",
+			equal:              true,
+		},
+		"priority class names different": {
+			podRequirementsA: &schedulerobjects.PodRequirements{
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{"cpu": resource.MustParse("2")},
+				},
+			},
+			priorityClassNameA: "my-cool-priority-class",
+			podRequirementsB: &schedulerobjects.PodRequirements{
+				ResourceRequirements: v1.ResourceRequirements{
+					Requests: map[v1.ResourceName]resource.Quantity{"cpu": resource.MustParse("2")},
+				},
+			},
+			priorityClassNameB: "my-cool-other-priority-class",
+			equal:              false,
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			skg := schedulerobjects.NewSchedulingKeyGenerator()
+
+			jobSchedulingInfoA := proto.Clone(jobSchedulingInfo).(*schedulerobjects.JobSchedulingInfo)
+			jobSchedulingInfoA.PriorityClassName = tc.priorityClassNameA
+			jobSchedulingInfoA.ObjectRequirements[0].Requirements = &schedulerobjects.ObjectRequirements_PodRequirements{PodRequirements: tc.podRequirementsA}
+			jobA := baseJob.WithJobSchedulingInfo(jobSchedulingInfoA)
+
+			jobSchedulingInfoB := proto.Clone(jobSchedulingInfo).(*schedulerobjects.JobSchedulingInfo)
+			jobSchedulingInfoB.PriorityClassName = tc.priorityClassNameB
+			jobSchedulingInfoB.ObjectRequirements[0].Requirements = &schedulerobjects.ObjectRequirements_PodRequirements{PodRequirements: tc.podRequirementsB}
+			jobB := baseJob.WithJobSchedulingInfo(jobSchedulingInfoB)
+
+			schedulingKeyA := interfaces.SchedulingKeyFromLegacySchedulerJob(skg, jobA)
+			schedulingKeyB := interfaces.SchedulingKeyFromLegacySchedulerJob(skg, jobB)
+
+			// Generate the keys several times to check their consistency.
+			for i := 1; i < 10; i++ {
+				assert.Equal(t, interfaces.SchedulingKeyFromLegacySchedulerJob(skg, jobA), schedulingKeyA)
+				assert.Equal(t, interfaces.SchedulingKeyFromLegacySchedulerJob(skg, jobB), schedulingKeyB)
+			}
+
+			if tc.equal {
+				assert.Equal(t, schedulingKeyA, schedulingKeyB)
+			} else {
+				assert.NotEqual(t, schedulingKeyA, schedulingKeyB)
+			}
+		})
+	}
 }
 
 func newJob() *Job {
@@ -232,9 +1253,9 @@ func newJob() *Job {
 		id:                util.NewULID(),
 		queue:             "test-queue",
 		priority:          0,
-		created:           0,
+		submittedTime:     0,
 		queued:            false,
 		runsById:          map[uuid.UUID]*JobRun{},
-		jobSchedulingInfo: schedulingInfo,
+		jobSchedulingInfo: jobSchedulingInfo,
 	}
 }

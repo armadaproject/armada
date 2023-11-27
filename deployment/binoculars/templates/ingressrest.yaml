@@ -29,7 +29,7 @@ spec:
     http:
       paths:
         - path: /api(/|$)(.*)
-          pathType: ImplementationSpecific
+          pathType: Prefix
           backend:
             service:
               name: {{ include "binoculars.name" $root }}
