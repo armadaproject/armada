@@ -944,8 +944,10 @@ func TestScheduler_TestSyncState(t *testing.T) {
 					Succeeded: true,
 				},
 			},
-			expectedUpdatedJobs: []*jobdb.Job{leasedJob.WithUpdatedRun(leasedJob.LatestRun().WithSucceeded(true))},
-			expectedJobDbIds:    []string{},
+			expectedUpdatedJobs: []*jobdb.Job{leasedJob.
+				WithUpdatedRun(leasedJob.LatestRun().WithSucceeded(true)).
+				WithSucceeded(true)},
+			expectedJobDbIds: []string{},
 		},
 		"job requeued": {
 			initialJobs: []*jobdb.Job{leasedJob},

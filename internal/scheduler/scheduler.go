@@ -580,7 +580,7 @@ func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobd
 func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error, txn *jobdb.Txn) (*armadaevents.EventSequence, error) {
 	var events []*armadaevents.EventSequence_Event
 
-	// Is the job already in a terminal state?  If so then don't send any more messages
+	// Is the job already in a terminal state? If so then don't send any more messages
 	if job.InTerminalState() {
 		return nil, nil
 	}
