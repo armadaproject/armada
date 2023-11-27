@@ -46,7 +46,6 @@ import (
 type PulsarSubmitServer struct {
 	api.UnimplementedSubmitServer
 	Producer        pulsar.Producer
-	Permissions     authorization.PermissionChecker
 	QueueRepository repository.QueueRepository
 	// Maximum size of Pulsar messages
 	MaxAllowedMessageSize uint
@@ -623,53 +622,16 @@ func (srv *PulsarSubmitServer) Authorize(
 	ctx *armadacontext.Context,
 	queueName string,
 	anyPerm permission.Permission,
-	perm queue.PermissionVerb,
-) (userId string, groups []string, err error) {
+	perm queue.PermissionVerb) (string, []string, error) {
 	principal := authorization.GetPrincipal(ctx)
-	userId = principal.GetName()
-	groups = principal.GetGroupNames()
+	userId := principal.GetName()
+	groups := principal.GetGroupNames()
 	q, err := srv.QueueRepository.GetQueue(queueName)
 	if err != nil {
-		return
+		return userId, groups, err
 	}
-	if !srv.Permissions.UserHasPermission(ctx, anyPerm) {
-		if !principalHasQueuePermissions(principal, q, perm) {
-			err = &armadaerrors.ErrUnauthorized{
-				Principal:  principal.GetName(),
-				Permission: string(perm),
-				Action:     string(perm) + " for queue " + q.Name,
-				Message:    "",
-			}
-			err = errors.WithStack(err)
-			return
-		}
-	}
-
-	return
-}
-
-// principalHasQueuePermissions returns true if the principal has permissions to perform some action,
-// as specified by the provided verb, for a specific queue, and false otherwise.
-func principalHasQueuePermissions(principal authorization.Principal, q queue.Queue, verb queue.PermissionVerb) bool {
-	subjects := queue.PermissionSubjects{}
-	for _, group := range principal.GetGroupNames() {
-		subjects = append(subjects, queue.PermissionSubject{
-			Name: group,
-			Kind: queue.PermissionSubjectKindGroup,
-		})
-	}
-	subjects = append(subjects, queue.PermissionSubject{
-		Name: principal.GetName(),
-		Kind: queue.PermissionSubjectKindUser,
-	})
-
-	for _, subject := range subjects {
-		if q.HasPermission(subject, verb) {
-			return true
-		}
-	}
-
-	return false
+	err = srv.SubmitServer.authorizer.AuthorizeQueueAction(ctx, q, anyPerm, perm)
+	return userId, groups, err
 }
 
 // Fallback methods. Calls into an embedded server.SubmitServer.
