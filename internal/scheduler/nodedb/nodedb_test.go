@@ -79,17 +79,15 @@ func TestSelectNodeForPod_NodeIdLabel_Success(t *testing.T) {
 		txn := db.Txn(false)
 		node, err := db.SelectNodeForJobWithTxn(txn, jctx)
 		txn.Abort()
-		if !assert.NoError(t, err) {
-			continue
-		}
+		require.NoError(t, err)
 		pctx := jctx.PodSchedulingContext
-		require.NotNil(t, node)
-		assert.Equal(t, nodeId, node.Id)
-
-		require.NotNil(t, pctx)
-		assert.Equal(t, nodeId, pctx.NodeId)
-		assert.Equal(t, 0, len(pctx.NumExcludedNodesByReason))
-		assert.Empty(t, pctx.NumExcludedNodesByReason)
+		if assert.NotNil(t, node) {
+			assert.Equal(t, nodeId, node.Id)
+		}
+		if assert.NotNil(t, pctx) {
+			assert.Equal(t, nodeId, pctx.NodeId)
+			assert.Empty(t, pctx.NumExcludedNodesByReason, "got %v", pctx.NumExcludedNodesByReason)
+		}
 	}
 }
 
@@ -748,7 +746,7 @@ func BenchmarkNodeDbStringFromPodRequirementsNotMetReason(b *testing.B) {
 	nodeDb := &NodeDb{
 		podRequirementsNotMetReasonStringCache: make(map[uint64]string, 128),
 	}
-	reason := &schedulerobjects.UntoleratedTaint{
+	reason := &UntoleratedTaint{
 		Taint: v1.Taint{Key: randomString(100), Value: randomString(100), Effect: v1.TaintEffectNoSchedule},
 	}
 	nodeDb.stringFromPodRequirementsNotMetReason(reason)
