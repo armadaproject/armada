@@ -13,6 +13,8 @@ on:
       - 'scripts/build-python-client.sh'
       - 'makefile'
       - '.github/workflows/python-tests/*'
+      - './magefiles/tests.go'
+      - './magefiles/python.go'
 
   pull_request:
     branches-ignore:
