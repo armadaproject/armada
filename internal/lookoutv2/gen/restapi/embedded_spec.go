@@ -524,7 +524,8 @@ func init() {
           "x-nullable": false
         },
         "namespace": {
-          "type": "string"
+          "type": "string",
+          "x-nullable": true
         },
         "owner": {
           "type": "string",
@@ -1190,7 +1191,8 @@ func init() {
           "x-nullable": false
         },
         "namespace": {
-          "type": "string"
+          "type": "string",
+          "x-nullable": true
         },
         "owner": {
           "type": "string",

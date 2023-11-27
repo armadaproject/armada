@@ -72,7 +72,7 @@ type Job struct {
 	Memory int64 `json:"memory"`
 
 	// namespace
-	Namespace string `json:"namespace,omitempty"`
+	Namespace *string `json:"namespace,omitempty"`
 
 	// owner
 	// Required: true

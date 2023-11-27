@@ -159,7 +159,7 @@ func (js *JobSimulator) Submit(queue, jobSet, owner, namespace string, timestamp
 		LastTransitionTime: ts,
 		Memory:             opts.Memory.Value(),
 		Owner:              owner,
-		Namespace:          apiJob.Namespace,
+		Namespace:          &apiJob.Namespace,
 		Priority:           int64(opts.Priority),
 		PriorityClass:      &priorityClass,
 		Queue:              queue,

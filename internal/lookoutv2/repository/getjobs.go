@@ -35,7 +35,7 @@ type jobRow struct {
 	jobId              string
 	queue              string
 	owner              string
-	namespace          string
+	namespace          sql.NullString
 	jobSet             string
 	cpu                int64
 	memory             int64
@@ -169,7 +169,7 @@ func rowsToJobs(jobRows []*jobRow, runRows []*runRow, annotationRows []*annotati
 			LastTransitionTime: row.lastTransitionTime,
 			Memory:             row.memory,
 			Owner:              row.owner,
-			Namespace:          row.namespace,
+			Namespace:          database.ParseNullString(row.namespace),
 			Priority:           row.priority,
 			PriorityClass:      database.ParseNullString(row.priorityClass),
 			Queue:              row.queue,
