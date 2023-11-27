@@ -171,6 +171,20 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     },
   }),
   accessorColumn({
+    id: StandardColumnId.Namespace,
+    accessor: "namespace",
+    displayName: "Namespace",
+    additionalOptions: {
+      enableGrouping: true,
+      enableColumnFilter: true,
+      size: 300,
+    },
+    additionalMetadata: {
+      filterType: FilterType.Text,
+      defaultMatchType: Match.StartsWith,
+    },
+  }),
+  accessorColumn({
     id: StandardColumnId.JobSet,
     accessor: "jobSet",
     displayName: "Job Set",
@@ -280,18 +294,6 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     id: StandardColumnId.Owner,
     accessor: "owner",
     displayName: "Owner",
-    additionalOptions: {
-      enableColumnFilter: true,
-    },
-    additionalMetadata: {
-      filterType: FilterType.Text,
-      defaultMatchType: Match.StartsWith,
-    },
-  }),
-  accessorColumn({
-    id: StandardColumnId.Namespace,
-    accessor: "namespace",
-    displayName: "Namespace",
     additionalOptions: {
       enableColumnFilter: true,
     },
