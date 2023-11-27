@@ -54,21 +54,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3.3.0
 
-      - name: Set up Go (no caching)
-        uses: actions/setup-go@v4
+      - name: Setup Go
         id: setup-go
+        uses: ./.github/actions/setup-go-cache
         with:
-          go-version: '1.20'
-          cache: false
-
-      - id: cache-info
-        run: echo path=$(go env GOCACHE) >> $GITHUB_OUTPUT
-
-      - name: Setup Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.cache-info.outputs.path }}
-          key: go-unit-tests-go-${{ steps.setup-go.outputs.go-version }}-mod-${{ hashFiles('go.sum') }}
+          cache-prefix: go-unit-tests
 
       - name: Setup dependencies
         shell: bash
@@ -122,21 +112,11 @@ jobs:
       - name: Free some disk space
         run: docker image prune -af
 
-      - name: Set up Go (no caching)
+      - name: Setup Go
         id: setup-go
-        uses: actions/setup-go@v4
+        uses: ./.github/actions/setup-go-cache
         with:
-          go-version: '1.20'
-          cache: false
-
-      - id: cache-info
-        run: echo path=$(go env GOCACHE) >> $GITHUB_OUTPUT
-
-      - name: Setup Cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.cache-info.outputs.path }}
-          key: go-integration-tests-go-${{ steps.setup-go.outputs.go-version }}-mod-${{ hashFiles('go.sum') }}
+          cache-prefix: go-integration-tests
 
       - name: Setup Integration Tests
         run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal

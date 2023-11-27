@@ -35,3 +35,13 @@ type LegacySchedulerJob interface {
 	//   - +1 if other should be scheduled before other.
 	SchedulingOrderCompare(other LegacySchedulerJob) int
 }
+
+func SchedulingKeyFromLegacySchedulerJob(skg *schedulerobjects.SchedulingKeyGenerator, job LegacySchedulerJob) schedulerobjects.SchedulingKey {
+	return skg.Key(
+		job.GetNodeSelector(),
+		job.GetAffinity(),
+		job.GetTolerations(),
+		job.GetResourceRequirements().Requests,
+		job.GetPriorityClassName(),
+	)
+}
