@@ -125,7 +125,8 @@ func (c *FakeActionAuthorizer) AuthorizeQueueAction(
 	ctx *armadacontext.Context,
 	queue queue.Queue,
 	anyPerm permission.Permission,
-	perm queue.PermissionVerb) error {
+	perm queue.PermissionVerb,
+) error {
 	return nil
 }
 
@@ -142,7 +143,8 @@ func (c *FakeDenyAllActionAuthorizer) AuthorizeQueueAction(
 	ctx *armadacontext.Context,
 	queue queue.Queue,
 	anyPerm permission.Permission,
-	perm queue.PermissionVerb) error {
+	perm queue.PermissionVerb,
+) error {
 	return &armadaerrors.ErrUnauthorized{
 		Principal: authorization.GetPrincipal(ctx).GetName(),
 		Message:   "permission denied",

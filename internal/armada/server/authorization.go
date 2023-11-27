@@ -42,7 +42,8 @@ func (b *Authorizer) AuthorizeQueueAction(
 	ctx *armadacontext.Context,
 	queue queue.Queue,
 	anyPerm permission.Permission,
-	perm queue.PermissionVerb) error {
+	perm queue.PermissionVerb,
+) error {
 	principal := authorization.GetPrincipal(ctx)
 	hasAnyPerm := b.permissionChecker.UserHasPermission(ctx, anyPerm)
 	hasQueuePerm := principalHasQueuePermissions(principal, queue, perm)

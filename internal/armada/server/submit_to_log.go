@@ -622,7 +622,8 @@ func (srv *PulsarSubmitServer) Authorize(
 	ctx *armadacontext.Context,
 	queueName string,
 	anyPerm permission.Permission,
-	perm queue.PermissionVerb) (string, []string, error) {
+	perm queue.PermissionVerb,
+) (string, []string, error) {
 	principal := authorization.GetPrincipal(ctx)
 	userId := principal.GetName()
 	groups := principal.GetGroupNames()
