@@ -22,6 +22,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -105,7 +106,7 @@ var (
 	})
 )
 
-var queuedJob = jobdb.NewJob(
+var queuedJob = testfixtures.JobDb.NewJob(
 	util.NewULID(),
 	"testJobset",
 	"testQueue",
@@ -118,7 +119,7 @@ var queuedJob = jobdb.NewJob(
 	false,
 	1)
 
-var queuedJobWithExpiredTtl = jobdb.NewJob(
+var queuedJobWithExpiredTtl = testfixtures.JobDb.NewJob(
 	util.NewULID(),
 	"testJobset",
 	"testQueue",
@@ -131,7 +132,7 @@ var queuedJobWithExpiredTtl = jobdb.NewJob(
 	false,
 	1)
 
-var leasedJob = jobdb.NewJob(
+var leasedJob = testfixtures.JobDb.NewJob(
 	util.NewULID(),
 	"testJobset",
 	"testQueue",
@@ -153,7 +154,7 @@ var defaultJobRunError = &armadaevents.Error{
 	},
 }
 
-var leasedFailFastJob = jobdb.NewJob(
+var leasedFailFastJob = testfixtures.JobDb.NewJob(
 	util.NewULID(),
 	"testJobset",
 	"testQueue",
@@ -168,7 +169,7 @@ var leasedFailFastJob = jobdb.NewJob(
 
 var (
 	requeuedJobId = util.NewULID()
-	requeuedJob   = jobdb.NewJob(
+	requeuedJob   = testfixtures.JobDb.NewJob(
 		requeuedJobId,
 		"testJobset",
 		"testQueue",
@@ -615,6 +616,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				updateTimes: map[string]time.Time{"testExecutor": heartbeatTime},
 			}
 			sched, err := NewScheduler(
+				testfixtures.NewJobDb(),
 				jobRepo,
 				clusterRepo,
 				schedulingAlgo,
@@ -635,7 +637,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 
 			// insert initial jobs
 			txn := sched.jobDb.WriteTxn()
-			err = sched.jobDb.Upsert(txn, tc.initialJobs)
+			err = txn.Upsert(tc.initialJobs)
 			require.NoError(t, err)
 			txn.Commit()
 
@@ -679,7 +681,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			}
 
 			// assert that the job db is in the state we expect
-			jobs := sched.jobDb.GetAll(sched.jobDb.ReadTxn())
+			jobs := sched.jobDb.ReadTxn().GetAll()
 			remainingLeased := stringSet(tc.expectedLeased)
 			remainingQueued := stringSet(tc.expectedQueued)
 			remainingTerminal := stringSet(tc.expectedTerminal)
@@ -781,6 +783,7 @@ func TestRun(t *testing.T) {
 	require.NoError(t, err)
 
 	sched, err := NewScheduler(
+		testfixtures.NewJobDb(),
 		&jobRepo,
 		clusterRepo,
 		schedulingAlgo,
@@ -991,6 +994,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			require.NoError(t, err)
 
 			sched, err := NewScheduler(
+				testfixtures.NewJobDb(),
 				jobRepo,
 				clusterRepo,
 				schedulingAlgo,
@@ -1003,12 +1007,17 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				1*time.Hour,
 				maxNumberOfAttempts,
 				nodeIdLabel,
-				schedulerMetrics)
+				schedulerMetrics,
+			)
 			require.NoError(t, err)
+
+			// The SchedulingKeyGenerator embedded in the jobDb has some randomness,
+			// which must be consistent within tests.
+			sched.jobDb = testfixtures.NewJobDb()
 
 			// insert initial jobs
 			txn := sched.jobDb.WriteTxn()
-			err = sched.jobDb.Upsert(txn, tc.initialJobs)
+			err = txn.Upsert(tc.initialJobs)
 			require.NoError(t, err)
 			txn.Commit()
 
@@ -1016,7 +1025,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedUpdatedJobs, updatedJobs)
-			allDbJobs := sched.jobDb.GetAll(sched.jobDb.ReadTxn())
+			allDbJobs := sched.jobDb.ReadTxn().GetAll()
 
 			expectedIds := stringSet(tc.expectedJobDbIds)
 			require.Equal(t, len(tc.expectedJobDbIds), len(allDbJobs))
@@ -1116,7 +1125,7 @@ type testSchedulingAlgo struct {
 	shouldError           bool
 }
 
-func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn, jobDb *jobdb.JobDb) (*SchedulerResult, error) {
+func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn) (*SchedulerResult, error) {
 	t.numberOfScheduleCalls++
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")
@@ -1125,7 +1134,7 @@ func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn
 	scheduledJobs := make([]*jobdb.Job, 0, len(t.jobsToSchedule))
 	failedJobs := make([]*jobdb.Job, 0, len(t.jobsToFail))
 	for _, id := range t.jobsToPreempt {
-		job := jobDb.GetById(txn, id)
+		job := txn.GetById(id)
 		if job == nil {
 			return nil, errors.Errorf("was asked to preempt job %s but job does not exist", id)
 		}
@@ -1141,7 +1150,7 @@ func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn
 		preemptedJobs = append(preemptedJobs, job)
 	}
 	for _, id := range t.jobsToSchedule {
-		job := jobDb.GetById(txn, id)
+		job := txn.GetById(id)
 		if job == nil {
 			return nil, errors.Errorf("was asked to lease %s but job does not exist", id)
 		}
@@ -1152,7 +1161,7 @@ func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn
 		scheduledJobs = append(scheduledJobs, job)
 	}
 	for _, id := range t.jobsToFail {
-		job := jobDb.GetById(txn, id)
+		job := txn.GetById(id)
 		if job == nil {
 			return nil, errors.Errorf("was asked to lease %s but job does not exist", id)
 		}
@@ -1162,13 +1171,13 @@ func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn
 		job = job.WithQueued(false).WithFailed(true)
 		failedJobs = append(failedJobs, job)
 	}
-	if err := jobDb.Upsert(txn, preemptedJobs); err != nil {
+	if err := txn.Upsert(preemptedJobs); err != nil {
 		return nil, err
 	}
-	if err := jobDb.Upsert(txn, scheduledJobs); err != nil {
+	if err := txn.Upsert(scheduledJobs); err != nil {
 		return nil, err
 	}
-	if err := jobDb.Upsert(txn, failedJobs); err != nil {
+	if err := txn.Upsert(failedJobs); err != nil {
 		return nil, err
 	}
 	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs, failedJobs, nil), nil

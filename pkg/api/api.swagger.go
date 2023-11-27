@@ -54,6 +54,45 @@ func SwaggerJsonTemplate() string {
 		"        }\n" +
 		"      }\n" +
 		"    },\n" +
+		"    \"/v1/batched/queues\": {\n" +
+		"      \"get\": {\n" +
+		"        \"tags\": [\n" +
+		"          \"Submit\"\n" +
+		"        ],\n" +
+		"        \"operationId\": \"GetQueues\",\n" +
+		"        \"parameters\": [\n" +
+		"          {\n" +
+		"            \"type\": \"integer\",\n" +
+		"            \"format\": \"int64\",\n" +
+		"            \"name\": \"num\",\n" +
+		"            \"in\": \"query\"\n" +
+		"          }\n" +
+		"        ],\n" +
+		"        \"responses\": {\n" +
+		"          \"200\": {\n" +
+		"            \"description\": \"A successful response.(streaming responses)\",\n" +
+		"            \"schema\": {\n" +
+		"              \"type\": \"object\",\n" +
+		"              \"title\": \"Stream result of apiStreamingQueueMessage\",\n" +
+		"              \"properties\": {\n" +
+		"                \"error\": {\n" +
+		"                  \"$ref\": \"#/definitions/runtimeStreamError\"\n" +
+		"                },\n" +
+		"                \"result\": {\n" +
+		"                  \"$ref\": \"#/definitions/apiStreamingQueueMessage\"\n" +
+		"                }\n" +
+		"              }\n" +
+		"            }\n" +
+		"          },\n" +
+		"          \"default\": {\n" +
+		"            \"description\": \"An unexpected error response.\",\n" +
+		"            \"schema\": {\n" +
+		"              \"$ref\": \"#/definitions/runtimeError\"\n" +
+		"            }\n" +
+		"          }\n" +
+		"        }\n" +
+		"      }\n" +
+		"    },\n" +
 		"    \"/v1/batched/update_queues\": {\n" +
 		"      \"put\": {\n" +
 		"        \"tags\": [\n" +
@@ -512,6 +551,10 @@ func SwaggerJsonTemplate() string {
 		"          \"type\": \"string\"\n" +
 		"        }\n" +
 		"      }\n" +
+		"    },\n" +
+		"    \"apiEndMarker\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"title\": \"Indicates the end of streams\"\n" +
 		"    },\n" +
 		"    \"apiEventMessage\": {\n" +
 		"      \"type\": \"object\",\n" +
@@ -1723,6 +1766,17 @@ func SwaggerJsonTemplate() string {
 		"        \"NodePort\",\n" +
 		"        \"Headless\"\n" +
 		"      ]\n" +
+		"    },\n" +
+		"    \"apiStreamingQueueMessage\": {\n" +
+		"      \"type\": \"object\",\n" +
+		"      \"properties\": {\n" +
+		"        \"end\": {\n" +
+		"          \"$ref\": \"#/definitions/apiEndMarker\"\n" +
+		"        },\n" +
+		"        \"queue\": {\n" +
+		"          \"$ref\": \"#/definitions/apiQueue\"\n" +
+		"        }\n" +
+		"      }\n" +
 		"    },\n" +
 		"    \"intstrIntOrString\": {\n" +
 		"      \"description\": \"+protobuf=true\\n+protobuf.options.(gogoproto.goproto_stringer)=false\\n+k8s:openapi-gen=true\",\n" +

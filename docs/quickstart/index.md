@@ -127,14 +127,3 @@ Grafana:
 ![Armada Grafana dashboard](./img/grafana-screenshot.png "Armada Grafana dashboard")
 
 Note that the jobs in this demo simply run the `sleep` command so do not consume many resources.
-
-### Lookout Configuration
-
-Armada Lookout UI can be configured by doing the following:
-
-```bash
-kubectl port-forward svc/armada-lookout 8080:8080 
-```
-Then access it by opening [http://localhost:8080](http://localhost:8080) in your browser.
-
-![Lookout UI](./img/lookout.png "Lookout UI")

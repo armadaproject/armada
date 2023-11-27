@@ -1,13 +1,17 @@
 package cmd
 
 import (
+	"os"
+
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/maps"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/simulator"
-	"github.com/armadaproject/armada/pkg/armadaevents"
+	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
 )
 
 func RootCmd() *cobra.Command {
@@ -19,9 +23,10 @@ func RootCmd() *cobra.Command {
 	// cmd.Flags().BoolP("verbose", "v", false, "Log detailed output to console.")
 	cmd.Flags().String("clusters", "", "Glob pattern specifying cluster configurations to simulate.")
 	cmd.Flags().String("workloads", "", "Glob pattern specifying workloads to simulate.")
-	cmd.Flags().String("configs", "", "Glob pattern specifying scheduler configurations to simulate.")
+	cmd.Flags().String("configs", "", "Glob pattern specifying scheduler configurations to simulate. Uses a default config if not provided.")
 	cmd.Flags().Bool("showSchedulerLogs", false, "Show scheduler logs.")
 	cmd.Flags().Int("logInterval", 0, "Log summary statistics every this many events. Disabled if 0.")
+	cmd.Flags().String("eventsOutputFilePath", "", "Path of file to write events to.")
 	return cmd
 }
 
@@ -47,6 +52,10 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	filePath, err := cmd.Flags().GetString("eventsOutputFilePath")
+	if err != nil {
+		return err
+	}
 
 	// Load test specs. and config.
 	clusterSpecs, err := simulator.ClusterSpecsFromPattern(clusterPattern)
@@ -57,9 +66,20 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	schedulingConfigsByFilePath, err := simulator.SchedulingConfigsByFilePathFromPattern(configPattern)
-	if err != nil {
-		return err
+	var schedulingConfigsByFilePath map[string]configuration.SchedulingConfig
+	if configPattern == "" {
+		// Use default test config if no pattern is provided.
+		schedulingConfigsByFilePath = map[string]configuration.SchedulingConfig{
+			"default": testfixtures.TestSchedulingConfig(),
+		}
+	} else {
+		schedulingConfigsByFilePath, err = simulator.SchedulingConfigsByFilePathFromPattern(configPattern)
+		if err != nil {
+			return err
+		}
+	}
+	if len(clusterSpecs)*len(workloadSpecs)*len(schedulingConfigsByFilePath) > 1 && filePath != "" {
+		return errors.Errorf("cannot save multiple simulations to file")
 	}
 
 	ctx := armadacontext.Background()
@@ -68,10 +88,22 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	ctx.Infof("WorkloadSpecs: %v", util.Map(workloadSpecs, func(workloadSpec *simulator.WorkloadSpec) string { return workloadSpec.Name }))
 	ctx.Infof("SchedulingConfigs: %v", maps.Keys(schedulingConfigsByFilePath))
 
+	var fileWriter *simulator.Writer
+	file, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err = file.Close(); err != nil {
+			ctx.Errorf("failed to close file: %s", err)
+			return
+		}
+	}()
+
 	// Setup a simulator for each combination of (clusterSpec, workloadSpec, schedulingConfig).
 	simulators := make([]*simulator.Simulator, 0)
 	metricsCollectors := make([]*simulator.MetricsCollector, 0)
-	eventSequenceChannels := make([]<-chan *armadaevents.EventSequence, 0)
+	stateTransitionChannels := make([]<-chan simulator.StateTransition, 0)
 	schedulingConfigPaths := make([]string, 0)
 	for _, clusterSpec := range clusterSpecs {
 		for _, workloadSpec := range workloadSpecs {
@@ -85,10 +117,18 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 						ctx.Info("Showing scheduler logs")
 					}
 					simulators = append(simulators, s)
-					mc := simulator.NewMetricsCollector(s.Output())
+					mc := simulator.NewMetricsCollector(s.StateTransitions())
 					mc.LogSummaryInterval = logInterval
 					metricsCollectors = append(metricsCollectors, mc)
-					eventSequenceChannels = append(eventSequenceChannels, s.Output())
+
+					if filePath != "" {
+						fw, err := simulator.NewWriter(file, s.StateTransitions())
+						if err != nil {
+							return errors.WithStack(err)
+						}
+						fileWriter = fw
+					}
+					stateTransitionChannels = append(stateTransitionChannels, s.StateTransitions())
 					schedulingConfigPaths = append(schedulingConfigPaths, schedulingConfigPath)
 				}
 			}
@@ -105,22 +145,27 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	}
 
 	// Log events to stdout.
-	for _, c := range eventSequenceChannels {
+	for _, c := range stateTransitionChannels {
 		c := c
 		g.Go(func() error {
 			for {
 				select {
 				case <-ctx.Done():
 					return ctx.Err()
-				case eventSequence, ok := <-c:
+				case stateTransition, ok := <-c:
 					if !ok {
 						return nil
 					}
-					ctx.Debug(*eventSequence.Events[0].Created, simulator.EventSequenceSummary(eventSequence))
+					ctx.Debug(*stateTransition.EventSequence.Events[0].Created, simulator.EventSequenceSummary(stateTransition.EventSequence))
 				}
 			}
 		})
 	}
+
+	// Run file writer
+	g.Go(func() error {
+		return fileWriter.Run(ctx)
+	})
 
 	// Run metric collectors.
 	for _, mc := range metricsCollectors {
