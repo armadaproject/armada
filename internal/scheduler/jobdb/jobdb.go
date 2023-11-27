@@ -53,7 +53,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 ) *JobDb {
 	defaultPriorityClass, ok := priorityClasses[defaultPriorityClassName]
 	if !ok {
-		// TODO: Return an error instead.
+		// TODO(albin): Return an error instead.
 		panic(fmt.Sprintf("unknown default priority class %s", defaultPriorityClassName))
 	}
 	return &JobDb{
