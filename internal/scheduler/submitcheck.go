@@ -240,8 +240,7 @@ func (srv *SubmitChecker) getSchedulingResult(jctxs []*schedulercontext.JobSched
 
 		numSuccessfullyScheduled := 0
 		for _, jctx := range jctxs {
-			pctx := jctx.PodSchedulingContext
-			if pctx != nil && pctx.NodeId != "" {
+			if jctx.PodSchedulingContext.IsSuccessful() {
 				numSuccessfullyScheduled++
 			}
 		}

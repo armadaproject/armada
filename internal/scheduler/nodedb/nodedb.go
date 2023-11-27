@@ -516,7 +516,10 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, jctxs []*schedulercont
 	// Attempt to schedule pods one by one in a transaction.
 	numScheduled := 0
 	for _, jctx := range jctxs {
-		// Defensively reset `ShouldFail` (this should always be false as the state is re-constructed per cycle but just in case)
+		// In general, we may attempt to schedule a gang multiple times (in
+		// order to find the best fit for this gang); clear out any remnants of
+		// previous attempts.
+		jctx.UnschedulableReason = ""
 		jctx.ShouldFail = false
 
 		node, err := nodeDb.SelectNodeForJobWithTxn(txn, jctx)
@@ -574,11 +577,11 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 		return nil, err
 	}
 
-	// Create a pctx to be returned to the caller.
 	pctx := &schedulercontext.PodSchedulingContext{
-		Created:           time.Now(),
-		MatchingNodeTypes: matchingNodeTypes,
-		NumNodes:          nodeDb.numNodes,
+		Created:             time.Now(),
+		PreemptedAtPriority: MinPriority,
+		MatchingNodeTypes:   matchingNodeTypes,
+		NumNodes:            nodeDb.numNodes,
 		// TODO: This clone looks unnecessary.
 		NumExcludedNodesByReason: maps.Clone(numExcludedNodesByReason),
 	}
@@ -634,7 +637,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 	}
 	pctx.NodeId = ""
 	pctx.Score = 0
-	pctx.ScheduledAtPriority = 0
+	pctx.PreemptedAtPriority = MinPriority
 
 	// Schedule by preventing evicted jobs from being re-scheduled.
 	// This method respect fairness by preventing from re-scheduling jobs that appear as far back in the total order as possible.
@@ -649,7 +652,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 	}
 	pctx.NodeId = ""
 	pctx.Score = 0
-	pctx.ScheduledAtPriority = 0
+	pctx.PreemptedAtPriority = MinPriority
 
 	// Schedule by kicking off jobs currently bound to a node.
 	// This method does not respect fairness when choosing on which node to schedule the job.
@@ -800,7 +803,7 @@ func (nodeDb *NodeDb) selectNodeForPodWithIt(
 	if selectedNode != nil {
 		jctx.PodSchedulingContext.NodeId = selectedNode.Id
 		jctx.PodSchedulingContext.Score = selectedNodeScore
-		jctx.PodSchedulingContext.ScheduledAtPriority = priority
+		jctx.PodSchedulingContext.PreemptedAtPriority = priority
 	}
 	return selectedNode, nil
 }
@@ -819,6 +822,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 	if err != nil {
 		return nil, errors.WithStack(err)
 	}
+	maxPriority := MinPriority
 	for obj := it.Next(); obj != nil && selectedNode == nil; obj = it.Next() {
 		evictedJobSchedulingContext := obj.(*EvictedJobSchedulingContext)
 		evictedJctx := evictedJobSchedulingContext.JobSchedulingContext
@@ -839,7 +843,9 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 		}
 		nodesById[nodeId] = node
 		evictedJobSchedulingContextsByNodeId[nodeId] = append(evictedJobSchedulingContextsByNodeId[nodeId], evictedJobSchedulingContext)
-
+		if priority := evictedJctx.PodRequirements.Priority; priority > maxPriority {
+			maxPriority = priority
+		}
 		matches, _, reason, err := JobRequirementsMet(
 			node.Taints,
 			node.Labels,
@@ -859,7 +865,7 @@ func (nodeDb *NodeDb) selectNodeForJobWithFairPreemption(txn *memdb.Txn, jctx *s
 	}
 	if selectedNode != nil {
 		pctx.NodeId = selectedNode.Id
-		pctx.ScheduledAtPriority = jctx.PodRequirements.Priority
+		pctx.PreemptedAtPriority = maxPriority
 		for _, evictedJobSchedulingContext := range evictedJobSchedulingContextsByNodeId[selectedNode.Id] {
 			if err := txn.Delete("evictedJobs", evictedJobSchedulingContext); err != nil {
 				return nil, errors.WithStack(err)
