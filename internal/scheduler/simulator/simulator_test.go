@@ -268,14 +268,43 @@ func TestSimulator(t *testing.T) {
 			},
 			simulatedTimeLimit: 5 * time.Minute,
 		},
+		"Consistent job ordering": {
+			clusterSpec: &ClusterSpec{
+				Name: "test",
+				Pools: []*Pool{
+					WithExecutorGroupsPool(
+						&Pool{Name: "Pool"},
+						ExecutorGroup32Cpu(1, 2),
+					),
+				},
+			},
+			workloadSpec: &WorkloadSpec{
+				Queues: []*Queue{
+					WithJobTemplatesQueue(
+						&Queue{Name: "A", Weight: 1},
+						JobTemplate1Cpu(64, "foo", testfixtures.PriorityClass0),
+					),
+					WithJobTemplatesQueue(
+						&Queue{Name: "B", Weight: 1},
+						WithMinSubmitTimeJobTemplate(
+							JobTemplate32Cpu(2, "foo", testfixtures.PriorityClass0),
+							30*time.Minute,
+						),
+					),
+				},
+			},
+			schedulingConfig:       testfixtures.TestSchedulingConfig(),
+			expectedEventSequences: nil,
+			simulatedTimeLimit:     2*time.Hour + 30*time.Minute,
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			s, err := NewSimulator(tc.clusterSpec, tc.workloadSpec, tc.schedulingConfig)
 			require.NoError(t, err)
-			mc := NewMetricsCollector(s.Output())
+			mc := NewMetricsCollector(s.StateTransitions())
 			actualEventSequences := make([]*armadaevents.EventSequence, 0, 128)
-			c := s.Output()
+			c := s.StateTransitions()
 
 			ctx := armadacontext.Background()
 			g, ctx := armadacontext.ErrGroup(ctx)
@@ -287,12 +316,12 @@ func TestSimulator(t *testing.T) {
 					select {
 					case <-ctx.Done():
 						return ctx.Err()
-					case eventSequence, ok := <-c:
+					case stateTransition, ok := <-c:
 						if !ok {
 							return nil
 						}
-						t.Log(*eventSequence.Events[0].Created, EventSequenceSummary(eventSequence))
-						actualEventSequences = append(actualEventSequences, eventSequence)
+						t.Log(*stateTransition.EventSequence.Events[0].Created, EventSequenceSummary(stateTransition.EventSequence))
+						actualEventSequences = append(actualEventSequences, stateTransition.EventSequence)
 					}
 				}
 			})

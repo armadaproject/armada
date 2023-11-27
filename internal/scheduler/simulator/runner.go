@@ -7,7 +7,6 @@ import (
 
 	"github.com/mattn/go-zglob"
 	"github.com/pkg/errors"
-	"github.com/renstrom/shortuuid"
 	"github.com/spf13/viper"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -180,17 +179,7 @@ func WorkloadSpecFromFilePath(filePath string) (*WorkloadSpec, error) {
 		rv.Name = fileName
 	}
 
-	// Generate random ids for any job templates without an explicitly set id.
-	for _, queue := range rv.Queues {
-		for j, jobTemplate := range queue.JobTemplates {
-			if jobTemplate.Id == "" {
-				jobTemplate.Id = shortuuid.New()
-			}
-			queue.JobTemplates[j] = jobTemplate
-		}
-	}
 	initialiseWorkloadSpec(rv)
-
 	return rv, nil
 }
 
