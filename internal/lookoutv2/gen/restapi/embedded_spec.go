@@ -523,6 +523,10 @@ func init() {
           "format": "int64",
           "x-nullable": false
         },
+        "namespace": {
+          "type": "string",
+          "x-nullable": true
+        },
         "owner": {
           "type": "string",
           "minLength": 1,
@@ -1185,6 +1189,10 @@ func init() {
           "type": "integer",
           "format": "int64",
           "x-nullable": false
+        },
+        "namespace": {
+          "type": "string",
+          "x-nullable": true
         },
         "owner": {
           "type": "string",
