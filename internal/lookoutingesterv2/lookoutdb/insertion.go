@@ -135,6 +135,7 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 					job_id 	                     varchar(32),
 					queue                        varchar(512),
 					owner                        varchar(512),
+					namespace                    varchar(512),
 					jobset                       varchar(1024),
 					cpu                          bigint,
 					memory                       bigint,
@@ -161,6 +162,7 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 					"job_id",
 					"queue",
 					"owner",
+					"namespace",
 					"jobset",
 					"cpu",
 					"memory",
@@ -179,6 +181,7 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 						instructions[i].JobId,
 						instructions[i].Queue,
 						instructions[i].Owner,
+						instructions[i].Namespace,
 						instructions[i].JobSet,
 						instructions[i].Cpu,
 						instructions[i].Memory,
@@ -205,6 +208,7 @@ func (l *LookoutDb) CreateJobsBatch(ctx *armadacontext.Context, instructions []*
 						job_id,
 						queue,
 						owner,
+						namespace,
 						jobset,
 						cpu,
 						memory,
@@ -236,6 +240,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 			job_id,
 			queue,
 			owner,
+			namespace,
 			jobset,
 			cpu,
 			memory,
@@ -248,7 +253,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 			last_transition_time_seconds,
 			job_spec,
 			priority_class)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		ON CONFLICT DO NOTHING`
 	for _, i := range instructions {
 		err := l.withDatabaseRetryInsert(func() error {
@@ -256,6 +261,7 @@ func (l *LookoutDb) CreateJobsScalar(ctx *armadacontext.Context, instructions []
 				i.JobId,
 				i.Queue,
 				i.Owner,
+				i.Namespace,
 				i.JobSet,
 				i.Cpu,
 				i.Memory,

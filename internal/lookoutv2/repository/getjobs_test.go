@@ -21,12 +21,13 @@ import (
 )
 
 const (
-	jobId    = "01f3j0g1md4qx7z5qb148qnh4d"
-	queue    = "queue-1"
-	jobSet   = "job-set-1"
-	cluster  = "cluster-1"
-	owner    = "user-1"
-	priority = 12
+	jobId     = "01f3j0g1md4qx7z5qb148qnh4d"
+	queue     = "queue-1"
+	jobSet    = "job-set-1"
+	cluster   = "cluster-1"
+	owner     = "user-1"
+	namespace = "namespace-1"
+	priority  = 12
 
 	userAnnotationPrefix = "armadaproject.io/"
 )
@@ -56,7 +57,7 @@ func TestGetJobsSingle(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				JobId:            jobId,
 				Priority:         priority,
 				PriorityClass:    "other-than-default",
@@ -93,7 +94,7 @@ func TestGetJobsMultipleRuns(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Pending(uuid.NewString(), cluster, baseTime).
 			Pending(uuid.NewString(), cluster, baseTime.Add(time.Second)).
 			Pending(runId, cluster, baseTime.Add(2*time.Second)).
@@ -168,21 +169,21 @@ func TestGetJobsOrderByJobId(t *testing.T) {
 		thirdId := "01f3j0g1md4qx7z5qb148qnmmm"
 
 		third := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				JobId: thirdId,
 			}).
 			Build().
 			Job()
 
 		second := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				JobId: secondId,
 			}).
 			Build().
 			Job()
 
 		first := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				JobId: firstId,
 			}).
 			Build().
@@ -241,17 +242,17 @@ func TestGetJobsOrderBySubmissionTime(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		third := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime.Add(3*time.Second), basicJobOpts).
+			Submit(queue, jobSet, owner, namespace, baseTime.Add(3*time.Second), basicJobOpts).
 			Build().
 			Job()
 
 		second := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime.Add(2*time.Second), basicJobOpts).
+			Submit(queue, jobSet, owner, namespace, baseTime.Add(2*time.Second), basicJobOpts).
 			Build().
 			Job()
 
 		first := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
@@ -309,20 +310,20 @@ func TestGetJobsOrderByLastTransitionTime(t *testing.T) {
 
 		runId1 := uuid.NewString()
 		third := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Pending(runId1, cluster, baseTime).
 			Running(runId1, cluster, baseTime.Add(3*time.Minute)).
 			Build().
 			Job()
 
 		second := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Pending(uuid.NewString(), cluster, baseTime.Add(2*time.Minute)).
 			Build().
 			Job()
 
 		first := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
@@ -425,17 +426,17 @@ func TestGetJobsById(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{JobId: jobId}).
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{JobId: jobId}).
 			Build().
 			Job()
 
 		_ = NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{JobId: "01f3j0g1md4qx7z5qb148qnaaa"}).
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{JobId: "01f3j0g1md4qx7z5qb148qnaaa"}).
 			Build().
 			Job()
 
 		_ = NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{JobId: "01f3j0g1md4qx7z5qb148qnbbb"}).
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{JobId: "01f3j0g1md4qx7z5qb148qnbbb"}).
 			Build().
 			Job()
 
@@ -471,27 +472,27 @@ func TestGetJobsByQueue(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		job2 := NewJobSimulator(converter, store).
-			Submit("queue-2", jobSet, owner, baseTime, basicJobOpts).
+			Submit("queue-2", jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		job3 := NewJobSimulator(converter, store).
-			Submit("queue-3", jobSet, owner, baseTime, basicJobOpts).
+			Submit("queue-3", jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		job4 := NewJobSimulator(converter, store).
-			Submit("other-queue", jobSet, owner, baseTime, basicJobOpts).
+			Submit("other-queue", jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		_ = NewJobSimulator(converter, store).
-			Submit("something-else", jobSet, owner, baseTime, basicJobOpts).
+			Submit("something-else", jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
@@ -576,27 +577,27 @@ func TestGetJobsByJobSet(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
-			Submit(queue, "job\\set\\1", owner, baseTime, basicJobOpts).
+			Submit(queue, "job\\set\\1", owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		job2 := NewJobSimulator(converter, store).
-			Submit(queue, "job\\set\\2", owner, baseTime, basicJobOpts).
+			Submit(queue, "job\\set\\2", owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		job3 := NewJobSimulator(converter, store).
-			Submit(queue, "job\\set\\3", owner, baseTime, basicJobOpts).
+			Submit(queue, "job\\set\\3", owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		job4 := NewJobSimulator(converter, store).
-			Submit(queue, "other-job\\set", owner, baseTime, basicJobOpts).
+			Submit(queue, "other-job\\set", owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		_ = NewJobSimulator(converter, store).
-			Submit(queue, "something-else", owner, baseTime, basicJobOpts).
+			Submit(queue, "something-else", owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
@@ -681,27 +682,27 @@ func TestGetJobsByOwner(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		job2 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, "user-2", baseTime, basicJobOpts).
+			Submit(queue, jobSet, "user-2", namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		job3 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, "user-3", baseTime, basicJobOpts).
+			Submit(queue, jobSet, "user-3", namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		job4 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, "other-user", baseTime, basicJobOpts).
+			Submit(queue, jobSet, "other-user", namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		_ = NewJobSimulator(converter, store).
-			Submit(queue, jobSet, "something-else", baseTime, basicJobOpts).
+			Submit(queue, jobSet, "something-else", namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
@@ -786,19 +787,19 @@ func TestGetJobsByState(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		queued := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Build().
 			Job()
 
 		pending := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Pending(uuid.NewString(), cluster, baseTime).
 			Build().
 			Job()
 
 		runId2 := uuid.NewString()
 		running := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Pending(runId2, cluster, baseTime).
 			Running(runId2, node, baseTime).
 			Build().
@@ -806,7 +807,7 @@ func TestGetJobsByState(t *testing.T) {
 
 		runId3 := uuid.NewString()
 		_ = NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, basicJobOpts).
+			Submit(queue, jobSet, owner, namespace, baseTime, basicJobOpts).
 			Pending(runId3, cluster, baseTime).
 			Running(runId3, node, baseTime).
 			Succeeded(baseTime).
@@ -873,7 +874,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job1 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-1",
 					"annotation-key-2": "annotation-value-3",
@@ -883,7 +884,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Job()
 
 		job2 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-2",
 				},
@@ -892,7 +893,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Job()
 
 		job3 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-3",
 				},
@@ -901,7 +902,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Job()
 
 		_ = NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-2": "annotation-value-1",
 				},
@@ -910,7 +911,7 @@ func TestGetJobsByAnnotation(t *testing.T) {
 			Job()
 
 		job5 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Annotations: map[string]string{
 					"annotation-key-1": "annotation-value-6",
 					"annotation-key-2": "annotation-value-4",
@@ -1062,28 +1063,28 @@ func TestGetJobsByCpu(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job1 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Cpu: resource.MustParse("1"),
 			}).
 			Build().
 			Job()
 
 		job2 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Cpu: resource.MustParse("3"),
 			}).
 			Build().
 			Job()
 
 		job3 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Cpu: resource.MustParse("5"),
 			}).
 			Build().
 			Job()
 
 		job4 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Cpu: resource.MustParse("10"),
 			}).
 			Build().
@@ -1215,28 +1216,28 @@ func TestGetJobsByMemory(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job1 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Memory: resource.MustParse("1000"),
 			}).
 			Build().
 			Job()
 
 		job2 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Memory: resource.MustParse("3000"),
 			}).
 			Build().
 			Job()
 
 		job3 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Memory: resource.MustParse("5000"),
 			}).
 			Build().
 			Job()
 
 		job4 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Memory: resource.MustParse("10000"),
 			}).
 			Build().
@@ -1368,28 +1369,28 @@ func TestGetJobsByEphemeralStorage(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job1 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				EphemeralStorage: resource.MustParse("1000"),
 			}).
 			Build().
 			Job()
 
 		job2 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				EphemeralStorage: resource.MustParse("3000"),
 			}).
 			Build().
 			Job()
 
 		job3 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				EphemeralStorage: resource.MustParse("5000"),
 			}).
 			Build().
 			Job()
 
 		job4 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				EphemeralStorage: resource.MustParse("10000"),
 			}).
 			Build().
@@ -1521,28 +1522,28 @@ func TestGetJobsByGpu(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job1 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Gpu: resource.MustParse("1"),
 			}).
 			Build().
 			Job()
 
 		job2 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Gpu: resource.MustParse("3"),
 			}).
 			Build().
 			Job()
 
 		job3 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Gpu: resource.MustParse("5"),
 			}).
 			Build().
 			Job()
 
 		job4 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Gpu: resource.MustParse("8"),
 			}).
 			Build().
@@ -1674,28 +1675,28 @@ func TestGetJobsByPriority(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job1 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Priority: 10,
 			}).
 			Build().
 			Job()
 
 		job2 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Priority: 20,
 			}).
 			Build().
 			Job()
 
 		job3 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Priority: 30,
 			}).
 			Build().
 			Job()
 
 		job4 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				Priority: 40,
 			}).
 			Build().
@@ -1827,35 +1828,35 @@ func TestGetJobsByPriorityClass(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				PriorityClass: "priority-class-1",
 			}).
 			Build().
 			Job()
 
 		job2 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				PriorityClass: "priority-class-2",
 			}).
 			Build().
 			Job()
 
 		job3 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				PriorityClass: "priority-class-3",
 			}).
 			Build().
 			Job()
 
 		job4 := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				PriorityClass: "other-priority-class",
 			}).
 			Build().
 			Job()
 
 		_ = NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				PriorityClass: "something-else",
 			}).
 			Build().
@@ -1946,7 +1947,7 @@ func TestGetJobsSkip(t *testing.T) {
 		for i := 0; i < nJobs; i++ {
 			jobId := util.NewULID()
 			jobs[i] = NewJobSimulator(converter, store).
-				Submit(queue, jobSet, owner, baseTime, &JobOptions{JobId: jobId}).
+				Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{JobId: jobId}).
 				Build().
 				Job()
 		}
@@ -2028,7 +2029,7 @@ func TestGetJobsComplex(t *testing.T) {
 		for i := 0; i < nJobs; i++ {
 			jobId := util.NewULID()
 			jobs[i] = NewJobSimulator(converter, store).
-				Submit(queue, jobSet, owner, baseTime, &JobOptions{
+				Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 					JobId: jobId,
 					Annotations: map[string]string{
 						"a": "value-1",
@@ -2041,7 +2042,7 @@ func TestGetJobsComplex(t *testing.T) {
 
 		for i := 0; i < nJobs; i++ {
 			NewJobSimulator(converter, store).
-				Submit("other-queue", jobSet, owner, baseTime, &JobOptions{
+				Submit("other-queue", jobSet, owner, namespace, baseTime, &JobOptions{
 					JobId: util.NewULID(),
 					Annotations: map[string]string{
 						"a": "value-1",
@@ -2101,18 +2102,18 @@ func TestGetJobsActiveJobSet(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		activeJobSet1 := NewJobSimulator(converter, store).
-			Submit("queue-1", "job-set-1", owner, baseTime, &JobOptions{}).
+			Submit("queue-1", "job-set-1", owner, namespace, baseTime, &JobOptions{}).
 			Build().
 			Job()
 
 		inactiveJobSet1 := NewJobSimulator(converter, store).
-			Submit("queue-1", "job-set-1", owner, baseTime, &JobOptions{}).
+			Submit("queue-1", "job-set-1", owner, namespace, baseTime, &JobOptions{}).
 			Cancelled(baseTime.Add(1 * time.Minute)).
 			Build().
 			Job()
 
 		NewJobSimulator(converter, store).
-			Submit("queue-2", "job-set-2", owner, baseTime, &JobOptions{}).
+			Submit("queue-2", "job-set-2", owner, namespace, baseTime, &JobOptions{}).
 			Cancelled(baseTime.Add(1 * time.Minute)).
 			Build().
 			Job()
