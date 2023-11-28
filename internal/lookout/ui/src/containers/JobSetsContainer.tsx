@@ -15,7 +15,7 @@ import { ApiResult, debounced, PropsWithRouter, RequestStatus, selectItem, setSt
 interface JobSetsContainerProps extends PropsWithRouter {
   v2GroupJobsService: IGroupJobsService
   v2UpdateJobSetsService: UpdateJobSetsService
-  jobSetsAutoRefreshMs: number
+  jobSetsAutoRefreshMs: number | undefined
 }
 
 type JobSetsContainerParams = {
@@ -35,14 +35,15 @@ export type JobSetsContainerState = {
 } & JobSetsContainerParams
 
 class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsContainerState> {
-  autoRefreshService: IntervalService
+  autoRefreshService: IntervalService | undefined
   localStorageService: JobSetsLocalStorageService
   queryParamsService: JobSetsQueryParamsService
 
   constructor(props: JobSetsContainerProps) {
     super(props)
 
-    this.autoRefreshService = new IntervalService(props.jobSetsAutoRefreshMs)
+    this.autoRefreshService =
+      props.jobSetsAutoRefreshMs === undefined ? undefined : new IntervalService(props.jobSetsAutoRefreshMs)
     this.localStorageService = new JobSetsLocalStorageService()
     this.queryParamsService = new JobSetsQueryParamsService(this.props.router)
 
@@ -93,12 +94,12 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
 
     await this.loadJobSets()
 
-    this.autoRefreshService.registerCallback(this.loadJobSets)
+    this.autoRefreshService?.registerCallback(this.loadJobSets)
     this.tryStartAutoRefreshService()
   }
 
   componentWillUnmount() {
-    this.autoRefreshService.stop()
+    this.autoRefreshService?.stop()
   }
 
   async setQueue(queue: string) {
@@ -216,9 +217,9 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
 
   tryStartAutoRefreshService() {
     if (this.state.autoRefresh) {
-      this.autoRefreshService.start()
+      this.autoRefreshService?.start()
     } else {
-      this.autoRefreshService.stop()
+      this.autoRefreshService?.stop()
     }
   }
 
@@ -327,7 +328,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           onDeselectAllClick={this.deselectAll}
           onSelectAllClick={this.selectAll}
           onCancelJobSetsClick={() => this.openCancelJobSets(true)}
-          onToggleAutoRefresh={this.toggleAutoRefresh}
+          onToggleAutoRefresh={this.autoRefreshService && this.toggleAutoRefresh}
           onReprioritizeJobSetsClick={() => this.openReprioritizeJobSets(true)}
         />
       </>
