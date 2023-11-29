@@ -7,7 +7,7 @@ corsAllowedOrigins:
   - http://localhost:10000
 grpcGatewayPath: "/"
 cancelJobsBatchSize: 1000
-pulsarSchedulerEnabled: false
+pulsarSchedulerEnabled: true
 probabilityOfUsingPulsarScheduler: 0
 ignoreJobSubmitChecks: false
 schedulerApiConnection:
