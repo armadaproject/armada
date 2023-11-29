@@ -110,7 +110,7 @@ func (srv *SubmitFromLog) Run(ctx *armadacontext.Context) error {
 
 			// If this message isn't for us we can simply ack it
 			// and go to the next message
-			if !schedulers.ForLegacyScheduler(msg) {
+			if !schedulers.ForLegacyScheduler(msg) && !schedulers.ForPulsarScheduler(msg) {
 				srv.ack(ctx, msg)
 				break
 			}
@@ -131,11 +131,57 @@ func (srv *SubmitFromLog) Run(ctx *armadacontext.Context) error {
 			}
 
 			ctxWithLogger.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
+
+			// This file exists primarily for the legacy scheduler - the pulsar scheduler only need to read from
+			//  pulsar to delete redis PulsarJob:jobId entries
+			if schedulers.ForPulsarScheduler(msg) {
+				if err := srv.handlePulsarSchedulerEventSequence(ctxWithLogger, sequence); err != nil {
+					logging.WithStacktrace(ctx, err).Warnf("could not expire PulsarJobDetails; ignoring")
+					numErrored++
+				}
+
+				srv.ack(ctx, msg)
+				break
+			}
+
 			// TODO: Improve retry logic.
 			srv.ProcessSequence(ctxWithLogger, sequence)
 			srv.ack(ctx, msg)
 		}
 	}
+}
+
+func (srv *SubmitFromLog) handlePulsarSchedulerEventSequence(ctx *armadacontext.Context, sequence *armadaevents.EventSequence) error {
+	jobIds := make([]string, 0)
+
+	for _, event := range sequence.GetEvents() {
+		var jobId string
+		var err error
+
+		//  Terminal events are: Cancelled, Succeeded, Errored, Preempted
+		switch e := event.Event.(type) {
+		case *armadaevents.EventSequence_Event_JobSucceeded:
+			jobId, err = armadaevents.UlidStringFromProtoUuid(e.JobSucceeded.JobId)
+		case *armadaevents.EventSequence_Event_JobErrors:
+			if anyTerminal := util.Any(e.JobErrors.Errors, func(e *armadaevents.Error) bool { return e.Terminal }); anyTerminal {
+				jobId, err = armadaevents.UlidStringFromProtoUuid(e.JobErrors.JobId)
+			}
+		case *armadaevents.EventSequence_Event_CancelledJob:
+			jobId, err = armadaevents.UlidStringFromProtoUuid(e.CancelledJob.JobId)
+		case *armadaevents.EventSequence_Event_JobRunPreempted:
+			jobId, err = armadaevents.UlidStringFromProtoUuid(e.JobRunPreempted.PreemptedJobId)
+		default:
+			// Non-terminal event
+			continue
+		}
+		if err != nil {
+			logging.WithStacktrace(ctx, err).Warnf("cannot determine jobId from event; ignoring")
+			continue
+		}
+
+		jobIds = append(jobIds, jobId)
+	}
+	return srv.SubmitServer.jobRepository.ExpirePulsarSchedulerJobDetails(jobIds)
 }
 
 // ProcessSequence processes all events in a particular sequence.

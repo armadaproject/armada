@@ -69,3 +69,13 @@ func Map[T any, U any](list []T, fn func(val T) U) []U {
 	}
 	return out
 }
+
+func Any[T any](slice []T, predicate func(val T) bool) bool {
+	for _, v := range slice {
+		if predicate(v) {
+			return true
+		}
+	}
+
+	return false
+}
