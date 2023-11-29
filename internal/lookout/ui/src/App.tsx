@@ -73,8 +73,8 @@ type AppProps = {
   v2UpdateJobsService: UpdateJobsService
   v2UpdateJobSetsService: UpdateJobSetsService
   v2CordonService: ICordonService
-  jobSetsAutoRefreshMs: number
-  jobsAutoRefreshMs: number
+  jobSetsAutoRefreshMs: number | undefined
+  jobsAutoRefreshMs: number | undefined
   debugEnabled: boolean
 }
 

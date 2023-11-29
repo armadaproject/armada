@@ -12,8 +12,8 @@ interface UIConfig {
   armadaApiBaseUrl: string
   userAnnotationPrefix: string
   binocularsBaseUrlPattern: string
-  jobSetsAutoRefreshMs: number
-  jobsAutoRefreshMs: number
+  jobSetsAutoRefreshMs: number | undefined
+  jobsAutoRefreshMs: number | undefined
   debugEnabled: boolean
   fakeDataEnabled: boolean
   customTitle: string
@@ -39,8 +39,8 @@ export async function getUIConfig(): Promise<UIConfig> {
     armadaApiBaseUrl: "",
     userAnnotationPrefix: "",
     binocularsBaseUrlPattern: "",
-    jobSetsAutoRefreshMs: 15000,
-    jobsAutoRefreshMs: 30000,
+    jobSetsAutoRefreshMs: undefined,
+    jobsAutoRefreshMs: undefined,
     debugEnabled: searchParams.has("debug"),
     fakeDataEnabled: searchParams.has("fakeData"),
     customTitle: "",

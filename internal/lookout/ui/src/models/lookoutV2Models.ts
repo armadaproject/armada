@@ -63,6 +63,7 @@ export type Job = {
   jobId: JobId
   queue: string
   owner: string
+  namespace: string
   jobSet: string
   state: JobState
   cpu: number
