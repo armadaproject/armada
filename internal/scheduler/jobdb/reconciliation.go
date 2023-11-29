@@ -101,10 +101,6 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, jobRepoRuns []*database.Run) (jst JobStateTransitions, err error) {
 	defer func() { jst.Job = job }()
 	if job == nil && jobRepoJob == nil {
-		if len(jobRepoRuns) != 0 {
-			err = errors.New("received updated runs with no associated job")
-			return
-		}
 		return
 	} else if job == nil && jobRepoJob != nil {
 		if job, err = jobDb.schedulerJobFromDatabaseJob(jobRepoJob); err != nil {
