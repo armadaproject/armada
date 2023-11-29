@@ -88,7 +88,7 @@ interface JobsTableContainerProps {
   logService: ILogService
   cordonService: ICordonService
   debug: boolean
-  autoRefreshMs: number
+  autoRefreshMs: number | undefined
 }
 
 export type LookoutColumnFilter = {
@@ -183,14 +183,17 @@ export const JobsTableContainer = ({
     initialPrefs.autoRefresh === undefined ? true : initialPrefs.autoRefresh,
   )
 
-  const autoRefreshService = useMemo(() => new IntervalService(autoRefreshMs), [autoRefreshMs])
+  const autoRefreshService = useMemo(
+    () => (autoRefreshMs === undefined ? undefined : new IntervalService(autoRefreshMs)),
+    [autoRefreshMs],
+  )
 
   const onAutoRefreshChange = (autoRefresh: boolean) => {
     setAutoRefresh(autoRefresh)
     if (autoRefresh) {
-      autoRefreshService.start()
+      autoRefreshService?.start()
     } else {
-      autoRefreshService.stop()
+      autoRefreshService?.stop()
     }
   }
 
@@ -370,11 +373,11 @@ export const JobsTableContainer = ({
   }
 
   useEffect(() => {
-    autoRefreshService.registerCallback(onRefresh)
+    autoRefreshService?.registerCallback(onRefresh)
     if (autoRefresh) {
-      autoRefreshService.start()
+      autoRefreshService?.start()
     }
-    return () => autoRefreshService.stop()
+    return () => autoRefreshService?.stop()
   }, [])
 
   const onColumnVisibilityChange = (colIdToToggle: ColumnId) => {
@@ -730,7 +733,7 @@ export const JobsTableContainer = ({
             }}
             onRefresh={onRefresh}
             autoRefresh={autoRefresh}
-            onAutoRefreshChange={onAutoRefreshChange}
+            onAutoRefreshChange={autoRefreshService && onAutoRefreshChange}
             onAddAnnotationColumn={addAnnotationCol}
             onRemoveAnnotationColumn={removeAnnotationCol}
             onEditAnnotationColumn={editAnnotationCol}
