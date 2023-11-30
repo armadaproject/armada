@@ -2,6 +2,11 @@ package types
 
 import "golang.org/x/exp/maps"
 
+type AwayNodeType struct {
+	Priority              int32
+	WellKnownNodeTypeName string
+}
+
 type PriorityClass struct {
 	Priority int32
 	// If true, Armada may preempt jobs of this class to improve fairness.
@@ -12,6 +17,8 @@ type PriorityClass struct {
 	// Per-pool override of MaximumResourceFractionPerQueue.
 	// If missing for a particular pool, MaximumResourceFractionPerQueue is used instead for that pool.
 	MaximumResourceFractionPerQueueByPool map[string]map[string]float64
+
+	AwayNodeTypes []AwayNodeType
 }
 
 func (priorityClass PriorityClass) Equal(other PriorityClass) bool {

@@ -18,10 +18,10 @@ import (
 
 var (
 	priorityByPriorityClassName = map[string]types.PriorityClass{
-		"priority-0": {0, true, nil, nil},
-		"priority-1": {1, true, nil, nil},
-		"priority-2": {2, true, nil, nil},
-		"priority-3": {3, false, nil, nil},
+		"priority-0": {Priority: 0, Preemptible: true},
+		"priority-1": {Priority: 1, Preemptible: true},
+		"priority-2": {Priority: 2, Preemptible: true},
+		"priority-3": {Priority: 3, Preemptible: false},
 	}
 
 	priority int32 = 1

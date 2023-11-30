@@ -206,6 +206,11 @@ type SchedulingConfig struct {
 	//
 	// Applies only to the new scheduler.
 	IndexedTaints []string
+	// WellKnownNodeTypes defines a set of well-known node types; these are used
+	// to define custom scheduling rules (e.g., allowing certains types of
+	// preemptible jobs to be scheduled on nodes that they would not ordinarily
+	// be scheduled on).
+	WellKnownNodeTypes []WellKnownNodeType
 	// Default value of GangNodeUniformityLabelAnnotation if none is provided.
 	DefaultGangNodeUniformityLabel string
 	// Kubernetes pods may specify a termination grace period.
@@ -269,6 +274,12 @@ type IndexedResource struct {
 	Name string
 	// See NodeDb docs.
 	Resolution resource.Quantity
+}
+
+type WellKnownNodeType struct {
+	Name   string
+	Labels map[string]string
+	Taints []v1.Taint
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.

@@ -39,6 +39,7 @@ type DefaultPoolAssigner struct {
 	indexedResources       []configuration.IndexedResource
 	indexedTaints          []string
 	indexedNodeLabels      []string
+	wellKnownNodeTypes     []configuration.WellKnownNodeType
 	poolByExecutorId       map[string]string
 	executorsByPool        map[string][]*executor
 	executorRepository     database.ExecutorRepository
@@ -63,6 +64,7 @@ func NewPoolAssigner(executorTimeout time.Duration,
 		priorities:             schedulingConfig.Preemption.AllowedPriorities(),
 		indexedResources:       schedulingConfig.IndexedResources,
 		indexedTaints:          schedulingConfig.IndexedTaints,
+		wellKnownNodeTypes:     schedulingConfig.WellKnownNodeTypes,
 		indexedNodeLabels:      schedulingConfig.IndexedNodeLabels,
 		executorRepository:     executorRepository,
 		schedulingKeyGenerator: schedulerobjects.NewSchedulingKeyGenerator(),
@@ -157,6 +159,7 @@ func (p *DefaultPoolAssigner) constructNodeDb(nodes []*schedulerobjects.Node) (*
 		p.indexedResources,
 		p.indexedTaints,
 		p.indexedNodeLabels,
+		p.wellKnownNodeTypes,
 	)
 	if err != nil {
 		return nil, err

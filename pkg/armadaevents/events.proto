@@ -6,6 +6,7 @@ option csharp_namespace = "ArmadaProject.Io.ArmadaEvents";
 import "k8s.io/api/core/v1/generated.proto";
 import "k8s.io/api/networking/v1/generated.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
 import "k8s.io/apimachinery/pkg/api/resource/generated.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 import "internal/scheduler/schedulerobjects/schedulerobjects.proto";
@@ -290,6 +291,32 @@ message JobRunLeased {
     string node_id = 4;
     // Used by the scheduler to maintain a consistent state
     int32 update_sequence_number = 5;
+    // Because zero is a valid priority, we need to be able to distinguish the
+    // case where `scheduled_at_priority` was explicitly set to zero from the
+    // case where it was not set at all; moreover, we would like to make this
+    // field required (at the application level) further down the line.
+    //
+    // Using `Int32Value` instead of `int32` is not an option, because
+    // moving from one of these types to the other is a wire-incompatible
+    // change.
+    //
+    // Recent versions of proto3 have the `optional` keyword, which would
+    // address all of our issues, but github.com/gogo/protobuf does not support
+    // it yet (and likely never will, because this project has been abandoned).
+    //
+    // We could wrap `scheduled_at_priority` in `oneof`, but the generated code
+    // is hideous.
+    //
+    // Instead, we just have a boolean field to accompany `scheduled_at_priority`;
+    // we can drop it once `scheduled_at_priority` is set everywhere.
+    bool has_scheduled_at_priority = 6;
+    // Priority class priority that this job was scheduled at.
+    //
+    // This is usually equal to the priority of the job's priority class, except
+    // in the case where the job was scheduled as an away job; this field is
+    // used to distinguish this case from the case where the job was scheduled
+    // as a home job.
+    int32 scheduled_at_priority = 7;
 }
 
 // Indicates that a job has been assigned to nodes by Kubernetes.

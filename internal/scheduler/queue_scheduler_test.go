@@ -709,6 +709,7 @@ func NewNodeDb(config configuration.SchedulingConfig) (*nodedb.NodeDb, error) {
 		config.IndexedResources,
 		config.IndexedTaints,
 		config.IndexedNodeLabels,
+		config.WellKnownNodeTypes,
 	)
 	if err != nil {
 		return nil, err

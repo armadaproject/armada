@@ -7,6 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var scheduledAtPriority = int32(5)
+
 var baseJobRun = CreateRun(
 	uuid.New(),
 	uuid.NewString(),
@@ -14,6 +16,7 @@ var baseJobRun = CreateRun(
 	"test-executor",
 	"test-nodeId",
 	"test-nodeName",
+	&scheduledAtPriority,
 	false,
 	false,
 	false,
@@ -74,6 +77,7 @@ func TestDeepCopy(t *testing.T) {
 		"executor",
 		"nodeId",
 		"nodeName",
+		&scheduledAtPriority,
 		true,
 		true,
 		true,
@@ -88,6 +92,7 @@ func TestDeepCopy(t *testing.T) {
 		"executor",
 		"nodeId",
 		"nodeName",
+		&scheduledAtPriority,
 		true,
 		true,
 		true,

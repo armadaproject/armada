@@ -7,11 +7,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 	"golang.org/x/time/rate"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/common/util"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
@@ -423,6 +426,40 @@ func TestGangScheduler(t *testing.T) {
 			ExpectedScheduledJobs:    []int{2},
 			ExpectedNodeUniformity:   map[int]string{0: "b"},
 		},
+		"AwayNodeTypes": {
+			SchedulingConfig: func() configuration.SchedulingConfig {
+				config := testfixtures.TestSchedulingConfig()
+				config.Preemption.PriorityClasses = map[string]types.PriorityClass{
+					"armada-preemptible-away": {
+						Priority:    30000,
+						Preemptible: true,
+
+						AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "H200"}},
+					},
+				}
+				config.Preemption.DefaultPriorityClass = "armada-preemptible-away"
+				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
+					{
+						Name:   "H200",
+						Taints: []v1.Taint{{Key: "H200", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+					},
+				}
+				return config
+			}(),
+			Nodes: func() []*schedulerobjects.Node {
+				nodes := testfixtures.N8GpuNodes(1, []int32{29000, 30000})
+				for _, node := range nodes {
+					node.Taints = []v1.Taint{{Key: "H200", Value: "true", Effect: v1.TaintEffectNoSchedule}}
+				}
+				return nodes
+			}(),
+			Gangs: func() [][]*jobdb.Job {
+				jobId := util.ULID()
+				return [][]*jobdb.Job{{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000))}}
+			}(),
+			ExpectedScheduledIndices: []int{0},
+			ExpectedScheduledJobs:    []int{1},
+		},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -431,11 +468,12 @@ func TestGangScheduler(t *testing.T) {
 				nodesById[node.Id] = node
 			}
 			nodeDb, err := nodedb.NewNodeDb(
-				testfixtures.TestPriorityClasses,
-				testfixtures.TestMaxExtraNodesToConsider,
+				tc.SchedulingConfig.Preemption.PriorityClasses,
+				tc.SchedulingConfig.MaxExtraNodesToConsider,
 				tc.SchedulingConfig.IndexedResources,
-				testfixtures.TestIndexedTaints,
+				tc.SchedulingConfig.IndexedTaints,
 				tc.SchedulingConfig.IndexedNodeLabels,
+				tc.SchedulingConfig.WellKnownNodeTypes,
 			)
 			require.NoError(t, err)
 			txn := nodeDb.Txn(true)

@@ -324,6 +324,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 		q.schedulingConfig.IndexedResources,
 		q.schedulingConfig.IndexedTaints,
 		q.schedulingConfig.IndexedNodeLabels,
+		q.schedulingConfig.WellKnownNodeTypes,
 	)
 	if err != nil {
 		return nil, err

@@ -183,15 +183,20 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 	if err != nil {
 		return nil, err
 	}
+	var scheduledAtPriority *int32
+	if jobRunLeased.HasScheduledAtPriority {
+		scheduledAtPriority = &jobRunLeased.ScheduledAtPriority
+	}
 	return []DbOperation{
 		InsertRuns{runId: &JobRunDetails{
 			queue: meta.queue,
 			dbRun: &schedulerdb.Run{
-				RunID:    runId,
-				JobID:    jobId,
-				JobSet:   meta.jobset,
-				Executor: jobRunLeased.GetExecutorId(),
-				Node:     jobRunLeased.GetNodeId(),
+				RunID:               runId,
+				JobID:               jobId,
+				JobSet:              meta.jobset,
+				Executor:            jobRunLeased.GetExecutorId(),
+				Node:                jobRunLeased.GetNodeId(),
+				ScheduledAtPriority: scheduledAtPriority,
 			},
 		}},
 		UpdateJobQueuedState{jobId: &JobQueuedStateUpdate{
