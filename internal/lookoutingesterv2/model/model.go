@@ -11,6 +11,7 @@ type CreateJobInstruction struct {
 	JobId                     string
 	Queue                     string
 	Owner                     string
+	Namespace                 string
 	JobSet                    string
 	Cpu                       int64
 	Memory                    int64

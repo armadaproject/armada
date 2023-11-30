@@ -13,7 +13,7 @@ import (
 )
 
 type MetricsCollector struct {
-	c              <-chan *armadaevents.EventSequence
+	c              <-chan StateTransition
 	OverallMetrics MetricsVector
 	MetricsByQueue map[string]MetricsVector
 	// If non-zero, log a summary every this many events.
@@ -33,7 +33,7 @@ type MetricsVector struct {
 	TimeOfMostRecentJobSucceededEvent time.Duration
 }
 
-func NewMetricsCollector(c <-chan *armadaevents.EventSequence) *MetricsCollector {
+func NewMetricsCollector(c <-chan StateTransition) *MetricsCollector {
 	return &MetricsCollector{
 		c:              c,
 		MetricsByQueue: make(map[string]MetricsVector),
@@ -75,11 +75,11 @@ func (mc *MetricsCollector) Run(ctx *armadacontext.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case eventSequence, ok := <-mc.c:
+		case stateTransition, ok := <-mc.c:
 			if !ok {
 				return nil
 			}
-			mc.addEventSequence(eventSequence)
+			mc.addEventSequence(stateTransition.EventSequence)
 			if mc.LogSummaryInterval != 0 && mc.OverallMetrics.NumEvents%mc.LogSummaryInterval == 0 {
 				ctx.Info(mc.String())
 			}

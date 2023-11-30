@@ -21,7 +21,7 @@ func TestGetJobSpec(t *testing.T) {
 		store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
 
 		job := NewJobSimulator(converter, store).
-			Submit(queue, jobSet, owner, baseTime, &JobOptions{
+			Submit(queue, jobSet, owner, namespace, baseTime, &JobOptions{
 				JobId:            jobId,
 				Priority:         priority,
 				PriorityClass:    "other-default",

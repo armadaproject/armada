@@ -27,7 +27,7 @@ export interface JobsTableActionBarProps {
   onActiveJobSetsChanged: (newVal: boolean) => void
   onRefresh: () => void
   autoRefresh: boolean
-  onAutoRefreshChange: (autoRefresh: boolean) => void
+  onAutoRefreshChange: ((autoRefresh: boolean) => void) | undefined
   onAddAnnotationColumn: (annotationKey: string) => void
   onRemoveAnnotationColumn: (colId: ColumnId) => void
   onEditAnnotationColumn: (colId: ColumnId, annotationKey: string) => void
@@ -115,7 +115,9 @@ export const JobsTableActionBar = memo(
             </Tooltip>
           </FormGroup>
           <Divider orientation="vertical" />
-          <AutoRefreshToggle autoRefresh={autoRefresh} onAutoRefreshChange={onAutoRefreshChange} />
+          {onAutoRefreshChange && (
+            <AutoRefreshToggle autoRefresh={autoRefresh} onAutoRefreshChange={onAutoRefreshChange} />
+          )}
           <RefreshButton isLoading={isLoading} onClick={onRefresh} />
           <Divider orientation="vertical" />
           <Button variant="text" onClick={onClearFilters} color="secondary">
