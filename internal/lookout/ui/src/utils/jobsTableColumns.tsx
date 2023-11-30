@@ -175,7 +175,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     accessor: "namespace",
     displayName: "Namespace",
     additionalOptions: {
-      enableGrouping: true,
+      enableGrouping: false,
       enableColumnFilter: true,
       size: 300,
     },
