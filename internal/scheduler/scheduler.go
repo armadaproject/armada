@@ -515,6 +515,7 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 		if run == nil {
 			return nil, errors.Errorf("attempting to generate lease events for job %s with no associated runs", job.Id())
 		}
+		scheduledAtPriority, hasScheduledAtPriority := job.GetScheduledAtPriority()
 		eventSequences = append(eventSequences, &armadaevents.EventSequence{
 			Queue:      job.Queue(),
 			JobSetName: job.Jobset(), // TODO: Rename to JobSet.
@@ -528,8 +529,10 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 							ExecutorId: run.Executor(),
 							// NodeId here refers to the unique identifier of the node in an executor cluster,
 							// which is referred to as the NodeName within the scheduler.
-							NodeId:               run.NodeName(),
-							UpdateSequenceNumber: job.QueuedVersion(),
+							NodeId:                 run.NodeName(),
+							UpdateSequenceNumber:   job.QueuedVersion(),
+							HasScheduledAtPriority: hasScheduledAtPriority,
+							ScheduledAtPriority:    scheduledAtPriority,
 						},
 					},
 				},

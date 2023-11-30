@@ -252,6 +252,18 @@ func (job *Job) GetPriorityClassName() string {
 	return job.JobSchedulingInfo().PriorityClassName
 }
 
+func (job *Job) GetScheduledAtPriority() (int32, bool) {
+	run := job.LatestRun()
+	if run == nil {
+		return -1, false
+	}
+	scheduledAtPriority := run.ScheduledAtPriority()
+	if scheduledAtPriority == nil {
+		return -1, false
+	}
+	return *scheduledAtPriority, true
+}
+
 // Needed for compatibility with interfaces.LegacySchedulerJob
 func (job *Job) GetNodeSelector() map[string]string {
 	if req := job.PodRequirements(); req != nil {
@@ -399,14 +411,15 @@ func (job *Job) HasRuns() bool {
 }
 
 // WithNewRun creates a copy of the job with a new run on the given executor.
-func (job *Job) WithNewRun(executor string, nodeId, nodeName string) *Job {
+func (job *Job) WithNewRun(executor string, nodeId, nodeName string, scheduledAtPriority int32) *Job {
 	run := &JobRun{
-		id:       uuid.New(),
-		jobId:    job.id,
-		created:  time.Now().UnixNano(),
-		executor: executor,
-		nodeId:   nodeId,
-		nodeName: nodeName,
+		id:                  uuid.New(),
+		jobId:               job.id,
+		created:             time.Now().UnixNano(),
+		executor:            executor,
+		nodeId:              nodeId,
+		nodeName:            nodeName,
+		scheduledAtPriority: &scheduledAtPriority,
 	}
 	return job.WithUpdatedRun(run)
 }

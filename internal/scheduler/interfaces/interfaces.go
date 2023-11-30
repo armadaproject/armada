@@ -3,6 +3,7 @@ package interfaces
 import (
 	"time"
 
+	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/types"
@@ -19,6 +20,7 @@ type LegacySchedulerJob interface {
 	GetAnnotations() map[string]string
 	GetPodRequirements(priorityClasses map[string]types.PriorityClass) *schedulerobjects.PodRequirements
 	GetPriorityClassName() string
+	GetScheduledAtPriority() (int32, bool)
 	GetNodeSelector() map[string]string
 	GetAffinity() *v1.Affinity
 	GetTolerations() []v1.Toleration
@@ -34,6 +36,15 @@ type LegacySchedulerJob interface {
 	//   - -1 if job should be scheduled before other,
 	//   - +1 if other should be scheduled before other.
 	SchedulingOrderCompare(other LegacySchedulerJob) int
+}
+
+func PriorityClassFromLegacySchedulerJob(priorityClasses map[string]types.PriorityClass, job LegacySchedulerJob) (types.PriorityClass, error) {
+	priorityClassName := job.GetPriorityClassName()
+	priorityClass, ok := priorityClasses[priorityClassName]
+	if !ok {
+		return types.PriorityClass{}, errors.Errorf("unknown priority class %s; must be in %v", priorityClassName, priorityClasses)
+	}
+	return priorityClass, nil
 }
 
 func SchedulingKeyFromLegacySchedulerJob(skg *schedulerobjects.SchedulingKeyGenerator, job LegacySchedulerJob) schedulerobjects.SchedulingKey {
