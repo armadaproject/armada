@@ -108,7 +108,7 @@ For more information see the [UI Developer Guide](./developer/ui.md).
 You can set the `ARMADA_COMPONENTS` environment variable to choose which components to run. It is a comma separated list of components to run. For example, to run only the server and executor, you can run:
 
 ```bash
-export ARMADA_COMPONENTS="server,executor"
+export ARMADA_COMPONENTS="server-legacy,executor-legacy"
 ```
 
 ### Running Pulsar backed scheduler with LocalDev

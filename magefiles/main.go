@@ -171,7 +171,7 @@ func LocalDev(arg string) error {
 	os.Setenv("ARMADA_SCHEDULING_EXECUTORUPDATEFREQUENCY", "1s")
 
 	switch arg {
-	case "minimal":
+	case "minimal-legacy":
 		timeTaken := time.Now()
 		os.Setenv("PULSAR_BACKED", "")
 		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)
@@ -191,13 +191,11 @@ func LocalDev(arg string) error {
 	mg.Deps(CheckForPulsarRunning)
 
 	switch arg {
-	case "minimal":
-		os.Setenv("ARMADA_COMPONENTS", "executor,server")
+	case "minimal-legacy":
+		os.Setenv("ARMADA_COMPONENTS", "executor-legacy,server-legacy")
 		mg.Deps(StartComponents)
 	case "minimal-pulsar":
-		// This 20s sleep is to remedy an issue caused by pods coming up too fast after pulsar
-		// TODO: Deal with this internally somehow?
-		os.Setenv("ARMADA_COMPONENTS", "executor-pulsar,server-pulsar,scheduler,scheduleringester")
+		os.Setenv("ARMADA_COMPONENTS", "executor-pulsar,server-pulsar,scheduler")
 		mg.Deps(StartComponents)
 	case "debug", "no-build":
 		fmt.Println("Dependencies started, ending localdev...")
