@@ -62,7 +62,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	nodeIdByJobId := make(map[string]string)
 	scheduledJobs := make([]interfaces.LegacySchedulerJob, 0)
 	failedJobs := make([]interfaces.LegacySchedulerJob, 0)
-	additionalLabelsByJobId := make(map[string]map[string]string)
+	additionalLabelsByJobId := map[string]map[string]string{}
 	for {
 		// Peek() returns the next gang to try to schedule. Call Clear() before calling Peek() again.
 		// Calling Clear() after (failing to) schedule ensures we get the next gang in order of smallest fair share.
@@ -98,7 +98,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 					nodeIdByJobId[jctx.JobId] = pctx.NodeId
 
 					// Add additional labels for runtime gang cardinality
-					additionalLabelsByJobId[jctx.JobId]["RuntimeGangCardinality"] = strconv.Itoa(runtimeGangCardinality)
+					additionalLabelsByJobId[jctx.JobId] = map[string]string{"runtime_gang_cardinality": strconv.Itoa(runtimeGangCardinality)}
 				}
 			}
 
