@@ -29,9 +29,9 @@ type SchedulerResult struct {
 	// For each preempted job, maps the job id to the id of the node on which the job was running.
 	// For each scheduled job, maps the job id to the id of the node on which the job should be scheduled.
 	NodeIdByJobId map[string]string
-	// Additional labels to be appended to the PodSpec.
+	// Additional annotations to be appended to the PodSpec.
 	// Format: JobId -> LabelName -> LabelValue.
-	AdditionalLabelsByJobId map[string]map[string]string
+	AdditionalAnnotationsByJobId map[string]map[string]string
 	// The Scheduling Context. Being passed up for metrics decisions made in scheduler.go and scheduler_metrics.go.
 	// Passing a pointer as the structure is enormous
 	SchedulingContexts []*schedulercontext.SchedulingContext

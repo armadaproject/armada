@@ -400,7 +400,7 @@ func EventsFromSchedulerResult(result *SchedulerResult, time time.Time) ([]*arma
 	if err != nil {
 		return nil, err
 	}
-	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, ScheduledJobsFromSchedulerResult[*jobdb.Job](result), result.AdditionalLabelsByJobId, time)
+	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, ScheduledJobsFromSchedulerResult[*jobdb.Job](result), result.AdditionalAnnotationsByJobId, time)
 	if err != nil {
 		return nil, err
 	}
@@ -473,13 +473,13 @@ func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventS
 	return eventSequences, nil
 }
 
-func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jobs []*jobdb.Job, additionalLabelsByJobId map[string]map[string]string, time time.Time) ([]*armadaevents.EventSequence, error) {
+func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jobs []*jobdb.Job, additionalAnnotationsByJobId map[string]map[string]string, time time.Time) ([]*armadaevents.EventSequence, error) {
 	for _, job := range jobs {
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
 		if err != nil {
 			return nil, err
 		}
-		additionalLabels, found := additionalLabelsByJobId[job.Id()]
+		additionalLabels, found := additionalAnnotationsByJobId[job.Id()]
 		if !found {
 			additionalLabels = make(map[string]string)
 		}
