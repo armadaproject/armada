@@ -44,10 +44,7 @@ func getComposeFile() string {
 }
 
 func getComponentsList() []string {
-	if os.Getenv("ARMADA_COMPONENTS") != "" {
-		return strings.Split(os.Getenv("ARMADA_COMPONENTS"), ",")
-	}
-	return nil
+	return strings.Split(os.Getenv("ARMADA_COMPONENTS"), ",")
 }
 
 // Dependencies include pulsar, postgres (v1 and v2) as well as redis.
