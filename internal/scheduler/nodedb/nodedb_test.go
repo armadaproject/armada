@@ -439,7 +439,7 @@ func TestScheduleIndividually(t *testing.T) {
 			jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, tc.Jobs, func(_ map[string]string) (string, int, int, bool, error) { return "", 1, 1, true, nil })
 
 			for i, jctx := range jctxs {
-				ok, _, err := nodeDb.ScheduleMany([]*schedulercontext.JobSchedulingContext{jctx})
+				ok, err := nodeDb.ScheduleMany([]*schedulercontext.JobSchedulingContext{jctx})
 				require.NoError(t, err)
 				pctx := jctx.PodSchedulingContext
 
@@ -486,29 +486,24 @@ func TestScheduleMany(t *testing.T) {
 		Jobs [][]*jobdb.Job
 		// For each group, whether we expect scheduling to succeed.
 		ExpectSuccess []bool
-		// The expected number of gang jobs to be scheduled between minCardinality and cardinality.
-		ExpectedRuntimeGangCardinality []int
 	}{
-		// Attempts to schedule 32 jobs with a minimum gang cardinality of 32 jobs. All jobs get scheduled.
+		// Attempts to schedule 32 jobs with a minimum gang cardinality of 1 job. All jobs get scheduled.
 		"simple success": {
-			Nodes:                          testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Jobs:                           [][]*jobdb.Job{gangSuccess},
-			ExpectSuccess:                  []bool{true},
-			ExpectedRuntimeGangCardinality: []int{32},
+			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs:          [][]*jobdb.Job{gangSuccess},
+			ExpectSuccess: []bool{true},
 		},
 		// Attempts to schedule 33 jobs with a minimum gang cardinality of 32 jobs. One fails, but the overall result is a success.
 		"simple success with min cardinality": {
-			Nodes:                          testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Jobs:                           [][]*jobdb.Job{testfixtures.WithGangAnnotationsAndMinCardinalityJobs(32, testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33))},
-			ExpectSuccess:                  []bool{true},
-			ExpectedRuntimeGangCardinality: []int{32},
+			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs:          [][]*jobdb.Job{testfixtures.WithGangAnnotationsAndMinCardinalityJobs(32, testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 33))},
+			ExpectSuccess: []bool{true},
 		},
 		// Attempts to schedule 33 jobs with a minimum gang cardinality of 33. The overall result fails.
 		"simple failure with min cardinality": {
-			Nodes:                          testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
-			Jobs:                           [][]*jobdb.Job{gangFailure},
-			ExpectSuccess:                  []bool{false},
-			ExpectedRuntimeGangCardinality: []int{0},
+			Nodes:         testfixtures.N32CpuNodes(1, testfixtures.TestPriorities),
+			Jobs:          [][]*jobdb.Job{gangFailure},
+			ExpectSuccess: []bool{false},
 		},
 		"correct rollback": {
 			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
@@ -517,8 +512,7 @@ func TestScheduleMany(t *testing.T) {
 				gangFailure,
 				gangSuccess,
 			},
-			ExpectSuccess:                  []bool{true, false, true},
-			ExpectedRuntimeGangCardinality: []int{32, 0, 32},
+			ExpectSuccess: []bool{true, false, true},
 		},
 		"varying job size": {
 			Nodes: testfixtures.N32CpuNodes(2, testfixtures.TestPriorities),
@@ -529,8 +523,7 @@ func TestScheduleMany(t *testing.T) {
 				),
 				testfixtures.N1Cpu4GiJobs("A", testfixtures.PriorityClass0, 1),
 			},
-			ExpectSuccess:                  []bool{true, false},
-			ExpectedRuntimeGangCardinality: []int{33, 0},
+			ExpectSuccess: []bool{true, false},
 		},
 	}
 	for name, tc := range tests {
@@ -552,12 +545,9 @@ func TestScheduleMany(t *testing.T) {
 				}
 
 				jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs, extractGangInfo)
-				runtimeGangCardinality := 0
-				ok, runtimeGangCardinality, err = nodeDb.ScheduleMany(jctxs)
+				ok, err = nodeDb.ScheduleMany(jctxs)
 				require.NoError(t, err)
 				assert.Equal(t, tc.ExpectSuccess[i], ok)
-				assert.Equal(t, tc.ExpectedRuntimeGangCardinality[i], runtimeGangCardinality)
-
 				for _, jctx := range jctxs {
 					pctx := jctx.PodSchedulingContext
 					require.NotNil(t, pctx)
@@ -628,7 +618,7 @@ func benchmarkScheduleMany(b *testing.B, nodes []*schedulerobjects.Node, jobs []
 	for n := 0; n < b.N; n++ {
 		jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs, func(_ map[string]string) (string, int, int, bool, error) { return "", 1, 1, true, nil })
 		txn := nodeDb.Txn(true)
-		_, _, err := nodeDb.ScheduleManyWithTxn(txn, jctxs)
+		_, err := nodeDb.ScheduleManyWithTxn(txn, jctxs)
 		txn.Abort()
 		require.NoError(b, err)
 	}

@@ -88,7 +88,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			return nil, err
 		default:
 		}
-		if ok, runtimeGangCardinality, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx); err != nil {
+		if ok, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx); err != nil {
 			return nil, err
 		} else if ok {
 			// We scheduled the minimum number of gang jobs required.
@@ -98,7 +98,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 					nodeIdByJobId[jctx.JobId] = pctx.NodeId
 
 					// Add additional labels for runtime gang cardinality
-					additionalLabelsByJobId[jctx.JobId] = map[string]string{"runtime_gang_cardinality": strconv.Itoa(runtimeGangCardinality)}
+					additionalLabelsByJobId[jctx.JobId] = map[string]string{"runtime_gang_cardinality": strconv.Itoa(gctx.Fit().NumScheduled)}
 				}
 			}
 

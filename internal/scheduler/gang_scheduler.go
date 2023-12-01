@@ -95,7 +95,7 @@ func (sch *GangScheduler) updateGangSchedulingContextOnFailure(gctx *schedulerco
 	return nil
 }
 
-func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, runtimeGangCardinality int, unschedulableReason string, err error) {
+func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
 	// Exit immediately if this is a new gang and we've hit any round limits.
 	if !gctx.AllJobsEvicted {
 		if ok, unschedulableReason, err = sch.constraints.CheckRoundConstraints(sch.schedulingContext, gctx.Queue); err != nil || !ok {
@@ -139,7 +139,7 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *schedulerco
 	return sch.trySchedule(ctx, gctx)
 }
 
-func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, runtimeGangCardinality int, unschedulableReason string, err error) {
+func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
 	// If no node uniformity constraint, try scheduling across all nodes.
 	if gctx.NodeUniformityLabel == "" {
 		return sch.tryScheduleGang(ctx, gctx)
@@ -170,7 +170,7 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *schedule
 		}
 		addNodeSelectorToGctx(gctx, gctx.NodeUniformityLabel, value)
 		txn := sch.nodeDb.Txn(true)
-		ok, runtimeGangCardinality, unschedulableReason, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx)
+		ok, unschedulableReason, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx)
 		if err != nil {
 			txn.Abort()
 			return
@@ -180,13 +180,13 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *schedule
 			if currentFit.NumScheduled == gctx.Cardinality() && currentFit.MeanPreemptedAtPriority == float64(nodedb.MinPriority) {
 				// Best possible; no need to keep looking.
 				txn.Commit()
-				return true, runtimeGangCardinality, "", nil
+				return true, "", nil
 			}
 			if bestValue == "" || bestFit.Less(currentFit) {
 				if i == len(nodeUniformityLabelValues) {
 					// Minimal meanScheduledAtPriority and no more options; commit and return.
 					txn.Commit()
-					return true, runtimeGangCardinality, "", nil
+					return true, "", nil
 				}
 				// Record the best value seen so far.
 				bestValue = value
@@ -204,18 +204,18 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *schedule
 	return sch.tryScheduleGang(ctx, gctx)
 }
 
-func (sch *GangScheduler) tryScheduleGang(ctx *armadacontext.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, runtimeGangCardinality int, unschedulableReason string, err error) {
+func (sch *GangScheduler) tryScheduleGang(ctx *armadacontext.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
 	txn := sch.nodeDb.Txn(true)
 	defer txn.Abort()
-	ok, runtimeGangCardinality, unschedulableReason, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx)
+	ok, unschedulableReason, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx)
 	if ok && err == nil {
 		txn.Commit()
 	}
 	return
 }
 
-func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *memdb.Txn, gctx *schedulercontext.GangSchedulingContext) (ok bool, runtimeGangCardinality int, unschedulableReason string, err error) {
-	if ok, runtimeGangCardinality, err = sch.nodeDb.ScheduleManyWithTxn(txn, gctx.JobSchedulingContexts); err == nil {
+func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *memdb.Txn, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
+	if ok, err = sch.nodeDb.ScheduleManyWithTxn(txn, gctx.JobSchedulingContexts); err == nil {
 		if !ok {
 			if gctx.Cardinality() > 1 {
 				unschedulableReason = "unable to schedule gang since minimum cardinality not met"

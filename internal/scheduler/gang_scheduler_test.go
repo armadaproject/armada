@@ -520,11 +520,11 @@ func TestGangScheduler(t *testing.T) {
 			for i, gang := range tc.Gangs {
 				jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, gang, GangIdAndCardinalityFromAnnotations)
 				gctx := schedulercontext.NewGangSchedulingContext(jctxs)
-				ok, runtimeGangCardinality, reason, err := sch.Schedule(armadacontext.Background(), gctx)
+				ok, reason, err := sch.Schedule(armadacontext.Background(), gctx)
 				require.NoError(t, err)
 
 				// Runtime cardinality should match expected scheduled jobs
-				require.Equal(t, tc.ExpectedRuntimeGangCardinality[i], runtimeGangCardinality)
+				require.Equal(t, tc.ExpectedRuntimeGangCardinality[i], gctx.Fit().NumScheduled)
 
 				if ok {
 					require.Empty(t, reason)
