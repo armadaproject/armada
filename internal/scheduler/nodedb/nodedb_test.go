@@ -618,7 +618,7 @@ func benchmarkScheduleMany(b *testing.B, nodes []*schedulerobjects.Node, jobs []
 	for n := 0; n < b.N; n++ {
 		jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, jobs, func(_ map[string]string) (string, int, int, bool, error) { return "", 1, 1, true, nil })
 		txn := nodeDb.Txn(true)
-		_, err := nodeDb.ScheduleManyWithTxn(txn, jctxs)
+		_, _, err := nodeDb.ScheduleManyWithTxn(txn, jctxs)
 		txn.Abort()
 		require.NoError(b, err)
 	}

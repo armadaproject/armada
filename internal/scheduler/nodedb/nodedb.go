@@ -492,15 +492,15 @@ func NodeJobDiff(txnA, txnB *memdb.Txn) (map[string]*Node, map[string]*Node, err
 // If N jobs can be scheduled, where N >= `GangMinCardinality`, it will return true, nil and set ShouldFail on any excess jobs.
 // Otherwise, it will return false, nil.
 // TODO: Pass through contexts to support timeouts.
-func (nodeDb *NodeDb) ScheduleMany(jctxs []*schedulercontext.JobSchedulingContext) (bool, error) {
+func (nodeDb *NodeDb) ScheduleMany(jctxs []*schedulercontext.JobSchedulingContext) (bool, int, error) {
 	txn := nodeDb.db.Txn(true)
 	defer txn.Abort()
-	ok, err := nodeDb.ScheduleManyWithTxn(txn, jctxs)
+	ok, runtimeGangCardinality, err := nodeDb.ScheduleManyWithTxn(txn, jctxs)
 	if ok && err == nil {
 		// All pods can be scheduled; commit the transaction.
 		txn.Commit()
 	}
-	return ok, err
+	return ok, runtimeGangCardinality, err
 }
 
 // TODO: Remove me once we re-phrase nodedb in terms of gang context (and therefore can just take this value from the gang scheduling context provided)
@@ -512,7 +512,7 @@ func gangMinCardinality(jctxs []*schedulercontext.JobSchedulingContext) int {
 	}
 }
 
-func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, jctxs []*schedulercontext.JobSchedulingContext) (bool, error) {
+func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, jctxs []*schedulercontext.JobSchedulingContext) (bool, int, error) {
 	// Attempt to schedule pods one by one in a transaction.
 	numScheduled := 0
 	for _, jctx := range jctxs {
@@ -524,7 +524,7 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, jctxs []*schedulercont
 
 		node, err := nodeDb.SelectNodeForJobWithTxn(txn, jctx)
 		if err != nil {
-			return false, err
+			return false, 0, err
 		}
 
 		if node == nil {
@@ -535,26 +535,26 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, jctxs []*schedulercont
 
 		// If we found a node for this pod, bind it and continue to the next pod.
 		if node, err := bindJobToNode(nodeDb.priorityClasses, jctx.Job, node); err != nil {
-			return false, err
+			return false, 0, err
 		} else {
 			if err := nodeDb.UpsertWithTxn(txn, node); err != nil {
-				return false, err
+				return false, 0, err
 			}
 		}
 
 		// Once a job is scheduled, it should no longer be considered for preemption.
 		if nodeDb.enableNewPreemptionStrategy {
 			if err := deleteEvictedJobSchedulingContextIfExistsWithTxn(txn, jctx.JobId); err != nil {
-				return false, err
+				return false, 0, err
 			}
 		}
 
 		numScheduled++
 	}
 	if numScheduled < gangMinCardinality(jctxs) {
-		return false, nil
+		return false, 0, nil
 	}
-	return true, nil
+	return true, numScheduled, nil
 }
 
 func deleteEvictedJobSchedulingContextIfExistsWithTxn(txn *memdb.Txn, jobId string) error {

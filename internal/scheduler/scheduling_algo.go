@@ -97,9 +97,10 @@ func (l *FairSchedulingAlgo) Schedule(
 		defer cancel()
 	}
 	overallSchedulerResult := &SchedulerResult{
-		NodeIdByJobId:      make(map[string]string),
-		SchedulingContexts: make([]*schedulercontext.SchedulingContext, 0, 0),
-		FailedJobs:         make([]interfaces.LegacySchedulerJob, 0),
+		NodeIdByJobId:           make(map[string]string),
+		SchedulingContexts:      make([]*schedulercontext.SchedulingContext, 0, 0),
+		FailedJobs:              make([]interfaces.LegacySchedulerJob, 0),
+		AdditionalLabelsByJobId: make(map[string]map[string]string),
 	}
 
 	// Exit immediately if scheduling is disabled.

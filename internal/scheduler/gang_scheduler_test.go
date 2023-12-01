@@ -498,7 +498,7 @@ func TestGangScheduler(t *testing.T) {
 			for i, gang := range tc.Gangs {
 				jctxs := schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, gang, GangIdAndCardinalityFromAnnotations)
 				gctx := schedulercontext.NewGangSchedulingContext(jctxs)
-				ok, reason, err := sch.Schedule(armadacontext.Background(), gctx)
+				ok, _, reason, err := sch.Schedule(armadacontext.Background(), gctx)
 				require.NoError(t, err)
 				if ok {
 					require.Empty(t, reason)
