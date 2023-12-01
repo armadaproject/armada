@@ -290,8 +290,8 @@ message JobRunLeased {
     string node_id = 4;
     // Used by the scheduler to maintain a consistent state
     int32 update_sequence_number = 5;
-    // Additional labels to be added to the PodSpec.
-    map<string, string> additional_labels = 6;
+    // Additional annotations to be added to the PodSpec.
+    map<string, string> additional_annotations = 6;
 }
 
 // Indicates that a job has been assigned to nodes by Kubernetes.

@@ -479,9 +479,9 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 		if err != nil {
 			return nil, err
 		}
-		additionalLabels, found := additionalAnnotationsByJobId[job.Id()]
+		additionalAnnotations, found := additionalAnnotationsByJobId[job.Id()]
 		if !found {
-			additionalLabels = make(map[string]string)
+			additionalAnnotations = make(map[string]string)
 		}
 		run := job.LatestRun()
 		if run == nil {
@@ -500,9 +500,9 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 							ExecutorId: run.Executor(),
 							// NodeId here refers to the unique identifier of the node in an executor cluster,
 							// which is referred to as the NodeName within the scheduler.
-							NodeId:               run.NodeName(),
-							UpdateSequenceNumber: job.QueuedVersion(),
-							AdditionalLabels:     additionalLabels,
+							NodeId:                run.NodeName(),
+							UpdateSequenceNumber:  job.QueuedVersion(),
+							AdditionalAnnotations: additionalAnnotations,
 						},
 					},
 				},

@@ -98,7 +98,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 					scheduledJobs = append(scheduledJobs, jctx.Job)
 					nodeIdByJobId[jctx.JobId] = pctx.NodeId
 
-					// Add additional labels for runtime gang cardinality
+					// Add additional annotations for runtime gang cardinality
 					additionalAnnotationsByJobId[jctx.JobId] = map[string]string{"runtime_gang_cardinality": strconv.Itoa(numScheduled)}
 				}
 			}
