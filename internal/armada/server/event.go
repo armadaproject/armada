@@ -14,13 +14,13 @@ import (
 	"github.com/armadaproject/armada/internal/armada/repository"
 	"github.com/armadaproject/armada/internal/armada/repository/sequence"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/auth/authorization"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
 type EventServer struct {
-	permissions     authorization.PermissionChecker
+	authorizer      ActionAuthorizer
 	eventRepository repository.EventRepository
 	queueRepository repository.QueueRepository
 	jobRepository   repository.JobRepository
@@ -28,14 +28,14 @@ type EventServer struct {
 }
 
 func NewEventServer(
-	permissions authorization.PermissionChecker,
+	authorizer ActionAuthorizer,
 	eventRepository repository.EventRepository,
 	eventStore repository.EventStore,
 	queueRepository repository.QueueRepository,
 	jobRepository repository.JobRepository,
 ) *EventServer {
 	return &EventServer{
-		permissions:     permissions,
+		authorizer:      authorizer,
 		eventRepository: eventRepository,
 		eventStore:      eventStore,
 		queueRepository: queueRepository,
@@ -45,7 +45,7 @@ func NewEventServer(
 
 func (s *EventServer) Report(grpcCtx context.Context, message *api.EventMessage) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
+	if err := s.authorizer.AuthorizeAction(ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[Report] error: %s", err)
 	}
 
@@ -54,7 +54,7 @@ func (s *EventServer) Report(grpcCtx context.Context, message *api.EventMessage)
 
 func (s *EventServer) ReportMultiple(grpcCtx context.Context, message *api.EventList) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	if err := checkPermission(s.permissions, ctx, permissions.ExecuteJobs); err != nil {
+	if err := s.authorizer.AuthorizeAction(ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportMultiple] error: %s", err)
 	}
 
@@ -128,7 +128,7 @@ func (s *EventServer) GetJobSetEvents(request *api.JobSetRequest, stream api.Eve
 		return err
 	}
 
-	err = validateUserHasWatchPermissions(ctx, s.permissions, q, request.Id)
+	err = validateUserHasWatchPermissions(ctx, s.authorizer, q, request.Id)
 	if err != nil {
 		return status.Errorf(codes.PermissionDenied, "[GetJobSetEvents] %s", err)
 	}
@@ -226,18 +226,12 @@ func (s *EventServer) serveEventsFromRepository(request *api.JobSetRequest, even
 	}
 }
 
-func validateUserHasWatchPermissions(ctx *armadacontext.Context, permsChecker authorization.PermissionChecker, q queue.Queue, jobSetId string) error {
-	err := checkPermission(permsChecker, ctx, permissions.WatchAllEvents)
-	var globalPermErr *ErrUnauthorized
-	if errors.As(err, &globalPermErr) {
-		err = checkQueuePermission(permsChecker, ctx, q, permissions.WatchEvents, queue.PermissionVerbWatch)
-		var queuePermErr *ErrUnauthorized
-		if errors.As(err, &queuePermErr) {
-			return status.Errorf(codes.PermissionDenied, "error getting events for queue: %s, job set: %s: %s",
-				q.Name, jobSetId, MergePermissionErrors(globalPermErr, queuePermErr))
-		} else if err != nil {
-			return status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
-		}
+func validateUserHasWatchPermissions(ctx *armadacontext.Context, authorizer ActionAuthorizer, q queue.Queue, jobSetId string) error {
+	err := authorizer.AuthorizeQueueAction(ctx, q, permissions.WatchAllEvents, queue.PermissionVerbWatch)
+	var permErr *armadaerrors.ErrUnauthorized
+	if errors.As(err, &permErr) {
+		return status.Errorf(codes.PermissionDenied, "error getting events for queue: %s, job set: %s: %s",
+			q.Name, jobSetId, permErr)
 	} else if err != nil {
 		return status.Errorf(codes.Unavailable, "error checking permissions: %s", err)
 	}

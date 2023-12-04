@@ -113,10 +113,12 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 
 	eventRepository := repository.NewEventRepository(eventDb)
 
-	permissions := authorization.NewPrincipalPermissionChecker(
-		config.Auth.PermissionGroupMapping,
-		config.Auth.PermissionScopeMapping,
-		config.Auth.PermissionClaimMapping,
+	authorizer := server.NewAuthorizer(
+		authorization.NewPrincipalPermissionChecker(
+			config.Auth.PermissionGroupMapping,
+			config.Auth.PermissionScopeMapping,
+			config.Auth.PermissionClaimMapping,
+		),
 	)
 
 	// If pool settings are provided, open a connection pool to be shared by all services.
@@ -175,7 +177,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	eventStore := repository.NewEventStore(producer, config.Pulsar.MaxAllowedMessageSize)
 
 	submitServer := server.NewSubmitServer(
-		permissions,
+		authorizer,
 		jobRepository,
 		queueRepository,
 		eventStore,
@@ -188,7 +190,6 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	pulsarSubmitServer := &server.PulsarSubmitServer{
 		Producer:                          producer,
 		QueueRepository:                   queueRepository,
-		Permissions:                       permissions,
 		SubmitServer:                      submitServer,
 		MaxAllowedMessageSize:             config.Pulsar.MaxAllowedMessageSize,
 		PulsarSchedulerSubmitChecker:      pulsarSchedulerSubmitChecker,
@@ -254,10 +255,10 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 		})
 	}
 
-	usageServer := server.NewUsageServer(permissions, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
+	usageServer := server.NewUsageServer(authorizer, config.PriorityHalfTime, &config.Scheduling, usageRepository, queueRepository)
 
 	aggregatedQueueServer := server.NewAggregatedQueueServer(
-		permissions,
+		authorizer,
 		config.Scheduling,
 		jobRepository,
 		queueRepository,
@@ -288,7 +289,7 @@ func Serve(ctx *armadacontext.Context, config *configuration.ArmadaConfig, healt
 	}
 
 	eventServer := server.NewEventServer(
-		permissions,
+		authorizer,
 		eventRepository,
 		eventStore,
 		queueRepository,
