@@ -162,6 +162,7 @@ func (m *Metrics) Describe(ch chan<- *prometheus.Desc) {
 	m.scheduled.Describe(ch)
 	m.preempted.Describe(ch)
 	m.failed.Describe(ch)
+	m.succeeded.Describe(ch)
 }
 
 // Collect and then reset all metrics.
@@ -179,6 +180,8 @@ func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
 	m.preempted.Reset()
 	m.failed.Collect(ch)
 	m.failed.Reset()
+	m.succeeded.Collect(ch)
+	m.succeeded.Reset()
 }
 
 func (m *Metrics) UpdateMany(
