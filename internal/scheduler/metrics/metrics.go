@@ -88,7 +88,7 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Subsystem: subsystem,
-				Name:      "queued",
+				Name:      "queued_total",
 				Help:      "Queued jobs.",
 			},
 			inactiveJobLabels,
@@ -97,7 +97,7 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Subsystem: subsystem,
-				Name:      "scheduled",
+				Name:      "scheduled_total",
 				Help:      "Scheduled jobs.",
 			},
 			activeJobLabels,
@@ -106,7 +106,7 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Subsystem: subsystem,
-				Name:      "preempted",
+				Name:      "preempted_total",
 				Help:      "Preempted jobs.",
 			},
 			activeJobLabels,
@@ -115,7 +115,7 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Subsystem: subsystem,
-				Name:      "cancelled",
+				Name:      "cancelled_total",
 				Help:      "Cancelled jobs.",
 			},
 			activeJobLabels,
@@ -124,7 +124,7 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Subsystem: subsystem,
-				Name:      "failed",
+				Name:      "failed_total",
 				Help:      "Failed jobs.",
 			},
 			failedJobLabels,
@@ -133,7 +133,7 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 			prometheus.CounterOpts{
 				Namespace: namespace,
 				Subsystem: subsystem,
-				Name:      "succeeded",
+				Name:      "succeeded_total",
 				Help:      "Successful jobs.",
 			},
 			activeJobLabels,
@@ -164,15 +164,21 @@ func (m *Metrics) Describe(ch chan<- *prometheus.Desc) {
 	m.failed.Describe(ch)
 }
 
+// Collect and then reset all metrics.
+// Resetting ensures we do not build up a large number of counters over time.
 func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
 	if m == nil || m.config.Disabled || m.disabled {
 		return
 	}
 	// TODO(albin): Only these metrics are expected to work for now.
 	m.queued.Collect(ch)
+	m.queued.Reset()
 	m.scheduled.Collect(ch)
+	m.scheduled.Reset()
 	m.preempted.Collect(ch)
+	m.preempted.Reset()
 	m.failed.Collect(ch)
+	m.failed.Reset()
 }
 
 func (m *Metrics) UpdateMany(
