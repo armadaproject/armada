@@ -130,7 +130,7 @@ func (jobLeaseService *JobLeaseService) requestJobLeases(leaseRequest *api.Strea
 	}
 
 	// Goroutine receiving jobs from the server.
-	// Also recevies ack confirmations from the server.
+	// Also received ack confirmations from the server.
 	// Send leases on ch to another goroutine responsible for sending back acks.
 	// Give the channel a small buffer to allow for some asynchronicity.
 	var numServerAcks uint32
