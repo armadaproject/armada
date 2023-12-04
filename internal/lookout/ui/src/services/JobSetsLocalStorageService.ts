@@ -1,4 +1,4 @@
-import { isJobSetsView, JobSetsContainerState } from "../containers/JobSetsContainer"
+import { JobSetsContainerState } from "../containers/JobSetsContainer"
 import { tryParseJson } from "../utils"
 
 const LOCAL_STORAGE_KEY = "armada_lookout_job_sets_user_settings"
@@ -20,13 +20,6 @@ function convertToLocalStorageState(loadedData: Record<string, unknown>): JobSet
   if (loadedData.queue != undefined && typeof loadedData.queue == "string") {
     state.queue = loadedData.queue
   }
-  if (
-    loadedData.currentView != undefined &&
-    typeof loadedData.currentView == "string" &&
-    isJobSetsView(loadedData.currentView)
-  ) {
-    state.currentView = loadedData.currentView
-  }
   if (loadedData.newestFirst != undefined && typeof loadedData.newestFirst == "boolean") {
     state.newestFirst = loadedData.newestFirst
   }
@@ -42,7 +35,6 @@ export default class JobSetsLocalStorageService {
     const localStorageState = {
       autoRefresh: state.autoRefresh,
       queue: state.queue,
-      currentView: state.currentView,
       newestFirst: state.newestFirst,
       activeOnly: state.activeOnly,
     }
@@ -63,7 +55,6 @@ export default class JobSetsLocalStorageService {
     const loadedState = convertToLocalStorageState(loadedData as Record<string, unknown>)
     if (loadedState.autoRefresh != undefined) state.autoRefresh = loadedState.autoRefresh
     if (loadedState.queue) state.queue = loadedState.queue
-    if (loadedState.currentView && isJobSetsView(loadedState.currentView)) state.currentView = loadedState.currentView
     if (loadedState.newestFirst != undefined) state.newestFirst = loadedState.newestFirst
     if (loadedState.activeOnly != undefined) state.activeOnly = loadedState.activeOnly
   }

@@ -11,7 +11,7 @@ export default class FakeGetJobsService implements IGetJobsService {
     order: JobOrder,
     skip: number,
     take: number,
-    signal: AbortSignal | undefined,
+    signal?: AbortSignal,
   ): Promise<GetJobsResponse> {
     if (this.simulateApiWait) {
       await simulateApiWait(signal)

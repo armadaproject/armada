@@ -19,6 +19,8 @@ on:
       - 'scripts/build-airflow-operator.sh'
       - 'scripts/build-python-client.sh'
       - 'third_party/airflow/**'
+      - './magefiles/tests.go'
+      - './magefiles/python.go'
 
   pull_request:
     branches-ignore:
@@ -98,7 +100,7 @@ jobs:
           # Manually create folders to ensure perms are correct.
           mkdir -p .kube/internal
           mkdir -p .kube/external
-          go run github.com/magefile/mage@v1.14.0 -v localdev minimal
+          go run github.com/magefile/mage@v1.14.0 -v localdev minimal-legacy
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:

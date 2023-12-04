@@ -6,9 +6,13 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/app"
+	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/compress"
 	"github.com/armadaproject/armada/internal/common/database"
 	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/profiling"
+	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/configuration"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/instructions"
 	"github.com/armadaproject/armada/internal/lookoutingesterv2/lookoutdb"
@@ -32,6 +36,15 @@ func Run(config *configuration.LookoutIngesterV2Configuration) {
 		panic(errors.WithMessage(err, "Error creating compressor"))
 	}
 
+	// Expose profiling endpoints if enabled.
+	pprofServer := profiling.SetupPprofHttpServer(config.PprofPort)
+	go func() {
+		ctx := armadacontext.Background()
+		if err := serve.ListenAndServe(ctx, pprofServer); err != nil {
+			logging.WithStacktrace(ctx, err).Error("pprof server failure")
+		}
+	}()
+
 	converter := instructions.NewInstructionConverter(m, config.UserAnnotationPrefix, compressor, config.UseLegacyEventConversion)
 
 	ingester := ingest.NewIngestionPipeline[*model.InstructionSet](
@@ -43,10 +56,10 @@ func Run(config *configuration.LookoutIngesterV2Configuration) {
 		converter,
 		lookoutDb,
 		config.Metrics,
-		m)
+		m,
+	)
 
-	err = ingester.Run(app.CreateContextWithShutdown())
-	if err != nil {
+	if err := ingester.Run(app.CreateContextWithShutdown()); err != nil {
 		panic(errors.WithMessage(err, "Error running ingestion pipeline"))
 	}
 }

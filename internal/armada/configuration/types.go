@@ -26,6 +26,7 @@ type ArmadaConfig struct {
 	PprofPort *uint16
 
 	CorsAllowedOrigins []string
+	GrpcGatewayPath    string
 
 	Grpc grpcconfig.GrpcConfig
 

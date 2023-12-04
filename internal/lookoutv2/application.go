@@ -6,6 +6,7 @@ import (
 	"github.com/caarlos0/log"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/runtime/middleware"
+	"github.com/jessevdk/go-flags"
 	"github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -19,7 +20,7 @@ import (
 	"github.com/armadaproject/armada/internal/lookoutv2/repository"
 )
 
-func Serve(configuration configuration.LookoutV2Configuration) error {
+func Serve(configuration configuration.LookoutV2Config) error {
 	// load embedded swagger file
 	swaggerSpec, err := loads.Analyzed(restapi.SwaggerJSON, "")
 	if err != nil {
@@ -52,17 +53,14 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 		func(params operations.GetJobsParams) middleware.Responder {
 			filters := util.Map(params.GetJobsRequest.Filters, conversions.FromSwaggerFilter)
 			order := conversions.FromSwaggerOrder(params.GetJobsRequest.Order)
-			skip := 0
-			if params.GetJobsRequest.Skip != nil {
-				skip = int(*params.GetJobsRequest.Skip)
-			}
 			result, err := getJobsRepo.GetJobs(
 				armadacontext.New(params.HTTPRequest.Context(), logger),
 				filters,
 				params.GetJobsRequest.ActiveJobSets,
 				order,
-				skip,
-				int(params.GetJobsRequest.Take))
+				int(params.GetJobsRequest.Skip),
+				int(params.GetJobsRequest.Take),
+			)
 			if err != nil {
 				return operations.NewGetJobsBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
 			}
@@ -77,10 +75,6 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 		func(params operations.GroupJobsParams) middleware.Responder {
 			filters := util.Map(params.GroupJobsRequest.Filters, conversions.FromSwaggerFilter)
 			order := conversions.FromSwaggerOrder(params.GroupJobsRequest.Order)
-			skip := 0
-			if params.GroupJobsRequest.Skip != nil {
-				skip = int(*params.GroupJobsRequest.Skip)
-			}
 			result, err := groupJobsRepo.GroupBy(
 				armadacontext.New(params.HTTPRequest.Context(), logger),
 				filters,
@@ -88,8 +82,9 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 				order,
 				conversions.FromSwaggerGroupedField(params.GroupJobsRequest.GroupedField),
 				params.GroupJobsRequest.Aggregates,
-				skip,
-				int(params.GroupJobsRequest.Take))
+				int(params.GroupJobsRequest.Skip),
+				int(params.GroupJobsRequest.Take),
+			)
 			if err != nil {
 				return operations.NewGroupJobsBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
 			}
@@ -134,7 +129,15 @@ func Serve(configuration configuration.LookoutV2Configuration) error {
 		}
 	}()
 
-	server.Port = configuration.ApiPort
+	if configuration.Tls.Enabled {
+		server.EnabledListeners = []string{"https"}
+		server.TLSPort = configuration.ApiPort
+		server.TLSCertificate = flags.Filename(configuration.Tls.CertPath)
+		server.TLSCertificateKey = flags.Filename(configuration.Tls.KeyPath)
+	} else {
+		server.Port = configuration.ApiPort
+	}
+
 	restapi.SetCorsAllowedOrigins(configuration.CorsAllowedOrigins) // This needs to happen before ConfigureAPI
 	server.ConfigureAPI()
 	if err := server.Serve(); err != nil {

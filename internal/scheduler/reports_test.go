@@ -253,7 +253,7 @@ func withSuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingContext
 		qctx.SchedulingContext = nil
 		qctx.Created = time.Time{}
 	}
-	qctx.SuccessfulJobSchedulingContexts[jobId] = &schedulercontext.JobSchedulingContext{JobId: jobId}
+	qctx.SuccessfulJobSchedulingContexts[jobId] = &schedulercontext.JobSchedulingContext{JobId: jobId, GangMinCardinality: 1}
 	rl := schedulerobjects.ResourceList{Resources: map[string]resource.Quantity{"cpu": resource.MustParse("1")}}
 	qctx.ScheduledResourcesByPriorityClass.AddResourceList("foo", rl)
 	sctx.ScheduledResourcesByPriorityClass.AddResourceList("foo", rl)
@@ -293,7 +293,7 @@ func withUnsuccessfulJobSchedulingContext(sctx *schedulercontext.SchedulingConte
 		qctx.SchedulingContext = nil
 		qctx.Created = time.Time{}
 	}
-	qctx.UnsuccessfulJobSchedulingContexts[jobId] = &schedulercontext.JobSchedulingContext{JobId: jobId, UnschedulableReason: "unknown"}
+	qctx.UnsuccessfulJobSchedulingContexts[jobId] = &schedulercontext.JobSchedulingContext{JobId: jobId, UnschedulableReason: "unknown", GangMinCardinality: 1}
 	return sctx
 }
 

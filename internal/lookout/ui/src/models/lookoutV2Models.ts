@@ -63,6 +63,7 @@ export type Job = {
   jobId: JobId
   queue: string
   owner: string
+  namespace: string
   jobSet: string
   state: JobState
   cpu: number
@@ -138,4 +139,9 @@ export type SortDirection = "ASC" | "DESC"
 export type JobOrder = {
   field: string
   direction: SortDirection
+}
+
+export interface JobSet {
+  queue: string
+  jobSetId: string
 }

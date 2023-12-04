@@ -116,7 +116,7 @@ func TestPruneDb(t *testing.T) {
 				for _, tj := range tc.jobs {
 					runId := uuid.NewString()
 					repository.NewJobSimulator(converter, store).
-						Submit("queue", "jobSet", "owner", tj.ts, &repository.JobOptions{
+						Submit("queue", "jobSet", "owner", "namespace", tj.ts, &repository.JobOptions{
 							JobId: tj.jobId,
 							Annotations: map[string]string{
 								"armadaproject.io/test-1": "one",

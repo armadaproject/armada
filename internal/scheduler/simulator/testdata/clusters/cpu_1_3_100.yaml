@@ -1,0 +1,26 @@
+name: "3 cluster with 100 32-core nodes"
+pools:
+  - name: "CPU"
+    clusterGroups:
+      - clusters:
+          - name: "cpu-01"
+            nodeTemplates:
+              - number: 100
+                totalResources:
+                  resources:
+                    cpu: "32"
+                    memory: "1024Gi"
+          - name: "cpu-02"
+            nodeTemplates:
+              - number: 100
+                totalResources:
+                  resources:
+                    cpu: "32"
+                    memory: "1024Gi"
+          - name: "cpu-03"
+            nodeTemplates:
+              - number: 100
+                totalResources:
+                  resources:
+                    cpu: "32"
+                    memory: "1024Gi"

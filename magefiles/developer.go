@@ -10,7 +10,7 @@ import (
 
 var services = []string{"pulsar", "redis", "postgres"}
 
-var componentsStr string = "server,lookout,lookoutingester,lookoutv2,lookoutingesterv2,executor,binoculars,eventingester,jobservice"
+var componentsStr string = "server,lookoutv2,lookoutingesterv2,executor,binoculars,eventingester,jobservice"
 
 func getComposeFile() string {
 	if os.Getenv("COMPOSE_FILE") != "" {

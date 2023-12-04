@@ -6,10 +6,10 @@ import { EnumFilterOption } from "components/lookoutV2/JobsTableFilter"
 import { isJobGroupRow, JobTableRow } from "models/jobsTableModels"
 import { JobState, Match } from "models/lookoutV2Models"
 
-import { JobGroupStateCounts } from "../components/lookoutV2/JobGroupStateCounts"
-import { LookoutColumnOrder } from "../containers/lookoutV2/JobsTableContainer"
 import { formatJobState, formatTimeSince, formatUtcDate } from "./jobsTableFormatters"
 import { formatBytes, formatCpu, parseBytes, parseCpu, parseInteger } from "./resourceUtils"
+import { JobGroupStateCounts } from "../components/lookoutV2/JobGroupStateCounts"
+import { LookoutColumnOrder } from "../containers/lookoutV2/JobsTableContainer"
 
 export type JobTableColumn = ColumnDef<JobTableRow, any>
 
@@ -38,6 +38,7 @@ export enum StandardColumnId {
   State = "state",
   Priority = "priority",
   Owner = "owner",
+  Namespace = "namespace",
   CPU = "cpu",
   Memory = "memory",
   EphemeralStorage = "ephemeralStorage",
@@ -161,6 +162,20 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     displayName: "Queue",
     additionalOptions: {
       enableGrouping: true,
+      enableColumnFilter: true,
+      size: 300,
+    },
+    additionalMetadata: {
+      filterType: FilterType.Text,
+      defaultMatchType: Match.StartsWith,
+    },
+  }),
+  accessorColumn({
+    id: StandardColumnId.Namespace,
+    accessor: "namespace",
+    displayName: "Namespace",
+    additionalOptions: {
+      enableGrouping: false,
       enableColumnFilter: true,
       size: 300,
     },
@@ -438,6 +453,7 @@ export const DEFAULT_COLUMN_MATCHES: Record<string, Match> = {
   [StandardColumnId.JobID]: Match.Exact,
   [StandardColumnId.State]: Match.AnyOf,
   [StandardColumnId.Owner]: Match.StartsWith,
+  [StandardColumnId.Namespace]: Match.StartsWith,
   [StandardColumnId.CPU]: Match.Exact,
   [StandardColumnId.Memory]: Match.Exact,
   [StandardColumnId.EphemeralStorage]: Match.Exact,
@@ -451,6 +467,7 @@ export const VALID_COLUMN_MATCHES: Record<string, Match[]> = {
   [StandardColumnId.Queue]: [Match.Exact, Match.StartsWith, Match.Contains],
   [StandardColumnId.JobSet]: [Match.Exact, Match.StartsWith, Match.Contains],
   [StandardColumnId.Owner]: [Match.Exact, Match.StartsWith, Match.Contains],
+  [StandardColumnId.Namespace]: [Match.Exact, Match.StartsWith, Match.Contains],
   [StandardColumnId.State]: [Match.AnyOf],
   [StandardColumnId.CPU]: [
     Match.Exact,

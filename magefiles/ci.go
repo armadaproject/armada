@@ -25,7 +25,6 @@ func createQueue() error {
 
 // Build images, spin up a test environment, and run the integration tests against it.
 func TestSuite() error {
-	mg.Deps(createQueue)
 	mg.Deps(CheckForArmadaRunning)
 
 	// Only set these if they have not already been set
@@ -42,6 +41,7 @@ func TestSuite() error {
 		"--junit", "junit.xml",
 	)
 	if err2 != nil {
+		fmt.Println(out)
 		return err2
 	}
 	fmt.Printf("(Real) Time to run tests: %s\n\n", time.Since(timeTaken))
@@ -52,10 +52,11 @@ func TestSuite() error {
 
 // Checks if Armada is ready to accept jobs.
 func CheckForArmadaRunning() error {
+	time.Sleep(30 * time.Second)
 	mg.Deps(createQueue)
 
 	// Set high to take compile time into account
-	timeout := time.After(10 * time.Minute)
+	timeout := time.After(2 * time.Minute)
 	tick := time.Tick(1 * time.Second)
 	seconds := 0
 	for {

@@ -172,6 +172,7 @@ func createJobInstructions(n int, jobIds []string) []*model.CreateJobInstruction
 			JobId:                     jobIds[i%len(jobIds)],
 			Queue:                     uuid.NewString(),
 			Owner:                     uuid.NewString(),
+			Namespace:                 uuid.NewString(),
 			JobSet:                    uuid.NewString(),
 			Cpu:                       rand.Int63(),
 			Memory:                    rand.Int63(),

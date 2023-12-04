@@ -697,6 +697,10 @@ func (srv *PulsarSubmitServer) GetQueue(ctx context.Context, req *api.QueueGetRe
 	return srv.SubmitServer.GetQueue(ctx, req)
 }
 
+func (srv *PulsarSubmitServer) GetQueues(req *api.StreamingQueueGetRequest, stream api.Submit_GetQueuesServer) error {
+	return srv.SubmitServer.GetQueues(req, stream)
+}
+
 func (srv *PulsarSubmitServer) GetQueueInfo(ctx context.Context, req *api.QueueInfoRequest) (*api.QueueInfo, error) {
 	return srv.SubmitServer.GetQueueInfo(ctx, req)
 }

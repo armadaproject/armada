@@ -3,13 +3,10 @@ package scheduler
 import (
 	"container/heap"
 	"reflect"
-	"time"
 
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/logging"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
@@ -43,7 +40,7 @@ func NewQueueScheduler(
 	}
 	gangIteratorsByQueue := make(map[string]*QueuedGangIterator)
 	for queue, it := range jobIteratorByQueue {
-		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, constraints.MaxQueueLookback)
+		gangIteratorsByQueue[queue] = NewQueuedGangIterator(sctx, it, constraints.MaxQueueLookback, true)
 	}
 	candidateGangIterator, err := NewCandidateGangIterator(sctx, sctx.FairnessCostProvider, gangIteratorsByQueue)
 	if err != nil {
@@ -63,6 +60,7 @@ func (sch *QueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
 	nodeIdByJobId := make(map[string]string)
 	scheduledJobs := make([]interfaces.LegacySchedulerJob, 0)
+	failedJobs := make([]interfaces.LegacySchedulerJob, 0)
 	for {
 		// Peek() returns the next gang to try to schedule. Call Clear() before calling Peek() again.
 		// Calling Clear() after (failing to) schedule ensures we get the next gang in order of smallest fair share.
@@ -91,11 +89,18 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		if ok, unschedulableReason, err := sch.gangScheduler.Schedule(ctx, gctx); err != nil {
 			return nil, err
 		} else if ok {
+			// We scheduled the minimum number of gang jobs required.
 			for _, jctx := range gctx.JobSchedulingContexts {
-				scheduledJobs = append(scheduledJobs, jctx.Job)
-				pctx := jctx.PodSchedulingContext
-				if pctx != nil && pctx.NodeId != "" {
+				if pctx := jctx.PodSchedulingContext; pctx.IsSuccessful() {
+					scheduledJobs = append(scheduledJobs, jctx.Job)
 					nodeIdByJobId[jctx.JobId] = pctx.NodeId
+				}
+			}
+
+			// Report any excess gang jobs that failed
+			for _, jctx := range gctx.JobSchedulingContexts {
+				if jctx.ShouldFail {
+					failedJobs = append(failedJobs, jctx.Job)
 				}
 			}
 		} else if schedulerconstraints.IsTerminalUnschedulableReason(unschedulableReason) {
@@ -107,6 +112,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			// instruct the underlying iterator to only yield evicted jobs for this queue from now on.
 			sch.candidateGangIterator.OnlyYieldEvictedForQueue(gctx.Queue)
 		}
+
 		// Clear() to get the next gang in order of smallest fair share.
 		// Calling clear here ensures the gang scheduled in this iteration is accounted for.
 		if err := sch.candidateGangIterator.Clear(); err != nil {
@@ -122,6 +128,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	return &SchedulerResult{
 		PreemptedJobs:      nil,
 		ScheduledJobs:      scheduledJobs,
+		FailedJobs:         failedJobs,
 		NodeIdByJobId:      nodeIdByJobId,
 		SchedulingContexts: []*schedulercontext.SchedulingContext{sch.schedulingContext},
 	}, nil
@@ -133,21 +140,24 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 type QueuedGangIterator struct {
 	schedulingContext  *schedulercontext.SchedulingContext
 	queuedJobsIterator JobIterator
-	// Groups jobs by the gang they belong to.
-	jobsByGangId map[string][]interfaces.LegacySchedulerJob
+	// Groups jctxs by the gang they belong to.
+	jctxsByGangId map[string][]*schedulercontext.JobSchedulingContext
 	// Maximum number of jobs to look at before giving up.
 	maxLookback uint
+	// If true, do not yield jobs known to be unschedulable.
+	skipKnownUnschedulableJobs bool
 	// Number of jobs we have seen so far.
 	jobsSeen uint
 	next     *schedulercontext.GangSchedulingContext
 }
 
-func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobIterator, maxLookback uint) *QueuedGangIterator {
+func NewQueuedGangIterator(sctx *schedulercontext.SchedulingContext, it JobIterator, maxLookback uint, skipKnownUnschedulableJobs bool) *QueuedGangIterator {
 	return &QueuedGangIterator{
-		schedulingContext:  sctx,
-		queuedJobsIterator: it,
-		maxLookback:        maxLookback,
-		jobsByGangId:       make(map[string][]interfaces.LegacySchedulerJob),
+		schedulingContext:          sctx,
+		queuedJobsIterator:         it,
+		maxLookback:                maxLookback,
+		skipKnownUnschedulableJobs: skipKnownUnschedulableJobs,
+		jctxsByGangId:              make(map[string][]*schedulercontext.JobSchedulingContext),
 	}
 }
 
@@ -179,18 +189,15 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 	// 1. get a job that isn't part of a gang, in which case we yield it immediately, or
 	// 2. get the final job in a gang, in which case we yield the entire gang.
 	for {
-		job, err := it.queuedJobsIterator.Next()
+		jctx, err := it.queuedJobsIterator.Next()
 		if err != nil {
 			return nil, err
-		}
-		if job == nil {
+		} else if jctx == nil || reflect.ValueOf(jctx).IsNil() {
 			return nil, nil
 		}
-		if reflect.ValueOf(job).IsNil() {
-			return nil, nil
-		}
-		if !isEvictedJob(job) {
-			// Rescheduled jobs don't count towards the limit.
+
+		// Queue lookback limits. Rescheduled jobs don't count towards the limit.
+		if !jctx.IsEvicted {
 			it.jobsSeen++
 		}
 		if it.hitLookbackLimit() {
@@ -198,51 +205,32 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 		}
 
 		// Skip this job if it's known to be unschedulable.
-		if len(it.schedulingContext.UnfeasibleSchedulingKeys) > 0 {
-			schedulingKey := it.schedulingContext.SchedulingKeyFromLegacySchedulerJob(job)
-			if unsuccessfulJctx, ok := it.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; ok {
-				// TODO: For performance, we should avoid creating new objects and instead reference the existing one.
-				jctx := &schedulercontext.JobSchedulingContext{
-					Created:              time.Now(),
-					JobId:                job.GetId(),
-					Job:                  job,
-					UnschedulableReason:  unsuccessfulJctx.UnschedulableReason,
-					PodSchedulingContext: unsuccessfulJctx.PodSchedulingContext,
+		if it.skipKnownUnschedulableJobs && len(it.schedulingContext.UnfeasibleSchedulingKeys) > 0 {
+			schedulingKey, ok := jctx.SchedulingKey()
+			if ok && schedulingKey != schedulerobjects.EmptySchedulingKey {
+				if unsuccessfulJctx, ok := it.schedulingContext.UnfeasibleSchedulingKeys[schedulingKey]; ok {
+					// Since jctx would fail to schedule for the same reason as unsuccessfulJctx,
+					// set the unschedulable reason and pctx equal to that of unsuccessfulJctx.
+					jctx.UnschedulableReason = unsuccessfulJctx.UnschedulableReason
+					jctx.PodSchedulingContext = unsuccessfulJctx.PodSchedulingContext
+					if _, err := it.schedulingContext.AddJobSchedulingContext(jctx); err != nil {
+						return nil, err
+					}
+					continue
 				}
-				if _, err := it.schedulingContext.AddJobSchedulingContext(jctx); err != nil {
-					return nil, err
-				}
-				continue
 			}
 		}
-
-		gangId, gangCardinality, _, isGangJob, err := GangIdAndCardinalityFromAnnotations(job.GetAnnotations())
-		if err != nil {
-			// TODO: Get from context passed in.
-			log := logrus.NewEntry(logrus.New())
-			logging.WithStacktrace(log, err).Errorf("failed to get gang cardinality for job %s", job.GetId())
-			gangCardinality = 1 // Schedule jobs with invalid gang cardinality one by one.
-		}
-		if isGangJob {
-			it.jobsByGangId[gangId] = append(it.jobsByGangId[gangId], job)
-			gang := it.jobsByGangId[gangId]
-			if len(gang) == gangCardinality {
-				delete(it.jobsByGangId, gangId)
-				it.next = schedulercontext.NewGangSchedulingContext(
-					schedulercontext.JobSchedulingContextsFromJobs(
-						it.schedulingContext.PriorityClasses,
-						gang,
-					),
-				)
+		if jctx.GangCardinality > 1 {
+			gang := it.jctxsByGangId[jctx.GangId]
+			gang = append(gang, jctx)
+			it.jctxsByGangId[jctx.GangId] = gang
+			if len(gang) == jctx.GangCardinality {
+				delete(it.jctxsByGangId, jctx.GangId)
+				it.next = schedulercontext.NewGangSchedulingContext(gang)
 				return it.next, nil
 			}
 		} else {
-			it.next = schedulercontext.NewGangSchedulingContext(
-				schedulercontext.JobSchedulingContextsFromJobs(
-					it.schedulingContext.PriorityClasses,
-					[]interfaces.LegacySchedulerJob{job},
-				),
-			)
+			it.next = schedulercontext.NewGangSchedulingContext([]*schedulercontext.JobSchedulingContext{jctx})
 			return it.next, nil
 		}
 	}
