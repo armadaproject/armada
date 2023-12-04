@@ -908,7 +908,7 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 				logging.WithStacktrace(ctx, err).Error("failed to initialise; trying again in 1 second")
 				time.Sleep(1 * time.Second)
 			} else {
-				// Initialisation succeeded.
+				ctx.Info("initialisation succeeded")
 				return nil
 			}
 		}

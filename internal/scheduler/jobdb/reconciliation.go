@@ -65,6 +65,7 @@ func (jobDb *JobDb) ReconcileDifferences(txn *Txn, jobRepoJobs []database.Job, j
 		jobRepoJobsById[jobRepoRun.JobID] = nil
 	}
 	for _, jobRepoJob := range jobRepoJobs {
+		jobRepoJob := jobRepoJob
 		jobRepoJobsById[jobRepoJob.JobID] = &jobRepoJob
 	}
 
@@ -107,9 +108,6 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 			return
 		}
 		jst.Queued = true
-		jst.Failed = jobRepoJob.Failed
-		jst.Cancelled = jobRepoJob.Cancelled
-		jst.Succeeded = jobRepoJob.Succeeded
 	} else if job != nil && jobRepoJob == nil {
 		// No direct updates to the job; just process any updated runs below.
 	} else if job != nil && jobRepoJob != nil {
@@ -121,15 +119,12 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 		}
 		if jobRepoJob.Cancelled && !job.Cancelled() {
 			job = job.WithCancelled(true)
-			jst.Cancelled = true
 		}
 		if jobRepoJob.Succeeded && !job.Succeeded() {
 			job = job.WithSucceeded(true)
-			jst.Succeeded = true
 		}
 		if jobRepoJob.Failed && !job.Failed() {
 			job = job.WithFailed(true)
-			jst.Failed = true
 		}
 		if uint32(jobRepoJob.Priority) != job.RequestedPriority() {
 			job = job.WithRequestedPriority(uint32(jobRepoJob.Priority))
@@ -145,7 +140,6 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 		if jobRepoJob.QueuedVersion > job.QueuedVersion() {
 			job = job.WithQueuedVersion(jobRepoJob.QueuedVersion)
 			job = job.WithQueued(jobRepoJob.Queued)
-			jst.Queued = jobRepoJob.Queued
 		}
 	}
 
@@ -166,7 +160,6 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 		return
 	} else if jobRun == nil && jobRepoRun != nil {
 		jobRun = jobDb.schedulerRunFromDatabaseRun(jobRepoRun)
-		rst.Scheduled = true
 		rst.Returned = jobRepoRun.Returned
 		rst.Pending = jobRepoRun.PendingTimestamp != nil
 		rst.Running = jobRepoRun.Running

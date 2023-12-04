@@ -71,10 +71,10 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 
 	inactiveJobLabels := []string{"queue", "resource"}
 	activeJobLabels := []string{"queue", "cluster", "node", "resource"}
-	failedJobLabels := append(
-		[]string{"queue", "cluster", "node", "resource", "errorType"},
+	failedJobLabels := append(append(
+		[]string{"queue", "cluster", "node", "errorType"},
 		trackedErrorLabels...,
-	)
+	), "resource")
 
 	return &Metrics{
 		config: config,
