@@ -249,7 +249,6 @@ func TestEventServer_GetJobSetEvents_ErrorIfMissing(t *testing.T) {
 func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 	emptyPerms := make(map[permission.Permission][]string)
 	perms := map[permission.Permission][]string{
-		permissions.WatchEvents:    {"watch-events-group"},
 		permissions.WatchAllEvents: {"watch-all-events-group"},
 	}
 	q := queue.Queue{
@@ -270,7 +269,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 		withEventServer(
 			t,
 			func(s *EventServer) {
-				s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+				s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 				err := s.queueRepository.CreateQueue(q)
 				assert.NoError(t, err)
 
@@ -294,7 +293,7 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 		withEventServer(
 			t,
 			func(s *EventServer) {
-				s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+				s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 				err := s.queueRepository.CreateQueue(q)
 				assert.NoError(t, err)
 
@@ -314,33 +313,9 @@ func TestEventServer_GetJobSetEvents_Permissions(t *testing.T) {
 		)
 	})
 
-	t.Run("queue permission without specific global permission", func(t *testing.T) {
-		withEventServer(
-			t,
-			func(s *EventServer) {
-				s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
-				err := s.queueRepository.CreateQueue(q)
-				assert.NoError(t, err)
-
-				principal := authorization.NewStaticPrincipal("alice", []string{"watch-queue-group"})
-				ctx := authorization.WithPrincipal(armadacontext.Background(), principal)
-				stream := &eventStreamMock{ctx: ctx}
-
-				err = s.GetJobSetEvents(&api.JobSetRequest{
-					Id:    "job-set-1",
-					Watch: false,
-					Queue: "test-queue",
-				}, stream)
-				e, ok := status.FromError(err)
-				assert.True(t, ok)
-				assert.Equal(t, codes.PermissionDenied, e.Code())
-			},
-		)
-	})
-
 	t.Run("queue permission", func(t *testing.T) {
 		withEventServer(t, func(s *EventServer) {
-			s.permissions = authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms)
+			s.authorizer = NewAuthorizer(authorization.NewPrincipalPermissionChecker(perms, emptyPerms, emptyPerms))
 			err := s.queueRepository.CreateQueue(q)
 			assert.NoError(t, err)
 
@@ -395,7 +370,7 @@ func withEventServer(t *testing.T, action func(s *EventServer)) {
 	eventRepo := repository.NewEventRepository(client)
 	queueRepo := repository.NewRedisQueueRepository(client)
 	jobRepo := repository.NewRedisJobRepository(client)
-	server := NewEventServer(&FakePermissionChecker{}, eventRepo, nil, queueRepo, jobRepo)
+	server := NewEventServer(&FakeActionAuthorizer{}, eventRepo, nil, queueRepo, jobRepo)
 
 	client.FlushDB()
 	legacyClient.FlushDB()

@@ -355,6 +355,9 @@ func (srv *SubmitFromLog) SubmitJobs(
 	// We can't report job failure on error here, since the job failure message bundles the job struct.
 	// Hence, if an error occurs here, the job disappears from the point of view of the user.
 	// However, this code path is exercised when jobs are submitted to the log so errors should be rare.
+	es = util.Filter(es, func(e *armadaevents.SubmitJob) bool {
+		return !e.IsDuplicate
+	})
 	jobs, err := eventutil.ApiJobsFromLogSubmitJobs(userId, groups, queueName, jobSetName, time.Now(), es)
 	if err != nil {
 		return true, err

@@ -173,7 +173,6 @@ func LocalDev(arg string) error {
 	switch arg {
 	case "minimal-legacy":
 		timeTaken := time.Now()
-		os.Setenv("PULSAR_BACKED", "")
 		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)
 		fmt.Printf("Time to build, setup kind and download images: %s\n", time.Since(timeTaken))
 	case "minimal-pulsar":
