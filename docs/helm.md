@@ -331,12 +331,9 @@ Armada allows you to specify these permissions for user:
 
 | Permission         | Details                                                                           |
 |--------------------|-----------------------------------------------------------------------------------|
-| `submit_jobs`      | Allows users submit jobs to their queue.                                          |
 | `submit_any_jobs`  | Allows users submit jobs to any queue.                                            |
 | `create_queue`     | Allows users submit jobs to create queue.                                         |
-| `cancel_jobs`      | Allows users cancel jobs from their queue.                                        |
 | `cancel_any_jobs`  | Allows users cancel jobs from any queue.                                          |
-| `watch_events`     | Allows users to watch events from their queue.                                    |
 | `watch_all_events` | Allows for watching all events.                                                   |
 | `execute_jobs`     | Protects apis used by executor, only executor service should have this permission |
 
@@ -344,12 +341,9 @@ Permissions can be assigned to user by group membership, like this:
 
 ```yaml
 permissionGroupMapping:
-  submit_jobs: ["teamA", "administrators"]
   submit_any_jobs: ["administrators"]
   create_queue: ["administrators"]
-  cancel_jobs: ["teamA", "administrators"]
   cancel_any_jobs: ["administrators"]
-  watch_events: ["teamA", "administrators"]
   watch_all_events: ["administrators"]
   execute_jobs: ["armada-executor"]
 ```
