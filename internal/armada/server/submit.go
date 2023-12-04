@@ -31,7 +31,7 @@ import (
 )
 
 type SubmitServer struct {
-	permissions              authorization.PermissionChecker
+	authorizer               ActionAuthorizer
 	jobRepository            repository.JobRepository
 	queueRepository          repository.QueueRepository
 	eventStore               repository.EventStore
@@ -43,7 +43,7 @@ type SubmitServer struct {
 }
 
 func NewSubmitServer(
-	permissions authorization.PermissionChecker,
+	authorizer ActionAuthorizer,
 	jobRepository repository.JobRepository,
 	queueRepository repository.QueueRepository,
 	eventStore repository.EventStore,
@@ -69,7 +69,7 @@ func NewSubmitServer(
 		}), &poolConfig)
 
 	return &SubmitServer{
-		permissions:              permissions,
+		authorizer:               authorizer,
 		jobRepository:            jobRepository,
 		queueRepository:          queueRepository,
 		eventStore:               eventStore,
@@ -97,17 +97,10 @@ func (server *SubmitServer) GetQueueInfo(grpcCtx context.Context, req *api.Queue
 		return nil, err
 	}
 
-	err = checkPermission(server.permissions, ctx, permissions.WatchAllEvents)
-	var globalPermErr *ErrUnauthorized
-	if errors.As(err, &globalPermErr) {
-		err = checkQueuePermission(server.permissions, ctx, q, permissions.WatchEvents, queue.PermissionVerbWatch)
-		var queuePermErr *ErrUnauthorized
-		if errors.As(err, &queuePermErr) {
-			return nil, status.Errorf(codes.PermissionDenied,
-				"[GetQueueInfo] error getting info for queue %s: %s", req.Name, MergePermissionErrors(globalPermErr, queuePermErr))
-		} else if err != nil {
-			return nil, status.Errorf(codes.Unavailable, "[GetQueueInfo] error checking permissions: %s", err)
-		}
+	err = server.authorizer.AuthorizeQueueAction(ctx, q, permissions.WatchAllEvents, queue.PermissionVerbWatch)
+	var permErr *armadaerrors.ErrUnauthorized
+	if errors.As(err, &permErr) {
+		return nil, status.Errorf(codes.PermissionDenied, "[GetQueueInfo] error getting info for queue %s: %s", req.Name, permErr)
 	} else if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "[GetQueueInfo] error checking permissions: %s", err)
 	}
@@ -168,8 +161,8 @@ func (server *SubmitServer) GetQueues(req *api.StreamingQueueGetRequest, stream 
 
 func (server *SubmitServer) CreateQueue(grpcCtx context.Context, request *api.Queue) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
-	var ep *ErrUnauthorized
+	err := server.authorizer.AuthorizeAction(ctx, permissions.CreateQueue)
+	var ep *armadaerrors.ErrUnauthorized
 	if errors.As(err, &ep) {
 		return nil, status.Errorf(codes.PermissionDenied, "[CreateQueue] error creating queue %s: %s", request.Name, ep)
 	} else if err != nil {
@@ -218,8 +211,8 @@ func (server *SubmitServer) CreateQueues(grpcCtx context.Context, request *api.Q
 
 func (server *SubmitServer) UpdateQueue(grpcCtx context.Context, request *api.Queue) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
-	var ep *ErrUnauthorized
+	err := server.authorizer.AuthorizeAction(ctx, permissions.CreateQueue)
+	var ep *armadaerrors.ErrUnauthorized
 	if errors.As(err, &ep) {
 		return nil, status.Errorf(codes.PermissionDenied, "[UpdateQueue] error updating queue %s: %s", request.Name, ep)
 	} else if err != nil {
@@ -264,8 +257,8 @@ func (server *SubmitServer) UpdateQueues(grpcCtx context.Context, request *api.Q
 
 func (server *SubmitServer) DeleteQueue(grpcCtx context.Context, request *api.QueueDeleteRequest) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := checkPermission(server.permissions, ctx, permissions.DeleteQueue)
-	var ep *ErrUnauthorized
+	err := server.authorizer.AuthorizeAction(ctx, permissions.DeleteQueue)
+	var ep *armadaerrors.ErrUnauthorized
 	if errors.As(err, &ep) {
 		return nil, status.Errorf(codes.PermissionDenied, "[DeleteQueue] error deleting queue %s: %s", request.Name, ep)
 	} else if err != nil {
@@ -313,17 +306,10 @@ func (server *SubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobSubm
 			"[SubmitJobs] error checking queue limit: %s", err)
 	}
 
-	err = checkPermission(server.permissions, ctx, permissions.SubmitAnyJobs)
-	var globalPermErr *ErrUnauthorized
-	if errors.As(err, &globalPermErr) {
-		err = checkQueuePermission(server.permissions, ctx, *q, permissions.SubmitJobs, queue.PermissionVerbSubmit)
-		var queuePermErr *ErrUnauthorized
-		if errors.As(err, &queuePermErr) {
-			return nil, status.Errorf(codes.PermissionDenied,
-				"[SubmitJobs] error submitting job in queue %s: %s", req.Queue, MergePermissionErrors(globalPermErr, queuePermErr))
-		} else if err != nil {
-			return nil, status.Errorf(codes.Unavailable, "[SubmitJobs] error checking permissions: %s", err)
-		}
+	err = server.authorizer.AuthorizeQueueAction(ctx, *q, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit)
+	var permError *armadaerrors.ErrUnauthorized
+	if errors.As(err, &permError) {
+		return nil, status.Errorf(codes.PermissionDenied, "[SubmitJobs] error submitting job in queue %s: %s", req.Queue, permError)
 	} else if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "[SubmitJobs] error checking permissions: %s", err)
 	}
@@ -495,7 +481,7 @@ func (server *SubmitServer) cancelJobsById(ctx *armadacontext.Context, jobId str
 	}
 
 	result, err := server.cancelJobs(ctx, jobs, reason)
-	var e *ErrUnauthorized
+	var e *armadaerrors.ErrUnauthorized
 	if errors.As(err, &e) {
 		return nil, status.Errorf(codes.PermissionDenied, "[cancelJobsById] error canceling job with ID %s: %s", jobId, e)
 	} else if err != nil {
@@ -530,7 +516,7 @@ func (server *SubmitServer) cancelJobsByQueueAndSet(
 		}
 
 		result, err := server.cancelJobs(ctx, jobs, reason)
-		var e *ErrUnauthorized
+		var e *armadaerrors.ErrUnauthorized
 		if errors.As(err, &e) {
 			return nil, status.Errorf(codes.PermissionDenied, "[cancelJobsBySetAndQueue] error canceling jobs: %s", e)
 		} else if err != nil {
@@ -603,16 +589,10 @@ func (server *SubmitServer) checkCancelPerms(ctx *armadacontext.Context, jobs []
 			return err
 		}
 
-		err = checkPermission(server.permissions, ctx, permissions.CancelAnyJobs)
-		var globalPermErr *ErrUnauthorized
-		if errors.As(err, &globalPermErr) {
-			err = checkQueuePermission(server.permissions, ctx, q, permissions.CancelJobs, queue.PermissionVerbCancel)
-			var queuePermErr *ErrUnauthorized
-			if errors.As(err, &queuePermErr) {
-				return MergePermissionErrors(globalPermErr, queuePermErr)
-			} else if err != nil {
-				return err
-			}
+		err = server.authorizer.AuthorizeQueueAction(ctx, q, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
+		var permErr *armadaerrors.ErrUnauthorized
+		if errors.As(err, &permErr) {
+			return permErr
 		} else if err != nil {
 			return err
 		}
@@ -647,7 +627,7 @@ func (server *SubmitServer) ReprioritizeJobs(grpcCtx context.Context, request *a
 	}
 
 	err := server.checkReprioritizePerms(ctx, jobs)
-	var e *ErrUnauthorized
+	var e *armadaerrors.ErrUnauthorized
 	if errors.As(err, &e) {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReprioritizeJobs] error: %s", e)
 	} else if err != nil {
@@ -727,16 +707,10 @@ func (server *SubmitServer) checkReprioritizePerms(ctx *armadacontext.Context, j
 			return err
 		}
 
-		err = checkPermission(server.permissions, ctx, permissions.ReprioritizeAnyJobs)
-		var globalPermErr *ErrUnauthorized
-		if errors.As(err, &globalPermErr) {
-			err = checkQueuePermission(server.permissions, ctx, q, permissions.ReprioritizeJobs, queue.PermissionVerbReprioritize)
-			var queuePermErr *ErrUnauthorized
-			if errors.As(err, &queuePermErr) {
-				return MergePermissionErrors(globalPermErr, queuePermErr)
-			} else if err != nil {
-				return err
-			}
+		err = server.authorizer.AuthorizeQueueAction(ctx, q, permissions.ReprioritizeAnyJobs, queue.PermissionVerbReprioritize)
+		var permErr *armadaerrors.ErrUnauthorized
+		if errors.As(err, &permErr) {
+			return permErr
 		} else if err != nil {
 			return err
 		}
@@ -760,7 +734,7 @@ func (server *SubmitServer) getQueueOrCreate(ctx *armadacontext.Context, queueNa
 				queueName,
 			)
 		}
-		if !server.permissions.UserHasPermission(ctx, permissions.SubmitAnyJobs) {
+		if server.authorizer.AuthorizeAction(ctx, permissions.SubmitAnyJobs) != nil {
 			return nil, status.Errorf(codes.PermissionDenied, "Queue %s not found; won't create because user lacks SubmitAnyJobs permission", queueName)
 		}
 
