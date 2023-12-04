@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/armadaproject/armada/pkg/api"
+
 	"github.com/google/uuid"
 	"github.com/oklog/ulid"
 	"golang.org/x/exp/maps"
@@ -16,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
+	schedulerconfiguration "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -61,7 +64,23 @@ var (
 	TestIndexedTaints     = []string{"largeJobsOnly", "gpu"}
 	TestIndexedNodeLabels = []string{"largeJobsOnly", "gpu"}
 	jobTimestamp          atomic.Int64
+	// SchedulingKeyGenerator to use in testing.
+	// Has to be consistent since creating one involves generating a random key.
+	// If this key isn't consistent, scheduling keys generated are not either.
+	// We use the all-zeros key here to ensure scheduling keys are cosnsitent between tests.
+	SchedulingKeyGenerator = schedulerobjects.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
+	// Used for job creation.
+	JobDb = NewJobDb()
 )
+
+// NewJobDb returns a new default jobDb with defaults to use in tests.
+func NewJobDb() *jobdb.JobDb {
+	return jobdb.NewJobDbWithSchedulingKeyGenerator(
+		TestPriorityClasses,
+		TestDefaultPriorityClass,
+		SchedulingKeyGenerator,
+	)
+}
 
 func IntRange(a, b int) []int {
 	rv := make([]int, b-a+1)
@@ -326,12 +345,16 @@ func WithGangAnnotationsJobs(jobs []*jobdb.Job) []*jobdb.Job {
 	)
 }
 
-func WithGangAnnotationsAndMinCardinalityJobs(jobs []*jobdb.Job, minimumCardinality int) []*jobdb.Job {
+func WithGangAnnotationsAndMinCardinalityJobs(minimumCardinality int, jobs []*jobdb.Job) []*jobdb.Job {
 	gangId := uuid.NewString()
 	gangCardinality := fmt.Sprintf("%d", len(jobs))
 	gangMinCardinality := fmt.Sprintf("%d", minimumCardinality)
 	return WithAnnotationsJobs(
-		map[string]string{configuration.GangIdAnnotation: gangId, configuration.GangCardinalityAnnotation: gangCardinality, configuration.GangMinimumCardinalityAnnotation: gangMinCardinality},
+		map[string]string{
+			configuration.GangIdAnnotation:                 gangId,
+			configuration.GangCardinalityAnnotation:        gangCardinality,
+			configuration.GangMinimumCardinalityAnnotation: gangMinCardinality,
+		},
 		jobs,
 	)
 }
@@ -399,7 +422,7 @@ func extractPriority(priorityClassName string) int32 {
 func TestJob(queue string, jobId ulid.ULID, priorityClassName string, req *schedulerobjects.PodRequirements) *jobdb.Job {
 	created := jobTimestamp.Add(1)
 	submitTime := time.Time{}.Add(time.Millisecond * time.Duration(created))
-	return jobdb.NewJob(
+	return JobDb.NewJob(
 		jobId.String(),
 		TestJobset,
 		queue,
@@ -686,6 +709,8 @@ func TestNode(priorities []int32, resources map[string]resource.Quantity) *sched
 		StateByJobRunId: make(map[string]schedulerobjects.JobRunState),
 		Labels: map[string]string{
 			TestHostnameLabel: id,
+			// TODO(albin): Nodes should be created from the NodeDb to ensure this label is set automatically.
+			schedulerconfiguration.NodeIdLabel: id,
 		},
 	}
 }
@@ -788,4 +813,80 @@ func TestRunningJobDbJob(startTime int64) *jobdb.Job {
 	return TestQueuedJobDbJob().
 		WithQueued(false).
 		WithUpdatedRun(jobdb.MinimalRun(uuid.New(), startTime))
+}
+
+func Test1CoreCpuApiJob() *api.Job {
+	return &api.Job{
+		Id:    util.NewULID(),
+		Queue: uuid.NewString(),
+		PodSpec: &v1.PodSpec{
+			Containers: []v1.Container{
+				{
+					Resources: v1.ResourceRequirements{
+						Limits: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("1"),
+						},
+						Requests: map[v1.ResourceName]resource.Quantity{
+							"cpu": resource.MustParse("1"),
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func TestNApiJobGang(n int) []*api.Job {
+	gangId := uuid.NewString()
+	gang := make([]*api.Job, n)
+	for i := 0; i < n; i++ {
+		job := Test1CoreCpuApiJob()
+		job.Annotations = map[string]string{
+			configuration.GangIdAnnotation:                 gangId,
+			configuration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n),
+			configuration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n),
+		}
+		gang[i] = job
+	}
+	return gang
+}
+
+func TestNApiJobGangLessThanMinCardinality(n int) []*api.Job {
+	gangId := uuid.NewString()
+	gang := make([]*api.Job, n)
+	for i := 0; i < n; i++ {
+		job := Test1CoreCpuApiJob()
+		job.Annotations = map[string]string{
+			configuration.GangIdAnnotation:                 gangId,
+			configuration.GangCardinalityAnnotation:        fmt.Sprintf("%d", n+2),
+			configuration.GangMinimumCardinalityAnnotation: fmt.Sprintf("%d", n+1),
+		}
+		gang[i] = job
+	}
+	return gang
+}
+
+func Test100CoreCpuApiJob() *api.Job {
+	job := Test1CoreCpuApiJob()
+	hundredCores := map[v1.ResourceName]resource.Quantity{
+		"cpu": resource.MustParse("100"),
+	}
+	job.PodSpec.Containers[0].Resources.Limits = hundredCores
+	job.PodSpec.Containers[0].Resources.Requests = hundredCores
+	return job
+}
+
+func Test1CoreCpuApiJobWithNodeSelector(selector map[string]string) *api.Job {
+	job := Test1CoreCpuApiJob()
+	job.PodSpec.NodeSelector = selector
+	return job
+}
+
+func TestExecutor(lastUpdateTime time.Time) *schedulerobjects.Executor {
+	return &schedulerobjects.Executor{
+		Id:             uuid.NewString(),
+		Pool:           "cpu",
+		LastUpdateTime: lastUpdateTime,
+		Nodes:          TestCluster(),
+	}
 }

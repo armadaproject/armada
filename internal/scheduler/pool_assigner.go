@@ -14,6 +14,7 @@ import (
 	"github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -106,17 +107,10 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 	}
 
 	// See if we have this set of reqs cached.
-	var priority int32
-	if priorityClass, ok := p.priorityClasses[j.GetPriorityClassName()]; ok {
-		priority = priorityClass.Priority
+	schedulingKey, ok := j.GetSchedulingKey()
+	if !ok {
+		schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(p.schedulingKeyGenerator, j)
 	}
-	schedulingKey := p.schedulingKeyGenerator.Key(
-		j.GetNodeSelector(),
-		j.GetAffinity(),
-		j.GetTolerations(),
-		j.GetResourceRequirements().Requests,
-		priority,
-	)
 	if cachedPool, ok := p.poolCache.Get(schedulingKey); ok {
 		return cachedPool.(string), nil
 	}

@@ -1,1 +1,0 @@
-ALTER TABLE job DROP COLUMN job;

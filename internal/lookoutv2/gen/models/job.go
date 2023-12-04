@@ -71,6 +71,9 @@ type Job struct {
 	// Required: true
 	Memory int64 `json:"memory"`
 
+	// namespace
+	Namespace *string `json:"namespace,omitempty"`
+
 	// owner
 	// Required: true
 	// Min Length: 1

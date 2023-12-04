@@ -30,7 +30,7 @@ interface JobSetsProps {
   onDeselectAllClick: () => void
   onSelectAllClick: () => void
   onCancelJobSetsClick: () => void
-  onToggleAutoRefresh: (autoRefresh: boolean) => void
+  onToggleAutoRefresh: ((autoRefresh: boolean) => void) | undefined
   onReprioritizeJobSetsClick: () => void
   onOrderChange: (newestFirst: boolean) => void
   onActiveOnlyChange: (activeOnly: boolean) => void
@@ -70,7 +70,7 @@ export default function JobSets(props: JobSetsProps) {
             />
           </div>
           <div className="job-sets-field">
-            <Tooltip title="Only display Queued, Pending or Running">
+            <Tooltip title="Only display job sets with at least one active job.">
               <FormControlLabel
                 control={
                   <Checkbox
@@ -110,9 +110,11 @@ export default function JobSets(props: JobSetsProps) {
               Cancel
             </Button>
           </div>
-          <div className="auto-refresh">
-            <AutoRefreshToggle autoRefresh={props.autoRefresh} onAutoRefreshChange={props.onToggleAutoRefresh} />
-          </div>
+          {props.onToggleAutoRefresh && (
+            <div className="auto-refresh">
+              <AutoRefreshToggle autoRefresh={props.autoRefresh} onAutoRefreshChange={props.onToggleAutoRefresh} />
+            </div>
+          )}
           <div className="refresh-button">
             <RefreshButton isLoading={props.getJobSetsRequestStatus === "Loading"} onClick={props.onRefresh} />
           </div>

@@ -20,7 +20,7 @@ export default function AutoRefreshToggle(props: AutoRefreshToggle) {
             color="primary"
           />
         }
-        label="Auto-refresh"
+        label="Auto refresh"
         labelPlacement="start"
       />
     </div>

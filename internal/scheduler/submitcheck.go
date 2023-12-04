@@ -18,6 +18,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/types"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -171,16 +172,12 @@ func (srv *SubmitChecker) check(jctxs []*schedulercontext.JobSchedulingContext) 
 }
 
 func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.JobSchedulingContext) schedulingResult {
-	req := jctx.PodRequirements
-	srv.mu.Lock()
-	schedulingKey := srv.schedulingKeyGenerator.Key(
-		req.NodeSelector,
-		req.Affinity,
-		req.Tolerations,
-		req.ResourceRequirements.Requests,
-		req.Priority,
-	)
-	srv.mu.Unlock()
+	schedulingKey, ok := jctx.Job.GetSchedulingKey()
+	if !ok {
+		srv.mu.Lock()
+		schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(srv.schedulingKeyGenerator, jctx.Job)
+		srv.mu.Unlock()
+	}
 	var result schedulingResult
 	if obj, ok := srv.jobSchedulingResultsCache.Get(schedulingKey); ok {
 		result = obj.(schedulingResult)
@@ -197,6 +194,15 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.J
 // Check if a set of jobs can be scheduled onto some cluster.
 func (srv *SubmitChecker) getSchedulingResult(jctxs []*schedulercontext.JobSchedulingContext) schedulingResult {
 	if len(jctxs) == 0 {
+		return schedulingResult{isSchedulable: true, reason: ""}
+	}
+
+	// Skip submit checks if this batch contains less than the min cardinality jobs.
+	// Reason:
+	//  - We need to support submitting gang jobs across batches and allow for gang jobs to queue until min cardinality is satisfied.
+	//  - We cannot verify if min cardinality jobs are schedulable unless we are given at least that many in a single batch.
+	//  - A side effect of this is that users can submit jobs in gangs that skip this check and are never schedulable, which will be handled via queue-ttl.
+	if len(jctxs) < jctxs[0].GangMinCardinality {
 		return schedulingResult{isSchedulable: true, reason: ""}
 	}
 
@@ -231,8 +237,7 @@ func (srv *SubmitChecker) getSchedulingResult(jctxs []*schedulercontext.JobSched
 
 		numSuccessfullyScheduled := 0
 		for _, jctx := range jctxs {
-			pctx := jctx.PodSchedulingContext
-			if pctx != nil && pctx.NodeId != "" {
+			if jctx.PodSchedulingContext.IsSuccessful() {
 				numSuccessfullyScheduled++
 			}
 		}

@@ -1,0 +1,29 @@
+maximumSchedulingRate: "+inf"
+maximumSchedulingBurst: 9223372036854775807
+maximumPerQueueSchedulingRate: "+Inf"
+maximumPerQueueSchedulingBurst: 9223372036854775807
+fairnessModel: "DominantResourceFairness"
+dominantResourceFairnessResourcesToConsider:
+  - "cpu"
+  - "memory"
+  - "nvidia.com/gpu"
+  - "ephemeral-storage"
+maximumResourceFractionToSchedule:
+  memory: 0.025
+  cpu: 0.025
+indexedResources:
+  - name: "cpu"
+    resolution: "1"
+  - name: "memory"
+    resolution: "1Mi"
+  - name: "nvidia.com/gpu"
+    resolution: "1"
+preemption:
+  nodeEvictionProbability: 1.0
+  priorityClasses:
+    armada-default:
+      priority: 30000
+      preemptible: false
+    armada-preemptible:
+      priority: 30000
+      preemptible: true

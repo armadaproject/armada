@@ -3,10 +3,8 @@ export interface IGetRunErrorService {
 }
 
 export class GetRunErrorService implements IGetRunErrorService {
-  constructor(private apiBase: string) {}
-
   async getRunError(runId: string, abortSignal?: AbortSignal): Promise<string> {
-    const response = await fetch(this.apiBase + "/api/v1/jobRunError", {
+    const response = await fetch("/api/v1/jobRunError", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

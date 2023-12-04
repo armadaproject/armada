@@ -15,6 +15,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -248,6 +249,52 @@ func (job *Job) GetResourceRequirements() v1.ResourceRequirements {
 	} else {
 		return SchedulingResourceRequirementsFromPodSpec(podSpec)
 	}
+}
+
+// GetSchedulingKey returns the scheduling key associated with a job.
+// The second return value is always false since scheduling keys are not pre-computed for these jobs.
+func (job *Job) GetSchedulingKey() (schedulerobjects.SchedulingKey, bool) {
+	return schedulerobjects.SchedulingKey{}, false
+}
+
+// SchedulingOrderCompare defines the order in which jobs in a particular queue should be scheduled,
+func (job *Job) SchedulingOrderCompare(other interfaces.LegacySchedulerJob) int {
+	// We need this cast for now to expose this method via an interface.
+	// This is safe since we only ever compare jobs of the same type.
+	return SchedulingOrderCompare(job, other.(*Job))
+}
+
+// SchedulingOrderCompare defines the order in which jobs in a queue should be scheduled
+// (both when scheduling new jobs and when re-scheduling evicted jobs).
+// Specifically, compare returns
+//   - 0 if the jobs have equal job id,
+//   - -1 if job should be scheduled before other,
+//   - +1 if other should be scheduled before other.
+func SchedulingOrderCompare(job, other *Job) int {
+	if job.Id == other.Id {
+		return 0
+	}
+
+	// Jobs with higher in queue-priority come first.
+	if job.Priority < other.Priority {
+		return -1
+	} else if job.Priority > other.Priority {
+		return 1
+	}
+
+	// Jobs that have been queuing for longer are scheduled first.
+	if cmp := job.Created.Compare(other.Created); cmp != 0 {
+		return cmp
+	}
+
+	// Tie-break by jobId, which must be unique.
+	// This ensure there is a total order between jobs, i.e., no jobs are equal from an ordering point of view.
+	if job.Id < other.Id {
+		return -1
+	} else if job.Id > other.Id {
+		return 1
+	}
+	panic("We should never get here. Since we check for job id equality at the top of this function.")
 }
 
 func (job *Job) GetJobSet() string {

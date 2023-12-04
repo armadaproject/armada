@@ -171,7 +171,7 @@ func LocalDev(arg string) error {
 	os.Setenv("ARMADA_SCHEDULING_EXECUTORUPDATEFREQUENCY", "1s")
 
 	switch arg {
-	case "minimal":
+	case "minimal-legacy":
 		timeTaken := time.Now()
 		os.Setenv("PULSAR_BACKED", "")
 		mg.Deps(mg.F(goreleaserMinimalRelease, "bundle"), Kind, downloadDependencyImages)
@@ -183,7 +183,7 @@ func LocalDev(arg string) error {
 	case "no-build", "debug":
 		mg.Deps(Kind, downloadDependencyImages)
 	default:
-		return fmt.Errorf("invalid argument: %s Please enter one the following argument: minimal, minimal-pulsar, full, no-build, debug ", arg)
+		return fmt.Errorf("invalid localdev mode: %s; valid modes are: minimal-legacy, minimal-pulsar, full, no-build, debug", arg)
 	}
 
 	mg.Deps(StartDependencies)
@@ -191,13 +191,11 @@ func LocalDev(arg string) error {
 	mg.Deps(CheckForPulsarRunning)
 
 	switch arg {
-	case "minimal":
-		os.Setenv("ARMADA_COMPONENTS", "executor,server")
+	case "minimal-legacy":
+		os.Setenv("ARMADA_COMPONENTS", "executor-legacy,server-legacy")
 		mg.Deps(StartComponents)
 	case "minimal-pulsar":
-		// This 20s sleep is to remedy an issue caused by pods coming up too fast after pulsar
-		// TODO: Deal with this internally somehow?
-		os.Setenv("ARMADA_COMPONENTS", "executor-pulsar,server-pulsar,scheduler,scheduleringester")
+		os.Setenv("ARMADA_COMPONENTS", "executor-pulsar,server-pulsar,scheduler")
 		mg.Deps(StartComponents)
 	case "debug", "no-build":
 		fmt.Println("Dependencies started, ending localdev...")
@@ -275,56 +273,13 @@ func JunitReport() error {
 	return nil
 }
 
-// Code generation tasks: statik, goimports, go generate.
 func Generate() error {
-	go_cmd, err := go_CMD()
-	if err != nil {
-		return err
-	}
-
-	// Commands to be run
-	cmd1 := []string{
-		"go", "run", "github.com/rakyll/statik",
-		"-dest=internal/lookout/repository/schema/",
-		"-src=internal/lookout/repository/schema/",
-		"-include=\\*.sql",
-		"-ns=lookout/sql",
-		"-Z",
-		"-f",
-		"-m",
-	}
-	cmd2 := []string{
-		"go", "run", "golang.org/x/tools/cmd/goimports",
-		"-w",
-		"-local", "github.com/armadaproject/armada",
-		"internal/lookout/repository/schema/statik",
-	}
-
-	if len(go_cmd) == 0 {
-		if err = goRun(cmd1[1:]...); err != nil {
-			return err
-		}
-		if err = goRun(cmd2[2:]...); err != nil {
-			return err
-		}
-	} else {
-		dockercmd := append(go_cmd, cmd1...)
-		dockercmd = append(dockercmd, "&&")
-		dockercmd = append(dockercmd, cmd2...)
-		fmt.Println(dockercmd)
-		if err := dockerRun(go_cmd...); err != nil {
-			return err
-		}
-	}
-	if err = goRun("generate", "./..."); err != nil {
-		return err
-	}
-	return nil
+	return goRun("generate", "./...")
 }
 
 // CI Image to build
 func BuildCI() error {
-	ciImage := []string{"bundle", "lookout-bundle", "server", "executor", "armadactl", "testsuite", "lookout", "lookoutingester", "lookoutv2", "lookoutingesterv2", "eventingester", "scheduler", "scheduleringester", "binoculars", "jobservice"}
+	ciImage := []string{"bundle", "lookout-bundle", "server", "executor", "armadactl", "testsuite", "lookoutv2", "lookoutingesterv2", "eventingester", "scheduler", "scheduleringester", "binoculars", "jobservice"}
 	err := goreleaserMinimalRelease(ciImage...)
 	if err != nil {
 		return err

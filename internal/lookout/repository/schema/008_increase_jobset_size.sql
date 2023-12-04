@@ -1,1 +1,0 @@
-ALTER TABLE job ALTER COLUMN jobset TYPE varchar(1024);
