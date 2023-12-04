@@ -197,7 +197,7 @@ func makeAggregatedQueueServerWithTestDoubles(maxRetries uint) (*mockJobReposito
 	fakeQueueRepository := &fakeQueueRepository{}
 	fakeSchedulingInfoRepository := &fakeSchedulingInfoRepository{}
 	return mockJobRepository, fakeEventStore, NewAggregatedQueueServer(
-		&FakePermissionChecker{},
+		&FakeActionAuthorizer{},
 		configuration.SchedulingConfig{
 			MaxRetries: maxRetries,
 		},

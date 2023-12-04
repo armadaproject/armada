@@ -92,7 +92,7 @@ func withUsageServer(schedulingConfig *configuration.SchedulingConfig, action fu
 
 	repo := repository.NewRedisUsageRepository(redisClient)
 	queueRepo := repository.NewRedisQueueRepository(redisClient)
-	server := NewUsageServer(&FakePermissionChecker{}, time.Minute, schedulingConfig, repo, queueRepo)
+	server := NewUsageServer(&FakeActionAuthorizer{}, time.Minute, schedulingConfig, repo, queueRepo)
 
 	action(server)
 }
