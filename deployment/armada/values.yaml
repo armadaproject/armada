@@ -67,6 +67,8 @@ prometheus:
   labels: {}
   # -- Prometheus scrape interval
   scrapeInterval: 15s
+# -- Prometheus scrape timeout
+  scrapeTimeout: 10s
 
 podDisruptionBudget: {}
 
