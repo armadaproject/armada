@@ -6,11 +6,35 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"golang.org/x/exp/slices"
 )
 
-var services = []string{"pulsar", "redis", "postgres"}
+var dependencies = []string{
+	"redis",
+	"postgres",
+	"pulsar",
+}
 
-var componentsStr string = "server,lookoutv2,lookoutingesterv2,executor,binoculars,eventingester,jobservice"
+var defaultComponents = []string{
+	"server-pulsar",
+	"scheduler",
+	"scheduler-migration",
+	"scheduleringester",
+	"executor-pulsar",
+	"binoculars",
+	"eventingester",
+	"lookoutv2",
+	"lookoutingesterv2",
+}
+
+var allComponents = append(
+	slices.Clone(defaultComponents),
+	"server-legacy",
+	"executor-legacy",
+	"jobservice",
+	"airflow",
+)
 
 func getComposeFile() string {
 	if os.Getenv("COMPOSE_FILE") != "" {
@@ -20,10 +44,7 @@ func getComposeFile() string {
 }
 
 func getComponentsList() []string {
-	if os.Getenv("ARMADA_COMPONENTS") != "" {
-		return strings.Split(os.Getenv("ARMADA_COMPONENTS"), ",")
-	}
-	return strings.Split(componentsStr, ",")
+	return strings.Split(os.Getenv("ARMADA_COMPONENTS"), ",")
 }
 
 // Dependencies include pulsar, postgres (v1 and v2) as well as redis.
@@ -32,34 +53,28 @@ func StartDependencies() error {
 		os.Setenv("PULSAR_IMAGE", "richgross/pulsar:2.11.0")
 	}
 
-	// append "up", "-d" to the beginning of services
-	servicesArg := append([]string{"compose", "up", "-d"}, services...)
-	if err := dockerRun(servicesArg...); err != nil {
-		return err
-	}
-
-	return nil
+	command := append([]string{"compose", "up", "-d"}, dependencies...)
+	return dockerRun(command...)
 }
 
 // Stops the dependencies.
 func StopDependencies() error {
-	servicesArg := append([]string{"compose", "stop"}, services...)
-	if err := dockerRun(servicesArg...); err != nil {
+	command := append([]string{"compose", "stop"}, dependencies...)
+	if err := dockerRun(command...); err != nil {
 		return err
 	}
 
-	servicesArg = append([]string{"compose", "rm", "-f"}, services...)
-	if err := dockerRun(servicesArg...); err != nil {
-		return err
-	}
-
-	return nil
+	command = append([]string{"compose", "rm", "-f"}, dependencies...)
+	return dockerRun(command...)
 }
 
 // Starts the Armada Components. (Based on the ARMADA_COMPONENTS environment variable)
 func StartComponents() error {
 	composeFile := getComposeFile()
 	components := getComponentsList()
+	if len(components) == 0 {
+		components = defaultComponents
+	}
 
 	componentsArg := append([]string{"compose", "-f", composeFile, "up", "-d"}, components...)
 	if err := dockerRun(componentsArg...); err != nil {
@@ -69,15 +84,12 @@ func StartComponents() error {
 	return nil
 }
 
-// Stops the Armada Components. (Based on the ARMADA_COMPONENTS environment variable)
 func StopComponents() error {
 	composeFile := getComposeFile()
 	components := getComponentsList()
-
-	// Adding the pulsar components here temporarily so that they can be stopped without
-	// adding them to the full run (which is still on legacy scheduler)
-	// TODO: remove this when pulsar backed scheduler is the default
-	components = append(components, "server-pulsar", "executor-pulsar", "scheduler", "scheduleringester")
+	if len(components) == 0 {
+		components = allComponents
+	}
 
 	componentsArg := append([]string{"compose", "-f", composeFile, "stop"}, components...)
 	if err := dockerRun(componentsArg...); err != nil {
