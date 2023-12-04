@@ -41,6 +41,7 @@ function makeTestJobs(
       lastTransitionTime: new Date().toISOString(),
       memory: 8192,
       owner: queue,
+      namespace: queue,
       priority: 1000,
       priorityClass: "armada-preemptible",
       queue: queue,

@@ -49,6 +49,6 @@ type UIConfig struct {
 	UserAnnotationPrefix     string
 	BinocularsBaseUrlPattern string
 
-	JobSetsAutoRefreshMs int
-	JobsAutoRefreshMs    int
+	JobSetsAutoRefreshMs int `json:",omitempty"`
+	JobsAutoRefreshMs    int `json:",omitempty"`
 }
