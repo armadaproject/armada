@@ -251,6 +251,33 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedLeased:        []string{queuedJob.Id()},
 			expectedQueuedVersion: queuedJob.QueuedVersion() + 1,
 		},
+		"Lease two jobs from an update": {
+			jobUpdates: []database.Job{
+				{
+					JobID:                 "01h3w2wtdchtc80hgyp782shrv",
+					JobSet:                "testJobSet",
+					Queue:                 "testQueue",
+					Queued:                true,
+					QueuedVersion:         1,
+					SchedulingInfo:        schedulingInfoBytes,
+					SchedulingInfoVersion: int32(schedulingInfo.Version),
+					Serial:                1,
+				},
+				{
+					JobID:                 "01h434g4hxww2pknb2q1nfmfph",
+					JobSet:                "testJobSet",
+					Queue:                 "testQueue",
+					Queued:                true,
+					QueuedVersion:         1,
+					SchedulingInfo:        schedulingInfoBytes,
+					SchedulingInfoVersion: int32(schedulingInfo.Version),
+					Serial:                1,
+				},
+			},
+			expectedJobRunLeased:  []string{"01h3w2wtdchtc80hgyp782shrv", "01h434g4hxww2pknb2q1nfmfph"},
+			expectedLeased:        []string{"01h3w2wtdchtc80hgyp782shrv", "01h434g4hxww2pknb2q1nfmfph"},
+			expectedQueuedVersion: queuedJob.QueuedVersion() + 1,
+		},
 		"Nothing leased": {
 			initialJobs:           []*jobdb.Job{queuedJob},
 			expectedQueued:        []string{queuedJob.Id()},
