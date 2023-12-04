@@ -119,6 +119,28 @@ func queueDescribeCmdWithApp(a *armadactl.App) *cobra.Command {
 	return cmd
 }
 
+func queueGetCmd() *cobra.Command {
+	return queueGetCmdWithApp(armadactl.New())
+}
+
+// Takes a caller-supplied app struct; useful for testing.
+func queueGetCmdWithApp(a *armadactl.App) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "queue <queueName>",
+		Short: "Gets Queue Information.",
+		Long:  "Gets Queue Information",
+		Args:  cobra.ExactArgs(1),
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return initParams(cmd, a.Params)
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name := args[0]
+			return a.GetQueue(name)
+		},
+	}
+	return cmd
+}
+
 func queueUpdateCmd() *cobra.Command {
 	return queueUpdateCmdWithApp(armadactl.New())
 }

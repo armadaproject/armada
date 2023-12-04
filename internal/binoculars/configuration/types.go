@@ -9,9 +9,12 @@ type BinocularsConfig struct {
 	Cordon CordonConfiguration
 	Auth   configuration.AuthConfig
 
-	GrpcPort           uint16
-	HttpPort           uint16
-	MetricsPort        uint16
+	GrpcPort    uint16
+	HttpPort    uint16
+	MetricsPort uint16
+	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
+	PprofPort *uint16
+
 	CorsAllowedOrigins []string
 
 	Grpc             grpcconfig.GrpcConfig

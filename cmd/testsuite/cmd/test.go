@@ -31,6 +31,8 @@ func testCmd(app *testsuite.App) *cobra.Command {
 	cmd.Flags().String("tests", "", "Test file pattern, e.g., './testcases/*.yaml'.")
 	cmd.Flags().String("junit", "", "Write a JUnit test report to this path.")
 	cmd.Flags().String("benchmark", "", "Write a benchmark test report to this path.")
+	cmd.Flags().String("prometheusPushgatewayUrl", "", "Push metrics to Prometheus pushgateway at this url.")
+	cmd.Flags().String("prometheusPushgatewayJobName", "armada-testsuite", "Metrics are annotated with with job=prometheusPushGatewayJobName.")
 	return cmd
 }
 
@@ -64,8 +66,20 @@ func testCmdRunE(app *testsuite.App) func(cmd *cobra.Command, args []string) err
 			return errors.New("benchmark report not currently supported")
 		}
 
+		prometheusPushgatewayUrl, err := cmd.Flags().GetString("prometheusPushgatewayUrl")
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		app.Params.PrometheusPushGatewayUrl = prometheusPushgatewayUrl
+
+		prometheusPushgatewayJobName, err := cmd.Flags().GetString("prometheusPushgatewayJobName")
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		app.Params.PrometheusPushGatewayJobName = prometheusPushgatewayJobName
+
 		// Create a context that is cancelled on SIGINT/SIGTERM.
-		// Ensures test jobs are cancelled on ctrl-C.
+		// Ensures test jobs are cancelled on ctrl-c.
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		stopSignal := make(chan os.Signal, 1)

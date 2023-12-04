@@ -6,6 +6,12 @@ This project was bootstrapped with [Create React App](https://github.com/faceboo
 
 In the project directory, you can run:
 
+### `yarn openapi`
+
+This step requires Docker.
+
+Generate the OpenAPI client code from the OpenAPI specification. This step is required to be run before the first time the application is run, and any time the OpenAPI specification is updated.
+
 ### `yarn start`
 
 Runs the app in the development mode.\

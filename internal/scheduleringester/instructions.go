@@ -371,6 +371,7 @@ func SchedulingInfoFromSubmitJob(submitJob *armadaevents.SubmitJob, submitTime t
 		SubmitTime:      submitTime,
 		Priority:        submitJob.Priority,
 		Version:         0,
+		QueueTtlSeconds: submitJob.QueueTtlSeconds,
 	}
 
 	// Scheduling requirements specific to the objects that make up this job.

@@ -12,7 +12,7 @@ module.exports = {
       version: "detect",
     },
   },
-  extends: ["plugin:react/recommended", "plugin:@typescript-eslint/recommended", "prettier"],
+  extends: ["plugin:@typescript-eslint/recommended", "prettier"],
   plugins: ["prettier", "eslint-plugin-import"],
   rules: {
     "prettier/prettier": [

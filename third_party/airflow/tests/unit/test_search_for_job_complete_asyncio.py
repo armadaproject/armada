@@ -71,6 +71,7 @@ async def test_failed_event(js_aio_client):
         job_service_client=js_aio_client,
         time_out_for_failure=5,
         log=logging.getLogger(),
+        poll_interval=1,
     )
     assert job_complete[0] == JobState.FAILED
     assert (
@@ -89,6 +90,7 @@ async def test_successful_event(js_aio_client):
         job_service_client=js_aio_client,
         time_out_for_failure=5,
         log=logging.getLogger(),
+        poll_interval=1,
     )
     assert job_complete[0] == JobState.SUCCEEDED
     assert job_complete[1] == "Armada test:test_succeeded succeeded"
@@ -104,6 +106,7 @@ async def test_cancelled_event(js_aio_client):
         job_service_client=js_aio_client,
         time_out_for_failure=5,
         log=logging.getLogger(),
+        poll_interval=1,
     )
     assert job_complete[0] == JobState.CANCELLED
     assert job_complete[1] == "Armada test:test_cancelled cancelled"
@@ -119,6 +122,7 @@ async def test_job_id_not_found(js_aio_client):
         time_out_for_failure=5,
         job_service_client=js_aio_client,
         log=logging.getLogger(),
+        poll_interval=1,
     )
     assert job_complete[0] == JobState.JOB_ID_NOT_FOUND
     assert (
@@ -142,6 +146,7 @@ async def test_error_retry(js_aio_retry_client):
         job_service_client=js_aio_retry_client,
         time_out_for_failure=5,
         log=logging.getLogger(),
+        poll_interval=1,
     )
     assert job_complete[0] == JobState.SUCCEEDED
     assert job_complete[1] == "Armada test:test_succeeded succeeded"

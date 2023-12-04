@@ -1,6 +1,6 @@
+import styles from "./JobGroupStateCounts.module.css"
 import { JobState } from "../../models/lookoutV2Models"
 import { colorForJobState } from "../../utils/jobsTableFormatters"
-import styles from "./JobGroupStateCounts.module.css"
 
 interface JobGroupStateCountsProps {
   stateCounts: Record<string, number>

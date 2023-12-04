@@ -30,7 +30,7 @@ spec:
     http:
       paths:
         - path: /api(/|$)(.*)
-          pathType: ImplementationSpecific
+          pathType: Prefix
           backend:
             service:
               name: {{ include "armada.name" $root }}

@@ -1,10 +1,10 @@
 import { Typography } from "@mui/material"
 import { Job } from "models/lookoutV2Models"
 
-import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
-import { formatBytes, formatCpu } from "../../../utils/resourceUtils"
 import { ContainerDetails } from "./ContainerDetails"
 import { KeyValuePairTable } from "./KeyValuePairTable"
+import { IGetJobSpecService } from "../../../services/lookoutV2/GetJobSpecService"
+import { formatBytes, formatCpu } from "../../../utils/resourceUtils"
 
 export interface SidebarTabJobDetailsProps {
   job: Job
@@ -16,12 +16,11 @@ export const SidebarTabJobDetails = ({ job, jobSpecService }: SidebarTabJobDetai
     { key: "Queue", value: job.queue },
     { key: "Job Set", value: job.jobSet },
     { key: "Owner", value: job.owner },
+    ...(job.namespace ? [{ key: "Namespace", value: job.namespace }] : []),
     { key: "Priority", value: job.priority.toString() },
     { key: "Run Count", value: job.runs.length.toString() },
+    ...(job.cancelReason ? [{ key: "Cancel Reason", value: job.cancelReason }] : []),
   ]
-  if (job.cancelReason && job.cancelReason !== "") {
-    details.push({ key: "Cancel Reason", value: job.cancelReason })
-  }
   return (
     <>
       <Typography variant="subtitle2">Info:</Typography>

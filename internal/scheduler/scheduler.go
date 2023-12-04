@@ -78,6 +78,7 @@ type Scheduler struct {
 }
 
 func NewScheduler(
+	jobDb *jobdb.JobDb,
 	jobRepository database.JobRepository,
 	executorRepository database.ExecutorRepository,
 	schedulingAlgo SchedulingAlgo,
@@ -92,7 +93,6 @@ func NewScheduler(
 	nodeIdLabel string,
 	schedulerMetrics *SchedulerMetrics,
 ) (*Scheduler, error) {
-	jobDb := jobdb.NewJobDb()
 	return &Scheduler{
 		jobRepository:              jobRepository,
 		executorRepository:         executorRepository,
@@ -211,11 +211,11 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 
 	// If we've been asked to generate messages for all jobs, do so.
-	// Otherwise generate messages only for jobs updated this cycle.
+	// Otherwise, generate messages only for jobs updated this cycle.
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 	if updateAll {
-		updatedJobs = s.jobDb.GetAll(txn)
+		updatedJobs = txn.GetAll()
 	}
 
 	// Generate any events that came out of synchronising the db state.
@@ -231,10 +231,17 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 	events = append(events, expirationEvents...)
 
+	// Request cancel for any jobs that exceed queueTtl
+	queueTtlCancelEvents, err := s.cancelQueuedJobsIfExpired(txn)
+	if err != nil {
+		return
+	}
+	events = append(events, queueTtlCancelEvents...)
+
 	// Schedule jobs.
 	if shouldSchedule {
 		var result *SchedulerResult
-		result, err = s.schedulingAlgo.Schedule(ctx, txn, s.jobDb)
+		result, err = s.schedulingAlgo.Schedule(ctx, txn)
 		if err != nil {
 			return
 		}
@@ -286,7 +293,7 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 		}
 
 		// Try and retrieve the job from the jobDb. If it doesn't exist then create it.
-		job := s.jobDb.GetById(txn, dbJob.JobID)
+		job := txn.GetById(dbJob.JobID)
 		if job == nil {
 			job, err = s.schedulerJobFromDatabaseJob(&dbJob)
 			if err != nil {
@@ -309,7 +316,7 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 		// Retrieve the job, look first in the list of updates, then in the jobDb.
 		job, present := jobsToUpdateById[jobId]
 		if !present {
-			job = s.jobDb.GetById(txn, jobId)
+			job = txn.GetById(jobId)
 
 			// If the job is nil or terminal at this point then it cannot be active.
 			// In this case we can ignore the run.
@@ -331,12 +338,10 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) 
 	}
 
 	jobsToUpdate := maps.Values(jobsToUpdateById)
-	err = s.jobDb.Upsert(txn, jobsToUpdate)
-	if err != nil {
+	if err := txn.Upsert(jobsToUpdate); err != nil {
 		return nil, err
 	}
-	err = s.jobDb.BatchDelete(txn, jobsToDelete)
-	if err != nil {
+	if err := txn.BatchDelete(jobsToDelete); err != nil {
 		return nil, err
 	}
 	txn.Commit()
@@ -390,12 +395,16 @@ func (s *Scheduler) eventsFromSchedulerResult(result *SchedulerResult) ([]*armad
 
 // EventsFromSchedulerResult generates necessary EventSequences from the provided SchedulerResult.
 func EventsFromSchedulerResult(result *SchedulerResult, time time.Time) ([]*armadaevents.EventSequence, error) {
-	eventSequences := make([]*armadaevents.EventSequence, 0, len(result.PreemptedJobs)+len(result.ScheduledJobs))
+	eventSequences := make([]*armadaevents.EventSequence, 0, len(result.PreemptedJobs)+len(result.ScheduledJobs)+len(result.FailedJobs))
 	eventSequences, err := AppendEventSequencesFromPreemptedJobs(eventSequences, PreemptedJobsFromSchedulerResult[*jobdb.Job](result), time)
 	if err != nil {
 		return nil, err
 	}
 	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, ScheduledJobsFromSchedulerResult[*jobdb.Job](result), time)
+	if err != nil {
+		return nil, err
+	}
+	eventSequences, err = AppendEventSequencesFromUnschedulableJobs(eventSequences, FailedJobsFromSchedulerResult[*jobdb.Job](result), time)
 	if err != nil {
 		return nil, err
 	}
@@ -490,6 +499,32 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 							NodeId:               run.NodeName(),
 							UpdateSequenceNumber: job.QueuedVersion(),
 						},
+					},
+				},
+			},
+		})
+	}
+	return eventSequences, nil
+}
+
+func AppendEventSequencesFromUnschedulableJobs(eventSequences []*armadaevents.EventSequence, jobs []*jobdb.Job, time time.Time) ([]*armadaevents.EventSequence, error) {
+	for _, job := range jobs {
+		jobId, err := armadaevents.ProtoUuidFromUlidString(job.GetId())
+		if err != nil {
+			return nil, err
+		}
+		gangJobUnschedulableError := &armadaevents.Error{
+			Terminal: true,
+			Reason:   &armadaevents.Error_GangJobUnschedulable{GangJobUnschedulable: &armadaevents.GangJobUnschedulable{Message: "Job did not meet the minimum gang cardinality"}},
+		}
+		eventSequences = append(eventSequences, &armadaevents.EventSequence{
+			Queue:      job.GetQueue(),
+			JobSetName: job.GetJobSet(),
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Created: &time,
+					Event: &armadaevents.EventSequence_Event_JobErrors{
+						JobErrors: &armadaevents.JobErrors{JobId: jobId, Errors: []*armadaevents.Error{gangJobUnschedulableError}},
 					},
 				},
 			},
@@ -681,7 +716,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 	}
 
 	if origJob != job {
-		err := s.jobDb.Upsert(txn, []*jobdb.Job{job})
+		err := txn.Upsert([]*jobdb.Job{job})
 		if err != nil {
 			return nil, err
 		}
@@ -730,7 +765,7 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 	events := make([]*armadaevents.EventSequence, 0)
 
 	// TODO: this is inefficient.  We should create a iterator of the jobs running on the affected executors
-	jobs := s.jobDb.GetAll(txn)
+	jobs := txn.GetAll()
 
 	for _, job := range jobs {
 
@@ -782,9 +817,54 @@ func (s *Scheduler) expireJobsIfNecessary(ctx *armadacontext.Context, txn *jobdb
 			events = append(events, es)
 		}
 	}
-	if err := s.jobDb.Upsert(txn, jobsToUpdate); err != nil {
+	if err := txn.Upsert(jobsToUpdate); err != nil {
 		return nil, err
 	}
+	return events, nil
+}
+
+// cancelQueuedJobsIfExpired generates cancel request messages for any queued jobs that exceed their queueTtl.
+func (s *Scheduler) cancelQueuedJobsIfExpired(txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
+	jobsToCancel := make([]*jobdb.Job, 0)
+	events := make([]*armadaevents.EventSequence, 0)
+	it := txn.QueuedJobsByTtl()
+
+	// `it` is ordered such that the jobs with the least ttl remaining come first, hence we exit early if we find a job that is not expired.
+	for job, _ := it.Next(); job != nil && job.HasQueueTtlExpired(); job, _ = it.Next() {
+		if job.InTerminalState() {
+			continue
+		}
+
+		job = job.WithCancelRequested(true).WithQueued(false).WithCancelled(true)
+		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
+		if err != nil {
+			return nil, err
+		}
+
+		reason := "Expired queue ttl"
+		cancel := &armadaevents.EventSequence{
+			Queue:      job.Queue(),
+			JobSetName: job.Jobset(),
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Created: s.now(),
+					Event:   &armadaevents.EventSequence_Event_CancelJob{CancelJob: &armadaevents.CancelJob{JobId: jobId, Reason: reason}},
+				},
+				{
+					Created: s.now(),
+					Event:   &armadaevents.EventSequence_Event_CancelledJob{CancelledJob: &armadaevents.CancelledJob{JobId: jobId, Reason: reason}},
+				},
+			},
+		}
+
+		jobsToCancel = append(jobsToCancel, job)
+		events = append(events, cancel)
+	}
+
+	if err := txn.Upsert(jobsToCancel); err != nil {
+		return nil, err
+	}
+
 	return events, nil
 }
 
@@ -856,7 +936,7 @@ func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval ti
 				ctx.Infof("Successfully ensured that database state is up to date")
 				return nil
 			}
-			ctx.Infof("Recevied %d partitions, still waiting on  %d", numReceived, numSent-numReceived)
+			ctx.Infof("Received %d partitions, still waiting on %d", numReceived, numSent-numReceived)
 			s.clock.Sleep(pollInterval)
 		}
 	}
@@ -870,7 +950,7 @@ func (s *Scheduler) schedulerJobFromDatabaseJob(dbJob *database.Job) (*jobdb.Job
 		return nil, errors.Wrapf(err, "error unmarshalling scheduling info for job %s", dbJob.JobID)
 	}
 	s.internJobSchedulingInfoStrings(schedulingInfo)
-	return jobdb.NewJob(
+	return s.jobDb.NewJob(
 		dbJob.JobID,
 		s.stringInterner.Intern(dbJob.JobSet),
 		s.stringInterner.Intern(dbJob.Queue),

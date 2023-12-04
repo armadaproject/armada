@@ -989,6 +989,14 @@ func (qb *QueryBuilder) getQueryColumn(col string, queryTables map[string]bool) 
 }
 
 func limitOffsetSql(skip, take int) string {
+	// Asking for zero rows is not useful to us, so we take a value of zero to
+	// mean "no limit"; this is consistent with go-swagger, which uses zero as
+	// the default value for optional integers:
+	//
+	//     https://github.com/go-swagger/go-swagger/issues/1707
+	if take == 0 {
+		return fmt.Sprintf("OFFSET %d", skip)
+	}
 	return fmt.Sprintf("LIMIT %d OFFSET %d", take, skip)
 }
 

@@ -182,6 +182,7 @@ func TestConvert(t *testing.T) {
 		JobId:                     testfixtures.JobIdString,
 		Queue:                     testfixtures.Queue,
 		Owner:                     testfixtures.UserId,
+		Namespace:                 testfixtures.Namespace,
 		JobSet:                    testfixtures.JobSetName,
 		Cpu:                       cpu,
 		Memory:                    memory,

@@ -14,6 +14,9 @@ import (
 	"github.com/armadaproject/armada/internal/common"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/health"
+	"github.com/armadaproject/armada/internal/common/logging"
+	"github.com/armadaproject/armada/internal/common/profiling"
+	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/executor"
 	"github.com/armadaproject/armada/internal/executor/configuration"
 	"github.com/armadaproject/armada/internal/executor/metrics"
@@ -37,6 +40,15 @@ func main() {
 	var config configuration.ExecutorConfiguration
 	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
 	common.LoadConfig(&config, "./config/executor", userSpecifiedConfigs)
+
+	// Expose profiling endpoints if enabled.
+	pprofServer := profiling.SetupPprofHttpServer(config.PprofPort)
+	go func() {
+		ctx := armadacontext.Background()
+		if err := serve.ListenAndServe(ctx, pprofServer); err != nil {
+			logging.WithStacktrace(ctx, err).Error("pprof server failure")
+		}
+	}()
 
 	mux := http.NewServeMux()
 	startupCompleteCheck := health.NewStartupCompleteChecker()

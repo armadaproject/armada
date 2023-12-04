@@ -3,13 +3,18 @@ package schedulerobjects
 import (
 	"crypto/rand"
 	"encoding/binary"
+	"sync"
 
 	"github.com/minio/highwayhash"
 	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 )
 
+// SchedulingKey is a hash of the scheduling requirements of a job.
+// This key is used to efficiently mark jobs as unschedulable.
 type SchedulingKey [highwayhash.Size]byte
+
+var EmptySchedulingKey SchedulingKey
 
 func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
 	affinity := req.Affinity
@@ -25,11 +30,12 @@ func (req *PodRequirements) GetAffinityNodeSelector() *v1.NodeSelector {
 
 // SchedulingKeyGenerator is used to generate scheduling keys efficiently.
 // A scheduling key is the canonical hash of the scheduling requirements of a job.
-// All memory is allocated up-front and re-used. Not thread-safe.
+// All memory is allocated up-front and re-used. Thread-safe.
 type SchedulingKeyGenerator struct {
 	s      PodRequirementsSerialiser
 	key    []byte
 	buffer []byte
+	sync.Mutex
 }
 
 func NewSchedulingKeyGenerator() *SchedulingKeyGenerator {
@@ -38,6 +44,13 @@ func NewSchedulingKeyGenerator() *SchedulingKeyGenerator {
 		// This should never happen.
 		panic(err)
 	}
+	return NewSchedulingKeyGeneratorWithKey(key)
+}
+
+// NewSchedulingKeyGeneratorWithKey returns a new SchedulingKeyGenerator using the provided key.
+// The key should be considered secret since scheduling key collisions can be found if it's known.
+// Key has to be of length 32.
+func NewSchedulingKeyGeneratorWithKey(key []byte) *SchedulingKeyGenerator {
 	return &SchedulingKeyGenerator{
 		s:      *NewPodRequirementsSerialiser(),
 		key:    key,
@@ -50,8 +63,10 @@ func (skg *SchedulingKeyGenerator) Key(
 	affinity *v1.Affinity,
 	tolerations []v1.Toleration,
 	requests v1.ResourceList,
-	priority int32,
+	priorityClassName string,
 ) SchedulingKey {
+	skg.Mutex.Lock()
+	defer skg.Mutex.Unlock()
 	skg.buffer = skg.buffer[0:0]
 	skg.buffer = skg.s.AppendRequirements(
 		skg.buffer,
@@ -59,7 +74,7 @@ func (skg *SchedulingKeyGenerator) Key(
 		affinity,
 		tolerations,
 		requests,
-		priority,
+		priorityClassName,
 	)
 	return highwayhash.Sum(skg.buffer, skg.key)
 }
@@ -95,19 +110,19 @@ func (skg *PodRequirementsSerialiser) AppendRequirements(
 	affinity *v1.Affinity,
 	tolerations []v1.Toleration,
 	requests v1.ResourceList,
-	priority int32,
+	priorityClassName string,
 ) []byte {
 	out = skg.AppendNodeSelector(out, nodeSelector)
 	out = skg.AppendAffinity(out, affinity)
 	out = skg.AppendTolerations(out, tolerations)
 	out = skg.AppendResourceList(out, requests)
-	out = binary.LittleEndian.AppendUint32(out, uint32(priority))
+	out = append(out, []byte(priorityClassName)...)
 	return out
 }
 
 func (skg *PodRequirementsSerialiser) AppendNodeSelector(out []byte, nodeSelector map[string]string) []byte {
 	skg.stringBuffer = skg.stringBuffer[0:0]
-	for _, key := range nodeSelector {
+	for key := range nodeSelector {
 		skg.stringBuffer = append(skg.stringBuffer, key)
 	}
 	slices.Sort(skg.stringBuffer)

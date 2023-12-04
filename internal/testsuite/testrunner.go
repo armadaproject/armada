@@ -49,11 +49,8 @@ func (report *TestCaseReport) JunitTestCase() junit.Testcase {
 }
 
 func (srv *TestRunner) Run(ctx context.Context) (err error) {
-	report := &TestCaseReport{
-		Out:      &bytes.Buffer{},
-		Start:    time.Now(),
-		TestSpec: srv.testSpec,
-	}
+	report := NewTestCaseReport(srv.testSpec)
+	report.Out = &bytes.Buffer{}
 	out := io.MultiWriter(srv.Out, report.Out)
 
 	fmt.Fprintf(out, "test case started %s\n", srv.testSpec.ShortString())

@@ -40,16 +40,6 @@ func UpsertWithTransaction[T any](ctx *armadacontext.Context, db *pgxpool.Pool, 
 // The records to write should be structs with fields marked with "db" tags.
 // Field names and values are extracted using the NamesValuesFromRecord function;
 // see its definition for details. The first field is used as the primary key in SQL.
-//
-// The temporary table is created with the provided schema, which should be of the form
-// (
-//
-//	id UUID PRIMARY KEY,
-//	width int NOT NULL,
-//	height int NOT NULL
-//
-// )
-// I.e., it should omit everything before and after the "(" and ")", respectively.
 func Upsert[T any](ctx *armadacontext.Context, tx pgx.Tx, tableName string, records []T) error {
 	if len(records) < 1 {
 		return nil

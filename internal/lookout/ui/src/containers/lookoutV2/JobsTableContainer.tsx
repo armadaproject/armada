@@ -9,7 +9,6 @@ import {
   TableBody,
   TableCell,
   TableContainer,
-  TableFooter,
   TableHead,
   TablePagination,
   TableRow,
@@ -42,6 +41,7 @@ import _ from "lodash"
 import { isJobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobId, Match, SortDirection } from "models/lookoutV2Models"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
+import IntervalService from "services/IntervalService"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGetRunErrorService } from "services/lookoutV2/GetRunErrorService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
@@ -68,6 +68,7 @@ import {
 } from "utils/jobsTableUtils"
 import { fromRowId, RowId } from "utils/reactTableUtils"
 
+import styles from "./JobsTableContainer.module.css"
 import { useCustomSnackbar } from "../../hooks/useCustomSnackbar"
 import { ICordonService } from "../../services/lookoutV2/CordonService"
 import { CustomViewsService } from "../../services/lookoutV2/CustomViewsService"
@@ -75,7 +76,6 @@ import { IGetJobSpecService } from "../../services/lookoutV2/GetJobSpecService"
 import { ILogService } from "../../services/lookoutV2/LogService"
 import { getErrorMessage, waitMillis } from "../../utils"
 import { EmptyInputError, ParseError } from "../../utils/resourceUtils"
-import styles from "./JobsTableContainer.module.css"
 
 const PAGE_SIZE_OPTIONS = [5, 25, 50, 100]
 
@@ -88,6 +88,7 @@ interface JobsTableContainerProps {
   logService: ILogService
   cordonService: ICordonService
   debug: boolean
+  autoRefreshMs: number | undefined
 }
 
 export type LookoutColumnFilter = {
@@ -131,6 +132,7 @@ export const JobsTableContainer = ({
   logService,
   cordonService,
   debug,
+  autoRefreshMs,
 }: JobsTableContainerProps) => {
   const openSnackbar = useCustomSnackbar()
 
@@ -177,13 +179,33 @@ export const JobsTableContainer = ({
   })
   const { pageIndex, pageSize } = useMemo(() => pagination, [pagination])
 
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(
+    initialPrefs.autoRefresh === undefined ? true : initialPrefs.autoRefresh,
+  )
+
+  const autoRefreshService = useMemo(
+    () => (autoRefreshMs === undefined ? undefined : new IntervalService(autoRefreshMs)),
+    [autoRefreshMs],
+  )
+
+  const onAutoRefreshChange = (autoRefresh: boolean) => {
+    setAutoRefresh(autoRefresh)
+    if (autoRefresh) {
+      autoRefreshService?.start()
+    } else {
+      autoRefreshService?.stop()
+    }
+  }
+
   // Filtering
   const [columnFilterState, setColumnFilterState] = useState<ColumnFiltersState>(initialPrefs.filters)
   const [lookoutFilters, setLookoutFilters] = useState<LookoutColumnFilter[]>([]) // Parsed later
   const [columnMatches, setColumnMatches] = useState<Record<string, Match>>(initialPrefs.columnMatches)
   const [parseErrors, setParseErrors] = useState<Record<string, string | undefined>>({})
   const [textFieldRefs, setTextFieldRefs] = useState<Record<string, RefObject<HTMLInputElement>>>({})
-  const [activeJobSets, setActiveJobSets] = useState<boolean>(false)
+  const [activeJobSets, setActiveJobSets] = useState<boolean>(
+    initialPrefs.activeJobSets === undefined ? false : initialPrefs.activeJobSets,
+  )
 
   // Sorting
   const [lookoutOrder, setLookoutOrder] = useState<LookoutColumnOrder>(initialPrefs.order)
@@ -249,6 +271,8 @@ export const JobsTableContainer = ({
       visibleColumns: columnVisibility,
       sidebarJobId: sidebarJobId,
       sidebarWidth: sidebarWidth,
+      activeJobSets: activeJobSets,
+      autoRefresh: autoRefresh,
     }
   }
 
@@ -285,6 +309,12 @@ export const JobsTableContainer = ({
     setSidebarJobId(prefs.sidebarJobId)
     setSidebarWidth(prefs.sidebarWidth ?? 600)
     setSelectedRows({})
+    if (prefs.activeJobSets !== undefined) {
+      setActiveJobSets(prefs.activeJobSets)
+    }
+    if (prefs.autoRefresh !== undefined) {
+      onAutoRefreshChange(prefs.autoRefresh)
+    }
 
     // Have to manually set text fields to the filter values since they are uncontrolled
     setTextFields(prefs.filters)
@@ -312,6 +342,8 @@ export const JobsTableContainer = ({
     selectedRows,
     sidebarJobId,
     sidebarWidth,
+    activeJobSets,
+    autoRefresh,
   ])
 
   const addCustomView = (name: string) => {
@@ -339,6 +371,14 @@ export const JobsTableContainer = ({
     setSelectedRows({})
     setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
   }
+
+  useEffect(() => {
+    autoRefreshService?.registerCallback(onRefresh)
+    if (autoRefresh) {
+      autoRefreshService?.start()
+    }
+    return () => autoRefreshService?.stop()
+  }, [])
 
   const onColumnVisibilityChange = (colIdToToggle: ColumnId) => {
     // Refresh if we make a new aggregate column visible
@@ -667,96 +707,106 @@ export const JobsTableContainer = ({
   if (grouping.length === 0) {
     columnsForSelect = columnsForSelect.filter((col) => col.id !== StandardColumnId.Count)
   }
+  const columnStyle = {
+    display: "flex",
+    flexDirection: "column",
+    height: "100%",
+    width: "100%",
+    flex: 1,
+  }
+
   return (
-    <Box sx={{ display: "flex", width: "100%" }}>
-      <Box sx={{ overflowX: "auto", overflowY: "auto", margin: "0.5em", width: "100%" }}>
-        <JobsTableActionBar
-          isLoading={rowsToFetch.length > 0}
-          allColumns={columnsForSelect}
-          groupedColumns={grouping}
-          visibleColumns={visibleColumnIds}
-          selectedItemFilters={selectedItemsFilters}
-          customViews={customViews}
-          activeJobSets={activeJobSets}
-          onActiveJobSetsChanged={(newVal) => {
-            setActiveJobSets(newVal)
-            onRefresh()
-          }}
-          onRefresh={onRefresh}
-          onAddAnnotationColumn={addAnnotationCol}
-          onRemoveAnnotationColumn={removeAnnotationCol}
-          onEditAnnotationColumn={editAnnotationCol}
-          onGroupsChanged={onGroupingChange}
-          toggleColumnVisibility={onColumnVisibilityChange}
-          getJobsService={getJobsService}
-          updateJobsService={updateJobsService}
-          onClearFilters={clearFilters}
-          onAddCustomView={addCustomView}
-          onDeleteCustomView={deleteCustomView}
-          onLoadCustomView={loadCustomView}
-        />
-        <TableContainer component={Paper}>
-          <Table
-            sx={{ tableLayout: "fixed" }}
-            aria-label="Jobs table"
-            style={{
-              width: table.getCenterTotalSize(),
-              borderLeft: "1px solid #cccccc",
+    <Box sx={{ display: "flex", flexDirection: "row", height: "100%", width: "100%" }}>
+      <Box sx={{ ...columnStyle, marginX: "0.5em", minWidth: 0 }}>
+        <Box sx={{ ...columnStyle, marginY: "0.5em", minHeight: 0 }}>
+          <JobsTableActionBar
+            isLoading={rowsToFetch.length > 0}
+            allColumns={columnsForSelect}
+            groupedColumns={grouping}
+            visibleColumns={visibleColumnIds}
+            selectedItemFilters={selectedItemsFilters}
+            customViews={customViews}
+            activeJobSets={activeJobSets}
+            onActiveJobSetsChanged={(newVal) => {
+              setActiveJobSets(newVal)
+              onRefresh()
             }}
-          >
-            <TableHead>
-              {table.getHeaderGroups().map((headerGroup) => (
-                <TableRow key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <HeaderCell
-                      header={header}
-                      key={header.id}
-                      parseError={header.id in parseErrors ? parseErrors[header.id] : undefined}
-                      columnResizeMode={columnResizeMode}
-                      deltaOffset={table.getState().columnSizingInfo.deltaOffset ?? 0}
-                      columnMatches={columnMatches}
-                      onColumnMatchChange={onColumnMatchChange}
-                      onSetTextFieldRef={(ref) => {
-                        setTextFieldRef(header.id, ref)
-                      }}
-                    />
-                  ))}
-                </TableRow>
-              ))}
-            </TableHead>
+            onRefresh={onRefresh}
+            autoRefresh={autoRefresh}
+            onAutoRefreshChange={autoRefreshService && onAutoRefreshChange}
+            onAddAnnotationColumn={addAnnotationCol}
+            onRemoveAnnotationColumn={removeAnnotationCol}
+            onEditAnnotationColumn={editAnnotationCol}
+            onGroupsChanged={onGroupingChange}
+            toggleColumnVisibility={onColumnVisibilityChange}
+            getJobsService={getJobsService}
+            updateJobsService={updateJobsService}
+            onClearFilters={clearFilters}
+            onAddCustomView={addCustomView}
+            onDeleteCustomView={deleteCustomView}
+            onLoadCustomView={loadCustomView}
+          />
+          <TableContainer component={Paper} style={{ height: "100%" }}>
+            <Table
+              stickyHeader
+              sx={{ tableLayout: "fixed" }}
+              aria-label="Jobs table"
+              style={{
+                width: table.getCenterTotalSize(),
+                borderLeft: "1px solid #cccccc",
+                maxHeight: "100%",
+              }}
+            >
+              <TableHead>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <HeaderCell
+                        header={header}
+                        key={header.id}
+                        parseError={header.id in parseErrors ? parseErrors[header.id] : undefined}
+                        columnResizeMode={columnResizeMode}
+                        deltaOffset={table.getState().columnSizingInfo.deltaOffset ?? 0}
+                        columnMatches={columnMatches}
+                        onColumnMatchChange={onColumnMatchChange}
+                        onSetTextFieldRef={(ref) => {
+                          setTextFieldRef(header.id, ref)
+                        }}
+                      />
+                    ))}
+                  </TableRow>
+                ))}
+              </TableHead>
 
-            <JobsTableBody
-              dataIsLoading={rowsToFetch.length > 0}
-              columns={table.getVisibleLeafColumns()}
-              topLevelRows={topLevelRows}
-              sidebarJobId={sidebarJobId}
-              onLoadMoreSubRows={onLoadMoreSubRows}
-              onClickRowCheckbox={(row) => selectRow(row, false)}
-              onClickJobRow={toggleSidebarForJobRow}
-              onClickRow={(row) => selectRow(row, true)}
-              onShiftClickRow={shiftSelectRow}
-              onControlClickRow={(row) => selectRow(row, false)}
-            />
+              <JobsTableBody
+                dataIsLoading={rowsToFetch.length > 0}
+                columns={table.getVisibleLeafColumns()}
+                topLevelRows={topLevelRows}
+                sidebarJobId={sidebarJobId}
+                onLoadMoreSubRows={onLoadMoreSubRows}
+                onClickRowCheckbox={(row) => selectRow(row, false)}
+                onClickJobRow={toggleSidebarForJobRow}
+                onClickRow={(row) => selectRow(row, true)}
+                onShiftClickRow={shiftSelectRow}
+                onControlClickRow={(row) => selectRow(row, false)}
+              />
+            </Table>
+          </TableContainer>
+          <TablePagination
+            component="div"
+            rowsPerPageOptions={PAGE_SIZE_OPTIONS}
+            count={totalRowCount}
+            rowsPerPage={pageSize}
+            page={pageIndex}
+            onPageChange={(_, page) => table.setPageIndex(page)}
+            onRowsPerPageChange={(e) => table.setPageSize(Number(e.target.value))}
+            colSpan={table.getVisibleLeafColumns().length}
+            showFirstButton={true}
+            showLastButton={true}
+          />
 
-            <TableFooter>
-              <TableRow>
-                <TablePagination
-                  rowsPerPageOptions={PAGE_SIZE_OPTIONS}
-                  count={totalRowCount}
-                  rowsPerPage={pageSize}
-                  page={pageIndex}
-                  onPageChange={(_, page) => table.setPageIndex(page)}
-                  onRowsPerPageChange={(e) => table.setPageSize(Number(e.target.value))}
-                  colSpan={table.getVisibleLeafColumns().length}
-                  showFirstButton={true}
-                  showLastButton={true}
-                />
-              </TableRow>
-            </TableFooter>
-          </Table>
-        </TableContainer>
-
-        {debug && <pre>{JSON.stringify(table.getState(), null, 2)}</pre>}
+          {debug && <pre>{JSON.stringify(table.getState(), null, 2)}</pre>}
+        </Box>
       </Box>
 
       {sidebarJobDetails !== undefined && (
@@ -804,7 +854,7 @@ const JobsTableBody = ({
 }: JobsTableBodyProps) => {
   const canDisplay = !dataIsLoading && topLevelRows.length > 0
   return (
-    <TableBody>
+    <TableBody style={{ overflow: "auto", height: "100%" }}>
       {!canDisplay && (
         <TableRow>
           {dataIsLoading && topLevelRows.length === 0 && (

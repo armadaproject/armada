@@ -42,7 +42,7 @@ Airflow with the Armada operator can be run alongside the other Armada services 
 mage airflow start
 ```
 
-Airflow's web UI will then be accessible at http://localhost:8081 (login with admin/admin).
+Airflow's web UI will then be accessible at http://localhost:8081/login/  (login with airflow/airflow).
 
 You can install the package via `pip3 install third_party/airflow`. 
 

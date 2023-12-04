@@ -170,7 +170,7 @@ def test_annotate_job_request_items():
     dag = DAG(
         dag_id="hello_armada",
         start_date=pendulum.datetime(2016, 1, 1, tz="UTC"),
-        schedule_interval="@daily",
+        schedule="@daily",
         catchup=False,
         default_args={"retries": 2},
     )
@@ -204,7 +204,7 @@ def test_parameterize_armada_operator():
     dag = DAG(
         dag_id="hello_armada",
         start_date=pendulum.datetime(2016, 1, 1, tz="UTC"),
-        schedule_interval="@daily",
+        schedule="@daily",
         catchup=False,
         default_args={"retries": 2},
     )

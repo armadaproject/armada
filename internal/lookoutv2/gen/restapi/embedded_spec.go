@@ -47,9 +47,7 @@ func init() {
                 "filters",
                 "order",
                 "groupedField",
-                "aggregates",
-                "skip",
-                "take"
+                "aggregates"
               ],
               "properties": {
                 "activeJobSets": {
@@ -101,8 +99,7 @@ func init() {
                 },
                 "take": {
                   "description": "Number of job groups to fetch.",
-                  "type": "integer",
-                  "x-nullable": false
+                  "type": "integer"
                 }
               }
             }
@@ -279,9 +276,7 @@ func init() {
               "type": "object",
               "required": [
                 "filters",
-                "order",
-                "skip",
-                "take"
+                "order"
               ],
               "properties": {
                 "activeJobSets": {
@@ -307,8 +302,7 @@ func init() {
                 },
                 "take": {
                   "description": "Number of jobs to fetch.",
-                  "type": "integer",
-                  "x-nullable": false
+                  "type": "integer"
                 }
               }
             }
@@ -529,6 +523,10 @@ func init() {
           "format": "int64",
           "x-nullable": false
         },
+        "namespace": {
+          "type": "string",
+          "x-nullable": true
+        },
         "owner": {
           "type": "string",
           "minLength": 1,
@@ -699,9 +697,7 @@ func init() {
                 "filters",
                 "order",
                 "groupedField",
-                "aggregates",
-                "skip",
-                "take"
+                "aggregates"
               ],
               "properties": {
                 "activeJobSets": {
@@ -753,8 +749,7 @@ func init() {
                 },
                 "take": {
                   "description": "Number of job groups to fetch.",
-                  "type": "integer",
-                  "x-nullable": false
+                  "type": "integer"
                 }
               }
             }
@@ -931,9 +926,7 @@ func init() {
               "type": "object",
               "required": [
                 "filters",
-                "order",
-                "skip",
-                "take"
+                "order"
               ],
               "properties": {
                 "activeJobSets": {
@@ -959,8 +952,7 @@ func init() {
                 },
                 "take": {
                   "description": "Number of jobs to fetch.",
-                  "type": "integer",
-                  "x-nullable": false
+                  "type": "integer"
                 }
               }
             }
@@ -1197,6 +1189,10 @@ func init() {
           "type": "integer",
           "format": "int64",
           "x-nullable": false
+        },
+        "namespace": {
+          "type": "string",
+          "x-nullable": true
         },
         "owner": {
           "type": "string",
