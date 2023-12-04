@@ -178,6 +178,7 @@ func Teste2eAirflow() error {
 // Teste2epython runs e2e tests for python client
 func Teste2epython() error {
 	mg.Deps(BuildPython)
+	mg.Deps(CheckForArmadaRunning)
 	args := []string{
 		"run",
 		"-v", "${PWD}/client/python:/code",

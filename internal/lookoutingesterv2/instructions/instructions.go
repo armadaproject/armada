@@ -191,6 +191,7 @@ func (c *InstructionConverter) handleSubmitJob(
 		JobId:                     jobId,
 		Queue:                     queue,
 		Owner:                     owner,
+		Namespace:                 apiJob.Namespace,
 		JobSet:                    jobSet,
 		Cpu:                       resources.Cpu,
 		Memory:                    resources.Memory,

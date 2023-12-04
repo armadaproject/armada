@@ -26,5 +26,3 @@ uiConfig:
   armadaApiBaseUrl: "http://armada-server:8080"
   userAnnotationPrefix: "armadaproject.io/"
   binocularsBaseUrlPattern: "http://armada-binoculars:8080"
-  jobSetsAutoRefreshMs: 15000
-  jobsAutoRefreshMs: 30000
