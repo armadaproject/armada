@@ -50,7 +50,7 @@ import (
 )
 
 type AggregatedQueueServer struct {
-	permissions              authorization.PermissionChecker
+	authorizer               ActionAuthorizer
 	schedulingConfig         configuration.SchedulingConfig
 	jobRepository            repository.JobRepository
 	queueRepository          repository.QueueRepository
@@ -75,7 +75,7 @@ type AggregatedQueueServer struct {
 }
 
 func NewAggregatedQueueServer(
-	permissions authorization.PermissionChecker,
+	authorizer ActionAuthorizer,
 	schedulingConfig configuration.SchedulingConfig,
 	jobRepository repository.JobRepository,
 	queueRepository repository.QueueRepository,
@@ -102,7 +102,7 @@ func NewAggregatedQueueServer(
 			return compress.NewZlibDecompressor(), nil
 		}), &poolConfig)
 	return &AggregatedQueueServer{
-		permissions:      permissions,
+		authorizer:       authorizer,
 		schedulingConfig: schedulingConfig,
 		jobRepository:    jobRepository,
 		queueRepository:  queueRepository,
@@ -128,7 +128,7 @@ func NewAggregatedQueueServer(
 //
 // This function should be used instead of the LeaseJobs function in most cases.
 func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingLeaseJobsServer) error {
-	if err := checkPermission(q.permissions, armadacontext.FromGrpcCtx(stream.Context()), permissions.ExecuteJobs); err != nil {
+	if err := q.authorizer.AuthorizeAction(armadacontext.FromGrpcCtx(stream.Context()), permissions.ExecuteJobs); err != nil {
 		return err
 	}
 
@@ -890,7 +890,7 @@ func (q *AggregatedQueueServer) decompressOwnershipGroups(compressedOwnershipGro
 
 func (q *AggregatedQueueServer) RenewLease(grpcCtx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
+	if err := q.authorizer.AuthorizeAction(ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
 	renewed, e := q.jobRepository.RenewLease(request.ClusterId, request.Ids)
@@ -899,7 +899,7 @@ func (q *AggregatedQueueServer) RenewLease(grpcCtx context.Context, request *api
 
 func (q *AggregatedQueueServer) ReturnLease(grpcCtx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
+	if err := q.authorizer.AuthorizeAction(ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
 
@@ -999,7 +999,7 @@ func (q *AggregatedQueueServer) addAvoidNodeAffinity(
 
 func (q *AggregatedQueueServer) ReportDone(grpcCtx context.Context, idList *api.IdList) (*api.IdList, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
+	if err := q.authorizer.AuthorizeAction(ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportDone] error: %s", err)
 	}
 	jobs, e := q.jobRepository.GetExistingJobsByIds(idList.Ids)

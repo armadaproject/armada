@@ -60,10 +60,6 @@ jobs:
         with:
           cache-prefix: go-unit-tests
 
-      - name: Setup dependencies
-        shell: bash
-        run: go run github.com/magefile/mage@v1.14.0 -v download
-
       - name: Unit Tests
         id: unit_test
         run: go run github.com/magefile/mage@v1.14.0 -v tests
@@ -119,7 +115,7 @@ jobs:
           cache-prefix: go-integration-tests
 
       - name: Setup Integration Tests
-        run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal
+        run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal-pulsar
 
       - name: Run Integration Tests
         run: go run github.com/magefile/mage@v1.14.0 -v testsuite

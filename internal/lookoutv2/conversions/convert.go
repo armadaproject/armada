@@ -28,6 +28,7 @@ func ToSwaggerJob(job *model.Job) *models.Job {
 		LastTransitionTime: strfmt.DateTime(job.LastTransitionTime),
 		Memory:             job.Memory,
 		Owner:              job.Owner,
+		Namespace:          job.Namespace,
 		Priority:           job.Priority,
 		PriorityClass:      job.PriorityClass,
 		Queue:              job.Queue,
