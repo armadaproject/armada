@@ -123,7 +123,7 @@ func SchedulingOrderCompare(job, other *Job) int {
 	}
 
 	// Tie-break by jobId, which must be unique.
-	// This ensure there is a total order between jobs, i.e., no jobs are equal from an ordering point of view.
+	// This ensures there is a total order between jobs, i.e., no jobs are equal from an ordering point of view.
 	if job.id < other.id {
 		return -1
 	} else if job.id > other.id {
