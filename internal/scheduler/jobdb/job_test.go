@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -24,15 +23,6 @@ var jobSchedulingInfo = &schedulerobjects.JobSchedulingInfo{
 		},
 	},
 }
-
-// Used for creating jobs.
-var jobDb = NewJobDb(
-	map[string]types.PriorityClass{
-		"foo": {},
-		"bar": {},
-	},
-	"foo",
-)
 
 var baseJob = jobDb.NewJob(
 	"test-job",
