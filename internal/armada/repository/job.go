@@ -84,7 +84,7 @@ type JobRepository interface {
 	GetNumberOfRetryAttempts(jobId string) (int, error)
 	StorePulsarSchedulerJobDetails(jobDetails []*schedulerobjects.PulsarSchedulerJobDetails) error
 	GetPulsarSchedulerJobDetails(jobIds string) (*schedulerobjects.PulsarSchedulerJobDetails, error)
-	DeletePulsarSchedulerJobDetails(jobId []string) error
+	ExpirePulsarSchedulerJobDetails(jobId []string) error
 }
 
 type RedisJobRepository struct {
@@ -1017,10 +1017,15 @@ func (repo *RedisJobRepository) GetPulsarSchedulerJobDetails(jobId string) (*sch
 	return details, nil
 }
 
-func (repo *RedisJobRepository) DeletePulsarSchedulerJobDetails(jobIds []string) error {
+func (repo *RedisJobRepository) ExpirePulsarSchedulerJobDetails(jobIds []string) error {
+	if len(jobIds) == 0 {
+		return nil
+	}
 	pipe := repo.db.Pipeline()
 	for _, jobId := range jobIds {
-		pipe.Del(pulsarJobPrefix + jobId)
+		key := fmt.Sprintf("%s%s", pulsarJobPrefix, jobId)
+		// Expire as opposed to delete so that we are permissive of race conditions.
+		pipe.Expire(key, 1*time.Hour)
 	}
 	if _, err := pipe.Exec(); err != nil {
 		return errors.Wrap(err, "failed to delete pulsar job details in Redis")

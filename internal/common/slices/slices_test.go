@@ -298,3 +298,31 @@ func TestRepeat(t *testing.T) {
 		})
 	}
 }
+
+func TestAny(t *testing.T) {
+	var nilSlice []int
+	assert.Equal(
+		t,
+		false,
+		AnyFunc(nilSlice, func(v int) bool { return true }),
+	)
+
+	emptySlice := make([]int, 0)
+	assert.Equal(
+		t,
+		false,
+		AnyFunc(emptySlice, func(v int) bool { return true }),
+	)
+
+	assert.Equal(
+		t,
+		true,
+		AnyFunc([]int{1, 2, 3}, func(v int) bool { return v > 2 }),
+	)
+
+	assert.Equal(
+		t,
+		false,
+		AnyFunc([]int{1, 2, 3}, func(v int) bool { return v > 3 }),
+	)
+}

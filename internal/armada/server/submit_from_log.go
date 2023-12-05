@@ -111,7 +111,7 @@ func (srv *SubmitFromLog) Run(ctx *armadacontext.Context) error {
 
 			// If this message isn't for us we can simply ack it
 			// and go to the next message
-			if !schedulers.ForLegacyScheduler(msg) {
+			if !schedulers.ForLegacyScheduler(msg) && !schedulers.ForPulsarScheduler(msg) {
 				srv.ack(ctx, msg)
 				break
 			}
@@ -132,11 +132,51 @@ func (srv *SubmitFromLog) Run(ctx *armadacontext.Context) error {
 			}
 
 			ctxWithLogger.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
+
+			// This file exists primarily for the legacy scheduler - the pulsar scheduler only need to read from
+			//  pulsar to delete redis PulsarJob:jobId entries
+			if schedulers.ForPulsarScheduler(msg) {
+				if err := srv.handlePulsarSchedulerEventSequence(ctxWithLogger, sequence); err != nil {
+					logging.WithStacktrace(ctx, err).Warnf("could not expire PulsarJobDetails; ignoring")
+					numErrored++
+				}
+
+				srv.ack(ctx, msg)
+				break
+			}
+
 			// TODO: Improve retry logic.
 			srv.ProcessSequence(ctxWithLogger, sequence)
 			srv.ack(ctx, msg)
 		}
 	}
+}
+
+func (srv *SubmitFromLog) handlePulsarSchedulerEventSequence(ctx *armadacontext.Context, sequence *armadaevents.EventSequence) error {
+	idsOfJobsToExpireMappingFor := make([]string, 0)
+	for _, event := range sequence.GetEvents() {
+		var jobId string
+		var err error
+		switch e := event.Event.(type) {
+		case *armadaevents.EventSequence_Event_JobSucceeded:
+			jobId, err = armadaevents.UlidStringFromProtoUuid(e.JobSucceeded.JobId)
+		case *armadaevents.EventSequence_Event_JobErrors:
+			if ok := armadaslices.AnyFunc(e.JobErrors.Errors, func(e *armadaevents.Error) bool { return e.Terminal }); ok {
+				jobId, err = armadaevents.UlidStringFromProtoUuid(e.JobErrors.JobId)
+			}
+		case *armadaevents.EventSequence_Event_CancelledJob:
+			jobId, err = armadaevents.UlidStringFromProtoUuid(e.CancelledJob.JobId)
+		default:
+			// Non-terminal event
+			continue
+		}
+		if err != nil {
+			logging.WithStacktrace(ctx, err).Warnf("failed to determine jobId from event of type %T; ignoring", event.Event)
+			continue
+		}
+		idsOfJobsToExpireMappingFor = append(idsOfJobsToExpireMappingFor, jobId)
+	}
+	return srv.SubmitServer.jobRepository.ExpirePulsarSchedulerJobDetails(idsOfJobsToExpireMappingFor)
 }
 
 // ProcessSequence processes all events in a particular sequence.
