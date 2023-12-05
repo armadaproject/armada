@@ -153,36 +153,30 @@ func (srv *SubmitFromLog) Run(ctx *armadacontext.Context) error {
 }
 
 func (srv *SubmitFromLog) handlePulsarSchedulerEventSequence(ctx *armadacontext.Context, sequence *armadaevents.EventSequence) error {
-	jobIds := make([]string, 0)
-
+	idsOfJobsToExpireMappingFor := make([]string, 0)
 	for _, event := range sequence.GetEvents() {
 		var jobId string
 		var err error
-
-		//  Terminal events are: Cancelled, Succeeded, Errored, Preempted
 		switch e := event.Event.(type) {
 		case *armadaevents.EventSequence_Event_JobSucceeded:
 			jobId, err = armadaevents.UlidStringFromProtoUuid(e.JobSucceeded.JobId)
 		case *armadaevents.EventSequence_Event_JobErrors:
-			if anyTerminal := util.Any(e.JobErrors.Errors, func(e *armadaevents.Error) bool { return e.Terminal }); anyTerminal {
+			if ok := armadaslices.AnyFunc(e.JobErrors.Errors, func(e *armadaevents.Error) bool { return e.Terminal }); ok {
 				jobId, err = armadaevents.UlidStringFromProtoUuid(e.JobErrors.JobId)
 			}
 		case *armadaevents.EventSequence_Event_CancelledJob:
 			jobId, err = armadaevents.UlidStringFromProtoUuid(e.CancelledJob.JobId)
-		case *armadaevents.EventSequence_Event_JobRunPreempted:
-			jobId, err = armadaevents.UlidStringFromProtoUuid(e.JobRunPreempted.PreemptedJobId)
 		default:
 			// Non-terminal event
 			continue
 		}
 		if err != nil {
-			logging.WithStacktrace(ctx, err).Warnf("cannot determine jobId from event; ignoring")
+			logging.WithStacktrace(ctx, err).Warnf("failed to determine jobId from event of type %T; ignoring", event.Event)
 			continue
 		}
-
-		jobIds = append(jobIds, jobId)
+		idsOfJobsToExpireMappingFor = append(idsOfJobsToExpireMappingFor, jobId)
 	}
-	return srv.SubmitServer.jobRepository.ExpirePulsarSchedulerJobDetails(jobIds)
+	return srv.SubmitServer.jobRepository.ExpirePulsarSchedulerJobDetails(idsOfJobsToExpireMappingFor)
 }
 
 // ProcessSequence processes all events in a particular sequence.

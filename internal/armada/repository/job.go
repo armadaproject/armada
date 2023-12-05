@@ -1018,10 +1018,13 @@ func (repo *RedisJobRepository) GetPulsarSchedulerJobDetails(jobId string) (*sch
 }
 
 func (repo *RedisJobRepository) ExpirePulsarSchedulerJobDetails(jobIds []string) error {
+	if len(jobIds) == 0 {
+		return nil
+	}
 	pipe := repo.db.Pipeline()
 	for _, jobId := range jobIds {
 		key := fmt.Sprintf("%s%s", pulsarJobPrefix, jobId)
-		// Expire as opposed to delete so that we are permissive of race conditions
+		// Expire as opposed to delete so that we are permissive of race conditions.
 		pipe.Expire(key, 1*time.Hour)
 	}
 	if _, err := pipe.Exec(); err != nil {
