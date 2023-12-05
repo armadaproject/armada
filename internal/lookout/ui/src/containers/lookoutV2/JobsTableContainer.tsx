@@ -88,7 +88,7 @@ interface JobsTableContainerProps {
   logService: ILogService
   cordonService: ICordonService
   debug: boolean
-  autoRefreshMs: number
+  autoRefreshMs: number | undefined
 }
 
 export type LookoutColumnFilter = {
@@ -183,14 +183,17 @@ export const JobsTableContainer = ({
     initialPrefs.autoRefresh === undefined ? true : initialPrefs.autoRefresh,
   )
 
-  const autoRefreshService = useMemo(() => new IntervalService(autoRefreshMs), [autoRefreshMs])
+  const autoRefreshService = useMemo(
+    () => (autoRefreshMs === undefined ? undefined : new IntervalService(autoRefreshMs)),
+    [autoRefreshMs],
+  )
 
   const onAutoRefreshChange = (autoRefresh: boolean) => {
     setAutoRefresh(autoRefresh)
     if (autoRefresh) {
-      autoRefreshService.start()
+      autoRefreshService?.start()
     } else {
-      autoRefreshService.stop()
+      autoRefreshService?.stop()
     }
   }
 
@@ -370,11 +373,11 @@ export const JobsTableContainer = ({
   }
 
   useEffect(() => {
-    autoRefreshService.registerCallback(onRefresh)
+    autoRefreshService?.registerCallback(onRefresh)
     if (autoRefresh) {
-      autoRefreshService.start()
+      autoRefreshService?.start()
     }
-    return () => autoRefreshService.stop()
+    return () => autoRefreshService?.stop()
   }, [])
 
   const onColumnVisibilityChange = (colIdToToggle: ColumnId) => {
@@ -704,30 +707,18 @@ export const JobsTableContainer = ({
   if (grouping.length === 0) {
     columnsForSelect = columnsForSelect.filter((col) => col.id !== StandardColumnId.Count)
   }
+  const columnStyle = {
+    display: "flex",
+    flexDirection: "column",
+    height: "100%",
+    width: "100%",
+    flex: 1,
+  }
+
   return (
     <Box sx={{ display: "flex", flexDirection: "row", height: "100%", width: "100%" }}>
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          marginX: "0.5em",
-          height: "100%",
-          width: "100%",
-          minWidth: 0,
-          flex: 1,
-        }}
-      >
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            marginY: "0.5em",
-            height: "100%",
-            minHeight: 0,
-            width: "100%",
-            flex: 1,
-          }}
-        >
+      <Box sx={{ ...columnStyle, marginX: "0.5em", minWidth: 0 }}>
+        <Box sx={{ ...columnStyle, marginY: "0.5em", minHeight: 0 }}>
           <JobsTableActionBar
             isLoading={rowsToFetch.length > 0}
             allColumns={columnsForSelect}
@@ -742,7 +733,7 @@ export const JobsTableContainer = ({
             }}
             onRefresh={onRefresh}
             autoRefresh={autoRefresh}
-            onAutoRefreshChange={onAutoRefreshChange}
+            onAutoRefreshChange={autoRefreshService && onAutoRefreshChange}
             onAddAnnotationColumn={addAnnotationCol}
             onRemoveAnnotationColumn={removeAnnotationCol}
             onEditAnnotationColumn={editAnnotationCol}

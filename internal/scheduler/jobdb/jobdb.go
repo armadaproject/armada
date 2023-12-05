@@ -9,7 +9,9 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -28,15 +30,18 @@ type JobDb struct {
 	// Priority class assigned to jobs with a priorityClassName not in jobDb.priorityClasses.
 	defaultPriorityClass   types.PriorityClass
 	schedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
-	copyMutex              sync.Mutex
-	writerMutex            sync.Mutex
+	// We intern strings to save memory.
+	stringInterner *stringinterner.StringInterner
+	copyMutex      sync.Mutex
+	writerMutex    sync.Mutex
 }
 
-func NewJobDb(priorityClasses map[string]types.PriorityClass, defaultPriorityClassName string) *JobDb {
+func NewJobDb(priorityClasses map[string]types.PriorityClass, defaultPriorityClassName string, stringInternerCacheSize uint32) *JobDb {
 	return NewJobDbWithSchedulingKeyGenerator(
 		priorityClasses,
 		defaultPriorityClassName,
 		schedulerobjects.NewSchedulingKeyGenerator(),
+		stringInternerCacheSize,
 	)
 }
 
@@ -44,10 +49,11 @@ func NewJobDbWithSchedulingKeyGenerator(
 	priorityClasses map[string]types.PriorityClass,
 	defaultPriorityClassName string,
 	skg *schedulerobjects.SchedulingKeyGenerator,
+	stringInternerCacheSize uint32,
 ) *JobDb {
 	defaultPriorityClass, ok := priorityClasses[defaultPriorityClassName]
 	if !ok {
-		// TODO: Return an error instead.
+		// TODO(albin): Return an error instead.
 		panic(fmt.Sprintf("unknown default priority class %s", defaultPriorityClassName))
 	}
 	return &JobDb{
@@ -58,6 +64,7 @@ func NewJobDbWithSchedulingKeyGenerator(
 		priorityClasses:        priorityClasses,
 		defaultPriorityClass:   defaultPriorityClass,
 		schedulingKeyGenerator: skg,
+		stringInterner:         stringinterner.New(stringInternerCacheSize),
 	}
 }
 
@@ -76,25 +83,20 @@ func (jobDb *JobDb) NewJob(
 	cancelled bool,
 	created int64,
 ) *Job {
-	var schedulingKey schedulerobjects.SchedulingKey
-	priorityClass := jobDb.defaultPriorityClass
-	if pc, ok := jobDb.priorityClasses[schedulingInfo.PriorityClassName]; ok {
-		priorityClass = pc
-	}
-	if preq := schedulingInfo.GetPodRequirements(); preq != nil {
-		schedulingKey = jobDb.schedulingKeyGenerator.KeyFromPodRequirements(preq)
+	priorityClass, ok := jobDb.priorityClasses[schedulingInfo.PriorityClassName]
+	if !ok {
+		priorityClass = jobDb.defaultPriorityClass
 	}
 	job := &Job{
 		id:                      jobId,
-		queue:                   queue,
-		jobSet:                  jobSet,
+		queue:                   jobDb.stringInterner.Intern(queue),
+		jobSet:                  jobDb.stringInterner.Intern(jobSet),
 		priority:                priority,
 		queued:                  queued,
 		queuedVersion:           queuedVersion,
 		requestedPriority:       priority,
 		submittedTime:           created,
-		schedulingKey:           schedulingKey,
-		jobSchedulingInfo:       schedulingInfo,
+		jobSchedulingInfo:       jobDb.internJobSchedulingInfoStrings(schedulingInfo),
 		priorityClass:           priorityClass,
 		cancelRequested:         cancelRequested,
 		cancelByJobSetRequested: cancelByJobSetRequested,
@@ -102,7 +104,24 @@ func (jobDb *JobDb) NewJob(
 		runsById:                map[uuid.UUID]*JobRun{},
 	}
 	job.ensureJobSchedulingInfoFieldsInitialised()
+	job.schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(jobDb.schedulingKeyGenerator, job)
 	return job
+}
+
+func (jobDb *JobDb) internJobSchedulingInfoStrings(info *schedulerobjects.JobSchedulingInfo) *schedulerobjects.JobSchedulingInfo {
+	for _, requirement := range info.ObjectRequirements {
+		if podRequirement := requirement.GetPodRequirements(); podRequirement != nil {
+			for k, v := range podRequirement.Annotations {
+				podRequirement.Annotations[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
+			}
+
+			for k, v := range podRequirement.NodeSelector {
+				podRequirement.NodeSelector[jobDb.stringInterner.Intern(k)] = jobDb.stringInterner.Intern(v)
+			}
+			podRequirement.PreemptionPolicy = jobDb.stringInterner.Intern(podRequirement.PreemptionPolicy)
+		}
+	}
+	return info
 }
 
 // ReadTxn returns a read-only transaction.
