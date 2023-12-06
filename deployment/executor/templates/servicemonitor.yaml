@@ -16,4 +16,5 @@ spec:
   endpoints:
     - port: metrics
       interval: {{ .Values.prometheus.scrapeInterval }}
+      scrapeTimeout: {{ .Values.prometheus.scrapeTimeout }}
 {{- end }}

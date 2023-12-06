@@ -115,7 +115,7 @@ jobs:
           cache-prefix: go-integration-tests
 
       - name: Setup Integration Tests
-        run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal
+        run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal-pulsar
 
       - name: Run Integration Tests
         run: go run github.com/magefile/mage@v1.14.0 -v testsuite

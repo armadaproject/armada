@@ -27,6 +27,7 @@ func NewTestJobDb() *JobDb {
 			"bar": {},
 		},
 		"foo",
+		1024,
 	)
 }
 
