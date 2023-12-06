@@ -44,6 +44,9 @@ func getComposeFile() string {
 }
 
 func getComponentsList() []string {
+	if os.Getenv("ARMADA_COMPONENTS") == "" {
+		return []string{}
+	}
 	return strings.Split(os.Getenv("ARMADA_COMPONENTS"), ",")
 }
 
