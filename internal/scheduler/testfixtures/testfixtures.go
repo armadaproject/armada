@@ -79,6 +79,7 @@ func NewJobDb() *jobdb.JobDb {
 		TestPriorityClasses,
 		TestDefaultPriorityClass,
 		SchedulingKeyGenerator,
+		1024,
 	)
 }
 

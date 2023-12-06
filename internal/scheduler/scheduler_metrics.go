@@ -158,10 +158,6 @@ func (metrics *SchedulerMetrics) ReportReconcileCycleTime(cycleTime time.Duratio
 }
 
 func (metrics *SchedulerMetrics) ReportSchedulerResult(ctx *armadacontext.Context, result SchedulerResult) {
-	if result.EmptyResult {
-		return // TODO: Add logging or maybe place to add failure metric?
-	}
-
 	// Report the total scheduled jobs (possibly we can get these out of contexts?)
 	metrics.reportScheduledJobs(ctx, result.ScheduledJobs)
 	metrics.reportPreemptedJobs(ctx, result.PreemptedJobs)
@@ -173,11 +169,17 @@ func (metrics *SchedulerMetrics) ReportSchedulerResult(ctx *armadacontext.Contex
 }
 
 func (metrics *SchedulerMetrics) reportScheduledJobs(ctx *armadacontext.Context, scheduledJobs []interfaces.LegacySchedulerJob) {
+	if len(scheduledJobs) == 0 {
+		return
+	}
 	jobAggregates := aggregateJobs(scheduledJobs)
 	observeJobAggregates(ctx, metrics.scheduledJobsPerQueue, jobAggregates)
 }
 
 func (metrics *SchedulerMetrics) reportPreemptedJobs(ctx *armadacontext.Context, preemptedJobs []interfaces.LegacySchedulerJob) {
+	if len(preemptedJobs) == 0 {
+		return
+	}
 	jobAggregates := aggregateJobs(preemptedJobs)
 	observeJobAggregates(ctx, metrics.preemptedJobsPerQueue, jobAggregates)
 }
