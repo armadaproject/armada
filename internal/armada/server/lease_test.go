@@ -197,7 +197,7 @@ func makeAggregatedQueueServerWithTestDoubles(maxRetries uint) (*mockJobReposito
 	fakeQueueRepository := &fakeQueueRepository{}
 	fakeSchedulingInfoRepository := &fakeSchedulingInfoRepository{}
 	return mockJobRepository, fakeEventStore, NewAggregatedQueueServer(
-		&FakePermissionChecker{},
+		&FakeActionAuthorizer{},
 		configuration.SchedulingConfig{
 			MaxRetries: maxRetries,
 		},
@@ -213,8 +213,9 @@ func makeAggregatedQueueServerWithTestDoubles(maxRetries uint) (*mockJobReposito
 }
 
 type mockJobRepository struct {
-	jobs       map[string]*api.Job
-	jobRetries map[string]int
+	jobs          map[string]*api.Job
+	jobRetries    map[string]int
+	pulsarDetails map[string]*schedulerobjects.PulsarSchedulerJobDetails
 
 	returnLeaseCalls int
 	deleteJobsCalls  int
@@ -229,14 +230,37 @@ type mockJobRepository struct {
 }
 
 func (repo *mockJobRepository) StorePulsarSchedulerJobDetails(jobDetails []*schedulerobjects.PulsarSchedulerJobDetails) error {
+	for _, job := range jobDetails {
+		key := job.JobId
+		value := &schedulerobjects.PulsarSchedulerJobDetails{
+			JobId:  job.JobId,
+			Queue:  job.Queue,
+			JobSet: job.JobSet,
+		}
+		repo.pulsarDetails[key] = value
+	}
 	return nil
 }
 
 func (repo *mockJobRepository) GetPulsarSchedulerJobDetails(jobIds string) (*schedulerobjects.PulsarSchedulerJobDetails, error) {
-	return nil, nil
+	key := jobIds
+	value, ok := repo.pulsarDetails[key]
+	if !ok {
+		return nil, fmt.Errorf("details for jobId %s not stored", jobIds)
+	}
+
+	return value, nil
 }
 
-func (repo *mockJobRepository) DeletePulsarSchedulerJobDetails(jobId []string) error {
+func (repo *mockJobRepository) ExpirePulsarSchedulerJobDetails(jobId []string) error {
+	for _, id := range jobId {
+		key := id
+		if _, ok := repo.pulsarDetails[key]; !ok {
+			return fmt.Errorf("could not expire details for jobId %s - details not stored", id)
+		}
+		delete(repo.pulsarDetails, key)
+	}
+
 	return nil
 }
 
@@ -244,6 +268,7 @@ func newMockJobRepository() *mockJobRepository {
 	return &mockJobRepository{
 		jobs:              make(map[string]*api.Job),
 		jobRetries:        make(map[string]int),
+		pulsarDetails:     make(map[string]*schedulerobjects.PulsarSchedulerJobDetails),
 		returnLeaseCalls:  0,
 		deleteJobsCalls:   0,
 		returnLeaseArg1:   "",

@@ -2,96 +2,68 @@ package server
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	"github.com/armadaproject/armada/internal/common/auth/authorization"
 	"github.com/armadaproject/armada/internal/common/auth/permission"
 	"github.com/armadaproject/armada/pkg/client/queue"
 )
 
-// ErrUnauthorized represents an error that occurs when a client tries to perform some action
-// through the gRPC API for which it does not have permissions.
-// Produces error messages of the form
-// "Tom" does not own the queue and have SubmitJobs permissions, "Tom" does not have SubmitAnyJobs permissions
-//
-// The caller of a function that may produce this error should capture is using errors.As and prepend
-// whatever action the principal was attempting.
-type ErrUnauthorized struct {
-	// Principal that attempted the action
-	Principal authorization.Principal
-	// Reasons that the principal was not allowed to perform the action
-	// For example ["does not own the queue and have SubmitJobs permissions", "does not have SubmitAnyJobs permissions"]
-	Reasons []string
+type ActionAuthorizer interface {
+	AuthorizeAction(ctx *armadacontext.Context, perm permission.Permission) error
+	AuthorizeQueueAction(ctx *armadacontext.Context, queue queue.Queue, anyPerm permission.Permission, perm queue.PermissionVerb) error
 }
 
-func (err *ErrUnauthorized) Error() string {
-	principalName := err.Principal.GetName()
-	reasons := make([]string, len(err.Reasons), len(err.Reasons))
-	for i, reason := range err.Reasons {
-		reasons[i] = fmt.Sprintf("%q %s", principalName, reason)
-	}
-	return strings.Join(reasons, ", ")
+type Authorizer struct {
+	permissionChecker authorization.PermissionChecker
 }
 
-func MergePermissionErrors(errs ...*ErrUnauthorized) *ErrUnauthorized {
-	var filtered []*ErrUnauthorized
-	for _, err := range errs {
-		if err != nil {
-			filtered = append(filtered, err)
-		}
+func NewAuthorizer(permissionChecker authorization.PermissionChecker) *Authorizer {
+	return &Authorizer{
+		permissionChecker: permissionChecker,
 	}
-
-	if len(filtered) == 0 {
-		return nil
-	}
-
-	merged := &ErrUnauthorized{
-		Principal: filtered[0].Principal,
-		Reasons:   []string{},
-	}
-	for _, err := range filtered {
-		merged.Reasons = append(merged.Reasons, err.Reasons...)
-	}
-	return merged
 }
 
-// checkPermission is a helper function called by the gRPC handlers to check if a client has the
-// permissions required to perform some action. The error returned is of type ErrUnauthorized.
-// After recovering the error (using errors.As), the caller can obtain the name of the user and the
-// requested permission programatically via this error type.
-func checkPermission(p authorization.PermissionChecker, ctx *armadacontext.Context, permission permission.Permission) error {
-	if !p.UserHasPermission(ctx, permission) {
-		return &ErrUnauthorized{
-			Principal: authorization.GetPrincipal(ctx),
-			Reasons: []string{
-				fmt.Sprintf("does not have permission %s", permission),
-			},
+func (b *Authorizer) AuthorizeAction(ctx *armadacontext.Context, perm permission.Permission) error {
+	principal := authorization.GetPrincipal(ctx)
+	if !b.permissionChecker.UserHasPermission(ctx, perm) {
+		return &armadaerrors.ErrUnauthorized{
+			Principal:  principal.GetName(),
+			Permission: string(perm),
+			Action:     string(perm),
+			Message:    fmt.Sprintf("user %s does not have permission to perform %s action", principal.GetName(), string(perm)),
 		}
 	}
 	return nil
 }
 
-func checkQueuePermission(
-	p authorization.PermissionChecker,
+func (b *Authorizer) AuthorizeQueueAction(
 	ctx *armadacontext.Context,
-	q queue.Queue,
-	globalPermission permission.Permission,
-	verb queue.PermissionVerb,
+	queue queue.Queue,
+	anyPerm permission.Permission,
+	perm queue.PermissionVerb,
 ) error {
-	err := checkPermission(p, ctx, globalPermission)
-	if err != nil {
-		return err
-	}
-
-	// User must either own the queue or have the permission for the specific verb
-	owned, _ := p.UserOwns(ctx, q.ToAPI())
-	if owned {
-		return nil
-	}
-
 	principal := authorization.GetPrincipal(ctx)
+	hasAnyPerm := b.permissionChecker.UserHasPermission(ctx, anyPerm)
+	hasQueuePerm := principalHasQueuePermissions(principal, queue, perm)
+	if !hasAnyPerm && !hasQueuePerm {
+		return &armadaerrors.ErrUnauthorized{
+			Principal:  principal.GetName(),
+			Permission: string(perm),
+			Action:     string(perm) + " for queue " + queue.Name,
+			Message: fmt.Sprintf(
+				"user %s cannot perform action %s on queue %s as they are neither explicitly permissioned on the queue "+
+					"or a member of %s group", principal.GetName(), string(perm), queue.Name, string(anyPerm)),
+		}
+	}
 
+	return nil
+}
+
+// principalHasQueuePermissions returns true if the principal has permissions to perform some action,
+// as specified by the provided verb, for a specific queue, and false otherwise.
+func principalHasQueuePermissions(principal authorization.Principal, q queue.Queue, verb queue.PermissionVerb) bool {
 	subjects := queue.PermissionSubjects{}
 	for _, group := range principal.GetGroupNames() {
 		subjects = append(subjects, queue.PermissionSubject{
@@ -106,14 +78,9 @@ func checkQueuePermission(
 
 	for _, subject := range subjects {
 		if q.HasPermission(subject, verb) {
-			return nil
+			return true
 		}
 	}
 
-	return &ErrUnauthorized{
-		Principal: principal,
-		Reasons: []string{
-			fmt.Sprintf("does not have permission %s", verb),
-		},
-	}
+	return false
 }

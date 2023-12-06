@@ -168,3 +168,13 @@ func Repeat[T any](n int, vs ...T) []T {
 	}
 	return rv
 }
+
+// AnyFunc returns true if predicate(v) returns true for any value v in s.
+func AnyFunc[S ~[]T, T any](s S, predicate func(val T) bool) bool {
+	for _, v := range s {
+		if predicate(v) {
+			return true
+		}
+	}
+	return false
+}

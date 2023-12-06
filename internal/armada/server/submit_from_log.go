@@ -19,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/eventutil"
 	"github.com/armadaproject/armada/internal/common/logging"
 	"github.com/armadaproject/armada/internal/common/schedulers"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
@@ -110,7 +111,7 @@ func (srv *SubmitFromLog) Run(ctx *armadacontext.Context) error {
 
 			// If this message isn't for us we can simply ack it
 			// and go to the next message
-			if !schedulers.ForLegacyScheduler(msg) {
+			if !schedulers.ForLegacyScheduler(msg) && !schedulers.ForPulsarScheduler(msg) {
 				srv.ack(ctx, msg)
 				break
 			}
@@ -131,11 +132,51 @@ func (srv *SubmitFromLog) Run(ctx *armadacontext.Context) error {
 			}
 
 			ctxWithLogger.WithField("numEvents", len(sequence.Events)).Info("processing sequence")
+
+			// This file exists primarily for the legacy scheduler - the pulsar scheduler only need to read from
+			//  pulsar to delete redis PulsarJob:jobId entries
+			if schedulers.ForPulsarScheduler(msg) {
+				if err := srv.handlePulsarSchedulerEventSequence(ctxWithLogger, sequence); err != nil {
+					logging.WithStacktrace(ctx, err).Warnf("could not expire PulsarJobDetails; ignoring")
+					numErrored++
+				}
+
+				srv.ack(ctx, msg)
+				break
+			}
+
 			// TODO: Improve retry logic.
 			srv.ProcessSequence(ctxWithLogger, sequence)
 			srv.ack(ctx, msg)
 		}
 	}
+}
+
+func (srv *SubmitFromLog) handlePulsarSchedulerEventSequence(ctx *armadacontext.Context, sequence *armadaevents.EventSequence) error {
+	idsOfJobsToExpireMappingFor := make([]string, 0)
+	for _, event := range sequence.GetEvents() {
+		var jobId string
+		var err error
+		switch e := event.Event.(type) {
+		case *armadaevents.EventSequence_Event_JobSucceeded:
+			jobId, err = armadaevents.UlidStringFromProtoUuid(e.JobSucceeded.JobId)
+		case *armadaevents.EventSequence_Event_JobErrors:
+			if ok := armadaslices.AnyFunc(e.JobErrors.Errors, func(e *armadaevents.Error) bool { return e.Terminal }); ok {
+				jobId, err = armadaevents.UlidStringFromProtoUuid(e.JobErrors.JobId)
+			}
+		case *armadaevents.EventSequence_Event_CancelledJob:
+			jobId, err = armadaevents.UlidStringFromProtoUuid(e.CancelledJob.JobId)
+		default:
+			// Non-terminal event
+			continue
+		}
+		if err != nil {
+			logging.WithStacktrace(ctx, err).Warnf("failed to determine jobId from event of type %T; ignoring", event.Event)
+			continue
+		}
+		idsOfJobsToExpireMappingFor = append(idsOfJobsToExpireMappingFor, jobId)
+	}
+	return srv.SubmitServer.jobRepository.ExpirePulsarSchedulerJobDetails(idsOfJobsToExpireMappingFor)
 }
 
 // ProcessSequence processes all events in a particular sequence.
@@ -355,6 +396,9 @@ func (srv *SubmitFromLog) SubmitJobs(
 	// We can't report job failure on error here, since the job failure message bundles the job struct.
 	// Hence, if an error occurs here, the job disappears from the point of view of the user.
 	// However, this code path is exercised when jobs are submitted to the log so errors should be rare.
+	es = armadaslices.Filter(es, func(e *armadaevents.SubmitJob) bool {
+		return !e.IsDuplicate
+	})
 	jobs, err := eventutil.ApiJobsFromLogSubmitJobs(userId, groups, queueName, jobSetName, time.Now(), es)
 	if err != nil {
 		return true, err
