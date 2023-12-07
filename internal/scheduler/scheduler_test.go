@@ -117,7 +117,8 @@ var queuedJob = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	false,
-	1)
+	1,
+)
 
 var queuedJobWithExpiredTtl = testfixtures.JobDb.NewJob(
 	util.NewULID(),
@@ -130,7 +131,8 @@ var queuedJobWithExpiredTtl = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	false,
-	1)
+	1,
+)
 
 var leasedJob = testfixtures.JobDb.NewJob(
 	util.NewULID(),
@@ -139,11 +141,12 @@ var leasedJob = testfixtures.JobDb.NewJob(
 	uint32(10),
 	schedulingInfo,
 	false,
-	2,
+	0,
 	false,
 	false,
 	false,
-	1).WithQueued(false).WithNewRun("testExecutor", "test-node", "node")
+	1,
+).WithNewRun("testExecutor", "test-node", "node")
 
 var defaultJobRunError = &armadaevents.Error{
 	Terminal: true,
@@ -165,7 +168,8 @@ var leasedFailFastJob = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	false,
-	1).WithQueued(false).WithNewRun("testExecutor", "test-node", "node")
+	1,
+).WithQueued(false).WithNewRun("testExecutor", "test-node", "node")
 
 var (
 	requeuedJobId = util.NewULID()
@@ -276,6 +280,25 @@ func TestScheduler_TestCycle(t *testing.T) {
 			},
 			expectedJobRunLeased:  []string{"01h3w2wtdchtc80hgyp782shrv", "01h434g4hxww2pknb2q1nfmfph"},
 			expectedLeased:        []string{"01h3w2wtdchtc80hgyp782shrv", "01h434g4hxww2pknb2q1nfmfph"},
+			expectedQueuedVersion: queuedJob.QueuedVersion() + 1,
+		},
+		"A failed job with no runs": {
+			// This happen if the scheduler decides to fail a job, e.g., due to min-max gang scheduling.
+			jobUpdates: []database.Job{
+				{
+					JobID:                 queuedJob.Id(),
+					JobSet:                "testJobSet",
+					Queue:                 "testQueue",
+					Queued:                false,
+					Failed:                true,
+					QueuedVersion:         1,
+					SchedulingInfo:        schedulingInfoBytes,
+					SchedulingInfoVersion: int32(schedulingInfo.Version),
+					Serial:                1,
+				},
+			},
+			expectedJobRunLeased:  []string{queuedJob.Id()},
+			expectedLeased:        []string{queuedJob.Id()},
 			expectedQueuedVersion: queuedJob.QueuedVersion() + 1,
 		},
 		"Nothing leased": {

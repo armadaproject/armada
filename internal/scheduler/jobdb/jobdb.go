@@ -32,8 +32,13 @@ type JobDb struct {
 	schedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
 	// We intern strings to save memory.
 	stringInterner *stringinterner.StringInterner
-	copyMutex      sync.Mutex
-	writerMutex    sync.Mutex
+	// If true, asserts that
+	// - jobs upserted into the jobDB are valid and
+	// - the jobDb as a whole is valid when transactions are committed.
+	enableAssertions bool
+	// Mutexes protecting the jobDb.
+	copyMutex   sync.Mutex
+	writerMutex sync.Mutex
 }
 
 func NewJobDb(priorityClasses map[string]types.PriorityClass, defaultPriorityClassName string, stringInternerCacheSize uint32) *JobDb {
@@ -66,6 +71,10 @@ func NewJobDbWithSchedulingKeyGenerator(
 		schedulingKeyGenerator: skg,
 		stringInterner:         stringinterner.New(stringInternerCacheSize),
 	}
+}
+
+func (jobDb *JobDb) EnableAssertions() {
+	jobDb.enableAssertions = true
 }
 
 // NewJob creates a new scheduler job.
@@ -130,13 +139,14 @@ func (jobDb *JobDb) ReadTxn() *Txn {
 	jobDb.copyMutex.Lock()
 	defer jobDb.copyMutex.Unlock()
 	return &Txn{
-		readOnly:        true,
-		jobsById:        jobDb.jobsById,
-		jobsByRunId:     jobDb.jobsByRunId,
-		jobsByQueue:     jobDb.jobsByQueue,
-		queuedJobsByTtl: jobDb.queuedJobsByTtl,
-		active:          true,
-		jobDb:           jobDb,
+		readOnly:         true,
+		jobsById:         jobDb.jobsById,
+		jobsByRunId:      jobDb.jobsByRunId,
+		jobsByQueue:      jobDb.jobsByQueue,
+		queuedJobsByTtl:  jobDb.queuedJobsByTtl,
+		active:           true,
+		jobDb:            jobDb,
+		enableAssertions: jobDb.enableAssertions,
 	}
 }
 
@@ -148,13 +158,14 @@ func (jobDb *JobDb) WriteTxn() *Txn {
 	jobDb.copyMutex.Lock()
 	defer jobDb.copyMutex.Unlock()
 	return &Txn{
-		readOnly:        false,
-		jobsById:        jobDb.jobsById,
-		jobsByRunId:     jobDb.jobsByRunId,
-		jobsByQueue:     maps.Clone(jobDb.jobsByQueue),
-		queuedJobsByTtl: jobDb.queuedJobsByTtl,
-		active:          true,
-		jobDb:           jobDb,
+		readOnly:         false,
+		jobsById:         jobDb.jobsById,
+		jobsByRunId:      jobDb.jobsByRunId,
+		jobsByQueue:      maps.Clone(jobDb.jobsByQueue),
+		queuedJobsByTtl:  jobDb.queuedJobsByTtl,
+		active:           true,
+		jobDb:            jobDb,
+		enableAssertions: jobDb.enableAssertions,
 	}
 }
 
@@ -176,9 +187,16 @@ type Txn struct {
 	queuedJobsByTtl *immutable.SortedSet[*Job]
 	jobDb           *JobDb
 	active          bool
+	// If true, asserts that the jobDb as a whole is valid when transactions are committed.
+	enableAssertions bool
 }
 
 func (txn *Txn) Commit() {
+	if txn.enableAssertions {
+		if err := txn.Assert(true); err != nil {
+			panic(err)
+		}
+	}
 	if txn.readOnly || !txn.active {
 		return
 	}
@@ -190,6 +208,19 @@ func (txn *Txn) Commit() {
 	txn.jobDb.jobsByQueue = txn.jobsByQueue
 	txn.jobDb.queuedJobsByTtl = txn.queuedJobsByTtl
 	txn.active = false
+}
+
+// Assert calls the assert function on every job in the jobDb and returns any errors.
+// If assertOnlyActiveJobs is true, it also asserts that all jobs in the jobDb are active.
+func (txn *Txn) Assert(assertOnlyActiveJobs bool) error {
+	for _, job := range txn.GetAll() {
+		if err := job.Assert(); err != nil {
+			return errors.WithMessage(err, "jobDb is invalid")
+		} else if assertOnlyActiveJobs && job.InTerminalState() {
+			return errors.Errorf("jobDb contains an inactive job %s", job)
+		}
+	}
+	return nil
 }
 
 func (txn *Txn) Abort() {

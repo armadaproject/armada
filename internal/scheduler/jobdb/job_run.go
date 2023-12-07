@@ -1,7 +1,11 @@
 package jobdb
 
 import (
+	"fmt"
+
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-multierror"
+	"github.com/pkg/errors"
 )
 
 // JobRun is the scheduler-internal representation of a job run.
@@ -32,6 +36,90 @@ type JobRun struct {
 	returned bool
 	// True if the job has been returned and the job was given a chance to run.
 	runAttempted bool
+}
+
+func (run *JobRun) String() string {
+	// Include field names in string representation by default.
+	return fmt.Sprintf("%#v", run)
+}
+
+// Assert makes the assertions outlined below and returns
+// - nil if the run is valid and
+// - an error explaining why not otherwise.
+//
+// Assertions:
+// Required fields must be set.
+//
+// The states {Running, Cancelled, Failed, Succeeded, Returned} are mutually exclusive.
+func (run *JobRun) Assert() error {
+	if run == nil {
+		return errors.Errorf("run is nil")
+	}
+	var result *multierror.Error
+
+	// Assert that required fields are set.
+	var emptyUuid uuid.UUID
+	if run.Id() == emptyUuid {
+		result = multierror.Append(result, errors.New("run has an empty id"))
+	}
+	if run.JobId() == "" {
+		result = multierror.Append(result, errors.New("run has an empty jobId"))
+	}
+	if run.Executor() == "" {
+		result = multierror.Append(result, errors.New("run has an empty executor"))
+	}
+	if run.NodeId() == "" {
+		result = multierror.Append(result, errors.New("run has an empty nodeId"))
+	}
+	if run.NodeName() == "" {
+		result = multierror.Append(result, errors.New("run has an empty nodeName"))
+	}
+
+	// Assertions specific to the state of the run.
+	if run.Running() {
+		if run.Succeeded() {
+			result = multierror.Append(result, errors.New("run is marked as both running and succeeded"))
+		}
+		if run.Failed() {
+			result = multierror.Append(result, errors.New("run is marked as both running and failed"))
+		}
+		if run.Cancelled() {
+			result = multierror.Append(result, errors.New("run is marked as both running and cancelled"))
+		}
+		if run.Returned() {
+			result = multierror.Append(result, errors.New("run is marked as both running and returned"))
+		}
+	} else if run.Succeeded() {
+		if run.Failed() {
+			result = multierror.Append(result, errors.New("run is marked as both succeeded and failed"))
+		}
+		if run.Cancelled() {
+			result = multierror.Append(result, errors.New("run is marked as both succeeded and cancelled"))
+		}
+		if run.Returned() {
+			result = multierror.Append(result, errors.New("run is marked as both succeeded and returned"))
+		}
+	} else if run.Failed() {
+		if run.Cancelled() {
+			result = multierror.Append(result, errors.New("run is marked as both failed and cancelled"))
+		}
+		if run.Returned() {
+			result = multierror.Append(result, errors.New("run is marked as both failed and returned"))
+		}
+	} else if run.Cancelled() {
+		if run.Returned() {
+			result = multierror.Append(result, errors.New("run is marked as both cancelled and returned"))
+		}
+	} else if run.Returned() {
+		// Nothing to do.
+	} else {
+		// Run is leased or pending; nothing to do.
+	}
+	if err := result.ErrorOrNil(); err != nil {
+		// Avoid allocating the message "... invalid state" string if there were no errors.
+		return errors.WithMessagef(err, "invalid run: %s", run)
+	}
+	return nil
 }
 
 func (run *JobRun) Equal(other *JobRun) bool {

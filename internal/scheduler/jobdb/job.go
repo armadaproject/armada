@@ -1,10 +1,13 @@
 package jobdb
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-multierror"
+	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 
@@ -61,6 +64,181 @@ type Job struct {
 
 func EmptyJob(id string) *Job {
 	return &Job{id: id, runsById: map[uuid.UUID]*JobRun{}}
+}
+
+func (job *Job) String() string {
+	// Include field names in string representation by default.
+	return fmt.Sprintf("%#v", job)
+}
+
+// Assert makes the assertions outlined below and returns
+// - nil if the job is valid and
+// - an error explaining why not otherwise.
+//
+// Assertions:
+// Required fields must be set.
+//
+// The states {Queued, Running, Cancelled, Failed, Succeeded} are mutually exclusive.
+//
+// Only these job state transitions are valid:
+// - Queued -> {Running, Cancelled, Failed}
+// - Running -> {Queued, Cancelled, Failed, Succeeded}
+// - Succeeded, Cancelled, Failed -> {}
+//
+// QueuedVersion is 0 initially and is incremented by 1 every time the job is re-queued. Hence:
+// - If the job is queued, the queuedVersion must be equal to the number of runs.
+// - If the job is running, the queuedVersion must be one less than the number of runs.
+// - If the job is succeeded, the queuedVersion must be one less than the number of runs.
+// - If the job is failed or cancelled, the queuedVersion may be either equal to or 1 less than the number of runs.
+func (job *Job) Assert() error {
+	if job == nil {
+		return errors.Errorf("job is nil")
+	}
+	var result *multierror.Error
+
+	// Assert that required fields are set.
+	if job.Id() == "" {
+		result = multierror.Append(result, errors.New("job has an empty id"))
+	}
+	if job.Queue() == "" {
+		result = multierror.Append(result, errors.New("job has an empty queue"))
+	}
+	if job.Jobset() == "" {
+		result = multierror.Append(result, errors.New("job has an empty jobSet"))
+	}
+
+	// Assert that runs are valid.
+	latestRun := job.LatestRun()
+	for runId, run := range job.runsById {
+		if runId != run.Id() {
+			result = multierror.Append(result, errors.Errorf("run %s is keyed by %s", run.Id(), runId))
+		}
+		if run.Created() > latestRun.Created() {
+			result = multierror.Append(result, errors.Errorf("run %s is more recent than latestRun", run.Id()))
+		}
+		if run.JobId() != job.Id() {
+			result = multierror.Append(result, errors.Errorf("run %s has a conflicting jobId", run.Id()))
+		}
+		if err := run.Assert(); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+
+	// Assertions specific to the state of the job.
+	if job.Queued() {
+		if job.Succeeded() {
+			result = multierror.Append(result, errors.New("job is marked as both queued and succeeded"))
+		}
+		if job.Cancelled() {
+			result = multierror.Append(result, errors.New("job is marked as both queued and cancelled"))
+		}
+		if job.Failed() {
+			result = multierror.Append(result, errors.New("job is marked as both queued and failed"))
+		}
+		if job.InTerminalState() {
+			result = multierror.Append(result, errors.New("job is marked as queued and terminated"))
+		}
+
+		if int32(len(job.runsById)) != job.QueuedVersion() {
+			result = multierror.Append(result, errors.New("job is queued but queuedVersion does not equal the number of runs"))
+		}
+
+		if run := job.LatestRun(); run != nil {
+			if run.Running() {
+				result = multierror.Append(result, errors.New("job is queued but latestRun is running"))
+			} else if run.Succeeded() {
+				result = multierror.Append(result, errors.New("job is queued but latestRun is succeeded"))
+			} else if run.Cancelled() {
+				result = multierror.Append(result, errors.New("job is queued but latestRun is cancelled"))
+			} else if run.Returned() && run.RunAttempted() {
+				result = multierror.Append(result, errors.New("job is queued but latestRun is returned and has runAttempted set"))
+			}
+		}
+	} else if job.Succeeded() {
+		if job.Cancelled() {
+			result = multierror.Append(result, errors.New("job is marked as both succeeded and cancelled"))
+		}
+		if job.Failed() {
+			result = multierror.Append(result, errors.New("job is marked as both succeeded and failed"))
+		}
+		if !job.InTerminalState() {
+			result = multierror.Append(result, errors.New("job is marked as succeeded but not terminated"))
+		}
+
+		if int32(len(job.runsById))-1 != job.QueuedVersion() {
+			result = multierror.Append(result, errors.New("job is succeeded but queuedVersion is not one more than the number of runs"))
+		}
+
+		if run := job.LatestRun(); run != nil {
+			if !run.Succeeded() {
+				// A job succeeds iff a job succeeds.
+				result = multierror.Append(result, errors.New("job is succeeded but latestRun is not"))
+			}
+		} else {
+			result = multierror.Append(result, errors.New("job is succeeded but has no associated runs"))
+		}
+	} else if job.Cancelled() {
+		if !job.CancelRequested() && !job.CancelByJobsetRequested() {
+			result = multierror.Append(result, errors.New("job is cancelled but not marked as cancel requested"))
+		}
+
+		if run := job.LatestRun(); run != nil && !job.InTerminalState() {
+			result = multierror.Append(result, errors.New("job is cancelled but has an active run"))
+		}
+		if job.Failed() {
+			result = multierror.Append(result, errors.New("job is marked as both cancelled and failed"))
+		}
+		if !job.InTerminalState() {
+			result = multierror.Append(result, errors.New("job is marked as cancelled but not terminated"))
+		}
+
+		if int32(len(job.runsById)) != job.QueuedVersion() && int32(len(job.runsById))-1 != job.QueuedVersion() {
+			result = multierror.Append(result, errors.New("job is cancelled but queuedVersion is not either equal to or one less than the number of runs"))
+		}
+
+		// A job may be cancelled regardless of whether it has associated runs or not,
+		// and whether those runs succeeded or not.
+		if run := job.LatestRun(); run != nil && !run.InTerminalState() {
+			result = multierror.Append(result, errors.New("job is cancelled but has an active run"))
+		}
+	} else if job.Failed() {
+		if !job.InTerminalState() {
+			result = multierror.Append(result, errors.New("job is marked as failed but not terminated"))
+		}
+
+		if int32(len(job.runsById)) != job.QueuedVersion() && int32(len(job.runsById))-1 != job.QueuedVersion() {
+			result = multierror.Append(result, errors.New("job is failed but queuedVersion is not either equal to or one less than the number of runs"))
+		}
+
+		if run := job.LatestRun(); run != nil && !run.InTerminalState() {
+			result = multierror.Append(result, errors.New("job is failed but has an active run"))
+		}
+	} else {
+		// Job must be running if it's not in any of the other states.
+		if int32(len(job.runsById))-1 != job.QueuedVersion() {
+			result = multierror.Append(result, errors.New("job is running but queuedVersion is not one less than the number of runs"))
+		}
+
+		if run := job.LatestRun(); run != nil {
+			if run.Cancelled() {
+				result = multierror.Append(result, errors.New("job is running but latestRun is cancelled"))
+			} else if run.Failed() {
+				result = multierror.Append(result, errors.New("job is running but latestRun is failed"))
+			} else if run.Succeeded() {
+				result = multierror.Append(result, errors.New("job is running but latestRun is succeeded"))
+			} else if run.Returned() {
+				result = multierror.Append(result, errors.New("job is running but latestRun is returned"))
+			}
+		} else {
+			result = multierror.Append(result, errors.New("job is running but has no associated run"))
+		}
+	}
+
+	if err := result.ErrorOrNil(); err != nil {
+		// Avoid allocating the message "... invalid state" string if there were no errors.
+		return errors.WithMessagef(err, "invalid job: %s", job)
+	}
+	return nil
 }
 
 func (job *Job) ensureJobSchedulingInfoFieldsInitialised() {
@@ -414,15 +592,16 @@ func (job *Job) WithNewRun(executor string, nodeId, nodeName string) *Job {
 // WithUpdatedRun creates a copy of the job with run details updated.
 func (job *Job) WithUpdatedRun(run *JobRun) *Job {
 	j := copyJob(*job)
-	j.runsById = maps.Clone(j.runsById)
 	if run.created >= j.activeRunTimestamp {
 		j.activeRunTimestamp = run.created
 		j.activeRun = run
 	}
-	if j.runsById == nil {
-		j.runsById = make(map[uuid.UUID]*JobRun)
+	if j.runsById != nil {
+		j.runsById = maps.Clone(j.runsById)
+		j.runsById[run.id] = run
+	} else {
+		j.runsById = map[uuid.UUID]*JobRun{run.id: run}
 	}
-	j.runsById[run.id] = run
 	return j
 }
 

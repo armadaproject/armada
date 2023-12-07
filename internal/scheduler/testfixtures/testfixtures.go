@@ -75,12 +75,14 @@ var (
 
 // NewJobDb returns a new default jobDb with defaults to use in tests.
 func NewJobDb() *jobdb.JobDb {
-	return jobdb.NewJobDbWithSchedulingKeyGenerator(
+	jobDb := jobdb.NewJobDbWithSchedulingKeyGenerator(
 		TestPriorityClasses,
 		TestDefaultPriorityClass,
 		SchedulingKeyGenerator,
 		1024,
 	)
+	jobDb.EnableAssertions()
+	return jobDb
 }
 
 func IntRange(a, b int) []int {

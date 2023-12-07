@@ -204,6 +204,9 @@ func Run(config schedulerconfig.Configuration) error {
 		config.Scheduling.Preemption.DefaultPriorityClass,
 		config.InternedStringsCacheSize,
 	)
+	if config.Scheduling.EnableAssertions {
+		jobDb.EnableAssertions()
+	}
 	schedulerMetrics, err := metrics.New(config.SchedulerMetrics)
 	if err != nil {
 		return err
