@@ -283,10 +283,6 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 	ctx.Infof("published %d events to pulsar in %s", len(events), s.clock.Since(start))
 
-	if err := txn.Assert(false); err != nil {
-
-	}
-
 	// Optionally assert that the jobDb is in a valid state and then commit.
 	if s.enableAssertions {
 		if err := txn.Assert(false); err != nil {
