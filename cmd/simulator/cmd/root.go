@@ -89,16 +89,21 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 	ctx.Infof("SchedulingConfigs: %v", maps.Keys(schedulingConfigsByFilePath))
 
 	var fileWriter *simulator.Writer
-	file, err := os.Create(filePath)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err = file.Close(); err != nil {
-			ctx.Errorf("failed to close file: %s", err)
-			return
+	var file *os.File
+
+	if filePath != "" {
+
+		file, err := os.Create(filePath)
+		if err != nil {
+			return err
 		}
-	}()
+		defer func() {
+			if err = file.Close(); err != nil {
+				ctx.Errorf("failed to close file: %s", err)
+				return
+			}
+		}()
+	}
 
 	// Setup a simulator for each combination of (clusterSpec, workloadSpec, schedulingConfig).
 	simulators := make([]*simulator.Simulator, 0)
@@ -162,10 +167,12 @@ func runSimulations(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	// Run file writer
-	g.Go(func() error {
-		return fileWriter.Run(ctx)
-	})
+	if fileWriter != nil {
+		// Run file writer
+		g.Go(func() error {
+			return fileWriter.Run(ctx)
+		})
+	}
 
 	// Run metric collectors.
 	for _, mc := range metricsCollectors {
