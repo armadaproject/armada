@@ -103,9 +103,6 @@ func (run *JobRun) Assert() error {
 		if run.Cancelled() {
 			result = multierror.Append(result, errors.New("run is marked as both failed and cancelled"))
 		}
-		if run.Returned() {
-			result = multierror.Append(result, errors.New("run is marked as both failed and returned"))
-		}
 	} else if run.Cancelled() {
 		if run.Returned() {
 			result = multierror.Append(result, errors.New("run is marked as both cancelled and returned"))

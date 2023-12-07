@@ -74,6 +74,9 @@ type Scheduler struct {
 	metrics *SchedulerMetrics
 	// New scheduler metrics due to replace the above.
 	schedulerMetrics *metrics.Metrics
+	// If true, enable scheduler assertions.
+	// In particular, assert that the jobDb is in a valid state at the end of each cycle.
+	enableAssertions bool
 }
 
 func NewScheduler(
@@ -112,6 +115,10 @@ func NewScheduler(
 		metrics:                    metrics,
 		schedulerMetrics:           schedulerMetrics,
 	}, nil
+}
+
+func (s *Scheduler) EnableAssertions() {
+	s.enableAssertions = true
 }
 
 // Run enters the scheduling loop, which will continue until ctx is cancelled.
@@ -275,6 +282,17 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		return overallSchedulerResult, err
 	}
 	ctx.Infof("published %d events to pulsar in %s", len(events), s.clock.Since(start))
+
+	if err := txn.Assert(false); err != nil {
+
+	}
+
+	// Optionally assert that the jobDb is in a valid state and then commit.
+	if s.enableAssertions {
+		if err := txn.Assert(false); err != nil {
+			return overallSchedulerResult, err
+		}
+	}
 	txn.Commit()
 
 	// Update metrics based on overallSchedulerResult.

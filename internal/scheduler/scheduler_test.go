@@ -113,7 +113,7 @@ var queuedJob = testfixtures.JobDb.NewJob(
 	uint32(10),
 	schedulingInfo,
 	true,
-	1,
+	0,
 	false,
 	false,
 	false,
@@ -127,7 +127,7 @@ var queuedJobWithExpiredTtl = testfixtures.JobDb.NewJob(
 	0,
 	schedulingInfoWithQueueTtl,
 	true,
-	1,
+	0,
 	false,
 	false,
 	false,
@@ -148,6 +148,33 @@ var leasedJob = testfixtures.JobDb.NewJob(
 	1,
 ).WithNewRun("testExecutor", "test-node", "node")
 
+var returnedOnceLeasedJob = testfixtures.JobDb.NewJob(
+	"01h3w2wtdchtc80hgyp782shrv",
+	"testJobset",
+	"testQueue",
+	uint32(10),
+	schedulingInfo,
+	false,
+	1,
+	false,
+	false,
+	false,
+	1,
+).WithUpdatedRun(testfixtures.JobDb.CreateRun(
+	uuid.New(),
+	"01h3w2wtdchtc80hgyp782shrv",
+	0,
+	"testExecutor",
+	"testNodeId",
+	"testNodeName",
+	false,
+	false,
+	true,
+	false,
+	true,
+	true,
+)).WithNewRun("testExecutor", "test-node", "node")
+
 var defaultJobRunError = &armadaevents.Error{
 	Terminal: true,
 	Reason: &armadaevents.Error_PodError{
@@ -164,12 +191,12 @@ var leasedFailFastJob = testfixtures.JobDb.NewJob(
 	uint32(10),
 	failFastSchedulingInfo,
 	false,
-	2,
+	0,
 	false,
 	false,
 	false,
 	1,
-).WithQueued(false).WithNewRun("testExecutor", "test-node", "node")
+).WithNewRun("testExecutor", "test-node", "node")
 
 var (
 	requeuedJobId = util.NewULID()
@@ -180,32 +207,31 @@ var (
 		uint32(10),
 		schedulingInfo,
 		true,
-		2,
+		1,
 		false,
 		false,
 		false,
-		1).WithUpdatedRun(
-		testfixtures.JobDb.CreateRun(
-			uuid.New(),
-			requeuedJobId,
-			time.Now().Unix(),
-			"testExecutor",
-			"test-node",
-			"node",
-			false,
-			false,
-			true,
-			false,
-			true,
-			true,
-		),
-	)
+		1,
+	).WithUpdatedRun(testfixtures.JobDb.CreateRun(
+		uuid.New(),
+		requeuedJobId,
+		time.Now().Unix(),
+		"testExecutor",
+		"test-node",
+		"node",
+		false,
+		false,
+		true,
+		false,
+		true,
+		true,
+	))
 )
 
 // Test a single scheduler cycle
 func TestScheduler_TestCycle(t *testing.T) {
 	tests := map[string]struct {
-		initialJobs                      []*jobdb.Job                      // jobs in the jobdb at the start of the cycle
+		initialJobs                      []*jobdb.Job                      // jobs in the jobDb at the start of the cycle
 		jobUpdates                       []database.Job                    // job updates from the database
 		runUpdates                       []database.Run                    // run updates from the database
 		jobRunErrors                     map[uuid.UUID]*armadaevents.Error // job run errors in the database
@@ -236,7 +262,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			initialJobs:           []*jobdb.Job{queuedJob},
 			expectedJobRunLeased:  []string{queuedJob.Id()},
 			expectedLeased:        []string{queuedJob.Id()},
-			expectedQueuedVersion: queuedJob.QueuedVersion() + 1,
+			expectedQueuedVersion: queuedJob.QueuedVersion(),
 		},
 		"Lease a single job from an update": {
 			jobUpdates: []database.Job{
@@ -245,7 +271,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					JobSet:                "testJobSet",
 					Queue:                 "testQueue",
 					Queued:                true,
-					QueuedVersion:         1,
+					QueuedVersion:         0,
 					SchedulingInfo:        schedulingInfoBytes,
 					SchedulingInfoVersion: int32(schedulingInfo.Version),
 					Serial:                1,
@@ -253,7 +279,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 			},
 			expectedJobRunLeased:  []string{queuedJob.Id()},
 			expectedLeased:        []string{queuedJob.Id()},
-			expectedQueuedVersion: queuedJob.QueuedVersion() + 1,
+			expectedQueuedVersion: 0,
 		},
 		"Lease two jobs from an update": {
 			jobUpdates: []database.Job{
@@ -262,7 +288,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					JobSet:                "testJobSet",
 					Queue:                 "testQueue",
 					Queued:                true,
-					QueuedVersion:         1,
+					QueuedVersion:         0,
 					SchedulingInfo:        schedulingInfoBytes,
 					SchedulingInfoVersion: int32(schedulingInfo.Version),
 					Serial:                1,
@@ -272,7 +298,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					JobSet:                "testJobSet",
 					Queue:                 "testQueue",
 					Queued:                true,
-					QueuedVersion:         1,
+					QueuedVersion:         0,
 					SchedulingInfo:        schedulingInfoBytes,
 					SchedulingInfoVersion: int32(schedulingInfo.Version),
 					Serial:                1,
@@ -280,26 +306,40 @@ func TestScheduler_TestCycle(t *testing.T) {
 			},
 			expectedJobRunLeased:  []string{"01h3w2wtdchtc80hgyp782shrv", "01h434g4hxww2pknb2q1nfmfph"},
 			expectedLeased:        []string{"01h3w2wtdchtc80hgyp782shrv", "01h434g4hxww2pknb2q1nfmfph"},
-			expectedQueuedVersion: queuedJob.QueuedVersion() + 1,
+			expectedQueuedVersion: 0,
 		},
-		"A failed job with no runs": {
-			// This happen if the scheduler decides to fail a job, e.g., due to min-max gang scheduling.
+		"New failed job with no runs": {
+			// This happens if the scheduler decides to fail a job, e.g., due to min-max gang scheduling.
 			jobUpdates: []database.Job{
 				{
 					JobID:                 queuedJob.Id(),
 					JobSet:                "testJobSet",
 					Queue:                 "testQueue",
-					Queued:                false,
 					Failed:                true,
-					QueuedVersion:         1,
+					QueuedVersion:         0,
 					SchedulingInfo:        schedulingInfoBytes,
 					SchedulingInfoVersion: int32(schedulingInfo.Version),
 					Serial:                1,
 				},
 			},
-			expectedJobRunLeased:  []string{queuedJob.Id()},
-			expectedLeased:        []string{queuedJob.Id()},
-			expectedQueuedVersion: queuedJob.QueuedVersion() + 1,
+			expectedQueuedVersion: 0,
+		},
+		"Queued job transitions straight to failed without running": {
+			// This happens if the scheduler decides to fail a job, e.g., due to min-max gang scheduling.
+			initialJobs: []*jobdb.Job{queuedJob},
+			jobUpdates: []database.Job{
+				{
+					JobID:                 queuedJob.Id(),
+					JobSet:                "testJobSet",
+					Queue:                 "testQueue",
+					Failed:                true,
+					QueuedVersion:         0,
+					SchedulingInfo:        schedulingInfoBytes,
+					SchedulingInfoVersion: int32(schedulingInfo.Version),
+					Serial:                1,
+				},
+			},
+			expectedQueuedVersion: 0,
 		},
 		"Nothing leased": {
 			initialJobs:           []*jobdb.Job{queuedJob},
@@ -329,7 +369,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					JobSet:                "testJobSet",
 					Queue:                 "testQueue",
 					Queued:                true,
-					QueuedVersion:         2,
+					QueuedVersion:         1,
 					SchedulingInfo:        schedulingInfoBytes,
 					SchedulingInfoVersion: int32(schedulingInfo.Version),
 					Serial:                1,
@@ -341,6 +381,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 					JobID:        requeuedJob.Id(),
 					JobSet:       "testJobSet",
 					Executor:     "testExecutor",
+					Node:         "node",
 					Failed:       true,
 					Returned:     true,
 					RunAttempted: true,
@@ -411,33 +452,23 @@ func TestScheduler_TestCycle(t *testing.T) {
 			expectedQueuedVersion: leasedJob.QueuedVersion(),
 		},
 		"Lease returned too many times": {
-			initialJobs: []*jobdb.Job{leasedJob},
-			// 2 failures here so the second one should trigger a run failure
+			initialJobs: []*jobdb.Job{returnedOnceLeasedJob},
 			runUpdates: []database.Run{
 				{
-					RunID:        leasedJob.LatestRun().Id(),
-					JobID:        leasedJob.Id(),
+					RunID:        returnedOnceLeasedJob.LatestRun().Id(),
+					JobID:        returnedOnceLeasedJob.Id(),
 					JobSet:       "testJobSet",
 					Executor:     "testExecutor",
-					Failed:       true,
-					Returned:     true,
-					RunAttempted: true,
-					Serial:       1,
-				},
-				{
-					RunID:        uuid.New(),
-					JobID:        leasedJob.Id(),
-					JobSet:       "testJobSet",
-					Executor:     "testExecutor",
+					Node:         "testNode",
 					Failed:       true,
 					Returned:     true,
 					RunAttempted: true,
 					Serial:       2,
 				},
 			},
-			expectedJobErrors:     []string{leasedJob.Id()},
-			expectedTerminal:      []string{leasedJob.Id()},
-			expectedQueuedVersion: leasedJob.QueuedVersion(),
+			expectedJobErrors:     []string{returnedOnceLeasedJob.Id()},
+			expectedTerminal:      []string{returnedOnceLeasedJob.Id()},
+			expectedQueuedVersion: 1,
 		},
 		"Lease returned for fail fast job": {
 			initialJobs: []*jobdb.Job{leasedFailFastJob},
@@ -680,6 +711,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				nil,
 			)
 			require.NoError(t, err)
+			sched.EnableAssertions()
 
 			sched.clock = testClock
 
@@ -767,11 +799,11 @@ func TestScheduler_TestCycle(t *testing.T) {
 				podRequirements := job.PodRequirements()
 				assert.NotNil(t, podRequirements)
 
-				expectedQueuedVersion := int32(1)
-				if tc.expectedQueuedVersion != 0 {
-					expectedQueuedVersion = tc.expectedQueuedVersion
-				}
-				assert.Equal(t, expectedQueuedVersion, job.QueuedVersion())
+				// expectedQueuedVersion := int32(1)
+				// if tc.expectedQueuedVersion != 0 {
+				// 	expectedQueuedVersion = tc.expectedQueuedVersion
+				// }
+				assert.Equal(t, tc.expectedQueuedVersion, job.QueuedVersion())
 				expectedSchedulingInfoVersion := 1
 				if tc.expectedJobSchedulingInfoVersion != 0 {
 					expectedSchedulingInfoVersion = tc.expectedJobSchedulingInfoVersion
@@ -844,6 +876,7 @@ func TestRun(t *testing.T) {
 		nil,
 	)
 	require.NoError(t, err)
+	sched.EnableAssertions()
 
 	sched.clock = testClock
 
@@ -1055,6 +1088,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				nil,
 			)
 			require.NoError(t, err)
+			sched.EnableAssertions()
 
 			// The SchedulingKeyGenerator embedded in the jobDb has some randomness,
 			// which must be consistent within tests.
@@ -1202,7 +1236,7 @@ func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn
 		if !job.Queued() {
 			return nil, errors.Errorf("was asked to lease %s but job was already leased", job.Id())
 		}
-		job = job.WithQueuedVersion(job.QueuedVersion()+1).WithQueued(false).WithNewRun("test-executor", "test-node", "node")
+		job = job.WithQueued(false).WithNewRun("test-executor", "test-node", "node")
 		scheduledJobs = append(scheduledJobs, job)
 	}
 	for _, id := range t.jobsToFail {

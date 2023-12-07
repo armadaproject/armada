@@ -141,7 +141,7 @@ func (job *Job) Assert() error {
 		}
 
 		if int32(len(job.runsById)) != job.QueuedVersion() {
-			result = multierror.Append(result, errors.New("job is queued but queuedVersion does not equal the number of runs"))
+			result = multierror.Append(result, errors.Errorf("job is queued but queuedVersion (%d) does not equal the number of runs (%d)", job.queuedVersion, len(job.runsById)))
 		}
 
 		if run := job.LatestRun(); run != nil {
@@ -151,8 +151,6 @@ func (job *Job) Assert() error {
 				result = multierror.Append(result, errors.New("job is queued but latestRun is succeeded"))
 			} else if run.Cancelled() {
 				result = multierror.Append(result, errors.New("job is queued but latestRun is cancelled"))
-			} else if run.Returned() && run.RunAttempted() {
-				result = multierror.Append(result, errors.New("job is queued but latestRun is returned and has runAttempted set"))
 			}
 		}
 	} else if job.Succeeded() {
@@ -167,7 +165,7 @@ func (job *Job) Assert() error {
 		}
 
 		if int32(len(job.runsById))-1 != job.QueuedVersion() {
-			result = multierror.Append(result, errors.New("job is succeeded but queuedVersion is not one more than the number of runs"))
+			result = multierror.Append(result, errors.Errorf("job is succeeded but queuedVersion (%d) is not one more than the number of runs (%d)", job.queuedVersion, len(job.runsById)))
 		}
 
 		if run := job.LatestRun(); run != nil {
@@ -194,7 +192,7 @@ func (job *Job) Assert() error {
 		}
 
 		if int32(len(job.runsById)) != job.QueuedVersion() && int32(len(job.runsById))-1 != job.QueuedVersion() {
-			result = multierror.Append(result, errors.New("job is cancelled but queuedVersion is not either equal to or one less than the number of runs"))
+			result = multierror.Append(result, errors.Errorf("job is cancelled but queuedVersion (%d) is not either equal to or one less than the number of runs (%d)", job.queuedVersion, len(job.runsById)))
 		}
 
 		// A job may be cancelled regardless of whether it has associated runs or not,
@@ -208,7 +206,7 @@ func (job *Job) Assert() error {
 		}
 
 		if int32(len(job.runsById)) != job.QueuedVersion() && int32(len(job.runsById))-1 != job.QueuedVersion() {
-			result = multierror.Append(result, errors.New("job is failed but queuedVersion is not either equal to or one less than the number of runs"))
+			result = multierror.Append(result, errors.Errorf("job is failed but queuedVersion (%d) is not either equal to or one less than the number of runs (%d)", job.queuedVersion, len(job.runsById)))
 		}
 
 		if run := job.LatestRun(); run != nil && !run.InTerminalState() {
@@ -217,7 +215,7 @@ func (job *Job) Assert() error {
 	} else {
 		// Job must be running if it's not in any of the other states.
 		if int32(len(job.runsById))-1 != job.QueuedVersion() {
-			result = multierror.Append(result, errors.New("job is running but queuedVersion is not one less than the number of runs"))
+			result = multierror.Append(result, errors.Errorf("job is running but queuedVersion (%d) is not one less than the number of runs (%d)", job.queuedVersion, len(job.runsById)))
 		}
 
 		if run := job.LatestRun(); run != nil {
@@ -618,7 +616,7 @@ func (job *Job) NumReturned() uint {
 	return returned
 }
 
-// NumAttempts returns the number of times the executors tried to run this job
+// NumAttempts returns the number of times the executors tried to run this job.
 // Note that this is O(N) on Runs, but this should be fine as the number of runs should be small.
 func (job *Job) NumAttempts() uint {
 	attempts := uint(0)

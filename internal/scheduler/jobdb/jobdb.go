@@ -32,6 +32,7 @@ type JobDb struct {
 	schedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
 	// We intern strings to save memory.
 	stringInterner *stringinterner.StringInterner
+	// TODO(albin): Currently unused.
 	// If true, asserts that
 	// - jobs upserted into the jobDB are valid and
 	// - the jobDb as a whole is valid when transactions are committed.
@@ -192,11 +193,6 @@ type Txn struct {
 }
 
 func (txn *Txn) Commit() {
-	if txn.enableAssertions {
-		if err := txn.Assert(true); err != nil {
-			panic(err)
-		}
-	}
 	if txn.readOnly || !txn.active {
 		return
 	}
