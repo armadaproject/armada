@@ -936,7 +936,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 					Queue:          queuedJob.Queue(),
 					Submitted:      queuedJob.Created(),
 					Queued:         true,
-					QueuedVersion:  1,
+					QueuedVersion:  0,
 					Priority:       int64(queuedJob.Priority()),
 					SchedulingInfo: schedulingInfoBytes,
 					Serial:         1,
