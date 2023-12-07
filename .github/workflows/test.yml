@@ -213,10 +213,6 @@ jobs:
           go-version: ${{ matrix.go }}
           cache: false
 
-      - name: Setup dependencies
-        shell: bash
-        run: go run github.com/magefile/mage@v1.14.0 -v download
-
       # TODO(JayF): Consider moving this into its own job, that runs under a larger set of circumstances
       #             since it's possible for this to fail without any go changes being made.
       - name: Validate no changes in generated proto files
