@@ -87,8 +87,7 @@ func (job *Job) String() string {
 //
 // QueuedVersion is 0 initially and is incremented by 1 every time the job is re-queued. Hence:
 // - If the job is queued, the queuedVersion must be equal to the number of runs.
-// - If the job is running, the queuedVersion must be one less than the number of runs.
-// - If the job is succeeded, the queuedVersion must be one less than the number of runs.
+// - If the job is running or succeeded, the queuedVersion must be one less than the number of runs.
 // - If the job is failed or cancelled, the queuedVersion may be either equal to or 1 less than the number of runs.
 func (job *Job) Assert() error {
 	if job == nil {
