@@ -35,33 +35,6 @@ func BootstrapTools() error {
 	return nil
 }
 
-// Download install the bootstap tools and download mod and make it tidy
-func Download() error {
-	mg.Deps(BootstrapTools)
-	go_test_cmd, err := go_TEST_CMD()
-	if err != nil {
-		return err
-	}
-	if len(go_test_cmd) == 0 {
-		if err = sh.Run("go", "mod", "download"); err != nil {
-			return err
-		}
-		if err = sh.Run("go", "mod", "tidy"); err != nil {
-			return err
-		}
-	} else {
-		cmd := append(go_test_cmd, "go", "mod", "download")
-		if err := dockerRun(cmd...); err != nil {
-			return err
-		}
-		cmd = append(go_test_cmd, "go", "mod", "tidy")
-		if err := dockerRun(cmd...); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // Check dependent tools are present and the correct version.
 func CheckDeps() error {
 	checks := []struct {
@@ -137,6 +110,7 @@ func HelmDocs() error {
 
 // Generate Protos.
 func Proto() {
+	mg.Deps(BootstrapTools)
 	mg.Deps(BootstrapProto)
 	mg.Deps(protoGenerate)
 }
