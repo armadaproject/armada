@@ -78,6 +78,8 @@ func (job *Job) String() string {
 // Assertions:
 // Required fields must be set.
 //
+// All associated runs are valid. The state of LatestRun is compatible with that of the job.
+//
 // The states {Queued, Running, Cancelled, Failed, Succeeded} are mutually exclusive.
 //
 // Only these job state transitions are valid:
