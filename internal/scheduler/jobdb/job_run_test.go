@@ -5,38 +5,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/armadaproject/armada/internal/common/types"
-	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
-const (
-	PriorityClass0               = "priority-0"
-	PriorityClass1               = "priority-1"
-	PriorityClass2               = "priority-2"
-	PriorityClass2NonPreemptible = "priority-2-non-preemptible"
-	PriorityClass3               = "priority-3"
-)
-
-var (
-	TestPriorityClasses = map[string]types.PriorityClass{
-		PriorityClass0:               {Priority: 0, Preemptible: true},
-		PriorityClass1:               {Priority: 1, Preemptible: true},
-		PriorityClass2:               {Priority: 2, Preemptible: true},
-		PriorityClass2NonPreemptible: {Priority: 2, Preemptible: false},
-		PriorityClass3:               {Priority: 3, Preemptible: false},
-	}
-	TestDefaultPriorityClass = PriorityClass3
-	SchedulingKeyGenerator   = schedulerobjects.NewSchedulingKeyGeneratorWithKey(make([]byte, 32))
-	jobDb                    = NewJobDbWithSchedulingKeyGenerator(
-		TestPriorityClasses,
-		TestDefaultPriorityClass,
-		SchedulingKeyGenerator,
-		1024,
-	)
-)
-
-var baseJobRun = jobDb.CreateRun(
+var baseJobRun = CreateRun(
 	uuid.New(),
 	uuid.NewString(),
 	5,
@@ -96,7 +67,7 @@ func TestJobRun_TestRunAttempted(t *testing.T) {
 }
 
 func TestDeepCopy(t *testing.T) {
-	run := jobDb.CreateRun(
+	run := CreateRun(
 		uuid.New(),
 		"job id",
 		1,
@@ -110,7 +81,7 @@ func TestDeepCopy(t *testing.T) {
 		true,
 		true,
 	)
-	expected := jobDb.CreateRun(
+	expected := CreateRun(
 		run.id,
 		"job id",
 		1,

@@ -100,7 +100,6 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 	jobDb := jobdb.NewJobDb(
 		schedulingConfig.Preemption.PriorityClasses,
 		schedulingConfig.Preemption.DefaultPriorityClass,
-		1024,
 	)
 	randomSeed := workloadSpec.RandomSeed
 	if randomSeed == 0 {
