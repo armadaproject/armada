@@ -229,6 +229,24 @@ External Debug Port Mappings:
 |jobservice         |localhost:4008|
 
 
+## GoLand Run Configurations
+
+We provide a number of run configurations within the `.run` directory of this project. These will be accessible when opening the project in GoLand, allowing you to run Armada in both standard and debug mode.
+
+The following high-level configurations are provided, each composed of sub-configurations:
+1. `Armada Infrastructure Services`
+    - Runs Infrastructure Services required to run Armada, irrespective of scheduler type
+2. `Armada (Legacy Scheduler)`
+   - Runs Armada with the Legacy Scheduler
+3. `Armada (Pulsar Scheduler)`
+   - Runs Armada with the Pulsar Scheduler (recommended)
+4. `LookoutV2 UI`
+   - Script which configures a local UI development setup
+
+A minimal local Armada setup using these configurations would be `Armada Infrastructure Services` and one of (`Armada (Legacy Scheduler)` or `Armada (Pulsar Scheduler)`). Running the `LookoutV2 UI` script on top of this configuration would allow you to develop the Lookout UI live from GoLand, and see the changes visible in your browser. **These configurations (executor specifically) require a kubernetes config in `$PROJECT_DIR$/.kube/internal/config`**
+
+GoLand does not allow us to specify an ordering for services within docker compose configurations. As a result, some database migration services may require rerunning.
+
 ### Other Debugging Methods
 
 Run `mage debug local` to only spin up the dependencies of Armada, and then run the individual components yourself.
