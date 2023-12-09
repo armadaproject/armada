@@ -4,6 +4,7 @@ import (
 	"context"
 	goerrors "errors"
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
@@ -217,4 +218,17 @@ func TestIsNotNetworkError(t *testing.T) {
 	assert.False(t, IsNetworkError(&ErrInvalidArgument{}))
 	assert.False(t, IsNetworkError(errors.Wrap(&ErrNotFound{}, "foo")))
 	assert.False(t, IsNetworkError(fmt.Errorf("%w", &ErrNotFound{})))
+}
+
+func TestIsRetryablePostgresError(t *testing.T) {
+	fatalErrors := []*regexp.Regexp{
+		regexp.MustCompile(".* some error .*"),
+		regexp.MustCompile(".* another error .*"),
+	}
+	assert.True(t, IsRetryablePostgresError(fmt.Errorf("not a fatal error"), fatalErrors))
+	assert.True(t, IsRetryablePostgresError(fmt.Errorf(""), fatalErrors))
+	assert.False(t, IsRetryablePostgresError(fmt.Errorf(" some error "), fatalErrors))
+	assert.False(t, IsRetryablePostgresError(fmt.Errorf(" another error "), fatalErrors))
+	assert.False(t, IsRetryablePostgresError(fmt.Errorf("this is some error for now"), fatalErrors))
+	assert.False(t, IsRetryablePostgresError(errors.Wrap(fmt.Errorf("this is some error for now"), "a wrapped error"), fatalErrors))
 }

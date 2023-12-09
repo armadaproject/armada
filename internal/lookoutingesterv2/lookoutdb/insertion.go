@@ -2,6 +2,7 @@ package lookoutdb
 
 import (
 	"fmt"
+	"regexp"
 	"sync"
 	"time"
 
@@ -23,10 +24,17 @@ type LookoutDb struct {
 	metrics     *metrics.Metrics
 	maxAttempts int
 	maxBackoff  int
+	fatalErrors []*regexp.Regexp
 }
 
-func NewLookoutDb(db *pgxpool.Pool, metrics *metrics.Metrics, maxAttempts int, maxBackoff int) *LookoutDb {
-	return &LookoutDb{db: db, metrics: metrics, maxAttempts: maxAttempts, maxBackoff: maxBackoff}
+func NewLookoutDb(db *pgxpool.Pool, fatalErrors []*regexp.Regexp, metrics *metrics.Metrics, maxAttempts int, maxBackoff int) *LookoutDb {
+	return &LookoutDb{
+		db:          db,
+		metrics:     metrics,
+		maxAttempts: maxAttempts,
+		maxBackoff:  maxBackoff,
+		fatalErrors: fatalErrors,
+	}
 }
 
 // Store updates the lookout database according to the supplied InstructionSet.
@@ -931,7 +939,7 @@ func (l *LookoutDb) withDatabaseRetryQuery(executeDb func() (interface{}, error)
 			return res, nil
 		}
 
-		if armadaerrors.IsNetworkError(err) || armadaerrors.IsRetryablePostgresError(err) {
+		if armadaerrors.IsRetryablePostgresError(err, l.fatalErrors) {
 			backOff = min(2*backOff, l.maxBackoff)
 			numRetries++
 			log.WithError(err).Warnf("Retryable error encountered executing sql, will wait for %d seconds before retrying.", backOff)

@@ -39,4 +39,6 @@ type LookoutIngesterV2Configuration struct {
 	UseLegacyEventConversion bool
 	// If non-nil, net/http/pprof endpoints are exposed on localhost on this port.
 	PprofPort *uint16
+	// List of Regexes which will identify fatal errors when inserting into postgres
+	FatalInsertionErrors []string
 }
