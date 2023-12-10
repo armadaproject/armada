@@ -42,7 +42,7 @@ func Run(config *configuration.LookoutIngesterV2Configuration) {
 		fatalRegexes[i] = rgx
 	}
 
-	lookoutDb := lookoutdb.NewLookoutDb(db, fatalRegexes, m, config.MaxAttempts, config.MaxBackoff)
+	lookoutDb := lookoutdb.NewLookoutDb(db, fatalRegexes, m, config.MaxBackoff)
 
 	compressor, err := compress.NewZlibCompressor(config.MinJobSpecCompressionSize)
 	if err != nil {

@@ -28,9 +28,6 @@ type LookoutIngesterV2Configuration struct {
 	// User annotations have a common prefix to avoid clashes with other annotations.  This prefix will be stripped from
 	// The annotation before storing in the db
 	UserAnnotationPrefix string
-	// Maximum number of attempts the ingester will try to store batches of data in the database
-	// It will give up after this number is reached
-	MaxAttempts int
 	// Between each attempt to store data in the database, there is an exponential backoff (starting out as 1s).
 	// MaxBackoff caps this backoff to whatever it is specified (in seconds)
 	MaxBackoff int

@@ -22,7 +22,7 @@ import (
 func TestGroupByQueue(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 3, 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 
 		manyJobs(10, &createJobsOpts{
 			queue:  "queue-1",
@@ -81,7 +81,7 @@ func TestGroupByQueue(t *testing.T) {
 func TestGroupByJobSet(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 3, 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 
 		manyJobs(10, &createJobsOpts{
 			queue:  queue,
@@ -140,7 +140,7 @@ func TestGroupByJobSet(t *testing.T) {
 func TestGroupByState(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 3, 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 
 		manyJobs(10, &createJobsOpts{
 			queue:  queue,
@@ -212,7 +212,7 @@ func TestGroupByState(t *testing.T) {
 func TestGroupByWithFilters(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 3, 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 
 		testAnnotations := map[string]string{
 			"key-1": "val-1",
@@ -400,7 +400,7 @@ func TestGroupByWithFilters(t *testing.T) {
 func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 3, 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 
 		manyJobs(5, &createJobsOpts{
 			queue:         queue,
@@ -500,7 +500,7 @@ func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
 func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 3, 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 
 		manyJobs(5, &createJobsOpts{
 			queue:         "queue-1",
@@ -600,7 +600,7 @@ func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
 func TestGroupJobsWithAllStateCounts(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, false)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 3, 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 
 		manyJobs(5, &createJobsOpts{
 			queue:  "queue-1",
@@ -727,7 +727,7 @@ func TestGroupJobsWithAllStateCounts(t *testing.T) {
 func TestGroupJobsWithFilteredStateCounts(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, false)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 3, 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 
 		manyJobs(5, &createJobsOpts{
 			queue:  "queue-1",
@@ -833,7 +833,7 @@ func TestGroupJobsWithFilteredStateCounts(t *testing.T) {
 func TestGroupJobsComplex(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 3, 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 
 		testAnnotations := map[string]string{
 			"key-1": "val-1",
@@ -971,7 +971,7 @@ func TestGroupJobsComplex(t *testing.T) {
 func TestGroupByAnnotation(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 3, 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 
 		manyJobs(10, &createJobsOpts{
 			queue:  queue,
@@ -1040,7 +1040,7 @@ func TestGroupByAnnotation(t *testing.T) {
 func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 3, 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 
 		manyJobs(5, &createJobsOpts{
 			queue:  queue,
@@ -1187,7 +1187,7 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 func TestGroupJobsSkip(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 3, 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 
 		nGroups := 15
 		for i := 0; i < nGroups; i++ {
@@ -1390,7 +1390,7 @@ func TestGroupJobsValidation(t *testing.T) {
 func TestGroupByActiveJobSets(t *testing.T) {
 	err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 		converter := instructions.NewInstructionConverter(metrics.Get(), userAnnotationPrefix, &compress.NoOpCompressor{}, true)
-		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 3, 10)
+		store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 
 		manyJobs(10, &createJobsOpts{
 			queue:  "queue-1",
