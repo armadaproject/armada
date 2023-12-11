@@ -49,7 +49,7 @@ func benchmarkSubmissions1000(b *testing.B, config configuration.LookoutIngester
 		UserAnnotationsToCreate: createUserAnnotationInstructions(10*n, jobIds),
 	}
 	withDbBenchmark(b, config, func(b *testing.B, db *pgxpool.Pool) {
-		ldb := lookoutdb.NewLookoutDb(db, metrics.Get(), 2, 10)
+		ldb := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 		b.StartTimer()
 		err := ldb.Store(armadacontext.TODO(), instructions)
 		if err != nil {
@@ -67,7 +67,7 @@ func benchmarkSubmissions10000(b *testing.B, config configuration.LookoutIngeste
 		UserAnnotationsToCreate: createUserAnnotationInstructions(10*n, jobIds),
 	}
 	withDbBenchmark(b, config, func(b *testing.B, db *pgxpool.Pool) {
-		ldb := lookoutdb.NewLookoutDb(db, metrics.Get(), 2, 10)
+		ldb := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 		b.StartTimer()
 		err := ldb.Store(armadacontext.TODO(), instructions)
 		if err != nil {
@@ -98,7 +98,7 @@ func benchmarkUpdates1000(b *testing.B, config configuration.LookoutIngesterV2Co
 	}
 
 	withDbBenchmark(b, config, func(b *testing.B, db *pgxpool.Pool) {
-		ldb := lookoutdb.NewLookoutDb(db, metrics.Get(), 2, 10)
+		ldb := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 		err := ldb.Store(armadacontext.TODO(), initialInstructions)
 		if err != nil {
 			panic(err)
@@ -133,7 +133,7 @@ func benchmarkUpdates10000(b *testing.B, config configuration.LookoutIngesterV2C
 	}
 
 	withDbBenchmark(b, config, func(b *testing.B, db *pgxpool.Pool) {
-		ldb := lookoutdb.NewLookoutDb(db, metrics.Get(), 2, 10)
+		ldb := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 		err := ldb.Store(armadacontext.TODO(), initialInstructions)
 		if err != nil {
 			panic(err)
