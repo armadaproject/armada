@@ -67,6 +67,10 @@ func NewStandaloneLeaderController() *StandaloneLeaderController {
 	}
 }
 
+func (lc *StandaloneLeaderController) SetToken(token LeaderToken) {
+	lc.token = token
+}
+
 func (lc *StandaloneLeaderController) GetToken() LeaderToken {
 	return lc.token
 }

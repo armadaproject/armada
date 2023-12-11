@@ -199,9 +199,30 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 	}
 }
 
-// cycle is a single iteration of the main scheduling loop.
-// If updateAll is true, we generate events from all jobs in the jobDb.
-// Otherwise, we only generate events from jobs updated since the last cycle.
+// cycle runs one iteration of the scheduling loop.
+//
+// Each iteration of the scheduler is functionally equivalent to the following:
+//  1. Load the entire scheduler state, consisting of jobs, runs, and errors, from the persistent schedulerDb.
+//  2. Generate job state transitions, which we can be seen as performing a mapping
+//     (job_0, runs_0) -> (job_0', runs_0')
+//     ...
+//     (job_n, runs_n) -> (job_n', runs_n'),
+//     where runs_i is the set of jobs associated with job_i, and n is the number of jobs.
+//     These mappings come in two categories:
+//     - Triggered by an external event, e.g., jobs with a successful run should be marked as successful.
+//     - Triggered by a scheduling decision, e.g., a scheduled job should have an additional run associated with it.
+//  3. Generate events encoding these state transition and Publish these to Pulsar.
+//  4. Wait for these Pulsar events to be persisted to the schedulerDb.
+//
+// For performance reasons, the actual cycle differs from this idealised cycle in two ways:
+//   - In each cycle, we only load jobs, runs, and errors that have changed since the last cycle.
+//     For unchanged jobs, runs, and errors, we rely on an in-memory cache maintained between cycles, i.e., the jobDb.
+//   - Similarly, we only perform job state transitions for jobs with changed jobs and runs.
+//     This is unless updateAll is true, in which case we perform state transitions for all jobs.
+//     This is necessary for the first cycle after a leader failOver.
+//   - Instead of waiting for events to be persisted at the end of each cycle, the jobDb is updated directly.
+//     Hence, as state transitions are persisted and read back from the schedulerDb over later cycles,
+//     there is no change to the jobDb, since the correct changes have already been made.
 func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) (SchedulerResult, error) {
 	// TODO: Consider returning a slice of these instead.
 	overallSchedulerResult := SchedulerResult{}
@@ -579,8 +600,8 @@ func AppendEventSequencesFromUnschedulableJobs(eventSequences []*armadaevents.Ev
 	return eventSequences, nil
 }
 
-// generateUpdateMessages generates EventSequences representing the state changes on updated jobs
-// If there are no state changes then an empty slice will be returned
+// generateUpdateMessages generates EventSequences representing the state changes on updated jobs.
+// If there are no state changes then an empty slice will be returned.
 func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobdb.Txn, updatedJobs []*jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error) ([]*armadaevents.EventSequence, error) {
 	// Generate any events that came out of synchronising the db state.
 	var events []*armadaevents.EventSequence
@@ -596,8 +617,8 @@ func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobd
 	return events, nil
 }
 
-// generateUpdateMessages generates EventSequence representing the state change on a single jobs
-// If there are no state changes then nil will be returned
+// generateUpdateMessages generates an EventSequence representing the state changes for a single job.
+// If there are no state changes it returns nil.
 func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error, txn *jobdb.Txn) (*armadaevents.EventSequence, error) {
 	var events []*armadaevents.EventSequence_Event
 
@@ -918,6 +939,7 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
+			// TODO(albin): This doesn't need to be separate; we'd anyway load everything in the first scheduling cycle.
 			if _, _, _, err := s.syncState(ctx); err != nil {
 				logging.WithStacktrace(ctx, err).Error("failed to initialise; trying again in 1 second")
 				time.Sleep(1 * time.Second)

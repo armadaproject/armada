@@ -32,7 +32,7 @@ func NewSchedulerDb(
 	initialBackOff time.Duration,
 	maxBackOff time.Duration,
 	lockTimeout time.Duration,
-) ingest.Sink[*DbOperationsWithMessageIds] {
+) *SchedulerDb {
 	return &SchedulerDb{
 		db:             db,
 		metrics:        metrics,
@@ -104,7 +104,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		records := make([]any, len(o))
 		i := 0
 		for _, v := range o {
-			records[i] = *v.dbRun
+			records[i] = *v.DbRun
 			i++
 		}
 		err := database.Upsert(ctx, tx, "runs", records)

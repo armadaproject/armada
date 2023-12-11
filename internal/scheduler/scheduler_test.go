@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,14 +16,18 @@ import (
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
+	"github.com/armadaproject/armada/internal/common/ingest"
+	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
+	"github.com/armadaproject/armada/internal/scheduleringester"
 	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -1315,4 +1320,200 @@ func stringSet(src []string) map[string]bool {
 		set[s] = true
 	}
 	return set
+}
+
+// TestCycleConsistency does the following:
+// 1. Write some initial state to the schedulerDb.
+// 2. Run one scheduling cycle and capture the resulting Pulsar messages.
+// 3. Make a copy of the resulting jobDb and write any generated Pulsar messages to the schedulerDb.
+// 4. Run another scheduling cycle. Assert that the jobDb does not change and that no messages are generated.
+// 5. Run a scheduling cycle with an empty jobDb. Assert that this jobDb becomes identical to the copy made in step 3.
+func TestCycleConsistency(t *testing.T) {
+	tests := map[string]struct {
+		jobUpdates          []*database.Job              // Job updates from the database.
+		runUpdates          []*database.Run              // Run updates from the database.
+		jobRunErrors        []*armadaevents.JobRunErrors // Job run errors from the database.
+		idsOfJobsToSchedule []string
+		idsOfJobsToPreempt  []string
+		idsOfJobsToFail     []string
+	}{
+		"Lease a single job from an update": {
+			jobUpdates: []*database.Job{
+				{
+					JobID:                 queuedJob.Id(),
+					JobSet:                "testJobSet",
+					Queue:                 "testQueue",
+					Queued:                true,
+					QueuedVersion:         0,
+					SchedulingInfo:        schedulingInfoBytes,
+					SchedulingInfoVersion: int32(schedulingInfo.Version),
+					Serial:                1,
+				},
+			},
+			idsOfJobsToSchedule: []string{queuedJob.Id()},
+		},
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			ctx := armadacontext.Background()
+			err := schedulerdb.WithTestDb(func(_ *schedulerdb.Queries, db *pgxpool.Pool) error {
+
+				// Create the schedulerIngester components necessary to update the schedulerDb.
+				instructionConverter, err := scheduleringester.NewInstructionConverter(
+					nil,
+					testfixtures.TestPriorityClasses,
+				)
+				require.NoError(t, err)
+				schedulerDb := scheduleringester.NewSchedulerDb(
+					db,
+					metrics.NewMetrics("test"),
+					time.Second,
+					time.Second,
+					10*time.Second,
+				)
+
+				// Update the schedulerDb based on the testCase definition.
+				dbOps, err := dbOpsFromTestCase(ctx, instructionConverter, tc.jobUpdates, tc.runUpdates, tc.jobRunErrors)
+				require.NoError(t, err)
+				require.NoError(t, schedulerDb.Store(ctx, &scheduleringester.DbOperationsWithMessageIds{Ops: dbOps}))
+
+				// Create a scheduler backed by mocked components.
+				testClock := clock.NewFakeClock(time.Now())
+				publisher := &testPublisher{}
+				submitChecker := &testSubmitChecker{}
+				clusterRepo := &testExecutorRepository{
+					updateTimes: map[string]time.Time{"testExecutor": testClock.Now()},
+				}
+				sched, err := NewScheduler(
+					testfixtures.NewJobDb(),
+					database.NewPostgresJobRepository(db, 1024),
+					clusterRepo,
+					&testSchedulingAlgo{
+						jobsToSchedule: tc.idsOfJobsToSchedule,
+						jobsToPreempt:  tc.idsOfJobsToPreempt,
+						jobsToFail:     tc.idsOfJobsToFail,
+					},
+					NewStandaloneLeaderController(),
+					publisher,
+					submitChecker,
+					1*time.Second,
+					5*time.Second,
+					0,
+					maxNumberOfAttempts,
+					nodeIdLabel,
+					schedulerMetrics,
+					nil,
+				)
+				require.NoError(t, err)
+				sched.EnableAssertions()
+				sched.clock = testClock
+
+				// Run a scheduler cycle.
+				// At the start of this cycle, the scheduler jobDb is empty.
+				// After the cycle, events will have been generated and corresponding changes made to the jobDb.
+				_, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true)
+				require.NoError(t, err)
+
+				// Persist the generated events to the schedulerDb and run another cycle.
+				// This should result in no events generated and no changes to the jobDb.
+				// Since the updates made to the jobDb in the previous cycle should be exactly
+				// those triggered by the changes written to the schedulerDb here.
+				jobDbAfterFirstCycle := sched.jobDb.Clone()
+
+				dbOpsWithMessageIds := instructionConverter.Convert(ctx, &ingest.EventSequencesWithIds{
+					EventSequences: publisher.events,
+				})
+				require.NoError(t, schedulerDb.Store(ctx, dbOpsWithMessageIds))
+				publisher.events = nil
+
+				_, err = sched.cycle(ctx, true, sched.leaderController.GetToken(), false)
+				require.NoError(t, err)
+				require.NoError(t, sched.jobDb.ReadTxn().AssertEqual(jobDbAfterFirstCycle.ReadTxn()))
+				require.Empty(t, publisher.events)
+
+				// Run a cycle with an empty jobDb and assert that it becomes identical to the copy made above.
+				publisher.events = nil
+				sched.jobDb = testfixtures.NewJobDb()
+				_, err = sched.cycle(ctx, true, sched.leaderController.GetToken(), false)
+				require.NoError(t, err)
+				require.NoError(t, sched.jobDb.ReadTxn().AssertEqual(jobDbAfterFirstCycle.ReadTxn()))
+				require.Empty(t, publisher.events)
+
+				return nil
+			})
+			require.NoError(t, err)
+		})
+	}
+}
+
+func dbOpsFromTestCase(
+	ctx *armadacontext.Context,
+	instructionConverter *scheduleringester.InstructionConverter,
+	jobUpdates []*database.Job,
+	runUpdates []*database.Run,
+	jobRunErrors []*armadaevents.JobRunErrors,
+) ([]scheduleringester.DbOperation, error) {
+	dbOps := make([]scheduleringester.DbOperation, 0)
+
+	jobUpdatesByJobId := make(map[string]*database.Job)
+	insertJobsDbOp := make(scheduleringester.InsertJobs, len(jobUpdates))
+	for _, dbJob := range jobUpdates {
+		insertJobsDbOp[dbJob.JobID] = dbJob
+		jobUpdatesByJobId[dbJob.JobID] = dbJob
+	}
+	dbOps = scheduleringester.AppendDbOperation(dbOps, fixInsertJobsDbOp(insertJobsDbOp))
+
+	insertRunsDbOp := make(scheduleringester.InsertRuns, len(runUpdates))
+	for _, dbRun := range runUpdates {
+		dbJob := jobUpdatesByJobId[dbRun.JobID]
+		if dbJob == nil {
+			return nil, errors.Errorf("run %s is associated with non-existing job %s", dbRun.RunID, dbRun.JobID)
+		}
+		insertRunsDbOp[dbRun.RunID] = &scheduleringester.JobRunDetails{
+			Queue: dbJob.Queue,
+			DbRun: dbRun,
+		}
+	}
+	dbOps = scheduleringester.AppendDbOperation(dbOps, insertRunsDbOp)
+
+	jobRunErrorsEventSequences := make([]*armadaevents.EventSequence, 0, len(jobRunErrors))
+	for _, jobRunErrors := range jobRunErrors {
+		jobId, err := armadaevents.UlidStringFromProtoUuid(jobRunErrors.JobId)
+		if err != nil {
+			return nil, err
+		}
+		dbJob := jobUpdatesByJobId[jobId]
+		if dbJob == nil {
+			return nil, errors.Errorf("jobRunError is associated with non-existing job %s", jobId)
+		}
+		eventSequence := &armadaevents.EventSequence{
+			Queue:      dbJob.Queue,
+			JobSetName: dbJob.JobSet,
+			Events: []*armadaevents.EventSequence_Event{
+				{
+					Event: &armadaevents.EventSequence_Event_JobRunErrors{JobRunErrors: jobRunErrors},
+				},
+			},
+		}
+		jobRunErrorsEventSequences = append(jobRunErrorsEventSequences, eventSequence)
+	}
+	insertJobRunErrorsDbOps := instructionConverter.Convert(
+		ctx,
+		&ingest.EventSequencesWithIds{
+			EventSequences: jobRunErrorsEventSequences,
+		},
+	)
+	for _, dbOp := range insertJobRunErrorsDbOps.Ops {
+		dbOps = scheduleringester.AppendDbOperation(dbOps, dbOp)
+	}
+
+	return dbOps, nil
+}
+
+func fixInsertJobsDbOp(dbOp scheduleringester.InsertJobs) scheduleringester.InsertJobs {
+	for _, job := range dbOp {
+		// This field must be non-null when written to postgres.
+		job.SubmitMessage = make([]byte, 0)
+	}
+	return dbOp
 }

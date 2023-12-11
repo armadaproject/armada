@@ -6,6 +6,7 @@ import (
 
 	"github.com/benbjohnson/immutable"
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
 
@@ -76,6 +77,21 @@ func NewJobDbWithSchedulingKeyGenerator(
 
 func (jobDb *JobDb) EnableAssertions() {
 	jobDb.enableAssertions = true
+}
+
+// Clone returns a copy of the jobDb.
+func (jobDb *JobDb) Clone() *JobDb {
+	return &JobDb{
+		jobsById:               jobDb.jobsById,
+		jobsByRunId:            jobDb.jobsByRunId,
+		jobsByQueue:            maps.Clone(jobDb.jobsByQueue),
+		queuedJobsByTtl:        jobDb.queuedJobsByTtl,
+		priorityClasses:        jobDb.priorityClasses,
+		defaultPriorityClass:   jobDb.defaultPriorityClass,
+		schedulingKeyGenerator: jobDb.schedulingKeyGenerator,
+		stringInterner:         jobDb.stringInterner,
+		enableAssertions:       jobDb.enableAssertions,
+	}
 }
 
 // NewJob creates a new scheduler job.
@@ -186,8 +202,10 @@ type Txn struct {
 	// Queued jobs for each queue ordered by remaining time-to-live.
 	// TODO: The ordering is wrong. Since we call time.Now() in the compare function.
 	queuedJobsByTtl *immutable.SortedSet[*Job]
-	jobDb           *JobDb
-	active          bool
+	// The jobDb from which this transaction was created.
+	jobDb *JobDb
+	// Set to false when this transaction is either committed or aborted.
+	active bool
 	// If true, asserts that the jobDb as a whole is valid when transactions are committed.
 	enableAssertions bool
 }
@@ -209,12 +227,47 @@ func (txn *Txn) Commit() {
 // Assert calls the assert function on every job in the jobDb and returns any errors.
 // If assertOnlyActiveJobs is true, it also asserts that all jobs in the jobDb are active.
 func (txn *Txn) Assert(assertOnlyActiveJobs bool) error {
+	// TODO(albin): Add assertions to make sure jobs marked as queued are in the queued set etc.
 	for _, job := range txn.GetAll() {
 		if err := job.Assert(); err != nil {
 			return errors.WithMessage(err, "jobDb is invalid")
 		} else if assertOnlyActiveJobs && job.InTerminalState() {
 			return errors.Errorf("jobDb contains an inactive job %s", job)
 		}
+	}
+	return nil
+}
+
+func (txn *Txn) AssertEqual(otherTxn *Txn) error {
+	var result *multierror.Error
+	it := txn.jobsById.Iterator()
+	for {
+		jobId, job, ok := it.Next()
+		if !ok {
+			break
+		}
+		otherJob := otherTxn.GetById(jobId)
+		if job != nil && otherJob == nil {
+			result = multierror.Append(result, errors.Errorf("job %s is not in otherTxn", jobId))
+		} else if job == nil && otherTxn != nil {
+			result = multierror.Append(result, errors.Errorf("job %s is not in txn", jobId))
+		} else if !job.Equal(otherJob) {
+			result = multierror.Append(result, errors.Errorf("job %s differs between txn and otherTxn: %s is not equal to %s", jobId, job, otherJob))
+		}
+	}
+	it = otherTxn.jobsById.Iterator()
+	for {
+		jobId, _, ok := it.Next()
+		if !ok {
+			break
+		}
+		job := otherTxn.GetById(jobId)
+		if job == nil && otherTxn != nil {
+			result = multierror.Append(result, errors.Errorf("job %s is not in txn", jobId))
+		}
+	}
+	if err := result.ErrorOrNil(); err != nil {
+		return errors.WithMessage(err, "jobDb transactions are not equal")
 	}
 	return nil
 }

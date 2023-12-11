@@ -37,13 +37,16 @@ type InstructionConverter struct {
 func NewInstructionConverter(
 	metrics *metrics.Metrics,
 	priorityClasses map[string]types.PriorityClass,
-	compressor compress.Compressor,
-) ingest.InstructionConverter[*DbOperationsWithMessageIds] {
+) (*InstructionConverter, error) {
+	compressor, err := compress.NewZlibCompressor(1024)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to create compressor")
+	}
 	return &InstructionConverter{
 		metrics:         metrics,
 		priorityClasses: priorityClasses,
 		compressor:      compressor,
-	}
+	}, nil
 }
 
 func (c *InstructionConverter) Convert(_ *armadacontext.Context, sequencesWithIds *ingest.EventSequencesWithIds) *DbOperationsWithMessageIds {
@@ -185,8 +188,8 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 	}
 	return []DbOperation{
 		InsertRuns{runId: &JobRunDetails{
-			queue: meta.queue,
-			dbRun: &schedulerdb.Run{
+			Queue: meta.queue,
+			DbRun: &schedulerdb.Run{
 				RunID:    runId,
 				JobID:    jobId,
 				JobSet:   meta.jobset,
@@ -241,7 +244,7 @@ func (c *InstructionConverter) handleJobRunErrors(jobRunErrors *armadaevents.Job
 	insertJobRunErrors := make(InsertJobRunErrors)
 	markRunsFailed := make(MarkRunsFailed)
 	for _, runError := range jobRunErrors.GetErrors() {
-		// There should only be one terminal error
+		// There should only be one terminal error.
 		if runError.GetTerminal() {
 			bytes, err := protoutil.MarshallAndCompress(runError, c.compressor)
 			if err != nil {

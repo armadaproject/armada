@@ -297,7 +297,7 @@ func (job *Job) Equal(other *Job) bool {
 	if job.queuedVersion != other.queuedVersion {
 		return false
 	}
-	if job.priorityClass.Equal(other.priorityClass) {
+	if !job.priorityClass.Equal(other.priorityClass) {
 		return false
 	}
 	if job.queued != other.queued {
