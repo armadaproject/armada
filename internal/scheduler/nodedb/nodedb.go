@@ -655,23 +655,8 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 		return node, nil
 	}
 
-	// Save the number of additional tolerations that the job originally had; we
-	// use this value to restore the slice of additional toleration at the end
-	// of each loop iteration.
-	numAdditionalTolerations := len(jctx.AdditionalTolerations)
 	for _, awayNodeType := range priorityClass.AwayNodeTypes {
-		wellKnownNodeType, ok := nodeDb.wellKnownNodeTypes[awayNodeType.WellKnownNodeTypeName]
-		if !ok {
-			return nil, fmt.Errorf("unknown well-known node type %s; must be in %v", awayNodeType.WellKnownNodeTypeName, nodeDb.wellKnownNodeTypes)
-		}
-		for _, taint := range wellKnownNodeType.Taints {
-			jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, v1.Toleration{Key: taint.Key, Value: taint.Value, Effect: taint.Effect})
-		}
-
-		node, err := nodeDb.selectNodeForJobWithTxnAtPriority(txn, jctx, awayNodeType.Priority)
-
-		jctx.AdditionalTolerations = jctx.AdditionalTolerations[:numAdditionalTolerations]
-
+		node, err := nodeDb.selectNodeForJobWithTxnAndAwayNodeType(txn, jctx, awayNodeType)
 		if err != nil {
 			return nil, err
 		}
@@ -681,6 +666,31 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 	}
 
 	return nil, nil
+}
+
+func (nodeDb *NodeDb) selectNodeForJobWithTxnAndAwayNodeType(
+	txn *memdb.Txn,
+	jctx *schedulercontext.JobSchedulingContext,
+	awayNodeType types.AwayNodeType,
+) (*Node, error) {
+	// Save the number of additional tolerations that the job originally had; we
+	// use this value to restore the slice of additional toleration at the end
+	// of each loop iteration.
+	numAdditionalTolerations := len(jctx.AdditionalTolerations)
+	defer func() {
+		jctx.AdditionalTolerations = jctx.AdditionalTolerations[:numAdditionalTolerations]
+	}()
+
+	wellKnownNodeType, ok := nodeDb.wellKnownNodeTypes[awayNodeType.WellKnownNodeTypeName]
+	if !ok {
+		return nil, fmt.Errorf("unknown well-known node type %s; must be in %v", awayNodeType.WellKnownNodeTypeName, nodeDb.wellKnownNodeTypes)
+	}
+
+	for _, taint := range wellKnownNodeType.Taints {
+		jctx.AdditionalTolerations = append(jctx.AdditionalTolerations, v1.Toleration{Key: taint.Key, Value: taint.Value, Effect: taint.Effect})
+	}
+
+	return nodeDb.selectNodeForJobWithTxnAtPriority(txn, jctx, awayNodeType.Priority)
 }
 
 func (nodeDb *NodeDb) selectNodeForJobWithTxnAtPriority(
