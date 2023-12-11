@@ -34,10 +34,7 @@ import (
 func TestEvictOversubscribed(t *testing.T) {
 	config := testfixtures.TestSchedulingConfig()
 
-	var priorities []int32
-	for _, pc := range config.Preemption.PriorityClasses {
-		priorities = append(priorities, pc.Priority)
-	}
+	priorities := types.AllowedPriorities(config.Preemption.PriorityClasses)
 
 	jobs := append(
 		testfixtures.N1Cpu4GiJobs("A", config.Preemption.DefaultPriorityClass, 20),
@@ -1761,13 +1758,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 			}
 			nodeDbTxn.Commit()
 
-			var priorities []int32
-			for _, pc := range tc.SchedulingConfig.Preemption.PriorityClasses {
-				priorities = append(priorities, pc.Priority)
-				for _, awayNodeType := range pc.AwayNodeTypes {
-					priorities = append(priorities, awayNodeType.Priority)
-				}
-			}
+			priorities := types.AllowedPriorities(tc.SchedulingConfig.Preemption.PriorityClasses)
 
 			jobDb := jobdb.NewJobDb(tc.SchedulingConfig.Preemption.PriorityClasses, tc.SchedulingConfig.Preemption.DefaultPriorityClass, 1024)
 			jobDbTxn := jobDb.WriteTxn()
