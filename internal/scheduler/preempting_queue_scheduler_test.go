@@ -1875,7 +1875,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 					tc.SchedulingConfig,
 				)
-				sch, err := NewPreemptingQueueScheduler(
+				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
 					tc.SchedulingConfig.Preemption.NodeEvictionProbability,
@@ -1887,7 +1887,6 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					jobIdsByGangId,
 					gangIdByJobId,
 				)
-				require.NoError(t, err)
 				sch.EnableAssertions()
 				if tc.SchedulingConfig.EnableNewPreemptionStrategy {
 					sch.EnableNewPreemptionStrategy()
@@ -2209,7 +2208,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				schedulerobjects.ResourceList{Resources: tc.MinimumJobSize},
 				tc.SchedulingConfig,
 			)
-			sch, err := NewPreemptingQueueScheduler(
+			sch := NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
 				tc.SchedulingConfig.Preemption.NodeEvictionProbability,
@@ -2221,7 +2220,6 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 				nil,
 				nil,
 			)
-			require.NoError(b, err)
 			result, err := sch.Schedule(ctx)
 			require.NoError(b, err)
 			require.Equal(b, 0, len(result.PreemptedJobs))
@@ -2265,7 +2263,7 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					err := sctx.AddQueueSchedulingContext(queue, weight, allocatedByQueueAndPriorityClass[queue], limiterByQueue[queue])
 					require.NoError(b, err)
 				}
-				sch, err := NewPreemptingQueueScheduler(
+				sch := NewPreemptingQueueScheduler(
 					sctx,
 					constraints,
 					tc.SchedulingConfig.Preemption.NodeEvictionProbability,
@@ -2277,7 +2275,6 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 					nil,
 					nil,
 				)
-				require.NoError(b, err)
 				result, err := sch.Schedule(ctx)
 				require.NoError(b, err)
 

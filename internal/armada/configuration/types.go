@@ -1,10 +1,12 @@
 package configuration
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
+	"github.com/hashicorp/go-multierror"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -207,7 +209,7 @@ type SchedulingConfig struct {
 	IndexedTaints []string
 	// WellKnownNodeTypes defines a set of well-known node types; these are used
 	// to define "home" and "away" nodes for a given priority class.
-	WellKnownNodeTypes []WellKnownNodeType
+	WellKnownNodeTypes []WellKnownNodeType `validate:"dive"`
 	// Default value of GangNodeUniformityLabelAnnotation if none is provided.
 	DefaultGangNodeUniformityLabel string
 	// Kubernetes pods may specify a termination grace period.
@@ -252,6 +254,32 @@ type SchedulingConfig struct {
 	EnableNewPreemptionStrategy bool
 }
 
+func (c *SchedulingConfig) Validate() error {
+	var err *multierror.Error
+
+	wellKnownNodeTypes := make(map[string]bool)
+	for _, wellKnownNodeType := range c.WellKnownNodeTypes {
+		if wellKnownNodeTypes[wellKnownNodeType.Name] {
+			err = multierror.Append(err, fmt.Errorf("duplicate well-known node type name %s", wellKnownNodeType.Name))
+		}
+		wellKnownNodeTypes[wellKnownNodeType.Name] = true
+	}
+
+	for priorityClassName, priorityClass := range c.Preemption.PriorityClasses {
+		if len(priorityClass.AwayNodeTypes) > 0 && !priorityClass.Preemptible {
+			err = multierror.Append(err, fmt.Errorf("priority class %s has away node types but is not preemptible", priorityClassName))
+		}
+
+		for _, awayNodeType := range priorityClass.AwayNodeTypes {
+			if !wellKnownNodeTypes[awayNodeType.WellKnownNodeTypeName] {
+				err = multierror.Append(err, fmt.Errorf("priority class %s has away node type %s, but there is no well-known node type of this name", priorityClassName, awayNodeType.WellKnownNodeTypeName))
+			}
+		}
+	}
+
+	return err.ErrorOrNil()
+}
+
 // FairnessModel controls how fairness is computed.
 // More specifically, each queue has a cost associated with it and the next job to schedule
 // is taken from the queue with smallest cost. FairnessModel determines how that cost is computed.
@@ -276,7 +304,7 @@ type IndexedResource struct {
 // A WellKnownNodeType defines a set of nodes; see AwayNodeType.
 type WellKnownNodeType struct {
 	// Name is the unique identifier for this node type.
-	Name string
+	Name string `validate:"required"`
 	// Taints is the set of taints that characterizes this node type; a node is
 	// part of this node type if and only if it has all of these taints.
 	Taints []v1.Taint
@@ -311,7 +339,7 @@ type PreemptionConfig struct {
 	// Map from priority class names to priority classes.
 	// Must be consistent with Kubernetes priority classes.
 	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
-	PriorityClasses map[string]types.PriorityClass
+	PriorityClasses map[string]types.PriorityClass `validate:"dive"`
 	// Priority class assigned to pods that do not specify one.
 	// Must be an entry in PriorityClasses above.
 	DefaultPriorityClass string

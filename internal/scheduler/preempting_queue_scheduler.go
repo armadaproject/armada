@@ -1,7 +1,6 @@
 package scheduler
 
 import (
-	"fmt"
 	"math/rand"
 	"reflect"
 	"time"
@@ -13,7 +12,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
-	"github.com/armadaproject/armada/internal/common/armadaerrors"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -64,16 +62,7 @@ func NewPreemptingQueueScheduler(
 	initialNodeIdByJobId map[string]string,
 	initialJobIdsByGangId map[string]map[string]bool,
 	initialGangIdByJobId map[string]string,
-) (*PreemptingQueueScheduler, error) {
-	for priorityClassName, priorityClass := range sctx.PriorityClasses {
-		if len(priorityClass.AwayNodeTypes) > 0 && !priorityClass.Preemptible {
-			return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
-				Name:    "priorityClasses",
-				Value:   sctx.PriorityClasses,
-				Message: fmt.Sprintf("only preemptible priority classes can have away node types; priority class %s violates this invariant", priorityClassName),
-			})
-		}
-	}
+) *PreemptingQueueScheduler {
 	if initialNodeIdByJobId == nil {
 		initialNodeIdByJobId = make(map[string]string)
 	}
@@ -87,7 +76,7 @@ func NewPreemptingQueueScheduler(
 	for gangId, jobIds := range initialJobIdsByGangId {
 		initialJobIdsByGangId[gangId] = maps.Clone(jobIds)
 	}
-	scheduler := PreemptingQueueScheduler{
+	return &PreemptingQueueScheduler{
 		schedulingContext:                       sctx,
 		constraints:                             constraints,
 		nodeEvictionProbability:                 nodeEvictionProbability,
@@ -99,7 +88,6 @@ func NewPreemptingQueueScheduler(
 		jobIdsByGangId:                          initialJobIdsByGangId,
 		gangIdByJobId:                           maps.Clone(initialGangIdByJobId),
 	}
-	return &scheduler, nil
 }
 
 func (sch *PreemptingQueueScheduler) EnableAssertions() {
