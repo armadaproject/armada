@@ -7,6 +7,7 @@ import (
 	"unsafe"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -18,7 +19,9 @@ var (
 
 // Test that repeated calls to intern for strings with identical values but different backing arrays result in deduplication
 func TestStringInterner_TestIntern(t *testing.T) {
-	interner := New(defaultCapacity)
+	interner, err := New(defaultCapacity)
+	require.NoError(t, err)
+
 	for i := 0; i < len(cloned1); i++ {
 		s1 := cloned1[i]
 		s2 := cloned2[i]
@@ -39,7 +42,8 @@ func TestStringInterner_TestIntern(t *testing.T) {
 
 // Test that we don't store more strings than capacity
 func TestStringInterner_TestCapacity(t *testing.T) {
-	interner := New(defaultCapacity)
+	interner, err := New(defaultCapacity)
+	require.NoError(t, err)
 
 	// intern a string and assert we return the same string
 	retrieved1 := interner.Intern(cloned1[0])

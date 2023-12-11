@@ -8,18 +8,19 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/renstrom/shortuuid"
+	"golang.org/x/exp/maps"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/common/util"
+	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
-	"github.com/armadaproject/armada/internal/scheduler/metrics"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
+	"github.com/armadaproject/armada/pkg/api"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
 
@@ -41,6 +42,8 @@ type Scheduler struct {
 	schedulingAlgo SchedulingAlgo
 	// Tells us if we are leader. Only the leader may schedule jobs.
 	leaderController LeaderController
+	// We intern strings to save memory.
+	stringInterner *stringinterner.StringInterner
 	// This is used to check if jobs are still schedulable.
 	// Useful when we are adding node anti-affinities.
 	submitChecker SubmitScheduleChecker
@@ -72,8 +75,6 @@ type Scheduler struct {
 	onCycleCompleted func()
 	// metrics set for the scheduler.
 	metrics *SchedulerMetrics
-	// New scheduler metrics due to replace the above.
-	schedulerMetrics *metrics.Metrics
 }
 
 func NewScheduler(
@@ -83,14 +84,14 @@ func NewScheduler(
 	schedulingAlgo SchedulingAlgo,
 	leaderController LeaderController,
 	publisher Publisher,
+	stringInterner *stringinterner.StringInterner,
 	submitChecker SubmitScheduleChecker,
 	cyclePeriod time.Duration,
 	schedulePeriod time.Duration,
 	executorTimeout time.Duration,
 	maxAttemptedRuns uint,
 	nodeIdLabel string,
-	metrics *SchedulerMetrics,
-	schedulerMetrics *metrics.Metrics,
+	schedulerMetrics *SchedulerMetrics,
 ) (*Scheduler, error) {
 	return &Scheduler{
 		jobRepository:              jobRepository,
@@ -98,6 +99,7 @@ func NewScheduler(
 		schedulingAlgo:             schedulingAlgo,
 		leaderController:           leaderController,
 		publisher:                  publisher,
+		stringInterner:             stringInterner,
 		submitChecker:              submitChecker,
 		jobDb:                      jobDb,
 		clock:                      clock.RealClock{},
@@ -109,8 +111,7 @@ func NewScheduler(
 		nodeIdLabel:                nodeIdLabel,
 		jobsSerial:                 -1,
 		runsSerial:                 -1,
-		metrics:                    metrics,
-		schedulerMetrics:           schedulerMetrics,
+		metrics:                    schedulerMetrics,
 	}, nil
 }
 
@@ -195,28 +196,18 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 // cycle is a single iteration of the main scheduling loop.
 // If updateAll is true, we generate events from all jobs in the jobDb.
 // Otherwise, we only generate events from jobs updated since the last cycle.
-func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) (SchedulerResult, error) {
-	// TODO: Consider returning a slice of these instead.
-	overallSchedulerResult := SchedulerResult{}
+func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) (overallSchedulerResult SchedulerResult, err error) {
+	overallSchedulerResult = SchedulerResult{EmptyResult: true}
 
 	// Update job state.
-	updatedJobs, jsts, jobRepoRunErrorsByRunId, err := s.syncState(ctx)
+	updatedJobs, err := s.syncState(ctx)
 	if err != nil {
-		return overallSchedulerResult, err
+		return
 	}
 
 	// Only the leader may make decisions; exit if not leader.
-	// Only export metrics if leader.
 	if !s.leaderController.ValidateToken(leaderToken) {
-		s.schedulerMetrics.Disable()
-		return overallSchedulerResult, err
-	} else {
-		s.schedulerMetrics.Enable()
-	}
-
-	// Update metrics.
-	if err := s.schedulerMetrics.UpdateMany(ctx, jsts, jobRepoRunErrorsByRunId); err != nil {
-		return overallSchedulerResult, err
+		return
 	}
 
 	// If we've been asked to generate messages for all jobs, do so.
@@ -228,22 +219,22 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 
 	// Generate any events that came out of synchronising the db state.
-	events, err := s.generateUpdateMessages(ctx, txn, updatedJobs, jobRepoRunErrorsByRunId)
+	events, err := s.generateUpdateMessages(ctx, updatedJobs, txn)
 	if err != nil {
-		return overallSchedulerResult, err
+		return
 	}
 
 	// Expire any jobs running on clusters that haven't heartbeated within the configured deadline.
 	expirationEvents, err := s.expireJobsIfNecessary(ctx, txn)
 	if err != nil {
-		return overallSchedulerResult, err
+		return
 	}
 	events = append(events, expirationEvents...)
 
 	// Request cancel for any jobs that exceed queueTtl
 	queueTtlCancelEvents, err := s.cancelQueuedJobsIfExpired(txn)
 	if err != nil {
-		return overallSchedulerResult, err
+		return
 	}
 	events = append(events, queueTtlCancelEvents...)
 
@@ -252,13 +243,13 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		var result *SchedulerResult
 		result, err = s.schedulingAlgo.Schedule(ctx, txn)
 		if err != nil {
-			return overallSchedulerResult, err
+			return
 		}
 
 		var resultEvents []*armadaevents.EventSequence
 		resultEvents, err = s.eventsFromSchedulerResult(result)
 		if err != nil {
-			return overallSchedulerResult, err
+			return
 		}
 		events = append(events, resultEvents...)
 		s.previousSchedulingRoundEnd = s.clock.Now()
@@ -272,118 +263,95 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	}
 	start := s.clock.Now()
 	if err = s.publisher.PublishMessages(ctx, events, isLeader); err != nil {
-		return overallSchedulerResult, err
+		return
 	}
 	ctx.Infof("published %d events to pulsar in %s", len(events), s.clock.Since(start))
 	txn.Commit()
-
-	// Update metrics based on overallSchedulerResult.
-	if err := s.updateMetricsFromSchedulerResult(ctx, overallSchedulerResult); err != nil {
-		return overallSchedulerResult, err
-	}
-
-	return overallSchedulerResult, nil
-}
-
-func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context, overallSchedulerResult SchedulerResult) error {
-	for _, job := range overallSchedulerResult.ScheduledJobs {
-		if err := s.schedulerMetrics.Update(
-			ctx,
-			jobdb.JobStateTransitions{
-				Job:       job.(*jobdb.Job),
-				Scheduled: true,
-			},
-			nil,
-		); err != nil {
-			return err
-		}
-	}
-	for _, job := range overallSchedulerResult.PreemptedJobs {
-		if err := s.schedulerMetrics.Update(
-			ctx,
-			jobdb.JobStateTransitions{
-				Job:       job.(*jobdb.Job),
-				Preempted: true,
-			},
-			nil,
-		); err != nil {
-			return err
-		}
-	}
-	for _, job := range overallSchedulerResult.FailedJobs {
-		if err := s.schedulerMetrics.Update(
-			ctx,
-			jobdb.JobStateTransitions{
-				Job:    job.(*jobdb.Job),
-				Failed: true,
-			},
-			nil,
-		); err != nil {
-			return err
-		}
-	}
-	return nil
+	return
 }
 
 // syncState updates jobs in jobDb to match state in postgres and returns all updated jobs.
-func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, []jobdb.JobStateTransitions, map[uuid.UUID]*armadaevents.Error, error) {
+func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, error) {
+	start := s.clock.Now()
+	updatedJobs, updatedRuns, err := s.jobRepository.FetchJobUpdates(ctx, s.jobsSerial, s.runsSerial)
+	if err != nil {
+		return nil, err
+	}
+	ctx.Infof("received %d updated jobs and %d updated job runs in %s", len(updatedJobs), len(updatedRuns), s.clock.Since(start))
+
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 
-	// Load new and updated jobs from the jobRepo.
-	updatedJobs, updatedRuns, err := s.jobRepository.FetchJobUpdates(ctx, s.jobsSerial, s.runsSerial)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	// Load any error associated with updated runs.
-	jobRunIds := util.Map(updatedRuns, func(jobRepoRun database.Run) uuid.UUID { return jobRepoRun.RunID })
-	jobRepoRunErrorsByRunId, err := s.jobRepository.FetchJobRunErrors(ctx, jobRunIds)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	// Reconcile any differences between the updated jobs and runs.
-	jsts, err := s.jobDb.ReconcileDifferences(txn, updatedJobs, updatedRuns)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	// Upsert updated jobs (including associated runs).
-	jobDbJobs := make([]*jobdb.Job, 0, len(jsts))
-	for _, jst := range jsts {
-		if jst.Job != nil {
-			// We receive nil jobs from jobDb.ReconcileDifferences if a run is updated after the associated job is deleted.
-			// These nil job must be sorted out.
-			jobDbJobs = append(jobDbJobs, jst.Job)
+	// Process jobs.
+	jobsToDelete := make([]string, 0, len(updatedJobs))
+	jobsToUpdateById := make(map[string]*jobdb.Job, len(updatedJobs))
+	for _, dbJob := range updatedJobs {
+		if dbJob.InTerminalState() {
+			// Scheduler has sent a terminal message; we can safely remove the job.
+			jobsToDelete = append(jobsToDelete, dbJob.JobID)
+			continue
 		}
-	}
-	if err := txn.Upsert(jobDbJobs); err != nil {
-		return nil, nil, nil, err
-	}
 
-	// Delete jobs in a terminal state.
-	idsOfJobsToDelete := make([]string, 0)
-	for _, jobDbJob := range jobDbJobs {
-		if jobDbJob.InTerminalState() {
-			idsOfJobsToDelete = append(idsOfJobsToDelete, jobDbJob.Id())
+		// Try and retrieve the job from the jobDb. If it doesn't exist then create it.
+		job := txn.GetById(dbJob.JobID)
+		if job == nil {
+			job, err = s.schedulerJobFromDatabaseJob(&dbJob)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			// make the scheduler job look like the db job.
+			job, err = updateSchedulerJob(job, &dbJob)
+			if err != nil {
+				return nil, err
+			}
 		}
-	}
-	if err := txn.BatchDelete(idsOfJobsToDelete); err != nil {
-		return nil, nil, nil, err
+		jobsToUpdateById[job.Id()] = job
 	}
 
+	// Process runs.
+	for _, dbRun := range updatedRuns {
+		jobId := dbRun.JobID
+
+		// Retrieve the job, look first in the list of updates, then in the jobDb.
+		job, present := jobsToUpdateById[jobId]
+		if !present {
+			job = txn.GetById(jobId)
+
+			// If the job is nil or terminal at this point then it cannot be active.
+			// In this case we can ignore the run.
+			if job == nil || job.InTerminalState() {
+				ctx.Debugf("job %s is not active; ignoring update for run %s", jobId, dbRun.RunID)
+				continue
+			}
+		}
+
+		run := job.RunById(dbRun.RunID)
+		if run == nil {
+			run = s.createSchedulerRun(&dbRun)
+		} else {
+			// make the scheduler job look like the db job
+			run = updateSchedulerRun(run, &dbRun)
+		}
+		job = job.WithUpdatedRun(run)
+		jobsToUpdateById[jobId] = job
+	}
+
+	jobsToUpdate := maps.Values(jobsToUpdateById)
+	if err := txn.Upsert(jobsToUpdate); err != nil {
+		return nil, err
+	}
+	if err := txn.BatchDelete(jobsToDelete); err != nil {
+		return nil, err
+	}
 	txn.Commit()
-
-	// Update serial to include these updates.
 	if len(updatedJobs) > 0 {
 		s.jobsSerial = updatedJobs[len(updatedJobs)-1].Serial
 	}
 	if len(updatedRuns) > 0 {
 		s.runsSerial = updatedRuns[len(updatedRuns)-1].Serial
 	}
-
-	return jobDbJobs, jsts, jobRepoRunErrorsByRunId, nil
+	return jobsToUpdate, nil
 }
 
 func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job *jobdb.Job) (*schedulerobjects.JobSchedulingInfo, error) {
@@ -567,8 +535,20 @@ func AppendEventSequencesFromUnschedulableJobs(eventSequences []*armadaevents.Ev
 
 // generateUpdateMessages generates EventSequences representing the state changes on updated jobs
 // If there are no state changes then an empty slice will be returned
-func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobdb.Txn, updatedJobs []*jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error) ([]*armadaevents.EventSequence, error) {
-	// Generate any events that came out of synchronising the db state.
+func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, updatedJobs []*jobdb.Job, txn *jobdb.Txn) ([]*armadaevents.EventSequence, error) {
+	failedRunIds := make([]uuid.UUID, 0, len(updatedJobs))
+	for _, job := range updatedJobs {
+		run := job.LatestRun()
+		if run != nil && run.Failed() {
+			failedRunIds = append(failedRunIds, run.Id())
+		}
+	}
+	jobRunErrors, err := s.jobRepository.FetchJobRunErrors(ctx, failedRunIds)
+	if err != nil {
+		return nil, err
+	}
+
+	// Generate any events that came out of synchronising the db state
 	var events []*armadaevents.EventSequence
 	for _, job := range updatedJobs {
 		jobEvents, err := s.generateUpdateMessagesFromJob(job, jobRunErrors, txn)
@@ -587,7 +567,7 @@ func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobd
 func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error, txn *jobdb.Txn) (*armadaevents.EventSequence, error) {
 	var events []*armadaevents.EventSequence_Event
 
-	// Is the job already in a terminal state? If so then don't send any more messages
+	// Is the job already in a terminal state?  If so then don't send any more messages
 	if job.InTerminalState() {
 		return nil, nil
 	}
@@ -654,7 +634,7 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 					if schedulable {
 						job = jobWithAntiAffinity
 					} else {
-						// If job is not schedulable with anti-affinity added. Do not requeue it and let it fail.
+						// If job is not schedulable with anti-affinity added. Do not requeue it and let it fail
 						requeueJob = false
 					}
 				}
@@ -904,11 +884,11 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
-			if _, _, _, err := s.syncState(ctx); err != nil {
+			if _, err := s.syncState(ctx); err != nil {
 				logging.WithStacktrace(ctx, err).Error("failed to initialise; trying again in 1 second")
 				time.Sleep(1 * time.Second)
 			} else {
-				ctx.Info("initialisation succeeded")
+				// Initialisation succeeded.
 				return nil
 			}
 		}
@@ -960,4 +940,116 @@ func (s *Scheduler) ensureDbUpToDate(ctx *armadacontext.Context, pollInterval ti
 			s.clock.Sleep(pollInterval)
 		}
 	}
+}
+
+// schedulerJobFromDatabaseJob creates a new scheduler job from a database job.
+func (s *Scheduler) schedulerJobFromDatabaseJob(dbJob *database.Job) (*jobdb.Job, error) {
+	schedulingInfo := &schedulerobjects.JobSchedulingInfo{}
+	err := proto.Unmarshal(dbJob.SchedulingInfo, schedulingInfo)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error unmarshalling scheduling info for job %s", dbJob.JobID)
+	}
+	s.internJobSchedulingInfoStrings(schedulingInfo)
+	return s.jobDb.NewJob(
+		dbJob.JobID,
+		s.stringInterner.Intern(dbJob.JobSet),
+		s.stringInterner.Intern(dbJob.Queue),
+		uint32(dbJob.Priority),
+		schedulingInfo,
+		dbJob.Queued,
+		dbJob.QueuedVersion,
+		dbJob.CancelRequested,
+		dbJob.CancelByJobsetRequested,
+		dbJob.Cancelled,
+		dbJob.Submitted,
+	), nil
+}
+
+// createSchedulerRun creates a new scheduler job run from a database job run
+func (s *Scheduler) createSchedulerRun(dbRun *database.Run) *jobdb.JobRun {
+	nodeId := api.NodeIdFromExecutorAndNodeName(dbRun.Executor, dbRun.Node)
+	return jobdb.CreateRun(
+		dbRun.RunID,
+		dbRun.JobID,
+		dbRun.Created,
+		s.stringInterner.Intern(dbRun.Executor),
+		s.stringInterner.Intern(nodeId),
+		s.stringInterner.Intern(dbRun.Node),
+		dbRun.Running,
+		dbRun.Succeeded,
+		dbRun.Failed,
+		dbRun.Cancelled,
+		dbRun.Returned,
+		dbRun.RunAttempted,
+	)
+}
+
+func (s *Scheduler) internJobSchedulingInfoStrings(info *schedulerobjects.JobSchedulingInfo) {
+	for _, requirement := range info.ObjectRequirements {
+		if podRequirement := requirement.GetPodRequirements(); podRequirement != nil {
+			for k, v := range podRequirement.Annotations {
+				podRequirement.Annotations[s.stringInterner.Intern(k)] = s.stringInterner.Intern(v)
+			}
+
+			for k, v := range podRequirement.NodeSelector {
+				podRequirement.NodeSelector[s.stringInterner.Intern(k)] = s.stringInterner.Intern(v)
+			}
+			podRequirement.PreemptionPolicy = s.stringInterner.Intern(podRequirement.PreemptionPolicy)
+		}
+	}
+}
+
+// updateSchedulerRun updates the scheduler job run (in-place) to match the database job run
+func updateSchedulerRun(run *jobdb.JobRun, dbRun *database.Run) *jobdb.JobRun {
+	if dbRun.Succeeded && !run.Succeeded() {
+		run = run.WithSucceeded(true)
+	}
+	if dbRun.Failed && !run.Failed() {
+		run = run.WithFailed(true)
+	}
+	if dbRun.Cancelled && !run.Cancelled() {
+		run = run.WithCancelled(true)
+	}
+	if dbRun.Returned && !run.Returned() {
+		run = run.WithReturned(true)
+	}
+	if dbRun.RunAttempted && !run.RunAttempted() {
+		run = run.WithAttempted(true)
+	}
+	return run
+}
+
+// updateSchedulerJob updates the scheduler job in-place to match the database job.
+func updateSchedulerJob(job *jobdb.Job, dbJob *database.Job) (*jobdb.Job, error) {
+	if dbJob.CancelRequested && !job.CancelRequested() {
+		job = job.WithCancelRequested(true)
+	}
+	if dbJob.CancelByJobsetRequested && !job.CancelByJobsetRequested() {
+		job = job.WithCancelByJobsetRequested(true)
+	}
+	if dbJob.Cancelled && !job.Cancelled() {
+		job = job.WithCancelled(true)
+	}
+	if dbJob.Succeeded && !job.Succeeded() {
+		job = job.WithSucceeded(true)
+	}
+	if dbJob.Failed && !job.Failed() {
+		job = job.WithFailed(true)
+	}
+	if uint32(dbJob.Priority) != job.RequestedPriority() {
+		job = job.WithRequestedPriority(uint32(dbJob.Priority))
+	}
+	if uint32(dbJob.SchedulingInfoVersion) > job.JobSchedulingInfo().Version {
+		schedulingInfo := &schedulerobjects.JobSchedulingInfo{}
+		err := proto.Unmarshal(dbJob.SchedulingInfo, schedulingInfo)
+		if err != nil {
+			return nil, errors.Wrapf(err, "error unmarshalling scheduling info for job %s", dbJob.JobID)
+		}
+		job = job.WithJobSchedulingInfo(schedulingInfo)
+	}
+	if dbJob.QueuedVersion > job.QueuedVersion() {
+		job = job.WithQueuedVersion(dbJob.QueuedVersion)
+		job = job.WithQueued(dbJob.Queued)
+	}
+	return job, nil
 }

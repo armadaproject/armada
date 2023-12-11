@@ -55,7 +55,7 @@ func MinimalRun(id uuid.UUID, creationTime int64) *JobRun {
 }
 
 // CreateRun creates a new scheduler job run from a database job run
-func (jobDb *JobDb) CreateRun(
+func CreateRun(
 	id uuid.UUID,
 	jobId string,
 	creationTime int64,
@@ -73,9 +73,9 @@ func (jobDb *JobDb) CreateRun(
 		id:           id,
 		jobId:        jobId,
 		created:      creationTime,
-		executor:     jobDb.stringInterner.Intern(executor),
-		nodeId:       jobDb.stringInterner.Intern(nodeId),
-		nodeName:     jobDb.stringInterner.Intern(nodeName),
+		executor:     executor,
+		nodeId:       nodeId,
+		nodeName:     nodeName,
 		running:      running,
 		succeeded:    succeeded,
 		failed:       failed,
@@ -90,7 +90,7 @@ func (run *JobRun) Id() uuid.UUID {
 	return run.id
 }
 
-// JobId returns the id of the job this run is associated with.
+// Id returns the id of the job this run is associated with.
 func (run *JobRun) JobId() string {
 	return run.jobId
 }
@@ -105,7 +105,7 @@ func (run *JobRun) NodeId() string {
 	return run.nodeId
 }
 
-// NodeName returns the name of the node to which the JobRun is assigned.
+// NodeId returns the name of the node to which the JobRun is assigned.
 func (run *JobRun) NodeName() string {
 	return run.nodeName
 }
