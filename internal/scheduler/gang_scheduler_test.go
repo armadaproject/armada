@@ -3,6 +3,7 @@ package scheduler
 import (
 	"testing"
 
+	"github.com/oklog/ulid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
@@ -434,14 +435,40 @@ func TestGangScheduler(t *testing.T) {
 						Priority:    30000,
 						Preemptible: true,
 
-						AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "H200"}},
+						AwayNodeTypes: []types.AwayNodeType{
+							{Priority: 29000, WellKnownNodeTypeName: "node-type-a"},
+							{Priority: 29000, WellKnownNodeTypeName: "node-type-b"},
+						},
+					},
+					"armada-preemptible-away-both": {
+						Priority:    30000,
+						Preemptible: true,
+
+						AwayNodeTypes: []types.AwayNodeType{
+							{Priority: 29000, WellKnownNodeTypeName: "node-type-ab"},
+						},
 					},
 				}
 				config.Preemption.DefaultPriorityClass = "armada-preemptible-away"
 				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
 					{
-						Name:   "H200",
-						Taints: []v1.Taint{{Key: "H200", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+						Name: "node-type-a",
+						Taints: []v1.Taint{
+							{Key: "taint-a", Value: "true", Effect: v1.TaintEffectNoSchedule},
+						},
+					},
+					{
+						Name: "node-type-b",
+						Taints: []v1.Taint{
+							{Key: "taint-b", Value: "true", Effect: v1.TaintEffectNoSchedule},
+						},
+					},
+					{
+						Name: "node-type-ab",
+						Taints: []v1.Taint{
+							{Key: "taint-a", Value: "true", Effect: v1.TaintEffectNoSchedule},
+							{Key: "taint-b", Value: "true", Effect: v1.TaintEffectNoSchedule},
+						},
 					},
 				}
 				return config
@@ -449,16 +476,23 @@ func TestGangScheduler(t *testing.T) {
 			Nodes: func() []*schedulerobjects.Node {
 				nodes := testfixtures.N8GpuNodes(1, []int32{29000, 30000})
 				for _, node := range nodes {
-					node.Taints = []v1.Taint{{Key: "H200", Value: "true", Effect: v1.TaintEffectNoSchedule}}
+					node.Taints = []v1.Taint{
+						{Key: "taint-a", Value: "true", Effect: v1.TaintEffectNoSchedule},
+						{Key: "taint-b", Value: "true", Effect: v1.TaintEffectNoSchedule},
+					}
 				}
 				return nodes
 			}(),
-			Gangs: func() [][]*jobdb.Job {
-				jobId := util.ULID()
-				return [][]*jobdb.Job{{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000))}}
+			Gangs: func() (gangs [][]*jobdb.Job) {
+				var jobId ulid.ULID
+				jobId = util.ULID()
+				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000))})
+				jobId = util.ULID()
+				gangs = append(gangs, []*jobdb.Job{testfixtures.TestJob("A", jobId, "armada-preemptible-away-both", testfixtures.Test1Cpu4GiPodReqs("A", jobId, 30000))})
+				return
 			}(),
-			ExpectedScheduledIndices: []int{0},
-			ExpectedScheduledJobs:    []int{1},
+			ExpectedScheduledIndices: []int{1},
+			ExpectedScheduledJobs:    []int{0, 1},
 		},
 	}
 	for name, tc := range tests {
