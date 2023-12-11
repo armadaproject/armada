@@ -656,6 +656,7 @@ func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercon
 			return nil, err
 		}
 		if node != nil {
+			pctx.WellKnownNodeTypeName = awayNodeType.WellKnownNodeTypeName
 			return node, nil
 		}
 	}

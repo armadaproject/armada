@@ -24,7 +24,6 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -1897,7 +1896,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				gangIdByJobId = sch.gangIdByJobId
 
 				// Test resource accounting.
-				for _, job := range result.PreemptedJobs {
+				for _, jctx := range result.PreemptedJobs {
+					job := jctx.Job
 					m := allocatedByQueueAndPriorityClass[job.GetQueue()]
 					if m == nil {
 						m = make(schedulerobjects.QuantityByTAndResourceType[string])
@@ -1908,7 +1908,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 						job.GetResourceRequirements().Requests,
 					)
 				}
-				for _, job := range result.ScheduledJobs {
+				for _, jctx := range result.ScheduledJobs {
+					job := jctx.Job
 					m := allocatedByQueueAndPriorityClass[job.GetQueue()]
 					if m == nil {
 						m = make(schedulerobjects.QuantityByTAndResourceType[string])
@@ -1924,7 +1925,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				}
 
 				// Test that jobs are mapped to nodes correctly.
-				for _, job := range result.PreemptedJobs {
+				for _, jctx := range result.PreemptedJobs {
+					job := jctx.Job
 					nodeId, ok := result.NodeIdByJobId[job.GetId()]
 					assert.True(t, ok)
 					assert.NotEmpty(t, nodeId)
@@ -1933,7 +1935,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					expectedNodeId := nodeIdByJobId[job.GetId()]
 					assert.Equal(t, expectedNodeId, nodeId, "job %s preempted from unexpected node", job.GetId())
 				}
-				for _, job := range result.ScheduledJobs {
+				for _, jctx := range result.ScheduledJobs {
+					job := jctx.Job
 					nodeId, ok := result.NodeIdByJobId[job.GetId()]
 					assert.True(t, ok)
 					assert.NotEmpty(t, nodeId)
@@ -1953,7 +1956,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				}
 
 				// Expected scheduled jobs.
-				jobIdsByQueue := jobIdsByQueueFromJobs(result.ScheduledJobs)
+				jobIdsByQueue := jobIdsByQueueFromJobContexts(result.ScheduledJobs)
 				scheduledQueues := armadamaps.MapValues(round.ExpectedScheduledIndices, func(v []int) bool { return true })
 				maps.Copy(scheduledQueues, armadamaps.MapValues(jobIdsByQueue, func(v []string) bool { return true }))
 				for queue := range scheduledQueues {
@@ -1969,7 +1972,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				}
 
 				// Expected preempted jobs.
-				jobIdsByQueue = jobIdsByQueueFromJobs(result.PreemptedJobs)
+				jobIdsByQueue = jobIdsByQueueFromJobContexts(result.PreemptedJobs)
 				preemptedQueues := armadamaps.MapValues(round.ExpectedPreemptedIndices, func(v map[int][]int) bool { return true })
 				maps.Copy(preemptedQueues, armadamaps.MapValues(jobIdsByQueue, func(v []string) bool { return true }))
 				for queue := range preemptedQueues {
@@ -2005,8 +2008,8 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				require.NoError(t, err)
 
 				var preemptedJobs []*jobdb.Job
-				for _, job := range result.PreemptedJobs {
-					job := job.(*jobdb.Job)
+				for _, jctx := range result.PreemptedJobs {
+					job := jctx.Job.(*jobdb.Job)
 					preemptedJobs = append(
 						preemptedJobs,
 						job.
@@ -2021,10 +2024,15 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 				// Jobs may arrive out of order here; sort them, so that runs
 				// are created in the right order (this influences the order in
 				// which jobs are preempted).
-				slices.SortFunc(result.ScheduledJobs, func(a, b interfaces.LegacySchedulerJob) bool { return a.GetSubmitTime().Before(b.GetSubmitTime()) })
+				slices.SortFunc(
+					result.ScheduledJobs,
+					func(a, b *schedulercontext.JobSchedulingContext) bool {
+						return a.Job.GetSubmitTime().Before(b.Job.GetSubmitTime())
+					},
+				)
 				var scheduledJobs []*jobdb.Job
-				for _, job := range result.ScheduledJobs {
-					job := job.(*jobdb.Job)
+				for _, jctx := range result.ScheduledJobs {
+					job := jctx.Job.(*jobdb.Job)
 					jobId := job.GetId()
 					node, err := nodeDb.GetNode(result.NodeIdByJobId[jobId])
 					require.NotNil(t, node)
@@ -2046,9 +2054,10 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 	}
 }
 
-func jobIdsByQueueFromJobs(jobs []interfaces.LegacySchedulerJob) map[string][]string {
+func jobIdsByQueueFromJobContexts(jctxs []*schedulercontext.JobSchedulingContext) map[string][]string {
 	rv := make(map[string][]string)
-	for _, job := range jobs {
+	for _, jctx := range jctxs {
+		job := jctx.Job
 		rv[job.GetQueue()] = append(rv[job.GetQueue()], job.GetId())
 	}
 	return rv
@@ -2225,10 +2234,17 @@ func BenchmarkPreemptingQueueScheduler(b *testing.B) {
 			require.Equal(b, 0, len(result.PreemptedJobs))
 
 			scheduledJobs := make(map[string]bool)
-			for _, job := range result.ScheduledJobs {
-				scheduledJobs[job.GetId()] = true
+			for _, jctx := range result.ScheduledJobs {
+				scheduledJobs[jctx.JobId] = true
 			}
-			err = jobDbTxn.BatchDelete(util.Map(result.ScheduledJobs, func(job interfaces.LegacySchedulerJob) string { return job.GetId() }))
+			err = jobDbTxn.BatchDelete(
+				util.Map(
+					result.ScheduledJobs,
+					func(jctx *schedulercontext.JobSchedulingContext) string {
+						return jctx.JobId
+					},
+				),
+			)
 			require.NoError(b, err)
 
 			jobsByNodeId := make(map[string][]*jobdb.Job)

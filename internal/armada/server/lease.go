@@ -574,7 +574,8 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 
 	// Publish preempted + failed messages.
 	sequences := make([]*armadaevents.EventSequence, len(result.PreemptedJobs))
-	for i, job := range result.PreemptedJobs {
+	for i, jctx := range result.PreemptedJobs {
+		job := jctx.Job
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.GetId())
 		if err != nil {
 			return nil, err
@@ -619,7 +620,8 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 	}
 
 	preemptedApiJobsById := make(map[string]*api.Job)
-	for _, job := range result.PreemptedJobs {
+	for _, jctx := range result.PreemptedJobs {
+		job := jctx.Job
 		if apiJob, ok := job.(*api.Job); ok {
 			preemptedApiJobsById[job.GetId()] = apiJob
 		} else {
@@ -627,7 +629,8 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 		}
 	}
 	scheduledApiJobsById := make(map[string]*api.Job)
-	for _, job := range result.ScheduledJobs {
+	for _, jctx := range result.ScheduledJobs {
+		job := jctx.Job
 		if apiJob, ok := job.(*api.Job); ok {
 			scheduledApiJobsById[job.GetId()] = apiJob
 		} else {
@@ -682,7 +685,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 	// Update resource cluster report to account for preempted/leased jobs and write it to Redis.
 	allocatedByQueueAndPriorityClassForCluster = updateAllocatedByQueueAndPriorityClass(
 		allocatedByQueueAndPriorityClassForCluster,
-		subtract, result.PreemptedJobs,
+		subtract, maps.Values(preemptedApiJobsById),
 	)
 	for queue, m := range allocatedByQueueAndPriorityClassForCluster {
 		// Any quantity in the negative indicates a resource accounting problem.

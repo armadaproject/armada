@@ -586,10 +586,10 @@ func TestQueueScheduler(t *testing.T) {
 
 			// Check that the right jobs got scheduled.
 			var actualScheduledIndices []int
-			for _, job := range result.ScheduledJobs {
+			for _, jctx := range result.ScheduledJobs {
 				actualScheduledIndices = append(
 					actualScheduledIndices,
-					indexByJobId[job.GetId()],
+					indexByJobId[jctx.JobId],
 				)
 			}
 			slices.Sort(actualScheduledIndices)
@@ -670,8 +670,8 @@ func TestQueueScheduler(t *testing.T) {
 			}
 
 			// Check that each scheduled job was allocated a node.
-			for _, job := range result.ScheduledJobs {
-				nodeId, ok := result.NodeIdByJobId[job.GetId()]
+			for _, jctx := range result.ScheduledJobs {
+				nodeId, ok := result.NodeIdByJobId[jctx.JobId]
 				assert.True(t, ok)
 				assert.NotEmpty(t, nodeId)
 			}
