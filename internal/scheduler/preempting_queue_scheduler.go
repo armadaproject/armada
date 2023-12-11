@@ -156,11 +156,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 						return false
 					}
 				}
-				priorityClass, err := interfaces.PriorityClassFromLegacySchedulerJob(sch.schedulingContext.PriorityClasses, job)
-				if err != nil {
-					ctx.Errorf("can't evict job %s: %v", job.GetId(), err)
-					return false
-				}
+				priorityClass := interfaces.PriorityClassFromLegacySchedulerJob(sch.schedulingContext.PriorityClasses, sch.schedulingContext.DefaultPriorityClass, job)
 				return priorityClass.Preemptible
 			},
 			nil,
@@ -199,6 +195,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 			sch.jobRepo,
 			sch.nodeDb,
 			sch.schedulingContext.PriorityClasses,
+			sch.schedulingContext.DefaultPriorityClass,
 			sch.nodeOversubscriptionEvictionProbability,
 			nil,
 		),
@@ -779,6 +776,7 @@ func NewOversubscribedEvictor(
 	jobRepo JobRepository,
 	nodeDb *nodedb.NodeDb,
 	priorityClasses map[string]types.PriorityClass,
+	defaultPriorityClassName string,
 	perNodeEvictionProbability float64,
 	random *rand.Rand,
 ) *Evictor {
@@ -813,11 +811,7 @@ func NewOversubscribedEvictor(
 			return len(overSubscribedPriorities) > 0 && random.Float64() < perNodeEvictionProbability
 		},
 		jobFilter: func(ctx *armadacontext.Context, job interfaces.LegacySchedulerJob) bool {
-			priorityClass, err := interfaces.PriorityClassFromLegacySchedulerJob(priorityClasses, job)
-			if err != nil {
-				ctx.Warnf("can't evict job %s: %v", job.GetId())
-				return false
-			}
+			priorityClass := interfaces.PriorityClassFromLegacySchedulerJob(priorityClasses, defaultPriorityClassName, job)
 			if !priorityClass.Preemptible {
 				return false
 			}

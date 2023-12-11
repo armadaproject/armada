@@ -3,7 +3,6 @@ package interfaces
 import (
 	"time"
 
-	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/common/types"
@@ -38,13 +37,15 @@ type LegacySchedulerJob interface {
 	SchedulingOrderCompare(other LegacySchedulerJob) int
 }
 
-func PriorityClassFromLegacySchedulerJob(priorityClasses map[string]types.PriorityClass, job LegacySchedulerJob) (types.PriorityClass, error) {
+func PriorityClassFromLegacySchedulerJob(priorityClasses map[string]types.PriorityClass, defaultPriorityClassName string, job LegacySchedulerJob) types.PriorityClass {
 	priorityClassName := job.GetPriorityClassName()
-	priorityClass, ok := priorityClasses[priorityClassName]
-	if !ok {
-		return types.PriorityClass{}, errors.Errorf("unknown priority class %s; must be in %v", priorityClassName, priorityClasses)
+	if priorityClass, ok := priorityClasses[priorityClassName]; ok {
+		return priorityClass
 	}
-	return priorityClass, nil
+	// We could return (types.PriorityClass{}, false) here, but then callers
+	// might handle this situation in different ways; return the default
+	// priority class in order to enforce uniformity.
+	return priorityClasses[defaultPriorityClassName]
 }
 
 func SchedulingKeyFromLegacySchedulerJob(skg *schedulerobjects.SchedulingKeyGenerator, job LegacySchedulerJob) schedulerobjects.SchedulingKey {

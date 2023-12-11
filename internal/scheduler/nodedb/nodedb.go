@@ -175,10 +175,7 @@ func (nodeDb *NodeDb) CreateAndInsertWithApiJobsWithTxn(txn *memdb.Txn, jobs []*
 	for _, job := range jobs {
 		priority, ok := job.GetScheduledAtPriority()
 		if !ok {
-			priorityClass, err := interfaces.PriorityClassFromLegacySchedulerJob(nodeDb.priorityClasses, job)
-			if err != nil {
-				return err
-			}
+			priorityClass := interfaces.PriorityClassFromLegacySchedulerJob(nodeDb.priorityClasses, nodeDb.defaultPriorityClass, job)
 			priority = priorityClass.Priority
 		}
 		if err := nodeDb.bindJobToNodeInPlace(entry, job, priority); err != nil {
@@ -199,10 +196,7 @@ func (nodeDb *NodeDb) CreateAndInsertWithJobDbJobsWithTxn(txn *memdb.Txn, jobs [
 	for _, job := range jobs {
 		priority, ok := job.GetScheduledAtPriority()
 		if !ok {
-			priorityClass, err := interfaces.PriorityClassFromLegacySchedulerJob(nodeDb.priorityClasses, job)
-			if err != nil {
-				return err
-			}
+			priorityClass := interfaces.PriorityClassFromLegacySchedulerJob(nodeDb.priorityClasses, nodeDb.defaultPriorityClass, job)
 			priority = priorityClass.Priority
 		}
 		if err := nodeDb.bindJobToNodeInPlace(entry, job, priority); err != nil {
@@ -245,6 +239,10 @@ type NodeDb struct {
 	// Because the number of database indices scales linearly with the number of distinct priorities,
 	// the efficiency of the NodeDb relies on the number of distinct priorities being small.
 	priorityClasses map[string]types.PriorityClass
+	// defaultPriorityClass is the name of the default priority class; it is
+	// used for jobs that specify a priority class that does not appear in
+	// priorityClasses, for example because it was deleted.
+	defaultPriorityClass string
 	// Priority class priorities and NodeDb-internal priority, in increasing order.
 	nodeDbPriorities []int32
 	// Resources, e.g., "cpu", "memory", and "nvidia.com/gpu",
@@ -597,10 +595,7 @@ func deleteEvictedJobSchedulingContextIfExistsWithTxn(txn *memdb.Txn, jobId stri
 func (nodeDb *NodeDb) SelectNodeForJobWithTxn(txn *memdb.Txn, jctx *schedulercontext.JobSchedulingContext) (*Node, error) {
 	req := jctx.PodRequirements
 
-	priorityClass, err := interfaces.PriorityClassFromLegacySchedulerJob(nodeDb.priorityClasses, jctx.Job)
-	if err != nil {
-		return nil, err
-	}
+	priorityClass := interfaces.PriorityClassFromLegacySchedulerJob(nodeDb.priorityClasses, nodeDb.defaultPriorityClass, jctx.Job)
 
 	pctx := &schedulercontext.PodSchedulingContext{
 		Created:                  time.Now(),
