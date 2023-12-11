@@ -7,11 +7,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -296,6 +298,149 @@ func TestSimulator(t *testing.T) {
 			schedulingConfig:       testfixtures.TestSchedulingConfig(),
 			expectedEventSequences: nil,
 			simulatedTimeLimit:     2*time.Hour + 30*time.Minute,
+		},
+		"Home-away preemption": {
+			clusterSpec: &ClusterSpec{
+				Name: "cluster",
+				Pools: func() []*Pool {
+					whaleNodeTemplate := NodeTemplateGpu(2)
+					whaleNodeTemplate.Taints = []v1.Taint{
+						{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule},
+					}
+					whaleCluster := Cluster{NodeTemplates: []*NodeTemplate{whaleNodeTemplate}}
+					return []*Pool{
+						{
+							Name: "pool",
+							ClusterGroups: []*ClusterGroup{
+								{
+									Clusters: []*Cluster{
+										{NodeTemplates: []*NodeTemplate{NodeTemplateGpu(2)}},
+										&whaleCluster,
+									},
+								},
+							},
+						},
+					}
+				}(),
+			},
+			workloadSpec: &WorkloadSpec{
+				Queues: []*Queue{
+					{
+						Name:   "queue-0",
+						Weight: 1,
+						JobTemplates: []*JobTemplate{
+							{
+								Id:                "queue-0-template-0",
+								Number:            1,
+								JobSet:            "job-set-0",
+								PriorityClassName: "armada-preemptible",
+								Requirements: schedulerobjects.PodRequirements{
+									ResourceRequirements: v1.ResourceRequirements{
+										Requests: v1.ResourceList{
+											"cpu":            resource.MustParse("128"),
+											"memory":         resource.MustParse("4096Gi"),
+											"nvidia.com/gpu": resource.MustParse("8"),
+										},
+									},
+									Tolerations: []v1.Toleration{
+										{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule},
+									},
+								},
+								RuntimeDistribution: ShiftedExponential{Minimum: 5 * time.Minute},
+							},
+							{
+								Id:                "queue-0-template-1",
+								Number:            4,
+								JobSet:            "job-set-0",
+								PriorityClassName: "armada-preemptible",
+								Requirements: schedulerobjects.PodRequirements{
+									ResourceRequirements: v1.ResourceRequirements{
+										Requests: v1.ResourceList{
+											"cpu":            resource.MustParse("128"),
+											"memory":         resource.MustParse("4096Gi"),
+											"nvidia.com/gpu": resource.MustParse("8"),
+										},
+									},
+									Tolerations: []v1.Toleration{
+										{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule},
+									},
+								},
+								Dependencies:        []string{"queue-0-template-0"},
+								RuntimeDistribution: ShiftedExponential{Minimum: time.Hour},
+							},
+						},
+					},
+					{
+						Name:   "queue-1",
+						Weight: 1,
+						JobTemplates: []*JobTemplate{
+							{
+								Number:            32,
+								JobSet:            "job-set-1",
+								PriorityClassName: "armada-preemptible-away",
+								Requirements: schedulerobjects.PodRequirements{
+									ResourceRequirements: v1.ResourceRequirements{
+										Requests: v1.ResourceList{
+											"cpu":            resource.MustParse("16"),
+											"memory":         resource.MustParse("512Gi"),
+											"nvidia.com/gpu": resource.MustParse("1"),
+										},
+									},
+								},
+								RuntimeDistribution: ShiftedExponential{Minimum: time.Hour},
+							},
+						},
+					},
+				},
+			},
+			schedulingConfig: func() configuration.SchedulingConfig {
+				config := testfixtures.TestSchedulingConfig()
+				config.Preemption.PriorityClasses = map[string]types.PriorityClass{
+					"armada-preemptible-away": {
+						Priority:    30000,
+						Preemptible: true,
+
+						AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu-whale"}},
+					},
+					"armada-preemptible": {
+						Priority:    30000,
+						Preemptible: true,
+					},
+				}
+				config.Preemption.DefaultPriorityClass = "armada-preemptible"
+				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
+					{
+						Name:   "gpu-whale",
+						Taints: []v1.Taint{{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+					},
+				}
+				return config
+			}(),
+			expectedEventSequences: armadaslices.Concatenate(
+				[]*armadaevents.EventSequence{
+					{Queue: "queue-0", JobSetName: "job-set-0", Events: armadaslices.Repeat(1, SubmitJob())},
+					{Queue: "queue-1", JobSetName: "job-set-1", Events: armadaslices.Repeat(32, SubmitJob())},
+				},
+				armadaslices.Repeat(1, &armadaevents.EventSequence{Queue: "queue-0", JobSetName: "job-set-0", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}}),
+				armadaslices.Repeat(24, &armadaevents.EventSequence{Queue: "queue-1", JobSetName: "job-set-1", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}}),
+				armadaslices.Repeat(1, &armadaevents.EventSequence{Queue: "queue-0", JobSetName: "job-set-0", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}}),
+				[]*armadaevents.EventSequence{
+					{Queue: "queue-0", JobSetName: "job-set-0", Events: armadaslices.Repeat(4, SubmitJob())},
+				},
+				armadaslices.Repeat(8, &armadaevents.EventSequence{Queue: "queue-1", JobSetName: "job-set-1", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}}),
+				armadaslices.Repeat(24, &armadaevents.EventSequence{Queue: "queue-1", JobSetName: "job-set-1", Events: []*armadaevents.EventSequence_Event{JobRunPreempted()}}),
+				armadaslices.Repeat(3, &armadaevents.EventSequence{Queue: "queue-0", JobSetName: "job-set-0", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}}),
+				armadaslices.Repeat(24, &armadaevents.EventSequence{Queue: "queue-1", JobSetName: "job-set-1", Events: []*armadaevents.EventSequence_Event{SubmitJob()}}),
+				armadaslices.Repeat(8, &armadaevents.EventSequence{Queue: "queue-1", JobSetName: "job-set-1", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}}),
+				armadaslices.Repeat(8, &armadaevents.EventSequence{Queue: "queue-1", JobSetName: "job-set-1", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}}),
+				armadaslices.Repeat(3, &armadaevents.EventSequence{Queue: "queue-0", JobSetName: "job-set-0", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}}),
+				armadaslices.Repeat(1, &armadaevents.EventSequence{Queue: "queue-0", JobSetName: "job-set-0", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}}),
+				armadaslices.Repeat(16, &armadaevents.EventSequence{Queue: "queue-1", JobSetName: "job-set-1", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}}),
+				armadaslices.Repeat(8, &armadaevents.EventSequence{Queue: "queue-1", JobSetName: "job-set-1", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}}),
+				armadaslices.Repeat(1, &armadaevents.EventSequence{Queue: "queue-0", JobSetName: "job-set-0", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}}),
+				armadaslices.Repeat(16, &armadaevents.EventSequence{Queue: "queue-1", JobSetName: "job-set-1", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}}),
+			),
+			simulatedTimeLimit: 24 * time.Hour,
 		},
 	}
 	for name, tc := range tests {
