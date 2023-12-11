@@ -109,7 +109,7 @@ func TestPruneDb(t *testing.T) {
 		t.Run(tc.testName, func(t *testing.T) {
 			err := lookout.WithLookoutDb(func(db *pgxpool.Pool) error {
 				converter := instructions.NewInstructionConverter(metrics.Get(), "armadaproject.io/", &compress.NoOpCompressor{}, true)
-				store := lookoutdb.NewLookoutDb(db, metrics.Get(), 3, 10)
+				store := lookoutdb.NewLookoutDb(db, nil, metrics.Get(), 10)
 
 				ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Minute)
 				defer cancel()

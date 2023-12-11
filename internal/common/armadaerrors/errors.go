@@ -12,12 +12,11 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"regexp"
 	"strings"
 	"syscall"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -150,96 +149,6 @@ func (err *ErrCreateResource) Error() string {
 	} else {
 		return fmt.Sprintf("failed to create %s with name %s; %s", err.Type, err.Name, err.Message)
 	}
-}
-
-// retryablePostgresErrors represents set of postgres errors that can be retried. Fundamentally these are all
-// issues with postgres itself, with the network or with authentication
-var retryablePostgresErrors = map[string]bool{
-	// Connection issues
-	pgerrcode.ConnectionException:                           true,
-	pgerrcode.ConnectionDoesNotExist:                        true,
-	pgerrcode.ConnectionFailure:                             true,
-	pgerrcode.SQLClientUnableToEstablishSQLConnection:       true,
-	pgerrcode.SQLServerRejectedEstablishmentOfSQLConnection: true,
-	pgerrcode.TransactionResolutionUnknown:                  true,
-
-	// Authorization issues
-	pgerrcode.InvalidAuthorizationSpecification: true,
-	pgerrcode.InvalidPassword:                   true,
-
-	// Access Rule Violation
-	pgerrcode.InsufficientPrivilege: true,
-
-	// Coding error with the query/schema mismatch
-	pgerrcode.SyntaxErrorOrAccessRuleViolation:   true,
-	pgerrcode.SyntaxError:                        true,
-	pgerrcode.CannotCoerce:                       true,
-	pgerrcode.GroupingError:                      true,
-	pgerrcode.WindowingError:                     true,
-	pgerrcode.InvalidRecursion:                   true,
-	pgerrcode.InvalidForeignKey:                  true,
-	pgerrcode.InvalidName:                        true,
-	pgerrcode.NameTooLong:                        true,
-	pgerrcode.ReservedName:                       true,
-	pgerrcode.DatatypeMismatch:                   true,
-	pgerrcode.IndeterminateDatatype:              true,
-	pgerrcode.CollationMismatch:                  true,
-	pgerrcode.IndeterminateCollation:             true,
-	pgerrcode.WrongObjectType:                    true,
-	pgerrcode.GeneratedAlways:                    true,
-	pgerrcode.UndefinedColumn:                    true,
-	pgerrcode.UndefinedFunction:                  true,
-	pgerrcode.UndefinedTable:                     true,
-	pgerrcode.UndefinedParameter:                 true,
-	pgerrcode.UndefinedObject:                    true,
-	pgerrcode.DuplicateColumn:                    true,
-	pgerrcode.DuplicateCursor:                    true,
-	pgerrcode.DuplicateDatabase:                  true,
-	pgerrcode.DuplicateFunction:                  true,
-	pgerrcode.DuplicatePreparedStatement:         true,
-	pgerrcode.DuplicateSchema:                    true,
-	pgerrcode.DuplicateTable:                     true,
-	pgerrcode.DuplicateAlias:                     true,
-	pgerrcode.DuplicateObject:                    true,
-	pgerrcode.AmbiguousColumn:                    true,
-	pgerrcode.AmbiguousFunction:                  true,
-	pgerrcode.AmbiguousParameter:                 true,
-	pgerrcode.AmbiguousAlias:                     true,
-	pgerrcode.InvalidColumnReference:             true,
-	pgerrcode.InvalidColumnDefinition:            true,
-	pgerrcode.InvalidCursorDefinition:            true,
-	pgerrcode.InvalidDatabaseDefinition:          true,
-	pgerrcode.InvalidFunctionDefinition:          true,
-	pgerrcode.InvalidPreparedStatementDefinition: true,
-	pgerrcode.InvalidSchemaDefinition:            true,
-	pgerrcode.InvalidTableDefinition:             true,
-	pgerrcode.InvalidObjectDefinition:            true,
-
-	// Resource issues
-	pgerrcode.InsufficientResources:      true,
-	pgerrcode.DiskFull:                   true,
-	pgerrcode.OutOfMemory:                true,
-	pgerrcode.TooManyConnections:         true,
-	pgerrcode.ConfigurationLimitExceeded: true,
-
-	// Operator issues
-	pgerrcode.OperatorIntervention: true,
-	pgerrcode.QueryCanceled:        true,
-	pgerrcode.AdminShutdown:        true,
-	pgerrcode.CrashShutdown:        true,
-	pgerrcode.CannotConnectNow:     true,
-	pgerrcode.DatabaseDropped:      true,
-
-	// External errors
-	pgerrcode.SystemError:   true,
-	pgerrcode.IOError:       true,
-	pgerrcode.UndefinedFile: true,
-	pgerrcode.DuplicateFile: true,
-
-	// Internal Errors
-	pgerrcode.InternalError:  true,
-	pgerrcode.DataCorrupted:  true,
-	pgerrcode.IndexCorrupted: true,
 }
 
 // CodeFromError maps error types to gRPC return codes.
@@ -476,27 +385,21 @@ func StreamServerInterceptor(maxErrorSize uint) grpc.StreamServerInterceptor {
 	}
 }
 
-func IsRetryablePostgresError(err error) bool {
+func IsRetryablePostgresError(err error, fatalErrors []*regexp.Regexp) bool {
 	// Return immediately on nil.
 	if err == nil {
 		return false
 	}
 
 	// PGX will sometimes wrap the underlying error
-	cause := unwrapOrOriginal(err)
-
-	if err, ok := cause.(*pgconn.PgError); ok {
-		_, ok := retryablePostgresErrors[err.Code]
-		return ok
+	original := err.Error()
+	cause := unwrapOrOriginal(err).Error()
+	for _, r := range fatalErrors {
+		if r.MatchString(original) || r.MatchString(cause) {
+			return false
+		}
 	}
-
-	// This is quite nasty: the connectError reported by pgx isn't exported so instead we use a string match
-	if strings.Contains(err.Error(), "failed to connect") {
-		return true
-	}
-
-	// Check to see if we have a wrapped network error
-	return IsNetworkError(cause)
+	return true
 }
 
 func unwrapOrOriginal(err error) error {

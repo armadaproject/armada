@@ -2,12 +2,12 @@ package lookoutdb
 
 import (
 	"fmt"
+	"regexp"
 	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -21,12 +21,17 @@ import (
 type LookoutDb struct {
 	db          *pgxpool.Pool
 	metrics     *metrics.Metrics
-	maxAttempts int
 	maxBackoff  int
+	fatalErrors []*regexp.Regexp
 }
 
-func NewLookoutDb(db *pgxpool.Pool, metrics *metrics.Metrics, maxAttempts int, maxBackoff int) *LookoutDb {
-	return &LookoutDb{db: db, metrics: metrics, maxAttempts: maxAttempts, maxBackoff: maxBackoff}
+func NewLookoutDb(db *pgxpool.Pool, fatalErrors []*regexp.Regexp, metrics *metrics.Metrics, maxBackoff int) *LookoutDb {
+	return &LookoutDb{
+		db:          db,
+		metrics:     metrics,
+		maxBackoff:  maxBackoff,
+		fatalErrors: fatalErrors,
+	}
 }
 
 // Store updates the lookout database according to the supplied InstructionSet.
@@ -922,18 +927,15 @@ func (l *LookoutDb) withDatabaseRetryInsert(executeDb func() error) error {
 func (l *LookoutDb) withDatabaseRetryQuery(executeDb func() (interface{}, error)) (interface{}, error) {
 	// TODO: arguably this should come from config
 	backOff := 1
-	numRetries := 0
-	var err error = nil
-	for attempt := 0; attempt < l.maxAttempts; attempt++ {
+	for {
 		res, err := executeDb()
 
 		if err == nil {
 			return res, nil
 		}
 
-		if armadaerrors.IsNetworkError(err) || armadaerrors.IsRetryablePostgresError(err) {
+		if armadaerrors.IsRetryablePostgresError(err, l.fatalErrors) {
 			backOff = min(2*backOff, l.maxBackoff)
-			numRetries++
 			log.WithError(err).Warnf("Retryable error encountered executing sql, will wait for %d seconds before retrying.", backOff)
 			time.Sleep(time.Duration(backOff) * time.Second)
 		} else {
@@ -941,12 +943,6 @@ func (l *LookoutDb) withDatabaseRetryQuery(executeDb func() (interface{}, error)
 			return nil, err
 		}
 	}
-
-	// If we get to here then we've got an error we can't handle.  Panic
-	panic(errors.WithStack(&armadaerrors.ErrMaxRetriesExceeded{
-		Message:   fmt.Sprintf("Gave up running database query after %d retries", l.maxAttempts),
-		LastError: err,
-	}))
 }
 
 func min(a int, b int) int {
