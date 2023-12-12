@@ -1,6 +1,19 @@
 package types
 
-import "golang.org/x/exp/maps"
+import (
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
+)
+
+type AwayNodeType struct {
+	// Priority is the priority class priority that the scheduler should use
+	// when scheduling "away" jobs of this priority class on the the node type
+	// referenced by WellKnownNodeTypeName; it overrides the Priority field of
+	// PriorityClass.
+	Priority int32
+	// WellKnownNodeTypeName is the Name of the WellKnownNodeType in question.
+	WellKnownNodeTypeName string
+}
 
 type PriorityClass struct {
 	Priority int32
@@ -12,6 +25,12 @@ type PriorityClass struct {
 	// Per-pool override of MaximumResourceFractionPerQueue.
 	// If missing for a particular pool, MaximumResourceFractionPerQueue is used instead for that pool.
 	MaximumResourceFractionPerQueueByPool map[string]map[string]float64
+	// AwayNodeTypes is the set of node types that jobs of this priority class
+	// can be scheduled on as "away" jobs (i.e., with reduced priority).
+	//
+	// The scheduler first tries to schedule jobs of this priority class as
+	// "home" jobs, and then tries the elements of this slice in order.
+	AwayNodeTypes []AwayNodeType
 }
 
 func (priorityClass PriorityClass) Equal(other PriorityClass) bool {
@@ -33,4 +52,16 @@ func (priorityClass PriorityClass) Equal(other PriorityClass) bool {
 		}
 	}
 	return true
+}
+
+func AllowedPriorities(priorityClasses map[string]PriorityClass) []int32 {
+	allowedPriorities := make([]int32, 0, len(priorityClasses))
+	for _, priorityClass := range priorityClasses {
+		allowedPriorities = append(allowedPriorities, priorityClass.Priority)
+		for _, awayNodeType := range priorityClass.AwayNodeTypes {
+			allowedPriorities = append(allowedPriorities, awayNodeType.Priority)
+		}
+	}
+	slices.Sort(allowedPriorities)
+	return slices.Compact(allowedPriorities)
 }

@@ -53,11 +53,12 @@ func TestConvertSequence(t *testing.T) {
 			events: []*armadaevents.EventSequence_Event{f.Leased},
 			expected: []DbOperation{
 				InsertRuns{f.RunIdUuid: &JobRunDetails{queue: f.Queue, dbRun: &schedulerdb.Run{
-					RunID:    f.RunIdUuid,
-					JobID:    f.JobIdString,
-					JobSet:   f.JobSetName,
-					Executor: f.ExecutorId,
-					Node:     f.NodeName,
+					RunID:               f.RunIdUuid,
+					JobID:               f.JobIdString,
+					JobSet:              f.JobSetName,
+					Executor:            f.ExecutorId,
+					Node:                f.NodeName,
+					ScheduledAtPriority: &f.ScheduledAtPriority,
 				}}},
 				UpdateJobQueuedState{f.JobIdString: &JobQueuedStateUpdate{
 					Queued:             false,

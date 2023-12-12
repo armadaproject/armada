@@ -344,6 +344,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		l.schedulingConfig.IndexedResources,
 		l.schedulingConfig.IndexedTaints,
 		l.schedulingConfig.IndexedNodeLabels,
+		l.schedulingConfig.WellKnownNodeTypes,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -417,7 +418,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		minimumJobSize,
 		l.schedulingConfig,
 	)
-	scheduler := NewPreemptingQueueScheduler(
+	scheduler, err := NewPreemptingQueueScheduler(
 		sctx,
 		constraints,
 		l.schedulingConfig.Preemption.NodeEvictionProbability,
@@ -429,6 +430,9 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		fsctx.jobIdsByGangId,
 		fsctx.gangIdByJobId,
 	)
+	if err != nil {
+		return nil, nil, err
+	}
 	if l.schedulingConfig.AlwaysAttemptScheduling {
 		scheduler.SkipUnsuccessfulSchedulingKeyCheck()
 	}
@@ -453,15 +457,23 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	}
 	for i, job := range result.ScheduledJobs {
 		jobDbJob := job.(*jobdb.Job)
-		nodeId := result.NodeIdByJobId[jobDbJob.GetId()]
+		jobId := jobDbJob.GetId()
+		nodeId := result.NodeIdByJobId[jobId]
 		if nodeId == "" {
-			return nil, nil, errors.Errorf("job %s not mapped to any node", jobDbJob.GetId())
+			return nil, nil, errors.Errorf("job %s not mapped to a node", jobId)
 		}
-		if node, err := nodeDb.GetNode(nodeId); err != nil {
+		node, err := nodeDb.GetNode(nodeId)
+		if err != nil {
 			return nil, nil, err
-		} else {
-			result.ScheduledJobs[i] = jobDbJob.WithQueuedVersion(jobDbJob.QueuedVersion()+1).WithQueued(false).WithNewRun(node.Executor, node.Id, node.Name)
 		}
+		priority, ok := nodeDb.GetScheduledAtPriority(jobId)
+		if !ok {
+			return nil, nil, errors.Errorf("job %s not mapped to a priority", jobId)
+		}
+		result.ScheduledJobs[i] = jobDbJob.
+			WithQueuedVersion(jobDbJob.QueuedVersion()+1).
+			WithQueued(false).
+			WithNewRun(node.Executor, node.Id, node.Name, priority)
 	}
 	for i, job := range result.FailedJobs {
 		jobDbJob := job.(*jobdb.Job)

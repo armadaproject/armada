@@ -5,7 +5,6 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/go-redis/redis"
-	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -206,6 +205,9 @@ type SchedulingConfig struct {
 	//
 	// Applies only to the new scheduler.
 	IndexedTaints []string
+	// WellKnownNodeTypes defines a set of well-known node types; these are used
+	// to define "home" and "away" nodes for a given priority class.
+	WellKnownNodeTypes []WellKnownNodeType
 	// Default value of GangNodeUniformityLabelAnnotation if none is provided.
 	DefaultGangNodeUniformityLabel string
 	// Kubernetes pods may specify a termination grace period.
@@ -271,6 +273,15 @@ type IndexedResource struct {
 	Resolution resource.Quantity
 }
 
+// A WellKnownNodeType defines a set of nodes; see AwayNodeType.
+type WellKnownNodeType struct {
+	// Name is the unique identifier for this node type.
+	Name string
+	// Taints is the set of taints that characterizes this node type; a node is
+	// part of this node type if and only if it has all of these taints.
+	Taints []v1.Taint
+}
+
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.
 // This scheduler will eventually replace the current scheduler.
 type NewSchedulerConfig struct {
@@ -306,31 +317,6 @@ type PreemptionConfig struct {
 	DefaultPriorityClass string
 	// If set, override the priority class name of pods with this value when sending to an executor.
 	PriorityClassNameOverride *string
-}
-
-func (p PreemptionConfig) PriorityByPriorityClassName() map[string]int32 {
-	return PriorityByPriorityClassName(p.PriorityClasses)
-}
-
-func PriorityByPriorityClassName(priorityClasses map[string]types.PriorityClass) map[string]int32 {
-	rv := make(map[string]int32, len(priorityClasses))
-	for name, pc := range priorityClasses {
-		rv[name] = pc.Priority
-	}
-	return rv
-}
-
-func (p PreemptionConfig) AllowedPriorities() []int32 {
-	return AllowedPriorities(p.PriorityClasses)
-}
-
-func AllowedPriorities(priorityClasses map[string]types.PriorityClass) []int32 {
-	rv := make([]int32, 0, len(priorityClasses))
-	for _, v := range priorityClasses {
-		rv = append(rv, v.Priority)
-	}
-	slices.Sort(rv)
-	return slices.Compact(rv)
 }
 
 type LeaseSettings struct {
