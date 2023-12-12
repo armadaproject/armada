@@ -530,11 +530,13 @@ func TestQueueScheduler(t *testing.T) {
 				legacySchedulerJobs[i] = job
 			}
 			jobRepo := NewInMemoryJobRepository()
-			jobRepo.EnqueueMany(schedulercontext.JobSchedulingContextsFromJobs(
-				testfixtures.TestPriorityClasses,
-				legacySchedulerJobs,
-				GangIdAndCardinalityFromAnnotations,
-			))
+			jobRepo.EnqueueMany(
+				schedulercontext.JobSchedulingContextsFromJobs(
+					tc.SchedulingConfig.Preemption.PriorityClasses,
+					legacySchedulerJobs,
+					GangIdAndCardinalityFromAnnotations,
+				),
+			)
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				tc.TotalResources,
@@ -709,6 +711,7 @@ func NewNodeDb(config configuration.SchedulingConfig) (*nodedb.NodeDb, error) {
 		config.IndexedResources,
 		config.IndexedTaints,
 		config.IndexedNodeLabels,
+		config.WellKnownNodeTypes,
 	)
 	if err != nil {
 		return nil, err

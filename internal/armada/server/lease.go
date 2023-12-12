@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/gogo/protobuf/types"
+	prototypes "github.com/gogo/protobuf/types"
 	"github.com/hashicorp/go-multierror"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
@@ -35,6 +35,7 @@ import (
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/schedulers"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
@@ -283,7 +284,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 	}
 
 	// Collect all allowed priorities.
-	allowedPriorities := q.schedulingConfig.Preemption.AllowedPriorities()
+	allowedPriorities := types.AllowedPriorities(q.schedulingConfig.Preemption.PriorityClasses)
 	if len(allowedPriorities) == 0 {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "PriorityClasses",
@@ -324,6 +325,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 		q.schedulingConfig.IndexedResources,
 		q.schedulingConfig.IndexedTaints,
 		q.schedulingConfig.IndexedNodeLabels,
+		q.schedulingConfig.WellKnownNodeTypes,
 	)
 	if err != nil {
 		return nil, err
@@ -897,7 +899,7 @@ func (q *AggregatedQueueServer) RenewLease(grpcCtx context.Context, request *api
 	return &api.IdList{Ids: renewed}, e
 }
 
-func (q *AggregatedQueueServer) ReturnLease(grpcCtx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
+func (q *AggregatedQueueServer) ReturnLease(grpcCtx context.Context, request *api.ReturnLeaseRequest) (*prototypes.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	if err := q.authorizer.AuthorizeAction(ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, err.Error())
@@ -930,7 +932,7 @@ func (q *AggregatedQueueServer) ReturnLease(grpcCtx context.Context, request *ap
 			return nil, err
 		}
 
-		return &types.Empty{}, nil
+		return &prototypes.Empty{}, nil
 	}
 
 	if request.AvoidNodeLabels != nil && len(request.AvoidNodeLabels.Entries) > 0 {
@@ -948,7 +950,7 @@ func (q *AggregatedQueueServer) ReturnLease(grpcCtx context.Context, request *ap
 		}
 	}
 
-	return &types.Empty{}, nil
+	return &prototypes.Empty{}, nil
 }
 
 func (q *AggregatedQueueServer) addAvoidNodeAffinity(
