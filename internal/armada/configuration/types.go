@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/go-playground/validator/v10"
 	"github.com/go-redis/redis"
-	"github.com/hashicorp/go-multierror"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -254,30 +254,37 @@ type SchedulingConfig struct {
 	EnableNewPreemptionStrategy bool
 }
 
-func (c *SchedulingConfig) Validate() error {
-	var err *multierror.Error
+const (
+	DuplicateWellKnownNodeTypeErrorMessage     = "duplicate well-known node type name"
+	AwayNodeTypesWithoutPreemptionErrorMessage = "priority class has away node types but is not preemptible"
+	UnknownWellKnownNodeTypeErrorMessage       = "priority class refers to unknown well-known node type"
+)
+
+func SchedulingConfigValidation(sl validator.StructLevel) {
+	c := sl.Current().Interface().(SchedulingConfig)
 
 	wellKnownNodeTypes := make(map[string]bool)
-	for _, wellKnownNodeType := range c.WellKnownNodeTypes {
+	for i, wellKnownNodeType := range c.WellKnownNodeTypes {
 		if wellKnownNodeTypes[wellKnownNodeType.Name] {
-			err = multierror.Append(err, fmt.Errorf("duplicate well-known node type name %s", wellKnownNodeType.Name))
+			fieldName := fmt.Sprintf("WellKnownNodeTypes[%d].Name", i)
+			sl.ReportError(wellKnownNodeType.Name, fieldName, "", DuplicateWellKnownNodeTypeErrorMessage, "")
 		}
 		wellKnownNodeTypes[wellKnownNodeType.Name] = true
 	}
 
 	for priorityClassName, priorityClass := range c.Preemption.PriorityClasses {
 		if len(priorityClass.AwayNodeTypes) > 0 && !priorityClass.Preemptible {
-			err = multierror.Append(err, fmt.Errorf("priority class %s has away node types but is not preemptible", priorityClassName))
+			fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].Preemptible", priorityClassName)
+			sl.ReportError(priorityClass.Preemptible, fieldName, "", AwayNodeTypesWithoutPreemptionErrorMessage, "")
 		}
 
-		for _, awayNodeType := range priorityClass.AwayNodeTypes {
+		for i, awayNodeType := range priorityClass.AwayNodeTypes {
 			if !wellKnownNodeTypes[awayNodeType.WellKnownNodeTypeName] {
-				err = multierror.Append(err, fmt.Errorf("priority class %s has away node type %s, but there is no well-known node type of this name", priorityClassName, awayNodeType.WellKnownNodeTypeName))
+				fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].AwayNodeTypes[%d].WellKnownNodeTypeName", priorityClassName, i)
+				sl.ReportError(awayNodeType.WellKnownNodeTypeName, fieldName, "", UnknownWellKnownNodeTypeErrorMessage, "")
 			}
 		}
 	}
-
-	return err.ErrorOrNil()
 }
 
 // FairnessModel controls how fairness is computed.

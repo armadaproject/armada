@@ -40,12 +40,9 @@ func RootCmd() *cobra.Command {
 func loadConfig() (schedulerconfig.Configuration, error) {
 	var config schedulerconfig.Configuration
 	common.LoadConfig(&config, "./config/scheduler", viper.GetStringSlice(CustomConfigLocation))
-	if err := commonconfig.Validate(config); err != nil {
+	err := config.Validate()
+	if err != nil {
 		commonconfig.LogValidationErrors(err)
-		return config, err
 	}
-	if err := config.Scheduling.Validate(); err != nil {
-		return config, fmt.Errorf("invalid scheduling config: %v", err)
-	}
-	return config, nil
+	return config, err
 }
