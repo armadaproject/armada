@@ -10,13 +10,13 @@ type AwayNodeType struct {
 	// when scheduling "away" jobs of this priority class on the the node type
 	// referenced by WellKnownNodeTypeName; it overrides the Priority field of
 	// PriorityClass.
-	Priority int32
+	Priority int32 `validate:"gte=0"`
 	// WellKnownNodeTypeName is the Name of the WellKnownNodeType in question.
-	WellKnownNodeTypeName string
+	WellKnownNodeTypeName string `validate:"required"`
 }
 
 type PriorityClass struct {
-	Priority int32
+	Priority int32 `validate:"gte=0"`
 	// If true, Armada may preempt jobs of this class to improve fairness.
 	Preemptible bool
 	// Limits resources assigned to jobs of this priority class.
@@ -30,7 +30,7 @@ type PriorityClass struct {
 	//
 	// The scheduler first tries to schedule jobs of this priority class as
 	// "home" jobs, and then tries the elements of this slice in order.
-	AwayNodeTypes []AwayNodeType
+	AwayNodeTypes []AwayNodeType `validate:"dive"`
 }
 
 func (priorityClass PriorityClass) Equal(other PriorityClass) bool {

@@ -418,7 +418,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		minimumJobSize,
 		l.schedulingConfig,
 	)
-	scheduler, err := NewPreemptingQueueScheduler(
+	scheduler := NewPreemptingQueueScheduler(
 		sctx,
 		constraints,
 		l.schedulingConfig.Preemption.NodeEvictionProbability,
@@ -430,9 +430,6 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		fsctx.jobIdsByGangId,
 		fsctx.gangIdByJobId,
 	)
-	if err != nil {
-		return nil, nil, err
-	}
 	if l.schedulingConfig.AlwaysAttemptScheduling {
 		scheduler.SkipUnsuccessfulSchedulingKeyCheck()
 	}

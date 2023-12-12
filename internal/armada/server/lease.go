@@ -531,7 +531,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 		schedulerobjects.ResourceList{Resources: req.MinimumJobSize},
 		q.schedulingConfig,
 	)
-	sch, err := scheduler.NewPreemptingQueueScheduler(
+	sch := scheduler.NewPreemptingQueueScheduler(
 		sctx,
 		constraints,
 		q.schedulingConfig.Preemption.NodeEvictionProbability,
@@ -545,9 +545,6 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 		jobIdsByGangId,
 		gangIdByJobId,
 	)
-	if err != nil {
-		return nil, err
-	}
 	if q.schedulingConfig.AlwaysAttemptScheduling {
 		sch.SkipUnsuccessfulSchedulingKeyCheck()
 	}

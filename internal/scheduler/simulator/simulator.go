@@ -459,7 +459,7 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				schedulerobjects.ResourceList{},
 				s.schedulingConfig,
 			)
-			sch, err := scheduler.NewPreemptingQueueScheduler(
+			sch := scheduler.NewPreemptingQueueScheduler(
 				sctx,
 				constraints,
 				s.schedulingConfig.Preemption.NodeEvictionProbability,
@@ -472,9 +472,6 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				nil,
 				nil,
 			)
-			if err != nil {
-				return err
-			}
 			if s.schedulingConfig.EnableNewPreemptionStrategy {
 				sch.EnableNewPreemptionStrategy()
 			}
