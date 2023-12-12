@@ -16,7 +16,7 @@ type AwayNodeType struct {
 }
 
 type PriorityClass struct {
-	Priority int32
+	Priority int32 `validate:"gte=0"`
 	// If true, Armada may preempt jobs of this class to improve fairness.
 	Preemptible bool
 	// Limits resources assigned to jobs of this priority class.
