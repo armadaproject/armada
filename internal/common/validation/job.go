@@ -11,16 +11,26 @@ import (
 	"github.com/armadaproject/armada/pkg/api"
 )
 
-func ValidateApiJobs(jobs []*api.Job, config configuration.SchedulingConfig) error {
+func ValidateApiJobs(jobs []*api.Job, config configuration.SchedulingConfig) ([]*api.JobSubmitResponseItem, error) {
 	if _, err := validateGangs(jobs); err != nil {
-		return err
+		return nil, err
 	}
+
+	responseItems := make([]*api.JobSubmitResponseItem, 0, len(jobs))
 	for _, job := range jobs {
 		if err := ValidateApiJob(job, config); err != nil {
-			return err
+			response := &api.JobSubmitResponseItem{
+				JobId: job.Id,
+				Error: err.Error(),
+			}
+			responseItems = append(responseItems, response)
 		}
 	}
-	return nil
+
+	if len(responseItems) > 0 {
+		return responseItems, errors.New("[createJobs] Failed to validate jobs")
+	}
+	return nil, nil
 }
 
 type gangDetails = struct {

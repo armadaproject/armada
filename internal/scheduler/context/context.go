@@ -623,8 +623,6 @@ type JobSchedulingContext struct {
 	AdditionalNodeSelectors map[string]string
 	// Tolerations to consider in addition to those included with the PodRequirements.
 	// These are added as part of scheduling to expand the set of nodes a job can be scheduled on.
-	//
-	// These are currently unused.
 	AdditionalTolerations []v1.Toleration
 	// Reason for why the job could not be scheduled.
 	// Empty if the job was scheduled successfully.
@@ -738,12 +736,12 @@ type PodSchedulingContext struct {
 	Created time.Time
 	// ID of the node that the pod was assigned to, or empty.
 	NodeId string
-	// Score indicates how well the pod fits on the selected node.
-	Score int
+	// If set, indicates that the pod was scheduled on a specific node type.
+	WellKnownNodeTypeName string
+	// Priority at which this pod was scheduled.
+	ScheduledAtPriority int32
 	// Maximum priority that this pod preempted other pods at.
 	PreemptedAtPriority int32
-	// Node types on which this pod could be scheduled.
-	MatchingNodeTypes []*schedulerobjects.NodeType
 	// Total number of nodes in the cluster when trying to schedule.
 	NumNodes int
 	// Number of nodes excluded by reason.

@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/types"
+	"github.com/gogo/status"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"k8s.io/utils/strings/slices"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -40,6 +40,21 @@ type SubmitServer struct {
 	queueManagementConfig    *configuration.QueueManagementConfig
 	schedulingConfig         *configuration.SchedulingConfig
 	compressorPool           *pool.ObjectPool
+}
+
+type JobSubmitError struct {
+	JobErrorsDetails []*api.JobSubmitResponseItem
+	Err              error
+}
+
+func (e *JobSubmitError) Error() string {
+	output := ""
+	for _, jobError := range e.JobErrorsDetails {
+		output += fmt.Sprintf("Error - Job %s: %s\n", jobError.JobId, jobError.Error)
+	}
+
+	output += fmt.Sprintf("\nError - %s", e.Err.Error())
+	return output
 }
 
 func NewSubmitServer(
@@ -285,13 +300,51 @@ func (server *SubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobSubm
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	principal := authorization.GetPrincipal(ctx)
 
-	jobs, e := server.createJobs(req, principal.GetName(), principal.GetGroupNames())
+	const maxResponseItems = 5
+	var lastIdx int
+
+	jobs, responseItems, e := server.createJobs(req, principal.GetName(), principal.GetGroupNames())
 	if e != nil {
+		if len(responseItems) > maxResponseItems {
+			lastIdx = maxResponseItems
+		} else {
+			lastIdx = len(responseItems)
+		}
+
 		reqJson, _ := json.Marshal(req)
-		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e)
+		createJobsErrFmt := "[SubmitJobs] error creating %d of %d job(s) submitted; %s for user %s; first %d errors:%v"
+		numFails := len(responseItems)
+		numSubmitted := numFails + len(jobs)
+		details := &api.JobSubmitResponse{JobResponseItems: responseItems[:lastIdx]}
+
+		st, err := status.Newf(codes.InvalidArgument, createJobsErrFmt, numFails, numSubmitted, reqJson,
+			principal.GetName(), maxResponseItems, e).WithDetails(details)
+		if err != nil {
+			subJobUserFmt := "[SubmitJobs] error submitting job %s for user %s; : %v"
+			return nil, status.Errorf(codes.InvalidArgument, subJobUserFmt, reqJson, principal.GetName(), e)
+		}
+		return nil, st.Err()
 	}
-	if err := validation.ValidateApiJobs(jobs, *server.schedulingConfig); err != nil {
-		return nil, err
+
+	if responseItems, err := validation.ValidateApiJobs(jobs, *server.schedulingConfig); err != nil {
+		reqJson, _ := json.Marshal(req)
+		numFails := len(responseItems)
+		numSubmitted := len(jobs)
+		if len(responseItems) > maxResponseItems {
+			lastIdx = maxResponseItems
+		} else {
+			lastIdx = len(responseItems)
+		}
+
+		details := &api.JobSubmitResponse{JobResponseItems: responseItems[:lastIdx]}
+		validJobsErrFmt := "[SubmitJobs] error validating %d of %d job(s) submitted; %s for user %s; first %d errors:%v"
+		st, err := status.Newf(codes.InvalidArgument, validJobsErrFmt, numFails, numSubmitted, reqJson,
+			principal.GetName(), e).WithDetails(details)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, validJobsErrFmt, numFails, numSubmitted, reqJson,
+				principal.GetName(), e)
+		}
+		return nil, st.Err()
 	}
 
 	q, err := server.getQueueOrCreate(ctx, req.Queue)
@@ -301,9 +354,7 @@ func (server *SubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobSubm
 
 	err = server.submittingJobsWouldSurpassLimit(*q, req)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.InvalidArgument,
-			"[SubmitJobs] error checking queue limit: %s", err)
+		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error checking queue limit: %s", err)
 	}
 
 	err = server.authorizer.AuthorizeQueueAction(ctx, *q, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit)
@@ -321,9 +372,24 @@ func (server *SubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobSubm
 		return nil, status.Errorf(codes.InvalidArgument, "error getting scheduling info: %s", err)
 	}
 
-	if ok, err := validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo); !ok {
+	if ok, responseItems, err := validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo); !ok {
 		if err != nil {
-			return nil, errors.WithMessagef(err, "can't schedule job for user %s", principal.GetName())
+			numFails := len(responseItems)
+			numSubmitted := len(jobs)
+			if len(responseItems) > maxResponseItems {
+				lastIdx = maxResponseItems
+			} else {
+				lastIdx = len(responseItems)
+			}
+			details := &api.JobSubmitResponse{JobResponseItems: responseItems[:lastIdx]}
+			validJobsErrFmt := "[SubmitJobs] error validating %d of %d job(s) submitted for user %s; first %d errors:%v"
+
+			st, e := status.Newf(codes.InvalidArgument, validJobsErrFmt, numFails, numSubmitted,
+				principal.GetName(), maxResponseItems, err).WithDetails(details)
+			if e != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error validating jobs: %s", err)
+			}
+			return nil, st.Err()
 		}
 		return nil, errors.Errorf("can't schedule job for user %s", principal.GetName())
 	}
@@ -762,16 +828,16 @@ func (server *SubmitServer) getQueueOrCreate(ctx *armadacontext.Context, queueNa
 // createJobs returns a list of objects representing the jobs in a JobSubmitRequest.
 // This function validates the jobs in the request and the pod specs. in each job.
 // If any job or pod in invalid, an error is returned.
-func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error) {
+func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, []*api.JobSubmitResponseItem, error) {
 	return server.createJobsObjects(request, owner, ownershipGroups, time.Now, util.NewULID)
 }
 
 func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, owner string, ownershipGroups []string,
 	getTime func() time.Time, getUlid func() string,
-) ([]*api.Job, error) {
+) ([]*api.Job, []*api.JobSubmitResponseItem, error) {
 	compressor, err := server.compressorPool.BorrowObject(armadacontext.Background())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer func(compressorPool *pool.ObjectPool, ctx *armadacontext.Context, object interface{}) {
 		err := compressorPool.ReturnObject(ctx, object)
@@ -781,29 +847,45 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 	}(server.compressorPool, armadacontext.Background(), compressor)
 	compressedOwnershipGroups, err := compress.CompressStringArray(ownershipGroups, compressor.(compress.Compressor))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
 
 	if request.JobSetId == "" {
-		return nil, errors.Errorf("[createJobs] job set not specified")
+		return nil, nil, errors.Errorf("[createJobs] job set not specified")
 	}
 
 	if request.Queue == "" {
-		return nil, errors.Errorf("[createJobs] queue not specified")
+		return nil, nil, errors.Errorf("[createJobs] queue not specified")
 	}
 
+	responseItems := make([]*api.JobSubmitResponseItem, 0, len(request.JobRequestItems))
 	for i, item := range request.JobRequestItems {
+		jobId := getUlid()
+
 		if item.PodSpec != nil && len(item.PodSpecs) > 0 {
-			return nil, errors.Errorf("[createJobs] job %d in job set %s contains both podSpec and podSpecs, but may only contain either", i, request.JobSetId)
+			response := &api.JobSubmitResponseItem{
+				JobId: jobId,
+				Error: fmt.Sprintf("[createJobs] job %d in job set %s contains both podSpec and podSpecs, but may only contain either", i, request.JobSetId),
+			}
+			responseItems = append(responseItems, response)
 		}
 		podSpec := item.GetMainPodSpec()
 		if podSpec == nil {
-			return nil, errors.Errorf("[createJobs] job %d in job set %s contains no podSpec", i, request.JobSetId)
+			response := &api.JobSubmitResponseItem{
+				JobId: jobId,
+				Error: fmt.Sprintf("[createJobs] job %d in job set %s contains no podSpec", i, request.JobSetId),
+			}
+			responseItems = append(responseItems, response)
+			continue // Safety check, to avoid possible nil pointer dereference below
 		}
 		if err := validation.ValidateJobSubmitRequestItem(item); err != nil {
-			return nil, errors.Errorf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err)
+			response := &api.JobSubmitResponseItem{
+				JobId: jobId,
+				Error: fmt.Sprintf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err),
+			}
+			responseItems = append(responseItems, response)
 		}
 		namespace := item.Namespace
 		if namespace == "" {
@@ -813,7 +895,11 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 		applyDefaultsToAnnotations(item.Annotations, *server.schedulingConfig)
 		applyDefaultsToPodSpec(podSpec, *server.schedulingConfig)
 		if err := validation.ValidatePodSpec(podSpec, server.schedulingConfig); err != nil {
-			return nil, errors.Errorf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err)
+			response := &api.JobSubmitResponseItem{
+				JobId: jobId,
+				Error: fmt.Sprintf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err),
+			}
+			responseItems = append(responseItems, response)
 		}
 
 		// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
@@ -824,7 +910,6 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 			podSpec.NodeSelector[k] = v
 		}
 
-		jobId := getUlid()
 		enrichText(item.Labels, jobId)
 		enrichText(item.Annotations, jobId)
 		j := &api.Job{
@@ -855,7 +940,10 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 		jobs = append(jobs, j)
 	}
 
-	return jobs, nil
+	if len(responseItems) > 0 {
+		return nil, responseItems, errors.New("[createJobs] error creating jobs, check JobSubmitResponse for details")
+	}
+	return jobs, nil, nil
 }
 
 func enrichText(labels map[string]string, jobId string) {

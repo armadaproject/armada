@@ -17,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -143,7 +144,8 @@ var leasedJob = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	false,
-	1).WithQueued(false).WithNewRun("testExecutor", "test-node", "node")
+	1,
+).WithQueued(false).WithNewRun("testExecutor", "test-node", "node", 5)
 
 var defaultJobRunError = &armadaevents.Error{
 	Terminal: true,
@@ -165,7 +167,10 @@ var leasedFailFastJob = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	false,
-	1).WithQueued(false).WithNewRun("testExecutor", "test-node", "node")
+	1,
+).WithQueued(false).WithNewRun("testExecutor", "test-node", "node", 5)
+
+var scheduledAtPriority = int32(5)
 
 var (
 	requeuedJobId = util.NewULID()
@@ -180,7 +185,8 @@ var (
 		false,
 		false,
 		false,
-		1).WithUpdatedRun(
+		1,
+	).WithUpdatedRun(
 		testfixtures.JobDb.CreateRun(
 			uuid.New(),
 			requeuedJobId,
@@ -188,6 +194,7 @@ var (
 			"testExecutor",
 			"test-node",
 			"node",
+			&scheduledAtPriority,
 			false,
 			false,
 			true,
@@ -927,6 +934,10 @@ func TestScheduler_TestSyncState(t *testing.T) {
 					Executor: "test-executor",
 					Node:     "test-node",
 					Created:  123,
+					ScheduledAtPriority: func() *int32 {
+						scheduledAtPriority := int32(5)
+						return &scheduledAtPriority
+					}(),
 				},
 			},
 			expectedUpdatedJobs: []*jobdb.Job{
@@ -938,6 +949,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 						"test-executor",
 						"test-executor-test-node",
 						"test-node",
+						&scheduledAtPriority,
 						false,
 						false,
 						false,
@@ -1179,7 +1191,11 @@ func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn
 		if !job.Queued() {
 			return nil, errors.Errorf("was asked to lease %s but job was already leased", job.Id())
 		}
-		job = job.WithQueuedVersion(job.QueuedVersion()+1).WithQueued(false).WithNewRun("test-executor", "test-node", "node")
+		priority := int32(0)
+		if req := job.PodRequirements(); req != nil {
+			priority = req.Priority
+		}
+		job = job.WithQueuedVersion(job.QueuedVersion()+1).WithQueued(false).WithNewRun("test-executor", "test-node", "node", priority)
 		scheduledJobs = append(scheduledJobs, job)
 	}
 	for _, id := range t.jobsToFail {
@@ -1211,23 +1227,11 @@ func NewSchedulerResultForTest[S ~[]T, T interfaces.LegacySchedulerJob](
 	failedJobs S,
 	nodeIdByJobId map[string]string,
 ) *SchedulerResult {
-	castPreemptedJobs := make([]interfaces.LegacySchedulerJob, len(preemptedJobs))
-	for i, job := range preemptedJobs {
-		castPreemptedJobs[i] = job
-	}
-	castScheduledJobs := make([]interfaces.LegacySchedulerJob, len(scheduledJobs))
-	for i, job := range scheduledJobs {
-		castScheduledJobs[i] = job
-	}
-	castFailedJobs := make([]interfaces.LegacySchedulerJob, len(failedJobs))
-	for i, job := range failedJobs {
-		castFailedJobs[i] = job
-	}
 	return &SchedulerResult{
-		PreemptedJobs: castPreemptedJobs,
-		ScheduledJobs: castScheduledJobs,
+		PreemptedJobs: schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, preemptedJobs, GangIdAndCardinalityFromAnnotations),
+		ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, scheduledJobs, GangIdAndCardinalityFromAnnotations),
+		FailedJobs:    schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, failedJobs, GangIdAndCardinalityFromAnnotations),
 		NodeIdByJobId: nodeIdByJobId,
-		FailedJobs:    castFailedJobs,
 	}
 }
 

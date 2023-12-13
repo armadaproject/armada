@@ -3,6 +3,7 @@ package configuration
 import (
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	v1 "k8s.io/api/core/v1"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -55,6 +56,12 @@ type Configuration struct {
 	DatabaseFetchSize int `validate:"required"`
 	// Timeout to use when sending messages to pulsar
 	PulsarSendTimeout time.Duration `validate:"required"`
+}
+
+func (c Configuration) Validate() error {
+	validate := validator.New()
+	validate.RegisterStructValidation(configuration.SchedulingConfigValidation, configuration.SchedulingConfig{})
+	return validate.Struct(c)
 }
 
 type MetricsConfig struct {

@@ -39,12 +39,8 @@ func RootCmd() *cobra.Command {
 
 func loadConfig() (schedulerconfig.Configuration, error) {
 	var config schedulerconfig.Configuration
-	userSpecifiedConfigs := viper.GetStringSlice(CustomConfigLocation)
-
-	common.LoadConfig(&config, "./config/scheduler", userSpecifiedConfigs)
-
-	// TODO: once we're happy with this we can move it to common app startup
-	err := commonconfig.Validate(config)
+	common.LoadConfig(&config, "./config/scheduler", viper.GetStringSlice(CustomConfigLocation))
+	err := config.Validate()
 	if err != nil {
 		commonconfig.LogValidationErrors(err)
 	}

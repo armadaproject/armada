@@ -19,6 +19,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
@@ -218,6 +219,7 @@ func (s *Simulator) setupClusters() error {
 				s.schedulingConfig.IndexedResources,
 				s.schedulingConfig.IndexedTaints,
 				s.schedulingConfig.IndexedNodeLabels,
+				s.schedulingConfig.WellKnownNodeTypes,
 			)
 			if err != nil {
 				return err
@@ -228,18 +230,17 @@ func (s *Simulator) setupClusters() error {
 				for nodeTemplateIndex, nodeTemplate := range executor.NodeTemplates {
 					for i := 0; i < int(nodeTemplate.Number); i++ {
 						nodeId := fmt.Sprintf("%s-%d-%d-%d-%d", pool.Name, executorGroupIndex, executorIndex, nodeTemplateIndex, i)
-						allocatableByPriorityAndResource := make(map[int32]schedulerobjects.ResourceList)
-						for _, priorityClass := range s.schedulingConfig.Preemption.PriorityClasses {
-							allocatableByPriorityAndResource[priorityClass.Priority] = nodeTemplate.TotalResources.DeepCopy()
-						}
 						node := &schedulerobjects.Node{
-							Id:                               nodeId,
-							Name:                             nodeId,
-							Executor:                         executorName,
-							Taints:                           slices.Clone(nodeTemplate.Taints),
-							Labels:                           maps.Clone(nodeTemplate.Labels),
-							TotalResources:                   nodeTemplate.TotalResources.DeepCopy(),
-							AllocatableByPriorityAndResource: allocatableByPriorityAndResource,
+							Id:             nodeId,
+							Name:           nodeId,
+							Executor:       executorName,
+							Taints:         slices.Clone(nodeTemplate.Taints),
+							Labels:         maps.Clone(nodeTemplate.Labels),
+							TotalResources: nodeTemplate.TotalResources.DeepCopy(),
+							AllocatableByPriorityAndResource: schedulerobjects.NewAllocatableByPriorityAndResourceType(
+								types.AllowedPriorities(s.schedulingConfig.Preemption.PriorityClasses),
+								nodeTemplate.TotalResources,
+							),
 						}
 						txn := nodeDb.Txn(true)
 						if err := nodeDb.CreateAndInsertWithApiJobsWithTxn(txn, nil, node); err != nil {
@@ -518,12 +519,16 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			for i, job := range scheduledJobs {
 				nodeId := result.NodeIdByJobId[job.GetId()]
 				if nodeId == "" {
-					return errors.Errorf("job %s not mapped to any node", job.GetId())
+					return errors.Errorf("job %s not mapped to a node", job.GetId())
 				}
 				if node, err := nodeDb.GetNode(nodeId); err != nil {
 					return err
 				} else {
-					scheduledJobs[i] = job.WithQueued(false).WithNewRun(node.Executor, node.Id, node.Name)
+					priority, ok := nodeDb.GetScheduledAtPriority(job.Id())
+					if !ok {
+						return errors.Errorf("job %s not mapped to a priority", job.Id())
+					}
+					scheduledJobs[i] = job.WithQueued(false).WithNewRun(node.Executor, node.Id, node.Name, priority)
 				}
 			}
 			for i, job := range failedJobs {
@@ -791,7 +796,7 @@ func (s *Simulator) unbindRunningJob(job *jobdb.Job) error {
 	} else if node == nil {
 		return errors.Errorf("node %s not found", run.NodeId())
 	}
-	node, err = nodedb.UnbindJobFromNode(s.schedulingConfig.Preemption.PriorityClasses, job, node)
+	node, err = nodeDb.UnbindJobFromNode(s.schedulingConfig.Preemption.PriorityClasses, job, node)
 	if err != nil {
 		return err
 	}

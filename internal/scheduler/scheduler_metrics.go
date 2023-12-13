@@ -8,7 +8,6 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 )
 
 const (
@@ -168,19 +167,19 @@ func (metrics *SchedulerMetrics) ReportSchedulerResult(ctx *armadacontext.Contex
 	metrics.reportQueueShares(ctx, result.SchedulingContexts)
 }
 
-func (metrics *SchedulerMetrics) reportScheduledJobs(ctx *armadacontext.Context, scheduledJobs []interfaces.LegacySchedulerJob) {
+func (metrics *SchedulerMetrics) reportScheduledJobs(ctx *armadacontext.Context, scheduledJobs []*schedulercontext.JobSchedulingContext) {
 	if len(scheduledJobs) == 0 {
 		return
 	}
-	jobAggregates := aggregateJobs(scheduledJobs)
+	jobAggregates := aggregateJobContexts(scheduledJobs)
 	observeJobAggregates(ctx, metrics.scheduledJobsPerQueue, jobAggregates)
 }
 
-func (metrics *SchedulerMetrics) reportPreemptedJobs(ctx *armadacontext.Context, preemptedJobs []interfaces.LegacySchedulerJob) {
+func (metrics *SchedulerMetrics) reportPreemptedJobs(ctx *armadacontext.Context, preemptedJobs []*schedulercontext.JobSchedulingContext) {
 	if len(preemptedJobs) == 0 {
 		return
 	}
-	jobAggregates := aggregateJobs(preemptedJobs)
+	jobAggregates := aggregateJobContexts(preemptedJobs)
 	observeJobAggregates(ctx, metrics.preemptedJobsPerQueue, jobAggregates)
 }
 
@@ -189,11 +188,12 @@ type collectionKey struct {
 	priorityClass string
 }
 
-// aggregateJobs takes a list of jobs and counts how many there are of each queue, priorityClass pair.
-func aggregateJobs[S ~[]E, E interfaces.LegacySchedulerJob](scheduledJobs S) map[collectionKey]int {
+// aggregateJobContexts takes a list of jobs and counts how many there are of each queue, priorityClass pair.
+func aggregateJobContexts(jctxs []*schedulercontext.JobSchedulingContext) map[collectionKey]int {
 	groups := make(map[collectionKey]int)
 
-	for _, job := range scheduledJobs {
+	for _, jctx := range jctxs {
+		job := jctx.Job
 		key := collectionKey{queue: job.GetQueue(), priorityClass: job.GetPriorityClassName()}
 		groups[key] += 1
 	}

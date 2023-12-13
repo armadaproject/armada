@@ -10,12 +10,12 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/types"
+	"github.com/gogo/status"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
@@ -94,12 +94,29 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 
 	// Create legacy API jobs from the requests.
 	// We use the legacy code for the conversion to ensure that behaviour doesn't change.
-	apiJobs, err := srv.SubmitServer.createJobs(req, userId, groups)
+	apiJobs, responseItems, err := srv.SubmitServer.createJobs(req, userId, groups)
 	if err != nil {
-		return nil, err
+		details := &api.JobSubmitResponse{
+			JobResponseItems: responseItems,
+		}
+
+		st, e := status.Newf(codes.InvalidArgument, "[SubmitJobs] Failed to parse job request: %s", err.Error()).WithDetails(details)
+		if e != nil {
+			return nil, status.Newf(codes.Internal, "[SubmitJobs] Failed to parse job request: %s", e.Error()).Err()
+		}
+
+		return nil, st.Err()
 	}
-	if err := commonvalidation.ValidateApiJobs(apiJobs, *srv.SubmitServer.schedulingConfig); err != nil {
-		return nil, err
+	if responseItems, err := commonvalidation.ValidateApiJobs(apiJobs, *srv.SubmitServer.schedulingConfig); err != nil {
+		details := &api.JobSubmitResponse{
+			JobResponseItems: responseItems,
+		}
+
+		st, e := status.Newf(codes.InvalidArgument, "[SubmitJobs] Failed to parse job request: %s", err.Error()).WithDetails(details)
+		if e != nil {
+			return nil, status.Newf(codes.Internal, "[SubmitJobs] Failed to parse job request: %s", e.Error()).Err()
+		}
+		return nil, st.Err()
 	}
 
 	schedulersByJobId, err := srv.assignScheduler(apiJobs)

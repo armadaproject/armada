@@ -1,11 +1,12 @@
 package configuration
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
+	"github.com/go-playground/validator/v10"
 	"github.com/go-redis/redis"
-	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
@@ -206,6 +207,9 @@ type SchedulingConfig struct {
 	//
 	// Applies only to the new scheduler.
 	IndexedTaints []string
+	// WellKnownNodeTypes defines a set of well-known node types; these are used
+	// to define "home" and "away" nodes for a given priority class.
+	WellKnownNodeTypes []WellKnownNodeType `validate:"dive"`
 	// Default value of GangNodeUniformityLabelAnnotation if none is provided.
 	DefaultGangNodeUniformityLabel string
 	// Kubernetes pods may specify a termination grace period.
@@ -250,6 +254,39 @@ type SchedulingConfig struct {
 	EnableNewPreemptionStrategy bool
 }
 
+const (
+	DuplicateWellKnownNodeTypeErrorMessage     = "duplicate well-known node type name"
+	AwayNodeTypesWithoutPreemptionErrorMessage = "priority class has away node types but is not preemptible"
+	UnknownWellKnownNodeTypeErrorMessage       = "priority class refers to unknown well-known node type"
+)
+
+func SchedulingConfigValidation(sl validator.StructLevel) {
+	c := sl.Current().Interface().(SchedulingConfig)
+
+	wellKnownNodeTypes := make(map[string]bool)
+	for i, wellKnownNodeType := range c.WellKnownNodeTypes {
+		if wellKnownNodeTypes[wellKnownNodeType.Name] {
+			fieldName := fmt.Sprintf("WellKnownNodeTypes[%d].Name", i)
+			sl.ReportError(wellKnownNodeType.Name, fieldName, "", DuplicateWellKnownNodeTypeErrorMessage, "")
+		}
+		wellKnownNodeTypes[wellKnownNodeType.Name] = true
+	}
+
+	for priorityClassName, priorityClass := range c.Preemption.PriorityClasses {
+		if len(priorityClass.AwayNodeTypes) > 0 && !priorityClass.Preemptible {
+			fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].Preemptible", priorityClassName)
+			sl.ReportError(priorityClass.Preemptible, fieldName, "", AwayNodeTypesWithoutPreemptionErrorMessage, "")
+		}
+
+		for i, awayNodeType := range priorityClass.AwayNodeTypes {
+			if !wellKnownNodeTypes[awayNodeType.WellKnownNodeTypeName] {
+				fieldName := fmt.Sprintf("Preemption.PriorityClasses[%s].AwayNodeTypes[%d].WellKnownNodeTypeName", priorityClassName, i)
+				sl.ReportError(awayNodeType.WellKnownNodeTypeName, fieldName, "", UnknownWellKnownNodeTypeErrorMessage, "")
+			}
+		}
+	}
+}
+
 // FairnessModel controls how fairness is computed.
 // More specifically, each queue has a cost associated with it and the next job to schedule
 // is taken from the queue with smallest cost. FairnessModel determines how that cost is computed.
@@ -269,6 +306,15 @@ type IndexedResource struct {
 	Name string
 	// See NodeDb docs.
 	Resolution resource.Quantity
+}
+
+// A WellKnownNodeType defines a set of nodes; see AwayNodeType.
+type WellKnownNodeType struct {
+	// Name is the unique identifier for this node type.
+	Name string `validate:"required"`
+	// Taints is the set of taints that characterizes this node type; a node is
+	// part of this node type if and only if it has all of these taints.
+	Taints []v1.Taint
 }
 
 // NewSchedulerConfig stores config for the new Pulsar-based scheduler.
@@ -300,37 +346,12 @@ type PreemptionConfig struct {
 	// Map from priority class names to priority classes.
 	// Must be consistent with Kubernetes priority classes.
 	// I.e., priority classes defined here must be defined in all executor clusters and should map to the same priority.
-	PriorityClasses map[string]types.PriorityClass
+	PriorityClasses map[string]types.PriorityClass `validate:"dive"`
 	// Priority class assigned to pods that do not specify one.
 	// Must be an entry in PriorityClasses above.
 	DefaultPriorityClass string
 	// If set, override the priority class name of pods with this value when sending to an executor.
 	PriorityClassNameOverride *string
-}
-
-func (p PreemptionConfig) PriorityByPriorityClassName() map[string]int32 {
-	return PriorityByPriorityClassName(p.PriorityClasses)
-}
-
-func PriorityByPriorityClassName(priorityClasses map[string]types.PriorityClass) map[string]int32 {
-	rv := make(map[string]int32, len(priorityClasses))
-	for name, pc := range priorityClasses {
-		rv[name] = pc.Priority
-	}
-	return rv
-}
-
-func (p PreemptionConfig) AllowedPriorities() []int32 {
-	return AllowedPriorities(p.PriorityClasses)
-}
-
-func AllowedPriorities(priorityClasses map[string]types.PriorityClass) []int32 {
-	rv := make([]int32, 0, len(priorityClasses))
-	for _, v := range priorityClasses {
-		rv = append(rv, v.Priority)
-	}
-	slices.Sort(rv)
-	return slices.Compact(rv)
 }
 
 type LeaseSettings struct {
