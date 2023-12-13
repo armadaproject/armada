@@ -290,11 +290,18 @@ export const JobsTableContainer = ({
     }
   }
 
+  const setToFirstPage = () => {
+    setPagination({
+      pageIndex: 0,
+      pageSize: pageSize,
+    })
+  }
+
   const loadPrefs = (prefs: JobsTablePreferences) => {
     setGrouping(prefs.groupedColumns)
     setExpanded(prefs.expandedState)
     setPagination({
-      pageIndex: prefs.pageIndex,
+      pageIndex: 0,
       pageSize: prefs.pageSize,
     })
     setLookoutOrder(prefs.order)
@@ -321,7 +328,7 @@ export const JobsTableContainer = ({
 
     // Load data
     setRowsToFetch(
-      pendingDataForAllVisibleData(prefs.expandedState, data, prefs.pageSize, prefs.pageIndex * prefs.pageSize),
+      pendingDataForAllVisibleData(prefs.expandedState, data, prefs.pageSize),
     )
   }
 
@@ -360,6 +367,7 @@ export const JobsTableContainer = ({
   const loadCustomView = (name: string) => {
     try {
       const prefs = customViewsService.getView(name)
+      setToFirstPage()
       loadPrefs(prefs)
     } catch (e) {
       console.error(getErrorMessage(e))
@@ -449,6 +457,7 @@ export const JobsTableContainer = ({
 
   const onGroupingChange = useCallback(
     (newGroups: ColumnId[]) => {
+      setToFirstPage()
       // Reset currently expanded/selected when grouping changes
       setSelectedRows({})
       setSidebarJobId(undefined)
@@ -565,6 +574,7 @@ export const JobsTableContainer = ({
   }
 
   const onFilterChange = (updater: Updater<ColumnFiltersState>) => {
+    setToFirstPage()
     const newFilterState = updaterToValue(updater, columnFilterState)
     setLookoutFilters(parseLookoutFilters(newFilterState))
     setColumnFilterState(newFilterState)
@@ -583,11 +593,12 @@ export const JobsTableContainer = ({
   }
 
   const onSortingChange = (updater: Updater<SortingState>) => {
+    setToFirstPage()
     const newSortingState = updaterToValue(updater, sorting)
     setLookoutOrder(toLookoutOrder(newSortingState))
     setSorting(newSortingState)
     // Refetch any expanded subgroups, and root data with updated sorting params
-    setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
+    setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
   }
 
   const onColumnSizingChange = useCallback(
@@ -729,7 +740,9 @@ export const JobsTableContainer = ({
             activeJobSets={activeJobSets}
             onActiveJobSetsChanged={(newVal) => {
               setActiveJobSets(newVal)
-              onRefresh()
+              setToFirstPage()
+              setSelectedRows({})
+              setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
             }}
             onRefresh={onRefresh}
             autoRefresh={autoRefresh}
