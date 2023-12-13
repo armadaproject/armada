@@ -327,9 +327,7 @@ export const JobsTableContainer = ({
     setTextFields(prefs.filters)
 
     // Load data
-    setRowsToFetch(
-      pendingDataForAllVisibleData(prefs.expandedState, data, prefs.pageSize),
-    )
+    setRowsToFetch(pendingDataForAllVisibleData(prefs.expandedState, data, prefs.pageSize))
   }
 
   // Update query params with table state
