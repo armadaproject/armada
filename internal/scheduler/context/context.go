@@ -736,6 +736,8 @@ type PodSchedulingContext struct {
 	Created time.Time
 	// ID of the node that the pod was assigned to, or empty.
 	NodeId string
+	// If set, indicates that the pod was scheduled on a specific node type.
+	WellKnownNodeTypeName string
 	// Priority at which this pod was scheduled.
 	ScheduledAtPriority int32
 	// Maximum priority that this pod preempted other pods at.

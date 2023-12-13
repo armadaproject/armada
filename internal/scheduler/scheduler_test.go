@@ -17,6 +17,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -1226,23 +1227,11 @@ func NewSchedulerResultForTest[S ~[]T, T interfaces.LegacySchedulerJob](
 	failedJobs S,
 	nodeIdByJobId map[string]string,
 ) *SchedulerResult {
-	castPreemptedJobs := make([]interfaces.LegacySchedulerJob, len(preemptedJobs))
-	for i, job := range preemptedJobs {
-		castPreemptedJobs[i] = job
-	}
-	castScheduledJobs := make([]interfaces.LegacySchedulerJob, len(scheduledJobs))
-	for i, job := range scheduledJobs {
-		castScheduledJobs[i] = job
-	}
-	castFailedJobs := make([]interfaces.LegacySchedulerJob, len(failedJobs))
-	for i, job := range failedJobs {
-		castFailedJobs[i] = job
-	}
 	return &SchedulerResult{
-		PreemptedJobs: castPreemptedJobs,
-		ScheduledJobs: castScheduledJobs,
+		PreemptedJobs: schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, preemptedJobs, GangIdAndCardinalityFromAnnotations),
+		ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, scheduledJobs, GangIdAndCardinalityFromAnnotations),
+		FailedJobs:    schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, failedJobs, GangIdAndCardinalityFromAnnotations),
 		NodeIdByJobId: nodeIdByJobId,
-		FailedJobs:    castFailedJobs,
 	}
 }
 

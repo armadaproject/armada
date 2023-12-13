@@ -111,8 +111,8 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		sch.schedulingContext.Finished = time.Now()
 	}()
 
-	preemptedJobsById := make(map[string]interfaces.LegacySchedulerJob)
-	scheduledJobsById := make(map[string]interfaces.LegacySchedulerJob)
+	preemptedJobsById := make(map[string]*schedulercontext.JobSchedulingContext)
+	scheduledJobsById := make(map[string]*schedulercontext.JobSchedulingContext)
 
 	// NodeDb snapshot prior to making any changes.
 	// We compare against this snapshot after scheduling to detect changes.
@@ -154,7 +154,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		return nil, err
 	}
 	for _, jctx := range evictorResult.EvictedJctxsByJobId {
-		preemptedJobsById[jctx.Job.GetId()] = jctx.Job
+		preemptedJobsById[jctx.JobId] = jctx
 	}
 	maps.Copy(sch.nodeIdByJobId, evictorResult.NodeIdByJobId)
 
@@ -167,11 +167,11 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 	if err != nil {
 		return nil, err
 	}
-	for _, job := range schedulerResult.ScheduledJobs {
-		if _, ok := preemptedJobsById[job.GetId()]; ok {
-			delete(preemptedJobsById, job.GetId())
+	for _, jctx := range schedulerResult.ScheduledJobs {
+		if _, ok := preemptedJobsById[jctx.JobId]; ok {
+			delete(preemptedJobsById, jctx.JobId)
 		} else {
-			scheduledJobsById[job.GetId()] = job
+			scheduledJobsById[jctx.JobId] = jctx
 		}
 	}
 	maps.Copy(sch.nodeIdByJobId, schedulerResult.NodeIdByJobId)
@@ -202,7 +202,7 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		if _, ok := scheduledJobsById[jobId]; ok {
 			delete(scheduledJobsById, jobId)
 		} else {
-			preemptedJobsById[jobId] = jctx.Job
+			preemptedJobsById[jobId] = jctx
 		}
 	}
 	maps.Copy(sch.nodeIdByJobId, evictorResult.NodeIdByJobId)
@@ -221,13 +221,13 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		if err != nil {
 			return nil, err
 		}
-		for _, job := range schedulerResult.ScheduledJobs {
-			if _, ok := preemptedJobsById[job.GetId()]; ok {
-				delete(preemptedJobsById, job.GetId())
+		for _, jctx := range schedulerResult.ScheduledJobs {
+			if _, ok := preemptedJobsById[jctx.JobId]; ok {
+				delete(preemptedJobsById, jctx.JobId)
 			} else {
-				scheduledJobsById[job.GetId()] = job
+				scheduledJobsById[jctx.JobId] = jctx
 			}
-			delete(scheduledAndEvictedJobsById, job.GetId())
+			delete(scheduledAndEvictedJobsById, jctx.JobId)
 		}
 		maps.Copy(sch.nodeIdByJobId, schedulerResult.NodeIdByJobId)
 	}
@@ -569,11 +569,14 @@ func (sch *PreemptingQueueScheduler) schedule(ctx *armadacontext.Context, inMemo
 }
 
 // Unbind any preempted from the nodes they were evicted (and not re-scheduled) on.
-func (sch *PreemptingQueueScheduler) unbindJobs(jobs []interfaces.LegacySchedulerJob) error {
-	for nodeId, jobsOnNode := range armadaslices.GroupByFunc(
-		jobs,
-		func(job interfaces.LegacySchedulerJob) string {
-			return sch.nodeIdByJobId[job.GetId()]
+func (sch *PreemptingQueueScheduler) unbindJobs(jctxs []*schedulercontext.JobSchedulingContext) error {
+	for nodeId, jobsOnNode := range armadaslices.MapAndGroupByFuncs(
+		jctxs,
+		func(jctx *schedulercontext.JobSchedulingContext) string {
+			return sch.nodeIdByJobId[jctx.JobId]
+		},
+		func(jcxt *schedulercontext.JobSchedulingContext) interfaces.LegacySchedulerJob {
+			return jcxt.Job
 		},
 	) {
 		node, err := sch.nodeDb.GetNode(nodeId)
@@ -592,24 +595,24 @@ func (sch *PreemptingQueueScheduler) unbindJobs(jobs []interfaces.LegacySchedule
 }
 
 // Update sch.gangIdByJobId and sch.jobIdsByGangId based on preempted/scheduled jobs.
-func (sch *PreemptingQueueScheduler) updateGangAccounting(evictedJctxs []*schedulercontext.JobSchedulingContext, scheduledJobs []interfaces.LegacySchedulerJob) error {
-	for _, jctx := range evictedJctxs {
+func (sch *PreemptingQueueScheduler) updateGangAccounting(preempted []*schedulercontext.JobSchedulingContext, scheduled []*schedulercontext.JobSchedulingContext) error {
+	for _, jctx := range preempted {
 		if gangId, ok := sch.gangIdByJobId[jctx.Job.GetId()]; ok {
 			delete(sch.gangIdByJobId, jctx.Job.GetId())
 			delete(sch.jobIdsByGangId, gangId)
 		}
 	}
-	for _, job := range scheduledJobs {
-		gangId, _, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(job)
+	for _, jctx := range scheduled {
+		gangId, _, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(jctx.Job)
 		if err != nil {
 			return err
 		}
 		if isGangJob {
-			sch.gangIdByJobId[job.GetId()] = gangId
+			sch.gangIdByJobId[jctx.JobId] = gangId
 			if m := sch.jobIdsByGangId[gangId]; m != nil {
-				m[job.GetId()] = true
+				m[jctx.JobId] = true
 			} else {
-				sch.jobIdsByGangId[gangId] = map[string]bool{job.GetId(): true}
+				sch.jobIdsByGangId[gangId] = map[string]bool{jctx.JobId: true}
 			}
 		}
 	}
@@ -624,8 +627,8 @@ func (sch *PreemptingQueueScheduler) updateGangAccounting(evictedJctxs []*schedu
 // This is only to validate that nothing unexpected happened during scheduling.
 func (sch *PreemptingQueueScheduler) assertions(
 	snapshot *memdb.Txn,
-	preemptedJobsById,
-	scheduledJobsById map[string]interfaces.LegacySchedulerJob,
+	preemptedJobsById map[string]*schedulercontext.JobSchedulingContext,
+	scheduledJobsById map[string]*schedulercontext.JobSchedulingContext,
 	nodeIdByJobId map[string]string,
 ) error {
 	// Compare two snapshots of the nodeDb to find jobs that
