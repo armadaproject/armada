@@ -131,7 +131,9 @@ func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobS
 	var updatedRuns []Run = nil
 
 	start := time.Now()
-	defer ctx.Infof("received %d updated jobs and %d updated job runs from postgres in %s", len(updatedJobs), len(updatedRuns), time.Since(start))
+	defer func() {
+		ctx.Infof("received %d updated jobs and %d updated job runs from postgres in %s", len(updatedJobs), len(updatedRuns), time.Since(start))
+	}()
 
 	// Use a RepeatableRead transaction here so that we get consistency between jobs and dbRuns
 	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
