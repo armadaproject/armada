@@ -157,6 +157,33 @@ func TestWriteOps(t *testing.T) {
 				jobIds[1]: true,
 			},
 		}},
+		"MarkRunsPending": {Ops: []DbOperation{
+			InsertJobs{
+				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]},
+				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]},
+			},
+			InsertRuns{
+				runIds[0]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
+				runIds[1]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
+			},
+			MarkRunsPending{
+				runIds[0]: testfixtures.BaseTime,
+				runIds[1]: testfixtures.BaseTime.Add(time.Hour),
+			},
+		}},
+		"MarkRunsPreempted": {Ops: []DbOperation{
+			InsertJobs{
+				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]},
+				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]},
+			},
+			InsertRuns{
+				runIds[0]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
+				runIds[1]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
+			},
+			MarkRunsPreempted{
+				runIds[0]: testfixtures.BaseTime,
+			},
+		}},
 		"MarkJobsFailed": {Ops: []DbOperation{
 			InsertJobs{
 				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], JobSet: "set1"},
@@ -602,6 +629,58 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 				numChanged++
 			}
 		}
+		assert.Equal(t, len(expected), len(runs))
+	case MarkRunsPending:
+		jobs, err := selectNewJobs(ctx, 0)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		jobIds := make([]string, 0)
+		for _, job := range jobs {
+			jobIds = append(jobIds, job.JobID)
+		}
+		runs, err := queries.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{
+			Serial: serials["runs"],
+			JobIds: jobIds,
+		})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		numChanged := 0
+		for _, run := range runs {
+			if _, ok := expected[run.RunID]; ok {
+				assert.True(t, run.Pending)
+				assert.Equal(t, expected[run.RunID], run.PendingTimestamp.UTC())
+				numChanged++
+			}
+		}
+		assert.Equal(t, numChanged, 2)
+		assert.Equal(t, len(expected), len(runs))
+	case MarkRunsPreempted:
+		jobs, err := selectNewJobs(ctx, 0)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		jobIds := make([]string, 0)
+		for _, job := range jobs {
+			jobIds = append(jobIds, job.JobID)
+		}
+		runs, err := queries.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{
+			Serial: serials["runs"],
+			JobIds: jobIds,
+		})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		numChanged := 0
+		for _, run := range runs {
+			if _, ok := expected[run.RunID]; ok {
+				assert.True(t, run.Preempted)
+				assert.Equal(t, expected[run.RunID], run.PreemptedTimestamp.UTC())
+				numChanged++
+			}
+		}
+		assert.Equal(t, numChanged, 1)
 		assert.Equal(t, len(expected), len(runs))
 	case InsertJobRunErrors:
 		expectedIds := maps.Keys(expected)
