@@ -65,8 +65,7 @@ func Serve(configuration configuration.LookoutV2Config) error {
 				return operations.NewGetJobsBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
 			}
 			return operations.NewGetJobsOK().WithPayload(&operations.GetJobsOKBody{
-				Count: int64(result.Count),
-				Jobs:  util.Map(result.Jobs, conversions.ToSwaggerJob),
+				Jobs: util.Map(result.Jobs, conversions.ToSwaggerJob),
 			})
 		},
 	)
@@ -89,7 +88,6 @@ func Serve(configuration configuration.LookoutV2Config) error {
 				return operations.NewGroupJobsBadRequest().WithPayload(conversions.ToSwaggerError(err.Error()))
 			}
 			return operations.NewGroupJobsOK().WithPayload(&operations.GroupJobsOKBody{
-				Count:  int64(result.Count),
 				Groups: util.Map(result.Groups, conversions.ToSwaggerGroup),
 			})
 		},
