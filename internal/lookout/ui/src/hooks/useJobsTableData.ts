@@ -69,6 +69,7 @@ export function columnIsAggregatable(columnId: ColumnId): boolean {
 
 const columnToJobSortFieldMap = new Map<ColumnId, string>([
   [StandardColumnId.JobID, "jobId"],
+  [StandardColumnId.JobSet, "jobSet"],
   [StandardColumnId.TimeSubmittedUtc, "submitted"],
   [StandardColumnId.TimeSubmittedAgo, "submitted"],
   [StandardColumnId.LastTransitionTimeUtc, "lastTransitionTime"],

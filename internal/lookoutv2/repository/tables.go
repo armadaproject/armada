@@ -104,6 +104,7 @@ func NewTables() *LookoutTables {
 		},
 		orderableColumns: util.StringListToSet([]string{
 			jobIdCol,
+			jobSetCol,
 			submittedCol,
 			lastTransitionTimeCol,
 		}),
