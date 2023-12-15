@@ -53,6 +53,8 @@ export enum StandardColumnId {
   Count = "jobCount",
 }
 
+export const DEFAULT_COLUMN_ORDER: LookoutColumnOrder = { id: StandardColumnId.LastTransitionTimeUtc, direction: "DESC" }
+
 export const ANNOTATION_COLUMN_PREFIX = "annotation_"
 
 export type AnnotationColumnId = `annotation_${string}`
@@ -412,8 +414,6 @@ export const DEFAULT_COLUMN_VISIBILITY: VisibilityState = Object.values(Standard
   },
   {},
 )
-
-export const DEFAULT_COLUMN_ORDER: LookoutColumnOrder = { id: "jobId", direction: "DESC" }
 
 type Formatter = (val: number | string | string[]) => string
 
