@@ -34,6 +34,7 @@ interface JobSetsProps {
   onReprioritizeJobSetsClick: () => void
   onOrderChange: (newestFirst: boolean) => void
   onActiveOnlyChange: (activeOnly: boolean) => void
+  onJobSetStateClick(rowIndex: number, state: string): void
 }
 
 export default function JobSets(props: JobSetsProps) {
@@ -50,6 +51,7 @@ export default function JobSets(props: JobSetsProps) {
       onDeselectAllClick={props.onDeselectAllClick}
       onSelectAllClick={props.onSelectAllClick}
       onOrderChange={props.onOrderChange}
+      onJobSetStateClick={props.onJobSetStateClick}
     />
   )
 
