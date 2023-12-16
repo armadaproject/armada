@@ -98,7 +98,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx *armadacontext.Context, filters []*mo
 		if err != nil {
 			return err
 		}
-		logQuery(createTempTableQuery)
+		logQuery(insertQuery)
 		_, err = tx.Exec(ctx, insertQuery.Sql, insertQuery.Args...)
 		if err != nil {
 			return err
