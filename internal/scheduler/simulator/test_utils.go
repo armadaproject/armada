@@ -10,6 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
+	armadaslices "github.com/armadaproject/armada/internal/common/slices"
 	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/constraints"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -253,36 +254,69 @@ func JobTemplate1Cpu(n int64, jobSet, priorityClassName string) *JobTemplate {
 	}
 }
 
-func SubmitJob() *armadaevents.EventSequence_Event {
-	return &armadaevents.EventSequence_Event{
-		Event: &armadaevents.EventSequence_Event_SubmitJob{
-			SubmitJob: &armadaevents.SubmitJob{},
-		},
-	}
+func RepeatEvents(n int, seq *armadaevents.EventSequence) *armadaevents.EventSequence {
+	seq.Events = armadaslices.Repeat(n, seq.Events...)
+	return seq
 }
 
-func JobRunLeased() *armadaevents.EventSequence_Event {
-	return &armadaevents.EventSequence_Event{
-		Event: &armadaevents.EventSequence_Event_JobRunLeased{
-			JobRunLeased: &armadaevents.JobRunLeased{},
+func SubmitJob(n int, queue string, jobSetName string) *armadaevents.EventSequence {
+	seq := &armadaevents.EventSequence{
+		Queue:      queue,
+		JobSetName: jobSetName,
+		Events: []*armadaevents.EventSequence_Event{
+			{
+				Event: &armadaevents.EventSequence_Event_SubmitJob{
+					SubmitJob: &armadaevents.SubmitJob{},
+				},
+			},
 		},
 	}
+	return RepeatEvents(n, seq)
 }
 
-func JobRunPreempted() *armadaevents.EventSequence_Event {
-	return &armadaevents.EventSequence_Event{
-		Event: &armadaevents.EventSequence_Event_JobRunPreempted{
-			JobRunPreempted: &armadaevents.JobRunPreempted{},
+func JobRunLeased(n int, queue string, jobSetName string) *armadaevents.EventSequence {
+	seq := &armadaevents.EventSequence{
+		Queue:      queue,
+		JobSetName: jobSetName,
+		Events: []*armadaevents.EventSequence_Event{
+			{
+				Event: &armadaevents.EventSequence_Event_JobRunLeased{
+					JobRunLeased: &armadaevents.JobRunLeased{},
+				},
+			},
 		},
 	}
+	return RepeatEvents(n, seq)
 }
 
-func JobSucceeded() *armadaevents.EventSequence_Event {
-	return &armadaevents.EventSequence_Event{
-		Event: &armadaevents.EventSequence_Event_JobSucceeded{
-			JobSucceeded: &armadaevents.JobSucceeded{},
+func JobRunPreempted(n int, queue string, jobSetName string) *armadaevents.EventSequence {
+	seq := &armadaevents.EventSequence{
+		Queue:      queue,
+		JobSetName: jobSetName,
+		Events: []*armadaevents.EventSequence_Event{
+			{
+				Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+					JobRunPreempted: &armadaevents.JobRunPreempted{},
+				},
+			},
 		},
 	}
+	return RepeatEvents(n, seq)
+}
+
+func JobSucceeded(n int, queue string, jobSetName string) *armadaevents.EventSequence {
+	seq := &armadaevents.EventSequence{
+		Queue:      queue,
+		JobSetName: jobSetName,
+		Events: []*armadaevents.EventSequence_Event{
+			{
+				Event: &armadaevents.EventSequence_Event_JobSucceeded{
+					JobSucceeded: &armadaevents.JobSucceeded{},
+				},
+			},
+		},
+	}
+	return RepeatEvents(n, seq)
 }
 
 func EventSequencesSummary(eventSequences []*armadaevents.EventSequence) string {
