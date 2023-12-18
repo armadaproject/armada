@@ -83,7 +83,7 @@
 
 .page-header.page-header-small {
     min-height: 36vh !important;
-    margin-bottom: 0px !important;
+    margin-bottom: 0 !important;
 }
 
 .page-header-image.card-background {
@@ -175,7 +175,7 @@ ul li {
 
     .page-header-image.card-background {
         background-repeat: no-repeat !important;
-        max-height: 250px !important;
+        background-size: cover !important;
     }
 
     img.mobile-armada {
