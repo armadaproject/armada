@@ -20,7 +20,7 @@ export const getAllJobsMatchingFilters = async (
       undefined,
     )
     receivedJobs.push(...jobs)
-    if (jobs.length === 0) {
+    if (jobs.length < MAX_JOBS_PER_REQUEST) {
       continuePaginating = false
     }
   }
