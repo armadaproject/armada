@@ -14,7 +14,7 @@ Armada consists of two main components:
 
 All state relating to the Armada server is stored in [Redis](https://redis.io/), which may use replication combined with failover for redundancy. Hence, the Armada server is itself stateless and is easily replicated by running multiple independent instances. Both the server and the executors are intended to be run in Kubernetes pods. We show a diagram of the architecture below.
 
-![How Armada works](./batch-api.svg)
+![How Armada works](./assets/img/batch-api.svg)
 
 ### Job leasing
 
