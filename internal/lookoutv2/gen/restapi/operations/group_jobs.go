@@ -293,9 +293,6 @@ func (o *GroupJobsBody) UnmarshalBinary(b []byte) error {
 // swagger:model GroupJobsOKBody
 type GroupJobsOKBody struct {
 
-	// Total number of groups
-	Count int64 `json:"count,omitempty"`
-
 	// List of Job groups
 	// Required: true
 	Groups []*models.Group `json:"groups"`
