@@ -52,6 +52,8 @@ type Job struct {
 	cancelRequested bool
 	// True if the user has requested this job's jobSet be cancelled
 	cancelByJobSetRequested bool
+	// User-specified reason for cancelling the job.
+	cancelReason string
 	// True if the scheduler has cancelled the job
 	cancelled bool
 	// True if the scheduler has failed the job
@@ -535,6 +537,10 @@ func (job *Job) WithQueuedVersion(version int32) *Job {
 	return j
 }
 
+func (job *Job) CancelReason() string {
+	return job.cancelReason
+}
+
 // CancelRequested returns true if the user has requested this job be cancelled.
 func (job *Job) CancelRequested() bool {
 	return job.cancelRequested
@@ -543,6 +549,12 @@ func (job *Job) CancelRequested() bool {
 // CancelByJobsetRequested returns true if the user has requested this job's jobSet be cancelled.
 func (job *Job) CancelByJobsetRequested() bool {
 	return job.cancelByJobSetRequested
+}
+
+func (job *Job) WithCancelReason(cancelReason string) *Job {
+	j := copyJob(*job)
+	j.cancelReason = cancelReason
+	return j
 }
 
 // WithCancelRequested returns a copy of the job with the cancelRequested status updated.

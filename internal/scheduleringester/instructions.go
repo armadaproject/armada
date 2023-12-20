@@ -359,7 +359,7 @@ func (c *InstructionConverter) handleCancelJob(cancelJob *armadaevents.CancelJob
 		return nil, err
 	}
 	return []DbOperation{MarkJobsCancelRequested{
-		jobId: true,
+		jobId: {reason: cancelJob.Reason},
 	}}, nil
 }
 
@@ -371,9 +371,10 @@ func (c *InstructionConverter) handleCancelJobSet(cancelJobSet *armadaevents.Can
 		JobSetKey{
 			queue:  meta.queue,
 			jobSet: meta.jobset,
-		}: &JobSetCancelAction{
+		}: JobSetCancelAction{
 			cancelQueued: cancelQueued,
 			cancelLeased: cancelLeased,
+			reason:       cancelJobSet.Reason,
 		},
 	}}, nil
 }
@@ -384,7 +385,10 @@ func (c *InstructionConverter) handleCancelledJob(cancelledJob *armadaevents.Can
 		return nil, err
 	}
 	return []DbOperation{MarkJobsCancelled{
-		jobId: cancelTime,
+		jobId: JobCancelledAction{
+			timestamp: cancelTime,
+			reason:    cancelledJob.GetReason(),
+		},
 	}}, nil
 }
 

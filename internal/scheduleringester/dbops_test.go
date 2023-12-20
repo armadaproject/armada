@@ -19,17 +19,17 @@ func TestMerge(t *testing.T) {
 	jobId1 := util.NewULID()
 	jobId2 := util.NewULID()
 	jobId3 := util.NewULID()
-	markJobsCancelled1 := MarkJobsCancelRequested{jobId1: false, jobId2: false}
-	markJobsCancelled2 := MarkJobsCancelRequested{jobId2: true, jobId3: true}
+	markJobsCancelled1 := MarkJobsCancelRequested{}
+	markJobsCancelled2 := MarkJobsCancelRequested{jobId2: {}, jobId3: {}}
 	ok := markJobsCancelled1.Merge(markJobsCancelled2)
 	assert.True(t, ok)
-	assert.Equal(t, MarkJobsCancelRequested{jobId1: false, jobId2: true, jobId3: true}, markJobsCancelled1)
+	assert.Equal(t, MarkJobsCancelRequested{jobId2: {}, jobId3: {}}, markJobsCancelled1)
 
 	jobId4 := util.NewULID()
 	markJobsSucceeded1 := MarkJobsSucceeded{jobId1: true, jobId4: true}
 	ok = markJobsCancelled1.Merge(markJobsSucceeded1)
 	assert.False(t, ok)
-	assert.Equal(t, MarkJobsCancelRequested{jobId1: false, jobId2: true, jobId3: true}, markJobsCancelled1)
+	assert.Equal(t, MarkJobsCancelRequested{jobId2: {}, jobId3: {}}, markJobsCancelled1)
 }
 
 func TestMerge_MarkRunsForJobPreemptRequested(t *testing.T) {
@@ -170,20 +170,20 @@ func TestDbOperationOptimisation(t *testing.T) {
 			UpdateJobPriorities{jobIds[2]: 5},                                                               // 4
 		}},
 		"MarkJobSetsCancelRequested": {N: 3, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},                                          // 1
-			MarkJobSetsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}}, // 2
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}},                                          // 3
-			MarkJobSetsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set2"}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}}, // 3
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}},                                          // 3
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},                                         // 1
+			MarkJobSetsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: JobSetCancelAction{cancelQueued: true, cancelLeased: true}}, // 2
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}},                                         // 3
+			MarkJobSetsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set2"}: JobSetCancelAction{cancelQueued: true, cancelLeased: true}}, // 3
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}},                                         // 3
 		}},
 		"MarkJobSetsCancelRequested, MarkJobsCancelRequested": {N: 4, Ops: []DbOperation{
-			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},                                          // 1
-			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}},                                          // 1
-			MarkJobsCancelRequested{jobIds[0]: true},                                                                                                 // 2
-			MarkJobSetsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}}, // 3
-			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}},                                          // 4
-			MarkJobsCancelRequested{jobIds[1]: true},                                                                                                 // 4
-			MarkJobsCancelRequested{jobIds[2]: true},                                                                                                 // 4
+			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},                                         // 1
+			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1], Queue: testQueueName, JobSet: "set1"}},                                         // 1
+			MarkJobsCancelRequested{jobIds[0]: {}},                                                                                                  // 2
+			MarkJobSetsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: JobSetCancelAction{cancelQueued: true, cancelLeased: true}}, // 3
+			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1"}},                                         // 4
+			MarkJobsCancelRequested{jobIds[1]: {}},                                                                                                  // 4
+			MarkJobsCancelRequested{jobIds[2]: {}},                                                                                                  // 4
 		}},
 		"MarkRunsForJobPreemptRequested": {N: 2, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0], Queue: testQueueName, JobSet: "set1"}},      // 1
@@ -209,9 +209,9 @@ func TestDbOperationOptimisation(t *testing.T) {
 		}},
 		"MarkJobsCancelled": {N: 2, Ops: []DbOperation{
 			InsertJobs{jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]}}, // 1
-			MarkJobsCancelled{jobIds[0]: time.Time{}},                 // 2
+			MarkJobsCancelled{jobIds[0]: {}},                          // 2
 			InsertJobs{jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]}}, // 2
-			MarkJobsCancelled{jobIds[1]: time.Time{}},                 // 2
+			MarkJobsCancelled{jobIds[1]: {}},                          // 2
 			InsertJobs{jobIds[2]: &schedulerdb.Job{JobID: jobIds[2]}}, // 2
 		}},
 		"MarkRunsSucceeded": {N: 3, Ops: []DbOperation{
@@ -312,7 +312,7 @@ func TestInsertJobRequestCancel(t *testing.T) {
 	}
 
 	// Cancel one job set.
-	ops = append(ops, MarkJobSetsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: &JobSetCancelAction{cancelQueued: true, cancelLeased: true}})
+	ops = append(ops, MarkJobSetsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: JobSetCancelAction{cancelQueued: true, cancelLeased: true}})
 
 	// Submit some more jobs to both job sets.
 	for i := 0; i < 2; i++ {

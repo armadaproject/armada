@@ -11,16 +11,17 @@ SELECT job_id, job_set, queue, priority, submitted, queued, queued_version, canc
 UPDATE jobs SET priority = $1 WHERE job_set = $2 and queue = $3;
 
 -- name: MarkJobsCancelRequestedBySetAndQueuedState :exec
-UPDATE jobs SET cancel_by_jobset_requested = true WHERE job_set = sqlc.arg(job_set) and queue = sqlc.arg(queue) and queued = ANY(sqlc.arg(queued_states)::bool[]);
+UPDATE jobs
+SET
+  cancel_by_jobset_requested = true,
+  cancel_reason = COALESCE(cancel_reason, sqlc.arg(cancel_reason))
+WHERE
+  queue = sqlc.arg(queue)
+  AND job_set = sqlc.arg(job_set)
+  AND queued = ANY(sqlc.arg(queued_states)::bool[]);
 
 -- name: MarkJobsSucceededById :exec
 UPDATE jobs SET succeeded = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
-
--- name: MarkJobsCancelRequestedById :exec
-UPDATE jobs SET cancel_requested = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
-
--- name: MarkJobsCancelledById :exec
-UPDATE jobs SET cancelled = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);
 
 -- name: MarkJobsFailedById :exec
 UPDATE jobs SET failed = true WHERE job_id = ANY(sqlc.arg(job_ids)::text[]);

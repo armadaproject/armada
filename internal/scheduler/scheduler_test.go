@@ -156,6 +156,7 @@ var queuedJob = testfixtures.JobDb.NewJob(
 	0,
 	false,
 	false,
+	"",
 	false,
 	1,
 )
@@ -170,6 +171,7 @@ var queuedJobWithExpiredTtl = testfixtures.JobDb.NewJob(
 	0,
 	false,
 	false,
+	"",
 	false,
 	1,
 )
@@ -184,6 +186,7 @@ var leasedJob = testfixtures.JobDb.NewJob(
 	1,
 	false,
 	false,
+	"",
 	false,
 	1,
 ).WithNewRun("testExecutor", "test-node", "node", 5)
@@ -198,6 +201,7 @@ var preemptibleLeasedJob = testfixtures.JobDb.NewJob(
 	1,
 	false,
 	false,
+	"",
 	false,
 	1,
 ).WithNewRun("testExecutor", "test-node", "node", 5)
@@ -212,6 +216,7 @@ var cancelledJob = testfixtures.JobDb.NewJob(
 	1,
 	true,
 	false,
+	"",
 	true,
 	1,
 ).WithNewRun("testExecutor", "test-node", "node", 5)
@@ -226,6 +231,7 @@ var returnedOnceLeasedJob = testfixtures.JobDb.NewJob(
 	3,
 	false,
 	false,
+	"",
 	false,
 	1,
 ).WithUpdatedRun(testfixtures.JobDb.CreateRun(
@@ -287,6 +293,7 @@ var leasedFailFastJob = testfixtures.JobDb.NewJob(
 	1,
 	false,
 	false,
+	"",
 	false,
 	1,
 ).WithNewRun("testExecutor", "test-node", "node", 5)
@@ -307,6 +314,7 @@ var (
 		2,
 		false,
 		false,
+		"",
 		false,
 		1,
 	).WithUpdatedRun(testfixtures.JobDb.CreateRun(
@@ -1725,6 +1733,10 @@ var (
 func jobDbJobFromDbJob(job *database.Job) *jobdb.Job {
 	var schedulingInfo schedulerobjects.JobSchedulingInfo
 	protoutil.MustUnmarshall(job.SchedulingInfo, &schedulingInfo)
+	cancelReason := ""
+	if job.CancelReason != nil {
+		cancelReason = *job.CancelReason
+	}
 	// Use a fresh jobDb instance to ensure run ids are consistent.
 	return testfixtures.NewJobDb().NewJob(
 		job.JobID,
@@ -1736,6 +1748,7 @@ func jobDbJobFromDbJob(job *database.Job) *jobdb.Job {
 		job.QueuedVersion,
 		job.CancelRequested,
 		job.CancelByJobsetRequested,
+		cancelReason,
 		job.Cancelled,
 		0,
 	)

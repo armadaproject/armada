@@ -255,6 +255,10 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		}
 	}
 
+	cancelReason := ""
+	if dbJob.CancelReason != nil {
+		cancelReason = *dbJob.CancelReason
+	}
 	job := jobDb.NewJob(
 		dbJob.JobID,
 		dbJob.JobSet,
@@ -265,6 +269,7 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		dbJob.QueuedVersion,
 		dbJob.CancelRequested,
 		dbJob.CancelByJobsetRequested,
+		cancelReason,
 		dbJob.Cancelled,
 		dbJob.Submitted,
 	)

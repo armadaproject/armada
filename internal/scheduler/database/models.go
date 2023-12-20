@@ -36,6 +36,7 @@ type Job struct {
 	SchedulingInfoVersion   int32     `db:"scheduling_info_version"`
 	Serial                  int64     `db:"serial"`
 	LastModified            time.Time `db:"last_modified"`
+	CancelReason            *string   `db:"cancel_reason"`
 }
 
 type JobRunError struct {

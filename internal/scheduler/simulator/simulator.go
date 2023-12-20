@@ -677,6 +677,7 @@ func (s *Simulator) handleSubmitJob(txn *jobdb.Txn, e *armadaevents.SubmitJob, t
 		0,
 		false,
 		false,
+		"",
 		false,
 		s.logicalJobCreatedTimestamp.Add(1),
 	)
