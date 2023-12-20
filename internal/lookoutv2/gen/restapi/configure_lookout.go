@@ -12,6 +12,7 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 
+	"github.com/armadaproject/armada/internal/common/serve"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/lookoutv2/configuration"
 	"github.com/armadaproject/armada/internal/lookoutv2/gen/restapi/operations"
@@ -94,7 +95,7 @@ func setupGlobalMiddleware(apiHandler http.Handler) http.Handler {
 func uiHandler(apiHandler http.Handler) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.Handle("/", setCacheControl(http.FileServer(http.Dir("./internal/lookout/ui/build"))))
+	mux.Handle("/", setCacheControl(http.FileServer(serve.CreateDirWithIndexFallback("./internal/lookout/ui/build"))))
 
 	mux.HandleFunc("/config", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
