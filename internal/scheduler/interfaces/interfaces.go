@@ -19,6 +19,7 @@ type LegacySchedulerJob interface {
 	GetAnnotations() map[string]string
 	GetPodRequirements(priorityClasses map[string]types.PriorityClass) *schedulerobjects.PodRequirements
 	GetPriorityClassName() string
+	GetScheduledAtPriority() (int32, bool)
 	GetNodeSelector() map[string]string
 	GetAffinity() *v1.Affinity
 	GetTolerations() []v1.Toleration
@@ -34,6 +35,17 @@ type LegacySchedulerJob interface {
 	//   - -1 if job should be scheduled before other,
 	//   - +1 if other should be scheduled before other.
 	SchedulingOrderCompare(other LegacySchedulerJob) int
+}
+
+func PriorityClassFromLegacySchedulerJob(priorityClasses map[string]types.PriorityClass, defaultPriorityClassName string, job LegacySchedulerJob) types.PriorityClass {
+	priorityClassName := job.GetPriorityClassName()
+	if priorityClass, ok := priorityClasses[priorityClassName]; ok {
+		return priorityClass
+	}
+	// We could return (types.PriorityClass{}, false) here, but then callers
+	// might handle this situation in different ways; return the default
+	// priority class in order to enforce uniformity.
+	return priorityClasses[defaultPriorityClassName]
 }
 
 func SchedulingKeyFromLegacySchedulerJob(skg *schedulerobjects.SchedulingKeyGenerator, job LegacySchedulerJob) schedulerobjects.SchedulingKey {

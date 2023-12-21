@@ -7,20 +7,16 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func Validate(config interface{}) error {
-	validate := validator.New()
-	return validate.Struct(config)
-}
-
 func LogValidationErrors(err error) {
 	if err != nil {
 		for _, err := range err.(validator.ValidationErrors) {
 			fieldName := stripPrefix(err.Namespace())
-			switch err.Tag() {
+			tag := err.Tag()
+			switch tag {
 			case "required":
 				log.Errorf("ConfigError: Field %s is required but was not found", fieldName)
 			default:
-				log.Errorf("ConfigError: %s is not a valid value for %s", err.Value(), fieldName)
+				log.Errorf("ConfigError: Field %s has invalid value %s: %s", fieldName, err.Value(), tag)
 			}
 		}
 	}

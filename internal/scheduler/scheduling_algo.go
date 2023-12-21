@@ -97,9 +97,8 @@ func (l *FairSchedulingAlgo) Schedule(
 		defer cancel()
 	}
 	overallSchedulerResult := &SchedulerResult{
-		NodeIdByJobId:      make(map[string]string),
-		SchedulingContexts: make([]*schedulercontext.SchedulingContext, 0, 0),
-		FailedJobs:         make([]interfaces.LegacySchedulerJob, 0),
+		NodeIdByJobId:                make(map[string]string),
+		AdditionalAnnotationsByJobId: make(map[string]map[string]string),
 	}
 
 	// Exit immediately if scheduling is disabled.
@@ -344,6 +343,7 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		l.schedulingConfig.IndexedResources,
 		l.schedulingConfig.IndexedTaints,
 		l.schedulingConfig.IndexedNodeLabels,
+		l.schedulingConfig.WellKnownNodeTypes,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -442,30 +442,38 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 	if err != nil {
 		return nil, nil, err
 	}
-	for i, job := range result.PreemptedJobs {
-		jobDbJob := job.(*jobdb.Job)
+	for i, jctx := range result.PreemptedJobs {
+		jobDbJob := jctx.Job.(*jobdb.Job)
 		if run := jobDbJob.LatestRun(); run != nil {
 			jobDbJob = jobDbJob.WithUpdatedRun(run.WithFailed(true))
 		} else {
 			return nil, nil, errors.Errorf("attempting to preempt job %s with no associated runs", jobDbJob.Id())
 		}
-		result.PreemptedJobs[i] = jobDbJob.WithQueued(false).WithFailed(true)
+		result.PreemptedJobs[i].Job = jobDbJob.WithQueued(false).WithFailed(true)
 	}
-	for i, job := range result.ScheduledJobs {
-		jobDbJob := job.(*jobdb.Job)
-		nodeId := result.NodeIdByJobId[jobDbJob.GetId()]
+	for i, jctx := range result.ScheduledJobs {
+		jobDbJob := jctx.Job.(*jobdb.Job)
+		jobId := jobDbJob.GetId()
+		nodeId := result.NodeIdByJobId[jobId]
 		if nodeId == "" {
-			return nil, nil, errors.Errorf("job %s not mapped to any node", jobDbJob.GetId())
+			return nil, nil, errors.Errorf("job %s not mapped to a node", jobId)
 		}
-		if node, err := nodeDb.GetNode(nodeId); err != nil {
+		node, err := nodeDb.GetNode(nodeId)
+		if err != nil {
 			return nil, nil, err
-		} else {
-			result.ScheduledJobs[i] = jobDbJob.WithQueuedVersion(jobDbJob.QueuedVersion()+1).WithQueued(false).WithNewRun(node.Executor, node.Id, node.Name)
 		}
+		priority, ok := nodeDb.GetScheduledAtPriority(jobId)
+		if !ok {
+			return nil, nil, errors.Errorf("job %s not mapped to a priority", jobId)
+		}
+		result.ScheduledJobs[i].Job = jobDbJob.
+			WithQueuedVersion(jobDbJob.QueuedVersion()+1).
+			WithQueued(false).
+			WithNewRun(node.Executor, node.Id, node.Name, priority)
 	}
-	for i, job := range result.FailedJobs {
-		jobDbJob := job.(*jobdb.Job)
-		result.FailedJobs[i] = jobDbJob.WithQueued(false).WithFailed(true)
+	for i, jctx := range result.FailedJobs {
+		jobDbJob := jctx.Job.(*jobdb.Job)
+		result.FailedJobs[i].Job = jobDbJob.WithQueued(false).WithFailed(true)
 	}
 	return result, sctx, nil
 }

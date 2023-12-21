@@ -49,10 +49,8 @@ export interface UseFetchJobsTableDataArgs {
 export interface UseFetchJobsTableDataResult {
   data: JobTableRow[]
   jobInfoMap: Map<JobId, Job>
-  pageCount: number
   rowsToFetch: PendingData[]
   setRowsToFetch: (toFetch: PendingData[]) => void
-  totalRowCount: number
 }
 
 const aggregatableFields = new Map<ColumnId, string>([
@@ -134,8 +132,6 @@ export const useFetchJobsTableData = ({
   const [data, setData] = useState<JobTableRow[]>([])
   const [jobInfoMap, setJobInfoMap] = useState<Map<JobId, Job>>(new Map())
   const [pendingData, setPendingData] = useState<PendingData[]>([])
-  const [totalRowCount, setTotalRowCount] = useState(0)
-  const [pageCount, setPageCount] = useState<number>(-1)
 
   useEffect(() => {
     const abortController = new AbortController()
@@ -162,12 +158,11 @@ export const useFetchJobsTableData = ({
         order: order,
       }
 
-      let newData, totalCount
+      let newData
       try {
         if (isJobFetch) {
-          const { jobs, count: totalJobs } = await fetchJobs(rowRequest, getJobsService, abortController.signal)
+          const { jobs } = await fetchJobs(rowRequest, getJobsService, abortController.signal)
           newData = jobsToRows(jobs)
-          totalCount = totalJobs
 
           setJobInfoMap(new Map([...jobInfoMap.entries(), ...jobs.map((j): [JobId, Job] => [j.jobId, j])]))
         } else {
@@ -178,7 +173,7 @@ export const useFetchJobsTableData = ({
           rowRequest.filters.push(...getFiltersForGroupedAnnotations(groupedColumns.slice(expandedLevel + 1)))
 
           const colsToAggregate = getColsToAggregate(visibleColumns, rowRequest.filters)
-          const { groups, count: totalGroups } = await fetchJobGroups(
+          const { groups } = await fetchJobGroups(
             rowRequest,
             groupJobsService,
             groupedField,
@@ -186,7 +181,6 @@ export const useFetchJobsTableData = ({
             abortController.signal,
           )
           newData = groupsToRows(groups, parentRowInfo?.rowId, groupedField)
-          totalCount = totalGroups
         }
       } catch (err) {
         if (abortController.signal.aborted) {
@@ -206,8 +200,6 @@ export const useFetchJobsTableData = ({
       )
 
       if (parentRow) {
-        parentRow.subRowCount = totalCount
-
         // Update any new children of selected rows
         if (parentRow.rowId in selectedRows) {
           const newSelectedRows = parentRow.subRows.reduce(
@@ -223,10 +215,6 @@ export const useFetchJobsTableData = ({
 
       setData([...rootData]) // ReactTable will only re-render if the array identity changes
       setPendingData(restOfRequests)
-      if (parentRowInfo === undefined) {
-        setPageCount(Math.ceil(totalCount / paginationState.pageSize))
-        setTotalRowCount(totalCount)
-      }
     }
 
     fetchData().catch(console.error)
@@ -241,10 +229,8 @@ export const useFetchJobsTableData = ({
   return {
     data,
     jobInfoMap,
-    pageCount,
     rowsToFetch: pendingData,
     setRowsToFetch: setPendingData,
-    totalRowCount,
   }
 }
 

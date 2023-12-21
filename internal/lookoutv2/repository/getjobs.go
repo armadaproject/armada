@@ -27,8 +27,7 @@ type SqlGetJobsRepository struct {
 }
 
 type GetJobsResult struct {
-	Jobs  []*model.Job
-	Count int
+	Jobs []*model.Job
 }
 
 type jobRow struct {
@@ -82,30 +81,15 @@ func (r *SqlGetJobsRepository) GetJobs(ctx *armadacontext.Context, filters []*mo
 	var jobRows []*jobRow
 	var runRows []*runRow
 	var annotationRows []*annotationRow
-	var count int
 
 	err := pgx.BeginTxFunc(ctx, r.db, pgx.TxOptions{
 		IsoLevel:       pgx.RepeatableRead,
 		AccessMode:     pgx.ReadWrite,
 		DeferrableMode: pgx.Deferrable,
 	}, func(tx pgx.Tx) error {
-		countQuery, err := NewQueryBuilder(r.lookoutTables).JobCount(filters, activeJobSets)
-		if err != nil {
-			return err
-		}
-		logQuery(countQuery)
-		rows, err := tx.Query(ctx, countQuery.Sql, countQuery.Args...)
-		if err != nil {
-			return err
-		}
-		count, err = database.ReadInt(rows)
-		if err != nil {
-			return err
-		}
-
 		createTempTableQuery, tempTableName := NewQueryBuilder(r.lookoutTables).CreateTempTable()
 		logQuery(createTempTableQuery)
-		_, err = tx.Exec(ctx, createTempTableQuery.Sql, createTempTableQuery.Args...)
+		_, err := tx.Exec(ctx, createTempTableQuery.Sql, createTempTableQuery.Args...)
 		if err != nil {
 			return err
 		}
@@ -114,7 +98,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx *armadacontext.Context, filters []*mo
 		if err != nil {
 			return err
 		}
-		logQuery(createTempTableQuery)
+		logQuery(insertQuery)
 		_, err = tx.Exec(ctx, insertQuery.Sql, insertQuery.Args...)
 		if err != nil {
 			return err
@@ -146,8 +130,7 @@ func (r *SqlGetJobsRepository) GetJobs(ctx *armadacontext.Context, filters []*mo
 		return nil, err
 	}
 	return &GetJobsResult{
-		Jobs:  jobs,
-		Count: count,
+		Jobs: jobs,
 	}, nil
 }
 

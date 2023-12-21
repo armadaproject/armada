@@ -212,7 +212,7 @@ export const JobsTableContainer = ({
   const [sorting, setSorting] = useState<SortingState>(fromLookoutOrder(lookoutOrder))
 
   // Data
-  const { data, jobInfoMap, pageCount, rowsToFetch, setRowsToFetch, totalRowCount } = useFetchJobsTableData({
+  const { data, jobInfoMap, rowsToFetch, setRowsToFetch } = useFetchJobsTableData({
     groupedColumns: grouping,
     visibleColumns: visibleColumnIds,
     expandedState: expanded,
@@ -290,11 +290,18 @@ export const JobsTableContainer = ({
     }
   }
 
+  const setToFirstPage = () => {
+    setPagination({
+      pageIndex: 0,
+      pageSize: pageSize,
+    })
+  }
+
   const loadPrefs = (prefs: JobsTablePreferences) => {
     setGrouping(prefs.groupedColumns)
     setExpanded(prefs.expandedState)
     setPagination({
-      pageIndex: prefs.pageIndex,
+      pageIndex: 0,
       pageSize: prefs.pageSize,
     })
     setLookoutOrder(prefs.order)
@@ -320,9 +327,7 @@ export const JobsTableContainer = ({
     setTextFields(prefs.filters)
 
     // Load data
-    setRowsToFetch(
-      pendingDataForAllVisibleData(prefs.expandedState, data, prefs.pageSize, prefs.pageIndex * prefs.pageSize),
-    )
+    setRowsToFetch(pendingDataForAllVisibleData(prefs.expandedState, data, prefs.pageSize))
   }
 
   // Update query params with table state
@@ -360,6 +365,7 @@ export const JobsTableContainer = ({
   const loadCustomView = (name: string) => {
     try {
       const prefs = customViewsService.getView(name)
+      setToFirstPage()
       loadPrefs(prefs)
     } catch (e) {
       console.error(getErrorMessage(e))
@@ -449,6 +455,7 @@ export const JobsTableContainer = ({
 
   const onGroupingChange = useCallback(
     (newGroups: ColumnId[]) => {
+      setToFirstPage()
       // Reset currently expanded/selected when grouping changes
       setSelectedRows({})
       setSidebarJobId(undefined)
@@ -565,6 +572,7 @@ export const JobsTableContainer = ({
   }
 
   const onFilterChange = (updater: Updater<ColumnFiltersState>) => {
+    setToFirstPage()
     const newFilterState = updaterToValue(updater, columnFilterState)
     setLookoutFilters(parseLookoutFilters(newFilterState))
     setColumnFilterState(newFilterState)
@@ -583,11 +591,12 @@ export const JobsTableContainer = ({
   }
 
   const onSortingChange = (updater: Updater<SortingState>) => {
+    setToFirstPage()
     const newSortingState = updaterToValue(updater, sorting)
     setLookoutOrder(toLookoutOrder(newSortingState))
     setSorting(newSortingState)
     // Refetch any expanded subgroups, and root data with updated sorting params
-    setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
+    setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
   }
 
   const onColumnSizingChange = useCallback(
@@ -650,7 +659,6 @@ export const JobsTableContainer = ({
 
     // Pagination
     manualPagination: true,
-    pageCount: pageCount,
     paginateExpandedRows: true,
     onPaginationChange: onRootPaginationChange,
     getPaginationRowModel: getPaginationRowModel(),
@@ -729,7 +737,9 @@ export const JobsTableContainer = ({
             activeJobSets={activeJobSets}
             onActiveJobSetsChanged={(newVal) => {
               setActiveJobSets(newVal)
-              onRefresh()
+              setToFirstPage()
+              setSelectedRows({})
+              setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize))
             }}
             onRefresh={onRefresh}
             autoRefresh={autoRefresh}
@@ -795,7 +805,11 @@ export const JobsTableContainer = ({
           <TablePagination
             component="div"
             rowsPerPageOptions={PAGE_SIZE_OPTIONS}
-            count={totalRowCount}
+            // If the total number rows in the database for the current filter
+            // is exactly equal to `pageSize`, then this is going to produce a
+            // misleading description (e.g., "1-50 of more than 50", even though
+            // there are exactly 50 rows).
+            count={data.length < pageSize ? data.length : -1}
             rowsPerPage={pageSize}
             page={pageIndex}
             onPageChange={(_, page) => table.setPageIndex(page)}
