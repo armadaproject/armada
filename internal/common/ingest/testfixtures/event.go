@@ -3,7 +3,7 @@ package testfixtures
 import (
 	"time"
 
-	"github.com/golang/protobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	"github.com/google/uuid"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -76,6 +76,8 @@ const (
 	UnschedulableMsg           = "test pod is unschedulable"
 	PartitionMarkerPartitionId = 456
 )
+
+var ScheduledAtPriority = int32(15)
 
 var Submit = &armadaevents.EventSequence_Event{
 	Created: &testfixtures.BaseTime,
@@ -199,11 +201,13 @@ var Leased = &armadaevents.EventSequence_Event{
 	Created: &testfixtures.BaseTime,
 	Event: &armadaevents.EventSequence_Event_JobRunLeased{
 		JobRunLeased: &armadaevents.JobRunLeased{
-			RunId:                RunIdProto,
-			JobId:                JobIdProto,
-			ExecutorId:           ExecutorId,
-			NodeId:               NodeName,
-			UpdateSequenceNumber: 1,
+			RunId:                  RunIdProto,
+			JobId:                  JobIdProto,
+			ExecutorId:             ExecutorId,
+			NodeId:                 NodeName,
+			HasScheduledAtPriority: true,
+			ScheduledAtPriority:    15,
+			UpdateSequenceNumber:   1,
 		},
 	},
 }

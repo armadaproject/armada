@@ -7,7 +7,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -24,15 +23,6 @@ var jobSchedulingInfo = &schedulerobjects.JobSchedulingInfo{
 		},
 	},
 }
-
-// Used for creating jobs.
-var jobDb = NewJobDb(
-	map[string]types.PriorityClass{
-		"foo": {},
-		"bar": {},
-	},
-	"foo",
-)
 
 var baseJob = jobDb.NewJob(
 	"test-job",
@@ -135,22 +125,28 @@ func TestJob_TestInTerminalState(t *testing.T) {
 
 func TestJob_TestHasRuns(t *testing.T) {
 	assert.Equal(t, false, baseJob.HasRuns())
-	assert.Equal(t, true, baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId").HasRuns())
+	assert.Equal(t, true, baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId", 5).HasRuns())
 }
 
 func TestJob_TestWithNewRun(t *testing.T) {
-	jobWithRun := baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId")
+	scheduledAtPriority := int32(10)
+	jobWithRun := baseJob.WithNewRun("test-executor", "test-nodeId", "nodeId", scheduledAtPriority)
 	assert.Equal(t, true, jobWithRun.HasRuns())
 	run := jobWithRun.LatestRun()
 	assert.NotNil(t, run)
-	assert.Equal(t, &JobRun{
-		id:       run.id,
-		jobId:    "test-job",
-		created:  run.created,
-		executor: "test-executor",
-		nodeId:   "test-nodeId",
-		nodeName: "nodeId",
-	}, run)
+	assert.Equal(
+		t,
+		&JobRun{
+			id:                  run.id,
+			jobId:               "test-job",
+			created:             run.created,
+			executor:            "test-executor",
+			nodeId:              "test-nodeId",
+			nodeName:            "nodeId",
+			scheduledAtPriority: &scheduledAtPriority,
+		},
+		run,
+	)
 }
 
 func TestJob_TestWithUpdatedRun_NewRun(t *testing.T) {

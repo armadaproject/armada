@@ -530,11 +530,13 @@ func TestQueueScheduler(t *testing.T) {
 				legacySchedulerJobs[i] = job
 			}
 			jobRepo := NewInMemoryJobRepository()
-			jobRepo.EnqueueMany(schedulercontext.JobSchedulingContextsFromJobs(
-				testfixtures.TestPriorityClasses,
-				legacySchedulerJobs,
-				GangIdAndCardinalityFromAnnotations,
-			))
+			jobRepo.EnqueueMany(
+				schedulercontext.JobSchedulingContextsFromJobs(
+					tc.SchedulingConfig.Preemption.PriorityClasses,
+					legacySchedulerJobs,
+					GangIdAndCardinalityFromAnnotations,
+				),
+			)
 
 			fairnessCostProvider, err := fairness.NewDominantResourceFairness(
 				tc.TotalResources,
@@ -584,10 +586,10 @@ func TestQueueScheduler(t *testing.T) {
 
 			// Check that the right jobs got scheduled.
 			var actualScheduledIndices []int
-			for _, job := range result.ScheduledJobs {
+			for _, jctx := range result.ScheduledJobs {
 				actualScheduledIndices = append(
 					actualScheduledIndices,
-					indexByJobId[job.GetId()],
+					indexByJobId[jctx.JobId],
 				)
 			}
 			slices.Sort(actualScheduledIndices)
@@ -668,8 +670,8 @@ func TestQueueScheduler(t *testing.T) {
 			}
 
 			// Check that each scheduled job was allocated a node.
-			for _, job := range result.ScheduledJobs {
-				nodeId, ok := result.NodeIdByJobId[job.GetId()]
+			for _, jctx := range result.ScheduledJobs {
+				nodeId, ok := result.NodeIdByJobId[jctx.JobId]
 				assert.True(t, ok)
 				assert.NotEmpty(t, nodeId)
 			}
@@ -709,6 +711,7 @@ func NewNodeDb(config configuration.SchedulingConfig) (*nodedb.NodeDb, error) {
 		config.IndexedResources,
 		config.IndexedTaints,
 		config.IndexedNodeLabels,
+		config.WellKnownNodeTypes,
 	)
 	if err != nil {
 		return nil, err

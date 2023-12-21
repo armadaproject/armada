@@ -61,9 +61,15 @@ var (
 		TestResources,
 		func(v configuration.IndexedResource) int64 { return v.Resolution.MilliValue() },
 	)
-	TestIndexedTaints     = []string{"largeJobsOnly", "gpu"}
-	TestIndexedNodeLabels = []string{"largeJobsOnly", "gpu"}
-	jobTimestamp          atomic.Int64
+	TestIndexedTaints      = []string{"largeJobsOnly", "gpu"}
+	TestIndexedNodeLabels  = []string{"largeJobsOnly", "gpu"}
+	TestWellKnownNodeTypes = []configuration.WellKnownNodeType{
+		{
+			Name:   "gpu",
+			Taints: []v1.Taint{{Key: "gpu", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+		},
+	}
+	jobTimestamp atomic.Int64
 	// SchedulingKeyGenerator to use in testing.
 	// Has to be consistent since creating one involves generating a random key.
 	// If this key isn't consistent, scheduling keys generated are not either.
@@ -79,6 +85,7 @@ func NewJobDb() *jobdb.JobDb {
 		TestPriorityClasses,
 		TestDefaultPriorityClass,
 		SchedulingKeyGenerator,
+		1024,
 	)
 }
 
@@ -111,8 +118,11 @@ func TestSchedulingConfig() configuration.SchedulingConfig {
 		MaximumSchedulingBurst:                      math.MaxInt,
 		MaximumPerQueueSchedulingRate:               math.Inf(1),
 		MaximumPerQueueSchedulingBurst:              math.MaxInt,
+		MaxExtraNodesToConsider:                     TestMaxExtraNodesToConsider,
 		IndexedResources:                            TestResources,
 		IndexedNodeLabels:                           TestIndexedNodeLabels,
+		IndexedTaints:                               TestIndexedTaints,
+		WellKnownNodeTypes:                          TestWellKnownNodeTypes,
 		DominantResourceFairnessResourcesToConsider: TestResourceNames,
 		ExecutorTimeout:                             15 * time.Minute,
 		MaxUnacknowledgedJobsPerExecutor:            math.MaxInt,
@@ -832,6 +842,7 @@ func Test1CoreCpuApiJob() *api.Job {
 					},
 				},
 			},
+			PriorityClassName: TestDefaultPriorityClass,
 		},
 	}
 }

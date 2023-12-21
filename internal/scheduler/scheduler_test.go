@@ -16,9 +16,10 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
-	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/util"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
@@ -143,7 +144,8 @@ var leasedJob = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	false,
-	1).WithQueued(false).WithNewRun("testExecutor", "test-node", "node")
+	1,
+).WithQueued(false).WithNewRun("testExecutor", "test-node", "node", 5)
 
 var defaultJobRunError = &armadaevents.Error{
 	Terminal: true,
@@ -165,7 +167,10 @@ var leasedFailFastJob = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	false,
-	1).WithQueued(false).WithNewRun("testExecutor", "test-node", "node")
+	1,
+).WithQueued(false).WithNewRun("testExecutor", "test-node", "node", 5)
+
+var scheduledAtPriority = int32(5)
 
 var (
 	requeuedJobId = util.NewULID()
@@ -180,14 +185,16 @@ var (
 		false,
 		false,
 		false,
-		1).WithUpdatedRun(
-		jobdb.CreateRun(
+		1,
+	).WithUpdatedRun(
+		testfixtures.JobDb.CreateRun(
 			uuid.New(),
 			requeuedJobId,
 			time.Now().Unix(),
 			"testExecutor",
 			"test-node",
 			"node",
+			&scheduledAtPriority,
 			false,
 			false,
 			true,
@@ -249,6 +256,33 @@ func TestScheduler_TestCycle(t *testing.T) {
 			},
 			expectedJobRunLeased:  []string{queuedJob.Id()},
 			expectedLeased:        []string{queuedJob.Id()},
+			expectedQueuedVersion: queuedJob.QueuedVersion() + 1,
+		},
+		"Lease two jobs from an update": {
+			jobUpdates: []database.Job{
+				{
+					JobID:                 "01h3w2wtdchtc80hgyp782shrv",
+					JobSet:                "testJobSet",
+					Queue:                 "testQueue",
+					Queued:                true,
+					QueuedVersion:         1,
+					SchedulingInfo:        schedulingInfoBytes,
+					SchedulingInfoVersion: int32(schedulingInfo.Version),
+					Serial:                1,
+				},
+				{
+					JobID:                 "01h434g4hxww2pknb2q1nfmfph",
+					JobSet:                "testJobSet",
+					Queue:                 "testQueue",
+					Queued:                true,
+					QueuedVersion:         1,
+					SchedulingInfo:        schedulingInfoBytes,
+					SchedulingInfoVersion: int32(schedulingInfo.Version),
+					Serial:                1,
+				},
+			},
+			expectedJobRunLeased:  []string{"01h3w2wtdchtc80hgyp782shrv", "01h434g4hxww2pknb2q1nfmfph"},
+			expectedLeased:        []string{"01h3w2wtdchtc80hgyp782shrv", "01h434g4hxww2pknb2q1nfmfph"},
 			expectedQueuedVersion: queuedJob.QueuedVersion() + 1,
 		},
 		"Nothing leased": {
@@ -604,8 +638,6 @@ func TestScheduler_TestCycle(t *testing.T) {
 				shouldError:    tc.scheduleError,
 			}
 			publisher := &testPublisher{shouldError: tc.publishError}
-			stringInterner, err := stringinterner.New(100)
-			require.NoError(t, err)
 			submitChecker := &testSubmitChecker{checkSuccess: !tc.submitCheckerFailure}
 
 			heartbeatTime := testClock.Now()
@@ -622,7 +654,6 @@ func TestScheduler_TestCycle(t *testing.T) {
 				schedulingAlgo,
 				NewStandaloneLeaderController(),
 				publisher,
-				stringInterner,
 				submitChecker,
 				1*time.Second,
 				5*time.Second,
@@ -630,6 +661,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
+				nil,
 			)
 			require.NoError(t, err)
 
@@ -779,9 +811,6 @@ func TestRun(t *testing.T) {
 	clusterRepo := &testExecutorRepository{}
 	leaderController := NewStandaloneLeaderController()
 	submitChecker := &testSubmitChecker{checkSuccess: true}
-	stringInterner, err := stringinterner.New(100)
-	require.NoError(t, err)
-
 	sched, err := NewScheduler(
 		testfixtures.NewJobDb(),
 		&jobRepo,
@@ -789,14 +818,15 @@ func TestRun(t *testing.T) {
 		schedulingAlgo,
 		leaderController,
 		publisher,
-		stringInterner,
 		submitChecker,
 		1*time.Second,
 		15*time.Second,
 		1*time.Hour,
 		maxNumberOfAttempts,
 		nodeIdLabel,
-		schedulerMetrics)
+		schedulerMetrics,
+		nil,
+	)
 	require.NoError(t, err)
 
 	sched.clock = testClock
@@ -904,17 +934,22 @@ func TestScheduler_TestSyncState(t *testing.T) {
 					Executor: "test-executor",
 					Node:     "test-node",
 					Created:  123,
+					ScheduledAtPriority: func() *int32 {
+						scheduledAtPriority := int32(5)
+						return &scheduledAtPriority
+					}(),
 				},
 			},
 			expectedUpdatedJobs: []*jobdb.Job{
 				queuedJob.WithUpdatedRun(
-					jobdb.CreateRun(
+					testfixtures.JobDb.CreateRun(
 						uuid.UUID{},
 						queuedJob.Id(),
 						123,
 						"test-executor",
 						"test-executor-test-node",
 						"test-node",
+						&scheduledAtPriority,
 						false,
 						false,
 						false,
@@ -948,8 +983,10 @@ func TestScheduler_TestSyncState(t *testing.T) {
 					Succeeded: true,
 				},
 			},
-			expectedUpdatedJobs: []*jobdb.Job{leasedJob.WithUpdatedRun(leasedJob.LatestRun().WithSucceeded(true))},
-			expectedJobDbIds:    []string{},
+			expectedUpdatedJobs: []*jobdb.Job{leasedJob.
+				WithUpdatedRun(leasedJob.LatestRun().WithSucceeded(true)).
+				WithSucceeded(true)},
+			expectedJobDbIds: []string{},
 		},
 		"job requeued": {
 			initialJobs: []*jobdb.Job{leasedJob},
@@ -990,9 +1027,6 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			publisher := &testPublisher{}
 			clusterRepo := &testExecutorRepository{}
 			leaderController := NewStandaloneLeaderController()
-			stringInterner, err := stringinterner.New(100)
-			require.NoError(t, err)
-
 			sched, err := NewScheduler(
 				testfixtures.NewJobDb(),
 				jobRepo,
@@ -1000,7 +1034,6 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				schedulingAlgo,
 				leaderController,
 				publisher,
-				stringInterner,
 				nil,
 				1*time.Second,
 				5*time.Second,
@@ -1008,6 +1041,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 				maxNumberOfAttempts,
 				nodeIdLabel,
 				schedulerMetrics,
+				nil,
 			)
 			require.NoError(t, err)
 
@@ -1021,7 +1055,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			require.NoError(t, err)
 			txn.Commit()
 
-			updatedJobs, err := sched.syncState(ctx)
+			updatedJobs, _, _, err := sched.syncState(ctx)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedUpdatedJobs, updatedJobs)
@@ -1157,7 +1191,11 @@ func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn
 		if !job.Queued() {
 			return nil, errors.Errorf("was asked to lease %s but job was already leased", job.Id())
 		}
-		job = job.WithQueuedVersion(job.QueuedVersion()+1).WithQueued(false).WithNewRun("test-executor", "test-node", "node")
+		priority := int32(0)
+		if req := job.PodRequirements(); req != nil {
+			priority = req.Priority
+		}
+		job = job.WithQueuedVersion(job.QueuedVersion()+1).WithQueued(false).WithNewRun("test-executor", "test-node", "node", priority)
 		scheduledJobs = append(scheduledJobs, job)
 	}
 	for _, id := range t.jobsToFail {
@@ -1181,6 +1219,20 @@ func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn
 		return nil, err
 	}
 	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs, failedJobs, nil), nil
+}
+
+func NewSchedulerResultForTest[S ~[]T, T interfaces.LegacySchedulerJob](
+	preemptedJobs S,
+	scheduledJobs S,
+	failedJobs S,
+	nodeIdByJobId map[string]string,
+) *SchedulerResult {
+	return &SchedulerResult{
+		PreemptedJobs: schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, preemptedJobs, GangIdAndCardinalityFromAnnotations),
+		ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, scheduledJobs, GangIdAndCardinalityFromAnnotations),
+		FailedJobs:    schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, failedJobs, GangIdAndCardinalityFromAnnotations),
+		NodeIdByJobId: nodeIdByJobId,
+	}
 }
 
 type testPublisher struct {

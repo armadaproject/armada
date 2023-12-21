@@ -10,12 +10,12 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/types"
+	"github.com/gogo/status"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
@@ -46,7 +46,6 @@ import (
 type PulsarSubmitServer struct {
 	api.UnimplementedSubmitServer
 	Producer        pulsar.Producer
-	Permissions     authorization.PermissionChecker
 	QueueRepository repository.QueueRepository
 	// Maximum size of Pulsar messages
 	MaxAllowedMessageSize uint
@@ -95,12 +94,29 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 
 	// Create legacy API jobs from the requests.
 	// We use the legacy code for the conversion to ensure that behaviour doesn't change.
-	apiJobs, err := srv.SubmitServer.createJobs(req, userId, groups)
+	apiJobs, responseItems, err := srv.SubmitServer.createJobs(req, userId, groups)
 	if err != nil {
-		return nil, err
+		details := &api.JobSubmitResponse{
+			JobResponseItems: responseItems,
+		}
+
+		st, e := status.Newf(codes.InvalidArgument, "[SubmitJobs] Failed to parse job request: %s", err.Error()).WithDetails(details)
+		if e != nil {
+			return nil, status.Newf(codes.Internal, "[SubmitJobs] Failed to parse job request: %s", e.Error()).Err()
+		}
+
+		return nil, st.Err()
 	}
-	if err := commonvalidation.ValidateApiJobs(apiJobs, *srv.SubmitServer.schedulingConfig); err != nil {
-		return nil, err
+	if responseItems, err := commonvalidation.ValidateApiJobs(apiJobs, *srv.SubmitServer.schedulingConfig); err != nil {
+		details := &api.JobSubmitResponse{
+			JobResponseItems: responseItems,
+		}
+
+		st, e := status.Newf(codes.InvalidArgument, "[SubmitJobs] Failed to parse job request: %s", err.Error()).WithDetails(details)
+		if e != nil {
+			return nil, status.Newf(codes.Internal, "[SubmitJobs] Failed to parse job request: %s", e.Error()).Err()
+		}
+		return nil, st.Err()
 	}
 
 	schedulersByJobId, err := srv.assignScheduler(apiJobs)
@@ -624,52 +640,16 @@ func (srv *PulsarSubmitServer) Authorize(
 	queueName string,
 	anyPerm permission.Permission,
 	perm queue.PermissionVerb,
-) (userId string, groups []string, err error) {
+) (string, []string, error) {
 	principal := authorization.GetPrincipal(ctx)
-	userId = principal.GetName()
-	groups = principal.GetGroupNames()
+	userId := principal.GetName()
+	groups := principal.GetGroupNames()
 	q, err := srv.QueueRepository.GetQueue(queueName)
 	if err != nil {
-		return
+		return userId, groups, err
 	}
-	if !srv.Permissions.UserHasPermission(ctx, anyPerm) {
-		if !principalHasQueuePermissions(principal, q, perm) {
-			err = &armadaerrors.ErrUnauthorized{
-				Principal:  principal.GetName(),
-				Permission: string(perm),
-				Action:     string(perm) + " for queue " + q.Name,
-				Message:    "",
-			}
-			err = errors.WithStack(err)
-			return
-		}
-	}
-
-	return
-}
-
-// principalHasQueuePermissions returns true if the principal has permissions to perform some action,
-// as specified by the provided verb, for a specific queue, and false otherwise.
-func principalHasQueuePermissions(principal authorization.Principal, q queue.Queue, verb queue.PermissionVerb) bool {
-	subjects := queue.PermissionSubjects{}
-	for _, group := range principal.GetGroupNames() {
-		subjects = append(subjects, queue.PermissionSubject{
-			Name: group,
-			Kind: queue.PermissionSubjectKindGroup,
-		})
-	}
-	subjects = append(subjects, queue.PermissionSubject{
-		Name: principal.GetName(),
-		Kind: queue.PermissionSubjectKindUser,
-	})
-
-	for _, subject := range subjects {
-		if q.HasPermission(subject, verb) {
-			return true
-		}
-	}
-
-	return false
+	err = srv.SubmitServer.authorizer.AuthorizeQueueAction(ctx, q, anyPerm, perm)
+	return userId, groups, err
 }
 
 // Fallback methods. Calls into an embedded server.SubmitServer.

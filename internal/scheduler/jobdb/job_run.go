@@ -20,6 +20,8 @@ type JobRun struct {
 	// The name of the node this run has been leased to.
 	// Identifies the node within the target executor cluster.
 	nodeName string
+	// Priority class priority that this job was scheduled at.
+	scheduledAtPriority *int32
 	// True if the job has been reported as running by the executor.
 	running bool
 	// True if the job has been reported as succeeded by the executor.
@@ -49,19 +51,21 @@ func (run *JobRun) Equal(other *JobRun) bool {
 
 func MinimalRun(id uuid.UUID, creationTime int64) *JobRun {
 	return &JobRun{
-		id:      id,
-		created: creationTime,
+		id:                  id,
+		created:             creationTime,
+		scheduledAtPriority: nil,
 	}
 }
 
 // CreateRun creates a new scheduler job run from a database job run
-func CreateRun(
+func (jobDb *JobDb) CreateRun(
 	id uuid.UUID,
 	jobId string,
 	creationTime int64,
 	executor string,
 	nodeId string,
 	nodeName string,
+	scheduledAtPriority *int32,
 	running bool,
 	succeeded bool,
 	failed bool,
@@ -70,18 +74,19 @@ func CreateRun(
 	runAttempted bool,
 ) *JobRun {
 	return &JobRun{
-		id:           id,
-		jobId:        jobId,
-		created:      creationTime,
-		executor:     executor,
-		nodeId:       nodeId,
-		nodeName:     nodeName,
-		running:      running,
-		succeeded:    succeeded,
-		failed:       failed,
-		cancelled:    cancelled,
-		returned:     returned,
-		runAttempted: runAttempted,
+		id:                  id,
+		jobId:               jobId,
+		created:             creationTime,
+		executor:            jobDb.stringInterner.Intern(executor),
+		nodeId:              jobDb.stringInterner.Intern(nodeId),
+		nodeName:            jobDb.stringInterner.Intern(nodeName),
+		scheduledAtPriority: scheduledAtPriority,
+		running:             running,
+		succeeded:           succeeded,
+		failed:              failed,
+		cancelled:           cancelled,
+		returned:            returned,
+		runAttempted:        runAttempted,
 	}
 }
 
@@ -90,7 +95,7 @@ func (run *JobRun) Id() uuid.UUID {
 	return run.id
 }
 
-// Id returns the id of the job this run is associated with.
+// JobId returns the id of the job this run is associated with.
 func (run *JobRun) JobId() string {
 	return run.jobId
 }
@@ -105,9 +110,13 @@ func (run *JobRun) NodeId() string {
 	return run.nodeId
 }
 
-// NodeId returns the name of the node to which the JobRun is assigned.
+// NodeName returns the name of the node to which the JobRun is assigned.
 func (run *JobRun) NodeName() string {
 	return run.nodeName
+}
+
+func (run *JobRun) ScheduledAtPriority() *int32 {
+	return run.scheduledAtPriority
 }
 
 // Succeeded Returns true if the executor has reported the job run as successful

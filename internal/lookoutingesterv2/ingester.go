@@ -1,6 +1,8 @@
 package lookoutingesterv2
 
 import (
+	"regexp"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -29,7 +31,18 @@ func Run(config *configuration.LookoutIngesterV2Configuration) {
 	if err != nil {
 		panic(errors.WithMessage(err, "Error opening connection to postgres"))
 	}
-	lookoutDb := lookoutdb.NewLookoutDb(db, m, config.MaxAttempts, config.MaxBackoff)
+
+	fatalRegexes := make([]*regexp.Regexp, len(config.FatalInsertionErrors))
+	for i, str := range config.FatalInsertionErrors {
+		rgx, err := regexp.Compile(str)
+		if err != nil {
+			log.Errorf("Error compiling regex %s", str)
+			panic(err)
+		}
+		fatalRegexes[i] = rgx
+	}
+
+	lookoutDb := lookoutdb.NewLookoutDb(db, fatalRegexes, m, config.MaxBackoff)
 
 	compressor, err := compress.NewZlibCompressor(config.MinJobSpecCompressionSize)
 	if err != nil {

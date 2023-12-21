@@ -11,7 +11,6 @@ import (
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
 	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/fairness"
-	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/nodedb"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
@@ -60,8 +59,8 @@ func (sch *QueueScheduler) SkipUnsuccessfulSchedulingKeyCheck() {
 
 func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResult, error) {
 	nodeIdByJobId := make(map[string]string)
-	scheduledJobs := make([]interfaces.LegacySchedulerJob, 0)
-	failedJobs := make([]interfaces.LegacySchedulerJob, 0)
+	var scheduledJobs []*schedulercontext.JobSchedulingContext
+	var failedJobs []*schedulercontext.JobSchedulingContext
 	additionalAnnotationsByJobId := map[string]map[string]string{}
 	for {
 		// Peek() returns the next gang to try to schedule. Call Clear() before calling Peek() again.
@@ -95,7 +94,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			numScheduled := gctx.Fit().NumScheduled
 			for _, jctx := range gctx.JobSchedulingContexts {
 				if pctx := jctx.PodSchedulingContext; pctx.IsSuccessful() {
-					scheduledJobs = append(scheduledJobs, jctx.Job)
+					scheduledJobs = append(scheduledJobs, jctx)
 					nodeIdByJobId[jctx.JobId] = pctx.NodeId
 
 					// Add additional annotations for runtime gang cardinality
@@ -106,7 +105,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			// Report any excess gang jobs that failed
 			for _, jctx := range gctx.JobSchedulingContexts {
 				if jctx.ShouldFail {
-					failedJobs = append(failedJobs, jctx.Job)
+					failedJobs = append(failedJobs, jctx)
 				}
 			}
 		} else if schedulerconstraints.IsTerminalUnschedulableReason(unschedulableReason) {

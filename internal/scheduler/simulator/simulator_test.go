@@ -7,11 +7,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerobjects "github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 	"github.com/armadaproject/armada/internal/scheduler/testfixtures"
@@ -41,11 +43,11 @@ func TestSimulator(t *testing.T) {
 			},
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			expectedEventSequences: []*armadaevents.EventSequence{
-				{Queue: "A", JobSetName: "foo", Events: testfixtures.Repeat(SubmitJob(), 2)},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
+				SubmitJob(2, "A", "foo"),
+				JobRunLeased(1, "A", "foo"),
+				JobRunLeased(1, "A", "foo"),
+				JobSucceeded(1, "A", "foo"),
+				JobSucceeded(1, "A", "foo"),
 			},
 			simulatedTimeLimit: 5 * time.Minute,
 		},
@@ -64,11 +66,11 @@ func TestSimulator(t *testing.T) {
 			},
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			expectedEventSequences: []*armadaevents.EventSequence{
-				{Queue: "A", JobSetName: "foo", Events: testfixtures.Repeat(SubmitJob(), 2)},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
+				SubmitJob(2, "A", "foo"),
+				JobRunLeased(1, "A", "foo"),
+				JobSucceeded(1, "A", "foo"),
+				JobRunLeased(1, "A", "foo"),
+				JobSucceeded(1, "A", "foo"),
 			},
 			simulatedTimeLimit: 5 * time.Minute,
 		},
@@ -86,15 +88,9 @@ func TestSimulator(t *testing.T) {
 				},
 			},
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
-			expectedEventSequences: append(
-				[]*armadaevents.EventSequence{
-					{Queue: "A", JobSetName: "foo", Events: testfixtures.Repeat(SubmitJob(), 10)},
-				},
-				armadaslices.Repeat(
-					10,
-					&armadaevents.EventSequence{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-					&armadaevents.EventSequence{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
-				)...,
+			expectedEventSequences: armadaslices.Concatenate(
+				armadaslices.Repeat(1, SubmitJob(10, "A", "foo")),
+				armadaslices.Repeat(10, JobRunLeased(1, "A", "foo"), JobSucceeded(1, "A", "foo")),
 			),
 			simulatedTimeLimit: 20 * time.Minute,
 		},
@@ -120,14 +116,14 @@ func TestSimulator(t *testing.T) {
 			},
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			expectedEventSequences: []*armadaevents.EventSequence{
-				{Queue: "A", JobSetName: "foo", Events: testfixtures.Repeat(SubmitJob(), 2)},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
-				{Queue: "A", JobSetName: "foo", Events: testfixtures.Repeat(SubmitJob(), 1)},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
+				SubmitJob(2, "A", "foo"),
+				JobRunLeased(1, "A", "foo"),
+				JobRunLeased(1, "A", "foo"),
+				JobSucceeded(1, "A", "foo"),
+				JobSucceeded(1, "A", "foo"),
+				SubmitJob(1, "A", "foo"),
+				JobRunLeased(1, "A", "foo"),
+				JobSucceeded(1, "A", "foo"),
 			},
 			simulatedTimeLimit: 5 * time.Minute,
 		},
@@ -153,17 +149,17 @@ func TestSimulator(t *testing.T) {
 			},
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			expectedEventSequences: []*armadaevents.EventSequence{
-				{Queue: "A", JobSetName: "foo", Events: armadaslices.Repeat(2, SubmitJob())},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "B", JobSetName: "bar", Events: []*armadaevents.EventSequence_Event{SubmitJob()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunPreempted()}},
-				{Queue: "B", JobSetName: "bar", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{SubmitJob()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "B", JobSetName: "bar", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
+				SubmitJob(2, "A", "foo"),
+				JobRunLeased(1, "A", "foo"),
+				JobRunLeased(1, "A", "foo"),
+				SubmitJob(1, "B", "bar"),
+				JobRunPreempted(1, "A", "foo"),
+				JobRunLeased(1, "B", "bar"),
+				SubmitJob(1, "A", "foo"),
+				JobSucceeded(1, "A", "foo"),
+				JobRunLeased(1, "A", "foo"),
+				JobSucceeded(1, "B", "bar"),
+				JobSucceeded(1, "A", "foo"),
 			},
 			simulatedTimeLimit: 5 * time.Minute,
 		},
@@ -200,23 +196,23 @@ func TestSimulator(t *testing.T) {
 			},
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			expectedEventSequences: []*armadaevents.EventSequence{
-				{Queue: "B", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{SubmitJob()}},
-				{Queue: "C", JobSetName: "foo", Events: armadaslices.Repeat(2, SubmitJob())},
-				{Queue: "B", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "C", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "C", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{SubmitJob()}},
-				{Queue: "B", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunPreempted()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "B", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{SubmitJob()}},
-				{Queue: "C", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunPreempted()}},
-				{Queue: "B", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "C", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{SubmitJob()}},
-				{Queue: "C", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
-				{Queue: "C", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
-				{Queue: "B", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
-				{Queue: "C", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
+				SubmitJob(1, "B", "foo"),
+				SubmitJob(2, "C", "foo"),
+				JobRunLeased(1, "B", "foo"),
+				JobRunLeased(1, "C", "foo"),
+				JobRunLeased(1, "C", "foo"),
+				SubmitJob(1, "A", "foo"),
+				JobRunPreempted(1, "B", "foo"),
+				JobRunLeased(1, "A", "foo"),
+				SubmitJob(1, "B", "foo"),
+				JobRunPreempted(1, "C", "foo"),
+				JobRunLeased(1, "B", "foo"),
+				SubmitJob(1, "C", "foo"),
+				JobSucceeded(1, "C", "foo"),
+				JobRunLeased(1, "C", "foo"),
+				JobSucceeded(1, "A", "foo"),
+				JobSucceeded(1, "B", "foo"),
+				JobSucceeded(1, "C", "foo"),
 			},
 			simulatedTimeLimit: 5 * time.Minute,
 		},
@@ -251,20 +247,20 @@ func TestSimulator(t *testing.T) {
 			},
 			schedulingConfig: testfixtures.TestSchedulingConfig(),
 			expectedEventSequences: []*armadaevents.EventSequence{
-				{Queue: "B", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{SubmitJob()}},
-				{Queue: "C", JobSetName: "foo", Events: armadaslices.Repeat(2, SubmitJob())},
-				{Queue: "B", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "C", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "C", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{SubmitJob()}},
-				{Queue: "C", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunPreempted()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "C", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{SubmitJob()}},
-				{Queue: "B", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
-				{Queue: "C", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
-				{Queue: "C", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobRunLeased()}},
-				{Queue: "A", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
-				{Queue: "C", JobSetName: "foo", Events: []*armadaevents.EventSequence_Event{JobSucceeded()}},
+				SubmitJob(1, "B", "foo"),
+				SubmitJob(2, "C", "foo"),
+				JobRunLeased(1, "B", "foo"),
+				JobRunLeased(1, "C", "foo"),
+				JobRunLeased(1, "C", "foo"),
+				SubmitJob(1, "A", "foo"),
+				JobRunPreempted(1, "C", "foo"),
+				JobRunLeased(1, "A", "foo"),
+				SubmitJob(1, "C", "foo"),
+				JobSucceeded(1, "B", "foo"),
+				JobSucceeded(1, "C", "foo"),
+				JobRunLeased(1, "C", "foo"),
+				JobSucceeded(1, "A", "foo"),
+				JobSucceeded(1, "C", "foo"),
 			},
 			simulatedTimeLimit: 5 * time.Minute,
 		},
@@ -296,6 +292,145 @@ func TestSimulator(t *testing.T) {
 			schedulingConfig:       testfixtures.TestSchedulingConfig(),
 			expectedEventSequences: nil,
 			simulatedTimeLimit:     2*time.Hour + 30*time.Minute,
+		},
+		"Home-away preemption": {
+			clusterSpec: &ClusterSpec{
+				Name: "cluster",
+				Pools: func() []*Pool {
+					whaleNodeTemplate := NodeTemplateGpu(2)
+					whaleNodeTemplate.Taints = []v1.Taint{
+						{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule},
+					}
+					whaleCluster := Cluster{NodeTemplates: []*NodeTemplate{whaleNodeTemplate}}
+					return []*Pool{
+						{
+							Name: "pool",
+							ClusterGroups: []*ClusterGroup{
+								{
+									Clusters: []*Cluster{
+										{NodeTemplates: []*NodeTemplate{NodeTemplateGpu(2)}},
+										&whaleCluster,
+									},
+								},
+							},
+						},
+					}
+				}(),
+			},
+			workloadSpec: &WorkloadSpec{
+				Queues: []*Queue{
+					{
+						Name:   "queue-0",
+						Weight: 1,
+						JobTemplates: []*JobTemplate{
+							{
+								Id:                "queue-0-template-0",
+								Number:            1,
+								JobSet:            "job-set-0",
+								PriorityClassName: "armada-preemptible",
+								Requirements: schedulerobjects.PodRequirements{
+									ResourceRequirements: v1.ResourceRequirements{
+										Requests: v1.ResourceList{
+											"cpu":            resource.MustParse("128"),
+											"memory":         resource.MustParse("4096Gi"),
+											"nvidia.com/gpu": resource.MustParse("8"),
+										},
+									},
+									Tolerations: []v1.Toleration{
+										{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule},
+									},
+								},
+								RuntimeDistribution: ShiftedExponential{Minimum: 5 * time.Minute},
+							},
+							{
+								Id:                "queue-0-template-1",
+								Number:            4,
+								JobSet:            "job-set-0",
+								PriorityClassName: "armada-preemptible",
+								Requirements: schedulerobjects.PodRequirements{
+									ResourceRequirements: v1.ResourceRequirements{
+										Requests: v1.ResourceList{
+											"cpu":            resource.MustParse("128"),
+											"memory":         resource.MustParse("4096Gi"),
+											"nvidia.com/gpu": resource.MustParse("8"),
+										},
+									},
+									Tolerations: []v1.Toleration{
+										{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule},
+									},
+								},
+								Dependencies:        []string{"queue-0-template-0"},
+								RuntimeDistribution: ShiftedExponential{Minimum: time.Hour},
+							},
+						},
+					},
+					{
+						Name:   "queue-1",
+						Weight: 1,
+						JobTemplates: []*JobTemplate{
+							{
+								Number:            32,
+								JobSet:            "job-set-1",
+								PriorityClassName: "armada-preemptible-away",
+								Requirements: schedulerobjects.PodRequirements{
+									ResourceRequirements: v1.ResourceRequirements{
+										Requests: v1.ResourceList{
+											"cpu":            resource.MustParse("16"),
+											"memory":         resource.MustParse("512Gi"),
+											"nvidia.com/gpu": resource.MustParse("1"),
+										},
+									},
+								},
+								RuntimeDistribution: ShiftedExponential{Minimum: time.Hour},
+							},
+						},
+					},
+				},
+			},
+			schedulingConfig: func() configuration.SchedulingConfig {
+				config := testfixtures.TestSchedulingConfig()
+				config.Preemption.PriorityClasses = map[string]types.PriorityClass{
+					"armada-preemptible-away": {
+						Priority:    30000,
+						Preemptible: true,
+
+						AwayNodeTypes: []types.AwayNodeType{{Priority: 29000, WellKnownNodeTypeName: "gpu-whale"}},
+					},
+					"armada-preemptible": {
+						Priority:    30000,
+						Preemptible: true,
+					},
+				}
+				config.Preemption.DefaultPriorityClass = "armada-preemptible"
+				config.WellKnownNodeTypes = []configuration.WellKnownNodeType{
+					{
+						Name:   "gpu-whale",
+						Taints: []v1.Taint{{Key: "gpu-whale", Value: "true", Effect: v1.TaintEffectNoSchedule}},
+					},
+				}
+				return config
+			}(),
+			expectedEventSequences: armadaslices.Concatenate(
+				armadaslices.Repeat(1, SubmitJob(1, "queue-0", "job-set-0")),
+				armadaslices.Repeat(1, SubmitJob(32, "queue-1", "job-set-1")),
+				armadaslices.Repeat(1, JobRunLeased(1, "queue-0", "job-set-0")),
+				armadaslices.Repeat(24, JobRunLeased(1, "queue-1", "job-set-1")),
+				armadaslices.Repeat(1, JobSucceeded(1, "queue-0", "job-set-0")),
+				armadaslices.Repeat(1, SubmitJob(4, "queue-0", "job-set-0")),
+				armadaslices.Repeat(8, JobRunLeased(1, "queue-1", "job-set-1")),
+				armadaslices.Repeat(24, JobRunPreempted(1, "queue-1", "job-set-1")),
+				armadaslices.Repeat(3, JobRunLeased(1, "queue-0", "job-set-0")),
+				armadaslices.Repeat(24, SubmitJob(1, "queue-1", "job-set-1")),
+				armadaslices.Repeat(8, JobSucceeded(1, "queue-1", "job-set-1")),
+				armadaslices.Repeat(8, JobRunLeased(1, "queue-1", "job-set-1")),
+				armadaslices.Repeat(3, JobSucceeded(1, "queue-0", "job-set-0")),
+				armadaslices.Repeat(1, JobRunLeased(1, "queue-0", "job-set-0")),
+				armadaslices.Repeat(16, JobRunLeased(1, "queue-1", "job-set-1")),
+				armadaslices.Repeat(8, JobSucceeded(1, "queue-1", "job-set-1")),
+				armadaslices.Repeat(1, JobSucceeded(1, "queue-0", "job-set-0")),
+				armadaslices.Repeat(16, JobSucceeded(1, "queue-1", "job-set-1")),
+			),
+			simulatedTimeLimit: 24 * time.Hour,
 		},
 	}
 	for name, tc := range tests {

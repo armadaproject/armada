@@ -3,6 +3,9 @@ package configuration
 import (
 	"time"
 
+	"github.com/go-playground/validator/v10"
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	authconfig "github.com/armadaproject/armada/internal/common/auth/configuration"
 	"github.com/armadaproject/armada/internal/common/config"
@@ -27,6 +30,9 @@ type Configuration struct {
 	Leader LeaderConfig
 	// Configuration controlling metrics
 	Metrics configuration.MetricsConfig
+	// Configuration for new scheduler metrics.
+	// Due to replace metrics configured via the above entry.
+	SchedulerMetrics MetricsConfig
 	// Scheduler configuration (this is shared with the old scheduler)
 	Scheduling configuration.SchedulingConfig
 	Auth       authconfig.AuthConfig
@@ -50,6 +56,45 @@ type Configuration struct {
 	DatabaseFetchSize int `validate:"required"`
 	// Timeout to use when sending messages to pulsar
 	PulsarSendTimeout time.Duration `validate:"required"`
+}
+
+func (c Configuration) Validate() error {
+	validate := validator.New()
+	validate.RegisterStructValidation(configuration.SchedulingConfigValidation, configuration.SchedulingConfig{})
+	return validate.Struct(c)
+}
+
+type MetricsConfig struct {
+	// If true, disable metric collection and publishing.
+	Disabled bool
+	// The scheduler exports job failure counters labelled by (queue, cluster, node, reason0, reason1, ..., reasonN).
+	//
+	// Each reason label has a regex associated with it and the label value is set to "1"
+	// if this regex matches the error message associated with the job failure.
+	// For example, if TrackedErrorRegexes contains an entry, "isCudaError": "/CUDA/",
+	// then job failure metrics will have a label "isCudaError" with value either 0 or 1.
+	TrackedErrorRegexByLabel map[string]string
+	// Metrics are exported for these resources.
+	TrackedResourceNames []v1.ResourceName
+	// Controls the cycle time metrics.
+	// TODO(albin): Not used yet.
+	CycleTimeConfig PrometheusSummaryConfig
+}
+
+// PrometheusSummaryConfig contains the relevant config for a prometheus.Summary.
+type PrometheusSummaryConfig struct {
+	// Objectives defines the quantile rank estimates with their respective
+	// absolute error. If Objectives[q] = e, then the value reported for q
+	// will be the φ-quantile value for some φ between q-e and q+e.  The
+	// default value is an empty map, resulting in a summary without
+	// quantiles.
+	Objectives map[float64]float64
+
+	// MaxAge defines the duration for which an observation stays relevant
+	// for the summary. Only applies to pre-calculated quantiles, does not
+	// apply to _sum and _count. Must be positive. The default value is
+	// DefMaxAge.
+	MaxAge time.Duration
 }
 
 type LeaderConfig struct {

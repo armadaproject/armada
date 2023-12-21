@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/apache/pulsar-client-go/pulsar"
-	"github.com/gogo/protobuf/types"
+	prototypes "github.com/gogo/protobuf/types"
 	"github.com/hashicorp/go-multierror"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
@@ -35,6 +35,7 @@ import (
 	armadaresource "github.com/armadaproject/armada/internal/common/resource"
 	"github.com/armadaproject/armada/internal/common/schedulers"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	"github.com/armadaproject/armada/internal/common/types"
 	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler"
 	schedulerconstraints "github.com/armadaproject/armada/internal/scheduler/constraints"
@@ -50,7 +51,7 @@ import (
 )
 
 type AggregatedQueueServer struct {
-	permissions              authorization.PermissionChecker
+	authorizer               ActionAuthorizer
 	schedulingConfig         configuration.SchedulingConfig
 	jobRepository            repository.JobRepository
 	queueRepository          repository.QueueRepository
@@ -75,7 +76,7 @@ type AggregatedQueueServer struct {
 }
 
 func NewAggregatedQueueServer(
-	permissions authorization.PermissionChecker,
+	authorizer ActionAuthorizer,
 	schedulingConfig configuration.SchedulingConfig,
 	jobRepository repository.JobRepository,
 	queueRepository repository.QueueRepository,
@@ -102,7 +103,7 @@ func NewAggregatedQueueServer(
 			return compress.NewZlibDecompressor(), nil
 		}), &poolConfig)
 	return &AggregatedQueueServer{
-		permissions:      permissions,
+		authorizer:       authorizer,
 		schedulingConfig: schedulingConfig,
 		jobRepository:    jobRepository,
 		queueRepository:  queueRepository,
@@ -128,7 +129,7 @@ func NewAggregatedQueueServer(
 //
 // This function should be used instead of the LeaseJobs function in most cases.
 func (q *AggregatedQueueServer) StreamingLeaseJobs(stream api.AggregatedQueue_StreamingLeaseJobsServer) error {
-	if err := checkPermission(q.permissions, armadacontext.FromGrpcCtx(stream.Context()), permissions.ExecuteJobs); err != nil {
+	if err := q.authorizer.AuthorizeAction(armadacontext.FromGrpcCtx(stream.Context()), permissions.ExecuteJobs); err != nil {
 		return err
 	}
 
@@ -283,7 +284,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 	}
 
 	// Collect all allowed priorities.
-	allowedPriorities := q.schedulingConfig.Preemption.AllowedPriorities()
+	allowedPriorities := types.AllowedPriorities(q.schedulingConfig.Preemption.PriorityClasses)
 	if len(allowedPriorities) == 0 {
 		return nil, errors.WithStack(&armadaerrors.ErrInvalidArgument{
 			Name:    "PriorityClasses",
@@ -324,6 +325,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 		q.schedulingConfig.IndexedResources,
 		q.schedulingConfig.IndexedTaints,
 		q.schedulingConfig.IndexedNodeLabels,
+		q.schedulingConfig.WellKnownNodeTypes,
 	)
 	if err != nil {
 		return nil, err
@@ -572,7 +574,8 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 
 	// Publish preempted + failed messages.
 	sequences := make([]*armadaevents.EventSequence, len(result.PreemptedJobs))
-	for i, job := range result.PreemptedJobs {
+	for i, jctx := range result.PreemptedJobs {
+		job := jctx.Job
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.GetId())
 		if err != nil {
 			return nil, err
@@ -617,7 +620,8 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 	}
 
 	preemptedApiJobsById := make(map[string]*api.Job)
-	for _, job := range result.PreemptedJobs {
+	for _, jctx := range result.PreemptedJobs {
+		job := jctx.Job
 		if apiJob, ok := job.(*api.Job); ok {
 			preemptedApiJobsById[job.GetId()] = apiJob
 		} else {
@@ -625,7 +629,8 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 		}
 	}
 	scheduledApiJobsById := make(map[string]*api.Job)
-	for _, job := range result.ScheduledJobs {
+	for _, jctx := range result.ScheduledJobs {
+		job := jctx.Job
 		if apiJob, ok := job.(*api.Job); ok {
 			scheduledApiJobsById[job.GetId()] = apiJob
 		} else {
@@ -680,7 +685,7 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 	// Update resource cluster report to account for preempted/leased jobs and write it to Redis.
 	allocatedByQueueAndPriorityClassForCluster = updateAllocatedByQueueAndPriorityClass(
 		allocatedByQueueAndPriorityClassForCluster,
-		subtract, result.PreemptedJobs,
+		subtract, maps.Values(preemptedApiJobsById),
 	)
 	for queue, m := range allocatedByQueueAndPriorityClassForCluster {
 		// Any quantity in the negative indicates a resource accounting problem.
@@ -890,16 +895,16 @@ func (q *AggregatedQueueServer) decompressOwnershipGroups(compressedOwnershipGro
 
 func (q *AggregatedQueueServer) RenewLease(grpcCtx context.Context, request *api.RenewLeaseRequest) (*api.IdList, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
+	if err := q.authorizer.AuthorizeAction(ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
 	renewed, e := q.jobRepository.RenewLease(request.ClusterId, request.Ids)
 	return &api.IdList{Ids: renewed}, e
 }
 
-func (q *AggregatedQueueServer) ReturnLease(grpcCtx context.Context, request *api.ReturnLeaseRequest) (*types.Empty, error) {
+func (q *AggregatedQueueServer) ReturnLease(grpcCtx context.Context, request *api.ReturnLeaseRequest) (*prototypes.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
+	if err := q.authorizer.AuthorizeAction(ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, err.Error())
 	}
 
@@ -930,7 +935,7 @@ func (q *AggregatedQueueServer) ReturnLease(grpcCtx context.Context, request *ap
 			return nil, err
 		}
 
-		return &types.Empty{}, nil
+		return &prototypes.Empty{}, nil
 	}
 
 	if request.AvoidNodeLabels != nil && len(request.AvoidNodeLabels.Entries) > 0 {
@@ -948,7 +953,7 @@ func (q *AggregatedQueueServer) ReturnLease(grpcCtx context.Context, request *ap
 		}
 	}
 
-	return &types.Empty{}, nil
+	return &prototypes.Empty{}, nil
 }
 
 func (q *AggregatedQueueServer) addAvoidNodeAffinity(
@@ -968,11 +973,11 @@ func (q *AggregatedQueueServer) addAvoidNodeAffinity(
 		}
 
 		changed := addAvoidNodeAffinity(jobs[0], labels, func(jobsToValidate []*api.Job) error {
-			if ok, err := validateJobsCanBeScheduled(jobsToValidate, allClusterSchedulingInfo); !ok {
+			if ok, responseItems, err := validateJobsCanBeScheduled(jobsToValidate, allClusterSchedulingInfo); !ok {
 				if err != nil {
-					return errors.WithMessage(err, "can't schedule at least 1 job")
+					return errors.WithMessagef(err, "can't schedule %d (out of %d submitted) job(s)", len(responseItems), len(jobsToValidate))
 				} else {
-					return errors.Errorf("can't schedule at least 1 job")
+					return errors.Errorf("can't schedule %d (out of %d submitted) job(s)", len(responseItems), len(jobsToValidate))
 				}
 			}
 			return nil
@@ -999,7 +1004,7 @@ func (q *AggregatedQueueServer) addAvoidNodeAffinity(
 
 func (q *AggregatedQueueServer) ReportDone(grpcCtx context.Context, idList *api.IdList) (*api.IdList, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	if err := checkPermission(q.permissions, ctx, permissions.ExecuteJobs); err != nil {
+	if err := q.authorizer.AuthorizeAction(ctx, permissions.ExecuteJobs); err != nil {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReportDone] error: %s", err)
 	}
 	jobs, e := q.jobRepository.GetExistingJobsByIds(idList.Ids)

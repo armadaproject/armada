@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/types"
+	"github.com/gogo/status"
 	pool "github.com/jolestar/go-commons-pool"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"k8s.io/utils/strings/slices"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
@@ -31,7 +31,7 @@ import (
 )
 
 type SubmitServer struct {
-	permissions              authorization.PermissionChecker
+	authorizer               ActionAuthorizer
 	jobRepository            repository.JobRepository
 	queueRepository          repository.QueueRepository
 	eventStore               repository.EventStore
@@ -42,8 +42,23 @@ type SubmitServer struct {
 	compressorPool           *pool.ObjectPool
 }
 
+type JobSubmitError struct {
+	JobErrorsDetails []*api.JobSubmitResponseItem
+	Err              error
+}
+
+func (e *JobSubmitError) Error() string {
+	output := ""
+	for _, jobError := range e.JobErrorsDetails {
+		output += fmt.Sprintf("Error - Job %s: %s\n", jobError.JobId, jobError.Error)
+	}
+
+	output += fmt.Sprintf("\nError - %s", e.Err.Error())
+	return output
+}
+
 func NewSubmitServer(
-	permissions authorization.PermissionChecker,
+	authorizer ActionAuthorizer,
 	jobRepository repository.JobRepository,
 	queueRepository repository.QueueRepository,
 	eventStore repository.EventStore,
@@ -69,7 +84,7 @@ func NewSubmitServer(
 		}), &poolConfig)
 
 	return &SubmitServer{
-		permissions:              permissions,
+		authorizer:               authorizer,
 		jobRepository:            jobRepository,
 		queueRepository:          queueRepository,
 		eventStore:               eventStore,
@@ -97,17 +112,10 @@ func (server *SubmitServer) GetQueueInfo(grpcCtx context.Context, req *api.Queue
 		return nil, err
 	}
 
-	err = checkPermission(server.permissions, ctx, permissions.WatchAllEvents)
-	var globalPermErr *ErrUnauthorized
-	if errors.As(err, &globalPermErr) {
-		err = checkQueuePermission(server.permissions, ctx, q, permissions.WatchEvents, queue.PermissionVerbWatch)
-		var queuePermErr *ErrUnauthorized
-		if errors.As(err, &queuePermErr) {
-			return nil, status.Errorf(codes.PermissionDenied,
-				"[GetQueueInfo] error getting info for queue %s: %s", req.Name, MergePermissionErrors(globalPermErr, queuePermErr))
-		} else if err != nil {
-			return nil, status.Errorf(codes.Unavailable, "[GetQueueInfo] error checking permissions: %s", err)
-		}
+	err = server.authorizer.AuthorizeQueueAction(ctx, q, permissions.WatchAllEvents, queue.PermissionVerbWatch)
+	var permErr *armadaerrors.ErrUnauthorized
+	if errors.As(err, &permErr) {
+		return nil, status.Errorf(codes.PermissionDenied, "[GetQueueInfo] error getting info for queue %s: %s", req.Name, permErr)
 	} else if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "[GetQueueInfo] error checking permissions: %s", err)
 	}
@@ -168,8 +176,8 @@ func (server *SubmitServer) GetQueues(req *api.StreamingQueueGetRequest, stream 
 
 func (server *SubmitServer) CreateQueue(grpcCtx context.Context, request *api.Queue) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
-	var ep *ErrUnauthorized
+	err := server.authorizer.AuthorizeAction(ctx, permissions.CreateQueue)
+	var ep *armadaerrors.ErrUnauthorized
 	if errors.As(err, &ep) {
 		return nil, status.Errorf(codes.PermissionDenied, "[CreateQueue] error creating queue %s: %s", request.Name, ep)
 	} else if err != nil {
@@ -218,8 +226,8 @@ func (server *SubmitServer) CreateQueues(grpcCtx context.Context, request *api.Q
 
 func (server *SubmitServer) UpdateQueue(grpcCtx context.Context, request *api.Queue) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := checkPermission(server.permissions, ctx, permissions.CreateQueue)
-	var ep *ErrUnauthorized
+	err := server.authorizer.AuthorizeAction(ctx, permissions.CreateQueue)
+	var ep *armadaerrors.ErrUnauthorized
 	if errors.As(err, &ep) {
 		return nil, status.Errorf(codes.PermissionDenied, "[UpdateQueue] error updating queue %s: %s", request.Name, ep)
 	} else if err != nil {
@@ -264,8 +272,8 @@ func (server *SubmitServer) UpdateQueues(grpcCtx context.Context, request *api.Q
 
 func (server *SubmitServer) DeleteQueue(grpcCtx context.Context, request *api.QueueDeleteRequest) (*types.Empty, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
-	err := checkPermission(server.permissions, ctx, permissions.DeleteQueue)
-	var ep *ErrUnauthorized
+	err := server.authorizer.AuthorizeAction(ctx, permissions.DeleteQueue)
+	var ep *armadaerrors.ErrUnauthorized
 	if errors.As(err, &ep) {
 		return nil, status.Errorf(codes.PermissionDenied, "[DeleteQueue] error deleting queue %s: %s", request.Name, ep)
 	} else if err != nil {
@@ -292,13 +300,51 @@ func (server *SubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobSubm
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 	principal := authorization.GetPrincipal(ctx)
 
-	jobs, e := server.createJobs(req, principal.GetName(), principal.GetGroupNames())
+	const maxResponseItems = 5
+	var lastIdx int
+
+	jobs, responseItems, e := server.createJobs(req, principal.GetName(), principal.GetGroupNames())
 	if e != nil {
+		if len(responseItems) > maxResponseItems {
+			lastIdx = maxResponseItems
+		} else {
+			lastIdx = len(responseItems)
+		}
+
 		reqJson, _ := json.Marshal(req)
-		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] Error submitting job %s for user %s: %v", reqJson, principal.GetName(), e)
+		createJobsErrFmt := "[SubmitJobs] error creating %d of %d job(s) submitted; %s for user %s; first %d errors:%v"
+		numFails := len(responseItems)
+		numSubmitted := numFails + len(jobs)
+		details := &api.JobSubmitResponse{JobResponseItems: responseItems[:lastIdx]}
+
+		st, err := status.Newf(codes.InvalidArgument, createJobsErrFmt, numFails, numSubmitted, reqJson,
+			principal.GetName(), maxResponseItems, e).WithDetails(details)
+		if err != nil {
+			subJobUserFmt := "[SubmitJobs] error submitting job %s for user %s; : %v"
+			return nil, status.Errorf(codes.InvalidArgument, subJobUserFmt, reqJson, principal.GetName(), e)
+		}
+		return nil, st.Err()
 	}
-	if err := validation.ValidateApiJobs(jobs, *server.schedulingConfig); err != nil {
-		return nil, err
+
+	if responseItems, err := validation.ValidateApiJobs(jobs, *server.schedulingConfig); err != nil {
+		reqJson, _ := json.Marshal(req)
+		numFails := len(responseItems)
+		numSubmitted := len(jobs)
+		if len(responseItems) > maxResponseItems {
+			lastIdx = maxResponseItems
+		} else {
+			lastIdx = len(responseItems)
+		}
+
+		details := &api.JobSubmitResponse{JobResponseItems: responseItems[:lastIdx]}
+		validJobsErrFmt := "[SubmitJobs] error validating %d of %d job(s) submitted; %s for user %s; first %d errors:%v"
+		st, err := status.Newf(codes.InvalidArgument, validJobsErrFmt, numFails, numSubmitted, reqJson,
+			principal.GetName(), e).WithDetails(details)
+		if err != nil {
+			return nil, status.Errorf(codes.InvalidArgument, validJobsErrFmt, numFails, numSubmitted, reqJson,
+				principal.GetName(), e)
+		}
+		return nil, st.Err()
 	}
 
 	q, err := server.getQueueOrCreate(ctx, req.Queue)
@@ -308,22 +354,13 @@ func (server *SubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobSubm
 
 	err = server.submittingJobsWouldSurpassLimit(*q, req)
 	if err != nil {
-		return nil, status.Errorf(
-			codes.InvalidArgument,
-			"[SubmitJobs] error checking queue limit: %s", err)
+		return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error checking queue limit: %s", err)
 	}
 
-	err = checkPermission(server.permissions, ctx, permissions.SubmitAnyJobs)
-	var globalPermErr *ErrUnauthorized
-	if errors.As(err, &globalPermErr) {
-		err = checkQueuePermission(server.permissions, ctx, *q, permissions.SubmitJobs, queue.PermissionVerbSubmit)
-		var queuePermErr *ErrUnauthorized
-		if errors.As(err, &queuePermErr) {
-			return nil, status.Errorf(codes.PermissionDenied,
-				"[SubmitJobs] error submitting job in queue %s: %s", req.Queue, MergePermissionErrors(globalPermErr, queuePermErr))
-		} else if err != nil {
-			return nil, status.Errorf(codes.Unavailable, "[SubmitJobs] error checking permissions: %s", err)
-		}
+	err = server.authorizer.AuthorizeQueueAction(ctx, *q, permissions.SubmitAnyJobs, queue.PermissionVerbSubmit)
+	var permError *armadaerrors.ErrUnauthorized
+	if errors.As(err, &permError) {
+		return nil, status.Errorf(codes.PermissionDenied, "[SubmitJobs] error submitting job in queue %s: %s", req.Queue, permError)
 	} else if err != nil {
 		return nil, status.Errorf(codes.Unavailable, "[SubmitJobs] error checking permissions: %s", err)
 	}
@@ -335,9 +372,24 @@ func (server *SubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobSubm
 		return nil, status.Errorf(codes.InvalidArgument, "error getting scheduling info: %s", err)
 	}
 
-	if ok, err := validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo); !ok {
+	if ok, responseItems, err := validateJobsCanBeScheduled(jobs, allClusterSchedulingInfo); !ok {
 		if err != nil {
-			return nil, errors.WithMessagef(err, "can't schedule job for user %s", principal.GetName())
+			numFails := len(responseItems)
+			numSubmitted := len(jobs)
+			if len(responseItems) > maxResponseItems {
+				lastIdx = maxResponseItems
+			} else {
+				lastIdx = len(responseItems)
+			}
+			details := &api.JobSubmitResponse{JobResponseItems: responseItems[:lastIdx]}
+			validJobsErrFmt := "[SubmitJobs] error validating %d of %d job(s) submitted for user %s; first %d errors:%v"
+
+			st, e := status.Newf(codes.InvalidArgument, validJobsErrFmt, numFails, numSubmitted,
+				principal.GetName(), maxResponseItems, err).WithDetails(details)
+			if e != nil {
+				return nil, status.Errorf(codes.InvalidArgument, "[SubmitJobs] error validating jobs: %s", err)
+			}
+			return nil, st.Err()
 		}
 		return nil, errors.Errorf("can't schedule job for user %s", principal.GetName())
 	}
@@ -495,7 +547,7 @@ func (server *SubmitServer) cancelJobsById(ctx *armadacontext.Context, jobId str
 	}
 
 	result, err := server.cancelJobs(ctx, jobs, reason)
-	var e *ErrUnauthorized
+	var e *armadaerrors.ErrUnauthorized
 	if errors.As(err, &e) {
 		return nil, status.Errorf(codes.PermissionDenied, "[cancelJobsById] error canceling job with ID %s: %s", jobId, e)
 	} else if err != nil {
@@ -530,7 +582,7 @@ func (server *SubmitServer) cancelJobsByQueueAndSet(
 		}
 
 		result, err := server.cancelJobs(ctx, jobs, reason)
-		var e *ErrUnauthorized
+		var e *armadaerrors.ErrUnauthorized
 		if errors.As(err, &e) {
 			return nil, status.Errorf(codes.PermissionDenied, "[cancelJobsBySetAndQueue] error canceling jobs: %s", e)
 		} else if err != nil {
@@ -603,16 +655,10 @@ func (server *SubmitServer) checkCancelPerms(ctx *armadacontext.Context, jobs []
 			return err
 		}
 
-		err = checkPermission(server.permissions, ctx, permissions.CancelAnyJobs)
-		var globalPermErr *ErrUnauthorized
-		if errors.As(err, &globalPermErr) {
-			err = checkQueuePermission(server.permissions, ctx, q, permissions.CancelJobs, queue.PermissionVerbCancel)
-			var queuePermErr *ErrUnauthorized
-			if errors.As(err, &queuePermErr) {
-				return MergePermissionErrors(globalPermErr, queuePermErr)
-			} else if err != nil {
-				return err
-			}
+		err = server.authorizer.AuthorizeQueueAction(ctx, q, permissions.CancelAnyJobs, queue.PermissionVerbCancel)
+		var permErr *armadaerrors.ErrUnauthorized
+		if errors.As(err, &permErr) {
+			return permErr
 		} else if err != nil {
 			return err
 		}
@@ -647,7 +693,7 @@ func (server *SubmitServer) ReprioritizeJobs(grpcCtx context.Context, request *a
 	}
 
 	err := server.checkReprioritizePerms(ctx, jobs)
-	var e *ErrUnauthorized
+	var e *armadaerrors.ErrUnauthorized
 	if errors.As(err, &e) {
 		return nil, status.Errorf(codes.PermissionDenied, "[ReprioritizeJobs] error: %s", e)
 	} else if err != nil {
@@ -727,16 +773,10 @@ func (server *SubmitServer) checkReprioritizePerms(ctx *armadacontext.Context, j
 			return err
 		}
 
-		err = checkPermission(server.permissions, ctx, permissions.ReprioritizeAnyJobs)
-		var globalPermErr *ErrUnauthorized
-		if errors.As(err, &globalPermErr) {
-			err = checkQueuePermission(server.permissions, ctx, q, permissions.ReprioritizeJobs, queue.PermissionVerbReprioritize)
-			var queuePermErr *ErrUnauthorized
-			if errors.As(err, &queuePermErr) {
-				return MergePermissionErrors(globalPermErr, queuePermErr)
-			} else if err != nil {
-				return err
-			}
+		err = server.authorizer.AuthorizeQueueAction(ctx, q, permissions.ReprioritizeAnyJobs, queue.PermissionVerbReprioritize)
+		var permErr *armadaerrors.ErrUnauthorized
+		if errors.As(err, &permErr) {
+			return permErr
 		} else if err != nil {
 			return err
 		}
@@ -760,7 +800,7 @@ func (server *SubmitServer) getQueueOrCreate(ctx *armadacontext.Context, queueNa
 				queueName,
 			)
 		}
-		if !server.permissions.UserHasPermission(ctx, permissions.SubmitAnyJobs) {
+		if server.authorizer.AuthorizeAction(ctx, permissions.SubmitAnyJobs) != nil {
 			return nil, status.Errorf(codes.PermissionDenied, "Queue %s not found; won't create because user lacks SubmitAnyJobs permission", queueName)
 		}
 
@@ -788,16 +828,16 @@ func (server *SubmitServer) getQueueOrCreate(ctx *armadacontext.Context, queueNa
 // createJobs returns a list of objects representing the jobs in a JobSubmitRequest.
 // This function validates the jobs in the request and the pod specs. in each job.
 // If any job or pod in invalid, an error is returned.
-func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, error) {
+func (server *SubmitServer) createJobs(request *api.JobSubmitRequest, owner string, ownershipGroups []string) ([]*api.Job, []*api.JobSubmitResponseItem, error) {
 	return server.createJobsObjects(request, owner, ownershipGroups, time.Now, util.NewULID)
 }
 
 func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, owner string, ownershipGroups []string,
 	getTime func() time.Time, getUlid func() string,
-) ([]*api.Job, error) {
+) ([]*api.Job, []*api.JobSubmitResponseItem, error) {
 	compressor, err := server.compressorPool.BorrowObject(armadacontext.Background())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer func(compressorPool *pool.ObjectPool, ctx *armadacontext.Context, object interface{}) {
 		err := compressorPool.ReturnObject(ctx, object)
@@ -807,29 +847,45 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 	}(server.compressorPool, armadacontext.Background(), compressor)
 	compressedOwnershipGroups, err := compress.CompressStringArray(ownershipGroups, compressor.(compress.Compressor))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	jobs := make([]*api.Job, 0, len(request.JobRequestItems))
 
 	if request.JobSetId == "" {
-		return nil, errors.Errorf("[createJobs] job set not specified")
+		return nil, nil, errors.Errorf("[createJobs] job set not specified")
 	}
 
 	if request.Queue == "" {
-		return nil, errors.Errorf("[createJobs] queue not specified")
+		return nil, nil, errors.Errorf("[createJobs] queue not specified")
 	}
 
+	responseItems := make([]*api.JobSubmitResponseItem, 0, len(request.JobRequestItems))
 	for i, item := range request.JobRequestItems {
+		jobId := getUlid()
+
 		if item.PodSpec != nil && len(item.PodSpecs) > 0 {
-			return nil, errors.Errorf("[createJobs] job %d in job set %s contains both podSpec and podSpecs, but may only contain either", i, request.JobSetId)
+			response := &api.JobSubmitResponseItem{
+				JobId: jobId,
+				Error: fmt.Sprintf("[createJobs] job %d in job set %s contains both podSpec and podSpecs, but may only contain either", i, request.JobSetId),
+			}
+			responseItems = append(responseItems, response)
 		}
 		podSpec := item.GetMainPodSpec()
 		if podSpec == nil {
-			return nil, errors.Errorf("[createJobs] job %d in job set %s contains no podSpec", i, request.JobSetId)
+			response := &api.JobSubmitResponseItem{
+				JobId: jobId,
+				Error: fmt.Sprintf("[createJobs] job %d in job set %s contains no podSpec", i, request.JobSetId),
+			}
+			responseItems = append(responseItems, response)
+			continue // Safety check, to avoid possible nil pointer dereference below
 		}
 		if err := validation.ValidateJobSubmitRequestItem(item); err != nil {
-			return nil, errors.Errorf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err)
+			response := &api.JobSubmitResponseItem{
+				JobId: jobId,
+				Error: fmt.Sprintf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err),
+			}
+			responseItems = append(responseItems, response)
 		}
 		namespace := item.Namespace
 		if namespace == "" {
@@ -839,7 +895,11 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 		applyDefaultsToAnnotations(item.Annotations, *server.schedulingConfig)
 		applyDefaultsToPodSpec(podSpec, *server.schedulingConfig)
 		if err := validation.ValidatePodSpec(podSpec, server.schedulingConfig); err != nil {
-			return nil, errors.Errorf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err)
+			response := &api.JobSubmitResponseItem{
+				JobId: jobId,
+				Error: fmt.Sprintf("[createJobs] error validating the %d-th job of job set %s: %v", i, request.JobSetId, err),
+			}
+			responseItems = append(responseItems, response)
 		}
 
 		// TODO: remove, RequiredNodeLabels is deprecated and will be removed in future versions
@@ -850,7 +910,6 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 			podSpec.NodeSelector[k] = v
 		}
 
-		jobId := getUlid()
 		enrichText(item.Labels, jobId)
 		enrichText(item.Annotations, jobId)
 		j := &api.Job{
@@ -881,7 +940,10 @@ func (server *SubmitServer) createJobsObjects(request *api.JobSubmitRequest, own
 		jobs = append(jobs, j)
 	}
 
-	return jobs, nil
+	if len(responseItems) > 0 {
+		return nil, responseItems, errors.New("[createJobs] error creating jobs, check JobSubmitResponse for details")
+	}
+	return jobs, nil, nil
 }
 
 func enrichText(labels map[string]string, jobId string) {

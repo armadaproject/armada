@@ -7,7 +7,3 @@ runs:
     - uses: actions/setup-go@v4
       with:
         go-version: ${{ matrix.go }}
-    - name: Setup dependencies
-      shell: bash
-      run: go run github.com/magefile/mage@v1.14.0 download
-
