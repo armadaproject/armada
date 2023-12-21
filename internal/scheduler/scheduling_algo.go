@@ -97,7 +97,8 @@ func (l *FairSchedulingAlgo) Schedule(
 		defer cancel()
 	}
 	overallSchedulerResult := &SchedulerResult{
-		NodeIdByJobId: make(map[string]string),
+		NodeIdByJobId:                make(map[string]string),
+		AdditionalAnnotationsByJobId: make(map[string]map[string]string),
 	}
 
 	// Exit immediately if scheduling is disabled.

@@ -20,6 +20,10 @@ const (
 	FailFastAnnotation = "armadaproject.io/failFast"
 )
 
+const (
+	RuntimeGangCardinality = "runtime_gang_cardinality"
+)
+
 var ReturnLeaseRequestTrackedAnnotations = map[string]struct{}{
 	FailFastAnnotation: {},
 }

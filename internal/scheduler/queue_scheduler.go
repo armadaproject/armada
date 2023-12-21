@@ -3,6 +3,9 @@ package scheduler
 import (
 	"container/heap"
 	"reflect"
+	"strconv"
+
+	"github.com/armadaproject/armada/internal/armada/configuration"
 
 	"github.com/pkg/errors"
 
@@ -60,6 +63,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 	nodeIdByJobId := make(map[string]string)
 	var scheduledJobs []*schedulercontext.JobSchedulingContext
 	var failedJobs []*schedulercontext.JobSchedulingContext
+	additionalAnnotationsByJobId := map[string]map[string]string{}
 	for {
 		// Peek() returns the next gang to try to schedule. Call Clear() before calling Peek() again.
 		// Calling Clear() after (failing to) schedule ensures we get the next gang in order of smallest fair share.
@@ -89,10 +93,14 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 			return nil, err
 		} else if ok {
 			// We scheduled the minimum number of gang jobs required.
+			numScheduled := gctx.Fit().NumScheduled
 			for _, jctx := range gctx.JobSchedulingContexts {
 				if pctx := jctx.PodSchedulingContext; pctx.IsSuccessful() {
 					scheduledJobs = append(scheduledJobs, jctx)
 					nodeIdByJobId[jctx.JobId] = pctx.NodeId
+
+					// Add additional annotations for runtime gang cardinality
+					additionalAnnotationsByJobId[jctx.JobId] = map[string]string{configuration.RuntimeGangCardinality: strconv.Itoa(numScheduled)}
 				}
 			}
 
@@ -125,11 +133,12 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 		return nil, errors.Errorf("only %d out of %d jobs mapped to a node", len(nodeIdByJobId), len(scheduledJobs))
 	}
 	return &SchedulerResult{
-		PreemptedJobs:      nil,
-		ScheduledJobs:      scheduledJobs,
-		FailedJobs:         failedJobs,
-		NodeIdByJobId:      nodeIdByJobId,
-		SchedulingContexts: []*schedulercontext.SchedulingContext{sch.schedulingContext},
+		PreemptedJobs:                nil,
+		ScheduledJobs:                scheduledJobs,
+		FailedJobs:                   failedJobs,
+		NodeIdByJobId:                nodeIdByJobId,
+		AdditionalAnnotationsByJobId: additionalAnnotationsByJobId,
+		SchedulingContexts:           []*schedulercontext.SchedulingContext{sch.schedulingContext},
 	}, nil
 }
 

@@ -418,7 +418,7 @@ func EventsFromSchedulerResult(result *SchedulerResult, time time.Time) ([]*arma
 	if err != nil {
 		return nil, err
 	}
-	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, ScheduledJobsFromSchedulerResult[*jobdb.Job](result), time)
+	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, ScheduledJobsFromSchedulerResult[*jobdb.Job](result), result.AdditionalAnnotationsByJobId, time)
 	if err != nil {
 		return nil, err
 	}
@@ -491,11 +491,15 @@ func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventS
 	return eventSequences, nil
 }
 
-func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jobs []*jobdb.Job, time time.Time) ([]*armadaevents.EventSequence, error) {
+func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jobs []*jobdb.Job, additionalAnnotationsByJobId map[string]map[string]string, time time.Time) ([]*armadaevents.EventSequence, error) {
 	for _, job := range jobs {
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
 		if err != nil {
 			return nil, err
+		}
+		additionalAnnotations, found := additionalAnnotationsByJobId[job.Id()]
+		if !found {
+			additionalAnnotations = make(map[string]string)
 		}
 		run := job.LatestRun()
 		if run == nil {
@@ -519,6 +523,7 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 							UpdateSequenceNumber:   job.QueuedVersion(),
 							HasScheduledAtPriority: hasScheduledAtPriority,
 							ScheduledAtPriority:    scheduledAtPriority,
+							AdditionalAnnotations:  additionalAnnotations,
 						},
 					},
 				},

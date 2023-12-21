@@ -259,11 +259,12 @@ func (sch *PreemptingQueueScheduler) Schedule(ctx *armadacontext.Context) (*Sche
 		}
 	}
 	return &SchedulerResult{
-		PreemptedJobs:      preemptedJobs,
-		ScheduledJobs:      scheduledJobs,
-		FailedJobs:         schedulerResult.FailedJobs,
-		NodeIdByJobId:      sch.nodeIdByJobId,
-		SchedulingContexts: []*schedulercontext.SchedulingContext{sch.schedulingContext},
+		PreemptedJobs:                preemptedJobs,
+		ScheduledJobs:                scheduledJobs,
+		FailedJobs:                   schedulerResult.FailedJobs,
+		NodeIdByJobId:                sch.nodeIdByJobId,
+		AdditionalAnnotationsByJobId: schedulerResult.AdditionalAnnotationsByJobId,
+		SchedulingContexts:           []*schedulercontext.SchedulingContext{sch.schedulingContext},
 	}, nil
 }
 

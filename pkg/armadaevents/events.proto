@@ -302,6 +302,8 @@ message JobRunLeased {
     // used to distinguish this case from the case where the job was scheduled
     // as a home job.
     int32 scheduled_at_priority = 7;
+    // Additional annotations to be added to the PodSpec.
+    map<string, string> additional_annotations = 8;
 }
 
 // Indicates that a job has been assigned to nodes by Kubernetes.
