@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strconv"
 
+	"github.com/armadaproject/armada/internal/armada/configuration"
+
 	"github.com/pkg/errors"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
@@ -98,7 +100,7 @@ func (sch *QueueScheduler) Schedule(ctx *armadacontext.Context) (*SchedulerResul
 					nodeIdByJobId[jctx.JobId] = pctx.NodeId
 
 					// Add additional annotations for runtime gang cardinality
-					additionalAnnotationsByJobId[jctx.JobId] = map[string]string{"runtime_gang_cardinality": strconv.Itoa(numScheduled)}
+					additionalAnnotationsByJobId[jctx.JobId] = map[string]string{configuration.RuntimeGangCardinality: strconv.Itoa(numScheduled)}
 				}
 			}
 
