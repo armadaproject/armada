@@ -175,7 +175,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 			if shouldSchedule && leaderToken.leader {
 				// Only the leader does real scheduling rounds.
 				s.metrics.ReportScheduleCycleTime(cycleTime)
-				s.metrics.ReportSchedulerResult(ctx, result)
+				s.metrics.ReportSchedulerResult(result)
 				ctx.Infof("scheduling cycle completed in %s", cycleTime)
 			} else {
 				s.metrics.ReportReconcileCycleTime(cycleTime)

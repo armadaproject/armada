@@ -23,7 +23,7 @@ func TestAggregateJobs(t *testing.T) {
 
 	actual := aggregateJobContexts(schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, testJobs, GangIdAndCardinalityFromAnnotations))
 
-	expected := map[collectionKey]int{
+	expected := map[queuePriorityClassKey]int{
 		{queue: "queue_a", priorityClass: testfixtures.PriorityClass0}: 4,
 		{queue: "queue_a", priorityClass: testfixtures.PriorityClass1}: 1,
 		{queue: "queue_b", priorityClass: testfixtures.PriorityClass0}: 1,
