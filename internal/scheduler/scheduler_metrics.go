@@ -30,6 +30,8 @@ type SchedulerMetrics struct {
 	fairSharePerQueue prometheus.GaugeVec
 	// Actual share of each queue.
 	actualSharePerQueue prometheus.GaugeVec
+	// This is used to allow us to delete old gauge values
+	previousQueueShares map[queueShareKey]queueShareValue
 }
 
 func NewSchedulerMetrics(config configuration.SchedulerMetricsConfig) *SchedulerMetrics {
@@ -143,11 +145,6 @@ func NewSchedulerMetrics(config configuration.SchedulerMetricsConfig) *Scheduler
 	}
 }
 
-func (metrics *SchedulerMetrics) ResetGaugeMetrics() {
-	metrics.fairSharePerQueue.Reset()
-	metrics.actualSharePerQueue.Reset()
-}
-
 func (metrics *SchedulerMetrics) ReportScheduleCycleTime(cycleTime time.Duration) {
 	metrics.scheduleCycleTime.Observe(float64(cycleTime.Milliseconds()))
 }
@@ -234,30 +231,60 @@ func (metrics *SchedulerMetrics) reportNumberOfJobsConsidered(ctx *armadacontext
 	}
 }
 
+type queueShareKey struct {
+	queue string
+	pool  string
+}
+
+type queueShareValue struct {
+	actualShare float64
+	fairShare   float64
+}
+
 func (metrics *SchedulerMetrics) reportQueueShares(ctx *armadacontext.Context, schedulingContexts []*schedulercontext.SchedulingContext) {
+	currentQueueShares := metrics.calculateQueueShares(schedulingContexts)
+
+	for key, _ := range metrics.previousQueueShares {
+		if _, present := currentQueueShares[key]; !present {
+			metrics.fairSharePerQueue.DeleteLabelValues(key.queue, key.pool)
+			metrics.actualSharePerQueue.DeleteLabelValues(key.queue, key.pool)
+		}
+	}
+
+	for key, value := range currentQueueShares {
+		observer, err := metrics.fairSharePerQueue.GetMetricWithLabelValues(key.queue, key.pool)
+		if err != nil {
+			ctx.Errorf("error retrieving considered jobs observer for queue %s, pool %s", key.queue, key.pool)
+		} else {
+			observer.Set(value.fairShare)
+		}
+
+		observer, err = metrics.actualSharePerQueue.GetMetricWithLabelValues(key.queue, key.pool)
+		if err != nil {
+			ctx.Errorf("error retrieving considered jobs observer for queue %s, pool %s", key.queue, key.pool)
+		} else {
+			observer.Set(value.actualShare)
+		}
+	}
+
+	metrics.previousQueueShares = currentQueueShares
+}
+
+func (metrics *SchedulerMetrics) calculateQueueShares(schedulingContexts []*schedulercontext.SchedulingContext) map[queueShareKey]queueShareValue {
+	result := make(map[queueShareKey]queueShareValue)
 	for _, schedContext := range schedulingContexts {
 		totalCost := schedContext.TotalCost()
 		totalWeight := schedContext.WeightSum
 		pool := schedContext.Pool
 
 		for queue, queueContext := range schedContext.QueueSchedulingContexts {
+			key := queueShareKey{queue: queue, pool: pool}
 			fairShare := queueContext.Weight / totalWeight
-
-			observer, err := metrics.fairSharePerQueue.GetMetricWithLabelValues(queue, pool)
-			if err != nil {
-				ctx.Errorf("error retrieving considered jobs observer for queue %s, pool %s", queue, pool)
-			} else {
-				observer.Set(fairShare)
-			}
-
 			actualShare := schedContext.FairnessCostProvider.CostFromQueue(queueContext) / totalCost
 
-			observer, err = metrics.actualSharePerQueue.GetMetricWithLabelValues(queue, pool)
-			if err != nil {
-				ctx.Errorf("error reteriving considered jobs observer for queue %s, pool %s", queue, pool)
-			} else {
-				observer.Set(actualShare)
-			}
+			result[key] = queueShareValue{fairShare: fairShare, actualShare: actualShare}
 		}
 	}
+
+	return result
 }
