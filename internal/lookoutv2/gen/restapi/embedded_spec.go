@@ -114,11 +114,6 @@ func init() {
                 "groups"
               ],
               "properties": {
-                "count": {
-                  "description": "Total number of groups",
-                  "type": "integer",
-                  "x-nullable": false
-                },
                 "groups": {
                   "description": "List of Job groups",
                   "type": "array",
@@ -314,11 +309,6 @@ func init() {
             "schema": {
               "type": "object",
               "properties": {
-                "count": {
-                  "description": "Total number of jobs",
-                  "type": "integer",
-                  "x-nullable": false
-                },
                 "jobs": {
                   "description": "List of jobs found",
                   "type": "array",
@@ -764,11 +754,6 @@ func init() {
                 "groups"
               ],
               "properties": {
-                "count": {
-                  "description": "Total number of groups",
-                  "type": "integer",
-                  "x-nullable": false
-                },
                 "groups": {
                   "description": "List of Job groups",
                   "type": "array",
@@ -964,11 +949,6 @@ func init() {
             "schema": {
               "type": "object",
               "properties": {
-                "count": {
-                  "description": "Total number of jobs",
-                  "type": "integer",
-                  "x-nullable": false
-                },
                 "jobs": {
                   "description": "List of jobs found",
                   "type": "array",

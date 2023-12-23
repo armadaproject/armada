@@ -55,7 +55,6 @@ func TestGroupByQueue(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Len(t, result.Groups, 3)
-		assert.Equal(t, 3, result.Count)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       "queue-1",
@@ -114,7 +113,6 @@ func TestGroupByJobSet(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Len(t, result.Groups, 3)
-		assert.Equal(t, 3, result.Count)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       "job-set-1",
@@ -181,7 +179,6 @@ func TestGroupByState(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Len(t, result.Groups, 4)
-		assert.Equal(t, 4, result.Count)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       string(lookout.JobQueued),
@@ -369,7 +366,6 @@ func TestGroupByWithFilters(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Len(t, result.Groups, 4)
-		assert.Equal(t, 4, result.Count)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       string(lookout.JobQueued),
@@ -468,7 +464,6 @@ func TestGroupJobsWithMaxSubmittedTime(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Len(t, result.Groups, 3)
-		assert.Equal(t, 3, result.Count)
 		assert.Equal(t, []*model.JobGroup{
 			{
 				Name:  "job-set-1",
@@ -568,7 +563,6 @@ func TestGroupJobsWithAvgLastTransitionTime(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Len(t, result.Groups, 3)
-		assert.Equal(t, 3, result.Count)
 		assert.Equal(t, []*model.JobGroup{
 			{
 				Name:  "queue-3",
@@ -668,7 +662,6 @@ func TestGroupJobsWithAllStateCounts(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Len(t, result.Groups, 3)
-		assert.Equal(t, 3, result.Count)
 		assert.Equal(t, []*model.JobGroup{
 			{
 				Name:  "job-set-1",
@@ -800,7 +793,6 @@ func TestGroupJobsWithFilteredStateCounts(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Len(t, result.Groups, 2)
-		assert.Equal(t, 2, result.Count)
 		assert.Equal(t, []*model.JobGroup{
 			{
 				Name:  "job-set-1",
@@ -944,7 +936,6 @@ func TestGroupJobsComplex(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Len(t, result.Groups, 2)
-		assert.Equal(t, 2, result.Count)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:  "job-set-2",
@@ -1014,7 +1005,6 @@ func TestGroupByAnnotation(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Len(t, result.Groups, 3)
-		assert.Equal(t, 3, result.Count)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       "test-value-1",
@@ -1144,7 +1134,6 @@ func TestGroupByAnnotationWithFiltersAndAggregates(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Len(t, result.Groups, 4)
-		assert.Equal(t, 4, result.Count)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:  "4",
@@ -1228,7 +1217,6 @@ func TestGroupJobsSkip(t *testing.T) {
 			)
 			assert.NoError(t, err)
 			assert.Len(t, result.Groups, take)
-			assert.Equal(t, nGroups, result.Count)
 			assert.Equal(t, []*model.JobGroup{
 				queueGroup(4),
 				queueGroup(5),
@@ -1258,7 +1246,6 @@ func TestGroupJobsSkip(t *testing.T) {
 			)
 			assert.NoError(t, err)
 			assert.Len(t, result.Groups, take)
-			assert.Equal(t, nGroups, result.Count)
 			assert.Equal(t, []*model.JobGroup{
 				queueGroup(8),
 				queueGroup(9),
@@ -1288,7 +1275,6 @@ func TestGroupJobsSkip(t *testing.T) {
 			)
 			assert.NoError(t, err)
 			assert.Len(t, result.Groups, 2)
-			assert.Equal(t, nGroups, result.Count)
 			assert.Equal(t, []*model.JobGroup{
 				queueGroup(14),
 				queueGroup(15),
@@ -1443,7 +1429,6 @@ func TestGroupByActiveJobSets(t *testing.T) {
 		)
 		assert.NoError(t, err)
 		assert.Len(t, result.Groups, 2)
-		assert.Equal(t, 2, result.Count)
 		assert.Equal(t, result.Groups, []*model.JobGroup{
 			{
 				Name:       "job-set-2",

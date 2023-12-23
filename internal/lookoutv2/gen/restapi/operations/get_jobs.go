@@ -228,9 +228,6 @@ func (o *GetJobsBody) UnmarshalBinary(b []byte) error {
 // swagger:model GetJobsOKBody
 type GetJobsOKBody struct {
 
-	// Total number of jobs
-	Count int64 `json:"count,omitempty"`
-
 	// List of jobs found
 	Jobs []*models.Job `json:"jobs"`
 }

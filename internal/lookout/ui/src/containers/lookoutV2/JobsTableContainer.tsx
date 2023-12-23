@@ -212,7 +212,7 @@ export const JobsTableContainer = ({
   const [sorting, setSorting] = useState<SortingState>(fromLookoutOrder(lookoutOrder))
 
   // Data
-  const { data, jobInfoMap, pageCount, rowsToFetch, setRowsToFetch, totalRowCount } = useFetchJobsTableData({
+  const { data, jobInfoMap, rowsToFetch, setRowsToFetch } = useFetchJobsTableData({
     groupedColumns: grouping,
     visibleColumns: visibleColumnIds,
     expandedState: expanded,
@@ -659,7 +659,6 @@ export const JobsTableContainer = ({
 
     // Pagination
     manualPagination: true,
-    pageCount: pageCount,
     paginateExpandedRows: true,
     onPaginationChange: onRootPaginationChange,
     getPaginationRowModel: getPaginationRowModel(),
@@ -806,7 +805,11 @@ export const JobsTableContainer = ({
           <TablePagination
             component="div"
             rowsPerPageOptions={PAGE_SIZE_OPTIONS}
-            count={totalRowCount}
+            // If the total number rows in the database for the current filter
+            // is exactly equal to `pageSize`, then this is going to produce a
+            // misleading description (e.g., "1-50 of more than 50", even though
+            // there are exactly 50 rows).
+            count={data.length < pageSize ? data.length : -1}
             rowsPerPage={pageSize}
             page={pageIndex}
             onPageChange={(_, page) => table.setPageIndex(page)}

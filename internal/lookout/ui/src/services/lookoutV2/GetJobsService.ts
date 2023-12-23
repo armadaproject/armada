@@ -12,7 +12,6 @@ export interface IGetJobsService {
 }
 
 export type GetJobsResponse = {
-  count: number // Total number of jobs matching the filter (beyond those returned)
   jobs: Job[]
 }
 
@@ -40,7 +39,6 @@ export class GetJobsService implements IGetJobsService {
 
     const json = await response.json()
     return {
-      count: json.count ?? 0,
       jobs: json.jobs ?? [],
     }
   }
