@@ -33,20 +33,28 @@ local-path-storage   local-path-provisioner-6b84c5c67f-22m8m             1/1    
 ```
 You should see an etcd control plane pod in the list of pods.
 
-Then, open a shell in the main Armada control plane node:
+Copy the etcdclient deployment YAML into the cluster control plane node:
+
+```bash
+$ docker cp developer/config/etcdclient.yaml armada-test-control-plane:/
+```
+
+Then, open a shell in the control plane node:
 ```bash
 $ docker exec -it -u 0 --privileged armada-test-control-plane  /bin/bash
 ```
-Once in, fetch a copy of the pod deployment YAML for the etcdclient container, and move it
-to the Kubernetes deployments source directory. Kubernetes (Kind) will notice the file's
-appearance and will deploy the new pod.
-```bash
-root@armada-test-control-plane:/# curl -LO git.io/etcdclient.yaml
 
+In the container shell, move the deployment YAML file to the Kubernetes deployments source
+directory. Kubernetes (Kind) will notice the file's appearance and will deploy
+the new pod.
+```bash
 root@armada-test-control-plane:/# mv etcdclient.yaml /etc/kubernetes/manifests/
 root@armada-test-control-plane:/# exit
+$ kubectl get pods -A
 ```
-Open a shell in the new etcdclient utility pod, and start using `etcdctl` to query etcd!
+You should see an etcdclient pod running.
+
+Open a shell in the new etcdclient utility pod, and start using `etcdctl` to query etcd.
 ```bash
 $ kubectl exec -n kube-system -it etcdclient-armada-test-control-plane -- sh
 / # etcdctl endpoint status -w table
