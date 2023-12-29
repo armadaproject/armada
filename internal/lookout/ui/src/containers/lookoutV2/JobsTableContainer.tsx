@@ -369,7 +369,7 @@ export const JobsTableContainer = ({
 
   const savedOnRefreshCallback = useRef<() => void>()
 
-  const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | undefined>(undefined)
+  const [autoRefreshIntervalTimer, setAutoRefreshIntervalTimer] = useState<NodeJS.Timeout | undefined>(undefined)
 
   useEffect(() => {
     savedOnRefreshCallback.current = onRefresh
@@ -377,9 +377,9 @@ export const JobsTableContainer = ({
 
   useEffect(() => {
     function clearTimer() {
-      if (autoRefreshInterval) {
-        clearInterval(autoRefreshInterval)
-        setAutoRefreshInterval(undefined)
+      if (autoRefreshIntervalTimer) {
+        clearInterval(autoRefreshIntervalTimer)
+        setAutoRefreshIntervalTimer(undefined)
       }
     }
 
@@ -394,7 +394,7 @@ export const JobsTableContainer = ({
           savedOnRefreshCallback.current()
         }
       }, autoRefreshMs)
-      setAutoRefreshInterval(tmr)
+      setAutoRefreshIntervalTimer(tmr)
       return clearTimer
     }
   }, [autoRefresh, autoRefreshMs])
