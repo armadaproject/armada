@@ -389,12 +389,12 @@ export const JobsTableContainer = ({
         return
       }
     } else {
-      const id = setInterval(() => {
+      const tmr = setInterval(() => {
         if (savedOnRefreshCallback.current) {
           savedOnRefreshCallback.current()
         }
       }, autoRefreshMs)
-      setAutoRefreshInterval(id)
+      setAutoRefreshInterval(tmr)
       return clearTimer
     }
   }, [autoRefresh, autoRefreshMs])
