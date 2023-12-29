@@ -1,4 +1,4 @@
-import React, { RefObject, useCallback, useEffect, useMemo, useState } from "react"
+import React, { RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import {
   Box,
@@ -41,7 +41,6 @@ import _ from "lodash"
 import { isJobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobId, Match, SortDirection } from "models/lookoutV2Models"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
-import IntervalService from "services/IntervalService"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGetRunErrorService } from "services/lookoutV2/GetRunErrorService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
@@ -183,18 +182,8 @@ export const JobsTableContainer = ({
     initialPrefs.autoRefresh === undefined ? true : initialPrefs.autoRefresh,
   )
 
-  const autoRefreshService = useMemo(
-    () => (autoRefreshMs === undefined ? undefined : new IntervalService(autoRefreshMs)),
-    [autoRefreshMs],
-  )
-
   const onAutoRefreshChange = (autoRefresh: boolean) => {
     setAutoRefresh(autoRefresh)
-    if (autoRefresh) {
-      autoRefreshService?.start()
-    } else {
-      autoRefreshService?.stop()
-    }
   }
 
   // Filtering
@@ -378,13 +367,37 @@ export const JobsTableContainer = ({
     setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
   }
 
+  const savedOnRefreshCallback = useRef<() => void>()
+
+  const [autoRefreshIntervalId, setAutoRefreshIntervalId] = useState<NodeJS.Timeout | undefined>(undefined)
+
   useEffect(() => {
-    autoRefreshService?.registerCallback(onRefresh)
-    if (autoRefresh) {
-      autoRefreshService?.start()
+    savedOnRefreshCallback.current = onRefresh
+  })
+
+  useEffect(() => {
+    function clearTimer() {
+      if (autoRefreshIntervalId) {
+        clearInterval(autoRefreshIntervalId)
+        setAutoRefreshIntervalId(undefined)
+      }
     }
-    return () => autoRefreshService?.stop()
-  }, [])
+
+    if (autoRefreshMs === undefined || !autoRefresh) {
+      clearTimer()
+      return () => {
+        return
+      }
+    } else {
+      const id = setInterval(() => {
+        if (savedOnRefreshCallback.current) {
+          savedOnRefreshCallback.current()
+        }
+      }, autoRefreshMs)
+      setAutoRefreshIntervalId(id)
+      return clearTimer
+    }
+  }, [autoRefresh, autoRefreshMs])
 
   const onColumnVisibilityChange = (colIdToToggle: ColumnId) => {
     // Refresh if we make a new aggregate column visible
@@ -743,7 +756,7 @@ export const JobsTableContainer = ({
             }}
             onRefresh={onRefresh}
             autoRefresh={autoRefresh}
-            onAutoRefreshChange={autoRefreshService && onAutoRefreshChange}
+            onAutoRefreshChange={onAutoRefreshChange}
             onAddAnnotationColumn={addAnnotationCol}
             onRemoveAnnotationColumn={removeAnnotationCol}
             onEditAnnotationColumn={editAnnotationCol}
