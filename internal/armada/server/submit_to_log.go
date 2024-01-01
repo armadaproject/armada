@@ -563,6 +563,7 @@ func (srv *PulsarSubmitServer) ReprioritizeJobs(grpcCtx context.Context, req *ap
 		req.JobSetId = resolvedJobset
 	}
 
+	// TODO: this is incorrect we only validate the permissions on the first job but the other jobs may belong to different queues
 	userId, groups, err := srv.Authorize(ctx, req.Queue, permissions.ReprioritizeAnyJobs, queue.PermissionVerbReprioritize)
 	if err != nil {
 		return nil, err
