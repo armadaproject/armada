@@ -189,6 +189,7 @@ export const JOB_COLUMNS: JobTableColumn[] = [
     accessor: "jobSet",
     displayName: "Job Set",
     additionalOptions: {
+      enableSorting: true,
       enableGrouping: true,
       enableColumnFilter: true,
       size: 400,
