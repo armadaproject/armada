@@ -261,6 +261,12 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 func (srv *PulsarSubmitServer) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 
+	if req.JobSetId == "" || req.Queue == "" {
+		ctx.
+			WithField("apidatamissing", "true").
+			Warnf("Cancel jobs called with missing data: jobId=%s, jobset=%s, queue=%s, user=%s", req.JobId, req.JobSetId, req.Queue, srv.GetUser(ctx))
+	}
+
 	// separate code path for multiple jobs
 	if len(req.JobIds) > 0 {
 		return srv.cancelJobsByIdsQueueJobset(ctx, req.JobIds, req.Queue, req.JobSetId, req.Reason)
@@ -517,6 +523,12 @@ func (srv *PulsarSubmitServer) CancelJobSet(grpcCtx context.Context, req *api.Jo
 func (srv *PulsarSubmitServer) ReprioritizeJobs(grpcCtx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 
+	if req.JobSetId == "" || req.Queue == "" {
+		ctx.
+			WithField("apidatamissing", "true").
+			Warnf("Reprioritize jobs called with missing data: jobId=%s, jobset=%s, queue=%s, user=%s", req.JobIds[0], req.JobSetId, req.Queue, srv.GetUser(ctx))
+	}
+
 	// If either queue or jobSetId is missing, we get the job set and queue associated
 	// with the first job id in the request.
 	//
@@ -650,6 +662,11 @@ func (srv *PulsarSubmitServer) Authorize(
 	}
 	err = srv.SubmitServer.authorizer.AuthorizeQueueAction(ctx, q, anyPerm, perm)
 	return userId, groups, err
+}
+
+func (srv *PulsarSubmitServer) GetUser(ctx *armadacontext.Context) string {
+	principal := authorization.GetPrincipal(ctx)
+	return principal.GetName()
 }
 
 // Fallback methods. Calls into an embedded server.SubmitServer.
