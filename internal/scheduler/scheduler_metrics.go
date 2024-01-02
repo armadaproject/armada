@@ -44,7 +44,7 @@ var preemptedJobsDesc = prometheus.NewDesc(
 
 var consideredJobsDesc = prometheus.NewDesc(
 	fmt.Sprintf("%s_%s_%s", NAMESPACE, SUBSYSTEM, "considered_jobs"),
-	"Number of jobs considered each round per queue and pool.",
+	"Number of jobs considered in the most recent round per queue and pool.",
 	[]string{
 		"queue",
 		"pool",
@@ -116,8 +116,8 @@ func (m *SchedulerMetrics) ReportReconcileCycleTime(cycleTime time.Duration) {
 func (m *SchedulerMetrics) ReportSchedulerResult(result SchedulerResult) {
 	currentSchedulingMetrics := schedulingRoundData{
 		queuePoolData:    m.calculateQueuePoolMetrics(result.SchedulingContexts),
-		scheduledJobData: aggregateJobContexts(result.ScheduledJobs),
-		preemptedJobData: aggregateJobContexts(result.PreemptedJobs),
+		scheduledJobData: aggregateJobContexts(m.mostRecentSchedulingRoundData.scheduledJobData, result.ScheduledJobs),
+		preemptedJobData: aggregateJobContexts(m.mostRecentSchedulingRoundData.preemptedJobData, result.PreemptedJobs),
 	}
 
 	m.mostRecentSchedulingRoundData = currentSchedulingMetrics
@@ -145,34 +145,40 @@ func generateSchedulerMetrics(schedulingRoundData schedulingRoundData) []prometh
 	result := []prometheus.Metric{}
 
 	for key, value := range schedulingRoundData.queuePoolData {
-		// TODO Make total metric
 		result = append(result, prometheus.MustNewConstMetric(consideredJobsDesc, prometheus.GaugeValue, float64(value.numberOfJobsConsidered), key.queue, key.pool))
 		result = append(result, prometheus.MustNewConstMetric(fairSharePerQueueDesc, prometheus.GaugeValue, float64(value.fairShare), key.queue, key.pool))
 		result = append(result, prometheus.MustNewConstMetric(actualSharePerQueueDesc, prometheus.GaugeValue, float64(value.actualShare), key.queue, key.pool))
 	}
 	for key, value := range schedulingRoundData.scheduledJobData {
-		// TODO Make total metric
-		result = append(result, prometheus.MustNewConstMetric(scheduledJobsDesc, prometheus.GaugeValue, float64(value), key.queue, key.priorityClass))
+		result = append(result, prometheus.MustNewConstMetric(scheduledJobsDesc, prometheus.CounterValue, float64(value), key.queue, key.priorityClass))
 	}
 	for key, value := range schedulingRoundData.preemptedJobData {
-		// TODO Make total metric
-		result = append(result, prometheus.MustNewConstMetric(preemptedJobsDesc, prometheus.GaugeValue, float64(value), key.queue, key.priorityClass))
+		result = append(result, prometheus.MustNewConstMetric(preemptedJobsDesc, prometheus.CounterValue, float64(value), key.queue, key.priorityClass))
 	}
 
 	return result
 }
 
 // aggregateJobContexts takes a list of jobs and counts how many there are of each queue, priorityClass pair.
-func aggregateJobContexts(jctxs []*schedulercontext.JobSchedulingContext) map[queuePriorityClassKey]int {
-	groups := make(map[queuePriorityClassKey]int)
+func aggregateJobContexts(previousSchedulingRoundData map[queuePriorityClassKey]int, jctxs []*schedulercontext.JobSchedulingContext) map[queuePriorityClassKey]int {
+	result := make(map[queuePriorityClassKey]int)
 
 	for _, jctx := range jctxs {
 		job := jctx.Job
 		key := queuePriorityClassKey{queue: job.GetQueue(), priorityClass: job.GetPriorityClassName()}
-		groups[key] += 1
+		result[key] += 1
 	}
 
-	return groups
+	for key, value := range previousSchedulingRoundData {
+		_, present := result[key]
+		if present {
+			result[key] += value
+		} else {
+			result[key] = value
+		}
+	}
+
+	return result
 }
 
 func (metrics *SchedulerMetrics) calculateQueuePoolMetrics(schedulingContexts []*schedulercontext.SchedulingContext) map[queuePoolKey]queuePoolData {
