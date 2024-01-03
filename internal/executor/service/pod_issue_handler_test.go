@@ -89,6 +89,11 @@ func TestPodIssueService_DeletesPodAndReportsFailed_IfExceedsActiveDeadline(t *t
 			// Created 10 mins ago, 5 min deadline, 10 minute grace period
 			pod: makePodWithDeadline(false, startTime, 300, 600),
 		},
+		"PodWithNoStartTime": {
+			expectIssueDetected: false,
+			// Created 10 mins ago, 5 min deadline, no start time
+			pod: makePodWithDeadline(false, time.Time{}, 300, 0),
+		},
 	}
 
 	for name, tc := range tests {

@@ -247,7 +247,14 @@ func (p *IssueHandler) hasExceededActiveDeadline(pod *v1.Pod) bool {
 	if pod.Spec.ActiveDeadlineSeconds == nil {
 		return false
 	}
-	currentRunTimeSeconds := time.Now().Sub(pod.CreationTimestamp.Time).Seconds()
+
+	// Using StartTime here, as kubernetes bases its activeDeadlineSeconds check on the StartTime also
+	startTime := pod.Status.StartTime
+	if startTime == nil || startTime.Time.IsZero() {
+		return false
+	}
+	currentRunTimeSeconds := time.Now().Sub(startTime.Time).Seconds()
+
 	podTerminationGracePeriodSeconds := float64(0)
 	if pod.Spec.TerminationGracePeriodSeconds != nil {
 		podTerminationGracePeriodSeconds = float64(*pod.Spec.TerminationGracePeriodSeconds)

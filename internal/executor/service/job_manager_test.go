@@ -197,13 +197,14 @@ func makeTerminatingPod(legacy bool) *v1.Pod {
 	return pod
 }
 
-func makePodWithDeadline(legacy bool, createdTime time.Time, deadlineSeconds, gracePeriodSeconds int) *v1.Pod {
+func makePodWithDeadline(legacy bool, startTime time.Time, deadlineSeconds, gracePeriodSeconds int) *v1.Pod {
 	pod := makeTestPod(legacy, v1.PodStatus{Phase: v1.PodRunning})
 	activeDeadlineSeconds := int64(deadlineSeconds)
 	pod.Spec.ActiveDeadlineSeconds = &activeDeadlineSeconds
 	terminationGracePeriodSeconds := int64(gracePeriodSeconds)
 	pod.Spec.TerminationGracePeriodSeconds = &terminationGracePeriodSeconds
-	pod.CreationTimestamp = metav1.NewTime(createdTime)
+	podStartTime := metav1.NewTime(startTime)
+	pod.Status.StartTime = &podStartTime
 	return pod
 }
 
