@@ -756,7 +756,7 @@ export const JobsTableContainer = ({
             }}
             onRefresh={onRefresh}
             autoRefresh={autoRefresh}
-            onAutoRefreshChange={onAutoRefreshChange}
+            onAutoRefreshChange={autoRefreshMs === undefined ? undefined : onAutoRefreshChange}
             onAddAnnotationColumn={addAnnotationCol}
             onRemoveAnnotationColumn={removeAnnotationCol}
             onEditAnnotationColumn={editAnnotationCol}

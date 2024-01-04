@@ -47,6 +47,7 @@ Please see these documents for more information about Armadas Design:
 * [Using OIDC with Armada](./developer/oidc.md)
 * [Building the Website](./developer/website.md)
 * [Using Localdev Manually](./developer/manual-localdev.md)
+* [Inspecting and Debugging etcd in Localdev setup](./developer/etc-localdev.md)
 
 ## Pre-requisites
 
