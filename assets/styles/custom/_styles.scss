@@ -21,6 +21,29 @@
     min-width: unset !important;
 }
 
+/* PAGE CONTENT */
+
+.page li {
+    word-wrap: break-word;
+}
+
+/* RESPONSIVE VIDEO IFRAME */
+
+.responsive-video {
+    overflow:hidden;
+    padding-bottom:56.25%;
+    position:relative;
+    height:0;
+}
+
+.responsive-video iframe {
+    left:0;
+    top:0;
+    height:100%;
+    width:100%;
+    position:absolute;
+}
+
 /* FOOTER */
 
 .btn-twitter i {
@@ -73,11 +96,11 @@
     background-color: #172b4d !important;
 }
 
-/* PAGE HEADER OVERROIDES */
+/* PAGE HEADER OVERRIDES */
 
 .page-header.page-header-small {
     min-height: 36vh !important;
-    margin-bottom: 0px !important;
+    margin-bottom: 0 !important;
 }
 
 .page-header-image.card-background {
@@ -169,7 +192,7 @@ ul li {
 
     .page-header-image.card-background {
         background-repeat: no-repeat !important;
-        max-height: 250px !important;
+        background-size: cover !important;
     }
 
     img.mobile-armada {

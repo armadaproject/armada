@@ -1,11 +1,11 @@
 {% if page.url != "/" and page.featured_image and site.data.settings.header_settings.allow_transparent == "yes" %}
-<nav id="navbar-main" class="navbar navbar-main navbar-expand-lg navbar-transparent headroom">
+<nav id="navbar-main" class="navbar navbar-main navbar-expand-lg navbar-transparent headroom headroom--pinned">
   {% elsif site.data.settings.header_settings.theme == "blue" %}
-  <nav id="navbar-main" class="navbar navbar-main navbar-expand-lg bg-primary navbar-dark headroom">
+  <nav id="navbar-main" class="navbar navbar-main navbar-expand-lg bg-primary navbar-dark headroom headroom--pinned">
     {% elsif site.data.settings.header_settings.theme == "dark" %}
-    <nav id="navbar-main" class="navbar navbar-main navbar-expand-lg bg-default navbar-dark headroom">
+    <nav id="navbar-main" class="navbar navbar-main navbar-expand-lg bg-default navbar-dark headroom headroom--pinned">
       {% else %}
-      <nav id="navbar-main" class="navbar navbar-main navbar-expand-lg bg-white headroom">
+      <nav id="navbar-main" class="navbar navbar-main navbar-expand-lg bg-white headroom headroom--pinned">
         {% endif %}
 
         <div class="container">
