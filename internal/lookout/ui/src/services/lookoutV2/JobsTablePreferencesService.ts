@@ -86,7 +86,7 @@ export interface QueryStringPrefs {
   refresh: string | undefined
 }
 
-const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs => {
+export const toQueryStringSafe = (prefs: JobsTablePreferences): QueryStringPrefs => {
   // The order of these keys are the order they'll show in the URL bar (in modern browsers)
   return {
     page: prefs.pageIndex.toString(),
