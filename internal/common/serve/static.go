@@ -1,6 +1,7 @@
 package serve
 
 import (
+	"io/fs"
 	"net/http"
 
 	"github.com/pkg/errors"
@@ -9,6 +10,11 @@ import (
 	"github.com/armadaproject/armada/internal/common/logging"
 )
 
+// dirWithIndexFallback is a http.FileSystem that serves the index.html file at
+// the root of dir if the requested file is not found. This behavior differs
+// from http.Dir, which only forwards requests for /a/ to /a/index.html; we need
+// to serve the index.html file at the root of dir if the requested file is not
+// found, so that the frontend can handle routing in those cases.
 type dirWithIndexFallback struct {
 	dir http.Dir
 }
@@ -19,7 +25,7 @@ func CreateDirWithIndexFallback(path string) http.FileSystem {
 
 func (d dirWithIndexFallback) Open(name string) (http.File, error) {
 	file, err := d.dir.Open(name)
-	if err != nil {
+	if errors.Is(err, fs.ErrNotExist) {
 		return d.dir.Open("index.html")
 	}
 	return file, err

@@ -11,7 +11,7 @@ export const getAllJobsMatchingFilters = async (
   const receivedJobs: Job[] = []
   let continuePaginating = true
   while (continuePaginating) {
-    const { jobs, count: totalJobs } = await getJobsService.getJobs(
+    const { jobs } = await getJobsService.getJobs(
       filters,
       activeJobSets,
       { direction: "DESC", field: "jobId" },
@@ -20,7 +20,7 @@ export const getAllJobsMatchingFilters = async (
       undefined,
     )
     receivedJobs.push(...jobs)
-    if (receivedJobs.length >= totalJobs || jobs.length === 0) {
+    if (jobs.length < MAX_JOBS_PER_REQUEST) {
       continuePaginating = false
     }
   }

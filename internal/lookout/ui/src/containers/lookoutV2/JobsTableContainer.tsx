@@ -1,4 +1,4 @@
-import React, { RefObject, useCallback, useEffect, useMemo, useState } from "react"
+import React, { RefObject, useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import {
   Box,
@@ -41,7 +41,6 @@ import _ from "lodash"
 import { isJobGroupRow, JobRow, JobTableRow } from "models/jobsTableModels"
 import { Job, JobFilter, JobId, Match, SortDirection } from "models/lookoutV2Models"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
-import IntervalService from "services/IntervalService"
 import { IGetJobsService } from "services/lookoutV2/GetJobsService"
 import { IGetRunErrorService } from "services/lookoutV2/GetRunErrorService"
 import { IGroupJobsService } from "services/lookoutV2/GroupJobsService"
@@ -183,18 +182,8 @@ export const JobsTableContainer = ({
     initialPrefs.autoRefresh === undefined ? true : initialPrefs.autoRefresh,
   )
 
-  const autoRefreshService = useMemo(
-    () => (autoRefreshMs === undefined ? undefined : new IntervalService(autoRefreshMs)),
-    [autoRefreshMs],
-  )
-
   const onAutoRefreshChange = (autoRefresh: boolean) => {
     setAutoRefresh(autoRefresh)
-    if (autoRefresh) {
-      autoRefreshService?.start()
-    } else {
-      autoRefreshService?.stop()
-    }
   }
 
   // Filtering
@@ -212,7 +201,7 @@ export const JobsTableContainer = ({
   const [sorting, setSorting] = useState<SortingState>(fromLookoutOrder(lookoutOrder))
 
   // Data
-  const { data, jobInfoMap, pageCount, rowsToFetch, setRowsToFetch, totalRowCount } = useFetchJobsTableData({
+  const { data, jobInfoMap, rowsToFetch, setRowsToFetch } = useFetchJobsTableData({
     groupedColumns: grouping,
     visibleColumns: visibleColumnIds,
     expandedState: expanded,
@@ -378,13 +367,37 @@ export const JobsTableContainer = ({
     setRowsToFetch(pendingDataForAllVisibleData(expanded, data, pageSize, pageIndex * pageSize))
   }
 
+  const savedOnRefreshCallback = useRef<() => void>()
+
+  const [autoRefreshIntervalTimer, setAutoRefreshIntervalTimer] = useState<NodeJS.Timeout | undefined>(undefined)
+
   useEffect(() => {
-    autoRefreshService?.registerCallback(onRefresh)
-    if (autoRefresh) {
-      autoRefreshService?.start()
+    savedOnRefreshCallback.current = onRefresh
+  })
+
+  useEffect(() => {
+    function clearTimer() {
+      if (autoRefreshIntervalTimer) {
+        clearInterval(autoRefreshIntervalTimer)
+        setAutoRefreshIntervalTimer(undefined)
+      }
     }
-    return () => autoRefreshService?.stop()
-  }, [])
+
+    if (autoRefreshMs === undefined || !autoRefresh) {
+      clearTimer()
+      return () => {
+        return
+      }
+    } else {
+      const tmr = setInterval(() => {
+        if (savedOnRefreshCallback.current) {
+          savedOnRefreshCallback.current()
+        }
+      }, autoRefreshMs)
+      setAutoRefreshIntervalTimer(tmr)
+      return clearTimer
+    }
+  }, [autoRefresh, autoRefreshMs])
 
   const onColumnVisibilityChange = (colIdToToggle: ColumnId) => {
     // Refresh if we make a new aggregate column visible
@@ -659,7 +672,6 @@ export const JobsTableContainer = ({
 
     // Pagination
     manualPagination: true,
-    pageCount: pageCount,
     paginateExpandedRows: true,
     onPaginationChange: onRootPaginationChange,
     getPaginationRowModel: getPaginationRowModel(),
@@ -744,7 +756,7 @@ export const JobsTableContainer = ({
             }}
             onRefresh={onRefresh}
             autoRefresh={autoRefresh}
-            onAutoRefreshChange={autoRefreshService && onAutoRefreshChange}
+            onAutoRefreshChange={autoRefreshMs === undefined ? undefined : onAutoRefreshChange}
             onAddAnnotationColumn={addAnnotationCol}
             onRemoveAnnotationColumn={removeAnnotationCol}
             onEditAnnotationColumn={editAnnotationCol}
@@ -806,7 +818,11 @@ export const JobsTableContainer = ({
           <TablePagination
             component="div"
             rowsPerPageOptions={PAGE_SIZE_OPTIONS}
-            count={totalRowCount}
+            // If the total number rows in the database for the current filter
+            // is exactly equal to `pageSize`, then this is going to produce a
+            // misleading description (e.g., "1-50 of more than 50", even though
+            // there are exactly 50 rows).
+            count={data.length < pageSize ? data.length : -1}
             rowsPerPage={pageSize}
             page={pageIndex}
             onPageChange={(_, page) => table.setPageIndex(page)}
