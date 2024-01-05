@@ -15,12 +15,11 @@ import (
 
 // BootstrapTools installs all tools needed tobuild and release Armada.
 // For the list of tools this will install, see tools.yaml in the root directory
-type ToolsList struct {
-	Tools []string
-}
-
 func BootstrapTools() error {
 	mg.Deps(goCheck)
+	type ToolsList struct {
+		Tools []string
+	}
 
 	requiredTools := &ToolsList{}
 	if err := readYaml("tools.yaml", requiredTools); err != nil {
