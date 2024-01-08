@@ -23,7 +23,7 @@ require (
 	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.3
-	github.com/google/go-cmp v0.6.0
+	github.com/google/go-cmp v0.5.9
 	github.com/google/uuid v1.4.0
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0
@@ -88,7 +88,7 @@ require (
 	github.com/jessevdk/go-flags v1.5.0
 	github.com/magefile/mage v1.14.0
 	github.com/minio/highwayhash v1.0.2
-	github.com/openconfig/goyang v1.4.5
+	github.com/openconfig/goyang v1.2.0
 	github.com/prometheus/common v0.37.0
 	github.com/sanity-io/litter v1.5.5
 	github.com/segmentio/fasthash v1.0.3
