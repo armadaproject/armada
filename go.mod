@@ -69,7 +69,7 @@ require (
 	k8s.io/kubelet v0.22.4
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 	modernc.org/sqlite v1.26.0
-	sigs.k8s.io/yaml v1.3.0
+	sigs.k8s.io/yaml v1.4.0
 )
 
 require (
