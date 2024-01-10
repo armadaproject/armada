@@ -153,7 +153,7 @@ export const useFetchJobsTableData = ({
       const rowRequest: FetchRowRequest = {
         filters: getFiltersForRows(lookoutFilters, columnMatches, parentRowInfo?.rowIdPartsPath ?? []),
         activeJobSets: activeJobSets,
-        skip: nextRequest.skip ?? 0,
+        skip: nextRequest.skip ?? paginationState.pageIndex * paginationState.pageSize,
         take: nextRequest.take ?? paginationState.pageSize,
         order: order,
       }
