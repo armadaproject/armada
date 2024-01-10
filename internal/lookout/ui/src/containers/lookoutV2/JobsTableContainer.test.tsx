@@ -133,6 +133,14 @@ describe("JobsTableContainer", () => {
     await findByText("0–0 of 0")
   })
 
+  it("should show the correct total row count on the first page", async () => {
+    setUp(makeTestJobs(60, "queue-1", "job-set-1", JobState.Queued))
+
+    const { findByText } = renderComponent(`?page=0&sort[id]=jobId&sort[desc]=false`)
+    await waitForFinishedLoading()
+    await findByText("1–50 of more than 50")
+  })
+
   it("should show the correct total row count on the last page", async () => {
     setUp(makeTestJobs(60, "queue-1", "job-set-1", JobState.Queued))
 
