@@ -234,7 +234,7 @@ export const JobsTableContainer = ({
   // Retrieve data for any expanded rows from intial query param state
   useEffect(() => {
     const rowsToFetch: PendingData[] = [
-      { parentRowId: "ROOT", skip: 0 },
+      { parentRowId: "ROOT", skip: pagination.pageIndex * pagination.pageSize },
       ...Object.keys(initialPrefs.expandedState).map((rowId) => ({ parentRowId: rowId as RowId, skip: 0 })),
     ]
     setRowsToFetch(rowsToFetch)
@@ -822,7 +822,7 @@ export const JobsTableContainer = ({
             // is exactly equal to `pageSize`, then this is going to produce a
             // misleading description (e.g., "1-50 of more than 50", even though
             // there are exactly 50 rows).
-            count={data.length < pageSize ? data.length : -1}
+            count={data.length < pageSize ? pageIndex * pageSize + data.length : -1}
             rowsPerPage={pageSize}
             page={pageIndex}
             onPageChange={(_, page) => table.setPageIndex(page)}
