@@ -48,6 +48,7 @@ jobs:
 
   go-unit-tests:
     name: Golang Unit Tests
+    needs: go-mod-up-to-date
     runs-on: ubuntu-22.04
 
     steps:
@@ -84,6 +85,7 @@ jobs:
 
   go-integration-tests:
     name: Golang Integration Tests
+    needs: go-mod-up-to-date
     runs-on: ubuntu-22.04
 
     env:
