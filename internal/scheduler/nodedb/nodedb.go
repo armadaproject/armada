@@ -512,34 +512,10 @@ func NodeJobDiff(txnA, txnB *memdb.Txn) (map[string]*Node, map[string]*Node, err
 	return preempted, scheduled, nil
 }
 
-// ScheduleMany assigns a set of jobs to nodes.
-// If N jobs can be scheduled, where N >= `GangMinCardinality`, it will return true, nil and set ShouldFail on any excess jobs.
-// Otherwise, it will return false, nil.
-// TODO: Pass through contexts to support timeouts.
-func (nodeDb *NodeDb) ScheduleMany(jctxs []*schedulercontext.JobSchedulingContext) (bool, error) {
-	txn := nodeDb.db.Txn(true)
-	defer txn.Abort()
-	ok, err := nodeDb.ScheduleManyWithTxn(txn, jctxs)
-	if ok && err == nil {
-		// All pods can be scheduled; commit the transaction.
-		txn.Commit()
-	}
-	return ok, err
-}
-
-// TODO: Remove me once we re-phrase nodedb in terms of gang context (and therefore can just take this value from the gang scheduling context provided)
-func gangMinCardinality(jctxs []*schedulercontext.JobSchedulingContext) int {
-	if len(jctxs) > 0 {
-		return jctxs[0].GangMinCardinality
-	} else {
-		return 1
-	}
-}
-
-func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, jctxs []*schedulercontext.JobSchedulingContext) (bool, error) {
+func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, gctx *schedulercontext.GangSchedulingContext) (bool, error) {
 	// Attempt to schedule pods one by one in a transaction.
 	numScheduled := 0
-	for _, jctx := range jctxs {
+	for _, jctx := range gctx.JobSchedulingContexts {
 		// In general, we may attempt to schedule a gang multiple times (in
 		// order to find the best fit for this gang); clear out any remnants of
 		// previous attempts.
@@ -575,7 +551,7 @@ func (nodeDb *NodeDb) ScheduleManyWithTxn(txn *memdb.Txn, jctxs []*schedulercont
 
 		numScheduled++
 	}
-	if numScheduled < gangMinCardinality(jctxs) {
+	if numScheduled < gctx.GangInfo.MinimumCardinality {
 		return false, nil
 	}
 	return true, nil
