@@ -1,9 +1,14 @@
 name: "Go environment setup"
 description: "Sets up go environment and installs deps for go testing of armada"
 
+outputs:
+  go-version:
+    description: "The installed Go version"
+    value: ${{ steps.setup-go.outputs.go-version }}
 runs:
   using: "composite"
   steps:
     - uses: actions/setup-go@v4
+      id: setup-go
       with:
         go-version: ${{ matrix.go }}
