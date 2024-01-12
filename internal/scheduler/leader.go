@@ -93,7 +93,7 @@ func (lc *StandaloneLeaderController) Run(ctx *armadacontext.Context) error {
 	return nil
 }
 
-// LeaseListener allows clients to listen for lease events.
+// LeaseListener allows clients to listen for lease eventSequences.
 type LeaseListener interface {
 	// Called when the client has started leading.
 	onStartedLeading(*armadacontext.Context)

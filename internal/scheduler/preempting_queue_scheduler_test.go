@@ -1770,8 +1770,7 @@ func TestPreemptingQueueScheduler(t *testing.T) {
 					require.NoError(t, err)
 					scheduledJobs = append(
 						scheduledJobs,
-						job.
-							WithQueuedVersion(job.QueuedVersion()+1).
+						job.WithQueuedVersion(job.QueuedVersion()+1).
 							WithQueued(false).
 							WithNewRun(node.Executor, node.Id, node.Name),
 					)

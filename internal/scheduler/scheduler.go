@@ -27,10 +27,10 @@ import (
 // It periodically performs the following cycle:
 // 1. Update state from postgres (via the jobRepository).
 // 2. Determine if leader and exit if not.
-// 3. Generate any necessary events resulting from the state update.
+// 3. Generate any necessary eventSequences resulting from the state update.
 // 4. Expire any jobs assigned to clusters that have timed out.
 // 5. Schedule jobs.
-// 6. Publish any Armada events resulting from the scheduling cycle.
+// 6. Publish any Armada eventSequences resulting from the scheduling cycle.
 type Scheduler struct {
 	// Provides job updates from Postgres.
 	jobRepository database.JobRepository
@@ -168,7 +168,6 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 			// and we must invalidate the held leader token to trigger flushing Pulsar at the next cycle.
 			//
 			// TODO: Once the Pulsar client supports transactions, we can guarantee consistency even in case of errors.
-
 			shouldSchedule := s.clock.Now().Sub(s.previousSchedulingRoundEnd) > s.schedulePeriod
 
 			result, err := s.cycle(ctx, fullUpdate, leaderToken, shouldSchedule)
@@ -211,16 +210,16 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 //     These mappings come in two categories:
 //     - Triggered by an external event, e.g., jobs with a successful run should be marked as successful.
 //     - Triggered by a scheduling decision, e.g., a scheduled job should have an additional run associated with it.
-//  3. Generate events encoding these state transition and Publish these to Pulsar.
-//  4. Wait for these Pulsar events to be persisted to the schedulerDb.
+//  3. Generate eventSequences encoding these state transition and Publish these to Pulsar.
+//  4. Wait for these Pulsar eventSequences to be persisted to the schedulerDb.
 //
-// For performance reasons, the actual cycle differs from this idealised cycle in two ways:
+// For performance reasons, the actual cycle differs from this idealised cycle in three ways:
 //   - In each cycle, we only load jobs, runs, and errors that have changed since the last cycle.
 //     For unchanged jobs, runs, and errors, we rely on an in-memory cache maintained between cycles, i.e., the jobDb.
 //   - Similarly, we only perform job state transitions for jobs with changed jobs and runs.
 //     This is unless updateAll is true, in which case we perform state transitions for all jobs.
 //     This is necessary for the first cycle after a leader failOver.
-//   - Instead of waiting for events to be persisted at the end of each cycle, the jobDb is updated directly.
+//   - Instead of waiting for eventSequences to be persisted at the end of each cycle, the jobDb is updated directly.
 //     Hence, as state transitions are persisted and read back from the schedulerDb over later cycles,
 //     there is no change to the jobDb, since the correct changes have already been made.
 func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) (SchedulerResult, error) {
@@ -255,7 +254,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		updatedJobs = txn.GetAll()
 	}
 
-	// Generate any events that came out of synchronising the db state.
+	// Generate any eventSequences that came out of synchronising the db state.
 	events, err := s.generateUpdateMessages(ctx, txn, updatedJobs, jobRepoRunErrorsByRunId)
 	if err != nil {
 		return overallSchedulerResult, err
@@ -302,7 +301,7 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 	if err = s.publisher.PublishMessages(ctx, events, isLeader); err != nil {
 		return overallSchedulerResult, err
 	}
-	ctx.Infof("published %d events to pulsar in %s", len(events), s.clock.Since(start))
+	ctx.Infof("published %d eventSequences to pulsar in %s", len(events), s.clock.Since(start))
 
 	// Optionally assert that the jobDb is in a valid state and then commit.
 	if s.enableAssertions {
@@ -371,7 +370,8 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, []jobdb
 		return nil, nil, nil, err
 	}
 
-	// Load any error associated with updated runs.
+	// Load any errors associated with updated runs.
+	// TODO: Consider loading errors lazily.
 	jobRunIds := util.Map(updatedRuns, func(jobRepoRun database.Run) uuid.UUID { return jobRepoRun.RunID })
 	jobRepoRunErrorsByRunId, err := s.jobRepository.FetchJobRunErrors(ctx, jobRunIds)
 	if err != nil {
@@ -486,7 +486,7 @@ func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventS
 		}
 		run := job.LatestRun()
 		if run == nil {
-			return nil, errors.Errorf("attempting to generate preempted events for job %s with no associated runs", job.Id())
+			return nil, errors.Errorf("attempting to generate preempted eventSequences for job %s with no associated runs", job.Id())
 		}
 		eventSequences = append(eventSequences, &armadaevents.EventSequence{
 			Queue:      job.Queue(),
@@ -540,7 +540,7 @@ func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventS
 	return eventSequences, nil
 }
 
-func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jobs []*jobdb.Job, time time.Time) ([]*armadaevents.EventSequence, error) {
+func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jobs []*jobdb.Job, callTime time.Time) ([]*armadaevents.EventSequence, error) {
 	for _, job := range jobs {
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
 		if err != nil {
@@ -548,14 +548,15 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 		}
 		run := job.LatestRun()
 		if run == nil {
-			return nil, errors.Errorf("attempting to generate lease events for job %s with no associated runs", job.Id())
+			return nil, errors.Errorf("attempting to generate lease eventSequences for job %s with no associated runs", job.Id())
 		}
+		runCreationTime := time.Unix(0, job.ActiveRunTimestamp())
 		eventSequences = append(eventSequences, &armadaevents.EventSequence{
 			Queue:      job.Queue(),
 			JobSetName: job.Jobset(), // TODO: Rename to JobSet.
 			Events: []*armadaevents.EventSequence_Event{
 				{
-					Created: &time,
+					Created: &runCreationTime,
 					Event: &armadaevents.EventSequence_Event_JobRunLeased{
 						JobRunLeased: &armadaevents.JobRunLeased{
 							RunId:      armadaevents.ProtoUuidFromUuid(run.Id()),
@@ -603,7 +604,7 @@ func AppendEventSequencesFromUnschedulableJobs(eventSequences []*armadaevents.Ev
 // generateUpdateMessages generates EventSequences representing the state changes on updated jobs.
 // If there are no state changes then an empty slice will be returned.
 func (s *Scheduler) generateUpdateMessages(ctx *armadacontext.Context, txn *jobdb.Txn, updatedJobs []*jobdb.Job, jobRunErrors map[uuid.UUID]*armadaevents.Error) ([]*armadaevents.EventSequence, error) {
-	// Generate any events that came out of synchronising the db state.
+	// Generate any eventSequences that came out of synchronising the db state.
 	var events []*armadaevents.EventSequence
 	for _, job := range updatedJobs {
 		jobEvents, err := s.generateUpdateMessagesFromJob(job, jobRunErrors, txn)
@@ -713,6 +714,13 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 				events = append(events, requeueJobEvent)
 			} else {
 				runError := jobRunErrors[lastRun.Id()]
+				if runError == nil {
+					return nil, errors.Errorf(
+						"no run error found for run %s (job id = %s), this must mean we're out of sync with the database",
+						lastRun.Id().String(), job.Id(),
+					)
+				}
+
 				job = job.WithFailed(true).WithQueued(false)
 				if lastRun.Returned() {
 					errorMessage := fmt.Sprintf("Maximum number of attempts (%d) reached - this job will no longer be retried", s.maxAttemptedRuns)
@@ -736,12 +744,6 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 							},
 						},
 					}
-				}
-				if runError == nil {
-					panic(
-						fmt.Sprintf("No run error found for run %s (job id = %s), this must mean we're out of sync with the database",
-							lastRun.Id().String(), job.Id()),
-					)
 				}
 				jobErrors := &armadaevents.EventSequence_Event{
 					Created: s.now(),

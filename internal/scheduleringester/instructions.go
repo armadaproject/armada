@@ -81,7 +81,7 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 		case *armadaevents.EventSequence_Event_SubmitJob:
 			operationsFromEvent, err = c.handleSubmitJob(event.GetSubmitJob(), eventTime, meta)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
-			operationsFromEvent, err = c.handleJobRunLeased(event.GetJobRunLeased(), meta)
+			operationsFromEvent, err = c.handleJobRunLeased(event.GetJobRunLeased(), eventTime, meta)
 		case *armadaevents.EventSequence_Event_JobRunRunning:
 			operationsFromEvent, err = c.handleJobRunRunning(event.GetJobRunRunning())
 		case *armadaevents.EventSequence_Event_JobRunSucceeded:
@@ -180,7 +180,7 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, subm
 	}}}, nil
 }
 
-func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.JobRunLeased, meta eventSequenceCommon) ([]DbOperation, error) {
+func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.JobRunLeased, eventTime time.Time, meta eventSequenceCommon) ([]DbOperation, error) {
 	runId := armadaevents.UuidFromProtoUuid(jobRunLeased.GetRunId())
 	jobId, err := armadaevents.UlidStringFromProtoUuid(jobRunLeased.GetJobId())
 	if err != nil {
@@ -192,6 +192,7 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 			DbRun: &schedulerdb.Run{
 				RunID:    runId,
 				JobID:    jobId,
+				Created:  eventTime.UnixNano(),
 				JobSet:   meta.jobset,
 				Executor: jobRunLeased.GetExecutorId(),
 				Node:     jobRunLeased.GetNodeId(),

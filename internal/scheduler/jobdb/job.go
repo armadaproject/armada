@@ -18,6 +18,9 @@ import (
 
 // Job is the scheduler-internal representation of a job.
 type Job struct {
+	// Pointer to the jobDb used to create this job.
+	// Not included in equals comparison.
+	jobDb *JobDb
 	// String representation of the job id.
 	id string
 	// Name of the queue this job belongs to.
@@ -91,6 +94,20 @@ func (job *Job) String() string {
 // - If the job is queued, the queuedVersion must be equal to the number of runs.
 // - If the job is running or succeeded, the queuedVersion must be one less than the number of runs.
 // - If the job is failed or cancelled, the queuedVersion may be either equal to or 1 less than the number of runs.
+//
+// QueuedVersion is 0 initially and is incremented by 1 every time the queued status of the job changes. Hence:
+// - If the job is queued, the queuedVersion must be 2x the number of runs.
+//   - queued (qv = 0)
+//   - queued -> running -> queued (qv = 2)
+//
+// - If the job is running or succeeded, the queuedVersion must be one less than 2x number of runs.
+//   - queued -> running -> succeeded (qv = 1)
+//   - queued -> running -> queued -> running -> succeeded (qv = 3)
+//
+// - If the job is failed or cancelled, the queuedVersion may be either equal to or 1 less than 2x the number of runs.
+//   - queued -> failed/cancelled (qv = 0)
+//   - queued -> running -> failed/cancelled (qv = 1)
+//   - queued -> running -> queued -> failed/cancelled (qv = 2)
 func (job *Job) Assert() error {
 	if job == nil {
 		return errors.Errorf("job is nil")
@@ -140,8 +157,8 @@ func (job *Job) Assert() error {
 			result = multierror.Append(result, errors.New("job is marked as queued and terminated"))
 		}
 
-		if int32(len(job.runsById)) != job.QueuedVersion() {
-			result = multierror.Append(result, errors.Errorf("job is queued but queuedVersion (%d) does not equal the number of runs (%d)", job.queuedVersion, len(job.runsById)))
+		if 2*int32(len(job.runsById)) != job.QueuedVersion() {
+			result = multierror.Append(result, errors.Errorf("job is queued but queuedVersion (%d) is not 2x the number of runs (%d)", job.queuedVersion, len(job.runsById)))
 		}
 
 		if run := job.LatestRun(); run != nil {
@@ -164,8 +181,8 @@ func (job *Job) Assert() error {
 			result = multierror.Append(result, errors.New("job is marked as succeeded but not terminated"))
 		}
 
-		if int32(len(job.runsById))-1 != job.QueuedVersion() {
-			result = multierror.Append(result, errors.Errorf("job is succeeded but queuedVersion (%d) is not one more than the number of runs (%d)", job.queuedVersion, len(job.runsById)))
+		if 2*int32(len(job.runsById))-1 != job.QueuedVersion() {
+			result = multierror.Append(result, errors.Errorf("job is succeeded but queuedVersion (%d) is not one less than 2x the number of runs (%d)", job.queuedVersion, len(job.runsById)))
 		}
 
 		if run := job.LatestRun(); run != nil {
@@ -191,8 +208,8 @@ func (job *Job) Assert() error {
 			result = multierror.Append(result, errors.New("job is marked as cancelled but not terminated"))
 		}
 
-		if int32(len(job.runsById)) != job.QueuedVersion() && int32(len(job.runsById))-1 != job.QueuedVersion() {
-			result = multierror.Append(result, errors.Errorf("job is cancelled but queuedVersion (%d) is not either equal to or one less than the number of runs (%d)", job.queuedVersion, len(job.runsById)))
+		if 2*int32(len(job.runsById)) != job.QueuedVersion() && 2*int32(len(job.runsById))-1 != job.QueuedVersion() {
+			result = multierror.Append(result, errors.Errorf("job is cancelled but queuedVersion (%d) is not either equal to or one less than 2x the number of runs (%d)", job.queuedVersion, len(job.runsById)))
 		}
 
 		// A job may be cancelled regardless of whether it has associated runs or not,
@@ -205,8 +222,8 @@ func (job *Job) Assert() error {
 			result = multierror.Append(result, errors.New("job is marked as failed but not terminated"))
 		}
 
-		if int32(len(job.runsById)) != job.QueuedVersion() && int32(len(job.runsById))-1 != job.QueuedVersion() {
-			result = multierror.Append(result, errors.Errorf("job is failed but queuedVersion (%d) is not either equal to or one less than the number of runs (%d)", job.queuedVersion, len(job.runsById)))
+		if 2*int32(len(job.runsById)) != job.QueuedVersion() && 2*int32(len(job.runsById))-1 != job.QueuedVersion() {
+			result = multierror.Append(result, errors.Errorf("job is failed but queuedVersion (%d) is not either equal to or one less than 2x the number of runs (%d)", job.queuedVersion, len(job.runsById)))
 		}
 
 		if run := job.LatestRun(); run != nil && !run.InTerminalState() {
@@ -214,8 +231,8 @@ func (job *Job) Assert() error {
 		}
 	} else {
 		// Job must be running if it's not in any of the other states.
-		if int32(len(job.runsById))-1 != job.QueuedVersion() {
-			result = multierror.Append(result, errors.Errorf("job is running but queuedVersion (%d) is not one less than the number of runs (%d)", job.queuedVersion, len(job.runsById)))
+		if 2*int32(len(job.runsById))-1 != job.QueuedVersion() {
+			result = multierror.Append(result, errors.Errorf("job is running but queuedVersion (%d) is not one less than 2x the number of runs (%d)", job.queuedVersion, len(job.runsById)))
 		}
 
 		if run := job.LatestRun(); run != nil {
@@ -288,7 +305,7 @@ func (job *Job) Equal(other *Job) bool {
 		return false
 	}
 	if job.schedulingKey != other.schedulingKey {
-		// We assume jobSchedulingInfo is equal if schedulingKey is equal.
+		// Assume jobSchedulingInfo is equal if schedulingKey is equal.
 		return false
 	}
 	if job.queued != other.queued {
@@ -321,13 +338,13 @@ func (job *Job) Equal(other *Job) bool {
 	if job.succeeded != other.succeeded {
 		return false
 	}
-	if !armadamaps.DeepEqual(job.runsById, other.runsById) {
-		return false
-	}
 	if !job.activeRun.Equal(other.activeRun) {
 		return false
 	}
 	if job.activeRunTimestamp != other.activeRunTimestamp {
+		return false
+	}
+	if !armadamaps.DeepEqual(job.runsById, other.runsById) {
 		return false
 	}
 	return true
@@ -400,6 +417,13 @@ func (job *Job) RequestedPriority() uint32 {
 func (job *Job) WithPriority(priority uint32) *Job {
 	j := copyJob(*job)
 	j.priority = priority
+	return j
+}
+
+// WithSubmittedTime returns a copy of the job with submittedTime updated.
+func (job *Job) WithSubmittedTime(submittedTime int64) *Job {
+	j := copyJob(*job)
+	j.submittedTime = submittedTime
 	return j
 }
 
@@ -564,6 +588,13 @@ func (job *Job) Created() int64 {
 	return job.submittedTime
 }
 
+// ActiveRunTimestamp returns the creation time of the most recent run associated with this job.
+func (job *Job) ActiveRunTimestamp() int64 {
+	return job.activeRunTimestamp
+}
+
+// The timestamp of the currently active run.
+
 // InTerminalState returns true if the job  is in a terminal state
 func (job *Job) InTerminalState() bool {
 	return job.succeeded || job.cancelled || job.failed
@@ -577,18 +608,23 @@ func (job *Job) HasRuns() bool {
 
 // WithNewRun creates a copy of the job with a new run on the given executor.
 func (job *Job) WithNewRun(executor string, nodeId, nodeName string) *Job {
-	run := &JobRun{
-		id:       uuid.New(),
-		jobId:    job.id,
-		created:  time.Now().UnixNano(),
-		executor: executor,
-		nodeId:   nodeId,
-		nodeName: nodeName,
-	}
-	return job.WithUpdatedRun(run)
+	return job.WithUpdatedRun(job.jobDb.CreateRun(
+		job.jobDb.uuidProvider.New(),
+		job.Id(),
+		job.jobDb.clock.Now().UnixNano(),
+		executor,
+		nodeId,
+		nodeName,
+		false,
+		false,
+		false,
+		false,
+		false,
+		false,
+	))
 }
 
-// WithUpdatedRun creates a copy of the job with run details updated.
+// WithUpdatedRun returns a copy of the job with the provided run upserted.
 func (job *Job) WithUpdatedRun(run *JobRun) *Job {
 	j := copyJob(*job)
 	if run.created >= j.activeRunTimestamp {

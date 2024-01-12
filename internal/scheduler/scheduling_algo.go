@@ -34,7 +34,7 @@ import (
 type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes.
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided.
-	Schedule(ctx *armadacontext.Context, txn *jobdb.Txn) (*SchedulerResult, error)
+	Schedule(*armadacontext.Context, *jobdb.Txn) (*SchedulerResult, error)
 }
 
 // FairSchedulingAlgo is a SchedulingAlgo based on PreemptingQueueScheduler.
@@ -239,6 +239,7 @@ type fairSchedulingAlgoContext struct {
 	gangIdByJobId                            map[string]string
 	allocationByPoolAndQueueAndPriorityClass map[string]map[string]schedulerobjects.QuantityByTAndResourceType[string]
 	executors                                []*schedulerobjects.Executor
+	jobDb                                    *jobdb.JobDb
 	txn                                      *jobdb.Txn
 }
 
@@ -460,7 +461,10 @@ func (l *FairSchedulingAlgo) scheduleOnExecutors(
 		if node, err := nodeDb.GetNode(nodeId); err != nil {
 			return nil, nil, err
 		} else {
-			result.ScheduledJobs[i] = jobDbJob.WithQueuedVersion(jobDbJob.QueuedVersion()+1).WithQueued(false).WithNewRun(node.Executor, node.Id, node.Name)
+			result.ScheduledJobs[i] = jobDbJob.
+				WithQueuedVersion(jobDbJob.QueuedVersion()+1).
+				WithQueued(false).
+				WithNewRun(node.Executor, node.Id, node.Name)
 		}
 	}
 	for i, job := range result.FailedJobs {

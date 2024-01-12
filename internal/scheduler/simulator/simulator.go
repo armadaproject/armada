@@ -523,7 +523,8 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 				if node, err := nodeDb.GetNode(nodeId); err != nil {
 					return err
 				} else {
-					scheduledJobs[i] = job.WithQueued(false).WithNewRun(node.Executor, node.Id, node.Name)
+					run := s.jobDb.NewRunFromJob(job, node.Executor, node.Id, node.Name)
+					scheduledJobs[i] = job.WithQueued(false).WithUpdatedRun(run)
 				}
 			}
 			for i, job := range failedJobs {

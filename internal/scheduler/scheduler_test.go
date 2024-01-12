@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
@@ -735,7 +736,7 @@ func TestScheduler_TestCycle(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			// Assert that all expected events are generated and that all events are expected.
+			// Assert that all expected eventSequences are generated and that all eventSequences are expected.
 			outstandingEventsByType := map[string]map[string]bool{
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRunLeased{}):     stringSet(tc.expectedJobRunLeased),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobErrors{}):        stringSet(tc.expectedJobErrors),
@@ -747,10 +748,10 @@ func TestScheduler_TestCycle(t *testing.T) {
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_JobRequeued{}):      stringSet(tc.expectedRequeued),
 				fmt.Sprintf("%T", &armadaevents.EventSequence_Event_CancelJob{}):        stringSet(tc.expectedJobRequestCancel),
 			}
-			err = subtractEventsFromOutstandingEventsByType(publisher.events, outstandingEventsByType)
+			err = subtractEventsFromOutstandingEventsByType(publisher.eventSequences, outstandingEventsByType)
 			require.NoError(t, err)
 			for eventType, m := range outstandingEventsByType {
-				assert.Empty(t, m, "%d outstanding events of type %s", len(m), eventType)
+				assert.Empty(t, m, "%d outstanding eventSequences of type %s", len(m), eventType)
 			}
 
 			// assert that the serials are where we expect them to be
@@ -907,19 +908,19 @@ func TestRun(t *testing.T) {
 
 	// fire a cycle and assert that we became leader and published
 	fireCycle()
-	assert.Equal(t, 1, len(publisher.events))
+	assert.Equal(t, 1, len(publisher.eventSequences))
 	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 1)
 
 	// invalidate our leadership: we should not publish
 	leaderController.token = InvalidLeaderToken()
 	fireCycle()
-	assert.Equal(t, 0, len(publisher.events))
+	assert.Equal(t, 0, len(publisher.eventSequences))
 	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 1)
 
 	// become master again: we should publish
 	leaderController.token = NewLeaderToken()
 	fireCycle()
-	assert.Equal(t, 1, len(publisher.events))
+	assert.Equal(t, 1, len(publisher.eventSequences))
 	assert.Equal(t, schedulingAlgo.numberOfScheduleCalls, 2)
 
 	cancel()
@@ -1207,12 +1208,19 @@ type testSchedulingAlgo struct {
 	jobsToSchedule        []string
 	jobsToFail            []string
 	shouldError           bool
+	// Set to true to indicate that preemption/scheduling/failure decisions have been persisted.
+	// Until persisted is set to true, the same jobs are preempted/scheduled/failed on every call.
+	persisted bool
 }
 
-func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn) (*SchedulerResult, error) {
+func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) (*SchedulerResult, error) {
 	t.numberOfScheduleCalls++
 	if t.shouldError {
 		return nil, errors.New("error scheduling jobs")
+	}
+	if t.persisted {
+		// Exit right away if decisions have already been persisted.
+		return &SchedulerResult{}, nil
 	}
 	preemptedJobs := make([]*jobdb.Job, 0, len(t.jobsToPreempt))
 	scheduledJobs := make([]*jobdb.Job, 0, len(t.jobsToSchedule))
@@ -1241,7 +1249,11 @@ func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn
 		if !job.Queued() {
 			return nil, errors.Errorf("was asked to lease %s but job was already leased", job.Id())
 		}
-		job = job.WithQueued(false).WithNewRun("test-executor", "test-node", "node")
+		job = job.WithQueuedVersion(job.QueuedVersion()+1).WithQueued(false).WithNewRun(
+			"test-executor",
+			api.NodeIdFromExecutorAndNodeName("test-executor", "test-node"),
+			"test-node",
+		)
 		scheduledJobs = append(scheduledJobs, job)
 	}
 	for _, id := range t.jobsToFail {
@@ -1264,7 +1276,22 @@ func (t *testSchedulingAlgo) Schedule(ctx *armadacontext.Context, txn *jobdb.Txn
 	if err := txn.Upsert(failedJobs); err != nil {
 		return nil, err
 	}
+
+	// TODO(albin): Remove.
+	// // Jobs should only be scheduled/failed/preempted once; reset these slices.
+	// t.jobsToSchedule = nil
+	// t.jobsToFail = nil
+	// t.jobsToPreempt = nil
+
 	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs, failedJobs, nil), nil
+}
+
+func (t *testSchedulingAlgo) Persist() error {
+	if t.numberOfScheduleCalls == 0 {
+		return errors.New("scheduling decisions persisted before call to schedule")
+	}
+	t.persisted = true
+	return nil
 }
 
 func NewSchedulerResultForTest[S ~[]T, T interfaces.LegacySchedulerJob](
@@ -1294,20 +1321,32 @@ func NewSchedulerResultForTest[S ~[]T, T interfaces.LegacySchedulerJob](
 }
 
 type testPublisher struct {
-	events      []*armadaevents.EventSequence
-	shouldError bool
+	i              int
+	eventSequences []*armadaevents.EventSequence
+	shouldError    bool
 }
 
-func (t *testPublisher) PublishMessages(ctx *armadacontext.Context, events []*armadaevents.EventSequence, _ func() bool) error {
-	t.events = events
+func (t *testPublisher) PublishMessages(_ *armadacontext.Context, events []*armadaevents.EventSequence, shouldPublish func() bool) error {
 	if t.shouldError {
-		return errors.New("Error when publishing")
+		return errors.New("testPublisher error")
+	}
+	if shouldPublish() {
+		t.eventSequences = append(t.eventSequences, events...)
 	}
 	return nil
 }
 
+func (t *testPublisher) ReadAll() []*armadaevents.EventSequence {
+	if len(t.eventSequences) == 0 {
+		return nil
+	}
+	rv := t.eventSequences[t.i:len(t.eventSequences)]
+	t.i += len(rv)
+	return rv
+}
+
 func (t *testPublisher) Reset() {
-	t.events = nil
+	t.eventSequences = nil
 }
 
 func (t *testPublisher) PublishMarkers(ctx *armadacontext.Context, groupId uuid.UUID) (uint32, error) {
@@ -1328,8 +1367,9 @@ func stringSet(src []string) map[string]bool {
 // 3. Make a copy of the resulting jobDb and write any generated Pulsar messages to the schedulerDb.
 // 4. Run another scheduling cycle. Assert that the jobDb does not change and that no messages are generated.
 // 5. Run a scheduling cycle with an empty jobDb. Assert that this jobDb becomes identical to the copy made in step 3.
-func TestCycleConsistency(t *testing.T) {
+func TestCycleConsistencyOld(t *testing.T) {
 	tests := map[string]struct {
+		initialJobDb        *jobdb.JobDb                 // JobDb with which the scheduler is initialised.
 		jobUpdates          []*database.Job              // Job updates from the database.
 		runUpdates          []*database.Run              // Run updates from the database.
 		jobRunErrors        []*armadaevents.JobRunErrors // Job run errors from the database.
@@ -1352,10 +1392,46 @@ func TestCycleConsistency(t *testing.T) {
 			},
 			idsOfJobsToSchedule: []string{queuedJob.Id()},
 		},
+		// // Empty jobDb.
+		// //
+		// // The first cycle here should prob. be with updateAll.
+		// // Otherwise, we could have an inconsistent jobDb,
+		// // Now the leader will do a full update.
+		// // Then the follower does a partial update followed by a full update.
+		// // Put a failed job into the jobDb.
+		// // Then put an error into the schedulerDb.
+		// "one failed job": {
+		// 	initialJobDb: func() *jobdb.JobDb {
+		// 		jobDb := testfixtures.NewJobDb()
+		// 		jobDb.NewJob()
+		// 		return jobDb
+		// 	}(),
+		// 	jobUpdates: []*database.Job{
+		// 		{
+		// 			JobID:                 queuedJob.Id(),
+		// 			JobSet:                "testJobSet",
+		// 			Queue:                 "testQueue",
+		// 			Queued:                true,
+		// 			QueuedVersion:         0,
+		// 			SchedulingInfo:        schedulingInfoBytes,
+		// 			SchedulingInfoVersion: int32(schedulingInfo.Version),
+		// 			Serial:                1,
+		// 		},
+		// 	},
+		// 	idsOfJobsToSchedule: []string{queuedJob.Id()},
+		// },
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
 			ctx := armadacontext.Background()
+
+			// If no initialJobDb is specified, initialise the test case with an empty jobDb.
+			if tc.initialJobDb == nil {
+				tc.initialJobDb = testfixtures.NewJobDb()
+			}
+
+			// The remainder of the test case needs to be run with a postgres database connection,
+			// since the schedulerDb is backed by postgres.
 			err := schedulerdb.WithTestDb(func(_ *schedulerdb.Queries, db *pgxpool.Pool) error {
 
 				// Create the schedulerIngester components necessary to update the schedulerDb.
@@ -1384,8 +1460,9 @@ func TestCycleConsistency(t *testing.T) {
 				clusterRepo := &testExecutorRepository{
 					updateTimes: map[string]time.Time{"testExecutor": testClock.Now()},
 				}
+				leaderController := NewStandaloneLeaderController()
 				sched, err := NewScheduler(
-					testfixtures.NewJobDb(),
+					tc.initialJobDb.Clone(),
 					database.NewPostgresJobRepository(db, 1024),
 					clusterRepo,
 					&testSchedulingAlgo{
@@ -1393,7 +1470,7 @@ func TestCycleConsistency(t *testing.T) {
 						jobsToPreempt:  tc.idsOfJobsToPreempt,
 						jobsToFail:     tc.idsOfJobsToFail,
 					},
-					NewStandaloneLeaderController(),
+					leaderController,
 					publisher,
 					submitChecker,
 					1*time.Second,
@@ -1405,45 +1482,433 @@ func TestCycleConsistency(t *testing.T) {
 					nil,
 				)
 				require.NoError(t, err)
-				sched.EnableAssertions()
 				sched.clock = testClock
+				sched.EnableAssertions()
 
-				// Run a scheduler cycle.
-				// At the start of this cycle, the scheduler jobDb is empty.
-				// After the cycle, events will have been generated and corresponding changes made to the jobDb.
-				_, err = sched.cycle(ctx, false, sched.leaderController.GetToken(), true)
+				// Run a scheduler cycle with the initial jobDb.
+				// After the cycle, eventSequences will have been generated and corresponding changes made to the jobDb.
+				// This jobDb state and these eventSequences are the baseline for further tests.
+				_, err = sched.cycle(ctx, true, leaderController.GetToken(), true)
 				require.NoError(t, err)
-
-				// Persist the generated events to the schedulerDb and run another cycle.
-				// This should result in no events generated and no changes to the jobDb.
-				// Since the updates made to the jobDb in the previous cycle should be exactly
-				// those triggered by the changes written to the schedulerDb here.
 				jobDbAfterFirstCycle := sched.jobDb.Clone()
+				eventsAfterFirstCycle := slices.Clone(publisher.eventSequences)
 
+				// A full update is only called on failover.
+				// But the jobDb is initialised from the schedulerDb.
+				// By providing a jobDb and then making an update.
+
+				// Follower syncs its jobDb.
+				// Leader falls over.
+				// Follower becomes leader.
+				// New leader does a full sync.
+				// At this point, all the jobs in its jobDb have already been updated.
+				// So the fullUpdate does nothing.
+
+				// Test leader failover by:
+				// 1. Running a cycle as follower with the same initial jobDb.
+				// 2. Running a cycle as leader with updateAll = true.
+				// Assert that this results in the same jobDb state and generated eventSequences as running one cycle as master.
+				//
+				// In particular, the following should result in the same jobDb state:
+				// - A partial update followed by a full update.
+				// - A single full update.
+				sched.jobDb = tc.initialJobDb.Clone()
+				publisher.eventSequences = nil
+				leaderController.SetToken(InvalidLeaderToken())
+				_, err = sched.cycle(ctx, false, leaderController.GetToken(), false)
+				require.NoError(t, err)
+				leaderController.SetToken(NewLeaderToken())
+				_, err = sched.cycle(ctx, true, leaderController.GetToken(), true)
+				require.NoError(t, err)
+				require.NoError(t, sched.jobDb.ReadTxn().AssertEqual(jobDbAfterFirstCycle.ReadTxn()))
+				require.Equal(t, eventsAfterFirstCycle, publisher.eventSequences)
+
+				// Test that changes made to the jobDb within the cycle are identical
+				// to those triggered by the Pulsar eventSequences written to the schedulerDb by:
+				// 1. Persist the generated eventSequences to the schedulerDb.
+				// 2. Run another cycle with the same jobDb.
+				// 3. Assert that this results in no eventSequences generated and no changes to the jobDb.
 				dbOpsWithMessageIds := instructionConverter.Convert(ctx, &ingest.EventSequencesWithIds{
-					EventSequences: publisher.events,
+					EventSequences: eventsAfterFirstCycle,
 				})
 				require.NoError(t, schedulerDb.Store(ctx, dbOpsWithMessageIds))
-				publisher.events = nil
+				publisher.eventSequences = nil
 
+				sched.jobDb = jobDbAfterFirstCycle.Clone()
 				_, err = sched.cycle(ctx, true, sched.leaderController.GetToken(), false)
 				require.NoError(t, err)
 				require.NoError(t, sched.jobDb.ReadTxn().AssertEqual(jobDbAfterFirstCycle.ReadTxn()))
-				require.Empty(t, publisher.events)
+				require.Empty(t, publisher.eventSequences)
 
-				// Run a cycle with an empty jobDb and assert that it becomes identical to the copy made above.
-				publisher.events = nil
+				// Test that a new scheduler coming up and reading from the schedulerDb results in the same jobDb state.
+				publisher.eventSequences = nil
 				sched.jobDb = testfixtures.NewJobDb()
 				_, err = sched.cycle(ctx, true, sched.leaderController.GetToken(), false)
 				require.NoError(t, err)
 				require.NoError(t, sched.jobDb.ReadTxn().AssertEqual(jobDbAfterFirstCycle.ReadTxn()))
-				require.Empty(t, publisher.events)
+				require.Empty(t, publisher.eventSequences)
 
 				return nil
 			})
 			require.NoError(t, err)
 		})
 	}
+}
+
+// TestCycleConsistency runs two replicas of the scheduler and asserts that their state remains consistent
+// under various permutations of making scheduling decisions and failovers.
+func TestCycleConsistency(t *testing.T) {
+	tests := map[string]struct {
+		initialJobDb        *jobdb.JobDb                 // JobDb with which the scheduler is initialised.
+		jobUpdates          []*database.Job              // Job updates from the database.
+		runUpdates          []*database.Run              // Run updates from the database.
+		jobRunErrors        []*armadaevents.JobRunErrors // Job run errors from the database.
+		idsOfJobsToSchedule []string
+		idsOfJobsToPreempt  []string
+		idsOfJobsToFail     []string
+	}{
+		"Lease a single job from an update": {
+			jobUpdates: []*database.Job{
+				{
+					JobID:                 queuedJob.Id(),
+					JobSet:                "testJobSet",
+					Queue:                 "testQueue",
+					Queued:                true,
+					QueuedVersion:         0,
+					SchedulingInfo:        schedulingInfoBytes,
+					SchedulingInfoVersion: int32(schedulingInfo.Version),
+					Serial:                1,
+				},
+			},
+			idsOfJobsToSchedule: []string{queuedJob.Id()},
+		},
+		"Job succeeded": {
+			jobUpdates: []*database.Job{
+				{
+					JobID:                 leasedJob.Id(),
+					JobSet:                "testJobSet",
+					Queue:                 "testQueue",
+					Queued:                false,
+					QueuedVersion:         1,
+					SchedulingInfo:        schedulingInfoBytes,
+					SchedulingInfoVersion: int32(schedulingInfo.Version),
+					Serial:                0,
+				},
+			},
+			runUpdates: []*database.Run{
+				{
+					RunID:     leasedJob.LatestRun().Id(),
+					JobID:     leasedJob.Id(),
+					Node:      "testNode",
+					JobSet:    "testJobSet",
+					Executor:  "testExecutor",
+					Succeeded: true,
+					Serial:    0,
+				},
+			},
+		},
+		// Empty jobDb.
+		//
+		// The first cycle here should prob. be with updateAll.
+		// Otherwise, we could have an inconsistent jobDb,
+		// Now the leader will do a full update.
+		// Then the follower does a partial update followed by a full update.
+		// Put a failed job into the jobDb.
+		// Then put an error into the schedulerDb.
+		// "one failed job": {
+		// 	initialJobDb: func() *jobdb.JobDb {
+		// 		jobDb := testfixtures.NewJobDb()
+		// 		jobDb.NewJob()
+		// 		return jobDb
+		// 	}(),
+		// 	jobUpdates: []*database.Job{
+		// 		{
+		// 			JobID:                 queuedJob.Id(),
+		// 			JobSet:                "testJobSet",
+		// 			Queue:                 "testQueue",
+		// 			Queued:                true,
+		// 			QueuedVersion:         0,
+		// 			SchedulingInfo:        schedulingInfoBytes,
+		// 			SchedulingInfoVersion: int32(schedulingInfo.Version),
+		// 			Serial:                1,
+		// 		},
+		// 	},
+		// 	idsOfJobsToSchedule: []string{queuedJob.Id()},
+		// },
+	}
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+
+			ctx := armadacontext.Background()
+			testClock := clock.NewFakeClock(time.Now())
+
+			// If no initialJobDb is specified, initialise the test case with an empty jobDb.
+			if tc.initialJobDb == nil {
+				tc.initialJobDb = testfixtures.NewJobDb()
+			}
+
+			// Create schedulerDb ops from the testCase to populate the schedulerDb with.
+			instructionConverter, err := scheduleringester.NewInstructionConverter(
+				nil,
+				testfixtures.TestPriorityClasses,
+			)
+			require.NoError(t, err)
+			dbOps, err := dbOpsFromTestCase(ctx, instructionConverter, tc.jobUpdates, tc.runUpdates, tc.jobRunErrors)
+			require.NoError(t, err)
+
+			// Function to create a scheduler using mocked components.
+			newScheduler := func(db *pgxpool.Pool) *Scheduler {
+				// Mock out the clock and uuid provider to ensure consistent ids and timestamps are generated.
+				jobDb := tc.initialJobDb.Clone()
+				jobDb.SetClock(testfixtures.NewMockPassiveClock())
+				jobDb.SetUUIDProvider(testfixtures.NewMockUUIDProvider())
+				scheduler, err := NewScheduler(
+					jobDb,
+					database.NewPostgresJobRepository(db, 1024),
+					&testExecutorRepository{
+						updateTimes: map[string]time.Time{"test-executor": testClock.Now()},
+					},
+					&testSchedulingAlgo{
+						jobsToSchedule: tc.idsOfJobsToSchedule,
+						jobsToPreempt:  tc.idsOfJobsToPreempt,
+						jobsToFail:     tc.idsOfJobsToFail,
+					},
+					NewStandaloneLeaderController(),
+					&testPublisher{},
+					&testSubmitChecker{},
+					1*time.Second,
+					5*time.Second,
+					0,
+					maxNumberOfAttempts,
+					nodeIdLabel,
+					schedulerMetrics,
+					nil,
+				)
+				require.NoError(t, err)
+				scheduler.clock = testClock
+				scheduler.EnableAssertions()
+				return scheduler
+			}
+
+			withTestSetup := func(f func(a, b *Scheduler, schedulerDb *scheduleringester.SchedulerDb) error) error {
+				return schedulerdb.WithTestDb(func(_ *schedulerdb.Queries, db *pgxpool.Pool) error {
+					// Create a schedulerDb using this db connection and initialise its state.
+					schedulerDb := scheduleringester.NewSchedulerDb(
+						db,
+						nil,
+						time.Second,
+						time.Second,
+						10*time.Second,
+					)
+					if err := schedulerDb.Store(ctx, &scheduleringester.DbOperationsWithMessageIds{Ops: dbOps}); err != nil {
+						return err
+					}
+
+					// Create two scheduler using the same db connection, clock, and uuidProvider.
+					a := newScheduler(db)
+					b := newScheduler(db)
+
+					// Share the schedulingAlgo to ensure both schedulers make the same scheduling decisions.
+					b.schedulingAlgo = a.schedulingAlgo
+
+					// Initially, scheduler a is leader and b is follower.
+					(b.leaderController.(*StandaloneLeaderController)).SetToken(InvalidLeaderToken())
+
+					return f(a, b, schedulerDb)
+				})
+			}
+
+			// cycle runs one cycle.
+			cycle := func(s *Scheduler, updateAll, shouldSchedule bool) error {
+				t.Logf("cycle scheduler %p", s)
+				_, err := s.cycle(ctx, updateAll, s.leaderController.GetToken(), shouldSchedule)
+				return err
+			}
+
+			// persist persists to the schedulerDb any published eventSequences.
+			persist := func(s *Scheduler, schedulerDb *scheduleringester.SchedulerDb) error {
+				publisher := s.publisher.(*testPublisher)
+				// Get the event sequences, get the eventSequences, print one line per event and operation.
+				eventSequences := publisher.ReadAll()
+				dbOpsWithMessageIds := instructionConverter.Convert(ctx, &ingest.EventSequencesWithIds{
+					EventSequences: eventSequences,
+				})
+
+				// Mark scheduling decisions as persisted.
+				schedulingAlgo := s.schedulingAlgo.(*testSchedulingAlgo)
+				if err := schedulingAlgo.Persist(); err != nil {
+					return err
+				}
+
+				// Logging
+				numEvents := 0
+				for _, eventSequence := range eventSequences {
+					numEvents += len(eventSequence.Events)
+				}
+				t.Logf("persist scheduler %p; %d eventSequences, %d eventSequences, %d ops", s, len(eventSequences), numEvents, len(dbOpsWithMessageIds.Ops))
+				for _, eventSequence := range eventSequences {
+					for _, event := range eventSequence.Events {
+						t.Logf("\tevent %s, %s, %T", eventSequence.Queue, eventSequence.JobSetName, event.Event)
+					}
+				}
+				for _, op := range dbOpsWithMessageIds.Ops {
+					t.Logf("\toperation %T: %v", op, op)
+				}
+
+				return schedulerDb.Store(ctx, dbOpsWithMessageIds)
+			}
+
+			// failover swaps the leader tokens between a and b, thus swapping which scheduler is leader.
+			failover := func(a, b *Scheduler) error {
+				t.Logf("failover schedulers %p, %p", a, b)
+				lca := a.leaderController.(*StandaloneLeaderController)
+				lcb := b.leaderController.(*StandaloneLeaderController)
+				lta := lca.GetToken()
+				ltb := lcb.GetToken()
+				lca.SetToken(ltb)
+				lcb.SetToken(lta)
+				return nil
+			}
+
+			assertJobDbEqual := func(a, b *Scheduler) error {
+				t.Logf("asserting jobDb equality schedulers %p, %p", a, b)
+				return (a.jobDb.ReadTxn()).AssertEqual(b.jobDb.ReadTxn())
+			}
+
+			assertPublishedEventsEqual := func(a, b *Scheduler) error {
+				t.Logf("asserting event equality schedulers %p, %p", a, b)
+				pa := a.publisher.(*testPublisher)
+				pb := b.publisher.(*testPublisher)
+				if !assert.Equal(t, pa.eventSequences, pb.eventSequences) {
+					return errors.New("eventSequences are not equal")
+				}
+				return nil
+			}
+
+			var baseline *Scheduler
+			empty := newScheduler(nil)
+
+			// One cycle.
+			t.Log("scenario 1")
+			require.NoError(t, withTestSetup(func(a, _ *Scheduler, _ *scheduleringester.SchedulerDb) error {
+				baseline = a
+				require.NoError(t, cycle(a, true, true))
+				return nil
+			}))
+
+			// Create a new scheduler storing only non-terminal jobs for use in comparisons.
+			baselineWithoutTerminalJobs := &Scheduler{jobDb: baseline.jobDb.Clone(), publisher: baseline.publisher}
+			txn := baselineWithoutTerminalJobs.jobDb.WriteTxn()
+			require.NoError(t, txn.DeleteTerminalJobs())
+			txn.Commit()
+
+			// Ensure changes published by "a" are picked up on a subsequent cycle.
+			t.Log("scenario 2")
+			require.NoError(t, withTestSetup(func(a, _ *Scheduler, schedulerDb *scheduleringester.SchedulerDb) error {
+				require.NoError(t, cycle(a, true, true))
+				require.NoError(t, assertJobDbEqual(baseline, a))
+				require.NoError(t, assertPublishedEventsEqual(baseline, a))
+				require.NoError(t, persist(a, schedulerDb))
+				require.NoError(t, cycle(a, false, false))
+				require.NoError(t, assertJobDbEqual(baselineWithoutTerminalJobs, a))
+				require.NoError(t, assertPublishedEventsEqual(baseline, a))
+				return nil
+			}))
+
+			// Ensure changes published by "a" are correctly picked up by "b".
+			t.Log("scenario 3")
+			require.NoError(t, withTestSetup(func(a, b *Scheduler, schedulerDb *scheduleringester.SchedulerDb) error {
+				require.NoError(t, cycle(a, true, true))
+				require.NoError(t, assertJobDbEqual(baseline, a))
+				require.NoError(t, assertPublishedEventsEqual(baseline, a))
+				// Persist changes and cycle a again to make it pick up its own changes.
+				// This should cause any terminal jobs to be deleted from the jobDb of a.
+				require.NoError(t, persist(a, schedulerDb))
+				require.NoError(t, cycle(a, false, false))
+				require.NoError(t, assertJobDbEqual(baselineWithoutTerminalJobs, a))
+				// Cycle b and ensure its resulting state is identical to that of a.
+				require.NoError(t, cycle(b, true, false))
+				require.NoError(t, assertJobDbEqual(a, b))
+				require.NoError(t, assertPublishedEventsEqual(empty, b))
+				return nil
+			}))
+
+			// Ensure follower "b" starts scheduling after becoming leader.
+			t.Log("scenario 4")
+			require.NoError(t, withTestSetup(func(a, b *Scheduler, _ *scheduleringester.SchedulerDb) error {
+				require.NoError(t, cycle(b, true, false))
+				require.NoError(t, assertPublishedEventsEqual(empty, b))
+				require.NoError(t, failover(a, b))
+				require.NoError(t, cycle(b, true, true))
+				require.NoError(t, assertJobDbEqual(baseline, b))
+				require.NoError(t, assertPublishedEventsEqual(baseline, b))
+				return nil
+			}))
+
+			// Ensure "b" recovers the same state as "a" after failover when "a" has persisted its state before failing.
+			t.Log("scenario 5")
+			require.NoError(t, withTestSetup(func(a, b *Scheduler, schedulerDb *scheduleringester.SchedulerDb) error {
+				require.NoError(t, cycle(a, true, true))
+				require.NoError(t, assertJobDbEqual(baseline, a))
+				require.NoError(t, assertPublishedEventsEqual(baseline, a))
+				require.NoError(t, persist(a, schedulerDb))
+				require.NoError(t, cycle(a, false, false))
+				require.NoError(t, failover(a, b))
+				require.NoError(t, cycle(b, true, true))
+				require.NoError(t, assertJobDbEqual(a, b))
+				require.NoError(t, assertPublishedEventsEqual(empty, b))
+				return nil
+			}))
+
+			// Ensure "b" recovers the same state as "a" after a failover.
+			t.Log("scenario 6")
+			require.NoError(t, withTestSetup(func(a, b *Scheduler, schedulerDb *scheduleringester.SchedulerDb) error {
+				require.NoError(t, cycle(a, true, true))
+				require.NoError(t, assertJobDbEqual(baseline, a))
+				require.NoError(t, assertPublishedEventsEqual(baseline, a))
+				require.NoError(t, failover(a, b))
+				require.NoError(t, cycle(b, true, true))
+				require.NoError(t, assertJobDbEqual(a, b))
+				require.NoError(t, assertPublishedEventsEqual(a, b))
+				return nil
+			}))
+		})
+	}
+}
+
+func executeInstructions(fs ...func() error) error {
+	for i, f := range fs {
+		if err := f(); err != nil {
+			return errors.WithMessagef(err, "%d-th instruction failed", i)
+		}
+	}
+	return nil
+}
+
+func updateFollowerSync(ctx *armadacontext.Context, scheduler *Scheduler) error {
+	return withLeaderToken(scheduler, InvalidLeaderToken(), func() error {
+		if _, err := scheduler.cycle(ctx, true, scheduler.leaderController.GetToken(), true); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func updateLeaderSync(ctx *armadacontext.Context, scheduler *Scheduler) error {
+	return withLeaderToken(scheduler, NewLeaderToken(), func() error {
+		if _, err := scheduler.cycle(ctx, true, scheduler.leaderController.GetToken(), true); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+func withLeaderToken(scheduler *Scheduler, lt LeaderToken, f func() error) error {
+	lc := scheduler.leaderController.(*StandaloneLeaderController)
+	olt := lc.GetToken()
+	defer func() { lc.SetToken(olt) }()
+	lc.SetToken(lt)
+	return f()
 }
 
 func dbOpsFromTestCase(

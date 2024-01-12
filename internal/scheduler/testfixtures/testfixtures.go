@@ -2,10 +2,14 @@ package testfixtures
 
 // This file contains test fixtures to be used throughout the tests for this package.
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
+	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/segmentio/fasthash/fnv1a"
 
 	"github.com/armadaproject/armada/pkg/api"
 
@@ -892,4 +896,61 @@ func TestExecutor(lastUpdateTime time.Time) *schedulerobjects.Executor {
 		LastUpdateTime: lastUpdateTime,
 		Nodes:          TestCluster(),
 	}
+}
+
+// DeterministicReader returns is a deterministic (for a given seed) read to be used in tests.
+type DeterministicReader struct {
+	state uint64
+}
+
+func NewDeterministicReader(seed uint64) *DeterministicReader {
+	return &DeterministicReader{state: seed}
+}
+
+func (r *DeterministicReader) Read(p []byte) (n int, err error) {
+	for i := 0; i < len(p); i++ {
+		r.state = fnv1a.HashUint64(r.state)
+		p[i] = byte(r.state % 256)
+	}
+	return len(p), nil
+}
+
+type MockUUIDProvider struct {
+	i  uint64
+	mu sync.Mutex
+}
+
+func NewMockUUIDProvider() *MockUUIDProvider {
+	return &MockUUIDProvider{}
+}
+
+func (p *MockUUIDProvider) New() uuid.UUID {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.i += 1 // Increment before write such that ids are never empty.
+	var rv uuid.UUID
+	binary.LittleEndian.PutUint64(rv[:], p.i)
+	return rv
+}
+
+type MockPassiveClock struct {
+	t  time.Time
+	d  time.Duration
+	mu sync.Mutex
+}
+
+func NewMockPassiveClock() *MockPassiveClock {
+	return &MockPassiveClock{t: time.Unix(0, 0), d: time.Second}
+}
+
+func (p *MockPassiveClock) Now() time.Time {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	rv := p.t
+	p.t = p.t.Add(p.d)
+	return rv
+}
+
+func (p *MockPassiveClock) Since(time.Time) time.Duration {
+	panic("Not implemented")
 }

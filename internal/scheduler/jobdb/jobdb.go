@@ -9,6 +9,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
+	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -41,6 +42,23 @@ type JobDb struct {
 	// Mutexes protecting the jobDb.
 	copyMutex   sync.Mutex
 	writerMutex sync.Mutex
+	// Clock used when assigning timestamps to created job runs.
+	// Set here so that it can be mocked.
+	clock clock.PassiveClock
+	// Used for generating job run ids.
+	uuidProvider UUIDProvider
+}
+
+// UUIDProvider is an interface used to mock UUID generation for tests.
+type UUIDProvider interface {
+	New() uuid.UUID
+}
+
+// RealUUIDProvider calls uuid.New.
+type RealUUIDProvider struct{}
+
+func (_ RealUUIDProvider) New() uuid.UUID {
+	return uuid.New()
 }
 
 func NewJobDb(priorityClasses map[string]types.PriorityClass, defaultPriorityClassName string, stringInternerCacheSize uint32) *JobDb {
@@ -72,7 +90,17 @@ func NewJobDbWithSchedulingKeyGenerator(
 		defaultPriorityClass:   defaultPriorityClass,
 		schedulingKeyGenerator: skg,
 		stringInterner:         stringinterner.New(stringInternerCacheSize),
+		clock:                  clock.RealClock{},
+		uuidProvider:           RealUUIDProvider{},
 	}
+}
+
+func (jobDb *JobDb) SetClock(clock clock.PassiveClock) {
+	jobDb.clock = clock
+}
+
+func (jobDb *JobDb) SetUUIDProvider(uuidProvider UUIDProvider) {
+	jobDb.uuidProvider = uuidProvider
 }
 
 func (jobDb *JobDb) EnableAssertions() {
@@ -114,6 +142,7 @@ func (jobDb *JobDb) NewJob(
 		priorityClass = jobDb.defaultPriorityClass
 	}
 	job := &Job{
+		jobDb:                   jobDb,
 		id:                      jobId,
 		queue:                   jobDb.stringInterner.Intern(queue),
 		jobSet:                  jobDb.stringInterner.Intern(jobSet),
@@ -267,7 +296,24 @@ func (txn *Txn) AssertEqual(otherTxn *Txn) error {
 		}
 	}
 	if err := result.ErrorOrNil(); err != nil {
-		return errors.WithMessage(err, "jobDb transactions are not equal")
+		return errors.Wrap(err, "jobDb transactions are not equal")
+	}
+	return nil
+}
+
+func (txn *Txn) DeleteTerminalJobs() error {
+	if err := txn.checkWritableTransaction(); err != nil {
+		return err
+	}
+	it := txn.jobsById.Iterator()
+	for {
+		jobId, job, ok := it.Next()
+		if !ok {
+			break
+		}
+		if job.InTerminalState() {
+			txn.delete(jobId)
+		}
 	}
 	return nil
 }
@@ -423,31 +469,37 @@ func (txn *Txn) GetAll() []*Job {
 
 // BatchDelete deletes the jobs with the given ids from the database.
 // Any ids not in the database are ignored.
-func (txn *Txn) BatchDelete(ids []string) error {
+func (txn *Txn) BatchDelete(jobIds []string) error {
 	if err := txn.checkWritableTransaction(); err != nil {
 		return err
 	}
-	for _, id := range ids {
-		job, present := txn.jobsById.Get(id)
-		if present {
-			txn.jobsById = txn.jobsById.Delete(id)
-			for _, run := range job.runsById {
-				txn.jobsByRunId = txn.jobsByRunId.Delete(run.id)
-			}
-			queue, ok := txn.jobsByQueue[job.queue]
-			if ok {
-				newQueue := queue.Delete(job)
-				txn.jobsByQueue[job.queue] = newQueue
-			}
-
-			// We only add these jobs into the collection if it has a queueTtl set, hence only remove if this is set.
-			if job.HasQueueTtlSet() {
-				newQueuedJobsByExpiry := txn.queuedJobsByTtl.Delete(job)
-				txn.queuedJobsByTtl = &newQueuedJobsByExpiry
-			}
-		}
+	for _, id := range jobIds {
+		txn.delete(id)
 	}
 	return nil
+}
+
+// delete a job from the txn.
+// The caller is responsible for checking that this is a writable txn by calling checkWritableTransaction.
+func (txn *Txn) delete(jobId string) {
+	job, present := txn.jobsById.Get(jobId)
+	if present {
+		txn.jobsById = txn.jobsById.Delete(jobId)
+		for _, run := range job.runsById {
+			txn.jobsByRunId = txn.jobsByRunId.Delete(run.id)
+		}
+		queue, ok := txn.jobsByQueue[job.queue]
+		if ok {
+			newQueue := queue.Delete(job)
+			txn.jobsByQueue[job.queue] = newQueue
+		}
+
+		// We only add these jobs into the collection if it has a queueTtl set, hence only remove if this is set.
+		if job.HasQueueTtlSet() {
+			newQueuedJobsByExpiry := txn.queuedJobsByTtl.Delete(job)
+			txn.queuedJobsByTtl = &newQueuedJobsByExpiry
+		}
+	}
 }
 
 func (txn *Txn) checkWritableTransaction() error {
