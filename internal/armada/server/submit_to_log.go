@@ -10,12 +10,12 @@ import (
 
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/gogo/protobuf/types"
+	"github.com/gogo/status"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/maps"
 	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 
 	"github.com/armadaproject/armada/internal/armada/permissions"
 	"github.com/armadaproject/armada/internal/armada/repository"
@@ -94,12 +94,29 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 
 	// Create legacy API jobs from the requests.
 	// We use the legacy code for the conversion to ensure that behaviour doesn't change.
-	apiJobs, err := srv.SubmitServer.createJobs(req, userId, groups)
+	apiJobs, responseItems, err := srv.SubmitServer.createJobs(req, userId, groups)
 	if err != nil {
-		return nil, err
+		details := &api.JobSubmitResponse{
+			JobResponseItems: responseItems,
+		}
+
+		st, e := status.Newf(codes.InvalidArgument, "[SubmitJobs] Failed to parse job request: %s", err.Error()).WithDetails(details)
+		if e != nil {
+			return nil, status.Newf(codes.Internal, "[SubmitJobs] Failed to parse job request: %s", e.Error()).Err()
+		}
+
+		return nil, st.Err()
 	}
-	if err := commonvalidation.ValidateApiJobs(apiJobs, *srv.SubmitServer.schedulingConfig); err != nil {
-		return nil, err
+	if responseItems, err := commonvalidation.ValidateApiJobs(apiJobs, *srv.SubmitServer.schedulingConfig); err != nil {
+		details := &api.JobSubmitResponse{
+			JobResponseItems: responseItems,
+		}
+
+		st, e := status.Newf(codes.InvalidArgument, "[SubmitJobs] Failed to parse job request: %s", err.Error()).WithDetails(details)
+		if e != nil {
+			return nil, status.Newf(codes.Internal, "[SubmitJobs] Failed to parse job request: %s", e.Error()).Err()
+		}
+		return nil, st.Err()
 	}
 
 	schedulersByJobId, err := srv.assignScheduler(apiJobs)
@@ -243,6 +260,12 @@ func (srv *PulsarSubmitServer) SubmitJobs(grpcCtx context.Context, req *api.JobS
 
 func (srv *PulsarSubmitServer) CancelJobs(grpcCtx context.Context, req *api.JobCancelRequest) (*api.CancellationResult, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
+
+	if req.JobSetId == "" || req.Queue == "" {
+		ctx.
+			WithField("apidatamissing", "true").
+			Warnf("Cancel jobs called with missing data: jobId=%s, jobset=%s, queue=%s, user=%s", req.JobId, req.JobSetId, req.Queue, srv.GetUser(ctx))
+	}
 
 	// separate code path for multiple jobs
 	if len(req.JobIds) > 0 {
@@ -500,6 +523,12 @@ func (srv *PulsarSubmitServer) CancelJobSet(grpcCtx context.Context, req *api.Jo
 func (srv *PulsarSubmitServer) ReprioritizeJobs(grpcCtx context.Context, req *api.JobReprioritizeRequest) (*api.JobReprioritizeResponse, error) {
 	ctx := armadacontext.FromGrpcCtx(grpcCtx)
 
+	if req.JobSetId == "" || req.Queue == "" {
+		ctx.
+			WithField("apidatamissing", "true").
+			Warnf("Reprioritize jobs called with missing data: jobId=%s, jobset=%s, queue=%s, user=%s", req.JobIds[0], req.JobSetId, req.Queue, srv.GetUser(ctx))
+	}
+
 	// If either queue or jobSetId is missing, we get the job set and queue associated
 	// with the first job id in the request.
 	//
@@ -633,6 +662,11 @@ func (srv *PulsarSubmitServer) Authorize(
 	}
 	err = srv.SubmitServer.authorizer.AuthorizeQueueAction(ctx, q, anyPerm, perm)
 	return userId, groups, err
+}
+
+func (srv *PulsarSubmitServer) GetUser(ctx *armadacontext.Context) string {
+	principal := authorization.GetPrincipal(ctx)
+	return principal.GetName()
 }
 
 // Fallback methods. Calls into an embedded server.SubmitServer.

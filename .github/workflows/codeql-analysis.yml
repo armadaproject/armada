@@ -46,7 +46,21 @@ jobs:
       with:
         version: '23.3'
         repo-token: ${{ secrets.GITHUB_TOKEN }}
+
     - uses: ./.github/workflows/go-setup
+      id: setup-go
+
+    - name: Compute tools cache info
+      id: tools-cache-info
+      run: echo path=$(go env GOPATH)/bin >> $GITHUB_OUTPUT
+
+    - name: Setup tools cache
+      uses: actions/cache@v3
+      id: tools-cache
+      with:
+        path: ${{ steps.tools-cache-info.outputs.path }}
+        key: tools-go-${{ steps.setup-go.outputs.go-version }}-tools-${{ hashFiles('tools.yaml') }}
+
     - name: Mage Proto
       run: go run github.com/magefile/mage@v1.14.0 -v proto
 

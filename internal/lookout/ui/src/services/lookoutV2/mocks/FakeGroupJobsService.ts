@@ -32,7 +32,6 @@ export default class FakeGroupJobsService implements IGroupJobsService {
     const sliced = take == 0 ? sorted.slice(skip) : sorted.slice(skip, skip + take)
     return {
       groups: sliced,
-      count: groups.length,
     }
   }
 }

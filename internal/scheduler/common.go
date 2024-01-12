@@ -10,19 +10,25 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	armadaslices "github.com/armadaproject/armada/internal/common/slices"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
 // JobsSummary returns a string giving an overview of the provided jobs meant for logging.
 // For example: "affected queues [A, B]; resources {A: {cpu: 1}, B: {cpu: 2}}; jobs [jobAId, jobBId]".
-func JobsSummary(jobs []interfaces.LegacySchedulerJob) string {
-	if len(jobs) == 0 {
+func JobsSummary(jctxs []*schedulercontext.JobSchedulingContext) string {
+	if len(jctxs) == 0 {
 		return ""
 	}
-	jobsByQueue := armadaslices.GroupByFunc(
-		jobs,
-		func(job interfaces.LegacySchedulerJob) string { return job.GetQueue() },
+	jobsByQueue := armadaslices.MapAndGroupByFuncs(
+		jctxs,
+		func(jctx *schedulercontext.JobSchedulingContext) string {
+			return jctx.Job.GetQueue()
+		},
+		func(jctx *schedulercontext.JobSchedulingContext) interfaces.LegacySchedulerJob {
+			return jctx.Job
+		},
 	)
 	resourcesByQueue := armadamaps.MapValues(
 		jobsByQueue,

@@ -28,6 +28,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/profiling"
 	"github.com/armadaproject/armada/internal/common/pulsarutils"
 	"github.com/armadaproject/armada/internal/common/serve"
+	"github.com/armadaproject/armada/internal/common/types"
 	schedulerconfig "github.com/armadaproject/armada/internal/scheduler/configuration"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
@@ -142,13 +143,12 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error setting up gRPC server")
 	}
-	allowedPcs := config.Scheduling.Preemption.AllowedPriorities()
 	executorServer, err := NewExecutorApi(
 		apiProducer,
 		jobRepository,
 		executorRepository,
 		legacyExecutorRepository,
-		allowedPcs,
+		types.AllowedPriorities(config.Scheduling.Preemption.PriorityClasses),
 		config.Scheduling.Preemption.NodeIdLabel,
 		config.Scheduling.Preemption.PriorityClassNameOverride,
 		config.Pulsar.MaxAllowedMessageSize,

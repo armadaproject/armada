@@ -66,10 +66,22 @@ jobs:
           dotnet-version: 7.0.x
 
       - name: Set up Go (no caching)
+        id: setup-go
         uses: actions/setup-go@v4
         with:
           go-version: '1.20'
           cache: false
+
+      - name: Compute tools cache info
+        id: tools-cache-info
+        run: echo path=$(go env GOPATH)/bin >> $GITHUB_OUTPUT
+
+      - name: Setup tools cache
+        uses: actions/cache@v3
+        id: tools-cache
+        with:
+          path: ${{ steps.tools-cache-info.outputs.path }}
+          key: tools-go-${{ steps.setup-go.outputs.go-version }}-tools-${{ hashFiles('tools.yaml') }}
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
@@ -84,7 +96,7 @@ jobs:
       - name: Pack dotnet clients
         env:
           RELEASE_TAG: ${{ steps.create-release-tag.outputs.release_tag }}
-        run: go run github.com/magefile/mage@v1.14.0 -v download packNuget
+        run: go run github.com/magefile/mage@v1.14.0 -v packNuget
 
       - name: Save nupkg artifacts
         uses: actions/upload-artifact@v3

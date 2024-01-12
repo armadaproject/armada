@@ -129,6 +129,7 @@ func (r *PostgresJobRepository) FetchJobRunErrors(ctx *armadacontext.Context, ru
 func (r *PostgresJobRepository) FetchJobUpdates(ctx *armadacontext.Context, jobSerial int64, jobRunSerial int64) ([]Job, []Run, error) {
 	var updatedJobs []Job = nil
 	var updatedRuns []Run = nil
+
 	start := time.Now()
 	defer func() {
 		ctx.Infof(

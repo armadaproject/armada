@@ -12,6 +12,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/scheduler/configuration"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/pkg/armadaevents"
 )
@@ -70,11 +71,15 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 	}
 
 	inactiveJobLabels := []string{"queue", "resource"}
+	scheduledJobLabels := []string{"queue", "cluster", "node", "nodeType", "resource"}
 	activeJobLabels := []string{"queue", "cluster", "node", "resource"}
-	failedJobLabels := append(append(
-		[]string{"queue", "cluster", "node", "errorType"},
-		trackedErrorLabels...,
-	), "resource")
+	failedJobLabels := append(
+		append(
+			[]string{"queue", "cluster", "node", "errorType"},
+			trackedErrorLabels...,
+		),
+		"resource",
+	)
 
 	return &Metrics{
 		config: config,
@@ -100,7 +105,7 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 				Name:      "scheduled_total",
 				Help:      "Scheduled jobs.",
 			},
-			activeJobLabels,
+			scheduledJobLabels,
 		),
 		preempted: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
@@ -216,14 +221,12 @@ func (m *Metrics) Update(
 		}
 	}
 	if jst.Scheduled {
-		if err := m.updateLeased(m.buffer[0:0], jst.Job); err != nil {
-			return err
-		}
+		// Scheduled is handled by updateMetricsFromSchedulerResult.
+		return nil
 	}
 	if jst.Preempted {
-		if err := m.updatePreempted(m.buffer[0:0], jst.Job); err != nil {
-			return err
-		}
+		// Preempted is handled by updateMetricsFromSchedulerResult.
+		return nil
 	}
 	if jst.Cancelled {
 		if err := m.updateCancelled(m.buffer[0:0], jst.Job); err != nil {
@@ -251,18 +254,33 @@ func (m *Metrics) updateQueued(labels []string, job *jobdb.Job) error {
 	return nil
 }
 
-func (m *Metrics) updateLeased(labels []string, job *jobdb.Job) error {
-	executor, nodeName := executorAndNodeNameFromRun(job.LatestRun())
+func (m *Metrics) UpdateScheduled(jctx *schedulercontext.JobSchedulingContext) error {
+	if m == nil || m.config.Disabled || m.disabled {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	labels := m.buffer[0:0]
+	job := jctx.Job.(*jobdb.Job)
 	labels = append(labels, job.GetQueue())
+	executor, nodeName := executorAndNodeNameFromRun(job.LatestRun())
 	labels = append(labels, executor)
 	labels = append(labels, nodeName)
+	labels = append(labels, jctx.PodSchedulingContext.WellKnownNodeTypeName)
 	if err := m.updateCounterVecFromJob(m.scheduled, labels, job); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (m *Metrics) updatePreempted(labels []string, job *jobdb.Job) error {
+func (m *Metrics) UpdatePreempted(jctx *schedulercontext.JobSchedulingContext) error {
+	if m == nil || m.config.Disabled || m.disabled {
+		return nil
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	labels := m.buffer[0:0]
+	job := jctx.Job.(*jobdb.Job)
 	executor, nodeName := executorAndNodeNameFromRun(job.LatestRun())
 	labels = append(labels, job.GetQueue())
 	labels = append(labels, executor)

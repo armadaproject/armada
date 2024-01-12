@@ -33,7 +33,7 @@ export function seededUuid(rand: () => number): () => string {
 
 export async function simulateApiWait(abortSignal?: AbortSignal): Promise<void> {
   await new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(resolve, randomInt(200, 1000, Math.random))
+    const timeoutId = setTimeout(resolve, randomInt(50, 250, Math.random))
     abortSignal?.addEventListener("abort", () => {
       clearTimeout(timeoutId)
       reject()

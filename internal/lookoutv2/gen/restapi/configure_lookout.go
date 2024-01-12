@@ -95,7 +95,7 @@ func setupGlobalMiddleware(apiHandler http.Handler) http.Handler {
 func uiHandler(apiHandler http.Handler) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.Handle("/", http.FileServer(serve.CreateDirWithIndexFallback("./internal/lookout/ui/build")))
+	mux.Handle("/", setCacheControl(http.FileServer(serve.CreateDirWithIndexFallback("./internal/lookout/ui/build"))))
 
 	mux.HandleFunc("/config", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -108,6 +108,19 @@ func uiHandler(apiHandler http.Handler) http.Handler {
 	mux.Handle("/health", apiHandler)
 
 	return mux
+}
+
+func setCacheControl(fileHandler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+			// Because the version of index.html determines the version of the
+			// JavaScript bundle, caching index.html would prevent users from
+			// ever picking up new versions of the JavaScript bundle without
+			// manually invalidating the cache.
+			w.Header().Set("Cache-Control", "no-store")
+		}
+		fileHandler.ServeHTTP(w, r)
+	})
 }
 
 func allowCORS(handler http.Handler, corsAllowedOrigins []string) http.Handler {

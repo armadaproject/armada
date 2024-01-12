@@ -225,6 +225,10 @@ func (job *Job) GetPriorityClassName() string {
 	return podSpec.PriorityClassName
 }
 
+func (job *Job) GetScheduledAtPriority() (int32, bool) {
+	return -1, false
+}
+
 func (job *Job) GetNodeSelector() map[string]string {
 	podSpec := job.GetMainPodSpec()
 	return podSpec.NodeSelector

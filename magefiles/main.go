@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -20,46 +21,78 @@ func BootstrapTools() error {
 		Tools []string
 	}
 
-	tools := &ToolsList{}
-	err := readYaml("tools.yaml", tools)
-	if err != nil {
+	requiredTools := &ToolsList{}
+	if err := readYaml("tools.yaml", requiredTools); err != nil {
 		return err
 	}
 
-	for _, tool := range tools.Tools {
-		err := goRun("install", tool)
-		if err != nil {
-			return err
+	installedToolsFilePath, err := getArmadaToolsFilePath()
+	if err != nil {
+		return err
+	}
+	installedTools := &ToolsList{}
+	if err := readYaml(installedToolsFilePath, installedTools); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	// Create a map of existing tools for quick lookup
+	installedToolsMap := make(map[string]bool)
+	for _, installedTool := range installedTools.Tools {
+		installedToolsMap[installedTool] = true
+	}
+
+	if len(requiredTools.Tools) > 0 {
+		var envPaths map[string]string
+		if isGitHubActions() {
+			envPaths = make(map[string]string)
+			for _, cache := range []string{"GOMODCACHE", "GOCACHE"} {
+				path, err := os.MkdirTemp("", cache)
+				if err != nil {
+					return fmt.Errorf("error creating temporary %s directory: %w", cache, err)
+				}
+				envPaths[cache] = path
+			}
+
+			defer func() {
+				if err := goRunWith(envPaths, "clean", "-cache", "-modcache"); err != nil {
+					fmt.Printf("Error occurred while running 'go clean': %v\n", err)
+				}
+			}()
+		}
+
+		for _, requiredTool := range requiredTools.Tools {
+			if !installedToolsMap[requiredTool] {
+				if err := goRunWith(envPaths, "install", requiredTool); err != nil {
+					return err
+				}
+				installedTools.Tools = append(installedTools.Tools, requiredTool)
+				if err := writeYAML(installedToolsFilePath, installedTools); err != nil {
+					return err
+				}
+			}
 		}
 	}
+
 	return nil
 }
 
-// Download install the bootstap tools and download mod and make it tidy
-func Download() error {
-	mg.Deps(BootstrapTools)
-	go_test_cmd, err := go_TEST_CMD()
+func isGitHubActions() bool {
+	return strings.ToLower(os.Getenv("GITHUB_ACTIONS")) == "true"
+}
+
+func getArmadaToolsFilePath() (string, error) {
+	goBinDir, err := goEnv("GOBIN")
 	if err != nil {
-		return err
+		return "", err
 	}
-	if len(go_test_cmd) == 0 {
-		if err = sh.Run("go", "mod", "download"); err != nil {
-			return err
+	if goBinDir == "" {
+		goPathDir, err := goEnv("GOPATH")
+		if err != nil {
+			return "", err
 		}
-		if err = sh.Run("go", "mod", "tidy"); err != nil {
-			return err
-		}
-	} else {
-		cmd := append(go_test_cmd, "go", "mod", "download")
-		if err := dockerRun(cmd...); err != nil {
-			return err
-		}
-		cmd = append(go_test_cmd, "go", "mod", "tidy")
-		if err := dockerRun(cmd...); err != nil {
-			return err
-		}
+		goBinDir = filepath.Join(goPathDir, "bin")
 	}
-	return nil
+	return filepath.Join(goBinDir, ".armada-tools.yaml"), nil
 }
 
 // Check dependent tools are present and the correct version.
@@ -137,6 +170,7 @@ func HelmDocs() error {
 
 // Generate Protos.
 func Proto() {
+	mg.Deps(BootstrapTools)
 	mg.Deps(BootstrapProto)
 	mg.Deps(protoGenerate)
 }
@@ -235,6 +269,19 @@ func readYaml(filename string, out interface{}) error {
 	}
 	err = yaml.Unmarshal(bytes, out)
 	return err
+}
+
+// Helper function to write YAML data to a file
+func writeYAML(filename string, data interface{}) error {
+	bytes, err := yaml.Marshal(data)
+	if err != nil {
+		return err
+	}
+	err = os.WriteFile(filename, bytes, 0o644)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // junitReport Output test results in Junit format, e.g., to display in Jenkins.

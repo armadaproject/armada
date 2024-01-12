@@ -58,6 +58,7 @@ func TestConvertSequence(t *testing.T) {
 					JobSet:   f.JobSetName,
 					Executor: f.ExecutorId,
 					Node:     f.NodeName,
+					ScheduledAtPriority: &f.ScheduledAtPriority,
 				}}},
 				UpdateJobQueuedState{f.JobIdString: &JobQueuedStateUpdate{
 					Queued:             false,

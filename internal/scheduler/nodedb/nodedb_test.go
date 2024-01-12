@@ -130,35 +130,35 @@ func TestNodeBindingEvictionUnbinding(t *testing.T) {
 	request := schedulerobjects.ResourceListFromV1ResourceList(job.GetResourceRequirements().Requests)
 	jobId := job.GetId()
 
-	boundNode, err := bindJobToNode(testfixtures.TestPriorityClasses, job, entry)
+	boundNode, err := nodeDb.bindJobToNode(entry, job, job.PodRequirements().Priority)
 	require.NoError(t, err)
 
-	unboundNode, err := UnbindJobFromNode(testfixtures.TestPriorityClasses, job, boundNode)
+	unboundNode, err := nodeDb.UnbindJobFromNode(testfixtures.TestPriorityClasses, job, boundNode)
 	require.NoError(t, err)
 
-	unboundMultipleNode, err := UnbindJobsFromNode(testfixtures.TestPriorityClasses, []interfaces.LegacySchedulerJob{job}, boundNode)
+	unboundMultipleNode, err := nodeDb.UnbindJobsFromNode(testfixtures.TestPriorityClasses, []interfaces.LegacySchedulerJob{job}, boundNode)
 	require.NoError(t, err)
 
-	evictedJobs, evictedNode, err := EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, boundNode)
+	evictedJobs, evictedNode, err := nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, boundNode)
 	require.NoError(t, err)
 	assert.Equal(t, []interfaces.LegacySchedulerJob{job}, evictedJobs)
 
-	evictedUnboundNode, err := UnbindJobFromNode(testfixtures.TestPriorityClasses, job, evictedNode)
+	evictedUnboundNode, err := nodeDb.UnbindJobFromNode(testfixtures.TestPriorityClasses, job, evictedNode)
 	require.NoError(t, err)
 
-	evictedBoundNode, err := bindJobToNode(testfixtures.TestPriorityClasses, job, evictedNode)
+	evictedBoundNode, err := nodeDb.bindJobToNode(evictedNode, job, job.PodRequirements().Priority)
 	require.NoError(t, err)
 
-	_, _, err = EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, entry)
+	_, _, err = nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, entry)
 	require.Error(t, err)
 
-	_, err = UnbindJobFromNode(testfixtures.TestPriorityClasses, job, entry)
+	_, err = nodeDb.UnbindJobFromNode(testfixtures.TestPriorityClasses, job, entry)
 	require.NoError(t, err)
 
-	_, err = bindJobToNode(testfixtures.TestPriorityClasses, job, boundNode)
+	_, err = nodeDb.bindJobToNode(boundNode, job, job.PodRequirements().Priority)
 	require.Error(t, err)
 
-	_, _, err = EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, evictedNode)
+	_, _, err = nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, jobFilter, []interfaces.LegacySchedulerJob{job}, evictedNode)
 	require.Error(t, err)
 
 	assertNodeAccountingEqual(t, entry, unboundNode)
@@ -295,7 +295,7 @@ func TestEviction(t *testing.T) {
 			for i, job := range jobs {
 				existingJobs[i] = job
 			}
-			actualEvictions, _, err := EvictJobsFromNode(testfixtures.TestPriorityClasses, tc.jobFilter, existingJobs, entry)
+			actualEvictions, _, err := nodeDb.EvictJobsFromNode(testfixtures.TestPriorityClasses, tc.jobFilter, existingJobs, entry)
 			require.NoError(t, err)
 			expectedEvictions := make([]interfaces.LegacySchedulerJob, 0, len(tc.expectedEvictions))
 			for _, i := range tc.expectedEvictions {
@@ -567,6 +567,7 @@ func benchmarkUpsert(nodes []*schedulerobjects.Node, b *testing.B) {
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
+		testfixtures.TestWellKnownNodeTypes,
 	)
 	require.NoError(b, err)
 	txn := nodeDb.Txn(true)
@@ -605,6 +606,7 @@ func benchmarkScheduleMany(b *testing.B, nodes []*schedulerobjects.Node, jobs []
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
+		testfixtures.TestWellKnownNodeTypes,
 	)
 	require.NoError(b, err)
 	txn := nodeDb.Txn(true)
@@ -728,6 +730,7 @@ func newNodeDbWithNodes(nodes []*schedulerobjects.Node) (*NodeDb, error) {
 		testfixtures.TestResources,
 		testfixtures.TestIndexedTaints,
 		testfixtures.TestIndexedNodeLabels,
+		testfixtures.TestWellKnownNodeTypes,
 	)
 	if err != nil {
 		return nil, err

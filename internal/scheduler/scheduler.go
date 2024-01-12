@@ -320,35 +320,21 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 }
 
 func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context, overallSchedulerResult SchedulerResult) error {
-	for _, job := range overallSchedulerResult.ScheduledJobs {
-		if err := s.schedulerMetrics.Update(
-			ctx,
-			jobdb.JobStateTransitions{
-				Job:       job.(*jobdb.Job),
-				Scheduled: true,
-			},
-			nil,
-		); err != nil {
+	for _, jctx := range overallSchedulerResult.ScheduledJobs {
+		if err := s.schedulerMetrics.UpdateScheduled(jctx); err != nil {
 			return err
 		}
 	}
-	for _, job := range overallSchedulerResult.PreemptedJobs {
-		if err := s.schedulerMetrics.Update(
-			ctx,
-			jobdb.JobStateTransitions{
-				Job:       job.(*jobdb.Job),
-				Preempted: true,
-			},
-			nil,
-		); err != nil {
+	for _, jctx := range overallSchedulerResult.PreemptedJobs {
+		if err := s.schedulerMetrics.UpdatePreempted(jctx); err != nil {
 			return err
 		}
 	}
-	for _, job := range overallSchedulerResult.FailedJobs {
+	for _, jctx := range overallSchedulerResult.FailedJobs {
 		if err := s.schedulerMetrics.Update(
 			ctx,
 			jobdb.JobStateTransitions{
-				Job:    job.(*jobdb.Job),
+				Job:    jctx.Job.(*jobdb.Job),
 				Failed: true,
 			},
 			nil,
@@ -467,7 +453,7 @@ func EventsFromSchedulerResult(result *SchedulerResult, time time.Time) ([]*arma
 	if err != nil {
 		return nil, err
 	}
-	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, ScheduledJobsFromSchedulerResult[*jobdb.Job](result), time)
+	eventSequences, err = AppendEventSequencesFromScheduledJobs(eventSequences, ScheduledJobsFromSchedulerResult[*jobdb.Job](result), result.AdditionalAnnotationsByJobId, time)
 	if err != nil {
 		return nil, err
 	}
@@ -540,17 +526,22 @@ func AppendEventSequencesFromPreemptedJobs(eventSequences []*armadaevents.EventS
 	return eventSequences, nil
 }
 
-func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jobs []*jobdb.Job, callTime time.Time) ([]*armadaevents.EventSequence, error) {
+func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventSequence, jobs []*jobdb.Job, additionalAnnotationsByJobId map[string]map[string]string, _ time.Time) ([]*armadaevents.EventSequence, error) {
 	for _, job := range jobs {
 		jobId, err := armadaevents.ProtoUuidFromUlidString(job.Id())
 		if err != nil {
 			return nil, err
+		}
+		additionalAnnotations, found := additionalAnnotationsByJobId[job.Id()]
+		if !found {
+			additionalAnnotations = make(map[string]string)
 		}
 		run := job.LatestRun()
 		if run == nil {
 			return nil, errors.Errorf("attempting to generate lease eventSequences for job %s with no associated runs", job.Id())
 		}
 		runCreationTime := time.Unix(0, job.ActiveRunTimestamp())
+		scheduledAtPriority, hasScheduledAtPriority := job.GetScheduledAtPriority()
 		eventSequences = append(eventSequences, &armadaevents.EventSequence{
 			Queue:      job.Queue(),
 			JobSetName: job.Jobset(), // TODO: Rename to JobSet.
@@ -564,8 +555,11 @@ func AppendEventSequencesFromScheduledJobs(eventSequences []*armadaevents.EventS
 							ExecutorId: run.Executor(),
 							// NodeId here refers to the unique identifier of the node in an executor cluster,
 							// which is referred to as the NodeName within the scheduler.
-							NodeId:               run.NodeName(),
-							UpdateSequenceNumber: job.QueuedVersion(),
+							NodeId:                 run.NodeName(),
+							UpdateSequenceNumber:   job.QueuedVersion(),
+							HasScheduledAtPriority: hasScheduledAtPriority,
+							ScheduledAtPriority:    scheduledAtPriority,
+							AdditionalAnnotations:  additionalAnnotations,
 						},
 					},
 				},

@@ -48,6 +48,7 @@ jobs:
 
   go-unit-tests:
     name: Golang Unit Tests
+    needs: go-mod-up-to-date
     runs-on: ubuntu-22.04
 
     steps:
@@ -84,6 +85,7 @@ jobs:
 
   go-integration-tests:
     name: Golang Integration Tests
+    needs: go-mod-up-to-date
     runs-on: ubuntu-22.04
 
     env:
@@ -113,6 +115,17 @@ jobs:
         uses: ./.github/actions/setup-go-cache
         with:
           cache-prefix: go-integration-tests
+
+      - name: Compute tools cache info
+        id: tools-cache-info
+        run: echo path=$(go env GOPATH)/bin >> $GITHUB_OUTPUT
+
+      - name: Setup tools cache
+        uses: actions/cache@v3
+        id: tools-cache
+        with:
+          path: ${{ steps.tools-cache-info.outputs.path }}
+          key: tools-go-${{ steps.setup-go.outputs.go-version }}-make-${{ hashFiles('tools.yaml') }}
 
       - name: Setup Integration Tests
         run: go run github.com/magefile/mage@v1.14.0 -v localdev minimal-pulsar
@@ -209,13 +222,21 @@ jobs:
 
       - name: Set up Go (no caching)
         uses: actions/setup-go@v4
+        id: setup-go
         with:
           go-version: ${{ matrix.go }}
           cache: false
 
-      - name: Setup dependencies
-        shell: bash
-        run: go run github.com/magefile/mage@v1.14.0 -v download
+      - name: Compute tools cache info
+        id: tools-cache-info
+        run: echo path=$(go env GOPATH)/bin >> $GITHUB_OUTPUT
+
+      - name: Setup tools cache
+        uses: actions/cache@v3
+        id: tools-cache
+        with:
+          path: ${{ steps.tools-cache-info.outputs.path }}
+          key: tools-go-${{ steps.setup-go.outputs.go-version }}-make-${{ hashFiles('tools.yaml') }}
 
       # TODO(JayF): Consider moving this into its own job, that runs under a larger set of circumstances
       #             since it's possible for this to fail without any go changes being made.

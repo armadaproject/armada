@@ -38,6 +38,13 @@ func SubmitJobs(submitClient api.SubmitClient, request *api.JobSubmitRequest) (*
 	return submitClient.SubmitJobs(ctx, request)
 }
 
+func CustomClientSubmitJobs(submitClient api.CustomSubmitClient, request *api.JobSubmitRequest) (*api.JobSubmitResponse, error) {
+	AddClientIds(request.JobRequestItems)
+	ctx, cancel := common.ContextWithDefaultTimeout()
+	defer cancel()
+	return submitClient.SubmitJobs(ctx, request)
+}
+
 func CreateChunkedSubmitRequests(queue string, jobSetId string, jobs []*api.JobSubmitRequestItem) []*api.JobSubmitRequest {
 	requests := make([]*api.JobSubmitRequest, 0, 10)
 

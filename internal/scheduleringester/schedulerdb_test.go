@@ -28,6 +28,7 @@ func TestWriteOps(t *testing.T) {
 	for i := range runIds {
 		runIds[i] = uuid.New()
 	}
+	scheduledAtPriorities := []int32{5, 10}
 	tests := map[string]struct {
 		Ops []DbOperation
 	}{
@@ -53,8 +54,8 @@ func TestWriteOps(t *testing.T) {
 				runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
 			},
 			InsertRuns{
-				runIds[2]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]}},
-				runIds[3]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]}},
+				runIds[2]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2], ScheduledAtPriority: &scheduledAtPriorities[0]}},
+				runIds[3]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3], ScheduledAtPriority: &scheduledAtPriorities[1]}},
 			},
 			UpdateJobQueuedState{
 				jobIds[0]: &JobQueuedStateUpdate{Queued: false, QueuedStateVersion: 1},

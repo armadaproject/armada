@@ -21,6 +21,7 @@ import (
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
 	protoutil "github.com/armadaproject/armada/internal/common/proto"
 	"github.com/armadaproject/armada/internal/common/util"
+	schedulercontext "github.com/armadaproject/armada/internal/scheduler/context"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/interfaces"
@@ -152,7 +153,7 @@ var leasedJob = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	1,
-).WithNewRun("testExecutor", "test-node", "node")
+).WithNewRun("testExecutor", "test-node", "node", 5)
 
 var returnedOnceLeasedJob = testfixtures.JobDb.NewJob(
 	"01h3w2wtdchtc80hgyp782shrv",
@@ -173,13 +174,14 @@ var returnedOnceLeasedJob = testfixtures.JobDb.NewJob(
 	"testExecutor",
 	"testNodeId",
 	"testNodeName",
+	&scheduledAtPriority,
 	false,
 	false,
 	true,
 	false,
 	true,
 	true,
-)).WithNewRun("testExecutor", "test-node", "node")
+)).WithNewRun("testExecutor", "test-node", "node", 5)
 
 var defaultJobRunError = &armadaevents.Error{
 	Terminal: true,
@@ -202,9 +204,10 @@ var leasedFailFastJob = testfixtures.JobDb.NewJob(
 	false,
 	false,
 	1,
-).WithNewRun("testExecutor", "test-node", "node")
+).WithNewRun("testExecutor", "test-node", "node", 5)
 
 var (
+	scheduledAtPriority = int32(5)
 	requeuedJobId = util.NewULID()
 	requeuedJob   = testfixtures.JobDb.NewJob(
 		requeuedJobId,
@@ -225,6 +228,7 @@ var (
 		"testExecutor",
 		"test-node",
 		"node",
+		&scheduledAtPriority,
 		false,
 		false,
 		true,
@@ -989,6 +993,10 @@ func TestScheduler_TestSyncState(t *testing.T) {
 					Executor: "test-executor",
 					Node:     "test-node",
 					Created:  123,
+					ScheduledAtPriority: func() *int32 {
+						scheduledAtPriority := int32(5)
+						return &scheduledAtPriority
+					}(),
 				},
 			},
 			expectedUpdatedJobs: []*jobdb.Job{
@@ -1000,6 +1008,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 						"test-executor",
 						"test-executor-test-node",
 						"test-node",
+						&scheduledAtPriority,
 						false,
 						false,
 						false,
@@ -1249,10 +1258,15 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) 
 		if !job.Queued() {
 			return nil, errors.Errorf("was asked to lease %s but job was already leased", job.Id())
 		}
+		priority := int32(0)
+		if req := job.PodRequirements(); req != nil {
+			priority = req.Priority
+		}
 		job = job.WithQueuedVersion(job.QueuedVersion()+1).WithQueued(false).WithNewRun(
 			"test-executor",
 			api.NodeIdFromExecutorAndNodeName("test-executor", "test-node"),
 			"test-node",
+			priority,
 		)
 		scheduledJobs = append(scheduledJobs, job)
 	}
@@ -1276,13 +1290,6 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) 
 	if err := txn.Upsert(failedJobs); err != nil {
 		return nil, err
 	}
-
-	// TODO(albin): Remove.
-	// // Jobs should only be scheduled/failed/preempted once; reset these slices.
-	// t.jobsToSchedule = nil
-	// t.jobsToFail = nil
-	// t.jobsToPreempt = nil
-
 	return NewSchedulerResultForTest(preemptedJobs, scheduledJobs, failedJobs, nil), nil
 }
 
@@ -1300,23 +1307,11 @@ func NewSchedulerResultForTest[S ~[]T, T interfaces.LegacySchedulerJob](
 	failedJobs S,
 	nodeIdByJobId map[string]string,
 ) *SchedulerResult {
-	castPreemptedJobs := make([]interfaces.LegacySchedulerJob, len(preemptedJobs))
-	for i, job := range preemptedJobs {
-		castPreemptedJobs[i] = job
-	}
-	castScheduledJobs := make([]interfaces.LegacySchedulerJob, len(scheduledJobs))
-	for i, job := range scheduledJobs {
-		castScheduledJobs[i] = job
-	}
-	castFailedJobs := make([]interfaces.LegacySchedulerJob, len(failedJobs))
-	for i, job := range failedJobs {
-		castFailedJobs[i] = job
-	}
 	return &SchedulerResult{
-		PreemptedJobs: castPreemptedJobs,
-		ScheduledJobs: castScheduledJobs,
+		PreemptedJobs: schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, preemptedJobs, GangIdAndCardinalityFromAnnotations),
+		ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, scheduledJobs, GangIdAndCardinalityFromAnnotations),
+		FailedJobs:    schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, failedJobs, GangIdAndCardinalityFromAnnotations),
 		NodeIdByJobId: nodeIdByJobId,
-		FailedJobs:    castFailedJobs,
 	}
 }
 

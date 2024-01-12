@@ -300,10 +300,6 @@ paths:
           schema:
             type: object
             properties:
-              count:
-                type: integer
-                description: Total number of jobs
-                x-nullable: false
               jobs:
                 type: array
                 description: "List of jobs found"
@@ -460,10 +456,6 @@ paths:
             required:
               - groups
             properties:
-              count:
-                type: integer
-                description: Total number of groups
-                x-nullable: false
               groups:
                 type: array
                 description: List of Job groups

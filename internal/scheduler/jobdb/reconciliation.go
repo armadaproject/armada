@@ -240,6 +240,7 @@ func (jobDb *JobDb) schedulerRunFromDatabaseRun(dbRun *database.Run) *JobRun {
 		dbRun.Executor,
 		nodeId,
 		dbRun.Node,
+		dbRun.ScheduledAtPriority,
 		dbRun.Running,
 		dbRun.Succeeded,
 		dbRun.Failed,
