@@ -80,6 +80,7 @@ func (jobDb *JobDb) NewJob(
 	queuedVersion int32,
 	cancelRequested bool,
 	cancelByJobSetRequested bool,
+	cancelReason string,
 	cancelled bool,
 	created int64,
 ) *Job {
@@ -100,6 +101,7 @@ func (jobDb *JobDb) NewJob(
 		priorityClass:           priorityClass,
 		cancelRequested:         cancelRequested,
 		cancelByJobSetRequested: cancelByJobSetRequested,
+		cancelReason:            cancelReason,
 		cancelled:               cancelled,
 		runsById:                map[uuid.UUID]*JobRun{},
 	}

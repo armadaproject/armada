@@ -32,6 +32,7 @@ type JobSchedulingInfoUpdate struct {
 type JobSetCancelAction struct {
 	cancelQueued bool
 	cancelLeased bool
+	reason       string
 }
 
 type JobSetKey struct {
@@ -117,9 +118,9 @@ type InsertJobs map[string]*schedulerdb.Job
 type (
 	InsertRuns                 map[uuid.UUID]*JobRunDetails
 	UpdateJobSetPriorities     map[JobSetKey]int64
-	MarkJobSetsCancelRequested map[JobSetKey]*JobSetCancelAction
-	MarkJobsCancelRequested    map[string]bool
-	MarkJobsCancelled          map[string]bool
+	MarkJobsCancelRequested    map[string]string
+	MarkJobSetsCancelRequested map[JobSetKey]JobSetCancelAction
+	MarkJobsCancelled          map[string]string
 	MarkJobsSucceeded          map[string]bool
 	MarkJobsFailed             map[string]bool
 	UpdateJobPriorities        map[string]int64

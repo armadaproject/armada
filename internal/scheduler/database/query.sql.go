@@ -118,35 +118,68 @@ func (q *Queries) MarkJobRunsSucceededById(ctx context.Context, runIds []uuid.UU
 }
 
 const markJobsCancelRequestedById = `-- name: MarkJobsCancelRequestedById :exec
-UPDATE jobs SET cancel_requested = true WHERE job_id = ANY($1::text[])
+UPDATE jobs
+SET
+  cancel_requested = true,
+  cancel_reason = COALESCE(cancel_reason, $1)
+WHERE
+  job_id = $2
 `
 
-func (q *Queries) MarkJobsCancelRequestedById(ctx context.Context, jobIds []string) error {
-	_, err := q.db.Exec(ctx, markJobsCancelRequestedById, jobIds)
+type MarkJobsCancelRequestedByIdParams struct {
+	CancelReason *string `db:"cancel_reason"`
+	JobID        string  `db:"job_id"`
+}
+
+func (q *Queries) MarkJobsCancelRequestedById(ctx context.Context, arg MarkJobsCancelRequestedByIdParams) error {
+	_, err := q.db.Exec(ctx, markJobsCancelRequestedById, arg.CancelReason, arg.JobID)
 	return err
 }
 
 const markJobsCancelRequestedBySetAndQueuedState = `-- name: MarkJobsCancelRequestedBySetAndQueuedState :exec
-UPDATE jobs SET cancel_by_jobset_requested = true WHERE job_set = $1 and queue = $2 and queued = ANY($3::bool[])
+UPDATE jobs
+SET
+  cancel_by_jobset_requested = true,
+  cancel_reason = COALESCE(cancel_reason, $1)
+WHERE
+  job_set = $2
+  AND queue = $3
+  AND queued = ANY($4::bool[])
 `
 
 type MarkJobsCancelRequestedBySetAndQueuedStateParams struct {
-	JobSet       string `db:"job_set"`
-	Queue        string `db:"queue"`
-	QueuedStates []bool `db:"queued_states"`
+	CancelReason *string `db:"cancel_reason"`
+	JobSet       string  `db:"job_set"`
+	Queue        string  `db:"queue"`
+	QueuedStates []bool  `db:"queued_states"`
 }
 
 func (q *Queries) MarkJobsCancelRequestedBySetAndQueuedState(ctx context.Context, arg MarkJobsCancelRequestedBySetAndQueuedStateParams) error {
-	_, err := q.db.Exec(ctx, markJobsCancelRequestedBySetAndQueuedState, arg.JobSet, arg.Queue, arg.QueuedStates)
+	_, err := q.db.Exec(ctx, markJobsCancelRequestedBySetAndQueuedState,
+		arg.CancelReason,
+		arg.JobSet,
+		arg.Queue,
+		arg.QueuedStates,
+	)
 	return err
 }
 
 const markJobsCancelledById = `-- name: MarkJobsCancelledById :exec
-UPDATE jobs SET cancelled = true WHERE job_id = ANY($1::text[])
+UPDATE jobs
+SET
+  cancelled = true,
+  cancel_reason = COALESCE(cancel_reason, $1)
+WHERE
+  job_id = $2
 `
 
-func (q *Queries) MarkJobsCancelledById(ctx context.Context, jobIds []string) error {
-	_, err := q.db.Exec(ctx, markJobsCancelledById, jobIds)
+type MarkJobsCancelledByIdParams struct {
+	CancelReason *string `db:"cancel_reason"`
+	JobID        string  `db:"job_id"`
+}
+
+func (q *Queries) MarkJobsCancelledById(ctx context.Context, arg MarkJobsCancelledByIdParams) error {
+	_, err := q.db.Exec(ctx, markJobsCancelledById, arg.CancelReason, arg.JobID)
 	return err
 }
 
@@ -378,7 +411,7 @@ func (q *Queries) SelectJobsForExecutor(ctx context.Context, arg SelectJobsForEx
 }
 
 const selectNewJobs = `-- name: SelectNewJobs :many
-SELECT job_id, job_set, queue, user_id, submitted, groups, priority, queued, queued_version, cancel_requested, cancelled, cancel_by_jobset_requested, succeeded, failed, submit_message, scheduling_info, scheduling_info_version, serial, last_modified FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2
+SELECT job_id, job_set, queue, user_id, submitted, groups, priority, queued, queued_version, cancel_requested, cancelled, cancel_by_jobset_requested, succeeded, failed, submit_message, scheduling_info, scheduling_info_version, serial, last_modified, cancel_reason FROM jobs WHERE serial > $1 ORDER BY serial LIMIT $2
 `
 
 type SelectNewJobsParams struct {
@@ -415,6 +448,7 @@ func (q *Queries) SelectNewJobs(ctx context.Context, arg SelectNewJobsParams) ([
 			&i.SchedulingInfoVersion,
 			&i.Serial,
 			&i.LastModified,
+			&i.CancelReason,
 		); err != nil {
 			return nil, err
 		}

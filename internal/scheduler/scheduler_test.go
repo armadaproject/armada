@@ -117,8 +117,10 @@ var queuedJob = testfixtures.JobDb.NewJob(
 	1,
 	false,
 	false,
+	"",
 	false,
-	1)
+	1,
+)
 
 var queuedJobWithExpiredTtl = testfixtures.JobDb.NewJob(
 	util.NewULID(),
@@ -130,8 +132,10 @@ var queuedJobWithExpiredTtl = testfixtures.JobDb.NewJob(
 	1,
 	false,
 	false,
+	"",
 	false,
-	1)
+	1,
+)
 
 var leasedJob = testfixtures.JobDb.NewJob(
 	util.NewULID(),
@@ -143,6 +147,7 @@ var leasedJob = testfixtures.JobDb.NewJob(
 	2,
 	false,
 	false,
+	"",
 	false,
 	1,
 ).WithQueued(false).WithNewRun("testExecutor", "test-node", "node", 5)
@@ -166,6 +171,7 @@ var leasedFailFastJob = testfixtures.JobDb.NewJob(
 	2,
 	false,
 	false,
+	"",
 	false,
 	1,
 ).WithQueued(false).WithNewRun("testExecutor", "test-node", "node", 5)
@@ -184,6 +190,7 @@ var (
 		2,
 		false,
 		false,
+		"",
 		false,
 		1,
 	).WithUpdatedRun(

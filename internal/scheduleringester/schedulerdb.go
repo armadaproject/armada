@@ -149,8 +149,29 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		if err != nil {
 			return errors.WithStack(err)
 		}
+	case MarkJobsCancelRequested:
+		for jobId, reason := range o {
+			var reasonPointer *string
+			if reason != "" {
+				reasonPointer = &reason
+			}
+			err := queries.MarkJobsCancelRequestedById(
+				ctx,
+				schedulerdb.MarkJobsCancelRequestedByIdParams{
+					CancelReason: reasonPointer,
+					JobID:        jobId,
+				},
+			)
+			if err != nil {
+				return errors.WithStack(err)
+			}
+		}
 	case MarkJobSetsCancelRequested:
 		for jobSetInfo, cancelDetails := range o {
+			var reasonPointer *string
+			if cancelDetails.reason != "" {
+				reasonPointer = &cancelDetails.reason
+			}
 			queuedStatesToCancel := make([]bool, 0, 2)
 			if cancelDetails.cancelQueued {
 				// Cancel all jobs in a queued state
@@ -163,6 +184,7 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 			err := queries.MarkJobsCancelRequestedBySetAndQueuedState(
 				ctx,
 				schedulerdb.MarkJobsCancelRequestedBySetAndQueuedStateParams{
+					CancelReason: reasonPointer,
 					Queue:        jobSetInfo.queue,
 					JobSet:       jobSetInfo.jobSet,
 					QueuedStates: queuedStatesToCancel,
@@ -172,20 +194,23 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 				return errors.WithStack(err)
 			}
 		}
-	case MarkJobsCancelRequested:
-		jobIds := maps.Keys(o)
-		err := queries.MarkJobsCancelRequestedById(ctx, jobIds)
-		if err != nil {
-			return errors.WithStack(err)
-		}
 	case MarkJobsCancelled:
-		jobIds := maps.Keys(o)
-		err := queries.MarkJobsCancelledById(ctx, jobIds)
-		if err != nil {
-			return errors.WithStack(err)
+		for jobId, reason := range o {
+			var reasonPointer *string
+			if reason != "" {
+				reasonPointer = &reason
+			}
+			if err := queries.MarkJobsCancelledById(
+				ctx,
+				schedulerdb.MarkJobsCancelledByIdParams{
+					CancelReason: reasonPointer,
+					JobID:        jobId,
+				},
+			); err != nil {
+				return errors.WithStack(err)
+			}
 		}
-		err = queries.MarkRunsCancelledByJobId(ctx, jobIds)
-		if err != nil {
+		if err := queries.MarkRunsCancelledByJobId(ctx, maps.Keys(o)); err != nil {
 			return errors.WithStack(err)
 		}
 	case MarkJobsSucceeded:

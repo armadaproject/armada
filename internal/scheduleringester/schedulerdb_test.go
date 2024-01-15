@@ -94,7 +94,7 @@ func TestWriteOps(t *testing.T) {
 				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"},
 				jobIds[4]: &schedulerdb.Job{JobID: jobIds[4], Queue: "queue-2", JobSet: "set1"},
 			},
-			MarkJobSetsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: &JobSetCancelAction{cancelLeased: true, cancelQueued: true}},
+			MarkJobSetsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: JobSetCancelAction{cancelLeased: true, cancelQueued: true}},
 		}},
 		"MarkJobSetsCancelRequested - Queued only": {Ops: []DbOperation{
 			InsertJobs{
@@ -103,7 +103,7 @@ func TestWriteOps(t *testing.T) {
 				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1", Queued: false},
 				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2", Queued: false},
 			},
-			MarkJobSetsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: &JobSetCancelAction{cancelLeased: false, cancelQueued: true}},
+			MarkJobSetsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: JobSetCancelAction{cancelLeased: false, cancelQueued: true}},
 		}},
 		"MarkJobSetsCancelRequested - Leased only": {Ops: []DbOperation{
 			InsertJobs{
@@ -112,7 +112,7 @@ func TestWriteOps(t *testing.T) {
 				jobIds[2]: &schedulerdb.Job{JobID: jobIds[2], Queue: testQueueName, JobSet: "set1", Queued: false},
 				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2", Queued: false},
 			},
-			MarkJobSetsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: &JobSetCancelAction{cancelLeased: true, cancelQueued: false}},
+			MarkJobSetsCancelRequested{JobSetKey{queue: testQueueName, jobSet: "set1"}: JobSetCancelAction{cancelLeased: true, cancelQueued: false}},
 		}},
 		"MarkJobsCancelRequested": {Ops: []DbOperation{
 			InsertJobs{
@@ -122,8 +122,8 @@ func TestWriteOps(t *testing.T) {
 				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
 			MarkJobsCancelRequested{
-				jobIds[0]: true,
-				jobIds[1]: true,
+				jobIds[0]: "",
+				jobIds[1]: "",
 			},
 		}},
 		"MarkJobsCancelled": {Ops: []DbOperation{
@@ -140,8 +140,8 @@ func TestWriteOps(t *testing.T) {
 				runIds[3]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]}},
 			},
 			MarkJobsCancelled{
-				jobIds[0]: true,
-				jobIds[1]: true,
+				jobIds[0]: "",
+				jobIds[1]: "",
 			},
 		}},
 		"MarkJobsSucceeded": {Ops: []DbOperation{

@@ -202,6 +202,10 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 	if err := proto.Unmarshal(dbJob.SchedulingInfo, schedulingInfo); err != nil {
 		return nil, errors.Wrapf(err, "error unmarshalling scheduling info for job %s", dbJob.JobID)
 	}
+	cancelReason := ""
+	if dbJob.CancelReason != nil {
+		cancelReason = *dbJob.CancelReason
+	}
 	return jobDb.NewJob(
 		dbJob.JobID,
 		dbJob.JobSet,
@@ -212,6 +216,7 @@ func (jobDb *JobDb) schedulerJobFromDatabaseJob(dbJob *database.Job) (*Job, erro
 		dbJob.QueuedVersion,
 		dbJob.CancelRequested,
 		dbJob.CancelByJobsetRequested,
+		cancelReason,
 		dbJob.Cancelled,
 		dbJob.Submitted,
 	), nil
