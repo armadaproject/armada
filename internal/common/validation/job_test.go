@@ -393,7 +393,7 @@ func TestValidateGangs(t *testing.T) {
 			}
 
 			for id, e := range gangDetailsById {
-				assert.Equal(t, tc.ExpectedGangMinimumCardinalityByGangId[id], e.expectedMinimumCardinality)
+				assert.Equal(t, tc.ExpectedGangMinimumCardinalityByGangId[id], e.MinimumCardinality)
 			}
 		})
 	}

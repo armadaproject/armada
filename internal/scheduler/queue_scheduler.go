@@ -228,16 +228,19 @@ func (it *QueuedGangIterator) Peek() (*schedulercontext.GangSchedulingContext, e
 				}
 			}
 		}
-		if jctx.GangCardinality > 1 {
-			gang := it.jctxsByGangId[jctx.GangId]
+		if gangId := jctx.GangInfo.Id; gangId != "" {
+			gang := it.jctxsByGangId[gangId]
 			gang = append(gang, jctx)
-			it.jctxsByGangId[jctx.GangId] = gang
-			if len(gang) == jctx.GangCardinality {
-				delete(it.jctxsByGangId, jctx.GangId)
+			it.jctxsByGangId[gangId] = gang
+			if len(gang) == jctx.GangInfo.Cardinality {
+				delete(it.jctxsByGangId, gangId)
 				it.next = schedulercontext.NewGangSchedulingContext(gang)
 				return it.next, nil
 			}
 		} else {
+			// It's not actually necessary to treat this case separately, but
+			// using the empty string as a key in it.jctxsByGangId sounds like
+			// it would get us in trouble later down the line.
 			it.next = schedulercontext.NewGangSchedulingContext([]*schedulercontext.JobSchedulingContext{jctx})
 			return it.next, nil
 		}

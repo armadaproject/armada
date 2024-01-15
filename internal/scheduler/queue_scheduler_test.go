@@ -534,7 +534,6 @@ func TestQueueScheduler(t *testing.T) {
 				schedulercontext.JobSchedulingContextsFromJobs(
 					tc.SchedulingConfig.Preemption.PriorityClasses,
 					legacySchedulerJobs,
-					GangIdAndCardinalityFromAnnotations,
 				),
 			)
 
@@ -686,9 +685,7 @@ func TestQueueScheduler(t *testing.T) {
 						continue
 					}
 					assert.Equal(t, nodeDb.NumNodes(), pctx.NumNodes)
-					_, _, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(jctx.Job)
-					require.NoError(t, err)
-					if !isGangJob {
+					if gangId := jctx.GangInfo.Id; gangId == "" {
 						numExcludedNodes := 0
 						for _, count := range pctx.NumExcludedNodesByReason {
 							numExcludedNodes += count

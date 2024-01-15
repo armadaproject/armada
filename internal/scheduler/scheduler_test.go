@@ -1228,9 +1228,9 @@ func NewSchedulerResultForTest[S ~[]T, T interfaces.LegacySchedulerJob](
 	nodeIdByJobId map[string]string,
 ) *SchedulerResult {
 	return &SchedulerResult{
-		PreemptedJobs: schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, preemptedJobs, GangIdAndCardinalityFromAnnotations),
-		ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, scheduledJobs, GangIdAndCardinalityFromAnnotations),
-		FailedJobs:    schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, failedJobs, GangIdAndCardinalityFromAnnotations),
+		PreemptedJobs: schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, preemptedJobs),
+		ScheduledJobs: schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, scheduledJobs),
+		FailedJobs:    schedulercontext.JobSchedulingContextsFromJobs(testfixtures.TestPriorityClasses, failedJobs),
 		NodeIdByJobId: nodeIdByJobId,
 	}
 }
