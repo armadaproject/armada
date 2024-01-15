@@ -91,6 +91,9 @@ func NewJobDb() *jobdb.JobDb {
 		SchedulingKeyGenerator,
 		1024,
 	)
+	// Mock out the clock and uuid provider to ensure consistent ids and timestamps are generated.
+	jobDb.SetClock(NewMockPassiveClock())
+	jobDb.SetUUIDProvider(NewMockUUIDProvider())
 	jobDb.EnableAssertions()
 	return jobDb
 }

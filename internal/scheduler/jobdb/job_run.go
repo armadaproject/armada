@@ -131,7 +131,52 @@ func (run *JobRun) Equal(other *JobRun) bool {
 	if run != nil && other == nil {
 		return false
 	}
-	return *run == *other
+	if run.id != other.id {
+		return false
+	}
+	if run.jobId != other.jobId {
+		return false
+	}
+	if run.created != other.created {
+		return false
+	}
+	if run.executor != other.executor {
+		return false
+	}
+	if run.nodeId != other.nodeId {
+		return false
+	}
+	if run.nodeName != other.nodeName {
+		return false
+	}
+	if run.scheduledAtPriority != other.scheduledAtPriority {
+		if run.scheduledAtPriority != nil && other.scheduledAtPriority != nil {
+			if *run.scheduledAtPriority != *other.scheduledAtPriority {
+				return false
+			}
+		} else {
+			return false
+		}
+	}
+	if run.running != other.running {
+		return false
+	}
+	if run.succeeded != other.succeeded {
+		return false
+	}
+	if run.failed != other.failed {
+		return false
+	}
+	if run.cancelled != other.cancelled {
+		return false
+	}
+	if run.returned != other.returned {
+		return false
+	}
+	if run.runAttempted != other.runAttempted {
+		return false
+	}
+	return true
 }
 
 func MinimalRun(id uuid.UUID, creationTime int64) *JobRun {
