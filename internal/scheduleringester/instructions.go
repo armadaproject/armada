@@ -78,13 +78,13 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 		case *armadaevents.EventSequence_Event_SubmitJob:
 			operationsFromEvent, err = c.handleSubmitJob(event.GetSubmitJob(), eventTime, meta)
 		case *armadaevents.EventSequence_Event_JobRunLeased:
-			operationsFromEvent, err = c.handleJobRunLeased(event.GetJobRunLeased(), meta)
+			operationsFromEvent, err = c.handleJobRunLeased(event.GetJobRunLeased(), eventTime, meta)
 		case *armadaevents.EventSequence_Event_JobRunRunning:
-			operationsFromEvent, err = c.handleJobRunRunning(event.GetJobRunRunning())
+			operationsFromEvent, err = c.handleJobRunRunning(event.GetJobRunRunning(), eventTime)
 		case *armadaevents.EventSequence_Event_JobRunSucceeded:
-			operationsFromEvent, err = c.handleJobRunSucceeded(event.GetJobRunSucceeded())
+			operationsFromEvent, err = c.handleJobRunSucceeded(event.GetJobRunSucceeded(), eventTime)
 		case *armadaevents.EventSequence_Event_JobRunErrors:
-			operationsFromEvent, err = c.handleJobRunErrors(event.GetJobRunErrors())
+			operationsFromEvent, err = c.handleJobRunErrors(event.GetJobRunErrors(), eventTime)
 		case *armadaevents.EventSequence_Event_JobSucceeded:
 			operationsFromEvent, err = c.handleJobSucceeded(event.GetJobSucceeded())
 		case *armadaevents.EventSequence_Event_JobErrors:
@@ -98,7 +98,7 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 		case *armadaevents.EventSequence_Event_CancelJobSet:
 			operationsFromEvent, err = c.handleCancelJobSet(event.GetCancelJobSet(), meta)
 		case *armadaevents.EventSequence_Event_CancelledJob:
-			operationsFromEvent, err = c.handleCancelledJob(event.GetCancelledJob())
+			operationsFromEvent, err = c.handleCancelledJob(event.GetCancelledJob(), eventTime)
 		case *armadaevents.EventSequence_Event_JobRequeued:
 			operationsFromEvent, err = c.handleJobRequeued(event.GetJobRequeued())
 		case *armadaevents.EventSequence_Event_PartitionMarker:
@@ -177,7 +177,7 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, subm
 	}}}, nil
 }
 
-func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.JobRunLeased, meta eventSequenceCommon) ([]DbOperation, error) {
+func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.JobRunLeased, leaseTime time.Time, meta eventSequenceCommon) ([]DbOperation, error) {
 	runId := armadaevents.UuidFromProtoUuid(jobRunLeased.GetRunId())
 	jobId, err := armadaevents.UlidStringFromProtoUuid(jobRunLeased.GetJobId())
 	if err != nil {
@@ -197,6 +197,7 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 				Executor:            jobRunLeased.GetExecutorId(),
 				Node:                jobRunLeased.GetNodeId(),
 				ScheduledAtPriority: scheduledAtPriority,
+				LeasedTimestamp:     &leaseTime,
 			},
 		}},
 		UpdateJobQueuedState{jobId: &JobQueuedStateUpdate{
@@ -227,17 +228,17 @@ func (c *InstructionConverter) handleJobRequeued(jobRequeued *armadaevents.JobRe
 	}, nil
 }
 
-func (c *InstructionConverter) handleJobRunRunning(jobRunRunning *armadaevents.JobRunRunning) ([]DbOperation, error) {
+func (c *InstructionConverter) handleJobRunRunning(jobRunRunning *armadaevents.JobRunRunning, runningTime time.Time) ([]DbOperation, error) {
 	runId := armadaevents.UuidFromProtoUuid(jobRunRunning.GetRunId())
-	return []DbOperation{MarkRunsRunning{runId: true}}, nil
+	return []DbOperation{MarkRunsRunning{runId: runningTime}}, nil
 }
 
-func (c *InstructionConverter) handleJobRunSucceeded(jobRunSucceeded *armadaevents.JobRunSucceeded) ([]DbOperation, error) {
+func (c *InstructionConverter) handleJobRunSucceeded(jobRunSucceeded *armadaevents.JobRunSucceeded, successTime time.Time) ([]DbOperation, error) {
 	runId := armadaevents.UuidFromProtoUuid(jobRunSucceeded.GetRunId())
-	return []DbOperation{MarkRunsSucceeded{runId: true}}, nil
+	return []DbOperation{MarkRunsSucceeded{runId: successTime}}, nil
 }
 
-func (c *InstructionConverter) handleJobRunErrors(jobRunErrors *armadaevents.JobRunErrors) ([]DbOperation, error) {
+func (c *InstructionConverter) handleJobRunErrors(jobRunErrors *armadaevents.JobRunErrors, failureTime time.Time) ([]DbOperation, error) {
 	runId := armadaevents.UuidFromProtoUuid(jobRunErrors.GetRunId())
 	jobId, err := armadaevents.UlidStringFromProtoUuid(jobRunErrors.JobId)
 	if err != nil {
@@ -264,6 +265,7 @@ func (c *InstructionConverter) handleJobRunErrors(jobRunErrors *armadaevents.Job
 			markRunsFailed[runId] = &JobRunFailed{
 				LeaseReturned: runError.GetPodLeaseReturned() != nil,
 				RunAttempted:  runAttempted,
+				FailureTime:   failureTime,
 			}
 			return []DbOperation{insertJobRunErrors, markRunsFailed}, nil
 		}
@@ -338,13 +340,13 @@ func (c *InstructionConverter) handleCancelJobSet(cancelJobSet *armadaevents.Can
 	}}, nil
 }
 
-func (c *InstructionConverter) handleCancelledJob(cancelledJob *armadaevents.CancelledJob) ([]DbOperation, error) {
+func (c *InstructionConverter) handleCancelledJob(cancelledJob *armadaevents.CancelledJob, cancelTime time.Time) ([]DbOperation, error) {
 	jobId, err := armadaevents.UlidStringFromProtoUuid(cancelledJob.GetJobId())
 	if err != nil {
 		return nil, err
 	}
 	return []DbOperation{MarkJobsCancelled{
-		jobId: true,
+		jobId: cancelTime,
 	}}, nil
 }
 
