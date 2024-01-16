@@ -140,22 +140,24 @@ func (sch *GangScheduler) Schedule(ctx *armadacontext.Context, gctx *schedulerco
 }
 
 func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
+	nodeUniformity := gctx.GangInfo.NodeUniformity
+
 	// If no node uniformity constraint, try scheduling across all nodes.
-	if gctx.NodeUniformityLabel == "" {
+	if nodeUniformity == "" {
 		return sch.tryScheduleGang(ctx, gctx)
 	}
 
 	// Otherwise try scheduling such that all nodes onto which a gang job lands have the same value for gctx.NodeUniformityLabel.
 	// We do this by making a separate scheduling attempt for each unique value of gctx.NodeUniformityLabel.
-	nodeUniformityLabelValues, ok := sch.nodeDb.IndexedNodeLabelValues(gctx.NodeUniformityLabel)
+	nodeUniformityLabelValues, ok := sch.nodeDb.IndexedNodeLabelValues(nodeUniformity)
 	if !ok {
 		ok = false
-		unschedulableReason = fmt.Sprintf("uniformity label %s is not indexed", gctx.NodeUniformityLabel)
+		unschedulableReason = fmt.Sprintf("uniformity label %s is not indexed", nodeUniformity)
 		return
 	}
 	if len(nodeUniformityLabelValues) == 0 {
 		ok = false
-		unschedulableReason = fmt.Sprintf("no nodes with uniformity label %s", gctx.NodeUniformityLabel)
+		unschedulableReason = fmt.Sprintf("no nodes with uniformity label %s", nodeUniformity)
 		return
 	}
 
@@ -168,7 +170,7 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *schedule
 		if value == "" {
 			continue
 		}
-		addNodeSelectorToGctx(gctx, gctx.NodeUniformityLabel, value)
+		addNodeSelectorToGctx(gctx, nodeUniformity, value)
 		txn := sch.nodeDb.Txn(true)
 		ok, unschedulableReason, err = sch.tryScheduleGangWithTxn(ctx, txn, gctx)
 		if err != nil {
@@ -200,7 +202,7 @@ func (sch *GangScheduler) trySchedule(ctx *armadacontext.Context, gctx *schedule
 		unschedulableReason = "at least one job in the gang does not fit on any node"
 		return
 	}
-	addNodeSelectorToGctx(gctx, gctx.NodeUniformityLabel, bestValue)
+	addNodeSelectorToGctx(gctx, gctx.GangInfo.NodeUniformity, bestValue)
 	return sch.tryScheduleGang(ctx, gctx)
 }
 
@@ -215,7 +217,7 @@ func (sch *GangScheduler) tryScheduleGang(ctx *armadacontext.Context, gctx *sche
 }
 
 func (sch *GangScheduler) tryScheduleGangWithTxn(_ *armadacontext.Context, txn *memdb.Txn, gctx *schedulercontext.GangSchedulingContext) (ok bool, unschedulableReason string, err error) {
-	if ok, err = sch.nodeDb.ScheduleManyWithTxn(txn, gctx.JobSchedulingContexts); err == nil {
+	if ok, err = sch.nodeDb.ScheduleManyWithTxn(txn, gctx); err == nil {
 		if !ok {
 			if gctx.Cardinality() > 1 {
 				unschedulableReason = "unable to schedule gang since minimum cardinality not met"

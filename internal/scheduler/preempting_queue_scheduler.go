@@ -410,8 +410,8 @@ func (sch *PreemptingQueueScheduler) setEvictedGangCardinality(evictorResult *Ev
 		}
 
 		// Override cardinality and min cardinality with the number of evicted jobs in this gang.
-		jctx.GangCardinality = len(sch.jobIdsByGangId[gangId])
-		jctx.GangMinCardinality = jctx.GangCardinality
+		jctx.GangInfo.Cardinality = len(sch.jobIdsByGangId[gangId])
+		jctx.GangInfo.MinimumCardinality = jctx.GangInfo.Cardinality
 	}
 	return
 }
@@ -604,11 +604,7 @@ func (sch *PreemptingQueueScheduler) updateGangAccounting(preempted []*scheduler
 		}
 	}
 	for _, jctx := range scheduled {
-		gangId, _, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(jctx.Job)
-		if err != nil {
-			return err
-		}
-		if isGangJob {
+		if gangId := jctx.GangInfo.Id; gangId != "" {
 			sch.gangIdByJobId[jctx.JobId] = gangId
 			if m := sch.jobIdsByGangId[gangId]; m != nil {
 				m[jctx.JobId] = true
@@ -864,7 +860,7 @@ func (evi *Evictor) Evict(ctx *armadacontext.Context, nodeDbTxn *memdb.Txn) (*Ev
 		for _, job := range evictedJobs {
 			// Create a scheduling context for when re-scheduling this job.
 			// Mark as evicted and add a node selector to ensure the job is re-scheduled onto the node it was evicted from.
-			jctx := schedulercontext.JobSchedulingContextFromJob(evi.priorityClasses, job, GangIdAndCardinalityFromAnnotations)
+			jctx := schedulercontext.JobSchedulingContextFromJob(evi.priorityClasses, job)
 			jctx.IsEvicted = true
 			jctx.AddNodeSelector(schedulerconfig.NodeIdLabel, node.Id)
 			evictedJctxsByJobId[job.GetId()] = jctx
