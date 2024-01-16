@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/clock"
 
@@ -237,7 +238,7 @@ var (
 	testExecutor        = "test-executor"
 	testNode            = "test-node"
 	testNodeId          = api.NodeIdFromExecutorAndNodeName(testExecutor, testNode)
-	scheduledAtPriority = int32(5)
+	scheduledAtPriority = int32(10)
 	requeuedJobId       = util.NewULID()
 	requeuedJob         = testfixtures.JobDb.NewJob(
 		requeuedJobId,
@@ -1286,7 +1287,7 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) 
 			return nil, errors.Errorf("was asked to lease %s but job does not exist", id)
 		}
 		if !job.Queued() {
-			return nil, errors.Errorf("was asked to lease %s but job was already leased", job.Id())
+			return nil, errors.Errorf("was asked to lease %s but job is not queued", job.Id())
 		}
 		priority := int32(0)
 		if req := job.PodRequirements(); req != nil {
@@ -1306,7 +1307,7 @@ func (t *testSchedulingAlgo) Schedule(_ *armadacontext.Context, txn *jobdb.Txn) 
 			return nil, errors.Errorf("was asked to lease %s but job does not exist", id)
 		}
 		if !job.Queued() {
-			return nil, errors.Errorf("was asked to lease %s but job was already leased", job.Id())
+			return nil, errors.Errorf("was asked to lease %s but job is not queued", job.Id())
 		}
 		job = job.WithQueued(false).WithFailed(true)
 		failedJobs = append(failedJobs, job)
@@ -1388,7 +1389,7 @@ func stringSet(src []string) map[string]bool {
 }
 
 var (
-	newJobOne = &database.Job{
+	newJobA = &database.Job{
 		JobID:                 util.NewULID(),
 		JobSet:                "testJobSet",
 		Queue:                 "testQueue",
@@ -1398,7 +1399,37 @@ var (
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
 		Serial:                0,
 	}
-	newJobTwo = &database.Job{
+	runningJobA = &database.Job{
+		JobID:                 newJobA.JobID,
+		JobSet:                "testJobSet",
+		Queue:                 "testQueue",
+		QueuedVersion:         1,
+		SchedulingInfo:        schedulingInfoBytes,
+		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Serial:                0,
+	}
+	newRunA = &database.Run{
+		RunID:               testfixtures.UUIDFromInt(1),
+		JobID:               newJobA.JobID,
+		JobSet:              newJobA.JobSet,
+		Executor:            testExecutor,
+		Node:                testNode,
+		RunAttempted:        true,
+		Serial:              0,
+		ScheduledAtPriority: &scheduledAtPriority,
+	}
+	successfulRunA = &database.Run{
+		RunID:               testfixtures.UUIDFromInt(1),
+		JobID:               newJobA.JobID,
+		JobSet:              newJobA.JobSet,
+		Executor:            testExecutor,
+		Node:                testNode,
+		Succeeded:           true,
+		RunAttempted:        true,
+		Serial:              0,
+		ScheduledAtPriority: &scheduledAtPriority,
+	}
+	newJobB = &database.Job{
 		JobID:                 util.NewULID(),
 		JobSet:                "testJobSet",
 		Queue:                 "testQueue",
@@ -1431,34 +1462,40 @@ func TestCycleConsistency(t *testing.T) {
 		idsOfJobsToPreempt  []string
 		idsOfJobsToFail     []string
 
-		// Expected jobDb for scenario 1, i.e., the baseline scenario.
+		// Expected jobDbs for scenario 1, i.e., the baseline scenario.
 		// Only compared against if not nil.
 		expectedBaselineJobDb *jobdb.JobDb
 
+		expectedJobDbCycleOne   *jobdb.JobDb
+		expectedJobDbCycleTwo   *jobdb.JobDb
+		expectedJobDbCycleThree *jobdb.JobDb
+
 		// Expected published events for scenario 1, i.e., the baseline scenario.
 		// Only compared against if not nil.
-		expectedBaselineEvents []*armadaevents.EventSequence
+		expectedEventSequencesCycleOne   []*armadaevents.EventSequence
+		expectedEventSequencesCycleTwo   []*armadaevents.EventSequence
+		expectedEventSequencesCycleThree []*armadaevents.EventSequence
 	}{
-		"Schedule a new job loaded in the first cycle": {
+		"Schedule a new job": {
 			firstSchedulerDbUpdate: schedulerDbUpdate{
 				jobUpdates: []*database.Job{
-					newJobOne,
+					newJobA,
 				},
 			},
-			idsOfJobsToSchedule: []string{newJobOne.JobID},
-			expectedBaselineJobDb: func() *jobdb.JobDb {
+			idsOfJobsToSchedule: []string{newJobA.JobID},
+			expectedJobDbCycleOne: func() *jobdb.JobDb {
 				jobDb := testfixtures.NewJobDb()
 				job := jobDb.NewJob(
-					newJobOne.JobID,
-					newJobOne.JobSet,
-					newJobOne.Queue,
-					uint32(newJobOne.Priority),
+					newJobA.JobID,
+					newJobA.JobSet,
+					newJobA.Queue,
+					uint32(newJobA.Priority),
 					schedulingInfo,
 					false,
 					1,
-					newJobOne.CancelRequested,
-					newJobOne.CancelByJobsetRequested,
-					newJobOne.Cancelled,
+					newJobA.CancelRequested,
+					newJobA.CancelByJobsetRequested,
+					newJobA.Cancelled,
 					0,
 				).WithNewRun(testExecutor, testNodeId, testNode, 10)
 				txn := jobDb.WriteTxn()
@@ -1469,10 +1506,10 @@ func TestCycleConsistency(t *testing.T) {
 				txn.Commit()
 				return jobDb
 			}(),
-			expectedBaselineEvents: []*armadaevents.EventSequence{
+			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
 				{
-					Queue:      newJobOne.Queue,
-					JobSetName: newJobOne.JobSet,
+					Queue:      newJobA.Queue,
+					JobSetName: newJobA.JobSet,
 					Events: func() []*armadaevents.EventSequence_Event {
 						uuidProvider := testfixtures.MockUUIDProvider{}
 						runId := uuidProvider.New()
@@ -1483,7 +1520,7 @@ func TestCycleConsistency(t *testing.T) {
 								Event: &armadaevents.EventSequence_Event_JobRunLeased{
 									JobRunLeased: &armadaevents.JobRunLeased{
 										RunId:                  armadaevents.ProtoUuidFromUuid(runId),
-										JobId:                  armadaevents.MustProtoUuidFromUlidString(newJobOne.JobID),
+										JobId:                  armadaevents.MustProtoUuidFromUlidString(newJobA.JobID),
 										ExecutorId:             testExecutor,
 										NodeId:                 testNode,
 										UpdateSequenceNumber:   1,
@@ -1501,32 +1538,200 @@ func TestCycleConsistency(t *testing.T) {
 		"Schedule a new job loaded in the second cycle": {
 			secondSchedulerDbUpdate: schedulerDbUpdate{
 				jobUpdates: []*database.Job{
-					newJobOne,
+					newJobA,
 				},
 			},
-			idsOfJobsToSchedule: []string{newJobOne.JobID},
+			idsOfJobsToSchedule: []string{newJobA.JobID},
 		},
 		"Schedule two new jobs loaded in the second cycle": {
 			secondSchedulerDbUpdate: schedulerDbUpdate{
 				jobUpdates: []*database.Job{
-					newJobOne,
-					newJobTwo,
+					newJobA,
+					newJobB,
 				},
 			},
-			idsOfJobsToSchedule: []string{newJobOne.JobID, newJobTwo.JobID},
+			idsOfJobsToSchedule: []string{newJobA.JobID, newJobB.JobID},
 		},
 		"Schedule two new jobs loaded in separate cycles": {
 			firstSchedulerDbUpdate: schedulerDbUpdate{
 				jobUpdates: []*database.Job{
-					newJobOne,
+					newJobA,
 				},
 			},
 			secondSchedulerDbUpdate: schedulerDbUpdate{
 				jobUpdates: []*database.Job{
-					newJobTwo,
+					newJobB,
 				},
 			},
-			idsOfJobsToSchedule: []string{newJobOne.JobID, newJobTwo.JobID},
+			idsOfJobsToSchedule: []string{newJobA.JobID, newJobB.JobID},
+		},
+		"Schedule a new job that then succeeds": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					newJobA,
+				},
+			},
+			secondSchedulerDbUpdate: schedulerDbUpdate{
+				runUpdates: []*database.Run{
+					successfulRunA,
+				},
+			},
+			idsOfJobsToSchedule: []string{newJobA.JobID},
+			expectedJobDbCycleOne: func() *jobdb.JobDb {
+				jobDb := testfixtures.NewJobDb()
+				job := jobDb.NewJob(
+					newJobA.JobID,
+					newJobA.JobSet,
+					newJobA.Queue,
+					uint32(newJobA.Priority),
+					schedulingInfo,
+					false,
+					1,
+					newJobA.CancelRequested,
+					newJobA.CancelByJobsetRequested,
+					newJobA.Cancelled,
+					0,
+				).WithNewRun(testExecutor, testNodeId, testNode, 10)
+				txn := jobDb.WriteTxn()
+				defer txn.Abort()
+				if err := txn.Upsert([]*jobdb.Job{job}); err != nil {
+					panic(err)
+				}
+				txn.Commit()
+				return jobDb
+			}(),
+			expectedJobDbCycleTwo: func() *jobdb.JobDb {
+				jobDb := testfixtures.NewJobDb()
+				job := jobDb.NewJob(
+					newJobA.JobID,
+					newJobA.JobSet,
+					newJobA.Queue,
+					uint32(newJobA.Priority),
+					schedulingInfo,
+					false,
+					1,
+					newJobA.CancelRequested,
+					newJobA.CancelByJobsetRequested,
+					newJobA.Cancelled,
+					0,
+				).WithNewRun(testExecutor, testNodeId, testNode, 10).WithSucceeded(true)
+				job = job.WithUpdatedRun(job.LatestRun().WithSucceeded(true).WithAttempted(true))
+				txn := jobDb.WriteTxn()
+				defer txn.Abort()
+				if err := txn.Upsert([]*jobdb.Job{job}); err != nil {
+					panic(err)
+				}
+				txn.Commit()
+				return jobDb
+			}(),
+			expectedJobDbCycleThree: testfixtures.NewJobDb(),
+			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
+				{
+					Queue:      newJobA.Queue,
+					JobSetName: newJobA.JobSet,
+					Events: func() []*armadaevents.EventSequence_Event {
+						uuidProvider := testfixtures.MockUUIDProvider{}
+						runId := uuidProvider.New()
+						created := time.Unix(0, 0)
+						return []*armadaevents.EventSequence_Event{
+							{
+								Created: &created,
+								Event: &armadaevents.EventSequence_Event_JobRunLeased{
+									JobRunLeased: &armadaevents.JobRunLeased{
+										RunId:                  armadaevents.ProtoUuidFromUuid(runId),
+										JobId:                  armadaevents.MustProtoUuidFromUlidString(newJobA.JobID),
+										ExecutorId:             testExecutor,
+										NodeId:                 testNode,
+										UpdateSequenceNumber:   1,
+										HasScheduledAtPriority: true,
+										ScheduledAtPriority:    10,
+										AdditionalAnnotations:  make(map[string]string),
+									},
+								},
+							},
+						}
+					}(),
+				},
+				{
+					Queue:      newJobA.Queue,
+					JobSetName: newJobA.JobSet,
+					Events: func() []*armadaevents.EventSequence_Event {
+						created := time.Unix(0, 0)
+						return []*armadaevents.EventSequence_Event{
+							{
+								Created: &created,
+								Event: &armadaevents.EventSequence_Event_JobSucceeded{
+									JobSucceeded: &armadaevents.JobSucceeded{
+										JobId: armadaevents.MustProtoUuidFromUlidString(newJobA.JobID),
+									},
+								},
+							},
+						}
+					}(),
+				},
+			},
+		},
+		"Running job is preempted": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					runningJobA,
+				},
+				runUpdates: []*database.Run{
+					newRunA,
+				},
+			},
+			idsOfJobsToPreempt:      []string{newJobA.JobID},
+			expectedJobDbCycleThree: testfixtures.NewJobDb(),
+			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
+				{
+					Queue:      newJobA.Queue,
+					JobSetName: newJobA.JobSet,
+					Events: []*armadaevents.EventSequence_Event{
+						{
+							Created: pointerFromValue(time.Unix(0, 0)),
+							Event: &armadaevents.EventSequence_Event_JobRunPreempted{
+								JobRunPreempted: &armadaevents.JobRunPreempted{
+									PreemptedRunId: armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
+									PreemptedJobId: armadaevents.MustProtoUuidFromUlidString(newJobA.JobID),
+								},
+							},
+						},
+						{
+							Created: pointerFromValue(time.Unix(0, 0)),
+							Event: &armadaevents.EventSequence_Event_JobRunErrors{
+								JobRunErrors: &armadaevents.JobRunErrors{
+									JobId: armadaevents.MustProtoUuidFromUlidString(newJobA.JobID),
+									RunId: armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
+									Errors: []*armadaevents.Error{
+										{
+											Terminal: true,
+											Reason: &armadaevents.Error_JobRunPreemptedError{
+												JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+											},
+										},
+									},
+								},
+							},
+						},
+						{
+							Created: pointerFromValue(time.Unix(0, 0)),
+							Event: &armadaevents.EventSequence_Event_JobErrors{
+								JobErrors: &armadaevents.JobErrors{
+									JobId: armadaevents.MustProtoUuidFromUlidString(newJobA.JobID),
+									Errors: []*armadaevents.Error{
+										{
+											Terminal: true,
+											Reason: &armadaevents.Error_JobRunPreemptedError{
+												JobRunPreemptedError: &armadaevents.JobRunPreemptedError{},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 		"Job succeeded": {
 			jobUpdates: []*database.Job{
@@ -1552,33 +1757,6 @@ func TestCycleConsistency(t *testing.T) {
 					Serial:    0,
 				},
 			},
-		},
-		"Lease two jobs from an update": {
-			jobUpdates: []*database.Job{
-				{
-					JobID:                 "01h3w2wtdchtc80hgyp782shrv",
-					JobSet:                "testJobSet",
-					Queue:                 "testQueue",
-					Queued:                true,
-					QueuedVersion:         0,
-					SchedulingInfo:        schedulingInfoBytes,
-					SchedulingInfoVersion: int32(schedulingInfo.Version),
-					Serial:                1,
-				},
-				{
-					JobID:                 "01h434g4hxww2pknb2q1nfmfph",
-					JobSet:                "testJobSet",
-					Queue:                 "testQueue",
-					Queued:                true,
-					QueuedVersion:         0,
-					SchedulingInfo:        schedulingInfoBytes,
-					SchedulingInfoVersion: int32(schedulingInfo.Version),
-					Serial:                1,
-				},
-			},
-			// expectedJobRunLeased:  []string{"01h3w2wtdchtc80hgyp782shrv", "01h434g4hxww2pknb2q1nfmfph"},
-			// expectedLeased:        []string{"01h3w2wtdchtc80hgyp782shrv", "01h434g4hxww2pknb2q1nfmfph"},
-			// expectedQueuedVersion: 0,
 		},
 		"New failed job with no runs": {
 			// This happens if the scheduler decides to fail a job, e.g., due to min-max gang scheduling.
@@ -1912,34 +2090,6 @@ func TestCycleConsistency(t *testing.T) {
 			// expectedTerminal:        []string{leasedJob.Id()},
 			// expectedQueuedVersion:   leasedJob.QueuedVersion(),
 		},
-		// Empty jobDb.
-		//
-		// The first cycle here should prob. be with updateAll.
-		// Otherwise, we could have an inconsistent jobDb,
-		// Now the leader will do a full update.
-		// Then the follower does a partial update followed by a full update.
-		// Put a failed job into the jobDb.
-		// Then put an error into the schedulerDb.
-		// "one failed job": {
-		// 	initialJobDb: func() *jobdb.JobDb {
-		// 		jobDb := testfixtures.NewJobDb()
-		// 		jobDb.NewJob()
-		// 		return jobDb
-		// 	}(),
-		// 	jobUpdates: []*database.Job{
-		// 		{
-		// 			JobID:                 queuedJob.Id(),
-		// 			JobSet:                "testJobSet",
-		// 			Queue:                 "testQueue",
-		// 			Queued:                true,
-		// 			QueuedVersion:         0,
-		// 			SchedulingInfo:        schedulingInfoBytes,
-		// 			SchedulingInfoVersion: int32(schedulingInfo.Version),
-		// 			Serial:                1,
-		// 		},
-		// 	},
-		// 	idsOfJobsToSchedule: []string{queuedJob.Id()},
-		// },
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -1947,37 +2097,20 @@ func TestCycleConsistency(t *testing.T) {
 			ctx := armadacontext.Background()
 			testClock := clock.NewFakeClock(time.Unix(0, 0))
 
-			// Necessary when creating dbOps.
+			// Setup necessary for creating schedulerDb operations.
 			queueByJobId := make(map[string]string)
 			jobSetByJobId := make(map[string]string)
 			for _, jobUpdate := range tc.firstSchedulerDbUpdate.jobUpdates {
 				queueByJobId[jobUpdate.JobID] = jobUpdate.Queue
 				jobSetByJobId[jobUpdate.JobID] = jobUpdate.JobSet
 			}
-
-			// // If no initialJobDb is specified, initialise the test case with an empty jobDb.
-			// if tc.initialJobDb == nil {
-			// 	tc.initialJobDb = testfixtures.NewJobDb()
-			// }
-
-			// txn := tc.initialJobDb.WriteTxn()
-			// require.NoError(t, txn.Upsert(tc.initialJobs))
-			// txn.Commit()
-
-			// Create schedulerDb ops from the testCase to populate the schedulerDb with.
 			instructionConverter, err := scheduleringester.NewInstructionConverter(
 				nil,
 				testfixtures.TestPriorityClasses,
 			)
 			require.NoError(t, err)
 
-			// TODO(albin): Remove.
-			// txn = tc.initialJobDb.ReadTxn()
-			// dbOps, err := dbOpsFromDbObjects(ctx, txn, instructionConverter, tc.jobUpdates, tc.runUpdates, tc.jobRunErrors)
-			// txn.Abort()
-			// require.NoError(t, err)
-
-			// Function to create a scheduler using mocked components.
+			// Helper function for creating new schedulers for use in tests.
 			newScheduler := func(db *pgxpool.Pool) *Scheduler {
 				scheduler, err := NewScheduler(
 					testfixtures.NewJobDb(),
@@ -2018,11 +2151,6 @@ func TestCycleConsistency(t *testing.T) {
 						10*time.Second,
 					)
 
-					// TODO(albin): Remove.
-					// if err := schedulerDb.Store(ctx, &scheduleringester.DbOperationsWithMessageIds{Ops: dbOps}); err != nil {
-					// 	return err
-					// }
-
 					// Create two scheduler using the same db connection.
 					a := newScheduler(db)
 					b := newScheduler(db)
@@ -2037,7 +2165,7 @@ func TestCycleConsistency(t *testing.T) {
 				})
 			}
 
-			// helper function for {first,second}DbUpdate.
+			// Helper function for {first,second}DbUpdate.
 			dbUpdate := func(
 				schedulerDb *scheduleringester.SchedulerDb,
 				jobUpdates []*database.Job,
@@ -2130,135 +2258,206 @@ func TestCycleConsistency(t *testing.T) {
 				return nil
 			}
 
-			assertJobDbEqual := func(a, b *Scheduler) error {
-				t.Logf("asserting jobDb equality schedulers %p, %p", a, b)
-				return (a.jobDb.ReadTxn()).AssertEqual(b.jobDb.ReadTxn())
+			eventsFromTestPublisher := func(p Publisher) []*armadaevents.EventSequence {
+				return p.(*testPublisher).eventSequences
 			}
 
-			assertPublishedEventsEqual := func(a, b *Scheduler) error {
-				t.Logf("asserting event equality schedulers %p, %p", a, b)
-				pa := a.publisher.(*testPublisher)
-				pb := b.publisher.(*testPublisher)
-				if !assert.Equal(t, pa.eventSequences, pb.eventSequences) {
-					return errors.New("eventSequences are not equal")
-				}
-				return nil
-			}
+			var (
+				jobDbCycleOne   *jobdb.JobDb
+				jobDbCycleTwo   *jobdb.JobDb
+				jobDbCycleThree *jobdb.JobDb
 
-			var baseline *Scheduler
-			empty := newScheduler(nil)
+				eventsCycleOne   []*armadaevents.EventSequence
+				eventsCycleTwo   []*armadaevents.EventSequence
+				eventsCycleThree []*armadaevents.EventSequence
+			)
 
-			// One cycle.
+			// One scheduler performing three cycles.
+			// Used for absolute assertions and as a baseline for relative assertions.
 			t.Log("scenario 1")
 			require.NoError(t, withTestSetup(func(a, _ *Scheduler, schedulerDb *scheduleringester.SchedulerDb) error {
-				baseline = a
 				require.NoError(t, firstDbUpdate(schedulerDb))
-				require.NoError(t, secondDbUpdate(schedulerDb))
-				require.NoError(t, cycle(a, true, true))
-				return nil
-			}))
-
-			if tc.expectedBaselineJobDb != nil {
-				require.NoError(t, assertJobDbEqual(baseline, &Scheduler{jobDb: tc.expectedBaselineJobDb}))
-			}
-			if tc.expectedBaselineEvents != nil {
-				require.NoError(t, assertPublishedEventsEqual(baseline, &Scheduler{publisher: &testPublisher{eventSequences: tc.expectedBaselineEvents}}))
-			}
-
-			// Create a new scheduler storing only non-terminal jobs for use in comparisons.
-			baselineWithoutTerminalJobs := &Scheduler{jobDb: baseline.jobDb.Clone(), publisher: baseline.publisher}
-			txn := baselineWithoutTerminalJobs.jobDb.WriteTxn()
-			require.NoError(t, txn.DeleteTerminalJobs())
-			txn.Commit()
-
-			// Ensure changes published by "a" are picked up on a subsequent cycle.
-			t.Log("scenario 2")
-			require.NoError(t, withTestSetup(func(a, _ *Scheduler, schedulerDb *scheduleringester.SchedulerDb) error {
-				require.NoError(t, firstDbUpdate(schedulerDb))
-				require.NoError(t, cycle(a, true, false))
+				require.NoError(t, cycle(a, false, true))
 				require.NoError(t, persist(a, schedulerDb))
+				jobDbCycleOne = a.jobDb.Clone()
+				eventsCycleOne = slices.Clone(eventsFromTestPublisher(a.publisher))
+
 				require.NoError(t, secondDbUpdate(schedulerDb))
 				require.NoError(t, cycle(a, false, true))
-				require.NoError(t, assertJobDbEqual(baseline, a))
-				require.NoError(t, assertPublishedEventsEqual(baseline, a))
 				require.NoError(t, persist(a, schedulerDb))
-				require.NoError(t, cycle(a, false, false))
-				require.NoError(t, assertJobDbEqual(baselineWithoutTerminalJobs, a))
-				require.NoError(t, assertPublishedEventsEqual(baseline, a))
+				jobDbCycleTwo = a.jobDb.Clone()
+				eventsCycleTwo = slices.Clone(eventsFromTestPublisher(a.publisher))
+
+				require.NoError(t, cycle(a, false, true))
+				require.NoError(t, persist(a, schedulerDb))
+				jobDbCycleThree = a.jobDb.Clone()
+				eventsCycleThree = slices.Clone(eventsFromTestPublisher(a.publisher))
+
 				return nil
 			}))
 
-			// Ensure changes published by "a" are correctly picked up by "b".
+			// Absolute assertions.
+			if tc.expectedJobDbCycleOne != nil {
+				require.NoError(t, tc.expectedJobDbCycleOne.ReadTxn().AssertEqual(jobDbCycleOne.ReadTxn()), "unexpected cycle one jobDb")
+			}
+			if tc.expectedJobDbCycleTwo != nil {
+				require.NoError(t, tc.expectedJobDbCycleTwo.ReadTxn().AssertEqual(jobDbCycleTwo.ReadTxn()), "unexpected cycle two jobDb")
+			}
+			if tc.expectedJobDbCycleThree != nil {
+				require.NoError(t, tc.expectedJobDbCycleThree.ReadTxn().AssertEqual(jobDbCycleThree.ReadTxn()), "unexpected cycle three jobDb")
+			}
+
+			if tc.expectedEventSequencesCycleOne != nil {
+				require.Equal(t, tc.expectedEventSequencesCycleOne, eventsCycleOne, "unexpected cycle one events")
+			}
+			if tc.expectedEventSequencesCycleTwo != nil {
+				require.Equal(t, tc.expectedEventSequencesCycleTwo, eventsCycleTwo, "unexpected cycle two events")
+			}
+			if tc.expectedEventSequencesCycleThree != nil {
+				require.Equal(t, tc.expectedEventSequencesCycleThree, eventsCycleThree, "unexpected cycle three events")
+			}
+
+			// Test that the follower stays in sync with the leader.
+			// TODO(albin): We need to cycle "a" again after each persist for now.
+			//              The jobDb of the leader is supposed to be updated immediately to reflect published events.
+			//              However, the jobDb is only updated immediately for schedule/preempt/fail decisions.
+			//              For external changes, e.g., job succeeded, the jobDb is only updated on the second cycle.
+			t.Log("scenario 2")
+			require.NoError(t, withTestSetup(func(a, b *Scheduler, schedulerDb *scheduleringester.SchedulerDb) error {
+				require.NoError(t, firstDbUpdate(schedulerDb))
+				require.NoError(t, cycle(a, false, true))
+				require.NoError(t, persist(a, schedulerDb))
+				require.NoError(t, cycle(a, false, true))
+				require.NoError(t, cycle(b, false, false))
+				require.NoError(t, a.jobDb.ReadTxn().AssertEqual(b.jobDb.ReadTxn()))
+				require.Nil(t, eventsFromTestPublisher(b.publisher))
+
+				require.NoError(t, secondDbUpdate(schedulerDb))
+				require.NoError(t, cycle(a, false, true))
+				require.NoError(t, persist(a, schedulerDb))
+				require.NoError(t, cycle(a, false, true))
+				require.NoError(t, cycle(b, false, false))
+				require.NoError(t, a.jobDb.ReadTxn().AssertEqual(b.jobDb.ReadTxn()))
+
+				require.NoError(t, cycle(a, false, true))
+				require.NoError(t, persist(a, schedulerDb))
+				require.NoError(t, cycle(b, false, false))
+				require.NoError(t, a.jobDb.ReadTxn().AssertEqual(b.jobDb.ReadTxn()))
+
+				return nil
+			}))
+
+			// Test that the follower stays in sync with the leader when the follower cycles once before "a" persists.
 			t.Log("scenario 3")
 			require.NoError(t, withTestSetup(func(a, b *Scheduler, schedulerDb *scheduleringester.SchedulerDb) error {
 				require.NoError(t, firstDbUpdate(schedulerDb))
-				require.NoError(t, cycle(a, true, false))
+				require.NoError(t, cycle(a, false, true))
+				require.NoError(t, cycle(b, false, false))
+				require.NoError(t, persist(a, schedulerDb))
+				require.NoError(t, cycle(a, false, true))
+				require.NoError(t, cycle(b, false, false))
+				require.NoError(t, a.jobDb.ReadTxn().AssertEqual(b.jobDb.ReadTxn()))
+
 				require.NoError(t, secondDbUpdate(schedulerDb))
 				require.NoError(t, cycle(a, false, true))
-				require.NoError(t, assertJobDbEqual(baseline, a))
-				require.NoError(t, assertPublishedEventsEqual(baseline, a))
-				// Persist changes and cycle "a" again to make it pick up its own changes.
-				// This should cause any terminal jobs to be deleted from the jobDb of "a".
+				require.NoError(t, cycle(b, false, false))
 				require.NoError(t, persist(a, schedulerDb))
-				require.NoError(t, cycle(a, false, false))
-				require.NoError(t, assertJobDbEqual(baselineWithoutTerminalJobs, a))
-				// Cycle b and ensure its resulting state is identical to that of "a".
-				require.NoError(t, cycle(b, true, false))
-				require.NoError(t, assertJobDbEqual(a, b))
-				require.NoError(t, assertPublishedEventsEqual(empty, b))
+				require.NoError(t, cycle(a, false, true))
+				require.NoError(t, cycle(b, false, false))
+				require.NoError(t, a.jobDb.ReadTxn().AssertEqual(b.jobDb.ReadTxn()))
+
+				require.NoError(t, cycle(a, false, true))
+				require.NoError(t, cycle(b, false, false))
+				require.NoError(t, persist(a, schedulerDb))
+				require.NoError(t, cycle(b, false, false))
+				require.NoError(t, a.jobDb.ReadTxn().AssertEqual(b.jobDb.ReadTxn()))
+
 				return nil
 			}))
 
-			// Ensure follower "b" starts scheduling after becoming leader.
+			// Test follower failover.
 			t.Log("scenario 4")
 			require.NoError(t, withTestSetup(func(a, b *Scheduler, schedulerDb *scheduleringester.SchedulerDb) error {
 				require.NoError(t, firstDbUpdate(schedulerDb))
-				require.NoError(t, cycle(b, true, false))
-				require.NoError(t, secondDbUpdate(schedulerDb))
 				require.NoError(t, cycle(b, false, false))
-				require.NoError(t, assertPublishedEventsEqual(empty, b))
+
+				require.Nil(t, eventsFromTestPublisher(b.publisher))
 				require.NoError(t, failover(a, b))
 				require.NoError(t, cycle(b, true, true))
-				require.NoError(t, assertJobDbEqual(baseline, b))
-				require.NoError(t, assertPublishedEventsEqual(baseline, b))
 				require.NoError(t, persist(b, schedulerDb))
+				require.NoError(t, jobDbCycleOne.ReadTxn().AssertEqual(b.jobDb.ReadTxn()))
+
+				require.NoError(t, secondDbUpdate(schedulerDb))
 				require.NoError(t, cycle(b, false, true))
-				require.NoError(t, assertJobDbEqual(baselineWithoutTerminalJobs, b))
-				require.NoError(t, assertPublishedEventsEqual(baseline, b))
+				require.NoError(t, persist(b, schedulerDb))
+				require.NoError(t, jobDbCycleTwo.ReadTxn().AssertEqual(b.jobDb.ReadTxn()))
+
+				require.NoError(t, cycle(b, false, true))
+				require.NoError(t, persist(b, schedulerDb))
+				require.NoError(t, jobDbCycleThree.ReadTxn().AssertEqual(b.jobDb.ReadTxn()))
+
 				return nil
 			}))
 
-			// Ensure "b" recovers the same state as "a" after failover when "a" has persisted its state before failing.
+			// Test follower failover after the first db update.
 			t.Log("scenario 5")
 			require.NoError(t, withTestSetup(func(a, b *Scheduler, schedulerDb *scheduleringester.SchedulerDb) error {
 				require.NoError(t, firstDbUpdate(schedulerDb))
-				require.NoError(t, cycle(a, true, false))
-				require.NoError(t, secondDbUpdate(schedulerDb))
 				require.NoError(t, cycle(a, false, true))
-				require.NoError(t, assertJobDbEqual(baseline, a))
-				require.NoError(t, assertPublishedEventsEqual(baseline, a))
 				require.NoError(t, persist(a, schedulerDb))
-				require.NoError(t, cycle(a, false, false))
+
+				require.NoError(t, secondDbUpdate(schedulerDb))
 				require.NoError(t, failover(a, b))
 				require.NoError(t, cycle(b, true, true))
-				require.NoError(t, assertJobDbEqual(a, b))
-				require.NoError(t, assertPublishedEventsEqual(empty, b))
+				require.NoError(t, persist(b, schedulerDb))
+				require.NoError(t, jobDbCycleTwo.ReadTxn().AssertEqual(b.jobDb.ReadTxn()))
+
+				require.NoError(t, cycle(b, false, true))
+				require.NoError(t, persist(b, schedulerDb))
+				require.NoError(t, jobDbCycleThree.ReadTxn().AssertEqual(b.jobDb.ReadTxn()))
+
 				return nil
 			}))
 
-			// Ensure "b" recovers the same state as "a" after a failover.
+			// Test follower failover after the first db update, when the follower has already cycled once.
 			t.Log("scenario 6")
 			require.NoError(t, withTestSetup(func(a, b *Scheduler, schedulerDb *scheduleringester.SchedulerDb) error {
 				require.NoError(t, firstDbUpdate(schedulerDb))
-				require.NoError(t, cycle(a, true, false))
-				require.NoError(t, secondDbUpdate(schedulerDb))
 				require.NoError(t, cycle(a, false, true))
-				require.NoError(t, assertJobDbEqual(baseline, a))
-				require.NoError(t, assertPublishedEventsEqual(baseline, a))
+				require.NoError(t, persist(a, schedulerDb))
+
+				require.NoError(t, secondDbUpdate(schedulerDb))
+				require.NoError(t, cycle(b, false, false))
 				require.NoError(t, failover(a, b))
 				require.NoError(t, cycle(b, true, true))
-				require.NoError(t, assertJobDbEqual(a, b))
-				require.NoError(t, assertPublishedEventsEqual(a, b))
+				require.NoError(t, persist(b, schedulerDb))
+				require.NoError(t, jobDbCycleTwo.ReadTxn().AssertEqual(b.jobDb.ReadTxn()))
+
+				require.NoError(t, cycle(b, false, true))
+				require.NoError(t, persist(b, schedulerDb))
+				require.NoError(t, jobDbCycleThree.ReadTxn().AssertEqual(b.jobDb.ReadTxn()))
+
+				return nil
+			}))
+
+			// Test follower failover after the first db update, when the follower has already cycled once before the second update.
+			t.Log("scenario 7")
+			require.NoError(t, withTestSetup(func(a, b *Scheduler, schedulerDb *scheduleringester.SchedulerDb) error {
+				require.NoError(t, firstDbUpdate(schedulerDb))
+				require.NoError(t, cycle(a, false, true))
+				require.NoError(t, persist(a, schedulerDb))
+
+				require.NoError(t, cycle(b, false, false))
+				require.NoError(t, secondDbUpdate(schedulerDb))
+				require.NoError(t, failover(a, b))
+				require.NoError(t, cycle(b, true, true))
+				require.NoError(t, persist(b, schedulerDb))
+				require.NoError(t, jobDbCycleTwo.ReadTxn().AssertEqual(b.jobDb.ReadTxn()))
+
+				require.NoError(t, cycle(b, false, true))
+				require.NoError(t, persist(b, schedulerDb))
+				require.NoError(t, jobDbCycleThree.ReadTxn().AssertEqual(b.jobDb.ReadTxn()))
+
 				return nil
 			}))
 		})
@@ -2290,14 +2489,6 @@ func dbOpsFromDbObjects(
 		if !ok {
 			return nil, errors.Errorf("run %s is associated with non-existing job %s", dbRun.RunID, dbRun.JobID)
 		}
-		// var queue string
-		// if dbJob := jobUpdatesByJobId[dbRun.JobID]; dbJob != nil {
-		// 	queue = dbJob.Queue
-		// } else if job := txn.GetById(dbRun.JobID); job != nil {
-		// 	queue = job.Queue()
-		// } else {
-		// 	return nil, errors.Errorf("run %s is associated with non-existing job %s", dbRun.RunID, dbRun.JobID)
-		// }
 		insertRunsDbOp[dbRun.RunID] = &scheduleringester.JobRunDetails{
 			Queue: queue,
 			DbRun: dbRun,
@@ -2319,21 +2510,6 @@ func dbOpsFromDbObjects(
 		if !ok {
 			return nil, errors.Errorf("jobRunError is associated with non-existing job %s", jobId)
 		}
-
-		// var queue string
-		// var jobSet string
-		// jobId, err := armadaevents.UlidStringFromProtoUuid(jobRunError.JobId)
-		// if err != nil {
-		// 	return nil, err
-		// }
-		// if dbJob := jobUpdatesByJobId[jobId]; dbJob != nil {
-		// 	queue = dbJob.Queue
-		// } else if job := txn.GetById(jobId); job != nil {
-		// 	queue = job.Queue()
-		// } else {
-		// 	return nil, errors.Errorf("jobRunError is associated with non-existing job %s", jobId)
-		// }
-
 		eventSequence := &armadaevents.EventSequence{
 			Queue:      queue,
 			JobSetName: jobSet,
@@ -2364,4 +2540,8 @@ func fixInsertJobsDbOp(dbOp scheduleringester.InsertJobs) scheduleringester.Inse
 		job.SubmitMessage = make([]byte, 0)
 	}
 	return dbOp
+}
+
+func pointerFromValue[T any](v T) *T {
+	return &v
 }

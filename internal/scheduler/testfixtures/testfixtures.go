@@ -940,9 +940,13 @@ func NewMockUUIDProvider() *MockUUIDProvider {
 func (p *MockUUIDProvider) New() uuid.UUID {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.i += 1 // Increment before write such that ids are never empty.
+	p.i += 1 // Increment before write to avoid using the all-zeros UUID.
+	return UUIDFromInt(p.i)
+}
+
+func UUIDFromInt(i uint64) uuid.UUID {
 	var rv uuid.UUID
-	binary.LittleEndian.PutUint64(rv[:], p.i)
+	binary.LittleEndian.PutUint64(rv[:], i)
 	return rv
 }
 
