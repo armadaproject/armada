@@ -76,6 +76,14 @@ func TestConvertSequence(t *testing.T) {
 			events:   []*armadaevents.EventSequence_Event{f.JobRunSucceeded},
 			expected: []DbOperation{MarkRunsSucceeded{f.RunIdUuid: f.BaseTime}},
 		},
+		"job run pending": {
+			events:   []*armadaevents.EventSequence_Event{f.Assigned},
+			expected: []DbOperation{MarkRunsPending{f.RunIdUuid: f.BaseTime}},
+		},
+		"job run preempted": {
+			events:   []*armadaevents.EventSequence_Event{f.JobPreempted},
+			expected: []DbOperation{MarkRunsPreempted{f.RunIdUuid: f.BaseTime}},
+		},
 		"lease returned": {
 			events: []*armadaevents.EventSequence_Event{f.LeaseReturned},
 			expected: []DbOperation{
@@ -202,7 +210,7 @@ func TestConvertSequence(t *testing.T) {
 			},
 		},
 		"ignored events": {
-			events: []*armadaevents.EventSequence_Event{f.Running, f.JobPreempted, f.JobSucceeded},
+			events: []*armadaevents.EventSequence_Event{f.Running, f.SubmitDuplicate, f.JobSucceeded},
 			expected: []DbOperation{
 				MarkRunsRunning{f.RunIdUuid: f.BaseTime},
 				MarkJobsSucceeded{f.JobIdString: true},

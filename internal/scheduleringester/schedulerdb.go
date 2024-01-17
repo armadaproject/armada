@@ -276,6 +276,32 @@ func (s *SchedulerDb) WriteDbOp(ctx *armadacontext.Context, tx pgx.Tx, op DbOper
 		if _, err := tx.Exec(ctx, sqlStmt, runIds, running, runningTimes); err != nil {
 			return errors.WithStack(err)
 		}
+	case MarkRunsPending:
+		runIds := make([]uuid.UUID, 0, len(o))
+		pendingTimes := make([]interface{}, 0, len(o))
+		pending := make([]bool, 0, len(o))
+		for runId, pendingTime := range o {
+			runIds = append(runIds, runId)
+			pendingTimes = append(pendingTimes, pendingTime)
+			pending = append(pending, true)
+		}
+		sqlStmt := multiColumnRunsUpdateStmt("run_id", "pending", "pending_timestamp")
+		if _, err := tx.Exec(ctx, sqlStmt, runIds, pending, pendingTimes); err != nil {
+			return errors.WithStack(err)
+		}
+	case MarkRunsPreempted:
+		runIds := make([]uuid.UUID, 0, len(o))
+		preemptedTimes := make([]interface{}, 0, len(o))
+		preempted := make([]bool, 0, len(o))
+		for runId, preemptedTime := range o {
+			runIds = append(runIds, runId)
+			preemptedTimes = append(preemptedTimes, preemptedTime)
+			preempted = append(preempted, true)
+		}
+		sqlStmt := multiColumnRunsUpdateStmt("run_id", "preempted", "preempted_timestamp")
+		if _, err := tx.Exec(ctx, sqlStmt, runIds, preempted, preemptedTimes); err != nil {
+			return errors.WithStack(err)
+		}
 	case InsertJobRunErrors:
 		records := make([]any, len(o))
 		i := 0

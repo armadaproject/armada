@@ -103,12 +103,14 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 			operationsFromEvent, err = c.handleJobRequeued(event.GetJobRequeued())
 		case *armadaevents.EventSequence_Event_PartitionMarker:
 			operationsFromEvent, err = c.handlePartitionMarker(event.GetPartitionMarker(), *event.Created)
+		case *armadaevents.EventSequence_Event_JobRunPreempted:
+			operationsFromEvent, err = c.handleJobRunPreempted(event.GetJobRunPreempted(), eventTime)
+		case *armadaevents.EventSequence_Event_JobRunAssigned:
+			operationsFromEvent, err = c.handleJobRunAssigned(event.GetJobRunAssigned(), eventTime)
 		case *armadaevents.EventSequence_Event_ReprioritisedJob,
 			*armadaevents.EventSequence_Event_JobDuplicateDetected,
 			*armadaevents.EventSequence_Event_ResourceUtilisation,
-			*armadaevents.EventSequence_Event_StandaloneIngressInfo,
-			*armadaevents.EventSequence_Event_JobRunPreempted,
-			*armadaevents.EventSequence_Event_JobRunAssigned:
+			*armadaevents.EventSequence_Event_StandaloneIngressInfo:
 			// These events can all be safely ignored
 			log.Debugf("Ignoring event type %T", event)
 		default:
@@ -236,6 +238,16 @@ func (c *InstructionConverter) handleJobRunRunning(jobRunRunning *armadaevents.J
 func (c *InstructionConverter) handleJobRunSucceeded(jobRunSucceeded *armadaevents.JobRunSucceeded, successTime time.Time) ([]DbOperation, error) {
 	runId := armadaevents.UuidFromProtoUuid(jobRunSucceeded.GetRunId())
 	return []DbOperation{MarkRunsSucceeded{runId: successTime}}, nil
+}
+
+func (c *InstructionConverter) handleJobRunPreempted(jobRunPreempted *armadaevents.JobRunPreempted, preemptedTime time.Time) ([]DbOperation, error) {
+	runId := armadaevents.UuidFromProtoUuid(jobRunPreempted.PreemptedRunId)
+	return []DbOperation{MarkRunsPreempted{runId: preemptedTime}}, nil
+}
+
+func (c *InstructionConverter) handleJobRunAssigned(jobRunAssigned *armadaevents.JobRunAssigned, assignedTime time.Time) ([]DbOperation, error) {
+	runId := armadaevents.UuidFromProtoUuid(jobRunAssigned.GetRunId())
+	return []DbOperation{MarkRunsPending{runId: assignedTime}}, nil
 }
 
 func (c *InstructionConverter) handleJobRunErrors(jobRunErrors *armadaevents.JobRunErrors, failureTime time.Time) ([]DbOperation, error) {
