@@ -75,4 +75,5 @@ type Run struct {
 	RunningTimestamp    *time.Time `db:"running_timestamp"`
 	TerminatedTimestamp *time.Time `db:"terminated_timestamp"`
 	ScheduledAtPriority *int32     `db:"scheduled_at_priority"`
+	ScheduleInPriority  *int32     `db:"schedule_in_priority"`
 }
