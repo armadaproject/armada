@@ -60,6 +60,7 @@ func TestConvertSequence(t *testing.T) {
 					Executor:            f.ExecutorId,
 					Node:                f.NodeName,
 					ScheduledAtPriority: &f.ScheduledAtPriority,
+					Created:             f.BaseTime.UnixNano(),
 					LeasedTimestamp:     &f.BaseTime,
 				}}},
 				UpdateJobQueuedState{f.JobIdString: &JobQueuedStateUpdate{

@@ -105,7 +105,7 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 		case *armadaevents.EventSequence_Event_JobRequeued:
 			operationsFromEvent, err = c.handleJobRequeued(event.GetJobRequeued())
 		case *armadaevents.EventSequence_Event_PartitionMarker:
-			operationsFromEvent, err = c.handlePartitionMarker(event.GetPartitionMarker(), *event.Created)
+			operationsFromEvent, err = c.handlePartitionMarker(event.GetPartitionMarker(), eventTime)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
 			operationsFromEvent, err = c.handleJobRunPreempted(event.GetJobRunPreempted(), eventTime)
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
