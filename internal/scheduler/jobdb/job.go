@@ -450,7 +450,10 @@ func (job *Job) GetAnnotations() map[string]string {
 
 // Needed for compatibility with interfaces.LegacySchedulerJob
 func (job *Job) GetPriorityClassName() string {
-	return job.JobSchedulingInfo().PriorityClassName
+	if schedulingInfo := job.JobSchedulingInfo(); schedulingInfo != nil {
+		return schedulingInfo.PriorityClassName
+	}
+	return ""
 }
 
 func (job *Job) GetScheduledAtPriority() (int32, bool) {

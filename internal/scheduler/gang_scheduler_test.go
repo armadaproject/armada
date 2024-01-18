@@ -591,7 +591,7 @@ func TestGangScheduler(t *testing.T) {
 			var actualScheduledIndices []int
 			scheduledGangs := 0
 			for i, gang := range tc.Gangs {
-				jctxs := schedulercontext.JobSchedulingContextsFromJobs(tc.SchedulingConfig.Preemption.PriorityClasses, gang, GangIdAndCardinalityFromAnnotations)
+				jctxs := schedulercontext.JobSchedulingContextsFromJobs(tc.SchedulingConfig.Preemption.PriorityClasses, gang)
 				gctx := schedulercontext.NewGangSchedulingContext(jctxs)
 				ok, reason, err := sch.Schedule(armadacontext.Background(), gctx)
 				require.NoError(t, err)
@@ -604,7 +604,7 @@ func TestGangScheduler(t *testing.T) {
 					actualScheduledIndices = append(actualScheduledIndices, i)
 
 					// If there's a node uniformity constraint, check that it's met.
-					if gctx.NodeUniformityLabel != "" {
+					if nodeUniformity := gctx.GangInfo.NodeUniformity; nodeUniformity != "" {
 						nodeUniformityLabelValues := make(map[string]bool)
 						for _, jctx := range jctxs {
 							pctx := jctx.PodSchedulingContext
@@ -613,7 +613,7 @@ func TestGangScheduler(t *testing.T) {
 							}
 							node := nodesById[pctx.NodeId]
 							require.NotNil(t, node)
-							value, ok := node.Labels[gctx.NodeUniformityLabel]
+							value, ok := node.Labels[nodeUniformity]
 							require.True(t, ok, "gang job scheduled onto node with missing nodeUniformityLabel")
 							nodeUniformityLabelValues[value] = true
 						}

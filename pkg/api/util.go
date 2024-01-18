@@ -221,8 +221,10 @@ func PriorityFromPodSpec(podSpec *v1.PodSpec, priorityClasses map[string]types.P
 }
 
 func (job *Job) GetPriorityClassName() string {
-	podSpec := job.GetMainPodSpec()
-	return podSpec.PriorityClassName
+	if podSpec := job.GetMainPodSpec(); podSpec != nil {
+		return podSpec.PriorityClassName
+	}
+	return ""
 }
 
 func (job *Job) GetScheduledAtPriority() (int32, bool) {

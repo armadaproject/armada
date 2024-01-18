@@ -165,8 +165,9 @@ func (constraints *SchedulingConstraints) CheckConstraints(
 	}
 
 	// PriorityClassSchedulingConstraintsByPriorityClassName check.
-	if priorityClassConstraint, ok := constraints.PriorityClassSchedulingConstraintsByPriorityClassName[gctx.PriorityClassName]; ok {
-		if !qctx.AllocatedByPriorityClass[gctx.PriorityClassName].IsStrictlyLessOrEqual(priorityClassConstraint.MaximumResourcesPerQueue) {
+	priorityClassName := gctx.GangInfo.PriorityClassName
+	if priorityClassConstraint, ok := constraints.PriorityClassSchedulingConstraintsByPriorityClassName[priorityClassName]; ok {
+		if !qctx.AllocatedByPriorityClass[priorityClassName].IsStrictlyLessOrEqual(priorityClassConstraint.MaximumResourcesPerQueue) {
 			return false, MaximumResourcesPerQueueExceededUnschedulableReason, nil
 		}
 	}

@@ -151,11 +151,7 @@ func (it *QueuedJobsIterator) Next() (*schedulercontext.JobSchedulingContext, er
 		if !ok {
 			return nil, nil
 		}
-		return schedulercontext.JobSchedulingContextFromJob(
-			it.priorityClasses,
-			job,
-			GangIdAndCardinalityFromAnnotations,
-		), nil
+		return schedulercontext.JobSchedulingContextFromJob(it.priorityClasses, job), nil
 	}
 }
 

@@ -293,11 +293,11 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		}
 		jobsByExecutorId[executorId] = append(jobsByExecutorId[executorId], job)
 		nodeIdByJobId[job.Id()] = nodeId
-		gangId, _, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(job)
+		gangInfo, err := schedulercontext.GangInfoFromLegacySchedulerJob(job)
 		if err != nil {
 			return nil, err
 		}
-		if isGangJob {
+		if gangId := gangInfo.Id; gangId != "" {
 			jobIds := jobIdsByGangId[gangId]
 			if jobIds == nil {
 				jobIds = make(map[string]bool)

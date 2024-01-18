@@ -131,11 +131,11 @@ func (p *DefaultPoolAssigner) AssignPool(j *jobdb.Job) (string, error) {
 			nodeDb := e.nodeDb
 			txn := nodeDb.Txn(true)
 			jctx := &schedulercontext.JobSchedulingContext{
-				Created:            time.Now(),
-				JobId:              j.GetId(),
-				Job:                j,
-				PodRequirements:    j.GetPodRequirements(p.priorityClasses),
-				GangMinCardinality: 1,
+				Created:         time.Now(),
+				JobId:           j.GetId(),
+				Job:             j,
+				PodRequirements: j.GetPodRequirements(p.priorityClasses),
+				GangInfo:        schedulercontext.EmptyGangInfo(j),
 			}
 			node, err := nodeDb.SelectNodeForJobWithTxn(txn, jctx)
 			txn.Abort()
