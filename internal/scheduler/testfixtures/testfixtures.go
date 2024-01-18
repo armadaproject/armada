@@ -83,6 +83,17 @@ var (
 	JobDb = NewJobDb()
 )
 
+func NewJobDbWithJobs(jobs []*jobdb.Job) *jobdb.JobDb {
+	jobDb := NewJobDb()
+	txn := jobDb.WriteTxn()
+	defer txn.Abort()
+	if err := txn.Upsert(jobs); err != nil {
+		panic(err)
+	}
+	txn.Commit()
+	return jobDb
+}
+
 // NewJobDb returns a new default jobDb with defaults to use in tests.
 func NewJobDb() *jobdb.JobDb {
 	jobDb := jobdb.NewJobDbWithSchedulingKeyGenerator(

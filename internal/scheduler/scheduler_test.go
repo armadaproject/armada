@@ -49,13 +49,15 @@ var (
 						Annotations: map[string]string{
 							configuration.FailFastAnnotation: "true",
 						},
+						Priority: int32(10),
 					},
 				},
 			},
 		},
 		Version: 1,
 	}
-	schedulingInfo = &schedulerobjects.JobSchedulingInfo{
+	failFastSchedulingInfoBytes = protoutil.MustMarshall(failFastSchedulingInfo)
+	schedulingInfo              = &schedulerobjects.JobSchedulingInfo{
 		AtMostOnce: true,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
@@ -82,8 +84,22 @@ var (
 		},
 		Version: 2,
 	}
-	updatedSchedulingInfoBytes = protoutil.MustMarshall(updatedSchedulingInfo)
-	schedulingInfoWithQueueTtl = &schedulerobjects.JobSchedulingInfo{
+	updatedSchedulingInfoBytes        = protoutil.MustMarshall(updatedSchedulingInfo)
+	schedulingInfoWithUpdatedPriority = &schedulerobjects.JobSchedulingInfo{
+		AtMostOnce: true,
+		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
+			{
+				Requirements: &schedulerobjects.ObjectRequirements_PodRequirements{
+					PodRequirements: &schedulerobjects.PodRequirements{
+						Priority: int32(20),
+					},
+				},
+			},
+		},
+		Version: 2,
+	}
+	schedulingInfoWithUpdatedPriorityBytes = protoutil.MustMarshall(schedulingInfoWithUpdatedPriority)
+	schedulingInfoWithQueueTtl             = &schedulerobjects.JobSchedulingInfo{
 		AtMostOnce: true,
 		ObjectRequirements: []*schedulerobjects.ObjectRequirements{
 			{
@@ -98,7 +114,8 @@ var (
 		Version:         1,
 	}
 	schedulingInfoWithQueueTtlBytes = protoutil.MustMarshall(schedulingInfoWithQueueTtl)
-	schedulerMetrics                = NewSchedulerMetrics(configuration.SchedulerMetricsConfig{
+
+	schedulerMetrics = NewSchedulerMetrics(configuration.SchedulerMetricsConfig{
 		ScheduleCycleTimeHistogramSettings: configuration.HistogramConfig{
 			Start:  1,
 			Factor: 1.1,
@@ -1389,7 +1406,7 @@ func stringSet(src []string) map[string]bool {
 }
 
 var (
-	newJobA = &database.Job{
+	queuedJobA = &database.Job{
 		JobID:                 util.NewULID(),
 		JobSet:                "testJobSet",
 		Queue:                 "testQueue",
@@ -1399,8 +1416,38 @@ var (
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
 		Serial:                0,
 	}
+	queuedJobWithTTLA = &database.Job{
+		JobID:                 queuedJobA.JobID,
+		JobSet:                "testJobSet",
+		Queue:                 "testQueue",
+		Queued:                true,
+		QueuedVersion:         0,
+		SchedulingInfo:        schedulingInfoWithQueueTtlBytes,
+		SchedulingInfoVersion: int32(schedulingInfoWithQueueTtl.Version),
+		Serial:                0,
+	}
+	queuedJobWithFailFastA = &database.Job{
+		JobID:                 queuedJobA.JobID,
+		JobSet:                "testJobSet",
+		Queue:                 "testQueue",
+		Queued:                true,
+		QueuedVersion:         0,
+		SchedulingInfo:        failFastSchedulingInfoBytes,
+		SchedulingInfoVersion: int32(failFastSchedulingInfo.Version),
+		Serial:                0,
+	}
+	queuedJobWithUpdatedPriorityA = &database.Job{
+		JobID:                 queuedJobA.JobID,
+		JobSet:                "testJobSet",
+		Queue:                 "testQueue",
+		Queued:                true,
+		QueuedVersion:         0,
+		SchedulingInfo:        schedulingInfoWithUpdatedPriorityBytes,
+		SchedulingInfoVersion: int32(schedulingInfoWithUpdatedPriority.Version),
+		Serial:                1,
+	}
 	runningJobA = &database.Job{
-		JobID:                 newJobA.JobID,
+		JobID:                 queuedJobA.JobID,
 		JobSet:                "testJobSet",
 		Queue:                 "testQueue",
 		QueuedVersion:         1,
@@ -1408,10 +1455,82 @@ var (
 		SchedulingInfoVersion: int32(schedulingInfo.Version),
 		Serial:                0,
 	}
+	runningJobWithUpdatedPriorityA = &database.Job{
+		JobID:                 queuedJobA.JobID,
+		JobSet:                "testJobSet",
+		Queue:                 "testQueue",
+		QueuedVersion:         1,
+		SchedulingInfo:        schedulingInfoWithUpdatedPriorityBytes,
+		SchedulingInfoVersion: int32(schedulingInfoWithUpdatedPriority.Version),
+		Serial:                1,
+	}
+	failedJobA = &database.Job{
+		JobID:                 queuedJobA.JobID,
+		JobSet:                "testJobSet",
+		Queue:                 "testQueue",
+		Failed:                true,
+		QueuedVersion:         0,
+		SchedulingInfo:        schedulingInfoBytes,
+		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Serial:                0,
+	}
+	cancelledJobA = &database.Job{
+		JobID:                 queuedJobA.JobID,
+		JobSet:                "testJobSet",
+		Queue:                 "testQueue",
+		Cancelled:             true,
+		QueuedVersion:         0,
+		SchedulingInfo:        schedulingInfoBytes,
+		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Serial:                0,
+	}
+	cancelRequestedJobA = &database.Job{
+		JobID:                 queuedJobA.JobID,
+		JobSet:                "testJobSet",
+		Queue:                 "testQueue",
+		Queued:                true,
+		CancelRequested:       true,
+		QueuedVersion:         0,
+		SchedulingInfo:        schedulingInfoBytes,
+		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Serial:                0,
+	}
+	cancelByJobSetRequestedJobA = &database.Job{
+		JobID:                   queuedJobA.JobID,
+		JobSet:                  "testJobSet",
+		Queue:                   "testQueue",
+		Queued:                  true,
+		CancelByJobsetRequested: true,
+		QueuedVersion:           0,
+		SchedulingInfo:          schedulingInfoBytes,
+		SchedulingInfoVersion:   int32(schedulingInfo.Version),
+		Serial:                  0,
+	}
+	runningCancelRequestedJobA = &database.Job{
+		JobID:                 queuedJobA.JobID,
+		JobSet:                "testJobSet",
+		Queue:                 "testQueue",
+		Queued:                false,
+		CancelRequested:       true,
+		QueuedVersion:         1,
+		SchedulingInfo:        schedulingInfoBytes,
+		SchedulingInfoVersion: int32(schedulingInfo.Version),
+		Serial:                0,
+	}
+	runningCancelByJobSetRequestedJobA = &database.Job{
+		JobID:                   queuedJobA.JobID,
+		JobSet:                  "testJobSet",
+		Queue:                   "testQueue",
+		CancelByJobsetRequested: true,
+		QueuedVersion:           1,
+		SchedulingInfo:          schedulingInfoBytes,
+		SchedulingInfoVersion:   int32(schedulingInfo.Version),
+		Serial:                  0,
+	}
 	newRunA = &database.Run{
 		RunID:               testfixtures.UUIDFromInt(1),
-		JobID:               newJobA.JobID,
-		JobSet:              newJobA.JobSet,
+		JobID:               queuedJobA.JobID,
+		JobSet:              queuedJobA.JobSet,
 		Executor:            testExecutor,
 		Node:                testNode,
 		RunAttempted:        true,
@@ -1420,8 +1539,8 @@ var (
 	}
 	successfulRunA = &database.Run{
 		RunID:               testfixtures.UUIDFromInt(1),
-		JobID:               newJobA.JobID,
-		JobSet:              newJobA.JobSet,
+		JobID:               queuedJobA.JobID,
+		JobSet:              queuedJobA.JobSet,
 		Executor:            testExecutor,
 		Node:                testNode,
 		Succeeded:           true,
@@ -1429,7 +1548,28 @@ var (
 		Serial:              0,
 		ScheduledAtPriority: &scheduledAtPriority,
 	}
-	newJobB = &database.Job{
+	failedAttemptedRunA = &database.Run{
+		RunID:               testfixtures.UUIDFromInt(1),
+		JobID:               queuedJobA.JobID,
+		JobSet:              queuedJobA.JobSet,
+		Executor:            testExecutor,
+		Node:                testNode,
+		Failed:              true,
+		RunAttempted:        true,
+		Serial:              0,
+		ScheduledAtPriority: &scheduledAtPriority,
+	}
+	failedRunA = &database.Run{
+		RunID:               testfixtures.UUIDFromInt(1),
+		JobID:               queuedJobA.JobID,
+		JobSet:              queuedJobA.JobSet,
+		Executor:            testExecutor,
+		Node:                testNode,
+		Failed:              true,
+		Serial:              0,
+		ScheduledAtPriority: &scheduledAtPriority,
+	}
+	queuedJobB = &database.Job{
 		JobID:                 util.NewULID(),
 		JobSet:                "testJobSet",
 		Queue:                 "testQueue",
@@ -1442,7 +1582,9 @@ var (
 )
 
 // TestCycleConsistency runs two replicas of the scheduler and asserts that their state remains consistent
-// under various permutations of making scheduling decisions and failovers.
+// under various permutations of making scheduling decisions and failing over.
+//
+// TODO(albin): Test lease expiry.
 func TestCycleConsistency(t *testing.T) {
 	type schedulerDbUpdate struct {
 		jobUpdates   []*database.Job              // Job updates from the database.
@@ -1450,25 +1592,21 @@ func TestCycleConsistency(t *testing.T) {
 		jobRunErrors []*armadaevents.JobRunErrors // Job run errors from the database.
 	}
 	tests := map[string]struct {
+		// Each test case consists of two updates written to the scheduler postgres.
 		firstSchedulerDbUpdate  schedulerDbUpdate
 		secondSchedulerDbUpdate schedulerDbUpdate
 
-		initialJobs  []*jobdb.Job
-		jobUpdates   []*database.Job              // Job updates from the database.
-		runUpdates   []*database.Run              // Run updates from the database.
-		jobRunErrors []*armadaevents.JobRunErrors // Job run errors from the database.
-
+		// Inputs of the mocked scheduling algorithm.
+		// Controls which jobs the scheduler should schedule/preempt/fail.
 		idsOfJobsToSchedule []string
 		idsOfJobsToPreempt  []string
 		idsOfJobsToFail     []string
 
 		// Expected jobDbs for scenario 1, i.e., the baseline scenario.
 		// Only compared against if not nil.
-		expectedBaselineJobDb *jobdb.JobDb
-
-		expectedJobDbCycleOne   *jobdb.JobDb
-		expectedJobDbCycleTwo   *jobdb.JobDb
-		expectedJobDbCycleThree *jobdb.JobDb
+		expectedJobDbCycleOne   []*jobdb.Job
+		expectedJobDbCycleTwo   []*jobdb.Job
+		expectedJobDbCycleThree []*jobdb.Job
 
 		// Expected published events for scenario 1, i.e., the baseline scenario.
 		// Only compared against if not nil.
@@ -1476,40 +1614,87 @@ func TestCycleConsistency(t *testing.T) {
 		expectedEventSequencesCycleTwo   []*armadaevents.EventSequence
 		expectedEventSequencesCycleThree []*armadaevents.EventSequence
 	}{
+		"Load a queued job": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					queuedJobA,
+				},
+			},
+		},
+		"Load a failed job": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					failedJobA,
+				},
+			},
+		},
+		"Load a cancelled job": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					cancelledJobA,
+				},
+			},
+		},
+		"Load a queued job with cancel requested": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					cancelRequestedJobA,
+				},
+			},
+		},
+		"Load a queued job with cancel by job set requested": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					cancelByJobSetRequestedJobA,
+				},
+			},
+		},
+		"Load a running job with cancel requested": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					runningCancelRequestedJobA,
+				},
+				runUpdates: []*database.Run{
+					newRunA,
+				},
+			},
+		},
+		"Load a running job with cancel by job set requested": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					runningCancelByJobSetRequestedJobA,
+				},
+				runUpdates: []*database.Run{
+					newRunA,
+				},
+			},
+		},
 		"Schedule a new job": {
 			firstSchedulerDbUpdate: schedulerDbUpdate{
 				jobUpdates: []*database.Job{
-					newJobA,
+					queuedJobA,
 				},
 			},
-			idsOfJobsToSchedule: []string{newJobA.JobID},
-			expectedJobDbCycleOne: func() *jobdb.JobDb {
-				jobDb := testfixtures.NewJobDb()
-				job := jobDb.NewJob(
-					newJobA.JobID,
-					newJobA.JobSet,
-					newJobA.Queue,
-					uint32(newJobA.Priority),
+			idsOfJobsToSchedule: []string{queuedJobA.JobID},
+			expectedJobDbCycleOne: []*jobdb.Job{
+				testfixtures.NewJobDb().NewJob(
+					queuedJobA.JobID,
+					queuedJobA.JobSet,
+					queuedJobA.Queue,
+					uint32(queuedJobA.Priority),
 					schedulingInfo,
 					false,
 					1,
-					newJobA.CancelRequested,
-					newJobA.CancelByJobsetRequested,
-					newJobA.Cancelled,
+					queuedJobA.CancelRequested,
+					queuedJobA.CancelByJobsetRequested,
+					queuedJobA.Cancelled,
 					0,
-				).WithNewRun(testExecutor, testNodeId, testNode, 10)
-				txn := jobDb.WriteTxn()
-				defer txn.Abort()
-				if err := txn.Upsert([]*jobdb.Job{job}); err != nil {
-					panic(err)
-				}
-				txn.Commit()
-				return jobDb
-			}(),
+				).WithNewRun(testExecutor, testNodeId, testNode, 10),
+			},
 			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
 				{
-					Queue:      newJobA.Queue,
-					JobSetName: newJobA.JobSet,
+					Queue:      queuedJobA.Queue,
+					JobSetName: queuedJobA.JobSet,
 					Events: func() []*armadaevents.EventSequence_Event {
 						uuidProvider := testfixtures.MockUUIDProvider{}
 						runId := uuidProvider.New()
@@ -1520,7 +1705,7 @@ func TestCycleConsistency(t *testing.T) {
 								Event: &armadaevents.EventSequence_Event_JobRunLeased{
 									JobRunLeased: &armadaevents.JobRunLeased{
 										RunId:                  armadaevents.ProtoUuidFromUuid(runId),
-										JobId:                  armadaevents.MustProtoUuidFromUlidString(newJobA.JobID),
+										JobId:                  armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
 										ExecutorId:             testExecutor,
 										NodeId:                 testNode,
 										UpdateSequenceNumber:   1,
@@ -1535,40 +1720,18 @@ func TestCycleConsistency(t *testing.T) {
 				},
 			},
 		},
-		"Schedule a new job loaded in the second cycle": {
-			secondSchedulerDbUpdate: schedulerDbUpdate{
-				jobUpdates: []*database.Job{
-					newJobA,
-				},
-			},
-			idsOfJobsToSchedule: []string{newJobA.JobID},
-		},
-		"Schedule two new jobs loaded in the second cycle": {
-			secondSchedulerDbUpdate: schedulerDbUpdate{
-				jobUpdates: []*database.Job{
-					newJobA,
-					newJobB,
-				},
-			},
-			idsOfJobsToSchedule: []string{newJobA.JobID, newJobB.JobID},
-		},
-		"Schedule two new jobs loaded in separate cycles": {
+		"Fail a new job": {
 			firstSchedulerDbUpdate: schedulerDbUpdate{
 				jobUpdates: []*database.Job{
-					newJobA,
+					queuedJobA,
 				},
 			},
-			secondSchedulerDbUpdate: schedulerDbUpdate{
-				jobUpdates: []*database.Job{
-					newJobB,
-				},
-			},
-			idsOfJobsToSchedule: []string{newJobA.JobID, newJobB.JobID},
+			idsOfJobsToFail: []string{queuedJobA.JobID},
 		},
-		"Schedule a new job that then succeeds": {
+		"Schedule a job that then succeeds": {
 			firstSchedulerDbUpdate: schedulerDbUpdate{
 				jobUpdates: []*database.Job{
-					newJobA,
+					queuedJobA,
 				},
 			},
 			secondSchedulerDbUpdate: schedulerDbUpdate{
@@ -1576,59 +1739,44 @@ func TestCycleConsistency(t *testing.T) {
 					successfulRunA,
 				},
 			},
-			idsOfJobsToSchedule: []string{newJobA.JobID},
-			expectedJobDbCycleOne: func() *jobdb.JobDb {
-				jobDb := testfixtures.NewJobDb()
-				job := jobDb.NewJob(
-					newJobA.JobID,
-					newJobA.JobSet,
-					newJobA.Queue,
-					uint32(newJobA.Priority),
+			idsOfJobsToSchedule: []string{queuedJobA.JobID},
+			expectedJobDbCycleOne: []*jobdb.Job{
+				testfixtures.NewJobDb().NewJob(
+					queuedJobA.JobID,
+					queuedJobA.JobSet,
+					queuedJobA.Queue,
+					uint32(queuedJobA.Priority),
 					schedulingInfo,
 					false,
 					1,
-					newJobA.CancelRequested,
-					newJobA.CancelByJobsetRequested,
-					newJobA.Cancelled,
+					queuedJobA.CancelRequested,
+					queuedJobA.CancelByJobsetRequested,
+					queuedJobA.Cancelled,
 					0,
-				).WithNewRun(testExecutor, testNodeId, testNode, 10)
-				txn := jobDb.WriteTxn()
-				defer txn.Abort()
-				if err := txn.Upsert([]*jobdb.Job{job}); err != nil {
-					panic(err)
-				}
-				txn.Commit()
-				return jobDb
-			}(),
-			expectedJobDbCycleTwo: func() *jobdb.JobDb {
-				jobDb := testfixtures.NewJobDb()
-				job := jobDb.NewJob(
-					newJobA.JobID,
-					newJobA.JobSet,
-					newJobA.Queue,
-					uint32(newJobA.Priority),
+				).WithNewRun(testExecutor, testNodeId, testNode, 10),
+			},
+			expectedJobDbCycleTwo: func() []*jobdb.Job {
+				job := testfixtures.NewJobDb().NewJob(
+					queuedJobA.JobID,
+					queuedJobA.JobSet,
+					queuedJobA.Queue,
+					uint32(queuedJobA.Priority),
 					schedulingInfo,
 					false,
 					1,
-					newJobA.CancelRequested,
-					newJobA.CancelByJobsetRequested,
-					newJobA.Cancelled,
+					queuedJobA.CancelRequested,
+					queuedJobA.CancelByJobsetRequested,
+					queuedJobA.Cancelled,
 					0,
 				).WithNewRun(testExecutor, testNodeId, testNode, 10).WithSucceeded(true)
 				job = job.WithUpdatedRun(job.LatestRun().WithSucceeded(true).WithAttempted(true))
-				txn := jobDb.WriteTxn()
-				defer txn.Abort()
-				if err := txn.Upsert([]*jobdb.Job{job}); err != nil {
-					panic(err)
-				}
-				txn.Commit()
-				return jobDb
+				return []*jobdb.Job{job}
 			}(),
-			expectedJobDbCycleThree: testfixtures.NewJobDb(),
+			expectedJobDbCycleThree: make([]*jobdb.Job, 0),
 			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
 				{
-					Queue:      newJobA.Queue,
-					JobSetName: newJobA.JobSet,
+					Queue:      queuedJobA.Queue,
+					JobSetName: queuedJobA.JobSet,
 					Events: func() []*armadaevents.EventSequence_Event {
 						uuidProvider := testfixtures.MockUUIDProvider{}
 						runId := uuidProvider.New()
@@ -1639,7 +1787,7 @@ func TestCycleConsistency(t *testing.T) {
 								Event: &armadaevents.EventSequence_Event_JobRunLeased{
 									JobRunLeased: &armadaevents.JobRunLeased{
 										RunId:                  armadaevents.ProtoUuidFromUuid(runId),
-										JobId:                  armadaevents.MustProtoUuidFromUlidString(newJobA.JobID),
+										JobId:                  armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
 										ExecutorId:             testExecutor,
 										NodeId:                 testNode,
 										UpdateSequenceNumber:   1,
@@ -1653,8 +1801,8 @@ func TestCycleConsistency(t *testing.T) {
 					}(),
 				},
 				{
-					Queue:      newJobA.Queue,
-					JobSetName: newJobA.JobSet,
+					Queue:      queuedJobA.Queue,
+					JobSetName: queuedJobA.JobSet,
 					Events: func() []*armadaevents.EventSequence_Event {
 						created := time.Unix(0, 0)
 						return []*armadaevents.EventSequence_Event{
@@ -1662,7 +1810,7 @@ func TestCycleConsistency(t *testing.T) {
 								Created: &created,
 								Event: &armadaevents.EventSequence_Event_JobSucceeded{
 									JobSucceeded: &armadaevents.JobSucceeded{
-										JobId: armadaevents.MustProtoUuidFromUlidString(newJobA.JobID),
+										JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
 									},
 								},
 							},
@@ -1671,6 +1819,57 @@ func TestCycleConsistency(t *testing.T) {
 				},
 			},
 		},
+		// TODO(albin): This test is expected to fail since job run errors are loaded eagerly.
+		"Schedule a new job that then fails after starting to run": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					queuedJobA,
+				},
+			},
+			secondSchedulerDbUpdate: schedulerDbUpdate{
+				runUpdates: []*database.Run{
+					failedAttemptedRunA,
+				},
+				jobRunErrors: []*armadaevents.JobRunErrors{
+					defaultJobRunError(queuedJobA.JobID, failedAttemptedRunA.RunID),
+				},
+			},
+			idsOfJobsToSchedule: []string{queuedJobA.JobID},
+		},
+		// TODO(albin): We should assert that anti-affinities have been added.
+		"Schedule a new job that then fails to start": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					queuedJobA,
+				},
+			},
+			secondSchedulerDbUpdate: schedulerDbUpdate{
+				runUpdates: []*database.Run{
+					failedRunA,
+				},
+				jobRunErrors: []*armadaevents.JobRunErrors{
+					defaultJobRunError(queuedJobA.JobID, failedAttemptedRunA.RunID),
+				},
+			},
+			idsOfJobsToSchedule: []string{queuedJobA.JobID},
+		},
+		"Schedule a new job that then fails to start with fail-fast set to true": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					queuedJobWithFailFastA,
+				},
+			},
+			secondSchedulerDbUpdate: schedulerDbUpdate{
+				runUpdates: []*database.Run{
+					failedRunA,
+				},
+				jobRunErrors: []*armadaevents.JobRunErrors{
+					defaultJobRunError(queuedJobA.JobID, failedAttemptedRunA.RunID),
+				},
+			},
+			idsOfJobsToSchedule: []string{queuedJobA.JobID},
+		},
+		// TODO(albin): Also test a job being attempted to many times.
 		"Running job is preempted": {
 			firstSchedulerDbUpdate: schedulerDbUpdate{
 				jobUpdates: []*database.Job{
@@ -1680,19 +1879,19 @@ func TestCycleConsistency(t *testing.T) {
 					newRunA,
 				},
 			},
-			idsOfJobsToPreempt:      []string{newJobA.JobID},
-			expectedJobDbCycleThree: testfixtures.NewJobDb(),
+			idsOfJobsToPreempt:      []string{queuedJobA.JobID},
+			expectedJobDbCycleThree: make([]*jobdb.Job, 0),
 			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
 				{
-					Queue:      newJobA.Queue,
-					JobSetName: newJobA.JobSet,
+					Queue:      queuedJobA.Queue,
+					JobSetName: queuedJobA.JobSet,
 					Events: []*armadaevents.EventSequence_Event{
 						{
 							Created: pointerFromValue(time.Unix(0, 0)),
 							Event: &armadaevents.EventSequence_Event_JobRunPreempted{
 								JobRunPreempted: &armadaevents.JobRunPreempted{
 									PreemptedRunId: armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
-									PreemptedJobId: armadaevents.MustProtoUuidFromUlidString(newJobA.JobID),
+									PreemptedJobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
 								},
 							},
 						},
@@ -1700,7 +1899,7 @@ func TestCycleConsistency(t *testing.T) {
 							Created: pointerFromValue(time.Unix(0, 0)),
 							Event: &armadaevents.EventSequence_Event_JobRunErrors{
 								JobRunErrors: &armadaevents.JobRunErrors{
-									JobId: armadaevents.MustProtoUuidFromUlidString(newJobA.JobID),
+									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
 									RunId: armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
 									Errors: []*armadaevents.Error{
 										{
@@ -1717,7 +1916,7 @@ func TestCycleConsistency(t *testing.T) {
 							Created: pointerFromValue(time.Unix(0, 0)),
 							Event: &armadaevents.EventSequence_Event_JobErrors{
 								JobErrors: &armadaevents.JobErrors{
-									JobId: armadaevents.MustProtoUuidFromUlidString(newJobA.JobID),
+									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
 									Errors: []*armadaevents.Error{
 										{
 											Terminal: true,
@@ -1733,159 +1932,186 @@ func TestCycleConsistency(t *testing.T) {
 				},
 			},
 		},
-		"Job succeeded": {
-			jobUpdates: []*database.Job{
-				{
-					JobID:                 leasedJob.Id(),
-					JobSet:                "testJobSet",
-					Queue:                 "testQueue",
-					Queued:                false,
-					QueuedVersion:         1,
-					SchedulingInfo:        schedulingInfoBytes,
-					SchedulingInfoVersion: int32(schedulingInfo.Version),
-					Serial:                0,
+		"Queued job is cancelled": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					queuedJobA,
 				},
 			},
-			runUpdates: []*database.Run{
-				{
-					RunID:     leasedJob.LatestRun().Id(),
-					JobID:     leasedJob.Id(),
-					Node:      "testNode",
-					JobSet:    "testJobSet",
-					Executor:  "testExecutor",
-					Succeeded: true,
-					Serial:    0,
+			secondSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					cancelRequestedJobA,
 				},
 			},
 		},
-		"New failed job with no runs": {
-			// This happens if the scheduler decides to fail a job, e.g., due to min-max gang scheduling.
-			jobUpdates: []*database.Job{
-				{
-					JobID:                 queuedJob.Id(),
-					JobSet:                "testJobSet",
-					Queue:                 "testQueue",
-					Failed:                true,
-					QueuedVersion:         0,
-					SchedulingInfo:        schedulingInfoBytes,
-					SchedulingInfoVersion: int32(schedulingInfo.Version),
-					Serial:                1,
+		"Running job is cancelled": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					runningJobA,
+				},
+				runUpdates: []*database.Run{
+					newRunA,
 				},
 			},
-			// expectedQueuedVersion: 0,
-		},
-		"Queued job transitions straight to failed without running": {
-			// This happens if the scheduler decides to fail a job, e.g., due to min-max gang scheduling.
-			initialJobs: []*jobdb.Job{queuedJob},
-			jobUpdates: []*database.Job{
-				{
-					JobID:                 queuedJob.Id(),
-					JobSet:                "testJobSet",
-					Queue:                 "testQueue",
-					Failed:                true,
-					QueuedVersion:         0,
-					SchedulingInfo:        schedulingInfoBytes,
-					SchedulingInfoVersion: int32(schedulingInfo.Version),
-					Serial:                1,
+			secondSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					runningCancelRequestedJobA,
 				},
 			},
-			// expectedQueuedVersion: 0,
 		},
-		"Nothing leased": {
-			initialJobs: []*jobdb.Job{queuedJob},
-			// expectedQueued:        []string{queuedJob.Id()},
-			// expectedQueuedVersion: queuedJob.QueuedVersion(),
-		},
-		"FailedJobs in scheduler result will publish appropriate messages": {
-			initialJobs: []*jobdb.Job{queuedJob},
-			// expectedJobErrors:  []string{queuedJob.Id()},
-			// expectedJobsToFail: []string{queuedJob.Id()},
-			// expectedTerminal:   []string{queuedJob.Id()},
-		},
-		"No updates to an already leased job": {
-			initialJobs: []*jobdb.Job{leasedJob},
-			// expectedLeased:        []string{leasedJob.Id()},
-			// expectedQueuedVersion: leasedJob.QueuedVersion(),
-		},
-		"No updates to a requeued job already db": {
-			initialJobs: []*jobdb.Job{requeuedJob},
-			// expectedQueued:        []string{requeuedJob.Id()},
-			// expectedQueuedVersion: requeuedJob.QueuedVersion(),
-		},
-		"No updates to a requeued job from update": {
-			jobUpdates: []*database.Job{
-				{
-					JobID:                 requeuedJob.Id(),
-					JobSet:                "testJobSet",
-					Queue:                 "testQueue",
-					Queued:                true,
-					QueuedVersion:         2,
-					SchedulingInfo:        schedulingInfoBytes,
-					SchedulingInfoVersion: int32(schedulingInfo.Version),
-					Serial:                1,
+		"Queued job is cancelled by job set": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					queuedJobA,
 				},
 			},
-			runUpdates: []*database.Run{
-				{
-					RunID:        requeuedJob.LatestRun().Id(),
-					JobID:        requeuedJob.Id(),
-					JobSet:       "testJobSet",
-					Executor:     "testExecutor",
-					Node:         "node",
-					Failed:       true,
-					Returned:     true,
-					RunAttempted: true,
-					Serial:       1,
+			secondSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					cancelByJobSetRequestedJobA,
 				},
 			},
-			// expectedQueued:        []string{requeuedJob.Id()},
-			// expectedQueuedVersion: requeuedJob.QueuedVersion(),
 		},
-		"Lease returned and re-queued when run attempted": {
-			initialJobs: []*jobdb.Job{leasedJob},
-			runUpdates: []*database.Run{
-				{
-					RunID:        leasedJob.LatestRun().Id(),
-					JobID:        leasedJob.Id(),
-					JobSet:       "testJobSet",
-					Executor:     "testExecutor",
-					Failed:       true,
-					Returned:     true,
-					RunAttempted: true,
-					Serial:       1,
+		"Running job is cancelled by job set": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					runningJobA,
+				},
+				runUpdates: []*database.Run{
+					newRunA,
 				},
 			},
-			jobRunErrors: []*armadaevents.JobRunErrors{
-				defaultJobRunError(leasedJob.Id(), leasedJob.LatestRun().Id()),
-			},
-			// This one fails bc it goes to look for a jobRunErrors it can't find.
-			//
-			//
-			// expectedQueued:   []string{leasedJob.Id()},
-			// expectedRequeued: []string{leasedJob.Id()},
-			// // Should add node anti affinities for nodes of any attempted runs
-			// expectedNodeAntiAffinities:       []string{leasedJob.LatestRun().NodeName()},
-			// expectedJobSchedulingInfoVersion: 2,
-			// expectedQueuedVersion:            leasedJob.QueuedVersion() + 1,
-		},
-		"Lease returned and re-queued when run not attempted": {
-			initialJobs: []*jobdb.Job{leasedJob},
-			runUpdates: []*database.Run{
-				{
-					RunID:        leasedJob.LatestRun().Id(),
-					JobID:        leasedJob.Id(),
-					JobSet:       "testJobSet",
-					Executor:     "testExecutor",
-					Failed:       true,
-					Returned:     true,
-					RunAttempted: false,
-					Serial:       1,
+			secondSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					runningCancelByJobSetRequestedJobA,
 				},
 			},
-			// expectedQueued:        []string{leasedJob.Id()},
-			// expectedRequeued:      []string{leasedJob.Id()},
-			// expectedQueuedVersion: leasedJob.QueuedVersion() + 1,
 		},
+		"Queued job with expired ttl results in cancellation": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					queuedJobWithTTLA,
+				},
+			},
+		},
+		"Queued job is re-prioritised": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					queuedJobA,
+				},
+			},
+			secondSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					queuedJobWithUpdatedPriorityA,
+				},
+			},
+		},
+		"Running job is re-prioritised": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					runningJobA,
+				},
+				runUpdates: []*database.Run{
+					newRunA,
+				},
+			},
+			secondSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					runningJobWithUpdatedPriorityA,
+				},
+			},
+		},
+		// Need a job with a failed run that wasn't attempted.
+		//
+		// "FailedJobs in scheduler result will publish appropriate messages": {
+		// 	initialJobs: []*jobdb.Job{queuedJob},
+		// 	// expectedJobErrors:  []string{queuedJob.Id()},
+		// 	// expectedJobsToFail: []string{queuedJob.Id()},
+		// 	// expectedTerminal:   []string{queuedJob.Id()},
+		// },
+		// "No updates to an already leased job": {
+		// 	initialJobs: []*jobdb.Job{leasedJob},
+		// 	// expectedLeased:        []string{leasedJob.Id()},
+		// 	// expectedQueuedVersion: leasedJob.QueuedVersion(),
+		// },
+		// "No updates to a requeued job already db": {
+		// 	initialJobs: []*jobdb.Job{requeuedJob},
+		// 	// expectedQueued:        []string{requeuedJob.Id()},
+		// 	// expectedQueuedVersion: requeuedJob.QueuedVersion(),
+		// },
+		// "No updates to a requeued job from update": {
+		// 	jobUpdates: []*database.Job{
+		// 		{
+		// 			JobID:                 requeuedJob.Id(),
+		// 			JobSet:                "testJobSet",
+		// 			Queue:                 "testQueue",
+		// 			Queued:                true,
+		// 			QueuedVersion:         2,
+		// 			SchedulingInfo:        schedulingInfoBytes,
+		// 			SchedulingInfoVersion: int32(schedulingInfo.Version),
+		// 			Serial:                1,
+		// 		},
+		// 	},
+		// 	runUpdates: []*database.Run{
+		// 		{
+		// 			RunID:        requeuedJob.LatestRun().Id(),
+		// 			JobID:        requeuedJob.Id(),
+		// 			JobSet:       "testJobSet",
+		// 			Executor:     "testExecutor",
+		// 			Node:         "node",
+		// 			Failed:       true,
+		// 			Returned:     true,
+		// 			RunAttempted: true,
+		// 			Serial:       1,
+		// 		},
+		// 	},
+		// 	// expectedQueued:        []string{requeuedJob.Id()},
+		// 	// expectedQueuedVersion: requeuedJob.QueuedVersion(),
+		// },
+		// "Lease returned and re-queued when run attempted": {
+		// 	initialJobs: []*jobdb.Job{leasedJob},
+		// 	runUpdates: []*database.Run{
+		// 		{
+		// 			RunID:        leasedJob.LatestRun().Id(),
+		// 			JobID:        leasedJob.Id(),
+		// 			JobSet:       "testJobSet",
+		// 			Executor:     "testExecutor",
+		// 			Failed:       true,
+		// 			Returned:     true,
+		// 			RunAttempted: true,
+		// 			Serial:       1,
+		// 		},
+		// 	},
+		// 	jobRunErrors: []*armadaevents.JobRunErrors{
+		// 		defaultJobRunError(leasedJob.Id(), leasedJob.LatestRun().Id()),
+		// 	},
+		// 	// This one fails bc it goes to look for a jobRunErrors it can't find.
+		// 	//
+		// 	//
+		// 	// expectedQueued:   []string{leasedJob.Id()},
+		// 	// expectedRequeued: []string{leasedJob.Id()},
+		// 	// // Should add node anti affinities for nodes of any attempted runs
+		// 	// expectedNodeAntiAffinities:       []string{leasedJob.LatestRun().NodeName()},
+		// 	// expectedJobSchedulingInfoVersion: 2,
+		// 	// expectedQueuedVersion:            leasedJob.QueuedVersion() + 1,
+		// },
+		// "Lease returned and re-queued when run not attempted": {
+		// 	initialJobs: []*jobdb.Job{leasedJob},
+		// 	runUpdates: []*database.Run{
+		// 		{
+		// 			RunID:        leasedJob.LatestRun().Id(),
+		// 			JobID:        leasedJob.Id(),
+		// 			JobSet:       "testJobSet",
+		// 			Executor:     "testExecutor",
+		// 			Failed:       true,
+		// 			Returned:     true,
+		// 			RunAttempted: false,
+		// 			Serial:       1,
+		// 		},
+		// 	},
+		// 	// expectedQueued:        []string{leasedJob.Id()},
+		// 	// expectedRequeued:      []string{leasedJob.Id()},
+		// 	// expectedQueuedVersion: leasedJob.QueuedVersion() + 1,
+		// },
 		// // When a lease is returned and the run was attempted, a node anti affinity is added
 		// // If this node anti-affinity makes the job unschedulable, it should be failed
 		// "Lease returned and failed": {
@@ -1907,189 +2133,189 @@ func TestCycleConsistency(t *testing.T) {
 		// 	expectedTerminal:      []string{leasedJob.Id()},
 		// 	expectedQueuedVersion: leasedJob.QueuedVersion(),
 		// },
-		"Lease returned too many times": {
-			initialJobs: []*jobdb.Job{returnedOnceLeasedJob},
-			runUpdates: []*database.Run{
-				{
-					RunID:        returnedOnceLeasedJob.LatestRun().Id(),
-					JobID:        returnedOnceLeasedJob.Id(),
-					JobSet:       "testJobSet",
-					Executor:     "testExecutor",
-					Node:         "testNode",
-					Failed:       true,
-					Returned:     true,
-					RunAttempted: true,
-					Serial:       2,
-				},
-			},
-			// expectedJobErrors:     []string{returnedOnceLeasedJob.Id()},
-			// expectedTerminal:      []string{returnedOnceLeasedJob.Id()},
-			// expectedQueuedVersion: 1,
-		},
-		"Lease returned for fail fast job": {
-			initialJobs: []*jobdb.Job{leasedFailFastJob},
-			// Fail fast should mean there is only ever 1 attempted run
-			runUpdates: []*database.Run{
-				{
-					RunID:        leasedFailFastJob.LatestRun().Id(),
-					JobID:        leasedFailFastJob.Id(),
-					JobSet:       "testJobSet",
-					Executor:     "testExecutor",
-					Failed:       true,
-					Returned:     true,
-					RunAttempted: false,
-					Serial:       1,
-				},
-			},
-			// expectedJobErrors:     []string{leasedFailFastJob.Id()},
-			// expectedTerminal:      []string{leasedFailFastJob.Id()},
-			// expectedQueuedVersion: leasedFailFastJob.QueuedVersion(),
-		},
-		"Job cancelled": {
-			initialJobs: []*jobdb.Job{leasedJob},
-			jobUpdates: []*database.Job{
-				{
-					JobID:           leasedJob.Id(),
-					JobSet:          "testJobSet",
-					Queue:           "testQueue",
-					SchedulingInfo:  schedulingInfoBytes,
-					CancelRequested: true,
-					Serial:          1,
-				},
-			},
-			// expectedJobCancelled:  []string{leasedJob.Id()},
-			// expectedTerminal:      []string{leasedJob.Id()},
-			// expectedQueuedVersion: leasedJob.QueuedVersion(),
-		},
-		"New job from postgres with expired queue ttl is cancel requested": {
-			jobUpdates: []*database.Job{
-				{
-					JobID:          queuedJobWithExpiredTtl.Id(),
-					JobSet:         queuedJobWithExpiredTtl.Jobset(),
-					Queue:          queuedJobWithExpiredTtl.Queue(),
-					Queued:         queuedJobWithExpiredTtl.Queued(),
-					QueuedVersion:  queuedJobWithExpiredTtl.QueuedVersion(),
-					Serial:         1,
-					Submitted:      queuedJobWithExpiredTtl.Created(),
-					SchedulingInfo: schedulingInfoWithQueueTtlBytes,
-				},
-			},
-
-			// // We expect to publish request cancel and cancelled message this cycle.
-			// // The job should also be removed from the queue and set to a terminal state.
-			// expectedJobRequestCancel: []string{queuedJobWithExpiredTtl.Id()},
-			// expectedJobCancelled:     []string{queuedJobWithExpiredTtl.Id()},
-			// expectedQueuedVersion:    queuedJobWithExpiredTtl.QueuedVersion(),
-			// expectedTerminal:         []string{queuedJobWithExpiredTtl.Id()},
-		},
-		"Existing jobDb job with expired queue ttl is cancel requested": {
-			initialJobs: []*jobdb.Job{queuedJobWithExpiredTtl},
-
-			// // We expect to publish request cancel and cancelled message this cycle.
-			// // The job should also be removed from the queue and set to a terminal state.
-			// expectedJobRequestCancel: []string{queuedJobWithExpiredTtl.Id()},
-			// expectedJobCancelled:     []string{queuedJobWithExpiredTtl.Id()},
-			// expectedQueuedVersion:    queuedJobWithExpiredTtl.QueuedVersion(),
-			// expectedTerminal:         []string{queuedJobWithExpiredTtl.Id()},
-		},
-		"New postgres job with cancel requested results in cancel messages": {
-			jobUpdates: []*database.Job{
-				{
-					JobID:           queuedJobWithExpiredTtl.Id(),
-					JobSet:          queuedJobWithExpiredTtl.Jobset(),
-					Queue:           queuedJobWithExpiredTtl.Queue(),
-					Queued:          queuedJobWithExpiredTtl.Queued(),
-					QueuedVersion:   queuedJobWithExpiredTtl.QueuedVersion(),
-					Serial:          1,
-					Submitted:       queuedJobWithExpiredTtl.Created(),
-					CancelRequested: true,
-					Cancelled:       false,
-					SchedulingInfo:  schedulingInfoWithQueueTtlBytes,
-				},
-			},
-
-			// // We have already got a request cancel from the DB, so only publish a cancelled message.
-			// // The job should also be removed from the queue and set to a terminal state.#
-			// expectedJobCancelled:  []string{queuedJobWithExpiredTtl.Id()},
-			// expectedQueuedVersion: queuedJobWithExpiredTtl.QueuedVersion(),
-			// expectedTerminal:      []string{queuedJobWithExpiredTtl.Id()},
-		},
-		"Postgres job with cancel requested results in cancel messages": {
-			initialJobs: []*jobdb.Job{queuedJobWithExpiredTtl.WithCancelRequested(true)},
-			jobUpdates: []*database.Job{
-				{
-					JobID:           queuedJobWithExpiredTtl.Id(),
-					JobSet:          queuedJobWithExpiredTtl.Jobset(),
-					Queue:           queuedJobWithExpiredTtl.Queue(),
-					Queued:          queuedJobWithExpiredTtl.Queued(),
-					QueuedVersion:   queuedJobWithExpiredTtl.QueuedVersion(),
-					Serial:          1,
-					Submitted:       queuedJobWithExpiredTtl.Created(),
-					CancelRequested: true,
-					Cancelled:       false,
-					SchedulingInfo:  schedulingInfoWithQueueTtlBytes,
-				},
-			},
-
-			// // We have already got a request cancel from the DB/existing job state, so only publish a cancelled message.
-			// // The job should also be removed from the queue and set to a terminal state.
-			// expectedJobCancelled:  []string{queuedJobWithExpiredTtl.Id()},
-			// expectedQueuedVersion: queuedJobWithExpiredTtl.QueuedVersion(),
-			// expectedTerminal:      []string{queuedJobWithExpiredTtl.Id()},
-		},
-		"Job reprioritised": {
-			initialJobs: []*jobdb.Job{queuedJob},
-			jobUpdates: []*database.Job{
-				{
-					JobID:          queuedJob.Id(),
-					JobSet:         "testJobSet",
-					Queue:          "testQueue",
-					SchedulingInfo: schedulingInfoBytes,
-					Priority:       2,
-					Serial:         1,
-				},
-			},
-			// expectedJobReprioritised: []string{queuedJob.Id()},
-			// expectedQueued:           []string{queuedJob.Id()},
-			// expectedJobPriority:      map[string]uint32{queuedJob.Id(): 2},
-			// expectedQueuedVersion:    queuedJob.QueuedVersion(),
-		},
-		"Lease expired": {
-			initialJobs: []*jobdb.Job{leasedJob},
-			// staleExecutor:         true,
-			// expectedJobRunErrors:  []string{leasedJob.Id()},
-			// expectedJobErrors:     []string{leasedJob.Id()},
-			// expectedTerminal:      []string{leasedJob.Id()},
-			// expectedQueuedVersion: leasedJob.QueuedVersion(),
-		},
-		"Job failed": {
-			initialJobs: []*jobdb.Job{leasedJob},
-			runUpdates: []*database.Run{
-				{
-					RunID:    leasedJob.LatestRun().Id(),
-					JobID:    leasedJob.Id(),
-					JobSet:   "testJobSet",
-					Executor: "testExecutor",
-					Failed:   true,
-					Serial:   1,
-				},
-			},
-			jobRunErrors: []*armadaevents.JobRunErrors{
-				defaultJobRunError(leasedJob.Id(), leasedJob.LatestRun().Id()),
-			},
-			// expectedJobErrors:     []string{leasedJob.Id()},
-			// expectedTerminal:      []string{leasedJob.Id()},
-			// expectedQueuedVersion: leasedJob.QueuedVersion(),
-		},
-		"Job preempted": {
-			initialJobs:        []*jobdb.Job{leasedJob},
-			idsOfJobsToPreempt: []string{leasedJob.Id()},
-			// expectedJobRunPreempted: []string{leasedJob.Id()},
-			// expectedJobErrors:       []string{leasedJob.Id()},
-			// expectedJobRunErrors:    []string{leasedJob.Id()},
-			// expectedTerminal:        []string{leasedJob.Id()},
-			// expectedQueuedVersion:   leasedJob.QueuedVersion(),
-		},
+		// "Lease returned too many times": {
+		// 	initialJobs: []*jobdb.Job{returnedOnceLeasedJob},
+		// 	runUpdates: []*database.Run{
+		// 		{
+		// 			RunID:        returnedOnceLeasedJob.LatestRun().Id(),
+		// 			JobID:        returnedOnceLeasedJob.Id(),
+		// 			JobSet:       "testJobSet",
+		// 			Executor:     "testExecutor",
+		// 			Node:         "testNode",
+		// 			Failed:       true,
+		// 			Returned:     true,
+		// 			RunAttempted: true,
+		// 			Serial:       2,
+		// 		},
+		// 	},
+		// 	// expectedJobErrors:     []string{returnedOnceLeasedJob.Id()},
+		// 	// expectedTerminal:      []string{returnedOnceLeasedJob.Id()},
+		// 	// expectedQueuedVersion: 1,
+		// },
+		// "Lease returned for fail fast job": {
+		// 	initialJobs: []*jobdb.Job{leasedFailFastJob},
+		// 	// Fail fast should mean there is only ever 1 attempted run
+		// 	runUpdates: []*database.Run{
+		// 		{
+		// 			RunID:        leasedFailFastJob.LatestRun().Id(),
+		// 			JobID:        leasedFailFastJob.Id(),
+		// 			JobSet:       "testJobSet",
+		// 			Executor:     "testExecutor",
+		// 			Failed:       true,
+		// 			Returned:     true,
+		// 			RunAttempted: false,
+		// 			Serial:       1,
+		// 		},
+		// 	},
+		// 	// expectedJobErrors:     []string{leasedFailFastJob.Id()},
+		// 	// expectedTerminal:      []string{leasedFailFastJob.Id()},
+		// 	// expectedQueuedVersion: leasedFailFastJob.QueuedVersion(),
+		// },
+		// "Job cancelled": {
+		// 	initialJobs: []*jobdb.Job{leasedJob},
+		// 	jobUpdates: []*database.Job{
+		// 		{
+		// 			JobID:           leasedJob.Id(),
+		// 			JobSet:          "testJobSet",
+		// 			Queue:           "testQueue",
+		// 			SchedulingInfo:  schedulingInfoBytes,
+		// 			CancelRequested: true,
+		// 			Serial:          1,
+		// 		},
+		// 	},
+		// 	// expectedJobCancelled:  []string{leasedJob.Id()},
+		// 	// expectedTerminal:      []string{leasedJob.Id()},
+		// 	// expectedQueuedVersion: leasedJob.QueuedVersion(),
+		// },
+		// "New job from postgres with expired queue ttl is cancel requested": {
+		// 	jobUpdates: []*database.Job{
+		// 		{
+		// 			JobID:          queuedJobWithExpiredTtl.Id(),
+		// 			JobSet:         queuedJobWithExpiredTtl.Jobset(),
+		// 			Queue:          queuedJobWithExpiredTtl.Queue(),
+		// 			Queued:         queuedJobWithExpiredTtl.Queued(),
+		// 			QueuedVersion:  queuedJobWithExpiredTtl.QueuedVersion(),
+		// 			Serial:         1,
+		// 			Submitted:      queuedJobWithExpiredTtl.Created(),
+		// 			SchedulingInfo: schedulingInfoWithQueueTtlBytes,
+		// 		},
+		// 	},
+		//
+		// 	// // We expect to publish request cancel and cancelled message this cycle.
+		// 	// // The job should also be removed from the queue and set to a terminal state.
+		// 	// expectedJobRequestCancel: []string{queuedJobWithExpiredTtl.Id()},
+		// 	// expectedJobCancelled:     []string{queuedJobWithExpiredTtl.Id()},
+		// 	// expectedQueuedVersion:    queuedJobWithExpiredTtl.QueuedVersion(),
+		// 	// expectedTerminal:         []string{queuedJobWithExpiredTtl.Id()},
+		// },
+		// "Existing jobDb job with expired queue ttl is cancel requested": {
+		// 	initialJobs: []*jobdb.Job{queuedJobWithExpiredTtl},
+		//
+		// 	// // We expect to publish request cancel and cancelled message this cycle.
+		// 	// // The job should also be removed from the queue and set to a terminal state.
+		// 	// expectedJobRequestCancel: []string{queuedJobWithExpiredTtl.Id()},
+		// 	// expectedJobCancelled:     []string{queuedJobWithExpiredTtl.Id()},
+		// 	// expectedQueuedVersion:    queuedJobWithExpiredTtl.QueuedVersion(),
+		// 	// expectedTerminal:         []string{queuedJobWithExpiredTtl.Id()},
+		// },
+		// "New postgres job with cancel requested results in cancel messages": {
+		// 	jobUpdates: []*database.Job{
+		// 		{
+		// 			JobID:           queuedJobWithExpiredTtl.Id(),
+		// 			JobSet:          queuedJobWithExpiredTtl.Jobset(),
+		// 			Queue:           queuedJobWithExpiredTtl.Queue(),
+		// 			Queued:          queuedJobWithExpiredTtl.Queued(),
+		// 			QueuedVersion:   queuedJobWithExpiredTtl.QueuedVersion(),
+		// 			Serial:          1,
+		// 			Submitted:       queuedJobWithExpiredTtl.Created(),
+		// 			CancelRequested: true,
+		// 			Cancelled:       false,
+		// 			SchedulingInfo:  schedulingInfoWithQueueTtlBytes,
+		// 		},
+		// 	},
+		//
+		// 	// // We have already got a request cancel from the DB, so only publish a cancelled message.
+		// 	// // The job should also be removed from the queue and set to a terminal state.#
+		// 	// expectedJobCancelled:  []string{queuedJobWithExpiredTtl.Id()},
+		// 	// expectedQueuedVersion: queuedJobWithExpiredTtl.QueuedVersion(),
+		// 	// expectedTerminal:      []string{queuedJobWithExpiredTtl.Id()},
+		// },
+		// "Postgres job with cancel requested results in cancel messages": {
+		// 	initialJobs: []*jobdb.Job{queuedJobWithExpiredTtl.WithCancelRequested(true)},
+		// 	jobUpdates: []*database.Job{
+		// 		{
+		// 			JobID:           queuedJobWithExpiredTtl.Id(),
+		// 			JobSet:          queuedJobWithExpiredTtl.Jobset(),
+		// 			Queue:           queuedJobWithExpiredTtl.Queue(),
+		// 			Queued:          queuedJobWithExpiredTtl.Queued(),
+		// 			QueuedVersion:   queuedJobWithExpiredTtl.QueuedVersion(),
+		// 			Serial:          1,
+		// 			Submitted:       queuedJobWithExpiredTtl.Created(),
+		// 			CancelRequested: true,
+		// 			Cancelled:       false,
+		// 			SchedulingInfo:  schedulingInfoWithQueueTtlBytes,
+		// 		},
+		// 	},
+		//
+		// 	// // We have already got a request cancel from the DB/existing job state, so only publish a cancelled message.
+		// 	// // The job should also be removed from the queue and set to a terminal state.
+		// 	// expectedJobCancelled:  []string{queuedJobWithExpiredTtl.Id()},
+		// 	// expectedQueuedVersion: queuedJobWithExpiredTtl.QueuedVersion(),
+		// 	// expectedTerminal:      []string{queuedJobWithExpiredTtl.Id()},
+		// },
+		// "Job re-prioritised": {
+		// 	initialJobs: []*jobdb.Job{queuedJob},
+		// 	jobUpdates: []*database.Job{
+		// 		{
+		// 			JobID:          queuedJob.Id(),
+		// 			JobSet:         "testJobSet",
+		// 			Queue:          "testQueue",
+		// 			SchedulingInfo: schedulingInfoBytes,
+		// 			Priority:       2,
+		// 			Serial:         1,
+		// 		},
+		// 	},
+		// 	// expectedJobReprioritised: []string{queuedJob.Id()},
+		// 	// expectedQueued:           []string{queuedJob.Id()},
+		// 	// expectedJobPriority:      map[string]uint32{queuedJob.Id(): 2},
+		// 	// expectedQueuedVersion:    queuedJob.QueuedVersion(),
+		// },
+		// "Lease expired": {
+		// 	initialJobs: []*jobdb.Job{leasedJob},
+		// 	// staleExecutor:         true,
+		// 	// expectedJobRunErrors:  []string{leasedJob.Id()},
+		// 	// expectedJobErrors:     []string{leasedJob.Id()},
+		// 	// expectedTerminal:      []string{leasedJob.Id()},
+		// 	// expectedQueuedVersion: leasedJob.QueuedVersion(),
+		// },
+		// "Job failed": {
+		// 	initialJobs: []*jobdb.Job{leasedJob},
+		// 	runUpdates: []*database.Run{
+		// 		{
+		// 			RunID:    leasedJob.LatestRun().Id(),
+		// 			JobID:    leasedJob.Id(),
+		// 			JobSet:   "testJobSet",
+		// 			Executor: "testExecutor",
+		// 			Failed:   true,
+		// 			Serial:   1,
+		// 		},
+		// 	},
+		// 	jobRunErrors: []*armadaevents.JobRunErrors{
+		// 		defaultJobRunError(leasedJob.Id(), leasedJob.LatestRun().Id()),
+		// 	},
+		// 	// expectedJobErrors:     []string{leasedJob.Id()},
+		// 	// expectedTerminal:      []string{leasedJob.Id()},
+		// 	// expectedQueuedVersion: leasedJob.QueuedVersion(),
+		// },
+		// "Job preempted": {
+		// 	initialJobs:        []*jobdb.Job{leasedJob},
+		// 	idsOfJobsToPreempt: []string{leasedJob.Id()},
+		// 	// expectedJobRunPreempted: []string{leasedJob.Id()},
+		// 	// expectedJobErrors:       []string{leasedJob.Id()},
+		// 	// expectedJobRunErrors:    []string{leasedJob.Id()},
+		// 	// expectedTerminal:        []string{leasedJob.Id()},
+		// 	// expectedQueuedVersion:   leasedJob.QueuedVersion(),
+		// },
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -2101,6 +2327,10 @@ func TestCycleConsistency(t *testing.T) {
 			queueByJobId := make(map[string]string)
 			jobSetByJobId := make(map[string]string)
 			for _, jobUpdate := range tc.firstSchedulerDbUpdate.jobUpdates {
+				queueByJobId[jobUpdate.JobID] = jobUpdate.Queue
+				jobSetByJobId[jobUpdate.JobID] = jobUpdate.JobSet
+			}
+			for _, jobUpdate := range tc.secondSchedulerDbUpdate.jobUpdates {
 				queueByJobId[jobUpdate.JobID] = jobUpdate.Queue
 				jobSetByJobId[jobUpdate.JobID] = jobUpdate.JobSet
 			}
@@ -2298,13 +2528,16 @@ func TestCycleConsistency(t *testing.T) {
 
 			// Absolute assertions.
 			if tc.expectedJobDbCycleOne != nil {
-				require.NoError(t, tc.expectedJobDbCycleOne.ReadTxn().AssertEqual(jobDbCycleOne.ReadTxn()), "unexpected cycle one jobDb")
+				jobDb := testfixtures.NewJobDbWithJobs(tc.expectedJobDbCycleOne)
+				require.NoError(t, jobDb.ReadTxn().AssertEqual(jobDbCycleOne.ReadTxn()), "unexpected cycle one jobDb")
 			}
 			if tc.expectedJobDbCycleTwo != nil {
-				require.NoError(t, tc.expectedJobDbCycleTwo.ReadTxn().AssertEqual(jobDbCycleTwo.ReadTxn()), "unexpected cycle two jobDb")
+				jobDb := testfixtures.NewJobDbWithJobs(tc.expectedJobDbCycleTwo)
+				require.NoError(t, jobDb.ReadTxn().AssertEqual(jobDbCycleTwo.ReadTxn()), "unexpected cycle two jobDb")
 			}
 			if tc.expectedJobDbCycleThree != nil {
-				require.NoError(t, tc.expectedJobDbCycleThree.ReadTxn().AssertEqual(jobDbCycleThree.ReadTxn()), "unexpected cycle three jobDb")
+				jobDb := testfixtures.NewJobDbWithJobs(tc.expectedJobDbCycleThree)
+				require.NoError(t, jobDb.ReadTxn().AssertEqual(jobDbCycleThree.ReadTxn()), "unexpected cycle three jobDb")
 			}
 
 			if tc.expectedEventSequencesCycleOne != nil {
@@ -2322,7 +2555,11 @@ func TestCycleConsistency(t *testing.T) {
 			//              The jobDb of the leader is supposed to be updated immediately to reflect published events.
 			//              However, the jobDb is only updated immediately for schedule/preempt/fail decisions.
 			//              For external changes, e.g., job succeeded, the jobDb is only updated on the second cycle.
+			// TODO(albin): We actually need to fix this since we may preempt an already successful job as it is.
+			// TODO(albin): Can we become leader again after failing over to become a follower when leader?
+			//              Let's test multiple failovers where you go back and forth.
 			t.Log("scenario 2")
+			// TODO(albin): Compare a against baseline a.
 			require.NoError(t, withTestSetup(func(a, b *Scheduler, schedulerDb *scheduleringester.SchedulerDb) error {
 				require.NoError(t, firstDbUpdate(schedulerDb))
 				require.NoError(t, cycle(a, false, true))
