@@ -163,8 +163,8 @@ func TestWriteOps(t *testing.T) {
 				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]},
 			},
 			InsertRuns{
-				runIds[0]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
-				runIds[1]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
+				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
+				runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
 			},
 			MarkRunsPending{
 				runIds[0]: testfixtures.BaseTime,
@@ -177,8 +177,8 @@ func TestWriteOps(t *testing.T) {
 				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]},
 			},
 			InsertRuns{
-				runIds[0]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
-				runIds[1]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
+				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
+				runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
 			},
 			MarkRunsPreempted{
 				runIds[0]: testfixtures.BaseTime,

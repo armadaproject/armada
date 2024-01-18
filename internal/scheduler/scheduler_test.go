@@ -143,20 +143,6 @@ var queuedJob = testfixtures.JobDb.NewJob(
 	1,
 )
 
-var queuedJobTwo = testfixtures.JobDb.NewJob(
-	util.NewULID(),
-	"testJobset",
-	"testQueue",
-	uint32(10),
-	schedulingInfo,
-	true,
-	0,
-	false,
-	false,
-	false,
-	1,
-)
-
 var queuedJobWithExpiredTtl = testfixtures.JobDb.NewJob(
 	util.NewULID(),
 	"testJobset",
@@ -1580,16 +1566,6 @@ var (
 		Failed:              true,
 		Serial:              0,
 		ScheduledAtPriority: &scheduledAtPriority,
-	}
-	queuedJobB = &database.Job{
-		JobID:                 util.NewULID(),
-		JobSet:                "testJobSet",
-		Queue:                 "testQueue",
-		Queued:                true,
-		QueuedVersion:         0,
-		SchedulingInfo:        schedulingInfoBytes,
-		SchedulingInfoVersion: int32(schedulingInfo.Version),
-		Serial:                1,
 	}
 )
 
