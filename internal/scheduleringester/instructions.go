@@ -196,12 +196,12 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 		InsertRuns{runId: &JobRunDetails{
 			Queue: meta.queue,
 			DbRun: &schedulerdb.Run{
-				RunID:    runId,
-				JobID:    jobId,
-				Created:  eventTime.UnixNano(),
-				JobSet:   meta.jobset,
-				Executor: jobRunLeased.GetExecutorId(),
-				Node:     jobRunLeased.GetNodeId(),
+				RunID:               runId,
+				JobID:               jobId,
+				Created:             eventTime.UnixNano(),
+				JobSet:              meta.jobset,
+				Executor:            jobRunLeased.GetExecutorId(),
+				Node:                jobRunLeased.GetNodeId(),
 				ScheduledAtPriority: scheduledAtPriority,
 				LeasedTimestamp:     &eventTime,
 			},
