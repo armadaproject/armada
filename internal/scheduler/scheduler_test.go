@@ -2027,7 +2027,6 @@ func TestCycleConsistency(t *testing.T) {
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
-
 			ctx := armadacontext.Background()
 			testClock := clock.NewFakeClock(time.Unix(0, 0))
 
