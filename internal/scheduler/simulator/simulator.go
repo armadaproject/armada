@@ -128,6 +128,7 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 		limiterByQueue: make(map[string]*rate.Limiter),
 		rand:           rand.New(rand.NewSource(randomSeed)),
 	}
+	jobDb.SetClock(s)
 	s.limiter.SetBurstAt(s.time, schedulingConfig.MaximumSchedulingBurst)
 	if err := s.setupClusters(); err != nil {
 		return nil, err
@@ -136,6 +137,13 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 		return nil, err
 	}
 	return s, nil
+}
+
+func (s *Simulator) Now() time.Time {
+	return s.time
+}
+func (s *Simulator) Since(t time.Time) time.Duration {
+	return s.Now().Sub(t)
 }
 
 // Run runs the scheduler until all jobs have finished successfully.
@@ -556,7 +564,6 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			if err != nil {
 				return err
 			}
-
 			eventSequences, err = scheduler.AppendEventSequencesFromScheduledJobs(eventSequences, scheduledJobs, make(map[string]map[string]string), s.time)
 			if err != nil {
 				return err
@@ -564,6 +571,14 @@ func (s *Simulator) handleScheduleEvent(ctx *armadacontext.Context) error {
 			eventSequences, err = scheduler.AppendEventSequencesFromUnschedulableJobs(eventSequences, failedJobs, s.time)
 			if err != nil {
 				return err
+			}
+
+			// Update event timestamps to be consistent with simulated time.
+			t := s.time
+			for _, eventSequence := range eventSequences {
+				for _, event := range eventSequence.Events {
+					event.Created = &t
+				}
 			}
 
 			// If nothing changed, we're in steady state and can safely skip scheduling until something external has changed.

@@ -643,7 +643,7 @@ func (job *Job) WithNewRun(executor string, nodeId, nodeName string, scheduledAt
 // WithUpdatedRun returns a copy of the job with the provided run upserted.
 func (job *Job) WithUpdatedRun(run *JobRun) *Job {
 	j := copyJob(*job)
-	if run.created >= j.activeRunTimestamp {
+	if j.activeRun == nil || run.created >= j.activeRunTimestamp {
 		j.activeRunTimestamp = run.created
 		j.activeRun = run
 	}
