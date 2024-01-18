@@ -278,7 +278,7 @@ func (txn *Txn) Assert(assertOnlyActiveJobs bool) error {
 				return errors.Errorf("jobDb contains queued job %s but this job is not in the queue sorted set", job)
 			}
 		}
-		for runId, _ := range job.runsById {
+		for runId := range job.runsById {
 			if otherJobId, ok := txn.jobsByRunId.Get(runId); !ok {
 				return errors.Errorf("jobDb contains job %s but there is no mapping from runId %s to this job", job, runId)
 			} else if jobId != otherJobId {

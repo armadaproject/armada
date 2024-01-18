@@ -142,6 +142,7 @@ func NewSimulator(clusterSpec *ClusterSpec, workloadSpec *WorkloadSpec, scheduli
 func (s *Simulator) Now() time.Time {
 	return s.time
 }
+
 func (s *Simulator) Since(t time.Time) time.Duration {
 	return s.Now().Sub(t)
 }
