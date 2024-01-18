@@ -253,15 +253,53 @@ func (txn *Txn) Commit() {
 	txn.active = false
 }
 
-// Assert calls the assert function on every job in the jobDb and returns any errors.
+// Assert returns an error if the jobDb, or any job stored in the jobDb, is in an invalid state.
 // If assertOnlyActiveJobs is true, it also asserts that all jobs in the jobDb are active.
 func (txn *Txn) Assert(assertOnlyActiveJobs bool) error {
-	// TODO(albin): Add assertions to make sure jobs marked as queued are in the queued set etc.
-	for _, job := range txn.GetAll() {
+	it := txn.jobsById.Iterator()
+	for {
+		jobId, job, ok := it.Next()
+		if !ok {
+			break
+		}
+		if job.Id() != jobId {
+			return errors.Errorf("jobDb contains a job with misaligned jobId: %s != %s", job.Id(), jobId)
+		}
 		if err := job.Assert(); err != nil {
 			return errors.WithMessage(err, "jobDb is invalid")
-		} else if assertOnlyActiveJobs && job.InTerminalState() {
+		}
+		if assertOnlyActiveJobs && job.InTerminalState() {
 			return errors.Errorf("jobDb contains an inactive job %s", job)
+		}
+		if job.Queued() {
+			if queue, ok := txn.jobsByQueue[job.queue]; !ok {
+				return errors.Errorf("jobDb contains queued job %s but there is no sorted set for this queue", job)
+			} else if !queue.Has(job) {
+				return errors.Errorf("jobDb contains queued job %s but this job is not in the queue sorted set", job)
+			}
+		}
+		for runId, _ := range job.runsById {
+			if otherJobId, ok := txn.jobsByRunId.Get(runId); !ok {
+				return errors.Errorf("jobDb contains job %s but there is no mapping from runId %s to this job", job, runId)
+			} else if jobId != otherJobId {
+				return errors.Errorf("jobDb contains job %s but runId %s does not map to this job", job, runId)
+			}
+		}
+	}
+	for queue, queueIt := range txn.jobsByQueue {
+		it := queueIt.Iterator()
+		for {
+			job, ok := it.Next()
+			if !ok {
+				break
+			}
+			if job.queue != queue {
+				return errors.Errorf("jobDb queue %s contains job %s but this job is in queue %s", queue, job, job.queue)
+			} else if other, ok := txn.jobsById.Get(job.id); !ok {
+				return errors.Errorf("jobDb queue %s contains job %s but this job is not in the jobDb", queue, job)
+			} else if !job.Equal(other) {
+				return errors.Errorf("jobDb queue %s contains job %s but this job differs from that stored in the jobDb %s", queue, job, other)
+			}
 		}
 	}
 	return nil
