@@ -1163,7 +1163,7 @@ func TestScheduler_TestSyncState(t *testing.T) {
 			require.NoError(t, err)
 			txn.Commit()
 
-			updatedJobs, _, _, err := sched.syncState(ctx)
+			updatedJobs, _, err := sched.syncState(ctx)
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedUpdatedJobs, updatedJobs)
@@ -1819,7 +1819,6 @@ func TestCycleConsistency(t *testing.T) {
 				},
 			},
 		},
-		// TODO(albin): This test is expected to fail since job run errors are loaded eagerly.
 		"Schedule a new job that then fails after starting to run": {
 			firstSchedulerDbUpdate: schedulerDbUpdate{
 				jobUpdates: []*database.Job{

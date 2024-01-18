@@ -14,7 +14,6 @@ import (
 	"github.com/armadaproject/armada/internal/armada/configuration"
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/logging"
-	"github.com/armadaproject/armada/internal/common/util"
 	"github.com/armadaproject/armada/internal/scheduler/database"
 	"github.com/armadaproject/armada/internal/scheduler/jobdb"
 	"github.com/armadaproject/armada/internal/scheduler/kubernetesobjects/affinity"
@@ -210,24 +209,25 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 //     These mappings come in two categories:
 //     - Triggered by an external event, e.g., jobs with a successful run should be marked as successful.
 //     - Triggered by a scheduling decision, e.g., a scheduled job should have an additional run associated with it.
-//  3. Generate eventSequences encoding these state transition and Publish these to Pulsar.
+//  3. Generate eventSequences encoding these state transition and publish these to Pulsar.
 //  4. Wait for these Pulsar eventSequences to be persisted to the schedulerDb.
 //
-// For performance reasons, the actual cycle differs from this idealised cycle in three ways:
+// For performance reasons, the actual cycle differs from the above in three ways:
 //   - In each cycle, we only load jobs, runs, and errors that have changed since the last cycle.
 //     For unchanged jobs, runs, and errors, we rely on an in-memory cache maintained between cycles, i.e., the jobDb.
 //   - Similarly, we only perform job state transitions for jobs with changed jobs and runs.
 //     This is unless updateAll is true, in which case we perform state transitions for all jobs.
 //     This is necessary for the first cycle after a leader failOver.
 //   - Instead of waiting for eventSequences to be persisted at the end of each cycle, the jobDb is updated directly.
-//     Hence, as state transitions are persisted and read back from the schedulerDb over later cycles,
+//     This means we can start the next cycle immediately after one cycle finishes.
+//     As state transitions are persisted and read back from the schedulerDb over later cycles,
 //     there is no change to the jobDb, since the correct changes have already been made.
 func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToken LeaderToken, shouldSchedule bool) (SchedulerResult, error) {
 	// TODO: Consider returning a slice of these instead.
 	overallSchedulerResult := SchedulerResult{}
 
 	// Update job state.
-	updatedJobs, jsts, jobRepoRunErrorsByRunId, err := s.syncState(ctx)
+	updatedJobs, jsts, err := s.syncState(ctx)
 	if err != nil {
 		return overallSchedulerResult, err
 	}
@@ -241,18 +241,33 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 		s.schedulerMetrics.Enable()
 	}
 
-	// Update metrics.
-	if err := s.schedulerMetrics.UpdateMany(ctx, jsts, jobRepoRunErrorsByRunId); err != nil {
-		return overallSchedulerResult, err
-	}
-
 	// If we've been asked to generate messages for all jobs, do so.
 	// Otherwise, generate messages only for jobs updated this cycle.
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 	if updateAll {
-		// TODO: We also need to get all job run errors messages for these jobs. Should be captures by current tests.
 		updatedJobs = txn.GetAll()
+	}
+
+	// Load error messages for any failed runs.
+	// TODO(albin): An unbounded number of job runs may fail between subsequent cycles.
+	//              E.g., if 1M runs fail and each one generates a 1Mb error message, we'd need to load 1Tb of errors.
+	//              If so, the scheduler would not be able to progress until a human manually deleted those errors.
+	failedRunIds := make([]uuid.UUID, 0, len(updatedJobs))
+	for _, job := range updatedJobs {
+		run := job.LatestRun()
+		if run != nil && run.Failed() {
+			failedRunIds = append(failedRunIds, run.Id())
+		}
+	}
+	jobRepoRunErrorsByRunId, err := s.jobRepository.FetchJobRunErrors(ctx, failedRunIds)
+	if err != nil {
+		return overallSchedulerResult, err
+	}
+
+	// Update metrics.
+	if err := s.schedulerMetrics.UpdateMany(ctx, jsts, jobRepoRunErrorsByRunId); err != nil {
+		return overallSchedulerResult, err
 	}
 
 	// Generate any eventSequences that came out of synchronising the db state.
@@ -347,28 +362,20 @@ func (s *Scheduler) updateMetricsFromSchedulerResult(ctx *armadacontext.Context,
 }
 
 // syncState updates jobs in jobDb to match state in postgres and returns all updated jobs.
-func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, []jobdb.JobStateTransitions, map[uuid.UUID]*armadaevents.Error, error) {
+func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, []jobdb.JobStateTransitions, error) {
 	txn := s.jobDb.WriteTxn()
 	defer txn.Abort()
 
 	// Load new and updated jobs from the jobRepo.
 	updatedJobs, updatedRuns, err := s.jobRepository.FetchJobUpdates(ctx, s.jobsSerial, s.runsSerial)
 	if err != nil {
-		return nil, nil, nil, err
-	}
-
-	// Load any errors associated with updated runs.
-	// TODO: Consider loading errors lazily.
-	jobRunIds := util.Map(updatedRuns, func(jobRepoRun database.Run) uuid.UUID { return jobRepoRun.RunID })
-	jobRepoRunErrorsByRunId, err := s.jobRepository.FetchJobRunErrors(ctx, jobRunIds)
-	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	// Reconcile any differences between the updated jobs and runs.
 	jsts, err := s.jobDb.ReconcileDifferences(txn, updatedJobs, updatedRuns)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	// Upsert updated jobs (including associated runs).
@@ -381,7 +388,7 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, []jobdb
 		}
 	}
 	if err := txn.Upsert(jobDbJobs); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	// Delete jobs in a terminal state.
@@ -392,7 +399,7 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, []jobdb
 		}
 	}
 	if err := txn.BatchDelete(idsOfJobsToDelete); err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	txn.Commit()
@@ -405,7 +412,7 @@ func (s *Scheduler) syncState(ctx *armadacontext.Context) ([]*jobdb.Job, []jobdb
 		s.runsSerial = updatedRuns[len(updatedRuns)-1].Serial
 	}
 
-	return jobDbJobs, jsts, jobRepoRunErrorsByRunId, nil
+	return jobDbJobs, jsts, nil
 }
 
 func (s *Scheduler) createSchedulingInfoWithNodeAntiAffinityForAttemptedRuns(job *jobdb.Job) (*schedulerobjects.JobSchedulingInfo, error) {
@@ -937,7 +944,7 @@ func (s *Scheduler) initialise(ctx *armadacontext.Context) error {
 			return nil
 		default:
 			// TODO(albin): This doesn't need to be separate; we'd anyway load everything in the first scheduling cycle.
-			if _, _, _, err := s.syncState(ctx); err != nil {
+			if _, _, err := s.syncState(ctx); err != nil {
 				logging.WithStacktrace(ctx, err).Error("failed to initialise; trying again in 1 second")
 				time.Sleep(1 * time.Second)
 			} else {
