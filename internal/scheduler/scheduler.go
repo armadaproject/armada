@@ -776,9 +776,8 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 		events = append(events, jobReprioritised)
 	}
 
-	if origJob != job {
-		err := txn.Upsert([]*jobdb.Job{job})
-		if err != nil {
+	if !origJob.Equal(job) {
+		if err := txn.Upsert([]*jobdb.Job{job}); err != nil {
 			return nil, err
 		}
 	}
