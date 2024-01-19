@@ -9,8 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/segmentio/fasthash/fnv1a"
-
 	"github.com/armadaproject/armada/pkg/api"
 
 	"github.com/google/uuid"
@@ -105,7 +103,6 @@ func NewJobDb() *jobdb.JobDb {
 	// Mock out the clock and uuid provider to ensure consistent ids and timestamps are generated.
 	jobDb.SetClock(NewMockPassiveClock())
 	jobDb.SetUUIDProvider(NewMockUUIDProvider())
-	jobDb.EnableAssertions()
 	return jobDb
 }
 
@@ -920,23 +917,6 @@ func TestExecutor(lastUpdateTime time.Time) *schedulerobjects.Executor {
 		LastUpdateTime: lastUpdateTime,
 		Nodes:          TestCluster(),
 	}
-}
-
-// DeterministicReader returns is a deterministic (for a given seed) read to be used in tests.
-type DeterministicReader struct {
-	state uint64
-}
-
-func NewDeterministicReader(seed uint64) *DeterministicReader {
-	return &DeterministicReader{state: seed}
-}
-
-func (r *DeterministicReader) Read(p []byte) (n int, err error) {
-	for i := 0; i < len(p); i++ {
-		r.state = fnv1a.HashUint64(r.state)
-		p[i] = byte(r.state % 256)
-	}
-	return len(p), nil
 }
 
 type MockUUIDProvider struct {

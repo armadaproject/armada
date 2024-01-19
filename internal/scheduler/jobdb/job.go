@@ -90,24 +90,19 @@ func (job *Job) String() string {
 // - Running -> {Queued, Cancelled, Failed, Succeeded}
 // - Succeeded, Cancelled, Failed -> {}
 //
-// QueuedVersion is 0 initially and is incremented by 1 every time the job is re-queued. Hence:
-// - If the job is queued, the queuedVersion must be equal to the number of runs.
-// - If the job is running or succeeded, the queuedVersion must be one less than the number of runs.
-// - If the job is failed or cancelled, the queuedVersion may be either equal to or 1 less than the number of runs.
-//
 // QueuedVersion is 0 initially and is incremented by 1 every time the queued status of the job changes. Hence:
-// - If the job is queued, the queuedVersion must be 2x the number of runs.
+// - If the job is queued, the queuedVersion must be 2x the number of runs. E.g.:
 //   - queued (qv = 0)
-//   - queued -> running -> queued (qv = 2)
+//   - queued -> running -> queued: qv = 2
 //
-// - If the job is running or succeeded, the queuedVersion must be one less than 2x number of runs.
-//   - queued -> running -> succeeded (qv = 1)
-//   - queued -> running -> queued -> running -> succeeded (qv = 3)
+// - If the job is running or succeeded, the queuedVersion must be one less than 2x number of runs. E.g.:
+//   - queued -> running -> succeeded: qv = 1
+//   - queued -> running -> queued -> running -> succeeded: qv = 3
 //
-// - If the job is failed or cancelled, the queuedVersion may be either equal to or 1 less than 2x the number of runs.
-//   - queued -> failed/cancelled (qv = 0)
-//   - queued -> running -> failed/cancelled (qv = 1)
-//   - queued -> running -> queued -> failed/cancelled (qv = 2)
+// - If the job is failed or cancelled, the queuedVersion may be either equal to or 1 less than 2x the number of runs. E.g.:
+//   - queued -> failed/cancelled: qv = 0
+//   - queued -> running -> failed/cancelled: qv = 1
+//   - queued -> running -> queued -> failed/cancelled: qv = 2
 func (job *Job) Assert() error {
 	if job == nil {
 		return errors.Errorf("job is nil")
