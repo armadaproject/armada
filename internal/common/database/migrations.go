@@ -36,6 +36,7 @@ func UpdateDatabase(ctx *armadacontext.Context, db Querier, migrations []Migrati
 	}
 	ctx.Infof("Current version: %d", version)
 
+	originalVersion := version
 	for _, m := range migrations {
 		if m.id > version {
 			ctx.Infof("Applying %s", m.name)
@@ -54,14 +55,10 @@ func UpdateDatabase(ctx *armadacontext.Context, db Querier, migrations []Migrati
 		}
 	}
 
-	newVersion, err := readVersion(ctx, db)
-	if err != nil {
-		return err
-	}
-	if newVersion == version {
+	if version == originalVersion {
 		ctx.Info("Postgres was already the up-to-date")
 	} else {
-		ctx.Infof("Postgres updates from version %d to %d", version, newVersion)
+		ctx.Infof("Postgres updates from version %d to %d", originalVersion, version)
 	}
 	return nil
 }
