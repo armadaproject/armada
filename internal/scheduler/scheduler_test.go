@@ -1567,7 +1567,37 @@ var (
 		Serial:              0,
 		ScheduledAtPriority: &scheduledAtPriority,
 	}
+	failedReturnedRunA = &database.Run{
+		RunID:               testfixtures.UUIDFromInt(1),
+		JobID:               queuedJobA.JobID,
+		JobSet:              queuedJobA.JobSet,
+		Executor:            testExecutor,
+		Node:                testNode,
+		Failed:              true,
+		Returned:            true,
+		Serial:              0,
+		ScheduledAtPriority: &scheduledAtPriority,
+	}
 )
+
+func jobDbJobFromDbJob(job *database.Job) *jobdb.Job {
+	var schedulingInfo schedulerobjects.JobSchedulingInfo
+	protoutil.MustUnmarshall(job.SchedulingInfo, &schedulingInfo)
+	// Use a fresh jobDb instance to ensure run ids are consistent.
+	return testfixtures.NewJobDb().NewJob(
+		job.JobID,
+		job.JobSet,
+		job.Queue,
+		uint32(job.Priority),
+		&schedulingInfo,
+		job.Queued,
+		job.QueuedVersion,
+		job.CancelRequested,
+		job.CancelByJobsetRequested,
+		job.Cancelled,
+		0,
+	)
+}
 
 // TestCycleConsistency runs two replicas of the scheduler and asserts that their state remains consistent
 // under various permutations of making scheduling decisions and failing over.
@@ -1608,6 +1638,15 @@ func TestCycleConsistency(t *testing.T) {
 					queuedJobA,
 				},
 			},
+			expectedJobDbCycleOne: []*jobdb.Job{
+				jobDbJobFromDbJob(queuedJobA),
+			},
+			expectedJobDbCycleTwo: []*jobdb.Job{
+				jobDbJobFromDbJob(queuedJobA),
+			},
+			expectedJobDbCycleThree: []*jobdb.Job{
+				jobDbJobFromDbJob(queuedJobA),
+			},
 			expectedEventSequencesCycleThree: make([]*armadaevents.EventSequence, 0),
 		},
 		"Load a failed job": {
@@ -1616,6 +1655,10 @@ func TestCycleConsistency(t *testing.T) {
 					failedJobA,
 				},
 			},
+			expectedJobDbCycleOne:            []*jobdb.Job{},
+			expectedJobDbCycleTwo:            []*jobdb.Job{},
+			expectedJobDbCycleThree:          []*jobdb.Job{},
+			expectedEventSequencesCycleThree: make([]*armadaevents.EventSequence, 0),
 		},
 		"Load a cancelled job": {
 			firstSchedulerDbUpdate: schedulerDbUpdate{
@@ -1623,6 +1666,10 @@ func TestCycleConsistency(t *testing.T) {
 					cancelledJobA,
 				},
 			},
+			expectedJobDbCycleOne:            []*jobdb.Job{},
+			expectedJobDbCycleTwo:            []*jobdb.Job{},
+			expectedJobDbCycleThree:          []*jobdb.Job{},
+			expectedEventSequencesCycleThree: make([]*armadaevents.EventSequence, 0),
 		},
 		"Load a queued job with cancel requested": {
 			firstSchedulerDbUpdate: schedulerDbUpdate{
@@ -1630,11 +1677,61 @@ func TestCycleConsistency(t *testing.T) {
 					cancelRequestedJobA,
 				},
 			},
+			expectedJobDbCycleOne: []*jobdb.Job{
+				jobDbJobFromDbJob(cancelRequestedJobA).WithQueued(false).WithCancelled(true),
+			},
+			expectedJobDbCycleTwo:   []*jobdb.Job{},
+			expectedJobDbCycleThree: []*jobdb.Job{},
+			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
+				{
+					Queue:      queuedJobA.Queue,
+					JobSetName: queuedJobA.JobSet,
+					Events: []*armadaevents.EventSequence_Event{
+						{
+							Created: pointerFromValue(time.Unix(0, 0)),
+							Event: &armadaevents.EventSequence_Event_CancelledJob{
+								CancelledJob: &armadaevents.CancelledJob{
+									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 		"Load a queued job with cancel by job set requested": {
 			firstSchedulerDbUpdate: schedulerDbUpdate{
 				jobUpdates: []*database.Job{
 					cancelByJobSetRequestedJobA,
+				},
+			},
+			expectedJobDbCycleOne: []*jobdb.Job{
+				jobDbJobFromDbJob(cancelByJobSetRequestedJobA).WithQueued(false).WithCancelled(true),
+			},
+			expectedJobDbCycleTwo:   []*jobdb.Job{},
+			expectedJobDbCycleThree: []*jobdb.Job{},
+			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
+				{
+					Queue:      queuedJobA.Queue,
+					JobSetName: queuedJobA.JobSet,
+					Events: []*armadaevents.EventSequence_Event{
+						{
+							Created: pointerFromValue(time.Unix(0, 0)),
+							Event: &armadaevents.EventSequence_Event_CancelJob{
+								CancelJob: &armadaevents.CancelJob{
+									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+								},
+							},
+						},
+						{
+							Created: pointerFromValue(time.Unix(0, 0)),
+							Event: &armadaevents.EventSequence_Event_CancelledJob{
+								CancelledJob: &armadaevents.CancelledJob{
+									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -1647,6 +1744,30 @@ func TestCycleConsistency(t *testing.T) {
 					newRunA,
 				},
 			},
+			expectedJobDbCycleOne: []*jobdb.Job{
+				func() *jobdb.Job {
+					job := jobDbJobFromDbJob(runningCancelRequestedJobA).WithCancelled(true).WithNewRun(testExecutor, testNodeId, testNode, 10)
+					return job.WithUpdatedRun(job.LatestRun().WithCancelled(true).WithAttempted(true))
+				}(),
+			},
+			expectedJobDbCycleTwo:   []*jobdb.Job{},
+			expectedJobDbCycleThree: []*jobdb.Job{},
+			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
+				{
+					Queue:      queuedJobA.Queue,
+					JobSetName: queuedJobA.JobSet,
+					Events: []*armadaevents.EventSequence_Event{
+						{
+							Created: pointerFromValue(time.Unix(0, 0)),
+							Event: &armadaevents.EventSequence_Event_CancelledJob{
+								CancelledJob: &armadaevents.CancelledJob{
+									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 		"Load a running job with cancel by job set requested": {
 			firstSchedulerDbUpdate: schedulerDbUpdate{
@@ -1655,6 +1776,38 @@ func TestCycleConsistency(t *testing.T) {
 				},
 				runUpdates: []*database.Run{
 					newRunA,
+				},
+			},
+			expectedJobDbCycleOne: []*jobdb.Job{
+				func() *jobdb.Job {
+					job := jobDbJobFromDbJob(runningCancelByJobSetRequestedJobA).WithCancelled(true).WithNewRun(testExecutor, testNodeId, testNode, 10)
+					return job.WithUpdatedRun(job.LatestRun().WithCancelled(true).WithAttempted(true))
+				}(),
+			},
+			expectedJobDbCycleTwo:   []*jobdb.Job{},
+			expectedJobDbCycleThree: []*jobdb.Job{},
+			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
+				{
+					Queue:      queuedJobA.Queue,
+					JobSetName: queuedJobA.JobSet,
+					Events: []*armadaevents.EventSequence_Event{
+						{
+							Created: pointerFromValue(time.Unix(0, 0)),
+							Event: &armadaevents.EventSequence_Event_CancelJob{
+								CancelJob: &armadaevents.CancelJob{
+									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+								},
+							},
+						},
+						{
+							Created: pointerFromValue(time.Unix(0, 0)),
+							Event: &armadaevents.EventSequence_Event_CancelledJob{
+								CancelledJob: &armadaevents.CancelledJob{
+									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+								},
+							},
+						},
+					},
 				},
 			},
 		},
@@ -1666,46 +1819,35 @@ func TestCycleConsistency(t *testing.T) {
 			},
 			idsOfJobsToSchedule: []string{queuedJobA.JobID},
 			expectedJobDbCycleOne: []*jobdb.Job{
-				testfixtures.NewJobDb().NewJob(
-					queuedJobA.JobID,
-					queuedJobA.JobSet,
-					queuedJobA.Queue,
-					uint32(queuedJobA.Priority),
-					schedulingInfo,
-					false,
-					1,
-					queuedJobA.CancelRequested,
-					queuedJobA.CancelByJobsetRequested,
-					queuedJobA.Cancelled,
-					0,
-				).WithNewRun(testExecutor, testNodeId, testNode, 10),
+				jobDbJobFromDbJob(queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10),
+			},
+			expectedJobDbCycleTwo: []*jobdb.Job{
+				jobDbJobFromDbJob(queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10),
+			},
+			expectedJobDbCycleThree: []*jobdb.Job{
+				jobDbJobFromDbJob(queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10),
 			},
 			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
 				{
 					Queue:      queuedJobA.Queue,
 					JobSetName: queuedJobA.JobSet,
-					Events: func() []*armadaevents.EventSequence_Event {
-						uuidProvider := testfixtures.MockUUIDProvider{}
-						runId := uuidProvider.New()
-						created := time.Unix(0, 0)
-						return []*armadaevents.EventSequence_Event{
-							{
-								Created: &created,
-								Event: &armadaevents.EventSequence_Event_JobRunLeased{
-									JobRunLeased: &armadaevents.JobRunLeased{
-										RunId:                  armadaevents.ProtoUuidFromUuid(runId),
-										JobId:                  armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
-										ExecutorId:             testExecutor,
-										NodeId:                 testNode,
-										UpdateSequenceNumber:   1,
-										HasScheduledAtPriority: true,
-										ScheduledAtPriority:    10,
-										AdditionalAnnotations:  make(map[string]string),
-									},
+					Events: []*armadaevents.EventSequence_Event{
+						{
+							Created: pointerFromValue(time.Unix(0, 0)),
+							Event: &armadaevents.EventSequence_Event_JobRunLeased{
+								JobRunLeased: &armadaevents.JobRunLeased{
+									RunId:                  armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
+									JobId:                  armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									ExecutorId:             testExecutor,
+									NodeId:                 testNode,
+									UpdateSequenceNumber:   1,
+									HasScheduledAtPriority: true,
+									ScheduledAtPriority:    10,
+									AdditionalAnnotations:  make(map[string]string),
 								},
 							},
-						}
-					}(),
+						},
+					},
 				},
 			},
 		},
@@ -1715,7 +1857,37 @@ func TestCycleConsistency(t *testing.T) {
 					queuedJobA,
 				},
 			},
-			idsOfJobsToFail: []string{queuedJobA.JobID},
+			idsOfJobsToFail:         []string{queuedJobA.JobID},
+			expectedJobDbCycleOne:   []*jobdb.Job{},
+			expectedJobDbCycleTwo:   []*jobdb.Job{},
+			expectedJobDbCycleThree: []*jobdb.Job{},
+			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
+				{
+					Queue:      queuedJobA.Queue,
+					JobSetName: queuedJobA.JobSet,
+					Events: []*armadaevents.EventSequence_Event{
+						{
+							Created: pointerFromValue(time.Unix(0, 0)),
+							Event: &armadaevents.EventSequence_Event_JobErrors{
+								JobErrors: &armadaevents.JobErrors{
+									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									Errors: []*armadaevents.Error{
+										{
+											Terminal: true,
+											Reason: &armadaevents.Error_GangJobUnschedulable{
+												GangJobUnschedulable: &armadaevents.GangJobUnschedulable{
+													// This message is somewhat arbitrary here.
+													Message: "Job did not meet the minimum gang cardinality",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 		"Schedule a job that then succeeds": {
 			firstSchedulerDbUpdate: schedulerDbUpdate{
@@ -1730,37 +1902,14 @@ func TestCycleConsistency(t *testing.T) {
 			},
 			idsOfJobsToSchedule: []string{queuedJobA.JobID},
 			expectedJobDbCycleOne: []*jobdb.Job{
-				testfixtures.NewJobDb().NewJob(
-					queuedJobA.JobID,
-					queuedJobA.JobSet,
-					queuedJobA.Queue,
-					uint32(queuedJobA.Priority),
-					schedulingInfo,
-					false,
-					1,
-					queuedJobA.CancelRequested,
-					queuedJobA.CancelByJobsetRequested,
-					queuedJobA.Cancelled,
-					0,
-				).WithNewRun(testExecutor, testNodeId, testNode, 10),
+				jobDbJobFromDbJob(queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10),
 			},
-			expectedJobDbCycleTwo: func() []*jobdb.Job {
-				job := testfixtures.NewJobDb().NewJob(
-					queuedJobA.JobID,
-					queuedJobA.JobSet,
-					queuedJobA.Queue,
-					uint32(queuedJobA.Priority),
-					schedulingInfo,
-					false,
-					1,
-					queuedJobA.CancelRequested,
-					queuedJobA.CancelByJobsetRequested,
-					queuedJobA.Cancelled,
-					0,
-				).WithNewRun(testExecutor, testNodeId, testNode, 10).WithSucceeded(true)
-				job = job.WithUpdatedRun(job.LatestRun().WithSucceeded(true).WithAttempted(true))
-				return []*jobdb.Job{job}
-			}(),
+			expectedJobDbCycleTwo: []*jobdb.Job{
+				func() *jobdb.Job {
+					job := jobDbJobFromDbJob(queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10).WithSucceeded(true)
+					return job.WithUpdatedRun(job.LatestRun().WithSucceeded(true).WithAttempted(true))
+				}(),
+			},
 			expectedJobDbCycleThree: make([]*jobdb.Job, 0),
 			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
 				{
@@ -1815,8 +1964,64 @@ func TestCycleConsistency(t *testing.T) {
 				},
 			},
 			idsOfJobsToSchedule: []string{queuedJobA.JobID},
+			expectedJobDbCycleOne: []*jobdb.Job{
+				jobDbJobFromDbJob(queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10),
+			},
+			expectedJobDbCycleTwo: []*jobdb.Job{
+				func() *jobdb.Job {
+					job := jobDbJobFromDbJob(queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10).WithFailed(true)
+					return job.WithUpdatedRun(job.LatestRun().WithFailed(true).WithAttempted(true))
+				}(),
+			},
+			expectedJobDbCycleThree: make([]*jobdb.Job, 0),
+			expectedEventSequencesCycleThree: []*armadaevents.EventSequence{
+				{
+					Queue:      queuedJobA.Queue,
+					JobSetName: queuedJobA.JobSet,
+					Events: []*armadaevents.EventSequence_Event{
+						{
+							Created: pointerFromValue(time.Unix(0, 0)),
+							Event: &armadaevents.EventSequence_Event_JobRunLeased{
+								JobRunLeased: &armadaevents.JobRunLeased{
+									RunId:                  armadaevents.ProtoUuidFromUuid(testfixtures.UUIDFromInt(1)),
+									JobId:                  armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									ExecutorId:             testExecutor,
+									NodeId:                 testNode,
+									UpdateSequenceNumber:   1,
+									HasScheduledAtPriority: true,
+									ScheduledAtPriority:    10,
+									AdditionalAnnotations:  make(map[string]string),
+								},
+							},
+						},
+					},
+				},
+				{
+					Queue:      queuedJobA.Queue,
+					JobSetName: queuedJobA.JobSet,
+					Events: []*armadaevents.EventSequence_Event{
+						{
+							Created: pointerFromValue(time.Unix(0, 0)),
+							Event: &armadaevents.EventSequence_Event_JobErrors{
+								JobErrors: &armadaevents.JobErrors{
+									JobId: armadaevents.MustProtoUuidFromUlidString(queuedJobA.JobID),
+									Errors: []*armadaevents.Error{
+										{
+											Terminal: true,
+											Reason: &armadaevents.Error_PodError{
+												PodError: &armadaevents.PodError{
+													Message: "generic pod error",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
-		// TODO(albin): We should assert that anti-affinities have been added.
 		"Schedule a new job that then fails to start": {
 			firstSchedulerDbUpdate: schedulerDbUpdate{
 				jobUpdates: []*database.Job{
@@ -1832,6 +2037,44 @@ func TestCycleConsistency(t *testing.T) {
 				},
 			},
 			idsOfJobsToSchedule: []string{queuedJobA.JobID},
+			expectedJobDbCycleOne: []*jobdb.Job{
+				jobDbJobFromDbJob(queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10),
+			},
+			expectedJobDbCycleTwo: []*jobdb.Job{
+				func() *jobdb.Job {
+					job := jobDbJobFromDbJob(queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10).WithFailed(true)
+					// TODO(albin): RunAttempted is implicitly set to true for failed runs with error other than PodLeaseReturned.
+					//              See func (c *InstructionConverter) handleJobRunErrors.
+					return job.WithUpdatedRun(job.LatestRun().WithFailed(true).WithAttempted(true))
+				}(),
+			},
+			expectedJobDbCycleThree: []*jobdb.Job{},
+		},
+		"Schedule a new job that then fails to start and is returned": {
+			firstSchedulerDbUpdate: schedulerDbUpdate{
+				jobUpdates: []*database.Job{
+					queuedJobA,
+				},
+			},
+			secondSchedulerDbUpdate: schedulerDbUpdate{
+				runUpdates: []*database.Run{
+					failedReturnedRunA,
+				},
+				jobRunErrors: []*armadaevents.JobRunErrors{
+					defaultJobRunError(queuedJobA.JobID, failedAttemptedRunA.RunID),
+				},
+			},
+			idsOfJobsToSchedule: []string{queuedJobA.JobID},
+			expectedJobDbCycleOne: []*jobdb.Job{
+				jobDbJobFromDbJob(queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10),
+			},
+			expectedJobDbCycleTwo: []*jobdb.Job{
+				func() *jobdb.Job {
+					job := jobDbJobFromDbJob(queuedJobA).WithQueued(false).WithQueuedVersion(1).WithNewRun(testExecutor, testNodeId, testNode, 10).WithFailed(true)
+					return job.WithUpdatedRun(job.LatestRun().WithFailed(true).WithAttempted(true).WithReturned(true))
+				}(),
+			},
+			expectedJobDbCycleThree: []*jobdb.Job{},
 		},
 		"Schedule a new job that then fails to start with fail-fast set to true": {
 			firstSchedulerDbUpdate: schedulerDbUpdate{

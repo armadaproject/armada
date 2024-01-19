@@ -174,19 +174,19 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 			rst.Running = true
 		}
 		if jobRepoRun.Succeeded && !jobRun.Succeeded() {
-			jobRun = jobRun.WithSucceeded(true)
+			jobRun = jobRun.WithSucceeded(true).WithRunning(false)
 			rst.Succeeded = true
 		}
 		if jobRepoRun.Failed && !jobRun.Failed() {
-			jobRun = jobRun.WithFailed(true)
+			jobRun = jobRun.WithFailed(true).WithRunning(false)
 			rst.Failed = true
 		}
 		if jobRepoRun.Cancelled && !jobRun.Cancelled() {
-			jobRun = jobRun.WithCancelled(true)
+			jobRun = jobRun.WithCancelled(true).WithRunning(false)
 			rst.Cancelled = true
 		}
 		if jobRepoRun.Returned && !jobRun.Returned() {
-			jobRun = jobRun.WithReturned(true)
+			jobRun = jobRun.WithReturned(true).WithRunning(false)
 			rst.Returned = true
 		}
 		if jobRepoRun.RunAttempted && !jobRun.RunAttempted() {

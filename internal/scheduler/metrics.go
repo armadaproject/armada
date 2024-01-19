@@ -176,7 +176,6 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 		var timeInState time.Duration
 		if job.InTerminalState() {
 			// Jobs in a terminal state should have been removed from the jobDb.
-			ctx.Warnf("job %s in jobDb is in a terminal state: %s", job.Id(), job)
 			continue
 		} else if job.Queued() {
 			if run := job.LatestRun(); run != nil && !run.InTerminalState() {
@@ -192,7 +191,9 @@ func (c *MetricsCollector) updateQueueMetrics(ctx *armadacontext.Context) ([]pro
 				ctx.Warnf("job %s is active and not marked as queued, but has no runs associated with it: %s", job.Id(), job)
 				continue
 			} else if run.InTerminalState() {
-				ctx.Warnf("job %s is active and not marked as queued, but its most recent run is in a terminal state: %s", job.Id(), job)
+				// TODO(albin): Jobs are not always updated in the same transaction as runs,
+				//              so jobs will briefly be marked as inactive despite having a terminal run associated with it.
+				// ctx.Warnf("job %s is active and not marked as queued, but its most recent run is in a terminal state: %s", job.Id(), job)
 				continue
 			}
 			recorder = qs.runningJobRecorder

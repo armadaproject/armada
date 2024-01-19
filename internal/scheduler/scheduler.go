@@ -205,7 +205,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 //     (job_0, runs_0) -> (job_0', runs_0')
 //     ...
 //     (job_n, runs_n) -> (job_n', runs_n'),
-//     where runs_i is the set of jobs associated with job_i, and n is the number of jobs.
+//     where runs_i is the set of jobs associated with job_i, and there are n+1 jobs.
 //     These mappings come in two categories:
 //     - Triggered by an external event, e.g., jobs with a successful run should be marked as successful.
 //     - Triggered by a scheduling decision, e.g., a scheduled job should have an additional run associated with it.
@@ -217,7 +217,7 @@ func (s *Scheduler) Run(ctx *armadacontext.Context) error {
 //     For unchanged jobs, runs, and errors, we rely on an in-memory cache maintained between cycles, i.e., the jobDb.
 //   - Similarly, we only perform job state transitions for jobs with changed jobs and runs.
 //     This is unless updateAll is true, in which case we perform state transitions for all jobs.
-//     This is necessary for the first cycle after a leader failOver.
+//     This is necessary for the first cycle after a leader failover.
 //   - Instead of waiting for eventSequences to be persisted at the end of each cycle, the jobDb is updated directly.
 //     This means we can start the next cycle immediately after one cycle finishes.
 //     As state transitions are persisted and read back from the schedulerDb over later cycles,
@@ -251,8 +251,10 @@ func (s *Scheduler) cycle(ctx *armadacontext.Context, updateAll bool, leaderToke
 
 	// Load error messages for any failed runs.
 	// TODO(albin): An unbounded number of job runs may fail between subsequent cycles.
-	//              E.g., if 1M runs fail and each one generates a 1Mb error message, we'd need to load 1Tb of errors.
-	//              If so, the scheduler would not be able to progress until a human manually deleted those errors.
+	//              E.g., if 1M runs fail and each one generates a 12KiB error message, we'd need to load 12GiB of errors.
+	//              (Each pod can produce at most 12KiB of errors; see
+	//              https://kubernetes.io/docs/tasks/debug/debug-application/determine-reason-pod-failure/#customizing-the-termination-message)
+	//              If so, the scheduler may not be able to progress until a human manually deleted those errors.
 	failedRunIds := make([]uuid.UUID, 0, len(updatedJobs))
 	for _, job := range updatedJobs {
 		run := job.LatestRun()
@@ -774,9 +776,8 @@ func (s *Scheduler) generateUpdateMessagesFromJob(job *jobdb.Job, jobRunErrors m
 		events = append(events, jobReprioritised)
 	}
 
-	if origJob != job {
-		err := txn.Upsert([]*jobdb.Job{job})
-		if err != nil {
+	if !origJob.Equal(job) {
+		if err := txn.Upsert([]*jobdb.Job{job}); err != nil {
 			return nil, err
 		}
 	}
