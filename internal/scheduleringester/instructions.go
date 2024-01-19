@@ -37,13 +37,16 @@ type InstructionConverter struct {
 func NewInstructionConverter(
 	metrics *metrics.Metrics,
 	priorityClasses map[string]types.PriorityClass,
-	compressor compress.Compressor,
-) ingest.InstructionConverter[*DbOperationsWithMessageIds] {
+) (*InstructionConverter, error) {
+	compressor, err := compress.NewZlibCompressor(1024)
+	if err != nil {
+		return nil, errors.WithMessage(err, "failed to create compressor")
+	}
 	return &InstructionConverter{
 		metrics:         metrics,
 		priorityClasses: priorityClasses,
 		compressor:      compressor,
-	}
+	}, nil
 }
 
 func (c *InstructionConverter) Convert(_ *armadacontext.Context, sequencesWithIds *ingest.EventSequencesWithIds) *DbOperationsWithMessageIds {
@@ -102,7 +105,7 @@ func (c *InstructionConverter) dbOperationsFromEventSequence(es *armadaevents.Ev
 		case *armadaevents.EventSequence_Event_JobRequeued:
 			operationsFromEvent, err = c.handleJobRequeued(event.GetJobRequeued())
 		case *armadaevents.EventSequence_Event_PartitionMarker:
-			operationsFromEvent, err = c.handlePartitionMarker(event.GetPartitionMarker(), *event.Created)
+			operationsFromEvent, err = c.handlePartitionMarker(event.GetPartitionMarker(), eventTime)
 		case *armadaevents.EventSequence_Event_JobRunPreempted:
 			operationsFromEvent, err = c.handleJobRunPreempted(event.GetJobRunPreempted(), eventTime)
 		case *armadaevents.EventSequence_Event_JobRunAssigned:
@@ -179,7 +182,7 @@ func (c *InstructionConverter) handleSubmitJob(job *armadaevents.SubmitJob, subm
 	}}}, nil
 }
 
-func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.JobRunLeased, leaseTime time.Time, meta eventSequenceCommon) ([]DbOperation, error) {
+func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.JobRunLeased, eventTime time.Time, meta eventSequenceCommon) ([]DbOperation, error) {
 	runId := armadaevents.UuidFromProtoUuid(jobRunLeased.GetRunId())
 	jobId, err := armadaevents.UlidStringFromProtoUuid(jobRunLeased.GetJobId())
 	if err != nil {
@@ -191,15 +194,16 @@ func (c *InstructionConverter) handleJobRunLeased(jobRunLeased *armadaevents.Job
 	}
 	return []DbOperation{
 		InsertRuns{runId: &JobRunDetails{
-			queue: meta.queue,
-			dbRun: &schedulerdb.Run{
+			Queue: meta.queue,
+			DbRun: &schedulerdb.Run{
 				RunID:               runId,
 				JobID:               jobId,
+				Created:             eventTime.UnixNano(),
 				JobSet:              meta.jobset,
 				Executor:            jobRunLeased.GetExecutorId(),
 				Node:                jobRunLeased.GetNodeId(),
 				ScheduledAtPriority: scheduledAtPriority,
-				LeasedTimestamp:     &leaseTime,
+				LeasedTimestamp:     &eventTime,
 			},
 		}},
 		UpdateJobQueuedState{jobId: &JobQueuedStateUpdate{
@@ -259,7 +263,7 @@ func (c *InstructionConverter) handleJobRunErrors(jobRunErrors *armadaevents.Job
 	insertJobRunErrors := make(InsertJobRunErrors)
 	markRunsFailed := make(MarkRunsFailed)
 	for _, runError := range jobRunErrors.GetErrors() {
-		// There should only be one terminal error
+		// There should only be one terminal error.
 		if runError.GetTerminal() {
 			bytes, err := protoutil.MarshallAndCompress(runError, c.compressor)
 			if err != nil {

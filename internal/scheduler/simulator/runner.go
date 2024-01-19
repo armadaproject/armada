@@ -10,39 +10,8 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/armadaproject/armada/internal/armada/configuration"
-	"github.com/armadaproject/armada/internal/common/armadacontext"
 	commonconfig "github.com/armadaproject/armada/internal/common/config"
 )
-
-func Simulate(ctx *armadacontext.Context, clusterSpecsPattern, workloadSpecsPattern, schedulingConfigsPattern string) error {
-	clusterSpecs, err := ClusterSpecsFromPattern(clusterSpecsPattern)
-	if err != nil {
-		return err
-	}
-	workloadSpecs, err := WorkloadsFromPattern(workloadSpecsPattern)
-	if err != nil {
-		return err
-	}
-	schedulingConfigs, err := SchedulingConfigsFromPattern(schedulingConfigsPattern)
-	if err != nil {
-		return err
-	}
-	g, ctx := armadacontext.ErrGroup(ctx)
-	for _, clusterSpec := range clusterSpecs {
-		for _, workloadSpec := range workloadSpecs {
-			for _, schedulingConfig := range schedulingConfigs {
-				s, err := NewSimulator(clusterSpec, workloadSpec, schedulingConfig)
-				if err != nil {
-					return err
-				}
-				g.Go(func() error {
-					return s.Run(ctx)
-				})
-			}
-		}
-	}
-	return g.Wait()
-}
 
 func SchedulingConfigsByFilePathFromPattern(pattern string) (map[string]configuration.SchedulingConfig, error) {
 	filePaths, err := zglob.Glob(pattern)

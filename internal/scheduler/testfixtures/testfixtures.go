@@ -2,8 +2,10 @@ package testfixtures
 
 // This file contains test fixtures to be used throughout the tests for this package.
 import (
+	"encoding/binary"
 	"fmt"
 	"math"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -79,14 +81,29 @@ var (
 	JobDb = NewJobDb()
 )
 
+func NewJobDbWithJobs(jobs []*jobdb.Job) *jobdb.JobDb {
+	jobDb := NewJobDb()
+	txn := jobDb.WriteTxn()
+	defer txn.Abort()
+	if err := txn.Upsert(jobs); err != nil {
+		panic(err)
+	}
+	txn.Commit()
+	return jobDb
+}
+
 // NewJobDb returns a new default jobDb with defaults to use in tests.
 func NewJobDb() *jobdb.JobDb {
-	return jobdb.NewJobDbWithSchedulingKeyGenerator(
+	jobDb := jobdb.NewJobDbWithSchedulingKeyGenerator(
 		TestPriorityClasses,
 		TestDefaultPriorityClass,
 		SchedulingKeyGenerator,
 		1024,
 	)
+	// Mock out the clock and uuid provider to ensure consistent ids and timestamps are generated.
+	jobDb.SetClock(NewMockPassiveClock())
+	jobDb.SetUUIDProvider(NewMockUUIDProvider())
+	return jobDb
 }
 
 func IntRange(a, b int) []int {
@@ -900,4 +917,48 @@ func TestExecutor(lastUpdateTime time.Time) *schedulerobjects.Executor {
 		LastUpdateTime: lastUpdateTime,
 		Nodes:          TestCluster(),
 	}
+}
+
+type MockUUIDProvider struct {
+	i  uint64
+	mu sync.Mutex
+}
+
+func NewMockUUIDProvider() *MockUUIDProvider {
+	return &MockUUIDProvider{}
+}
+
+func (p *MockUUIDProvider) New() uuid.UUID {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.i += 1 // Increment before write to avoid using the all-zeros UUID.
+	return UUIDFromInt(p.i)
+}
+
+func UUIDFromInt(i uint64) uuid.UUID {
+	var rv uuid.UUID
+	binary.LittleEndian.PutUint64(rv[:], i)
+	return rv
+}
+
+type MockPassiveClock struct {
+	t  time.Time
+	d  time.Duration
+	mu sync.Mutex
+}
+
+func NewMockPassiveClock() *MockPassiveClock {
+	return &MockPassiveClock{t: time.Unix(0, 0), d: time.Second}
+}
+
+func (p *MockPassiveClock) Now() time.Time {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	rv := p.t
+	p.t = p.t.Add(p.d)
+	return rv
+}
+
+func (p *MockPassiveClock) Since(time.Time) time.Duration {
+	panic("Not implemented")
 }

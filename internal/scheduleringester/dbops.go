@@ -43,8 +43,8 @@ type JobSetKey struct {
 }
 
 type JobRunDetails struct {
-	queue string
-	dbRun *schedulerdb.Run
+	Queue string
+	DbRun *schedulerdb.Run
 }
 
 type JobQueuedStateUpdate struct {
@@ -115,9 +115,8 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 	return rv
 }
 
-type InsertJobs map[string]*schedulerdb.Job
-
 type (
+	InsertJobs                 map[string]*schedulerdb.Job
 	InsertRuns                 map[uuid.UUID]*JobRunDetails
 	UpdateJobSetPriorities     map[JobSetKey]int64
 	MarkJobSetsCancelRequested map[JobSetKey]*JobSetCancelAction
@@ -292,13 +291,13 @@ func (a InsertRuns) CanBeAppliedBefore(b DbOperation) bool {
 	switch op := b.(type) {
 	case JobSetOperation:
 		for _, run := range a {
-			if op.AffectsJobSet(run.queue, run.dbRun.JobSet) {
+			if op.AffectsJobSet(run.Queue, run.DbRun.JobSet) {
 				return false
 			}
 		}
 	case InsertJobs:
 		for _, run := range a {
-			if _, ok := op[run.dbRun.JobID]; ok {
+			if _, ok := op[run.DbRun.JobID]; ok {
 				return false
 			}
 		}
@@ -393,7 +392,7 @@ func definesJobInSet[M ~map[JobSetKey]V, V any](a M, b DbOperation) bool {
 func definesRunInSet[M ~map[JobSetKey]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertRuns); ok {
 		for _, run := range op {
-			if _, ok := a[JobSetKey{queue: run.queue, jobSet: run.dbRun.JobSet}]; ok {
+			if _, ok := a[JobSetKey{queue: run.Queue, jobSet: run.DbRun.JobSet}]; ok {
 				return true
 			}
 		}
@@ -419,7 +418,7 @@ func definesJob[M ~map[string]V, V any](a M, b DbOperation) bool {
 func definesRun[M ~map[uuid.UUID]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertRuns); ok {
 		for _, run := range op {
-			if _, ok := a[run.dbRun.RunID]; ok {
+			if _, ok := a[run.DbRun.RunID]; ok {
 				return true
 			}
 		}
@@ -432,7 +431,7 @@ func definesRun[M ~map[uuid.UUID]V, V any](a M, b DbOperation) bool {
 func definesRunForJob[M ~map[string]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertRuns); ok {
 		for _, run := range op {
-			if _, ok := a[run.dbRun.JobID]; ok {
+			if _, ok := a[run.DbRun.JobID]; ok {
 				return true
 			}
 		}
