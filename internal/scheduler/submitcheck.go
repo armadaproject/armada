@@ -183,7 +183,7 @@ func (srv *SubmitChecker) getIndividualSchedulingResult(jctx *schedulercontext.J
 	}
 
 	gangInfo := jctx.GangInfo
-	// Mark this job context as "not in a gang" for the invidual scheduling check.
+	// Mark this job context as "not in a gang" for the individual scheduling check.
 	jctx.GangInfo = schedulercontext.EmptyGangInfo(jctx.Job)
 	defer func() {
 		jctx.GangInfo = gangInfo
