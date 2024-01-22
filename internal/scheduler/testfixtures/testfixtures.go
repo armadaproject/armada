@@ -803,13 +803,12 @@ func TestDbQueue() *database.Queue {
 }
 
 func TestQueuedJobDbJob() *jobdb.Job {
-	return jobdb.
-		EmptyJob(util.NewULID()).
-		WithQueue(TestQueue).
-		WithJobset(TestJobset).
-		WithQueued(true).
-		WithCreated(BaseTime.UnixNano()).
-		WithJobSchedulingInfo(&schedulerobjects.JobSchedulingInfo{
+	return JobDb.NewJob(
+		util.NewULID(),
+		TestJobset,
+		TestQueue,
+		0,
+		&schedulerobjects.JobSchedulingInfo{
 			PriorityClassName: TestDefaultPriorityClass,
 			SubmitTime:        BaseTime,
 			ObjectRequirements: []*schedulerobjects.ObjectRequirements{
@@ -819,7 +818,14 @@ func TestQueuedJobDbJob() *jobdb.Job {
 					},
 				},
 			},
-		})
+		},
+		true,
+		0,
+		false,
+		false,
+		false,
+		BaseTime.UnixNano(),
+	)
 }
 
 func WithJobDbJobPodRequirements(job *jobdb.Job, reqs *schedulerobjects.PodRequirements) *jobdb.Job {

@@ -66,10 +66,6 @@ type Job struct {
 	activeRunTimestamp int64
 }
 
-func EmptyJob(id string) *Job {
-	return &Job{id: id, runsById: map[uuid.UUID]*JobRun{}}
-}
-
 func (job *Job) String() string {
 	// Include field names in string representation by default.
 	return fmt.Sprintf("%#v", job)
