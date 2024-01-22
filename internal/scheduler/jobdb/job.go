@@ -13,6 +13,7 @@ import (
 
 	armadamaps "github.com/armadaproject/armada/internal/common/maps"
 	"github.com/armadaproject/armada/internal/common/types"
+	"github.com/armadaproject/armada/internal/scheduler/interfaces"
 	"github.com/armadaproject/armada/internal/scheduler/schedulerobjects"
 )
 
@@ -739,6 +740,9 @@ func (job *Job) WithJobSchedulingInfo(jobSchedulingInfo *schedulerobjects.JobSch
 	j := copyJob(*job)
 	j.jobSchedulingInfo = jobSchedulingInfo
 	j.ensureJobSchedulingInfoFieldsInitialised()
+
+	// Changing the scheduling info invalidates the scheduling key stored with the job.
+	j.schedulingKey = interfaces.SchedulingKeyFromLegacySchedulerJob(j.jobDb.schedulingKeyGenerator, j)
 	return j
 }
 
