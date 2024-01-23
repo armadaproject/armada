@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	stakikfs "github.com/rakyll/statik/fs"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 )
@@ -30,16 +29,17 @@ func NewMigration(id int, name string, sql string) Migration {
 }
 
 func UpdateDatabase(ctx *armadacontext.Context, db Querier, migrations []Migration) error {
-	log.Info("Updating postgres...")
+	ctx.Info("Preparing to apply postgres migrations.")
 	version, err := readVersion(ctx, db)
 	if err != nil {
 		return err
 	}
-	log.Infof("Current version %v", version)
+	ctx.Infof("Current version: %d", version)
 
+	originalVersion := version
 	for _, m := range migrations {
 		if m.id > version {
-			log.Debugf("Executing %s", m.name)
+			ctx.Infof("Applying %s", m.name)
 			_, err := db.Exec(ctx, m.sql)
 			if err != nil {
 				return err
@@ -50,9 +50,16 @@ func UpdateDatabase(ctx *armadacontext.Context, db Querier, migrations []Migrati
 			if err != nil {
 				return err
 			}
+		} else {
+			ctx.Infof("Not applying %s as migration id %d is <= postgres version %d", m.name, m.id, version)
 		}
 	}
-	log.Info("Database updated.")
+
+	if version == originalVersion {
+		ctx.Info("Postgres was already the up-to-date")
+	} else {
+		ctx.Infof("Postgres updates from version %d to %d", originalVersion, version)
+	}
 	return nil
 }
 
