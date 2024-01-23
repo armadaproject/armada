@@ -108,7 +108,16 @@ Warning: do not install Docker as provided by the `docker.io` and other packages
 packages repository - the version of Docker they provide is out-of-date.
 
 Instead, follow the instructions for installing Docker on Ubuntu at https://docs.docker.com/engine/install/ubuntu/ .
-Specifically, follow the listed steps for installing using an apt repository, and install the latest Docker version.
+Specifically, follow the listed steps for installing using an apt repository, and install a recent version.
+
+*WARNING*: at the time of this writing, there is a known release of the Docker Engine that causes Armada
+localdev setups to fail, due to container image loading errors. The broken release is
+`5:25.0.0-1~ubuntu.22.04~jammy` (for Ubuntu 22.04) - it may be referenced as Docker Engine v25.0.0. The
+most recent prior major version at this time - v24.0.7 - has been verified to work correctly for Armada
+development - `5:24.0.7-1~ubuntu.22.04~jammy`. In the docs sub-section *2.0 Install the Docker pages*, click
+on the *Specific version* tab for details and instructions how to install an earlier release. However,
+it's expected that Docker will a newer version (higher than 25.0.0) that will fix this issue; please
+consult the Docker release notes.
 
 ### Relocate Docker storage directory to secondary volume
 
