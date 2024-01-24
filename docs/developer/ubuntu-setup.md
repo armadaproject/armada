@@ -116,7 +116,7 @@ localdev setups to fail, due to container image loading errors. The broken relea
 most recent prior major version at this time - v24.0.7 - has been verified to work correctly for Armada
 development - `5:24.0.7-1~ubuntu.22.04~jammy`. In the docs sub-section *2.0 Install the Docker pages*, click
 on the *Specific version* tab for details and instructions how to install an earlier release. However,
-it's expected that Docker will a newer version (higher than 25.0.0) that will fix this issue; please
+it's expected that Docker will have a newer version (higher than 25.0.0) that will fix this issue; please
 consult the Docker release notes.
 
 ### Relocate Docker storage directory to secondary volume
