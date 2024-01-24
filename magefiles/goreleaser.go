@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"regexp"
+	"slices"
 	"time"
 
 	goreleaserConfig "github.com/goreleaser/goreleaser/pkg/config"
@@ -51,8 +53,24 @@ func goreleaserWriteMinimalReleaseConfig(dockerIds ...string) error {
 	dockerIdsToBuild := set(dockerIds)
 	dockersById := make(map[string]goreleaserConfig.Docker)
 	buildIds := make(map[string]bool)
+
+	// BASE_IMAGE_ARG is derived from BASE_IMAGE - see .goreleaser.yml
+	buildArgBaseRE := regexp.MustCompile("--build-arg=.*BASE_IMAGE_ARG")
+
 	for _, docker := range config.Dockers {
 		if dockerIdsToBuild[docker.ID] {
+			// Goreleaser constructs a faulty `docker build` command if the environment
+			// variable BASE_IMAGE is not defined - it constructs a `--build-arg= ` option
+			// (no value given) and `docker build` immediately errors. As a work-around
+			// we filter out that whole template option entry if BASE_IMAGE is not defined;
+			// see .goreleaser.yml for how it's used. Goreleaser does not support conditional
+			// templating of YAML in its 'dockers' section, so we filter it out here.
+			if os.Getenv("BASE_IMAGE") == "" {
+				docker.BuildFlagTemplates = slices.DeleteFunc(docker.BuildFlagTemplates, func(t string) bool {
+					return buildArgBaseRE.MatchString(t)
+				})
+			}
+
 			dockersById[docker.ID] = docker
 			for _, id := range docker.IDs {
 				buildIds[id] = true
