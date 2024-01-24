@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"slices"
 	"time"
+
+	"golang.org/x/exp/slices"
 
 	goreleaserConfig "github.com/goreleaser/goreleaser/pkg/config"
 	"github.com/magefile/mage/sh"
@@ -66,9 +67,15 @@ func goreleaserWriteMinimalReleaseConfig(dockerIds ...string) error {
 			// see .goreleaser.yml for how it's used. Goreleaser does not support conditional
 			// templating of YAML in its 'dockers' section, so we filter it out here.
 			if os.Getenv("BASE_IMAGE") == "" {
-				docker.BuildFlagTemplates = slices.DeleteFunc(docker.BuildFlagTemplates, func(t string) bool {
-					return buildArgBaseRE.MatchString(t)
-				})
+				deleteIdx := -1
+				for idx, tpl := range docker.BuildFlagTemplates {
+					if buildArgBaseRE.MatchString(tpl) {
+						deleteIdx = idx
+						break
+					}
+				}
+
+				docker.BuildFlagTemplates = slices.Delete(docker.BuildFlagTemplates, deleteIdx, deleteIdx+1)
 			}
 
 			dockersById[docker.ID] = docker
