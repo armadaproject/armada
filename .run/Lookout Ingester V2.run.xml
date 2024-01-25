@@ -1,0 +1,18 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Lookout Ingester V2" type="GoApplicationRunConfiguration" factoryName="Go Application">
+    <module name="armada" />
+    <working_directory value="$PROJECT_DIR$" />
+    <envs>
+      <env name="ARMADA_METRICS_PORT" value="9006" />
+      <env name="ARMADA_POSTGRES_CONNECTION_DBNAME" value="postgresv2" />
+      <env name="ARMADA_POSTGRES_CONNECTION_HOST" value="localhost" />
+      <env name="ARMADA_POSTGRES_CONNECTION_PORT" value="5432" />
+      <env name="ARMADA_PULSAR_URL" value="pulsar://localhost:6650" />
+    </envs>
+    <kind value="FILE" />
+    <package value="$PROJECT_DIR$/cmd/lookoutv2/main.go" />
+    <directory value="$PROJECT_DIR$" />
+    <filePath value="$PROJECT_DIR$/cmd/lookoutingesterv2/main.go" />
+    <method v="2" />
+  </configuration>
+</component>

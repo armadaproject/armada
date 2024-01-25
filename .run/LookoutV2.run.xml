@@ -1,0 +1,17 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="LookoutV2" type="GoApplicationRunConfiguration" factoryName="Go Application">
+    <module name="armada" />
+    <working_directory value="$PROJECT_DIR$" />
+    <envs>
+      <env name="ARMADA_CORSALLOWEDORIGINS" value="&quot;http://localhost:3000,http://localhost:8089,http://localhost:10000,http://example.com:10000,http://example.com:8089&quot;" />
+      <env name="ARMADA_POSTGRES_CONNECTION_DBNAME" value="postgresv2" />
+      <env name="ARMADA_POSTGRES_CONNECTION_HOST" value="localhost" />
+      <env name="ARMADA_POSTGRES_CONNECTION_PORT" value="5432" />
+    </envs>
+    <kind value="FILE" />
+    <package value="$PROJECT_DIR$/cmd/lookoutv2/main.go" />
+    <directory value="$PROJECT_DIR$" />
+    <filePath value="$PROJECT_DIR$/cmd/lookoutv2/main.go" />
+    <method v="2" />
+  </configuration>
+</component>
