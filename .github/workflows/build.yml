@@ -12,10 +12,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go-cache
+      - name: Set up Go (no caching)
+        uses: actions/setup-go@v4
         with:
-          cache-prefix: prepare
+          go-version: '1.20'
+          cache: false
 
       - name: Set up Docker Buildx
         id: buildx
@@ -64,11 +65,23 @@ jobs:
         with:
           dotnet-version: 7.0.x
 
-      - name: Setup Go
-        uses: ./.github/actions/setup-go-cache
+      - name: Set up Go (no caching)
+        id: setup-go
+        uses: actions/setup-go@v4
         with:
-          cache-prefix: pack-nuget
-          cache-tools: true
+          go-version: '1.20'
+          cache: false
+
+      - name: Compute tools cache info
+        id: tools-cache-info
+        run: echo path=$(go env GOPATH)/bin >> $GITHUB_OUTPUT
+
+      - name: Setup tools cache
+        uses: actions/cache@v3
+        id: tools-cache
+        with:
+          path: ${{ steps.tools-cache-info.outputs.path }}
+          key: tools-go-${{ steps.setup-go.outputs.go-version }}-tools-${{ hashFiles('tools.yaml') }}
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v2

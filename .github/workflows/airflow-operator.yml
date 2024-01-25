@@ -46,6 +46,7 @@ jobs:
     runs-on: ubuntu-22.04
     strategy:
       matrix:
+        go: [ '1.20' ]
         python: [ '3.8', '3.9', '3.10' ]
         include:
           - tox-env: 'py38'
@@ -55,10 +56,7 @@ jobs:
             python: '3.10'
     steps:
       - uses: actions/checkout@v3.3.0
-      - name: Setup Go
-        uses: ./.github/actions/setup-go-cache
-        with:
-          cache-prefix: airflow-tox
+      - uses: ./.github/workflows/go-setup
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
@@ -73,6 +71,14 @@ jobs:
           github-token: ${{secrets.GITHUB_TOKEN}}
   airflow-integration-tests:
     if: github.repository_owner == 'armadaproject'
+    strategy:
+      fail-fast: false
+      matrix:
+        # WARN(JayF): If we begin attempting to support >1 golang version,
+        # we'll have to ensure that we don't use the same artifact name for
+        # both versions in the matrix -- this will lead to them overwriting
+        # each other.
+        go: [ '1.20' ]
     # As of December 2022, using 8vcpu runners is slower overall,
     # due to longer queue times.
     runs-on: ubuntu-22.04
@@ -86,12 +92,21 @@ jobs:
       - uses: actions/checkout@v3.3.0
       - run: docker buildx create --name ${DOCKER_BUILDX_BUILDER} --driver docker-container --use
       - run: docker buildx install
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go-cache
+      - uses: actions/setup-go@v4
+        id: setup-go
         with:
-          cache-prefix: airflow-integration-tests
-          cache-tools: true
+          go-version: ${{ matrix.go }}
+
+      - name: Compute tools cache info
+        id: tools-cache-info
+        run: echo path=$(go env GOPATH)/bin >> $GITHUB_OUTPUT
+
+      - name: Setup tools cache
+        uses: actions/cache@v3
+        id: tools-cache
+        with:
+          path: ${{ steps.tools-cache-info.outputs.path }}
+          key: tools-go-${{ steps.setup-go.outputs.go-version }}-tools-${{ hashFiles('tools.yaml') }}
 
       - name: Setup and run integration tests
         run: |
