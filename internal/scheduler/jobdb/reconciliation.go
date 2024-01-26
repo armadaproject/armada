@@ -153,7 +153,6 @@ func (jobDb *JobDb) reconcileJobDifferences(job *Job, jobRepoJob *database.Job, 
 	return
 }
 
-// TODO(albin): Preempted is not supported.
 func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database.Run) (rst RunStateTransitions) {
 	defer func() { rst.JobRun = jobRun }()
 	if jobRun == nil && jobRepoRun == nil {
@@ -163,6 +162,7 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 		rst.Returned = jobRepoRun.Returned
 		rst.Pending = jobRepoRun.PendingTimestamp != nil
 		rst.Running = jobRepoRun.Running
+		rst.Preempted = jobRepoRun.Preempted
 		rst.Cancelled = jobRepoRun.Cancelled
 		rst.Failed = jobRepoRun.Failed
 		rst.Succeeded = jobRepoRun.Succeeded
@@ -184,6 +184,10 @@ func (jobDb *JobDb) reconcileRunDifferences(jobRun *JobRun, jobRepoRun *database
 		if jobRepoRun.Cancelled && !jobRun.Cancelled() {
 			jobRun = jobRun.WithCancelled(true).WithRunning(false)
 			rst.Cancelled = true
+		}
+		if jobRepoRun.Preempted && !jobRun.Preempted() {
+			jobRun = jobRun.WithPreempted(true).WithRunning(false)
+			rst.Preempted = true
 		}
 		if jobRepoRun.Returned && !jobRun.Returned() {
 			jobRun = jobRun.WithReturned(true).WithRunning(false)

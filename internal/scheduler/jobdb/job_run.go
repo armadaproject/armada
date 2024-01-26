@@ -31,6 +31,8 @@ type JobRun struct {
 	scheduledAtPriority *int32
 	// True if the job has been reported as running by the executor.
 	running bool
+	// True if the job has been reported as preempted by the executor.
+	preempted bool
 	// True if the job has been reported as succeeded by the executor.
 	succeeded bool
 	// True if the job has been reported as failed by the executor.
@@ -297,6 +299,18 @@ func (run *JobRun) Running() bool {
 func (run *JobRun) WithRunning(running bool) *JobRun {
 	run = run.DeepCopy()
 	run.running = running
+	return run
+}
+
+// Preempted Returns true if the executor has reported the job run as preempted
+func (run *JobRun) Preempted() bool {
+	return run.preempted
+}
+
+// WithRunning returns a copy of the job run with the running status updated.
+func (run *JobRun) WithPreempted(preempted bool) *JobRun {
+	run = run.DeepCopy()
+	run.preempted = preempted
 	return run
 }
 

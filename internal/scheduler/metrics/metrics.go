@@ -56,7 +56,8 @@ type Metrics struct {
 	matchedRegexIndexByErrorMessage *lru.Cache
 
 	// Job metrics.
-	transitions *prometheus.CounterVec
+	transitions   *prometheus.CounterVec
+	resourceWaste *prometheus.CounterVec
 }
 
 func New(config configuration.MetricsConfig) (*Metrics, error) {
@@ -77,6 +78,7 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 			return nil, errors.WithStack(err)
 		}
 	}
+	resourceWasteLables := []string{"reason", "resource"}
 
 	return &Metrics{
 		config: config,
@@ -97,6 +99,15 @@ func New(config configuration.MetricsConfig) (*Metrics, error) {
 				Help:      "Job state transition resource counters.",
 			},
 			[]string{"state", "category", "subCategory", "queue", "cluster", "nodeType", "node", "resource"},
+		),
+		resourceWaste: prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Namespace: namespace,
+				Subsystem: subsystem,
+				Name:      "resource_wastage_seconds_total",
+				Help:      "Resource wastage in seconds.",
+			},
+			resourceWasteLables,
 		),
 	}, nil
 }
@@ -128,6 +139,7 @@ func (m *Metrics) Describe(ch chan<- *prometheus.Desc) {
 		return
 	}
 	m.transitions.Describe(ch)
+	m.resourceWaste.Describe(ch)
 }
 
 // Collect and then reset all metrics.
@@ -137,11 +149,14 @@ func (m *Metrics) Collect(ch chan<- prometheus.Metric) {
 		return
 	}
 	m.transitions.Collect(ch)
+	m.resourceWaste.Collect(ch)
 
 	// Reset metrics periodically.
 	t := time.Now()
 	if t.Sub(m.timeOfMostRecentReset) > m.resetInterval {
 		m.transitions.Reset()
+		m.resourceWaste.Reset()
+
 		m.timeOfMostRecentReset = t
 	}
 }
