@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=alpine:3.18.5
+ARG BASE_IMAGE=alpine:3.18.6
 
 FROM ${BASE_IMAGE}
 LABEL org.opencontainers.image.title=eventingester
