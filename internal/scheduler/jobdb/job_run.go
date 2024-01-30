@@ -218,7 +218,6 @@ func (jobDb *JobDb) CreateRun(
 	terminatedTime *time.Time,
 	returned bool,
 	runAttempted bool,
-
 ) *JobRun {
 	return &JobRun{
 		id:                  id,
