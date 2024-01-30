@@ -1,0 +1,12 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Armada (Legacy Scheduler)" type="CompoundRunConfigurationType">
+    <toRun name="Event Ingester" type="GoApplicationRunConfiguration" />
+    <toRun name="Legacy Executor" type="GoApplicationRunConfiguration" />
+    <toRun name="Legacy Server" type="GoApplicationRunConfiguration" />
+    <toRun name="Lookout Ingester V2" type="GoApplicationRunConfiguration" />
+    <toRun name="LookoutV2" type="GoApplicationRunConfiguration" />
+    <toRun name="Scheduler" type="GoApplicationRunConfiguration" />
+    <toRun name="Scheduler Ingester" type="GoApplicationRunConfiguration" />
+    <method v="2" />
+  </configuration>
+</component>

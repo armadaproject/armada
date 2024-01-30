@@ -26,6 +26,7 @@ var defaultComponents = []string{
 	"eventingester",
 	"lookoutv2",
 	"lookoutingesterv2",
+	"lookoutv2-migration",
 }
 
 var allComponents = append(
