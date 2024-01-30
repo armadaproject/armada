@@ -2,6 +2,7 @@ package jobdb
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
@@ -31,14 +32,20 @@ type JobRun struct {
 	scheduledAtPriority *int32
 	// True if the job has been reported as running by the executor.
 	running bool
+	// The time at which the job was reported as running by the executor.
+	runningTime *time.Time
 	// True if the job has been reported as preempted by the executor.
 	preempted bool
+	// The time at which the job was reported as preempted by the executor.
+	preemptedTime *time.Time
 	// True if the job has been reported as succeeded by the executor.
 	succeeded bool
 	// True if the job has been reported as failed by the executor.
 	failed bool
 	// True if the job has been reported as cancelled by the executor.
 	cancelled bool
+	// The time at which the job was reported as cancelled, failed or succeeded by the executor.
+	terminatedTime *time.Time
 	// True if the job has been returned by the executor.
 	returned bool
 	// True if the job has been returned and the job was given a chance to run.
@@ -202,11 +209,16 @@ func (jobDb *JobDb) CreateRun(
 	nodeName string,
 	scheduledAtPriority *int32,
 	running bool,
+	runningTime *time.Time,
+	preempted bool,
+	preemptedTime *time.Time,
 	succeeded bool,
 	failed bool,
 	cancelled bool,
+	terminatedTime *time.Time,
 	returned bool,
 	runAttempted bool,
+
 ) *JobRun {
 	return &JobRun{
 		id:                  id,
@@ -217,9 +229,13 @@ func (jobDb *JobDb) CreateRun(
 		nodeName:            jobDb.stringInterner.Intern(nodeName),
 		scheduledAtPriority: scheduledAtPriority,
 		running:             running,
+		runningTime:         runningTime,
+		preempted:           preempted,
+		preemptedTime:       preemptedTime,
 		succeeded:           succeeded,
 		failed:              failed,
 		cancelled:           cancelled,
+		terminatedTime:      terminatedTime,
 		returned:            returned,
 		runAttempted:        runAttempted,
 	}
@@ -295,6 +311,10 @@ func (run *JobRun) Running() bool {
 	return run.running
 }
 
+func (run *JobRun) RunningTime() *time.Time {
+	return run.runningTime
+}
+
 // WithRunning returns a copy of the job run with the running status updated.
 func (run *JobRun) WithRunning(running bool) *JobRun {
 	run = run.DeepCopy()
@@ -305,6 +325,10 @@ func (run *JobRun) WithRunning(running bool) *JobRun {
 // Preempted Returns true if the executor has reported the job run as preempted
 func (run *JobRun) Preempted() bool {
 	return run.preempted
+}
+
+func (run *JobRun) PreemptedTime() *time.Time {
+	return run.preemptedTime
 }
 
 // WithRunning returns a copy of the job run with the running status updated.
@@ -323,6 +347,10 @@ func (run *JobRun) WithReturned(returned bool) *JobRun {
 	run = run.DeepCopy()
 	run.returned = returned
 	return run
+}
+
+func (run *JobRun) TerminatedTime() *time.Time {
+	return run.terminatedTime
 }
 
 // RunAttempted Returns true if the executor has attempted to run the job.

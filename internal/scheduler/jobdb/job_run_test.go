@@ -2,6 +2,7 @@ package jobdb
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -46,9 +47,13 @@ var baseJobRun = jobDb.CreateRun(
 	"test-nodeName",
 	&scheduledAtPriority,
 	false,
+	nil,
+	false,
+	nil,
 	false,
 	false,
 	false,
+	nil,
 	false,
 	false,
 )
@@ -107,9 +112,13 @@ func TestDeepCopy(t *testing.T) {
 		"nodeName",
 		&scheduledAtPriority,
 		true,
+		&time.Time{},
+		true,
+		&time.Time{},
 		true,
 		true,
 		true,
+		&time.Time{},
 		true,
 		true,
 	)
@@ -122,9 +131,13 @@ func TestDeepCopy(t *testing.T) {
 		"nodeName",
 		&scheduledAtPriority,
 		true,
+		&time.Time{},
+		true,
+		&time.Time{},
 		true,
 		true,
 		true,
+		&time.Time{},
 		true,
 		true,
 	)

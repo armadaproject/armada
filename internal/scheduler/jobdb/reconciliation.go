@@ -246,9 +246,13 @@ func (jobDb *JobDb) schedulerRunFromDatabaseRun(dbRun *database.Run) *JobRun {
 		dbRun.Node,
 		dbRun.ScheduledAtPriority,
 		dbRun.Running,
+		dbRun.RunningTimestamp,
+		dbRun.Preempted,
+		dbRun.PreemptedTimestamp,
 		dbRun.Succeeded,
 		dbRun.Failed,
 		dbRun.Cancelled,
+		dbRun.TerminatedTimestamp,
 		dbRun.Returned,
 		dbRun.RunAttempted,
 	)
