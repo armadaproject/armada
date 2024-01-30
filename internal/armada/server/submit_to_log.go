@@ -44,7 +44,6 @@ import (
 // TODO: Consider returning a list of message ids of the messages generated
 // TODO: Include job set as the message key for each message
 type PulsarSubmitServer struct {
-	api.UnimplementedSubmitServer
 	Producer        pulsar.Producer
 	QueueRepository repository.QueueRepository
 	// Maximum size of Pulsar messages
@@ -55,7 +54,6 @@ type PulsarSubmitServer struct {
 	KVStore *pgkeyvalue.PGKeyValueStore
 	// Used to check at job submit time if the job could ever be scheduled on either legacy or pulsar schedulers
 	PulsarSchedulerSubmitChecker *scheduler.SubmitChecker
-	LegacySchedulerSubmitChecker *scheduler.SubmitChecker
 	// Flag to control if we enable sending messages to the pulsar scheduler
 	PulsarSchedulerEnabled bool
 	// Probability of using the pulsar scheduler.  Has no effect if PulsarSchedulerEnabled is false
@@ -913,16 +911,6 @@ func (srv *PulsarSubmitServer) groupJobsByGangId(jobs []*api.Job) map[string][]*
 // the pulsar scheduler jobs.
 // If no job can be retrieved then an error is returned.
 func (srv *PulsarSubmitServer) resolveQueueAndJobsetForJob(jobId string) (string, string, error) {
-	// Check the legacy scheduler first
-	jobs, err := srv.SubmitServer.jobRepository.GetJobsByIds([]string{jobId})
-	if err != nil {
-		return "", "", err
-	}
-	if len(jobs) > 0 && jobs[0].Error == nil {
-		return jobs[0].Job.GetQueue(), jobs[0].Job.GetJobSetId(), nil
-	}
-
-	// now check the pulsar scheduler
 	if srv.PulsarSchedulerEnabled {
 		jobDetails, err := srv.SubmitServer.jobRepository.GetPulsarSchedulerJobDetails(jobId)
 		if err != nil {

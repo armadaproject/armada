@@ -370,7 +370,7 @@ func withEventServer(t *testing.T, action func(s *EventServer)) {
 	eventRepo := repository.NewEventRepository(client)
 	queueRepo := repository.NewRedisQueueRepository(client)
 	jobRepo := repository.NewRedisJobRepository(client)
-	server := NewEventServer(&FakeActionAuthorizer{}, eventRepo, nil, queueRepo, jobRepo)
+	server := NewEventServer(&FakeActionAuthorizer{}, eventRepo, queueRepo, jobRepo)
 
 	client.FlushDB()
 	legacyClient.FlushDB()
