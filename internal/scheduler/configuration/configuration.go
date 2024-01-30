@@ -67,13 +67,10 @@ func (c Configuration) Validate() error {
 type MetricsConfig struct {
 	// If true, disable metric collection and publishing.
 	Disabled bool
-	// The scheduler exports job failure counters labelled by (queue, cluster, node, reason0, reason1, ..., reasonN).
-	//
-	// Each reason label has a regex associated with it and the label value is set to "1"
-	// if this regex matches the error message associated with the job failure.
-	// For example, if TrackedErrorRegexes contains an entry, "isCudaError": "/CUDA/",
-	// then job failure metrics will have a label "isCudaError" with value either 0 or 1.
-	TrackedErrorRegexByLabel map[string]string
+	// Regexes used for job error categorisation.
+	// Specifically, the subCategory label for job failure counters is the first regex that matches the job error.
+	// If no regex matches, the subCategory label is the empty string.
+	TrackedErrorRegexes []string
 	// Metrics are exported for these resources.
 	TrackedResourceNames []v1.ResourceName
 	// Controls the cycle time metrics.
