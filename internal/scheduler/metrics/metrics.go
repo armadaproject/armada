@@ -181,6 +181,7 @@ func (m *Metrics) UpdateQueued(job *jobdb.Job) error {
 	}
 	return nil
 }
+
 func (m *Metrics) UpdateCancelled(job *jobdb.Job) error {
 	labels := m.buffer[0:0]
 	labels = append(labels, cancelled)
@@ -192,6 +193,7 @@ func (m *Metrics) UpdateCancelled(job *jobdb.Job) error {
 	}
 	return nil
 }
+
 func (m *Metrics) UpdateFailed(ctx *armadacontext.Context, job *jobdb.Job, jobRunErrorsByRunId map[uuid.UUID]*armadaevents.Error) error {
 	labels := m.buffer[0:0]
 	category, subCategory := m.failedCategoryAndSubCategoryFromJob(ctx, job, jobRunErrorsByRunId)
