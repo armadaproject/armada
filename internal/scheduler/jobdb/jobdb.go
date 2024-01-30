@@ -6,8 +6,10 @@ import (
 
 	"github.com/benbjohnson/immutable"
 	"github.com/google/uuid"
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"golang.org/x/exp/maps"
+	"k8s.io/apimachinery/pkg/util/clock"
 
 	"github.com/armadaproject/armada/internal/common/stringinterner"
 	"github.com/armadaproject/armada/internal/common/types"
@@ -32,8 +34,26 @@ type JobDb struct {
 	schedulingKeyGenerator *schedulerobjects.SchedulingKeyGenerator
 	// We intern strings to save memory.
 	stringInterner *stringinterner.StringInterner
-	copyMutex      sync.Mutex
-	writerMutex    sync.Mutex
+	// Mutexes protecting the jobDb.
+	copyMutex   sync.Mutex
+	writerMutex sync.Mutex
+	// Clock used when assigning timestamps to created job runs.
+	// Set here so that it can be mocked.
+	clock clock.PassiveClock
+	// Used for generating job run ids.
+	uuidProvider UUIDProvider
+}
+
+// UUIDProvider is an interface used to mock UUID generation for tests.
+type UUIDProvider interface {
+	New() uuid.UUID
+}
+
+// RealUUIDProvider calls uuid.New.
+type RealUUIDProvider struct{}
+
+func (_ RealUUIDProvider) New() uuid.UUID {
+	return uuid.New()
 }
 
 func NewJobDb(priorityClasses map[string]types.PriorityClass, defaultPriorityClassName string, stringInternerCacheSize uint32) *JobDb {
@@ -65,6 +85,30 @@ func NewJobDbWithSchedulingKeyGenerator(
 		defaultPriorityClass:   defaultPriorityClass,
 		schedulingKeyGenerator: skg,
 		stringInterner:         stringinterner.New(stringInternerCacheSize),
+		clock:                  clock.RealClock{},
+		uuidProvider:           RealUUIDProvider{},
+	}
+}
+
+func (jobDb *JobDb) SetClock(clock clock.PassiveClock) {
+	jobDb.clock = clock
+}
+
+func (jobDb *JobDb) SetUUIDProvider(uuidProvider UUIDProvider) {
+	jobDb.uuidProvider = uuidProvider
+}
+
+// Clone returns a copy of the jobDb.
+func (jobDb *JobDb) Clone() *JobDb {
+	return &JobDb{
+		jobsById:               jobDb.jobsById,
+		jobsByRunId:            jobDb.jobsByRunId,
+		jobsByQueue:            maps.Clone(jobDb.jobsByQueue),
+		queuedJobsByTtl:        jobDb.queuedJobsByTtl,
+		priorityClasses:        jobDb.priorityClasses,
+		defaultPriorityClass:   jobDb.defaultPriorityClass,
+		schedulingKeyGenerator: jobDb.schedulingKeyGenerator,
+		stringInterner:         jobDb.stringInterner,
 	}
 }
 
@@ -88,6 +132,7 @@ func (jobDb *JobDb) NewJob(
 		priorityClass = jobDb.defaultPriorityClass
 	}
 	job := &Job{
+		jobDb:                   jobDb,
 		id:                      jobId,
 		queue:                   jobDb.stringInterner.Intern(queue),
 		jobSet:                  jobDb.stringInterner.Intern(jobSet),
@@ -174,8 +219,10 @@ type Txn struct {
 	// Queued jobs for each queue ordered by remaining time-to-live.
 	// TODO: The ordering is wrong. Since we call time.Now() in the compare function.
 	queuedJobsByTtl *immutable.SortedSet[*Job]
-	jobDb           *JobDb
-	active          bool
+	// The jobDb from which this transaction was created.
+	jobDb *JobDb
+	// Set to false when this transaction is either committed or aborted.
+	active bool
 }
 
 func (txn *Txn) Commit() {
@@ -190,6 +237,92 @@ func (txn *Txn) Commit() {
 	txn.jobDb.jobsByQueue = txn.jobsByQueue
 	txn.jobDb.queuedJobsByTtl = txn.queuedJobsByTtl
 	txn.active = false
+}
+
+// Assert returns an error if the jobDb, or any job stored in the jobDb, is in an invalid state.
+// If assertOnlyActiveJobs is true, it also asserts that all jobs in the jobDb are active.
+func (txn *Txn) Assert(assertOnlyActiveJobs bool) error {
+	it := txn.jobsById.Iterator()
+	for {
+		jobId, job, ok := it.Next()
+		if !ok {
+			break
+		}
+		if job.Id() != jobId {
+			return errors.Errorf("jobDb contains a job with misaligned jobId: %s != %s", job.Id(), jobId)
+		}
+		if err := job.Assert(); err != nil {
+			return errors.WithMessage(err, "jobDb is invalid")
+		}
+		if assertOnlyActiveJobs && job.InTerminalState() {
+			return errors.Errorf("jobDb contains an inactive job %s", job)
+		}
+		if job.Queued() {
+			if queue, ok := txn.jobsByQueue[job.queue]; !ok {
+				return errors.Errorf("jobDb contains queued job %s but there is no sorted set for this queue", job)
+			} else if !queue.Has(job) {
+				return errors.Errorf("jobDb contains queued job %s but this job is not in the queue sorted set", job)
+			}
+		}
+		for runId := range job.runsById {
+			if otherJobId, ok := txn.jobsByRunId.Get(runId); !ok {
+				return errors.Errorf("jobDb contains job %s but there is no mapping from runId %s to this job", job, runId)
+			} else if jobId != otherJobId {
+				return errors.Errorf("jobDb contains job %s but runId %s does not map to this job", job, runId)
+			}
+		}
+	}
+	for queue, queueIt := range txn.jobsByQueue {
+		it := queueIt.Iterator()
+		for {
+			job, ok := it.Next()
+			if !ok {
+				break
+			}
+			if job.queue != queue {
+				return errors.Errorf("jobDb queue %s contains job %s but this job is in queue %s", queue, job, job.queue)
+			} else if other, ok := txn.jobsById.Get(job.id); !ok {
+				return errors.Errorf("jobDb queue %s contains job %s but this job is not in the jobDb", queue, job)
+			} else if !job.Equal(other) {
+				return errors.Errorf("jobDb queue %s contains job %s but this job differs from that stored in the jobDb %s", queue, job, other)
+			}
+		}
+	}
+	return nil
+}
+
+func (txn *Txn) AssertEqual(otherTxn *Txn) error {
+	var result *multierror.Error
+	it := txn.jobsById.Iterator()
+	for {
+		jobId, job, ok := it.Next()
+		if !ok {
+			break
+		}
+		otherJob := otherTxn.GetById(jobId)
+		if job != nil && otherJob == nil {
+			result = multierror.Append(result, errors.Errorf("job %s is not in otherTxn", jobId))
+		} else if job == nil && otherTxn != nil {
+			result = multierror.Append(result, errors.Errorf("job %s is not in txn", jobId))
+		} else if !job.Equal(otherJob) {
+			result = multierror.Append(result, errors.Errorf("job %s differs between txn and otherTxn: %s is not equal to %s", jobId, job, otherJob))
+		}
+	}
+	it = otherTxn.jobsById.Iterator()
+	for {
+		jobId, _, ok := it.Next()
+		if !ok {
+			break
+		}
+		job := otherTxn.GetById(jobId)
+		if job == nil && otherTxn != nil {
+			result = multierror.Append(result, errors.Errorf("job %s is not in txn", jobId))
+		}
+	}
+	if err := result.ErrorOrNil(); err != nil {
+		return errors.Wrap(err, "jobDb transactions are not equal")
+	}
+	return nil
 }
 
 func (txn *Txn) Abort() {
@@ -343,31 +476,37 @@ func (txn *Txn) GetAll() []*Job {
 
 // BatchDelete deletes the jobs with the given ids from the database.
 // Any ids not in the database are ignored.
-func (txn *Txn) BatchDelete(ids []string) error {
+func (txn *Txn) BatchDelete(jobIds []string) error {
 	if err := txn.checkWritableTransaction(); err != nil {
 		return err
 	}
-	for _, id := range ids {
-		job, present := txn.jobsById.Get(id)
-		if present {
-			txn.jobsById = txn.jobsById.Delete(id)
-			for _, run := range job.runsById {
-				txn.jobsByRunId = txn.jobsByRunId.Delete(run.id)
-			}
-			queue, ok := txn.jobsByQueue[job.queue]
-			if ok {
-				newQueue := queue.Delete(job)
-				txn.jobsByQueue[job.queue] = newQueue
-			}
-
-			// We only add these jobs into the collection if it has a queueTtl set, hence only remove if this is set.
-			if job.HasQueueTtlSet() {
-				newQueuedJobsByExpiry := txn.queuedJobsByTtl.Delete(job)
-				txn.queuedJobsByTtl = &newQueuedJobsByExpiry
-			}
-		}
+	for _, id := range jobIds {
+		txn.delete(id)
 	}
 	return nil
+}
+
+// delete a job from the txn.
+// The caller is responsible for checking that this is a writable txn by calling checkWritableTransaction.
+func (txn *Txn) delete(jobId string) {
+	job, present := txn.jobsById.Get(jobId)
+	if present {
+		txn.jobsById = txn.jobsById.Delete(jobId)
+		for _, run := range job.runsById {
+			txn.jobsByRunId = txn.jobsByRunId.Delete(run.id)
+		}
+		queue, ok := txn.jobsByQueue[job.queue]
+		if ok {
+			newQueue := queue.Delete(job)
+			txn.jobsByQueue[job.queue] = newQueue
+		}
+
+		// We only add these jobs into the collection if it has a queueTtl set, hence only remove if this is set.
+		if job.HasQueueTtlSet() {
+			newQueuedJobsByExpiry := txn.queuedJobsByTtl.Delete(job)
+			txn.queuedJobsByTtl = &newQueuedJobsByExpiry
+		}
+	}
 }
 
 func (txn *Txn) checkWritableTransaction() error {

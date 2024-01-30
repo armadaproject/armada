@@ -60,7 +60,7 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 				},
 			},
 		},
-		"Return error if all events fail to publish": {
+		"Return error if all eventSequences fail to publish": {
 			amLeader:               true,
 			numSuccessfulPublishes: 0,
 			eventSequences: []*armadaevents.EventSequence{
@@ -71,7 +71,7 @@ func TestPulsarPublisher_TestPublish(t *testing.T) {
 			},
 			expectedError: true,
 		},
-		"Return error if some events fail to publish": {
+		"Return error if some eventSequences fail to publish": {
 			amLeader:               true,
 			numSuccessfulPublishes: 1,
 			eventSequences: []*armadaevents.EventSequence{

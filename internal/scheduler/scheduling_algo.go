@@ -34,7 +34,7 @@ import (
 type SchedulingAlgo interface {
 	// Schedule should assign jobs to nodes.
 	// Any jobs that are scheduled should be marked as such in the JobDb using the transaction provided.
-	Schedule(ctx *armadacontext.Context, txn *jobdb.Txn) (*SchedulerResult, error)
+	Schedule(*armadacontext.Context, *jobdb.Txn) (*SchedulerResult, error)
 }
 
 // FairSchedulingAlgo is a SchedulingAlgo based on PreemptingQueueScheduler.
@@ -293,11 +293,11 @@ func (l *FairSchedulingAlgo) newFairSchedulingAlgoContext(ctx *armadacontext.Con
 		}
 		jobsByExecutorId[executorId] = append(jobsByExecutorId[executorId], job)
 		nodeIdByJobId[job.Id()] = nodeId
-		gangId, _, _, isGangJob, err := GangIdAndCardinalityFromLegacySchedulerJob(job)
+		gangInfo, err := schedulercontext.GangInfoFromLegacySchedulerJob(job)
 		if err != nil {
 			return nil, err
 		}
-		if isGangJob {
+		if gangId := gangInfo.Id; gangId != "" {
 			jobIds := jobIdsByGangId[gangId]
 			if jobIds == nil {
 				jobIds = make(map[string]bool)

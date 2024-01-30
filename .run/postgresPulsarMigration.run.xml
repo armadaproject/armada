@@ -1,0 +1,19 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="postgresPulsarMigration" type="GoApplicationRunConfiguration" factoryName="Go Application">
+    <module name="armada" />
+    <working_directory value="$PROJECT_DIR$" />
+    <parameters value="migrateDatabase" />
+    <envs>
+      <env name="ARMADA_HTTP_PORT" value="8084" />
+      <env name="ARMADA_METRICS_PORT" value="9004" />
+      <env name="ARMADA_POSTGRES_CONNECTION_HOST" value="localhost" />
+      <env name="ARMADA_PULSAR_URL" value="pulsar://localhost:6650" />
+      <env name="ARMADA_REDIS_ADDRS" value="localhost:6379" />
+    </envs>
+    <kind value="FILE" />
+    <package value="github.com/armadaproject/armada" />
+    <directory value="$PROJECT_DIR$" />
+    <filePath value="$PROJECT_DIR$/cmd/scheduler/main.go" />
+    <method v="2" />
+  </configuration>
+</component>

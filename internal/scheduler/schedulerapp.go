@@ -234,6 +234,9 @@ func Run(config schedulerconfig.Configuration) error {
 	if err != nil {
 		return errors.WithMessage(err, "error creating scheduler")
 	}
+	if config.Scheduling.EnableAssertions {
+		scheduler.EnableAssertions()
+	}
 	services = append(services, func() error { return scheduler.Run(ctx) })
 
 	// ////////////////////////////////////////////////////////////////////////

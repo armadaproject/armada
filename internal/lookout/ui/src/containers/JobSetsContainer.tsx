@@ -9,8 +9,15 @@ import { GetJobSetsRequest, JobSet } from "../services/JobService"
 import JobSetsLocalStorageService from "../services/JobSetsLocalStorageService"
 import JobSetsQueryParamsService from "../services/JobSetsQueryParamsService"
 import { IGroupJobsService } from "../services/lookoutV2/GroupJobsService"
+import {
+  DEFAULT_PREFERENCES,
+  JobsTablePreferences,
+  stringifyQueryParams,
+  toQueryStringSafe,
+} from "../services/lookoutV2/JobsTablePreferencesService"
 import { UpdateJobSetsService } from "../services/lookoutV2/UpdateJobSetsService"
 import { ApiResult, debounced, PropsWithRouter, RequestStatus, selectItem, setStateAsync, withRouter } from "../utils"
+import { StandardColumnId } from "../utils/jobsTableColumns"
 
 interface JobSetsContainerProps extends PropsWithRouter {
   v2GroupJobsService: IGroupJobsService
@@ -75,6 +82,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     this.fetchJobSets = debounced(this.fetchJobSets.bind(this), 100)
     this.loadJobSets = this.loadJobSets.bind(this)
     this.toggleAutoRefresh = this.toggleAutoRefresh.bind(this)
+    this.onJobSetStateClick = this.onJobSetStateClick.bind(this)
   }
 
   async componentDidMount() {
@@ -223,6 +231,33 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
     }
   }
 
+  private async onJobSetStateClick(rowIndex: number, state: string) {
+    const jobSet = this.state.jobSets[rowIndex]
+
+    const prefs: JobsTablePreferences = {
+      ...DEFAULT_PREFERENCES,
+      filters: [
+        {
+          id: StandardColumnId.Queue,
+          value: jobSet.queue,
+        },
+        {
+          id: StandardColumnId.State,
+          value: [state],
+        },
+        {
+          id: StandardColumnId.JobSet,
+          value: jobSet.jobSetId,
+        },
+      ],
+    }
+
+    this.props.router.navigate({
+      pathname: "/",
+      search: stringifyQueryParams(toQueryStringSafe(prefs)),
+    })
+  }
+
   private async updateState(updatedState: JobSetsContainerState) {
     this.localStorageService.saveState(updatedState)
     this.queryParamsService.saveState(updatedState)
@@ -330,6 +365,7 @@ class JobSetsContainer extends React.Component<JobSetsContainerProps, JobSetsCon
           onCancelJobSetsClick={() => this.openCancelJobSets(true)}
           onToggleAutoRefresh={this.autoRefreshService && this.toggleAutoRefresh}
           onReprioritizeJobSetsClick={() => this.openReprioritizeJobSets(true)}
+          onJobSetStateClick={this.onJobSetStateClick}
         />
       </>
     )

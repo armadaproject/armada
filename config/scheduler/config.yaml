@@ -18,6 +18,13 @@ metrics:
       start: 10.0
       factor: 1.1
       count: 110
+schedulerMetrics:
+  trackedResourceNames:
+    - "cpu"
+    - "memory"
+    - "ephemeral-storage"
+    - "nvidia.com/gpu"
+  resetInterval: "1h"
 pulsar:
   URL: "pulsar://pulsar:6650"
   jobsetEventsTopic: "events"

@@ -18,7 +18,6 @@ const (
 	// However, all nodes are currently given the same score.
 	SchedulableScore                                 = 0
 	SchedulableBestScore                             = SchedulableScore
-	PodRequirementsNotMetReasonUnmatchedNodeSelector = "node does not match pod NodeAffinity"
 	PodRequirementsNotMetReasonUnknown               = "unknown"
 	PodRequirementsNotMetReasonInsufficientResources = "insufficient resources available"
 )
@@ -35,6 +34,7 @@ type UntoleratedTaint struct {
 
 func (r *UntoleratedTaint) Sum64() uint64 {
 	h := fnv1a.Init64
+	h = fnv1a.AddString64(h, "UntoleratedTaint")
 	h = fnv1a.AddString64(h, r.Taint.Key)
 	h = fnv1a.AddString64(h, r.Taint.Value)
 	h = fnv1a.AddString64(h, string(r.Taint.Effect))
@@ -51,6 +51,7 @@ type MissingLabel struct {
 
 func (r *MissingLabel) Sum64() uint64 {
 	h := fnv1a.Init64
+	h = fnv1a.AddString64(h, "MissingLabel")
 	h = fnv1a.AddString64(h, r.Label)
 	return h
 }
@@ -67,6 +68,7 @@ type UnmatchedLabel struct {
 
 func (r *UnmatchedLabel) Sum64() uint64 {
 	h := fnv1a.Init64
+	h = fnv1a.AddString64(h, "UnmatchedLabel")
 	h = fnv1a.AddString64(h, r.Label)
 	h = fnv1a.AddString64(h, r.PodValue)
 	h = fnv1a.AddString64(h, r.NodeValue)
@@ -83,12 +85,27 @@ type UnmatchedNodeSelector struct {
 
 func (r *UnmatchedNodeSelector) Sum64() uint64 {
 	h := fnv1a.Init64
-	h = fnv1a.AddString64(h, PodRequirementsNotMetReasonUnmatchedNodeSelector)
+	h = fnv1a.AddString64(h, "UnmatchedNodeSelector")
+	for _, nodeSelectorTerm := range r.NodeSelector.NodeSelectorTerms {
+		h = unmatchedNodeSelectorSum64AddNodeSelectorRequirements(h, nodeSelectorTerm.MatchExpressions)
+		h = unmatchedNodeSelectorSum64AddNodeSelectorRequirements(h, nodeSelectorTerm.MatchFields)
+	}
 	return h
 }
 
-func (err *UnmatchedNodeSelector) String() string {
-	return PodRequirementsNotMetReasonUnmatchedNodeSelector
+func unmatchedNodeSelectorSum64AddNodeSelectorRequirements(h uint64, nodeSelectorRequirements []v1.NodeSelectorRequirement) uint64 {
+	for _, nodeSelectorRequirement := range nodeSelectorRequirements {
+		h = fnv1a.AddString64(h, nodeSelectorRequirement.Key)
+		h = fnv1a.AddString64(h, string(nodeSelectorRequirement.Operator))
+		for _, value := range nodeSelectorRequirement.Values {
+			h = fnv1a.AddString64(h, value)
+		}
+	}
+	return h
+}
+
+func (r *UnmatchedNodeSelector) String() string {
+	return fmt.Sprintf("node does not match pod NodeAffinity %s", r.NodeSelector)
 }
 
 type InsufficientResources struct {

@@ -1251,6 +1251,7 @@ func TestJobDb_SchedulingKey(t *testing.T) {
 
 func newJob() *Job {
 	return &Job{
+		jobDb:             NewTestJobDb(),
 		id:                util.NewULID(),
 		queue:             "test-queue",
 		priority:          0,

@@ -1,6 +1,8 @@
 package scheduleringester
 
 import (
+	"time"
+
 	"github.com/apache/pulsar-client-go/pulsar"
 	"github.com/google/uuid"
 	"golang.org/x/exp/maps"
@@ -22,6 +24,7 @@ func (d *DbOperationsWithMessageIds) GetMessageIDs() []pulsar.MessageID {
 type JobRunFailed struct {
 	LeaseReturned bool
 	RunAttempted  bool
+	FailureTime   time.Time
 }
 
 type JobSchedulingInfoUpdate struct {
@@ -40,8 +43,8 @@ type JobSetKey struct {
 }
 
 type JobRunDetails struct {
-	queue string
-	dbRun *schedulerdb.Run
+	Queue string
+	DbRun *schedulerdb.Run
 }
 
 type JobQueuedStateUpdate struct {
@@ -112,22 +115,23 @@ func discardNilOps(ops []DbOperation) []DbOperation {
 	return rv
 }
 
-type InsertJobs map[string]*schedulerdb.Job
-
 type (
+	InsertJobs                 map[string]*schedulerdb.Job
 	InsertRuns                 map[uuid.UUID]*JobRunDetails
 	UpdateJobSetPriorities     map[JobSetKey]int64
 	MarkJobSetsCancelRequested map[JobSetKey]*JobSetCancelAction
 	MarkJobsCancelRequested    map[string]bool
-	MarkJobsCancelled          map[string]bool
+	MarkJobsCancelled          map[string]time.Time
 	MarkJobsSucceeded          map[string]bool
 	MarkJobsFailed             map[string]bool
 	UpdateJobPriorities        map[string]int64
 	UpdateJobSchedulingInfo    map[string]*JobSchedulingInfoUpdate
 	UpdateJobQueuedState       map[string]*JobQueuedStateUpdate
-	MarkRunsSucceeded          map[uuid.UUID]bool
+	MarkRunsSucceeded          map[uuid.UUID]time.Time
 	MarkRunsFailed             map[uuid.UUID]*JobRunFailed
-	MarkRunsRunning            map[uuid.UUID]bool
+	MarkRunsRunning            map[uuid.UUID]time.Time
+	MarkRunsPending            map[uuid.UUID]time.Time
+	MarkRunsPreempted          map[uuid.UUID]time.Time
 	InsertJobRunErrors         map[uuid.UUID]*schedulerdb.JobRunError
 	InsertPartitionMarker      struct {
 		markers []*schedulerdb.Marker
@@ -232,6 +236,14 @@ func (a MarkRunsRunning) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
 
+func (a MarkRunsPending) Merge(b DbOperation) bool {
+	return mergeInMap(a, b)
+}
+
+func (a MarkRunsPreempted) Merge(b DbOperation) bool {
+	return mergeInMap(a, b)
+}
+
 func (a InsertJobRunErrors) Merge(b DbOperation) bool {
 	return mergeInMap(a, b)
 }
@@ -279,13 +291,13 @@ func (a InsertRuns) CanBeAppliedBefore(b DbOperation) bool {
 	switch op := b.(type) {
 	case JobSetOperation:
 		for _, run := range a {
-			if op.AffectsJobSet(run.queue, run.dbRun.JobSet) {
+			if op.AffectsJobSet(run.Queue, run.DbRun.JobSet) {
 				return false
 			}
 		}
 	case InsertJobs:
 		for _, run := range a {
-			if _, ok := op[run.dbRun.JobID]; ok {
+			if _, ok := op[run.DbRun.JobID]; ok {
 				return false
 			}
 		}
@@ -343,6 +355,14 @@ func (a MarkRunsRunning) CanBeAppliedBefore(b DbOperation) bool {
 	return !definesRun(a, b)
 }
 
+func (a MarkRunsPending) CanBeAppliedBefore(b DbOperation) bool {
+	return !definesRun(a, b)
+}
+
+func (a MarkRunsPreempted) CanBeAppliedBefore(b DbOperation) bool {
+	return !definesRun(a, b)
+}
+
 func (a *InsertPartitionMarker) CanBeAppliedBefore(b DbOperation) bool {
 	// Partition markers can never be brought forward
 	return false
@@ -372,7 +392,7 @@ func definesJobInSet[M ~map[JobSetKey]V, V any](a M, b DbOperation) bool {
 func definesRunInSet[M ~map[JobSetKey]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertRuns); ok {
 		for _, run := range op {
-			if _, ok := a[JobSetKey{queue: run.queue, jobSet: run.dbRun.JobSet}]; ok {
+			if _, ok := a[JobSetKey{queue: run.Queue, jobSet: run.DbRun.JobSet}]; ok {
 				return true
 			}
 		}
@@ -398,7 +418,7 @@ func definesJob[M ~map[string]V, V any](a M, b DbOperation) bool {
 func definesRun[M ~map[uuid.UUID]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertRuns); ok {
 		for _, run := range op {
-			if _, ok := a[run.dbRun.RunID]; ok {
+			if _, ok := a[run.DbRun.RunID]; ok {
 				return true
 			}
 		}
@@ -411,7 +431,7 @@ func definesRun[M ~map[uuid.UUID]V, V any](a M, b DbOperation) bool {
 func definesRunForJob[M ~map[string]V, V any](a M, b DbOperation) bool {
 	if op, ok := b.(InsertRuns); ok {
 		for _, run := range op {
-			if _, ok := a[run.dbRun.JobID]; ok {
+			if _, ok := a[run.DbRun.JobID]; ok {
 				return true
 			}
 		}

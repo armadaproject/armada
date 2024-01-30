@@ -15,6 +15,7 @@ import (
 
 	"github.com/armadaproject/armada/internal/common/armadacontext"
 	"github.com/armadaproject/armada/internal/common/ingest/metrics"
+	"github.com/armadaproject/armada/internal/common/ingest/testfixtures"
 	"github.com/armadaproject/armada/internal/common/util"
 	schedulerdb "github.com/armadaproject/armada/internal/scheduler/database"
 )
@@ -50,12 +51,12 @@ func TestWriteOps(t *testing.T) {
 				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], Queue: testQueueName, JobSet: "set2"},
 			},
 			InsertRuns{
-				runIds[0]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
-				runIds[1]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
+				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
+				runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
 			},
 			InsertRuns{
-				runIds[2]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2], ScheduledAtPriority: &scheduledAtPriorities[0]}},
-				runIds[3]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3], ScheduledAtPriority: &scheduledAtPriorities[1]}},
+				runIds[2]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2], ScheduledAtPriority: &scheduledAtPriorities[0]}},
+				runIds[3]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3], ScheduledAtPriority: &scheduledAtPriorities[1]}},
 			},
 			UpdateJobQueuedState{
 				jobIds[0]: &JobQueuedStateUpdate{Queued: false, QueuedStateVersion: 1},
@@ -134,14 +135,14 @@ func TestWriteOps(t *testing.T) {
 				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
 			InsertRuns{
-				runIds[0]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
-				runIds[1]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
-				runIds[2]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]}},
-				runIds[3]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]}},
+				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
+				runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
+				runIds[2]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]}},
+				runIds[3]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]}},
 			},
 			MarkJobsCancelled{
-				jobIds[0]: true,
-				jobIds[1]: true,
+				jobIds[0]: testfixtures.BaseTime,
+				jobIds[1]: testfixtures.BaseTime.Add(time.Hour),
 			},
 		}},
 		"MarkJobsSucceeded": {Ops: []DbOperation{
@@ -154,6 +155,33 @@ func TestWriteOps(t *testing.T) {
 			MarkJobsSucceeded{
 				jobIds[0]: true,
 				jobIds[1]: true,
+			},
+		}},
+		"MarkRunsPending": {Ops: []DbOperation{
+			InsertJobs{
+				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]},
+				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]},
+			},
+			InsertRuns{
+				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
+				runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
+			},
+			MarkRunsPending{
+				runIds[0]: testfixtures.BaseTime,
+				runIds[1]: testfixtures.BaseTime.Add(time.Hour),
+			},
+		}},
+		"MarkRunsPreempted": {Ops: []DbOperation{
+			InsertJobs{
+				jobIds[0]: &schedulerdb.Job{JobID: jobIds[0]},
+				jobIds[1]: &schedulerdb.Job{JobID: jobIds[1]},
+			},
+			InsertRuns{
+				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
+				runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
+			},
+			MarkRunsPreempted{
+				runIds[0]: testfixtures.BaseTime,
 			},
 		}},
 		"MarkJobsFailed": {Ops: []DbOperation{
@@ -176,14 +204,14 @@ func TestWriteOps(t *testing.T) {
 				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
 			InsertRuns{
-				runIds[0]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
-				runIds[1]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
-				runIds[2]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]}},
-				runIds[3]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]}},
+				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
+				runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
+				runIds[2]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]}},
+				runIds[3]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]}},
 			},
 			MarkRunsSucceeded{
-				runIds[0]: true,
-				runIds[1]: true,
+				runIds[0]: testfixtures.BaseTime,
+				runIds[1]: testfixtures.BaseTime.Add(time.Hour),
 			},
 		}},
 		"UpdateJobSchedulingInfo": {Ops: []DbOperation{
@@ -224,15 +252,15 @@ func TestWriteOps(t *testing.T) {
 				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
 			InsertRuns{
-				runIds[0]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
-				runIds[1]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
-				runIds[2]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]}},
-				runIds[3]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]}},
+				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
+				runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
+				runIds[2]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]}},
+				runIds[3]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]}},
 			},
 			MarkRunsFailed{
-				runIds[0]: &JobRunFailed{LeaseReturned: true},
-				runIds[1]: &JobRunFailed{LeaseReturned: true, RunAttempted: true},
-				runIds[2]: &JobRunFailed{LeaseReturned: false},
+				runIds[0]: &JobRunFailed{LeaseReturned: true, FailureTime: testfixtures.BaseTime},
+				runIds[1]: &JobRunFailed{LeaseReturned: true, RunAttempted: true, FailureTime: testfixtures.BaseTime.Add(time.Hour)},
+				runIds[2]: &JobRunFailed{LeaseReturned: false, FailureTime: testfixtures.BaseTime},
 			},
 		}},
 		"MarkRunsRunning": {Ops: []DbOperation{
@@ -243,14 +271,14 @@ func TestWriteOps(t *testing.T) {
 				jobIds[3]: &schedulerdb.Job{JobID: jobIds[3], JobSet: "set2"},
 			},
 			InsertRuns{
-				runIds[0]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
-				runIds[1]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
-				runIds[2]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]}},
-				runIds[3]: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]}},
+				runIds[0]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[0], RunID: runIds[0]}},
+				runIds[1]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[1], RunID: runIds[1]}},
+				runIds[2]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[2], RunID: runIds[2]}},
+				runIds[3]: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobIds[3], RunID: runIds[3]}},
 			},
 			MarkRunsRunning{
-				runIds[0]: true,
-				runIds[1]: true,
+				runIds[0]: testfixtures.BaseTime,
+				runIds[1]: testfixtures.BaseTime.Add(time.Hour),
 			},
 		}},
 		"Insert PositionMarkers": {Ops: []DbOperation{
@@ -372,11 +400,11 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		actual := make(InsertRuns)
 		for _, run := range runs {
 			run := run
-			actual[run.RunID] = &JobRunDetails{queue: testQueueName, dbRun: &run}
+			actual[run.RunID] = &JobRunDetails{Queue: testQueueName, DbRun: &run}
 			serials["runs"] = max(serials["runs"], run.Serial)
 			if v, ok := expected[run.RunID]; ok {
-				v.dbRun.Serial = run.Serial
-				v.dbRun.LastModified = run.LastModified
+				v.DbRun.Serial = run.Serial
+				v.DbRun.LastModified = run.LastModified
 			}
 		}
 		assert.Equal(t, expected, actual)
@@ -478,6 +506,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		for _, run := range runs {
 			if _, ok := expected[run.JobID]; ok {
 				assert.True(t, run.Cancelled)
+				assert.Equal(t, expected[run.JobID], run.TerminatedTimestamp.UTC())
 				runsChanged++
 			}
 		}
@@ -542,6 +571,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		for _, run := range runs {
 			if _, ok := expected[run.RunID]; ok {
 				assert.True(t, run.Succeeded)
+				assert.Equal(t, expected[run.RunID], run.TerminatedTimestamp.UTC())
 				numChanged++
 			}
 		}
@@ -569,6 +599,7 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 				assert.True(t, run.Failed)
 				assert.Equal(t, expectedRun.LeaseReturned, run.Returned)
 				assert.Equal(t, expectedRun.RunAttempted, run.RunAttempted)
+				assert.Equal(t, expectedRun.FailureTime, run.TerminatedTimestamp.UTC())
 				numChanged++
 			}
 		}
@@ -594,9 +625,62 @@ func assertOpSuccess(t *testing.T, schedulerDb *SchedulerDb, serials map[string]
 		for _, run := range runs {
 			if _, ok := expected[run.RunID]; ok {
 				assert.True(t, run.Running)
+				assert.Equal(t, expected[run.RunID], run.RunningTimestamp.UTC())
 				numChanged++
 			}
 		}
+		assert.Equal(t, len(expected), len(runs))
+	case MarkRunsPending:
+		jobs, err := selectNewJobs(ctx, 0)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		jobIds := make([]string, 0)
+		for _, job := range jobs {
+			jobIds = append(jobIds, job.JobID)
+		}
+		runs, err := queries.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{
+			Serial: serials["runs"],
+			JobIds: jobIds,
+		})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		numChanged := 0
+		for _, run := range runs {
+			if _, ok := expected[run.RunID]; ok {
+				assert.True(t, run.Pending)
+				assert.Equal(t, expected[run.RunID], run.PendingTimestamp.UTC())
+				numChanged++
+			}
+		}
+		assert.Equal(t, numChanged, 2)
+		assert.Equal(t, len(expected), len(runs))
+	case MarkRunsPreempted:
+		jobs, err := selectNewJobs(ctx, 0)
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		jobIds := make([]string, 0)
+		for _, job := range jobs {
+			jobIds = append(jobIds, job.JobID)
+		}
+		runs, err := queries.SelectNewRunsForJobs(ctx, schedulerdb.SelectNewRunsForJobsParams{
+			Serial: serials["runs"],
+			JobIds: jobIds,
+		})
+		if err != nil {
+			return errors.WithStack(err)
+		}
+		numChanged := 0
+		for _, run := range runs {
+			if _, ok := expected[run.RunID]; ok {
+				assert.True(t, run.Preempted)
+				assert.Equal(t, expected[run.RunID], run.PreemptedTimestamp.UTC())
+				numChanged++
+			}
+		}
+		assert.Equal(t, numChanged, 1)
 		assert.Equal(t, len(expected), len(runs))
 	case InsertJobRunErrors:
 		expectedIds := maps.Keys(expected)
@@ -643,7 +727,7 @@ func TestStore(t *testing.T) {
 			},
 		},
 		InsertRuns{
-			runId: &JobRunDetails{queue: testQueueName, dbRun: &schedulerdb.Run{JobID: jobId, RunID: runId}},
+			runId: &JobRunDetails{Queue: testQueueName, DbRun: &schedulerdb.Run{JobID: jobId, RunID: runId}},
 		},
 	}
 	ctx, cancel := armadacontext.WithTimeout(armadacontext.Background(), 5*time.Second)

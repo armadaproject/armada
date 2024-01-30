@@ -389,11 +389,11 @@ func (q *AggregatedQueueServer) getJobs(ctx *armadacontext.Context, req *api.Str
 
 		// Group gangs.
 		for _, job := range jobs {
-			gangId, _, _, isGangJob, err := scheduler.GangIdAndCardinalityFromLegacySchedulerJob(job)
+			gangInfo, err := schedulercontext.GangInfoFromLegacySchedulerJob(job)
 			if err != nil {
 				return nil, err
 			}
-			if isGangJob {
+			if gangId := gangInfo.Id; gangId != "" {
 				if m := jobIdsByGangId[gangId]; m != nil {
 					m[job.Id] = true
 				} else {
